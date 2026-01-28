@@ -250,10 +250,12 @@ Proprietary (for now). Open source plans TBD.
 
 ## Contact
 
-- **Web**: [unheaded.org](https://unheaded.org)
-- **Email**: stevie@bellis.tech
+- **Web**: [unheaded.com](https://unheaded.com)
+- **Email**: hello@unheaded.com
 - **GitHub**: [github.com/unheaded](https://github.com/unheaded)
 
 ---
+
+**"We drink our own champagne."** 🍾
 
 Built by Unheaded, running on Unheaded.

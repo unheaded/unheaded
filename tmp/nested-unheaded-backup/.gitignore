@@ -1,0 +1,46 @@
+# Build outputs
+/bin/
+/build/
+/target/
+*.o
+*.so
+
+# Go
+vendor/
+*.test
+*.prof
+
+# Rust
+Cargo.lock
+target/
+
+# Node
+node_modules/
+npm-debug.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Nix
+result
+result-*
+
+# Secrets
+*.key
+*.pem
+secrets/
+
+# Logs
+*.log
+logs/
+
+# Temporary
+tmp/
+.tmp/
