@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/unheaded/unheaded/services/timeguru/internal/timeline"
 )
@@ -194,6 +197,169 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		Service: "timeguru",
 		Version: "1.0.0",
 	})
+}
+
+// HandleGetTimelineWithFormat handles GET /timeline with format negotiation
+// Supports: JSON (default), YAML, Markdown via Accept header or ?format= query
+func (h *Handler) HandleGetTimelineWithFormat(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tl, err := h.store.GetTimeline(ctx)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			h.writeError(w, http.StatusNotFound, "NOT_FOUND", "timeline not found", err)
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to retrieve timeline", err)
+		return
+	}
+
+	// Determine output format
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		// Check Accept header
+		accept := r.Header.Get("Accept")
+		switch {
+		case strings.Contains(accept, "application/yaml"), strings.Contains(accept, "text/yaml"):
+			format = "yaml"
+		case strings.Contains(accept, "text/markdown"):
+			format = "markdown"
+		default:
+			format = "json"
+		}
+	}
+
+	switch strings.ToLower(format) {
+	case "yaml", "yml":
+		h.writeYAML(w, http.StatusOK, TimelineResponse{Timeline: tl})
+	case "markdown", "md":
+		h.writeMarkdown(w, http.StatusOK, tl)
+	default:
+		h.writeJSON(w, http.StatusOK, TimelineResponse{Timeline: tl})
+	}
+}
+
+// ============================================================================
+// MULTI-FORMAT OUTPUT - THE ORACLE'S TONGUES
+// ============================================================================
+
+// writeYAML writes YAML response
+func (h *Handler) writeYAML(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/yaml")
+	w.WriteHeader(status)
+
+	encoder := yaml.NewEncoder(w)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(data); err != nil {
+		_ = err // Headers already sent
+	}
+}
+
+// writeMarkdown generates and writes Markdown timeline
+func (h *Handler) writeMarkdown(w http.ResponseWriter, status int, tl *timeline.Timeline) {
+	w.Header().Set("Content-Type", "text/markdown")
+	w.WriteHeader(status)
+
+	md := h.generateMarkdown(tl)
+	w.Write([]byte(md))
+}
+
+// generateMarkdown converts Timeline to Markdown format
+func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
+	var sb strings.Builder
+
+	sb.WriteString("# The Unheaded Chronicles\n\n")
+	sb.WriteString("## A Living Grimoire of the Kingdom's Journey\n\n")
+	sb.WriteString(fmt.Sprintf("**STATUS:** %s\n", strings.Title(tl.Status)))
+	sb.WriteString(fmt.Sprintf("**LAST UPDATED:** %s\n\n", tl.LastUpdated.Format("January 2, 2006")))
+	sb.WriteString("---\n\n")
+
+	if tl.Vision != "" {
+		sb.WriteString("## The Founding Vision\n\n")
+		sb.WriteString(fmt.Sprintf("*%s*\n\n", tl.Vision))
+		sb.WriteString("---\n\n")
+	}
+
+	// Phases
+	for i, phase := range tl.Phases {
+		statusEmoji := "📋"
+		switch phase.Status {
+		case "completed":
+			statusEmoji = "✅"
+		case "in_progress":
+			statusEmoji = "🚀"
+		case "blocked":
+			statusEmoji = "🚫"
+		}
+
+		sb.WriteString(fmt.Sprintf("### Age %d: %s (%s %s)\n\n",
+			i, phase.Name, statusEmoji, strings.ToUpper(phase.Status)))
+
+		if phase.Description != "" {
+			sb.WriteString(fmt.Sprintf("%s\n\n", phase.Description))
+		}
+
+		if phase.Progress > 0 {
+			sb.WriteString(fmt.Sprintf("**Progress:** %d%%\n\n", phase.Progress))
+		}
+	}
+
+	// Milestones
+	if len(tl.Milestones) > 0 {
+		sb.WriteString("## Milestones\n\n")
+
+		for _, m := range tl.Milestones {
+			statusEmoji := "⏳"
+			switch m.Status {
+			case "completed":
+				statusEmoji = "✅"
+			case "in_progress":
+				statusEmoji = "🔄"
+			case "blocked":
+				statusEmoji = "🚫"
+			}
+
+			sb.WriteString(fmt.Sprintf("### %s %s\n\n", statusEmoji, m.Name))
+
+			if m.Description != "" {
+				sb.WriteString(fmt.Sprintf("%s\n\n", m.Description))
+			}
+
+			// Metadata
+			if !m.ETA.IsZero() {
+				sb.WriteString(fmt.Sprintf("**ETA:** %s\n", m.ETA.Format("Jan 2, 2006")))
+			}
+			if m.Owner != "" {
+				sb.WriteString(fmt.Sprintf("**Owner:** %s\n", m.Owner))
+			}
+			if m.Risk != "" {
+				sb.WriteString(fmt.Sprintf("**Risk:** %s\n", strings.Title(m.Risk)))
+			}
+			sb.WriteString(fmt.Sprintf("**Progress:** %d%%\n", m.Progress))
+			sb.WriteString(fmt.Sprintf("**Status:** %s\n\n", m.Status))
+
+			// Tasks
+			if len(m.Tasks) > 0 {
+				sb.WriteString("**Tasks:**\n")
+				for _, task := range m.Tasks {
+					// Assume task is complete if progress is 100
+					checkbox := "[ ]"
+					if m.Progress == 100 {
+						checkbox = "[x]"
+					}
+					sb.WriteString(fmt.Sprintf("- %s %s\n", checkbox, task))
+				}
+				sb.WriteString("\n")
+			}
+		}
+	}
+
+	sb.WriteString("---\n\n")
+	sb.WriteString("**THE TIMEGURU KNOWS ALL.**\n")
+	sb.WriteString("**THE CIRCLE NEVER BREAKS.**\n\n")
+	sb.WriteString(fmt.Sprintf("*Generated: %s*\n", tl.LastUpdated.Format("2006-01-02 15:04:05")))
+
+	return sb.String()
 }
 
 // ============================================================================
