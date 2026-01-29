@@ -34,13 +34,38 @@ build-daemon: ## Build unheaded-daemon
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/unheaded-daemon && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.Version=$(VERSION)" -o ../../$(BINARY_DIR)/unheaded-daemon
 
-build-services: ## Build all service binaries
+build-services: build-busboy build-timeguru build-captain build-architect build-micromanager ## Build all service binaries
 	@echo "Building dashboard-backend..."
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/dashboard-backend && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/dashboard-backend
 	@echo "Building kanban-app..."
 	cd cmd/kanban-app && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/kanban-app
 	@echo "✓ Services built"
+
+build-busboy: ## Build Busboy (Fae Chamber - Message Bus)
+	@echo "🧚 Building Busboy..."
+	@mkdir -p $(BINARY_DIR)
+	cd services/busboy/cmd/busboy && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/busboy
+
+build-timeguru: ## Build Timeguru (Oracle's Antre - Timeline)
+	@echo "⌛ Building Timeguru..."
+	@mkdir -p $(BINARY_DIR)
+	cd services/timeguru/cmd/timeguru && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/timeguru
+
+build-captain: ## Build Captain (Commander's Quarters - Vision)
+	@echo "👑 Building Captain..."
+	@mkdir -p $(BINARY_DIR)
+	cd services/captain/cmd/captain && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/captain
+
+build-architect: ## Build Architect (Sage's Lair - ADRs)
+	@echo "🏗️ Building Architect..."
+	@mkdir -p $(BINARY_DIR)
+	cd services/architect/cmd/architect && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/architect
+
+build-micromanager: ## Build Micromanager (War Room - Tasks)
+	@echo "📋 Building Micromanager..."
+	@mkdir -p $(BINARY_DIR)
+	cd services/micromanager/cmd/micromanager && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/micromanager
 
 build-trace-collector: ## Build trace-collector (Rust)
 	@echo "Building trace-collector (Rust)..."
@@ -89,15 +114,48 @@ container-gateway: ## Build Gateway container
 
 dev: ## Run development environment (docker-compose)
 	@echo "Starting development environment..."
-	docker-compose up -d
+	docker compose up -d
 	@echo "Dashboard: http://localhost:8080"
 	@echo "Kanban: http://localhost:8081"
 
 dev-down: ## Stop development environment
-	docker-compose down
+	docker compose down
 
 dev-logs: ## Show development logs
-	docker-compose logs -f
+	docker compose logs -f
+
+##@ Docker (Kingdom Services)
+
+docker: docker-build ## Build all Docker images
+
+docker-build: ## Build Docker images
+	@echo "🐳 Building Kingdom Docker images..."
+	docker compose build --build-arg VERSION=$(VERSION)
+	@echo "✓ Docker images built"
+
+docker-up: ## Start Kingdom services
+	@echo "🚀 Raising the Kingdom..."
+	docker compose up -d
+	docker compose ps
+
+docker-down: ## Stop Kingdom services
+	@echo "🔻 Kingdom rests..."
+	docker compose down
+
+docker-restart: ## Restart Kingdom services
+	docker compose restart
+
+docker-clean: ## Clean Docker resources
+	docker compose down -v --remove-orphans
+
+docker-busboy: ## Build only Busboy image
+	docker build --target busboy -t unheaded/busboy:$(VERSION) .
+
+docker-timeguru: ## Build only Timeguru image
+	docker build --target timeguru -t unheaded/timeguru:$(VERSION) .
+
+docker-cuirass: ## Build only Cuirass image
+	docker build --target cuirass -t unheaded/cuirass:$(VERSION) .
 
 ##@ Deployment
 
