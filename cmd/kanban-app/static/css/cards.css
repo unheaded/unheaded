@@ -1,0 +1,628 @@
+/**
+ * cards.css - Card component styles
+ * Handles task cards, priority badges, drag states, and card interactions
+ */
+
+/* ============================================
+   Task Card Base
+   ============================================ */
+.task-card {
+    position: relative;
+    background: var(--kingdom-bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    cursor: grab;
+    transition: all var(--transition-fast);
+    user-select: none;
+}
+
+.task-card:hover {
+    border-color: var(--border-color-hover);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.task-card:active {
+    cursor: grabbing;
+}
+
+/* Card being dragged */
+.task-card.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+}
+
+/* Ghost card during drag */
+.task-card.drag-ghost {
+    opacity: 0.9;
+    transform: rotate(3deg) scale(1.02);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    border-color: var(--kingdom-gold);
+}
+
+/* Card selected/focused */
+.task-card:focus {
+    outline: none;
+    border-color: var(--kingdom-gold);
+    box-shadow: 0 0 0 3px var(--kingdom-gold-muted);
+}
+
+/* Card completed state */
+.task-card.completed {
+    opacity: 0.7;
+}
+
+.task-card.completed .card-title {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   Priority Accent Border
+   ============================================ */
+.task-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+    background: var(--priority-p2);
+}
+
+.task-card[data-priority="0"]::before { background: var(--priority-p0); }
+.task-card[data-priority="1"]::before { background: var(--priority-p1); }
+.task-card[data-priority="2"]::before { background: var(--priority-p2); }
+.task-card[data-priority="3"]::before { background: var(--priority-p3); }
+.task-card[data-priority="4"]::before { background: var(--priority-p4); }
+
+/* ============================================
+   Card Header
+   ============================================ */
+.card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.card-title {
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+    flex: 1;
+    word-break: break-word;
+}
+
+/* ============================================
+   Priority Badge
+   ============================================ */
+.priority-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 20px;
+    padding: 0 var(--spacing-xs);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+}
+
+/* Priority badge colors */
+.priority-badge.p0 {
+    background: rgba(255, 68, 68, 0.2);
+    color: var(--priority-p0);
+    border: 1px solid var(--priority-p0);
+}
+
+.priority-badge.p1 {
+    background: rgba(255, 140, 0, 0.2);
+    color: var(--priority-p1);
+    border: 1px solid var(--priority-p1);
+}
+
+.priority-badge.p2 {
+    background: rgba(255, 215, 0, 0.2);
+    color: var(--priority-p2);
+    border: 1px solid var(--priority-p2);
+}
+
+.priority-badge.p3 {
+    background: rgba(74, 158, 255, 0.2);
+    color: var(--priority-p3);
+    border: 1px solid var(--priority-p3);
+}
+
+.priority-badge.p4 {
+    background: rgba(136, 136, 136, 0.2);
+    color: var(--priority-p4);
+    border: 1px solid var(--priority-p4);
+}
+
+/* Pulsing animation for critical tasks */
+.priority-badge.p0 {
+    animation: pulse-critical 2s infinite;
+}
+
+@keyframes pulse-critical {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(255, 68, 68, 0);
+    }
+}
+
+/* ============================================
+   Card Description (Preview)
+   ============================================ */
+.card-description {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: var(--spacing-md);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ============================================
+   Card Meta Information
+   ============================================ */
+.card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.meta-icon {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+/* Assignee avatar */
+.assignee-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: var(--kingdom-gold-muted);
+    color: var(--kingdom-gold);
+    font-size: 0.625rem;
+    font-weight: 700;
+    border-radius: 50%;
+    text-transform: uppercase;
+}
+
+.assignee-name {
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Due date styling */
+.due-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    background: var(--kingdom-bg-primary);
+    border-radius: var(--radius-sm);
+}
+
+.due-date.overdue {
+    background: rgba(255, 68, 68, 0.2);
+    color: var(--priority-p0);
+}
+
+.due-date.due-soon {
+    background: rgba(255, 140, 0, 0.2);
+    color: var(--priority-p1);
+}
+
+/* ============================================
+   Card Tags
+   ============================================ */
+.card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: var(--spacing-sm);
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    background: var(--kingdom-bg-primary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.tag:hover {
+    border-color: var(--kingdom-gold);
+    color: var(--kingdom-gold);
+}
+
+/* ============================================
+   Card Actions
+   ============================================ */
+.card-actions {
+    position: absolute;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.task-card:hover .card-actions {
+    opacity: 1;
+}
+
+.card-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: var(--kingdom-bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.card-action-btn:hover {
+    background: var(--kingdom-bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-color-hover);
+}
+
+.card-action-btn.delete:hover {
+    background: rgba(255, 68, 68, 0.2);
+    color: var(--priority-p0);
+    border-color: var(--priority-p0);
+}
+
+.card-action-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ============================================
+   Inline Edit Mode
+   ============================================ */
+.task-card.editing {
+    cursor: default;
+}
+
+.task-card.editing .card-title {
+    display: none;
+}
+
+.card-title-input {
+    width: 100%;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--kingdom-bg-primary);
+    border: 1px solid var(--kingdom-gold);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.card-title-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--kingdom-gold-muted);
+}
+
+.edit-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+.edit-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.edit-btn.save {
+    background: var(--kingdom-gold);
+    color: var(--text-inverse);
+    border: none;
+}
+
+.edit-btn.save:hover {
+    background: var(--kingdom-gold-light);
+}
+
+.edit-btn.cancel {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.edit-btn.cancel:hover {
+    background: var(--kingdom-bg-hover);
+    color: var(--text-primary);
+}
+
+/* ============================================
+   Card Skeleton (Loading State)
+   ============================================ */
+.card-skeleton {
+    background: var(--kingdom-bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-line {
+    height: 12px;
+    background: var(--kingdom-bg-primary);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.skeleton-line:last-child {
+    margin-bottom: 0;
+}
+
+.skeleton-line.title {
+    height: 16px;
+    width: 80%;
+}
+
+.skeleton-line.short {
+    width: 40%;
+}
+
+.skeleton-line.medium {
+    width: 60%;
+}
+
+@keyframes skeleton-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ============================================
+   Card Animations
+   ============================================ */
+@keyframes card-appear {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.task-card {
+    animation: card-appear 0.3s ease-out;
+}
+
+@keyframes card-complete {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 20px var(--status-success);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.task-card.just-completed {
+    animation: card-complete 0.4s ease-out;
+}
+
+/* Card delete animation */
+@keyframes card-delete {
+    to {
+        opacity: 0;
+        transform: translateX(-100%) scale(0.8);
+    }
+}
+
+.task-card.deleting {
+    animation: card-delete 0.3s ease-out forwards;
+}
+
+/* Card update flash */
+@keyframes card-update-flash {
+    0%, 100% {
+        box-shadow: var(--shadow-sm);
+    }
+    50% {
+        box-shadow: 0 0 20px var(--kingdom-gold-muted);
+        border-color: var(--kingdom-gold);
+    }
+}
+
+.task-card.updated {
+    animation: card-update-flash 0.6s ease-out;
+}
+
+/* ============================================
+   Quick Add Card
+   ============================================ */
+.quick-add-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: transparent;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.quick-add-card:hover {
+    border-color: var(--kingdom-gold);
+    color: var(--kingdom-gold);
+    background: var(--kingdom-gold-muted);
+}
+
+.quick-add-card .add-icon {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+/* ============================================
+   Card Context Menu
+   ============================================ */
+.card-context-menu {
+    position: fixed;
+    min-width: 180px;
+    background: var(--kingdom-bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-dropdown);
+    padding: var(--spacing-xs);
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.95);
+    transition: all var(--transition-fast);
+}
+
+.card-context-menu.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.context-menu-item:hover {
+    background: var(--kingdom-bg-hover);
+}
+
+.context-menu-item.danger {
+    color: var(--priority-p0);
+}
+
+.context-menu-item.danger:hover {
+    background: rgba(255, 68, 68, 0.1);
+}
+
+.context-menu-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: var(--spacing-xs) 0;
+}
+
+/* ============================================
+   Responsive Card Adjustments
+   ============================================ */
+@media (max-width: 768px) {
+    .task-card {
+        padding: var(--spacing-sm);
+    }
+
+    .card-title {
+        font-size: 0.875rem;
+    }
+
+    .card-actions {
+        opacity: 1;
+    }
+
+    .card-description {
+        -webkit-line-clamp: 1;
+    }
+
+    .priority-badge {
+        font-size: 0.625rem;
+        min-width: 28px;
+        height: 18px;
+    }
+}
+
+/* ============================================
+   Print Styles for Cards
+   ============================================ */
+@media print {
+    .task-card {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+
+    .task-card:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .card-actions {
+        display: none;
+    }
+
+    .task-card.dragging,
+    .task-card.drag-ghost {
+        opacity: 1;
+        transform: none;
+    }
+}

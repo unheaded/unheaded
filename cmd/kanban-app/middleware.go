@@ -5,8 +5,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/rs/zerolog/log"
+	// Using package-level log from main.go (Kingdom's native logger)
 )
 
 // ============================================================================

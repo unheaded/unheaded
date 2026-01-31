@@ -12,16 +12,19 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/pkg/logger"
 )
 
-//go:embed ../../kanban/*
+// Package-level logger instance
+var log = logger.New(os.Stderr)
+
+//go:embed static/*
 var staticFiles embed.FS
 
 // Config holds server configuration
@@ -188,22 +191,28 @@ func getInitialTasks() []Task {
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
 
-	// API routes
-	mux.HandleFunc("/api/v1/timeline/tasks", s.handleTasks)
-	mux.HandleFunc("/api/v1/timeline/stream", s.handleSSE)
+	// API routes - tasks at canonical /api/v1/tasks
+	mux.HandleFunc("/api/v1/tasks", s.handleTasks)
+	mux.HandleFunc("/api/v1/tasks/", s.handleTaskByID) // For /tasks/:id
+	mux.HandleFunc("/api/v1/timeline/tasks", s.handleTasks) // Legacy compatibility
+	mux.HandleFunc("/api/v1/stream", s.handleSSE)
+	mux.HandleFunc("/ws", s.handleWebSocket) // WebSocket endpoint
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
+	mux.HandleFunc("/health", s.handleHealth)
 
-	// Static files
-	staticFS, err := fs.Sub(staticFiles, "kanban")
+	// Static files - embedded in binary
+	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
-		// Fallback to serving from filesystem
-		mux.Handle("/", http.FileServer(http.Dir("../../kanban")))
+		// Fallback to serving from filesystem during development
+		log.Warn().Msg("Using filesystem for static files (development mode)")
+		mux.Handle("/", http.FileServer(http.Dir("static")))
 	} else {
+		log.Info().Msg("Serving embedded static files")
 		mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	}
 
 	// Apply middleware stack (order matters!)
-	handler := mux
+	var handler http.Handler = mux
 	handler = s.loggingMiddleware(handler)                          // Logging (innermost)
 	handler = requestSizeLimitMiddleware(1024 * 1024)(handler)      // 1MB max request
 	handler = securityHeadersMiddleware(handler)                     // Security headers
@@ -438,6 +447,108 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleTaskByID handles requests to /api/v1/tasks/:id
+func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
+	// Extract task ID from path
+	path := r.URL.Path
+	prefix := "/api/v1/tasks/"
+	if !strings.HasPrefix(path, prefix) {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	taskID := strings.TrimPrefix(path, prefix)
+	if taskID == "" {
+		http.Error(w, "Task ID required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		s.handleGetTaskByID(w, r, taskID)
+	case http.MethodPut:
+		s.handleUpdateTaskByID(w, r, taskID)
+	case http.MethodDelete:
+		s.handleDeleteTaskByID(w, r, taskID)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleGetTaskByID returns a single task
+func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskID string) {
+	if s.taskManager == nil {
+		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	task, err := s.taskManager.GetTask(taskID)
+	if err != nil {
+		if err == ErrTaskNotFound {
+			http.Error(w, "Task not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(task)
+}
+
+// handleUpdateTaskByID updates a single task
+func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, taskID string) {
+	if s.taskManager == nil {
+		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	var task Task
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
+		return
+	}
+	task.ID = taskID // Ensure ID from URL
+
+	if err := s.taskManager.UpdateTask(r.Context(), &task); err != nil {
+		if err == ErrTaskNotFound {
+			http.Error(w, "Task not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"task": task})
+}
+
+// handleDeleteTaskByID deletes a single task
+func (s *Server) handleDeleteTaskByID(w http.ResponseWriter, r *http.Request, taskID string) {
+	if s.taskManager == nil {
+		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.taskManager.DeleteTask(r.Context(), taskID); err != nil {
+		if err == ErrTaskNotFound {
+			http.Error(w, "Task not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID})
+}
+
+// handleWebSocket handles WebSocket connections for real-time updates
+func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// WebSocket upgrade handled by SSE for now (simpler, works everywhere)
+	// Full WebSocket implementation can be added later
+	s.handleSSE(w, r)
+}
+
 // validateTaskInput validates HTTP request task input
 func validateTaskInput(task *Task) error {
 	if task == nil {
@@ -566,9 +677,14 @@ func (s *Server) broadcastUpdate(eventType string, data interface{}) {
 }
 
 func main() {
-	// Setup logging
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	// Setup logging - use Kingdom's native logger
+	log = logger.NewWithConfig(logger.Config{
+		Level:         logger.InfoLevel,
+		TimeFormat:    time.RFC3339,
+		CallerEnabled: true,
+		ConsoleMode:   true,
+		Output:        os.Stderr,
+	})
 
 	// Load config
 	cfg := Config{
