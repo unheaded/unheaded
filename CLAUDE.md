@@ -13,7 +13,7 @@
 Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. Customer brings their app ("the head"), we provide everything else ("unheaded").
 
 **Core Capabilities:**
-- ✅ eBPF-based observability (L2-L7 packet tracing)
+- ✅ eBPF-based observability (L2-L7 tracing)
 - ✅ Immutable NixOS infrastructure
 - ✅ Zero customer data access (architectural isolation)
 - ✅ Service mesh built on Busboy message bus
@@ -738,8 +738,11 @@ We're building in the open because we have nothing to hide.
 
 **Observability:**
 - Prometheus Best Practices: https://prometheus.io/docs/practices/
-- Structured Logging: https://www.honeycomb.io/blog/structured-logging-and-your-team
-
+- Kibana Guide: https://www.elastic.co/guide/en/kibana/index.html
+- Nagios Documentation: https://library.nagios.com/docs
+- Structured Logging: https://flume.apache.org/releases/content/1.11.0/FlumeDeveloperGuide.html
+- Structured Logging: https://www.fluentd.org/architecture
+- Structured Logging: https://www.elastic.co/docs/get-started
 ---
 
 ## 🚨 Common Pitfalls
@@ -813,22 +816,13 @@ for {
 
 ## 📞 Questions?
 
-**For Muck:**
-- Slack: @muck
-- Email: muck@unheaded.com
+**For Stevie:**
+- Email: stevie@bellis.tech
 
 **For Agents:**
 - Read this doc first
 - Check existing code for patterns
 - Ask in context of specific implementation
-
----
-
-## 🍾 "We Drink Our Own Champagne"
-
-Remember: Unheaded hosting Unheaded isn't a gimmick.
-
-**It's our promise: if we trust it, you can too.**
 
 ---
 
