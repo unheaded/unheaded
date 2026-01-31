@@ -1,0 +1,177 @@
+// Package main is the entry point for the API Gateway service.
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"unheaded/pkg/logger"
+	"unheaded/services/gateway"
+	"unheaded/services/gateway/config"
+)
+
+var (
+	version   = "dev"
+	buildTime = "unknown"
+	gitCommit = "unknown"
+)
+
+func main() {
+	// Parse command-line flags
+	configFile := flag.String("config", "", "Path to configuration file")
+	showVersion := flag.Bool("version", false, "Show version information")
+	flag.Parse()
+
+	// Show version and exit
+	if *showVersion {
+		fmt.Printf("API Gateway\n")
+		fmt.Printf("  Version:    %s\n", version)
+		fmt.Printf("  Build Time: %s\n", buildTime)
+		fmt.Printf("  Git Commit: %s\n", gitCommit)
+		os.Exit(0)
+	}
+
+	// Load configuration
+	var cfg *config.Config
+	var err error
+
+	if *configFile != "" {
+		cfg, err = config.LoadFromFile(*configFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load config from %s: %v\n", *configFile, err)
+			os.Exit(1)
+		}
+	} else {
+		cfg = config.LoadFromEnv()
+	}
+
+	// Add default routes if none configured
+	if len(cfg.Routes) == 0 {
+		cfg.Routes = defaultRoutes()
+	}
+
+	// Create logger
+	log := logger.New(logger.Config{
+		Level:   getEnv("LOG_LEVEL", "info"),
+		Format:  getEnv("LOG_FORMAT", "json"),
+		Service: "api-gateway",
+		Version: version,
+	})
+
+	log.Info("Starting API Gateway",
+		"version", version,
+		"build_time", buildTime,
+		"git_commit", gitCommit,
+	)
+
+	// Create gateway
+	gw, err := gateway.New(cfg, log)
+	if err != nil {
+		log.Error("Failed to create gateway",
+			"error", err.Error(),
+		)
+		os.Exit(1)
+	}
+
+	// Create context with signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle signals
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+
+	go func() {
+		for sig := range sigCh {
+			switch sig {
+			case syscall.SIGINT, syscall.SIGTERM:
+				log.Info("Received shutdown signal",
+					"signal", sig.String(),
+				)
+				cancel()
+				return
+			case syscall.SIGHUP:
+				log.Info("Received reload signal - reloading not implemented")
+			}
+		}
+	}()
+
+	// Start gateway
+	if err := gw.Start(ctx); err != nil {
+		log.Error("Gateway error",
+			"error", err.Error(),
+		)
+		os.Exit(1)
+	}
+
+	log.Info("API Gateway stopped")
+}
+
+// getEnv returns the value of an environment variable or a default value.
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// defaultRoutes returns default routes for development.
+func defaultRoutes() []config.RouteConfig {
+	return []config.RouteConfig{
+		{
+			Name:           "busboy",
+			PathPrefix:     "/events/",
+			Backends:       []string{"http://localhost:8081"},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "court",
+			PathPrefix:     "/court/",
+			Backends:       []string{"http://localhost:8082"},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "herald",
+			PathPrefix:     "/herald/",
+			Backends:       []string{"http://localhost:8083"},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "throne",
+			PathPrefix:     "/throne/",
+			Backends:       []string{"http://localhost:8084"},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "api",
+			PathPrefix:     "/api/",
+			Backends:       []string{"http://localhost:9000"},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+	}
+}

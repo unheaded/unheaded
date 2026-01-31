@@ -1,0 +1,391 @@
+# ============================================================================
+# THE UNHEADED KINGDOM - Docker Compose Configuration
+# "The Knight dons the full armor. No exposed joints. No gaps."
+# ============================================================================
+#
+# USAGE:
+#   docker-compose up -d              # Start all services
+#   docker-compose up -d busboy       # Start just Busboy (Fae Chamber)
+#   docker-compose logs -f timeguru   # Follow Timeguru logs
+#   docker-compose ps                 # Service status
+#
+# THE ARMORY STATUS:
+#   🧚 Busboy (Fae Chamber)    - Message bus, event orchestration
+#   ⌛ Timeguru (Oracle)        - Timeline tracking, prophecy
+#   👑 Captain (Commander)      - Vision & strategy API
+#   🏗️ Architect (Sage)         - Technical design, ADRs
+#   📋 Micromanager (War Room)  - Task execution, QA
+#   🛡️ Cuirass (Core Heart)     - Control plane daemon
+#
+# ============================================================================
+
+version: '3.8'
+
+# ============================================================================
+# NETWORKS - THE KINGDOM'S ROADS
+# ============================================================================
+networks:
+  kingdom:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ============================================================================
+# VOLUMES - THE CRYSTAL GROTTO (Persistent Storage)
+# ============================================================================
+volumes:
+  busboy-data:
+    name: unheaded_busboy_data
+  timeguru-data:
+    name: unheaded_timeguru_data
+  captain-data:
+    name: unheaded_captain_data
+  architect-data:
+    name: unheaded_architect_data
+  micromanager-data:
+    name: unheaded_micromanager_data
+  cuirass-data:
+    name: unheaded_cuirass_data
+
+# ============================================================================
+# SERVICES - THE ROYAL COURT
+# ============================================================================
+services:
+  # ==========================================================================
+  # BUSBOY - THE FAE CHAMBER
+  # Message Bus - Where fairies (messages) dance
+  # ==========================================================================
+  busboy:
+    build:
+      context: .
+      target: busboy
+      args:
+        VERSION: ${VERSION:-0.1.0-alpha}
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: unheaded/busboy:${VERSION:-latest}
+    container_name: unheaded-busboy
+    hostname: busboy
+    restart: unless-stopped
+    networks:
+      kingdom:
+        ipv4_address: 172.28.1.1
+    ports:
+      - "5555:5555"   # Message bus port
+      - "8081:8081"   # HTTP API port
+    environment:
+      - PORT=5555
+      - HTTP_PORT=8081
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - BUFFER_SIZE=${BUSBOY_BUFFER_SIZE:-1048576}
+    volumes:
+      - busboy-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "kingdom.component=busboy"
+      - "kingdom.hollow=fae_chamber"
+      - "kingdom.role=message_bus"
+      - "kingdom.tier=infrastructure"
+
+  # ==========================================================================
+  # TIMEGURU - THE ORACLE'S ANTRE
+  # Timeline Service - Prophecy and foresight
+  # ==========================================================================
+  timeguru:
+    build:
+      context: .
+      target: timeguru
+      args:
+        VERSION: ${VERSION:-0.1.0-alpha}
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: unheaded/timeguru:${VERSION:-latest}
+    container_name: unheaded-timeguru
+    hostname: timeguru
+    restart: unless-stopped
+    depends_on:
+      busboy:
+        condition: service_healthy
+    networks:
+      kingdom:
+        ipv4_address: 172.28.1.2
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+      - BUSBOY_ADDR=busboy:5555
+      - DB_PATH=/data/timeguru.db
+      - TIMELINE_PATH=/data/timeline.md
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - timeguru-data:/data
+      - ./references/timeline.md:/data/timeline.md:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "kingdom.component=timeguru"
+      - "kingdom.hollow=oracles_antre"
+      - "kingdom.role=timeline_tracking"
+      - "kingdom.tier=service"
+
+  # ==========================================================================
+  # CAPTAIN - THE COMMANDER'S QUARTERS
+  # Vision & Strategy Service - WHY and WHERE
+  # ==========================================================================
+  captain:
+    build:
+      context: .
+      target: captain
+      args:
+        VERSION: ${VERSION:-0.1.0-alpha}
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: unheaded/captain:${VERSION:-latest}
+    container_name: unheaded-captain
+    hostname: captain
+    restart: unless-stopped
+    depends_on:
+      busboy:
+        condition: service_healthy
+    networks:
+      kingdom:
+        ipv4_address: 172.28.1.3
+    ports:
+      - "8083:8083"
+    environment:
+      - PORT=8083
+      - BUSBOY_ADDR=busboy:5555
+      - TIMEGURU_ADDR=timeguru:8082
+      - DB_PATH=/data/captain.db
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - captain-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "kingdom.component=captain"
+      - "kingdom.hollow=commanders_quarters"
+      - "kingdom.role=vision_strategy"
+      - "kingdom.tier=service"
+
+  # ==========================================================================
+  # ARCHITECT - THE SAGE'S LAIR
+  # Technical Design Service - HOW
+  # ==========================================================================
+  architect:
+    build:
+      context: .
+      target: architect
+      args:
+        VERSION: ${VERSION:-0.1.0-alpha}
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: unheaded/architect:${VERSION:-latest}
+    container_name: unheaded-architect
+    hostname: architect
+    restart: unless-stopped
+    depends_on:
+      busboy:
+        condition: service_healthy
+    networks:
+      kingdom:
+        ipv4_address: 172.28.1.4
+    ports:
+      - "8084:8084"
+    environment:
+      - PORT=8084
+      - BUSBOY_ADDR=busboy:5555
+      - DB_PATH=/data/architect.db
+      - ADR_PATH=/data/adrs
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - architect-data:/data
+      - ./adrs:/data/adrs:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "kingdom.component=architect"
+      - "kingdom.hollow=sages_lair"
+      - "kingdom.role=technical_design"
+      - "kingdom.tier=service"
+
+  # ==========================================================================
+  # MICROMANAGER - THE WAR ROOM
+  # Task Execution Service - WHAT and WHEN
+  # ==========================================================================
+  micromanager:
+    build:
+      context: .
+      target: micromanager
+      args:
+        VERSION: ${VERSION:-0.1.0-alpha}
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: unheaded/micromanager:${VERSION:-latest}
+    container_name: unheaded-micromanager
+    hostname: micromanager
+    restart: unless-stopped
+    depends_on:
+      busboy:
+        condition: service_healthy
+      timeguru:
+        condition: service_healthy
+    networks:
+      kingdom:
+        ipv4_address: 172.28.1.5
+    ports:
+      - "8085:8085"
+    environment:
+      - PORT=8085
+      - BUSBOY_ADDR=busboy:5555
+      - TIMEGURU_ADDR=timeguru:8082
+      - CAPTAIN_ADDR=captain:8083
+      - DB_PATH=/data/micromanager.db
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - micromanager-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "kingdom.component=micromanager"
+      - "kingdom.hollow=war_room"
+      - "kingdom.role=task_execution"
+      - "kingdom.tier=service"
+
+  # ==========================================================================
+  # CUIRASS - THE CORE HEART (Control Plane)
+  # Infrastructure Orchestration Daemon
+  # ==========================================================================
+  cuirass:
+    build:
+      context: .
+      target: cuirass
+      args:
+        VERSION: ${VERSION:-0.1.0-alpha}
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: unheaded/cuirass:${VERSION:-latest}
+    container_name: unheaded-cuirass
+    hostname: cuirass
+    restart: unless-stopped
+    depends_on:
+      busboy:
+        condition: service_healthy
+    networks:
+      kingdom:
+        ipv4_address: 172.28.1.10
+    ports:
+      - "8080:8080"   # HTTP API
+      - "9090:9090"   # gRPC
+      - "9100:9100"   # Prometheus metrics
+    environment:
+      - HTTP_ADDR=:8080
+      - GRPC_ADDR=:9090
+      - BUSBOY_ADDR=busboy:5555
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - UNHEADED_NODE_ID=${NODE_ID:-cuirass-alpha}
+      - UNHEADED_NODE_NAME=cuirass
+      - UNHEADED_ENV=${UNHEADED_ENV:-development}
+    volumes:
+      - cuirass-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # For container orchestration
+    privileged: false
+    cap_add:
+      - SYS_ADMIN   # For eBPF (when enabled)
+      - NET_ADMIN   # For network management
+    cap_drop:
+      - MKNOD
+      - AUDIT_WRITE
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "kingdom.component=cuirass"
+      - "kingdom.hollow=crystal_grotto"
+      - "kingdom.role=control_plane"
+      - "kingdom.tier=core"
+
+  # ==========================================================================
+  # PROMETHEUS - VAMBRACES OBSERVABILITY (Optional)
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: unheaded-prometheus
+    hostname: prometheus
+    restart: unless-stopped
+    profiles:
+      - observability
+    networks:
+      kingdom:
+        ipv4_address: 172.28.2.1
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    labels:
+      - "kingdom.component=prometheus"
+      - "kingdom.hollow=mythic_abyss"
+      - "kingdom.role=metrics"
+      - "kingdom.tier=observability"
+
+  # ==========================================================================
+  # GRAFANA - VAMBRACES DASHBOARDS (Optional)
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: unheaded-grafana
+    hostname: grafana
+    restart: unless-stopped
+    profiles:
+      - observability
+    depends_on:
+      - prometheus
+    networks:
+      kingdom:
+        ipv4_address: 172.28.2.2
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-unheaded}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    labels:
+      - "kingdom.component=grafana"
+      - "kingdom.hollow=mythic_abyss"
+      - "kingdom.role=dashboards"
+      - "kingdom.tier=observability"

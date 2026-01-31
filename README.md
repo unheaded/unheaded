@@ -1,6 +1,6 @@
 # Unheaded
 
-**Production-ready infrastructure in hours, not months.**
+**Production-ready infrastructure in hours, not months... aka sloppy-sourced container orchestration platform wrote with claude AI**
 
 Unheaded is a configuration management automation platform that delivers the complete "suit of armor" for modern SaaS applications. You bring your application ("the head"), we provide everything else.
 

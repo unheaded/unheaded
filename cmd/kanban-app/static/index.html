@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban | The Unheaded Kingdom</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/board.css">
+    <link rel="stylesheet" href="css/cards.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="kingdom-header">
+            <div class="header-left">
+                <h1 class="kingdom-title">The Unheaded Kingdom</h1>
+                <span class="header-divider"></span>
+                <span class="board-title">Kanban Board</span>
+            </div>
+            <div class="header-right">
+                <div class="connection-status" id="connectionStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+                <button class="btn btn-primary" id="newTaskBtn">
+                    <span class="btn-icon">+</span>
+                    New Task
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Board -->
+        <main class="board-container">
+            <div class="board" id="kanbanBoard">
+                <!-- Backlog Column -->
+                <div class="column" data-status="backlog">
+                    <div class="column-header">
+                        <h2 class="column-title">Backlog</h2>
+                        <span class="column-count" data-count="0">0</span>
+                    </div>
+                    <div class="column-content" data-status="backlog">
+                        <!-- Cards will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- In Progress Column -->
+                <div class="column" data-status="in_progress">
+                    <div class="column-header">
+                        <h2 class="column-title">In Progress</h2>
+                        <span class="column-count" data-count="0">0</span>
+                    </div>
+                    <div class="column-content" data-status="in_progress">
+                        <!-- Cards will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- Review Column -->
+                <div class="column" data-status="review">
+                    <div class="column-header">
+                        <h2 class="column-title">Review</h2>
+                        <span class="column-count" data-count="0">0</span>
+                    </div>
+                    <div class="column-content" data-status="review">
+                        <!-- Cards will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- Done Column -->
+                <div class="column" data-status="done">
+                    <div class="column-header">
+                        <h2 class="column-title">Done</h2>
+                        <span class="column-count" data-count="0">0</span>
+                    </div>
+                    <div class="column-content" data-status="done">
+                        <!-- Cards will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Create/Edit Task Modal -->
+        <div class="modal-overlay" id="taskModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="modalTitle">New Task</h2>
+                    <button class="modal-close" id="modalClose">&times;</button>
+                </div>
+                <form class="modal-form" id="taskForm">
+                    <input type="hidden" id="taskId" value="">
+
+                    <div class="form-group">
+                        <label for="taskTitle">Title</label>
+                        <input type="text" id="taskTitle" name="title" required
+                               placeholder="Enter task title..." maxlength="200">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskDescription">Description</label>
+                        <textarea id="taskDescription" name="description" rows="4"
+                                  placeholder="Enter task description..."></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskPriority">Priority</label>
+                            <select id="taskPriority" name="priority">
+                                <option value="0">P0 - Critical</option>
+                                <option value="1">P1 - High</option>
+                                <option value="2" selected>P2 - Medium</option>
+                                <option value="3">P3 - Low</option>
+                                <option value="4">P4 - Backlog</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="taskStatus">Status</label>
+                            <select id="taskStatus" name="status">
+                                <option value="backlog">Backlog</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="review">Review</option>
+                                <option value="done">Done</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskAssignee">Assignee</label>
+                            <input type="text" id="taskAssignee" name="assignee"
+                                   placeholder="Enter assignee name...">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="taskDueDate">Due Date</label>
+                            <input type="date" id="taskDueDate" name="due_date">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskTags">Tags</label>
+                        <input type="text" id="taskTags" name="tags"
+                               placeholder="Enter tags separated by commas...">
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="modalCancel">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="modalSubmit">Create Task</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Task Detail Modal -->
+        <div class="modal-overlay" id="taskDetailModal">
+            <div class="modal modal-large">
+                <div class="modal-header">
+                    <div class="modal-header-content">
+                        <span class="priority-badge" id="detailPriority">P2</span>
+                        <h2 class="modal-title" id="detailTitle">Task Title</h2>
+                    </div>
+                    <button class="modal-close" id="detailClose">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="detail-section">
+                        <h3>Description</h3>
+                        <p id="detailDescription">No description provided.</p>
+                    </div>
+                    <div class="detail-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Status</span>
+                            <span class="meta-value" id="detailStatus">Backlog</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Assignee</span>
+                            <span class="meta-value" id="detailAssignee">Unassigned</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Due Date</span>
+                            <span class="meta-value" id="detailDueDate">Not set</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Created</span>
+                            <span class="meta-value" id="detailCreated">-</span>
+                        </div>
+                    </div>
+                    <div class="detail-tags" id="detailTags">
+                        <!-- Tags will be rendered here -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-danger" id="detailDelete">Delete</button>
+                    <button type="button" class="btn btn-secondary" id="detailEdit">Edit</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div class="modal-overlay" id="deleteModal">
+            <div class="modal modal-small">
+                <div class="modal-header">
+                    <h2 class="modal-title">Confirm Delete</h2>
+                    <button class="modal-close" id="deleteClose">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="delete-warning">Are you sure you want to delete this task? This action cannot be undone.</p>
+                    <p class="delete-task-title" id="deleteTaskTitle"></p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="deleteCancel">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="deleteConfirm">Delete Task</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div class="toast-container" id="toastContainer">
+            <!-- Toast notifications will be rendered here -->
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Loading the Kingdom...</p>
+        </div>
+    </div>
+
+    <!-- Scripts - Order matters! -->
+    <script src="js/api.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/cards.js"></script>
+    <script src="js/board.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
