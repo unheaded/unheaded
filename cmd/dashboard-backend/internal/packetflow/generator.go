@@ -8,7 +8,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"unheaded/pkg/logger"
 )
 
 var (
@@ -44,31 +44,32 @@ func (c *Config) Validate() error {
 
 // Hop represents a single hop in the packet flow
 type Hop struct {
-	Component string        `json:"component"` // Component name
-	Timestamp time.Time     `json:"timestamp"` // When packet reached this hop
-	Latency   time.Duration `json:"latency"`   // Latency added at this hop
+	Component string            `json:"component"` // Component name
+	Timestamp time.Time         `json:"timestamp"` // When packet reached this hop
+	Latency   time.Duration     `json:"latency"`   // Latency added at this hop
 	Metadata  map[string]string `json:"metadata,omitempty"` // Additional metadata
 }
 
 // PacketFlow represents a complete packet trace through the system
 type PacketFlow struct {
-	TraceID    string    `json:"trace_id"`    // Unique trace identifier
-	Timestamp  time.Time `json:"timestamp"`   // Flow start time
-	SourceIP   string    `json:"source_ip"`   // Source IP address
-	DestIP     string    `json:"dest_ip"`     // Destination IP address
-	Protocol   string    `json:"protocol"`    // Protocol (HTTP, gRPC, etc)
-	Method     string    `json:"method"`      // HTTP method or RPC method
-	Path       string    `json:"path"`        // Request path
-	StatusCode int       `json:"status_code"` // Response status
+	TraceID    string        `json:"trace_id"`    // Unique trace identifier
+	Timestamp  time.Time     `json:"timestamp"`   // Flow start time
+	SourceIP   string        `json:"source_ip"`   // Source IP address
+	DestIP     string        `json:"dest_ip"`     // Destination IP address
+	Protocol   string        `json:"protocol"`    // Protocol (HTTP, gRPC, etc)
+	Method     string        `json:"method"`      // HTTP method or RPC method
+	Path       string        `json:"path"`        // Request path
+	StatusCode int           `json:"status_code"` // Response status
 	TotalTime  time.Duration `json:"total_time"`  // Total request time
-	Hops       []Hop     `json:"hops"`        // Packet hops through system
+	Hops       []Hop         `json:"hops"`        // Packet hops through system
 }
 
 // Generator generates mock packet flow data
 type Generator struct {
-	config   *Config
-	rand     *rand.Rand
-	counter  int64
+	config  *Config
+	log     *logger.Logger
+	rand    *rand.Rand
+	counter int64
 }
 
 // NewGenerator creates a new packet flow generator
@@ -79,6 +80,7 @@ func NewGenerator(config *Config) (*Generator, error) {
 
 	return &Generator{
 		config:  config,
+		log:     logger.New(nil),
 		rand:    rand.New(rand.NewSource(time.Now().UnixNano())),
 		counter: 0,
 	}, nil
@@ -97,7 +99,7 @@ func (g *Generator) Start(ctx context.Context) (<-chan *PacketFlow, error) {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Debug().Msg("packet flow generator stopped")
+				g.log.Debug().Msg("packet flow generator stopped")
 				return
 			case <-ticker.C:
 				flow := g.generateFlow()
@@ -107,7 +109,7 @@ func (g *Generator) Start(ctx context.Context) (<-chan *PacketFlow, error) {
 					return
 				default:
 					// Channel full, drop flow
-					log.Warn().Msg("flow channel full, dropping packet flow")
+					g.log.Warn().Msg("flow channel full, dropping packet flow")
 				}
 			}
 		}
@@ -149,10 +151,10 @@ func (g *Generator) generateFlow() *PacketFlow {
 // generateHops generates realistic packet hops through Unheaded architecture
 func (g *Generator) generateHops(startTime time.Time) []Hop {
 	// Unheaded packet flow:
-	// XDP → Gateway → Busboy → Service → trace-collector
+	// XDP -> Gateway -> Busboy -> Service -> trace-collector
 
 	components := []struct {
-		name     string
+		name       string
 		latencyMin time.Duration
 		latencyMax time.Duration
 	}{

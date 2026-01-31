@@ -1,16 +1,22 @@
 // Package websocket provides a WebSocket server for real-time dashboard updates.
+// This implementation uses only the Go standard library - no external dependencies.
 package websocket
 
 import (
+	"bufio"
 	"context"
+	"crypto/sha1"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
-	"github.com/rs/zerolog/log"
+	"unheaded/pkg/logger"
 )
 
 var (
@@ -22,6 +28,21 @@ var (
 	ErrMaxConnectionsReached = errors.New("max connections reached")
 	// ErrServerShutdown indicates server is shutting down
 	ErrServerShutdown = errors.New("server is shutting down")
+	// ErrConnectionClosed indicates connection is closed
+	ErrConnectionClosed = errors.New("connection closed")
+)
+
+// WebSocket magic GUID for handshake
+const websocketGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+// Frame opcodes
+const (
+	opcodeContinuation = 0x0
+	opcodeText         = 0x1
+	opcodeBinary       = 0x2
+	opcodeClose        = 0x8
+	opcodePing         = 0x9
+	opcodePong         = 0xA
 )
 
 // Config holds WebSocket server configuration
@@ -29,7 +50,21 @@ type Config struct {
 	MaxConnections int           // Maximum concurrent connections
 	ReadTimeout    time.Duration // Read timeout per message
 	WriteTimeout   time.Duration // Write timeout per message
+	PingInterval   time.Duration // Interval between ping frames
 	BufferSize     int           // Message buffer size per client
+	MaxMessageSize int64         // Maximum message size in bytes
+}
+
+// DefaultConfig returns default WebSocket configuration
+func DefaultConfig() *Config {
+	return &Config{
+		MaxConnections: 100,
+		ReadTimeout:    60 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		PingInterval:   30 * time.Second,
+		BufferSize:     256,
+		MaxMessageSize: 65536,
+	}
 }
 
 // Validate validates configuration
@@ -41,59 +76,108 @@ func (c *Config) Validate() error {
 		return ErrInvalidMaxConnections
 	}
 	if c.ReadTimeout == 0 {
-		c.ReadTimeout = 10 * time.Second
+		c.ReadTimeout = 60 * time.Second
 	}
 	if c.WriteTimeout == 0 {
 		c.WriteTimeout = 10 * time.Second
 	}
+	if c.PingInterval == 0 {
+		c.PingInterval = 30 * time.Second
+	}
 	if c.BufferSize == 0 {
 		c.BufferSize = 256
+	}
+	if c.MaxMessageSize == 0 {
+		c.MaxMessageSize = 65536
 	}
 	return nil
 }
 
 // Client represents a connected WebSocket client
 type Client struct {
-	conn     *websocket.Conn
-	send     chan []byte
-	server   *Server
-	mu       sync.Mutex
-	closed   bool
-	clientID string
+	id        string
+	conn      net.Conn
+	server    *Server
+	send      chan []byte
+	closed    bool
+	closeMu   sync.Mutex
+	writeMu   sync.Mutex
+	closeOnce sync.Once
+}
+
+// ID returns the client's unique identifier
+func (c *Client) ID() string {
+	return c.id
+}
+
+// Send sends a message to the client
+func (c *Client) Send(data []byte) error {
+	c.closeMu.Lock()
+	if c.closed {
+		c.closeMu.Unlock()
+		return ErrConnectionClosed
+	}
+	c.closeMu.Unlock()
+
+	select {
+	case c.send <- data:
+		return nil
+	default:
+		return errors.New("send buffer full")
+	}
+}
+
+// Close closes the client connection
+func (c *Client) Close() {
+	c.closeOnce.Do(func() {
+		c.closeMu.Lock()
+		c.closed = true
+		c.closeMu.Unlock()
+
+		close(c.send)
+		c.conn.Close()
+	})
 }
 
 // Server manages WebSocket connections and broadcasts
 type Server struct {
 	config    *Config
-	upgrader  websocket.Upgrader
+	log       *logger.Logger
 	clients   map[*Client]bool
 	clientsMu sync.RWMutex
 
-	broadcast chan []byte
-	register  chan *Client
+	broadcast  chan []byte
+	register   chan *Client
 	unregister chan *Client
 
 	shutdown     chan struct{}
 	shutdownOnce sync.Once
 	wg           sync.WaitGroup
+	running      bool
+	runMu        sync.RWMutex
+
+	// Callbacks
+	onConnect    func(*Client)
+	onDisconnect func(*Client)
+	onMessage    func(*Client, []byte)
 }
 
 // NewServer creates a new WebSocket server
-func NewServer(config *Config) (*Server, error) {
+func NewServer(config *Config, log *logger.Logger) (*Server, error) {
+	if config == nil {
+		config = DefaultConfig()
+	}
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
+	if log == nil {
+		log = logger.New(nil)
+	}
+
 	s := &Server{
-		config: config,
-		upgrader: websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-			CheckOrigin: func(r *http.Request) bool {
-				// TODO: Implement proper origin validation in production
-				return true
-			},
-		},
+		config:     config,
+		log:        log,
 		clients:    make(map[*Client]bool),
 		broadcast:  make(chan []byte, 256),
 		register:   make(chan *Client),
@@ -101,43 +185,70 @@ func NewServer(config *Config) (*Server, error) {
 		shutdown:   make(chan struct{}),
 	}
 
-	// Start hub goroutine
-	s.wg.Add(1)
-	go s.run()
-
 	return s, nil
 }
 
+// Start starts the WebSocket server hub
+func (s *Server) Start(ctx context.Context) error {
+	s.runMu.Lock()
+	if s.running {
+		s.runMu.Unlock()
+		return errors.New("server already running")
+	}
+	s.running = true
+	s.shutdown = make(chan struct{})
+	s.runMu.Unlock()
+
+	s.wg.Add(1)
+	go s.run(ctx)
+
+	s.log.Info().Msg("websocket server started")
+	return nil
+}
+
 // run handles client registration, unregistration, and broadcasting
-func (s *Server) run() {
+func (s *Server) run(ctx context.Context) {
 	defer s.wg.Done()
 
 	for {
 		select {
+		case <-ctx.Done():
+			s.closeAllClients()
+			return
 		case <-s.shutdown:
-			// Close all clients
-			s.clientsMu.Lock()
-			for client := range s.clients {
-				s.closeClient(client)
-			}
-			s.clients = make(map[*Client]bool)
-			s.clientsMu.Unlock()
+			s.closeAllClients()
 			return
 
 		case client := <-s.register:
 			s.clientsMu.Lock()
 			s.clients[client] = true
 			s.clientsMu.Unlock()
-			log.Debug().Str("client_id", client.clientID).Msg("client registered")
+
+			s.log.Debug().
+				Str("client_id", client.id).
+				Int("total_clients", len(s.clients)).
+				Msg("client registered")
+
+			if s.onConnect != nil {
+				go s.onConnect(client)
+			}
 
 		case client := <-s.unregister:
 			s.clientsMu.Lock()
 			if _, ok := s.clients[client]; ok {
 				delete(s.clients, client)
-				s.closeClient(client)
+				client.Close()
 			}
 			s.clientsMu.Unlock()
-			log.Debug().Str("client_id", client.clientID).Msg("client unregistered")
+
+			s.log.Debug().
+				Str("client_id", client.id).
+				Int("total_clients", len(s.clients)).
+				Msg("client unregistered")
+
+			if s.onDisconnect != nil {
+				go s.onDisconnect(client)
+			}
 
 		case message := <-s.broadcast:
 			s.clientsMu.RLock()
@@ -146,7 +257,9 @@ func (s *Server) run() {
 				case client.send <- message:
 				default:
 					// Client buffer full, skip
-					log.Warn().Str("client_id", client.clientID).Msg("client buffer full, dropping message")
+					s.log.Warn().
+						Str("client_id", client.id).
+						Msg("client buffer full, dropping message")
 				}
 			}
 			s.clientsMu.RUnlock()
@@ -154,15 +267,14 @@ func (s *Server) run() {
 	}
 }
 
-// closeClient closes a client connection
-func (s *Server) closeClient(client *Client) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+// closeAllClients closes all connected clients
+func (s *Server) closeAllClients() {
+	s.clientsMu.Lock()
+	defer s.clientsMu.Unlock()
 
-	if !client.closed {
-		close(client.send)
-		client.conn.Close()
-		client.closed = true
+	for client := range s.clients {
+		client.Close()
+		delete(s.clients, client)
 	}
 }
 
@@ -174,7 +286,10 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.clientsMu.RUnlock()
 
 	if count >= s.config.MaxConnections {
-		log.Warn().Int("count", count).Int("max", s.config.MaxConnections).Msg("max connections reached")
+		s.log.Warn().
+			Int("count", count).
+			Int("max", s.config.MaxConnections).
+			Msg("max connections reached")
 		http.Error(w, "max connections reached", http.StatusServiceUnavailable)
 		return
 	}
@@ -188,18 +303,18 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Upgrade connection
-	conn, err := s.upgrader.Upgrade(w, r, nil)
+	conn, err := s.upgradeConnection(w, r)
 	if err != nil {
-		log.Error().Err(err).Msg("websocket upgrade failed")
+		s.log.Error().Err(err).Msg("websocket upgrade failed")
 		return
 	}
 
 	// Create client
 	client := &Client{
-		conn:     conn,
-		send:     make(chan []byte, s.config.BufferSize),
-		server:   s,
-		clientID: fmt.Sprintf("%s-%d", r.RemoteAddr, time.Now().UnixNano()),
+		id:     fmt.Sprintf("%s-%d", r.RemoteAddr, time.Now().UnixNano()),
+		conn:   conn,
+		server: s,
+		send:   make(chan []byte, s.config.BufferSize),
 	}
 
 	// Register client
@@ -207,66 +322,260 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Start client goroutines
 	s.wg.Add(2)
-	go client.writePump()
-	go client.readPump()
+	go s.clientWritePump(client)
+	go s.clientReadPump(client)
 }
 
-// readPump handles reading from WebSocket connection
-func (c *Client) readPump() {
+// upgradeConnection performs the WebSocket handshake
+func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.Conn, error) {
+	// Validate WebSocket request
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return nil, errors.New("method not allowed")
+	}
+
+	upgrade := r.Header.Get("Upgrade")
+	if upgrade != "websocket" {
+		http.Error(w, "not a websocket request", http.StatusBadRequest)
+		return nil, errors.New("not a websocket request")
+	}
+
+	connection := r.Header.Get("Connection")
+	if connection != "Upgrade" && connection != "upgrade" && connection != "keep-alive, Upgrade" {
+		http.Error(w, "invalid connection header", http.StatusBadRequest)
+		return nil, errors.New("invalid connection header")
+	}
+
+	key := r.Header.Get("Sec-WebSocket-Key")
+	if key == "" {
+		http.Error(w, "missing Sec-WebSocket-Key", http.StatusBadRequest)
+		return nil, errors.New("missing Sec-WebSocket-Key")
+	}
+
+	// Calculate accept key
+	acceptKey := computeAcceptKey(key)
+
+	// Hijack the connection
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+		return nil, errors.New("hijacking not supported")
+	}
+
+	conn, bufrw, err := hijacker.Hijack()
+	if err != nil {
+		return nil, fmt.Errorf("hijack failed: %w", err)
+	}
+
+	// Send upgrade response
+	response := fmt.Sprintf(
+		"HTTP/1.1 101 Switching Protocols\r\n"+
+			"Upgrade: websocket\r\n"+
+			"Connection: Upgrade\r\n"+
+			"Sec-WebSocket-Accept: %s\r\n"+
+			"\r\n",
+		acceptKey,
+	)
+
+	if _, err := bufrw.WriteString(response); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("write response failed: %w", err)
+	}
+	if err := bufrw.Flush(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("flush failed: %w", err)
+	}
+
+	return conn, nil
+}
+
+// computeAcceptKey computes the Sec-WebSocket-Accept key
+func computeAcceptKey(key string) string {
+	h := sha1.New()
+	h.Write([]byte(key + websocketGUID))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+// clientReadPump handles reading from WebSocket connection
+func (s *Server) clientReadPump(c *Client) {
 	defer func() {
-		c.server.unregister <- c
-		c.server.wg.Done()
+		s.unregister <- c
+		s.wg.Done()
 	}()
 
-	c.conn.SetReadDeadline(time.Now().Add(c.server.config.ReadTimeout))
-	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(c.server.config.ReadTimeout))
-		return nil
-	})
+	reader := bufio.NewReader(c.conn)
 
 	for {
-		_, _, err := c.conn.ReadMessage()
+		// Set read deadline
+		c.conn.SetReadDeadline(time.Now().Add(s.config.ReadTimeout))
+
+		// Read frame
+		opcode, payload, err := s.readFrame(reader)
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Error().Err(err).Str("client_id", c.clientID).Msg("read error")
+			if err != io.EOF {
+				s.log.Debug().
+					Err(err).
+					Str("client_id", c.id).
+					Msg("read error")
 			}
-			break
+			return
 		}
-		// Dashboard clients only receive, don't send
-		// Ignore any incoming messages
+
+		switch opcode {
+		case opcodeText, opcodeBinary:
+			if s.onMessage != nil {
+				s.onMessage(c, payload)
+			}
+		case opcodePing:
+			// Send pong
+			s.writeFrame(c, opcodePong, payload)
+		case opcodePong:
+			// Pong received, connection is alive
+		case opcodeClose:
+			// Send close frame and exit
+			s.writeFrame(c, opcodeClose, nil)
+			return
+		}
 	}
 }
 
-// writePump handles writing to WebSocket connection
-func (c *Client) writePump() {
-	ticker := time.NewTicker(54 * time.Second) // Ping interval
+// clientWritePump handles writing to WebSocket connection
+func (s *Server) clientWritePump(c *Client) {
+	ticker := time.NewTicker(s.config.PingInterval)
 	defer func() {
 		ticker.Stop()
-		c.server.wg.Done()
+		s.wg.Done()
 	}()
 
 	for {
 		select {
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
 			if !ok {
 				// Channel closed
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				s.writeFrame(c, opcodeClose, nil)
 				return
 			}
 
-			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
-				log.Error().Err(err).Str("client_id", c.clientID).Msg("write error")
+			if err := s.writeFrame(c, opcodeText, message); err != nil {
+				s.log.Debug().
+					Err(err).
+					Str("client_id", c.id).
+					Msg("write error")
 				return
 			}
 
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := s.writeFrame(c, opcodePing, nil); err != nil {
 				return
 			}
 		}
 	}
+}
+
+// readFrame reads a WebSocket frame
+func (s *Server) readFrame(r *bufio.Reader) (byte, []byte, error) {
+	// Read first two bytes (FIN, opcode, MASK, payload length)
+	header := make([]byte, 2)
+	if _, err := io.ReadFull(r, header); err != nil {
+		return 0, nil, err
+	}
+
+	// fin := (header[0] & 0x80) != 0
+	opcode := header[0] & 0x0F
+	masked := (header[1] & 0x80) != 0
+	length := uint64(header[1] & 0x7F)
+
+	// Extended payload length
+	switch length {
+	case 126:
+		extLen := make([]byte, 2)
+		if _, err := io.ReadFull(r, extLen); err != nil {
+			return 0, nil, err
+		}
+		length = uint64(binary.BigEndian.Uint16(extLen))
+	case 127:
+		extLen := make([]byte, 8)
+		if _, err := io.ReadFull(r, extLen); err != nil {
+			return 0, nil, err
+		}
+		length = binary.BigEndian.Uint64(extLen)
+	}
+
+	// Check message size
+	if length > uint64(s.config.MaxMessageSize) {
+		return 0, nil, errors.New("message too large")
+	}
+
+	// Read mask key (if masked)
+	var maskKey []byte
+	if masked {
+		maskKey = make([]byte, 4)
+		if _, err := io.ReadFull(r, maskKey); err != nil {
+			return 0, nil, err
+		}
+	}
+
+	// Read payload
+	payload := make([]byte, length)
+	if length > 0 {
+		if _, err := io.ReadFull(r, payload); err != nil {
+			return 0, nil, err
+		}
+	}
+
+	// Unmask payload
+	if masked {
+		for i := range payload {
+			payload[i] ^= maskKey[i%4]
+		}
+	}
+
+	return opcode, payload, nil
+}
+
+// writeFrame writes a WebSocket frame
+func (s *Server) writeFrame(c *Client, opcode byte, payload []byte) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	c.conn.SetWriteDeadline(time.Now().Add(s.config.WriteTimeout))
+
+	length := len(payload)
+
+	// Build frame header
+	var header []byte
+
+	// First byte: FIN + opcode
+	header = append(header, 0x80|opcode)
+
+	// Second byte: payload length (server doesn't mask)
+	if length < 126 {
+		header = append(header, byte(length))
+	} else if length < 65536 {
+		header = append(header, 126)
+		extLen := make([]byte, 2)
+		binary.BigEndian.PutUint16(extLen, uint16(length))
+		header = append(header, extLen...)
+	} else {
+		header = append(header, 127)
+		extLen := make([]byte, 8)
+		binary.BigEndian.PutUint64(extLen, uint64(length))
+		header = append(header, extLen...)
+	}
+
+	// Write header
+	if _, err := c.conn.Write(header); err != nil {
+		return err
+	}
+
+	// Write payload
+	if length > 0 {
+		if _, err := c.conn.Write(payload); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Broadcast sends a message to all connected clients
@@ -277,8 +586,29 @@ func (s *Server) Broadcast(message []byte) {
 		// Server shutting down, drop message
 	default:
 		// Broadcast channel full, drop message
-		log.Warn().Msg("broadcast channel full, dropping message")
+		s.log.Warn().Msg("broadcast channel full, dropping message")
 	}
+}
+
+// BroadcastJSON sends a JSON message to all connected clients
+func (s *Server) BroadcastJSON(data interface{}) error {
+	// Simple JSON encoding without external deps
+	// For complex objects, this would need proper JSON encoding
+	return errors.New("use Broadcast with pre-encoded JSON")
+}
+
+// SendTo sends a message to a specific client
+func (s *Server) SendTo(clientID string, message []byte) error {
+	s.clientsMu.RLock()
+	defer s.clientsMu.RUnlock()
+
+	for client := range s.clients {
+		if client.id == clientID {
+			return client.Send(message)
+		}
+	}
+
+	return errors.New("client not found")
 }
 
 // ConnectionCount returns the number of active connections
@@ -288,13 +618,44 @@ func (s *Server) ConnectionCount() int {
 	return len(s.clients)
 }
 
+// GetClients returns all connected client IDs
+func (s *Server) GetClients() []string {
+	s.clientsMu.RLock()
+	defer s.clientsMu.RUnlock()
+
+	ids := make([]string, 0, len(s.clients))
+	for client := range s.clients {
+		ids = append(ids, client.id)
+	}
+	return ids
+}
+
+// OnConnect sets the connection callback
+func (s *Server) OnConnect(fn func(*Client)) {
+	s.onConnect = fn
+}
+
+// OnDisconnect sets the disconnection callback
+func (s *Server) OnDisconnect(fn func(*Client)) {
+	s.onDisconnect = fn
+}
+
+// OnMessage sets the message callback
+func (s *Server) OnMessage(fn func(*Client, []byte)) {
+	s.onMessage = fn
+}
+
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 
 	s.shutdownOnce.Do(func() {
-		log.Info().Msg("shutting down websocket server")
+		s.log.Info().Msg("shutting down websocket server")
+
+		s.runMu.Lock()
+		s.running = false
 		close(s.shutdown)
+		s.runMu.Unlock()
 
 		// Wait for all goroutines with timeout
 		done := make(chan struct{})
@@ -305,12 +666,19 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 		select {
 		case <-done:
-			log.Info().Msg("websocket server shutdown complete")
+			s.log.Info().Msg("websocket server shutdown complete")
 		case <-ctx.Done():
 			shutdownErr = ctx.Err()
-			log.Error().Err(shutdownErr).Msg("websocket server shutdown timeout")
+			s.log.Error().Err(shutdownErr).Msg("websocket server shutdown timeout")
 		}
 	})
 
 	return shutdownErr
+}
+
+// IsRunning returns whether the server is running
+func (s *Server) IsRunning() bool {
+	s.runMu.RLock()
+	defer s.runMu.RUnlock()
+	return s.running
 }

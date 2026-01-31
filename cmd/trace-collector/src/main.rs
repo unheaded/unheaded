@@ -55,9 +55,11 @@ use tracing::{debug, error, info, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 mod bpf;
+mod collector;
 mod config;
 mod events;
 mod metrics;
+mod proto;
 mod publisher;
 
 use config::Config;

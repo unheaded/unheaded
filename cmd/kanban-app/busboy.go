@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
-	"github.com/rs/zerolog/log"
+	busboyClient "unheaded/pkg/busboy-client"
+	// Using package-level log from main.go (Kingdom's native logger)
 )
 
 // Busboy topic constants

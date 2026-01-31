@@ -1,4 +1,6 @@
 // Package metrics provides time-series metrics aggregation and storage.
+// This is a lightweight internal metrics aggregator for the dashboard backend.
+// For the main metrics collection, see the scraper package.
 package metrics
 
 import (
@@ -9,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"unheaded/pkg/logger"
 )
 
 var (
@@ -48,6 +50,15 @@ type Config struct {
 	RetentionPeriod time.Duration // How long to keep metrics
 	MaxSeries       int           // Maximum number of unique series
 	FlushInterval   time.Duration // How often to flush old data
+}
+
+// DefaultConfig returns default aggregator configuration
+func DefaultConfig() *Config {
+	return &Config{
+		RetentionPeriod: 1 * time.Hour,
+		MaxSeries:       10000,
+		FlushInterval:   1 * time.Minute,
+	}
 }
 
 // Validate validates configuration
@@ -114,10 +125,10 @@ func matchesLabels(metricLabels, queryLabels map[string]string) bool {
 
 // timeSeries holds metrics for a single series
 type timeSeries struct {
-	name    string
-	labels  map[string]string
-	points  []*Metric
-	mu      sync.RWMutex
+	name   string
+	labels map[string]string
+	points []*Metric
+	mu     sync.RWMutex
 }
 
 // add adds a metric point to the series
@@ -159,6 +170,7 @@ func (ts *timeSeries) cleanup(cutoff time.Time) {
 // Aggregator aggregates and stores metrics
 type Aggregator struct {
 	config *Config
+	log    *logger.Logger
 
 	series   map[string]*timeSeries
 	seriesMu sync.RWMutex
@@ -170,12 +182,16 @@ type Aggregator struct {
 
 // NewAggregator creates a new metrics aggregator
 func NewAggregator(config *Config) (*Aggregator, error) {
+	if config == nil {
+		config = DefaultConfig()
+	}
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
 	a := &Aggregator{
 		config:   config,
+		log:      logger.New(nil),
 		series:   make(map[string]*timeSeries),
 		shutdown: make(chan struct{}),
 	}
@@ -215,7 +231,7 @@ func (a *Aggregator) cleanup() {
 		ts.cleanup(cutoff)
 	}
 
-	log.Debug().
+	a.log.Debug().
 		Time("cutoff", cutoff).
 		Dur("retention", a.config.RetentionPeriod).
 		Msg("metrics cleanup complete")
@@ -257,7 +273,7 @@ func (a *Aggregator) RecordMetric(m *Metric) error {
 			points: make([]*Metric, 0, 1024),
 		}
 		a.series[key] = ts
-		log.Debug().
+		a.log.Debug().
 			Str("series", key).
 			Msg("created new metric series")
 	}
@@ -287,7 +303,7 @@ func (a *Aggregator) QueryMetrics(q *Query) ([]*Metric, error) {
 	defer a.seriesMu.RUnlock()
 
 	// Find matching series
-	for key, ts := range a.series {
+	for _, ts := range a.series {
 		if ts.name != q.Name {
 			continue
 		}
@@ -367,7 +383,7 @@ func (a *Aggregator) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 
 	a.shutdownOnce.Do(func() {
-		log.Info().Msg("shutting down metrics aggregator")
+		a.log.Info().Msg("shutting down metrics aggregator")
 		close(a.shutdown)
 
 		// Wait for cleanup loop
@@ -379,10 +395,10 @@ func (a *Aggregator) Shutdown(ctx context.Context) error {
 
 		select {
 		case <-done:
-			log.Info().Msg("metrics aggregator shutdown complete")
+			a.log.Info().Msg("metrics aggregator shutdown complete")
 		case <-ctx.Done():
 			shutdownErr = ctx.Err()
-			log.Error().Err(shutdownErr).Msg("metrics aggregator shutdown timeout")
+			a.log.Error().Err(shutdownErr).Msg("metrics aggregator shutdown timeout")
 		}
 	})
 
