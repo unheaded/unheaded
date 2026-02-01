@@ -12,11 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	
+	"os"
+	"unheaded/pkg/logger"
 
-	"github.com/unheaded/unheaded/pkg/container"
-	"github.com/unheaded/unheaded/pkg/lxd"
+	"unheaded/pkg/container"
+	"unheaded/pkg/lxd"
 )
 
 // ============================================================================
