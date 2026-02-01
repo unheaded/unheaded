@@ -1,8 +1,8 @@
 # Unheaded
 
-**Sloppy container orchestration platform wrote with claude AI**
+**SaaS orchestration platform wrote with Claude AI, ChatGPT, and Gemini**
 
-Unheaded is a configuration management automation platform that delivers the complete "suit of armor" for modern SaaS applications. You bring your application ("the head"), we provide everything else.
+Unheaded is a configuration management automation platform that delivers the complete "suit of armor" for modern SaaS applications. You bring your application ("the head"), it provide everything else.
 
 ## What is Unheaded?
 
@@ -13,7 +13,7 @@ A drop-in infrastructure platform providing:
 - **Service mesh** - Built on [Busboy](https://github.com/unheaded/busboy) message bus
 - **Control plane** - Declarative config with drift detection
 - **Security baseline** - FEDRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, GDPR
-- **Zero customer data access** - Architectural isolation at every layer
+- **Zero application data access** - Architectural isolation at every layer
 
 ## The Alpha
 
@@ -22,12 +22,12 @@ This alpha demonstrates the core platform capabilities:
 1. **eBPF packet tracing** - Every packet tagged with trace_id at XDP layer
 2. **Microservices architecture** - Services mirror our AI-augmented dev workflow
 3. **Real-time dashboard** - Live packet flow visualization
-4. **The Meta Moment** - Kanban app showing Unheaded building itself
+4. **The Meta Moment** - Kanban board application running on the platform dynamically showing Unheaded's progress building itself.
 
 ## Architecture
 
 ```
-BARE METAL HOST
+BARE METAL HOST/VM
 ├── unheaded-daemon (control plane)
 ├── eBPF programs (packet tracing)
 └── LXD containers (NixOS)
@@ -176,9 +176,9 @@ All services communicate via **Busboy** (the message bus):
 - **architect** - Infrastructure design, tech decisions
 
 ### The Meta Moment
-- **kanban-app** - Reads timeline.md, displays Kanban board
+- **kanban-app** - Reads timeline.json, displays Kanban board
 - Demonstrates: "Unheaded hosting Unheaded's own development"
-- Ultimate proof: If it can manage itself, it can manage anything
+- Proof of Concept: If it can manage itself, it can maybe manage more
 
 ## Data Format Strategy
 
@@ -198,7 +198,7 @@ Security-first design from day one:
 
 - eBPF programs verified by kernel
 - NixOS immutable containers
-- Zero customer data access (architectural isolation)
+- Zero application data access (architectural isolation)
 - mTLS between services
 - Seccomp, capabilities restrictions
 - Network policies enforced
@@ -239,23 +239,18 @@ See [references/timeline.md](references/timeline.md) for the living roadmap.
 
 ## Contributing
 
-We're in alpha. Not accepting external contributions yet, but feel free to:
+Still working on alpha. Not accepting external contributions yet, but feel free to:
 - Open issues for bugs
 - Suggest features
 - Star the repo if you're interested
 
 ## License
 
-Proprietary (for now). Open source plans TBD.
+Ideally open source but need to throughly scan code base against and verify nothing has been pulled in that has conflicting usage rights.
 
 ## Contact
 
-- **Web**: [unheaded.com](https://unheaded.com)
-- **Email**: hello@unheaded.com
+- **Web**: [unheaded.com](https://unheaded.org)
+- **Email**: stevie@bellis.tech
 - **GitHub**: [github.com/unheaded](https://github.com/unheaded)
 
----
-
-**"We drink our own champagne."** 🍾
-
-Built by Unheaded, running on Unheaded.
