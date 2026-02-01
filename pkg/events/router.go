@@ -139,9 +139,7 @@ func (r *Router) Route(ctx context.Context, topic string, payload []byte) error 
 	r.mu.RUnlock()
 
 	if len(matchingHandlers) == 0 {
-		log.Debug().
-			Str("topic", topic).
-			Msg("no handlers registered for topic")
+		log.Debug().Msg("no handlers registered for topic")
 		r.incrementDropped()
 		return nil // Not an error - just no subscribers
 	}

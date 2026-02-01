@@ -1,0 +1,119 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# THE KINGDOM'S GITIGNORE - What Shall Not Pass
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── macOS ───
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ─── IDE / Editors ───
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.iml
+
+# ─── Go ───
+bin/
+/bin
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+vendor/
+coverage.out
+coverage.html
+*.prof
+*.pprof
+
+# ─── Rust / Cargo ───
+target/
+**/*.rs.bk
+Cargo.lock
+*.rlib
+
+# ─── Build Artifacts ───
+build/
+dist/
+*.o
+*.a
+*.obj
+*.lib
+
+# ─── Dependencies ───
+node_modules/
+bower_components/
+
+# ─── Environment / Secrets ───
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+!pkg/secrets/
+credentials.json
+service-account.json
+
+# ─── Logs ───
+*.log
+logs/
+*.log.*
+
+# ─── Testing ───
+.coverage/
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# ─── Docker ───
+.docker/
+
+# ─── Nix ───
+result
+result-*
+.direnv/
+
+# ─── eBPF ───
+*.bpf.o
+vmlinux.h
+
+# ─── Temporary Files ───
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# ─── Dev Placeholders (external deps) ───
+# These are intentionally tracked as .dev files
+# *.dev
+
+# ─── Claude / AI ───
+# Keep CLAUDE.md tracked
+.claude-cache/
+
+# ─── Session artifacts ───
+# Session handoffs are tracked intentionally
+# *.jsonl
