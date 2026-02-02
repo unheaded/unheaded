@@ -53,6 +53,7 @@ type Config struct {
 	PingInterval   time.Duration // Interval between ping frames
 	BufferSize     int           // Message buffer size per client
 	MaxMessageSize int64         // Maximum message size in bytes
+	AllowedOrigins []string      // Allowed origins for CORS validation (empty = allow all)
 }
 
 // DefaultConfig returns default WebSocket configuration
@@ -332,6 +333,18 @@ func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return nil, errors.New("method not allowed")
+	}
+
+	// CORS origin validation - prevents cross-origin WebSocket hijacking
+	if len(s.config.AllowedOrigins) > 0 {
+		origin := r.Header.Get("Origin")
+		if !s.isOriginAllowed(origin) {
+			s.log.Warn().
+				Str("origin", origin).
+				Msg("WebSocket connection rejected: origin not allowed")
+			http.Error(w, "origin not allowed", http.StatusForbidden)
+			return nil, errors.New("origin not allowed")
+		}
 	}
 
 	upgrade := r.Header.Get("Upgrade")
@@ -681,4 +694,22 @@ func (s *Server) IsRunning() bool {
 	s.runMu.RLock()
 	defer s.runMu.RUnlock()
 	return s.running
+}
+
+// isOriginAllowed checks if the given origin is in the allowed list
+func (s *Server) isOriginAllowed(origin string) bool {
+	if len(s.config.AllowedOrigins) == 0 {
+		return true // No restrictions if list is empty
+	}
+	for _, allowed := range s.config.AllowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// SetAllowedOrigins sets the allowed origins for CORS validation
+func (s *Server) SetAllowedOrigins(origins []string) {
+	s.config.AllowedOrigins = origins
 }

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // Buffer provides event buffering with automatic flushing.

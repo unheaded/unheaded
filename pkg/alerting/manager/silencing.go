@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
+	"unheaded/pkg/alerting"
 )
 
 // Silencer manages silence rules for alerts.

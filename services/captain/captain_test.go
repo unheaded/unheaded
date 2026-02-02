@@ -5,7 +5,8 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
+
+	busboyClient "unheaded/pkg/busboy-client"
 )
 
 // mockStorage implements Storage for testing
@@ -103,12 +104,17 @@ func (m *mockBusboy) Publish(ctx context.Context, topic string, payload []byte) 
 	return nil
 }
 
-func (m *mockBusboy) Subscribe(ctx context.Context, topic, displayName string) error {
-	return nil
+func (m *mockBusboy) Subscribe(ctx context.Context, topic, displayName string) (*busboyClient.Subscriber, error) {
+	return &busboyClient.Subscriber{
+		SubscriberID: "mock-subscriber",
+		Topic:        topic,
+		DisplayName:  displayName,
+		Status:       "approved",
+	}, nil
 }
 
-func (m *mockBusboy) StreamMessages(ctx context.Context, topic string) (<-chan interface{}, error) {
-	ch := make(chan interface{})
+func (m *mockBusboy) StreamMessages(ctx context.Context, topic string) (<-chan *busboyClient.Message, error) {
+	ch := make(chan *busboyClient.Message)
 	close(ch)
 	return ch, nil
 }

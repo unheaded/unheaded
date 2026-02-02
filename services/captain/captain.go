@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	busboyClient "unheaded/pkg/busboy-client"
 )
 
 // Common errors
@@ -108,8 +110,8 @@ type Storage interface {
 // BusboyCommunicator interface for messaging
 type BusboyCommunicator interface {
 	Publish(ctx context.Context, topic string, payload []byte) error
-	Subscribe(ctx context.Context, topic, displayName string) error
-	StreamMessages(ctx context.Context, topic string) (<-chan interface{}, error)
+	Subscribe(ctx context.Context, topic, displayName string) (*busboyClient.Subscriber, error)
+	StreamMessages(ctx context.Context, topic string) (<-chan *busboyClient.Message, error)
 }
 
 // Service provides captain leadership functions

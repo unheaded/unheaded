@@ -22,12 +22,14 @@ const WebSocketClient = (function() {
 
     // State
     let ws = null;
+    let eventSource = null; // SSE fallback
     let reconnectAttempts = 0;
     let reconnectTimer = null;
     let heartbeatTimer = null;
     let heartbeatTimeoutTimer = null;
     let isConnecting = false;
     let isManuallyClosed = false;
+    let useSSE = false; // Whether to use SSE fallback
 
     // Event handlers
     const eventHandlers = new Map();
@@ -51,6 +53,14 @@ const WebSocketClient = (function() {
     function getWebSocketUrl() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         return `${protocol}//${window.location.host}/ws`;
+    }
+
+    /**
+     * Get SSE URL for fallback
+     * @returns {string}
+     */
+    function getSSEUrl() {
+        return `${window.location.origin}/api/v1/stream`;
     }
 
     /**
@@ -154,11 +164,112 @@ const WebSocketClient = (function() {
     }
 
     /**
-     * Connect to WebSocket server
+     * Connect via SSE (Server-Sent Events) as fallback
+     * @returns {Promise<void>}
+     */
+    function connectSSE() {
+        return new Promise((resolve, reject) => {
+            if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+                resolve();
+                return;
+            }
+
+            const url = getSSEUrl();
+            console.log('[SSE] Connecting to:', url);
+
+            try {
+                eventSource = new EventSource(url);
+            } catch (error) {
+                console.error('[SSE] Failed to create EventSource:', error);
+                reject(error);
+                return;
+            }
+
+            eventSource.onopen = () => {
+                console.log('[SSE] Connected');
+                isConnecting = false;
+                reconnectAttempts = 0;
+                useSSE = true;
+                updateState(ConnectionState.CONNECTED);
+                resolve();
+            };
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleMessage({ data: event.data });
+                } catch (error) {
+                    console.error('[SSE] Parse error:', error);
+                }
+            };
+
+            eventSource.addEventListener('tasks', (event) => {
+                try {
+                    const tasks = JSON.parse(event.data);
+                    // Dispatch initial tasks load event
+                    const handlers = eventHandlers.get('tasks.loaded') || [];
+                    handlers.forEach(handler => handler({ tasks }));
+                } catch (error) {
+                    console.error('[SSE] Tasks parse error:', error);
+                }
+            });
+
+            // Timeline events - THE META MOMENT
+            eventSource.addEventListener('timeline.updated', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('[SSE] Timeline updated:', data);
+                    const handlers = eventHandlers.get('timeline.updated') || [];
+                    handlers.forEach(handler => handler(data));
+                } catch (error) {
+                    console.error('[SSE] Timeline parse error:', error);
+                }
+            });
+
+            eventSource.addEventListener('timeline.event', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('[SSE] Timeline event:', data);
+                    const handlers = eventHandlers.get('timeline.event') || [];
+                    handlers.forEach(handler => handler(data));
+                } catch (error) {
+                    console.error('[SSE] Timeline event parse error:', error);
+                }
+            });
+
+            eventSource.onerror = (error) => {
+                console.error('[SSE] Error:', error);
+                isConnecting = false;
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    updateState(ConnectionState.DISCONNECTED);
+                    if (!isManuallyClosed) {
+                        scheduleReconnect();
+                    }
+                }
+            };
+
+            // Connection timeout
+            setTimeout(() => {
+                if (isConnecting && eventSource.readyState === EventSource.CONNECTING) {
+                    eventSource.close();
+                    reject(new Error('SSE connection timeout'));
+                }
+            }, 10000);
+        });
+    }
+
+    /**
+     * Connect to WebSocket server (with SSE fallback)
      * @returns {Promise<void>}
      */
     function connect() {
         return new Promise((resolve, reject) => {
+            // If SSE is already working, use it
+            if (useSSE && eventSource && eventSource.readyState === EventSource.OPEN) {
+                resolve();
+                return;
+            }
+
             if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
                 resolve();
                 return;
@@ -188,9 +299,9 @@ const WebSocketClient = (function() {
             try {
                 ws = new WebSocket(url);
             } catch (error) {
+                console.warn('[WebSocket] WebSocket not supported, trying SSE fallback');
                 isConnecting = false;
-                updateState(ConnectionState.ERROR);
-                reject(error);
+                connectSSE().then(resolve).catch(reject);
                 return;
             }
 
@@ -206,32 +317,52 @@ const WebSocketClient = (function() {
             ws.onmessage = handleMessage;
 
             ws.onerror = (error) => {
-                console.error('[WebSocket] Error:', error);
+                console.warn('[WebSocket] Error, trying SSE fallback:', error);
                 isConnecting = false;
-                updateState(ConnectionState.ERROR);
+                ws?.close();
+                // Try SSE fallback
+                connectSSE().then(() => {
+                    resolve();
+                }).catch(() => {
+                    updateState(ConnectionState.ERROR);
+                    reject(new Error('Both WebSocket and SSE failed'));
+                });
             };
 
             ws.onclose = (event) => {
                 console.log('[WebSocket] Closed:', event.code, event.reason);
                 isConnecting = false;
                 stopHeartbeat();
-                updateState(ConnectionState.DISCONNECTED);
 
-                // Attempt reconnection if not manually closed
-                if (!isManuallyClosed) {
-                    scheduleReconnect();
+                // If WebSocket closes quickly, try SSE
+                if (event.code !== 1000 && !useSSE) {
+                    console.log('[WebSocket] Trying SSE fallback...');
+                    connectSSE().catch(() => {
+                        updateState(ConnectionState.DISCONNECTED);
+                        if (!isManuallyClosed) {
+                            scheduleReconnect();
+                        }
+                    });
+                } else {
+                    updateState(ConnectionState.DISCONNECTED);
+                    if (!isManuallyClosed) {
+                        scheduleReconnect();
+                    }
                 }
             };
 
-            // Connection timeout
+            // Connection timeout - try SSE on timeout
             setTimeout(() => {
                 if (isConnecting) {
+                    console.warn('[WebSocket] Connection timeout, trying SSE');
                     isConnecting = false;
                     ws?.close();
-                    updateState(ConnectionState.ERROR);
-                    reject(new Error('Connection timeout'));
+                    connectSSE().then(resolve).catch(() => {
+                        updateState(ConnectionState.ERROR);
+                        reject(new Error('Connection timeout'));
+                    });
                 }
-            }, 10000);
+            }, 5000);
         });
     }
 
@@ -298,6 +429,12 @@ const WebSocketClient = (function() {
             ws = null;
         }
 
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+
+        useSSE = false;
         updateState(ConnectionState.DISCONNECTED);
     }
 

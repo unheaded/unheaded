@@ -5,6 +5,7 @@ package mesh
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -15,6 +16,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"unheaded/pkg/certs"
+	"unheaded/pkg/mesh/mtls"
 )
 
 // Version is the mesh version.
@@ -68,6 +72,11 @@ type Mesh struct {
 	tlsConfig       *tls.Config
 	clientTLSConfig *tls.Config
 	rootCAs         *x509.CertPool
+
+	// mTLS Provider (zero-trust networking)
+	mtlsProvider    *mtls.Provider
+	identityMgr     *mtls.IdentityManager
+	zeroTrustEnforcer *mtls.ZeroTrustEnforcer
 
 	// HTTP client for outbound requests
 	httpClient *http.Client
@@ -989,4 +998,308 @@ func (m *Mesh) GetHealthyEndpoints(ctx context.Context, service, namespace strin
 		return nil, err
 	}
 	return m.filterHealthyEndpoints(endpoints), nil
+}
+
+// =============================================================================
+// mTLS Provider Integration - Zero-Trust Networking
+// =============================================================================
+
+// ConfigureMTLSProvider initializes the zero-trust mTLS provider.
+// This provides advanced certificate management with automatic rotation.
+func (m *Mesh) ConfigureMTLSProvider(providerConfig *mtls.ProviderConfig) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return ErrMeshClosed
+	}
+
+	if providerConfig == nil {
+		providerConfig = mtls.DefaultProviderConfig(
+			m.config.TrustDomain,
+			m.config.ServiceName,
+			m.config.Namespace,
+		)
+	}
+
+	m.mtlsProvider = mtls.NewProvider(providerConfig)
+
+	// Set up identity manager
+	identityConfig := mtls.DefaultIdentityConfig(m.config.ServiceName, m.config.Namespace)
+	identityConfig.TrustDomain = m.config.TrustDomain
+	m.identityMgr = mtls.NewIdentityManager(identityConfig)
+
+	// Set up zero-trust enforcer
+	m.zeroTrustEnforcer = mtls.NewZeroTrustEnforcer([]string{m.config.TrustDomain})
+
+	return nil
+}
+
+// InitializeMTLSWithCA initializes mTLS with a CA for self-signed certificates.
+func (m *Mesh) InitializeMTLSWithCA(caCert *x509.Certificate, caKey crypto.Signer) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return ErrMeshClosed
+	}
+
+	if m.mtlsProvider == nil {
+		providerConfig := mtls.DefaultProviderConfig(
+			m.config.TrustDomain,
+			m.config.ServiceName,
+			m.config.Namespace,
+		)
+		m.mtlsProvider = mtls.NewProvider(providerConfig)
+	}
+
+	if err := m.mtlsProvider.InitializeWithCA(caCert, caKey); err != nil {
+		return fmt.Errorf("mTLS initialization failed: %w", err)
+	}
+
+	// Update TLS configs from provider
+	m.tlsConfig = m.mtlsProvider.ServerTLSConfig()
+	m.clientTLSConfig = m.mtlsProvider.ClientTLSConfig()
+	m.rootCAs = m.mtlsProvider.RootCAs()
+
+	// Update HTTP client
+	m.updateHTTPClient()
+
+	// Set up rotation callback
+	m.mtlsProvider.OnRotation(func(cert *tls.Certificate) {
+		m.onCertificateRotation(cert)
+	})
+
+	return nil
+}
+
+// InitializeMTLSFromFiles initializes mTLS from certificate files.
+func (m *Mesh) InitializeMTLSFromFiles(certFile, keyFile, caFile string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return ErrMeshClosed
+	}
+
+	if m.mtlsProvider == nil {
+		providerConfig := mtls.DefaultProviderConfig(
+			m.config.TrustDomain,
+			m.config.ServiceName,
+			m.config.Namespace,
+		)
+		m.mtlsProvider = mtls.NewProvider(providerConfig)
+	}
+
+	if err := m.mtlsProvider.InitializeWithFiles(certFile, keyFile, caFile); err != nil {
+		return fmt.Errorf("mTLS initialization failed: %w", err)
+	}
+
+	// Update TLS configs from provider
+	m.tlsConfig = m.mtlsProvider.ServerTLSConfig()
+	m.clientTLSConfig = m.mtlsProvider.ClientTLSConfig()
+	m.rootCAs = m.mtlsProvider.RootCAs()
+
+	// Update HTTP client
+	m.updateHTTPClient()
+
+	// Set up rotation callback
+	m.mtlsProvider.OnRotation(func(cert *tls.Certificate) {
+		m.onCertificateRotation(cert)
+	})
+
+	return nil
+}
+
+// InitializeMTLSWithCertManager initializes mTLS using the centralized cert manager.
+func (m *Mesh) InitializeMTLSWithCertManager(certMgr certs.CertManager) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return ErrMeshClosed
+	}
+
+	if m.mtlsProvider == nil {
+		providerConfig := mtls.DefaultProviderConfig(
+			m.config.TrustDomain,
+			m.config.ServiceName,
+			m.config.Namespace,
+		)
+		m.mtlsProvider = mtls.NewProvider(providerConfig)
+	}
+
+	if err := m.mtlsProvider.InitializeWithCertManager(certMgr); err != nil {
+		return fmt.Errorf("mTLS initialization failed: %w", err)
+	}
+
+	// Update TLS configs from provider
+	m.tlsConfig = m.mtlsProvider.ServerTLSConfig()
+	m.clientTLSConfig = m.mtlsProvider.ClientTLSConfig()
+	m.rootCAs = m.mtlsProvider.RootCAs()
+
+	// Update HTTP client
+	m.updateHTTPClient()
+
+	// Set up rotation callback
+	m.mtlsProvider.OnRotation(func(cert *tls.Certificate) {
+		m.onCertificateRotation(cert)
+	})
+
+	return nil
+}
+
+// onCertificateRotation handles certificate rotation events.
+func (m *Mesh) onCertificateRotation(cert *tls.Certificate) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Update TLS configs
+	if m.mtlsProvider != nil {
+		m.tlsConfig = m.mtlsProvider.ServerTLSConfig()
+		m.clientTLSConfig = m.mtlsProvider.ClientTLSConfig()
+	}
+
+	// Update HTTP client with new TLS config
+	m.updateHTTPClient()
+}
+
+// updateHTTPClient updates the HTTP client with current TLS config.
+func (m *Mesh) updateHTTPClient() {
+	m.httpClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig:     m.clientTLSConfig,
+			MaxIdleConns:        m.config.MaxIdleConns,
+			MaxIdleConnsPerHost: m.config.MaxIdleConnsPerHost,
+			IdleConnTimeout:     m.config.IdleConnTimeout,
+			DialContext: (&net.Dialer{
+				Timeout:   m.config.ConnectTimeout,
+				KeepAlive: m.config.KeepAliveInterval,
+			}).DialContext,
+		},
+		Timeout: m.config.RequestTimeout,
+	}
+}
+
+// SetAuthorizationPolicy sets an authorization policy for zero-trust enforcement.
+func (m *Mesh) SetAuthorizationPolicy(service string, policy *mtls.AuthorizationPolicy) {
+	m.mu.RLock()
+	enforcer := m.zeroTrustEnforcer
+	identityMgr := m.identityMgr
+	m.mu.RUnlock()
+
+	if enforcer != nil {
+		enforcer.SetPolicy(service, policy)
+	}
+	if identityMgr != nil {
+		identityMgr.SetPolicy(service, policy)
+	}
+}
+
+// EnforceZeroTrust validates and authorizes a TLS connection.
+func (m *Mesh) EnforceZeroTrust(conn *tls.Conn, targetService string) error {
+	m.mu.RLock()
+	enforcer := m.zeroTrustEnforcer
+	m.mu.RUnlock()
+
+	if enforcer == nil {
+		return nil // Zero-trust not configured
+	}
+
+	return enforcer.Enforce(conn, targetService)
+}
+
+// GetPeerIdentity extracts the peer's SPIFFE identity from a connection.
+func (m *Mesh) GetPeerIdentity(conn *tls.Conn) (*mtls.SPIFFEID, error) {
+	m.mu.RLock()
+	identityMgr := m.identityMgr
+	m.mu.RUnlock()
+
+	if identityMgr == nil {
+		// Fall back to basic extraction
+		info, err := mtls.ExtractPeerInfo(conn)
+		if err != nil {
+			return nil, err
+		}
+		return info.SPIFFEID, nil
+	}
+
+	return identityMgr.ValidatePeer(conn)
+}
+
+// SPIFFEID returns the mesh's SPIFFE identity.
+func (m *Mesh) SPIFFEID() *mtls.SPIFFEID {
+	m.mu.RLock()
+	provider := m.mtlsProvider
+	m.mu.RUnlock()
+
+	if provider != nil {
+		return provider.SPIFFEID()
+	}
+	return nil
+}
+
+// MTLSProvider returns the mTLS provider.
+func (m *Mesh) MTLSProvider() *mtls.Provider {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.mtlsProvider
+}
+
+// ServerTLSConfig returns the server TLS configuration.
+func (m *Mesh) ServerTLSConfig() *tls.Config {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.tlsConfig == nil {
+		return nil
+	}
+	return m.tlsConfig.Clone()
+}
+
+// ClientTLSConfig returns the client TLS configuration.
+func (m *Mesh) ClientTLSConfig() *tls.Config {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.clientTLSConfig == nil {
+		return nil
+	}
+	return m.clientTLSConfig.Clone()
+}
+
+// RotateCertificate forces a certificate rotation.
+func (m *Mesh) RotateCertificate() error {
+	m.mu.RLock()
+	provider := m.mtlsProvider
+	m.mu.RUnlock()
+
+	if provider == nil {
+		return errors.New("mTLS provider not configured")
+	}
+
+	return provider.Rotate()
+}
+
+// SaveCertificates saves current certificates to files.
+func (m *Mesh) SaveCertificates(certDir string) error {
+	m.mu.RLock()
+	provider := m.mtlsProvider
+	m.mu.RUnlock()
+
+	if provider == nil {
+		return errors.New("mTLS provider not configured")
+	}
+
+	return provider.SaveToFiles(certDir)
+}
+
+// ZeroTrustStats returns zero-trust enforcement statistics.
+func (m *Mesh) ZeroTrustStats() (allowed, denied uint64) {
+	m.mu.RLock()
+	enforcer := m.zeroTrustEnforcer
+	m.mu.RUnlock()
+
+	if enforcer != nil {
+		return enforcer.Stats()
+	}
+	return 0, 0
 }

@@ -19,13 +19,14 @@ import (
 
 // ReverseProxy handles proxying requests to backend services.
 type ReverseProxy struct {
-	cfg           *config.RouteConfig
-	log           *logger.Logger
-	metrics       *metrics.Registry
-	loadBalancer  LoadBalancer
-	circuitBreaker *CircuitBreaker
-	transport     http.RoundTripper
-	bufferPool    sync.Pool
+	cfg              *config.RouteConfig
+	log              *logger.Logger
+	requestDuration  *metrics.HistogramVec
+	requestsTotal    *metrics.CounterVec
+	loadBalancer     LoadBalancer
+	circuitBreaker   *CircuitBreaker
+	transport        http.RoundTripper
+	bufferPool       sync.Pool
 }
 
 // NewReverseProxy creates a new reverse proxy.
@@ -51,13 +52,37 @@ func NewReverseProxy(
 		ResponseHeaderTimeout: cfg.Timeout,
 	}
 
+	// Create metric vectors
+	labelNames := []string{"route", "backend", "method", "status"}
+	requestDuration := metrics.NewHistogramVec(
+		metrics.HistogramOpts{
+			Name:    "gateway_backend_request_duration_seconds",
+			Help:    "Backend request duration in seconds",
+			Buckets: metrics.DefaultBuckets,
+		},
+		labelNames,
+	)
+	requestsTotal := metrics.NewCounterVec(
+		"gateway_backend_requests_total",
+		"Total number of backend requests",
+		nil,
+		labelNames,
+	)
+
+	// Register metrics if registry provided
+	if metricsReg != nil {
+		_ = metricsReg.Register(requestDuration)
+		_ = metricsReg.Register(requestsTotal)
+	}
+
 	return &ReverseProxy{
-		cfg:            cfg,
-		log:            log,
-		metrics:        metricsReg,
-		loadBalancer:   lb,
-		circuitBreaker: cb,
-		transport:      transport,
+		cfg:             cfg,
+		log:             log,
+		requestDuration: requestDuration,
+		requestsTotal:   requestsTotal,
+		loadBalancer:    lb,
+		circuitBreaker:  cb,
+		transport:       transport,
 		bufferPool: sync.Pool{
 			New: func() interface{} {
 				buf := make([]byte, 32*1024)
@@ -75,22 +100,22 @@ func (p *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get backend from load balancer
 	backend, err := p.loadBalancer.Next()
 	if err != nil {
-		p.log.Error("No available backends",
-			"route", p.cfg.Name,
-			"trace_id", traceID,
-			"error", err.Error(),
-		)
+		p.log.Error().
+			Str("route", p.cfg.Name).
+			Str("trace_id", traceID).
+			Str("error", err.Error()).
+			Msg("No available backends")
 		writeProxyError(w, "Service unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
 	// Check circuit breaker
 	if p.circuitBreaker != nil && !p.circuitBreaker.Allow() {
-		p.log.Warn("Circuit breaker open",
-			"route", p.cfg.Name,
-			"backend", backend,
-			"trace_id", traceID,
-		)
+		p.log.Warn().
+			Str("route", p.cfg.Name).
+			Str("backend", backend).
+			Str("trace_id", traceID).
+			Msg("Circuit breaker open")
 		writeProxyError(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -120,13 +145,13 @@ func (p *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		lastErr = err
-		p.log.Warn("Proxy request failed",
-			"route", p.cfg.Name,
-			"backend", backend,
-			"attempt", attempt+1,
-			"trace_id", traceID,
-			"error", err.Error(),
-		)
+		p.log.Warn().
+			Str("route", p.cfg.Name).
+			Str("backend", backend).
+			Int("attempt", attempt+1).
+			Str("trace_id", traceID).
+			Str("error", err.Error()).
+			Msg("Proxy request failed")
 
 		// Record failure to circuit breaker
 		if p.circuitBreaker != nil {
@@ -138,11 +163,11 @@ func (p *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// All retries exhausted
-	p.log.Error("All retries exhausted",
-		"route", p.cfg.Name,
-		"trace_id", traceID,
-		"error", lastErr.Error(),
-	)
+	p.log.Error().
+		Str("route", p.cfg.Name).
+		Str("trace_id", traceID).
+		Str("error", lastErr.Error()).
+		Msg("All retries exhausted")
 	writeProxyError(w, "Backend service error", http.StatusBadGateway)
 }
 
@@ -192,25 +217,24 @@ func (p *ReverseProxy) proxyRequest(w http.ResponseWriter, r *http.Request, back
 
 	// Record metrics
 	duration := time.Since(start)
-	if p.metrics != nil {
-		labels := map[string]string{
+	if p.requestDuration != nil && p.requestsTotal != nil {
+		labels := metrics.Labels{
 			"route":   p.cfg.Name,
 			"backend": backend,
 			"method":  r.Method,
 			"status":  statusCodeClass(resp.StatusCode),
 		}
-		p.metrics.HistogramWithLabels("gateway_backend_request_duration_seconds", labels).
-			Observe(duration.Seconds())
-		p.metrics.CounterWithLabels("gateway_backend_requests_total", labels).Inc()
+		p.requestDuration.WithLabels(labels).Observe(duration.Seconds())
+		p.requestsTotal.WithLabels(labels).Inc()
 	}
 
-	p.log.Debug("Backend request completed",
-		"route", p.cfg.Name,
-		"backend", backend,
-		"status", resp.StatusCode,
-		"duration_ms", duration.Milliseconds(),
-		"trace_id", traceID,
-	)
+	p.log.Debug().
+		Str("route", p.cfg.Name).
+		Str("backend", backend).
+		Int("status", resp.StatusCode).
+		Int64("duration_ms", duration.Milliseconds()).
+		Str("trace_id", traceID).
+		Msg("Backend request completed")
 
 	// Copy response headers
 	copyHeaders(w.Header(), resp.Header)

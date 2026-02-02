@@ -4,7 +4,7 @@ package standards
 import (
 	"context"
 
-	"github.com/unheaded/unheaded/pkg/compliance/controls"
+	"unheaded/pkg/compliance/controls"
 )
 
 // Standard defines the interface for a compliance standard.

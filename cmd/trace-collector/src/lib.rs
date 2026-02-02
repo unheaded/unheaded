@@ -9,21 +9,25 @@
 //! and the Busboy message bus. It provides:
 //!
 //! - **BPF Readers**: Zero-copy event reading from ring buffers and perf arrays
+//! - **Multi-Source Reading**: Unified reading from all eBPF programs (packet-marker, flow-tracker, latency-probe, syscall-tracer)
 //! - **Event Parsing**: Strongly-typed event structures matching eBPF definitions
+//! - **Trace Correlation**: Cross-service trace correlation engine
 //! - **Publisher**: Batched, compressed gRPC client for Busboy
+//! - **WebSocket**: Real-time trace streaming to dashboard
 //! - **Metrics**: Prometheus-compatible metrics endpoint
-//! - **Proto**: Protocol buffer definitions for Busboy communication
-//! - **Collector**: High-level event collection orchestration
+//! - **Storage**: In-memory and file-based trace storage
 //!
 //! # Modules
 //!
 //! - `bpf` - Low-level BPF map and syscall interaction
 //! - `collector` - High-level event collection orchestration
 //! - `config` - Configuration loading and management
+//! - `correlation` - Trace correlation engine and storage
 //! - `events` - Event types and parsing
 //! - `metrics` - Prometheus metrics and HTTP server
 //! - `proto` - Protocol buffer definitions
 //! - `publisher` - Busboy gRPC client and event batching
+//! - `websocket` - WebSocket server for real-time streaming
 //!
 //! # Example Usage
 //!
@@ -49,10 +53,12 @@
 pub mod bpf;
 pub mod collector;
 pub mod config;
+pub mod correlation;
 pub mod events;
 pub mod metrics;
 pub mod proto;
 pub mod publisher;
+pub mod websocket;
 
 // Re-export commonly used types
 pub use config::Config;
@@ -74,3 +80,22 @@ pub use proto::{
 
 // Re-export metrics types
 pub use metrics::{AtomicMetrics, MetricsHttpServer, MetricsServer, ServerConfig, ATOMIC_METRICS};
+
+// Re-export correlation types
+pub use correlation::{
+    CorrelationConfig, CorrelationEngine, CorrelationStats, FlowKey as CorrelationFlowKey,
+    Span, SpanId as CorrelationSpanId, SpanKind, SpanStatus, TraceContext, TraceId as CorrelationTraceId,
+    TraceQuery, TraceQueryResult, TraceStore, TraceStoreConfig, TraceSummary,
+};
+
+// Re-export BPF multi-source types
+pub use bpf::{
+    EventSource, GlobalStats, MultiSourceConfig, MultiSourceReader, MultiSourceReaderBuilder,
+    SourceConfig, SourceStats, SourcedEvent,
+};
+
+// Re-export WebSocket types
+pub use websocket::{
+    ClientMessage, ServerMessage, Subscription, TraceUpdate, WebSocketConfig, WebSocketHandler,
+    WebSocketServer, WebSocketStats,
+};

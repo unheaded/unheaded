@@ -16,8 +16,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
-	"github.com/unheaded/unheaded/services/micromanager"
+	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/services/micromanager"
 )
 
 var (
@@ -88,10 +88,10 @@ func main() {
 	store := micromanager.NewStore()
 
 	// Create Busboy client (if configured)
-	var busboyClient *busboyClient.Client
+	var busboy *busboyClient.Client
 	if *busboyAddr != "" {
 		var err error
-		busboyClient, err = busboyClient.NewClient(*busboyAddr)
+		busboy, err = busboyClient.NewClient(*busboyAddr)
 		if err != nil {
 			log.Error().Err(err).Str("addr", *busboyAddr).Msg("failed to create busboy client")
 			// Continue anyway, just without busboy integration
@@ -99,7 +99,7 @@ func main() {
 	}
 
 	// Create service
-	service := micromanager.NewService(store, busboyClient)
+	service := micromanager.NewService(store, busboy)
 
 	// Start service
 	ctx := context.Background()

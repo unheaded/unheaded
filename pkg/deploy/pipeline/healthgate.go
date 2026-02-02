@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os/exec"
@@ -630,7 +631,7 @@ func (g *HealthGate) runHTTPCheck(ctx context.Context, config *HTTPHealthCheck, 
 		method = "GET"
 	}
 
-	var bodyReader *bytes.Reader
+	var bodyReader io.Reader
 	if config.Body != "" {
 		bodyReader = bytes.NewReader([]byte(config.Body))
 	}

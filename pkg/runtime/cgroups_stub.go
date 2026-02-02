@@ -11,6 +11,7 @@ import (
 type CgroupManager struct {
 	mu sync.RWMutex
 	cgroupPaths map[string]string
+	v2Manager   *CgroupV2Manager
 }
 
 // CgroupStats contains cgroup statistics.
@@ -126,4 +127,60 @@ func (m *CgroupManager) SetMemoryEvents(cgroupPath string) error {
 // GetMemoryEvents returns memory events (stub for non-Linux).
 func (m *CgroupManager) GetMemoryEvents(cgroupPath string) (map[string]uint64, error) {
 	return nil, fmt.Errorf("cgroups require Linux")
+}
+
+// GetV2Manager returns the enhanced cgroups v2 manager (stub for non-Linux).
+func (m *CgroupManager) GetV2Manager() *CgroupV2Manager {
+	return nil
+}
+
+// WatchContainerEvents starts watching cgroup events (stub for non-Linux).
+func (m *CgroupManager) WatchContainerEvents(containerID string) (<-chan CgroupEvent, error) {
+	return nil, fmt.Errorf("cgroups require Linux")
+}
+
+// StopContainerEventWatcher stops watching events (stub for non-Linux).
+func (m *CgroupManager) StopContainerEventWatcher(containerID string) {}
+
+// StartPressureMonitoring starts monitoring pressure (stub for non-Linux).
+func (m *CgroupManager) StartPressureMonitoring(containerID string, thresholds PressureThresholds, callback PressureCallback) error {
+	return fmt.Errorf("cgroups require Linux")
+}
+
+// StopPressureMonitoring stops pressure monitoring (stub for non-Linux).
+func (m *CgroupManager) StopPressureMonitoring(containerID string) {}
+
+// GetPressureStats returns pressure statistics (stub for non-Linux).
+func (m *CgroupManager) GetPressureStats(containerID string) (*CgroupPressureStats, error) {
+	return nil, fmt.Errorf("cgroups require Linux")
+}
+
+// GetDetailedStats returns comprehensive cgroup v2 statistics (stub for non-Linux).
+func (m *CgroupManager) GetDetailedStats(containerID string) (*CgroupV2Stats, error) {
+	return nil, fmt.Errorf("cgroups require Linux")
+}
+
+// KillAllProcesses sends SIGKILL to all processes (stub for non-Linux).
+func (m *CgroupManager) KillAllProcesses(containerID string) error {
+	return fmt.Errorf("cgroups require Linux")
+}
+
+// SetIOWeight sets the default IO weight (stub for non-Linux).
+func (m *CgroupManager) SetIOWeight(containerID string, weight uint16) error {
+	return fmt.Errorf("cgroups require Linux")
+}
+
+// SetIOLatencyTarget sets the IO latency target (stub for non-Linux).
+func (m *CgroupManager) SetIOLatencyTarget(containerID string, major, minor uint64, targetUsec uint64) error {
+	return fmt.Errorf("cgroups require Linux")
+}
+
+// GetIOStats returns IO statistics (stub for non-Linux).
+func (m *CgroupManager) GetIOStats(containerID string) (*CgroupIOStats, error) {
+	return nil, fmt.Errorf("cgroups require Linux")
+}
+
+// Close cleans up resources (stub for non-Linux).
+func (m *CgroupManager) Close() error {
+	return nil
 }

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/compliance/audit"
-	"github.com/unheaded/unheaded/pkg/compliance/controls"
-	"github.com/unheaded/unheaded/pkg/compliance/report"
+	"unheaded/pkg/compliance/audit"
+	"unheaded/pkg/compliance/controls"
+	"unheaded/pkg/compliance/report"
 )
 
 func TestNewEngine(t *testing.T) {

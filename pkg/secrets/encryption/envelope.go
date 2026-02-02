@@ -15,7 +15,7 @@ import (
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/crypto/sha3"
 
-	"github.com/unheaded/unheaded/pkg/logger"
+	"unheaded/pkg/logger"
 )
 
 // EnvelopeEncryptor implements envelope encryption.

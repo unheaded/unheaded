@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/secrets"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/secrets"
 )
 
 // MemoryStore is an in-memory secret store for testing and development.

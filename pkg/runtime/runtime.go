@@ -132,29 +132,79 @@ type ContainerConfig struct {
 // ResourceConfig defines resource limits for a container.
 type ResourceConfig struct {
 	// CPUShares is the CPU shares (relative weight).
+	// In cgroup v2, this is converted to cpu.weight (1-10000).
 	CPUShares int64
 	// CPUQuota is the CPU CFS quota in microseconds.
+	// In cgroup v2, this becomes the first value in cpu.max.
 	CPUQuota int64
 	// CPUPeriod is the CPU CFS period in microseconds.
+	// In cgroup v2, this becomes the second value in cpu.max.
 	CPUPeriod int64
 	// CPUSetCPUs is the CPUs in which to allow execution.
+	// Maps to cpuset.cpus in cgroup v2.
 	CPUSetCPUs string
 	// CPUSetMems is the memory nodes in which to allow execution.
+	// Maps to cpuset.mems in cgroup v2.
 	CPUSetMems string
+	// CPUWeight is the cgroup v2 CPU weight (1-10000, default 100).
+	// Takes precedence over CPUShares if set.
+	CPUWeight uint64
+
 	// MemoryLimitBytes is the memory limit in bytes.
+	// Maps to memory.max in cgroup v2.
 	MemoryLimitBytes int64
 	// MemorySwapLimitBytes is the swap limit in bytes.
+	// In cgroup v2, memory.swap.max is for swap only (not memory+swap).
 	MemorySwapLimitBytes int64
 	// MemoryReservationBytes is the soft memory limit.
+	// Maps to memory.low in cgroup v2 (best-effort protection).
 	MemoryReservationBytes int64
+	// MemoryHighBytes is the memory throttling threshold.
+	// Maps to memory.high in cgroup v2 - processes are throttled when exceeded.
+	MemoryHighBytes int64
+	// MemoryMinBytes is the guaranteed minimum memory.
+	// Maps to memory.min in cgroup v2 (hard protection).
+	MemoryMinBytes int64
 	// OOMKillDisable disables OOM killer.
 	OOMKillDisable bool
 	// OOMScoreAdj is the OOM score adjustment.
 	OOMScoreAdj int
+	// OOMGroup enables memory.oom.group in cgroup v2.
+	// When true, all processes in the cgroup are killed together on OOM.
+	OOMGroup bool
+
 	// PidsLimit is the maximum number of processes.
+	// Maps to pids.max in cgroup v2.
 	PidsLimit int64
+
+	// IOWeight is the IO weight (1-10000, default 100).
+	// Maps to io.weight in cgroup v2.
+	IOWeight uint16
+	// IOLimits are per-device IO limits.
+	// Maps to io.max in cgroup v2.
+	IOLimits []IOLimit
+
 	// Ulimits are resource limits.
 	Ulimits []Ulimit
+
+	// HugepageLimits are hugepage limits per page size.
+	HugepageLimits map[string]int64
+}
+
+// IOLimit defines IO limits for a block device.
+type IOLimit struct {
+	// Major is the device major number.
+	Major uint64
+	// Minor is the device minor number.
+	Minor uint64
+	// ReadBytesPerSec is the read byte rate limit (-1 for unlimited).
+	ReadBytesPerSec int64
+	// WriteBytesPerSec is the write byte rate limit (-1 for unlimited).
+	WriteBytesPerSec int64
+	// ReadIOPS is the read IOPS limit (-1 for unlimited).
+	ReadIOPS int64
+	// WriteIOPS is the write IOPS limit (-1 for unlimited).
+	WriteIOPS int64
 }
 
 // Ulimit represents a resource limit.

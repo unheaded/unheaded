@@ -426,22 +426,22 @@ func (d *Daemon) reconcile() {
 
 		if !exists {
 			// Container should exist but doesn't - create it
-			log.Printf("📦 Container %s missing, scheduling creation", id)
-			// TODO: d.lxdClient.CreateContainer(...)
+			log.Printf("📦 Container %s (%s) missing, scheduling creation", id, desired.Name)
+			// TODO: d.lxdClient.CreateContainer(desired)
 			continue
 		}
 
 		if actual.Status != "running" {
 			// Container should be running - start it
-			log.Printf("▶️  Container %s not running (status: %s), scheduling start", id, actual.Status)
-			// TODO: d.lxdClient.StartContainer(...)
+			log.Printf("▶️  Container %s (%s) not running (status: %s), scheduling start", id, desired.Name, actual.Status)
+			// TODO: d.lxdClient.StartContainer(desired)
 			continue
 		}
 
 		if actual.Health == "unhealthy" {
 			// Container unhealthy - restart it
-			log.Printf("🔄 Container %s unhealthy, scheduling restart", id)
-			// TODO: d.lxdClient.RestartContainer(...)
+			log.Printf("🔄 Container %s (%s) unhealthy, scheduling restart", id, desired.Name)
+			// TODO: d.lxdClient.RestartContainer(desired)
 			continue
 		}
 	}

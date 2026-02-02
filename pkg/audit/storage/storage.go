@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // MemoryStorage is an in-memory storage backend for testing and development.

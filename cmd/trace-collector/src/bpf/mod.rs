@@ -5,11 +5,23 @@
 //!
 //! We use raw syscalls and mmap for maximum performance and
 //! educational value.
+//!
+//! ## Modules
+//!
+//! - `ringbuf` - Ring buffer reading with zero-copy semantics
+//! - `perf` - Perf event array reading (per-CPU)
+//! - `maps` - BPF map operations
+//! - `multi_source` - Unified reading from multiple eBPF programs
 
 pub mod maps;
+pub mod multi_source;
 pub mod perf;
 pub mod ringbuf;
 
+pub use multi_source::{
+    EventSource, GlobalStats, MultiSourceConfig, MultiSourceReader, MultiSourceReaderBuilder,
+    SourceConfig, SourceStats, SourcedEvent,
+};
 pub use perf::PerfEventReader;
 pub use ringbuf::RingBufReader;
 

@@ -18,9 +18,9 @@ import (
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/metrics"
-	"github.com/unheaded/unheaded/pkg/secrets"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
+	"unheaded/pkg/secrets"
 )
 
 // Common errors for rotation operations.

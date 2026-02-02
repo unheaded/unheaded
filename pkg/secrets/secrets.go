@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/metrics"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
 )
 
 // Common errors for secret operations.

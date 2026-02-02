@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -388,7 +390,23 @@ func (e *HookExecutor) executeBusboyHook(ctx context.Context, hook *Hook, result
 	return nil
 }
 
-// executeScriptHook executes a script hook.
+// allowedScriptLanguages defines the whitelist of supported script interpreters.
+var allowedScriptLanguages = map[string]string{
+	"bash":    "bash",
+	"sh":      "sh",
+	"python":  "python",
+	"python3": "python3",
+}
+
+// scriptFileExtensions maps languages to their file extensions.
+var scriptFileExtensions = map[string]string{
+	"bash":    ".sh",
+	"sh":      ".sh",
+	"python":  ".py",
+	"python3": ".py",
+}
+
+// executeScriptHook executes a script hook securely by writing to a temp file.
 func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result *HookResult, pipelineCtx map[string]interface{}) error {
 	if hook.Config == nil || hook.Config.Script == "" {
 		return fmt.Errorf("script hook requires script")
@@ -399,25 +417,78 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result
 		language = "bash"
 	}
 
-	var cmd *exec.Cmd
-	switch language {
-	case "bash", "sh":
-		cmd = exec.CommandContext(ctx, "bash", "-c", hook.Config.Script)
-	case "python":
-		cmd = exec.CommandContext(ctx, "python", "-c", hook.Config.Script)
-	case "python3":
-		cmd = exec.CommandContext(ctx, "python3", "-c", hook.Config.Script)
-	default:
+	// Validate language against whitelist to prevent arbitrary interpreter injection
+	interpreter, ok := allowedScriptLanguages[language]
+	if !ok {
 		return fmt.Errorf("unsupported script language: %s", language)
 	}
 
-	// Add pipeline context as environment variables
+	// Get file extension for the script
+	ext := scriptFileExtensions[language]
+
+	// Create a temporary file for the script to avoid command injection via -c
+	// This prevents shell metacharacter injection that could occur when passing
+	// script content directly to the shell via -c flag
+	tmpDir := os.TempDir()
+	tmpFile, err := os.CreateTemp(tmpDir, "hook-script-*"+ext)
+	if err != nil {
+		return fmt.Errorf("failed to create temp script file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Ensure cleanup of temporary file
+	defer os.Remove(tmpPath)
+
+	// Write script content to the temp file
+	if _, err := tmpFile.WriteString(hook.Config.Script); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("failed to write script to temp file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp script file: %w", err)
+	}
+
+	// Set executable permissions (owner read/execute only for security)
+	if err := os.Chmod(tmpPath, 0500); err != nil {
+		return fmt.Errorf("failed to set script permissions: %w", err)
+	}
+
+	// Resolve the interpreter to an absolute path to prevent PATH manipulation attacks
+	interpreterPath, err := exec.LookPath(interpreter)
+	if err != nil {
+		return fmt.Errorf("interpreter not found: %s: %w", interpreter, err)
+	}
+
+	// Execute the script file directly with the interpreter
+	// Using the absolute path to both interpreter and script file
+	absScriptPath, err := filepath.Abs(tmpPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for script: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, interpreterPath, absScriptPath)
+
+	// Set working directory if specified
+	if hook.Config.Dir != "" {
+		cmd.Dir = hook.Config.Dir
+	}
+
+	// Start with a clean environment and add only necessary variables
+	cmd.Env = os.Environ()
+
+	// Add pipeline context as environment variables with sanitized keys
 	for key, value := range pipelineCtx {
+		// Sanitize the key to prevent environment variable injection
+		sanitizedKey := sanitizeEnvKey(key)
+		if sanitizedKey == "" {
+			continue
+		}
+
 		switch v := value.(type) {
 		case string:
-			cmd.Env = append(cmd.Env, fmt.Sprintf("PIPELINE_%s=%s", strings.ToUpper(key), v))
+			cmd.Env = append(cmd.Env, fmt.Sprintf("PIPELINE_%s=%s", sanitizedKey, v))
 		case int, int64, float64:
-			cmd.Env = append(cmd.Env, fmt.Sprintf("PIPELINE_%s=%v", strings.ToUpper(key), v))
+			cmd.Env = append(cmd.Env, fmt.Sprintf("PIPELINE_%s=%v", sanitizedKey, v))
 		}
 	}
 
@@ -426,7 +497,7 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 
 	result.Output = stdout.String()
 	if stderr.Len() > 0 {
@@ -442,6 +513,32 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result
 
 	result.ExitCode = 0
 	return nil
+}
+
+// sanitizeEnvKey ensures environment variable keys contain only safe characters.
+// Returns empty string if the key is invalid.
+func sanitizeEnvKey(key string) string {
+	if key == "" {
+		return ""
+	}
+
+	var result strings.Builder
+	for i, r := range key {
+		// Environment variable names should be uppercase letters, digits, and underscores
+		// First character cannot be a digit
+		if r >= 'A' && r <= 'Z' {
+			result.WriteRune(r)
+		} else if r >= 'a' && r <= 'z' {
+			result.WriteRune(r - 'a' + 'A') // Convert to uppercase
+		} else if r >= '0' && r <= '9' && i > 0 {
+			result.WriteRune(r)
+		} else if r == '_' || r == '-' {
+			result.WriteRune('_')
+		}
+		// Skip any other characters
+	}
+
+	return result.String()
 }
 
 // ExecuteHooks executes a list of hooks sequentially.
