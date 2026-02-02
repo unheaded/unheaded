@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/storage"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/storage"
 )
 
 // BadgerStore is a BadgerDB-backed key-value store.

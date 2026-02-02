@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/storage"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/storage"
 )
 
 // S3Store is an S3-compatible object store.

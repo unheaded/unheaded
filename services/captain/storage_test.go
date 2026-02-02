@@ -2,7 +2,6 @@ package captain
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"

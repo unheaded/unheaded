@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/output"
-	"github.com/unheaded/unheaded/pkg/secrets"
-	"github.com/unheaded/unheaded/pkg/secrets/store"
+	"unheaded/cmd/unheaded-cli/output"
+	"unheaded/pkg/secrets"
+	"unheaded/pkg/secrets/store"
 )
 
 // SecretListResult represents the output for secret list.

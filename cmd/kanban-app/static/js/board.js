@@ -54,14 +54,38 @@ const Board = (function() {
         showLoading(true);
 
         try {
-            const tasks = await API.tasks.getAll();
-            console.log('[Board] Loaded tasks:', tasks.length);
+            // First try to load timeline cards (THE META MOMENT)
+            let tasks = [];
+            let source = 'tasks';
+
+            try {
+                const timelineResponse = await fetch('/api/v1/timeline/cards');
+                if (timelineResponse.ok) {
+                    const timelineData = await timelineResponse.json();
+                    if (timelineData.tasks && timelineData.tasks.length > 0) {
+                        tasks = timelineData.tasks;
+                        source = 'timeline';
+                        console.log('[Board] Loaded timeline cards:', tasks.length);
+                    }
+                }
+            } catch (timelineError) {
+                console.log('[Board] Timeline cards not available, falling back to tasks');
+            }
+
+            // Fall back to regular tasks if no timeline data
+            if (tasks.length === 0) {
+                tasks = await API.tasks.getAll();
+                console.log('[Board] Loaded tasks:', tasks.length);
+            }
 
             // Clear existing state
             state.tasks.clear();
 
-            // Populate state
+            // Populate state - normalize each task
             tasks.forEach(task => {
+                const normalized = Cards.normalizeTask(task);
+                // Store original task with normalized status
+                task._normalizedStatus = normalized.status;
                 state.tasks.set(task.id, task);
             });
 
@@ -69,6 +93,10 @@ const Board = (function() {
             renderAllColumns();
 
             state.lastUpdate = new Date();
+
+            if (source === 'timeline') {
+                showToast('info', 'Timeline Loaded', 'Kanban is tracking its own timeline');
+            }
 
         } catch (error) {
             console.error('[Board] Failed to load tasks:', error);
@@ -125,13 +153,15 @@ const Board = (function() {
 
     /**
      * Get tasks for a specific status
-     * @param {string} status - Column status
+     * @param {string} status - Column status (frontend format)
      * @returns {Array}
      */
     function getTasksByStatus(status) {
         const tasks = [];
         state.tasks.forEach(task => {
-            if (task.status === status) {
+            // Normalize the task status for comparison
+            const normalizedStatus = Cards.STATUS_MAP[task.status] || task.status;
+            if (normalizedStatus === status) {
                 tasks.push(task);
             }
         });
@@ -250,27 +280,36 @@ const Board = (function() {
     /**
      * Move a task to a different column
      * @param {string} taskId - Task ID
-     * @param {string} newStatus - New status
+     * @param {string} newStatus - New status (frontend format)
      * @returns {Promise}
      */
     async function moveTask(taskId, newStatus) {
         const task = state.tasks.get(taskId);
         if (!task) return;
 
+        // Get old status in normalized format
+        const oldNormalizedStatus = Cards.STATUS_MAP[task.status] || task.status;
         const oldStatus = task.status;
 
-        // Optimistic update
-        task.status = newStatus;
-        renderColumn(oldStatus);
+        // Convert new status to API format
+        const apiStatus = Cards.STATUS_TO_API[newStatus] || newStatus;
+
+        // Optimistic update - use normalized status for rendering
+        task.status = apiStatus;
+        renderColumn(oldNormalizedStatus);
         renderColumn(newStatus);
 
         try {
             // Update via API
-            const updatedTask = await API.tasks.move(taskId, newStatus);
+            const updatedTask = await API.tasks.move(taskId, apiStatus);
             state.tasks.set(taskId, updatedTask);
 
             // Check if completed
-            if (newStatus === 'done' && oldStatus !== 'done') {
+            const completedStatuses = ['done'];
+            const wasNotDone = !completedStatuses.includes(Cards.STATUS_MAP[oldStatus] || oldStatus);
+            const isNowDone = newStatus === 'done';
+
+            if (isNowDone && wasNotDone) {
                 const card = document.querySelector(`[data-task-id="${taskId}"]`);
                 if (card) {
                     card.classList.add('just-completed');
@@ -278,14 +317,14 @@ const Board = (function() {
                 }
             }
 
-            showToast('success', 'Task moved', `Moved to ${Cards.STATUS_NAMES[newStatus]}`);
+            showToast('success', 'Task moved', `Moved to ${Cards.STATUS_NAMES[newStatus] || newStatus}`);
 
         } catch (error) {
             console.error('[Board] Failed to move task:', error);
 
             // Rollback on error
             task.status = oldStatus;
-            renderColumn(oldStatus);
+            renderColumn(oldNormalizedStatus);
             renderColumn(newStatus);
 
             showToast('error', 'Failed to move task', error.message);

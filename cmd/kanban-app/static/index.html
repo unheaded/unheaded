@@ -102,13 +102,12 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="taskPriority">Priority</label>
-                            <select id="taskPriority" name="priority">
-                                <option value="0">P0 - Critical</option>
-                                <option value="1">P1 - High</option>
-                                <option value="2" selected>P2 - Medium</option>
-                                <option value="3">P3 - Low</option>
-                                <option value="4">P4 - Backlog</option>
+                            <label for="taskType">Type</label>
+                            <select id="taskType" name="type">
+                                <option value="task">Task</option>
+                                <option value="feature">Feature</option>
+                                <option value="milestone">Milestone</option>
+                                <option value="bug">Bug</option>
                             </select>
                         </div>
 
@@ -125,21 +124,16 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="taskAssignee">Assignee</label>
-                            <input type="text" id="taskAssignee" name="assignee"
-                                   placeholder="Enter assignee name...">
+                            <label for="taskAssignee">Owner</label>
+                            <input type="text" id="taskAssignee" name="owner"
+                                   placeholder="Enter owner name...">
                         </div>
 
                         <div class="form-group">
-                            <label for="taskDueDate">Due Date</label>
-                            <input type="date" id="taskDueDate" name="due_date">
+                            <label for="taskProgress">Progress (%)</label>
+                            <input type="number" id="taskProgress" name="progress"
+                                   min="0" max="100" value="0" placeholder="0">
                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="taskTags">Tags</label>
-                        <input type="text" id="taskTags" name="tags"
-                               placeholder="Enter tags separated by commas...">
                     </div>
 
                     <div class="modal-actions">
@@ -171,16 +165,24 @@
                             <span class="meta-value" id="detailStatus">Backlog</span>
                         </div>
                         <div class="meta-item">
-                            <span class="meta-label">Assignee</span>
+                            <span class="meta-label">Type</span>
+                            <span class="meta-value" id="detailType">Task</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Owner</span>
                             <span class="meta-value" id="detailAssignee">Unassigned</span>
                         </div>
                         <div class="meta-item">
-                            <span class="meta-label">Due Date</span>
-                            <span class="meta-value" id="detailDueDate">Not set</span>
+                            <span class="meta-label">Progress</span>
+                            <span class="meta-value" id="detailProgress">0%</span>
                         </div>
                         <div class="meta-item">
                             <span class="meta-label">Created</span>
                             <span class="meta-value" id="detailCreated">-</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Updated</span>
+                            <span class="meta-value" id="detailUpdated">-</span>
                         </div>
                     </div>
                     <div class="detail-tags" id="detailTags">

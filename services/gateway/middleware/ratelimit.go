@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -60,22 +61,34 @@ func (b *TokenBucket) Tokens() float64 {
 
 // RateLimiter manages rate limits per client.
 type RateLimiter struct {
-	cfg      *config.RateLimitConfig
-	log      *logger.Logger
-	metrics  *metrics.Registry
-	buckets  map[string]*TokenBucket
-	mu       sync.RWMutex
-	stopCh   chan struct{}
+	cfg             *config.RateLimitConfig
+	log             *logger.Logger
+	metrics         *metrics.Registry
+	rateLimitCounter *metrics.Counter
+	buckets         map[string]*TokenBucket
+	mu              sync.RWMutex
+	stopCh          chan struct{}
 }
 
 // NewRateLimiter creates a new rate limiter.
 func NewRateLimiter(cfg *config.RateLimitConfig, log *logger.Logger, metricsReg *metrics.Registry) *RateLimiter {
+	rateLimitCounter := metrics.NewCounter(
+		"gateway_rate_limit_exceeded_total",
+		"Total number of rate limit exceeded responses",
+		nil,
+	)
+
+	if metricsReg != nil {
+		metricsReg.Register(rateLimitCounter)
+	}
+
 	rl := &RateLimiter{
-		cfg:     cfg,
-		log:     log,
-		metrics: metricsReg,
-		buckets: make(map[string]*TokenBucket),
-		stopCh:  make(chan struct{}),
+		cfg:              cfg,
+		log:              log,
+		metrics:          metricsReg,
+		rateLimitCounter: rateLimitCounter,
+		buckets:          make(map[string]*TokenBucket),
+		stopCh:           make(chan struct{}),
 	}
 
 	// Start cleanup goroutine
@@ -96,13 +109,13 @@ func (rl *RateLimiter) Handler(next http.Handler) http.Handler {
 		bucket := rl.getBucket(clientIP)
 
 		if !bucket.Allow() {
-			rl.log.Warn("Rate limit exceeded",
-				"client_ip", clientIP,
-				"path", r.URL.Path,
-			)
+			rl.log.Warn().
+				Str("client_ip", clientIP).
+				Str("path", r.URL.Path).
+				Msg("Rate limit exceeded")
 
 			if rl.metrics != nil {
-				rl.metrics.Counter("gateway_rate_limit_exceeded_total").Inc()
+				rl.rateLimitCounter.Inc()
 			}
 
 			rl.writeRateLimitError(w, bucket)
@@ -200,9 +213,9 @@ func (rl *RateLimiter) cleanupBuckets() {
 		}
 	}
 
-	rl.log.Debug("Rate limiter cleanup",
-		"remaining_buckets", len(rl.buckets),
-	)
+	rl.log.Debug().
+		Int("remaining_buckets", len(rl.buckets)).
+		Msg("Rate limiter cleanup")
 }
 
 // Stop stops the rate limiter cleanup goroutine.
@@ -227,7 +240,7 @@ func (rl *RateLimiter) writeRateLimitError(w http.ResponseWriter, bucket *TokenB
 
 // formatFloat formats a float for headers.
 func formatFloat(f float64) string {
-	return json.Number(json.Number(f).String()).String()
+	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
 // RouteRateLimiter provides per-route rate limiting.

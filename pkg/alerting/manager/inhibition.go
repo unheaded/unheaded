@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/unheaded/pkg/alerting"
+	"unheaded/pkg/alerting"
 )
 
 // Inhibitor manages inhibition rules for alerts.

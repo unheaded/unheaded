@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
-	"github.com/unheaded/unheaded/services/timeguru/internal/api"
-	"github.com/unheaded/unheaded/services/timeguru/internal/parser"
-	"github.com/unheaded/unheaded/services/timeguru/internal/storage"
+	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/services/timeguru/internal/api"
+	"unheaded/services/timeguru/internal/parser"
+	"unheaded/services/timeguru/internal/storage"
 )
 
 const (

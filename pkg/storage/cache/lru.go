@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/storage"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/storage"
 )
 
 // LRUCache is a Least Recently Used cache implementation.

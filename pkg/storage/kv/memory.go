@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/storage"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/storage"
 )
 
 // MemoryStore is an in-memory key-value store.

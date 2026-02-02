@@ -1,7 +1,7 @@
 package standards
 
 import (
-	"github.com/unheaded/unheaded/pkg/compliance/controls"
+	"unheaded/pkg/compliance/controls"
 )
 
 // NISTStandard implements the NIST 800-53 compliance standard.

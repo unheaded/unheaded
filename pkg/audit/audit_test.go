@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
-	"github.com/unheaded/unheaded/pkg/audit/export"
-	"github.com/unheaded/unheaded/pkg/audit/logger"
-	"github.com/unheaded/unheaded/pkg/audit/query"
-	"github.com/unheaded/unheaded/pkg/audit/storage"
+	"unheaded/pkg/audit"
+	"unheaded/pkg/audit/export"
+	"unheaded/pkg/audit/logger"
+	"unheaded/pkg/audit/query"
+	"unheaded/pkg/audit/storage"
 )
 
 func TestAuditEvent(t *testing.T) {

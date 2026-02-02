@@ -57,10 +57,12 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 mod bpf;
 mod collector;
 mod config;
+mod correlation;
 mod events;
 mod metrics;
 mod proto;
 mod publisher;
+mod websocket;
 
 use config::Config;
 use metrics::MetricsServer;
@@ -392,7 +394,105 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     let (shutdown_tx, _) = broadcast::channel::<()>(1);
     let shutdown_flag = Arc::new(AtomicBool::new(false));
 
-    // Start metrics server
+    // =========================================================================
+    // Initialize Correlation Engine and Trace Store
+    // =========================================================================
+
+    use crate::correlation::{CorrelationConfig, CorrelationEngine, TraceStore, TraceStoreConfig};
+    use crate::websocket::{WebSocketConfig, WebSocketServer};
+
+    // Create trace store
+    let trace_store = Arc::new(
+        TraceStore::new(TraceStoreConfig::default())
+            .context("Failed to create trace store")?
+    );
+    info!("Trace store initialized");
+
+    // Create correlation engine
+    let correlation_engine = Arc::new(CorrelationEngine::new(CorrelationConfig::default()));
+    info!("Correlation engine initialized");
+
+    // Subscribe to completed traces and store them
+    let mut completed_rx = correlation_engine.subscribe_completed();
+    let store_for_completed = Arc::clone(&trace_store);
+    let mut completed_shutdown_rx = shutdown_tx.subscribe();
+
+    let completed_handle = tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                result = completed_rx.recv() => {
+                    match result {
+                        Ok(summary) => {
+                            store_for_completed.store_summary(summary);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            warn!(missed = n, "Completed trace receiver lagged");
+                        }
+                    }
+                }
+                _ = completed_shutdown_rx.recv() => break,
+            }
+        }
+    });
+
+    // Start correlation engine cleanup task
+    let engine_for_cleanup = Arc::clone(&correlation_engine);
+    let cleanup_shutdown_rx = shutdown_tx.subscribe();
+    let cleanup_handle = tokio::spawn(async move {
+        engine_for_cleanup.run_cleanup(cleanup_shutdown_rx).await;
+    });
+
+    // =========================================================================
+    // Initialize WebSocket Server
+    // =========================================================================
+
+    let ws_config = WebSocketConfig {
+        bind_addr: "0.0.0.0:9091".to_string(),
+        ..Default::default()
+    };
+
+    let ws_server = Arc::new(
+        WebSocketServer::new(ws_config)
+            .with_trace_store(Arc::clone(&trace_store))
+            .with_correlation_engine(Arc::clone(&correlation_engine))
+    );
+
+    // Forward completed traces to WebSocket clients
+    let mut ws_completed_rx = correlation_engine.subscribe_completed();
+    let ws_for_broadcast = Arc::clone(&ws_server);
+    let mut ws_shutdown_rx = shutdown_tx.subscribe();
+
+    let ws_broadcast_handle = tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                result = ws_completed_rx.recv() => {
+                    match result {
+                        Ok(summary) => {
+                            ws_for_broadcast.broadcast_summary(&summary);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                        Err(_) => continue,
+                    }
+                }
+                _ = ws_shutdown_rx.recv() => break,
+            }
+        }
+    });
+
+    // Start WebSocket server
+    let ws_server_clone = Arc::clone(&ws_server);
+    let ws_handle = tokio::spawn(async move {
+        if let Err(e) = ws_server_clone.run().await {
+            error!(error = %e, "WebSocket server error");
+        }
+    });
+    info!(addr = "0.0.0.0:9091", "WebSocket server started");
+
+    // =========================================================================
+    // Start Metrics Server
+    // =========================================================================
+
     let metrics_server = MetricsServer::new(&run_config.metrics_addr)?;
     let metrics_handle = {
         let mut shutdown_rx = shutdown_tx.subscribe();
@@ -411,7 +511,10 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     };
     info!(addr = run_config.metrics_addr, "Metrics server started");
 
-    // Create the publisher (or dry-run mock)
+    // =========================================================================
+    // Create Publisher
+    // =========================================================================
+
     let publisher = if run_config.dry_run {
         info!("Dry-run mode: events will be logged but not published");
         None
@@ -432,6 +535,55 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     // Create event channel (lock-free MPMC bounded queue)
     let (event_tx, event_rx) = crossbeam::channel::bounded(run_config.config.event_queue_size);
 
+    // =========================================================================
+    // Start Event Processing Pipeline with Correlation
+    // =========================================================================
+
+    // Create a channel for correlated events
+    let (correlated_tx, correlated_rx) = crossbeam::channel::bounded(run_config.config.event_queue_size);
+
+    // Correlation processor: reads raw events, correlates them, forwards to publisher
+    let correlation_engine_for_proc = Arc::clone(&correlation_engine);
+    let event_rx_for_correlation = event_rx.clone();
+    let shutdown_flag_for_correlation = Arc::clone(&shutdown_flag);
+    let mut correlation_shutdown_rx = shutdown_tx.subscribe();
+
+    let correlation_handle = tokio::spawn(async move {
+        let mut processed = 0u64;
+
+        loop {
+            tokio::select! {
+                _ = correlation_shutdown_rx.recv() => break,
+                _ = tokio::time::sleep(Duration::from_micros(100)) => {
+                    // Process events in batches for efficiency
+                    for _ in 0..100 {
+                        match event_rx_for_correlation.try_recv() {
+                            Ok(event) => {
+                                // Correlate the event
+                                let _trace_id = correlation_engine_for_proc.process_event(&event);
+
+                                // Forward to publisher
+                                if correlated_tx.try_send(event).is_err() {
+                                    // Queue full, drop oldest
+                                }
+
+                                processed += 1;
+                            }
+                            Err(crossbeam::channel::TryRecvError::Empty) => break,
+                            Err(crossbeam::channel::TryRecvError::Disconnected) => return,
+                        }
+                    }
+
+                    if shutdown_flag_for_correlation.load(Ordering::Relaxed) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        info!(events = processed, "Correlation processor finished");
+    });
+
     // Start publisher task
     let publisher_handle = if let Some(ref publisher) = publisher {
         let publisher = Arc::clone(publisher);
@@ -440,7 +592,7 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
 
         Some(tokio::spawn(async move {
             tokio::select! {
-                result = publisher.run(event_rx, shutdown_flag) => {
+                result = publisher.run(correlated_rx, shutdown_flag) => {
                     if let Err(e) = result {
                         error!(error = %e, "Publisher error");
                     }
@@ -463,7 +615,7 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
                 tokio::select! {
                     _ = shutdown_rx.recv() => break,
                     _ = tokio::time::sleep(Duration::from_millis(1)) => {
-                        while let Ok(event) = event_rx.try_recv() {
+                        while let Ok(event) = correlated_rx.try_recv() {
                             count += 1;
                             if count % 1000 == 0 {
                                 let rate = count as f64 / start.elapsed().as_secs_f64();
@@ -486,80 +638,124 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
         }))
     };
 
-    // Start BPF event readers
+    // =========================================================================
+    // Start Multi-Source eBPF Readers
+    // =========================================================================
+
     let mut reader_handles = Vec::new();
 
-    // Ring buffer reader
-    if run_config.ringbuf_path.exists() {
-        info!(path = %run_config.ringbuf_path.display(), "Starting ring buffer reader");
+    // Try to use multi-source reader first (reads from all eBPF programs)
+    let multi_source_config = bpf::MultiSourceConfig::all_sources();
+    let multi_source_reader = bpf::MultiSourceReader::new(multi_source_config);
 
-        let ringbuf_reader =
-            bpf::RingBufReader::new(&run_config.ringbuf_path, run_config.config.ringbuf_size)?;
-        let event_tx = event_tx.clone();
-        let shutdown_flag = Arc::clone(&shutdown_flag);
+    // Check available sources
+    let available_sources = multi_source_reader.check_sources();
+    let has_multi_source = available_sources.iter().any(|(_, available)| *available);
+
+    if has_multi_source {
+        info!("Starting multi-source eBPF reader");
+        for (source, available) in &available_sources {
+            if *available {
+                info!(source = source.name(), "eBPF source available");
+            } else {
+                debug!(source = source.name(), "eBPF source not available");
+            }
+        }
+
+        let event_tx_clone = event_tx.clone();
+        let shutdown_flag_clone = Arc::clone(&shutdown_flag);
         let mut shutdown_rx = shutdown_tx.subscribe();
 
         let handle = tokio::spawn(async move {
             tokio::select! {
-                result = ringbuf_reader.run(event_tx, shutdown_flag) => {
+                result = multi_source_reader.run(event_tx_clone) => {
                     if let Err(e) = result {
-                        error!(error = %e, "Ring buffer reader error");
+                        error!(error = %e, "Multi-source reader error");
                     }
                 }
                 _ = shutdown_rx.recv() => {
-                    info!("Ring buffer reader shutting down");
+                    multi_source_reader.shutdown();
+                    info!("Multi-source reader shutting down");
                 }
             }
         });
         reader_handles.push(handle);
     } else {
-        warn!(
-            path = %run_config.ringbuf_path.display(),
-            "Ring buffer path not found, skipping. Make sure eBPF programs are loaded."
-        );
-    }
+        // Fall back to individual readers
+        info!("No multi-source eBPF programs found, trying individual readers");
 
-    // Perf event reader (one per CPU for optimal performance)
-    if run_config.perf_path.exists() {
-        let num_cpus = num_cpus();
-        let cpus_to_use = num_cpus.min(run_config.workers);
+        // Ring buffer reader
+        if run_config.ringbuf_path.exists() {
+            info!(path = %run_config.ringbuf_path.display(), "Starting ring buffer reader");
 
-        info!(
-            path = %run_config.perf_path.display(),
-            num_cpus = num_cpus,
-            workers = cpus_to_use,
-            "Starting perf event readers"
-        );
-
-        for cpu in 0..cpus_to_use {
-            let perf_reader = bpf::PerfEventReader::new(
-                &run_config.perf_path,
-                cpu,
-                run_config.config.perf_buffer_pages,
-            )?;
+            let ringbuf_reader =
+                bpf::RingBufReader::new(&run_config.ringbuf_path, run_config.config.ringbuf_size)?;
             let event_tx = event_tx.clone();
             let shutdown_flag = Arc::clone(&shutdown_flag);
             let mut shutdown_rx = shutdown_tx.subscribe();
 
             let handle = tokio::spawn(async move {
                 tokio::select! {
-                    result = perf_reader.run(event_tx, shutdown_flag) => {
+                    result = ringbuf_reader.run(event_tx, shutdown_flag) => {
                         if let Err(e) = result {
-                            error!(cpu = cpu, error = %e, "Perf event reader error");
+                            error!(error = %e, "Ring buffer reader error");
                         }
                     }
                     _ = shutdown_rx.recv() => {
-                        info!(cpu = cpu, "Perf event reader shutting down");
+                        info!("Ring buffer reader shutting down");
                     }
                 }
             });
             reader_handles.push(handle);
+        } else {
+            warn!(
+                path = %run_config.ringbuf_path.display(),
+                "Ring buffer path not found, skipping. Make sure eBPF programs are loaded."
+            );
         }
-    } else {
-        warn!(
-            path = %run_config.perf_path.display(),
-            "Perf event path not found, skipping. Make sure eBPF programs are loaded."
-        );
+
+        // Perf event reader (one per CPU for optimal performance)
+        if run_config.perf_path.exists() {
+            let num_cpus = num_cpus();
+            let cpus_to_use = num_cpus.min(run_config.workers);
+
+            info!(
+                path = %run_config.perf_path.display(),
+                num_cpus = num_cpus,
+                workers = cpus_to_use,
+                "Starting perf event readers"
+            );
+
+            for cpu in 0..cpus_to_use {
+                let perf_reader = bpf::PerfEventReader::new(
+                    &run_config.perf_path,
+                    cpu,
+                    run_config.config.perf_buffer_pages,
+                )?;
+                let event_tx = event_tx.clone();
+                let shutdown_flag = Arc::clone(&shutdown_flag);
+                let mut shutdown_rx = shutdown_tx.subscribe();
+
+                let handle = tokio::spawn(async move {
+                    tokio::select! {
+                        result = perf_reader.run(event_tx, shutdown_flag) => {
+                            if let Err(e) = result {
+                                error!(cpu = cpu, error = %e, "Perf event reader error");
+                            }
+                        }
+                        _ = shutdown_rx.recv() => {
+                            info!(cpu = cpu, "Perf event reader shutting down");
+                        }
+                    }
+                });
+                reader_handles.push(handle);
+            }
+        } else {
+            warn!(
+                path = %run_config.perf_path.display(),
+                "Perf event path not found, skipping. Make sure eBPF programs are loaded."
+            );
+        }
     }
 
     // Drop the sender so publisher knows when all readers are done
@@ -568,8 +764,12 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     // Print startup banner
     info!(
         readers = reader_handles.len(),
+        active_traces = correlation_engine.active_trace_count(),
         "Collector running. Press Ctrl+C to stop."
     );
+    info!("  - Metrics: http://{}/metrics", run_config.metrics_addr);
+    info!("  - WebSocket: ws://0.0.0.0:9091");
+    info!("  - Busboy: {}", run_config.busboy_endpoint);
 
     // Wait for shutdown signal
     tokio::select! {
@@ -588,6 +788,7 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     // Signal shutdown to all tasks
     SHUTDOWN.store(true, Ordering::SeqCst);
     shutdown_flag.store(true, Ordering::SeqCst);
+    ws_server.shutdown();
     let _ = shutdown_tx.send(());
 
     // Wait for tasks to complete with timeout
@@ -605,15 +806,25 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
             for handle in reader_handles {
                 let _ = handle.await;
             }
+            // Wait for correlation
+            let _ = correlation_handle.await;
             // Wait for publisher
             if let Some(handle) = publisher_handle {
                 let _ = handle.await;
             }
+            // Wait for WebSocket components
+            let _ = ws_handle.await;
+            let _ = ws_broadcast_handle.await;
+            // Wait for cleanup and completed handlers
+            let _ = cleanup_handle.await;
+            let _ = completed_handle.await;
             // Wait for metrics server
             let _ = metrics_handle.await;
         } => {
             info!(
                 elapsed_ms = shutdown_start.elapsed().as_millis(),
+                traces_processed = correlation_engine.stats().events_processed.load(Ordering::Relaxed),
+                traces_created = correlation_engine.stats().traces_created.load(Ordering::Relaxed),
                 "Graceful shutdown complete"
             );
         }
@@ -623,6 +834,11 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
                 "Shutdown timeout exceeded, forcing exit"
             );
         }
+    }
+
+    // Flush any remaining traces to disk
+    if let Err(e) = trace_store.flush() {
+        warn!(error = %e, "Failed to flush trace store");
     }
 
     Ok(())

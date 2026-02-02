@@ -9,7 +9,7 @@
 const Cards = (function() {
     'use strict';
 
-    // Priority configuration
+    // Priority configuration - based on progress percentage
     const PRIORITIES = {
         0: { label: 'P0', name: 'Critical', class: 'p0' },
         1: { label: 'P1', name: 'High', class: 'p1' },
@@ -18,12 +18,41 @@ const Cards = (function() {
         4: { label: 'P4', name: 'Backlog', class: 'p4' }
     };
 
-    // Status display names
+    // Task type to priority mapping
+    const TYPE_PRIORITIES = {
+        'milestone': 0,
+        'feature': 1,
+        'task': 2,
+        'bug': 0,
+        'default': 2
+    };
+
+    // Status display names - maps backend status to display
     const STATUS_NAMES = {
         'backlog': 'Backlog',
+        'todo': 'Backlog',
         'in_progress': 'In Progress',
+        'in-progress': 'In Progress',
         'review': 'Review',
         'done': 'Done'
+    };
+
+    // Status normalization - maps backend status to frontend status
+    const STATUS_MAP = {
+        'todo': 'backlog',
+        'backlog': 'backlog',
+        'in-progress': 'in_progress',
+        'in_progress': 'in_progress',
+        'review': 'review',
+        'done': 'done'
+    };
+
+    // Reverse status map for API calls
+    const STATUS_TO_API = {
+        'backlog': 'todo',
+        'in_progress': 'in-progress',
+        'review': 'review',
+        'done': 'done'
     };
 
     // Drag state
@@ -104,11 +133,36 @@ const Cards = (function() {
     }
 
     /**
+     * Normalize task data from backend to frontend format
+     * @param {Object} task - Task from backend
+     * @returns {Object} - Normalized task
+     */
+    function normalizeTask(task) {
+        const normalized = { ...task };
+
+        // Normalize status
+        normalized.status = STATUS_MAP[task.status] || task.status;
+
+        // Calculate priority from type if not set
+        if (normalized.priority === undefined || normalized.priority === null) {
+            normalized.priority = TYPE_PRIORITIES[task.type] || TYPE_PRIORITIES['default'];
+        }
+
+        // Map owner to assignee
+        if (!normalized.assignee && task.owner) {
+            normalized.assignee = task.owner;
+        }
+
+        return normalized;
+    }
+
+    /**
      * Create a task card element
      * @param {Object} task - Task data
      * @returns {HTMLElement}
      */
-    function createCard(task) {
+    function createCard(rawTask) {
+        const task = normalizeTask(rawTask);
         const priority = PRIORITIES[task.priority] || PRIORITIES[2];
         const dueDateClass = getDueDateClass(task.due_date);
         const isCompleted = task.status === 'done';
@@ -117,8 +171,28 @@ const Cards = (function() {
         card.className = `task-card${isCompleted ? ' completed' : ''}`;
         card.dataset.taskId = task.id;
         card.dataset.priority = task.priority;
+        card.dataset.originalStatus = rawTask.status; // Store original status for API calls
         card.draggable = true;
         card.tabIndex = 0;
+
+        // Build progress bar HTML if progress is available
+        let progressHtml = '';
+        if (task.progress !== undefined && task.progress > 0) {
+            progressHtml = `
+                <div class="card-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${task.progress}%"></div>
+                    </div>
+                    <span class="progress-text">${task.progress}%</span>
+                </div>
+            `;
+        }
+
+        // Build type badge HTML if type is available
+        let typeBadge = '';
+        if (task.type) {
+            typeBadge = `<span class="type-badge type-${task.type}">${escapeHtml(task.type)}</span>`;
+        }
 
         card.innerHTML = `
             <div class="card-actions">
@@ -139,7 +213,9 @@ const Cards = (function() {
                 <span class="card-title">${escapeHtml(task.title)}</span>
                 <span class="priority-badge ${priority.class}">${priority.label}</span>
             </div>
+            ${typeBadge}
             ${task.description ? `<p class="card-description">${escapeHtml(task.description)}</p>` : ''}
+            ${progressHtml}
             <div class="card-meta">
                 ${task.assignee ? `
                     <div class="meta-item">
@@ -549,8 +625,12 @@ const Cards = (function() {
         formatDate,
         getDueDateClass,
         escapeHtml,
+        normalizeTask,
         PRIORITIES,
         STATUS_NAMES,
+        STATUS_MAP,
+        STATUS_TO_API,
+        TYPE_PRIORITIES,
 
         // Expose for external use
         get isDragging() { return isDragging; }

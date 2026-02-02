@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // SplunkConfig holds configuration for Splunk HEC integration.

@@ -3,6 +3,7 @@ package response
 
 import (
 	"encoding/json"
+	"html"
 	"html/template"
 	"net/http"
 	"sync"
@@ -109,7 +110,9 @@ func (h *Handler) blockHTML(w http.ResponseWriter, reason, ruleID, requestID str
 	w.WriteHeader(h.blockCode)
 
 	if h.blockPage != "" {
-		// Use custom block page
+		// Use custom block page with pre-escaped values to prevent XSS
+		// Note: html/template auto-escapes values in {{.Field}} contexts,
+		// but we pre-escape here for defense in depth
 		tmpl, err := template.New("block").Parse(h.blockPage)
 		if err == nil {
 			data := map[string]string{
@@ -188,6 +191,9 @@ func (h *Handler) RateLimited(w http.ResponseWriter, retryAfter int) {
 
 // defaultBlockPage returns the default block page HTML
 func defaultBlockPage(reason, requestID string) string {
+	// Escape requestID to prevent XSS attacks
+	escapedRequestID := html.EscapeString(requestID)
+
 	return `<!DOCTYPE html>
 <html>
 <head>
@@ -234,7 +240,7 @@ func defaultBlockPage(reason, requestID string) string {
         <h1>403</h1>
         <h2>Access Denied</h2>
         <p>Your request has been blocked by the Web Application Firewall.</p>
-        <p class="request-id">Request ID: ` + requestID + `</p>
+        <p class="request-id">Request ID: ` + escapedRequestID + `</p>
     </div>
 </body>
 </html>`
@@ -242,6 +248,9 @@ func defaultBlockPage(reason, requestID string) string {
 
 // defaultChallengePage returns the default challenge page HTML
 func defaultChallengePage(requestID string) string {
+	// Escape requestID to prevent XSS attacks
+	escapedRequestID := html.EscapeString(requestID)
+
 	return `<!DOCTYPE html>
 <html>
 <head>
@@ -289,7 +298,7 @@ func defaultChallengePage(requestID string) string {
         <h2>Security Check</h2>
         <div class="loader"></div>
         <p>Please wait while we verify your request...</p>
-        <p style="font-size: 0.8rem; color: #999;">Request ID: ` + requestID + `</p>
+        <p style="font-size: 0.8rem; color: #999;">Request ID: ` + escapedRequestID + `</p>
     </div>
 </body>
 </html>`

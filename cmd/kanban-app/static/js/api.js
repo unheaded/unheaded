@@ -148,7 +148,10 @@ const API = (function() {
          */
         async getAll(filters = {}) {
             const data = await request('GET', '/tasks', { params: filters });
-            return data?.tasks || data || [];
+            // Backend returns { tasks: [...], count: N }
+            const tasks = data?.tasks || data || [];
+            console.log('[API] Loaded', tasks.length, 'tasks');
+            return tasks;
         },
 
         /**
@@ -171,18 +174,33 @@ const API = (function() {
                 throw new APIError('Task title is required', 400);
             }
 
-            const payload = {
-                title: taskData.title.trim(),
-                description: taskData.description?.trim() || '',
-                priority: parseInt(taskData.priority, 10) || 2,
-                status: taskData.status || 'backlog',
-                assignee: taskData.assignee?.trim() || '',
-                due_date: taskData.due_date || null,
-                tags: Array.isArray(taskData.tags) ? taskData.tags :
-                      taskData.tags ? taskData.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+            // Generate ID from title if not provided
+            const id = taskData.id || taskData.title
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '')
+                .substring(0, 50) + '-' + Date.now().toString(36);
+
+            // Map frontend status to backend status
+            const statusMap = {
+                'backlog': 'todo',
+                'in_progress': 'in-progress',
+                'review': 'review',
+                'done': 'done'
             };
 
-            return request('POST', '/tasks', { body: payload });
+            const payload = {
+                id: id,
+                title: taskData.title.trim(),
+                description: taskData.description?.trim() || '',
+                status: statusMap[taskData.status] || taskData.status || 'todo',
+                type: taskData.type || 'task',
+                owner: taskData.assignee?.trim() || taskData.owner?.trim() || '',
+                progress: parseInt(taskData.progress, 10) || 0
+            };
+
+            const result = await request('POST', '/tasks', { body: payload });
+            return result?.task || result;
         },
 
         /**
@@ -194,21 +212,29 @@ const API = (function() {
         async update(id, updates) {
             if (!id) throw new APIError('Task ID is required', 400);
 
-            const payload = {};
+            // Map frontend status to backend status
+            const statusMap = {
+                'backlog': 'todo',
+                'in_progress': 'in-progress',
+                'review': 'review',
+                'done': 'done'
+            };
+
+            const payload = { id };
 
             // Only include fields that are being updated
             if (updates.title !== undefined) payload.title = updates.title.trim();
             if (updates.description !== undefined) payload.description = updates.description.trim();
-            if (updates.priority !== undefined) payload.priority = parseInt(updates.priority, 10);
-            if (updates.status !== undefined) payload.status = updates.status;
-            if (updates.assignee !== undefined) payload.assignee = updates.assignee.trim();
-            if (updates.due_date !== undefined) payload.due_date = updates.due_date;
-            if (updates.tags !== undefined) {
-                payload.tags = Array.isArray(updates.tags) ? updates.tags :
-                              updates.tags ? updates.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+            if (updates.status !== undefined) {
+                payload.status = statusMap[updates.status] || updates.status;
             }
+            if (updates.type !== undefined) payload.type = updates.type;
+            if (updates.owner !== undefined) payload.owner = updates.owner.trim();
+            if (updates.assignee !== undefined) payload.owner = updates.assignee.trim();
+            if (updates.progress !== undefined) payload.progress = parseInt(updates.progress, 10);
 
-            return request('PUT', `/tasks/${id}`, { body: payload });
+            const result = await request('PUT', `/tasks/${id}`, { body: payload });
+            return result?.task || result;
         },
 
         /**

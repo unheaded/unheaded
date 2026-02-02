@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
+	"unheaded/pkg/alerting"
 )
 
 // EvaluationResult represents the result of evaluating a rule.

@@ -70,11 +70,11 @@ func (r *Router) AddRoute(cfg *config.RouteConfig, circuitCfg *config.CircuitCon
 		return len(r.routes[i].Config.PathPrefix) > len(r.routes[j].Config.PathPrefix)
 	})
 
-	r.log.Info("Route added",
-		"name", cfg.Name,
-		"path_prefix", cfg.PathPrefix,
-		"backends", len(cfg.Backends),
-	)
+	r.log.Info().
+		Str("name", cfg.Name).
+		Str("path_prefix", cfg.PathPrefix).
+		Int("backends", len(cfg.Backends)).
+		Msg("Route added")
 
 	return nil
 }
@@ -133,7 +133,7 @@ func (r *Router) RemoveRoute(name string) bool {
 
 	delete(r.routeMap, name)
 
-	r.log.Info("Route removed", "name", name)
+	r.log.Info().Str("name", name).Msg("Route removed")
 	return true
 }
 
@@ -141,9 +141,7 @@ func (r *Router) RemoveRoute(name string) bool {
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	route := r.Match(req.URL.Path)
 	if route == nil {
-		r.log.Debug("No route matched",
-			"path", req.URL.Path,
-		)
+		r.log.Debug().Str("path", req.URL.Path).Msg("No route matched")
 		writeNotFound(w)
 		return
 	}

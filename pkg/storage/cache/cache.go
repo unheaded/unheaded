@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/metrics"
-	"github.com/unheaded/unheaded/pkg/storage"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
+	"unheaded/pkg/storage"
 )
 
 // Type represents a cache type.

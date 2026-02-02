@@ -20,6 +20,9 @@ const (
 	TopicTasksUpdated = "tasks.updated"
 	TopicTasksDeleted = "tasks.deleted"
 	TopicTasks        = "tasks.*" // Wildcard subscription
+
+	// Timeline topics - THE META MOMENT
+	TopicTimelineUpdates = "timeline.updates"
 )
 
 // Common errors
@@ -53,8 +56,12 @@ type TaskManager struct {
 	mu     sync.RWMutex
 
 	// Subscription state
-	subscribed bool
-	subMu      sync.RWMutex
+	subscribed         bool
+	timelineSubscribed bool
+	subMu              sync.RWMutex
+
+	// Timeline manager for THE META MOMENT
+	timelineManager *TimelineManager
 
 	// SSE broadcast function
 	broadcast func(eventType string, data interface{})
@@ -70,9 +77,10 @@ func NewTaskManager(client BusboyClient, broadcast func(string, interface{})) (*
 	}
 
 	tm := &TaskManager{
-		client:    client,
-		tasks:     make(map[string]*Task),
-		broadcast: broadcast,
+		client:          client,
+		tasks:           make(map[string]*Task),
+		broadcast:       broadcast,
+		timelineManager: NewTimelineManager(broadcast),
 	}
 
 	return tm, nil
@@ -104,8 +112,14 @@ func (tm *TaskManager) Initialize(ctx context.Context) error {
 
 	// Subscribe to task updates
 	if err := tm.subscribeToTasks(ctx); err != nil {
-		log.Error().Err(err).Msg("failed to subscribe to busboy")
-		return fmt.Errorf("subscribe: %w", err)
+		log.Error().Err(err).Msg("failed to subscribe to busboy tasks")
+		return fmt.Errorf("subscribe tasks: %w", err)
+	}
+
+	// Subscribe to timeline updates - THE META MOMENT
+	if err := tm.subscribeToTimeline(ctx); err != nil {
+		log.Warn().Err(err).Msg("failed to subscribe to timeline updates (non-fatal)")
+		// Non-fatal: Kanban can work without timeline integration
 	}
 
 	return nil
@@ -137,6 +151,114 @@ func (tm *TaskManager) subscribeToTasks(ctx context.Context) error {
 	go tm.streamMessages(ctx)
 
 	return nil
+}
+
+// subscribeToTimeline subscribes to timeline updates from Timeguru
+// This is THE META MOMENT - Kanban tracking its own timeline
+func (tm *TaskManager) subscribeToTimeline(ctx context.Context) error {
+	if ctx == nil {
+		return ErrNilContext
+	}
+
+	// Subscribe to timeline updates
+	sub, err := tm.client.Subscribe(ctx, TopicTimelineUpdates, "kanban-app-timeline")
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrSubscribeFailed, err)
+	}
+
+	log.Info().
+		Str("topic", sub.Topic).
+		Str("status", sub.Status).
+		Str("subscriber_id", sub.SubscriberID).
+		Msg("subscribed to timeline updates - THE META MOMENT BEGINS")
+
+	tm.subMu.Lock()
+	tm.timelineSubscribed = true
+	tm.subMu.Unlock()
+
+	// Start timeline message stream
+	go tm.streamTimelineMessages(ctx)
+
+	return nil
+}
+
+// streamTimelineMessages listens for timeline updates from Busboy
+func (tm *TaskManager) streamTimelineMessages(ctx context.Context) {
+	msgCh, err := tm.client.StreamMessages(ctx, TopicTimelineUpdates)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("failed to start timeline message stream")
+		return
+	}
+
+	log.Info().
+		Str("topic", TopicTimelineUpdates).
+		Msg("started timeline message stream - THE META MOMENT IS LIVE")
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info().Msg("timeline message stream stopped (context cancelled)")
+			return
+
+		case msg, ok := <-msgCh:
+			if !ok {
+				log.Warn().Msg("timeline message channel closed")
+				return
+			}
+
+			// Process timeline update
+			if err := tm.handleTimelineMessage(msg); err != nil {
+				log.Error().
+					Err(err).
+					Str("message_id", msg.MessageID).
+					Msg("failed to handle timeline message")
+			}
+		}
+	}
+}
+
+// handleTimelineMessage processes a timeline update from Busboy
+func (tm *TaskManager) handleTimelineMessage(msg *busboyClient.Message) error {
+	if msg == nil {
+		return errors.New("message cannot be nil")
+	}
+
+	log.Info().
+		Str("message_id", msg.MessageID).
+		Int64("seq", msg.Seq).
+		Msg("received timeline update from Timeguru")
+
+	// Delegate to TimelineManager
+	if tm.timelineManager != nil {
+		return tm.timelineManager.HandleTimelineUpdate([]byte(msg.Payload))
+	}
+
+	return nil
+}
+
+// GetTimelineTasks returns tasks derived from the timeline
+func (tm *TaskManager) GetTimelineTasks() []*Task {
+	if tm.timelineManager == nil {
+		return nil
+	}
+	return tm.timelineManager.GetTimelineTasks()
+}
+
+// GetTimeline returns the current timeline
+func (tm *TaskManager) GetTimeline() *Timeline {
+	if tm.timelineManager == nil {
+		return nil
+	}
+	return tm.timelineManager.GetTimeline()
+}
+
+// IsTimelineSubscribed returns timeline subscription status
+func (tm *TaskManager) IsTimelineSubscribed() bool {
+	tm.subMu.RLock()
+	defer tm.subMu.RUnlock()
+	return tm.timelineSubscribed
 }
 
 // streamMessages listens for Busboy messages and updates tasks

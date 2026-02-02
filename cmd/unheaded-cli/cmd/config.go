@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/output"
+	"unheaded/cmd/unheaded-cli/output"
 	"gopkg.in/yaml.v3"
 )
 

@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/compliance/audit"
-	"github.com/unheaded/unheaded/pkg/compliance/controls"
-	"github.com/unheaded/unheaded/pkg/compliance/report"
-	"github.com/unheaded/unheaded/pkg/compliance/standards"
+	"unheaded/pkg/compliance/audit"
+	"unheaded/pkg/compliance/controls"
+	"unheaded/pkg/compliance/report"
+	"unheaded/pkg/compliance/standards"
 )
 
 // Assessment represents a compliance assessment.

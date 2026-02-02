@@ -178,14 +178,14 @@ func NormalizeIP(ip string) string {
 	return parsed.String()
 }
 
-// IPRange represents a range of IPs
-type IPRange struct {
+// SimpleIPRange represents a simple range of IPs with start and end addresses
+type SimpleIPRange struct {
 	Start net.IP
 	End   net.IP
 }
 
 // Contains checks if an IP is within the range
-func (r *IPRange) Contains(ip string) bool {
+func (r *SimpleIPRange) Contains(ip string) bool {
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
 		return false
@@ -215,8 +215,8 @@ func bytesCompare(a, b net.IP) int {
 	return 0
 }
 
-// NewIPRange creates a new IP range
-func NewIPRange(start, end string) (*IPRange, error) {
+// NewSimpleIPRange creates a new simple IP range
+func NewSimpleIPRange(start, end string) (*SimpleIPRange, error) {
 	startIP := net.ParseIP(start)
 	if startIP == nil {
 		return nil, &net.ParseError{Type: "IP address", Text: start}
@@ -227,5 +227,5 @@ func NewIPRange(start, end string) (*IPRange, error) {
 		return nil, &net.ParseError{Type: "IP address", Text: end}
 	}
 
-	return &IPRange{Start: startIP, End: endIP}, nil
+	return &SimpleIPRange{Start: startIP, End: endIP}, nil
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/output"
+	"unheaded/cmd/unheaded-cli/output"
 )
 
 // ServiceListResult represents the output for service list.

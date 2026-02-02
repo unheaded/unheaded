@@ -56,22 +56,6 @@ type HealthCheckConfig struct {
 	ExpectedTXT string        // Expected TXT record for DNS check
 }
 
-// ServiceDiscoveryConfig holds service discovery configuration
-type ServiceDiscoveryConfig struct {
-	Zone              string        // Zone name (e.g., "kingdom.local")
-	DefaultTTL        uint32        // Default TTL for records
-	HealthCheckInterval time.Duration // Default health check interval
-}
-
-// DefaultServiceDiscoveryConfig returns default configuration
-func DefaultServiceDiscoveryConfig() *ServiceDiscoveryConfig {
-	return &ServiceDiscoveryConfig{
-		Zone:              "kingdom.local",
-		DefaultTTL:        30,
-		HealthCheckInterval: 10 * time.Second,
-	}
-}
-
 // NewServiceDiscovery creates a new service discovery instance
 func NewServiceDiscovery(config *ServiceDiscoveryConfig) (*ServiceDiscovery, error) {
 	if config == nil {

@@ -166,6 +166,44 @@
 }
 
 /* ============================================
+   Type Badge
+   ============================================ */
+.type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.type-badge.type-milestone {
+    background: rgba(255, 215, 0, 0.2);
+    color: var(--kingdom-gold);
+    border: 1px solid var(--kingdom-gold);
+}
+
+.type-badge.type-feature {
+    background: rgba(74, 158, 255, 0.2);
+    color: var(--priority-p3);
+    border: 1px solid var(--priority-p3);
+}
+
+.type-badge.type-task {
+    background: rgba(136, 136, 136, 0.2);
+    color: var(--text-secondary);
+    border: 1px solid var(--text-muted);
+}
+
+.type-badge.type-bug {
+    background: rgba(255, 68, 68, 0.2);
+    color: var(--priority-p0);
+    border: 1px solid var(--priority-p0);
+}
+
+/* ============================================
    Card Description (Preview)
    ============================================ */
 .card-description {
@@ -178,6 +216,48 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* ============================================
+   Progress Bar
+   ============================================ */
+.card-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--kingdom-bg-primary);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--kingdom-gold-dark), var(--kingdom-gold));
+    border-radius: 2px;
+    transition: width var(--transition-normal);
+}
+
+.progress-text {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--kingdom-gold);
+    min-width: 32px;
+    text-align: right;
+}
+
+/* Progress states */
+.card-progress[data-complete="true"] .progress-fill {
+    background: var(--status-success);
+}
+
+.card-progress[data-warning="true"] .progress-fill {
+    background: var(--status-warning);
 }
 
 /* ============================================

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/cmd"
+	"unheaded/cmd/unheaded-cli/cmd"
 )
 
 // Version information - set at build time

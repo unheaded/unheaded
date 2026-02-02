@@ -8,10 +8,9 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
-	captain "."
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
+	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/services/captain"
 )
 
 // main is the entry point for the captain service
@@ -92,8 +91,6 @@ func run() error {
 
 	// Graceful shutdown
 	cancel()
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
 
 	if err := httpServer.Stop(); err != nil {
 		log.Printf("error stopping http server: %v", err)

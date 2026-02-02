@@ -81,10 +81,10 @@ func (m *AuthMiddleware) Handler(next http.Handler) http.Handler {
 				token := strings.TrimPrefix(authHeader, "Bearer ")
 				claims, err := m.validateJWT(token)
 				if err != nil {
-					m.log.Warn("JWT validation failed",
-						"error", err.Error(),
-						"path", r.URL.Path,
-					)
+					m.log.Warn().
+						Str("error", err.Error()).
+						Str("path", r.URL.Path).
+						Msg("JWT validation failed")
 					writeAuthError(w, "invalid token", http.StatusUnauthorized)
 					return
 				}
@@ -103,9 +103,9 @@ func (m *AuthMiddleware) Handler(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
-			m.log.Warn("Invalid API key",
-				"path", r.URL.Path,
-			)
+			m.log.Warn().
+				Str("path", r.URL.Path).
+				Msg("Invalid API key")
 			writeAuthError(w, "invalid API key", http.StatusUnauthorized)
 			return
 		}

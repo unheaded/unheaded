@@ -60,15 +60,54 @@ func (rw *responseWriter) Flush() {
 
 // LoggingMiddleware logs HTTP requests.
 type LoggingMiddleware struct {
-	log     *logger.Logger
-	metrics *metrics.Registry
+	log              *logger.Logger
+	metrics          *metrics.Registry
+	requestsCounter  *metrics.CounterVec
+	durationHist     *metrics.HistogramVec
+	responseSizeHist *metrics.HistogramVec
 }
 
 // NewLoggingMiddleware creates a new logging middleware.
 func NewLoggingMiddleware(log *logger.Logger, metricsReg *metrics.Registry) *LoggingMiddleware {
+	labelNames := []string{"method", "path", "status"}
+
+	requestsCounter := metrics.NewCounterVec(
+		"gateway_requests_total",
+		"Total number of HTTP requests",
+		nil,
+		labelNames,
+	)
+
+	durationHist := metrics.NewHistogramVec(
+		metrics.HistogramOpts{
+			Name:    "gateway_request_duration_seconds",
+			Help:    "HTTP request duration in seconds",
+			Buckets: metrics.DefaultBuckets,
+		},
+		labelNames,
+	)
+
+	responseSizeHist := metrics.NewHistogramVec(
+		metrics.HistogramOpts{
+			Name:    "gateway_response_size_bytes",
+			Help:    "HTTP response size in bytes",
+			Buckets: metrics.ExponentialBuckets(100, 10, 6),
+		},
+		labelNames,
+	)
+
+	if metricsReg != nil {
+		metricsReg.Register(requestsCounter)
+		metricsReg.Register(durationHist)
+		metricsReg.Register(responseSizeHist)
+	}
+
 	return &LoggingMiddleware{
-		log:     log,
-		metrics: metricsReg,
+		log:              log,
+		metrics:          metricsReg,
+		requestsCounter:  requestsCounter,
+		durationHist:     durationHist,
+		responseSizeHist: responseSizeHist,
 	}
 }
 
@@ -93,33 +132,31 @@ func (m *LoggingMiddleware) Handler(next http.Handler) http.Handler {
 		clientIP := getClientIP(r)
 
 		// Log the request
-		m.log.Info("HTTP request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"query", r.URL.RawQuery,
-			"status", rw.status,
-			"size", rw.size,
-			"duration_ms", duration.Milliseconds(),
-			"client_ip", clientIP,
-			"user_agent", r.UserAgent(),
-			"trace_id", traceID,
-			"referer", r.Referer(),
-			"protocol", r.Proto,
-		)
+		m.log.Info().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("query", r.URL.RawQuery).
+			Int("status", rw.status).
+			Int("size", rw.size).
+			Int64("duration_ms", duration.Milliseconds()).
+			Str("client_ip", clientIP).
+			Str("user_agent", r.UserAgent()).
+			Str("trace_id", traceID).
+			Str("referer", r.Referer()).
+			Str("protocol", r.Proto).
+			Msg("HTTP request")
 
 		// Record metrics
 		if m.metrics != nil {
-			labels := map[string]string{
+			labels := metrics.Labels{
 				"method": r.Method,
 				"path":   normalizePath(r.URL.Path),
 				"status": statusCodeClass(rw.status),
 			}
 
-			m.metrics.CounterWithLabels("gateway_requests_total", labels).Inc()
-			m.metrics.HistogramWithLabels("gateway_request_duration_seconds", labels).
-				Observe(duration.Seconds())
-			m.metrics.HistogramWithLabels("gateway_response_size_bytes", labels).
-				Observe(float64(rw.size))
+			m.requestsCounter.WithLabels(labels).Inc()
+			m.durationHist.WithLabels(labels).Observe(duration.Seconds())
+			m.responseSizeHist.WithLabels(labels).Observe(float64(rw.size))
 		}
 	})
 }

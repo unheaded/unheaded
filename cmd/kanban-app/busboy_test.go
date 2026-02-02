@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
-	"github.com/unheaded/unheaded/pkg/busboy-client/mock"
+	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/pkg/busboy-client/mock"
 )
 
 // ============================================================================

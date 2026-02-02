@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/busboy-client/mock"
+	"unheaded/pkg/busboy-client/mock"
 )
 
 // ============================================================================

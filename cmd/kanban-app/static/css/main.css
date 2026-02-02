@@ -296,6 +296,35 @@ a:hover {
     font-weight: 700;
 }
 
+/* Button loading state */
+.btn.loading {
+    position: relative;
+    color: transparent;
+}
+
+.btn.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-left: -8px;
+    margin-top: -8px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--text-inverse);
+    border-radius: 50%;
+    animation: btn-spin 0.6s linear infinite;
+}
+
+.btn-danger.loading::after {
+    border-top-color: white;
+}
+
+@keyframes btn-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* ============================================
    Form Elements
    ============================================ */
@@ -319,6 +348,7 @@ label {
 
 input[type="text"],
 input[type="date"],
+input[type="number"],
 textarea,
 select {
     padding: var(--spacing-sm) var(--spacing-md);
@@ -333,11 +363,18 @@ select {
 
 input[type="text"]:focus,
 input[type="date"]:focus,
+input[type="number"]:focus,
 textarea:focus,
 select:focus {
     outline: none;
     border-color: var(--kingdom-gold);
     box-shadow: 0 0 0 3px var(--kingdom-gold-muted);
+}
+
+/* Number input spinner styling */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    opacity: 0.5;
 }
 
 input::placeholder,

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
+	"unheaded/pkg/alerting"
 	"gopkg.in/yaml.v3"
 )
 

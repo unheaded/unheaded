@@ -1,7 +1,7 @@
 package standards
 
 import (
-	"github.com/unheaded/unheaded/pkg/compliance/controls"
+	"unheaded/pkg/compliance/controls"
 )
 
 // PCIStandard implements the PCI-DSS compliance standard.

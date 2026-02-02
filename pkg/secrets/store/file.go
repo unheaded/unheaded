@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/secrets"
-	"github.com/unheaded/unheaded/pkg/secrets/encryption"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/secrets"
+	"unheaded/pkg/secrets/encryption"
 )
 
 // FileStore stores secrets as encrypted files on disk.

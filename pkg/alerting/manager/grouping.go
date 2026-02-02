@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
+	"unheaded/pkg/alerting"
 )
 
 // GroupConfig defines how alerts are grouped.

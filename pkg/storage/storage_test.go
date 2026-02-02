@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/storage"
-	"github.com/unheaded/unheaded/pkg/storage/cache"
-	"github.com/unheaded/unheaded/pkg/storage/kv"
-	"github.com/unheaded/unheaded/pkg/storage/object"
+	"unheaded/pkg/storage"
+	"unheaded/pkg/storage/cache"
+	"unheaded/pkg/storage/kv"
+	"unheaded/pkg/storage/object"
 )
 
 // TestMemoryStore tests the in-memory key-value store.

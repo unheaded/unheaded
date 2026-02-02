@@ -74,11 +74,13 @@
 }
 
 /* Column-specific accent colors */
-.column[data-status="backlog"] .column-header {
+.column[data-status="backlog"] .column-header,
+.column[data-status="todo"] .column-header {
     border-bottom-color: var(--priority-p4);
 }
 
-.column[data-status="in_progress"] .column-header {
+.column[data-status="in_progress"] .column-header,
+.column[data-status="in-progress"] .column-header {
     border-bottom-color: var(--priority-p1);
 }
 
@@ -181,11 +183,13 @@
     border-radius: var(--radius-md);
 }
 
-.column-content[data-status="backlog"]:empty::before {
+.column-content[data-status="backlog"]:empty::before,
+.column-content[data-status="todo"]:empty::before {
     content: "Add tasks to get started";
 }
 
-.column-content[data-status="in_progress"]:empty::before {
+.column-content[data-status="in_progress"]:empty::before,
+.column-content[data-status="in-progress"]:empty::before {
     content: "Drag tasks here to start working";
 }
 
@@ -200,6 +204,7 @@
 /* Drop zone indicator */
 .column-content.drag-over {
     background: var(--kingdom-gold-muted);
+    box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.1);
 }
 
 /* Drop placeholder */
@@ -211,6 +216,27 @@
     background: var(--kingdom-gold-muted);
     opacity: 0.6;
     transition: all var(--transition-fast);
+    animation: placeholder-pulse 1s ease-in-out infinite;
+}
+
+@keyframes placeholder-pulse {
+    0%, 100% {
+        opacity: 0.4;
+        transform: scaleY(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scaleY(1.02);
+    }
+}
+
+/* Column highlight during drag */
+.column.drag-active {
+    border-color: var(--border-color-hover);
+}
+
+.column.drag-active .column-header {
+    background: var(--kingdom-bg-hover);
 }
 
 /* ============================================

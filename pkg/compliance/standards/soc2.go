@@ -1,7 +1,7 @@
 package standards
 
 import (
-	"github.com/unheaded/unheaded/pkg/compliance/controls"
+	"unheaded/pkg/compliance/controls"
 )
 
 // SOC2Standard implements the SOC 2 Type II compliance standard.

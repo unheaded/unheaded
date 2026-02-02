@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/unheaded/unheaded/services/timeguru/internal/timeline"
+	"unheaded/services/timeguru/internal/timeline"
 )
 
 // ============================================================================

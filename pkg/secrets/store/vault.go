@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/secrets"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/secrets"
 )
 
 // VaultStore integrates with HashiCorp Vault for secret storage.

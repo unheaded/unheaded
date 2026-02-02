@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
-	"github.com/unheaded/pkg/alerting/rules"
+	"unheaded/pkg/alerting"
+	"unheaded/pkg/alerting/rules"
 )
 
 // Manager implements the AlertManager interface.

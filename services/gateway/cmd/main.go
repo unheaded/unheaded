@@ -56,25 +56,24 @@ func main() {
 	}
 
 	// Create logger
-	log := logger.New(logger.Config{
-		Level:   getEnv("LOG_LEVEL", "info"),
-		Format:  getEnv("LOG_FORMAT", "json"),
-		Service: "api-gateway",
-		Version: version,
-	})
+	logLevel, _ := logger.ParseLevel(getEnv("LOG_LEVEL", "info"))
+	logConfig := logger.DefaultConfig()
+	logConfig.Level = logLevel
+	if getEnv("LOG_FORMAT", "json") == "console" {
+		logConfig.ConsoleMode = true
+	}
+	log := logger.NewWithConfig(logConfig)
 
-	log.Info("Starting API Gateway",
-		"version", version,
-		"build_time", buildTime,
-		"git_commit", gitCommit,
-	)
+	log.Info().
+		Str("version", version).
+		Str("build_time", buildTime).
+		Str("git_commit", gitCommit).
+		Msg("Starting API Gateway")
 
 	// Create gateway
 	gw, err := gateway.New(cfg, log)
 	if err != nil {
-		log.Error("Failed to create gateway",
-			"error", err.Error(),
-		)
+		log.Error().Str("error", err.Error()).Msg("Failed to create gateway")
 		os.Exit(1)
 	}
 
@@ -90,26 +89,22 @@ func main() {
 		for sig := range sigCh {
 			switch sig {
 			case syscall.SIGINT, syscall.SIGTERM:
-				log.Info("Received shutdown signal",
-					"signal", sig.String(),
-				)
+				log.Info().Str("signal", sig.String()).Msg("Received shutdown signal")
 				cancel()
 				return
 			case syscall.SIGHUP:
-				log.Info("Received reload signal - reloading not implemented")
+				log.Info().Msg("Received reload signal - reloading not implemented")
 			}
 		}
 	}()
 
 	// Start gateway
 	if err := gw.Start(ctx); err != nil {
-		log.Error("Gateway error",
-			"error", err.Error(),
-		)
+		log.Error().Str("error", err.Error()).Msg("Gateway error")
 		os.Exit(1)
 	}
 
-	log.Info("API Gateway stopped")
+	log.Info().Msg("API Gateway stopped")
 }
 
 // getEnv returns the value of an environment variable or a default value.

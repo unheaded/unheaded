@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
+	"unheaded/pkg/alerting"
 )
 
 // DefaultEvaluationInterval is the default interval for rule evaluation.

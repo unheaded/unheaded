@@ -591,7 +591,7 @@ func (s *Streamer) processEvent(event Event) {
 	s.eventsReceived++
 	s.statsMu.Unlock()
 
-	// Notify listeners
+	// Notify general listeners
 	s.listenersMu.RLock()
 	listeners := make([]func(Event), len(s.listeners))
 	copy(listeners, s.listeners)
@@ -600,6 +600,9 @@ func (s *Streamer) processEvent(event Event) {
 	for _, listener := range listeners {
 		go listener(event)
 	}
+
+	// Notify topic-specific callbacks
+	s.notifyTopicCallbacks(event)
 }
 
 // cleanupLoop runs periodic cleanup of old events
@@ -826,4 +829,201 @@ func (s *Streamer) GroupEventsBySource() map[string][]Event {
 	}
 
 	return groups
+}
+
+// TopicCallback represents a callback function for a specific topic
+type TopicCallback func(topic string, event Event)
+
+// topicCallbacks maps topics to their callbacks
+var topicCallbacks = struct {
+	sync.RWMutex
+	callbacks map[string][]TopicCallback
+}{
+	callbacks: make(map[string][]TopicCallback),
+}
+
+// OnTopic registers a callback for a specific topic pattern
+// The pattern can be a specific topic like "metrics.cpu" or a wildcard like "metrics.*"
+func (s *Streamer) OnTopic(topicPattern string, callback TopicCallback) {
+	topicCallbacks.Lock()
+	defer topicCallbacks.Unlock()
+	topicCallbacks.callbacks[topicPattern] = append(topicCallbacks.callbacks[topicPattern], callback)
+}
+
+// notifyTopicCallbacks notifies registered topic-specific callbacks
+func (s *Streamer) notifyTopicCallbacks(event Event) {
+	topicCallbacks.RLock()
+	defer topicCallbacks.RUnlock()
+
+	for pattern, callbacks := range topicCallbacks.callbacks {
+		if s.matchTopicPattern(pattern, event.Topic) {
+			for _, cb := range callbacks {
+				go cb(event.Topic, event)
+			}
+		}
+	}
+}
+
+// matchTopicPattern checks if a topic matches a pattern (supports * wildcard)
+func (s *Streamer) matchTopicPattern(pattern, topic string) bool {
+	if pattern == "*" {
+		return true
+	}
+	if pattern == topic {
+		return true
+	}
+	// Support wildcards like "metrics.*"
+	if len(pattern) > 1 && pattern[len(pattern)-1] == '*' {
+		prefix := pattern[:len(pattern)-1]
+		return len(topic) >= len(prefix) && topic[:len(prefix)] == prefix
+	}
+	return false
+}
+
+// PublishToBusboy publishes an event to the Busboy message bus
+// Returns error if not connected or publish fails
+func (s *Streamer) PublishToBusboy(ctx context.Context, topic string, event Event) error {
+	s.connMu.RLock()
+	connected := s.connected
+	client := s.client
+	s.connMu.RUnlock()
+
+	if !connected || client == nil {
+		return ErrNotConnected
+	}
+
+	// Prepare event payload
+	if event.ID == "" {
+		event.ID = fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
+	if event.Source == "" {
+		event.Source = s.config.ServiceName
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("marshal event: %w", err)
+	}
+
+	if err := client.Publish(ctx, topic, payload); err != nil {
+		s.log.Warn().
+			Err(err).
+			Str("topic", topic).
+			Msg("failed to publish event to busboy")
+		return fmt.Errorf("publish to busboy: %w", err)
+	}
+
+	s.log.Debug().
+		Str("topic", topic).
+		Str("event_id", event.ID).
+		Msg("published event to busboy")
+
+	return nil
+}
+
+// PublishMetricEvent publishes a metrics event to Busboy
+func (s *Streamer) PublishMetricEvent(ctx context.Context, serviceName string, metricName string, value float64, labels map[string]interface{}) error {
+	event := Event{
+		Type:     EventTypeMetrics,
+		Severity: SeverityInfo,
+		Source:   serviceName,
+		Title:    fmt.Sprintf("Metric: %s", metricName),
+		Data: map[string]interface{}{
+			"metric_name": metricName,
+			"value":       value,
+			"labels":      labels,
+		},
+	}
+
+	topic := fmt.Sprintf("metrics.%s", serviceName)
+	return s.PublishToBusboy(ctx, topic, event)
+}
+
+// PublishHealthEvent publishes a health event to Busboy
+func (s *Streamer) PublishHealthEvent(ctx context.Context, serviceName string, status string, message string) error {
+	severity := SeverityInfo
+	switch status {
+	case "unhealthy", "error":
+		severity = SeverityError
+	case "degraded", "warning":
+		severity = SeverityWarning
+	case "critical":
+		severity = SeverityCritical
+	}
+
+	event := Event{
+		Type:     EventTypeHealth,
+		Severity: severity,
+		Source:   serviceName,
+		Title:    fmt.Sprintf("Health: %s is %s", serviceName, status),
+		Message:  message,
+		Data: map[string]interface{}{
+			"status":  status,
+			"service": serviceName,
+		},
+	}
+
+	topic := fmt.Sprintf("health.%s", serviceName)
+	return s.PublishToBusboy(ctx, topic, event)
+}
+
+// PublishAlertEvent publishes an alert event to Busboy
+func (s *Streamer) PublishAlertEvent(ctx context.Context, severity Severity, title, message string, data map[string]interface{}) error {
+	event := Event{
+		Type:     EventTypeAlert,
+		Severity: severity,
+		Source:   s.config.ServiceName,
+		Title:    title,
+		Message:  message,
+		Data:     data,
+	}
+
+	topic := "alerts." + string(severity)
+	return s.PublishToBusboy(ctx, topic, event)
+}
+
+// GetBusboyClient returns the underlying Busboy client (if connected)
+// This allows direct access for advanced operations
+func (s *Streamer) GetBusboyClient() *busboyClient.Client {
+	s.connMu.RLock()
+	defer s.connMu.RUnlock()
+	return s.client
+}
+
+// SubscribeToTopic subscribes to an additional topic after startup
+func (s *Streamer) SubscribeToTopic(ctx context.Context, topic string) error {
+	s.connMu.RLock()
+	connected := s.connected
+	client := s.client
+	s.connMu.RUnlock()
+
+	if !connected || client == nil {
+		return ErrNotConnected
+	}
+
+	sub, err := client.Subscribe(ctx, topic, s.config.ServiceName)
+	if err != nil {
+		return fmt.Errorf("subscribe to topic %s: %w", topic, err)
+	}
+
+	s.log.Info().
+		Str("topic", topic).
+		Str("subscriber_id", sub.SubscriberID).
+		Str("status", sub.Status).
+		Msg("subscribed to additional topic")
+
+	// Add to topics list
+	s.config.Topics = append(s.config.Topics, topic)
+
+	// Start streaming the new topic
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.streamTopic(ctx, topic)
+	}()
+
+	return nil
 }

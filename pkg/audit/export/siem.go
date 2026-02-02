@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // SIEMConfig holds configuration for SIEM integration.

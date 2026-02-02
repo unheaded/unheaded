@@ -172,7 +172,7 @@ func LoadFromEnv() *Config {
 
 	if port := os.Getenv("GATEWAY_HTTP_PORT"); port != "" {
 		var p int
-		if _, err := json.Unmarshal([]byte(port), &p); err == nil {
+		if err := json.Unmarshal([]byte(port), &p); err == nil {
 			cfg.Server.HTTPPort = p
 		}
 	}

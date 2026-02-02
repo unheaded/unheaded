@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unheaded/unheaded/services/timeguru/internal/timeline"
+	"unheaded/services/timeguru/internal/timeline"
 )
 
 // ============================================================================

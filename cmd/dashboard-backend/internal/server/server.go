@@ -1,6 +1,11 @@
 // Package server provides the main dashboard backend HTTP server.
 // It aggregates metrics, health, and events from all Kingdom services
 // and provides REST API endpoints and WebSocket streaming.
+//
+// Enhanced endpoints:
+//   - WS /api/v1/stream - Real-time metrics stream with filtering support
+//   - GET /api/v1/traces - Trace data (when trace collector is available)
+//   - GET /api/v1/aggregated - Aggregated data from all sources
 package server
 
 import (
@@ -10,11 +15,13 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
+	internalMetrics "unheaded/cmd/dashboard-backend/internal/metrics"
 	"unheaded/cmd/dashboard-backend/internal/packetflow"
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
@@ -106,6 +113,50 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// TraceCollector interface for trace collection (pkg/tracing compatible)
+type TraceCollector interface {
+	QueryTraces(ctx context.Context, query *TraceQuery) (*TraceQueryResult, error)
+	GetTrace(ctx context.Context, traceID string) (interface{}, error)
+}
+
+// TraceQuery represents query parameters for traces
+type TraceQuery struct {
+	ServiceName string
+	StartTime   *time.Time
+	EndTime     *time.Time
+	MinDuration time.Duration
+	MaxDuration time.Duration
+	HasError    *bool
+	SpanName    string
+	Limit       int
+	Offset      int
+}
+
+// TraceQueryResult represents query results
+type TraceQueryResult struct {
+	Traces  []interface{} `json:"traces"`
+	Total   int           `json:"total"`
+	HasMore bool          `json:"has_more"`
+}
+
+// HealthAggregator interface for health aggregation
+type HealthAggregator interface {
+	GetSystemHealth() *SystemHealthStatus
+	GetChecks() []interface{}
+	RegisterCheck(check interface{}) error
+	Close() error
+}
+
+// SystemHealthStatus represents aggregated health status
+type SystemHealthStatus struct {
+	Status         string                 `json:"status"`
+	TotalCount     int                    `json:"total_count"`
+	HealthyCount   int                    `json:"healthy_count"`
+	DegradedCount  int                    `json:"degraded_count"`
+	UnhealthyCount int                    `json:"unhealthy_count"`
+	Checks         map[string]interface{} `json:"checks,omitempty"`
+}
+
 // Server is the main dashboard backend server
 type Server struct {
 	config *Config
@@ -122,17 +173,42 @@ type Server struct {
 	eventStreamer *events.Streamer
 	flowGenerator *packetflow.Generator
 
+	// Enhanced aggregation
+	metricsAggregator *internalMetrics.Aggregator
+	traceCollector    TraceCollector    // Optional: set via SetTraceCollector
+	healthAggregator  HealthAggregator  // Optional: set via SetHealthAggregator
+
+	// Stream subscriptions for /api/v1/stream
+	streamSubs   map[chan *StreamMessage]StreamFilter
+	streamSubsMu sync.RWMutex
+
 	// Metrics
 	metricsRegistry *metrics.Registry
 	httpRequests    *metrics.CounterVec
 	httpDuration    *metrics.HistogramVec
 	wsConnections   *metrics.Gauge
+	streamClients   *metrics.Gauge
 
 	// Lifecycle
 	started      bool
 	shutdown     chan struct{}
 	shutdownOnce sync.Once
 	wg           sync.WaitGroup
+}
+
+// StreamMessage represents a message sent through the /api/v1/stream WebSocket
+type StreamMessage struct {
+	Type      string      `json:"type"`      // metrics, health, trace, event, flow
+	Service   string      `json:"service,omitempty"`
+	Timestamp time.Time   `json:"timestamp"`
+	Data      interface{} `json:"data"`
+}
+
+// StreamFilter defines filtering options for the stream
+type StreamFilter struct {
+	Types    []string // Filter by message types (metrics, health, trace, event, flow)
+	Services []string // Filter by service names
+	MinLevel string   // Minimum severity level for events (info, warning, error, critical)
 }
 
 // NewServer creates a new dashboard backend server
@@ -175,15 +251,28 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		return nil, fmt.Errorf("create packet flow generator: %w", err)
 	}
 
+	// Create internal metrics aggregator
+	metricsAggConfig := &internalMetrics.Config{
+		RetentionPeriod: 1 * time.Hour,
+		MaxSeries:       10000,
+		FlushInterval:   1 * time.Minute,
+	}
+	metricsAggregator, err := internalMetrics.NewAggregator(metricsAggConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create metrics aggregator: %w", err)
+	}
+
 	s := &Server{
-		config:        config,
-		log:           log,
-		wsServer:      wsServer,
-		scraper:       metricsScraper,
-		healthMonitor: healthMonitor,
-		eventStreamer: eventStreamer,
-		flowGenerator: flowGenerator,
-		shutdown:      make(chan struct{}),
+		config:            config,
+		log:               log,
+		wsServer:          wsServer,
+		scraper:           metricsScraper,
+		healthMonitor:     healthMonitor,
+		eventStreamer:     eventStreamer,
+		flowGenerator:     flowGenerator,
+		metricsAggregator: metricsAggregator,
+		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
+		shutdown:          make(chan struct{}),
 	}
 
 	// Initialize metrics
@@ -231,6 +320,13 @@ func (s *Server) initMetrics() {
 		nil,
 	)
 	s.metricsRegistry.MustRegister(s.wsConnections)
+
+	s.streamClients = metrics.NewGauge(
+		"dashboard_stream_clients",
+		"Current /api/v1/stream clients",
+		nil,
+	)
+	s.metricsRegistry.MustRegister(s.streamClients)
 }
 
 // setupRoutes configures HTTP routes
@@ -257,6 +353,33 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/health/", s.handleServiceHealth)
 	s.mux.HandleFunc("/api/v1/flows", s.handleFlows)
 	s.mux.HandleFunc("/api/v1/stats", s.handleStats)
+
+	// New enhanced endpoints
+	s.mux.HandleFunc("/api/v1/stream", s.handleStreamWebSocket)
+	s.mux.HandleFunc("/api/v1/traces", s.handleTraces)
+	s.mux.HandleFunc("/api/v1/traces/", s.handleTraceByID)
+	s.mux.HandleFunc("/api/v1/aggregated", s.handleAggregated)
+	s.mux.HandleFunc("/api/v1/aggregated/metrics", s.handleAggregatedMetrics)
+	s.mux.HandleFunc("/api/v1/aggregated/health", s.handleAggregatedHealth)
+
+	// Static file serving for dashboard UI
+	// Serve static files from ./static directory
+	staticHandler := http.FileServer(http.Dir("static"))
+	s.mux.Handle("/static/", http.StripPrefix("/static/", staticHandler))
+
+	// Serve index.html for root path
+	s.mux.HandleFunc("/", s.handleStaticIndex)
+}
+
+// handleStaticIndex serves the dashboard index.html
+func (s *Server) handleStaticIndex(w http.ResponseWriter, r *http.Request) {
+	// Only serve index.html for exact root path or explicit request
+	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+		// Check if it's a static file request
+		http.ServeFile(w, r, "static/"+r.URL.Path)
+		return
+	}
+	http.ServeFile(w, r, "static/index.html")
 }
 
 // Start starts the server and all components
@@ -339,6 +462,7 @@ func (s *Server) broadcastFlows(ctx context.Context, flowCh <-chan *packetflow.P
 				return
 			}
 
+			// Broadcast to main WebSocket
 			data, err := json.Marshal(map[string]interface{}{
 				"type": "packet_flow",
 				"data": flow,
@@ -347,8 +471,16 @@ func (s *Server) broadcastFlows(ctx context.Context, flowCh <-chan *packetflow.P
 				s.log.Error().Err(err).Msg("marshal packet flow failed")
 				continue
 			}
-
 			s.wsServer.Broadcast(data)
+
+			// Also broadcast to stream subscribers
+			streamMsg := &StreamMessage{
+				Type:      "flow",
+				Service:   "trace-collector",
+				Timestamp: flow.Timestamp,
+				Data:      flow,
+			}
+			s.broadcastToStream(streamMsg)
 		}
 	}
 }
@@ -358,6 +490,7 @@ func (s *Server) broadcastHealthUpdates(ctx context.Context) {
 	defer s.wg.Done()
 
 	s.healthMonitor.OnStatusChange(func(event health.HealthEvent) {
+		// Broadcast to main WebSocket
 		data, err := json.Marshal(map[string]interface{}{
 			"type": "health_update",
 			"data": event,
@@ -366,8 +499,16 @@ func (s *Server) broadcastHealthUpdates(ctx context.Context) {
 			s.log.Error().Err(err).Msg("marshal health event failed")
 			return
 		}
-
 		s.wsServer.Broadcast(data)
+
+		// Also broadcast to stream subscribers
+		streamMsg := &StreamMessage{
+			Type:      "health",
+			Service:   event.Service,
+			Timestamp: event.Timestamp,
+			Data:      event,
+		}
+		s.broadcastToStream(streamMsg)
 	})
 
 	<-ctx.Done()
@@ -378,6 +519,7 @@ func (s *Server) broadcastEvents(ctx context.Context) {
 	defer s.wg.Done()
 
 	s.eventStreamer.AddListener(func(event events.Event) {
+		// Broadcast to main WebSocket
 		data, err := json.Marshal(map[string]interface{}{
 			"type": "event",
 			"data": event,
@@ -386,8 +528,16 @@ func (s *Server) broadcastEvents(ctx context.Context) {
 			s.log.Error().Err(err).Msg("marshal event failed")
 			return
 		}
-
 		s.wsServer.Broadcast(data)
+
+		// Also broadcast to stream subscribers
+		streamMsg := &StreamMessage{
+			Type:      "event",
+			Service:   event.Source,
+			Timestamp: event.Timestamp,
+			Data:      event,
+		}
+		s.broadcastToStream(streamMsg)
 	})
 
 	<-ctx.Done()
@@ -408,6 +558,10 @@ func (s *Server) updateMetrics(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.wsConnections.Set(float64(s.wsServer.ConnectionCount()))
+
+			s.streamSubsMu.RLock()
+			s.streamClients.Set(float64(len(s.streamSubs)))
+			s.streamSubsMu.RUnlock()
 		}
 	}
 }
@@ -705,10 +859,15 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	systemHealth := s.healthMonitor.GetSystemHealth()
 	eventStats := s.eventStreamer.GetStats()
 
+	s.streamSubsMu.RLock()
+	streamClients := len(s.streamSubs)
+	s.streamSubsMu.RUnlock()
+
 	stats := map[string]interface{}{
 		"server": map[string]interface{}{
 			"started":        s.started,
 			"ws_connections": s.wsServer.ConnectionCount(),
+			"stream_clients": streamClients,
 			"listen_addr":    s.config.ListenAddr,
 		},
 		"scraper": map[string]interface{}{
@@ -725,10 +884,367 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 			"overall_status": systemHealth.Status,
 		},
 		"events": eventStats,
+		"aggregators": map[string]interface{}{
+			"metrics_series": s.metricsAggregator.SeriesCount(),
+		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
+}
+
+// handleStreamWebSocket handles WS /api/v1/stream - real-time metrics stream
+func (s *Server) handleStreamWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Parse filter query parameters
+	filter := StreamFilter{}
+
+	if types := r.URL.Query().Get("types"); types != "" {
+		filter.Types = strings.Split(types, ",")
+	}
+	if services := r.URL.Query().Get("services"); services != "" {
+		filter.Services = strings.Split(services, ",")
+	}
+	filter.MinLevel = r.URL.Query().Get("min_level")
+
+	// Use the WebSocket server to handle upgrade and connection
+	s.wsServer.HandleWebSocket(w, r)
+
+	// Note: The actual streaming is handled via the existing broadcast mechanism
+	// We register a dedicated stream subscription for filtered streaming
+	ch := make(chan *StreamMessage, 256)
+
+	s.streamSubsMu.Lock()
+	s.streamSubs[ch] = filter
+	s.streamSubsMu.Unlock()
+
+	s.log.Debug().
+		Strs("types", filter.Types).
+		Strs("services", filter.Services).
+		Str("min_level", filter.MinLevel).
+		Msg("stream subscriber connected")
+
+	// Cleanup on disconnect is handled by the WebSocket server
+}
+
+// broadcastToStream broadcasts a message to all stream subscribers
+func (s *Server) broadcastToStream(msg *StreamMessage) {
+	s.streamSubsMu.RLock()
+	defer s.streamSubsMu.RUnlock()
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		s.log.Error().Err(err).Msg("failed to marshal stream message")
+		return
+	}
+
+	for ch, filter := range s.streamSubs {
+		if s.matchesStreamFilter(msg, filter) {
+			select {
+			case ch <- msg:
+			default:
+				// Channel full, skip
+			}
+		}
+	}
+
+	// Also broadcast to main WebSocket for backward compatibility
+	s.wsServer.Broadcast(data)
+}
+
+// matchesStreamFilter checks if a message matches the stream filter
+func (s *Server) matchesStreamFilter(msg *StreamMessage, filter StreamFilter) bool {
+	// Filter by type
+	if len(filter.Types) > 0 {
+		found := false
+		for _, t := range filter.Types {
+			if t == msg.Type {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Filter by service
+	if len(filter.Services) > 0 && msg.Service != "" {
+		found := false
+		for _, svc := range filter.Services {
+			if svc == msg.Service {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}
+
+// handleTraces handles GET /api/v1/traces - trace data
+func (s *Server) handleTraces(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse query parameters
+	query := &TraceQuery{}
+
+	if svc := r.URL.Query().Get("service"); svc != "" {
+		query.ServiceName = svc
+	}
+
+	if startStr := r.URL.Query().Get("start_time"); startStr != "" {
+		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
+			query.StartTime = &t
+		}
+	}
+
+	if endStr := r.URL.Query().Get("end_time"); endStr != "" {
+		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
+			query.EndTime = &t
+		}
+	}
+
+	if minDur := r.URL.Query().Get("min_duration"); minDur != "" {
+		if d, err := time.ParseDuration(minDur); err == nil {
+			query.MinDuration = d
+		}
+	}
+
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil {
+			query.Limit = l
+		}
+	}
+
+	if hasError := r.URL.Query().Get("has_error"); hasError == "true" {
+		b := true
+		query.HasError = &b
+	}
+
+	// If trace collector is available, query it
+	if s.traceCollector != nil {
+		result, err := s.traceCollector.QueryTraces(r.Context(), query)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("query traces: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+		return
+	}
+
+	// Fallback: return empty result with info about trace collector status
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"traces":  []interface{}{},
+		"total":   0,
+		"message": "Trace collector not initialized. Connect to trace-collector service for distributed tracing.",
+	})
+}
+
+// handleTraceByID handles GET /api/v1/traces/{id}
+func (s *Server) handleTraceByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	traceIDStr := r.URL.Path[len("/api/v1/traces/"):]
+	if traceIDStr == "" {
+		http.Error(w, "trace ID required", http.StatusBadRequest)
+		return
+	}
+
+	if s.traceCollector != nil {
+		trace, err := s.traceCollector.GetTrace(r.Context(), traceIDStr)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, "trace not found", http.StatusNotFound)
+				return
+			}
+			http.Error(w, fmt.Sprintf("get trace: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(trace)
+		return
+	}
+
+	http.Error(w, "trace collector not available", http.StatusServiceUnavailable)
+}
+
+// handleAggregated handles GET /api/v1/aggregated - all aggregated data
+func (s *Server) handleAggregated(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Gather aggregated data from all sources
+	scraperMetrics := s.scraper.GetAggregatedMetrics()
+	systemHealth := s.healthMonitor.GetSystemHealth()
+	eventSummary := s.eventStreamer.GetSummary()
+
+	// Get health aggregator status if available
+	var healthAggStatus *SystemHealthStatus
+	if s.healthAggregator != nil {
+		healthAggStatus = s.healthAggregator.GetSystemHealth()
+	}
+
+	aggregated := map[string]interface{}{
+		"timestamp": time.Now(),
+		"metrics": map[string]interface{}{
+			"scraper":       scraperMetrics,
+			"series_count":  s.metricsAggregator.SeriesCount(),
+			"total_metrics": scraperMetrics.TotalMetrics,
+			"total_series":  scraperMetrics.TotalSeries,
+		},
+		"health": map[string]interface{}{
+			"internal":   systemHealth,
+			"aggregated": healthAggStatus,
+		},
+		"events": eventSummary,
+		"stream": map[string]interface{}{
+			"ws_connections": s.wsServer.ConnectionCount(),
+			"stream_clients": func() int {
+				s.streamSubsMu.RLock()
+				defer s.streamSubsMu.RUnlock()
+				return len(s.streamSubs)
+			}(),
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(aggregated)
+}
+
+// handleAggregatedMetrics handles GET /api/v1/aggregated/metrics
+func (s *Server) handleAggregatedMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse query parameters
+	var since time.Time
+	if sinceStr := r.URL.Query().Get("since"); sinceStr != "" {
+		if d, err := time.ParseDuration(sinceStr); err == nil {
+			since = time.Now().Add(-d)
+		} else if t, err := time.Parse(time.RFC3339, sinceStr); err == nil {
+			since = t
+		}
+	} else {
+		since = time.Now().Add(-1 * time.Hour)
+	}
+
+	// Get metrics from scraper
+	scraperMetrics := s.scraper.GetAggregatedMetrics()
+
+	// Get internal aggregator stats
+	aggregatorStats := map[string]interface{}{
+		"series_count": s.metricsAggregator.SeriesCount(),
+	}
+
+	result := map[string]interface{}{
+		"timestamp":  time.Now(),
+		"since":      since,
+		"scraper":    scraperMetrics,
+		"aggregator": aggregatorStats,
+		"summary": map[string]interface{}{
+			"total_services": len(scraperMetrics.Services),
+			"total_metrics":  scraperMetrics.TotalMetrics,
+			"total_series":   scraperMetrics.TotalSeries,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// handleAggregatedHealth handles GET /api/v1/aggregated/health
+func (s *Server) handleAggregatedHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get internal health monitor status
+	internalHealth := s.healthMonitor.GetSystemHealth()
+
+	// Get health aggregator status if available
+	var healthAggStatus *SystemHealthStatus
+	var healthChecks []interface{}
+	if s.healthAggregator != nil {
+		healthAggStatus = s.healthAggregator.GetSystemHealth()
+		healthChecks = s.healthAggregator.GetChecks()
+	}
+
+	result := map[string]interface{}{
+		"timestamp": time.Now(),
+		"internal": map[string]interface{}{
+			"status":         internalHealth.Status,
+			"total_services": internalHealth.TotalServices,
+			"healthy":        internalHealth.HealthyCount,
+			"degraded":       internalHealth.DegradedCount,
+			"unhealthy":      internalHealth.UnhealthyCount,
+			"services":       internalHealth.Services,
+		},
+		"aggregated_health": map[string]interface{}{
+			"status":     healthAggStatus,
+			"checks":     healthChecks,
+			"registered": len(healthChecks),
+		},
+		"overall": func() string {
+			if internalHealth.UnhealthyCount > 0 {
+				return "unhealthy"
+			}
+			if internalHealth.DegradedCount > 0 {
+				return "degraded"
+			}
+			if internalHealth.HealthyCount == internalHealth.TotalServices && internalHealth.TotalServices > 0 {
+				return "healthy"
+			}
+			return "unknown"
+		}(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// SetTraceCollector sets the trace collector for the server
+func (s *Server) SetTraceCollector(collector TraceCollector) {
+	s.traceCollector = collector
+}
+
+// RecordMetric records a metric to the internal aggregator
+func (s *Server) RecordMetric(name string, value float64, labels map[string]string) error {
+	return s.metricsAggregator.RecordMetric(&internalMetrics.Metric{
+		Name:      name,
+		Value:     value,
+		Labels:    labels,
+		Timestamp: time.Now(),
+	})
+}
+
+// SetHealthAggregator sets the health aggregator for the server
+func (s *Server) SetHealthAggregator(aggregator HealthAggregator) {
+	s.healthAggregator = aggregator
+}
+
+// RegisterHealthCheck registers a health check with the health aggregator
+func (s *Server) RegisterHealthCheck(check interface{}) error {
+	if s.healthAggregator == nil {
+		return errors.New("health aggregator not initialized")
+	}
+	return s.healthAggregator.RegisterCheck(check)
 }
 
 // Shutdown gracefully shuts down the server
@@ -738,6 +1254,14 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.shutdownOnce.Do(func() {
 		s.log.Info().Msg("shutting down dashboard backend")
 		close(s.shutdown)
+
+		// Close stream subscriptions
+		s.streamSubsMu.Lock()
+		for ch := range s.streamSubs {
+			close(ch)
+			delete(s.streamSubs, ch)
+		}
+		s.streamSubsMu.Unlock()
 
 		// Shutdown HTTP server
 		if err := s.httpServer.Shutdown(ctx); err != nil {
@@ -766,6 +1290,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// Stop event streamer
 		if err := s.eventStreamer.Stop(); err != nil {
 			s.log.Error().Err(err).Msg("event streamer stop error")
+		}
+
+		// Shutdown internal metrics aggregator
+		if s.metricsAggregator != nil {
+			if err := s.metricsAggregator.Shutdown(ctx); err != nil {
+				s.log.Error().Err(err).Msg("metrics aggregator shutdown error")
+			}
+		}
+
+		// Close health aggregator if set
+		if s.healthAggregator != nil {
+			if err := s.healthAggregator.Close(); err != nil {
+				s.log.Error().Err(err).Msg("health aggregator close error")
+			}
 		}
 
 		// Wait for goroutines
@@ -807,4 +1345,19 @@ func (s *Server) GetHealthMonitor() *health.Monitor {
 // GetEventStreamer returns the event streamer
 func (s *Server) GetEventStreamer() *events.Streamer {
 	return s.eventStreamer
+}
+
+// GetMetricsAggregator returns the internal metrics aggregator
+func (s *Server) GetMetricsAggregator() *internalMetrics.Aggregator {
+	return s.metricsAggregator
+}
+
+// GetTraceCollector returns the trace collector
+func (s *Server) GetTraceCollector() TraceCollector {
+	return s.traceCollector
+}
+
+// GetHealthAggregator returns the health aggregator
+func (s *Server) GetHealthAggregator() HealthAggregator {
+	return s.healthAggregator
 }

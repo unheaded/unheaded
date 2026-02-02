@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // FileStorage implements file-based audit storage with rotation.

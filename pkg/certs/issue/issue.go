@@ -15,7 +15,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/certs/ca"
+	"unheaded/pkg/certs/ca"
 )
 
 var (

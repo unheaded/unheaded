@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // DatabaseStorage implements database-backed audit storage.

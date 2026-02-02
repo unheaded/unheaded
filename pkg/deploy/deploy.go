@@ -548,7 +548,7 @@ func (e *Engine) Status(ctx context.Context, deploymentID string) (*DeploymentSt
 	// Get actual replica counts from runtime
 	if e.runtime != nil {
 		filter := &container.Filter{
-			Label: map[string]string{
+			Labels: map[string]string{
 				"deployment": deploymentID,
 			},
 		}
@@ -781,7 +781,7 @@ func (e *Engine) stageValidate(ctx context.Context, deployment *Deployment) erro
 
 	// Validate container spec if provided
 	if deployment.Spec.ContainerSpec != nil {
-		if err := container.ValidateSpec(deployment.Spec.ContainerSpec); err != nil {
+		if err := deployment.Spec.ContainerSpec.Validate(); err != nil {
 			return fmt.Errorf("invalid container spec: %w", err)
 		}
 	}

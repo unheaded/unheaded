@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/output"
+	"unheaded/cmd/unheaded-cli/output"
 )
 
 // NetworkPolicyListResult represents the output for network policy list.

@@ -3,7 +3,6 @@ package micromanager
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"

@@ -20,8 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
-	"github.com/unheaded/unheaded/pkg/lxd"
+	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/pkg/lxd"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -867,7 +867,7 @@ type Builder struct {
 	cache  *BuildCache
 	queue  *BuildQueue
 	watcher *FlakeWatcher
-	busboy busboyClient.Client
+	busboy *busboyClient.Client
 
 	// Build results storage
 	resultsMu sync.RWMutex
@@ -880,7 +880,7 @@ type Builder struct {
 }
 
 // NewBuilder creates a new Builder service.
-func NewBuilder(config BuilderConfig, busboy busboyClient.Client) (*Builder, error) {
+func NewBuilder(config BuilderConfig, busboy *busboyClient.Client) (*Builder, error) {
 	// Create output directory
 	if err := os.MkdirAll(config.OutputDir, 0755); err != nil {
 		return nil, fmt.Errorf("create output directory: %w", err)

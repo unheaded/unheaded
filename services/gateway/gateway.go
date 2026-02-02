@@ -9,8 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"unheaded/pkg/busboy-client"
-	"unheaded/pkg/health"
+	busboyClient "unheaded/pkg/busboy-client"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	"unheaded/services/gateway/config"
@@ -18,6 +17,57 @@ import (
 	"unheaded/services/gateway/proxy"
 	"unheaded/services/gateway/routes"
 )
+
+// CheckFunc is a function that performs a health check.
+type CheckFunc func(ctx context.Context) error
+
+// healthStatus represents the result of health checks.
+type healthStatus struct {
+	Healthy bool              `json:"healthy"`
+	Checks  map[string]string `json:"checks"`
+}
+
+// healthManager manages simple health checks for the gateway.
+type healthManager struct {
+	checks map[string]CheckFunc
+	mu     sync.RWMutex
+}
+
+// newHealthManager creates a new health manager.
+func newHealthManager() *healthManager {
+	return &healthManager{
+		checks: make(map[string]CheckFunc),
+	}
+}
+
+// Register adds a health check.
+func (m *healthManager) Register(name string, check CheckFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.checks[name] = check
+}
+
+// CheckAll runs all health checks and returns the aggregate status.
+func (m *healthManager) CheckAll(ctx context.Context) *healthStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	status := &healthStatus{
+		Healthy: true,
+		Checks:  make(map[string]string),
+	}
+
+	for name, check := range m.checks {
+		if err := check(ctx); err != nil {
+			status.Healthy = false
+			status.Checks[name] = err.Error()
+		} else {
+			status.Checks[name] = "healthy"
+		}
+	}
+
+	return status
+}
 
 // Gateway is the main API Gateway service.
 type Gateway struct {
@@ -27,10 +77,10 @@ type Gateway struct {
 	router        *routes.Router
 	healthChecker *proxy.HealthChecker
 	rateLimiter   *middleware.RateLimiter
-	busboy        *busboy.Client
+	busboy        *busboyClient.Client
 	httpServer    *http.Server
 	http3Server   interface{} // http3.Server when enabled
-	healthMgr     *health.Manager
+	healthMgr     *healthManager
 	mu            sync.RWMutex
 	running       bool
 }
@@ -42,7 +92,7 @@ func New(cfg *config.Config, log *logger.Logger) (*Gateway, error) {
 	}
 
 	// Create metrics registry
-	metricsReg := metrics.NewRegistry("gateway")
+	metricsReg := metrics.NewRegistry()
 
 	// Create router
 	router := routes.NewRouter(log, metricsReg)
@@ -54,13 +104,17 @@ func New(cfg *config.Config, log *logger.Logger) (*Gateway, error) {
 	rateLimiter := middleware.NewRateLimiter(&cfg.RateLimit, log, metricsReg)
 
 	// Create Busboy client
-	var busboyClient *busboy.Client
+	var client *busboyClient.Client
 	if cfg.Busboy.Enabled {
-		busboyClient = busboy.NewClient(cfg.Busboy.URL, cfg.Busboy.ServiceName)
+		var err error
+		client, err = busboyClient.NewClient(cfg.Busboy.URL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create busboy client: %w", err)
+		}
 	}
 
 	// Create health manager
-	healthMgr := health.NewManager()
+	healthMgr := newHealthManager()
 
 	g := &Gateway{
 		cfg:           cfg,
@@ -69,7 +123,7 @@ func New(cfg *config.Config, log *logger.Logger) (*Gateway, error) {
 		router:        router,
 		healthChecker: healthChecker,
 		rateLimiter:   rateLimiter,
-		busboy:        busboyClient,
+		busboy:        client,
 		healthMgr:     healthMgr,
 	}
 
@@ -139,10 +193,14 @@ func (g *Gateway) busboyMiddleware(next http.Handler) http.Handler {
 				"remote_ip":  r.RemoteAddr,
 			}
 
-			if err := g.busboy.Publish(g.cfg.Busboy.Topic, event); err != nil {
-				g.log.Warn("Failed to publish request event",
-					"error", err.Error(),
-				)
+			payload, err := json.Marshal(event)
+			if err != nil {
+				g.log.Warn().Str("error", err.Error()).Msg("Failed to marshal request event")
+				return
+			}
+
+			if err := g.busboy.Publish(r.Context(), g.cfg.Busboy.Topic, payload); err != nil {
+				g.log.Warn().Str("error", err.Error()).Msg("Failed to publish request event")
 			}
 		}()
 
@@ -196,14 +254,14 @@ func (g *Gateway) Start(ctx context.Context) error {
 	g.healthChecker.Start()
 
 	// Register health checks
-	g.healthMgr.Register("gateway", health.CheckFunc(func(ctx context.Context) error {
+	g.healthMgr.Register("gateway", func(ctx context.Context) error {
 		return nil // Gateway is healthy if running
-	}))
+	})
 
-	g.log.Info("Starting API Gateway",
-		"http_port", g.cfg.Server.HTTPPort,
-		"routes", len(g.cfg.Routes),
-	)
+	g.log.Info().
+		Int("http_port", g.cfg.Server.HTTPPort).
+		Int("routes", len(g.cfg.Routes)).
+		Msg("Starting API Gateway")
 
 	// Start HTTP server
 	errCh := make(chan error, 1)
@@ -238,7 +296,7 @@ func (g *Gateway) Shutdown() error {
 	g.running = false
 	g.mu.Unlock()
 
-	g.log.Info("Shutting down API Gateway")
+	g.log.Info().Msg("Shutting down API Gateway")
 
 	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), g.cfg.Server.ShutdownTimeout)
@@ -260,13 +318,11 @@ func (g *Gateway) Shutdown() error {
 
 	// Shutdown HTTP server
 	if err := g.httpServer.Shutdown(ctx); err != nil {
-		g.log.Error("HTTP server shutdown error",
-			"error", err.Error(),
-		)
+		g.log.Error().Str("error", err.Error()).Msg("HTTP server shutdown error")
 		return err
 	}
 
-	g.log.Info("API Gateway shutdown complete")
+	g.log.Info().Msg("API Gateway shutdown complete")
 	return nil
 }
 
@@ -314,7 +370,7 @@ func (g *Gateway) readinessHandler(w http.ResponseWriter, r *http.Request) {
 // metricsHandler handles Prometheus metrics endpoint.
 func (g *Gateway) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	g.metrics.WritePrometheus(w)
+	g.metrics.Gather(w)
 }
 
 // GetRouter returns the gateway router.

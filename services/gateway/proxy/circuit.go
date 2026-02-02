@@ -140,10 +140,10 @@ func (cb *CircuitBreaker) transitionTo(state CircuitState) {
 		return
 	}
 
-	cb.log.Info("Circuit breaker state change",
-		"from", cb.state.String(),
-		"to", state.String(),
-	)
+	cb.log.Info().
+		Str("from", cb.state.String()).
+		Str("to", state.String()).
+		Msg("Circuit breaker state change")
 
 	cb.state = state
 	cb.lastStateChange = time.Now()

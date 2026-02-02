@@ -12,7 +12,10 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,7 +34,65 @@ var (
 	ErrCheckTimeout       = errors.New("health check timed out")
 	ErrCircuitOpen        = errors.New("circuit breaker is open")
 	ErrAggregatorStopped  = errors.New("aggregator has been stopped")
+	ErrInvalidExecTarget  = errors.New("invalid exec target")
 )
+
+// allowedExecPaths defines the allowed directories for exec health check commands.
+// Commands must be absolute paths within these directories.
+var allowedExecPaths = []string{
+	"/usr/bin",
+	"/usr/local/bin",
+	"/opt/unheaded/bin",
+	"/opt/unheaded/healthchecks",
+}
+
+// validExecPathPattern ensures the path contains only safe characters
+var validExecPathPattern = regexp.MustCompile(`^[a-zA-Z0-9/_.-]+$`)
+
+// validateExecTarget validates that the exec target is a safe command path.
+// It prevents command injection by:
+// 1. Requiring absolute paths
+// 2. Rejecting path traversal attempts
+// 3. Only allowing commands in approved directories
+// 4. Rejecting paths with shell metacharacters
+func validateExecTarget(target string) error {
+	// Must be an absolute path
+	if !filepath.IsAbs(target) {
+		return fmt.Errorf("%w: path must be absolute", ErrInvalidExecTarget)
+	}
+
+	// Check for path traversal attempts
+	cleanPath := filepath.Clean(target)
+	if cleanPath != target || strings.Contains(target, "..") {
+		return fmt.Errorf("%w: path traversal not allowed", ErrInvalidExecTarget)
+	}
+
+	// Validate path contains only safe characters (no shell metacharacters)
+	if !validExecPathPattern.MatchString(target) {
+		return fmt.Errorf("%w: path contains invalid characters", ErrInvalidExecTarget)
+	}
+
+	// Reject paths with null bytes or other control characters
+	for _, c := range target {
+		if c < 32 || c == 127 {
+			return fmt.Errorf("%w: path contains control characters", ErrInvalidExecTarget)
+		}
+	}
+
+	// Check if the path is within an allowed directory
+	allowed := false
+	for _, allowedPath := range allowedExecPaths {
+		if strings.HasPrefix(cleanPath, allowedPath+"/") {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return fmt.Errorf("%w: command must be in an allowed directory", ErrInvalidExecTarget)
+	}
+
+	return nil
+}
 
 // HealthStatus represents the health state of a service
 type HealthStatus string
@@ -943,6 +1004,16 @@ func (a *Aggregator) runExecCheck(ctx context.Context, check *HealthCheck) *Heal
 	config := check.ExecConfig
 	if config == nil {
 		config = &ExecCheckConfig{ExpectedExitCode: 0}
+	}
+
+	// Validate the target command to prevent command injection
+	if err := validateExecTarget(check.Target); err != nil {
+		return &HealthResult{
+			Name:    check.Name,
+			Status:  StatusUnhealthy,
+			Message: "Invalid command target",
+			Error:   err.Error(),
+		}
 	}
 
 	cmd := exec.CommandContext(ctx, check.Target, config.Args...)

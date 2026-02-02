@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/metrics"
+	"unheaded/pkg/metrics"
 )
 
 // Example_basic demonstrates basic counter and gauge usage.

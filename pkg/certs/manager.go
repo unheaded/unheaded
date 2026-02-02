@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/certs/ca"
-	"github.com/unheaded/unheaded/pkg/certs/issue"
-	"github.com/unheaded/unheaded/pkg/certs/rotation"
-	"github.com/unheaded/unheaded/pkg/certs/store"
+	"unheaded/pkg/certs/ca"
+	"unheaded/pkg/certs/issue"
+	"unheaded/pkg/certs/rotation"
+	"unheaded/pkg/certs/store"
 )
 
 var (
