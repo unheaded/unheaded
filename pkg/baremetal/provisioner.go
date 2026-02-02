@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/pkg/baremetal/image"
-	"github.com/unheaded/pkg/baremetal/inventory"
-	"github.com/unheaded/pkg/baremetal/ipmi"
-	"github.com/unheaded/pkg/baremetal/pxe"
+	"unheaded/pkg/baremetal/image"
+	"unheaded/pkg/baremetal/inventory"
+	"unheaded/pkg/baremetal/ipmi"
+	"unheaded/pkg/baremetal/pxe"
 )
 
 // MachineState represents the current state of a bare metal machine.

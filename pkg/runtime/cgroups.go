@@ -20,6 +20,9 @@ type CgroupManager struct {
 	root         string
 	parentPath   string
 	cgroupPaths  map[string]string
+
+	// Enhanced v2 manager for advanced features
+	v2Manager *CgroupV2Manager
 }
 
 // CgroupStats contains cgroup statistics.
@@ -90,6 +93,14 @@ func NewCgroupManager(driver, parentPath string) (*CgroupManager, error) {
 	// Enable controllers in parent
 	if err := mgr.enableControllers(parentFullPath); err != nil {
 		// Log but don't fail - some controllers may not be available
+	}
+
+	// Initialize enhanced v2 manager
+	v2Mgr, err := NewCgroupV2Manager(parentPath)
+	if err != nil {
+		// Log but don't fail - basic functionality still available
+	} else {
+		mgr.v2Manager = v2Mgr
 	}
 
 	return mgr, nil
@@ -174,9 +185,19 @@ func (m *CgroupManager) applyResources(cgroupPath string, resources *ResourceCon
 		return err
 	}
 
+	// Apply IO limits
+	if err := m.applyIOResources(cgroupPath, resources); err != nil {
+		return err
+	}
+
 	// Apply PIDs limits
 	if err := m.applyPidsResources(cgroupPath, resources); err != nil {
 		return err
+	}
+
+	// Apply hugepage limits
+	if err := m.applyHugepageResources(cgroupPath, resources); err != nil {
+		// Hugepages might not be available
 	}
 
 	return nil
@@ -184,8 +205,19 @@ func (m *CgroupManager) applyResources(cgroupPath string, resources *ResourceCon
 
 // applyCPUResources applies CPU resource limits.
 func (m *CgroupManager) applyCPUResources(cgroupPath string, resources *ResourceConfig) error {
-	// CPU weight (shares in cgroup v1)
-	if resources.CPUShares > 0 {
+	// CPU weight - prefer explicit CPUWeight over converted CPUShares
+	if resources.CPUWeight > 0 {
+		weight := resources.CPUWeight
+		if weight < 1 {
+			weight = 1
+		}
+		if weight > 10000 {
+			weight = 10000
+		}
+		if err := writeFile(cgroupPath, "cpu.weight", fmt.Sprintf("%d", weight)); err != nil {
+			return err
+		}
+	} else if resources.CPUShares > 0 {
 		// Convert shares to weight: weight = 1 + ((shares - 2) * 9999) / 262142
 		// Simplified: weight ~= shares * 100 / 1024
 		weight := (resources.CPUShares * 100) / 1024
@@ -240,16 +272,30 @@ func (m *CgroupManager) applyCPUResources(cgroupPath string, resources *Resource
 
 // applyMemoryResources applies memory resource limits.
 func (m *CgroupManager) applyMemoryResources(cgroupPath string, resources *ResourceConfig) error {
-	// Memory limit (memory.max)
+	// Memory limit (memory.max) - hard limit
 	if resources.MemoryLimitBytes > 0 {
 		if err := writeFile(cgroupPath, "memory.max", fmt.Sprintf("%d", resources.MemoryLimitBytes)); err != nil {
 			return err
 		}
 	}
 
-	// Memory reservation (memory.low)
+	// Memory high (memory.high) - throttling threshold
+	if resources.MemoryHighBytes > 0 {
+		if err := writeFile(cgroupPath, "memory.high", fmt.Sprintf("%d", resources.MemoryHighBytes)); err != nil {
+			return err
+		}
+	}
+
+	// Memory reservation (memory.low) - best-effort protection
 	if resources.MemoryReservationBytes > 0 {
 		if err := writeFile(cgroupPath, "memory.low", fmt.Sprintf("%d", resources.MemoryReservationBytes)); err != nil {
+			return err
+		}
+	}
+
+	// Memory min (memory.min) - hard protection (guaranteed minimum)
+	if resources.MemoryMinBytes > 0 {
+		if err := writeFile(cgroupPath, "memory.min", fmt.Sprintf("%d", resources.MemoryMinBytes)); err != nil {
 			return err
 		}
 	}
@@ -269,13 +315,86 @@ func (m *CgroupManager) applyMemoryResources(cgroupPath string, resources *Resou
 		}
 	}
 
-	// OOM behavior
-	if resources.OOMKillDisable {
-		// In cgroup v2, we can use memory.oom.group
-		// Note: This requires additional setup
+	// OOM group behavior (memory.oom.group)
+	if resources.OOMGroup {
+		if err := writeFile(cgroupPath, "memory.oom.group", "1"); err != nil {
+			// OOM group might not be supported
+		}
 	}
 
 	return nil
+}
+
+// applyIOResources applies IO resource limits.
+func (m *CgroupManager) applyIOResources(cgroupPath string, resources *ResourceConfig) error {
+	// IO weight (io.weight) - default weight for all devices
+	if resources.IOWeight > 0 {
+		weight := resources.IOWeight
+		if weight < 1 {
+			weight = 1
+		}
+		if weight > 10000 {
+			weight = 10000
+		}
+		if err := writeFile(cgroupPath, "io.weight", fmt.Sprintf("default %d", weight)); err != nil {
+			// IO controller might not be enabled
+		}
+	}
+
+	// IO limits (io.max) - per-device bandwidth and IOPS limits
+	for _, limit := range resources.IOLimits {
+		content := m.buildIOMaxString(limit)
+		if content != "" {
+			if err := writeFile(cgroupPath, "io.max", content); err != nil {
+				// IO controller might not be enabled or device not found
+			}
+		}
+	}
+
+	return nil
+}
+
+// buildIOMaxString builds the io.max content string from an IOLimit.
+func (m *CgroupManager) buildIOMaxString(limit IOLimit) string {
+	var parts []string
+
+	if limit.ReadBytesPerSec >= 0 {
+		if limit.ReadBytesPerSec == 0 {
+			parts = append(parts, "rbps=max")
+		} else {
+			parts = append(parts, fmt.Sprintf("rbps=%d", limit.ReadBytesPerSec))
+		}
+	}
+
+	if limit.WriteBytesPerSec >= 0 {
+		if limit.WriteBytesPerSec == 0 {
+			parts = append(parts, "wbps=max")
+		} else {
+			parts = append(parts, fmt.Sprintf("wbps=%d", limit.WriteBytesPerSec))
+		}
+	}
+
+	if limit.ReadIOPS >= 0 {
+		if limit.ReadIOPS == 0 {
+			parts = append(parts, "riops=max")
+		} else {
+			parts = append(parts, fmt.Sprintf("riops=%d", limit.ReadIOPS))
+		}
+	}
+
+	if limit.WriteIOPS >= 0 {
+		if limit.WriteIOPS == 0 {
+			parts = append(parts, "wiops=max")
+		} else {
+			parts = append(parts, fmt.Sprintf("wiops=%d", limit.WriteIOPS))
+		}
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%d:%d %s", limit.Major, limit.Minor, strings.Join(parts, " "))
 }
 
 // applyPidsResources applies PIDs resource limits.
@@ -283,6 +402,17 @@ func (m *CgroupManager) applyPidsResources(cgroupPath string, resources *Resourc
 	if resources.PidsLimit > 0 {
 		if err := writeFile(cgroupPath, "pids.max", fmt.Sprintf("%d", resources.PidsLimit)); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// applyHugepageResources applies hugepage resource limits.
+func (m *CgroupManager) applyHugepageResources(cgroupPath string, resources *ResourceConfig) error {
+	for size, limit := range resources.HugepageLimits {
+		filename := fmt.Sprintf("hugetlb.%s.max", size)
+		if err := writeFile(cgroupPath, filename, fmt.Sprintf("%d", limit)); err != nil {
+			// Hugepage controller might not be available for this size
 		}
 	}
 	return nil
@@ -620,4 +750,140 @@ func (m *CgroupManager) GetMemoryEvents(cgroupPath string) (map[string]uint64, e
 	}
 
 	return result, nil
+}
+
+// GetV2Manager returns the enhanced cgroups v2 manager.
+// Returns nil if not available.
+func (m *CgroupManager) GetV2Manager() *CgroupV2Manager {
+	return m.v2Manager
+}
+
+// WatchContainerEvents starts watching cgroup events for a container.
+// Returns a channel that receives events, or an error if watching is not supported.
+func (m *CgroupManager) WatchContainerEvents(containerID string) (<-chan CgroupEvent, error) {
+	if m.v2Manager == nil {
+		return nil, fmt.Errorf("enhanced v2 manager not available")
+	}
+	return m.v2Manager.WatchEvents(containerID)
+}
+
+// StopContainerEventWatcher stops watching events for a container.
+func (m *CgroupManager) StopContainerEventWatcher(containerID string) {
+	if m.v2Manager != nil {
+		m.v2Manager.StopEventWatcher(containerID)
+	}
+}
+
+// StartPressureMonitoring starts monitoring resource pressure for a container.
+func (m *CgroupManager) StartPressureMonitoring(containerID string, thresholds PressureThresholds, callback PressureCallback) error {
+	if m.v2Manager == nil {
+		return fmt.Errorf("enhanced v2 manager not available")
+	}
+	return m.v2Manager.StartPressureMonitor(containerID, thresholds, callback)
+}
+
+// StopPressureMonitoring stops pressure monitoring for a container.
+func (m *CgroupManager) StopPressureMonitoring(containerID string) {
+	if m.v2Manager != nil {
+		m.v2Manager.StopPressureMonitor(containerID)
+	}
+}
+
+// GetPressureStats returns current pressure statistics for a container.
+func (m *CgroupManager) GetPressureStats(containerID string) (*CgroupPressureStats, error) {
+	if m.v2Manager == nil {
+		return nil, fmt.Errorf("enhanced v2 manager not available")
+	}
+	stats, err := m.v2Manager.GetStatsV2(containerID)
+	if err != nil {
+		return nil, err
+	}
+	return &stats.Pressure, nil
+}
+
+// GetDetailedStats returns comprehensive cgroup v2 statistics.
+func (m *CgroupManager) GetDetailedStats(containerID string) (*CgroupV2Stats, error) {
+	if m.v2Manager == nil {
+		return nil, fmt.Errorf("enhanced v2 manager not available")
+	}
+	return m.v2Manager.GetStatsV2(containerID)
+}
+
+// KillAllProcesses sends SIGKILL to all processes in a container's cgroup.
+func (m *CgroupManager) KillAllProcesses(containerID string) error {
+	if m.v2Manager != nil {
+		return m.v2Manager.KillAll(containerID)
+	}
+
+	// Fallback: use ListProcesses and kill manually
+	cgroupPath, err := m.GetCgroupPath(containerID)
+	if err != nil {
+		return err
+	}
+
+	pids, err := m.ListProcesses(cgroupPath)
+	if err != nil {
+		return err
+	}
+
+	for _, pid := range pids {
+		if proc, err := os.FindProcess(pid); err == nil {
+			proc.Kill()
+		}
+	}
+
+	return nil
+}
+
+// SetIOWeight sets the default IO weight for a container.
+func (m *CgroupManager) SetIOWeight(containerID string, weight uint16) error {
+	cgroupPath, err := m.GetCgroupPath(containerID)
+	if err != nil {
+		return err
+	}
+
+	fullPath := filepath.Join(m.root, cgroupPath)
+	if weight < 1 {
+		weight = 1
+	}
+	if weight > 10000 {
+		weight = 10000
+	}
+	return writeFile(fullPath, "io.weight", fmt.Sprintf("default %d", weight))
+}
+
+// SetIOLatencyTarget sets the IO latency target for a device.
+func (m *CgroupManager) SetIOLatencyTarget(containerID string, major, minor uint64, targetUsec uint64) error {
+	if m.v2Manager != nil {
+		return m.v2Manager.SetIOLatency(containerID, major, minor, targetUsec)
+	}
+
+	cgroupPath, err := m.GetCgroupPath(containerID)
+	if err != nil {
+		return err
+	}
+
+	fullPath := filepath.Join(m.root, cgroupPath)
+	content := fmt.Sprintf("%d:%d target=%d", major, minor, targetUsec)
+	return writeFile(fullPath, "io.latency", content)
+}
+
+// GetIOStats returns IO statistics for a container.
+func (m *CgroupManager) GetIOStats(containerID string) (*CgroupIOStats, error) {
+	if m.v2Manager == nil {
+		return nil, fmt.Errorf("enhanced v2 manager not available")
+	}
+	stats, err := m.v2Manager.GetStatsV2(containerID)
+	if err != nil {
+		return nil, err
+	}
+	return &stats.IO, nil
+}
+
+// Close cleans up the cgroup manager resources.
+func (m *CgroupManager) Close() error {
+	if m.v2Manager != nil {
+		return m.v2Manager.Close()
+	}
+	return nil
 }

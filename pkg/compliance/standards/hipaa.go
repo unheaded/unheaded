@@ -1,7 +1,7 @@
 package standards
 
 import (
-	"github.com/unheaded/unheaded/pkg/compliance/controls"
+	"unheaded/pkg/compliance/controls"
 )
 
 // HIPAAStandard implements the HIPAA compliance standard.

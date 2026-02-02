@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
+	busboyClient "unheaded/pkg/busboy-client"
 	"github.com/rs/zerolog/log"
 )
 

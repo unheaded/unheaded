@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
+	"unheaded/pkg/alerting"
 )
 
 // EmailConfig holds email channel configuration.

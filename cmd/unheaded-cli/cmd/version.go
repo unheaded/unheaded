@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/output"
+	"unheaded/cmd/unheaded-cli/output"
 )
 
 // VersionInfo contains version information for the CLI.

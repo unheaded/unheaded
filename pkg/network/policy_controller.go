@@ -1721,8 +1721,9 @@ func (pc *PolicyController) applyBGPConfig(ctx context.Context, policy *NetworkP
 		return fmt.Errorf("write BGP config: %w", err)
 	}
 
-	// Reload BGP daemon
-	cmd := exec.CommandContext(ctx, "vtysh", "-c", "configure terminal", "-c", fmt.Sprintf("do write %s", configPath))
+	// Reload BGP daemon using proper argument separation to prevent command injection
+	// Use vtysh with -f flag to load config file instead of shell-interpolated command
+	cmd := exec.CommandContext(ctx, "vtysh", "-f", configPath)
 	if _, err := cmd.CombinedOutput(); err != nil {
 		// BGP daemon may not be running, log and continue
 		pc.logger.Warn().

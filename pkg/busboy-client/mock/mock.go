@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "github.com/unheaded/unheaded/pkg/busboy-client"
+	busboyClient "unheaded/pkg/busboy-client"
 )
 
 // MockClient provides a testable Busboy client implementation

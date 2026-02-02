@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/secrets"
-	"github.com/unheaded/unheaded/pkg/secrets/encryption"
-	"github.com/unheaded/unheaded/pkg/secrets/rotation"
-	"github.com/unheaded/unheaded/pkg/secrets/store"
+	"unheaded/pkg/secrets"
+	"unheaded/pkg/secrets/encryption"
+	"unheaded/pkg/secrets/rotation"
+	"unheaded/pkg/secrets/store"
 )
 
 func TestMemoryStore(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
+	"unheaded/pkg/alerting"
 )
 
 // SlackConfig holds Slack channel configuration.

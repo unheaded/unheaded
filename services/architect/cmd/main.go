@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,9 +14,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/unheaded/unheaded/pkg/busboy-client"
-	"github.com/unheaded/unheaded/pkg/busboy-client/mock"
-	"github.com/unheaded/unheaded/services/architect"
+	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/pkg/busboy-client/mock"
+	"unheaded/services/architect"
 )
 
 // Metrics
@@ -77,7 +76,7 @@ func main() {
 	svc := architect.New()
 
 	// Connect to Busboy
-	var busboyClient interface {
+	var busboy interface {
 		Subscribe(ctx context.Context, topic, displayName string) (*busboyClient.Subscriber, error)
 		Publish(ctx context.Context, topic string, payload []byte) error
 		Close() error
@@ -85,22 +84,22 @@ func main() {
 
 	if *useMock {
 		log.Info().Msg("using mock Busboy client")
-		busboyClient = mock.NewMockClient(mock.WithAutoApprove())
+		busboy = mock.NewMockClient(mock.WithAutoApprove())
 	} else {
 		client, err := busboyClient.NewClient(*busboyAddr)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to create Busboy client")
 		}
-		busboyClient = client
+		busboy = client
 
 		// Subscribe to relevant topics
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if _, err := busboyClient.Subscribe(ctx, "architecture.updates", "architect"); err != nil {
+		if _, err := busboy.Subscribe(ctx, "architecture.updates", "architect"); err != nil {
 			log.Warn().Err(err).Msg("failed to subscribe to architecture.updates")
 		}
 		cancel()
 	}
-	defer busboyClient.Close()
+	defer busboy.Close()
 
 	// HTTP handler
 	handler := architect.NewHTTPHandler(svc)

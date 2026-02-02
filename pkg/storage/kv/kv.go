@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/metrics"
-	"github.com/unheaded/unheaded/pkg/storage"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
+	"unheaded/pkg/storage"
 )
 
 // Backend represents a storage backend type.

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // SearchOptions configures search behavior.

@@ -200,6 +200,10 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
 	mux.HandleFunc("/health", s.handleHealth)
 
+	// Timeline API endpoints - THE META MOMENT
+	mux.HandleFunc("/api/v1/timeline", s.handleTimeline)
+	mux.HandleFunc("/api/v1/timeline/cards", s.handleTimelineCards)
+
 	// Static files - embedded in binary
 	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -613,10 +617,22 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		s.sseMu.Unlock()
 	}()
 
-	// Send initial tasks
-	s.tasksMu.RLock()
-	initialData, _ := json.Marshal(s.tasks)
-	s.tasksMu.RUnlock()
+	// Send initial tasks (prefer timeline tasks if available)
+	var initialData []byte
+	if s.taskManager != nil {
+		timelineTasks := s.taskManager.GetTimelineTasks()
+		if timelineTasks != nil && len(timelineTasks) > 0 {
+			initialData, _ = json.Marshal(timelineTasks)
+			log.Info().Int("count", len(timelineTasks)).Msg("SSE sending timeline tasks")
+		} else {
+			allTasks := s.taskManager.GetAllTasks()
+			initialData, _ = json.Marshal(allTasks)
+		}
+	} else {
+		s.tasksMu.RLock()
+		initialData, _ = json.Marshal(s.tasks)
+		s.tasksMu.RUnlock()
+	}
 
 	fmt.Fprintf(w, "event: tasks\ndata: %s\n\n", initialData)
 	flusher.Flush()
@@ -646,10 +662,89 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 // handleHealth returns health status
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	// Check timeline subscription status
+	timelineSubscribed := false
+	if s.taskManager != nil {
+		timelineSubscribed = s.taskManager.IsTimelineSubscribed()
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":    "healthy",
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"version":   "0.1.0",
+		"status":              "healthy",
+		"timestamp":           time.Now().UTC().Format(time.RFC3339),
+		"version":             "0.1.0",
+		"busboy_enabled":      s.taskManager != nil,
+		"timeline_subscribed": timelineSubscribed,
+	})
+}
+
+// handleTimeline returns the current timeline data
+func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.taskManager == nil {
+		http.Error(w, "Timeline not available (Busboy not connected)", http.StatusServiceUnavailable)
+		return
+	}
+
+	timeline := s.taskManager.GetTimeline()
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if timeline == nil {
+		// Return empty timeline structure
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"timeline": nil,
+			"message":  "No timeline data available yet. Waiting for Timeguru updates.",
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"timeline": timeline,
+	})
+}
+
+// handleTimelineCards returns timeline data converted to Kanban cards
+func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var tasks interface{}
+	var count int
+
+	if s.taskManager != nil {
+		timelineTasks := s.taskManager.GetTimelineTasks()
+		if timelineTasks != nil && len(timelineTasks) > 0 {
+			tasks = timelineTasks
+			count = len(timelineTasks)
+		}
+	}
+
+	// Fallback to regular tasks if no timeline tasks
+	if tasks == nil {
+		if s.taskManager != nil {
+			taskList := s.taskManager.GetAllTasks()
+			tasks = taskList
+			count = len(taskList)
+		} else {
+			s.tasksMu.RLock()
+			tasks = s.tasks
+			count = len(s.tasks)
+			s.tasksMu.RUnlock()
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"tasks":  tasks,
+		"count":  count,
+		"source": "timeline",
 	})
 }
 

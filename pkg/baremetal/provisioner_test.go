@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unheaded/pkg/baremetal/ipmi"
+	"unheaded/pkg/baremetal/ipmi"
 )
 
 func TestNewProvisioner(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/output"
-	"github.com/unheaded/unheaded/pkg/lxd"
+	"unheaded/cmd/unheaded-cli/output"
+	"unheaded/pkg/lxd"
 )
 
 // ContainerListResult represents the output for container list.

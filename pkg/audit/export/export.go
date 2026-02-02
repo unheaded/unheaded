@@ -10,7 +10,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // JSONExporter exports events as JSON.

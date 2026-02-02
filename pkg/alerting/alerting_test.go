@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unheaded/pkg/alerting"
-	"github.com/unheaded/pkg/alerting/manager"
-	"github.com/unheaded/pkg/alerting/notify"
-	"github.com/unheaded/pkg/alerting/rules"
+	"unheaded/pkg/alerting"
+	"unheaded/pkg/alerting/manager"
+	"unheaded/pkg/alerting/notify"
+	"unheaded/pkg/alerting/rules"
 )
 
 // MockMetricProvider is a mock implementation of MetricProvider for testing.

@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/compliance/controls"
-	"github.com/unheaded/unheaded/pkg/compliance/standards"
+	"unheaded/pkg/compliance/controls"
+	"unheaded/pkg/compliance/standards"
 )
 
 // ReportType represents the type of compliance report.

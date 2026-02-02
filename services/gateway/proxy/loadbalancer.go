@@ -72,10 +72,10 @@ func (lb *BaseLoadBalancer) MarkUnhealthy(backend string) {
 		state.FailureCount++
 		lb.rebuildHealthy()
 
-		lb.log.Warn("Backend marked unhealthy",
-			"backend", backend,
-			"failure_count", state.FailureCount,
-		)
+		lb.log.Warn().
+			Str("backend", backend).
+			Int("failure_count", state.FailureCount).
+			Msg("Backend marked unhealthy")
 	}
 }
 
@@ -90,9 +90,9 @@ func (lb *BaseLoadBalancer) MarkHealthy(backend string) {
 		state.LastChecked = time.Now()
 		lb.rebuildHealthy()
 
-		lb.log.Info("Backend marked healthy",
-			"backend", backend,
-		)
+		lb.log.Info().
+			Str("backend", backend).
+			Msg("Backend marked healthy")
 	}
 }
 
@@ -321,11 +321,11 @@ func (hc *HealthChecker) checkBackend(routeName, backend, healthCheckPath string
 
 	resp, err := hc.client.Get(url)
 	if err != nil {
-		hc.log.Debug("Health check failed",
-			"route", routeName,
-			"backend", backend,
-			"error", err.Error(),
-		)
+		hc.log.Debug().
+			Str("route", routeName).
+			Str("backend", backend).
+			Str("error", err.Error()).
+			Msg("Health check failed")
 		lb.MarkUnhealthy(backend)
 		return
 	}
@@ -334,11 +334,11 @@ func (hc *HealthChecker) checkBackend(routeName, backend, healthCheckPath string
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		lb.MarkHealthy(backend)
 	} else {
-		hc.log.Debug("Health check returned non-2xx",
-			"route", routeName,
-			"backend", backend,
-			"status", resp.StatusCode,
-		)
+		hc.log.Debug().
+			Str("route", routeName).
+			Str("backend", backend).
+			Int("status", resp.StatusCode).
+			Msg("Health check returned non-2xx")
 		lb.MarkUnhealthy(backend)
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/output"
+	"unheaded/cmd/unheaded-cli/output"
 )
 
 // SystemStatus represents the overall system status.

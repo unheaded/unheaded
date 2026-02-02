@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/audit"
+	"unheaded/pkg/audit"
 )
 
 // QueryBuilder provides a fluent interface for building audit queries.

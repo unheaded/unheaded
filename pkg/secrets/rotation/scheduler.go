@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unheaded/unheaded/pkg/logger"
-	"github.com/unheaded/unheaded/pkg/metrics"
-	"github.com/unheaded/unheaded/pkg/secrets"
+	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
+	"unheaded/pkg/secrets"
 )
 
 // Scheduler manages automatic secret rotation on a schedule.

@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/unheaded/unheaded/cmd/unheaded-cli/output"
-	"github.com/unheaded/unheaded/pkg/logger"
+	"unheaded/cmd/unheaded-cli/output"
+	"unheaded/pkg/logger"
 	"gopkg.in/yaml.v3"
 )
 

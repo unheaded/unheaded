@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unheaded/unheaded/services/timeguru/internal/timeline"
+	"unheaded/services/timeguru/internal/timeline"
 )
 
 // ============================================================================
@@ -118,7 +118,6 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 
 	var currentPhase *timeline.Phase
 	var currentMilestone *timeline.Milestone
-	var currentSection string
 	var lineNum int
 
 	for scanner.Scan() {
@@ -167,7 +166,6 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 				currentPhase.Status = parseStatus(phaseMatch[4])
 			}
 
-			currentSection = "phase"
 			currentMilestone = nil
 			continue
 		}
@@ -193,7 +191,6 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 				Tasks:    make([]string, 0),
 			}
 
-			currentSection = "milestone"
 			continue
 		}
 

@@ -7,10 +7,14 @@
   # Complete container definitions for the Unheaded infrastructure platform.
   #
   # Architecture:
-  #   - 3 shared modules (common, hardening, networking)
-  #   - 8 container definitions (5 services + 2 apps + busboy)
-  #   - Security: seccomp, capabilities, filesystem isolation
-  #   - Network: isolated mesh with explicit allow rules
+  #   - 4 shared modules (base, common, hardening, networking)
+  #   - 10 container definitions:
+  #     - Control plane: cuirass
+  #     - Message bus: busboy
+  #     - Agent services: timeguru, captain, micromanager, architect, developer
+  #     - Applications: kanban, dashboard
+  #   - Security: seccomp, capabilities, read-only FS, minimal capabilities
+  #   - Network: isolated mesh with default-deny, explicit allow rules
   #
   # Build: nix build .#nixosConfigurations.<container>.config.system.build.toplevel
   # Deploy: See docs/DEPLOYMENT.md
@@ -18,18 +22,24 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, flake-utils }:
     let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
+      # Supported systems for development shells and packages
+      supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
+
+      # Container system (NixOS containers run on Linux only)
+      containerSystem = "x86_64-linux";
 
       # Common build function for all containers
       mkContainer = name: modules:
         nixpkgs.lib.nixosSystem {
-          inherit system;
+          system = containerSystem;
           modules = modules ++ [
+            # Inject base container module
+            ./containers/base.nix
             # Inject shared configuration
             {
               nixpkgs.overlays = [ self.overlays.default ];
@@ -37,7 +47,73 @@
           ];
         };
     in
-    {
+    # Use flake-utils for per-system outputs (devShells, packages, checks)
+    flake-utils.lib.eachSystem supportedSystems (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      {
+        # =======================================================================
+        # DEVELOPMENT SHELLS
+        # =======================================================================
+        devShells.default = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            # Nix tools
+            nixpkgs-fmt
+            nil
+
+            # Container tools
+            lxd
+            lxc
+
+            # Go development
+            go_1_21
+            gopls
+            golangci-lint
+
+            # Rust development (for eBPF)
+            rustc
+            cargo
+            rust-analyzer
+
+            # Network tools
+            curl
+            jq
+            netcat
+            tcpdump
+
+            # Testing
+            k6
+          ];
+
+          shellHook = ''
+            echo "Unheaded Development Environment"
+            echo "================================"
+            echo ""
+            echo "Container commands:"
+            echo "  nix build .#nixosConfigurations.busboy.config.system.build.toplevel"
+            echo "  lxc launch images:nixos/unstable unheaded-busboy"
+            echo ""
+            echo "Build all services:"
+            echo "  make build"
+            echo ""
+            echo "Run tests:"
+            echo "  make test"
+          '';
+        };
+
+        # =======================================================================
+        # CHECKS (Automated testing)
+        # =======================================================================
+        checks = {
+          # Lint all Nix files
+          nix-fmt = pkgs.runCommand "check-nix-fmt" { } ''
+            ${pkgs.nixpkgs-fmt}/bin/nixpkgs-fmt --check ${./.}
+            touch $out
+          '';
+        };
+      }
+    ) // {
       # =======================================================================
       # CONTAINER CONFIGURATIONS
       # =======================================================================
@@ -91,6 +167,13 @@
         dashboard = mkContainer "dashboard" [
           ./containers/dashboard-app.nix
         ];
+
+        # ---------------------------------------------------------------------
+        # CONTROL PLANE
+        # ---------------------------------------------------------------------
+        cuirass = mkContainer "cuirass" [
+          ./containers/cuirass.nix
+        ];
       };
 
       # =======================================================================
@@ -109,57 +192,7 @@
         developer = prev.callPackage ./packages/developer.nix { };
         kanban-app = prev.callPackage ./packages/kanban-app.nix { };
         dashboard-app = prev.callPackage ./packages/dashboard-app.nix { };
-      };
-
-      # =======================================================================
-      # DEVELOPMENT SHELLS
-      # =======================================================================
-      # Dev environment with all tools for building/testing containers
-      # =======================================================================
-      devShells.${system}.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          # Nix tools
-          nixpkgs-fmt
-          nil
-
-          # Container tools
-          lxd
-          lxc
-
-          # Go development
-          go_1_21
-          gopls
-          golangci-lint
-
-          # Rust development (for eBPF)
-          rustc
-          cargo
-          rust-analyzer
-
-          # Network tools
-          curl
-          jq
-          netcat
-          tcpdump
-
-          # Testing
-          k6
-        ];
-
-        shellHook = ''
-          echo "Unheaded Development Environment"
-          echo "================================"
-          echo ""
-          echo "Container commands:"
-          echo "  nix build .#nixosConfigurations.busboy.config.system.build.toplevel"
-          echo "  lxc launch images:nixos/unstable unheaded-busboy"
-          echo ""
-          echo "Build all services:"
-          echo "  make build"
-          echo ""
-          echo "Run tests:"
-          echo "  make test"
-        '';
+        cuirass = prev.callPackage ./packages/cuirass.nix { };
       };
 
       # =======================================================================
@@ -174,81 +207,61 @@
           self.nixosConfigurations;
 
         # Test suite
-        tests = pkgs.callPackage ./tests/container-tests.nix { };
+        tests = nixpkgs.legacyPackages.x86_64-linux.callPackage ./tests/container-tests.nix { };
       };
 
       # =======================================================================
       # DEPLOYMENT ARTIFACTS
       # =======================================================================
-      # Generate deployment manifests
+      # Generate deployment manifests (using flake-utils for per-system apps)
       # =======================================================================
-      apps.${system} = {
-        # Generate LXD profile for all containers
-        generate-lxd-profiles = {
-          type = "app";
-          program = toString (pkgs.writeShellScript "generate-lxd-profiles" ''
-            set -euo pipefail
-            echo "Generating LXD profiles for Unheaded containers..."
+      apps = flake-utils.lib.eachDefaultSystemMap (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          # Generate LXD profile for all containers
+          generate-lxd-profiles = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "generate-lxd-profiles" ''
+              set -euo pipefail
+              echo "Generating LXD profiles for Unheaded containers..."
 
-            # Generate profiles for each container
-            for container in busboy timeguru captain micromanager architect developer kanban dashboard; do
-              echo "Processing: $container"
-              nix eval .#nixosConfigurations.$container.config.unheaded --json > profiles/$container.json
-            done
+              # Generate profiles for each container
+              for container in busboy timeguru captain micromanager architect developer kanban dashboard cuirass; do
+                echo "Processing: $container"
+                nix eval .#nixosConfigurations.$container.config.unheaded --json > profiles/$container.json
+              done
 
-            echo "Profiles generated in: ./profiles/"
-          '');
-        };
+              echo "Profiles generated in: ./profiles/"
+            '');
+          };
 
-        # Deploy all containers
-        deploy = {
-          type = "app";
-          program = toString (pkgs.writeShellScript "deploy-unheaded" ''
-            set -euo pipefail
-            echo "Deploying Unheaded Alpha..."
+          # Deploy all containers
+          deploy = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "deploy-unheaded" ''
+              set -euo pipefail
+              echo "Deploying Unheaded Alpha..."
 
-            # Build all containers
-            echo "Building containers..."
-            nix build \
-              .#nixosConfigurations.busboy.config.system.build.toplevel \
-              .#nixosConfigurations.timeguru.config.system.build.toplevel \
-              .#nixosConfigurations.captain.config.system.build.toplevel \
-              .#nixosConfigurations.micromanager.config.system.build.toplevel \
-              .#nixosConfigurations.architect.config.system.build.toplevel \
-              .#nixosConfigurations.developer.config.system.build.toplevel \
-              .#nixosConfigurations.kanban.config.system.build.toplevel \
-              .#nixosConfigurations.dashboard.config.system.build.toplevel
+              # Build all containers
+              echo "Building containers..."
+              nix build \
+                .#nixosConfigurations.busboy.config.system.build.toplevel \
+                .#nixosConfigurations.timeguru.config.system.build.toplevel \
+                .#nixosConfigurations.captain.config.system.build.toplevel \
+                .#nixosConfigurations.micromanager.config.system.build.toplevel \
+                .#nixosConfigurations.architect.config.system.build.toplevel \
+                .#nixosConfigurations.developer.config.system.build.toplevel \
+                .#nixosConfigurations.kanban.config.system.build.toplevel \
+                .#nixosConfigurations.dashboard.config.system.build.toplevel \
+                .#nixosConfigurations.cuirass.config.system.build.toplevel
 
-            echo "Deploy complete!"
-            echo "Run 'lxc list' to see containers"
-          '');
-        };
-      };
-
-      # =======================================================================
-      # CHECKS (Automated testing)
-      # =======================================================================
-      checks.${system} = {
-        # Lint all Nix files
-        nix-fmt = pkgs.runCommand "check-nix-fmt" { } ''
-          ${pkgs.nixpkgs-fmt}/bin/nixpkgs-fmt --check ${./.}
-          touch $out
-        '';
-
-        # Build all containers (smoke test)
-        build-all = pkgs.runCommand "build-all-containers" { } ''
-          echo "Building all containers..."
-          ${pkgs.nix}/bin/nix build \
-            ${self}#nixosConfigurations.busboy.config.system.build.toplevel \
-            ${self}#nixosConfigurations.timeguru.config.system.build.toplevel \
-            ${self}#nixosConfigurations.captain.config.system.build.toplevel \
-            ${self}#nixosConfigurations.micromanager.config.system.build.toplevel \
-            ${self}#nixosConfigurations.architect.config.system.build.toplevel \
-            ${self}#nixosConfigurations.developer.config.system.build.toplevel \
-            ${self}#nixosConfigurations.kanban.config.system.build.toplevel \
-            ${self}#nixosConfigurations.dashboard.config.system.build.toplevel
-          touch $out
-        '';
-      };
+              echo "Deploy complete!"
+              echo "Run 'lxc list' to see containers"
+            '');
+          };
+        }
+      );
     };
 }
