@@ -27,11 +27,10 @@ func TestNewManager_DefaultConfig(t *testing.T) {
 }
 
 func TestNewManager_CustomConfig(t *testing.T) {
-	driftCalled := false
 	cfg := ManagerConfig{
 		PollInterval: 10 * time.Second,
 		OnDrift: func(dr DriftReport) {
-			driftCalled = true
+			// Callback provided to verify it gets set
 		},
 	}
 

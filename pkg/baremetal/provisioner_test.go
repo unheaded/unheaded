@@ -10,7 +10,8 @@ import (
 
 func TestNewProvisioner(t *testing.T) {
 	t.Run("default config", func(t *testing.T) {
-		p, err := NewProvisioner(nil)
+		// Use TestConfig to avoid creating real directories
+		p, err := NewProvisioner(TestConfig())
 		if err != nil {
 			t.Fatalf("NewProvisioner() error = %v", err)
 		}
@@ -20,7 +21,7 @@ func TestNewProvisioner(t *testing.T) {
 	})
 
 	t.Run("custom config", func(t *testing.T) {
-		config := DefaultConfig()
+		config := TestConfig()
 		config.ProvisionTimeout = 60 * time.Minute
 
 		p, err := NewProvisioner(config)
@@ -34,7 +35,10 @@ func TestNewProvisioner(t *testing.T) {
 }
 
 func TestMachineSpec_Validation(t *testing.T) {
-	p, _ := NewProvisioner(nil)
+	p, err := NewProvisioner(TestConfig())
+	if err != nil {
+		t.Fatalf("NewProvisioner() error = %v", err)
+	}
 	ctx := context.Background()
 
 	tests := []struct {
@@ -246,7 +250,7 @@ func TestProvisioningStatus(t *testing.T) {
 }
 
 func TestBareMetalProvisioner_ListMachines(t *testing.T) {
-	p, err := NewProvisioner(nil)
+	p, err := NewProvisioner(TestConfig())
 	if err != nil {
 		t.Fatalf("NewProvisioner() error = %v", err)
 	}
@@ -289,11 +293,14 @@ func TestBareMetalProvisioner_ListMachines(t *testing.T) {
 }
 
 func TestBareMetalProvisioner_GetMachine(t *testing.T) {
-	p, _ := NewProvisioner(nil)
+	p, err := NewProvisioner(TestConfig())
+	if err != nil {
+		t.Fatalf("NewProvisioner() error = %v", err)
+	}
 	ctx := context.Background()
 
 	// Non-existent machine
-	_, err := p.GetMachine(ctx, "non-existent")
+	_, err = p.GetMachine(ctx, "non-existent")
 	if err == nil {
 		t.Error("Expected error for non-existent machine")
 	}
@@ -321,11 +328,14 @@ func TestBareMetalProvisioner_GetMachine(t *testing.T) {
 }
 
 func TestBareMetalProvisioner_Deprovision(t *testing.T) {
-	p, _ := NewProvisioner(nil)
+	p, err := NewProvisioner(TestConfig())
+	if err != nil {
+		t.Fatalf("NewProvisioner() error = %v", err)
+	}
 	ctx := context.Background()
 
 	// Non-existent machine
-	err := p.Deprovision(ctx, "non-existent")
+	err = p.Deprovision(ctx, "non-existent")
 	if err == nil {
 		t.Error("Expected error for non-existent machine")
 	}

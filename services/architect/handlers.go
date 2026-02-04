@@ -108,6 +108,54 @@ func (h *HTTPHandler) Health(w http.ResponseWriter, r *http.Request) {
 }
 
 // ============================================================================
+// READINESS ENDPOINT
+// ============================================================================
+
+// Ready handles GET /ready - returns 200 when service is ready to serve traffic
+func (h *HTTPHandler) Ready(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED",
+			fmt.Sprintf("method %s not allowed", r.Method))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	// Check if service is initialized
+	if h.service == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "SERVICE_NOT_READY",
+			"service is not initialized")
+		return
+	}
+
+	// Check infrastructure state is initialized
+	_, infraErr := h.service.GetInfrastructureState(ctx)
+	if infraErr != nil {
+		h.writeError(w, http.StatusServiceUnavailable, "SERVICE_NOT_READY",
+			fmt.Sprintf("infrastructure state not initialized: %v", infraErr))
+		return
+	}
+
+	// Check network state is initialized
+	_, networkErr := h.service.GetNetworkTopology(ctx)
+	if networkErr != nil {
+		h.writeError(w, http.StatusServiceUnavailable, "SERVICE_NOT_READY",
+			fmt.Sprintf("network state not initialized: %v", networkErr))
+		return
+	}
+
+	h.writeSuccess(w, http.StatusOK, map[string]interface{}{
+		"ready": true,
+		"checks": map[string]bool{
+			"service":        true,
+			"infrastructure": true,
+			"network":        true,
+		},
+	})
+}
+
+// ============================================================================
 // INFRASTRUCTURE ENDPOINTS
 // ============================================================================
 

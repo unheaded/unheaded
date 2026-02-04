@@ -52,7 +52,7 @@ func main() {
 
 	// Add default routes if none configured
 	if len(cfg.Routes) == 0 {
-		cfg.Routes = defaultRoutes()
+		cfg.Routes = defaultRoutes(cfg)
 	}
 
 	// Create logger
@@ -116,52 +116,84 @@ func getEnv(key, defaultValue string) string {
 }
 
 // defaultRoutes returns default routes for development.
-func defaultRoutes() []config.RouteConfig {
+// Routes are ordered from most specific to least specific path prefixes.
+// Uses AlphaServices configuration for service host addresses.
+func defaultRoutes(cfg *config.Config) []config.RouteConfig {
+	alpha := cfg.AlphaServices
+
 	return []config.RouteConfig{
+		// Alpha Services - routed via /api/<service>/*
+		{
+			Name:           "timeguru",
+			PathPrefix:     "/api/timeguru/",
+			StripPrefix:    true,
+			Backends:       []string{"http://" + alpha.TimeGuruHost},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "captain",
+			PathPrefix:     "/api/captain/",
+			StripPrefix:    true,
+			Backends:       []string{"http://" + alpha.CaptainHost},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "architect",
+			PathPrefix:     "/api/architect/",
+			StripPrefix:    true,
+			Backends:       []string{"http://" + alpha.ArchitectHost},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "micromanager",
+			PathPrefix:     "/api/micromanager/",
+			StripPrefix:    true,
+			Backends:       []string{"http://" + alpha.MicromanagerHost},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "monad",
+			PathPrefix:     "/api/monad/",
+			StripPrefix:    true,
+			Backends:       []string{"http://" + alpha.MonadHost},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		{
+			Name:           "sophia",
+			PathPrefix:     "/api/sophia/",
+			StripPrefix:    true,
+			Backends:       []string{"http://" + alpha.SophiaHost},
+			LoadBalancer:   "round_robin",
+			HealthCheckURL: "/health",
+			Timeout:        30 * time.Second,
+			RetryCount:     2,
+			RetryDelay:     100 * time.Millisecond,
+		},
+		// Infrastructure services
 		{
 			Name:           "busboy",
 			PathPrefix:     "/events/",
-			Backends:       []string{"http://localhost:8081"},
-			LoadBalancer:   "round_robin",
-			HealthCheckURL: "/health",
-			Timeout:        30 * time.Second,
-			RetryCount:     2,
-			RetryDelay:     100 * time.Millisecond,
-		},
-		{
-			Name:           "court",
-			PathPrefix:     "/court/",
-			Backends:       []string{"http://localhost:8082"},
-			LoadBalancer:   "round_robin",
-			HealthCheckURL: "/health",
-			Timeout:        30 * time.Second,
-			RetryCount:     2,
-			RetryDelay:     100 * time.Millisecond,
-		},
-		{
-			Name:           "herald",
-			PathPrefix:     "/herald/",
-			Backends:       []string{"http://localhost:8083"},
-			LoadBalancer:   "round_robin",
-			HealthCheckURL: "/health",
-			Timeout:        30 * time.Second,
-			RetryCount:     2,
-			RetryDelay:     100 * time.Millisecond,
-		},
-		{
-			Name:           "throne",
-			PathPrefix:     "/throne/",
-			Backends:       []string{"http://localhost:8084"},
-			LoadBalancer:   "round_robin",
-			HealthCheckURL: "/health",
-			Timeout:        30 * time.Second,
-			RetryCount:     2,
-			RetryDelay:     100 * time.Millisecond,
-		},
-		{
-			Name:           "api",
-			PathPrefix:     "/api/",
-			Backends:       []string{"http://localhost:9000"},
+			Backends:       []string{"http://" + getEnv("BUSBOY_HOST", "busboy:8081")},
 			LoadBalancer:   "round_robin",
 			HealthCheckURL: "/health",
 			Timeout:        30 * time.Second,

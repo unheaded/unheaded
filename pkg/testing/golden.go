@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -320,9 +321,17 @@ func (s *GoldenSnapshot) AddJSON(section string, v interface{}) *GoldenSnapshot 
 func (s *GoldenSnapshot) Assert(goldenPath string, opts ...GoldenOption) bool {
 	s.t.Helper()
 
-	// Build snapshot content
+	// Collect and sort section names for deterministic output
+	sectionNames := make([]string, 0, len(s.sections))
+	for name := range s.sections {
+		sectionNames = append(sectionNames, name)
+	}
+	sort.Strings(sectionNames)
+
+	// Build snapshot content in sorted order
 	var buf bytes.Buffer
-	for section, content := range s.sections {
+	for _, section := range sectionNames {
+		content := s.sections[section]
 		buf.WriteString("=== " + section + " ===\n")
 		buf.Write(content)
 		buf.WriteString("\n\n")

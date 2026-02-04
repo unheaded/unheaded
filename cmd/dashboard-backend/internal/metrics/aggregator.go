@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 	"time"
@@ -183,7 +184,7 @@ type Aggregator struct {
 // NewAggregator creates a new metrics aggregator
 func NewAggregator(config *Config) (*Aggregator, error) {
 	if config == nil {
-		config = DefaultConfig()
+		return nil, ErrNilConfig
 	}
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
@@ -191,7 +192,7 @@ func NewAggregator(config *Config) (*Aggregator, error) {
 
 	a := &Aggregator{
 		config:   config,
-		log:      logger.New(nil),
+		log:      logger.New(io.Discard),
 		series:   make(map[string]*timeSeries),
 		shutdown: make(chan struct{}),
 	}

@@ -123,8 +123,8 @@ func TestGoldenSnapshot(t *testing.T) {
 	tempDir := t.TempDir()
 	goldenPath := filepath.Join(tempDir, "snapshot.golden")
 
-	// Create expected snapshot content
-	expectedContent := "=== header ===\nHeader content\n\n=== body ===\nBody content\n\n"
+	// Create expected snapshot content (sections are sorted alphabetically)
+	expectedContent := "=== body ===\nBody content\n\n=== header ===\nHeader content\n\n"
 	if err := os.WriteFile(goldenPath, []byte(expectedContent), 0644); err != nil {
 		t.Fatalf("Failed to create golden file: %v", err)
 	}

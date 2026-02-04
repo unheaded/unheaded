@@ -129,6 +129,9 @@ type Pool struct {
 	totalSubmitted uint64
 	totalCompleted uint64
 	totalFailed    uint64
+
+	// jobCounter generates unique job IDs for SubmitFunc.
+	jobCounter uint64
 }
 
 // jobExecution wraps a job with its future for worker execution.
@@ -328,7 +331,8 @@ func (p *Pool) Submit(job *Job) *Future {
 
 // SubmitFunc is a convenience method to submit a function as a job.
 func (p *Pool) SubmitFunc(fn JobFunc) *Future {
-	job := NewJob(fmt.Sprintf("job-%d", time.Now().UnixNano()), fn)
+	id := atomic.AddUint64(&p.jobCounter, 1)
+	job := NewJob(fmt.Sprintf("job-%d", id), fn)
 	return p.Submit(job)
 }
 

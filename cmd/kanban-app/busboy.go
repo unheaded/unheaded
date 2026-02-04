@@ -411,7 +411,7 @@ func (tm *TaskManager) UpdateTask(ctx context.Context, task *Task) error {
 	// Update timestamp
 	task.UpdatedAt = time.Now()
 
-	// Store old task for rollback
+	// Store old task for rollback (getTask returns a copy since addTask/updateTask store copies)
 	oldTask := tm.getTask(task.ID)
 
 	// Update local store
@@ -536,7 +536,9 @@ func (tm *TaskManager) addTask(task *Task) {
 
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
-	tm.tasks[task.ID] = task
+	// Store a copy to prevent external modifications affecting stored data
+	taskCopy := *task
+	tm.tasks[task.ID] = &taskCopy
 }
 
 func (tm *TaskManager) updateTask(task *Task) {
@@ -546,7 +548,9 @@ func (tm *TaskManager) updateTask(task *Task) {
 
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
-	tm.tasks[task.ID] = task
+	// Store a copy to prevent external modifications affecting stored data
+	taskCopy := *task
+	tm.tasks[task.ID] = &taskCopy
 }
 
 func (tm *TaskManager) deleteTask(taskID string) {

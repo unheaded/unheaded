@@ -82,6 +82,12 @@ const (
 
 // NewDHCPProxy creates a new DHCP proxy.
 func NewDHCPProxy(iface string) (*DHCPProxy, error) {
+	return NewDHCPProxyWithOptions(iface, false)
+}
+
+// NewDHCPProxyWithOptions creates a new DHCP proxy with options.
+// The skipInit parameter is provided for consistency with other components but is currently unused.
+func NewDHCPProxyWithOptions(iface string, skipInit bool) (*DHCPProxy, error) {
 	return &DHCPProxy{
 		iface:   iface,
 		clients: make(map[string]*DHCPClientConfig),

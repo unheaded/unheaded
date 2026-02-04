@@ -412,7 +412,10 @@ func computeAcceptKey(key string) string {
 // clientReadPump handles reading from WebSocket connection
 func (s *Server) clientReadPump(c *Client) {
 	defer func() {
-		s.unregister <- c
+		select {
+		case s.unregister <- c:
+		case <-s.shutdown:
+		}
 		s.wg.Done()
 	}()
 

@@ -371,7 +371,7 @@ func TestContextJSON(t *testing.T) {
 	}
 }
 
-func TestContextBindJSON(t *testing.T) {
+func TestContextBindJSON_Router(t *testing.T) {
 	r := NewRouter()
 
 	type User struct {
@@ -400,7 +400,7 @@ func TestContextBindJSON(t *testing.T) {
 	}
 }
 
-func TestContextSetGet(t *testing.T) {
+func TestContextSetGet_Router(t *testing.T) {
 	r := NewRouter()
 
 	r.Use(func(c *Context) {
@@ -819,7 +819,7 @@ func TestFullRequestLifecycle(t *testing.T) {
 	}
 }
 
-func TestContextClientIP(t *testing.T) {
+func TestContextClientIP_Router(t *testing.T) {
 	r := NewRouter()
 
 	r.GET("/ip", func(c *Context) {
@@ -838,7 +838,7 @@ func TestContextClientIP(t *testing.T) {
 	}
 }
 
-func TestContextFormValue(t *testing.T) {
+func TestContextFormValue_Router(t *testing.T) {
 	r := NewRouter()
 
 	r.POST("/form", func(c *Context) {

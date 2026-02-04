@@ -31,7 +31,8 @@ var (
 
 var (
 	// Phase headers: ### Age 1: The Alpha Ascension or ### Phase 1: Alpha
-	phaseHeaderRe = regexp.MustCompile(`^###\s+(Age|Phase|Epoch)\s+(\d+(?:\.\d+)?):?\s+(.+?)\s*(?:\(([A-Z\s]+)\))?$`)
+	// Also captures status in parentheses like (COMPLETE ✓) or (IN PROGRESS 🚀)
+	phaseHeaderRe = regexp.MustCompile(`^###\s+(Age|Phase|Epoch)\s+(\d+(?:\.\d+)?):?\s+(.+?)\s*(?:\(([A-Z\s✓✅🚀_-]+)\))?$`)
 
 	// Milestone headers: #### Epoch 1.1: The Whispering Void Awakens
 	milestoneHeaderRe = regexp.MustCompile(`^####\s+(Epoch|Milestone)\s+(\d+(?:\.\d+)?):?\s+(.+)$`)
@@ -49,13 +50,13 @@ var (
 	etaRe = regexp.MustCompile(`(?i)ETA:?\s*([A-Za-z]+\s+\d+(?:-\d+)?,?\s*\d{4})`)
 
 	// Risk patterns: Risk: Medium or **Risk:** High
-	riskRe = regexp.MustCompile(`(?i)Risk:?\s*(low|medium|high)`)
+	riskRe = regexp.MustCompile(`(?i)(?:\*{2})?Risk:(?:\*{2})?\s*(low|medium|high)`)
 
 	// Progress patterns: 25% FORGED or 60% complete
 	progressRe = regexp.MustCompile(`(\d+)%\s*(?:FORGED|complete|done)?`)
 
 	// Owner patterns: Owner: Agent 5 or **Owner:** The Architect
-	ownerRe = regexp.MustCompile(`(?i)Owner:?\s*(.+?)(?:\s*$|,|\|)`)
+	ownerRe = regexp.MustCompile(`(?i)(?:\*{2})?Owner:(?:\*{2})?\s*(.+?)(?:\s*$|,|\|)`)
 
 	// Version from header: **STATUS:** Alpha Development
 	versionRe = regexp.MustCompile(`(?i)(?:STATUS|Version):?\s*(.+?)$`)
@@ -145,6 +146,15 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 
 		// Parse phase headers
 		if phaseMatch := phaseHeaderRe.FindStringSubmatch(line); phaseMatch != nil {
+			// Save previous milestone if exists (before resetting phase)
+			if currentMilestone != nil {
+				tl.Milestones = append(tl.Milestones, currentMilestone)
+				if currentPhase != nil {
+					currentPhase.Milestones = append(currentPhase.Milestones, currentMilestone.ID)
+				}
+				currentMilestone = nil
+			}
+
 			// Save previous phase if exists
 			if currentPhase != nil {
 				tl.Phases = append(tl.Phases, currentPhase)
@@ -166,7 +176,6 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 				currentPhase.Status = parseStatus(phaseMatch[4])
 			}
 
-			currentMilestone = nil
 			continue
 		}
 
@@ -336,18 +345,17 @@ func extractStatus(line string) string {
 func parseDate(dateStr string) time.Time {
 	dateStr = strings.TrimSpace(dateStr)
 
-	// Handle range dates by taking first date
-	if strings.Contains(dateStr, "-") {
-		parts := strings.Split(dateStr, "-")
-		dateStr = strings.TrimSpace(parts[0])
-		// Append year if missing
-		if !strings.Contains(dateStr, "202") {
-			// Find year in original
-			yearRe := regexp.MustCompile(`\d{4}`)
-			if yearMatch := yearRe.FindString(parts[len(parts)-1]); yearMatch != "" {
-				dateStr += ", " + yearMatch
-			}
-		}
+	// Try ISO format first (before range detection since ISO dates contain hyphens)
+	if t, err := time.Parse("2006-01-02", dateStr); err == nil {
+		return t
+	}
+
+	// Handle range dates by taking first date (e.g., "Feb 3-4, 2026")
+	// Only treat as range if hyphen is between digits (day range) not ISO format
+	rangeRe := regexp.MustCompile(`^([A-Za-z]+\s+\d+)-(\d+),?\s*(\d{4})$`)
+	if rangeMatch := rangeRe.FindStringSubmatch(dateStr); rangeMatch != nil {
+		// Reconstruct as "Feb 3, 2026" from "Feb 3-4, 2026"
+		dateStr = rangeMatch[1] + ", " + rangeMatch[3]
 	}
 
 	// Try various formats
@@ -356,7 +364,6 @@ func parseDate(dateStr string) time.Time {
 		"January 2, 2006",
 		"Jan 2 2006",
 		"January 2 2006",
-		"2006-01-02",
 		"02 Jan 2006",
 	}
 

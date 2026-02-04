@@ -51,14 +51,22 @@ type cachedFile struct {
 
 // NewTFTPServer creates a new TFTP server.
 func NewTFTPServer(address, root string) (*TFTPServer, error) {
-	// Ensure root directory exists
-	if err := os.MkdirAll(root, 0755); err != nil {
-		return nil, fmt.Errorf("creating TFTP root: %w", err)
-	}
+	return NewTFTPServerWithOptions(address, root, false)
+}
 
-	// Create pxelinux.cfg directory
-	if err := os.MkdirAll(filepath.Join(root, "pxelinux.cfg"), 0755); err != nil {
-		return nil, fmt.Errorf("creating pxelinux.cfg: %w", err)
+// NewTFTPServerWithOptions creates a new TFTP server with options.
+// If skipDirInit is true, directory creation is skipped (useful for testing).
+func NewTFTPServerWithOptions(address, root string, skipDirInit bool) (*TFTPServer, error) {
+	if !skipDirInit {
+		// Ensure root directory exists
+		if err := os.MkdirAll(root, 0755); err != nil {
+			return nil, fmt.Errorf("creating TFTP root: %w", err)
+		}
+
+		// Create pxelinux.cfg directory
+		if err := os.MkdirAll(filepath.Join(root, "pxelinux.cfg"), 0755); err != nil {
+			return nil, fmt.Errorf("creating pxelinux.cfg: %w", err)
+		}
 	}
 
 	return &TFTPServer{

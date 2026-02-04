@@ -484,7 +484,8 @@ func (b *Backend) IsDrained() bool {
 
 // Enable enables the backend.
 func (b *Backend) Enable() {
-	if b.State() == BackendStateDisabled {
+	state := b.State()
+	if state == BackendStateDisabled || state == BackendStateDraining {
 		b.SetState(BackendStateUnknown)
 	}
 }

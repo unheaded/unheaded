@@ -149,8 +149,10 @@ func TestTaskManager_CreateTask_HappyPath(t *testing.T) {
 	// Initialize to subscribe
 	tm.Initialize(ctx)
 
-	// Approve subscription manually (since message streaming is async)
-	mockClient.ApproveSubscription(TopicTasks)
+	// Subscribe to the specific topic that CreateTask publishes to
+	// The mock client requires explicit subscriptions for each topic to publish
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	task := createTestTask("task-1")
 
@@ -230,7 +232,9 @@ func TestTaskManager_CreateTask_DuplicateID_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 
 	tm.Initialize(ctx)
-	mockClient.ApproveSubscription(TopicTasks)
+	// Subscribe to the specific topic that CreateTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	task := createTestTask("duplicate")
 
@@ -279,19 +283,25 @@ func TestTaskManager_UpdateTask_HappyPath(t *testing.T) {
 	ctx := context.Background()
 
 	tm.Initialize(ctx)
-	mockClient.ApproveSubscription(TopicTasks)
+	// Subscribe to the specific topics for CreateTask and UpdateTask
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	// Create task first
 	task := createTestTask("update-test")
-	tm.CreateTask(ctx, task)
+	if err := tm.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
-	// Reset counter
-	mockClient.Reset()
-	mockClient.ApproveSubscription(TopicTasks)
+	// Subscribe to the specific topic that UpdateTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksUpdated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksUpdated)
 
 	// Update task
 	task.Title = "Updated Title"
 	task.Progress = 50
+
+	initialPublishCount := mockClient.GetPublishCount()
 
 	if err := tm.UpdateTask(ctx, task); err != nil {
 		t.Fatalf("UpdateTask failed: %v", err)
@@ -308,7 +318,7 @@ func TestTaskManager_UpdateTask_HappyPath(t *testing.T) {
 	}
 
 	// Verify published
-	if mockClient.GetPublishCount() == 0 {
+	if mockClient.GetPublishCount() <= initialPublishCount {
 		t.Error("expected update to be published")
 	}
 }
@@ -330,12 +340,20 @@ func TestTaskManager_UpdateTask_PublishFails_RollsBack(t *testing.T) {
 	ctx := context.Background()
 
 	tm.Initialize(ctx)
-	mockClient.ApproveSubscription(TopicTasks)
+	// Subscribe to the specific topic that CreateTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	// Create task
 	task := createTestTask("rollback-update")
 	originalTitle := task.Title
-	tm.CreateTask(ctx, task)
+	if err := tm.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	// Subscribe to the specific topic that UpdateTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksUpdated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksUpdated)
 
 	// Inject error for update publish
 	mockClient.SetError("publish", busboyClient.ErrRateLimited)
@@ -363,11 +381,19 @@ func TestTaskManager_DeleteTask_HappyPath(t *testing.T) {
 	ctx := context.Background()
 
 	tm.Initialize(ctx)
-	mockClient.ApproveSubscription(TopicTasks)
+	// Subscribe to the specific topic that CreateTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	// Create task
 	task := createTestTask("delete-test")
-	tm.CreateTask(ctx, task)
+	if err := tm.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	// Subscribe to the specific topic that DeleteTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksDeleted, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksDeleted)
 
 	// Delete task
 	if err := tm.DeleteTask(ctx, "delete-test"); err != nil {
@@ -406,11 +432,19 @@ func TestTaskManager_DeleteTask_PublishFails_RollsBack(t *testing.T) {
 	ctx := context.Background()
 
 	tm.Initialize(ctx)
-	mockClient.ApproveSubscription(TopicTasks)
+	// Subscribe to the specific topic that CreateTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	// Create task
 	task := createTestTask("rollback-delete")
-	tm.CreateTask(ctx, task)
+	if err := tm.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	// Subscribe to the specific topic that DeleteTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksDeleted, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksDeleted)
 
 	// Inject error
 	mockClient.SetError("publish", busboyClient.ErrRateLimited)

@@ -96,6 +96,12 @@ func main() {
 	mux.HandleFunc("/timeline", handler.HandleGetTimelineWithFormat)
 	mux.HandleFunc("/api/v1/timeline", handler.HandleGetTimelineWithFormat)
 
+	// Kanban tasks endpoint - transforms timeline data for kanban frontend
+	mux.HandleFunc("/api/v1/timeline/tasks", handler.HandleGetTasks)
+
+	// SSE stream endpoint - real-time timeline updates
+	mux.HandleFunc("/api/v1/timeline/stream", handler.HandleTimelineStream)
+
 	// Milestones endpoints
 	mux.HandleFunc("/milestones", handler.HandleGetMilestones)
 	mux.HandleFunc("/api/v1/milestones", handler.HandleGetMilestones)
@@ -119,10 +125,12 @@ func main() {
 	go func() {
 		log.Printf("[timeguru] HTTP server listening on :%s", config.Port)
 		log.Println("[timeguru] Endpoints available:")
-		log.Println("[timeguru]   GET  /health              - Health check")
-		log.Println("[timeguru]   GET  /timeline            - Timeline (JSON/YAML/MD)")
-		log.Println("[timeguru]   GET  /milestones          - All milestones")
-		log.Println("[timeguru]   POST /milestones/:id/update - Update milestone")
+		log.Println("[timeguru]   GET  /health                  - Health check")
+		log.Println("[timeguru]   GET  /timeline                - Timeline (JSON/YAML/MD)")
+		log.Println("[timeguru]   GET  /milestones              - All milestones")
+		log.Println("[timeguru]   POST /milestones/:id/update   - Update milestone")
+		log.Println("[timeguru]   GET  /api/v1/timeline/tasks   - Kanban tasks")
+		log.Println("[timeguru]   GET  /api/v1/timeline/stream  - SSE real-time updates")
 		log.Println("[timeguru] ═══════════════════════════════════════════════")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[timeguru] HTTP server failed: %v", err)

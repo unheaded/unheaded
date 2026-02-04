@@ -219,6 +219,9 @@ type Config struct {
 
 	// HeartbeatInterval for machine health checks
 	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
+
+	// SkipDirectoryInit skips directory creation (for testing)
+	SkipDirectoryInit bool `json:"skip_directory_init,omitempty"`
 }
 
 // DefaultConfig returns a default configuration.
@@ -229,6 +232,25 @@ func DefaultConfig() *Config {
 		Discovery:         inventory.DefaultDiscoveryConfig(),
 		ProvisionTimeout:  30 * time.Minute,
 		HeartbeatInterval: 30 * time.Second,
+	}
+}
+
+// TestConfig returns a configuration suitable for testing.
+// It skips directory creation and other filesystem operations.
+func TestConfig() *Config {
+	pxeConfig := pxe.DefaultConfig()
+	pxeConfig.SkipDirectoryInit = true
+
+	imageConfig := image.DefaultConfig()
+	imageConfig.SkipDirectoryInit = true
+
+	return &Config{
+		PXE:               pxeConfig,
+		Image:             imageConfig,
+		Discovery:         inventory.DefaultDiscoveryConfig(),
+		ProvisionTimeout:  30 * time.Minute,
+		HeartbeatInterval: 30 * time.Second,
+		SkipDirectoryInit: true,
 	}
 }
 

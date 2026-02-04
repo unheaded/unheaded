@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -140,8 +141,7 @@ func TestHandleGetTimeline_NotFound(t *testing.T) {
 }
 
 func TestHandleGetTimeline_InternalError(t *testing.T) {
-	store := &mockStore{getErr: &timeline.Timeline{}}
-	// Using type as error to simulate internal error
+	store := &mockStore{getErr: errors.New("database connection failed")}
 	handler := NewHandler(store)
 
 	req := httptest.NewRequest("GET", "/timeline", nil)

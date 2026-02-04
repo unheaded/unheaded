@@ -31,6 +31,9 @@ type Config struct {
 
 	// DefaultKernelParams are default kernel parameters
 	DefaultKernelParams string `json:"default_kernel_params"`
+
+	// SkipDirectoryInit skips directory creation (for testing)
+	SkipDirectoryInit bool `json:"skip_directory_init,omitempty"`
 }
 
 // DefaultConfig returns a default PXE configuration.
@@ -135,12 +138,12 @@ func NewServer(config *Config) (*Server, error) {
 		config = DefaultConfig()
 	}
 
-	tftpServer, err := NewTFTPServer(config.TFTPAddress, config.TFTPRoot)
+	tftpServer, err := NewTFTPServerWithOptions(config.TFTPAddress, config.TFTPRoot, config.SkipDirectoryInit)
 	if err != nil {
 		return nil, fmt.Errorf("creating TFTP server: %w", err)
 	}
 
-	dhcpProxy, err := NewDHCPProxy(config.DHCPInterface)
+	dhcpProxy, err := NewDHCPProxyWithOptions(config.DHCPInterface, config.SkipDirectoryInit)
 	if err != nil {
 		return nil, fmt.Errorf("creating DHCP proxy: %w", err)
 	}

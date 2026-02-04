@@ -61,6 +61,7 @@ type Config struct {
 
 	// Canary config
 	Steps          []CanaryStep    `json:"steps,omitempty"`
+	CanarySteps    []CanaryStep    `json:"canary_steps,omitempty"` // Alias for Steps
 	Analysis       *AnalysisConfig `json:"analysis,omitempty"`
 	AutoPromote    bool            `json:"auto_promote,omitempty"`
 	PromoteTimeout time.Duration   `json:"promote_timeout,omitempty"`
@@ -93,6 +94,9 @@ type AnalysisConfig struct {
 	// SuccessRateThreshold is min success rate (0.0-1.0)
 	SuccessRateThreshold float64 `json:"success_rate_threshold"`
 
+	// SampleSize is the number of requests to sample for analysis
+	SampleSize int `json:"sample_size"`
+
 	// MinSampleSize is minimum requests before analysis
 	MinSampleSize int `json:"min_sample_size"`
 
@@ -107,6 +111,12 @@ type HealthCheckConfig struct {
 
 	// Endpoint is the health check endpoint
 	Endpoint string `json:"endpoint"`
+
+	// Path is the health check path (for http checks)
+	Path string `json:"path"`
+
+	// Port is the health check port
+	Port int `json:"port"`
 
 	// Interval between checks
 	Interval time.Duration `json:"interval"`

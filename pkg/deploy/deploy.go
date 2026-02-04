@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"unheaded/pkg/container"
@@ -23,6 +24,9 @@ import (
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 )
+
+// deploymentIDCounter is used for generating unique deployment IDs
+var deploymentIDCounter uint64
 
 // Common errors returned by deployment operations.
 var (
@@ -53,6 +57,22 @@ const (
 	StateFailed      DeploymentState = "failed"
 	StateRolledBack  DeploymentState = "rolled_back"
 	StateCancelled   DeploymentState = "cancelled"
+	StateRunning     DeploymentState = "running"
+	StateRollingBack DeploymentState = "rolling_back"
+
+	// Aliases for backward compatibility with tests
+	DeploymentStatePending     = StatePending
+	DeploymentStateBuilding    = StateBuilding
+	DeploymentStateValidating  = StateValidating
+	DeploymentStateDeploying   = StateDeploying
+	DeploymentStateVerifying   = StateVerifying
+	DeploymentStatePromoting   = StatePromoting
+	DeploymentStateCompleted   = StateCompleted
+	DeploymentStateFailed      = StateFailed
+	DeploymentStateRolledBack  = StateRolledBack
+	DeploymentStateCancelled   = StateCancelled
+	DeploymentStateRunning     = StateRunning
+	DeploymentStateRollingBack = StateRollingBack
 )
 
 // StrategyType represents the deployment strategy.
@@ -99,6 +119,9 @@ type DeploymentSpec struct {
 
 	// Annotations for additional metadata
 	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// Environment variables for the deployment
+	Environment map[string]string `json:"environment,omitempty"`
 
 	// Hooks define pre/post deployment actions
 	Hooks *HookSpec `json:"hooks,omitempty"`
@@ -193,6 +216,12 @@ type Deployment struct {
 	// ID is the unique deployment identifier
 	ID string `json:"id"`
 
+	// ServiceName is the name of the service being deployed (convenience field)
+	ServiceName string `json:"service_name,omitempty"`
+
+	// Version is the target version (convenience field)
+	Version string `json:"version,omitempty"`
+
 	// Spec is the deployment specification
 	Spec *DeploymentSpec `json:"spec"`
 
@@ -227,6 +256,28 @@ type Deployment struct {
 	Error string `json:"error,omitempty"`
 }
 
+// DeploymentStatusInfo provides status information for a deployment.
+type DeploymentStatusInfo struct {
+	DeploymentID   string          `json:"deployment_id"`
+	State          DeploymentState `json:"state"`
+	InstancesReady int             `json:"instances_ready"`
+	Message        string          `json:"message,omitempty"`
+}
+
+// Status returns the current status of the deployment.
+func (d *Deployment) Status() *DeploymentStatusInfo {
+	instancesReady := 0
+	if d.Metrics != nil {
+		instancesReady = d.Metrics.HealthChecksPassed
+	}
+	return &DeploymentStatusInfo{
+		DeploymentID:   d.ID,
+		State:          d.State,
+		InstancesReady: instancesReady,
+		Message:        d.Message,
+	}
+}
+
 // StageResult contains the result of a pipeline stage.
 type StageResult struct {
 	Name      string          `json:"name"`
@@ -240,10 +291,13 @@ type StageResult struct {
 
 // DeploymentMetrics contains metrics collected during deployment.
 type DeploymentMetrics struct {
+	InstancesCreated   int     `json:"instances_created"`
+	InstancesDeleted   int     `json:"instances_deleted"`
 	InstancesUpdated   int     `json:"instances_updated"`
 	InstancesFailed    int     `json:"instances_failed"`
 	HealthChecksTotal  int     `json:"health_checks_total"`
 	HealthChecksPassed int     `json:"health_checks_passed"`
+	HealthChecksFailed int     `json:"health_checks_failed"`
 	TrafficShifts      int     `json:"traffic_shifts,omitempty"`
 	RollbackCount      int     `json:"rollback_count,omitempty"`
 	ErrorRate          float64 `json:"error_rate,omitempty"`
@@ -372,6 +426,9 @@ type EngineConfig struct {
 
 	// ParallelUpdates is max parallel instance updates
 	ParallelUpdates int `json:"parallel_updates"`
+
+	// DefaultReplicas is the default number of replicas
+	DefaultReplicas int `json:"default_replicas"`
 }
 
 // DefaultEngineConfig returns sensible default configuration.
@@ -1157,8 +1214,11 @@ func (e *Engine) emitEvent(ctx context.Context, topic string, data map[string]in
 }
 
 // generateDeploymentID generates a unique deployment ID.
+// It uses an atomic counter combined with the timestamp to ensure uniqueness
+// even when called concurrently.
 func generateDeploymentID() string {
-	return fmt.Sprintf("deploy-%d", time.Now().UnixNano())
+	counter := atomic.AddUint64(&deploymentIDCounter, 1)
+	return fmt.Sprintf("deploy-%d-%d", time.Now().UnixNano(), counter)
 }
 
 // ValidateSpec validates a deployment specification.
