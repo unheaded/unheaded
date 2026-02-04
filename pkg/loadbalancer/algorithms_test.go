@@ -357,8 +357,8 @@ func TestWeightedLeastConnState(t *testing.T) {
 		{
 			name:          "weight beats connections",
 			weights:       []int{10, 1},
-			connections:   []int64{5, 0},
-			expectedIndex: 0, // Higher weight compensates for more connections
+			connections:   []int64{5, 1},
+			expectedIndex: 0, // Higher weight compensates for more connections (5/10=0.5 < 1/1=1.0)
 		},
 		{
 			name:          "connections beat weight",

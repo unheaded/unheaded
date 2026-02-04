@@ -18,10 +18,7 @@ import (
 
 // mockLogger implements a simple logger for testing.
 func newTestLogger() *logger.Logger {
-	return logger.New(logger.Config{
-		Level:  "debug",
-		Format: "json",
-	})
+	return logger.New(io.Discard).SetLevel(logger.DebugLevel)
 }
 
 func TestTokenBucket(t *testing.T) {
@@ -383,7 +380,7 @@ func TestConfig(t *testing.T) {
 
 	t.Run("validates config", func(t *testing.T) {
 		cfg := config.DefaultConfig()
-		cfg.Server.HTTPPort = 0
+		cfg.Server.HTTPPort = -1 // Port 0 is valid (OS assigns available port), but -1 is invalid
 
 		err := cfg.Validate()
 		if err == nil {

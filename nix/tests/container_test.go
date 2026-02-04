@@ -42,6 +42,8 @@ var testContainers = []TestContainer{
 	{Name: "micromanager", IP: "10.10.10.22", Port: 8002, DependsOn: []string{"busboy"}},
 	{Name: "architect", IP: "10.10.10.23", Port: 8003, DependsOn: []string{"busboy"}},
 	{Name: "developer", IP: "10.10.10.24", Port: 8004, DependsOn: []string{"busboy"}},
+	{Name: "monad", IP: "10.10.10.25", Port: 8004, DependsOn: []string{"busboy"}},
+	{Name: "sophia", IP: "10.10.10.26", Port: 8005, DependsOn: []string{"busboy"}},
 	{Name: "kanban", IP: "10.10.10.200", Port: 8080, DependsOn: []string{"timeguru"}},
 	{Name: "dashboard", IP: "10.10.10.201", Port: 8081, DependsOn: []string{"busboy"}},
 }
@@ -149,6 +151,11 @@ func TestContainerLifecycle_HealthCheck(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
+	// Skip if containers are not actually running (no LXD environment)
+	if !isLXDAvailable() {
+		t.Skip("skipping: LXD not available, containers not running")
+	}
+
 	for _, c := range testContainers {
 		t.Run(c.Name, func(t *testing.T) {
 			// Health check endpoint
@@ -158,10 +165,10 @@ func TestContainerLifecycle_HealthCheck(t *testing.T) {
 			var lastErr error
 			for i := 0; i < 30; i++ {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
 
 				req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 				if err != nil {
+					cancel()
 					lastErr = err
 					time.Sleep(1 * time.Second)
 					continue
@@ -169,11 +176,13 @@ func TestContainerLifecycle_HealthCheck(t *testing.T) {
 
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
+					cancel()
 					lastErr = err
 					time.Sleep(1 * time.Second)
 					continue
 				}
-				defer resp.Body.Close()
+				resp.Body.Close()
+				cancel()
 
 				if resp.StatusCode == http.StatusOK {
 					t.Logf("container %s is healthy", c.Name)
@@ -308,7 +317,7 @@ func TestNetwork_ContainerCanReachBusboy(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			// From container, check connectivity to busboy
 			// Real: lxc exec unheaded-{c.Name} -- curl -f {busboyURL}
-			t.Logf("%s checking connectivity to busboy", c.Name)
+			t.Logf("%s checking connectivity to busboy at %s", c.Name, busboyURL)
 		})
 	}
 }
@@ -350,6 +359,11 @@ func TestNetwork_FirewallRulesActive(t *testing.T) {
 func TestObservability_MetricsEndpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if containers are not actually running (no LXD environment)
+	if !isLXDAvailable() {
+		t.Skip("skipping: LXD not available, containers not running")
 	}
 
 	for _, c := range testContainers {
@@ -410,6 +424,8 @@ func TestPerformance_MemoryLimits(t *testing.T) {
 		"micromanager": "256M",
 		"architect":    "256M",
 		"developer":    "256M",
+		"monad":        "256M",
+		"sophia":       "512M",
 		"kanban":       "512M",
 		"dashboard":    "1G",
 	}
@@ -441,6 +457,12 @@ func TestPerformance_CPUQuota(t *testing.T) {
 // ==============================================================================
 // HELPER FUNCTIONS
 // ==============================================================================
+
+// isLXDAvailable checks if LXD is installed and the container runtime is accessible.
+func isLXDAvailable() bool {
+	cmd := exec.Command("lxc", "version")
+	return cmd.Run() == nil
+}
 
 func execCommand(t *testing.T, name string, args ...string) (string, error) {
 	t.Helper()

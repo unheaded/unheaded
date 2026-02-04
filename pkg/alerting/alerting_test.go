@@ -635,6 +635,7 @@ func TestBusboyChannel(t *testing.T) {
 	channel := notify.NewBusboyChannel(notify.BusboyConfig{
 		ChannelConfig: notify.ChannelConfig{Name: "busboy-test"},
 		Topic:         "test.alerts",
+		FlushInterval: 10 * time.Millisecond, // Short interval for testing
 	}, mockPublisher)
 	defer channel.Close()
 

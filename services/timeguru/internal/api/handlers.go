@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -86,6 +87,25 @@ type ErrorResponse struct {
 	Details string `json:"details,omitempty"`
 }
 
+// KanbanTask represents a task in kanban format for the frontend
+type KanbanTask struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Status      string `json:"status"`      // todo, in-progress, done
+	Type        string `json:"type"`        // milestone, feature, task, bug, tech-debt
+	Owner       string `json:"owner,omitempty"`
+	DueDate     string `json:"due_date,omitempty"`
+	Progress    int    `json:"progress,omitempty"`
+	Phase       string `json:"phase,omitempty"`
+}
+
+// TasksResponse wraps kanban tasks list
+type TasksResponse struct {
+	Tasks      []*KanbanTask `json:"tasks"`
+	TotalCount int           `json:"total_count"`
+}
+
 // ============================================================================
 // HANDLERS
 // ============================================================================
@@ -122,6 +142,282 @@ func (h *Handler) HandleGetMilestones(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeJSON(w, http.StatusOK, MilestonesResponse{Milestones: tl.Milestones})
+}
+
+// HandleGetTasks handles GET /api/v1/timeline/tasks
+// Transforms milestones and phases into kanban-friendly task format
+func (h *Handler) HandleGetTasks(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tl, err := h.store.GetTimeline(ctx)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			h.writeError(w, http.StatusNotFound, "NOT_FOUND", "timeline not found", err)
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to retrieve timeline", err)
+		return
+	}
+
+	tasks := h.transformToKanbanTasks(tl)
+
+	h.writeJSON(w, http.StatusOK, TasksResponse{
+		Tasks:      tasks,
+		TotalCount: len(tasks),
+	})
+}
+
+// transformToKanbanTasks converts timeline milestones and phases to kanban tasks
+func (h *Handler) transformToKanbanTasks(tl *timeline.Timeline) []*KanbanTask {
+	if tl == nil {
+		return []*KanbanTask{}
+	}
+
+	var tasks []*KanbanTask
+
+	// Build phase ID to name map for reference
+	phaseMap := make(map[string]string)
+	for _, phase := range tl.Phases {
+		if phase != nil {
+			phaseMap[phase.ID] = phase.Name
+		}
+	}
+
+	// Convert milestones to tasks
+	for _, m := range tl.Milestones {
+		if m == nil {
+			continue
+		}
+
+		task := &KanbanTask{
+			ID:          m.ID,
+			Title:       m.Name,
+			Description: m.Description,
+			Status:      h.mapStatusToKanban(m.Status),
+			Type:        h.inferTaskType(m),
+			Owner:       m.Owner,
+			Progress:    m.Progress,
+		}
+
+		// Format due date if present
+		if !m.ETA.IsZero() {
+			task.DueDate = m.ETA.Format("2006-01-02")
+		}
+
+		tasks = append(tasks, task)
+
+		// Also create individual task entries for milestone tasks
+		for i, taskName := range m.Tasks {
+			subTask := &KanbanTask{
+				ID:          fmt.Sprintf("%s-task-%d", m.ID, i+1),
+				Title:       taskName,
+				Description: "",
+				Status:      h.inferSubtaskStatus(m.Status, m.Progress, i, len(m.Tasks)),
+				Type:        "task",
+				Owner:       m.Owner,
+				Phase:       m.ID,
+			}
+			if !m.ETA.IsZero() {
+				subTask.DueDate = m.ETA.Format("2006-01-02")
+			}
+			tasks = append(tasks, subTask)
+		}
+	}
+
+	// Also convert phases as high-level feature tasks
+	for _, phase := range tl.Phases {
+		if phase == nil {
+			continue
+		}
+
+		task := &KanbanTask{
+			ID:          phase.ID,
+			Title:       phase.Name,
+			Description: phase.Description,
+			Status:      h.mapStatusToKanban(phase.Status),
+			Type:        "feature",
+			Progress:    phase.Progress,
+		}
+
+		if !phase.EndDate.IsZero() {
+			task.DueDate = phase.EndDate.Format("2006-01-02")
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	return tasks
+}
+
+// mapStatusToKanban converts internal status to kanban status
+func (h *Handler) mapStatusToKanban(status string) string {
+	switch status {
+	case "completed":
+		return "done"
+	case "in_progress":
+		return "in-progress"
+	case "pending", "planned", "blocked":
+		return "todo"
+	default:
+		return "todo"
+	}
+}
+
+// inferTaskType determines task type based on milestone properties
+func (h *Handler) inferTaskType(m *timeline.Milestone) string {
+	if m == nil {
+		return "task"
+	}
+
+	// Check name for hints
+	name := strings.ToLower(m.Name)
+	desc := strings.ToLower(m.Description)
+
+	if strings.Contains(name, "bug") || strings.Contains(desc, "bug") || strings.Contains(desc, "fix") {
+		return "bug"
+	}
+	if strings.Contains(name, "tech debt") || strings.Contains(desc, "tech debt") || strings.Contains(desc, "refactor") {
+		return "tech-debt"
+	}
+	if strings.Contains(name, "feature") || strings.Contains(desc, "feature") {
+		return "feature"
+	}
+
+	// Default based on presence of subtasks
+	if len(m.Tasks) > 0 {
+		return "milestone"
+	}
+
+	return "task"
+}
+
+// inferSubtaskStatus infers subtask status based on parent milestone
+func (h *Handler) inferSubtaskStatus(parentStatus string, parentProgress int, taskIndex int, totalTasks int) string {
+	if parentStatus == "completed" {
+		return "done"
+	}
+
+	if parentStatus == "pending" || parentStatus == "planned" {
+		return "todo"
+	}
+
+	// For in_progress milestones, estimate which tasks are done based on progress
+	if totalTasks == 0 {
+		return "todo"
+	}
+
+	completedTasks := (parentProgress * totalTasks) / 100
+	if taskIndex < completedTasks {
+		return "done"
+	} else if taskIndex == completedTasks {
+		return "in-progress"
+	}
+
+	return "todo"
+}
+
+// ============================================================================
+// SSE STREAM ENDPOINT
+// ============================================================================
+
+// SSEEvent represents a server-sent event
+type SSEEvent struct {
+	Event string      `json:"event"`
+	Data  interface{} `json:"data"`
+}
+
+// HandleTimelineStream handles GET /api/v1/timeline/stream
+// Provides Server-Sent Events for real-time timeline updates
+func (h *Handler) HandleTimelineStream(w http.ResponseWriter, r *http.Request) {
+	// Check if client supports SSE
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		h.writeError(w, http.StatusInternalServerError, "SSE_NOT_SUPPORTED", "streaming not supported", nil)
+		return
+	}
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	ctx := r.Context()
+
+	// Send initial connection event
+	h.sendSSEEvent(w, flusher, "connected", map[string]string{
+		"message": "Connected to timeline stream",
+		"service": "timeguru",
+	})
+
+	// Send initial tasks data
+	tl, err := h.store.GetTimeline(ctx)
+	if err == nil && tl != nil {
+		tasks := h.transformToKanbanTasks(tl)
+		h.sendSSEEvent(w, flusher, "tasks", TasksResponse{
+			Tasks:      tasks,
+			TotalCount: len(tasks),
+		})
+	}
+
+	// Keep connection alive and poll for updates
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	// Track last update time for change detection
+	var lastUpdate time.Time
+	if tl != nil {
+		lastUpdate = tl.LastUpdated
+	}
+
+	// Heartbeat ticker to keep connection alive
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Client disconnected
+			return
+
+		case <-heartbeat.C:
+			// Send heartbeat to keep connection alive
+			h.sendSSEEvent(w, flusher, "heartbeat", map[string]int64{
+				"timestamp": time.Now().Unix(),
+			})
+
+		case <-ticker.C:
+			// Check for timeline updates
+			currentTL, err := h.store.GetTimeline(ctx)
+			if err != nil {
+				continue
+			}
+
+			// If timeline has been updated, send new data
+			if currentTL != nil && currentTL.LastUpdated.After(lastUpdate) {
+				lastUpdate = currentTL.LastUpdated
+
+				tasks := h.transformToKanbanTasks(currentTL)
+				h.sendSSEEvent(w, flusher, "update", TasksResponse{
+					Tasks:      tasks,
+					TotalCount: len(tasks),
+				})
+			}
+		}
+	}
+}
+
+// sendSSEEvent sends a Server-Sent Event
+func (h *Handler) sendSSEEvent(w http.ResponseWriter, flusher http.Flusher, eventType string, data interface{}) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+
+	fmt.Fprintf(w, "event: %s\n", eventType)
+	fmt.Fprintf(w, "data: %s\n\n", jsonData)
+	flusher.Flush()
 }
 
 // HandleUpdateMilestone handles POST /milestones/:id/update
@@ -197,6 +493,43 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		Service: "timeguru",
 		Version: "1.0.0",
 	})
+}
+
+// ReadyResponse represents readiness check response
+type ReadyResponse struct {
+	Ready   bool   `json:"ready"`
+	Service string `json:"service"`
+	Checks  struct {
+		Store    bool `json:"store"`
+		Timeline bool `json:"timeline"`
+	} `json:"checks"`
+}
+
+// HandleReady handles GET /ready - returns 200 when service is ready to serve traffic
+func (h *Handler) HandleReady(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	resp := ReadyResponse{
+		Service: "timeguru",
+	}
+
+	// Check 1: Store is accessible
+	resp.Checks.Store = h.store != nil
+
+	// Check 2: Timeline is loaded/accessible
+	if resp.Checks.Store {
+		_, err := h.store.GetTimeline(ctx)
+		resp.Checks.Timeline = err == nil
+	}
+
+	// Service is ready only if all checks pass
+	resp.Ready = resp.Checks.Store && resp.Checks.Timeline
+
+	if resp.Ready {
+		h.writeJSON(w, http.StatusOK, resp)
+	} else {
+		h.writeJSON(w, http.StatusServiceUnavailable, resp)
+	}
 }
 
 // HandleGetTimelineWithFormat handles GET /timeline with format negotiation

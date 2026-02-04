@@ -115,8 +115,8 @@ func TestFailoverTrigger(t *testing.T) {
 	// Make primary unhealthy
 	primary.SetState(BackendStateUnhealthy)
 
-	// Wait for failover to trigger
-	time.Sleep(200 * time.Millisecond)
+	// Wait for failover to trigger (monitor loop ticks every 1 second)
+	time.Sleep(1500 * time.Millisecond)
 
 	// Should be in failover now
 	if !fm.IsInFailover() {
@@ -171,9 +171,9 @@ func TestFailback(t *testing.T) {
 
 	fm.Start()
 
-	// Trigger failover
+	// Trigger failover (monitor loop ticks every 1 second)
 	primary.SetState(BackendStateUnhealthy)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 
 	if !fm.IsInFailover() {
 		t.Fatal("Should be in failover")
@@ -182,8 +182,8 @@ func TestFailback(t *testing.T) {
 	// Restore primary
 	primary.SetState(BackendStateHealthy)
 
-	// Wait for failback delay + processing
-	time.Sleep(200 * time.Millisecond)
+	// Wait for failback delay + processing (monitor loop tick + failback delay)
+	time.Sleep(1500 * time.Millisecond)
 
 	// Should have failed back
 	if fm.IsInFailover() {
@@ -244,9 +244,9 @@ func TestFailoverSelect(t *testing.T) {
 	// Make primary unavailable
 	primary.SetState(BackendStateUnhealthy)
 
-	// Start manager to trigger failover
+	// Start manager to trigger failover (monitor loop ticks every 1 second)
 	fm.Start()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 
 	// Select should now return backup
 	selected, err = fm.Select(ctx, "test-key")
@@ -369,12 +369,16 @@ func TestPriorityFailover(t *testing.T) {
 	fm.AddGroup(&BackendGroup{Name: "low", Priority: 2, Backends: []string{"low-pri"}})
 
 	fm.Start()
-	time.Sleep(100 * time.Millisecond)
+	// Wait for monitor loop to update healthy counts (ticks every 1 second)
+	time.Sleep(1500 * time.Millisecond)
 
 	ctx := context.Background()
 
 	// Should use highest priority (0)
-	selected, _ := fm.Select(ctx, "test")
+	selected, err := fm.Select(ctx, "test")
+	if err != nil {
+		t.Fatalf("Select failed: %v", err)
+	}
 	if selected.Config.Name != "high-pri" {
 		t.Errorf("Expected high-pri, got %s", selected.Config.Name)
 	}
@@ -382,10 +386,14 @@ func TestPriorityFailover(t *testing.T) {
 	// Make high priority unhealthy
 	highPri, _ := pool.Get("high-pri")
 	highPri.SetState(BackendStateUnhealthy)
-	time.Sleep(200 * time.Millisecond)
+	// Wait for monitor loop to detect the change
+	time.Sleep(1500 * time.Millisecond)
 
 	// Should use medium priority
-	selected, _ = fm.Select(ctx, "test")
+	selected, err = fm.Select(ctx, "test")
+	if err != nil {
+		t.Fatalf("Select failed: %v", err)
+	}
 	if selected.Config.Name != "med-pri" {
 		t.Errorf("Expected med-pri, got %s", selected.Config.Name)
 	}
@@ -431,9 +439,9 @@ func TestFailoverStats(t *testing.T) {
 		t.Errorf("Expected 0 failovers, got %d", stats.FailoverCount)
 	}
 
-	// Trigger failover
+	// Trigger failover (monitor loop ticks every 1 second)
 	primary.SetState(BackendStateUnhealthy)
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 
 	stats = fm.Stats()
 	if stats.FailoverCount != 1 {
@@ -443,9 +451,9 @@ func TestFailoverStats(t *testing.T) {
 		t.Error("Should be in failover")
 	}
 
-	// Trigger failback
+	// Trigger failback (monitor loop tick + failback delay)
 	primary.SetState(BackendStateHealthy)
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 
 	stats = fm.Stats()
 	if stats.FailbackCount != 1 {
@@ -496,8 +504,8 @@ func TestGracefulDrainManager(t *testing.T) {
 		t.Error("Backend should be draining")
 	}
 
-	// Wait for drain to complete (no connections, so immediate)
-	time.Sleep(200 * time.Millisecond)
+	// Wait for drain to complete (drain manager ticks every 1 second)
+	time.Sleep(1500 * time.Millisecond)
 
 	// Verify drain completed
 	if atomic.LoadInt32(&drainCompleted) != 1 {
@@ -553,8 +561,8 @@ func TestGracefulDrainWithConnections(t *testing.T) {
 	// Remove last connection
 	backend.DecrementConnections()
 
-	// Wait for drain check
-	time.Sleep(200 * time.Millisecond)
+	// Wait for drain check (drain manager ticks every 1 second)
+	time.Sleep(1500 * time.Millisecond)
 
 	// Should be done
 	if dm.IsDraining("backend1") {
@@ -629,8 +637,8 @@ func TestForceDrain(t *testing.T) {
 		t.Fatalf("ForceDrain failed: %v", err)
 	}
 
-	// Wait for processing
-	time.Sleep(200 * time.Millisecond)
+	// Wait for processing (drain manager ticks every 1 second)
+	time.Sleep(1500 * time.Millisecond)
 
 	if !completeCalled {
 		t.Error("Drain complete callback should have been called")
@@ -837,7 +845,8 @@ func TestGroupHealth(t *testing.T) {
 	})
 
 	fm.Start()
-	time.Sleep(100 * time.Millisecond)
+	// Wait for monitor loop to update healthy counts (ticks every 1 second)
+	time.Sleep(1500 * time.Millisecond)
 
 	healthy, total, draining := fm.GetGroupHealth("group1")
 	if healthy != 1 {
@@ -922,11 +931,11 @@ func TestStopDrain(t *testing.T) {
 	pool, _ := NewBackendPool(config)
 	backend, _ := pool.Get("backend1")
 	backend.SetState(BackendStateHealthy)
-	backend.Drain() // This sets state to draining
 
 	dm := NewGracefulDrainManager(pool, 10*time.Second)
 	dm.Start()
 
+	// StartDrain will mark the backend as draining
 	dm.StartDrain("backend1", 10*time.Second)
 
 	if !dm.IsDraining("backend1") {

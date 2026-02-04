@@ -74,13 +74,16 @@ func TestHandleGetTasks_HappyPath(t *testing.T) {
 func TestHandleGetTasks_MethodNotAllowed(t *testing.T) {
 	server := createTestServer(t)
 
-	methods := []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch}
+	// Note: POST, PUT, DELETE are valid methods for handleTasks router
+	// Only PATCH should return 405 Method Not Allowed
+	methods := []string{http.MethodPatch}
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
 			req := httptest.NewRequest(method, "/api/v1/timeline/tasks", nil)
 			w := httptest.NewRecorder()
 
-			server.handleGetTasks(w, req)
+			// Use handleTasks (the router) instead of handleGetTasks
+			server.handleTasks(w, req)
 
 			if w.Code != http.StatusMethodNotAllowed {
 				t.Errorf("expected status 405 for %s, got %d", method, w.Code)
