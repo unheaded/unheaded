@@ -45,6 +45,10 @@ volumes:
     name: unheaded_architect_data
   micromanager-data:
     name: unheaded_micromanager_data
+  monad-data:
+    name: unheaded_monad_data
+  sophia-data:
+    name: unheaded_sophia_data
   cuirass-data:
     name: unheaded_cuirass_data
 
@@ -272,6 +276,92 @@ services:
       - "kingdom.component=micromanager"
       - "kingdom.hollow=war_room"
       - "kingdom.role=task_execution"
+      - "kingdom.tier=service"
+
+  # ==========================================================================
+  # MONAD - THE ONE
+  # Unified State Management - Operations & Transactions
+  # ==========================================================================
+  monad:
+    build:
+      context: .
+      target: monad
+      args:
+        VERSION: ${VERSION:-0.1.0-alpha}
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: unheaded/monad:${VERSION:-latest}
+    container_name: unheaded-monad
+    hostname: monad
+    restart: unless-stopped
+    depends_on:
+      busboy:
+        condition: service_healthy
+    networks:
+      kingdom:
+        ipv4_address: 172.28.1.6
+    ports:
+      - "8086:8086"
+    environment:
+      - PORT=8086
+      - BUSBOY_ADDR=busboy:5555
+      - DB_PATH=/data/monad.db
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - monad-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "kingdom.component=monad"
+      - "kingdom.hollow=pleroma"
+      - "kingdom.role=state_management"
+      - "kingdom.tier=service"
+
+  # ==========================================================================
+  # SOPHIA - DIVINE WISDOM
+  # Knowledge Graph - Insights, Decisions, Inference
+  # ==========================================================================
+  sophia:
+    build:
+      context: .
+      target: sophia
+      args:
+        VERSION: ${VERSION:-0.1.0-alpha}
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: unheaded/sophia:${VERSION:-latest}
+    container_name: unheaded-sophia
+    hostname: sophia
+    restart: unless-stopped
+    depends_on:
+      busboy:
+        condition: service_healthy
+    networks:
+      kingdom:
+        ipv4_address: 172.28.1.7
+    ports:
+      - "8087:8087"
+    environment:
+      - PORT=8087
+      - BUSBOY_ADDR=busboy:5555
+      - DB_PATH=/data/sophia.db
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - sophia-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8087/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "kingdom.component=sophia"
+      - "kingdom.hollow=sages_lair"
+      - "kingdom.role=knowledge_graph"
       - "kingdom.tier=service"
 
   # ==========================================================================

@@ -144,8 +144,11 @@
         `;
 
         card.addEventListener('click', () => {
-            console.log('Card clicked:', task);
-            // TODO: Open task detail modal
+            if (window.TaskModal && window.TaskModal.open) {
+                window.TaskModal.open(task);
+            } else {
+                console.log('Card clicked:', task);
+            }
         });
 
         return card;

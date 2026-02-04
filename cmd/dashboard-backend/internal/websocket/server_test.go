@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,7 +11,13 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"unheaded/pkg/logger"
 )
+
+// testLogger creates a logger that discards output for testing
+func testLogger() *logger.Logger {
+	return logger.New(io.Discard)
+}
 
 // TestServer_NewServer tests server creation
 func TestServer_NewServer(t *testing.T) {
@@ -30,9 +37,9 @@ func TestServer_NewServer(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "nil config",
+			name:    "nil config uses default",
 			config:  nil,
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "zero max connections",
@@ -47,7 +54,7 @@ func TestServer_NewServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv, err := NewServer(tt.config)
+			srv, err := NewServer(tt.config, testLogger())
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewServer() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -68,10 +75,18 @@ func TestServer_HandleConnection(t *testing.T) {
 		BufferSize:     256,
 	}
 
-	srv, err := NewServer(config)
+	srv, err := NewServer(config, testLogger())
 	if err != nil {
 		t.Fatalf("NewServer() failed: %v", err)
 	}
+
+	// Start the server's run loop
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+	defer srv.Shutdown(context.Background())
 
 	// Create test HTTP server
 	httpServer := httptest.NewServer(http.HandlerFunc(srv.HandleWebSocket))
@@ -102,10 +117,18 @@ func TestServer_Broadcast(t *testing.T) {
 		BufferSize:     256,
 	}
 
-	srv, err := NewServer(config)
+	srv, err := NewServer(config, testLogger())
 	if err != nil {
 		t.Fatalf("NewServer() failed: %v", err)
 	}
+
+	// Start the server's run loop
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+	defer srv.Shutdown(context.Background())
 
 	// Create test HTTP server
 	httpServer := httptest.NewServer(http.HandlerFunc(srv.HandleWebSocket))
@@ -154,10 +177,18 @@ func TestServer_MaxConnections(t *testing.T) {
 		BufferSize:     256,
 	}
 
-	srv, err := NewServer(config)
+	srv, err := NewServer(config, testLogger())
 	if err != nil {
 		t.Fatalf("NewServer() failed: %v", err)
 	}
+
+	// Start the server's run loop
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+	defer srv.Shutdown(context.Background())
 
 	httpServer := httptest.NewServer(http.HandlerFunc(srv.HandleWebSocket))
 	defer httpServer.Close()
@@ -197,9 +228,16 @@ func TestServer_Shutdown(t *testing.T) {
 		BufferSize:     256,
 	}
 
-	srv, err := NewServer(config)
+	srv, err := NewServer(config, testLogger())
 	if err != nil {
 		t.Fatalf("NewServer() failed: %v", err)
+	}
+
+	// Start the server's run loop
+	startCtx, startCancel := context.WithCancel(context.Background())
+	defer startCancel()
+	if err := srv.Start(startCtx); err != nil {
+		t.Fatalf("Start() failed: %v", err)
 	}
 
 	httpServer := httptest.NewServer(http.HandlerFunc(srv.HandleWebSocket))
@@ -217,10 +255,10 @@ func TestServer_Shutdown(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Shutdown server
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer shutdownCancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		t.Errorf("Shutdown() error = %v", err)
 	}
 
@@ -239,10 +277,18 @@ func TestServer_ConcurrentBroadcast(t *testing.T) {
 		BufferSize:     256,
 	}
 
-	srv, err := NewServer(config)
+	srv, err := NewServer(config, testLogger())
 	if err != nil {
 		t.Fatalf("NewServer() failed: %v", err)
 	}
+
+	// Start the server's run loop
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+	defer srv.Shutdown(context.Background())
 
 	httpServer := httptest.NewServer(http.HandlerFunc(srv.HandleWebSocket))
 	defer httpServer.Close()

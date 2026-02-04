@@ -120,8 +120,28 @@ func (s *RollingStrategy) Execute(ctx context.Context, params *ExecuteParams) (*
 	deployment.progress.Phase = "rolling"
 	deployment.progress.Message = fmt.Sprintf("Rolling update: %d -> %d instances", currentOld, targetNew)
 
-	// Rolling update loop
+	// Rolling update loop with progress deadline to avoid infinite loops
+	maxIterations := params.Replicas * 100 // generous upper bound
+	if maxIterations < 100 {
+		maxIterations = 100
+	}
+	iteration := 0
+	lastProgress := 0
+
 	for currentNew < targetNew || currentOld > 0 {
+		iteration++
+		currentProgress := currentNew*100 + (len(params.Instances)-currentOld)*10
+		if currentProgress != lastProgress {
+			lastProgress = currentProgress
+			iteration = 0 // reset stall counter on progress
+		}
+		if iteration > maxIterations {
+			deployment.result.Success = false
+			deployment.result.Message = "Rolling update stalled: no progress detected"
+			deployment.result.Duration = time.Since(startTime)
+			deployment.result.Instances = newInstances
+			return deployment.result, nil
+		}
 		select {
 		case <-ctx.Done():
 			deployment.result.Success = false

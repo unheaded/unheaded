@@ -7,9 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
-
-	"unheaded/pkg/busboy-client/mock"
 )
 
 // ============================================================================
@@ -20,7 +17,6 @@ func TestHandleCreateTask_HappyPath(t *testing.T) {
 	tm, mockClient := createTestTaskManager(t)
 	mockClient.ApproveSubscription(TopicTasks)
 
-	broadcast := func(eventType string, data interface{}) {}
 	server := &Server{
 		taskManager: tm,
 		sseClients:  make(map[chan []byte]bool),
@@ -29,6 +25,10 @@ func TestHandleCreateTask_HappyPath(t *testing.T) {
 	// Initialize TaskManager
 	ctx := context.Background()
 	tm.Initialize(ctx)
+
+	// Subscribe to the specific topic that CreateTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	task := createTestTask("http-create-1")
 	payload, _ := json.Marshal(task)
@@ -117,6 +117,10 @@ func TestHandleCreateTask_DuplicateID_Returns409(t *testing.T) {
 	ctx := context.Background()
 	tm.Initialize(ctx)
 
+	// Subscribe to the specific topic that CreateTask publishes to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
+
 	task := createTestTask("duplicate-http")
 	tm.CreateTask(ctx, task)
 
@@ -162,6 +166,12 @@ func TestHandleUpdateTask_HappyPath(t *testing.T) {
 
 	ctx := context.Background()
 	tm.Initialize(ctx)
+
+	// Subscribe to the specific topics that CreateTask and UpdateTask publish to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
+	mockClient.Subscribe(ctx, TopicTasksUpdated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksUpdated)
 
 	// Create task first
 	task := createTestTask("http-update-1")
@@ -238,6 +248,12 @@ func TestHandleDeleteTask_HappyPath(t *testing.T) {
 
 	ctx := context.Background()
 	tm.Initialize(ctx)
+
+	// Subscribe to the specific topics that CreateTask and DeleteTask publish to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
+	mockClient.Subscribe(ctx, TopicTasksDeleted, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksDeleted)
 
 	// Create task
 	task := createTestTask("http-delete-1")
@@ -452,6 +468,14 @@ func TestFullHTTPFlow_CreateUpdateDelete(t *testing.T) {
 
 	ctx := context.Background()
 	tm.Initialize(ctx)
+
+	// Subscribe to the specific topics that CreateTask, UpdateTask, and DeleteTask publish to
+	mockClient.Subscribe(ctx, TopicTasksCreated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksCreated)
+	mockClient.Subscribe(ctx, TopicTasksUpdated, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksUpdated)
+	mockClient.Subscribe(ctx, TopicTasksDeleted, "test-publisher")
+	mockClient.ApproveSubscription(TopicTasksDeleted)
 
 	// 1. Create task
 	task := createTestTask("flow-test")

@@ -101,9 +101,12 @@ func (r *TopicRouter) Match(topic string) []string {
 	}
 
 	// Add prefix matches (e.g., "users.*" matches "users.created")
+	// The pattern "users.*" requires at least one segment after "users."
 	parts := strings.Split(topic, ".")
-	if len(parts) >= 1 {
-		for i := 1; i <= len(parts); i++ {
+	if len(parts) >= 2 {
+		// Only check prefixes if topic has at least 2 segments
+		// because pattern "prefix.*" requires something after the dot
+		for i := 1; i < len(parts); i++ {
 			prefix := strings.Join(parts[:i], ".")
 			for _, subID := range r.prefix[prefix] {
 				if _, ok := seen[subID]; !ok {

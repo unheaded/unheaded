@@ -10,13 +10,18 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/pkg/logger"
+
+	"gopkg.in/yaml.v3"
 )
 
 // ============================================================================
@@ -52,16 +57,28 @@ var (
 // DAEMON STRUCTURE
 // ============================================================================
 
+// Busboy topic constants
+const (
+	TopicCuirassDrift   = "cuirass.drift"
+	TopicCuirassMetrics = "cuirass.metrics"
+)
+
 // Daemon represents the unheaded-daemon control plane
 type Daemon struct {
 	mu     sync.RWMutex
 	config *Config
+	log    *logger.Logger
 
 	// State management
 	stateManager *StateManager
 
-	// LXD client (mock for now)
-	// lxdClient lxd.Client
+	// Busboy client for event publishing
+	busboyClient *busboyClient.Client
+	busboyReady  bool
+	busboyMu     sync.RWMutex
+
+	// LXD client for container operations
+	lxdClient LXDClient
 
 	// eBPF loader (mock for now)
 	// ebpfLoader ebpf.Loader
@@ -73,6 +90,169 @@ type Daemon struct {
 	shutdown chan struct{}
 	wg       sync.WaitGroup
 }
+
+// ============================================================================
+// LXD CLIENT INTERFACE AND MOCK IMPLEMENTATION
+// ============================================================================
+
+// LXDClient defines the interface for LXD container operations
+type LXDClient interface {
+	// CreateContainer creates a new container from the spec
+	CreateContainer(ctx context.Context, spec *ContainerSpec) error
+	// StartContainer starts a stopped container
+	StartContainer(ctx context.Context, name string) error
+	// StopContainer stops a running container
+	StopContainer(ctx context.Context, name string, force bool) error
+	// RestartContainer restarts a container
+	RestartContainer(ctx context.Context, name string) error
+	// DeleteContainer removes a container
+	DeleteContainer(ctx context.Context, name string, force bool) error
+	// GetContainer returns a container's state
+	GetContainer(name string) (*ContainerState, bool)
+	// ListContainers returns all containers
+	ListContainers() map[string]*ContainerState
+}
+
+// MockLXDClient is a mock implementation of LXDClient for testing
+type MockLXDClient struct {
+	mu         sync.RWMutex
+	containers map[string]*ContainerState
+	log        *logger.Logger
+}
+
+// NewMockLXDClient creates a new mock LXD client
+func NewMockLXDClient(log *logger.Logger) *MockLXDClient {
+	return &MockLXDClient{
+		containers: make(map[string]*ContainerState),
+		log:        log,
+	}
+}
+
+// CreateContainer creates a mock container
+func (m *MockLXDClient) CreateContainer(ctx context.Context, spec *ContainerSpec) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.containers[spec.ID]; exists {
+		return fmt.Errorf("container %s already exists", spec.ID)
+	}
+
+	m.containers[spec.ID] = &ContainerState{
+		ID:       spec.ID,
+		Status:   "stopped",
+		Health:   "starting",
+		CPUUsage: 0,
+	}
+
+	m.log.Info().
+		Str("id", spec.ID).
+		Str("name", spec.Name).
+		Str("image", spec.Image).
+		Msg("MockLXD: Created container")
+	return nil
+}
+
+// StartContainer starts a mock container
+func (m *MockLXDClient) StartContainer(ctx context.Context, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	container, exists := m.containers[name]
+	if !exists {
+		return fmt.Errorf("container %s not found", name)
+	}
+
+	container.Status = "running"
+	container.Health = "healthy"
+	m.log.Info().Str("id", name).Msg("MockLXD: Started container")
+	return nil
+}
+
+// StopContainer stops a mock container
+func (m *MockLXDClient) StopContainer(ctx context.Context, name string, force bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	container, exists := m.containers[name]
+	if !exists {
+		return fmt.Errorf("container %s not found", name)
+	}
+
+	container.Status = "stopped"
+	container.Health = "unknown"
+	m.log.Info().Str("id", name).Bool("force", force).Msg("MockLXD: Stopped container")
+	return nil
+}
+
+// RestartContainer restarts a mock container
+func (m *MockLXDClient) RestartContainer(ctx context.Context, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	container, exists := m.containers[name]
+	if !exists {
+		return fmt.Errorf("container %s not found", name)
+	}
+
+	container.Status = "running"
+	container.Health = "healthy"
+	m.log.Info().Str("id", name).Msg("MockLXD: Restarted container")
+	return nil
+}
+
+// DeleteContainer removes a mock container
+func (m *MockLXDClient) DeleteContainer(ctx context.Context, name string, force bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.containers[name]; !exists {
+		return fmt.Errorf("container %s not found", name)
+	}
+
+	delete(m.containers, name)
+	m.log.Info().Str("id", name).Bool("force", force).Msg("MockLXD: Deleted container")
+	return nil
+}
+
+// GetContainer returns a container's state
+func (m *MockLXDClient) GetContainer(name string) (*ContainerState, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	c, exists := m.containers[name]
+	if !exists {
+		return nil, false
+	}
+	// Return a copy
+	return &ContainerState{
+		ID:       c.ID,
+		Status:   c.Status,
+		IP:       c.IP,
+		CPUUsage: c.CPUUsage,
+		Health:   c.Health,
+	}, true
+}
+
+// ListContainers returns all containers
+func (m *MockLXDClient) ListContainers() map[string]*ContainerState {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result := make(map[string]*ContainerState)
+	for k, v := range m.containers {
+		result[k] = &ContainerState{
+			ID:       v.ID,
+			Status:   v.Status,
+			IP:       v.IP,
+			CPUUsage: v.CPUUsage,
+			Health:   v.Health,
+		}
+	}
+	return result
+}
+
+// ============================================================================
+// CONFIG AND STATE TYPES
+// ============================================================================
 
 // Config holds daemon configuration (simplified inline for now)
 type Config struct {
@@ -121,6 +301,16 @@ type DriftReport struct {
 	DetectedAt  time.Time `json:"detected_at"`
 }
 
+// ReconcileAction represents an action taken during reconciliation
+type ReconcileAction struct {
+	ContainerID string    `json:"container_id"`
+	Action      string    `json:"action"`
+	Reason      string    `json:"reason"`
+	Success     bool      `json:"success"`
+	Error       string    `json:"error,omitempty"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -144,8 +334,13 @@ func main() {
 	// Load configuration
 	cfg := loadConfig(*configPath)
 
+	// Initialize logger
+	log := logger.New(os.Stdout)
+	level, _ := logger.ParseLevel(cfg.LogLevel)
+	log.SetLevel(level)
+
 	// Create daemon
-	daemon := NewDaemon(cfg)
+	daemon := NewDaemon(cfg, log)
 
 	// Setup signal handling
 	sigCh := make(chan os.Signal, 1)
@@ -153,25 +348,25 @@ func main() {
 
 	// Start daemon
 	if err := daemon.Start(); err != nil {
-		log.Fatalf("Failed to start daemon: %v", err)
+		log.Fatal().Err(err).Msg("Failed to start daemon")
 	}
 
-	log.Printf("🛡️  Cuirass Control Plane active on %s", cfg.HTTPAddr)
-	log.Println("📡 Listening for state changes...")
+	log.Info().Str("addr", cfg.HTTPAddr).Msg("Cuirass Control Plane active")
+	log.Info().Msg("Listening for state changes...")
 
 	// Wait for shutdown signal
 	sig := <-sigCh
-	log.Printf("\n🔻 Received signal %v, initiating graceful shutdown...", sig)
+	log.Info().Str("signal", sig.String()).Msg("Received signal, initiating graceful shutdown...")
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := daemon.Shutdown(ctx); err != nil {
-		log.Printf("Error during shutdown: %v", err)
+		log.Error().Err(err).Msg("Error during shutdown")
 	}
 
-	log.Println("✅ Cuirass Control Plane shut down gracefully")
+	log.Info().Msg("Cuirass Control Plane shut down gracefully")
 }
 
 // ============================================================================
@@ -179,20 +374,30 @@ func main() {
 // ============================================================================
 
 // NewDaemon creates a new daemon instance
-func NewDaemon(cfg *Config) *Daemon {
+func NewDaemon(cfg *Config, log *logger.Logger) *Daemon {
 	return &Daemon{
 		config: cfg,
+		log:    log,
 		stateManager: &StateManager{
 			desired: make(map[string]*ContainerSpec),
 			actual:  make(map[string]*ContainerState),
 			drifts:  make([]DriftReport, 0),
 		},
-		shutdown: make(chan struct{}),
+		lxdClient: NewMockLXDClient(log), // Use mock client for now
+		shutdown:  make(chan struct{}),
 	}
 }
 
 // Start starts the daemon
 func (d *Daemon) Start() error {
+	// Initialize Busboy client
+	if err := d.initBusboy(); err != nil {
+		d.log.Warn().Err(err).Msg("Busboy connection failed, will retry")
+	}
+
+	// Log LXD client status
+	d.log.Info().Msg("LXD client initialized (mock mode)")
+
 	// Setup HTTP server
 	mux := http.NewServeMux()
 	d.registerHandlers(mux)
@@ -210,9 +415,17 @@ func (d *Daemon) Start() error {
 	go func() {
 		defer d.wg.Done()
 		if err := d.httpServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
+			d.log.Error().Err(err).Msg("HTTP server error")
 		}
 	}()
+
+	// Start Busboy connection manager (handles reconnection)
+	d.wg.Add(1)
+	go d.busboyConnectionLoop()
+
+	// Start metrics publishing loop
+	d.wg.Add(1)
+	go d.metricsPublishLoop()
 
 	// Start state reconciliation loop
 	d.wg.Add(1)
@@ -235,6 +448,17 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	// Close Busboy client
+	d.busboyMu.Lock()
+	if d.busboyClient != nil {
+		if err := d.busboyClient.Close(); err != nil {
+			d.log.Warn().Err(err).Msg("Error closing Busboy client")
+		}
+		d.busboyClient = nil
+		d.busboyReady = false
+	}
+	d.busboyMu.Unlock()
+
 	// Wait for goroutines with timeout
 	done := make(chan struct{})
 	go func() {
@@ -248,6 +472,203 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// ============================================================================
+// BUSBOY INTEGRATION
+// ============================================================================
+
+// initBusboy initializes the Busboy client and subscribes to required topics
+func (d *Daemon) initBusboy() error {
+	client, err := busboyClient.NewClient(d.config.BusboyAddr)
+	if err != nil {
+		return fmt.Errorf("create busboy client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Subscribe to drift topic
+	_, err = client.Subscribe(ctx, TopicCuirassDrift, fmt.Sprintf("cuirass-%s", d.config.NodeID))
+	if err != nil {
+		client.Close()
+		return fmt.Errorf("subscribe to %s: %w", TopicCuirassDrift, err)
+	}
+
+	// Subscribe to metrics topic
+	_, err = client.Subscribe(ctx, TopicCuirassMetrics, fmt.Sprintf("cuirass-%s", d.config.NodeID))
+	if err != nil {
+		client.Close()
+		return fmt.Errorf("subscribe to %s: %w", TopicCuirassMetrics, err)
+	}
+
+	d.busboyMu.Lock()
+	d.busboyClient = client
+	d.busboyReady = true
+	d.busboyMu.Unlock()
+
+	d.log.Info().Str("addr", d.config.BusboyAddr).Msg("Busboy connected")
+	return nil
+}
+
+// busboyConnectionLoop manages Busboy connection with automatic reconnection
+func (d *Daemon) busboyConnectionLoop() {
+	defer d.wg.Done()
+
+	reconnectInterval := 5 * time.Second
+	maxReconnectInterval := 60 * time.Second
+
+	for {
+		select {
+		case <-d.shutdown:
+			return
+		default:
+		}
+
+		d.busboyMu.RLock()
+		isReady := d.busboyReady
+		d.busboyMu.RUnlock()
+
+		if !isReady {
+			d.log.Info().Str("addr", d.config.BusboyAddr).Msg("Attempting Busboy reconnection")
+			if err := d.initBusboy(); err != nil {
+				d.log.Warn().Err(err).Dur("retry_in", reconnectInterval).Msg("Busboy reconnection failed")
+
+				select {
+				case <-d.shutdown:
+					return
+				case <-time.After(reconnectInterval):
+				}
+
+				// Exponential backoff
+				reconnectInterval = reconnectInterval * 2
+				if reconnectInterval > maxReconnectInterval {
+					reconnectInterval = maxReconnectInterval
+				}
+				continue
+			}
+			// Reset backoff on successful connection
+			reconnectInterval = 5 * time.Second
+		}
+
+		// Check connection health periodically
+		select {
+		case <-d.shutdown:
+			return
+		case <-time.After(30 * time.Second):
+		}
+	}
+}
+
+// metricsPublishLoop publishes metrics to Busboy periodically
+func (d *Daemon) metricsPublishLoop() {
+	defer d.wg.Done()
+
+	ticker := time.NewTicker(d.config.PollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-d.shutdown:
+			return
+		case <-ticker.C:
+			d.publishMetrics()
+		}
+	}
+}
+
+// publishMetrics publishes current metrics to Busboy
+func (d *Daemon) publishMetrics() {
+	d.busboyMu.RLock()
+	client := d.busboyClient
+	ready := d.busboyReady
+	d.busboyMu.RUnlock()
+
+	if !ready || client == nil {
+		return
+	}
+
+	d.stateManager.mu.RLock()
+	metrics := map[string]interface{}{
+		"node_id":       d.config.NodeID,
+		"node_name":     d.config.NodeName,
+		"timestamp":     time.Now().UnixMilli(),
+		"desired_count": len(d.stateManager.desired),
+		"actual_count":  len(d.stateManager.actual),
+		"drift_count":   len(d.stateManager.drifts),
+		"component":     "cuirass",
+	}
+	d.stateManager.mu.RUnlock()
+
+	payload, err := json.Marshal(metrics)
+	if err != nil {
+		d.log.Error().Err(err).Msg("Error marshaling metrics")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.Publish(ctx, TopicCuirassMetrics, payload); err != nil {
+		// Mark connection as unhealthy for reconnection
+		if err == busboyClient.ErrNotConnected || err == busboyClient.ErrSubscriptionPending {
+			d.busboyMu.Lock()
+			d.busboyReady = false
+			d.busboyMu.Unlock()
+		}
+		d.log.Error().Err(err).Msg("Error publishing metrics to Busboy")
+		return
+	}
+
+	d.log.Debug().Str("topic", TopicCuirassMetrics).Msg("Published metrics")
+}
+
+// publishDriftEvents publishes drift events to Busboy
+func (d *Daemon) publishDriftEvents(drifts []DriftReport) {
+	if len(drifts) == 0 {
+		return
+	}
+
+	d.busboyMu.RLock()
+	client := d.busboyClient
+	ready := d.busboyReady
+	d.busboyMu.RUnlock()
+
+	if !ready || client == nil {
+		d.log.Warn().Msg("Busboy not ready, skipping drift event publish")
+		return
+	}
+
+	event := map[string]interface{}{
+		"node_id":     d.config.NodeID,
+		"node_name":   d.config.NodeName,
+		"timestamp":   time.Now().UnixMilli(),
+		"drift_count": len(drifts),
+		"drifts":      drifts,
+		"component":   "cuirass",
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		d.log.Error().Err(err).Msg("Error marshaling drift events")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.Publish(ctx, TopicCuirassDrift, payload); err != nil {
+		// Mark connection as unhealthy for reconnection
+		if err == busboyClient.ErrNotConnected || err == busboyClient.ErrSubscriptionPending {
+			d.busboyMu.Lock()
+			d.busboyReady = false
+			d.busboyMu.Unlock()
+		}
+		d.log.Error().Err(err).Msg("Error publishing drift events to Busboy")
+		return
+	}
+
+	d.log.Info().Int("count", len(drifts)).Str("topic", TopicCuirassDrift).Msg("Published drift events")
 }
 
 // ============================================================================
@@ -279,19 +700,23 @@ func (d *Daemon) registerHandlers(mux *http.ServeMux) {
 func (d *Daemon) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "healthy",
+		"status":    "healthy",
 		"component": "cuirass",
-		"hollow": "crystal_grotto",
+		"hollow":    "crystal_grotto",
 	})
 }
 
 func (d *Daemon) handleReady(w http.ResponseWriter, r *http.Request) {
+	d.mu.RLock()
+	lxdReady := d.lxdClient != nil
+	d.mu.RUnlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"ready": true,
 		"services": map[string]bool{
 			"state_manager": true,
-			"lxd_client":    false, // TODO: implement
+			"lxd_client":    lxdReady,
 			"ebpf_loader":   false, // TODO: implement
 		},
 	})
@@ -356,12 +781,95 @@ func (d *Daemon) handleContainers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
-	// TODO: implement single container operations
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error": "not implemented",
-	})
+
+	// Extract container ID from URL path: /api/v1/containers/{id}
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/containers/")
+	if id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "container id is required",
+		})
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		d.stateManager.mu.RLock()
+		desired, desiredExists := d.stateManager.desired[id]
+		actual, actualExists := d.stateManager.actual[id]
+		d.stateManager.mu.RUnlock()
+
+		if !desiredExists && !actualExists {
+			d.log.Warn().Str("id", id).Msg("Container not found")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "container not found",
+			})
+			return
+		}
+
+		d.log.Info().Str("id", id).Msg("Retrieved container state")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":      id,
+			"desired": desired,
+			"actual":  actual,
+		})
+
+	case http.MethodPut:
+		var spec ContainerSpec
+		if err := json.NewDecoder(r.Body).Decode(&spec); err != nil {
+			d.log.Error().Err(err).Str("id", id).Msg("Invalid request body for container update")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": fmt.Sprintf("invalid request body: %v", err),
+			})
+			return
+		}
+
+		// Ensure the spec ID matches the URL path ID
+		spec.ID = id
+
+		d.stateManager.mu.Lock()
+		d.stateManager.desired[id] = &spec
+		d.stateManager.mu.Unlock()
+
+		d.log.Info().Str("id", id).Str("name", spec.Name).Str("image", spec.Image).Msg("Updated desired state for container")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "desired state updated",
+			"id":      id,
+			"desired": &spec,
+		})
+
+	case http.MethodDelete:
+		d.stateManager.mu.Lock()
+		_, exists := d.stateManager.desired[id]
+		if !exists {
+			d.stateManager.mu.Unlock()
+			d.log.Warn().Str("id", id).Msg("Container not found in desired state for deletion")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "container not found in desired state",
+			})
+			return
+		}
+		delete(d.stateManager.desired, id)
+		d.stateManager.mu.Unlock()
+
+		d.log.Info().Str("id", id).Msg("Removed container from desired state, reconciliation will clean up")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "container removed from desired state",
+			"id":      id,
+		})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": fmt.Sprintf("method %s not allowed", r.Method),
+		})
+	}
 }
 
 func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -420,39 +928,250 @@ func (d *Daemon) reconcile() {
 	d.stateManager.mu.Lock()
 	defer d.stateManager.mu.Unlock()
 
+	// Check if LXD client is available
+	if d.lxdClient == nil {
+		d.log.Warn().Msg("LXD client not available, skipping reconciliation")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var actions []ReconcileAction
+
 	// Compare desired vs actual and take action
 	for id, desired := range d.stateManager.desired {
 		actual, exists := d.stateManager.actual[id]
 
 		if !exists {
 			// Container should exist but doesn't - create it
-			log.Printf("📦 Container %s (%s) missing, scheduling creation", id, desired.Name)
-			// TODO: d.lxdClient.CreateContainer(desired)
+			// DRIFT TYPE: "missing"
+			d.log.Info().Str("id", id).Str("name", desired.Name).Str("image", desired.Image).Msg("Container missing, creating...")
+
+			action := ReconcileAction{
+				ContainerID: id,
+				Action:      "create",
+				Reason:      "container missing from desired state",
+				Timestamp:   time.Now(),
+			}
+
+			// Create the container
+			if err := d.lxdClient.CreateContainer(ctx, desired); err != nil {
+				d.log.Error().Err(err).Str("id", id).Msg("Failed to create container")
+				action.Success = false
+				action.Error = err.Error()
+				actions = append(actions, action)
+				continue
+			}
+
+			// Start the container after creation
+			if err := d.lxdClient.StartContainer(ctx, id); err != nil {
+				d.log.Error().Err(err).Str("id", id).Msg("Failed to start container after creation")
+				action.Success = false
+				action.Error = fmt.Sprintf("created but failed to start: %v", err)
+				actions = append(actions, action)
+				continue
+			}
+
+			d.log.Info().Str("id", id).Msg("Container created and started successfully")
+			action.Success = true
+			actions = append(actions, action)
+
+			// Update actual state with the new container
+			if state, ok := d.lxdClient.GetContainer(id); ok {
+				d.stateManager.actual[id] = state
+			}
 			continue
 		}
 
 		if actual.Status != "running" {
-			// Container should be running - start it
-			log.Printf("▶️  Container %s (%s) not running (status: %s), scheduling start", id, desired.Name, actual.Status)
-			// TODO: d.lxdClient.StartContainer(desired)
+			// Container should be running but isn't - start it
+			// DRIFT TYPE: "status"
+			d.log.Info().Str("id", id).Str("name", desired.Name).Str("current_status", actual.Status).Msg("Container not running, starting...")
+
+			action := ReconcileAction{
+				ContainerID: id,
+				Action:      "start",
+				Reason:      fmt.Sprintf("container status is '%s', expected 'running'", actual.Status),
+				Timestamp:   time.Now(),
+			}
+
+			if err := d.lxdClient.StartContainer(ctx, id); err != nil {
+				d.log.Error().Err(err).Str("id", id).Msg("Failed to start container")
+				action.Success = false
+				action.Error = err.Error()
+				actions = append(actions, action)
+				continue
+			}
+
+			d.log.Info().Str("id", id).Msg("Container started successfully")
+			action.Success = true
+			actions = append(actions, action)
+
+			// Update actual state
+			if state, ok := d.lxdClient.GetContainer(id); ok {
+				d.stateManager.actual[id] = state
+			}
 			continue
 		}
 
 		if actual.Health == "unhealthy" {
-			// Container unhealthy - restart it
-			log.Printf("🔄 Container %s (%s) unhealthy, scheduling restart", id, desired.Name)
-			// TODO: d.lxdClient.RestartContainer(desired)
+			// Container is unhealthy - restart it
+			// DRIFT TYPE: "degraded" (health degraded / config mismatch)
+			d.log.Info().Str("id", id).Str("name", desired.Name).Msg("Container unhealthy, restarting...")
+
+			action := ReconcileAction{
+				ContainerID: id,
+				Action:      "restart",
+				Reason:      "container health status is 'unhealthy'",
+				Timestamp:   time.Now(),
+			}
+
+			if err := d.lxdClient.RestartContainer(ctx, id); err != nil {
+				d.log.Error().Err(err).Str("id", id).Msg("Failed to restart container")
+				action.Success = false
+				action.Error = err.Error()
+				actions = append(actions, action)
+				continue
+			}
+
+			d.log.Info().Str("id", id).Msg("Container restarted successfully")
+			action.Success = true
+			actions = append(actions, action)
+
+			// Update actual state
+			if state, ok := d.lxdClient.GetContainer(id); ok {
+				d.stateManager.actual[id] = state
+			}
 			continue
 		}
 	}
 
 	// Check for orphaned containers (actual but not desired)
+	// DRIFT TYPE: "orphaned"
 	for id := range d.stateManager.actual {
 		if _, exists := d.stateManager.desired[id]; !exists {
-			log.Printf("🗑️  Container %s orphaned, scheduling removal", id)
-			// TODO: d.lxdClient.DeleteContainer(...)
+			d.log.Info().Str("id", id).Msg("Container orphaned, deleting...")
+
+			// Safety check: only delete if container is not in desired state
+			// This is an important safety measure to prevent accidental deletion
+			action := ReconcileAction{
+				ContainerID: id,
+				Action:      "delete",
+				Reason:      "container exists but is not in desired state (orphaned)",
+				Timestamp:   time.Now(),
+			}
+
+			// Perform safety check - confirm it's really not in desired state
+			// We need to release and re-acquire the lock for the safety check
+			d.stateManager.mu.Unlock()
+			d.stateManager.mu.RLock()
+			if _, stillDesired := d.stateManager.desired[id]; stillDesired {
+				d.log.Warn().Str("id", id).Msg("Safety check failed: container appeared in desired state during delete")
+				d.stateManager.mu.RUnlock()
+				d.stateManager.mu.Lock()
+				action.Success = false
+				action.Error = "safety check failed: container appeared in desired state"
+				actions = append(actions, action)
+				continue
+			}
+			d.stateManager.mu.RUnlock()
+			d.stateManager.mu.Lock()
+
+			// Delete the orphaned container (force=true to handle any state)
+			if err := d.lxdClient.DeleteContainer(ctx, id, true); err != nil {
+				d.log.Error().Err(err).Str("id", id).Msg("Failed to delete orphaned container")
+				action.Success = false
+				action.Error = err.Error()
+				actions = append(actions, action)
+				continue
+			}
+
+			d.log.Info().Str("id", id).Msg("Orphaned container deleted successfully")
+			action.Success = true
+			actions = append(actions, action)
+
+			// Remove from actual state
+			delete(d.stateManager.actual, id)
 		}
 	}
+
+	// Sync actual state from LXD client to ensure consistency
+	d.syncActualStateFromLXD()
+
+	// Publish reconciliation events if any actions were taken
+	if len(actions) > 0 {
+		go d.publishReconcileEvents(actions)
+	}
+}
+
+// syncActualStateFromLXD updates the actual state from the LXD client
+func (d *Daemon) syncActualStateFromLXD() {
+	if d.lxdClient == nil {
+		return
+	}
+
+	containers := d.lxdClient.ListContainers()
+	for id, state := range containers {
+		d.stateManager.actual[id] = state
+	}
+}
+
+// publishReconcileEvents publishes reconciliation action events to Busboy
+func (d *Daemon) publishReconcileEvents(actions []ReconcileAction) {
+	d.busboyMu.RLock()
+	client := d.busboyClient
+	ready := d.busboyReady
+	d.busboyMu.RUnlock()
+
+	if !ready || client == nil {
+		return
+	}
+
+	// Count successful and failed actions
+	successCount := 0
+	failedCount := 0
+	for _, a := range actions {
+		if a.Success {
+			successCount++
+		} else {
+			failedCount++
+		}
+	}
+
+	event := map[string]interface{}{
+		"node_id":       d.config.NodeID,
+		"node_name":     d.config.NodeName,
+		"timestamp":     time.Now().UnixMilli(),
+		"action_count":  len(actions),
+		"success_count": successCount,
+		"failed_count":  failedCount,
+		"actions":       actions,
+		"component":     "cuirass",
+		"event_type":    "reconcile",
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		d.log.Error().Err(err).Msg("Error marshaling reconcile events")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Publish reconcile events to drift topic (related to state changes)
+	if err := client.Publish(ctx, TopicCuirassDrift, payload); err != nil {
+		if err == busboyClient.ErrNotConnected || err == busboyClient.ErrSubscriptionPending {
+			d.busboyMu.Lock()
+			d.busboyReady = false
+			d.busboyMu.Unlock()
+		}
+		d.log.Error().Err(err).Msg("Error publishing reconcile events to Busboy")
+		return
+	}
+
+	d.log.Info().Int("total", len(actions)).Int("success", successCount).Int("failed", failedCount).Str("topic", TopicCuirassDrift).Msg("Published reconcile actions")
 }
 
 // ============================================================================
@@ -479,9 +1198,12 @@ func (d *Daemon) detectDrift() {
 	d.stateManager.mu.Lock()
 	defer d.stateManager.mu.Unlock()
 
+	// Sync actual state from LXD before detecting drift
+	d.syncActualStateFromLXD()
+
 	drifts := make([]DriftReport, 0)
 
-	// Check for missing containers
+	// Check for missing containers (desired but not actual)
 	for id := range d.stateManager.desired {
 		if _, exists := d.stateManager.actual[id]; !exists {
 			drifts = append(drifts, DriftReport{
@@ -493,7 +1215,7 @@ func (d *Daemon) detectDrift() {
 		}
 	}
 
-	// Check for orphaned containers
+	// Check for orphaned containers (actual but not desired)
 	for id := range d.stateManager.actual {
 		if _, exists := d.stateManager.desired[id]; !exists {
 			drifts = append(drifts, DriftReport{
@@ -505,7 +1227,7 @@ func (d *Daemon) detectDrift() {
 		}
 	}
 
-	// Check for status drift
+	// Check for status drift (container exists but not running)
 	for id, actual := range d.stateManager.actual {
 		if _, exists := d.stateManager.desired[id]; exists {
 			if actual.Status != "running" {
@@ -516,12 +1238,22 @@ func (d *Daemon) detectDrift() {
 					DetectedAt:  time.Now(),
 				})
 			}
+			// Check for health degradation
+			if actual.Health == "unhealthy" {
+				drifts = append(drifts, DriftReport{
+					ContainerID: id,
+					DriftType:   "degraded",
+					Severity:    "medium",
+					DetectedAt:  time.Now(),
+				})
+			}
 		}
 	}
 
 	if len(drifts) > 0 {
-		log.Printf("🔍 Detected %d drift(s)", len(drifts))
-		// TODO: Publish to Busboy
+		d.log.Info().Int("count", len(drifts)).Msg("Detected drifts")
+		// Publish drift events to Busboy
+		go d.publishDriftEvents(drifts)
 	}
 
 	d.stateManager.drifts = drifts
@@ -531,7 +1263,21 @@ func (d *Daemon) detectDrift() {
 // HELPERS
 // ============================================================================
 
+// yamlConfig represents the YAML file structure for daemon configuration.
+// Fields map to the inline Config struct used by the daemon.
+type yamlConfig struct {
+	NodeID       string `yaml:"node_id"`
+	NodeName     string `yaml:"node_name"`
+	HTTPAddr     string `yaml:"http_addr"`
+	GRPCAddr     string `yaml:"grpc_addr"`
+	LXDSocket    string `yaml:"lxd_socket"`
+	BusboyAddr   string `yaml:"busboy_addr"`
+	PollInterval string `yaml:"poll_interval"`
+	LogLevel     string `yaml:"log_level"`
+}
+
 func loadConfig(path string) *Config {
+	// Start with defaults from environment variables
 	cfg := &Config{
 		NodeID:       getEnvOrDefault("UNHEADED_NODE_ID", fmt.Sprintf("citadel-%s", getHostname())),
 		NodeName:     getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
@@ -543,9 +1289,51 @@ func loadConfig(path string) *Config {
 		LogLevel:     getEnvOrDefault("LOG_LEVEL", "info"),
 	}
 
-	// TODO: Load from file if path provided
+	// Load from YAML file if path provided, overriding defaults
 	if path != "" {
-		log.Printf("📁 Loading config from %s (not yet implemented)", path)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading config file %s: %v\n", path, err)
+			os.Exit(1)
+		}
+
+		var yc yamlConfig
+		if err := yaml.Unmarshal(data, &yc); err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing config file %s: %v\n", path, err)
+			os.Exit(1)
+		}
+
+		// Apply non-empty values from YAML, overriding env/defaults
+		if yc.NodeID != "" {
+			cfg.NodeID = yc.NodeID
+		}
+		if yc.NodeName != "" {
+			cfg.NodeName = yc.NodeName
+		}
+		if yc.HTTPAddr != "" {
+			cfg.HTTPAddr = yc.HTTPAddr
+		}
+		if yc.GRPCAddr != "" {
+			cfg.GRPCAddr = yc.GRPCAddr
+		}
+		if yc.LXDSocket != "" {
+			cfg.LXDSocket = yc.LXDSocket
+		}
+		if yc.BusboyAddr != "" {
+			cfg.BusboyAddr = yc.BusboyAddr
+		}
+		if yc.LogLevel != "" {
+			cfg.LogLevel = yc.LogLevel
+		}
+		if yc.PollInterval != "" {
+			if d, err := time.ParseDuration(yc.PollInterval); err == nil {
+				cfg.PollInterval = d
+			} else {
+				fmt.Fprintf(os.Stderr, "Warning: invalid poll_interval %q in config, using default\n", yc.PollInterval)
+			}
+		}
+
+		fmt.Printf("Loaded config from %s\n", path)
 	}
 
 	return cfg

@@ -53,14 +53,14 @@ func (t *Task) Validate() error {
 	if t.Title == "" {
 		return ErrEmptyTitle
 	}
+	if t.Owner == "" {
+		return ErrEmptyOwner
+	}
 	if t.Priority < 1 || t.Priority > 5 {
 		return ErrInvalidPriority
 	}
 	if !isValidStatus(t.Status) {
 		return ErrInvalidStatus
-	}
-	if t.Owner == "" {
-		return ErrEmptyOwner
 	}
 	return nil
 }

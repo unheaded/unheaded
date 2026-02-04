@@ -26,6 +26,9 @@ type Config struct {
 
 	// MaxCacheSize is the maximum cache size in bytes
 	MaxCacheSize int64 `json:"max_cache_size"`
+
+	// SkipDirectoryInit skips directory creation (for testing)
+	SkipDirectoryInit bool `json:"skip_directory_init,omitempty"`
 }
 
 // DefaultConfig returns default image configuration.
@@ -95,10 +98,12 @@ func NewManager(config *Config) (*Manager, error) {
 		config = DefaultConfig()
 	}
 
-	// Ensure directories exist
-	for _, dir := range []string{config.StoragePath, config.CachePath} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, fmt.Errorf("creating directory %s: %w", dir, err)
+	// Ensure directories exist (unless skipped for testing)
+	if !config.SkipDirectoryInit {
+		for _, dir := range []string{config.StoragePath, config.CachePath} {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return nil, fmt.Errorf("creating directory %s: %w", dir, err)
+			}
 		}
 	}
 
@@ -110,9 +115,11 @@ func NewManager(config *Config) (*Manager, error) {
 		nixosBuilder: nixosBuilder,
 	}
 
-	// Load existing images
-	if err := manager.loadImages(); err != nil {
-		return nil, fmt.Errorf("loading images: %w", err)
+	// Load existing images (skip if directory init was skipped)
+	if !config.SkipDirectoryInit {
+		if err := manager.loadImages(); err != nil {
+			return nil, fmt.Errorf("loading images: %w", err)
+		}
 	}
 
 	return manager, nil

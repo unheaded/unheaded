@@ -107,6 +107,9 @@ type Config struct {
 
 	// Strict mode enables additional checks
 	StrictMode bool
+
+	// SkipDefaultRules skips loading default rules (useful for testing)
+	SkipDefaultRules bool
 }
 
 // DefaultConfig returns the default WAF configuration
@@ -293,8 +296,10 @@ func NewShield(config *Config) *Shield {
 	shield.engine.SetBlockThreshold(config.BlockThreshold)
 	shield.engine.SetLogThreshold(config.LogThreshold)
 
-	// Load default rules
-	shield.loadDefaultRules()
+	// Load default rules unless explicitly skipped
+	if !config.SkipDefaultRules {
+		shield.loadDefaultRules()
+	}
 
 	return shield
 }
@@ -365,7 +370,7 @@ func (s *Shield) loadDefaultRules() {
 		}
 	}
 
-	// RCE rules
+	// RCE rules - target query, body, and path only (not headers, to avoid false positives)
 	rcePatterns := []struct {
 		id      string
 		name    string
@@ -378,7 +383,9 @@ func (s *Shield) loadDefaultRules() {
 	}
 
 	for _, p := range rcePatterns {
-		rule, err := rules.NewRule(p.id, p.name, p.pattern, []rules.Target{rules.TargetAll}, rules.ActionBlock, rules.SeverityCritical)
+		// RCE patterns should not target headers as they can cause false positives
+		// on Accept headers with quality values (e.g., "text/html;q=0.9")
+		rule, err := rules.NewRule(p.id, p.name, p.pattern, []rules.Target{rules.TargetQuery, rules.TargetBody, rules.TargetPath}, rules.ActionBlock, rules.SeverityCritical)
 		if err == nil {
 			rule.Message = "Remote code execution attempt detected"
 			defaultRules.AddRule(rule)

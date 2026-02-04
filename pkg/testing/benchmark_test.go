@@ -210,6 +210,8 @@ func TestThroughputMeterBatch(t *testing.T) {
 	meter.Start()
 	meter.RecordOps(100)
 	meter.RecordBytes(1024 * 100)
+	// Ensure measurable time passes to avoid flaky test when duration is 0
+	time.Sleep(time.Millisecond)
 	meter.Stop()
 
 	// Just verify no panic and some output

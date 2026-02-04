@@ -103,14 +103,14 @@ func TestMemoryStore_List(t *testing.T) {
 	ms := store.NewMemoryStore(store.MemoryStoreConfig{})
 	defer ms.Close()
 
-	secrets := []string{
+	secretPaths := []string{
 		"prod/db/password",
 		"prod/db/username",
 		"prod/api/key",
 		"staging/db/password",
 	}
 
-	for _, path := range secrets {
+	for _, path := range secretPaths {
 		secret := &secrets.Secret{
 			Path: path,
 			Type: secrets.SecretTypeStatic,

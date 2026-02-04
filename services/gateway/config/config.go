@@ -9,14 +9,25 @@ import (
 
 // Config holds all gateway configuration.
 type Config struct {
-	Server    ServerConfig    `json:"server"`
-	Routes    []RouteConfig   `json:"routes"`
-	RateLimit RateLimitConfig `json:"rate_limit"`
-	Auth      AuthConfig      `json:"auth"`
-	CORS      CORSConfig      `json:"cors"`
-	Circuit   CircuitConfig   `json:"circuit"`
-	Busboy    BusboyConfig    `json:"busboy"`
-	Metrics   MetricsConfig   `json:"metrics"`
+	Server        ServerConfig        `json:"server"`
+	Routes        []RouteConfig       `json:"routes"`
+	RateLimit     RateLimitConfig     `json:"rate_limit"`
+	Auth          AuthConfig          `json:"auth"`
+	CORS          CORSConfig          `json:"cors"`
+	Circuit       CircuitConfig       `json:"circuit"`
+	Busboy        BusboyConfig        `json:"busboy"`
+	Metrics       MetricsConfig       `json:"metrics"`
+	AlphaServices AlphaServicesConfig `json:"alpha_services"`
+}
+
+// AlphaServicesConfig holds configuration for Alpha platform services.
+type AlphaServicesConfig struct {
+	TimeGuruHost     string `json:"timeguru_host"`
+	CaptainHost      string `json:"captain_host"`
+	ArchitectHost    string `json:"architect_host"`
+	MicromanagerHost string `json:"micromanager_host"`
+	MonadHost        string `json:"monad_host"`
+	SophiaHost       string `json:"sophia_host"`
 }
 
 // ServerConfig holds server-specific settings.
@@ -148,6 +159,14 @@ func DefaultConfig() *Config {
 			Enabled: true,
 			Path:    "/metrics",
 		},
+		AlphaServices: AlphaServicesConfig{
+			TimeGuruHost:     "timeguru:8000",
+			CaptainHost:      "captain:8001",
+			ArchitectHost:    "architect:8002",
+			MicromanagerHost: "micromanager:8003",
+			MonadHost:        "monad:8004",
+			SophiaHost:       "sophia:8005",
+		},
 	}
 }
 
@@ -194,12 +213,91 @@ func LoadFromEnv() *Config {
 		cfg.Server.TLSKeyFile = tlsKey
 	}
 
+	// CORS configuration
+	if origins := os.Getenv("GATEWAY_CORS_ORIGINS"); origins != "" {
+		cfg.CORS.AllowedOrigins = splitAndTrim(origins, ",")
+	}
+
+	if corsEnabled := os.Getenv("GATEWAY_CORS_ENABLED"); corsEnabled == "false" {
+		cfg.CORS.Enabled = false
+	}
+
+	// Tracing service name
+	if serviceName := os.Getenv("GATEWAY_SERVICE_NAME"); serviceName != "" {
+		cfg.Busboy.ServiceName = serviceName
+	}
+
+	// Alpha Services host configuration
+	if host := os.Getenv("TIMEGURU_HOST"); host != "" {
+		cfg.AlphaServices.TimeGuruHost = host
+	}
+	if host := os.Getenv("CAPTAIN_HOST"); host != "" {
+		cfg.AlphaServices.CaptainHost = host
+	}
+	if host := os.Getenv("ARCHITECT_HOST"); host != "" {
+		cfg.AlphaServices.ArchitectHost = host
+	}
+	if host := os.Getenv("MICROMANAGER_HOST"); host != "" {
+		cfg.AlphaServices.MicromanagerHost = host
+	}
+	if host := os.Getenv("MONAD_HOST"); host != "" {
+		cfg.AlphaServices.MonadHost = host
+	}
+	if host := os.Getenv("SOPHIA_HOST"); host != "" {
+		cfg.AlphaServices.SophiaHost = host
+	}
+
 	return cfg
+}
+
+// splitAndTrim splits a string by delimiter and trims whitespace from each part.
+func splitAndTrim(s, delim string) []string {
+	parts := make([]string, 0)
+	for _, p := range splitString(s, delim) {
+		trimmed := trimSpace(p)
+		if trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
+}
+
+// splitString splits a string by a single-character delimiter.
+func splitString(s, delim string) []string {
+	if len(delim) == 0 {
+		return []string{s}
+	}
+	d := delim[0]
+	var result []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == d {
+			result = append(result, s[start:i])
+			start = i + 1
+		}
+	}
+	result = append(result, s[start:])
+	return result
+}
+
+// trimSpace removes leading and trailing whitespace from a string.
+func trimSpace(s string) string {
+	start := 0
+	end := len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
+		end--
+	}
+	return s[start:end]
 }
 
 // Validate validates the configuration.
 func (c *Config) Validate() error {
-	if c.Server.HTTPPort <= 0 || c.Server.HTTPPort > 65535 {
+	// Port 0 is valid - it tells the OS to assign any available port (useful for tests).
+	// Only reject negative ports or ports greater than 65535.
+	if c.Server.HTTPPort < 0 || c.Server.HTTPPort > 65535 {
 		return &ConfigError{Field: "server.http_port", Message: "invalid port number"}
 	}
 
