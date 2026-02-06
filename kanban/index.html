@@ -3,44 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unheaded Alpha - Built by Unheaded 🔄</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Unheaded Alpha - Built by Unheaded</title>
     <link rel="stylesheet" href="/css/kanban.css">
     <meta name="description" content="Unheaded Alpha Kanban Dashboard - Tracking our own development with our own tools">
-    <meta name="theme-color" content="#0a0a0f">
+    <meta name="theme-color" content="#1a1a2e">
 </head>
 <body>
-    <canvas id="particle-canvas"></canvas>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
 
-    <header>
-        <h1>🔄 Unheaded Alpha - Built by Unheaded</h1>
-        <div class="live-indicator">
+    <div class="ws-reconnect-banner" id="ws-reconnect-banner" role="alert" aria-live="assertive" aria-atomic="true">
+        <span class="reconnect-spinner" aria-hidden="true"></span>
+        <span class="reconnect-text">Reconnecting to server...</span>
+        <button class="reconnect-retry-btn" id="reconnect-retry-btn" aria-label="Retry connection now">Retry</button>
+    </div>
+
+    <canvas id="particle-canvas" aria-hidden="true"></canvas>
+
+    <header role="banner">
+        <h1><span aria-hidden="true">🔄</span> Unheaded Alpha - Built by Unheaded</h1>
+        <div class="live-indicator" role="status" aria-label="Live connection status">
             <span>Live</span>
         </div>
     </header>
 
-    <main>
-        <div id="kanban-board">
-            <div class="column" id="todo">
+    <main id="main-content" role="main">
+        <div id="kanban-board" role="region" aria-label="Kanban task board">
+            <div class="column" id="todo" role="region" aria-label="Todo tasks">
                 <h2>TODO</h2>
-                <div class="cards"></div>
+                <div class="cards" role="list" aria-label="Todo task cards"></div>
             </div>
-            <div class="column" id="in-progress">
+            <div class="column" id="in-progress" role="region" aria-label="In progress tasks">
                 <h2>IN PROGRESS</h2>
-                <div class="cards"></div>
+                <div class="cards" role="list" aria-label="In progress task cards"></div>
             </div>
-            <div class="column" id="done">
+            <div class="column" id="done" role="region" aria-label="Done tasks">
                 <h2>DONE</h2>
-                <div class="cards"></div>
+                <div class="cards" role="list" aria-label="Done task cards"></div>
             </div>
         </div>
     </main>
 
-    <footer>
+    <footer role="contentinfo">
         <p>The meta moment: tracking Unheaded's progress with Unheaded</p>
-        <p class="version">v0.1.0-alpha • Phase 1</p>
+        <p class="version">v0.1.0-alpha &bull; Phase 1</p>
     </footer>
 
     <!-- Task Detail Modal -->

@@ -4,10 +4,13 @@ package architect
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	busboyClient "unheaded/pkg/busboy-client"
 )
 
 // Common errors
@@ -119,9 +122,11 @@ type NetworkTopology struct {
 
 // ArchitectService provides infrastructure and design tracking
 type ArchitectService struct {
-	infra   *InfrastructureState
-	network *NetworkTopology
-	mu      sync.RWMutex
+	infra        *InfrastructureState
+	network      *NetworkTopology
+	busboy       *busboyClient.Client
+	alertChannel chan *busboyClient.Message
+	mu           sync.RWMutex
 }
 
 // New creates a new ArchitectService
@@ -134,7 +139,122 @@ func New() *ArchitectService {
 		network: &NetworkTopology{
 			Nodes: make(map[string]*NetworkNode),
 		},
+		alertChannel: make(chan *busboyClient.Message, 100),
 	}
+}
+
+// NewWithBusboy creates a new ArchitectService with Busboy integration
+func NewWithBusboy(busboy *busboyClient.Client) *ArchitectService {
+	return &ArchitectService{
+		infra: &InfrastructureState{
+			Services:  make(map[string]*Service),
+			Decisions: make([]ArchitectureDecision, 0),
+		},
+		network: &NetworkTopology{
+			Nodes: make(map[string]*NetworkNode),
+		},
+		busboy:       busboy,
+		alertChannel: make(chan *busboyClient.Message, 100),
+	}
+}
+
+// SetBusboy sets the Busboy client for the service
+func (s *ArchitectService) SetBusboy(busboy *busboyClient.Client) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.busboy = busboy
+}
+
+// Start initializes Busboy subscriptions and starts listening for alerts
+func (s *ArchitectService) Start(ctx context.Context) error {
+	if s.busboy == nil {
+		return nil // Busboy not configured, skip
+	}
+
+	// Subscribe to alerts.critical (required by CLAUDE.md)
+	if _, err := s.busboy.Subscribe(ctx, "alerts.critical", "architect-service"); err != nil {
+		return fmt.Errorf("subscribe to alerts.critical: %w", err)
+	}
+
+	// Subscribe to architecture.updates for own topic
+	if _, err := s.busboy.Subscribe(ctx, "architecture.updates", "architect-service"); err != nil {
+		return fmt.Errorf("subscribe to architecture.updates: %w", err)
+	}
+
+	// Start alert listener
+	go s.listenForAlerts(ctx)
+
+	return nil
+}
+
+// listenForAlerts listens for critical alerts from Busboy
+func (s *ArchitectService) listenForAlerts(ctx context.Context) {
+	if s.busboy == nil {
+		return
+	}
+
+	msgCh, err := s.busboy.StreamMessages(ctx, "alerts.critical")
+	if err != nil {
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-msgCh:
+			if !ok {
+				return
+			}
+			// Handle critical alerts - could trigger infrastructure state changes
+			s.handleCriticalAlert(ctx, msg)
+		}
+	}
+}
+
+// handleCriticalAlert processes critical alerts
+func (s *ArchitectService) handleCriticalAlert(ctx context.Context, msg *busboyClient.Message) {
+	if msg == nil {
+		return
+	}
+	// Log and potentially update infrastructure state based on alert
+	// For now, just acknowledge receipt
+	_ = ctx
+}
+
+// publishStateChange publishes a state change event to Busboy
+func (s *ArchitectService) publishStateChange(ctx context.Context, eventType string, data interface{}) {
+	if s.busboy == nil {
+		return
+	}
+
+	// Extract trace_id from context if available
+	traceID := ""
+	if tid := ctx.Value("trace_id"); tid != nil {
+		traceID = tid.(string)
+	}
+	if traceID == "" {
+		traceID = fmt.Sprintf("arch-%d", time.Now().UnixNano())
+	}
+
+	event := map[string]interface{}{
+		"event_type": eventType,
+		"service":    "architect",
+		"data":       data,
+		"timestamp":  time.Now().UnixMilli(),
+		"trace_id":   traceID,
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+
+	// Use a short timeout for publishing
+	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	_ = s.busboy.Publish(pubCtx, "architecture.updates", payload)
 }
 
 // ============================================================================
@@ -160,6 +280,14 @@ func (s *ArchitectService) AddService(ctx context.Context, service *Service) err
 	service.CreatedAt = time.Now()
 	service.UpdatedAt = time.Now()
 	s.infra.Services[service.ServiceID] = service
+
+	// Publish state change to Busboy
+	go s.publishStateChange(ctx, "service.added", map[string]interface{}{
+		"service_id": service.ServiceID,
+		"name":       service.Name,
+		"type":       service.Type,
+		"status":     service.Status,
+	})
 
 	return nil
 }
@@ -260,6 +388,14 @@ func (s *ArchitectService) AddNetworkNode(ctx context.Context, node *NetworkNode
 	node.UpdatedAt = time.Now()
 	s.network.Nodes[node.NodeID] = node
 
+	// Publish state change to Busboy
+	go s.publishStateChange(ctx, "network.node_added", map[string]interface{}{
+		"node_id": node.NodeID,
+		"name":    node.Name,
+		"type":    node.Type,
+		"cidr":    node.CIDR,
+	})
+
 	return nil
 }
 
@@ -356,6 +492,14 @@ func (s *ArchitectService) LogDecision(ctx context.Context, decision *Architectu
 	decision.CreatedAt = time.Now()
 	decision.UpdatedAt = time.Now()
 	s.infra.Decisions = append(s.infra.Decisions, *decision)
+
+	// Publish state change to Busboy
+	go s.publishStateChange(ctx, "decision.logged", map[string]interface{}{
+		"decision_id": decision.DecisionID,
+		"title":       decision.Title,
+		"component":   decision.Component,
+		"status":      decision.Status,
+	})
 
 	return nil
 }

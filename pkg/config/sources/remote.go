@@ -200,7 +200,9 @@ func (rs *RemoteSource) doFetch() (map[string]any, error) {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	// SECURITY: Enforce body size limit (10MB) to prevent denial-of-service
+	// from a malicious or misconfigured remote config source.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 	if err != nil {
 		return nil, fmt.Errorf("read body: %w", err)
 	}
@@ -432,7 +434,8 @@ func (h *HTTPPollingSource) fetch() (map[string]any, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	// SECURITY: Enforce body size limit (10MB) to prevent denial-of-service
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 	if err != nil {
 		return nil, fmt.Errorf("read body: %w", err)
 	}

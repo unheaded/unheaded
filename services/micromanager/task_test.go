@@ -305,3 +305,98 @@ func TestUpdatePriority_NilTask(t *testing.T) {
 		t.Errorf("UpdatePriority(nil) = %v, want %v", err, ErrNilTask)
 	}
 }
+
+// TestString returns human-readable representation
+func TestString(t *testing.T) {
+	task := NewTask("task-42", "Deploy service", "alice")
+	s := task.String()
+	if s == "" {
+		t.Fatal("String() returned empty string")
+	}
+	// Should contain key fields
+	if !containsSubstring(s, "task-42") {
+		t.Errorf("String() = %s, should contain task ID", s)
+	}
+	if !containsSubstring(s, "Deploy service") {
+		t.Errorf("String() = %s, should contain title", s)
+	}
+	if !containsSubstring(s, string(StatusPending)) {
+		t.Errorf("String() = %s, should contain status", s)
+	}
+	if !containsSubstring(s, "alice") {
+		t.Errorf("String() = %s, should contain owner", s)
+	}
+}
+
+// TestString_NilTask returns "<nil>" for nil receiver
+func TestString_NilTask(t *testing.T) {
+	var task *Task
+	s := task.String()
+	if s != "<nil>" {
+		t.Errorf("String(nil) = %s, want <nil>", s)
+	}
+}
+
+// TestUpdateStatus_ToBlocked sets status to blocked
+func TestUpdateStatus_ToBlocked(t *testing.T) {
+	task := NewTask("task-1", "Test", "owner")
+	err := task.UpdateStatus(StatusBlocked)
+	if err != nil {
+		t.Fatalf("UpdateStatus(blocked) = %v, want nil", err)
+	}
+	if task.Status != StatusBlocked {
+		t.Errorf("Status = %s, want %s", task.Status, StatusBlocked)
+	}
+	// CompletedAt should NOT be set for blocked status
+	if task.CompletedAt != nil {
+		t.Error("CompletedAt should be nil for blocked status")
+	}
+}
+
+// TestUpdateStatus_NonCompletedDoesNotSetCompletedAt verifies CompletedAt stays nil
+func TestUpdateStatus_NonCompletedDoesNotSetCompletedAt(t *testing.T) {
+	task := NewTask("task-1", "Test", "owner")
+	for _, status := range []TaskStatus{StatusPending, StatusInProgress, StatusBlocked} {
+		err := task.UpdateStatus(status)
+		if err != nil {
+			t.Fatalf("UpdateStatus(%s) = %v, want nil", status, err)
+		}
+		if task.CompletedAt != nil {
+			t.Errorf("CompletedAt should be nil after status %s", status)
+		}
+	}
+}
+
+// TestNewTask_DefaultFields verifies all defaults
+func TestNewTask_DefaultFields(t *testing.T) {
+	task := NewTask("id-1", "Title", "owner")
+	if task.Description != "" {
+		t.Errorf("Description = %s, want empty", task.Description)
+	}
+	if task.Assignee != "" {
+		t.Errorf("Assignee = %s, want empty", task.Assignee)
+	}
+	if task.CompletedAt != nil {
+		t.Error("CompletedAt should be nil")
+	}
+	if task.DueDate != nil {
+		t.Error("DueDate should be nil")
+	}
+	if task.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be set")
+	}
+}
+
+// containsSubstring is a helper
+func containsSubstring(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsHelper(s, sub))
+}
+
+func containsHelper(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}

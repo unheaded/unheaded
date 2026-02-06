@@ -193,6 +193,9 @@ type Service struct {
 	queryHandlers    map[string]QueryHandler
 	mutationHandlers map[string]MutationHandler
 	effectHandlers   map[string]EffectHandler
+
+	// Alert handling
+	alertsCh chan *busboyClient.Message
 }
 
 // QueryHandler processes read-only queries.
@@ -235,7 +238,82 @@ func NewService(log *logger.Logger, busboy *busboyClient.Client) *Service {
 		queryHandlers:    make(map[string]QueryHandler),
 		mutationHandlers: make(map[string]MutationHandler),
 		effectHandlers:   make(map[string]EffectHandler),
+		alertsCh:         make(chan *busboyClient.Message, 100),
 	}
+}
+
+// Start initializes Busboy subscriptions and starts listening for alerts
+func (s *Service) Start(ctx context.Context) error {
+	if s.busboy == nil {
+		s.log.Info().Msg("Busboy not configured, skipping subscriptions")
+		return nil
+	}
+
+	// Subscribe to alerts.critical (required by CLAUDE.md)
+	if _, err := s.busboy.Subscribe(ctx, "alerts.critical", "monad-service"); err != nil {
+		s.log.Warn().Err(err).Msg("failed to subscribe to alerts.critical")
+	} else {
+		s.log.Info().Msg("subscribed to alerts.critical")
+	}
+
+	// Subscribe to monad.operations for own topic
+	if _, err := s.busboy.Subscribe(ctx, "monad.operations", "monad-service"); err != nil {
+		s.log.Warn().Err(err).Msg("failed to subscribe to monad.operations")
+	} else {
+		s.log.Info().Msg("subscribed to monad.operations")
+	}
+
+	// Start alert listener
+	go s.listenForAlerts(ctx)
+
+	return nil
+}
+
+// Stop gracefully shuts down the service
+func (s *Service) Stop() error {
+	s.log.Info().Msg("monad service stopping")
+	close(s.alertsCh)
+	return nil
+}
+
+// listenForAlerts listens for critical alerts from Busboy
+func (s *Service) listenForAlerts(ctx context.Context) {
+	if s.busboy == nil {
+		return
+	}
+
+	msgCh, err := s.busboy.StreamMessages(ctx, "alerts.critical")
+	if err != nil {
+		s.log.Warn().Err(err).Msg("failed to stream alerts.critical")
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-msgCh:
+			if !ok {
+				return
+			}
+			s.handleCriticalAlert(ctx, msg)
+		}
+	}
+}
+
+// handleCriticalAlert processes critical alerts
+func (s *Service) handleCriticalAlert(ctx context.Context, msg *busboyClient.Message) {
+	if msg == nil {
+		return
+	}
+
+	s.log.Warn().
+		Str("message_id", msg.MessageID).
+		Str("topic", msg.Topic).
+		Msg("received critical alert")
+
+	// Could trigger operation cancellation or state rollback based on alert
+	_ = ctx
 }
 
 // RegisterQuery registers a query handler.
@@ -315,8 +393,13 @@ func (s *Service) Mutate(ctx context.Context, name string, input interface{}) Re
 	op.Output = result
 	op.Status = OpStatusCompleted
 
-	// Publish event to Busboy
+	// Publish operation event to Busboy
 	s.publishOperationEvent(ctx, op)
+
+	// Publish state changes if any
+	if len(changes) > 0 {
+		go s.publishStateChange(ctx, "monad.state.changed", changes)
+	}
 
 	return Ok(result)
 }
@@ -494,6 +577,15 @@ func (s *Service) publishOperationEvent(ctx context.Context, op *Operation) {
 		return
 	}
 
+	// Extract trace_id from context or generate one
+	traceID := ""
+	if tid := ctx.Value("trace_id"); tid != nil {
+		traceID = tid.(string)
+	}
+	if traceID == "" {
+		traceID = fmt.Sprintf("monad-%d", time.Now().UnixNano())
+	}
+
 	event := map[string]interface{}{
 		"event_type": "monad.operation.completed",
 		"op_id":      op.ID,
@@ -501,7 +593,9 @@ func (s *Service) publishOperationEvent(ctx context.Context, op *Operation) {
 		"type":       op.Type,
 		"status":     op.Status,
 		"duration":   op.Duration.Milliseconds(),
-		"timestamp":  time.Now().Unix(),
+		"timestamp":  time.Now().UnixMilli(),
+		"trace_id":   traceID,
+		"service":    "monad",
 	}
 
 	payload, err := json.Marshal(event)
@@ -510,8 +604,49 @@ func (s *Service) publishOperationEvent(ctx context.Context, op *Operation) {
 		return
 	}
 
-	if err := s.busboy.Publish(ctx, "monad.operations", payload); err != nil {
+	// Use a timeout for publishing
+	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := s.busboy.Publish(pubCtx, "monad.operations", payload); err != nil {
 		s.log.Warn().Err(err).Msg("Failed to publish operation event")
+	}
+}
+
+// publishStateChange publishes state changes to Busboy with trace_id
+func (s *Service) publishStateChange(ctx context.Context, eventType string, changes []StateChange) {
+	if s.busboy == nil {
+		return
+	}
+
+	// Extract trace_id from context or generate one
+	traceID := ""
+	if tid := ctx.Value("trace_id"); tid != nil {
+		traceID = tid.(string)
+	}
+	if traceID == "" {
+		traceID = fmt.Sprintf("monad-%d", time.Now().UnixNano())
+	}
+
+	event := map[string]interface{}{
+		"event_type": eventType,
+		"service":    "monad",
+		"changes":    changes,
+		"timestamp":  time.Now().UnixMilli(),
+		"trace_id":   traceID,
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		s.log.Warn().Err(err).Msg("Failed to marshal state change event")
+		return
+	}
+
+	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := s.busboy.Publish(pubCtx, "monad.operations", payload); err != nil {
+		s.log.Warn().Err(err).Msg("Failed to publish state change event")
 	}
 }
 

@@ -83,6 +83,7 @@ type Gateway struct {
 	healthMgr     *healthManager
 	mu            sync.RWMutex
 	running       bool
+	alertCancel   context.CancelFunc // for cancelling alert listener
 }
 
 // New creates a new Gateway instance.
@@ -218,6 +219,31 @@ func (g *Gateway) Start(ctx context.Context) error {
 	g.running = true
 	g.mu.Unlock()
 
+	// Subscribe to alerts.critical (required by CLAUDE.md)
+	if g.busboy != nil {
+		subCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if _, err := g.busboy.Subscribe(subCtx, "alerts.critical", "gateway-service"); err != nil {
+			g.log.Warn().Str("error", err.Error()).Msg("failed to subscribe to alerts.critical")
+		} else {
+			g.log.Info().Msg("subscribed to alerts.critical")
+		}
+		cancel()
+
+		// Subscribe to gateway.events for own topic
+		subCtx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+		if _, err := g.busboy.Subscribe(subCtx2, g.cfg.Busboy.Topic, "gateway-service"); err != nil {
+			g.log.Warn().Str("error", err.Error()).Msg("failed to subscribe to gateway topic")
+		} else {
+			g.log.Info().Str("topic", g.cfg.Busboy.Topic).Msg("subscribed to gateway topic")
+		}
+		cancel2()
+
+		// Start alert listener
+		alertCtx, alertCancel := context.WithCancel(context.Background())
+		g.alertCancel = alertCancel
+		go g.listenForAlerts(alertCtx)
+	}
+
 	// Build handler
 	handler := g.buildHandler()
 
@@ -228,9 +254,11 @@ func (g *Gateway) Start(ctx context.Context) error {
 	mux.HandleFunc("/health", g.healthHandler)
 	mux.HandleFunc("/health/live", g.livenessHandler)
 	mux.HandleFunc("/health/ready", g.readinessHandler)
+	mux.HandleFunc("/ready", g.readinessHandler) // Standard /ready endpoint (required by CLAUDE.md)
 
-	// Metrics endpoint
-	if g.cfg.Metrics.Enabled {
+	// Metrics endpoint - always register /metrics (required by CLAUDE.md)
+	mux.HandleFunc("/metrics", g.metricsHandler)
+	if g.cfg.Metrics.Enabled && g.cfg.Metrics.Path != "" && g.cfg.Metrics.Path != "/metrics" {
 		mux.HandleFunc(g.cfg.Metrics.Path, g.metricsHandler)
 	}
 
@@ -298,6 +326,11 @@ func (g *Gateway) Shutdown() error {
 
 	g.log.Info().Msg("Shutting down API Gateway")
 
+	// Cancel alert listener
+	if g.alertCancel != nil {
+		g.alertCancel()
+	}
+
 	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), g.cfg.Server.ShutdownTimeout)
 	defer cancel()
@@ -324,6 +357,47 @@ func (g *Gateway) Shutdown() error {
 
 	g.log.Info().Msg("API Gateway shutdown complete")
 	return nil
+}
+
+// listenForAlerts listens for critical alerts from Busboy
+func (g *Gateway) listenForAlerts(ctx context.Context) {
+	if g.busboy == nil {
+		return
+	}
+
+	msgCh, err := g.busboy.StreamMessages(ctx, "alerts.critical")
+	if err != nil {
+		g.log.Warn().Str("error", err.Error()).Msg("failed to stream alerts.critical")
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-msgCh:
+			if !ok {
+				return
+			}
+			g.handleCriticalAlert(ctx, msg)
+		}
+	}
+}
+
+// handleCriticalAlert processes critical alerts
+func (g *Gateway) handleCriticalAlert(ctx context.Context, msg *busboyClient.Message) {
+	if msg == nil {
+		return
+	}
+
+	g.log.Warn().
+		Str("message_id", msg.MessageID).
+		Str("topic", msg.Topic).
+		Msg("received critical alert - gateway monitoring")
+
+	// Gateway can respond to alerts by potentially updating route health status
+	// or triggering circuit breakers
+	_ = ctx
 }
 
 // healthHandler handles health check requests.

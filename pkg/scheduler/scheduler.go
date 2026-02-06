@@ -212,6 +212,7 @@ type Scheduler struct {
 
 	mu         sync.RWMutex
 	workloads  map[string]*Workload
+	scheduleMu sync.Mutex // serializes filter-select-bind in scheduleWorkload
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -406,6 +407,10 @@ func (s *Scheduler) Cancel(workloadID string) error {
 
 // scheduleWorkload attempts to schedule a single workload.
 func (s *Scheduler) scheduleWorkload(workload *Workload) *SchedulingResult {
+	// Serialize filter-select-bind to prevent races on node resource fields
+	s.scheduleMu.Lock()
+	defer s.scheduleMu.Unlock()
+
 	start := time.Now()
 	result := &SchedulingResult{
 		Workload: workload,
@@ -467,8 +472,8 @@ func (s *Scheduler) filterNodes(workload *Workload, nodes []*Node) []*Node {
 	var feasible []*Node
 
 	for _, node := range nodes {
-		// Check if node has sufficient resources
-		if !workload.Resources.Requests.FitsIn(node.Available) {
+		// Check if node has sufficient resources (thread-safe read)
+		if !workload.Resources.Requests.FitsIn(node.GetAvailable()) {
 			continue
 		}
 

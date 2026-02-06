@@ -591,16 +591,24 @@ func (h *APIHandler) handleListBackends(w http.ResponseWriter, r *http.Request) 
 
 func (h *APIHandler) handleAddBackend(w http.ResponseWriter, r *http.Request) {
 	var config BackendConfig
-	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+	// SECURITY: Enforce body size limit to prevent denial-of-service
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&config); err != nil {
+		// SECURITY: Use json.Encode for error messages to prevent JSON injection
+		// via crafted error strings (e.g., containing quotes).
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
 	if err := h.balancer.AddBackend(config); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"status": "created"})
 }
@@ -608,9 +616,13 @@ func (h *APIHandler) handleAddBackend(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) handleRemoveBackend(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Path[13:] // Remove "/api/backends/" prefix
 	if err := h.balancer.RemoveBackend(name); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusNotFound)
+		// SECURITY: Use json.Encode for error messages to prevent JSON injection
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "removed"})
 }
 

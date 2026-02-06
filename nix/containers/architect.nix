@@ -1,12 +1,56 @@
 # NixOS container definition for architect service
 # Includes hardening, security policies, and Busboy integration
+#
+# Refactored: Imports shared hardening, common, and networking modules
+# to ensure all required security properties are applied consistently.
 { config, pkgs, ... }:
 
 {
-  # System configuration
-  system.stateVersion = "23.11";
+  # ===========================================================================
+  # SHARED MODULE IMPORTS
+  # ===========================================================================
+  # All containers MUST import these modules for consistent hardening.
+  # ===========================================================================
+  imports = [
+    ../modules/common.nix
+    ../modules/hardening.nix
+    ../modules/networking.nix
+  ];
 
-  # Networking
+  # ===========================================================================
+  # HARDENING CONFIGURATION
+  # ===========================================================================
+  unheaded.hardening = {
+    enable = true;
+    serviceName = "architect";
+    allowedCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+    writablePaths = [
+      "/var/lib/architect"
+      "/var/log/architect"
+    ];
+    allowedPorts = [ 8001 9090 9100 ];
+  };
+
+  # ===========================================================================
+  # NETWORKING CONFIGURATION
+  # ===========================================================================
+  unheaded.networking = {
+    enable = true;
+    serviceIP = "10.10.10.23";
+    servicePort = 8001;
+    allowDirectAccess = true;
+  };
+
+  # ===========================================================================
+  # COMMON CONFIGURATION
+  # ===========================================================================
+  unheaded.common = {
+    enable = true;
+    logLevel = "info";
+    enableMetrics = true;
+  };
+
+  # Networking - default-deny firewall
   networking.firewall.enable = true;
   networking.firewall.allowedTCPPorts = [ 8001 9090 ];
   networking.firewall.extraCommands = ''
@@ -20,8 +64,9 @@
   systemd.services.architect = {
     description = "Architect - Infrastructure Design Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
+    after = [ "network-online.target" "busboy.service" ];
     wants = [ "network-online.target" ];
+    requires = [ "busboy.service" ];
 
     serviceConfig = {
       # Execution
@@ -39,7 +84,7 @@
       PrivateTmp = true;
       ProtectSystem = "strict";
       ProtectHome = true;
-      ReadOnlyPaths = [ "/etc" "/usr" ];
+      ReadOnlyPaths = [ "/" ];
       ReadWritePaths = [
         "/var/lib/architect"
         "/var/log/architect"
@@ -48,20 +93,33 @@
       # Security - Process isolation
       PrivateDevices = true;
       ProtectKernelTunables = true;
-      ProtectControlGroups = true;
+      ProtectKernelModules = true;
       ProtectKernelLogs = true;
+      ProtectControlGroups = true;
       ProtectClock = true;
       RestrictRealtime = true;
       RestrictNamespaces = true;
+      RestrictSUIDSGID = true;
+      RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
       LockPersonality = true;
       MemoryDenyWriteExecute = true;
-      RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+      PrivateUsers = true;
+      RemoveIPC = true;
+
+      # Seccomp - block dangerous syscalls (full set per CLAUDE.md)
       SystemCallFilter = [
         "@system-service"
         "~@privileged"
         "~@resources"
+        "~@obsolete"
+        "~@debug"
+        "~@mount"
+        "~@reboot"
+        "~@swap"
+        "~@module"
         "~@raw-io"
       ];
+      SystemCallArchitectures = "native";
       SystemCallErrorNumber = "EPERM";
 
       # User/group
@@ -71,12 +129,18 @@
       # Resource limits
       CPUQuota = "100%";
       MemoryMax = "512M";
-      TasksMax = 4096;
+      TasksMax = 512;
+      LimitNOFILE = 65536;
+      LimitNPROC = 512;
 
       # Logging
       StandardOutput = "journal";
       StandardError = "journal";
       SyslogIdentifier = "architect";
+
+      # Graceful shutdown
+      KillSignal = "SIGTERM";
+      TimeoutStopSec = "10s";
     };
 
     # Environment variables

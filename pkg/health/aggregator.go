@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os/exec"
@@ -1558,7 +1559,8 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		}
 
 		var check HealthCheck
-		if err := json.NewDecoder(r.Body).Decode(&check); err != nil {
+		// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&check); err != nil {
 			http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
 			return
 		}

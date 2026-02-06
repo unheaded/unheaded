@@ -279,6 +279,9 @@
         } catch (err) {
             console.error('Failed to save task:', err);
 
+            // User-friendly error message
+            var friendlyMsg = getFriendlyErrorMessage(err);
+
             // Optimistic local update on network failure
             Object.assign(currentTask, updatedData);
             if (window.KanbanBoard && window.KanbanBoard.updateCard) {
@@ -289,7 +292,7 @@
             showViewMode();
 
             if (window.KanbanBoard && window.KanbanBoard.showToast) {
-                window.KanbanBoard.showToast('Saved locally (API unavailable)', 'info');
+                window.KanbanBoard.showToast('Saved locally. ' + friendlyMsg, 'warning');
             }
         } finally {
             saveBtn.disabled = false;
