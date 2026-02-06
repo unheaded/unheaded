@@ -145,6 +145,7 @@ func main() {
 	// Start busboy message listener if connected
 	if busboy != nil {
 		go listenForMessages(ctx, busboy)
+		go listenForAlerts(ctx, busboy)
 	}
 
 	// Wait for shutdown signal
@@ -306,10 +307,18 @@ func initBusboy(addr string) (*busboyClient.Client, error) {
 		return nil, fmt.Errorf("create client: %w", err)
 	}
 
-	// Subscribe to timeline updates topic
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Subscribe to alerts.critical (required by CLAUDE.md)
+	alertSub, err := client.Subscribe(ctx, "alerts.critical", busboyDisplayName)
+	if err != nil {
+		log.Printf("[timeguru] WARNING: failed to subscribe to alerts.critical: %v", err)
+	} else {
+		log.Printf("[timeguru] Subscribed to alerts.critical (status: %s)", alertSub.Status)
+	}
+
+	// Subscribe to timeline updates topic
 	subscriber, err := client.Subscribe(ctx, busboyTopic, busboyDisplayName)
 	if err != nil {
 		client.Close()
@@ -321,13 +330,16 @@ func initBusboy(addr string) (*busboyClient.Client, error) {
 	return client, nil
 }
 
-// publishTimelineUpdate publishes an update event to Busboy
+// publishTimelineUpdate publishes an update event to Busboy with trace_id
 func publishTimelineUpdate(client *busboyClient.Client, eventType string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	payload := fmt.Sprintf(`{"event":"%s","timestamp":"%s","source":"timeguru"}`,
-		eventType, time.Now().Format(time.RFC3339))
+	// Generate trace_id for this event
+	traceID := fmt.Sprintf("timeguru-%d", time.Now().UnixNano())
+
+	payload := fmt.Sprintf(`{"event":"%s","timestamp":"%s","timestamp_ms":%d,"source":"timeguru","service":"timeguru","trace_id":"%s"}`,
+		eventType, time.Now().Format(time.RFC3339), time.Now().UnixMilli(), traceID)
 
 	err := client.Publish(ctx, busboyTopic, []byte(payload))
 	if err != nil {
@@ -335,7 +347,7 @@ func publishTimelineUpdate(client *busboyClient.Client, eventType string) {
 		return
 	}
 
-	log.Printf("[timeguru] Published event: %s", eventType)
+	log.Printf("[timeguru] Published event: %s (trace_id: %s)", eventType, traceID)
 }
 
 // listenForMessages listens for busboy messages
@@ -361,6 +373,33 @@ func listenForMessages(ctx context.Context, client *busboyClient.Client) {
 			}
 			log.Printf("[timeguru] Received message: %s (seq=%d)", msg.MessageID, msg.Seq)
 			// TODO: Process timeline update events from other services
+		}
+	}
+}
+
+// listenForAlerts listens for critical alerts from Busboy
+func listenForAlerts(ctx context.Context, client *busboyClient.Client) {
+	log.Println("[timeguru] Listening for critical alerts")
+
+	msgCh, err := client.StreamMessages(ctx, "alerts.critical")
+	if err != nil {
+		log.Printf("[timeguru] Failed to stream alerts: %v", err)
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("[timeguru] Alert listener stopped")
+			return
+		case msg, ok := <-msgCh:
+			if !ok {
+				log.Println("[timeguru] Alert channel closed")
+				return
+			}
+			log.Printf("[timeguru] CRITICAL ALERT received: %s (seq=%d) - payload: %s",
+				msg.MessageID, msg.Seq, msg.Payload)
+			// Could update timeline status or create milestone markers for critical events
 		}
 	}
 }

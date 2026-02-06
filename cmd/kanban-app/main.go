@@ -199,6 +199,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/ws", s.handleWebSocket) // WebSocket endpoint
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
 	mux.HandleFunc("/health", s.handleHealth)
+	mux.HandleFunc("/ready", s.handleReady)
+	mux.HandleFunc("/metrics", s.handleMetrics)
 
 	// Timeline API endpoints - THE META MOMENT
 	mux.HandleFunc("/api/v1/timeline", s.handleTimeline)
@@ -676,6 +678,62 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"busboy_enabled":      s.taskManager != nil,
 		"timeline_subscribed": timelineSubscribed,
 	})
+}
+
+// handleReady returns readiness status
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	ready := true
+	reason := "ready"
+
+	// Check if TaskManager is available and connected
+	if s.taskManager == nil {
+		ready = false
+		reason = "task manager not initialized"
+	}
+
+	if !ready {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"ready":   ready,
+		"reason":  reason,
+		"service": "kanban-app",
+	})
+}
+
+// handleMetrics returns Prometheus-style metrics
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+
+	s.sseMu.RLock()
+	sseClients := len(s.sseClients)
+	s.sseMu.RUnlock()
+
+	taskCount := 0
+	if s.taskManager != nil {
+		taskCount = len(s.taskManager.GetAllTasks())
+	} else {
+		s.tasksMu.RLock()
+		taskCount = len(s.tasks)
+		s.tasksMu.RUnlock()
+	}
+
+	fmt.Fprintf(w, "# HELP kanban_tasks_total Total tasks\n")
+	fmt.Fprintf(w, "# TYPE kanban_tasks_total gauge\n")
+	fmt.Fprintf(w, "kanban_tasks_total %d\n", taskCount)
+	fmt.Fprintf(w, "# HELP kanban_sse_clients_active Active SSE client connections\n")
+	fmt.Fprintf(w, "# TYPE kanban_sse_clients_active gauge\n")
+	fmt.Fprintf(w, "kanban_sse_clients_active %d\n", sseClients)
+	fmt.Fprintf(w, "# HELP kanban_busboy_enabled Whether Busboy integration is enabled\n")
+	fmt.Fprintf(w, "# TYPE kanban_busboy_enabled gauge\n")
+	if s.taskManager != nil {
+		fmt.Fprintf(w, "kanban_busboy_enabled 1\n")
+	} else {
+		fmt.Fprintf(w, "kanban_busboy_enabled 0\n")
+	}
 }
 
 // handleTimeline returns the current timeline data

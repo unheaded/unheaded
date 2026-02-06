@@ -34,7 +34,7 @@ ARG BUILD_TIME=unknown
 # Build all services
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/busboy ./services/busboy/cmd/busboy
+    -o /build/bin/busboy ./cmd/busboy
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \

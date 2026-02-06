@@ -7,11 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
 	"unheaded/pkg/audit"
 )
+
+// splunkSafeQuery matches safe Splunk search query characters.
+// SECURITY: Prevents Splunk search injection via malicious query parameters.
+var splunkSafeQuery = regexp.MustCompile(`^[a-zA-Z0-9_.*=<>!| "'\-:/@]+$`)
 
 // SplunkConfig holds configuration for Splunk HEC integration.
 type SplunkConfig struct {
@@ -331,6 +336,12 @@ func NewSplunkSearchClient(baseURL, username, password string) *SplunkSearchClie
 
 // SearchAuditEvents searches for audit events in Splunk.
 func (c *SplunkSearchClient) SearchAuditEvents(ctx context.Context, query string, earliest, latest time.Time) ([]map[string]interface{}, error) {
+	// SECURITY: Validate the query parameter to prevent Splunk search injection.
+	// Reject queries containing pipe characters or other special Splunk operators
+	// that could allow an attacker to execute arbitrary Splunk commands.
+	if !splunkSafeQuery.MatchString(query) {
+		return nil, fmt.Errorf("query contains invalid characters")
+	}
 	searchQuery := fmt.Sprintf(`search index=audit %s | spath | table *`, query)
 
 	// This is a simplified search - production would use async search jobs

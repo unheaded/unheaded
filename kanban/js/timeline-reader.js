@@ -158,18 +158,60 @@
     // Fetch tasks via REST
     async function fetchTasks() {
         try {
-            const response = await fetch(`${config.apiBase}/timeline/tasks`);
+            var response = await fetch(config.apiBase + '/timeline/tasks');
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                throw new Error('HTTP ' + response.status);
             }
 
-            const data = await response.json();
+            var data = await response.json();
             window.KanbanBoard.render(data.tasks || []);
 
         } catch (err) {
             console.error('Failed to fetch tasks:', err);
-            window.KanbanBoard.updateConnectionStatus('disconnected', 'Connection error');
+            var friendlyMsg = getFriendlyErrorMessage(err);
+            window.KanbanBoard.updateConnectionStatus('disconnected', friendlyMsg);
+
+            // Show error state in columns if no tasks loaded yet
+            var tasks = window.KanbanBoard.getTasks ? window.KanbanBoard.getTasks() : [];
+            if (tasks.length === 0) {
+                showFetchError(friendlyMsg);
+            }
+        }
+    }
+
+    // Convert raw errors to user-friendly messages
+    function getFriendlyErrorMessage(error) {
+        var msg = error.message || String(error);
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            return 'Cannot reach the server. Check your connection.';
+        }
+        if (msg.includes('HTTP 500') || msg.includes('HTTP 502') || msg.includes('HTTP 503')) {
+            return 'Server is temporarily unavailable.';
+        }
+        if (msg.includes('HTTP 401') || msg.includes('HTTP 403')) {
+            return 'Authentication error.';
+        }
+        if (msg.includes('HTTP 404')) {
+            return 'Task endpoint not found.';
+        }
+        if (msg.includes('timeout') || msg.includes('Timeout')) {
+            return 'Server response timed out.';
+        }
+        return 'Connection error';
+    }
+
+    // Show error state in the board columns
+    function showFetchError(message) {
+        var columns = document.querySelectorAll('.column .cards');
+        if (columns.length > 0) {
+            // Only show in first column to avoid repetition
+            columns[0].innerHTML = '<div class="error-state">' +
+                '<div class="error-state-icon" aria-hidden="true">&#x26A0;</div>' +
+                '<div class="error-state-title">Unable to load tasks</div>' +
+                '<div class="error-state-message">' + message + '</div>' +
+                '<button class="error-state-action" onclick="window.TimelineReader.fetchTasks()" aria-label="Retry loading tasks">Retry</button>' +
+            '</div>';
         }
     }
 
@@ -198,14 +240,31 @@
         fetchTasks
     };
 
+    // Wire up reconnect banner retry button
+    function wireReconnectBanner() {
+        var retryBtn = document.getElementById('reconnect-retry-btn');
+        if (retryBtn && !retryBtn._kanbanBound) {
+            retryBtn._kanbanBound = true;
+            retryBtn.addEventListener('click', function() {
+                reconnect();
+            });
+        }
+    }
+
     // Auto-init after board is ready
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', function() {
             // Wait for board to initialize
-            setTimeout(init, 100);
+            setTimeout(function() {
+                wireReconnectBanner();
+                init();
+            }, 100);
         });
     } else {
-        setTimeout(init, 100);
+        setTimeout(function() {
+            wireReconnectBanner();
+            init();
+        }, 100);
     }
 
     console.log('timeline-reader.js loaded');

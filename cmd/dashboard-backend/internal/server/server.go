@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -623,7 +624,8 @@ func (s *Server) handleMetricsQuery(w http.ResponseWriter, r *http.Request) {
 		SinceDuration string          `json:"since_duration"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&query); err != nil {
 		http.Error(w, fmt.Sprintf("invalid request: %v", err), http.StatusBadRequest)
 		return
 	}

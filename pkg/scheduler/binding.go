@@ -65,12 +65,7 @@ func (b *Binder) Bind(workload *Workload, node *Node) error {
 		return fmt.Errorf("node %s is not ready", node.ID)
 	}
 
-	// Check resources
-	if !workload.Resources.Requests.FitsIn(n.Available) {
-		return ErrInsufficientResources
-	}
-
-	// Allocate resources on node
+	// Allocate resources on node (Allocate does its own locking and checks)
 	if err := n.Allocate(workload.Resources.Requests); err != nil {
 		return err
 	}

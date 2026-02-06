@@ -1,1 +1,1 @@
-/Users/govan/tmp/timeline.md
+../docs/history/timeline.md

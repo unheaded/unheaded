@@ -29,18 +29,21 @@ const PacketFlowViz = (function() {
         maxPackets: 100,
         animationFPS: 60,
 
-        // Colors
+        // Colors (Kingdom theme)
         colors: {
-            background: '#0a0a0a',
-            connectionLine: 'rgba(255, 215, 0, 0.15)',
-            connectionLineActive: 'rgba(255, 215, 0, 0.4)',
-            nodeStroke: 'rgba(255, 255, 255, 0.3)',
+            background: '#0f0f1a',
+            connectionLine: 'rgba(255, 215, 0, 0.12)',
+            connectionLineActive: 'rgba(255, 215, 0, 0.45)',
+            nodeStroke: 'rgba(255, 215, 0, 0.3)',
+            nodeFill: '#16213e',
+            nodeGlow: 'rgba(255, 215, 0, 0.2)',
             labelColor: '#e0e0e0',
             traceIdColor: '#ffd700',
             latencyColor: '#4ecdc4',
             errorPacket: '#ff4757',
             successPacket: '#00d26a',
-            warningPacket: '#ff9800'
+            warningPacket: '#ff9800',
+            gridColor: 'rgba(255, 215, 0, 0.03)'
         },
 
         // Service node definitions
@@ -156,21 +159,27 @@ const PacketFlowViz = (function() {
         const indicator = document.createElement('div');
         indicator.id = 'packet-flow-status';
         indicator.className = 'packet-flow-status disconnected';
-        indicator.innerHTML = '<span class="status-dot"></span><span class="status-text">Disconnected</span>';
+        indicator.setAttribute('role', 'status');
+        indicator.setAttribute('aria-live', 'polite');
+        indicator.setAttribute('aria-label', 'WebSocket status: disconnected');
+        indicator.innerHTML = '<span class="status-dot" aria-hidden="true"></span><span class="status-text">Disconnected</span>';
         indicator.style.cssText = `
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 12px;
+            right: 12px;
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 6px 12px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 4px;
-            font-size: 12px;
+            padding: 8px 14px;
+            background: rgba(22, 33, 62, 0.92);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            border-radius: 6px;
+            font-size: 11px;
             color: #e0e0e0;
-            font-family: 'Courier New', monospace;
+            font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
             z-index: 10;
+            backdrop-filter: blur(8px);
+            transition: all 0.25s ease;
         `;
         container.style.position = 'relative';
         container.appendChild(indicator);
@@ -183,19 +192,27 @@ const PacketFlowViz = (function() {
                 height: 8px;
                 border-radius: 50%;
                 background: #ff4757;
-                transition: background 0.3s;
+                transition: all 0.3s ease;
             }
             .packet-flow-status.connected .status-dot {
                 background: #00d26a;
-                box-shadow: 0 0 8px #00d26a;
+                box-shadow: 0 0 10px #00d26a;
             }
             .packet-flow-status.connecting .status-dot {
                 background: #ffd700;
-                animation: pulse 1s infinite;
+                animation: pf-pulse 1s infinite;
             }
-            @keyframes pulse {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.5; }
+            .packet-flow-status.disconnected .status-dot {
+                background: #ff4757;
+                box-shadow: 0 0 8px rgba(255, 71, 87, 0.5);
+            }
+            .packet-flow-status:hover {
+                border-color: rgba(255, 215, 0, 0.4);
+                box-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
+            }
+            @keyframes pf-pulse {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.5; transform: scale(1.1); }
             }
         `;
         document.head.appendChild(style);
@@ -204,31 +221,35 @@ const PacketFlowViz = (function() {
     function createStatsPanel(container) {
         const panel = document.createElement('div');
         panel.id = 'packet-flow-stats';
+        panel.setAttribute('role', 'region');
+        panel.setAttribute('aria-label', 'Packet flow statistics');
         panel.innerHTML = `
-            <div class="stat-item">
+            <div class="stat-item" role="group" aria-label="Total packets">
                 <span class="stat-label">Packets</span>
-                <span class="stat-value" id="pf-stat-packets">0</span>
+                <span class="stat-value" id="pf-stat-packets" aria-live="polite">0</span>
             </div>
-            <div class="stat-item">
+            <div class="stat-item" role="group" aria-label="Average latency">
                 <span class="stat-label">Avg Latency</span>
-                <span class="stat-value" id="pf-stat-latency">0ms</span>
+                <span class="stat-value" id="pf-stat-latency" aria-live="polite">0ms</span>
             </div>
-            <div class="stat-item">
+            <div class="stat-item" role="group" aria-label="Error rate percentage">
                 <span class="stat-label">Error Rate</span>
-                <span class="stat-value" id="pf-stat-errors">0%</span>
+                <span class="stat-value" id="pf-stat-errors" aria-live="polite">0%</span>
             </div>
         `;
         panel.style.cssText = `
             position: absolute;
-            bottom: 10px;
-            left: 10px;
+            bottom: 12px;
+            left: 12px;
             display: flex;
-            gap: 20px;
-            padding: 10px 15px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
+            gap: 24px;
+            padding: 12px 18px;
+            background: rgba(22, 33, 62, 0.92);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            border-radius: 6px;
+            font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
             z-index: 10;
+            backdrop-filter: blur(8px);
         `;
         container.appendChild(panel);
 
@@ -239,16 +260,23 @@ const PacketFlowViz = (function() {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
+                gap: 4px;
             }
             #packet-flow-stats .stat-label {
-                font-size: 10px;
-                color: #888;
+                font-size: 9px;
+                color: #6b6b7b;
                 text-transform: uppercase;
+                letter-spacing: 0.05em;
             }
             #packet-flow-stats .stat-value {
-                font-size: 16px;
+                font-size: 18px;
                 color: #ffd700;
-                font-weight: bold;
+                font-weight: 600;
+                text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+                transition: all 0.2s ease;
+            }
+            #packet-flow-stats .stat-value:hover {
+                text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
             }
         `;
         document.head.appendChild(style);
@@ -333,7 +361,12 @@ const PacketFlowViz = (function() {
                 // Heartbeat response
                 break;
             case 'error':
-                console.error('[PacketFlow] Server error:', message.data);
+                // Show user-friendly error, not raw server data
+                var friendlyMsg = formatServerError(message.data);
+                console.error('[PacketFlow] Server error:', friendlyMsg);
+                if (window.showToast) {
+                    window.showToast(friendlyMsg, 'error');
+                }
                 break;
             default:
                 // Handle other message types
@@ -342,6 +375,21 @@ const PacketFlowViz = (function() {
                     handlePacketFlow(message);
                 }
         }
+    }
+
+    // Convert server error data to user-friendly message
+    function formatServerError(data) {
+        if (!data) return 'An unknown server error occurred.';
+        if (typeof data === 'string') {
+            if (data.includes('rate limit')) return 'Too many requests. Please wait a moment.';
+            if (data.includes('unauthorized') || data.includes('forbidden')) return 'Authentication error. Please refresh the page.';
+            if (data.includes('not found')) return 'The requested resource was not found.';
+            return 'Server error: ' + data.substring(0, 100);
+        }
+        if (typeof data === 'object') {
+            return data.message || data.error || 'An unexpected server error occurred.';
+        }
+        return 'An unexpected error occurred.';
     }
 
     function handlePacketFlow(flow) {
@@ -487,13 +535,17 @@ const PacketFlowViz = (function() {
 
     function updateConnectionStatus(status) {
         const indicator = document.getElementById('packet-flow-status');
-        if (!indicator) return;
-
-        indicator.className = 'packet-flow-status ' + status;
-        const textEl = indicator.querySelector('.status-text');
-        if (textEl) {
-            textEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        if (indicator) {
+            indicator.className = 'packet-flow-status ' + status;
+            indicator.setAttribute('aria-label', 'WebSocket status: ' + status);
+            const textEl = indicator.querySelector('.status-text');
+            if (textEl) {
+                textEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            }
         }
+
+        // Update the reconnection banner
+        updateReconnectBanner(status);
 
         // Notify callbacks
         state.statusCallbacks.forEach(callback => {
@@ -503,6 +555,52 @@ const PacketFlowViz = (function() {
                 console.error('[PacketFlow] Status callback error:', e);
             }
         });
+    }
+
+    // Manage the top reconnection banner
+    function updateReconnectBanner(status) {
+        var banner = document.getElementById('ws-reconnect-banner');
+        if (!banner) return;
+
+        var textEl = banner.querySelector('.reconnect-text');
+        var retryBtn = banner.querySelector('#reconnect-retry-btn');
+
+        if (status === 'connected') {
+            banner.classList.remove('visible', 'error');
+            return;
+        }
+
+        if (status === 'connecting') {
+            banner.classList.add('visible');
+            banner.classList.remove('error');
+            if (textEl) {
+                if (state.reconnectAttempts > 0) {
+                    textEl.textContent = 'Reconnecting to server (attempt ' + state.reconnectAttempts + ')...';
+                } else {
+                    textEl.textContent = 'Connecting to server...';
+                }
+            }
+            return;
+        }
+
+        if (status === 'disconnected') {
+            banner.classList.add('visible');
+            if (state.reconnectAttempts >= 5) {
+                banner.classList.add('error');
+                if (textEl) textEl.textContent = 'Connection lost. Check network or server status.';
+            } else {
+                banner.classList.remove('error');
+                if (textEl) textEl.textContent = 'Disconnected from server. Attempting to reconnect...';
+            }
+        }
+
+        // Wire up retry button
+        if (retryBtn && !retryBtn._bound) {
+            retryBtn._bound = true;
+            retryBtn.addEventListener('click', function() {
+                reconnect();
+            });
+        }
     }
 
     // ========================================================================
@@ -622,11 +720,12 @@ const PacketFlowViz = (function() {
     }
 
     function drawGrid(ctx, width, height) {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.strokeStyle = CONFIG.colors.gridColor;
         ctx.lineWidth = 1;
 
         const gridSize = 40;
 
+        // Draw vertical lines
         for (let x = 0; x < width; x += gridSize) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
@@ -634,12 +733,22 @@ const PacketFlowViz = (function() {
             ctx.stroke();
         }
 
+        // Draw horizontal lines
         for (let y = 0; y < height; y += gridSize) {
             ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(width, y);
             ctx.stroke();
         }
+
+        // Draw subtle radial gradient overlay from center
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, Math.max(width, height) / 2);
+        gradient.addColorStop(0, 'rgba(255, 215, 0, 0.02)');
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
     }
 
     function drawConnections(ctx, width, height) {
@@ -708,43 +817,69 @@ const PacketFlowViz = (function() {
             const y = service.y * height;
             const radius = CONFIG.nodeRadius;
 
-            // Draw glow
-            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 2);
-            gradient.addColorStop(0, service.color + '40');
-            gradient.addColorStop(1, 'transparent');
-            ctx.fillStyle = gradient;
+            // Draw outer glow
+            const outerGlow = ctx.createRadialGradient(x, y, 0, x, y, radius * 2.5);
+            outerGlow.addColorStop(0, service.color + '25');
+            outerGlow.addColorStop(0.5, service.color + '10');
+            outerGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = outerGlow;
             ctx.beginPath();
-            ctx.arc(x, y, radius * 2, 0, Math.PI * 2);
+            ctx.arc(x, y, radius * 2.5, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw node background
-            ctx.fillStyle = 'rgba(10, 10, 10, 0.8)';
+            // Draw node background (Kingdom dark)
+            ctx.fillStyle = CONFIG.colors.nodeFill;
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw node border
+            // Draw node border with glow effect
             ctx.strokeStyle = service.color;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = service.color;
+            ctx.shadowBlur = 12;
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
             ctx.stroke();
+            ctx.shadowBlur = 0;
 
-            // Draw inner glow
-            const innerGradient = ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius);
-            innerGradient.addColorStop(0, service.color + '30');
+            // Draw inner highlight
+            const innerGradient = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, 0, x, y, radius);
+            innerGradient.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
             innerGradient.addColorStop(1, 'transparent');
             ctx.fillStyle = innerGradient;
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw label
-            ctx.fillStyle = CONFIG.colors.labelColor;
-            ctx.font = '12px "Courier New", monospace';
+            // Draw service icon/initial
+            ctx.fillStyle = service.color;
+            ctx.font = 'bold 14px -apple-system, sans-serif';
             ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-            ctx.fillText(service.name, x, y + CONFIG.nodeLabelOffset);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(service.name.charAt(0).toUpperCase(), x, y);
+
+            // Draw label with background
+            const labelY = y + CONFIG.nodeLabelOffset;
+            ctx.font = '11px "SF Mono", monospace';
+            const labelWidth = ctx.measureText(service.name).width + 12;
+
+            // Label background
+            ctx.fillStyle = 'rgba(15, 15, 26, 0.85)';
+            ctx.beginPath();
+            ctx.roundRect(x - labelWidth / 2, labelY - 8, labelWidth, 18, 4);
+            ctx.fill();
+
+            // Label border
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Label text
+            ctx.fillStyle = CONFIG.colors.labelColor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(service.name, x, labelY + 1);
         });
     }
 
@@ -799,24 +934,50 @@ const PacketFlowViz = (function() {
         const activePacket = state.packets[state.packets.length - 1];
         if (!activePacket) return;
 
-        const infoX = 10;
-        const infoY = 10;
+        const infoX = 12;
+        const infoY = 12;
+        const infoWidth = 220;
+        const infoHeight = 70;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(infoX, infoY, 200, 60);
+        // Draw info panel background with Kingdom styling
+        ctx.fillStyle = 'rgba(22, 33, 62, 0.92)';
+        ctx.beginPath();
+        ctx.roundRect(infoX, infoY, infoWidth, infoHeight, 6);
+        ctx.fill();
 
-        ctx.fillStyle = CONFIG.colors.labelColor;
-        ctx.font = '10px "Courier New", monospace';
+        // Draw border
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Draw top accent line
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.6)';
+        ctx.fillRect(infoX, infoY, infoWidth, 2);
+
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
 
-        ctx.fillText('Trace: ' + activePacket.traceId.slice(0, 20), infoX + 5, infoY + 5);
+        // Trace ID
+        ctx.fillStyle = CONFIG.colors.traceIdColor;
+        ctx.font = '10px "SF Mono", monospace';
+        ctx.fillText('TRACE ' + activePacket.traceId.slice(0, 16), infoX + 8, infoY + 10);
+
+        // Latency
         ctx.fillStyle = CONFIG.colors.latencyColor;
-        ctx.fillText('Latency: ' + activePacket.latency + 'ms', infoX + 5, infoY + 20);
-        ctx.fillStyle = activePacket.statusCode < 400 ? CONFIG.colors.successPacket : CONFIG.colors.errorPacket;
-        ctx.fillText('Status: ' + activePacket.statusCode, infoX + 5, infoY + 35);
+        ctx.fillText(activePacket.latency + 'ms', infoX + 8, infoY + 26);
+
+        // Status code with color
+        const statusColor = activePacket.statusCode < 300 ? CONFIG.colors.successPacket :
+                           activePacket.statusCode < 400 ? CONFIG.colors.warningPacket :
+                           CONFIG.colors.errorPacket;
+        ctx.fillStyle = statusColor;
+        ctx.fillText(activePacket.statusCode, infoX + 70, infoY + 26);
+
+        // Method and path
         ctx.fillStyle = CONFIG.colors.labelColor;
-        ctx.fillText(activePacket.method + ' ' + activePacket.path, infoX + 5, infoY + 50);
+        ctx.font = '9px "SF Mono", monospace';
+        const pathText = (activePacket.method + ' ' + activePacket.path).slice(0, 32);
+        ctx.fillText(pathText, infoX + 8, infoY + 44);
     }
 
     function getPacketPosition(packet) {
