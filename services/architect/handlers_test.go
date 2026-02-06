@@ -90,6 +90,7 @@ func TestHTTPHandler_AddService_Success(t *testing.T) {
 	body, _ := json.Marshal(svc)
 
 	req, _ := http.NewRequest("POST", "/infrastructure/services", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	handler.AddService(rr, req)
@@ -111,6 +112,7 @@ func TestHTTPHandler_AddService_InvalidJSON(t *testing.T) {
 
 	body := bytes.NewReader([]byte("{invalid json}"))
 	req, _ := http.NewRequest("POST", "/infrastructure/services", body)
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	handler.AddService(rr, req)
@@ -128,6 +130,7 @@ func TestHTTPHandler_AddService_InvalidService(t *testing.T) {
 	body, _ := json.Marshal(svc)
 
 	req, _ := http.NewRequest("POST", "/infrastructure/services", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	handler.AddService(rr, req)
@@ -197,6 +200,7 @@ func TestHTTPHandler_AddNetworkNode_Success(t *testing.T) {
 	body, _ := json.Marshal(node)
 
 	req, _ := http.NewRequest("POST", "/network/nodes", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	handler.AddNetworkNode(rr, req)
@@ -221,6 +225,7 @@ func TestHTTPHandler_AddNetworkNode_InvalidNode(t *testing.T) {
 	body, _ := json.Marshal(node)
 
 	req, _ := http.NewRequest("POST", "/network/nodes", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	handler.AddNetworkNode(rr, req)
@@ -241,6 +246,7 @@ func TestHTTPHandler_LogDesign_Success(t *testing.T) {
 	body, _ := json.Marshal(decision)
 
 	req, _ := http.NewRequest("POST", "/design", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	handler.LogDesign(rr, req)
@@ -265,6 +271,7 @@ func TestHTTPHandler_LogDesign_InvalidDecision(t *testing.T) {
 	body, _ := json.Marshal(decision)
 
 	req, _ := http.NewRequest("POST", "/design", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	handler.LogDesign(rr, req)

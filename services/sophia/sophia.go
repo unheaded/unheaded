@@ -145,6 +145,9 @@ type Service struct {
 	knowledgeCounter int64
 	insightCounter   int64
 	decisionCounter  int64
+
+	// Alert handling
+	alertsCh chan *busboyClient.Message
 }
 
 // Config holds Sophia service configuration.
@@ -186,6 +189,7 @@ func NewService(log *logger.Logger, busboy *busboyClient.Client, config *Config)
 		subjectIndex:   make(map[string][]string),
 		predicateIndex: make(map[string][]string),
 		typeIndex:      make(map[KnowledgeType][]string),
+		alertsCh:       make(chan *busboyClient.Message, 100),
 	}
 }
 
@@ -201,8 +205,26 @@ func (s *Service) Start(ctx context.Context) error {
 		go s.inferenceLoop(ctx)
 	}
 
-	// Subscribe to knowledge events via Busboy
+	// Subscribe to Busboy topics
 	if s.busboy != nil {
+		// Subscribe to alerts.critical (required by CLAUDE.md)
+		if _, err := s.busboy.Subscribe(ctx, "alerts.critical", "sophia-service"); err != nil {
+			s.log.Warn().Err(err).Msg("failed to subscribe to alerts.critical")
+		} else {
+			s.log.Info().Msg("subscribed to alerts.critical")
+		}
+
+		// Subscribe to sophia.wisdom for own topic
+		if _, err := s.busboy.Subscribe(ctx, s.config.BusboyTopic, "sophia-service"); err != nil {
+			s.log.Warn().Err(err).Msg("failed to subscribe to sophia.wisdom")
+		} else {
+			s.log.Info().Str("topic", s.config.BusboyTopic).Msg("subscribed to topic")
+		}
+
+		// Start alert listener
+		go s.listenForAlerts(ctx)
+
+		// Subscribe to knowledge events
 		go s.subscribeToEvents(ctx)
 	}
 
@@ -212,7 +234,50 @@ func (s *Service) Start(ctx context.Context) error {
 // Stop gracefully shuts down the service.
 func (s *Service) Stop() error {
 	s.log.Info().Msg("Sophia rests - wisdom preserved")
+	if s.alertsCh != nil {
+		close(s.alertsCh)
+	}
 	return nil
+}
+
+// listenForAlerts listens for critical alerts from Busboy
+func (s *Service) listenForAlerts(ctx context.Context) {
+	if s.busboy == nil {
+		return
+	}
+
+	msgCh, err := s.busboy.StreamMessages(ctx, "alerts.critical")
+	if err != nil {
+		s.log.Warn().Err(err).Msg("failed to stream alerts.critical")
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-msgCh:
+			if !ok {
+				return
+			}
+			s.handleCriticalAlert(ctx, msg)
+		}
+	}
+}
+
+// handleCriticalAlert processes critical alerts
+func (s *Service) handleCriticalAlert(ctx context.Context, msg *busboyClient.Message) {
+	if msg == nil {
+		return
+	}
+
+	s.log.Warn().
+		Str("message_id", msg.MessageID).
+		Str("topic", msg.Topic).
+		Msg("received critical alert - analyzing for insights")
+
+	// Sophia can analyze alerts and generate insights
+	_, _ = s.GenerateInsight(ctx, "alert_analysis", []string{msg.Payload})
 }
 
 // Learn adds new knowledge to Sophia's domain.
@@ -760,10 +825,21 @@ func (s *Service) publishEvent(ctx context.Context, eventType string, data map[s
 		return
 	}
 
+	// Extract trace_id from context or generate one
+	traceID := ""
+	if tid := ctx.Value("trace_id"); tid != nil {
+		traceID = tid.(string)
+	}
+	if traceID == "" {
+		traceID = fmt.Sprintf("sophia-%d", time.Now().UnixNano())
+	}
+
 	event := map[string]interface{}{
 		"event_type": eventType,
-		"timestamp":  time.Now().Unix(),
+		"timestamp":  time.Now().UnixMilli(),
 		"data":       data,
+		"trace_id":   traceID,
+		"service":    "sophia",
 	}
 
 	payload, err := json.Marshal(event)
@@ -772,7 +848,11 @@ func (s *Service) publishEvent(ctx context.Context, eventType string, data map[s
 		return
 	}
 
-	if err := s.busboy.Publish(ctx, s.config.BusboyTopic, payload); err != nil {
+	// Use a timeout for publishing
+	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := s.busboy.Publish(pubCtx, s.config.BusboyTopic, payload); err != nil {
 		s.log.Warn().Err(err).Msg("Failed to publish event")
 	}
 }

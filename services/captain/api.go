@@ -347,7 +347,8 @@ func (hs *HTTPServer) updateDecisionHandler(w http.ResponseWriter, r *http.Reque
 		Status string `json:"status"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&req); err != nil {
 		hs.writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
 		return
 	}

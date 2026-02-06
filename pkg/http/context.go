@@ -241,14 +241,20 @@ func (c *Context) QueryValues() url.Values {
 
 // --- Request Body ---
 
+// maxBodySize is the maximum allowed request body size (10MB).
+// SECURITY: Prevents denial-of-service via unbounded body reads.
+const maxBodySize = 10 * 1024 * 1024
+
 // Body returns the request body as bytes
 func (c *Context) Body() ([]byte, error) {
-	return io.ReadAll(c.Request.Body)
+	// SECURITY: Enforce body size limit to prevent denial-of-service
+	return io.ReadAll(io.LimitReader(c.Request.Body, maxBodySize))
 }
 
 // BindJSON binds the request body to a struct as JSON
 func (c *Context) BindJSON(v any) error {
-	decoder := json.NewDecoder(c.Request.Body)
+	// SECURITY: Enforce body size limit to prevent denial-of-service
+	decoder := json.NewDecoder(io.LimitReader(c.Request.Body, maxBodySize))
 	return decoder.Decode(v)
 }
 

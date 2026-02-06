@@ -840,6 +840,36 @@ for {
 
 ---
 
+## 📜 Kingdom Doctrines
+
+### Cross-Service Health Monitoring
+
+**Location:** `docs/SERVICE_BREAKOUT_STRATEGY.md`
+
+Every microservice MUST health check all services it depends on. Failures reported to Busboy topic `system.outage.reports`. Severity by **percentage-based consensus**:
+
+| % Reporting | Severity | UI Color | Hex | Actions |
+|-------------|----------|----------|-----|---------|
+| 0% - 12.49% | **OK** | Green | `#008000` | Healthy |
+| 12.50% - 37.49% | **WARN** | Yellow-Brown | `#fdda61` | Log, email |
+| 37.50% - 62.49% | **ERROR** | Bright Yellow | `#ffff00` | Log, 2nd email |
+| 62.50% - 87.49% | **CRITICAL** | Neon Orange | `#ff5c00` | Auto-remediate |
+| 87.50% - 100% | **PANIC** | Bright Red | `#ff0000` | All hands, PagerDuty |
+
+**Formula:** `(unique_reporters / total_dependent_services) × 100`
+
+Scales automatically from 8 to 800+ services.
+
+### Post-Alpha Service Breakout
+
+After stable alpha, monorepo splits into individual service repos. Each service becomes a Go module imported by `github.com/unheaded/unheaded`.
+
+**Timeline:** Alpha (Feb 8) → Breakout complete (Mar 15)
+
+See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
+
+---
+
 **Last Updated:** February 3, 2026
 **Version:** Alpha (~99% Complete)
-**Status:** All services operational, all tests passing
+**Status:** All services operational, all tests passing, busboy merged

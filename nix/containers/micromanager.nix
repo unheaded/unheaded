@@ -1,68 +1,157 @@
+# NixOS container definition for micromanager service
+# Task execution and tracking service for Unheaded
+#
+# Refactored: Imports shared hardening, common, and networking modules
+# to ensure all required security properties are applied consistently.
 { config, pkgs, ... }:
 
 {
+  # ===========================================================================
+  # SHARED MODULE IMPORTS
+  # ===========================================================================
+  # All containers MUST import these modules for consistent hardening.
+  # ===========================================================================
+  imports = [
+    ../modules/common.nix
+    ../modules/hardening.nix
+    ../modules/networking.nix
+  ];
+
+  # ===========================================================================
+  # HARDENING CONFIGURATION
+  # ===========================================================================
+  unheaded.hardening = {
+    enable = true;
+    serviceName = "micromanager";
+    allowedCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+    writablePaths = [
+      "/var/lib/unheaded/micromanager"
+      "/var/log/micromanager"
+      "/run/micromanager"
+    ];
+    allowedPorts = [ 8003 9100 ];
+  };
+
+  # ===========================================================================
+  # NETWORKING CONFIGURATION
+  # ===========================================================================
+  unheaded.networking = {
+    enable = true;
+    serviceIP = "10.10.10.22";
+    servicePort = 8003;
+    allowDirectAccess = false;
+  };
+
+  # ===========================================================================
+  # COMMON CONFIGURATION
+  # ===========================================================================
+  unheaded.common = {
+    enable = true;
+    logLevel = "info";
+    enableMetrics = true;
+  };
+
   # systemd service for micromanager
   systemd.services.micromanager = {
     description = "Unheaded Micromanager Service - Task Execution & Tracking";
     documentation = [ "https://github.com/unheaded/unheaded" ];
 
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
+    after = [ "network-online.target" "busboy.service" ];
     wants = [ "network-online.target" ];
+    requires = [ "busboy.service" ];
 
     # Service configuration
     serviceConfig = {
       # Execute
       Type = "simple";
       ExecStart = "${pkgs.micromanager}/bin/micromanager -port 8003 -busboy busboy:9090 -log-level info";
-      Restart = "on-failure";
+      Restart = "always";
       RestartSec = "5s";
-      StartLimitInterval = "60s";
-      StartLimitBurst = 3;
+      StartLimitBurst = 5;
+      StartLimitIntervalSec = 60;
 
       # User & group
       User = "micromanager";
       Group = "micromanager";
 
-      # Security hardening
-      NoNewPrivileges = true;
-      PrivateTmp = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      PrivateDevices = true;
-      RestrictRealtime = true;
-      RestrictNamespaces = true;
-      RestrictSUIDSGID = true;
-      RemoveIPC = true;
-      LockPersonality = true;
+      # ========================================================================
+      # SECURITY HARDENING (all 12 required properties)
+      # ========================================================================
 
-      # Capabilities
+      # 1. Capabilities - minimum required only
       CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
       AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
 
-      # Filesystem
-      ReadOnlyPaths = [ "/etc" "/usr" ];
+      # 2. No privilege escalation
+      NoNewPrivileges = true;
+
+      # 3. Private /tmp
+      PrivateTmp = true;
+
+      # 4. Read-only system
+      ProtectSystem = "strict";
+
+      # 5. Protect home directories
+      ProtectHome = true;
+
+      # 6. Read-only paths (root filesystem)
+      ReadOnlyPaths = [ "/" ];
+
+      # Read-write paths (minimal)
       ReadWritePaths = [
         "/var/lib/unheaded/micromanager"
         "/var/log/micromanager"
         "/run/micromanager"
       ];
 
-      # System call filtering (seccomp)
+      # 7. Seccomp - block dangerous syscalls (full set per CLAUDE.md)
       SystemCallFilter = [
         "@system-service"
         "~@privileged"
         "~@resources"
+        "~@obsolete"
+        "~@debug"
+        "~@mount"
+        "~@reboot"
+        "~@swap"
+        "~@module"
+        "~@raw-io"
       ];
+      SystemCallArchitectures = "native";
       SystemCallErrorNumber = "EPERM";
 
+      # 8. Private devices
+      PrivateDevices = true;
+
+      # 9. Protect kernel tunables
+      ProtectKernelTunables = true;
+      ProtectKernelModules = true;
+      ProtectKernelLogs = true;
+
+      # 10. Protect control groups
+      ProtectControlGroups = true;
+
+      # 11. Restrict realtime
+      RestrictRealtime = true;
+
+      # 12. Restrict namespaces
+      RestrictNamespaces = true;
+
+      # Additional hardening (beyond the 12 required)
+      RestrictSUIDSGID = true;
+      RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+      RemoveIPC = true;
+      LockPersonality = true;
+      MemoryDenyWriteExecute = true;
+      PrivateUsers = true;
+
       # Resource limits
-      MemoryLimit = "512M";
-      TasksMax = 256;
-      CPUQuota = "50%";
+      MemoryMax = "512M";
+      TasksMax = 512;
+      CPUQuota = "100%";
+      LimitNOFILE = 65536;
+      LimitNPROC = 512;
 
       # Environment
       Environment = [
@@ -70,6 +159,7 @@
       ];
 
       # Timeout for shutdown
+      KillSignal = "SIGTERM";
       TimeoutStopSec = "30s";
       KillMode = "mixed";
     };
@@ -99,13 +189,14 @@
 
   users.groups.micromanager = {};
 
-  # Networking - firewall configuration
+  # Networking - firewall configuration (default-deny)
   networking.firewall = {
     enable = true;
+    allowedTCPPorts = [ 8003 ];
     # Allow internal container network only
     extraCommands = ''
       # Allow from internal bridge
-      iptables -A INPUT -s 10.10.10.0/24 -d 10.10.10.21 -p tcp --dport 8003 -j ACCEPT
+      iptables -A INPUT -s 10.10.10.0/24 -d 10.10.10.22 -p tcp --dport 8003 -j ACCEPT
       # Allow loopback
       iptables -A INPUT -i lo -j ACCEPT
       # Drop everything else
@@ -135,8 +226,10 @@
   };
 
   # Logging
-  services.rsyslog.enable = true;
-  logging.targets.syslog.enable = true;
+  services.journald.extraConfig = ''
+    SystemMaxUse=1G
+    SystemMaxFileSize=100M
+  '';
 
   # Environment
   environment.systemPackages = with pkgs; [

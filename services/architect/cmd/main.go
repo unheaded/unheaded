@@ -15,7 +15,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	busboyClient "unheaded/pkg/busboy-client"
-	"unheaded/pkg/busboy-client/mock"
 	"unheaded/services/architect"
 )
 
@@ -72,34 +71,40 @@ func main() {
 		Bool("mock_busboy", *useMock).
 		Msg("architect service starting")
 
-	// Create service
-	svc := architect.New()
-
 	// Connect to Busboy
-	var busboy interface {
-		Subscribe(ctx context.Context, topic, displayName string) (*busboyClient.Subscriber, error)
-		Publish(ctx context.Context, topic string, payload []byte) error
-		Close() error
-	}
+	var busboyConn *busboyClient.Client
 
 	if *useMock {
-		log.Info().Msg("using mock Busboy client")
-		busboy = mock.NewMockClient(mock.WithAutoApprove())
+		log.Info().Msg("using mock Busboy client - no actual Busboy integration")
+		// Mock client doesn't support full interface, create nil client
+		busboyConn = nil
 	} else {
-		client, err := busboyClient.NewClient(*busboyAddr)
+		var err error
+		busboyConn, err = busboyClient.NewClient(*busboyAddr)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to create Busboy client")
 		}
-		busboy = client
-
-		// Subscribe to relevant topics
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if _, err := busboy.Subscribe(ctx, "architecture.updates", "architect"); err != nil {
-			log.Warn().Err(err).Msg("failed to subscribe to architecture.updates")
-		}
-		cancel()
+		defer busboyConn.Close()
 	}
-	defer busboy.Close()
+
+	// Create service with Busboy integration
+	var svc *architect.ArchitectService
+	if busboyConn != nil {
+		svc = architect.NewWithBusboy(busboyConn)
+	} else {
+		svc = architect.New()
+	}
+
+	// Start service (subscribes to alerts.critical and architecture.updates)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := svc.Start(ctx); err != nil {
+		log.Warn().Err(err).Msg("failed to start Busboy integration")
+	}
+	cancel()
+
+	// Create a long-running context for alert listening
+	_, alertCancel := context.WithCancel(context.Background())
+	defer alertCancel()
 
 	// HTTP handler
 	handler := architect.NewHTTPHandler(svc)
@@ -146,10 +151,13 @@ func main() {
 	<-sigChan
 	log.Info().Msg("shutdown signal received")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	// Cancel alert listener context
+	alertCancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Error().Err(err).Msg("server shutdown error")
 	}
 

@@ -261,9 +261,20 @@ func (ds *DatabaseStorage) Close() error {
 func (ds *DatabaseStorage) buildQuery(query *audit.AuditQuery) (string, []interface{}) {
 	where, args := ds.buildWhereClause(query)
 
+	// SECURITY: Whitelist OrderBy values to prevent SQL injection.
+	// The OrderBy field comes from query parameters and must not be interpolated
+	// directly into SQL. Only known column names are allowed.
 	orderBy := "timestamp"
 	if query.OrderBy != "" {
-		orderBy = query.OrderBy
+		switch query.OrderBy {
+		case "timestamp", "id", "event_type", "severity", "action", "outcome",
+			"actor_id", "actor_type", "actor_name", "resource_id", "resource_type",
+			"source_ip", "source_service", "request_id":
+			orderBy = query.OrderBy
+		default:
+			// Reject unknown column names to prevent SQL injection
+			orderBy = "timestamp"
+		}
 	}
 	order := "ASC"
 	if query.Descending {

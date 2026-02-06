@@ -3,34 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Unheaded Dashboard - Real-time infrastructure monitoring and packet flow visualization">
+    <meta name="theme-color" content="#1a1a2e">
     <title>Unheaded Dashboard</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <canvas id="particle-canvas"></canvas>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
 
-    <nav>
-        <h1>Unheaded Dashboard</h1>
-        <ul>
-            <li><a href="/">Dashboard</a></li>
+    <div class="ws-reconnect-banner" id="ws-reconnect-banner" role="alert" aria-live="assertive" aria-atomic="true">
+        <span class="reconnect-spinner" aria-hidden="true"></span>
+        <span class="reconnect-text">Reconnecting to server...</span>
+        <button class="reconnect-retry-btn" id="reconnect-retry-btn" aria-label="Retry connection now">Retry</button>
+    </div>
+
+    <canvas id="particle-canvas" aria-hidden="true"></canvas>
+
+    <nav role="navigation" aria-label="Main navigation">
+        <div class="nav-brand">
+            <span class="nav-logo">⚔️</span>
+            <h1>Unheaded Dashboard</h1>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="active">Dashboard</a></li>
             <li><a href="/kanban">Kanban</a></li>
+            <li><a href="/api/v1/health" target="_blank" class="nav-link-subtle">API Health</a></li>
         </ul>
+        <div class="nav-status" role="status" aria-label="Connection status">
+            <span class="nav-status-dot" id="nav-connection-dot" aria-hidden="true"></span>
+            <span class="nav-status-text" id="nav-connection-text">Connecting...</span>
+        </div>
     </nav>
 
-    <main>
-        <section id="packet-flow">
-            <h2>Real-time Packet Flow</h2>
-            <div id="flow-viz"></div>
+    <main id="main-content">
+        <section id="packet-flow" aria-label="Real-time Packet Flow">
+            <h2>
+                <span class="section-icon" aria-hidden="true">📡</span>
+                Real-time Packet Flow
+            </h2>
+            <p class="section-description">eBPF-traced network traffic between Unheaded services. Each packet carries a trace_id from gateway to destination.</p>
+            <div id="flow-viz" role="img" aria-label="Packet flow visualization showing network traffic between Unheaded services"></div>
         </section>
 
-        <section id="metrics">
-            <h2>System Metrics</h2>
-            <div id="metrics-grid"></div>
+        <section id="metrics" aria-label="System Metrics">
+            <h2>
+                <span class="section-icon" aria-hidden="true">📊</span>
+                System Metrics
+            </h2>
+            <p class="section-description">Live performance metrics from the dashboard-backend service.</p>
+            <div id="metrics-grid" role="region" aria-label="Metrics data grid"></div>
+        </section>
+
+        <section id="quick-actions" class="quick-actions-section" aria-label="Quick Actions">
+            <h2>
+                <span class="section-icon" aria-hidden="true">⚡</span>
+                Quick Actions
+            </h2>
+            <div class="quick-actions-grid">
+                <a href="/api/v1/health" target="_blank" class="quick-action-card" aria-label="Open Health Check API endpoint">
+                    <span class="quick-action-icon" aria-hidden="true">🏥</span>
+                    <span class="quick-action-label">Health Check</span>
+                </a>
+                <a href="/api/v1/metrics" target="_blank" class="quick-action-card" aria-label="Open Raw Metrics API endpoint">
+                    <span class="quick-action-icon" aria-hidden="true">📈</span>
+                    <span class="quick-action-label">Raw Metrics</span>
+                </a>
+                <a href="/kanban" class="quick-action-card" aria-label="Navigate to Kanban Board">
+                    <span class="quick-action-icon" aria-hidden="true">📋</span>
+                    <span class="quick-action-label">Kanban Board</span>
+                </a>
+                <button class="quick-action-card" onclick="window.PacketFlowViz && window.PacketFlowViz.addDemoPacket()" aria-label="Send a demo packet through the flow visualization">
+                    <span class="quick-action-icon" aria-hidden="true">🎯</span>
+                    <span class="quick-action-label">Demo Packet</span>
+                </button>
+            </div>
         </section>
     </main>
+
+    <footer role="contentinfo">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <span class="footer-logo">⚔️🛡️🏰</span>
+                <span class="footer-title">The Unheaded Kingdom</span>
+            </div>
+            <p class="footer-tagline">"Production-ready infrastructure in hours, not months."</p>
+            <div class="footer-meta">
+                <span class="version">v0.1.0-alpha</span>
+                <span class="separator">•</span>
+                <span class="build-info">Built with eBPF + Go + NixOS</span>
+                <span class="separator">•</span>
+                <span class="timestamp" id="footer-timestamp"></span>
+            </div>
+            <p class="footer-links">
+                <a href="https://github.com/unheaded/unheaded" target="_blank">GitHub</a>
+                <span class="separator">•</span>
+                <a href="/api/v1/health" target="_blank">API</a>
+                <span class="separator">•</span>
+                <a href="/kanban">Kanban</a>
+            </p>
+        </div>
+    </footer>
+
+    <div class="connection-status disconnected" id="connection-status" role="status" aria-live="polite" aria-label="WebSocket connection status">
+        <span class="connection-dot" aria-hidden="true"></span>
+        <span class="connection-status-text">Disconnected</span>
+        <span class="connection-status-latency"></span>
+    </div>
+
+    <div class="toast-container" id="toast-container" role="log" aria-live="polite" aria-label="Notifications"></div>
 
     <script src="/js/particles.js"></script>
     <script src="/js/packet-flow.js"></script>
     <script src="/js/metrics.js"></script>
+    <script>
+        // Update footer timestamp
+        document.getElementById('footer-timestamp').textContent = new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+
+        // Sync connection status indicators
+        if (window.PacketFlowViz) {
+            window.PacketFlowViz.onStatusChange(function(status) {
+                const dot = document.getElementById('nav-connection-dot');
+                const text = document.getElementById('nav-connection-text');
+                const globalStatus = document.getElementById('connection-status');
+
+                if (dot) dot.className = 'nav-status-dot ' + status;
+                if (text) text.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                if (globalStatus) globalStatus.className = 'connection-status ' + status;
+            });
+        }
+
+        // Toast notification helper
+        window.showToast = function(message, type) {
+            type = type || 'info';
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.innerHTML = '<span class="toast-message">' + message + '</span><button class="toast-close" onclick="this.parentElement.remove()">×</button>';
+            container.appendChild(toast);
+
+            setTimeout(function() {
+                if (toast.parentElement) toast.remove();
+            }, 5000);
+        };
+    </script>
 </body>
 </html>

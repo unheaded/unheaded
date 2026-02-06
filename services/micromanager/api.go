@@ -101,7 +101,14 @@ func (a *API) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	// SECURITY: Validate Content-Type for POST endpoints
+	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+		a.error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1*1024*1024))
 	if err != nil {
 		a.error(w, "failed to read request body", http.StatusBadRequest)
 		return
@@ -190,7 +197,8 @@ func (a *API) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1*1024*1024))
 	if err != nil {
 		a.error(w, "failed to read request body", http.StatusBadRequest)
 		return

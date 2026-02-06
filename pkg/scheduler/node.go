@@ -19,6 +19,7 @@ const (
 
 // Node represents a compute node in the cluster.
 type Node struct {
+	mu           sync.RWMutex
 	ID           string
 	Name         string
 	State        NodeState
@@ -144,12 +145,23 @@ func NewNode(id, name string, capacity Resources) *Node {
 }
 
 // UpdateAvailable recalculates available resources.
+// Caller must hold n.mu for writing.
 func (n *Node) UpdateAvailable() {
 	n.Available = n.Allocatable.Sub(n.Allocated)
 }
 
+// GetAvailable returns a snapshot of the available resources (thread-safe).
+func (n *Node) GetAvailable() Resources {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.Available
+}
+
 // Allocate reserves resources on the node.
 func (n *Node) Allocate(resources Resources) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
 	if !resources.FitsIn(n.Available) {
 		return ErrInsufficientResources
 	}
@@ -161,6 +173,9 @@ func (n *Node) Allocate(resources Resources) error {
 
 // Release frees resources on the node.
 func (n *Node) Release(resources Resources) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
 	n.Allocated = n.Allocated.Sub(resources)
 	// Ensure we don't go negative
 	if n.Allocated.CPU < 0 {

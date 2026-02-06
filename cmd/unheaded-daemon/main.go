@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -818,7 +819,8 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		var spec ContainerSpec
-		if err := json.NewDecoder(r.Body).Decode(&spec); err != nil {
+		// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&spec); err != nil {
 			d.log.Error().Err(err).Str("id", id).Msg("Invalid request body for container update")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{

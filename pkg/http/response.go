@@ -9,8 +9,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+// validJSONPCallback matches safe JSONP callback names (alphanumeric, dots, underscores).
+// SECURITY: Prevents XSS via malicious callback parameter injection.
+var validJSONPCallback = regexp.MustCompile(`^[a-zA-Z_$][a-zA-Z0-9_$.]*$`)
 
 // Common MIME types
 const (
@@ -110,6 +115,16 @@ func (c *Context) JSONPretty(code int, v any, indent string) error {
 
 // JSONP writes a JSONP response
 func (c *Context) JSONP(code int, callback string, v any) error {
+	// SECURITY: Validate callback name to prevent XSS injection.
+	// Only allow safe JavaScript identifier characters.
+	if !validJSONPCallback.MatchString(callback) {
+		c.statusCode = http.StatusBadRequest
+		c.Writer.WriteHeader(http.StatusBadRequest)
+		c.written = true
+		_, err := c.Writer.Write([]byte(`{"error":"invalid callback parameter"}`))
+		return err
+	}
+
 	c.SetContentType("application/javascript; charset=utf-8")
 	c.statusCode = code
 	c.Writer.WriteHeader(code)

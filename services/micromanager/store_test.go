@@ -1,6 +1,7 @@
 package micromanager
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 )
@@ -328,6 +329,104 @@ func TestCount(t *testing.T) {
 	if store.Count() != 1 {
 		t.Errorf("Count = %d, want 1", store.Count())
 	}
+}
+
+// TestStoreError_Error verifies storeError message
+func TestStoreError_Error(t *testing.T) {
+	err := TaskIDAlreadyExists("task-42")
+	msg := err.Error()
+	if msg == "" {
+		t.Fatal("Error() returned empty string")
+	}
+	if msg != "task id already exists: task-42" {
+		t.Errorf("Error() = %s, want 'task id already exists: task-42'", msg)
+	}
+}
+
+// TestCreate_InvalidStatus rejects task with invalid status
+func TestCreate_InvalidStatus(t *testing.T) {
+	store := NewStore()
+	task := NewTask("task-1", "Test", "owner")
+	task.Status = TaskStatus("bogus")
+	err := store.Create(task)
+	if err != ErrInvalidStatus {
+		t.Errorf("Create(invalid status) = %v, want %v", err, ErrInvalidStatus)
+	}
+}
+
+// TestUpdate_InvalidPriority rejects task with invalid priority
+func TestUpdate_InvalidPriority(t *testing.T) {
+	store := NewStore()
+	task := NewTask("task-1", "Test", "owner")
+	store.Create(task)
+
+	task.Priority = 99
+	err := store.Update(task)
+	if err != ErrInvalidPriority {
+		t.Errorf("Update(invalid priority) = %v, want %v", err, ErrInvalidPriority)
+	}
+}
+
+// TestListByStatus_Empty returns empty slice when no tasks match
+func TestListByStatus_Empty(t *testing.T) {
+	store := NewStore()
+	task := NewTask("task-1", "Test", "owner")
+	store.Create(task)
+
+	blocked, err := store.ListByStatus(StatusBlocked)
+	if err != nil {
+		t.Fatalf("ListByStatus(blocked) error = %v", err)
+	}
+	if len(blocked) != 0 {
+		t.Errorf("ListByStatus(blocked) length = %d, want 0", len(blocked))
+	}
+}
+
+// TestListByStatus_Blocked returns blocked tasks
+func TestListByStatus_Blocked(t *testing.T) {
+	store := NewStore()
+	task := NewTask("task-1", "Test", "owner")
+	task.Status = StatusBlocked
+	store.Create(task)
+
+	blocked, err := store.ListByStatus(StatusBlocked)
+	if err != nil {
+		t.Fatalf("ListByStatus(blocked) error = %v", err)
+	}
+	if len(blocked) != 1 {
+		t.Errorf("ListByStatus(blocked) length = %d, want 1", len(blocked))
+	}
+}
+
+// TestConcurrentReadWrite tests concurrent reads and writes
+func TestConcurrentReadWrite(t *testing.T) {
+	store := NewStore()
+	// Seed a task
+	task := NewTask("seed-1", "Seed", "owner")
+	store.Create(task)
+
+	var wg sync.WaitGroup
+	// Concurrent reads
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = store.ListAll()
+			_ = store.Count()
+			_, _ = store.ListByStatus(StatusPending)
+			_, _ = store.ListByOwner("owner")
+		}()
+	}
+	// Concurrent writes
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			t := NewTask(fmt.Sprintf("rw-%d", n), "Task", "owner")
+			_ = store.Create(t)
+		}(i)
+	}
+	wg.Wait()
 }
 
 // TestConcurrentAccess tests store under concurrent load

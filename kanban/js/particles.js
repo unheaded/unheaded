@@ -11,11 +11,11 @@
     let particles = [];
     let animationId;
 
-    // Config
+    // Config - Kingdom gold theme
     const config = {
         particleCount: 50,
-        particleColor: 'rgba(99, 102, 241, 0.5)',
-        lineColor: 'rgba(99, 102, 241, 0.1)',
+        particleColor: 'rgba(255, 215, 0, 0.5)',
+        lineColor: 'rgba(255, 215, 0, 0.1)',
         maxDistance: 150,
         speed: 0.5
     };
@@ -76,7 +76,7 @@
                     ctx.beginPath();
                     ctx.moveTo(particles[i].x, particles[i].y);
                     ctx.lineTo(particles[j].x, particles[j].y);
-                    ctx.strokeStyle = `rgba(99, 102, 241, ${opacity * 0.1})`;
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${opacity * 0.1})`;
                     ctx.stroke();
                 }
             }

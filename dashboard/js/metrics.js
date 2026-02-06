@@ -61,21 +61,21 @@
     function createMetricsLayout() {
         metricsGrid.innerHTML = `
             <div class="metrics-row primary-metrics">
-                <div class="metric-card" id="metric-request-rate">
-                    <div class="metric-icon">
+                <div class="metric-card" id="metric-request-rate" role="group" aria-label="Request Rate metric">
+                    <div class="metric-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                         </svg>
                     </div>
                     <div class="metric-content">
-                        <span class="metric-value" data-metric="requestRate">--</span>
+                        <span class="metric-value" data-metric="requestRate" aria-live="polite">--</span>
                         <span class="metric-unit">req/s</span>
                     </div>
                     <span class="metric-label">Request Rate</span>
                 </div>
 
-                <div class="metric-card" id="metric-error-rate">
-                    <div class="metric-icon error">
+                <div class="metric-card" id="metric-error-rate" role="group" aria-label="Error Rate metric">
+                    <div class="metric-icon error" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"></circle>
                             <line x1="15" y1="9" x2="9" y2="15"></line>
@@ -83,14 +83,14 @@
                         </svg>
                     </div>
                     <div class="metric-content">
-                        <span class="metric-value" data-metric="errorRate">--</span>
+                        <span class="metric-value" data-metric="errorRate" aria-live="polite">--</span>
                         <span class="metric-unit">%</span>
                     </div>
                     <span class="metric-label">Error Rate</span>
                 </div>
 
-                <div class="metric-card" id="metric-connections">
-                    <div class="metric-icon">
+                <div class="metric-card" id="metric-connections" role="group" aria-label="Active Connections metric">
+                    <div class="metric-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                             <circle cx="9" cy="7" r="4"></circle>
@@ -99,20 +99,20 @@
                         </svg>
                     </div>
                     <div class="metric-content">
-                        <span class="metric-value" data-metric="activeConnections">--</span>
+                        <span class="metric-value" data-metric="activeConnections" aria-live="polite">--</span>
                     </div>
                     <span class="metric-label">Active Connections</span>
                 </div>
 
-                <div class="metric-card" id="metric-uptime">
-                    <div class="metric-icon success">
+                <div class="metric-card" id="metric-uptime" role="group" aria-label="Uptime metric">
+                    <div class="metric-icon success" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"></circle>
                             <polyline points="12 6 12 12 16 14"></polyline>
                         </svg>
                     </div>
                     <div class="metric-content">
-                        <span class="metric-value" data-metric="uptime">--</span>
+                        <span class="metric-value" data-metric="uptime" aria-live="polite">--</span>
                     </div>
                     <span class="metric-label">Uptime</span>
                 </div>
@@ -171,21 +171,31 @@
         `;
     }
 
-    // Show loading state
+    // Show loading skeleton state
     function showLoading() {
         const valueElements = metricsGrid.querySelectorAll('.metric-value');
         valueElements.forEach(el => {
             el.classList.add('loading');
+            el.setAttribute('aria-busy', 'true');
+            el.textContent = '';
+            // Add skeleton placeholder
+            const skeleton = document.createElement('span');
+            skeleton.className = 'skeleton skeleton-value';
+            skeleton.setAttribute('aria-hidden', 'true');
+            el.appendChild(skeleton);
         });
 
         const servicesGrid = document.getElementById('services-grid');
         if (servicesGrid) {
-            servicesGrid.innerHTML = `
-                <div class="loading-indicator">
-                    <div class="spinner"></div>
-                    <span>Loading services...</span>
-                </div>
-            `;
+            servicesGrid.setAttribute('aria-busy', 'true');
+            var skeletonHTML = '';
+            for (var i = 0; i < 4; i++) {
+                skeletonHTML += '<div class="skeleton-service">' +
+                    '<div class="skeleton skeleton-line medium"></div>' +
+                    '<div class="skeleton skeleton-line short"></div>' +
+                '</div>';
+            }
+            servicesGrid.innerHTML = skeletonHTML;
         }
     }
 
@@ -258,22 +268,62 @@
         }
     }
 
-    // Handle fetch errors
+    // Handle fetch errors - display user-friendly messages
     function handleFetchError(error) {
         console.error('metrics.js: Failed to fetch metrics:', error.message);
 
         retryCount++;
         if (retryCount <= CONFIG.maxRetries) {
-            updateStatus('reconnecting', `Reconnecting (${retryCount}/${CONFIG.maxRetries})...`);
+            updateStatus('reconnecting', 'Reconnecting (' + retryCount + '/' + CONFIG.maxRetries + ')...');
         } else {
             updateStatus('disconnected', 'Disconnected');
         }
 
-        // Show error state on metrics
-        const valueElements = metricsGrid.querySelectorAll('.metric-value');
-        valueElements.forEach(el => {
+        // Show user-friendly error state on metrics
+        var friendlyMessage = getFriendlyErrorMessage(error);
+        var valueElements = metricsGrid.querySelectorAll('.metric-value');
+        valueElements.forEach(function(el) {
             el.classList.add('error');
+            el.setAttribute('aria-invalid', 'true');
+            el.textContent = '--';
         });
+
+        // Show error state in services grid
+        var servicesGrid = document.getElementById('services-grid');
+        if (servicesGrid && retryCount > CONFIG.maxRetries) {
+            servicesGrid.innerHTML = '<div class="error-state">' +
+                '<div class="error-state-icon" aria-hidden="true">&#x26A0;</div>' +
+                '<div class="error-state-title">Unable to load services</div>' +
+                '<div class="error-state-message">' + escapeHtml(friendlyMessage) + '</div>' +
+                '<button class="error-state-action" onclick="window.DashboardMetrics.refresh()" aria-label="Retry loading metrics">' +
+                    'Retry' +
+                '</button>' +
+            '</div>';
+        }
+    }
+
+    // Convert raw errors to user-friendly messages
+    function getFriendlyErrorMessage(error) {
+        var msg = error.message || String(error);
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            return 'Cannot reach the metrics server. Please check your network connection.';
+        }
+        if (msg.includes('timeout') || msg.includes('Timeout')) {
+            return 'The server took too long to respond. It may be under heavy load.';
+        }
+        if (msg.includes('500') || msg.includes('Internal Server')) {
+            return 'The server encountered an internal error. The team has been notified.';
+        }
+        if (msg.includes('503') || msg.includes('Service Unavailable')) {
+            return 'The metrics service is temporarily unavailable. Please try again shortly.';
+        }
+        if (msg.includes('401') || msg.includes('403') || msg.includes('Unauthorized') || msg.includes('Forbidden')) {
+            return 'Authentication required. Please check your credentials.';
+        }
+        if (msg.includes('unavailable')) {
+            return 'The metrics endpoint is not available. The service may be starting up.';
+        }
+        return 'An unexpected error occurred while loading metrics. Please try again.';
     }
 
     // Process and update metrics
@@ -299,11 +349,21 @@
             updateServices(data.services);
         }
 
-        // Clear loading/error states
+        // Clear loading/error states and ARIA busy
         const valueElements = metricsGrid.querySelectorAll('.metric-value');
         valueElements.forEach(el => {
             el.classList.remove('loading', 'error');
+            el.removeAttribute('aria-busy');
+            el.removeAttribute('aria-invalid');
+            // Remove any skeleton placeholders
+            var skel = el.querySelector('.skeleton');
+            if (skel) skel.remove();
         });
+
+        var servicesGridEl = document.getElementById('services-grid');
+        if (servicesGridEl) {
+            servicesGridEl.removeAttribute('aria-busy');
+        }
     }
 
     // Normalize metrics data

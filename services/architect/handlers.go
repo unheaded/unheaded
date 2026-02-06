@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
+
+// maxRequestBodySize is the maximum allowed request body size (1MB).
+const maxRequestBodySize = 1 * 1024 * 1024
 
 // HTTPHandler wraps the architect service and provides HTTP endpoints
 type HTTPHandler struct {
@@ -193,8 +197,16 @@ func (h *HTTPHandler) AddService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY: Validate Content-Type to prevent content-type confusion attacks
+	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+		h.writeError(w, http.StatusUnsupportedMediaType, "INVALID_CONTENT_TYPE",
+			"Content-Type must be application/json")
+		return
+	}
+
 	var service Service
-	if err := json.NewDecoder(r.Body).Decode(&service); err != nil {
+	// SECURITY: Enforce request body size limit to prevent denial-of-service
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&service); err != nil {
 		h.writeError(w, http.StatusBadRequest, "INVALID_REQUEST",
 			fmt.Sprintf("failed to decode request: %v", err))
 		return
@@ -254,8 +266,16 @@ func (h *HTTPHandler) AddNetworkNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY: Validate Content-Type to prevent content-type confusion attacks
+	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+		h.writeError(w, http.StatusUnsupportedMediaType, "INVALID_CONTENT_TYPE",
+			"Content-Type must be application/json")
+		return
+	}
+
 	var node NetworkNode
-	if err := json.NewDecoder(r.Body).Decode(&node); err != nil {
+	// SECURITY: Enforce request body size limit to prevent denial-of-service
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&node); err != nil {
 		h.writeError(w, http.StatusBadRequest, "INVALID_REQUEST",
 			fmt.Sprintf("failed to decode request: %v", err))
 		return
@@ -290,8 +310,16 @@ func (h *HTTPHandler) LogDesign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY: Validate Content-Type to prevent content-type confusion attacks
+	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+		h.writeError(w, http.StatusUnsupportedMediaType, "INVALID_CONTENT_TYPE",
+			"Content-Type must be application/json")
+		return
+	}
+
 	var decision ArchitectureDecision
-	if err := json.NewDecoder(r.Body).Decode(&decision); err != nil {
+	// SECURITY: Enforce request body size limit to prevent denial-of-service
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&decision); err != nil {
 		h.writeError(w, http.StatusBadRequest, "INVALID_REQUEST",
 			fmt.Sprintf("failed to decode request: %v", err))
 		return

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -430,7 +431,8 @@ func (h *Handler) HandleUpdateMilestone(w http.ResponseWriter, r *http.Request, 
 
 	// Parse request
 	var req UpdateMilestoneRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body", err)
 		return
 	}
