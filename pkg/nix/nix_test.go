@@ -3108,3 +3108,1420 @@ func TestBuildOptions_Defaults(t *testing.T) {
 		t.Errorf("default ExtraArgs length = %d, want 0", len(opts.ExtraArgs))
 	}
 }
+
+// ============================================================================
+// EXTRACT CONTAINER IMAGE TESTS
+// ============================================================================
+
+func TestExtractContainerImage_DirectFile(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// Create a fake store path with a file (no tarball subdirectory, no .tar.xz)
+	storePath := filepath.Join(dir, "store", "abc123-result")
+	os.MkdirAll(storePath, 0755)
+	content := []byte("fake container image content for testing purposes")
+	os.WriteFile(filepath.Join(storePath, "rootfs"), content, 0644)
+
+	// extractContainerImage will try tarball/ first, then *.tar.xz, then fall back to storePath itself
+	// Since storePath is a directory, os.Open will work but io.Copy will fail or it will hash directory.
+	// Actually: storePath itself is a directory, so we need to create a file directly at storePath.
+	// Let's instead test with a tarball/ subdirectory.
+
+	// Test with tarball subdirectory containing matching tarball
+	tarballDir := filepath.Join(storePath, "tarball")
+	os.MkdirAll(tarballDir, 0755)
+	tarballContent := []byte("fake tarball content")
+	tarballFile := filepath.Join(tarballDir, "nixos-system-mycontainer-24.05.tar.xz")
+	os.WriteFile(tarballFile, tarballContent, 0644)
+
+	imagePath, imageHash, imageSize, err := builder.extractContainerImage(storePath, "mycontainer")
+	if err != nil {
+		t.Fatalf("extractContainerImage: %v", err)
+	}
+
+	if imagePath != tarballFile {
+		t.Errorf("imagePath = %q, want %q", imagePath, tarballFile)
+	}
+	if imageHash == "" {
+		t.Error("imageHash is empty")
+	}
+	if imageSize != int64(len(tarballContent)) {
+		t.Errorf("imageSize = %d, want %d", imageSize, len(tarballContent))
+	}
+}
+
+func TestExtractContainerImage_AlternativePattern(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// Create a store path with *.tar.xz directly in it (no tarball/ subdirectory)
+	storePath := filepath.Join(dir, "store", "def456-result")
+	os.MkdirAll(storePath, 0755)
+	tarballContent := []byte("alternative tarball content")
+	tarballFile := filepath.Join(storePath, "image.tar.xz")
+	os.WriteFile(tarballFile, tarballContent, 0644)
+
+	imagePath, imageHash, imageSize, err := builder.extractContainerImage(storePath, "somecontainer")
+	if err != nil {
+		t.Fatalf("extractContainerImage: %v", err)
+	}
+
+	if imagePath != tarballFile {
+		t.Errorf("imagePath = %q, want %q", imagePath, tarballFile)
+	}
+	if imageHash == "" {
+		t.Error("imageHash is empty")
+	}
+	if imageSize != int64(len(tarballContent)) {
+		t.Errorf("imageSize = %d, want %d", imageSize, len(tarballContent))
+	}
+}
+
+func TestExtractContainerImage_FallbackToStorePath(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// Create store path as a regular file (not directory), no tarballs
+	storePath := filepath.Join(dir, "store", "ghi789-result")
+	os.MkdirAll(filepath.Dir(storePath), 0755)
+	content := []byte("raw store path content as fallback")
+	os.WriteFile(storePath, content, 0644)
+
+	imagePath, imageHash, imageSize, err := builder.extractContainerImage(storePath, "container")
+	if err != nil {
+		t.Fatalf("extractContainerImage: %v", err)
+	}
+
+	if imagePath != storePath {
+		t.Errorf("imagePath = %q, want %q (fallback to storePath)", imagePath, storePath)
+	}
+	if imageHash == "" {
+		t.Error("imageHash is empty")
+	}
+	if imageSize != int64(len(content)) {
+		t.Errorf("imageSize = %d, want %d", imageSize, len(content))
+	}
+}
+
+func TestExtractContainerImage_NonexistentPath(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	_, _, _, err = builder.extractContainerImage("/nonexistent/path/abc123", "test")
+	if err == nil {
+		t.Error("extractContainerImage with nonexistent path should error")
+	}
+}
+
+func TestExtractContainerImage_HashDeterministic(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	storePath := filepath.Join(dir, "store", "hash-test")
+	os.MkdirAll(filepath.Dir(storePath), 0755)
+	os.WriteFile(storePath, []byte("deterministic content"), 0644)
+
+	_, hash1, _, err := builder.extractContainerImage(storePath, "test")
+	if err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+
+	_, hash2, _, err := builder.extractContainerImage(storePath, "test")
+	if err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+
+	if hash1 != hash2 {
+		t.Errorf("hash not deterministic: %q != %q", hash1, hash2)
+	}
+}
+
+// ============================================================================
+// CHECK CHANGES TESTS (FlakeWatcher)
+// ============================================================================
+
+func TestFlakeWatcher_CheckChanges_NoChanges(t *testing.T) {
+	dir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	changeCount := 0
+	w := NewFlakeWatcher(time.Second, func(path string, config *FlakeConfig) {
+		changeCount++
+	})
+
+	if err := w.AddPath(dir); err != nil {
+		t.Fatalf("AddPath: %v", err)
+	}
+
+	// checkChanges should not detect changes since nothing changed
+	w.checkChanges()
+
+	if changeCount != 0 {
+		t.Errorf("onChange called %d times, want 0 (no changes)", changeCount)
+	}
+}
+
+func TestFlakeWatcher_CheckChanges_ModifiedFlake(t *testing.T) {
+	dir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	var changedPath string
+	changeCount := 0
+	w := NewFlakeWatcher(time.Second, func(path string, config *FlakeConfig) {
+		changedPath = path
+		changeCount++
+	})
+
+	if err := w.AddPath(dir); err != nil {
+		t.Fatalf("AddPath: %v", err)
+	}
+
+	// Set the tracked modTime to the past so that the current file appears newer
+	w.mu.Lock()
+	if tracked, ok := w.paths[dir]; ok {
+		tracked.modTime = time.Now().Add(-1 * time.Hour)
+	}
+	w.mu.Unlock()
+
+	w.checkChanges()
+
+	if changeCount != 1 {
+		t.Errorf("onChange called %d times, want 1", changeCount)
+	}
+	if changedPath != dir {
+		t.Errorf("changedPath = %q, want %q", changedPath, dir)
+	}
+}
+
+func TestFlakeWatcher_CheckChanges_ModifiedLock(t *testing.T) {
+	dir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	changeCount := 0
+	w := NewFlakeWatcher(time.Second, func(path string, config *FlakeConfig) {
+		changeCount++
+	})
+
+	if err := w.AddPath(dir); err != nil {
+		t.Fatalf("AddPath: %v", err)
+	}
+
+	// Change the lock hash to something different so it's detected as changed
+	w.mu.Lock()
+	if tracked, ok := w.paths[dir]; ok {
+		tracked.lockHash = "stale-hash-value"
+	}
+	w.mu.Unlock()
+
+	w.checkChanges()
+
+	if changeCount != 1 {
+		t.Errorf("onChange called %d times, want 1 (lock hash changed)", changeCount)
+	}
+}
+
+func TestFlakeWatcher_CheckChanges_DeletedFlake(t *testing.T) {
+	dir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	changeCount := 0
+	w := NewFlakeWatcher(time.Second, func(path string, config *FlakeConfig) {
+		changeCount++
+	})
+
+	if err := w.AddPath(dir); err != nil {
+		t.Fatalf("AddPath: %v", err)
+	}
+
+	// Delete the flake.nix file so os.Stat fails
+	os.Remove(filepath.Join(dir, "flake.nix"))
+
+	// checkChanges should skip deleted paths (continue on error)
+	w.checkChanges()
+
+	if changeCount != 0 {
+		t.Errorf("onChange called %d times, want 0 (flake deleted)", changeCount)
+	}
+}
+
+func TestFlakeWatcher_CheckChanges_EmptyPaths(t *testing.T) {
+	w := NewFlakeWatcher(time.Second, func(path string, config *FlakeConfig) {
+		t.Error("onChange should not be called with no watched paths")
+	})
+
+	// No paths added, should not panic
+	w.checkChanges()
+}
+
+func TestFlakeWatcher_CheckChanges_MultiplePaths(t *testing.T) {
+	dir1 := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+	dir2 := createTempFlake(t, sampleFlakeNix(), `{"different": "lock"}`)
+
+	var changedPaths []string
+	var mu sync.Mutex
+	w := NewFlakeWatcher(time.Second, func(path string, config *FlakeConfig) {
+		mu.Lock()
+		changedPaths = append(changedPaths, path)
+		mu.Unlock()
+	})
+
+	if err := w.AddPath(dir1); err != nil {
+		t.Fatalf("AddPath dir1: %v", err)
+	}
+	if err := w.AddPath(dir2); err != nil {
+		t.Fatalf("AddPath dir2: %v", err)
+	}
+
+	// Force both to appear changed by setting old modTimes
+	w.mu.Lock()
+	for _, wf := range w.paths {
+		wf.modTime = time.Now().Add(-1 * time.Hour)
+	}
+	w.mu.Unlock()
+
+	w.checkChanges()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(changedPaths) != 2 {
+		t.Errorf("onChange called %d times, want 2", len(changedPaths))
+	}
+}
+
+// ============================================================================
+// PUBLISH BUILD EVENT ADDITIONAL TESTS
+// ============================================================================
+
+func TestBuilder_PublishBuildEvent_WithError(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+		BusboyTopic:    "test.builds",
+	}
+
+	builder, err := NewBuilder(cfg, nil) // nil busboy
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// Test that publishBuildEvent does not panic with nil busboy
+	// when result has error and image path set
+	result := &BuildResult{
+		Spec:      BuildSpec{ID: "err-build", ContainerName: "failing-service"},
+		Status:    BuildStatusFailed,
+		Error:     "build compilation failed",
+		ImagePath: "",
+	}
+	builder.publishBuildEvent(result) // should return immediately (nil busboy)
+}
+
+func TestBuilder_PublishBuildEvent_WithImagePath(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+		BusboyTopic:    "test.builds",
+	}
+
+	builder, err := NewBuilder(cfg, nil) // nil busboy
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	result := &BuildResult{
+		Spec:      BuildSpec{ID: "img-build", ContainerName: "service-with-image"},
+		Status:    BuildStatusSuccess,
+		ImagePath: "/nix/store/abc123/image.tar.xz",
+		Duration:  2 * time.Minute,
+	}
+	builder.publishBuildEvent(result) // should return immediately (nil busboy)
+}
+
+// ============================================================================
+// EXECUTE BUILD TESTS
+// ============================================================================
+
+func TestExecuteBuild_InvalidSpec(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// Missing required fields
+	spec := &BuildSpec{
+		ID:            "", // invalid - empty ID
+		ContainerName: "test",
+	}
+
+	result := builder.executeBuild(context.Background(), spec)
+	if result.Status != BuildStatusFailed {
+		t.Errorf("Status = %q, want %q", result.Status, BuildStatusFailed)
+	}
+	if result.Error == "" {
+		t.Error("Error should not be empty for invalid spec")
+	}
+	if !result.CompletedAt.After(result.StartedAt) && !result.CompletedAt.Equal(result.StartedAt) {
+		t.Error("CompletedAt should be >= StartedAt")
+	}
+}
+
+func TestExecuteBuild_FlakeParseFailure(t *testing.T) {
+	dir := t.TempDir()
+	flakeDir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// Valid spec but pointing to a real flake dir
+	// The build will fail at runNixBuild because nix is not installed, which
+	// exercises the build failure path
+	spec := &BuildSpec{
+		ID:            "parse-test",
+		FlakePath:     flakeDir,
+		Attribute:     "nixosConfigurations.timeguru",
+		ContainerName: "timeguru",
+		System:        "x86_64-linux",
+		Options: BuildOptions{
+			Timeout: 5 * time.Second,
+		},
+	}
+
+	result := builder.executeBuild(context.Background(), spec)
+	// The build will either fail at ParseFlake (unlikely since fallback works)
+	// or at runNixBuild (nix not available)
+	if result.Status == BuildStatusSuccess {
+		t.Error("executeBuild should not succeed without nix installed")
+	}
+	if result.Duration == 0 {
+		t.Error("Duration should be set")
+	}
+}
+
+func TestExecuteBuild_CancelledContext(t *testing.T) {
+	dir := t.TempDir()
+	flakeDir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	spec := &BuildSpec{
+		ID:            "cancel-test",
+		FlakePath:     flakeDir,
+		Attribute:     "nixosConfigurations.timeguru",
+		ContainerName: "timeguru",
+		System:        "x86_64-linux",
+		Options: BuildOptions{
+			Timeout: 30 * time.Second,
+		},
+	}
+
+	// Create already-cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := builder.executeBuild(ctx, spec)
+	// Build should fail (either cancelled or build failed since nix isn't installed)
+	if result.Status == BuildStatusSuccess {
+		t.Error("executeBuild with cancelled context should not succeed")
+	}
+}
+
+func TestExecuteBuild_TimedOut(t *testing.T) {
+	dir := t.TempDir()
+	flakeDir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 1 * time.Nanosecond, // extremely short to force timeout
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	spec := &BuildSpec{
+		ID:            "timeout-test",
+		FlakePath:     flakeDir,
+		Attribute:     "nixosConfigurations.timeguru",
+		ContainerName: "timeguru",
+		System:        "x86_64-linux",
+		// No timeout in options, so DefaultTimeout (1ns) will be used
+	}
+
+	result := builder.executeBuild(context.Background(), spec)
+	if result.Status == BuildStatusSuccess {
+		t.Error("executeBuild with 1ns timeout should not succeed")
+	}
+}
+
+// ============================================================================
+// RUN NIX BUILD TESTS
+// ============================================================================
+
+func TestRunNixBuild_CommandNotFound(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "/nonexistent/nix-binary",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	spec := &BuildSpec{
+		FlakePath:     "/some/path",
+		Attribute:     "nixosConfigurations.test",
+		ContainerName: "test",
+		Options: BuildOptions{
+			UseCache: true,
+		},
+	}
+
+	_, err = builder.runNixBuild(context.Background(), spec)
+	if err == nil {
+		t.Error("runNixBuild with nonexistent binary should error")
+	}
+}
+
+func TestRunNixBuild_AllOptions(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "/nonexistent/nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	spec := &BuildSpec{
+		FlakePath:     "/path/to/flake",
+		Attribute:     "nixosConfigurations.test",
+		ContainerName: "test",
+		Options: BuildOptions{
+			MaxCores:   4,
+			UseCache:   false,
+			KeepFailed: true,
+			Verbose:    true,
+			ExtraArgs:  []string{"--show-trace", "--impure"},
+		},
+	}
+
+	// This will fail because the binary doesn't exist, but it exercises the
+	// argument construction paths
+	_, err = builder.runNixBuild(context.Background(), spec)
+	if err == nil {
+		t.Error("runNixBuild with nonexistent binary should error")
+	}
+}
+
+func TestRunNixBuild_CancelledContext(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "sleep", // use sleep so the context cancellation is the cause
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	spec := &BuildSpec{
+		FlakePath:     "/path/to/flake",
+		Attribute:     "test",
+		ContainerName: "test",
+		Options:       BuildOptions{UseCache: true},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	_, err = builder.runNixBuild(ctx, spec)
+	if err == nil {
+		t.Error("runNixBuild with cancelled context should error")
+	}
+}
+
+// ============================================================================
+// LIST FLAKE CONTAINERS TESTS
+// ============================================================================
+
+func TestListFlakeContainers_NotFound(t *testing.T) {
+	_, err := ListFlakeContainers("/nonexistent/path")
+	if err == nil {
+		t.Error("ListFlakeContainers with nonexistent path should error")
+	}
+}
+
+func TestListFlakeContainers_WithContainers(t *testing.T) {
+	dir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	containers, err := ListFlakeContainers(dir)
+	if err != nil {
+		t.Fatalf("ListFlakeContainers: %v", err)
+	}
+
+	// The sample flake has nixosConfigurations.timeguru and nixosConfigurations.captain
+	if len(containers) < 2 {
+		t.Errorf("len(containers) = %d, want >= 2", len(containers))
+	}
+
+	// Verify the names include timeguru and captain
+	foundTimeguru := false
+	foundCaptain := false
+	for _, c := range containers {
+		if strings.Contains(c, "timeguru") {
+			foundTimeguru = true
+		}
+		if strings.Contains(c, "captain") {
+			foundCaptain = true
+		}
+	}
+	if !foundTimeguru {
+		t.Error("timeguru container not found")
+	}
+	if !foundCaptain {
+		t.Error("captain container not found")
+	}
+}
+
+func TestListFlakeContainers_NoContainers(t *testing.T) {
+	// Flake with no nixosConfigurations
+	content := `{
+  description = "A package-only flake";
+  outputs = { ... }: {
+    packages.x86_64-linux.default = {};
+  };
+}`
+	dir := createTempFlake(t, content, "")
+
+	containers, err := ListFlakeContainers(dir)
+	if err != nil {
+		t.Fatalf("ListFlakeContainers: %v", err)
+	}
+
+	if len(containers) != 0 {
+		t.Errorf("len(containers) = %d, want 0 for package-only flake", len(containers))
+	}
+}
+
+// ============================================================================
+// VALIDATE FLAKE TESTS
+// ============================================================================
+
+func TestValidateFlake_NotInstalled(t *testing.T) {
+	// nix is not installed in the test environment, so ValidateFlake should fail
+	dir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	err := ValidateFlake(dir)
+	// Should error because nix command is not available
+	if err == nil {
+		// nix might actually be installed on this system
+		t.Skip("nix appears to be installed, skipping")
+	}
+
+	if !strings.Contains(err.Error(), ErrFlakeParseError.Error()) {
+		t.Errorf("error = %q, want error containing %q", err.Error(), ErrFlakeParseError.Error())
+	}
+}
+
+// ============================================================================
+// IMPORT TO LXD ADDITIONAL TESTS
+// ============================================================================
+
+func TestImportToLXD_LxcCommandFails(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// Create a real file for the image path
+	imagePath := filepath.Join(dir, "image.tar.xz")
+	os.WriteFile(imagePath, []byte("fake image"), 0644)
+
+	result := &BuildResult{
+		Spec:      BuildSpec{ContainerName: "lxd-test"},
+		Status:    BuildStatusSuccess,
+		ImagePath: imagePath,
+		ImageHash: "abcdef0123456789abcdef",
+	}
+
+	// lxc command likely not available in test env, so this should fail
+	err = builder.ImportToLXD(context.Background(), result, nil)
+	if err == nil {
+		t.Skip("lxc appears to be available, skipping")
+	}
+
+	if !strings.Contains(err.Error(), ErrLXDImportFailed.Error()) {
+		t.Errorf("error = %q, want error containing %q", err.Error(), ErrLXDImportFailed.Error())
+	}
+}
+
+// ============================================================================
+// PROCESS QUEUE TESTS
+// ============================================================================
+
+func TestBuilder_ProcessQueue_EmptyQueue(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// processQueue on empty queue should return immediately
+	builder.processQueue(context.Background())
+}
+
+func TestBuilder_ProcessQueue_WithBuild(t *testing.T) {
+	dir := t.TempDir()
+	flakeDir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	cfg := BuilderConfig{
+		NixBinary:      "/nonexistent/nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  2,
+		DefaultTimeout: 5 * time.Second,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	spec := &BuildSpec{
+		ID:            "queue-build-1",
+		FlakePath:     flakeDir,
+		Attribute:     "nixosConfigurations.timeguru",
+		ContainerName: "timeguru",
+		System:        "x86_64-linux",
+		Options:       BuildOptions{Timeout: 5 * time.Second},
+	}
+
+	builder.queue.Enqueue(spec)
+	builder.processQueue(context.Background())
+
+	// Check that the result was stored
+	builder.resultsMu.RLock()
+	result, ok := builder.results["queue-build-1"]
+	builder.resultsMu.RUnlock()
+
+	if !ok {
+		t.Fatal("build result not stored after processQueue")
+	}
+
+	// The build should have failed since nix isn't installed
+	if result.Status == BuildStatusSuccess {
+		t.Error("build should not succeed with nonexistent nix binary")
+	}
+}
+
+// ============================================================================
+// WORKER LOOP TESTS
+// ============================================================================
+
+func TestBuilder_WorkerLoop_StopChannel(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Start a worker that will be stopped via stopCh
+	builder.wg.Add(1)
+	go builder.workerLoop(ctx)
+
+	// Give the goroutine time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Close stopCh to signal worker to exit
+	close(builder.stopCh)
+	builder.wg.Wait() // should not hang
+}
+
+func TestBuilder_WorkerLoop_ContextCancel(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	builder.wg.Add(1)
+	go builder.workerLoop(ctx)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+	builder.wg.Wait() // should not hang
+}
+
+// ============================================================================
+// CANCEL BUILD WITH STORED RESULT
+// ============================================================================
+
+func TestBuilder_CancelBuild_WithStoredResult(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	// Queue a build and also put a result in results map
+	spec := &BuildSpec{ID: "cancel-with-result", Priority: 5}
+	builder.queue.Enqueue(spec)
+
+	builder.resultsMu.Lock()
+	builder.results["cancel-with-result"] = &BuildResult{
+		Spec:   BuildSpec{ID: "cancel-with-result"},
+		Status: BuildStatusRunning,
+	}
+	builder.resultsMu.Unlock()
+
+	err = builder.CancelBuild("cancel-with-result")
+	if err != nil {
+		t.Fatalf("CancelBuild: %v", err)
+	}
+
+	// Result status should be updated to cancelled
+	builder.resultsMu.RLock()
+	result, ok := builder.results["cancel-with-result"]
+	builder.resultsMu.RUnlock()
+
+	if !ok {
+		t.Fatal("result not found after cancel")
+	}
+	if result.Status != BuildStatusCancelled {
+		t.Errorf("Status = %q, want %q", result.Status, BuildStatusCancelled)
+	}
+}
+
+// ============================================================================
+// NEW BUILD CACHE ERROR PATH
+// ============================================================================
+
+func TestNewBuildCache_InvalidPath(t *testing.T) {
+	// Try to create cache in a path that cannot be created
+	// On Unix, /dev/null is a file, so /dev/null/cache should fail
+	_, err := NewBuildCache("/dev/null/cache", 1024, time.Hour)
+	if err == nil {
+		t.Error("NewBuildCache with invalid path should error")
+	}
+}
+
+// ============================================================================
+// FLAKE WATCHER WATCH LOOP INTEGRATION
+// ============================================================================
+
+func TestFlakeWatcher_WatchLoopDetectsChanges(t *testing.T) {
+	dir := createTempFlake(t, sampleFlakeNix(), sampleFlakeLock())
+
+	changeCh := make(chan string, 10)
+	w := NewFlakeWatcher(50*time.Millisecond, func(path string, config *FlakeConfig) {
+		changeCh <- path
+	})
+
+	if err := w.AddPath(dir); err != nil {
+		t.Fatalf("AddPath: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := w.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Modify the flake to trigger a change detection
+	time.Sleep(100 * time.Millisecond) // wait for at least one poll cycle
+	newContent := sampleFlakeNix() + "\n# modified for test"
+	os.WriteFile(filepath.Join(dir, "flake.nix"), []byte(newContent), 0644)
+
+	// Wait for change detection (up to 500ms)
+	select {
+	case path := <-changeCh:
+		if path != dir {
+			t.Errorf("changed path = %q, want %q", path, dir)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("timeout waiting for change detection")
+	}
+
+	w.Stop()
+}
+
+// ============================================================================
+// BUILD QUEUE MARK ACTIVE/COMPLETE
+// ============================================================================
+
+func TestBuildQueue_MarkActiveAndComplete(t *testing.T) {
+	q := NewBuildQueue(10, 5)
+
+	spec := &BuildSpec{ID: "mark-test", Priority: 5}
+	q.Enqueue(spec)
+
+	got, ok := q.Dequeue()
+	if !ok {
+		t.Fatal("Dequeue returned not ok")
+	}
+
+	_, cancel := context.WithCancel(context.Background())
+	q.MarkActive(got, cancel)
+
+	// Should be active (running)
+	status, found := q.GetStatus("mark-test")
+	if !found {
+		t.Fatal("GetStatus: not found after MarkActive")
+	}
+	if status != BuildStatusRunning {
+		t.Errorf("status = %q, want running", status)
+	}
+
+	stats := q.Stats()
+	if stats["active"].(int) != 1 {
+		t.Errorf("active = %d, want 1", stats["active"].(int))
+	}
+
+	q.MarkComplete("mark-test")
+	cancel()
+
+	stats = q.Stats()
+	if stats["active"].(int) != 0 {
+		t.Errorf("active after complete = %d, want 0", stats["active"].(int))
+	}
+}
+
+// ============================================================================
+// PARSE FLAKE FILE EDGE CASES
+// ============================================================================
+
+func TestParseFlakeFile_ReadError(t *testing.T) {
+	// parseFlakeFile with a path that doesn't exist
+	config := &FlakeConfig{Path: "/nonexistent/path/to/flake"}
+	_, err := parseFlakeFile(config)
+	if err == nil {
+		t.Error("parseFlakeFile with nonexistent path should error")
+	}
+}
+
+// ============================================================================
+// NEW BUILDER ERROR PATHS
+// ============================================================================
+
+func TestNewBuilder_OutputDirCreationFails(t *testing.T) {
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      "/dev/null/output", // cannot create inside a file
+		CacheDir:       "/tmp/test-cache-" + fmt.Sprintf("%d", time.Now().UnixNano()),
+		CacheSize:      1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	_, err := NewBuilder(cfg, nil)
+	if err == nil {
+		t.Error("NewBuilder with invalid output dir should error")
+	}
+}
+
+func TestNewBuilder_CacheDirCreationFails(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       "/dev/null/cache", // cannot create inside a file
+		CacheSize:      1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	_, err := NewBuilder(cfg, nil)
+	if err == nil {
+		t.Error("NewBuilder with invalid cache dir should error")
+	}
+}
+
+// ============================================================================
+// CLEAN OLD BUILDS EDGE CASES
+// ============================================================================
+
+func TestBuilder_CleanOldBuilds_NoResults(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	removed, err := builder.CleanOldBuilds(time.Hour)
+	if err != nil {
+		t.Fatalf("CleanOldBuilds: %v", err)
+	}
+	if removed != 0 {
+		t.Errorf("removed = %d, want 0 for empty results", removed)
+	}
+}
+
+func TestBuilder_CleanOldBuilds_AllRecent(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	builder.resultsMu.Lock()
+	for i := 0; i < 5; i++ {
+		id := fmt.Sprintf("recent-%d", i)
+		builder.results[id] = &BuildResult{
+			Spec:        BuildSpec{ID: id},
+			Status:      BuildStatusSuccess,
+			CompletedAt: time.Now(),
+		}
+	}
+	builder.resultsMu.Unlock()
+
+	removed, err := builder.CleanOldBuilds(time.Hour)
+	if err != nil {
+		t.Fatalf("CleanOldBuilds: %v", err)
+	}
+	if removed != 0 {
+		t.Errorf("removed = %d, want 0 for all recent results", removed)
+	}
+}
+
+// ============================================================================
+// ON FLAKE CHANGE EDGE CASES
+// ============================================================================
+
+func TestBuilder_OnFlakeChange_NoContainerOutputs(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      100,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	config := &FlakeConfig{
+		System: "x86_64-linux",
+		Outputs: []FlakeOutput{
+			{Name: "mypackage", Type: "package", System: "x86_64-linux"},
+			{Name: "devshell", Type: "devShell", System: "x86_64-linux"},
+		},
+	}
+
+	builder.onFlakeChange("/path/to/flake", config)
+
+	stats := builder.queue.Stats()
+	pending := stats["pending"].(int)
+	if pending != 0 {
+		t.Errorf("pending = %d, want 0 (no container outputs)", pending)
+	}
+}
+
+func TestBuilder_OnFlakeChange_EmptyOutputs(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      100,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	config := &FlakeConfig{
+		System:  "x86_64-linux",
+		Outputs: []FlakeOutput{},
+	}
+
+	builder.onFlakeChange("/path/to/flake", config)
+
+	stats := builder.queue.Stats()
+	pending := stats["pending"].(int)
+	if pending != 0 {
+		t.Errorf("pending = %d, want 0 (empty outputs)", pending)
+	}
+}
+
+// ============================================================================
+// BUILD CACHE EDGE CASES
+// ============================================================================
+
+func TestBuildCache_EvictMultiple(t *testing.T) {
+	dir := t.TempDir()
+	// Very small cache: 100 bytes max
+	cache, err := NewBuildCache(dir, 100, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("NewBuildCache: %v", err)
+	}
+
+	// Put a large entry that forces eviction of all previous
+	for i := 0; i < 3; i++ {
+		entry := &CacheEntry{
+			Key:        fmt.Sprintf("small-%d", i),
+			CreatedAt:  time.Now(),
+			LastAccess: time.Now().Add(-time.Duration(3-i) * time.Hour),
+			Size:       30,
+		}
+		cache.Put(entry)
+	}
+
+	// Now put a 90-byte entry, which requires evicting enough to make room
+	bigEntry := &CacheEntry{
+		Key:        "big-entry",
+		CreatedAt:  time.Now(),
+		LastAccess: time.Now(),
+		Size:       90,
+	}
+	if err := cache.Put(bigEntry); err != nil {
+		t.Fatalf("Put big entry: %v", err)
+	}
+
+	// Verify big entry is present
+	_, ok := cache.Get("big-entry")
+	if !ok {
+		t.Error("big entry not found after put")
+	}
+
+	stats := cache.Stats()
+	currentSize := stats["current_size"].(int64)
+	maxSize := stats["max_size"].(int64)
+	if currentSize > maxSize {
+		t.Errorf("current_size %d > max_size %d", currentSize, maxSize)
+	}
+}
+
+// ============================================================================
+// DEFAULT BUILDER CONFIG ADDITIONAL CHECKS
+// ============================================================================
+
+func TestDefaultBuilderConfig_AllFields(t *testing.T) {
+	cfg := DefaultBuilderConfig()
+
+	if cfg.OutputDir == "" {
+		t.Error("OutputDir should not be empty")
+	}
+	if cfg.CacheDir == "" {
+		t.Error("CacheDir should not be empty")
+	}
+	if cfg.CacheSize <= 0 {
+		t.Errorf("CacheSize = %d, want > 0", cfg.CacheSize)
+	}
+}
+
+// ============================================================================
+// BUILDER IS RUNNING STATE
+// ============================================================================
+
+func TestBuilder_IsRunning_Transitions(t *testing.T) {
+	dir := t.TempDir()
+	cfg := BuilderConfig{
+		NixBinary:      "nix",
+		OutputDir:      filepath.Join(dir, "output"),
+		CacheDir:       filepath.Join(dir, "cache"),
+		CacheSize:      1024 * 1024,
+		CacheAge:       time.Hour,
+		QueueSize:      10,
+		MaxConcurrent:  1,
+		DefaultTimeout: 5 * time.Minute,
+		WatchInterval:  time.Second,
+	}
+
+	builder, err := NewBuilder(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewBuilder: %v", err)
+	}
+
+	if builder.IsRunning() {
+		t.Error("new builder should not be running")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	builder.Start(ctx)
+	if !builder.IsRunning() {
+		t.Error("builder should be running after Start")
+	}
+
+	builder.Stop()
+	if builder.IsRunning() {
+		t.Error("builder should not be running after Stop")
+	}
+}

@@ -43,6 +43,19 @@ type Subscriber struct {
 	RequestedAt  time.Time `json:"requested_at"`
 }
 
+// safeChannel wraps a channel with a sync.Once so it can be closed
+// idempotently from both pollMessages and Client.Close without panic.
+type safeChannel struct {
+	ch   chan *Message
+	once sync.Once
+}
+
+// closeCh closes the underlying channel exactly once, regardless of how many
+// times closeCh is called.
+func (sc *safeChannel) closeCh() {
+	sc.once.Do(func() { close(sc.ch) })
+}
+
 // Client provides access to Busboy message bus
 type Client struct {
 	baseURL    string
@@ -53,7 +66,7 @@ type Client struct {
 	mu          sync.RWMutex
 
 	// Message channels for subscriptions
-	channels map[string]chan *Message
+	channels map[string]*safeChannel
 	chanMu   sync.RWMutex
 }
 
@@ -69,7 +82,7 @@ func NewClient(addr string) (*Client, error) {
 			Timeout: 30 * time.Second,
 		},
 		subscribers: make(map[string]*Subscriber),
-		channels:    make(map[string]chan *Message),
+		channels:    make(map[string]*safeChannel),
 	}, nil
 }
 
@@ -86,17 +99,18 @@ func NewClientWithTLS(addr string, tlsConfig *http.Transport) (*Client, error) {
 			Transport: tlsConfig,
 		},
 		subscribers: make(map[string]*Subscriber),
-		channels:    make(map[string]chan *Message),
+		channels:    make(map[string]*safeChannel),
 	}, nil
 }
 
-// Close closes the client and all subscriptions
+// Close closes the client and all subscriptions.
+// It is safe to call Close even if pollMessages has already closed some channels.
 func (c *Client) Close() error {
 	c.chanMu.Lock()
 	defer c.chanMu.Unlock()
 
-	for topic, ch := range c.channels {
-		close(ch)
+	for topic, sc := range c.channels {
+		sc.closeCh()
 		delete(c.channels, topic)
 	}
 	return nil
@@ -255,20 +269,28 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 	}
 
 	ch := make(chan *Message, 100)
+	sc := &safeChannel{ch: ch}
 
 	c.chanMu.Lock()
-	c.channels[topic] = ch
+	c.channels[topic] = sc
 	c.chanMu.Unlock()
 
 	// Start polling goroutine (TODO: replace with gRPC streaming)
-	go c.pollMessages(ctx, topic, ch)
+	go c.pollMessages(ctx, topic, sc)
 
 	return ch, nil
 }
 
 // pollMessages polls for new messages (fallback when gRPC not available)
-func (c *Client) pollMessages(ctx context.Context, topic string, ch chan *Message) {
-	defer close(ch)
+func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel) {
+	defer func() {
+		sc.closeCh()
+
+		// Remove from the channels map so Close() won't try again.
+		c.chanMu.Lock()
+		delete(c.channels, topic)
+		c.chanMu.Unlock()
+	}()
 
 	var lastSeq int64 = 0
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -285,7 +307,7 @@ func (c *Client) pollMessages(ctx context.Context, topic string, ch chan *Messag
 			}
 			for _, msg := range msgs {
 				select {
-				case ch <- msg:
+				case sc.ch <- msg:
 					if msg.Seq > lastSeq {
 						lastSeq = msg.Seq
 					}
