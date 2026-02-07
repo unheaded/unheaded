@@ -36,9 +36,6 @@ func newTestServer(t *testing.T, handlers map[string]http.HandlerFunc) (*httptes
 		t.Fatalf("NewClient: %v", err)
 	}
 	t.Cleanup(func() {
-		// Close may panic if pollMessages already closed a channel
-		// that is still in c.channels. Recover gracefully.
-		defer func() { recover() }()
 		c.Close()
 	})
 	return srv, c
@@ -186,8 +183,8 @@ func TestClose(t *testing.T) {
 		}
 		ch1 := make(chan *Message, 1)
 		ch2 := make(chan *Message, 1)
-		c.channels["topic1"] = ch1
-		c.channels["topic2"] = ch2
+		c.channels["topic1"] = &safeChannel{ch: ch1}
+		c.channels["topic2"] = &safeChannel{ch: ch2}
 
 		if err := c.Close(); err != nil {
 			t.Fatalf("Close returned error: %v", err)
@@ -1518,13 +1515,7 @@ func TestConcurrentCloseAndStreamMessages(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		time.Sleep(20 * time.Millisecond)
-		// pollMessages may have already closed the channel via defer,
-		// so Close() can encounter a double-close. Recover gracefully
-		// since this tests the concurrent teardown path, not crash safety.
-		func() {
-			defer func() { recover() }()
-			c.Close()
-		}()
+		c.Close()
 	}()
 	wg.Wait()
 }
@@ -1539,7 +1530,7 @@ func TestBackpressureOnFullChannel(t *testing.T) {
 
 	ch := make(chan *Message, 100)
 	c.chanMu.Lock()
-	c.channels["chat"] = ch
+	c.channels["chat"] = &safeChannel{ch: ch}
 	c.chanMu.Unlock()
 
 	// Fill the channel.
@@ -2073,7 +2064,7 @@ func TestCloseIdempotent(t *testing.T) {
 	}
 
 	ch := make(chan *Message, 1)
-	c.channels["topic"] = ch
+	c.channels["topic"] = &safeChannel{ch: ch}
 
 	// First close.
 	if err := c.Close(); err != nil {
