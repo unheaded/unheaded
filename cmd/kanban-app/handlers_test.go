@@ -137,10 +137,10 @@ func TestHandleCreateTask_DuplicateID_Returns409(t *testing.T) {
 	}
 }
 
-func TestHandleCreateTask_NoTaskManager_Returns500(t *testing.T) {
-	server := &Server{} // No TaskManager
+func TestHandleCreateTask_NoTaskManager_StandaloneMode(t *testing.T) {
+	server := NewServer(Config{Port: "0"}) // Standalone mode, no TaskManager
 
-	task := createTestTask("test")
+	task := createTestTask("standalone-test")
 	payload, _ := json.Marshal(task)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/timeline/tasks", bytes.NewReader(payload))
@@ -149,8 +149,8 @@ func TestHandleCreateTask_NoTaskManager_Returns500(t *testing.T) {
 
 	server.handleCreateTask(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected status 500, got %d", w.Code)
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201 in standalone mode, got %d", w.Code)
 	}
 }
 

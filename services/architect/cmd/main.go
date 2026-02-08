@@ -3,10 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/pkg/lifecycle"
 	"unheaded/services/architect"
 )
 
@@ -145,62 +145,47 @@ func main() {
 	}()
 
 	// Graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	lifecycle.WaitForShutdown(server, 10*time.Second, alertCancel)
+}
 
-	<-sigChan
-	log.Info().Msg("shutdown signal received")
+// statusRecorder wraps http.ResponseWriter to capture the HTTP status code.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
 
-	// Cancel alert listener context
-	alertCancel()
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Error().Err(err).Msg("server shutdown error")
-	}
-
-	log.Info().Msg("architect service stopped")
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
 }
 
 // instrument wraps a handler with metrics and logging
 func instrument(h http.HandlerFunc, operation string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
-		// Record metrics
-		defer func() {
-			duration := time.Since(start).Seconds()
-			httpRequestDuration.WithLabelValues("architect", r.Method, r.URL.Path).Observe(duration)
-
-			log.Debug().
-				Str("operation", operation).
-				Str("method", r.Method).
-				Str("path", r.URL.Path).
-				Dur("duration", time.Since(start)).
-				Msg("request processed")
-		}()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 
 		// Call handler
-		h(w, r)
+		h(rec, r)
 
-		// Record request total
-		httpRequestsTotal.WithLabelValues("architect", r.Method, r.URL.Path, "ok").Inc()
+		// Record metrics after handler completes
+		duration := time.Since(start).Seconds()
+		httpRequestDuration.WithLabelValues("architect", r.Method, r.URL.Path).Observe(duration)
+		httpRequestsTotal.WithLabelValues("architect", r.Method, r.URL.Path, fmt.Sprintf("%d", rec.status)).Inc()
+
+		log.Debug().
+			Str("operation", operation).
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Int("status", rec.status).
+			Dur("duration", time.Since(start)).
+			Msg("request processed")
 	}
 }
 
 // handleDesign handles both GET and POST for /design endpoint
 func handleDesign(h *architect.HTTPHandler, operation string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		defer func() {
-			duration := time.Since(start).Seconds()
-			httpRequestDuration.WithLabelValues("architect", r.Method, r.URL.Path).Observe(duration)
-			httpRequestsTotal.WithLabelValues("architect", r.Method, r.URL.Path, "ok").Inc()
-		}()
-
+	return instrument(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			h.LogDesign(w, r)
 		} else if r.Method == http.MethodGet {
@@ -208,7 +193,7 @@ func handleDesign(h *architect.HTTPHandler, operation string) http.HandlerFunc {
 		} else {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
-	}
+	}, operation)
 }
 
 // parseLogLevel parses the log level string

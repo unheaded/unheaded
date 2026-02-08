@@ -415,8 +415,8 @@
         output: "/var/log/unheaded/cuirass/cuirass.log"
 
       security:
-        tls_enabled: false       # TODO: Enable for production
-        auth_required: false     # TODO: Enable for production
+        tls_enabled: false       # ALPHA: Disabled for local development. MUST enable before production deployment.
+        auth_required: false     # ALPHA: Disabled for local development. MUST enable before production deployment.
     '';
     mode = "0644";
   };

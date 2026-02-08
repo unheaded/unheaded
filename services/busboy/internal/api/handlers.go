@@ -9,13 +9,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+	"unheaded/pkg/httputil"
 	"unheaded/services/busboy/internal/busboy"
 	"unheaded/services/busboy/internal/member"
 	"unheaded/services/busboy/internal/room"
 )
-
-// maxRequestBodySize is the maximum allowed request body size (1MB).
-const maxRequestBodySize = 1 * 1024 * 1024
 
 // Server holds the API dependencies
 type Server struct {
@@ -90,12 +88,6 @@ type MessageResponse struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 // Handlers
 
 // JoinRoom handles member join requests (creates pending member)
@@ -107,7 +99,7 @@ func (s *Server) JoinRoom(w http.ResponseWriter, r *http.Request) {
 
 	var req JoinRoomRequest
 	// SECURITY: Enforce body size limit to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, httputil.DefaultMaxBodySize)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -141,7 +133,7 @@ func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	var req SendMessageRequest
 	// SECURITY: Enforce body size limit to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, httputil.DefaultMaxBodySize)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -190,7 +182,7 @@ func (s *Server) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 
 	var req DeleteMessageRequest
 	// SECURITY: Enforce body size limit to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, httputil.DefaultMaxBodySize)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -328,7 +320,7 @@ func (s *Server) ApproveMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// SECURITY: Enforce body size limit to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, httputil.DefaultMaxBodySize)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -365,7 +357,7 @@ func (s *Server) DenyMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// SECURITY: Enforce body size limit to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, httputil.DefaultMaxBodySize)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -405,7 +397,7 @@ func (s *Server) ApproveAllMembers(w http.ResponseWriter, r *http.Request) {
 	approvedBy := "admin"
 	if r.Body != nil {
 		// SECURITY: Enforce body size limit to prevent denial-of-service
-		_ = json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&req)
+		_ = json.NewDecoder(io.LimitReader(r.Body, httputil.DefaultMaxBodySize)).Decode(&req)
 		if req.ApprovedBy != "" {
 			approvedBy = req.ApprovedBy
 		}
@@ -434,20 +426,11 @@ func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
 // Helper functions
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Error().Err(err).Msg("failed to encode JSON response")
-	}
+	httputil.WriteJSON(w, status, data)
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	resp := ErrorResponse{
-		Error:   http.StatusText(status),
-		Code:    status,
-		Message: message,
-	}
-	writeJSON(w, status, resp)
+	httputil.WriteError(w, status, http.StatusText(status), message)
 }
 
 // requireAdminAuth validates admin authentication for protected endpoints

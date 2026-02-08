@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/pkg/lifecycle"
 	"unheaded/services/micromanager"
 )
 
@@ -152,26 +151,14 @@ func main() {
 		}
 	}()
 
-	// Wait for shutdown signal
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
-
-	log.Info().Msg("received shutdown signal, closing gracefully")
-
 	// Graceful shutdown
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), *shutdownTimeout)
-	defer cancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error().Err(err).Msg("server shutdown error")
-	}
-
-	if err := service.Stop(shutdownCtx); err != nil {
-		log.Error().Err(err).Msg("service stop error")
-	}
-
-	log.Info().Msg("micromanager service stopped")
+	lifecycle.WaitForShutdown(srv, *shutdownTimeout, func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), *shutdownTimeout)
+		defer stopCancel()
+		if err := service.Stop(stopCtx); err != nil {
+			log.Error().Err(err).Msg("service stop error")
+		}
+	})
 }
 
 // withMetrics wraps a handler with metrics collection

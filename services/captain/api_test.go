@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"unheaded/pkg/httputil"
 )
 
 func createTestServer(t *testing.T) (*Service, *HTTPServer) {
@@ -104,7 +106,7 @@ func TestHTTPServer_Vision(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var resp ResponseEnvelope
+	var resp httputil.Response
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Errorf("failed to decode response: %v", err)
 	}
@@ -127,7 +129,7 @@ func TestHTTPServer_Strategy(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var resp ResponseEnvelope
+	var resp httputil.Response
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Errorf("failed to decode response: %v", err)
 	}
@@ -178,7 +180,7 @@ func TestHTTPServer_CreateDecision(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
 	}
 
-	var resp ResponseEnvelope
+	var resp httputil.Response
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Errorf("failed to decode response: %v", err)
 	}
@@ -259,7 +261,7 @@ func TestHTTPServer_ListDecisions(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var resp ResponseEnvelope
+	var resp httputil.Response
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Errorf("failed to decode response: %v", err)
 	}
@@ -291,7 +293,7 @@ func TestHTTPServer_GetDecision(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var resp ResponseEnvelope
+	var resp httputil.Response
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Errorf("failed to decode response: %v", err)
 	}
@@ -342,7 +344,7 @@ func TestHTTPServer_UpdateDecision(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var resp ResponseEnvelope
+	var resp httputil.Response
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Errorf("failed to decode response: %v", err)
 	}

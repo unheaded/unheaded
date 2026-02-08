@@ -12,6 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/httputil"
 	"unheaded/services/timeguru/internal/timeline"
 )
 
@@ -79,13 +80,6 @@ type HealthResponse struct {
 	Status  string `json:"status"`
 	Service string `json:"service"`
 	Version string `json:"version"`
-}
-
-// ErrorResponse represents error payload
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Code    string `json:"code"`
-	Details string `json:"details,omitempty"`
 }
 
 // KanbanTask represents a task in kanban format for the frontend
@@ -703,33 +697,14 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 
 // writeJSON writes JSON response with defensive error handling
 func (h *Handler) writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		// Can't write error response at this point (headers already sent)
-		// In production, log this error
-		_ = err
-	}
+	httputil.WriteJSON(w, status, data)
 }
 
 // writeError writes error response with defensive error handling
 func (h *Handler) writeError(w http.ResponseWriter, status int, code, message string, err error) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	errResp := ErrorResponse{
-		Error: message,
-		Code:  code,
-	}
-
 	if err != nil {
-		errResp.Details = err.Error()
+		httputil.WriteErrorWithDetails(w, status, code, message, err.Error())
+		return
 	}
-
-	if encodeErr := json.NewEncoder(w).Encode(errResp); encodeErr != nil {
-		// Can't write error response at this point (headers already sent)
-		// In production, log this error
-		_ = encodeErr
-	}
+	httputil.WriteError(w, status, code, message)
 }

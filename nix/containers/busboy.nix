@@ -67,7 +67,7 @@
       User = "unheaded";
       Group = "unheaded";
 
-      # Service binary (TODO: build from Go source)
+      # ALPHA: Uses pre-built binary. Build from Go source (services/busboy/) planned for Age 2. See docs/SERVICE_BREAKOUT_STRATEGY.md
       ExecStart = "${pkgs.busboy}/bin/busboy --grpc-addr=0.0.0.0:9090 --http-addr=0.0.0.0:8080 --metrics-addr=0.0.0.0:9100";
 
       # Working directory
@@ -111,7 +111,7 @@
   # ===========================================================================
   # PACKAGE BUILD
   # ===========================================================================
-  # TODO: Build busboy from source in flake
+  # ALPHA: Uses pre-built binary. Build from Go source (services/busboy/) planned for Age 2. See docs/SERVICE_BREAKOUT_STRATEGY.md
   # For now, placeholder package
   # ===========================================================================
   nixpkgs.config.packageOverrides = pkgs: {

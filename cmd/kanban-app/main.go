@@ -333,11 +333,6 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 
 // handleCreateTask creates a new task (POST)
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
-	if s.taskManager == nil {
-		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
-		return
-	}
-
 	// Parse request body
 	var task Task
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
@@ -351,20 +346,37 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create task via TaskManager
-	ctx := r.Context()
-	if err := s.taskManager.CreateTask(ctx, &task); err != nil {
-		log.Error().Err(err).Str("task_id", task.ID).Msg("failed to create task")
+	if s.taskManager != nil {
+		// Create task via TaskManager
+		ctx := r.Context()
+		if err := s.taskManager.CreateTask(ctx, &task); err != nil {
+			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to create task")
 
-		switch err {
-		case ErrTaskAlreadyExists:
-			http.Error(w, err.Error(), http.StatusConflict)
-		case ErrInvalidTask:
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		default:
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			switch err {
+			case ErrTaskAlreadyExists:
+				http.Error(w, err.Error(), http.StatusConflict)
+			case ErrInvalidTask:
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			default:
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
 		}
-		return
+	} else {
+		// Standalone mode: in-memory CRUD
+		now := time.Now()
+		task.CreatedAt = now
+		task.UpdatedAt = now
+		s.tasksMu.Lock()
+		for _, t := range s.tasks {
+			if t.ID == task.ID {
+				s.tasksMu.Unlock()
+				http.Error(w, "task already exists", http.StatusConflict)
+				return
+			}
+		}
+		s.tasks = append(s.tasks, task)
+		s.tasksMu.Unlock()
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -376,11 +388,6 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 // handleUpdateTask updates an existing task (PUT)
 func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
-	if s.taskManager == nil {
-		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
-		return
-	}
-
 	// Parse request body
 	var task Task
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
@@ -394,20 +401,40 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update task via TaskManager
-	ctx := r.Context()
-	if err := s.taskManager.UpdateTask(ctx, &task); err != nil {
-		log.Error().Err(err).Str("task_id", task.ID).Msg("failed to update task")
+	if s.taskManager != nil {
+		// Update task via TaskManager
+		ctx := r.Context()
+		if err := s.taskManager.UpdateTask(ctx, &task); err != nil {
+			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to update task")
 
-		switch err {
-		case ErrTaskNotFound:
-			http.Error(w, err.Error(), http.StatusNotFound)
-		case ErrInvalidTask:
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		default:
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			switch err {
+			case ErrTaskNotFound:
+				http.Error(w, err.Error(), http.StatusNotFound)
+			case ErrInvalidTask:
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			default:
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
 		}
-		return
+	} else {
+		// Standalone mode: in-memory update
+		s.tasksMu.Lock()
+		found := false
+		for i, t := range s.tasks {
+			if t.ID == task.ID {
+				task.CreatedAt = t.CreatedAt
+				task.UpdatedAt = time.Now()
+				s.tasks[i] = task
+				found = true
+				break
+			}
+		}
+		s.tasksMu.Unlock()
+		if !found {
+			http.Error(w, "task not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -418,11 +445,6 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 // handleDeleteTask deletes a task (DELETE)
 func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
-	if s.taskManager == nil {
-		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
-		return
-	}
-
 	// Parse task ID from query parameter
 	taskID := r.URL.Query().Get("id")
 	if taskID == "" {
@@ -430,20 +452,38 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete task via TaskManager
-	ctx := r.Context()
-	if err := s.taskManager.DeleteTask(ctx, taskID); err != nil {
-		log.Error().Err(err).Str("task_id", taskID).Msg("failed to delete task")
+	if s.taskManager != nil {
+		// Delete task via TaskManager
+		ctx := r.Context()
+		if err := s.taskManager.DeleteTask(ctx, taskID); err != nil {
+			log.Error().Err(err).Str("task_id", taskID).Msg("failed to delete task")
 
-		switch err {
-		case ErrTaskNotFound:
-			http.Error(w, err.Error(), http.StatusNotFound)
-		case ErrEmptyTaskID:
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		default:
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			switch err {
+			case ErrTaskNotFound:
+				http.Error(w, err.Error(), http.StatusNotFound)
+			case ErrEmptyTaskID:
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			default:
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
 		}
-		return
+	} else {
+		// Standalone mode: in-memory delete
+		s.tasksMu.Lock()
+		found := false
+		for i, t := range s.tasks {
+			if t.ID == taskID {
+				s.tasks = append(s.tasks[:i], s.tasks[i+1:]...)
+				found = true
+				break
+			}
+		}
+		s.tasksMu.Unlock()
+		if !found {
+			http.Error(w, "task not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -482,32 +522,36 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 
 // handleGetTaskByID returns a single task
 func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskID string) {
-	if s.taskManager == nil {
-		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
-		return
-	}
-
-	task, err := s.taskManager.GetTask(taskID)
-	if err != nil {
-		if err == ErrTaskNotFound {
-			http.Error(w, "Task not found", http.StatusNotFound)
-		} else {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+	if s.taskManager != nil {
+		task, err := s.taskManager.GetTask(taskID)
+		if err != nil {
+			if err == ErrTaskNotFound {
+				http.Error(w, "Task not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(task)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(task)
+	// Standalone mode: search in-memory tasks
+	s.tasksMu.RLock()
+	defer s.tasksMu.RUnlock()
+	for _, t := range s.tasks {
+		if t.ID == taskID {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(t)
+			return
+		}
+	}
+	http.Error(w, "Task not found", http.StatusNotFound)
 }
 
 // handleUpdateTaskByID updates a single task
 func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, taskID string) {
-	if s.taskManager == nil {
-		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
-		return
-	}
-
 	var task Task
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
@@ -515,13 +559,33 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 	}
 	task.ID = taskID // Ensure ID from URL
 
-	if err := s.taskManager.UpdateTask(r.Context(), &task); err != nil {
-		if err == ErrTaskNotFound {
-			http.Error(w, "Task not found", http.StatusNotFound)
-		} else {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+	if s.taskManager != nil {
+		if err := s.taskManager.UpdateTask(r.Context(), &task); err != nil {
+			if err == ErrTaskNotFound {
+				http.Error(w, "Task not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
 		}
-		return
+	} else {
+		// Standalone mode: in-memory update
+		s.tasksMu.Lock()
+		found := false
+		for i, t := range s.tasks {
+			if t.ID == taskID {
+				task.CreatedAt = t.CreatedAt
+				task.UpdatedAt = time.Now()
+				s.tasks[i] = task
+				found = true
+				break
+			}
+		}
+		s.tasksMu.Unlock()
+		if !found {
+			http.Error(w, "Task not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -530,18 +594,31 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 
 // handleDeleteTaskByID deletes a single task
 func (s *Server) handleDeleteTaskByID(w http.ResponseWriter, r *http.Request, taskID string) {
-	if s.taskManager == nil {
-		http.Error(w, "Task manager not initialized", http.StatusInternalServerError)
-		return
-	}
-
-	if err := s.taskManager.DeleteTask(r.Context(), taskID); err != nil {
-		if err == ErrTaskNotFound {
-			http.Error(w, "Task not found", http.StatusNotFound)
-		} else {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+	if s.taskManager != nil {
+		if err := s.taskManager.DeleteTask(r.Context(), taskID); err != nil {
+			if err == ErrTaskNotFound {
+				http.Error(w, "Task not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
 		}
-		return
+	} else {
+		// Standalone mode: in-memory delete
+		s.tasksMu.Lock()
+		found := false
+		for i, t := range s.tasks {
+			if t.ID == taskID {
+				s.tasks = append(s.tasks[:i], s.tasks[i+1:]...)
+				found = true
+				break
+			}
+		}
+		s.tasksMu.Unlock()
+		if !found {
+			http.Error(w, "Task not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -687,10 +764,9 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	ready := true
 	reason := "ready"
 
-	// Check if TaskManager is available and connected
+	// In standalone mode (no TaskManager), we're still ready to serve
 	if s.taskManager == nil {
-		ready = false
-		reason = "task manager not initialized"
+		reason = "standalone mode"
 	}
 
 	if !ready {

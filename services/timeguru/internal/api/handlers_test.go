@@ -16,6 +16,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/httputil"
 	"unheaded/services/timeguru/internal/timeline"
 )
 
@@ -459,6 +460,7 @@ func createRichMockTimeline() *timeline.Timeline {
 				Progress:    100,
 				Owner:       "Agent 7",
 				Description: "Fix the connection reset bug in gateway",
+				Tasks:       []string{"diagnose reset cause", "apply fix"},
 			},
 			{
 				ID:          "milestone-3",
@@ -1253,32 +1255,38 @@ func TestHandleTimelineStream_NoFlusherSupport(t *testing.T) {
 	store := &mockStore{timeline: createMockTimeline()}
 	handler := NewHandler(store)
 
-	// Use plain httptest.ResponseRecorder (does NOT implement http.Flusher as raw interface)
-	// We need a wrapper that explicitly doesn't implement Flusher
-	req := httptest.NewRequest("GET", "/api/v1/timeline/stream", nil)
-	w := &nonFlusherWriter{ResponseRecorder: httptest.NewRecorder()}
+	// nonFlusherWriter delegates to a recorder but does NOT expose Flush(),
+	// so the w.(http.Flusher) assertion in HandleTimelineStream returns false.
+	rec := httptest.NewRecorder()
+	w := &nonFlusherWriter{rec: rec}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req := httptest.NewRequest("GET", "/api/v1/timeline/stream", nil).WithContext(ctx)
 
 	handler.HandleTimelineStream(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500 when Flusher not supported, got %d", w.Code)
+	if w.code != http.StatusInternalServerError {
+		t.Errorf("expected 500 when Flusher not supported, got %d", w.code)
 	}
 }
 
-// nonFlusherWriter wraps ResponseRecorder but explicitly does NOT implement http.Flusher
+// nonFlusherWriter is an http.ResponseWriter that does NOT implement http.Flusher.
+// It uses explicit delegation (not embedding) to avoid promoting Flush().
 type nonFlusherWriter struct {
-	*httptest.ResponseRecorder
+	rec  *httptest.ResponseRecorder
+	code int
 }
 
-// Override Write to prevent the embed from exposing Flush
 func (n *nonFlusherWriter) Header() http.Header {
-	return n.ResponseRecorder.Header()
+	return n.rec.Header()
 }
 func (n *nonFlusherWriter) Write(b []byte) (int, error) {
-	return n.ResponseRecorder.Write(b)
+	return n.rec.Write(b)
 }
 func (n *nonFlusherWriter) WriteHeader(code int) {
-	n.ResponseRecorder.WriteHeader(code)
+	n.code = code
+	n.rec.WriteHeader(code)
 }
 
 func TestHandleTimelineStream_StoreError(t *testing.T) {
@@ -1350,19 +1358,25 @@ func TestWriteError_NilError(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.writeError(w, http.StatusBadRequest, "TEST_CODE", "test message", nil)
 
-	var resp ErrorResponse
+	var resp httputil.Response
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("Decode error: %v", err)
 	}
 
-	if resp.Error != "test message" {
-		t.Errorf("expected error message 'test message', got %q", resp.Error)
+	if resp.Success {
+		t.Error("expected success=false")
 	}
-	if resp.Code != "TEST_CODE" {
-		t.Errorf("expected code 'TEST_CODE', got %q", resp.Code)
+	if resp.Error == nil {
+		t.Fatal("expected error info, got nil")
 	}
-	if resp.Details != "" {
-		t.Errorf("expected empty details for nil error, got %q", resp.Details)
+	if resp.Error.Message != "test message" {
+		t.Errorf("expected error message 'test message', got %q", resp.Error.Message)
+	}
+	if resp.Error.Code != "TEST_CODE" {
+		t.Errorf("expected code 'TEST_CODE', got %q", resp.Error.Code)
+	}
+	if resp.Error.Details != "" {
+		t.Errorf("expected empty details for nil error, got %q", resp.Error.Details)
 	}
 }
 

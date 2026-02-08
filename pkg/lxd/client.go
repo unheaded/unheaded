@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,6 +26,9 @@ var (
 	ErrStorageError       = errors.New("storage configuration error")
 	ErrSnapshotNotFound   = errors.New("snapshot not found")
 )
+
+// opIDCounter provides globally unique operation IDs across all client types.
+var opIDCounter atomic.Int64
 
 // ============================================================================
 // CONTAINER TYPES - THE CITADEL BLUEPRINTS
@@ -331,7 +335,7 @@ func (m *MockClient) CreateContainer(ctx context.Context, cfg ContainerConfig) (
 	}
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "container_create",
 		Status:     "Success",
 		StatusCode: 200,
@@ -361,7 +365,7 @@ func (m *MockClient) DeleteContainer(ctx context.Context, name string) (*Operati
 	delete(m.snapshots, name)
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "container_delete",
 		Status:     "Success",
 		StatusCode: 200,
@@ -398,7 +402,7 @@ func (m *MockClient) StartContainer(ctx context.Context, name string) (*Operatio
 	state.Processes = 10
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "container_start",
 		Status:     "Success",
 		StatusCode: 200,
@@ -434,7 +438,7 @@ func (m *MockClient) StopContainer(ctx context.Context, name string, force bool,
 	state.Processes = 0
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "container_stop",
 		Status:     "Success",
 		StatusCode: 200,
@@ -477,7 +481,7 @@ func (m *MockClient) FreezeContainer(ctx context.Context, name string) (*Operati
 	state.StatusCode = 110
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "container_freeze",
 		Status:     "Success",
 		StatusCode: 200,
@@ -511,7 +515,7 @@ func (m *MockClient) UnfreezeContainer(ctx context.Context, name string) (*Opera
 	state.StatusCode = 103
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "container_unfreeze",
 		Status:     "Success",
 		StatusCode: 200,
@@ -606,7 +610,7 @@ func (m *MockClient) UpdateContainer(ctx context.Context, name string, cfg Conta
 	info.Profiles = cfg.Profiles
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "container_update",
 		Status:     "Success",
 		StatusCode: 200,
@@ -645,7 +649,7 @@ func (m *MockClient) RenameContainer(ctx context.Context, name, newName string) 
 	delete(m.containerState, name)
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "container_rename",
 		Status:     "Success",
 		StatusCode: 200,
@@ -679,7 +683,7 @@ func (m *MockClient) CreateSnapshot(ctx context.Context, container, snapshot str
 	m.snapshots[container] = append(m.snapshots[container], snap)
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "snapshot_create",
 		Status:     "Success",
 		StatusCode: 200,
@@ -722,7 +726,7 @@ func (m *MockClient) DeleteSnapshot(ctx context.Context, container, snapshot str
 	m.snapshots[container] = newSnaps
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "snapshot_delete",
 		Status:     "Success",
 		StatusCode: 200,
@@ -761,7 +765,7 @@ func (m *MockClient) RestoreSnapshot(ctx context.Context, container, snapshot st
 	}
 
 	op := &Operation{
-		ID:         fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:         fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Type:       "snapshot_restore",
 		Status:     "Success",
 		StatusCode: 200,
@@ -959,7 +963,7 @@ func (c *RealClient) CreateContainer(ctx context.Context, cfg ContainerConfig) (
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -970,7 +974,7 @@ func (c *RealClient) DeleteContainer(ctx context.Context, name string) (*Operati
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -981,7 +985,7 @@ func (c *RealClient) StartContainer(ctx context.Context, name string) (*Operatio
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -992,7 +996,7 @@ func (c *RealClient) StopContainer(ctx context.Context, name string, force bool,
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -1003,7 +1007,7 @@ func (c *RealClient) RestartContainer(ctx context.Context, name string, force bo
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -1014,7 +1018,7 @@ func (c *RealClient) FreezeContainer(ctx context.Context, name string) (*Operati
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -1025,7 +1029,7 @@ func (c *RealClient) UnfreezeContainer(ctx context.Context, name string) (*Opera
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -1068,7 +1072,7 @@ func (c *RealClient) UpdateContainer(ctx context.Context, name string, cfg Conta
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -1079,7 +1083,7 @@ func (c *RealClient) RenameContainer(ctx context.Context, name, newName string) 
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -1090,7 +1094,7 @@ func (c *RealClient) CreateSnapshot(ctx context.Context, container, snapshot str
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -1101,7 +1105,7 @@ func (c *RealClient) DeleteSnapshot(ctx context.Context, container, snapshot str
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }
@@ -1112,7 +1116,7 @@ func (c *RealClient) RestoreSnapshot(ctx context.Context, container, snapshot st
 		return nil, ErrClientNotConnected
 	}
 	return &Operation{
-		ID:     fmt.Sprintf("op-%d", time.Now().UnixNano()),
+		ID:     fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opIDCounter.Add(1)),
 		Status: "Running",
 	}, nil
 }

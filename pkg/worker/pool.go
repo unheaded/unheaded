@@ -467,6 +467,13 @@ func (p *Pool) ActiveWorkerCount() int {
 	return int(atomic.LoadInt32(&p.activeWorkers))
 }
 
+// PendingFutures returns the number of futures currently tracked by the pool.
+func (p *Pool) PendingFutures() int {
+	p.futuresMu.RLock()
+	defer p.futuresMu.RUnlock()
+	return len(p.futures)
+}
+
 // Resize changes the number of workers (only when stopped).
 func (p *Pool) Resize(workers int) error {
 	p.mu.Lock()

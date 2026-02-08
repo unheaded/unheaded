@@ -8,7 +8,51 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"unheaded/pkg/httputil"
 )
+
+// decodeTaskResponse decodes a successful httputil.Response envelope and extracts the
+// TaskResponse from its Data field. It fails the test if the envelope indicates failure
+// or if the data cannot be converted to TaskResponse.
+func decodeTaskResponse(t *testing.T, w *httptest.ResponseRecorder) TaskResponse {
+	t.Helper()
+	var envelope httputil.Response
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("failed to decode response envelope: %v", err)
+	}
+	if !envelope.Success {
+		t.Fatalf("expected success=true, got false")
+	}
+	// Re-marshal Data and unmarshal into TaskResponse
+	raw, err := json.Marshal(envelope.Data)
+	if err != nil {
+		t.Fatalf("failed to re-marshal envelope data: %v", err)
+	}
+	var resp TaskResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		t.Fatalf("failed to unmarshal TaskResponse from envelope data: %v", err)
+	}
+	return resp
+}
+
+// decodeEnvelopeData decodes a successful httputil.Response envelope and returns
+// the Data field as a map[string]interface{}.
+func decodeEnvelopeData(t *testing.T, w *httptest.ResponseRecorder) map[string]interface{} {
+	t.Helper()
+	var envelope httputil.Response
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("failed to decode response envelope: %v", err)
+	}
+	if !envelope.Success {
+		t.Fatalf("expected success=true, got false")
+	}
+	data, ok := envelope.Data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected envelope data to be map[string]interface{}, got %T", envelope.Data)
+	}
+	return data
+}
 
 // TestHealth returns 200 OK
 func TestHealth(t *testing.T) {
@@ -45,10 +89,9 @@ func TestGetBacklog_Empty(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&resp)
-	if int(resp["count"].(float64)) != 0 {
-		t.Errorf("count = %d, want 0", int(resp["count"].(float64)))
+	data := decodeEnvelopeData(t, w)
+	if int(data["count"].(float64)) != 0 {
+		t.Errorf("count = %d, want 0", int(data["count"].(float64)))
 	}
 }
 
@@ -71,10 +114,9 @@ func TestGetBacklog_WithTasks(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&resp)
-	if int(resp["count"].(float64)) != 2 {
-		t.Errorf("count = %d, want 2", int(resp["count"].(float64)))
+	data := decodeEnvelopeData(t, w)
+	if int(data["count"].(float64)) != 2 {
+		t.Errorf("count = %d, want 2", int(data["count"].(float64)))
 	}
 }
 
@@ -115,8 +157,7 @@ func TestCreateTask_HappyPath(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusCreated)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Title != "New task" {
 		t.Errorf("Title = %s, want New task", resp.Title)
 	}
@@ -248,8 +289,7 @@ func TestUpdateTask_HappyPath(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Title != "Updated" {
 		t.Errorf("Title = %s, want Updated", resp.Title)
 	}
@@ -390,8 +430,7 @@ func TestUpdateTask_Description(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Description != "New description" {
 		t.Errorf("Description = %s, want 'New description'", resp.Description)
 	}
@@ -419,8 +458,7 @@ func TestUpdateTask_Assignee(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Assignee != "alice" {
 		t.Errorf("Assignee = %s, want 'alice'", resp.Assignee)
 	}
@@ -448,8 +486,7 @@ func TestUpdateTask_StatusToCompleted(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Status != "completed" {
 		t.Errorf("Status = %s, want 'completed'", resp.Status)
 	}
@@ -480,8 +517,7 @@ func TestUpdateTask_StatusToBlocked(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Status != "blocked" {
 		t.Errorf("Status = %s, want 'blocked'", resp.Status)
 	}
@@ -535,8 +571,7 @@ func TestCreateTask_WithTagsAndDescription(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusCreated)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Description != "A detailed description" {
 		t.Errorf("Description = %s, want 'A detailed description'", resp.Description)
 	}
@@ -625,13 +660,12 @@ func TestGetSprintStatus_WithBlockedTasks(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&resp)
-	if int(resp["blocked"].(float64)) != 1 {
-		t.Errorf("blocked = %d, want 1", int(resp["blocked"].(float64)))
+	data := decodeEnvelopeData(t, w)
+	if int(data["blocked"].(float64)) != 1 {
+		t.Errorf("blocked = %d, want 1", int(data["blocked"].(float64)))
 	}
-	if int(resp["total"].(float64)) != 2 {
-		t.Errorf("total = %d, want 2", int(resp["total"].(float64)))
+	if int(data["total"].(float64)) != 2 {
+		t.Errorf("total = %d, want 2", int(data["total"].(float64)))
 	}
 }
 
@@ -747,8 +781,7 @@ func TestUpdateTask_TitleOnly(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Title != "Updated Title" {
 		t.Errorf("Title = %s, want 'Updated Title'", resp.Title)
 	}
@@ -801,8 +834,7 @@ func TestUpdateTask_AllFieldsAtOnce(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp TaskResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	resp := decodeTaskResponse(t, w)
 	if resp.Title != "Updated Title" {
 		t.Errorf("Title = %s, want 'Updated Title'", resp.Title)
 	}
@@ -843,17 +875,16 @@ func TestPrioritySorting_SprintStatus(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&resp)
-	if int(resp["count"].(float64)) != 5 {
-		t.Errorf("count = %d, want 5", int(resp["count"].(float64)))
+	data := decodeEnvelopeData(t, w)
+	if int(data["count"].(float64)) != 5 {
+		t.Errorf("count = %d, want 5", int(data["count"].(float64)))
 	}
 
 	// Verify tasks list contains all priorities
-	tasks := resp["tasks"].([]interface{})
+	tasks := data["tasks"].([]interface{})
 	priorities := make(map[int]bool)
-	for _, t := range tasks {
-		taskMap := t.(map[string]interface{})
+	for _, tk := range tasks {
+		taskMap := tk.(map[string]interface{})
 		p := int(taskMap["priority"].(float64))
 		priorities[p] = true
 	}
@@ -886,8 +917,7 @@ func TestBlockerDetection_FullWorkflow(t *testing.T) {
 		t.Fatalf("Create status = %d, want %d", createW.Code, http.StatusCreated)
 	}
 
-	var created TaskResponse
-	json.NewDecoder(createW.Body).Decode(&created)
+	created := decodeTaskResponse(t, createW)
 	taskID := created.ID
 
 	// Block it
@@ -905,10 +935,9 @@ func TestBlockerDetection_FullWorkflow(t *testing.T) {
 	statusW := httptest.NewRecorder()
 	api.GetSprintStatus(statusW, statusReq)
 
-	var status map[string]interface{}
-	json.NewDecoder(statusW.Body).Decode(&status)
-	if int(status["blocked"].(float64)) != 1 {
-		t.Errorf("blocked = %d, want 1", int(status["blocked"].(float64)))
+	statusData := decodeEnvelopeData(t, statusW)
+	if int(statusData["blocked"].(float64)) != 1 {
+		t.Errorf("blocked = %d, want 1", int(statusData["blocked"].(float64)))
 	}
 
 	// Unblock it (move to in_progress)
@@ -926,13 +955,12 @@ func TestBlockerDetection_FullWorkflow(t *testing.T) {
 	statusW2 := httptest.NewRecorder()
 	api.GetSprintStatus(statusW2, statusReq2)
 
-	var status2 map[string]interface{}
-	json.NewDecoder(statusW2.Body).Decode(&status2)
-	if int(status2["blocked"].(float64)) != 0 {
-		t.Errorf("blocked after unblock = %d, want 0", int(status2["blocked"].(float64)))
+	statusData2 := decodeEnvelopeData(t, statusW2)
+	if int(statusData2["blocked"].(float64)) != 0 {
+		t.Errorf("blocked after unblock = %d, want 0", int(statusData2["blocked"].(float64)))
 	}
-	if int(status2["in_progress"].(float64)) != 1 {
-		t.Errorf("in_progress after unblock = %d, want 1", int(status2["in_progress"].(float64)))
+	if int(statusData2["in_progress"].(float64)) != 1 {
+		t.Errorf("in_progress after unblock = %d, want 1", int(statusData2["in_progress"].(float64)))
 	}
 }
 
@@ -954,8 +982,7 @@ func TestQAGate_CompletionWorkflow(t *testing.T) {
 	createW := httptest.NewRecorder()
 	api.CreateTask(createW, createReq)
 
-	var created TaskResponse
-	json.NewDecoder(createW.Body).Decode(&created)
+	created := decodeTaskResponse(t, createW)
 	taskID := created.ID
 
 	// Move to in_progress
@@ -964,8 +991,7 @@ func TestQAGate_CompletionWorkflow(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	api.UpdateTask(w1, req1)
 
-	var inProgress TaskResponse
-	json.NewDecoder(w1.Body).Decode(&inProgress)
+	inProgress := decodeTaskResponse(t, w1)
 	if inProgress.Status != "in_progress" {
 		t.Errorf("Status = %s, want in_progress", inProgress.Status)
 	}
@@ -976,12 +1002,11 @@ func TestQAGate_CompletionWorkflow(t *testing.T) {
 	w2 := httptest.NewRecorder()
 	api.UpdateTask(w2, req2)
 
-	var completed TaskResponse
-	json.NewDecoder(w2.Body).Decode(&completed)
-	if completed.Status != "completed" {
-		t.Errorf("Status = %s, want completed", completed.Status)
+	completedResp := decodeTaskResponse(t, w2)
+	if completedResp.Status != "completed" {
+		t.Errorf("Status = %s, want completed", completedResp.Status)
 	}
-	if completed.CompletedAt == "" {
+	if completedResp.CompletedAt == "" {
 		t.Error("CompletedAt should be set on completion")
 	}
 
@@ -990,13 +1015,12 @@ func TestQAGate_CompletionWorkflow(t *testing.T) {
 	statusW := httptest.NewRecorder()
 	api.GetSprintStatus(statusW, statusReq)
 
-	var status map[string]interface{}
-	json.NewDecoder(statusW.Body).Decode(&status)
-	if int(status["completed"].(float64)) != 1 {
-		t.Errorf("completed = %d, want 1", int(status["completed"].(float64)))
+	statusData := decodeEnvelopeData(t, statusW)
+	if int(statusData["completed"].(float64)) != 1 {
+		t.Errorf("completed = %d, want 1", int(statusData["completed"].(float64)))
 	}
-	if int(status["pending"].(float64)) != 0 {
-		t.Errorf("pending = %d, want 0", int(status["pending"].(float64)))
+	if int(statusData["pending"].(float64)) != 0 {
+		t.Errorf("pending = %d, want 0", int(statusData["pending"].(float64)))
 	}
 }
 
@@ -1036,23 +1060,22 @@ func TestProgressTracking_MultipleTaskLifecycles(t *testing.T) {
 	w := httptest.NewRecorder()
 	api.GetSprintStatus(w, req)
 
-	var status map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&status)
+	statusData := decodeEnvelopeData(t, w)
 
-	if int(status["completed"].(float64)) != 3 {
-		t.Errorf("completed = %d, want 3", int(status["completed"].(float64)))
+	if int(statusData["completed"].(float64)) != 3 {
+		t.Errorf("completed = %d, want 3", int(statusData["completed"].(float64)))
 	}
-	if int(status["in_progress"].(float64)) != 3 {
-		t.Errorf("in_progress = %d, want 3", int(status["in_progress"].(float64)))
+	if int(statusData["in_progress"].(float64)) != 3 {
+		t.Errorf("in_progress = %d, want 3", int(statusData["in_progress"].(float64)))
 	}
-	if int(status["blocked"].(float64)) != 2 {
-		t.Errorf("blocked = %d, want 2", int(status["blocked"].(float64)))
+	if int(statusData["blocked"].(float64)) != 2 {
+		t.Errorf("blocked = %d, want 2", int(statusData["blocked"].(float64)))
 	}
-	if int(status["pending"].(float64)) != 2 {
-		t.Errorf("pending = %d, want 2", int(status["pending"].(float64)))
+	if int(statusData["pending"].(float64)) != 2 {
+		t.Errorf("pending = %d, want 2", int(statusData["pending"].(float64)))
 	}
-	if int(status["total"].(float64)) != 10 {
-		t.Errorf("total = %d, want 10", int(status["total"].(float64)))
+	if int(statusData["total"].(float64)) != 10 {
+		t.Errorf("total = %d, want 10", int(statusData["total"].(float64)))
 	}
 }
 
@@ -1080,15 +1103,14 @@ func TestGetSprintStatus(t *testing.T) {
 		t.Errorf("Status = %d, want %d", w.Code, http.StatusOK)
 	}
 
-	var resp map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&resp)
-	if int(resp["pending"].(float64)) != 1 {
-		t.Errorf("pending = %d, want 1", int(resp["pending"].(float64)))
+	data := decodeEnvelopeData(t, w)
+	if int(data["pending"].(float64)) != 1 {
+		t.Errorf("pending = %d, want 1", int(data["pending"].(float64)))
 	}
-	if int(resp["in_progress"].(float64)) != 1 {
-		t.Errorf("in_progress = %d, want 1", int(resp["in_progress"].(float64)))
+	if int(data["in_progress"].(float64)) != 1 {
+		t.Errorf("in_progress = %d, want 1", int(data["in_progress"].(float64)))
 	}
-	if int(resp["completed"].(float64)) != 1 {
-		t.Errorf("completed = %d, want 1", int(resp["completed"].(float64)))
+	if int(data["completed"].(float64)) != 1 {
+		t.Errorf("completed = %d, want 1", int(data["completed"].(float64)))
 	}
 }
