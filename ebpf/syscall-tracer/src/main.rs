@@ -22,6 +22,7 @@ use aya_ebpf::{
     maps::{HashMap, RingBuf, Array},
     programs::RawTracePointContext,
     cty::c_long,
+    EbpfContext,
 };
 use unheaded_common::{
     SyscallEvent, SyscallEventType, RING_BUFFER_SIZE,
@@ -121,11 +122,11 @@ fn try_sys_enter(ctx: &RawTracePointContext) -> Result<u32, ()> {
     let syscall_args = args.args;
 
     // Get process info
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+    let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
     let tid = pid_tgid as u32;
 
-    let uid_gid = unsafe { bpf_get_current_uid_gid() };
+    let uid_gid = bpf_get_current_uid_gid();
     let uid = uid_gid as u32;
     let gid = (uid_gid >> 32) as u32;
 
@@ -139,8 +140,10 @@ fn try_sys_enter(ctx: &RawTracePointContext) -> Result<u32, ()> {
     let _ = INFLIGHT_SYSCALLS.insert(&pid_tgid, &syscall_nr, 0);
 
     // Get process name
-    let mut comm = [0u8; 16];
-    let _ = unsafe { bpf_get_current_comm(&mut comm) };
+    let comm = match bpf_get_current_comm() {
+        Ok(c) => c,
+        Err(_) => [0u8; 16],
+    };
 
     // Send event
     send_syscall_event(
@@ -178,11 +181,11 @@ fn try_sys_exit(ctx: &RawTracePointContext) -> Result<u32, ()> {
     let syscall_nr = args.id;
     let ret = args.ret;
 
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+    let pid_tgid = bpf_get_current_pid_tgid();
     let pid = (pid_tgid >> 32) as u32;
     let tid = pid_tgid as u32;
 
-    let uid_gid = unsafe { bpf_get_current_uid_gid() };
+    let uid_gid = bpf_get_current_uid_gid();
     let uid = uid_gid as u32;
     let gid = (uid_gid >> 32) as u32;
 
@@ -193,11 +196,13 @@ fn try_sys_exit(ctx: &RawTracePointContext) -> Result<u32, ()> {
     }
 
     // Clean up
-    let _ = unsafe { INFLIGHT_SYSCALLS.remove(&pid_tgid) };
+    let _ = INFLIGHT_SYSCALLS.remove(&pid_tgid);
 
     // Get process name
-    let mut comm = [0u8; 16];
-    let _ = unsafe { bpf_get_current_comm(&mut comm) };
+    let comm = match bpf_get_current_comm() {
+        Ok(c) => c,
+        Err(_) => [0u8; 16],
+    };
 
     // Send exit event (args are not available at exit, use zeros)
     send_syscall_event(
@@ -219,7 +224,7 @@ fn try_sys_exit(ctx: &RawTracePointContext) -> Result<u32, ()> {
 #[inline(always)]
 fn should_trace(syscall_nr: i64, pid: u32, uid: u32) -> bool {
     // Get config
-    let config = match unsafe { CONFIG.get(0) } {
+    let config = match CONFIG.get(0) {
         Some(c) => *c,
         None => {
             // No config means trace everything
@@ -258,7 +263,7 @@ fn should_trace(syscall_nr: i64, pid: u32, uid: u32) -> bool {
         let idx = (syscall_nr / 64) as u32;
         let bit = syscall_nr % 64;
 
-        if let Some(bitmap) = unsafe { SYSCALL_FILTER.get(idx) } {
+        if let Some(bitmap) = SYSCALL_FILTER.get(idx) {
             // If bitmap is 0, allow all (no filter)
             // If bitmap is non-zero, check specific bit
             if *bitmap != 0 && (*bitmap & (1u64 << bit)) == 0 {
@@ -313,7 +318,7 @@ fn send_syscall_event(
 /// Increment a statistics counter.
 #[inline(always)]
 fn increment_stat(key: u32) {
-    if let Some(val) = unsafe { SYSCALL_STATS.get_ptr_mut(&key) } {
+    if let Some(val) = SYSCALL_STATS.get_ptr_mut(&key) {
         unsafe {
             *val = (*val).saturating_add(1);
         }

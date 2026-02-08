@@ -383,35 +383,8 @@ func TestChain_Empty(t *testing.T) {
 }
 
 // ============================================================================
-// AdminAuthHandler Tests
+// AdminAuthHandler Tests (additional cases not in admin_auth_test.go)
 // ============================================================================
-
-func TestAdminAuthHandler_ValidKey(t *testing.T) {
-	config := AdminAuthConfig{
-		APIKey:     "test-key-123",
-		HeaderName: "X-Admin-API-Key",
-		Realm:      "Test",
-	}
-
-	called := false
-	handler := AdminAuthHandler(config, func(w http.ResponseWriter, r *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest("POST", "/admin/action", nil)
-	req.Header.Set("X-Admin-API-Key", "test-key-123")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if !called {
-		t.Error("Handler was not called with valid key")
-	}
-	if rec.Code != http.StatusOK {
-		t.Errorf("Status = %d, want %d", rec.Code, http.StatusOK)
-	}
-}
 
 func TestAdminAuthHandler_MissingKey(t *testing.T) {
 	config := AdminAuthConfig{
@@ -431,28 +404,6 @@ func TestAdminAuthHandler_MissingKey(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("Status = %d, want %d", rec.Code, http.StatusUnauthorized)
-	}
-}
-
-func TestAdminAuthHandler_InvalidKey(t *testing.T) {
-	config := AdminAuthConfig{
-		APIKey:     "test-key-123",
-		HeaderName: "X-Admin-API-Key",
-		Realm:      "Test",
-	}
-
-	handler := AdminAuthHandler(config, func(w http.ResponseWriter, r *http.Request) {
-		t.Error("Handler should not be called with invalid key")
-	})
-
-	req := httptest.NewRequest("POST", "/admin/action", nil)
-	req.Header.Set("X-Admin-API-Key", "wrong-key")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("Status = %d, want %d", rec.Code, http.StatusForbidden)
 	}
 }
 
@@ -527,14 +478,8 @@ func TestAdminAuthHandler_DefaultHeaderName(t *testing.T) {
 }
 
 // ============================================================================
-// IsAdminAuthenticated Tests
+// IsAdminAuthenticated Tests (additional cases not in admin_auth_test.go)
 // ============================================================================
-
-func TestIsAdminAuthenticated_NilContext(t *testing.T) {
-	if IsAdminAuthenticated(nil) {
-		t.Error("IsAdminAuthenticated should return false for nil context")
-	}
-}
 
 func TestIsAdminAuthenticated_NotSet(t *testing.T) {
 	ctx := httptest.NewRequest("GET", "/", nil).Context()

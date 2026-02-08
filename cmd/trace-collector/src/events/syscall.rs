@@ -99,32 +99,42 @@ impl SyscallEvent {
         let raw: RawSyscallEvent =
             unsafe { std::ptr::read_unaligned(data.as_ptr() as *const RawSyscallEvent) };
 
-        let comm = parse_comm(&raw.comm);
-        let syscall_name = syscall_name(raw.syscall_nr);
-        let category = syscall_category(raw.syscall_nr);
+        // Copy fields from packed struct to avoid unaligned references
+        let pid = raw.pid;
+        let tid = raw.tid;
+        let syscall_nr = raw.syscall_nr;
+        let is_exit_byte = raw.is_exit;
+        let ret_val = raw.ret;
+        let duration = raw.duration_ns;
+        let args = raw.args;
+        let comm_bytes = raw.comm;
 
-        let is_exit = raw.is_exit != 0;
+        let comm = parse_comm(&comm_bytes);
+        let syscall_name = syscall_name(syscall_nr);
+        let category = syscall_category(syscall_nr);
+
+        let is_exit = is_exit_byte != 0;
         let (ret, duration_ns, error) = if is_exit {
-            let error = if raw.ret < 0 {
-                Some(errno_name(-raw.ret as i32))
+            let error = if ret_val < 0 {
+                Some(errno_name(-ret_val as i32))
             } else {
                 None
             };
-            (Some(raw.ret), Some(raw.duration_ns), error)
+            (Some(ret_val), Some(duration), error)
         } else {
             (None, None, None)
         };
 
         Ok(Self {
-            pid: raw.pid,
-            tid: raw.tid,
+            pid,
+            tid,
             comm,
-            syscall_nr: raw.syscall_nr,
+            syscall_nr,
             syscall_name,
             category,
             is_exit,
             ret,
-            args: raw.args.to_vec(),
+            args: args.to_vec(),
             duration_ns,
             error,
         })
@@ -304,20 +314,20 @@ fn syscall_name(nr: u32) -> String {
 /// Categorize syscall by number
 fn syscall_category(nr: u32) -> SyscallCategory {
     match nr {
-        // File operations
-        0..=3 | 4..=8 | 17..=21 | 32..=33 | 40 | 72..=95 | 257..=269 | 332 => SyscallCategory::File,
-        // Process operations
-        56..=62 | 101 | 186 | 231 | 435 => SyscallCategory::Process,
-        // Network operations
+        // Signal operations (checked first to avoid overlap with File)
+        13..=15 | 34 => SyscallCategory::Signal,
+        // Process operations (checked before File for 56-62 range)
+        56..=61 | 101 | 186 | 231 | 435 => SyscallCategory::Process,
+        // Network operations (checked before IPC for 41-55 range)
         41..=55 | 288 => SyscallCategory::Network,
+        // IPC operations
+        22 | 29..=31 | 290 | 293 => SyscallCategory::Ipc,
         // Memory operations
         9..=12 | 25..=28 | 202 => SyscallCategory::Memory,
-        // IPC operations
-        22 | 29..=31 | 53 | 290 | 293 => SyscallCategory::Ipc,
-        // Signal operations
-        13..=15 | 34 | 62 => SyscallCategory::Signal,
         // Time operations
         35..=38 | 96 | 100 => SyscallCategory::Time,
+        // File operations
+        0..=8 | 17..=21 | 32..=33 | 40 | 62 | 72..=95 | 257..=269 | 332 => SyscallCategory::File,
         // Other
         _ => SyscallCategory::Other,
     }

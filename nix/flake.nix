@@ -148,8 +148,17 @@
           ./containers/architect-service.nix
         ];
 
-        developer = mkContainer "developer" [
-          ./containers/developer-service.nix
+        # developer: Placeholder - no service code yet, will be added post-alpha
+
+        # ---------------------------------------------------------------------
+        # STATE & KNOWLEDGE SERVICES
+        # ---------------------------------------------------------------------
+        monad = mkContainer "monad" [
+          ./containers/monad-service.nix
+        ];
+
+        sophia = mkContainer "sophia" [
+          ./containers/sophia-service.nix
         ];
 
         # Legacy compatibility (duplicate for service discovery)
@@ -189,7 +198,8 @@
         captain = prev.callPackage ./packages/captain.nix { };
         micromanager = prev.callPackage ./packages/micromanager.nix { };
         architect = prev.callPackage ./packages/architect.nix { };
-        developer = prev.callPackage ./packages/developer.nix { };
+        monad = prev.callPackage ./packages/monad.nix { };
+        sophia = prev.callPackage ./packages/sophia.nix { };
         kanban-app = prev.callPackage ./packages/kanban-app.nix { };
         dashboard-app = prev.callPackage ./packages/dashboard-app.nix { };
         cuirass = prev.callPackage ./packages/cuirass.nix { };
@@ -228,7 +238,7 @@
               echo "Generating LXD profiles for Unheaded containers..."
 
               # Generate profiles for each container
-              for container in busboy timeguru captain micromanager architect developer kanban dashboard cuirass; do
+              for container in busboy timeguru captain micromanager architect monad sophia kanban dashboard cuirass; do
                 echo "Processing: $container"
                 nix eval .#nixosConfigurations.$container.config.unheaded --json > profiles/$container.json
               done
@@ -252,7 +262,8 @@
                 .#nixosConfigurations.captain.config.system.build.toplevel \
                 .#nixosConfigurations.micromanager.config.system.build.toplevel \
                 .#nixosConfigurations.architect.config.system.build.toplevel \
-                .#nixosConfigurations.developer.config.system.build.toplevel \
+                .#nixosConfigurations.monad.config.system.build.toplevel \
+                .#nixosConfigurations.sophia.config.system.build.toplevel \
                 .#nixosConfigurations.kanban.config.system.build.toplevel \
                 .#nixosConfigurations.dashboard.config.system.build.toplevel \
                 .#nixosConfigurations.cuirass.config.system.build.toplevel
