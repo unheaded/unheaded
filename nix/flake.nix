@@ -167,6 +167,13 @@
         ];
 
         # ---------------------------------------------------------------------
+        # GATEWAY (Public access point)
+        # ---------------------------------------------------------------------
+        gateway = mkContainer "gateway" [
+          ./containers/gateway.nix
+        ];
+
+        # ---------------------------------------------------------------------
         # APPLICATIONS (Public via gateway)
         # ---------------------------------------------------------------------
         kanban = mkContainer "kanban" [
@@ -238,7 +245,7 @@
               echo "Generating LXD profiles for Unheaded containers..."
 
               # Generate profiles for each container
-              for container in busboy timeguru captain micromanager architect monad sophia kanban dashboard cuirass; do
+              for container in busboy timeguru captain micromanager architect monad sophia gateway kanban dashboard cuirass; do
                 echo "Processing: $container"
                 nix eval .#nixosConfigurations.$container.config.unheaded --json > profiles/$container.json
               done
@@ -264,6 +271,7 @@
                 .#nixosConfigurations.architect.config.system.build.toplevel \
                 .#nixosConfigurations.monad.config.system.build.toplevel \
                 .#nixosConfigurations.sophia.config.system.build.toplevel \
+                .#nixosConfigurations.gateway.config.system.build.toplevel \
                 .#nixosConfigurations.kanban.config.system.build.toplevel \
                 .#nixosConfigurations.dashboard.config.system.build.toplevel \
                 .#nixosConfigurations.cuirass.config.system.build.toplevel
