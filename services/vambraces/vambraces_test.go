@@ -2,6 +2,7 @@ package vambraces
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"sort"
@@ -1697,11 +1698,10 @@ func TestMultipleTracesIsolation(t *testing.T) {
 	svc := newTestService()
 
 	for i := 0; i < 5; i++ {
-		traceID := "trace-" + time.Now().Format("150405.000000000")
+		traceID := fmt.Sprintf("trace-%d", i)
 		for j := 0; j < 3; j++ {
 			svc.StartSpan(traceID, "", "", "op", "svc")
 		}
-		time.Sleep(time.Nanosecond) // Ensure unique trace IDs
 	}
 
 	stats := svc.Stats()
