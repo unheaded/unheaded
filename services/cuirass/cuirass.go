@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	busboyClient "unheaded/pkg/busboy-client"
@@ -87,6 +88,9 @@ type Service struct {
 	services map[string]*ServiceRegistration
 	clusters map[string]*Cluster
 	health   map[string]*HealthCheck
+
+	serviceIDCounter int64
+	clusterIDCounter int64
 }
 
 // Config holds Cuirass service configuration.
@@ -142,7 +146,8 @@ func (s *Service) Register(ctx context.Context, svc *ServiceRegistration) error 
 	defer s.mu.Unlock()
 
 	if svc.ID == "" {
-		svc.ID = fmt.Sprintf("%s-%d", svc.Name, time.Now().UnixNano())
+		counter := atomic.AddInt64(&s.serviceIDCounter, 1)
+		svc.ID = fmt.Sprintf("%s-%d-%d", svc.Name, time.Now().UnixNano(), counter)
 	}
 
 	svc.RegisteredAt = time.Now()
@@ -256,7 +261,8 @@ func (s *Service) RegisterCluster(cluster *Cluster) error {
 	defer s.mu.Unlock()
 
 	if cluster.ID == "" {
-		cluster.ID = fmt.Sprintf("cluster-%d", time.Now().UnixNano())
+		counter := atomic.AddInt64(&s.clusterIDCounter, 1)
+		cluster.ID = fmt.Sprintf("cluster-%d-%d", time.Now().UnixNano(), counter)
 	}
 
 	s.clusters[cluster.ID] = cluster

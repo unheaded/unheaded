@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	busboyClient "unheaded/pkg/busboy-client"
@@ -155,6 +156,8 @@ type Service struct {
 	notifications map[string][]*Notification // userID -> notifications
 	templates     *template.Template
 	broadcasts    chan *Broadcast
+
+	idCounter int64
 }
 
 // Config holds Cloak service configuration.
@@ -221,7 +224,7 @@ func (s *Service) CreateDashboard(dashboard *Dashboard) error {
 	defer s.mu.Unlock()
 
 	if dashboard.ID == "" {
-		dashboard.ID = fmt.Sprintf("dash-%d", time.Now().UnixNano())
+		dashboard.ID = fmt.Sprintf("dash-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&s.idCounter, 1))
 	}
 
 	now := time.Now()
@@ -315,7 +318,7 @@ func (s *Service) AddWidget(dashboardID string, widget *Widget) error {
 	}
 
 	if widget.ID == "" {
-		widget.ID = fmt.Sprintf("widget-%d", time.Now().UnixNano())
+		widget.ID = fmt.Sprintf("widget-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&s.idCounter, 1))
 	}
 
 	dashboard.Widgets = append(dashboard.Widgets, widget)
@@ -353,7 +356,7 @@ func (s *Service) CreateSession(userID string) (*Session, error) {
 
 	now := time.Now()
 	session := &Session{
-		ID:           fmt.Sprintf("sess-%d", now.UnixNano()),
+		ID:           fmt.Sprintf("sess-%d-%d", now.UnixNano(), atomic.AddInt64(&s.idCounter, 1)),
 		UserID:       userID,
 		Theme:        s.config.DefaultTheme,
 		Preferences:  make(map[string]interface{}),
@@ -416,7 +419,7 @@ func (s *Service) AddNotification(notification *Notification) error {
 	defer s.mu.Unlock()
 
 	if notification.ID == "" {
-		notification.ID = fmt.Sprintf("notif-%d", time.Now().UnixNano())
+		notification.ID = fmt.Sprintf("notif-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&s.idCounter, 1))
 	}
 	notification.CreatedAt = time.Now()
 
@@ -556,9 +559,13 @@ func (s *Service) handleDashboards(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) handleSessions(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	count := len(s.sessions)
+	s.mu.RUnlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"active_sessions": len(s.sessions),
+		"active_sessions": count,
 	})
 }
 
