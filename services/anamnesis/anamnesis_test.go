@@ -421,25 +421,25 @@ func TestRegisterEventHandler(t *testing.T) {
 	svc := NewService(nil, nil, &Config{EnableSnapshots: false})
 	ctx := context.Background()
 
-	handlerCalled := false
-	var capturedEvent *Event
+	// Buffered channel: handler sends the event, test receives it.
+	// Channel send→receive creates a happens-before relationship in
+	// Go's memory model, eliminating the data race that time.Sleep cannot.
+	done := make(chan *Event, 1)
 
 	svc.RegisterEventHandler(func(ctx context.Context, event *Event) error {
-		handlerCalled = true
-		capturedEvent = event
+		done <- event
 		return nil
 	})
 
 	svc.Append(ctx, "service-1", "Service", EventCreated, map[string]interface{}{"test": true})
 
-	// Give handler time to run
-	time.Sleep(50 * time.Millisecond)
-
-	if !handlerCalled {
-		t.Error("expected handler to be called")
-	}
-	if capturedEvent == nil {
-		t.Error("expected event to be captured")
+	select {
+	case capturedEvent := <-done:
+		if capturedEvent == nil {
+			t.Error("expected event to be captured")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not called within timeout")
 	}
 }
 
