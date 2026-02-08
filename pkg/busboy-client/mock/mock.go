@@ -157,12 +157,17 @@ func (m *MockClient) Publish(ctx context.Context, topic string, payload []byte) 
 
 	m.mu.RLock()
 	sub, ok := m.subscribers[topic]
+	var status, subscriberID string
+	if ok {
+		status = sub.Status
+		subscriberID = sub.SubscriberID
+	}
 	m.mu.RUnlock()
 
 	if !ok {
 		return errors.New("not subscribed to topic")
 	}
-	if sub.Status != "approved" {
+	if status != "approved" {
 		return busboyClient.ErrSubscriptionPending
 	}
 
@@ -175,7 +180,7 @@ func (m *MockClient) Publish(ctx context.Context, topic string, payload []byte) 
 	msg := &busboyClient.Message{
 		MessageID: generateID(),
 		Topic:     topic,
-		SenderID:  sub.SubscriberID,
+		SenderID:  subscriberID,
 		CreatedAt: time.Now(),
 		Seq:       int64(len(m.messages[topic]) + 1),
 		Payload:   string(payload),

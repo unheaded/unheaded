@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"unheaded/pkg/httputil"
 )
 
 // ============================================================================
@@ -24,7 +26,7 @@ func TestHTTPHandler_Health_Success(t *testing.T) {
 		t.Errorf("status = %d, want %d", status, http.StatusOK)
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	if healthy, ok := resp.Data.(map[string]interface{})["healthy"]; !ok || !healthy.(bool) {
 		t.Errorf("healthy field missing or false")
@@ -63,7 +65,7 @@ func TestHTTPHandler_GetInfrastructure_Success(t *testing.T) {
 		t.Errorf("status = %d, want %d", status, http.StatusOK)
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	data := resp.Data.(map[string]interface{})
 	if services, ok := data["services"]; !ok || services == nil {
@@ -99,7 +101,7 @@ func TestHTTPHandler_AddService_Success(t *testing.T) {
 		t.Errorf("status = %d, want %d", status, http.StatusCreated)
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	data := resp.Data.(map[string]interface{})
 	if svcID, ok := data["service_id"]; !ok || svcID != svc.ServiceID {
@@ -173,7 +175,7 @@ func TestHTTPHandler_GetNetwork_Success(t *testing.T) {
 		t.Errorf("status = %d, want %d", status, http.StatusOK)
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	data := resp.Data.(map[string]interface{})
 	if nodes, ok := data["nodes"]; !ok || nodes == nil {
@@ -209,7 +211,7 @@ func TestHTTPHandler_AddNetworkNode_Success(t *testing.T) {
 		t.Errorf("status = %d, want %d", status, http.StatusCreated)
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	data := resp.Data.(map[string]interface{})
 	if nodeID, ok := data["node_id"]; !ok || nodeID != node.NodeID {
@@ -255,7 +257,7 @@ func TestHTTPHandler_LogDesign_Success(t *testing.T) {
 		t.Errorf("status = %d, want %d", status, http.StatusCreated)
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	data := resp.Data.(map[string]interface{})
 	if title, ok := data["title"]; !ok || title != decision.Title {
@@ -297,7 +299,7 @@ func TestHTTPHandler_GetDesignDecisions_Success(t *testing.T) {
 		t.Errorf("status = %d, want %d", status, http.StatusOK)
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	decisions := resp.Data.([]interface{})
 	if len(decisions) != 1 {
@@ -328,7 +330,7 @@ func TestHTTPHandler_ErrorResponse_Format(t *testing.T) {
 
 	handler.Health(rr, req)
 
-	var resp ErrorResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 
 	if resp.Error.Code == "" {
@@ -346,10 +348,10 @@ func TestHTTPHandler_SuccessResponse_HasTimestamp(t *testing.T) {
 
 	handler.Health(rr, req)
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 
-	if resp.Timestamp.IsZero() {
+	if resp.Meta == nil || resp.Meta.Timestamp.IsZero() {
 		t.Errorf("timestamp not set")
 	}
 }

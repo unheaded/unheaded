@@ -350,9 +350,9 @@ func TestNewStrategyExecutor(t *testing.T) {
 func TestStrategyExecutorSetEventCallback(t *testing.T) {
 	executor := NewStrategyExecutor(nil, nil, nil, nil, nil)
 
-	var receivedEvent *StrategyEvent
+	eventCh := make(chan *StrategyEvent, 1)
 	callback := func(event *StrategyEvent) {
-		receivedEvent = event
+		eventCh <- event
 	}
 
 	executor.SetEventCallback(callback)
@@ -375,9 +375,12 @@ func TestStrategyExecutorSetEventCallback(t *testing.T) {
 
 	executor.emitEvent(execution, "test_event", nil)
 
-	time.Sleep(50 * time.Millisecond)
-
-	if receivedEvent == nil {
+	select {
+	case receivedEvent := <-eventCh:
+		if receivedEvent == nil {
+			t.Error("expected non-nil event to be received")
+		}
+	case <-time.After(time.Second):
 		t.Error("expected event to be received")
 	}
 }

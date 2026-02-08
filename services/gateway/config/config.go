@@ -4,6 +4,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -252,45 +253,15 @@ func LoadFromEnv() *Config {
 
 // splitAndTrim splits a string by delimiter and trims whitespace from each part.
 func splitAndTrim(s, delim string) []string {
-	parts := make([]string, 0)
-	for _, p := range splitString(s, delim) {
-		trimmed := trimSpace(p)
-		if trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-	}
-	return parts
-}
-
-// splitString splits a string by a single-character delimiter.
-func splitString(s, delim string) []string {
-	if len(delim) == 0 {
-		return []string{s}
-	}
-	d := delim[0]
+	parts := strings.Split(s, delim)
 	var result []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == d {
-			result = append(result, s[start:i])
-			start = i + 1
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
 		}
 	}
-	result = append(result, s[start:])
 	return result
-}
-
-// trimSpace removes leading and trailing whitespace from a string.
-func trimSpace(s string) string {
-	start := 0
-	end := len(s)
-	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
-		start++
-	}
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
-		end--
-	}
-	return s[start:end]
 }
 
 // Validate validates the configuration.

@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
+
+	"unheaded/pkg/httputil"
 )
 
 // API provides HTTP handlers for the micromanager service
@@ -60,10 +62,8 @@ type ErrorResponse struct {
 
 // Health checks service health
 func (a *API) Health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "healthy",
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{
+		"status":  "healthy",
 		"service": "micromanager",
 	})
 }
@@ -85,12 +85,9 @@ func (a *API) GetBacklog(w http.ResponseWriter, r *http.Request) {
 		responses[i] = taskToResponse(task)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"tasks":  responses,
-		"count":  len(responses),
-		"status": "success",
+	httputil.WriteSuccess(w, http.StatusOK, map[string]interface{}{
+		"tasks": responses,
+		"count": len(responses),
 	})
 }
 
@@ -108,12 +105,12 @@ func (a *API) CreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+	defer r.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1*1024*1024))
 	if err != nil {
 		a.error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
 	if len(body) == 0 {
 		a.error(w, "request body cannot be empty", http.StatusBadRequest)
@@ -166,10 +163,7 @@ func (a *API) CreateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	resp := taskToResponse(task)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	httputil.WriteSuccess(w, http.StatusCreated, taskToResponse(task))
 }
 
 // UpdateTask updates an existing task
@@ -198,12 +192,12 @@ func (a *API) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
+	defer r.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1*1024*1024))
 	if err != nil {
 		a.error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
 	if len(body) == 0 {
 		a.error(w, "request body cannot be empty", http.StatusBadRequest)
@@ -260,10 +254,7 @@ func (a *API) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	resp := taskToResponse(task)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	httputil.WriteSuccess(w, http.StatusOK, taskToResponse(task))
 }
 
 // GetSprintStatus returns sprint status summary
@@ -278,27 +269,18 @@ func (a *API) GetSprintStatus(w http.ResponseWriter, r *http.Request) {
 	completed, _ := a.store.ListByStatus(StatusCompleted)
 	blocked, _ := a.store.ListByStatus(StatusBlocked)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	httputil.WriteSuccess(w, http.StatusOK, map[string]interface{}{
 		"pending":     len(pending),
 		"in_progress": len(inProgress),
 		"completed":   len(completed),
 		"blocked":     len(blocked),
 		"total":       a.store.Count(),
-		"status":      "success",
 	})
 }
 
-// error writes an error response
+// error writes an error response using the shared httputil package.
 func (a *API) error(w http.ResponseWriter, message string, code int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(ErrorResponse{
-		Error:   http.StatusText(code),
-		Message: message,
-		Code:    code,
-	})
+	httputil.WriteError(w, code, http.StatusText(code), message)
 }
 
 // taskToResponse converts a Task to TaskResponse

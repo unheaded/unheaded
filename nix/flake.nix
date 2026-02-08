@@ -198,7 +198,7 @@
       # Build Unheaded services from source
       # =======================================================================
       overlays.default = final: prev: {
-        # TODO: Implement actual builds from source
+        # ALPHA: Uses pre-built binaries. Build from Go source (services/*/) planned for Age 2. See docs/SERVICE_BREAKOUT_STRATEGY.md
         # For now, these are placeholders that reference local paths
         busboy = prev.callPackage ./packages/busboy.nix { };
         timeguru = prev.callPackage ./packages/timeguru.nix { };

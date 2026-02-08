@@ -34,7 +34,7 @@ build-daemon: ## Build unheaded-daemon
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/unheaded-daemon && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.Version=$(VERSION)" -o ../../$(BINARY_DIR)/unheaded-daemon
 
-build-services: build-busboy build-timeguru build-captain build-architect build-micromanager ## Build all service binaries
+build-services: build-busboy build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway ## Build all service binaries
 	@echo "Building dashboard-backend..."
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/dashboard-backend && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/dashboard-backend
@@ -66,6 +66,21 @@ build-micromanager: ## Build Micromanager (War Room - Tasks)
 	@echo "📋 Building Micromanager..."
 	@mkdir -p $(BINARY_DIR)
 	cd services/micromanager/cmd/micromanager && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/micromanager
+
+build-monad: ## Build Monad (Unified State Management)
+	@echo "Building Monad..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/monad && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../$(BINARY_DIR)/monad
+
+build-sophia: ## Build Sophia (Knowledge Graph)
+	@echo "Building Sophia..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/sophia && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../$(BINARY_DIR)/sophia
+
+build-gateway: ## Build Gateway (API Gateway)
+	@echo "Building Gateway..."
+	@mkdir -p $(BINARY_DIR)
+	cd services/gateway/cmd && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../$(BINARY_DIR)/gateway
 
 build-trace-collector: ## Build trace-collector (Rust)
 	@echo "Building trace-collector (Rust)..."
@@ -188,6 +203,7 @@ clean: ## Clean build artifacts
 	rm -rf $(EBPF_DIR)/target
 	rm -rf cmd/trace-collector/target
 	cd $(NIX_DIR) && rm -f result-*
+	rm -f e2e.test kanban-app kanban-app.test runtime.test cover.out
 	@echo "✓ Clean complete"
 
 clean-containers: ## Remove all LXD containers

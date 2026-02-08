@@ -281,21 +281,29 @@ func (m *Manager) executeRollback(ctx context.Context, rollback *Rollback, targe
 
 	// Step 1: Shift traffic away from current version (if supported)
 	if m.trafficShifter != nil {
+		m.mu.Lock()
 		rollback.Message = "Shifting traffic to previous version"
+		m.mu.Unlock()
 		if err := m.trafficShifter.Shift(ctx, rollback.ServiceName, rollback.FromVersion, rollback.ToVersion, 100); err != nil {
 			m.failRollback(rollback, fmt.Errorf("traffic shift failed: %w", err))
 			return
 		}
+		m.mu.Lock()
 		rollback.Metrics.TrafficShifts++
+		m.mu.Unlock()
 	}
 
 	// Step 2: Update instances
+	m.mu.Lock()
 	rollback.Message = "Updating instances to previous version"
+	m.mu.Unlock()
 	if err := m.instanceUpdater.Update(ctx, target.ServiceName, target.Version, target.ArtifactRef, target.Replicas); err != nil {
 		m.failRollback(rollback, fmt.Errorf("instance update failed: %w", err))
 		return
 	}
+	m.mu.Lock()
 	rollback.Metrics.InstancesRolledBack = target.Replicas
+	m.mu.Unlock()
 
 	// Complete rollback
 	m.mu.Lock()
@@ -365,17 +373,25 @@ func (m *Manager) Cancel(ctx context.Context, rollbackID string) error {
 }
 
 // Status returns the status of a rollback.
+// It returns a snapshot (copy) so the caller can safely read fields without
+// holding the manager's lock.
 func (m *Manager) Status(ctx context.Context, rollbackID string) (*Rollback, error) {
 	m.mu.RLock()
 	rollback, exists := m.rollbacks[rollbackID]
-	m.mu.RUnlock()
-
 	if !exists {
+		m.mu.RUnlock()
 		// Check history
 		return m.history.Get(rollbackID)
 	}
+	// Return a copy so callers don't race with executeRollback.
+	cp := *rollback
+	if rollback.Metrics != nil {
+		metricsCopy := *rollback.Metrics
+		cp.Metrics = &metricsCopy
+	}
+	m.mu.RUnlock()
 
-	return rollback, nil
+	return &cp, nil
 }
 
 // GetByService returns rollbacks for a service.

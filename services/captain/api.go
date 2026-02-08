@@ -2,23 +2,22 @@ package captain
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"unheaded/pkg/httputil"
 )
 
 // HTTPServer provides REST API endpoints for the captain service
 type HTTPServer struct {
-	service    *Service
-	server     *http.Server
-	mu         sync.RWMutex
-	metrics    *HTTPMetrics
-	requestID  int64
+	service *Service
+	server  *http.Server
+	mu      sync.RWMutex
+	metrics *HTTPMetrics
 }
 
 // HTTPMetrics tracks HTTP metrics
@@ -39,28 +38,6 @@ type HTTPRequest struct {
 	StartTime   time.Time
 	ReceivedAt  time.Time
 	SizeBytes   int64
-}
-
-// Response wrapper
-type ResponseEnvelope struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data,omitempty"`
-	Error   *ErrorInfo  `json:"error,omitempty"`
-	Meta    *MetaInfo   `json:"meta,omitempty"`
-}
-
-// ErrorInfo represents error details
-type ErrorInfo struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Details string `json:"details,omitempty"`
-}
-
-// MetaInfo represents metadata
-type MetaInfo struct {
-	RequestID string        `json:"request_id"`
-	Duration  time.Duration `json:"duration_ms"`
-	Timestamp time.Time     `json:"timestamp"`
 }
 
 // NewHTTPServer creates a new HTTP server
@@ -151,9 +128,7 @@ func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "healthy"})
 }
 
 // readyHandler responds to readiness checks
@@ -169,9 +144,7 @@ func (hs *HTTPServer) readyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
+	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }
 
 // metricsHandler returns Prometheus-style metrics
@@ -212,7 +185,7 @@ func (hs *HTTPServer) visionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hs.writeSuccess(w, http.StatusOK, vision, "Vision retrieved successfully")
+	hs.writeSuccess(w, http.StatusOK, vision)
 }
 
 // strategyHandler returns the strategic plan
@@ -228,7 +201,7 @@ func (hs *HTTPServer) strategyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hs.writeSuccess(w, http.StatusOK, strategy, "Strategy retrieved successfully")
+	hs.writeSuccess(w, http.StatusOK, strategy)
 }
 
 // decisionsHandler handles decision listing and creation
@@ -276,29 +249,18 @@ func (hs *HTTPServer) listDecisionsHandler(w http.ResponseWriter, r *http.Reques
 		"limit":     limit,
 		"offset":    offset,
 		"total":     len(decisions),
-	}, "Decisions retrieved successfully")
+	})
 }
 
 // createDecisionHandler creates a new decision
 func (hs *HTTPServer) createDecisionHandler(w http.ResponseWriter, r *http.Request) {
-	// Validate content type
-	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
-		hs.writeError(w, http.StatusUnsupportedMediaType, "INVALID_CONTENT_TYPE", "application/json required")
-		return
-	}
-
-	// Read body with limit
-	defer r.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(r.Body, 10*1024)) // 10KB max
-	if err != nil {
-		hs.writeError(w, http.StatusBadRequest, "INVALID_BODY", err.Error())
-		return
-	}
-
-	// Unmarshal decision
 	var decision Decision
-	if err := json.Unmarshal(body, &decision); err != nil {
-		hs.writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+	if err := httputil.DecodeJSONBody(r, 10*1024, &decision); err != nil {
+		if reqErr, ok := httputil.IsRequestError(err); ok {
+			hs.writeError(w, reqErr.Status, reqErr.Code, reqErr.Message)
+			return
+		}
+		hs.writeError(w, http.StatusBadRequest, "INVALID_BODY", err.Error())
 		return
 	}
 
@@ -308,7 +270,7 @@ func (hs *HTTPServer) createDecisionHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	hs.writeSuccess(w, http.StatusCreated, decision, "Decision created successfully")
+	hs.writeSuccess(w, http.StatusCreated, decision)
 }
 
 // decisionDetailHandler handles individual decision operations
@@ -338,7 +300,7 @@ func (hs *HTTPServer) getDecisionHandler(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	hs.writeSuccess(w, http.StatusOK, decision, "Decision retrieved successfully")
+	hs.writeSuccess(w, http.StatusOK, decision)
 }
 
 // updateDecisionHandler updates a decision's status
@@ -347,8 +309,11 @@ func (hs *HTTPServer) updateDecisionHandler(w http.ResponseWriter, r *http.Reque
 		Status string `json:"status"`
 	}
 
-	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1*1024*1024)).Decode(&req); err != nil {
+	if err := httputil.DecodeJSONBody(r, httputil.DefaultMaxBodySize, &req); err != nil {
+		if reqErr, ok := httputil.IsRequestError(err); ok {
+			hs.writeError(w, reqErr.Status, reqErr.Code, reqErr.Message)
+			return
+		}
 		hs.writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
 		return
 	}
@@ -359,7 +324,7 @@ func (hs *HTTPServer) updateDecisionHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	decision, _ := hs.service.GetDecision(r.Context(), id)
-	hs.writeSuccess(w, http.StatusOK, decision, "Decision updated successfully")
+	hs.writeSuccess(w, http.StatusOK, decision)
 }
 
 // ============================================================================
@@ -367,26 +332,13 @@ func (hs *HTTPServer) updateDecisionHandler(w http.ResponseWriter, r *http.Reque
 // ============================================================================
 
 // writeSuccess writes a successful response
-func (hs *HTTPServer) writeSuccess(w http.ResponseWriter, code int, data interface{}, msg string) {
+func (hs *HTTPServer) writeSuccess(w http.ResponseWriter, code int, data interface{}) {
 	hs.metrics.mu.Lock()
 	hs.metrics.RequestsTotal++
 	hs.metrics.RequestsSuccess++
 	hs.metrics.mu.Unlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-
-	resp := ResponseEnvelope{
-		Success: true,
-		Data:    data,
-		Meta: &MetaInfo{
-			RequestID: fmt.Sprintf("req_%d", hs.getNextRequestID()),
-			Duration:  0,
-			Timestamp: time.Now(),
-		},
-	}
-
-	json.NewEncoder(w).Encode(resp)
+	httputil.WriteSuccess(w, code, data)
 }
 
 // writeError writes an error response
@@ -396,31 +348,7 @@ func (hs *HTTPServer) writeError(w http.ResponseWriter, code int, errCode, msg s
 	hs.metrics.RequestsError++
 	hs.metrics.mu.Unlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-
-	resp := ResponseEnvelope{
-		Success: false,
-		Error: &ErrorInfo{
-			Code:    errCode,
-			Message: msg,
-		},
-		Meta: &MetaInfo{
-			RequestID: fmt.Sprintf("req_%d", hs.getNextRequestID()),
-			Duration:  0,
-			Timestamp: time.Now(),
-		},
-	}
-
-	json.NewEncoder(w).Encode(resp)
-}
-
-// getNextRequestID returns the next request ID
-func (hs *HTTPServer) getNextRequestID() int64 {
-	hs.mu.Lock()
-	defer hs.mu.Unlock()
-	hs.requestID++
-	return hs.requestID
+	httputil.WriteError(w, code, errCode, msg)
 }
 
 // timeoutContext creates a context with timeout

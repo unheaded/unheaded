@@ -220,17 +220,18 @@ func TestCircuitBreaker_TransitionToOpen(t *testing.T) {
 	})
 
 	t.Run("StateChangeCallback", func(t *testing.T) {
-		var callbackCalled bool
-		var fromState, toState CircuitState
+		type stateChange struct {
+			from CircuitState
+			to   CircuitState
+		}
+		ch := make(chan stateChange, 1)
 
 		config := CircuitBreakerConfig{
 			Name:        "test",
 			MaxFailures: 1,
 			Timeout:     100 * time.Millisecond,
 			OnStateChange: func(name string, from, to CircuitState) {
-				callbackCalled = true
-				fromState = from
-				toState = to
+				ch <- stateChange{from: from, to: to}
 			},
 		}
 		cb := NewCircuitBreaker(config)
@@ -238,17 +239,16 @@ func TestCircuitBreaker_TransitionToOpen(t *testing.T) {
 		ctx := context.Background()
 		cb.Execute(ctx, func(ctx context.Context) error { return errors.New("fail") })
 
-		// Allow callback goroutine to run
-		time.Sleep(10 * time.Millisecond)
-
-		if !callbackCalled {
+		select {
+		case sc := <-ch:
+			if sc.from != StateClosed {
+				t.Errorf("expected from state closed, got %v", sc.from)
+			}
+			if sc.to != StateOpen {
+				t.Errorf("expected to state open, got %v", sc.to)
+			}
+		case <-time.After(time.Second):
 			t.Error("expected state change callback to be called")
-		}
-		if fromState != StateClosed {
-			t.Errorf("expected from state closed, got %v", fromState)
-		}
-		if toState != StateOpen {
-			t.Errorf("expected to state open, got %v", toState)
 		}
 	})
 }

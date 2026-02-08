@@ -44,12 +44,21 @@ func (r Result[T]) IsErr() bool {
 	return r.err != nil
 }
 
-// Unwrap returns the value, panicking if it's an error.
+// Unwrap returns the value if the Result is successful.
+// WARNING: Unwrap panics if the Result contains an error. Use TryUnwrap for
+// a safe alternative that returns the error instead of panicking.
 func (r Result[T]) Unwrap() T {
 	if r.err != nil {
 		panic(fmt.Sprintf("called Unwrap on error Result: %v", r.err))
 	}
 	return r.value
+}
+
+// TryUnwrap safely returns the value and error without panicking.
+// If the Result is successful, it returns (value, nil).
+// If the Result is an error, it returns (zero value of T, error).
+func (r Result[T]) TryUnwrap() (T, error) {
+	return r.value, r.err
 }
 
 // UnwrapOr returns the value or a default if it's an error.

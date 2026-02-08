@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -219,7 +220,7 @@ func (d *Discovery) probeHost(ctx context.Context, ip string) *Hardware {
 
 // checkPort checks if a port is open.
 func (d *Discovery) checkPort(ctx context.Context, ip string, port int) bool {
-	addr := fmt.Sprintf("%s:%d", ip, port)
+	addr := net.JoinHostPort(ip, strconv.Itoa(port))
 	conn, err := net.DialTimeout("tcp", addr, d.config.Timeout)
 	if err != nil {
 		return false

@@ -42,6 +42,9 @@ coverage.html
 *.prof
 *.pprof
 
+# ─── Compiled service binaries ───
+/kanban-app
+
 # ─── Rust / Cargo ───
 target/
 **/*.rs.bk
