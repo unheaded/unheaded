@@ -20,13 +20,11 @@ use aya_ebpf::{
     maps::{HashMap, RingBuf, LruHashMap},
     programs::TcContext,
 };
-use aya_log_ebpf::info;
 use unheaded_common::{
     ConnectionState, Direction, FlowEvent, FlowEventType, FlowKey, FlowState, TraceId,
     ETH_HLEN, ETH_P_IP, IPV4_MIN_HLEN, IPPROTO_TCP, IPPROTO_UDP,
     MAX_FLOWS, RING_BUFFER_SIZE, TCP_MIN_HLEN,
     TCP_FLAG_SYN, TCP_FLAG_ACK, TCP_FLAG_FIN, TCP_FLAG_RST,
-    FLOW_TIMEOUT_NS,
 };
 
 /// Main flow state map using LRU for automatic expiration.
@@ -182,7 +180,7 @@ fn process_tcp(
     data_end: usize,
     ip: &Ipv4Hdr,
     packet_len: u64,
-    direction: Direction,
+    _direction: Direction,
 ) -> Result<(), ()> {
     if tcp_start + TCP_MIN_HLEN > data_end {
         return Err(());
@@ -234,7 +232,7 @@ fn process_tcp(
     }
 
     // Update flow state
-    if let Some(state) = unsafe { FLOWS.get_ptr_mut(&flow_key) } {
+    if let Some(state) = FLOWS.get_ptr_mut(&flow_key) {
         let state = unsafe { &mut *state };
 
         // Update timestamps
@@ -283,7 +281,7 @@ fn process_udp(
     data_end: usize,
     ip: &Ipv4Hdr,
     packet_len: u64,
-    direction: Direction,
+    _direction: Direction,
 ) -> Result<(), ()> {
     if udp_start + 8 > data_end {
         return Err(());
@@ -313,7 +311,7 @@ fn process_udp(
     }
 
     // Update flow state
-    if let Some(state) = unsafe { FLOWS.get_ptr_mut(&flow_key) } {
+    if let Some(state) = FLOWS.get_ptr_mut(&flow_key) {
         let state = unsafe { &mut *state };
         state.last_seen_ns = now;
 
@@ -516,7 +514,7 @@ fn send_flow_event(flow_key: &FlowKey, flow_state: &FlowState, event_type: FlowE
 /// Increment a statistics counter.
 #[inline(always)]
 fn increment_stat(key: u32) {
-    if let Some(val) = unsafe { FLOW_STATS.get_ptr_mut(&key) } {
+    if let Some(val) = FLOW_STATS.get_ptr_mut(&key) {
         unsafe {
             *val = (*val).saturating_add(1);
         }

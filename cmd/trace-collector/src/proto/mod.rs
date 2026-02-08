@@ -67,11 +67,7 @@ impl std::fmt::Display for TraceId {
     }
 }
 
-impl Default for TraceId {
-    fn default() -> Self {
-        Self { high: 0, low: 0 }
-    }
-}
+// Default is derived by prost::Message
 
 /// SpanId identifies a span within a trace
 #[derive(Clone, PartialEq, prost::Message, Serialize, Deserialize)]
@@ -99,11 +95,7 @@ impl SpanId {
     }
 }
 
-impl Default for SpanId {
-    fn default() -> Self {
-        Self { id: 0 }
-    }
-}
+// Default is derived by prost::Message
 
 /// FlowKey uniquely identifies a network flow (5-tuple + trace context)
 #[derive(Clone, PartialEq, prost::Message, Serialize, Deserialize)]

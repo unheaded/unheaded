@@ -5,7 +5,7 @@
 //!
 //! All types here are #[repr(C)] for stable ABI across the kernel boundary.
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 /// 128-bit Trace ID for distributed tracing across the kingdom.
 /// Follows W3C Trace Context format: 16 bytes = 128 bits.
@@ -271,3 +271,298 @@ pub const TCP_FLAG_RST: u8 = 0x04;
 pub const TCP_FLAG_PSH: u8 = 0x08;
 pub const TCP_FLAG_ACK: u8 = 0x10;
 pub const TCP_FLAG_URG: u8 = 0x20;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── TraceId ──────────────────────────────────────────────
+
+    #[test]
+    fn test_trace_id_zero() {
+        let z = TraceId::zero();
+        assert!(z.is_zero());
+        assert_eq!(z.high, 0);
+        assert_eq!(z.low, 0);
+    }
+
+    #[test]
+    fn test_trace_id_non_zero() {
+        assert!(!TraceId::new(1, 0).is_zero());
+        assert!(!TraceId::new(0, 1).is_zero());
+        assert!(!TraceId::new(1, 1).is_zero());
+    }
+
+    #[test]
+    fn test_trace_id_bytes_roundtrip() {
+        let id = TraceId::new(0x0123456789abcdef, 0xfedcba9876543210);
+        let bytes = id.to_bytes();
+        let restored = TraceId::from_bytes(bytes);
+        assert_eq!(id, restored);
+    }
+
+    #[test]
+    fn test_trace_id_bytes_big_endian() {
+        let id = TraceId::new(0x0102030405060708, 0x090a0b0c0d0e0f10);
+        let bytes = id.to_bytes();
+        assert_eq!(
+            bytes,
+            [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+             0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10]
+        );
+    }
+
+    #[test]
+    fn test_trace_id_zero_bytes_roundtrip() {
+        let z = TraceId::zero();
+        let bytes = z.to_bytes();
+        assert_eq!(bytes, [0u8; 16]);
+        let restored = TraceId::from_bytes(bytes);
+        assert!(restored.is_zero());
+    }
+
+    #[test]
+    fn test_trace_id_max_values() {
+        let id = TraceId::new(u64::MAX, u64::MAX);
+        let bytes = id.to_bytes();
+        assert_eq!(bytes, [0xff; 16]);
+        let restored = TraceId::from_bytes(bytes);
+        assert_eq!(id, restored);
+    }
+
+    // ── FlowKey ──────────────────────────────────────────────
+
+    #[test]
+    fn test_flow_key_hash_deterministic() {
+        let key = FlowKey {
+            src_addr: 0x0a0a0a01,
+            dst_addr: 0x0a0a0a02,
+            src_port: 8080,
+            dst_port: 443,
+            protocol: IPPROTO_TCP,
+            _pad: [0; 3],
+        };
+        let h1 = key.hash();
+        let h2 = key.hash();
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn test_flow_key_hash_differs_for_different_keys() {
+        let key1 = FlowKey {
+            src_addr: 0x0a0a0a01,
+            dst_addr: 0x0a0a0a02,
+            src_port: 8080,
+            dst_port: 443,
+            protocol: IPPROTO_TCP,
+            _pad: [0; 3],
+        };
+        let key2 = FlowKey {
+            src_addr: 0x0a0a0a02,
+            dst_addr: 0x0a0a0a01,
+            src_port: 443,
+            dst_port: 8080,
+            protocol: IPPROTO_TCP,
+            _pad: [0; 3],
+        };
+        // Reversed src/dst should produce a different hash
+        assert_ne!(key1.hash(), key2.hash());
+    }
+
+    #[test]
+    fn test_flow_key_hash_protocol_matters() {
+        let tcp_key = FlowKey {
+            src_addr: 1, dst_addr: 2, src_port: 100, dst_port: 200,
+            protocol: IPPROTO_TCP, _pad: [0; 3],
+        };
+        let udp_key = FlowKey {
+            src_addr: 1, dst_addr: 2, src_port: 100, dst_port: 200,
+            protocol: IPPROTO_UDP, _pad: [0; 3],
+        };
+        assert_ne!(tcp_key.hash(), udp_key.hash());
+    }
+
+    // ── ConnectionState ──────────────────────────────────────
+
+    #[test]
+    fn test_connection_state_repr_values() {
+        assert_eq!(ConnectionState::Unknown as u8, 0);
+        assert_eq!(ConnectionState::SynSent as u8, 1);
+        assert_eq!(ConnectionState::SynReceived as u8, 2);
+        assert_eq!(ConnectionState::Established as u8, 3);
+        assert_eq!(ConnectionState::FinWait1 as u8, 4);
+        assert_eq!(ConnectionState::FinWait2 as u8, 5);
+        assert_eq!(ConnectionState::CloseWait as u8, 6);
+        assert_eq!(ConnectionState::Closing as u8, 7);
+        assert_eq!(ConnectionState::LastAck as u8, 8);
+        assert_eq!(ConnectionState::TimeWait as u8, 9);
+        assert_eq!(ConnectionState::Closed as u8, 10);
+    }
+
+    #[test]
+    fn test_connection_state_default() {
+        let state = ConnectionState::default();
+        assert_eq!(state, ConnectionState::Unknown);
+    }
+
+    // ── Enum repr values ─────────────────────────────────────
+
+    #[test]
+    fn test_packet_action_repr_values() {
+        assert_eq!(PacketAction::Pass as u8, 0);
+        assert_eq!(PacketAction::Drop as u8, 1);
+        assert_eq!(PacketAction::Marked as u8, 2);
+        assert_eq!(PacketAction::Extracted as u8, 3);
+        assert_eq!(PacketAction::Redirect as u8, 4);
+    }
+
+    #[test]
+    fn test_direction_repr_values() {
+        assert_eq!(Direction::Ingress as u8, 0);
+        assert_eq!(Direction::Egress as u8, 1);
+    }
+
+    #[test]
+    fn test_flow_event_type_repr_values() {
+        assert_eq!(FlowEventType::New as u8, 0);
+        assert_eq!(FlowEventType::StateChange as u8, 1);
+        assert_eq!(FlowEventType::Expired as u8, 2);
+        assert_eq!(FlowEventType::Update as u8, 3);
+    }
+
+    #[test]
+    fn test_latency_operation_repr_values() {
+        assert_eq!(LatencyOperation::TcpSend as u8, 0);
+        assert_eq!(LatencyOperation::TcpRecv as u8, 1);
+        assert_eq!(LatencyOperation::TcpConnect as u8, 2);
+        assert_eq!(LatencyOperation::TcpAccept as u8, 3);
+    }
+
+    #[test]
+    fn test_syscall_event_type_repr_values() {
+        assert_eq!(SyscallEventType::Enter as u8, 0);
+        assert_eq!(SyscallEventType::Exit as u8, 1);
+    }
+
+    // ── Struct sizes & layout ────────────────────────────────
+
+    #[test]
+    fn test_trace_id_size() {
+        assert_eq!(std::mem::size_of::<TraceId>(), 16);
+    }
+
+    #[test]
+    fn test_flow_key_size() {
+        // 4+4+2+2+1+3 = 16 bytes
+        assert_eq!(std::mem::size_of::<FlowKey>(), 16);
+    }
+
+    #[test]
+    fn test_packet_event_size_aligned() {
+        // repr(C) struct should have predictable alignment
+        let size = std::mem::size_of::<PacketEvent>();
+        assert_eq!(size % 8, 0, "PacketEvent should be 8-byte aligned, got size {}", size);
+    }
+
+    #[test]
+    fn test_flow_event_size_aligned() {
+        let size = std::mem::size_of::<FlowEvent>();
+        assert_eq!(size % 8, 0, "FlowEvent should be 8-byte aligned, got size {}", size);
+    }
+
+    #[test]
+    fn test_latency_event_size_aligned() {
+        let size = std::mem::size_of::<LatencyEvent>();
+        assert_eq!(size % 8, 0, "LatencyEvent should be 8-byte aligned, got size {}", size);
+    }
+
+    #[test]
+    fn test_syscall_event_size_aligned() {
+        let size = std::mem::size_of::<SyscallEvent>();
+        assert_eq!(size % 8, 0, "SyscallEvent should be 8-byte aligned, got size {}", size);
+    }
+
+    // ── Constants ────────────────────────────────────────────
+
+    #[test]
+    fn test_ring_buffer_size_is_power_of_two() {
+        assert!(RING_BUFFER_SIZE.is_power_of_two());
+    }
+
+    #[test]
+    fn test_protocol_constants() {
+        assert_eq!(IPPROTO_TCP, 6);
+        assert_eq!(IPPROTO_UDP, 17);
+    }
+
+    #[test]
+    fn test_ethernet_constants() {
+        assert_eq!(ETH_P_IP, 0x0800);
+        assert_eq!(ETH_P_IPV6, 0x86DD);
+        assert_eq!(ETH_HLEN, 14);
+    }
+
+    #[test]
+    fn test_header_sizes() {
+        assert_eq!(IPV4_MIN_HLEN, 20);
+        assert_eq!(TCP_MIN_HLEN, 20);
+        assert_eq!(UDP_HLEN, 8);
+    }
+
+    #[test]
+    fn test_tcp_flags() {
+        // Flags should be individual bits
+        assert_eq!(TCP_FLAG_FIN, 0x01);
+        assert_eq!(TCP_FLAG_SYN, 0x02);
+        assert_eq!(TCP_FLAG_RST, 0x04);
+        assert_eq!(TCP_FLAG_PSH, 0x08);
+        assert_eq!(TCP_FLAG_ACK, 0x10);
+        assert_eq!(TCP_FLAG_URG, 0x20);
+        // No two flags overlap
+        let all = TCP_FLAG_FIN | TCP_FLAG_SYN | TCP_FLAG_RST | TCP_FLAG_PSH | TCP_FLAG_ACK | TCP_FLAG_URG;
+        assert_eq!(all.count_ones(), 6);
+    }
+
+    #[test]
+    fn test_trace_option_constants() {
+        assert_eq!(TRACE_OPTION_TYPE, 0x1F);
+        assert_eq!(TRACE_OPTION_LEN, 18); // 2 header + 16 trace_id
+        assert_eq!(TCP_TRACE_OPTION_KIND, 253);
+        assert_eq!(TCP_TRACE_OPTION_LEN, 18);
+    }
+
+    // ── Default impls ────────────────────────────────────────
+
+    #[test]
+    fn test_flow_state_default() {
+        let fs = FlowState::default();
+        assert!(fs.trace_id.is_zero());
+        assert_eq!(fs.start_ns, 0);
+        assert_eq!(fs.packets_in, 0);
+        assert_eq!(fs.packets_out, 0);
+        assert_eq!(fs.bytes_in, 0);
+        assert_eq!(fs.bytes_out, 0);
+        assert_eq!(fs.state, ConnectionState::Unknown);
+    }
+
+    #[test]
+    fn test_packet_event_default() {
+        let pe = PacketEvent::default();
+        assert_eq!(pe.timestamp_ns, 0);
+        assert!(pe.trace_id.is_zero());
+        assert_eq!(pe.packet_len, 0);
+        assert_eq!(pe.action, PacketAction::Pass);
+        assert_eq!(pe.direction, Direction::Ingress);
+    }
+
+    #[test]
+    fn test_syscall_event_default() {
+        let se = SyscallEvent::default();
+        assert_eq!(se.pid, 0);
+        assert_eq!(se.tid, 0);
+        assert_eq!(se.syscall_nr, 0);
+        assert_eq!(se.ret, 0);
+        assert_eq!(se.event_type, SyscallEventType::Enter);
+        assert_eq!(se.comm, [0u8; 16]);
+    }
+}

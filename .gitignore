@@ -45,7 +45,8 @@ coverage.html
 # ─── Rust / Cargo ───
 target/
 **/*.rs.bk
-Cargo.lock
+# Cargo.lock — COMMITTED for binary crates (trace-collector, ebpf programs)
+# Only ignore for library crates
 *.rlib
 
 # ─── Build Artifacts ───
@@ -74,6 +75,13 @@ secrets/
 credentials.json
 service-account.json
 
+# ─── SOPS / Age (identity keys NEVER committed) ───
+# .sops.yaml config and *.enc.* ciphertext ARE tracked
+sops-age-key.txt
+*.agekey
+age.key
+age-identity.txt
+
 # ─── Logs ───
 *.log
 logs/
@@ -94,9 +102,15 @@ result
 result-*
 .direnv/
 
+# ─── NixOS VM artifacts ───
+*.qcow2
+*.raw
+nixos-*.img
+
 # ─── eBPF ───
 *.bpf.o
 vmlinux.h
+*.skel.h
 
 # ─── Temporary Files ───
 tmp/

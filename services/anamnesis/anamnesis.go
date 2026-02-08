@@ -244,8 +244,18 @@ func (s *Service) Append(ctx context.Context, aggregateID, aggregateType string,
 		Int64("sequence", s.sequenceNum).
 		Msg("Event appended")
 
-	// Notify handlers
-	go s.notifyHandlers(ctx, event)
+	// Snapshot handlers under the write lock so goroutines don't need to
+	// re-acquire the lock just to read the handler slices.
+	handlersCopy := make([]EventHandler, len(s.eventHandlers))
+	copy(handlersCopy, s.eventHandlers)
+	projHandlersCopy := make(map[string]ProjectionHandler, len(s.projectionHandlers))
+	for k, v := range s.projectionHandlers {
+		projHandlersCopy[k] = v
+	}
+
+	// Notify handlers with the snapshot (no lock needed inside the goroutine
+	// for reading the handler list).
+	go s.notifyHandlersSnapshot(ctx, event, handlersCopy, projHandlersCopy)
 
 	// Check if snapshot is needed
 	if s.config.EnableSnapshots && version%int64(s.config.SnapshotInterval) == 0 {
@@ -557,28 +567,28 @@ func (s *Service) createSnapshot(ctx context.Context, aggregateID, aggregateType
 		Msg("Snapshot created")
 }
 
-// notifyHandlers calls all registered event handlers.
-func (s *Service) notifyHandlers(ctx context.Context, event *Event) {
-	s.mu.RLock()
-	handlers := make([]EventHandler, len(s.eventHandlers))
-	copy(handlers, s.eventHandlers)
-	projHandlers := make(map[string]ProjectionHandler)
-	for k, v := range s.projectionHandlers {
-		projHandlers[k] = v
-	}
-	s.mu.RUnlock()
-
-	// Call event handlers
+// notifyHandlersSnapshot calls pre-snapshotted event and projection handlers.
+// The handler slices are captured under the caller's lock so this method does
+// not need to acquire the lock to iterate over them, eliminating the race
+// between the spawned goroutine and concurrent Append / RegisterEventHandler
+// calls that mutate the handler slices.
+func (s *Service) notifyHandlersSnapshot(ctx context.Context, event *Event, handlers []EventHandler, projHandlers map[string]ProjectionHandler) {
+	// Call event handlers without holding any lock -- handlers execute
+	// concurrently with the rest of the system.
 	for _, handler := range handlers {
 		if err := handler(ctx, event); err != nil {
 			s.log.Warn().Err(err).Str("event_id", event.ID).Msg("Event handler failed")
 		}
 	}
 
-	// Update projections
+	// Update projections under the write lock because projection state is
+	// shared.
 	s.mu.Lock()
 	for name, handler := range projHandlers {
 		proj := s.projections[name]
+		if proj == nil {
+			continue
+		}
 		if err := handler(proj, event); err != nil {
 			s.log.Warn().Err(err).Str("projection", name).Msg("Projection handler failed")
 			continue

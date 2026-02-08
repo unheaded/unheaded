@@ -3,7 +3,10 @@
  * Displays network traffic flowing between Unheaded services
  *
  * Uses Canvas API for rendering (no external dependencies)
- * WebSocket connection to dashboard-backend for real-time updates
+ * WebSocket connections to:
+ *   - dashboard-backend (Go, port 8080) for packet flow broadcasts
+ *   - trace-collector (Rust/eBPF, port 9091) for real eBPF trace events
+ * Falls back to demo simulation when no live data is available.
  */
 
 const PacketFlowViz = (function() {
@@ -13,12 +16,16 @@ const PacketFlowViz = (function() {
     // Configuration
     // ========================================================================
     const CONFIG = {
-        // WebSocket settings
-        wsUrl: 'ws://localhost:8080/ws/packets',
+        // WebSocket settings - dashboard-backend (Go, port 8080)
+        wsUrl: 'ws://localhost:8080/ws',
+        // Trace-collector WebSocket (Rust/eBPF, port 9091) for real eBPF traces
+        traceCollectorWsUrl: 'ws://localhost:9091',
         reconnectBaseDelay: 1000,
         reconnectMaxDelay: 30000,
         reconnectMultiplier: 1.5,
         maxReconnectAttempts: 0, // 0 = infinite
+        // Enable demo fallback when both WebSocket sources are unavailable
+        demoFallback: true,
 
         // Visualization settings
         nodeRadius: 28,
@@ -77,11 +84,18 @@ const PacketFlowViz = (function() {
     // State
     // ========================================================================
     const state = {
-        // WebSocket
+        // Dashboard-backend WebSocket (packet_flow broadcasts)
         ws: null,
         wsConnected: false,
         reconnectAttempts: 0,
         reconnectTimeout: null,
+
+        // Trace-collector WebSocket (eBPF trace events)
+        traceWs: null,
+        traceWsConnected: false,
+        traceReconnectAttempts: 0,
+        traceReconnectTimeout: null,
+        traceSubscriptionId: 'dashboard-all',
 
         // Canvas
         canvas: null,
@@ -112,7 +126,7 @@ const PacketFlowViz = (function() {
     // Initialization
     // ========================================================================
     function init(containerId, options) {
-        const container = document.getElementById(containerId || 'flow-viz');
+        var container = document.getElementById(containerId || 'flow-viz');
         if (!container) {
             console.error('[PacketFlow] Container element not found:', containerId);
             return false;
@@ -121,7 +135,9 @@ const PacketFlowViz = (function() {
         // Apply options
         if (options) {
             if (options.wsUrl) CONFIG.wsUrl = options.wsUrl;
+            if (options.traceCollectorWsUrl) CONFIG.traceCollectorWsUrl = options.traceCollectorWsUrl;
             if (options.services) Object.assign(CONFIG.services, options.services);
+            if (typeof options.demoFallback !== 'undefined') CONFIG.demoFallback = options.demoFallback;
         }
 
         // Create canvas
@@ -148,142 +164,147 @@ const PacketFlowViz = (function() {
         // Start animation loop
         startAnimation();
 
-        // Connect WebSocket
+        // Connect to both WebSocket sources
         connectWebSocket();
+        connectTraceCollector();
 
-        console.log('[PacketFlow] Initialized');
+        console.log('[PacketFlow] Initialized with real data sources');
         return true;
     }
 
     function createStatusIndicator(container) {
-        const indicator = document.createElement('div');
+        var indicator = document.createElement('div');
         indicator.id = 'packet-flow-status';
         indicator.className = 'packet-flow-status disconnected';
         indicator.setAttribute('role', 'status');
         indicator.setAttribute('aria-live', 'polite');
         indicator.setAttribute('aria-label', 'WebSocket status: disconnected');
         indicator.innerHTML = '<span class="status-dot" aria-hidden="true"></span><span class="status-text">Disconnected</span>';
-        indicator.style.cssText = `
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 14px;
-            background: rgba(22, 33, 62, 0.92);
-            border: 1px solid rgba(255, 215, 0, 0.2);
-            border-radius: 6px;
-            font-size: 11px;
-            color: #e0e0e0;
-            font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
-            z-index: 10;
-            backdrop-filter: blur(8px);
-            transition: all 0.25s ease;
-        `;
+        indicator.style.cssText = '\
+            position: absolute;\
+            top: 12px;\
+            right: 12px;\
+            display: flex;\
+            align-items: center;\
+            gap: 8px;\
+            padding: 8px 14px;\
+            background: rgba(22, 33, 62, 0.92);\
+            border: 1px solid rgba(255, 215, 0, 0.2);\
+            border-radius: 6px;\
+            font-size: 11px;\
+            color: #e0e0e0;\
+            font-family: "SF Mono", "Cascadia Code", "Fira Code", "Courier New", monospace;\
+            z-index: 10;\
+            backdrop-filter: blur(8px);\
+            transition: all 0.25s ease;\
+        ';
         container.style.position = 'relative';
         container.appendChild(indicator);
 
         // Add status dot styles
-        const style = document.createElement('style');
-        style.textContent = `
-            .packet-flow-status .status-dot {
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                background: #ff4757;
-                transition: all 0.3s ease;
-            }
-            .packet-flow-status.connected .status-dot {
-                background: #00d26a;
-                box-shadow: 0 0 10px #00d26a;
-            }
-            .packet-flow-status.connecting .status-dot {
-                background: #ffd700;
-                animation: pf-pulse 1s infinite;
-            }
-            .packet-flow-status.disconnected .status-dot {
-                background: #ff4757;
-                box-shadow: 0 0 8px rgba(255, 71, 87, 0.5);
-            }
-            .packet-flow-status:hover {
-                border-color: rgba(255, 215, 0, 0.4);
-                box-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
-            }
-            @keyframes pf-pulse {
-                0%, 100% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.5; transform: scale(1.1); }
-            }
-        `;
+        var style = document.createElement('style');
+        style.textContent = '\
+            .packet-flow-status .status-dot {\
+                width: 8px;\
+                height: 8px;\
+                border-radius: 50%;\
+                background: #ff4757;\
+                transition: all 0.3s ease;\
+            }\
+            .packet-flow-status.connected .status-dot {\
+                background: #00d26a;\
+                box-shadow: 0 0 10px #00d26a;\
+            }\
+            .packet-flow-status.connecting .status-dot {\
+                background: #ffd700;\
+                animation: pf-pulse 1s infinite;\
+            }\
+            .packet-flow-status.disconnected .status-dot {\
+                background: #ff4757;\
+                box-shadow: 0 0 8px rgba(255, 71, 87, 0.5);\
+            }\
+            .packet-flow-status.demo .status-dot {\
+                background: #ff9800;\
+                box-shadow: 0 0 8px rgba(255, 152, 0, 0.5);\
+            }\
+            .packet-flow-status:hover {\
+                border-color: rgba(255, 215, 0, 0.4);\
+                box-shadow: 0 0 15px rgba(255, 215, 0, 0.15);\
+            }\
+            @keyframes pf-pulse {\
+                0%, 100% { opacity: 1; transform: scale(1); }\
+                50% { opacity: 0.5; transform: scale(1.1); }\
+            }\
+        ';
         document.head.appendChild(style);
     }
 
     function createStatsPanel(container) {
-        const panel = document.createElement('div');
+        var panel = document.createElement('div');
         panel.id = 'packet-flow-stats';
         panel.setAttribute('role', 'region');
         panel.setAttribute('aria-label', 'Packet flow statistics');
-        panel.innerHTML = `
-            <div class="stat-item" role="group" aria-label="Total packets">
-                <span class="stat-label">Packets</span>
-                <span class="stat-value" id="pf-stat-packets" aria-live="polite">0</span>
-            </div>
-            <div class="stat-item" role="group" aria-label="Average latency">
-                <span class="stat-label">Avg Latency</span>
-                <span class="stat-value" id="pf-stat-latency" aria-live="polite">0ms</span>
-            </div>
-            <div class="stat-item" role="group" aria-label="Error rate percentage">
-                <span class="stat-label">Error Rate</span>
-                <span class="stat-value" id="pf-stat-errors" aria-live="polite">0%</span>
-            </div>
-        `;
-        panel.style.cssText = `
-            position: absolute;
-            bottom: 12px;
-            left: 12px;
-            display: flex;
-            gap: 24px;
-            padding: 12px 18px;
-            background: rgba(22, 33, 62, 0.92);
-            border: 1px solid rgba(255, 215, 0, 0.2);
-            border-radius: 6px;
-            font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
-            z-index: 10;
-            backdrop-filter: blur(8px);
-        `;
+        panel.innerHTML = '\
+            <div class="stat-item" role="group" aria-label="Total packets">\
+                <span class="stat-label">Packets</span>\
+                <span class="stat-value" id="pf-stat-packets" aria-live="polite">0</span>\
+            </div>\
+            <div class="stat-item" role="group" aria-label="Average latency">\
+                <span class="stat-label">Avg Latency</span>\
+                <span class="stat-value" id="pf-stat-latency" aria-live="polite">0ms</span>\
+            </div>\
+            <div class="stat-item" role="group" aria-label="Error rate percentage">\
+                <span class="stat-label">Error Rate</span>\
+                <span class="stat-value" id="pf-stat-errors" aria-live="polite">0%</span>\
+            </div>\
+        ';
+        panel.style.cssText = '\
+            position: absolute;\
+            bottom: 12px;\
+            left: 12px;\
+            display: flex;\
+            gap: 24px;\
+            padding: 12px 18px;\
+            background: rgba(22, 33, 62, 0.92);\
+            border: 1px solid rgba(255, 215, 0, 0.2);\
+            border-radius: 6px;\
+            font-family: "SF Mono", "Cascadia Code", "Fira Code", "Courier New", monospace;\
+            z-index: 10;\
+            backdrop-filter: blur(8px);\
+        ';
         container.appendChild(panel);
 
         // Add stats styles
-        const style = document.createElement('style');
-        style.textContent = `
-            #packet-flow-stats .stat-item {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 4px;
-            }
-            #packet-flow-stats .stat-label {
-                font-size: 9px;
-                color: #6b6b7b;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-            }
-            #packet-flow-stats .stat-value {
-                font-size: 18px;
-                color: #ffd700;
-                font-weight: 600;
-                text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-                transition: all 0.2s ease;
-            }
-            #packet-flow-stats .stat-value:hover {
-                text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
-            }
-        `;
+        var style = document.createElement('style');
+        style.textContent = '\
+            #packet-flow-stats .stat-item {\
+                display: flex;\
+                flex-direction: column;\
+                align-items: center;\
+                gap: 4px;\
+            }\
+            #packet-flow-stats .stat-label {\
+                font-size: 9px;\
+                color: #6b6b7b;\
+                text-transform: uppercase;\
+                letter-spacing: 0.05em;\
+            }\
+            #packet-flow-stats .stat-value {\
+                font-size: 18px;\
+                color: #ffd700;\
+                font-weight: 600;\
+                text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);\
+                transition: all 0.2s ease;\
+            }\
+            #packet-flow-stats .stat-value:hover {\
+                text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);\
+            }\
+        ';
         document.head.appendChild(style);
     }
 
     function resizeCanvas() {
-        const rect = state.canvas.parentElement.getBoundingClientRect();
+        var rect = state.canvas.parentElement.getBoundingClientRect();
         state.width = rect.width;
         state.height = rect.height;
 
@@ -293,7 +314,7 @@ const PacketFlowViz = (function() {
     }
 
     // ========================================================================
-    // WebSocket Connection
+    // WebSocket Connection - Dashboard Backend (packet_flow broadcasts)
     // ========================================================================
     function connectWebSocket() {
         if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) {
@@ -301,7 +322,7 @@ const PacketFlowViz = (function() {
         }
 
         updateConnectionStatus('connecting');
-        console.log('[PacketFlow] Connecting to:', CONFIG.wsUrl);
+        console.log('[PacketFlow] Connecting to dashboard-backend:', CONFIG.wsUrl);
 
         try {
             state.ws = new WebSocket(CONFIG.wsUrl);
@@ -311,26 +332,23 @@ const PacketFlowViz = (function() {
             state.ws.onerror = handleWSError;
             state.ws.onmessage = handleWSMessage;
         } catch (error) {
-            console.error('[PacketFlow] WebSocket connection error:', error);
+            console.error('[PacketFlow] Dashboard-backend WebSocket connection error:', error);
             scheduleReconnect();
         }
     }
 
     function handleWSOpen() {
-        console.log('[PacketFlow] Connected');
+        console.log('[PacketFlow] Connected to dashboard-backend');
         state.wsConnected = true;
         state.reconnectAttempts = 0;
         updateConnectionStatus('connected');
-
-        // Subscribe to packet flow updates
-        send({ type: 'subscribe', channel: 'packet_flow' });
     }
 
     function handleWSClose(event) {
-        console.log('[PacketFlow] Disconnected:', event.code, event.reason);
+        console.log('[PacketFlow] Dashboard-backend disconnected:', event.code, event.reason);
         state.wsConnected = false;
         state.ws = null;
-        updateConnectionStatus('disconnected');
+        updateOverallStatus();
 
         if (event.code !== 1000) {
             scheduleReconnect();
@@ -338,30 +356,36 @@ const PacketFlowViz = (function() {
     }
 
     function handleWSError(error) {
-        console.error('[PacketFlow] WebSocket error:', error);
+        console.error('[PacketFlow] Dashboard-backend WebSocket error:', error);
         state.wsConnected = false;
-        updateConnectionStatus('disconnected');
+        updateOverallStatus();
     }
 
     function handleWSMessage(event) {
         try {
-            const message = JSON.parse(event.data);
+            var message = JSON.parse(event.data);
             processMessage(message);
         } catch (error) {
-            console.error('[PacketFlow] Message parse error:', error);
+            console.error('[PacketFlow] Dashboard-backend message parse error:', error);
         }
     }
 
     function processMessage(message) {
         switch (message.type) {
             case 'packet_flow':
+                // Dashboard-backend broadcasts: { type: "packet_flow", data: PacketFlow }
                 handlePacketFlow(message.data);
+                break;
+            case 'health_update':
+                // Health updates from dashboard-backend - no visualization action
+                break;
+            case 'event':
+                // Events from dashboard-backend - no visualization action
                 break;
             case 'pong':
                 // Heartbeat response
                 break;
             case 'error':
-                // Show user-friendly error, not raw server data
                 var friendlyMsg = formatServerError(message.data);
                 console.error('[PacketFlow] Server error:', friendlyMsg);
                 if (window.showToast) {
@@ -369,11 +393,242 @@ const PacketFlowViz = (function() {
                 }
                 break;
             default:
-                // Handle other message types
+                // Handle other message types - check if it looks like raw flow data
                 if (message.trace_id) {
-                    // Direct packet flow data
                     handlePacketFlow(message);
                 }
+        }
+    }
+
+    // ========================================================================
+    // WebSocket Connection - Trace Collector (eBPF trace events, port 9091)
+    // ========================================================================
+    function connectTraceCollector() {
+        if (state.traceWs && (state.traceWs.readyState === WebSocket.OPEN || state.traceWs.readyState === WebSocket.CONNECTING)) {
+            return;
+        }
+
+        console.log('[PacketFlow] Connecting to trace-collector:', CONFIG.traceCollectorWsUrl);
+
+        try {
+            state.traceWs = new WebSocket(CONFIG.traceCollectorWsUrl);
+
+            state.traceWs.onopen = handleTraceWSOpen;
+            state.traceWs.onclose = handleTraceWSClose;
+            state.traceWs.onerror = handleTraceWSError;
+            state.traceWs.onmessage = handleTraceWSMessage;
+        } catch (error) {
+            console.error('[PacketFlow] Trace-collector WebSocket connection error:', error);
+            scheduleTraceReconnect();
+        }
+    }
+
+    function handleTraceWSOpen() {
+        console.log('[PacketFlow] Connected to trace-collector');
+        state.traceWsConnected = true;
+        state.traceReconnectAttempts = 0;
+        updateOverallStatus();
+
+        // Subscribe to all trace events using the trace-collector protocol
+        // ClientMessage::Subscribe { id, subscription }
+        sendTrace({
+            type: 'subscribe',
+            id: state.traceSubscriptionId,
+            subscription: {
+                all: true,
+                event_types: [],
+                services: [],
+                trace_ids: [],
+                min_latency_ns: null,
+                errors_only: false,
+                sample_rate: 1.0
+            }
+        });
+
+        // Send client info
+        sendTrace({
+            type: 'client_info',
+            name: 'unheaded-dashboard',
+            version: '1.0.0'
+        });
+    }
+
+    function handleTraceWSClose(event) {
+        console.log('[PacketFlow] Trace-collector disconnected:', event.code, event.reason);
+        state.traceWsConnected = false;
+        state.traceWs = null;
+        updateOverallStatus();
+
+        if (event.code !== 1000) {
+            scheduleTraceReconnect();
+        }
+    }
+
+    function handleTraceWSError(error) {
+        console.error('[PacketFlow] Trace-collector WebSocket error:', error);
+        state.traceWsConnected = false;
+        updateOverallStatus();
+    }
+
+    function handleTraceWSMessage(event) {
+        try {
+            var message = JSON.parse(event.data);
+            processTraceMessage(message);
+        } catch (error) {
+            console.error('[PacketFlow] Trace-collector message parse error:', error);
+        }
+    }
+
+    function processTraceMessage(message) {
+        // ServerMessage from trace-collector is tagged with "type" (snake_case)
+        switch (message.type) {
+            case 'connected':
+                // ServerMessage::Connected { version, connection_id, capabilities }
+                console.log('[PacketFlow] Trace-collector version:', message.version,
+                    'connection:', message.connection_id,
+                    'capabilities:', message.capabilities);
+                break;
+
+            case 'subscribed':
+                // ServerMessage::Subscribed { id, success, error }
+                if (message.success) {
+                    console.log('[PacketFlow] Subscribed to traces:', message.id);
+                } else {
+                    console.error('[PacketFlow] Subscription failed:', message.id, message.error);
+                }
+                break;
+
+            case 'trace_update':
+                // ServerMessage::TraceUpdate { subscription_id, update: TraceUpdate }
+                handleTraceUpdate(message.update);
+                break;
+
+            case 'trace_update_batch':
+                // ServerMessage::TraceUpdateBatch { subscription_id, updates: [TraceUpdate] }
+                if (message.updates && Array.isArray(message.updates)) {
+                    for (var i = 0; i < message.updates.length; i++) {
+                        handleTraceUpdate(message.updates[i]);
+                    }
+                }
+                break;
+
+            case 'stats':
+                // ServerMessage::Stats { active_traces, events_per_second, ... }
+                // Could use for display; not acting on it now.
+                break;
+
+            case 'pong':
+                // ServerMessage::Pong { client_timestamp, server_timestamp }
+                break;
+
+            case 'error':
+                // ServerMessage::Error { code, message, request_id }
+                console.error('[PacketFlow] Trace-collector error:', message.code, message.message);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /**
+     * Convert a trace-collector TraceUpdate into a packet flow visualization.
+     *
+     * TraceUpdate fields:
+     *   trace_id, services[], event_type, operation, duration_ns, latency_ns,
+     *   status ("ok"|"error"|"unset"), timestamp_ns, source, attributes, is_complete
+     */
+    function handleTraceUpdate(update) {
+        if (!update || !update.trace_id) return;
+
+        // Build a synthetic PacketFlow-like object from the TraceUpdate
+        var services = update.services || [];
+        if (services.length < 2) {
+            // If fewer than 2 services, build a plausible route through gateway
+            if (services.length === 1) {
+                services = ['gateway', 'busboy', services[0]];
+            } else {
+                services = ['gateway', 'busboy'];
+            }
+        }
+
+        var statusCode = 200;
+        if (update.status === 'error') {
+            statusCode = 500;
+        }
+
+        var totalTimeNs = update.duration_ns || update.latency_ns || 0;
+
+        var hops = [];
+        for (var i = 0; i < services.length; i++) {
+            hops.push({ component: services[i] });
+        }
+
+        var syntheticFlow = {
+            trace_id: update.trace_id,
+            status_code: statusCode,
+            total_time: totalTimeNs,
+            method: (update.attributes && update.attributes.http_method) || '',
+            path: update.operation || '',
+            hops: hops
+        };
+
+        handlePacketFlow(syntheticFlow);
+    }
+
+    function sendTrace(message) {
+        if (state.traceWs && state.traceWs.readyState === WebSocket.OPEN) {
+            try {
+                state.traceWs.send(JSON.stringify(message));
+                return true;
+            } catch (error) {
+                console.error('[PacketFlow] Trace send error:', error);
+            }
+        }
+        return false;
+    }
+
+    function scheduleTraceReconnect() {
+        if (state.traceReconnectTimeout) {
+            clearTimeout(state.traceReconnectTimeout);
+        }
+
+        if (CONFIG.maxReconnectAttempts > 0 && state.traceReconnectAttempts >= CONFIG.maxReconnectAttempts) {
+            console.error('[PacketFlow] Max trace-collector reconnect attempts reached');
+            return;
+        }
+
+        var delay = Math.min(
+            CONFIG.reconnectBaseDelay * Math.pow(CONFIG.reconnectMultiplier, state.traceReconnectAttempts),
+            CONFIG.reconnectMaxDelay
+        );
+
+        state.traceReconnectAttempts++;
+        console.log('[PacketFlow] Trace-collector reconnecting in', delay, 'ms (attempt', state.traceReconnectAttempts + ')');
+
+        state.traceReconnectTimeout = setTimeout(connectTraceCollector, delay);
+    }
+
+    // ========================================================================
+    // Status Management
+    // ========================================================================
+
+    /** Determine overall connection status from both WebSocket sources. */
+    function updateOverallStatus() {
+        if (state.wsConnected || state.traceWsConnected) {
+            var label = 'Live';
+            if (state.wsConnected && state.traceWsConnected) {
+                label = 'Live (backend + eBPF)';
+            } else if (state.wsConnected) {
+                label = 'Live (backend)';
+            } else {
+                label = 'Live (eBPF)';
+            }
+            updateConnectionStatus('connected', label);
+        } else if (CONFIG.demoFallback) {
+            updateConnectionStatus('demo', 'Demo Mode');
+        } else {
+            updateConnectionStatus('disconnected');
         }
     }
 
@@ -392,6 +647,9 @@ const PacketFlowViz = (function() {
         return 'An unexpected error occurred.';
     }
 
+    // ========================================================================
+    // Packet Flow Handling (shared between both data sources)
+    // ========================================================================
     function handlePacketFlow(flow) {
         if (!flow) return;
 
@@ -409,15 +667,15 @@ const PacketFlowViz = (function() {
     }
 
     function createPacketFromFlow(flow) {
-        const hops = flow.hops || [];
+        var hops = flow.hops || [];
         if (hops.length < 2) return;
 
         // Map hop components to service names
-        const route = hops.map(hop => mapComponentToService(hop.component)).filter(Boolean);
+        var route = hops.map(function(hop) { return mapComponentToService(hop.component); }).filter(Boolean);
         if (route.length < 2) return;
 
         // Create packet object
-        const packet = {
+        var packet = {
             id: flow.trace_id || generateId(),
             traceId: flow.trace_id || 'unknown',
             route: route,
@@ -442,14 +700,14 @@ const PacketFlowViz = (function() {
         }
 
         // Mark connection as active
-        for (let i = 0; i < route.length - 1; i++) {
-            const key = `${route[i]}-${route[i + 1]}`;
+        for (var i = 0; i < route.length - 1; i++) {
+            var key = route[i] + '-' + route[i + 1];
             state.activeConnections.set(key, Date.now());
         }
     }
 
     function mapComponentToService(component) {
-        const mapping = {
+        var mapping = {
             'xdp_packet_marker': 'gateway',
             'gateway': 'gateway',
             'busboy': 'busboy',
@@ -475,15 +733,15 @@ const PacketFlowViz = (function() {
         state.stats.totalPackets++;
 
         // Calculate average latency
-        const latencies = state.recentFlows
-            .filter(f => f.total_time)
-            .map(f => f.total_time / 1e6);
+        var latencies = state.recentFlows
+            .filter(function(f) { return f.total_time; })
+            .map(function(f) { return f.total_time / 1e6; });
         if (latencies.length > 0) {
-            state.stats.avgLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+            state.stats.avgLatency = latencies.reduce(function(a, b) { return a + b; }, 0) / latencies.length;
         }
 
         // Calculate error rate
-        const errors = state.recentFlows.filter(f => f.status_code >= 400).length;
+        var errors = state.recentFlows.filter(function(f) { return f.status_code >= 400; }).length;
         state.stats.errorRate = (errors / state.recentFlows.length) * 100;
 
         // Update UI
@@ -491,9 +749,9 @@ const PacketFlowViz = (function() {
     }
 
     function updateStatsUI() {
-        const packetsEl = document.getElementById('pf-stat-packets');
-        const latencyEl = document.getElementById('pf-stat-latency');
-        const errorsEl = document.getElementById('pf-stat-errors');
+        var packetsEl = document.getElementById('pf-stat-packets');
+        var latencyEl = document.getElementById('pf-stat-latency');
+        var errorsEl = document.getElementById('pf-stat-errors');
 
         if (packetsEl) packetsEl.textContent = state.stats.totalPackets;
         if (latencyEl) latencyEl.textContent = state.stats.avgLatency.toFixed(2) + 'ms';
@@ -510,13 +768,13 @@ const PacketFlowViz = (function() {
             return;
         }
 
-        const delay = Math.min(
+        var delay = Math.min(
             CONFIG.reconnectBaseDelay * Math.pow(CONFIG.reconnectMultiplier, state.reconnectAttempts),
             CONFIG.reconnectMaxDelay
         );
 
         state.reconnectAttempts++;
-        console.log('[PacketFlow] Reconnecting in', delay, 'ms (attempt', state.reconnectAttempts + ')');
+        console.log('[PacketFlow] Dashboard-backend reconnecting in', delay, 'ms (attempt', state.reconnectAttempts + ')');
 
         state.reconnectTimeout = setTimeout(connectWebSocket, delay);
     }
@@ -533,14 +791,14 @@ const PacketFlowViz = (function() {
         return false;
     }
 
-    function updateConnectionStatus(status) {
-        const indicator = document.getElementById('packet-flow-status');
+    function updateConnectionStatus(status, labelOverride) {
+        var indicator = document.getElementById('packet-flow-status');
         if (indicator) {
             indicator.className = 'packet-flow-status ' + status;
             indicator.setAttribute('aria-label', 'WebSocket status: ' + status);
-            const textEl = indicator.querySelector('.status-text');
+            var textEl = indicator.querySelector('.status-text');
             if (textEl) {
-                textEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                textEl.textContent = labelOverride || (status.charAt(0).toUpperCase() + status.slice(1));
             }
         }
 
@@ -548,7 +806,7 @@ const PacketFlowViz = (function() {
         updateReconnectBanner(status);
 
         // Notify callbacks
-        state.statusCallbacks.forEach(callback => {
+        state.statusCallbacks.forEach(function(callback) {
             try {
                 callback(status);
             } catch (e) {
@@ -565,7 +823,7 @@ const PacketFlowViz = (function() {
         var textEl = banner.querySelector('.reconnect-text');
         var retryBtn = banner.querySelector('#reconnect-retry-btn');
 
-        if (status === 'connected') {
+        if (status === 'connected' || status === 'demo') {
             banner.classList.remove('visible', 'error');
             return;
         }
@@ -608,7 +866,7 @@ const PacketFlowViz = (function() {
     // ========================================================================
     function startAnimation() {
         function animate(timestamp) {
-            const deltaTime = timestamp - state.lastFrameTime;
+            var deltaTime = timestamp - state.lastFrameTime;
 
             if (deltaTime >= 1000 / CONFIG.animationFPS) {
                 state.lastFrameTime = timestamp;
@@ -630,14 +888,14 @@ const PacketFlowViz = (function() {
     }
 
     function update(deltaTime) {
-        const now = Date.now();
+        var now = Date.now();
 
         // Update packets
-        state.packets = state.packets.filter(packet => {
+        state.packets = state.packets.filter(function(packet) {
             packet.progress += packet.speed;
 
             // Store trail position
-            const pos = getPacketPosition(packet);
+            var pos = getPacketPosition(packet);
             if (pos) {
                 packet.trail.push({ x: pos.x, y: pos.y, time: now });
                 if (packet.trail.length > CONFIG.trailLength) {
@@ -660,27 +918,27 @@ const PacketFlowViz = (function() {
         });
 
         // Clean up old active connections
-        state.activeConnections.forEach((time, key) => {
+        state.activeConnections.forEach(function(time, key) {
             if (now - time > 2000) {
                 state.activeConnections.delete(key);
             }
         });
 
-        // Simulate packet flow when not connected (demo mode)
-        if (!state.wsConnected && Math.random() < 0.02) {
+        // Demo mode: simulate packet flow when BOTH sources are disconnected
+        if (!state.wsConnected && !state.traceWsConnected && CONFIG.demoFallback && Math.random() < 0.02) {
             simulatePacket();
         }
     }
 
     function simulatePacket() {
-        const services = Object.keys(CONFIG.services);
-        const startService = 'gateway';
-        const endService = services[Math.floor(Math.random() * services.length)];
+        var services = Object.keys(CONFIG.services);
+        var startService = 'gateway';
+        var endService = services[Math.floor(Math.random() * services.length)];
 
         if (startService === endService) return;
 
         // Create simulated flow
-        const simulatedFlow = {
+        var simulatedFlow = {
             trace_id: 'sim-' + generateId(),
             status_code: Math.random() > 0.1 ? 200 : 500,
             total_time: (5 + Math.random() * 20) * 1e6,
@@ -695,9 +953,9 @@ const PacketFlowViz = (function() {
     }
 
     function render() {
-        const ctx = state.ctx;
-        const width = state.width;
-        const height = state.height;
+        var ctx = state.ctx;
+        var width = state.width;
+        var height = state.height;
 
         // Clear canvas
         ctx.fillStyle = CONFIG.colors.background;
@@ -723,10 +981,10 @@ const PacketFlowViz = (function() {
         ctx.strokeStyle = CONFIG.colors.gridColor;
         ctx.lineWidth = 1;
 
-        const gridSize = 40;
+        var gridSize = 40;
 
         // Draw vertical lines
-        for (let x = 0; x < width; x += gridSize) {
+        for (var x = 0; x < width; x += gridSize) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, height);
@@ -734,7 +992,7 @@ const PacketFlowViz = (function() {
         }
 
         // Draw horizontal lines
-        for (let y = 0; y < height; y += gridSize) {
+        for (var y = 0; y < height; y += gridSize) {
             ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(width, y);
@@ -742,9 +1000,9 @@ const PacketFlowViz = (function() {
         }
 
         // Draw subtle radial gradient overlay from center
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, Math.max(width, height) / 2);
+        var centerX = width / 2;
+        var centerY = height / 2;
+        var gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, Math.max(width, height) / 2);
         gradient.addColorStop(0, 'rgba(255, 215, 0, 0.02)');
         gradient.addColorStop(1, 'transparent');
         ctx.fillStyle = gradient;
@@ -752,32 +1010,34 @@ const PacketFlowViz = (function() {
     }
 
     function drawConnections(ctx, width, height) {
-        const now = Date.now();
+        var now = Date.now();
 
-        CONFIG.connections.forEach(([from, to]) => {
-            const fromService = CONFIG.services[from];
-            const toService = CONFIG.services[to];
+        CONFIG.connections.forEach(function(conn) {
+            var from = conn[0];
+            var to = conn[1];
+            var fromService = CONFIG.services[from];
+            var toService = CONFIG.services[to];
 
             if (!fromService || !toService) return;
 
-            const x1 = fromService.x * width;
-            const y1 = fromService.y * height;
-            const x2 = toService.x * width;
-            const y2 = toService.y * height;
+            var x1 = fromService.x * width;
+            var y1 = fromService.y * height;
+            var x2 = toService.x * width;
+            var y2 = toService.y * height;
 
             // Check if connection is active
-            const key = `${from}-${to}`;
-            const reverseKey = `${to}-${from}`;
-            const isActive = state.activeConnections.has(key) || state.activeConnections.has(reverseKey);
+            var key = from + '-' + to;
+            var reverseKey = to + '-' + from;
+            var isActive = state.activeConnections.has(key) || state.activeConnections.has(reverseKey);
 
             // Draw connection line
             ctx.beginPath();
             ctx.moveTo(x1, y1);
 
             // Use bezier curve for smoother connections
-            const midX = (x1 + x2) / 2;
-            const midY = (y1 + y2) / 2;
-            const controlOffset = Math.abs(y2 - y1) * 0.3;
+            var midX = (x1 + x2) / 2;
+            var midY = (y1 + y2) / 2;
+            var controlOffset = Math.abs(y2 - y1) * 0.3;
 
             ctx.quadraticCurveTo(midX, midY - controlOffset, x2, y2);
 
@@ -793,10 +1053,10 @@ const PacketFlowViz = (function() {
     }
 
     function drawAnimatedConnection(ctx, x1, y1, x2, y2, now) {
-        const dashLength = 10;
-        const gapLength = 10;
-        const animSpeed = 0.05;
-        const offset = (now * animSpeed) % (dashLength + gapLength);
+        var dashLength = 10;
+        var gapLength = 10;
+        var animSpeed = 0.05;
+        var offset = (now * animSpeed) % (dashLength + gapLength);
 
         ctx.setLineDash([dashLength, gapLength]);
         ctx.lineDashOffset = -offset;
@@ -812,13 +1072,15 @@ const PacketFlowViz = (function() {
     }
 
     function drawNodes(ctx, width, height) {
-        Object.entries(CONFIG.services).forEach(([id, service]) => {
-            const x = service.x * width;
-            const y = service.y * height;
-            const radius = CONFIG.nodeRadius;
+        Object.entries(CONFIG.services).forEach(function(entry) {
+            var id = entry[0];
+            var service = entry[1];
+            var x = service.x * width;
+            var y = service.y * height;
+            var radius = CONFIG.nodeRadius;
 
             // Draw outer glow
-            const outerGlow = ctx.createRadialGradient(x, y, 0, x, y, radius * 2.5);
+            var outerGlow = ctx.createRadialGradient(x, y, 0, x, y, radius * 2.5);
             outerGlow.addColorStop(0, service.color + '25');
             outerGlow.addColorStop(0.5, service.color + '10');
             outerGlow.addColorStop(1, 'transparent');
@@ -844,7 +1106,7 @@ const PacketFlowViz = (function() {
             ctx.shadowBlur = 0;
 
             // Draw inner highlight
-            const innerGradient = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, 0, x, y, radius);
+            var innerGradient = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, 0, x, y, radius);
             innerGradient.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
             innerGradient.addColorStop(1, 'transparent');
             ctx.fillStyle = innerGradient;
@@ -860,9 +1122,9 @@ const PacketFlowViz = (function() {
             ctx.fillText(service.name.charAt(0).toUpperCase(), x, y);
 
             // Draw label with background
-            const labelY = y + CONFIG.nodeLabelOffset;
+            var labelY = y + CONFIG.nodeLabelOffset;
             ctx.font = '11px "SF Mono", monospace';
-            const labelWidth = ctx.measureText(service.name).width + 12;
+            var labelWidth = ctx.measureText(service.name).width + 12;
 
             // Label background
             ctx.fillStyle = 'rgba(15, 15, 26, 0.85)';
@@ -884,8 +1146,8 @@ const PacketFlowViz = (function() {
     }
 
     function drawPackets(ctx, width, height) {
-        state.packets.forEach(packet => {
-            const pos = getPacketPosition(packet);
+        state.packets.forEach(function(packet) {
+            var pos = getPacketPosition(packet);
             if (!pos) return;
 
             // Draw trail
@@ -893,11 +1155,11 @@ const PacketFlowViz = (function() {
                 ctx.beginPath();
                 ctx.moveTo(packet.trail[0].x, packet.trail[0].y);
 
-                for (let i = 1; i < packet.trail.length; i++) {
+                for (var i = 1; i < packet.trail.length; i++) {
                     ctx.lineTo(packet.trail[i].x, packet.trail[i].y);
                 }
 
-                const gradient = ctx.createLinearGradient(
+                var gradient = ctx.createLinearGradient(
                     packet.trail[0].x, packet.trail[0].y,
                     pos.x, pos.y
                 );
@@ -931,13 +1193,13 @@ const PacketFlowViz = (function() {
 
     function drawPacketInfo(ctx, width, height) {
         // Draw info for the most recent active packet
-        const activePacket = state.packets[state.packets.length - 1];
+        var activePacket = state.packets[state.packets.length - 1];
         if (!activePacket) return;
 
-        const infoX = 12;
-        const infoY = 12;
-        const infoWidth = 220;
-        const infoHeight = 70;
+        var infoX = 12;
+        var infoY = 12;
+        var infoWidth = 220;
+        var infoHeight = 70;
 
         // Draw info panel background with Kingdom styling
         ctx.fillStyle = 'rgba(22, 33, 62, 0.92)';
@@ -967,43 +1229,43 @@ const PacketFlowViz = (function() {
         ctx.fillText(activePacket.latency + 'ms', infoX + 8, infoY + 26);
 
         // Status code with color
-        const statusColor = activePacket.statusCode < 300 ? CONFIG.colors.successPacket :
-                           activePacket.statusCode < 400 ? CONFIG.colors.warningPacket :
-                           CONFIG.colors.errorPacket;
+        var statusColor = activePacket.statusCode < 300 ? CONFIG.colors.successPacket :
+                       activePacket.statusCode < 400 ? CONFIG.colors.warningPacket :
+                       CONFIG.colors.errorPacket;
         ctx.fillStyle = statusColor;
         ctx.fillText(activePacket.statusCode, infoX + 70, infoY + 26);
 
         // Method and path
         ctx.fillStyle = CONFIG.colors.labelColor;
         ctx.font = '9px "SF Mono", monospace';
-        const pathText = (activePacket.method + ' ' + activePacket.path).slice(0, 32);
+        var pathText = (activePacket.method + ' ' + activePacket.path).slice(0, 32);
         ctx.fillText(pathText, infoX + 8, infoY + 44);
     }
 
     function getPacketPosition(packet) {
         if (packet.currentSegment >= packet.route.length - 1) return null;
 
-        const fromService = CONFIG.services[packet.route[packet.currentSegment]];
-        const toService = CONFIG.services[packet.route[packet.currentSegment + 1]];
+        var fromService = CONFIG.services[packet.route[packet.currentSegment]];
+        var toService = CONFIG.services[packet.route[packet.currentSegment + 1]];
 
         if (!fromService || !toService) return null;
 
-        const x1 = fromService.x * state.width;
-        const y1 = fromService.y * state.height;
-        const x2 = toService.x * state.width;
-        const y2 = toService.y * state.height;
+        var x1 = fromService.x * state.width;
+        var y1 = fromService.y * state.height;
+        var x2 = toService.x * state.width;
+        var y2 = toService.y * state.height;
 
         // Use quadratic bezier for curved path
-        const t = packet.progress;
-        const midX = (x1 + x2) / 2;
-        const midY = (y1 + y2) / 2;
-        const controlY = midY - Math.abs(y2 - y1) * 0.3;
+        var t = packet.progress;
+        var midX = (x1 + x2) / 2;
+        var midY = (y1 + y2) / 2;
+        var controlY = midY - Math.abs(y2 - y1) * 0.3;
 
         // Quadratic bezier formula
-        const x = Math.pow(1 - t, 2) * x1 + 2 * (1 - t) * t * midX + Math.pow(t, 2) * x2;
-        const y = Math.pow(1 - t, 2) * y1 + 2 * (1 - t) * t * controlY + Math.pow(t, 2) * y2;
+        var x = Math.pow(1 - t, 2) * x1 + 2 * (1 - t) * t * midX + Math.pow(t, 2) * x2;
+        var y = Math.pow(1 - t, 2) * y1 + 2 * (1 - t) * t * controlY + Math.pow(t, 2) * y2;
 
-        return { x, y };
+        return { x: x, y: y };
     }
 
     // ========================================================================
@@ -1014,11 +1276,13 @@ const PacketFlowViz = (function() {
     }
 
     function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
+        var timeout;
+        return function() {
+            var args = arguments;
+            var context = this;
+            var later = function() {
                 clearTimeout(timeout);
-                func(...args);
+                func.apply(context, args);
             };
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
@@ -1032,18 +1296,28 @@ const PacketFlowViz = (function() {
         if (state.reconnectTimeout) {
             clearTimeout(state.reconnectTimeout);
         }
+        if (state.traceReconnectTimeout) {
+            clearTimeout(state.traceReconnectTimeout);
+        }
         if (state.ws) {
             state.ws.close(1000, 'Manual disconnect');
             state.ws = null;
         }
+        if (state.traceWs) {
+            state.traceWs.close(1000, 'Manual disconnect');
+            state.traceWs = null;
+        }
         state.wsConnected = false;
+        state.traceWsConnected = false;
         updateConnectionStatus('disconnected');
     }
 
     function reconnect() {
         disconnect();
         state.reconnectAttempts = 0;
+        state.traceReconnectAttempts = 0;
         connectWebSocket();
+        connectTraceCollector();
     }
 
     function setWsUrl(url) {
@@ -1051,17 +1325,31 @@ const PacketFlowViz = (function() {
         reconnect();
     }
 
+    function setTraceCollectorWsUrl(url) {
+        CONFIG.traceCollectorWsUrl = url;
+        if (state.traceWs) {
+            state.traceWs.close(1000, 'URL changed');
+            state.traceWs = null;
+        }
+        state.traceReconnectAttempts = 0;
+        connectTraceCollector();
+    }
+
     function onStatusChange(callback) {
         state.statusCallbacks.add(callback);
-        return () => state.statusCallbacks.delete(callback);
+        return function() { state.statusCallbacks.delete(callback); };
     }
 
     function getStats() {
-        return { ...state.stats };
+        return {
+            totalPackets: state.stats.totalPackets,
+            avgLatency: state.stats.avgLatency,
+            errorRate: state.stats.errorRate
+        };
     }
 
     function isConnected() {
-        return state.wsConnected;
+        return state.wsConnected || state.traceWsConnected;
     }
 
     function destroy() {
@@ -1072,16 +1360,16 @@ const PacketFlowViz = (function() {
             state.canvas.parentElement.removeChild(state.canvas);
         }
 
-        const status = document.getElementById('packet-flow-status');
+        var status = document.getElementById('packet-flow-status');
         if (status) status.remove();
 
-        const stats = document.getElementById('packet-flow-stats');
+        var stats = document.getElementById('packet-flow-stats');
         if (stats) stats.remove();
     }
 
     // Add demo packet for testing
     function addDemoPacket(options) {
-        const defaultOptions = {
+        var defaultOptions = {
             trace_id: 'demo-' + generateId(),
             status_code: 200,
             total_time: 15 * 1e6,
@@ -1094,37 +1382,45 @@ const PacketFlowViz = (function() {
             ]
         };
 
-        createPacketFromFlow({ ...defaultOptions, ...options });
+        var merged = {};
+        for (var k in defaultOptions) { merged[k] = defaultOptions[k]; }
+        if (options) { for (var k2 in options) { merged[k2] = options[k2]; } }
+        createPacketFromFlow(merged);
     }
 
     return {
-        init,
-        disconnect,
-        reconnect,
-        setWsUrl,
-        onStatusChange,
-        getStats,
-        isConnected,
-        destroy,
-        addDemoPacket,
-        CONFIG
+        init: init,
+        disconnect: disconnect,
+        reconnect: reconnect,
+        setWsUrl: setWsUrl,
+        setTraceCollectorWsUrl: setTraceCollectorWsUrl,
+        onStatusChange: onStatusChange,
+        getStats: getStats,
+        isConnected: isConnected,
+        destroy: destroy,
+        addDemoPacket: addDemoPacket,
+        CONFIG: CONFIG
     };
 })();
 
 // Auto-initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     // Check if container exists
-    const container = document.getElementById('flow-viz');
+    var container = document.getElementById('flow-viz');
     if (container) {
-        // Determine WebSocket URL
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = window.PACKET_FLOW_WS_URL || `${protocol}//${window.location.host}/ws/packets`;
+        // Determine WebSocket URLs from globals or derive from current page location
+        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var wsUrl = window.PACKET_FLOW_WS_URL || (protocol + '//' + window.location.hostname + ':8080/ws');
+        var traceWsUrl = window.TRACE_COLLECTOR_WS_URL || (protocol + '//' + window.location.hostname + ':9091');
 
-        PacketFlowViz.init('flow-viz', { wsUrl: wsUrl });
+        PacketFlowViz.init('flow-viz', {
+            wsUrl: wsUrl,
+            traceCollectorWsUrl: traceWsUrl
+        });
     }
 });
 
 // Make available globally
 window.PacketFlowViz = PacketFlowViz;
 
-console.log('packet-flow.js loaded');
+console.log('packet-flow.js loaded (wired to real data sources)');

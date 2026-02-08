@@ -7,6 +7,7 @@
 //! - Data pages with perf event headers
 //! - Each event has a perf_event_header followed by sample data
 
+use std::os::unix::io::FromRawFd;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -147,9 +148,7 @@ impl PerfEventReader {
         let mmap = unsafe {
             MmapOptions::new()
                 .len(mmap_size)
-                .map_mut(&std::fs::File::from(std::os::fd::FromRawFd::from_raw_fd(
-                    fd,
-                )))
+                .map_mut(&std::fs::File::from_raw_fd(fd))
                 .map_err(|e| BpfError::Mmap(e.to_string()))?
         };
 

@@ -51,6 +51,16 @@
         default = [ "10.10.10.0/24" ];
         description = "CIDR blocks allowed to connect";
       };
+
+      strictEgress = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Enable strict egress filtering (DROP all non-whitelisted outbound).
+          Set to true for production. When false, allows outbound internet
+          for package downloads and API calls during development/build.
+        '';
+      };
     };
   };
 
@@ -140,8 +150,17 @@
           # Allow internal container network
           iptables -A OUTPUT -d 10.10.10.0/24 -j ACCEPT
 
-          # Allow outbound to internet (for API calls, updates)
-          iptables -A OUTPUT -j ACCEPT
+          ${if config.unheaded.networking.strictEgress then ''
+            # STRICT EGRESS: Log and drop all non-whitelisted outbound
+            iptables -A OUTPUT -m limit --limit 5/min -j LOG \
+              --log-prefix "[${config.unheaded.hardening.serviceName}] OUT-DROP: " \
+              --log-level 4
+            iptables -A OUTPUT -j DROP
+          '' else ''
+            # PERMISSIVE EGRESS: Allow outbound internet (development/build mode)
+            # Set unheaded.networking.strictEgress = true for production
+            iptables -A OUTPUT -j ACCEPT
+          ''}
 
           # ===================================================================
           # FORWARD CHAIN - No forwarding

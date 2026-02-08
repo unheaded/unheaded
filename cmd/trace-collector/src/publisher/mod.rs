@@ -49,12 +49,6 @@ use crate::metrics;
 /// Maximum message size (4MB)
 const MAX_MESSAGE_SIZE: usize = 4 * 1024 * 1024;
 
-/// Default batch size
-const DEFAULT_BATCH_SIZE: usize = 1000;
-
-/// Default batch timeout
-const DEFAULT_BATCH_TIMEOUT: Duration = Duration::from_millis(10);
-
 /// Maximum retry attempts
 const MAX_RETRIES: u32 = 5;
 

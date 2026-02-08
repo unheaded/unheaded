@@ -9,7 +9,7 @@
   #
   # Service: Sophia API (REST + Busboy)
   # IP: 10.10.10.26
-  # Ports: 8005 (HTTP), 9100 (metrics)
+  # Ports: 8007 (HTTP), 9100 (metrics)
   # =============================================================================
 
   imports = [
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/sophia"
       "/var/log/unheaded/sophia"
     ];
-    allowedPorts = [ 8005 9100 ];
+    allowedPorts = [ 8007 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.26";
-    servicePort = 8005;
+    servicePort = 8007;
     allowDirectAccess = true;
   };
 
@@ -56,7 +56,7 @@
       ExecStart = "${pkgs.sophia}/bin/sophia";
       WorkingDirectory = "/var/lib/unheaded/sophia";
       Environment = [
-        "SOPHIA_ADDR=0.0.0.0:8005"
+        "SOPHIA_ADDR=0.0.0.0:8007"
       ];
       Restart = "always";
       RestartSec = "5s";

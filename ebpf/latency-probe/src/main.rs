@@ -14,11 +14,10 @@
 #![no_main]
 
 use aya_ebpf::{
-    cty::{c_long, c_void},
-    helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns, bpf_probe_read_kernel},
+    helpers::{bpf_get_current_pid_tgid, bpf_ktime_get_ns},
     macros::{kprobe, kretprobe, map},
     maps::{HashMap, RingBuf},
-    programs::ProbeContext,
+    programs::{ProbeContext, RetProbeContext},
 };
 use unheaded_common::{
     LatencyEvent, LatencyOperation, TraceId,
@@ -85,11 +84,11 @@ pub fn tcp_sendmsg_enter(ctx: ProbeContext) -> u32 {
 fn try_tcp_sendmsg_enter(ctx: &ProbeContext) -> Result<u32, ()> {
     increment_stat(STAT_SEND_ENTER);
 
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+    let pid_tgid = bpf_get_current_pid_tgid();
     let now = unsafe { bpf_ktime_get_ns() };
 
     // Get socket pointer from first argument
-    let sock_ptr: u64 = match unsafe { ctx.arg(0) } {
+    let sock_ptr: u64 = match ctx.arg(0) {
         Some(ptr) => ptr,
         None => 0,
     };
@@ -112,7 +111,7 @@ fn try_tcp_sendmsg_enter(ctx: &ProbeContext) -> Result<u32, ()> {
 
 /// Kretprobe on tcp_sendmsg exit.
 #[kretprobe]
-pub fn tcp_sendmsg_exit(ctx: ProbeContext) -> u32 {
+pub fn tcp_sendmsg_exit(ctx: RetProbeContext) -> u32 {
     match try_tcp_sendmsg_exit(&ctx) {
         Ok(ret) => ret,
         Err(_) => 0,
@@ -120,10 +119,10 @@ pub fn tcp_sendmsg_exit(ctx: ProbeContext) -> u32 {
 }
 
 #[inline(always)]
-fn try_tcp_sendmsg_exit(ctx: &ProbeContext) -> Result<u32, ()> {
+fn try_tcp_sendmsg_exit(_ctx: &RetProbeContext) -> Result<u32, ()> {
     increment_stat(STAT_SEND_EXIT);
 
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+    let pid_tgid = bpf_get_current_pid_tgid();
     let now = unsafe { bpf_ktime_get_ns() };
 
     let key = InflightKey {
@@ -139,7 +138,7 @@ fn try_tcp_sendmsg_exit(ctx: &ProbeContext) -> Result<u32, ()> {
     };
 
     // Clean up
-    let _ = unsafe { INFLIGHT.remove(&key) };
+    let _ = INFLIGHT.remove(&key);
 
     // Calculate latency
     let latency_ns = now.saturating_sub(inflight.start_ns);
@@ -170,10 +169,10 @@ pub fn tcp_recvmsg_enter(ctx: ProbeContext) -> u32 {
 fn try_tcp_recvmsg_enter(ctx: &ProbeContext) -> Result<u32, ()> {
     increment_stat(STAT_RECV_ENTER);
 
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+    let pid_tgid = bpf_get_current_pid_tgid();
     let now = unsafe { bpf_ktime_get_ns() };
 
-    let sock_ptr: u64 = match unsafe { ctx.arg(0) } {
+    let sock_ptr: u64 = match ctx.arg(0) {
         Some(ptr) => ptr,
         None => 0,
     };
@@ -196,7 +195,7 @@ fn try_tcp_recvmsg_enter(ctx: &ProbeContext) -> Result<u32, ()> {
 
 /// Kretprobe on tcp_recvmsg exit.
 #[kretprobe]
-pub fn tcp_recvmsg_exit(ctx: ProbeContext) -> u32 {
+pub fn tcp_recvmsg_exit(ctx: RetProbeContext) -> u32 {
     match try_tcp_recvmsg_exit(&ctx) {
         Ok(ret) => ret,
         Err(_) => 0,
@@ -204,10 +203,10 @@ pub fn tcp_recvmsg_exit(ctx: ProbeContext) -> u32 {
 }
 
 #[inline(always)]
-fn try_tcp_recvmsg_exit(ctx: &ProbeContext) -> Result<u32, ()> {
+fn try_tcp_recvmsg_exit(_ctx: &RetProbeContext) -> Result<u32, ()> {
     increment_stat(STAT_RECV_EXIT);
 
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+    let pid_tgid = bpf_get_current_pid_tgid();
     let now = unsafe { bpf_ktime_get_ns() };
 
     let key = InflightKey {
@@ -221,7 +220,7 @@ fn try_tcp_recvmsg_exit(ctx: &ProbeContext) -> Result<u32, ()> {
         None => return Ok(0),
     };
 
-    let _ = unsafe { INFLIGHT.remove(&key) };
+    let _ = INFLIGHT.remove(&key);
 
     let latency_ns = now.saturating_sub(inflight.start_ns);
 
@@ -248,10 +247,10 @@ pub fn tcp_connect_enter(ctx: ProbeContext) -> u32 {
 fn try_tcp_connect_enter(ctx: &ProbeContext) -> Result<u32, ()> {
     increment_stat(STAT_CONNECT_ENTER);
 
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+    let pid_tgid = bpf_get_current_pid_tgid();
     let now = unsafe { bpf_ktime_get_ns() };
 
-    let sock_ptr: u64 = match unsafe { ctx.arg(0) } {
+    let sock_ptr: u64 = match ctx.arg(0) {
         Some(ptr) => ptr,
         None => 0,
     };
@@ -274,7 +273,7 @@ fn try_tcp_connect_enter(ctx: &ProbeContext) -> Result<u32, ()> {
 
 /// Kretprobe on tcp_v4_connect exit.
 #[kretprobe]
-pub fn tcp_connect_exit(ctx: ProbeContext) -> u32 {
+pub fn tcp_connect_exit(ctx: RetProbeContext) -> u32 {
     match try_tcp_connect_exit(&ctx) {
         Ok(ret) => ret,
         Err(_) => 0,
@@ -282,10 +281,10 @@ pub fn tcp_connect_exit(ctx: ProbeContext) -> u32 {
 }
 
 #[inline(always)]
-fn try_tcp_connect_exit(ctx: &ProbeContext) -> Result<u32, ()> {
+fn try_tcp_connect_exit(_ctx: &RetProbeContext) -> Result<u32, ()> {
     increment_stat(STAT_CONNECT_EXIT);
 
-    let pid_tgid = unsafe { bpf_get_current_pid_tgid() };
+    let pid_tgid = bpf_get_current_pid_tgid();
     let now = unsafe { bpf_ktime_get_ns() };
 
     let key = InflightKey {
@@ -299,7 +298,7 @@ fn try_tcp_connect_exit(ctx: &ProbeContext) -> Result<u32, ()> {
         None => return Ok(0),
     };
 
-    let _ = unsafe { INFLIGHT.remove(&key) };
+    let _ = INFLIGHT.remove(&key);
 
     let latency_ns = now.saturating_sub(inflight.start_ns);
 
@@ -349,7 +348,7 @@ fn send_latency_event(
 /// Increment a statistics counter.
 #[inline(always)]
 fn increment_stat(key: u32) {
-    if let Some(val) = unsafe { LATENCY_STATS.get_ptr_mut(&key) } {
+    if let Some(val) = LATENCY_STATS.get_ptr_mut(&key) {
         unsafe {
             *val = (*val).saturating_add(1);
         }

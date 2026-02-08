@@ -25,7 +25,7 @@ mod store;
 pub use engine::{
     CorrelationConfig, CorrelationEngine, CorrelationStats, TraceContext, TraceSummary,
 };
-pub use span::{Span, SpanKind, SpanStatus};
+pub use span::{Span, SpanBuilder, SpanKind, SpanStatus};
 pub use store::{TraceQuery, TraceQueryResult, TraceStore, TraceStoreConfig};
 
 use std::fmt;

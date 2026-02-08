@@ -19,7 +19,6 @@ use aya_ebpf::{
     maps::{HashMap, RingBuf},
     programs::XdpContext,
 };
-use aya_log_ebpf::info;
 use unheaded_common::{
     Direction, FlowKey, FlowState, PacketAction, PacketEvent, TraceId,
     ETH_HLEN, ETH_P_IP, IPV4_MIN_HLEN, IPPROTO_TCP, IPPROTO_UDP,
@@ -346,7 +345,7 @@ fn extract_tcp_trace_id(tcp_start: usize, tcp_hdr_len: usize, data_end: usize) -
 fn update_flow_state(flow_key: &FlowKey, trace_id: &TraceId) {
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
 
-    if let Some(state) = unsafe { FLOW_STATE.get_ptr_mut(flow_key) } {
+    if let Some(state) = FLOW_STATE.get_ptr_mut(flow_key) {
         let state = unsafe { &mut *state };
         state.last_seen_ns = now;
         state.packets_in = state.packets_in.saturating_add(1);
@@ -407,7 +406,7 @@ fn send_packet_event(
 /// Increment a statistics counter.
 #[inline(always)]
 fn increment_stat(key: u32) {
-    if let Some(val) = unsafe { STATS.get_ptr_mut(&key) } {
+    if let Some(val) = STATS.get_ptr_mut(&key) {
         unsafe {
             *val = (*val).saturating_add(1);
         }

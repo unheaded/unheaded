@@ -136,7 +136,7 @@ pub enum BpfCmd {
 
 /// bpf() syscall wrapper
 #[inline]
-pub fn bpf_syscall(cmd: BpfCmd, attr: &libc::c_void, size: u32) -> Result<RawFd, BpfError> {
+pub fn bpf_syscall(cmd: BpfCmd, attr: *const libc::c_void, size: u32) -> Result<RawFd, BpfError> {
     let ret = unsafe { libc::syscall(libc::SYS_bpf, cmd as u32, attr, size) };
 
     if ret < 0 {
@@ -174,7 +174,7 @@ pub fn bpf_obj_get(path: &std::path::Path) -> Result<RawFd, BpfError> {
     bpf_syscall(
         BpfCmd::ObjGet,
         &attr as *const _ as *const libc::c_void,
-        std::mem::size_of::<BpfObjGetAttr>() as u32,
+        std::mem::size_of_val(&attr) as u32,
     )
 }
 
@@ -196,8 +196,8 @@ pub fn bpf_map_info(fd: RawFd) -> Result<BpfMapInfo, BpfError> {
 
     bpf_syscall(
         BpfCmd::ObjGetInfoByFd,
-        &mut attr as *mut _ as *mut libc::c_void,
-        std::mem::size_of::<BpfObjInfoAttr>() as u32,
+        &attr as *const _ as *const libc::c_void,
+        std::mem::size_of_val(&attr) as u32,
     )?;
 
     Ok(info)

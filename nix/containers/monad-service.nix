@@ -8,8 +8,8 @@
   # "The One" - All operations pass through the Monad.
   #
   # Service: Monad API (REST + Busboy)
-  # IP: 10.10.10.25
-  # Ports: 8004 (HTTP), 9100 (metrics)
+  # IP: 10.10.10.27
+  # Ports: 8006 (HTTP), 9100 (metrics)
   # =============================================================================
 
   imports = [
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/monad"
       "/var/log/unheaded/monad"
     ];
-    allowedPorts = [ 8004 9100 ];
+    allowedPorts = [ 8006 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
-    serviceIP = "10.10.10.25";
-    servicePort = 8004;
+    serviceIP = "10.10.10.27";
+    servicePort = 8006;
     allowDirectAccess = true;
   };
 
@@ -56,7 +56,7 @@
       ExecStart = "${pkgs.monad}/bin/monad";
       WorkingDirectory = "/var/lib/unheaded/monad";
       Environment = [
-        "MONAD_ADDR=0.0.0.0:8004"
+        "MONAD_ADDR=0.0.0.0:8006"
       ];
       Restart = "always";
       RestartSec = "5s";
