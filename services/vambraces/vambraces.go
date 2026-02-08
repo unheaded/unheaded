@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	busboyClient "unheaded/pkg/busboy-client"
@@ -129,6 +130,8 @@ type Service struct {
 	slos       map[string]*SLO
 	alerts     map[string]*Alert
 	dashboards map[string]*Dashboard
+
+	idCounter int64
 }
 
 // Config holds Vambraces service configuration.
@@ -250,7 +253,7 @@ func (s *Service) CreateSLO(slo *SLO) error {
 	defer s.mu.Unlock()
 
 	if slo.ID == "" {
-		slo.ID = fmt.Sprintf("slo-%s-%d", slo.Service, time.Now().UnixNano())
+		slo.ID = fmt.Sprintf("slo-%s-%d-%d", slo.Service, time.Now().UnixNano(), atomic.AddInt64(&s.idCounter, 1))
 	}
 	slo.LastUpdated = time.Now()
 	slo.Current = slo.Target // Initialize at target
@@ -287,7 +290,7 @@ func (s *Service) CreateAlert(alert *Alert) error {
 	defer s.mu.Unlock()
 
 	if alert.ID == "" {
-		alert.ID = fmt.Sprintf("alert-%d", time.Now().UnixNano())
+		alert.ID = fmt.Sprintf("alert-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&s.idCounter, 1))
 	}
 	alert.State = AlertInactive
 
@@ -324,7 +327,7 @@ func (s *Service) CreateDashboard(dashboard *Dashboard) error {
 	defer s.mu.Unlock()
 
 	if dashboard.ID == "" {
-		dashboard.ID = fmt.Sprintf("dash-%d", time.Now().UnixNano())
+		dashboard.ID = fmt.Sprintf("dash-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&s.idCounter, 1))
 	}
 
 	s.dashboards[dashboard.ID] = dashboard
