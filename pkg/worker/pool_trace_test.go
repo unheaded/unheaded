@@ -28,7 +28,7 @@ func TestFutureGroupTrace(t *testing.T) {
     }
 
     fmt.Println("TRACE: queue len after submit:", pool.queue.Len())
-    fmt.Println("TRACE: futures map len:", len(pool.futures))
+    fmt.Println("TRACE: futures map len:", pool.PendingFutures())
     
     // Wait with timeout
     ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -36,7 +36,7 @@ func TestFutureGroupTrace(t *testing.T) {
     results, err := group.Wait(ctx)
     if err != nil {
         fmt.Println("TRACE: queue len at failure:", pool.queue.Len())
-        fmt.Println("TRACE: futures map len at failure:", len(pool.futures))
+        fmt.Println("TRACE: futures map len at failure:", pool.PendingFutures())
         fmt.Println("TRACE: active workers:", pool.ActiveWorkerCount())
         // Check which futures are done
         for i, f := range []*Future{} {

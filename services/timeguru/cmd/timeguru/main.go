@@ -371,8 +371,8 @@ func listenForMessages(ctx context.Context, client *busboyClient.Client) {
 				log.Println("[timeguru] Message channel closed")
 				return
 			}
-			log.Printf("[timeguru] Received message: %s (seq=%d)", msg.MessageID, msg.Seq)
-			// TODO: Process timeline update events from other services
+			log.Printf("[timeguru] Received message: id=%s seq=%d topic=%s sender=%s - processing deferred",
+				msg.MessageID, msg.Seq, msg.Topic, msg.SenderID)
 		}
 	}
 }

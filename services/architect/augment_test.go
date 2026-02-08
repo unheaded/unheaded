@@ -12,6 +12,7 @@ import (
 	"time"
 
 	busboyClient "unheaded/pkg/busboy-client"
+	"unheaded/pkg/httputil"
 )
 
 // ============================================================================
@@ -581,7 +582,7 @@ func TestHTTPHandler_Ready_Success(t *testing.T) {
 		t.Errorf("Ready status = %d, want %d, body: %s", status, http.StatusOK, rr.Body.String())
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	data := resp.Data.(map[string]interface{})
 	if ready, ok := data["ready"]; !ok || !ready.(bool) {
@@ -780,7 +781,7 @@ func TestADRManagement_FullWorkflow(t *testing.T) {
 		t.Fatalf("GetDesignDecisions status = %d, want %d", rr.Code, http.StatusOK)
 	}
 
-	var resp SuccessResponse
+	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)
 	decisions := resp.Data.([]interface{})
 	if len(decisions) != 2 {
@@ -856,7 +857,7 @@ func TestDesignReviewWorkflow(t *testing.T) {
 		t.Fatalf("GetInfrastructure status = %d", rr.Code)
 	}
 
-	var infraResp SuccessResponse
+	var infraResp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&infraResp)
 	infraData := infraResp.Data.(map[string]interface{})
 	svcMap := infraData["services"].(map[string]interface{})

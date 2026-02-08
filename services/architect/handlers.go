@@ -2,17 +2,14 @@ package architect
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
 	"github.com/rs/zerolog/log"
-)
 
-// maxRequestBodySize is the maximum allowed request body size (1MB).
-const maxRequestBodySize = 1 * 1024 * 1024
+	"unheaded/pkg/httputil"
+)
 
 // HTTPHandler wraps the architect service and provides HTTP endpoints
 type HTTPHandler struct {
@@ -28,34 +25,11 @@ func NewHTTPHandler(service *ArchitectService) *HTTPHandler {
 }
 
 // ============================================================================
-// RESPONSE TYPES
-// ============================================================================
-
-type ErrorResponse struct {
-	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
-type SuccessResponse struct {
-	Data      interface{} `json:"data"`
-	Timestamp time.Time   `json:"timestamp"`
-}
-
-// ============================================================================
 // HELPER METHODS
 // ============================================================================
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, code int, errCode, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-
-	resp := ErrorResponse{}
-	resp.Error.Code = errCode
-	resp.Error.Message = message
-
-	json.NewEncoder(w).Encode(resp)
+	httputil.WriteError(w, code, errCode, message)
 
 	log.Warn().
 		Int("status", code).
@@ -65,19 +39,7 @@ func (h *HTTPHandler) writeError(w http.ResponseWriter, code int, errCode, messa
 }
 
 func (h *HTTPHandler) writeSuccess(w http.ResponseWriter, code int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-
-	resp := SuccessResponse{
-		Data:      data,
-		Timestamp: time.Now().UTC(),
-	}
-
-	json.NewEncoder(w).Encode(resp)
-
-	log.Debug().
-		Int("status", code).
-		Msg("success response")
+	httputil.WriteSuccess(w, code, data)
 }
 
 // ============================================================================
@@ -197,18 +159,9 @@ func (h *HTTPHandler) AddService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SECURITY: Validate Content-Type to prevent content-type confusion attacks
-	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
-		h.writeError(w, http.StatusUnsupportedMediaType, "INVALID_CONTENT_TYPE",
-			"Content-Type must be application/json")
-		return
-	}
-
 	var service Service
-	// SECURITY: Enforce request body size limit to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&service); err != nil {
-		h.writeError(w, http.StatusBadRequest, "INVALID_REQUEST",
-			fmt.Sprintf("failed to decode request: %v", err))
+	if err := httputil.DecodeJSONBody(r, 0, &service); err != nil {
+		httputil.HandleRequestError(w, err)
 		return
 	}
 
@@ -266,18 +219,9 @@ func (h *HTTPHandler) AddNetworkNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SECURITY: Validate Content-Type to prevent content-type confusion attacks
-	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
-		h.writeError(w, http.StatusUnsupportedMediaType, "INVALID_CONTENT_TYPE",
-			"Content-Type must be application/json")
-		return
-	}
-
 	var node NetworkNode
-	// SECURITY: Enforce request body size limit to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&node); err != nil {
-		h.writeError(w, http.StatusBadRequest, "INVALID_REQUEST",
-			fmt.Sprintf("failed to decode request: %v", err))
+	if err := httputil.DecodeJSONBody(r, 0, &node); err != nil {
+		httputil.HandleRequestError(w, err)
 		return
 	}
 
@@ -310,18 +254,9 @@ func (h *HTTPHandler) LogDesign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SECURITY: Validate Content-Type to prevent content-type confusion attacks
-	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
-		h.writeError(w, http.StatusUnsupportedMediaType, "INVALID_CONTENT_TYPE",
-			"Content-Type must be application/json")
-		return
-	}
-
 	var decision ArchitectureDecision
-	// SECURITY: Enforce request body size limit to prevent denial-of-service
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize)).Decode(&decision); err != nil {
-		h.writeError(w, http.StatusBadRequest, "INVALID_REQUEST",
-			fmt.Sprintf("failed to decode request: %v", err))
+	if err := httputil.DecodeJSONBody(r, 0, &decision); err != nil {
+		httputil.HandleRequestError(w, err)
 		return
 	}
 

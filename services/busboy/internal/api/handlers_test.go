@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"unheaded/pkg/httputil"
 	"unheaded/services/busboy/internal/busboy"
 	"unheaded/services/busboy/internal/member"
 	"unheaded/services/busboy/internal/room"
@@ -1179,17 +1180,20 @@ func TestWriteError(t *testing.T) {
 		t.Errorf("Status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 
-	var resp ErrorResponse
+	var resp httputil.Response
 	json.NewDecoder(rec.Body).Decode(&resp)
 
-	if resp.Code != http.StatusBadRequest {
-		t.Errorf("Error code = %d, want %d", resp.Code, http.StatusBadRequest)
+	if resp.Success {
+		t.Error("expected success=false")
 	}
-	if resp.Message != "test error message" {
-		t.Errorf("Error message = %s, want 'test error message'", resp.Message)
+	if resp.Error == nil {
+		t.Fatal("expected error info, got nil")
 	}
-	if resp.Error != "Bad Request" {
-		t.Errorf("Error = %s, want 'Bad Request'", resp.Error)
+	if resp.Error.Code != "Bad Request" {
+		t.Errorf("Error code = %s, want 'Bad Request'", resp.Error.Code)
+	}
+	if resp.Error.Message != "test error message" {
+		t.Errorf("Error message = %s, want 'test error message'", resp.Error.Message)
 	}
 }
 

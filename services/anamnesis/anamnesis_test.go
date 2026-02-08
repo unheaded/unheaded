@@ -2,6 +2,7 @@ package anamnesis
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -343,16 +344,23 @@ func TestSnapshot_Creation(t *testing.T) {
 	svc.Append(ctx, "service-1", "Service", EventUpdated, map[string]interface{}{"port": 8080})
 	svc.Append(ctx, "service-1", "Service", EventUpdated, map[string]interface{}{"port": 9090})
 
-	// Give snapshot goroutine time to run
-	time.Sleep(50 * time.Millisecond)
-
-	snap, ok := svc.GetLatestSnapshot("service-1")
-	if !ok {
-		t.Skip("snapshot may not have been created yet (async)")
-	}
-
-	if snap.Version != 3 {
-		t.Errorf("expected snapshot at version 3, got %d", snap.Version)
+	// Poll for snapshot creation with timeout (async goroutine)
+	deadline := time.After(2 * time.Second)
+	for {
+		snap, ok := svc.GetLatestSnapshot("service-1")
+		if ok {
+			if snap.Version != 3 {
+				t.Errorf("expected snapshot at version 3, got %d", snap.Version)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Skip("snapshot not created within timeout (async)")
+			return
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
 
@@ -383,33 +391,41 @@ func TestProjection_UpdateOnEvent(t *testing.T) {
 	svc := NewService(nil, nil, &Config{EnableSnapshots: false})
 	ctx := context.Background()
 
-	// Register projection that counts events per aggregate
+	// Use atomic counters to track projection updates without shared map access.
+	// The projection handler runs under s.mu.Lock() inside notifyHandlersSnapshot,
+	// so atomic operations here create a happens-before with the test's reads.
+	var svc1Count, svc2Count int64
+
+	// Register projection that uses atomic counters (race-safe)
 	svc.RegisterProjection("aggregate-counter", func(proj *Projection, event *Event) error {
-		counts, ok := proj.State["counts"].(map[string]int)
-		if !ok {
-			counts = make(map[string]int)
-			proj.State["counts"] = counts
+		switch event.AggregateID {
+		case "service-1":
+			atomic.AddInt64(&svc1Count, 1)
+		case "service-2":
+			atomic.AddInt64(&svc2Count, 1)
 		}
-		counts[event.AggregateID]++
 		return nil
 	})
 
-	// Append events
+	// Append 3 events (each spawns a goroutine)
 	svc.Append(ctx, "service-1", "Service", EventCreated, map[string]interface{}{})
 	svc.Append(ctx, "service-1", "Service", EventUpdated, map[string]interface{}{})
 	svc.Append(ctx, "service-2", "Service", EventCreated, map[string]interface{}{})
 
-	// Give handlers time to run
-	time.Sleep(50 * time.Millisecond)
-
-	proj, _ := svc.GetProjection("aggregate-counter")
-	counts, _ := proj.State["counts"].(map[string]int)
-
-	if counts["service-1"] != 2 {
-		t.Errorf("expected service-1 count 2, got %d", counts["service-1"])
-	}
-	if counts["service-2"] != 1 {
-		t.Errorf("expected service-2 count 1, got %d", counts["service-2"])
+	// Poll atomic counters with timeout
+	deadline := time.After(2 * time.Second)
+	for {
+		s1 := atomic.LoadInt64(&svc1Count)
+		s2 := atomic.LoadInt64(&svc2Count)
+		if s1 == 2 && s2 == 1 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("projection not updated within timeout: service-1=%d, service-2=%d", s1, s2)
+		default:
+			time.Sleep(5 * time.Millisecond)
+		}
 	}
 }
 

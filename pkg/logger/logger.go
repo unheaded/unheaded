@@ -898,7 +898,10 @@ func (e *Event) formatConsole(config Config) []byte {
 
 	// Parse JSON to get fields.
 	var data map[string]interface{}
-	_ = json.Unmarshal(e.buf.Bytes(), &data)
+	if err := json.Unmarshal(e.buf.Bytes(), &data); err != nil {
+		buf.Write(e.buf.Bytes())
+		return buf.Bytes()
+	}
 
 	// Format timestamp.
 	if ts, ok := data[config.TimestampField].(string); ok {

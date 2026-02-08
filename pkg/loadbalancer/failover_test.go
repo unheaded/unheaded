@@ -623,9 +623,9 @@ func TestForceDrain(t *testing.T) {
 
 	dm := NewGracefulDrainManager(pool, 10*time.Second)
 
-	var completeCalled bool
+	var completeCalled atomic.Int32
 	dm.OnDrainComplete(func(b *Backend, success bool) {
-		completeCalled = true
+		completeCalled.Store(1)
 	})
 
 	dm.Start()
@@ -640,7 +640,7 @@ func TestForceDrain(t *testing.T) {
 	// Wait for processing (drain manager ticks every 1 second)
 	time.Sleep(1500 * time.Millisecond)
 
-	if !completeCalled {
+	if completeCalled.Load() == 0 {
 		t.Error("Drain complete callback should have been called")
 	}
 
