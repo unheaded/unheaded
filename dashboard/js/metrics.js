@@ -1,28 +1,41 @@
 // System metrics display and management
-// Fetches and displays dashboard-backend metrics with animations
+// Fetches and displays dashboard-backend metrics with periodic polling.
+//
+// Data sources:
+//   - GET /api/v1/metrics   (dashboard-backend, port 8080) - aggregated metrics
+//   - GET /api/v1/health    (dashboard-backend, port 8080) - service health
+//   - GET /api/v1/services  (dashboard-backend, port 8080) - service list with status
+//
+// Fallback: shows "--" / "No data" when the backend is unreachable, retains
+// last-known values for a configurable number of failures before clearing.
 
 (function() {
     'use strict';
 
     // Configuration
-    const CONFIG = {
+    var CONFIG = {
+        // Base URL for the dashboard-backend REST API (port 8080)
         apiBaseUrl: '/api/v1',
-        refreshInterval: 5000,
+        refreshInterval: 5000,      // Poll every 5 seconds
         animationDuration: 300,
         retryDelay: 3000,
-        maxRetries: 3
+        maxRetries: 3,
+        // Number of consecutive failures before clearing last-known values
+        staleThreshold: 6
     };
 
     // State
-    let metrics = null;
-    let services = [];
-    let refreshTimer = null;
-    let retryCount = 0;
-    let isConnected = false;
+    var metrics = null;
+    var lastKnownMetrics = null;
+    var services = [];
+    var refreshTimer = null;
+    var retryCount = 0;
+    var isConnected = false;
+    var consecutiveFailures = 0;
 
     // DOM elements
-    let metricsGrid = null;
-    let statusIndicator = null;
+    var metricsGrid = null;
+    var statusIndicator = null;
 
     // Initialize metrics module
     function init() {
@@ -30,6 +43,14 @@
         if (!metricsGrid) {
             console.error('metrics.js: #metrics-grid not found');
             return;
+        }
+
+        // Determine API base URL from globals or current page
+        if (window.METRICS_API_BASE_URL) {
+            CONFIG.apiBaseUrl = window.METRICS_API_BASE_URL;
+        } else if (window.location.port !== '8080') {
+            // If the dashboard is served from a different port, target port 8080 explicitly
+            CONFIG.apiBaseUrl = window.location.protocol + '//' + window.location.hostname + ':8080/api/v1';
         }
 
         createStatusIndicator();
@@ -43,14 +64,13 @@
         statusIndicator = document.createElement('div');
         statusIndicator.className = 'metrics-status connecting';
         statusIndicator.id = 'metrics-status';
-        statusIndicator.innerHTML = `
-            <span class="status-dot"></span>
-            <span class="status-text">Connecting to metrics API...</span>
-        `;
+        statusIndicator.innerHTML =
+            '<span class="status-dot"></span>' +
+            '<span class="status-text">Connecting to metrics API...</span>';
 
-        const metricsSection = document.getElementById('metrics');
+        var metricsSection = document.getElementById('metrics');
         if (metricsSection) {
-            const header = metricsSection.querySelector('h2');
+            var header = metricsSection.querySelector('h2');
             if (header) {
                 header.appendChild(statusIndicator);
             }
@@ -59,133 +79,132 @@
 
     // Create metrics layout
     function createMetricsLayout() {
-        metricsGrid.innerHTML = `
-            <div class="metrics-row primary-metrics">
-                <div class="metric-card" id="metric-request-rate" role="group" aria-label="Request Rate metric">
-                    <div class="metric-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                        </svg>
-                    </div>
-                    <div class="metric-content">
-                        <span class="metric-value" data-metric="requestRate" aria-live="polite">--</span>
-                        <span class="metric-unit">req/s</span>
-                    </div>
-                    <span class="metric-label">Request Rate</span>
-                </div>
+        metricsGrid.innerHTML =
+            '<div class="metrics-row primary-metrics">' +
+                '<div class="metric-card" id="metric-request-rate" role="group" aria-label="Request Rate metric">' +
+                    '<div class="metric-icon" aria-hidden="true">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+                            '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>' +
+                        '</svg>' +
+                    '</div>' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="requestRate" aria-live="polite">--</span>' +
+                        '<span class="metric-unit">req/s</span>' +
+                    '</div>' +
+                    '<span class="metric-label">Request Rate</span>' +
+                '</div>' +
 
-                <div class="metric-card" id="metric-error-rate" role="group" aria-label="Error Rate metric">
-                    <div class="metric-icon error" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="15" y1="9" x2="9" y2="15"></line>
-                            <line x1="9" y1="9" x2="15" y2="15"></line>
-                        </svg>
-                    </div>
-                    <div class="metric-content">
-                        <span class="metric-value" data-metric="errorRate" aria-live="polite">--</span>
-                        <span class="metric-unit">%</span>
-                    </div>
-                    <span class="metric-label">Error Rate</span>
-                </div>
+                '<div class="metric-card" id="metric-error-rate" role="group" aria-label="Error Rate metric">' +
+                    '<div class="metric-icon error" aria-hidden="true">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+                            '<circle cx="12" cy="12" r="10"></circle>' +
+                            '<line x1="15" y1="9" x2="9" y2="15"></line>' +
+                            '<line x1="9" y1="9" x2="15" y2="15"></line>' +
+                        '</svg>' +
+                    '</div>' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="errorRate" aria-live="polite">--</span>' +
+                        '<span class="metric-unit">%</span>' +
+                    '</div>' +
+                    '<span class="metric-label">Error Rate</span>' +
+                '</div>' +
 
-                <div class="metric-card" id="metric-connections" role="group" aria-label="Active Connections metric">
-                    <div class="metric-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                    </div>
-                    <div class="metric-content">
-                        <span class="metric-value" data-metric="activeConnections" aria-live="polite">--</span>
-                    </div>
-                    <span class="metric-label">Active Connections</span>
-                </div>
+                '<div class="metric-card" id="metric-connections" role="group" aria-label="Active Connections metric">' +
+                    '<div class="metric-icon" aria-hidden="true">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+                            '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>' +
+                            '<circle cx="9" cy="7" r="4"></circle>' +
+                            '<path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>' +
+                            '<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>' +
+                        '</svg>' +
+                    '</div>' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="activeConnections" aria-live="polite">--</span>' +
+                    '</div>' +
+                    '<span class="metric-label">Active Connections</span>' +
+                '</div>' +
 
-                <div class="metric-card" id="metric-uptime" role="group" aria-label="Uptime metric">
-                    <div class="metric-icon success" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                    </div>
-                    <div class="metric-content">
-                        <span class="metric-value" data-metric="uptime" aria-live="polite">--</span>
-                    </div>
-                    <span class="metric-label">Uptime</span>
-                </div>
-            </div>
+                '<div class="metric-card" id="metric-uptime" role="group" aria-label="Uptime metric">' +
+                    '<div class="metric-icon success" aria-hidden="true">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+                            '<circle cx="12" cy="12" r="10"></circle>' +
+                            '<polyline points="12 6 12 12 16 14"></polyline>' +
+                        '</svg>' +
+                    '</div>' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="uptime" aria-live="polite">--</span>' +
+                    '</div>' +
+                    '<span class="metric-label">Uptime</span>' +
+                '</div>' +
+            '</div>' +
 
-            <div class="metrics-row latency-metrics">
-                <div class="metric-card latency" id="metric-latency-p50">
-                    <div class="metric-header">
-                        <span class="metric-label">Latency P50</span>
-                    </div>
-                    <div class="metric-content">
-                        <span class="metric-value" data-metric="latencyP50">--</span>
-                        <span class="metric-unit">ms</span>
-                    </div>
-                    <div class="latency-bar">
-                        <div class="latency-fill p50" data-bar="p50"></div>
-                    </div>
-                </div>
+            '<div class="metrics-row latency-metrics">' +
+                '<div class="metric-card latency" id="metric-latency-p50">' +
+                    '<div class="metric-header">' +
+                        '<span class="metric-label">Latency P50</span>' +
+                    '</div>' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="latencyP50">--</span>' +
+                        '<span class="metric-unit">ms</span>' +
+                    '</div>' +
+                    '<div class="latency-bar">' +
+                        '<div class="latency-fill p50" data-bar="p50"></div>' +
+                    '</div>' +
+                '</div>' +
 
-                <div class="metric-card latency" id="metric-latency-p95">
-                    <div class="metric-header">
-                        <span class="metric-label">Latency P95</span>
-                    </div>
-                    <div class="metric-content">
-                        <span class="metric-value" data-metric="latencyP95">--</span>
-                        <span class="metric-unit">ms</span>
-                    </div>
-                    <div class="latency-bar">
-                        <div class="latency-fill p95" data-bar="p95"></div>
-                    </div>
-                </div>
+                '<div class="metric-card latency" id="metric-latency-p95">' +
+                    '<div class="metric-header">' +
+                        '<span class="metric-label">Latency P95</span>' +
+                    '</div>' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="latencyP95">--</span>' +
+                        '<span class="metric-unit">ms</span>' +
+                    '</div>' +
+                    '<div class="latency-bar">' +
+                        '<div class="latency-fill p95" data-bar="p95"></div>' +
+                    '</div>' +
+                '</div>' +
 
-                <div class="metric-card latency" id="metric-latency-p99">
-                    <div class="metric-header">
-                        <span class="metric-label">Latency P99</span>
-                    </div>
-                    <div class="metric-content">
-                        <span class="metric-value" data-metric="latencyP99">--</span>
-                        <span class="metric-unit">ms</span>
-                    </div>
-                    <div class="latency-bar">
-                        <div class="latency-fill p99" data-bar="p99"></div>
-                    </div>
-                </div>
-            </div>
+                '<div class="metric-card latency" id="metric-latency-p99">' +
+                    '<div class="metric-header">' +
+                        '<span class="metric-label">Latency P99</span>' +
+                    '</div>' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="latencyP99">--</span>' +
+                        '<span class="metric-unit">ms</span>' +
+                    '</div>' +
+                    '<div class="latency-bar">' +
+                        '<div class="latency-fill p99" data-bar="p99"></div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
 
-            <div class="metrics-row services-health">
-                <div class="services-header">
-                    <h3>Service Health</h3>
-                    <span class="services-count" id="services-count">0 services</span>
-                </div>
-                <div class="services-grid" id="services-grid">
-                    <!-- Services will be rendered here -->
-                </div>
-            </div>
-        `;
+            '<div class="metrics-row services-health">' +
+                '<div class="services-header">' +
+                    '<h3>Service Health</h3>' +
+                    '<span class="services-count" id="services-count">0 services</span>' +
+                '</div>' +
+                '<div class="services-grid" id="services-grid">' +
+                    '<!-- Services will be rendered here -->' +
+                '</div>' +
+            '</div>';
     }
 
     // Show loading skeleton state
     function showLoading() {
-        const valueElements = metricsGrid.querySelectorAll('.metric-value');
-        valueElements.forEach(el => {
+        var valueElements = metricsGrid.querySelectorAll('.metric-value');
+        valueElements.forEach(function(el) {
             el.classList.add('loading');
             el.setAttribute('aria-busy', 'true');
             el.textContent = '';
             // Add skeleton placeholder
-            const skeleton = document.createElement('span');
+            var skeleton = document.createElement('span');
             skeleton.className = 'skeleton skeleton-value';
             skeleton.setAttribute('aria-hidden', 'true');
             el.appendChild(skeleton);
         });
 
-        const servicesGrid = document.getElementById('services-grid');
+        var servicesGrid = document.getElementById('services-grid');
         if (servicesGrid) {
             servicesGrid.setAttribute('aria-busy', 'true');
             var skeletonHTML = '';
@@ -203,7 +222,7 @@
     function updateStatus(status, text) {
         if (!statusIndicator) return;
 
-        statusIndicator.className = `metrics-status ${status}`;
+        statusIndicator.className = 'metrics-status ' + status;
         statusIndicator.querySelector('.status-text').textContent = text;
         isConnected = status === 'connected';
     }
@@ -222,61 +241,224 @@
         }
     }
 
-    // Fetch metrics from API
-    async function fetchMetrics() {
-        try {
-            // Fetch metrics and health in parallel
-            const [metricsResp, healthResp] = await Promise.allSettled([
-                fetch(`${CONFIG.apiBaseUrl}/metrics`, {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
-                }),
-                fetch(`${CONFIG.apiBaseUrl}/health`, {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
-                })
-            ]);
+    // Fetch metrics from the real dashboard-backend API
+    function fetchMetrics() {
+        // Fetch metrics, health, and services in parallel
+        var metricsUrl = CONFIG.apiBaseUrl + '/metrics';
+        var healthUrl  = CONFIG.apiBaseUrl + '/health';
+        var servicesUrl = CONFIG.apiBaseUrl + '/services';
 
-            let data = {};
+        Promise.allSettled([
+            fetch(metricsUrl, { method: 'GET', headers: { 'Accept': 'application/json' } }),
+            fetch(healthUrl,  { method: 'GET', headers: { 'Accept': 'application/json' } }),
+            fetch(servicesUrl, { method: 'GET', headers: { 'Accept': 'application/json' } })
+        ]).then(function(results) {
+            var metricsResp = results[0];
+            var healthResp  = results[1];
+            var servicesResp = results[2];
 
-            if (metricsResp.status === 'fulfilled' && metricsResp.value.ok) {
-                data = await metricsResp.value.json();
-            } else {
+            // We need at least the metrics endpoint to succeed
+            if (metricsResp.status !== 'fulfilled' || !metricsResp.value.ok) {
                 throw new Error('Metrics endpoint unavailable');
             }
 
-            // Merge service health data if available
-            if (healthResp.status === 'fulfilled' && healthResp.value.ok) {
-                const healthData = await healthResp.value.json();
-                if (healthData.services && !data.services) {
-                    data.services = Object.entries(healthData.services).map(function([name, info]) {
-                        return {
-                            name: name,
-                            status: info.status || 'unknown',
-                            latency: info.average_latency ? parseInt(info.average_latency) / 1000000 : null
-                        };
-                    });
+            return metricsResp.value.json().then(function(metricsData) {
+                var data = metricsData;
+
+                // Parse health response if available
+                var healthPromise;
+                if (healthResp.status === 'fulfilled' && healthResp.value.ok) {
+                    healthPromise = healthResp.value.json();
+                } else {
+                    healthPromise = Promise.resolve(null);
                 }
-            }
 
-            retryCount = 0;
-            updateStatus('connected', 'Live');
-            processMetrics(data);
+                // Parse services response if available
+                var servicesPromise;
+                if (servicesResp.status === 'fulfilled' && servicesResp.value.ok) {
+                    servicesPromise = servicesResp.value.json();
+                } else {
+                    servicesPromise = Promise.resolve(null);
+                }
 
-        } catch (error) {
+                return Promise.all([healthPromise, servicesPromise]).then(function(extras) {
+                    var healthData = extras[0];
+                    var servicesData = extras[1];
+
+                    // Merge service health data from /api/v1/health
+                    if (healthData && healthData.services && !data.services) {
+                        data.services = {};
+                        var svcNames = Object.keys(healthData.services);
+                        for (var i = 0; i < svcNames.length; i++) {
+                            var name = svcNames[i];
+                            var info = healthData.services[name];
+                            data.services[name] = {
+                                name: name,
+                                status: info.status || 'unknown',
+                                latency: info.average_latency ? parseInt(info.average_latency) / 1000000 : null
+                            };
+                        }
+                    }
+
+                    // Merge richer service data from /api/v1/services
+                    if (servicesData && servicesData.services && Array.isArray(servicesData.services)) {
+                        data._servicesList = servicesData.services;
+                    }
+
+                    // Extract aggregate metrics from the AggregatedMetrics structure
+                    // The /api/v1/metrics endpoint returns:
+                    // { timestamp, services: { name: { metrics: { ... } } }, total_metrics, total_series }
+                    data = extractAggregateValues(data);
+
+                    retryCount = 0;
+                    consecutiveFailures = 0;
+                    updateStatus('connected', 'Live');
+                    processMetrics(data);
+                });
+            });
+        }).catch(function(error) {
             handleFetchError(error);
-        }
+        });
     }
 
-    // Handle fetch errors - display user-friendly messages
+    /**
+     * Extract meaningful aggregate values from the AggregatedMetrics structure.
+     *
+     * The dashboard-backend /api/v1/metrics returns:
+     * {
+     *   "timestamp": "...",
+     *   "services": {
+     *     "timeguru": { "name":"timeguru", "status":"up", "metrics": { "unheaded_http_requests_total": { "value": 42 }, ... } },
+     *     ...
+     *   },
+     *   "total_metrics": 120,
+     *   "total_series": 45
+     * }
+     *
+     * We aggregate request rates, error rates, latencies, and connection counts
+     * from the per-service Prometheus metrics.
+     */
+    function extractAggregateValues(data) {
+        if (!data || !data.services) return data;
+
+        var totalRequests = 0;
+        var totalErrors = 0;
+        var latencies = [];
+        var activeConns = 0;
+        var uptime = 0;
+        var serviceList = [];
+
+        var svcNames = Object.keys(data.services);
+        for (var i = 0; i < svcNames.length; i++) {
+            var svcName = svcNames[i];
+            var svc = data.services[svcName];
+            var svcMetrics = svc.metrics || {};
+
+            // Build service list for health display
+            serviceList.push({
+                name: svcName,
+                status: svc.status || 'unknown',
+                latency: null
+            });
+
+            // Sum up HTTP request totals across services
+            var reqMetric = svcMetrics['unheaded_http_requests_total'] ||
+                            svcMetrics['http_requests_total'];
+            if (reqMetric) {
+                totalRequests += reqMetric.value || 0;
+            }
+
+            // Sum up errors (requests with status >= 400)
+            // The counter is usually broken out by labels; if we have a single value,
+            // use error_count metrics if available
+            var errMetric = svcMetrics['unheaded_http_errors_total'] ||
+                            svcMetrics['http_errors_total'];
+            if (errMetric) {
+                totalErrors += errMetric.value || 0;
+            }
+
+            // Collect latency values
+            var latMetric = svcMetrics['unheaded_http_request_duration_seconds'] ||
+                            svcMetrics['http_request_duration_seconds'];
+            if (latMetric && latMetric.value) {
+                // Convert seconds to milliseconds
+                latencies.push(latMetric.value * 1000);
+            }
+
+            // Active connections gauge
+            var connMetric = svcMetrics['unheaded_active_connections'] ||
+                             svcMetrics['active_connections'] ||
+                             svcMetrics['dashboard_websocket_connections'];
+            if (connMetric) {
+                activeConns += connMetric.value || 0;
+            }
+
+            // Uptime - take the maximum across services
+            var uptimeMetric = svcMetrics['unheaded_uptime_seconds'] ||
+                               svcMetrics['process_uptime_seconds'] ||
+                               svcMetrics['uptime_seconds'];
+            if (uptimeMetric && uptimeMetric.value > uptime) {
+                uptime = uptimeMetric.value;
+            }
+        }
+
+        // Calculate derived values
+        // request_rate is approximated from total requests / scrape interval
+        var requestRate = totalRequests > 0 ? totalRequests / (CONFIG.refreshInterval / 1000) : 0;
+        var errorRate = totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0;
+
+        // Sort latencies for percentile calculation
+        latencies.sort(function(a, b) { return a - b; });
+        var p50 = percentile(latencies, 0.50);
+        var p95 = percentile(latencies, 0.95);
+        var p99 = percentile(latencies, 0.99);
+
+        // Prefer the richer services list from /api/v1/services if available
+        if (data._servicesList && data._servicesList.length > 0) {
+            serviceList = data._servicesList;
+        }
+
+        // Overlay extracted values onto data for processMetrics
+        data.request_rate = data.request_rate || requestRate;
+        data.error_rate = data.error_rate || errorRate;
+        data.active_connections = data.active_connections || activeConns;
+        data.uptime = data.uptime || data.uptime_seconds || uptime;
+        if (!data.latency) {
+            data.latency = { p50: p50, p95: p95, p99: p99 };
+        }
+        if (!data.services_list) {
+            data.services_list = serviceList;
+        }
+
+        return data;
+    }
+
+    /** Calculate a percentile from a sorted array. */
+    function percentile(sortedArr, p) {
+        if (!sortedArr || sortedArr.length === 0) return 0;
+        var idx = Math.ceil(p * sortedArr.length) - 1;
+        if (idx < 0) idx = 0;
+        return sortedArr[idx];
+    }
+
+    // Handle fetch errors - display user-friendly messages, show last-known values
     function handleFetchError(error) {
-        console.error('metrics.js: Failed to fetch metrics:', error.message);
+        console.error('metrics.js: Failed to fetch metrics:', error.message || error);
 
         retryCount++;
+        consecutiveFailures++;
+
         if (retryCount <= CONFIG.maxRetries) {
             updateStatus('reconnecting', 'Reconnecting (' + retryCount + '/' + CONFIG.maxRetries + ')...');
         } else {
             updateStatus('disconnected', 'Disconnected');
+        }
+
+        // If we have last-known metrics and haven't exceeded the stale threshold,
+        // keep displaying them with a "stale" indicator
+        if (lastKnownMetrics && consecutiveFailures <= CONFIG.staleThreshold) {
+            showStaleMetrics();
+            return;
         }
 
         // Show user-friendly error state on metrics
@@ -300,6 +482,14 @@
                 '</button>' +
             '</div>';
         }
+    }
+
+    /** Show last-known values with a stale indicator. */
+    function showStaleMetrics() {
+        if (!lastKnownMetrics) return;
+
+        // Re-render with last known, but add stale class
+        processMetrics(lastKnownMetrics, true);
     }
 
     // Convert raw errors to user-friendly messages
@@ -327,37 +517,51 @@
     }
 
     // Process and update metrics
-    function processMetrics(data) {
-        const previousMetrics = metrics;
+    function processMetrics(data, isStale) {
+        var previousMetrics = metrics;
         metrics = normalizeMetrics(data);
 
-        updateMetricValue('requestRate', formatNumber(metrics.requestRate, 1), previousMetrics?.requestRate);
-        updateMetricValue('errorRate', formatNumber(metrics.errorRate, 2), previousMetrics?.errorRate);
-        updateMetricValue('activeConnections', formatNumber(metrics.activeConnections, 0), previousMetrics?.activeConnections);
+        // Store as last-known for fallback
+        if (!isStale) {
+            lastKnownMetrics = data;
+        }
+
+        updateMetricValue('requestRate', formatNumber(metrics.requestRate, 1), previousMetrics ? previousMetrics.requestRate : null);
+        updateMetricValue('errorRate', formatNumber(metrics.errorRate, 2), previousMetrics ? previousMetrics.errorRate : null);
+        updateMetricValue('activeConnections', formatNumber(metrics.activeConnections, 0), previousMetrics ? previousMetrics.activeConnections : null);
         updateMetricValue('uptime', formatUptime(metrics.uptime), null);
 
         // Latency metrics
-        updateMetricValue('latencyP50', formatNumber(metrics.latency?.p50 || 0, 1), previousMetrics?.latency?.p50);
-        updateMetricValue('latencyP95', formatNumber(metrics.latency?.p95 || 0, 1), previousMetrics?.latency?.p95);
-        updateMetricValue('latencyP99', formatNumber(metrics.latency?.p99 || 0, 1), previousMetrics?.latency?.p99);
+        var prevLat = previousMetrics ? previousMetrics.latency : null;
+        updateMetricValue('latencyP50', formatNumber(metrics.latency ? metrics.latency.p50 : 0, 1), prevLat ? prevLat.p50 : null);
+        updateMetricValue('latencyP95', formatNumber(metrics.latency ? metrics.latency.p95 : 0, 1), prevLat ? prevLat.p95 : null);
+        updateMetricValue('latencyP99', formatNumber(metrics.latency ? metrics.latency.p99 : 0, 1), prevLat ? prevLat.p99 : null);
 
         // Update latency bars
         updateLatencyBars(metrics.latency);
 
-        // Update services
-        if (data.services) {
-            updateServices(data.services);
+        // Update services from the services_list or services object
+        var serviceData = data.services_list || data.services;
+        if (serviceData) {
+            updateServices(serviceData);
         }
 
         // Clear loading/error states and ARIA busy
-        const valueElements = metricsGrid.querySelectorAll('.metric-value');
-        valueElements.forEach(el => {
+        var valueElements = metricsGrid.querySelectorAll('.metric-value');
+        valueElements.forEach(function(el) {
             el.classList.remove('loading', 'error');
             el.removeAttribute('aria-busy');
             el.removeAttribute('aria-invalid');
             // Remove any skeleton placeholders
             var skel = el.querySelector('.skeleton');
             if (skel) skel.remove();
+
+            // Add stale indicator if showing last-known data
+            if (isStale) {
+                el.classList.add('stale');
+            } else {
+                el.classList.remove('stale');
+            }
         });
 
         var servicesGridEl = document.getElementById('services-grid');
@@ -366,7 +570,7 @@
         }
     }
 
-    // Normalize metrics data
+    // Normalize metrics data from various possible response formats
     function normalizeMetrics(data) {
         return {
             requestRate: data.request_rate || data.requestRate || 0,
@@ -374,19 +578,19 @@
             activeConnections: data.active_connections || data.activeConnections || 0,
             uptime: data.uptime || data.uptime_seconds || 0,
             latency: {
-                p50: data.latency?.p50 || data.latency_p50 || 0,
-                p95: data.latency?.p95 || data.latency_p95 || 0,
-                p99: data.latency?.p99 || data.latency_p99 || 0
+                p50: (data.latency ? data.latency.p50 : null) || data.latency_p50 || 0,
+                p95: (data.latency ? data.latency.p95 : null) || data.latency_p95 || 0,
+                p99: (data.latency ? data.latency.p99 : null) || data.latency_p99 || 0
             }
         };
     }
 
     // Update a single metric value with animation
     function updateMetricValue(metricKey, newValue, previousValue) {
-        const element = metricsGrid.querySelector(`[data-metric="${metricKey}"]`);
+        var element = metricsGrid.querySelector('[data-metric="' + metricKey + '"]');
         if (!element) return;
 
-        const currentValue = element.textContent;
+        var currentValue = element.textContent;
         if (currentValue === newValue) return;
 
         // Animate the change
@@ -394,8 +598,8 @@
 
         // Determine direction for animation
         if (previousValue !== null && previousValue !== undefined) {
-            const numCurrent = parseFloat(previousValue);
-            const numNew = parseFloat(newValue);
+            var numCurrent = parseFloat(previousValue);
+            var numNew = parseFloat(newValue);
             if (!isNaN(numCurrent) && !isNaN(numNew)) {
                 if (numNew > numCurrent) {
                     element.classList.add('increasing');
@@ -407,7 +611,7 @@
 
         element.textContent = newValue;
 
-        setTimeout(() => {
+        setTimeout(function() {
             element.classList.remove('updating', 'increasing', 'decreasing');
         }, CONFIG.animationDuration);
     }
@@ -417,19 +621,22 @@
         if (!latency) return;
 
         // Calculate max for scaling (use p99 as baseline, minimum 100ms)
-        const maxLatency = Math.max(latency.p99 || 100, 100);
+        var maxLatency = Math.max(latency.p99 || 100, 100);
 
-        const bars = {
+        var bars = {
             p50: latency.p50 || 0,
             p95: latency.p95 || 0,
             p99: latency.p99 || 0
         };
 
-        Object.entries(bars).forEach(([key, value]) => {
-            const bar = metricsGrid.querySelector(`[data-bar="${key}"]`);
+        var barKeys = Object.keys(bars);
+        for (var i = 0; i < barKeys.length; i++) {
+            var key = barKeys[i];
+            var value = bars[key];
+            var bar = metricsGrid.querySelector('[data-bar="' + key + '"]');
             if (bar) {
-                const percentage = Math.min((value / maxLatency) * 100, 100);
-                bar.style.width = `${percentage}%`;
+                var pct = Math.min((value / maxLatency) * 100, 100);
+                bar.style.width = pct + '%';
 
                 // Color coding based on latency thresholds
                 bar.classList.remove('good', 'warning', 'critical');
@@ -441,63 +648,78 @@
                     bar.classList.add('critical');
                 }
             }
-        });
+        }
     }
 
     // Update services grid
     function updateServices(serviceData) {
-        const servicesGrid = document.getElementById('services-grid');
-        const servicesCount = document.getElementById('services-count');
+        var servicesGrid = document.getElementById('services-grid');
+        var servicesCount = document.getElementById('services-count');
         if (!servicesGrid) return;
 
-        // Normalize service data
-        const serviceList = Array.isArray(serviceData) ? serviceData : Object.entries(serviceData).map(([name, status]) => ({
-            name,
-            status: typeof status === 'object' ? status.status : status,
-            latency: typeof status === 'object' ? status.latency : null,
-            uptime: typeof status === 'object' ? status.uptime : null
-        }));
+        // Normalize service data - handle both array and object formats
+        var serviceList;
+        if (Array.isArray(serviceData)) {
+            serviceList = serviceData;
+        } else {
+            serviceList = [];
+            var names = Object.keys(serviceData);
+            for (var i = 0; i < names.length; i++) {
+                var name = names[i];
+                var status = serviceData[name];
+                serviceList.push({
+                    name: name,
+                    status: typeof status === 'object' ? status.status : status,
+                    latency: typeof status === 'object' ? status.latency : null,
+                    uptime: typeof status === 'object' ? status.uptime : null,
+                    average_latency_ms: typeof status === 'object' ? status.average_latency_ms : null
+                });
+            }
+        }
 
         services = serviceList;
 
         // Update count
         if (servicesCount) {
-            const healthyCount = serviceList.filter(s => isHealthy(s.status)).length;
-            servicesCount.textContent = `${healthyCount}/${serviceList.length} healthy`;
+            var healthyCount = serviceList.filter(function(s) { return isHealthy(s.status); }).length;
+            servicesCount.textContent = healthyCount + '/' + serviceList.length + ' healthy';
         }
 
         // Render services
-        servicesGrid.innerHTML = serviceList.map(service => createServiceCard(service)).join('');
+        var html = '';
+        for (var j = 0; j < serviceList.length; j++) {
+            html += createServiceCard(serviceList[j]);
+        }
+        servicesGrid.innerHTML = html;
     }
 
     // Create service card HTML
     function createServiceCard(service) {
-        const status = normalizeServiceStatus(service.status);
-        const statusClass = getStatusClass(status);
-        const statusIcon = getStatusIcon(status);
+        var status = normalizeServiceStatus(service.status);
+        var statusClass = getStatusClass(status);
+        var statusIcon = getStatusIcon(status);
 
-        return `
-            <div class="service-card ${statusClass}" data-service="${escapeHtml(service.name)}">
-                <div class="service-header">
-                    <span class="service-name">${escapeHtml(service.name)}</span>
-                    <span class="service-status ${statusClass}">
-                        ${statusIcon}
-                        ${escapeHtml(status)}
-                    </span>
-                </div>
-                ${service.latency ? `
-                <div class="service-meta">
-                    <span class="service-latency">${formatNumber(service.latency, 1)}ms</span>
-                </div>
-                ` : ''}
-            </div>
-        `;
+        // Use average_latency_ms from /api/v1/services if available
+        var latencyValue = service.average_latency_ms || service.latency;
+
+        return '<div class="service-card ' + statusClass + '" data-service="' + escapeHtml(service.name) + '">' +
+            '<div class="service-header">' +
+                '<span class="service-name">' + escapeHtml(service.name) + '</span>' +
+                '<span class="service-status ' + statusClass + '">' +
+                    statusIcon +
+                    escapeHtml(status) +
+                '</span>' +
+            '</div>' +
+            (latencyValue ? '<div class="service-meta">' +
+                '<span class="service-latency">' + formatNumber(latencyValue, 1) + 'ms</span>' +
+            '</div>' : '') +
+        '</div>';
     }
 
     // Normalize service status
     function normalizeServiceStatus(status) {
         if (!status) return 'unknown';
-        const s = String(status).toLowerCase();
+        var s = String(status).toLowerCase();
         if (s === 'healthy' || s === 'ok' || s === 'up' || s === 'running') return 'healthy';
         if (s === 'degraded' || s === 'warning') return 'degraded';
         if (s === 'unhealthy' || s === 'down' || s === 'error' || s === 'failed') return 'unhealthy';
@@ -511,7 +733,7 @@
 
     // Get CSS class for status
     function getStatusClass(status) {
-        const classes = {
+        var classes = {
             healthy: 'status-healthy',
             degraded: 'status-degraded',
             unhealthy: 'status-unhealthy',
@@ -522,7 +744,7 @@
 
     // Get icon for status
     function getStatusIcon(status) {
-        const icons = {
+        var icons = {
             healthy: '<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>',
             degraded: '<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
             unhealthy: '<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
@@ -534,7 +756,7 @@
     // Format number with specified decimal places
     function formatNumber(value, decimals) {
         if (value === null || value === undefined || isNaN(value)) return '--';
-        const num = parseFloat(value);
+        var num = parseFloat(value);
         if (num >= 1000000) {
             return (num / 1000000).toFixed(1) + 'M';
         }
@@ -548,23 +770,23 @@
     function formatUptime(seconds) {
         if (!seconds || isNaN(seconds)) return '--';
 
-        const days = Math.floor(seconds / 86400);
-        const hours = Math.floor((seconds % 86400) / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
+        var days = Math.floor(seconds / 86400);
+        var hours = Math.floor((seconds % 86400) / 3600);
+        var minutes = Math.floor((seconds % 3600) / 60);
 
         if (days > 0) {
-            return `${days}d ${hours}h`;
+            return days + 'd ' + hours + 'h';
         }
         if (hours > 0) {
-            return `${hours}h ${minutes}m`;
+            return hours + 'h ' + minutes + 'm';
         }
-        return `${minutes}m`;
+        return minutes + 'm';
     }
 
     // Escape HTML to prevent XSS
     function escapeHtml(text) {
         if (!text) return '';
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
@@ -572,17 +794,29 @@
     // Force refresh metrics
     function refresh() {
         retryCount = 0;
+        consecutiveFailures = 0;
         fetchMetrics();
     }
 
     // Get current metrics
     function getMetrics() {
-        return metrics ? { ...metrics } : null;
+        if (!metrics) return null;
+        return {
+            requestRate: metrics.requestRate,
+            errorRate: metrics.errorRate,
+            activeConnections: metrics.activeConnections,
+            uptime: metrics.uptime,
+            latency: metrics.latency ? {
+                p50: metrics.latency.p50,
+                p95: metrics.latency.p95,
+                p99: metrics.latency.p99
+            } : null
+        };
     }
 
     // Get services list
     function getServices() {
-        return [...services];
+        return services.slice();
     }
 
     // Check connection status
@@ -606,15 +840,15 @@
 
     // Export for external use
     window.DashboardMetrics = {
-        init,
-        refresh,
-        startPolling,
-        stopPolling,
-        getMetrics,
-        getServices,
+        init: init,
+        refresh: refresh,
+        startPolling: startPolling,
+        stopPolling: stopPolling,
+        getMetrics: getMetrics,
+        getServices: getServices,
         isConnected: isConnectedStatus,
-        setApiBaseUrl,
-        setRefreshInterval
+        setApiBaseUrl: setApiBaseUrl,
+        setRefreshInterval: setRefreshInterval
     };
 
     // Auto-init when DOM ready
@@ -624,5 +858,5 @@
         init();
     }
 
-    console.log('metrics.js loaded');
+    console.log('metrics.js loaded (wired to real dashboard-backend endpoints)');
 })();

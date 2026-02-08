@@ -359,26 +359,29 @@ impl CorrelationEngine {
     ) -> Option<TraceId> {
         // Try to find trace by process context
         // For now, record latency for the most recent trace from this PID
-        let traces = self.traces.read();
-
-        // Find trace with matching PID (simplified correlation)
-        for (trace_id, ctx) in traces.iter() {
-            if ctx.spans.iter().any(|s| {
-                s.attributes
-                    .get("process.pid")
-                    .map(|v| matches!(v, crate::correlation::span::AttributeValue::Int(pid) if *pid as u32 == event.pid))
-                    .unwrap_or(false)
-            }) {
-                drop(traces);
-
-                // Update trace with latency
-                if let Some(mut ctx) = self.traces.write().get_mut(trace_id) {
-                    ctx.record_latency(latency.latency_ns);
-                    ctx.touch(event.timestamp_ns);
+        let matching_trace_id = {
+            let traces = self.traces.read();
+            traces.iter().find_map(|(trace_id, ctx)| {
+                if ctx.spans.iter().any(|s| {
+                    s.attributes
+                        .get("process.pid")
+                        .map(|v| matches!(v, crate::correlation::span::AttributeValue::Int(pid) if *pid as u32 == event.pid))
+                        .unwrap_or(false)
+                }) {
+                    Some(*trace_id)
+                } else {
+                    None
                 }
+            })
+        };
 
-                return Some(*trace_id);
+        if let Some(trace_id) = matching_trace_id {
+            // Update trace with latency
+            if let Some(ctx) = self.traces.write().get_mut(&trace_id) {
+                ctx.record_latency(latency.latency_ns);
+                ctx.touch(event.timestamp_ns);
             }
+            return Some(trace_id);
         }
 
         // No matching trace found
@@ -393,36 +396,40 @@ impl CorrelationEngine {
         syscall: &crate::events::SyscallEvent,
     ) -> Option<TraceId> {
         // Syscall events are correlated by PID
-        let traces = self.traces.read();
-
-        for (trace_id, ctx) in traces.iter() {
-            if ctx.spans.iter().any(|s| {
-                s.attributes
-                    .get("process.pid")
-                    .map(|v| matches!(v, crate::correlation::span::AttributeValue::Int(pid) if *pid as u32 == event.pid))
-                    .unwrap_or(false)
-            }) {
-                drop(traces);
-
-                // Add syscall event to trace
-                if let Some(mut ctx) = self.traces.write().get_mut(trace_id) {
-                    let span = SpanBuilder::new(
-                        format!("syscall:{}", syscall.syscall_nr),
-                        event.timestamp_ns,
-                    )
-                    .trace_id(*trace_id)
-                    .kind(SpanKind::Internal)
-                    .attribute("syscall.nr", syscall.syscall_nr)
-                    .attribute("process.pid", event.pid as i64)
-                    .attribute("process.command", event.comm.clone())
-                    .build();
-
-                    ctx.add_span(span);
-                    self.stats.spans_created.fetch_add(1, Ordering::Relaxed);
+        let matching_trace_id = {
+            let traces = self.traces.read();
+            traces.iter().find_map(|(trace_id, ctx)| {
+                if ctx.spans.iter().any(|s| {
+                    s.attributes
+                        .get("process.pid")
+                        .map(|v| matches!(v, crate::correlation::span::AttributeValue::Int(pid) if *pid as u32 == event.pid))
+                        .unwrap_or(false)
+                }) {
+                    Some(*trace_id)
+                } else {
+                    None
                 }
+            })
+        };
 
-                return Some(*trace_id);
+        if let Some(trace_id) = matching_trace_id {
+            // Add syscall event to trace
+            if let Some(ctx) = self.traces.write().get_mut(&trace_id) {
+                let span = SpanBuilder::new(
+                    format!("syscall:{}", syscall.syscall_nr),
+                    event.timestamp_ns,
+                )
+                .trace_id(trace_id)
+                .kind(SpanKind::Internal)
+                .attribute("syscall.nr", syscall.syscall_nr)
+                .attribute("process.pid", event.pid as i64)
+                .attribute("process.command", event.comm.clone())
+                .build();
+
+                ctx.add_span(span);
+                self.stats.spans_created.fetch_add(1, Ordering::Relaxed);
             }
+            return Some(trace_id);
         }
 
         self.stats.orphan_events.fetch_add(1, Ordering::Relaxed);

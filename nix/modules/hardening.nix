@@ -51,7 +51,7 @@
     # These settings are inherited by all services using this module.
     # =========================================================================
 
-    systemd.services = lib.mkDefault {
+    systemd.services."${config.unheaded.hardening.serviceName}" = {
       serviceConfig = {
         # ---------------------------------------------------------------------
         # CAPABILITY RESTRICTIONS
@@ -145,18 +145,20 @@
         # RESOURCE LIMITS
         # ---------------------------------------------------------------------
         # Prevent resource exhaustion attacks
+        # mkDefault allows container-specific overrides
         # ---------------------------------------------------------------------
-        LimitNOFILE = 65536;              # File descriptors
-        LimitNPROC = 512;                 # Max processes
-        TasksMax = 512;                   # Max threads
+        LimitNOFILE = lib.mkDefault 65536;   # File descriptors
+        LimitNPROC = lib.mkDefault 512;      # Max processes
+        TasksMax = lib.mkDefault 512;        # Max threads
 
         # ---------------------------------------------------------------------
         # RESTART POLICY
         # ---------------------------------------------------------------------
-        Restart = "always";
-        RestartSec = "5s";
-        StartLimitBurst = 5;
-        StartLimitIntervalSec = 60;
+        # mkDefault allows container-specific overrides
+        Restart = lib.mkDefault "always";
+        RestartSec = lib.mkDefault "5s";
+        StartLimitBurst = lib.mkDefault 5;
+        StartLimitIntervalSec = lib.mkDefault 60;
       };
     };
 

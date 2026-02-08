@@ -24,23 +24,14 @@ pub use server::{
     set_queue_depth, set_uptime, MetricsHttpServer, ServerConfig,
 };
 
-use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::Result;
-use bytes::Bytes;
-use http_body_util::Full;
-use hyper::server::conn::http1;
-use hyper::service::service_fn;
-use hyper::{body::Incoming, Request, Response, StatusCode};
-use hyper_util::rt::TokioIo;
 use once_cell::sync::Lazy;
 use prometheus::{
-    Counter, CounterVec, Encoder, Gauge, GaugeVec, Histogram, HistogramOpts, HistogramVec, Opts,
-    Registry, TextEncoder,
+    Gauge, GaugeVec, Histogram, HistogramOpts, Opts,
+    Registry,
 };
-use tokio::net::TcpListener;
-use tracing::{debug, error, info};
 
 /// Global metrics registry (shared with server module)
 pub(crate) static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);

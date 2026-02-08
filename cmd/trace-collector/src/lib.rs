@@ -71,21 +71,14 @@ pub use collector::{
     EventFilter, EventProcessor,
 };
 
-// Re-export proto types
-pub use proto::{
-    EventType as ProtoEventType, FlowData, FlowKey, FlowState, HealthRequest, HealthResponse,
-    LatencyData, PublishRequest, PublishResponse, SpanId, SubscribeRequest, TraceEvent,
-    TraceEventBatch, TraceId,
-};
-
 // Re-export metrics types
 pub use metrics::{AtomicMetrics, MetricsHttpServer, MetricsServer, ServerConfig, ATOMIC_METRICS};
 
 // Re-export correlation types
 pub use correlation::{
-    CorrelationConfig, CorrelationEngine, CorrelationStats, FlowKey as CorrelationFlowKey,
-    Span, SpanId as CorrelationSpanId, SpanKind, SpanStatus, TraceContext, TraceId as CorrelationTraceId,
-    TraceQuery, TraceQueryResult, TraceStore, TraceStoreConfig, TraceSummary,
+    CorrelationConfig, CorrelationEngine, CorrelationStats,
+    Span, SpanKind, SpanStatus, TraceContext, TraceSummary,
+    TraceQuery, TraceQueryResult, TraceStore, TraceStoreConfig,
 };
 
 // Re-export BPF multi-source types

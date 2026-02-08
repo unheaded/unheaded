@@ -13,8 +13,8 @@
 //! - Bit 28: BPF_RINGBUF_BUSY_BIT
 //! - Bit 29: BPF_RINGBUF_DISCARD_BIT
 
+use std::os::unix::io::FromRawFd;
 use std::path::Path;
-use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -92,9 +92,7 @@ impl RingBufReader {
             MmapOptions::new()
                 .len(PAGE_SIZE)
                 .offset(0)
-                .map_mut(&std::fs::File::from(std::os::fd::FromRawFd::from_raw_fd(
-                    fd,
-                )))
+                .map_mut(&std::fs::File::from_raw_fd(fd))
                 .map_err(|e| BpfError::Mmap(e.to_string()))?
         };
 
@@ -103,9 +101,7 @@ impl RingBufReader {
             MmapOptions::new()
                 .len(PAGE_SIZE)
                 .offset(PAGE_SIZE as u64)
-                .map_mut(&std::fs::File::from(std::os::fd::FromRawFd::from_raw_fd(
-                    fd,
-                )))
+                .map_mut(&std::fs::File::from_raw_fd(fd))
                 .map_err(|e| BpfError::Mmap(e.to_string()))?
         };
 
@@ -114,9 +110,7 @@ impl RingBufReader {
             MmapOptions::new()
                 .len(data_size * 2)
                 .offset((2 * PAGE_SIZE) as u64)
-                .map_mut(&std::fs::File::from(std::os::fd::FromRawFd::from_raw_fd(
-                    fd,
-                )))
+                .map_mut(&std::fs::File::from_raw_fd(fd))
                 .map_err(|e| BpfError::Mmap(e.to_string()))?
         };
 
