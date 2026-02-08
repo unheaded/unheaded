@@ -149,7 +149,7 @@
         "CUIRASS_DRIFT_DETECTION=true"
 
         # Managed containers
-        "CUIRASS_MANAGED_CONTAINERS=busboy,timeguru,captain,micromanager,architect,developer,monad,sophia,kanban,dashboard"
+        "CUIRASS_MANAGED_CONTAINERS=busboy,timeguru,captain,micromanager,architect,developer,monad,sophia,gateway,kanban,dashboard"
 
         # Logging
         "CUIRASS_LOG_LEVEL=info"
@@ -216,7 +216,7 @@
       # =======================================================================
       set -euo pipefail
 
-      CONTAINERS="busboy timeguru captain micromanager architect developer monad sophia kanban dashboard"
+      CONTAINERS="busboy timeguru captain micromanager architect developer monad sophia gateway kanban dashboard"
       STATE_DIR="/var/lib/unheaded/state"
       TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -235,6 +235,7 @@
           developer)     IP="10.10.10.24"; PORT="8004" ;;
           monad)         IP="10.10.10.27"; PORT="8006" ;;
           sophia)        IP="10.10.10.26"; PORT="8007" ;;
+          gateway)       IP="10.10.10.100"; PORT="443" ;;
           kanban)        IP="10.10.10.200"; PORT="8080" ;;
           dashboard)     IP="10.10.10.201"; PORT="8081" ;;
           *)             continue ;;
@@ -388,6 +389,13 @@
             ip: "10.10.10.26"
             ports: [8007, 9100]
             depends_on: ["busboy"]
+
+          - name: "gateway"
+            ip: "10.10.10.100"
+            ports: [80, 443, 9100]
+            depends_on: ["busboy", "timeguru", "captain", "micromanager", "architect", "monad", "sophia"]
+            public: true
+            critical: true
 
           - name: "kanban"
             ip: "10.10.10.200"
