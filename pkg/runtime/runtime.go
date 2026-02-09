@@ -249,8 +249,8 @@ type NamespaceType string
 
 const (
 	PIDNamespace     NamespaceType = "pid"
-	NetworkNamespace NamespaceType = "network"
-	MountNamespace   NamespaceType = "mount"
+	NetworkNamespace NamespaceType = "net"
+	MountNamespace   NamespaceType = "mnt"
 	IPCNamespace     NamespaceType = "ipc"
 	UTSNamespace     NamespaceType = "uts"
 	UserNamespace    NamespaceType = "user"
