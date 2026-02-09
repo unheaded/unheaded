@@ -1,0 +1,21 @@
+# Rust build artifacts (largest dirs)
+ebpf/target/
+cmd/trace-collector/target/
+
+# Git history
+.git/
+
+# Test artifacts
+*.test
+*.out
+cover.out
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Nix build output
+result

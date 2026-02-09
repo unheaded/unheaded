@@ -6,7 +6,7 @@
 # ============================================================================
 # STAGE 1: BUILD - THE FORGE
 # ============================================================================
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -34,7 +34,7 @@ ARG BUILD_TIME=unknown
 # Build all services
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/busboy ./cmd/busboy
+    -o /build/bin/busboy ./services/busboy/cmd/busboy
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
@@ -46,15 +46,23 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/architect ./services/architect/cmd/architect
+    -o /build/bin/architect ./services/architect/cmd
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/micromanager ./services/micromanager/cmd/micromanager
+    -o /build/bin/micromanager ./services/micromanager/cmd
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
     -o /build/bin/unheaded-daemon ./cmd/unheaded-daemon
+
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /build/bin/monad ./cmd/monad
+
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /build/bin/sophia ./cmd/sophia
 
 # ============================================================================
 # STAGE 2: BUSBOY - THE FAE CHAMBER
@@ -76,10 +84,10 @@ RUN mkdir -p /data && chown unheaded:unheaded /data
 
 USER unheaded
 
-EXPOSE 5555 8081
+EXPOSE 8080 9090
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["/app/busboy"]
 
@@ -184,7 +192,57 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 ENTRYPOINT ["/app/micromanager"]
 
 # ============================================================================
-# STAGE 7: CUIRASS - THE CORE HEART (Control Plane)
+# STAGE 7: MONAD - THE ONE (Unified State Management)
+# ============================================================================
+FROM alpine:3.19 AS monad
+
+RUN apk add --no-cache ca-certificates tzdata
+
+RUN addgroup -g 1000 unheaded && \
+    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/monad /app/monad
+
+RUN mkdir -p /data && chown unheaded:unheaded /data
+
+USER unheaded
+
+EXPOSE 8086
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8086/health || exit 1
+
+ENTRYPOINT ["/app/monad"]
+
+# ============================================================================
+# STAGE 8: SOPHIA - DIVINE WISDOM (Knowledge Graph)
+# ============================================================================
+FROM alpine:3.19 AS sophia
+
+RUN apk add --no-cache ca-certificates tzdata
+
+RUN addgroup -g 1000 unheaded && \
+    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/sophia /app/sophia
+
+RUN mkdir -p /data && chown unheaded:unheaded /data
+
+USER unheaded
+
+EXPOSE 8087
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8087/health || exit 1
+
+ENTRYPOINT ["/app/sophia"]
+
+# ============================================================================
+# STAGE 9: CUIRASS - THE CORE HEART (Control Plane)
 # ============================================================================
 FROM alpine:3.19 AS cuirass
 
@@ -278,6 +336,24 @@ stderr_logfile_maxbytes=0
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 
+[program:monad]
+command=/app/monad
+autostart=true
+autorestart=true
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+
+[program:sophia]
+command=/app/sophia
+autostart=true
+autorestart=true
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+
 [program:cuirass]
 command=/app/unheaded-daemon
 autostart=true
@@ -288,6 +364,6 @@ stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 EOF
 
-EXPOSE 5555 8080 8081 8082 8083 8084 8085 9090
+EXPOSE 5555 8080 8081 8082 8083 8084 8085 8086 8087 9090
 
 ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
