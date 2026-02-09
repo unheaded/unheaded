@@ -44,6 +44,10 @@ coverage.html
 
 # ─── Compiled service binaries ───
 /kanban-app
+/busboy
+/captain
+/main
+/timeguru
 
 # ─── Rust / Cargo ───
 target/
