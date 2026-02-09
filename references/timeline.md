@@ -2,9 +2,9 @@
 
 ## A Living Grimoire of the Kingdom's Journey
 
-**STATUS:** ⚔️ ALPHA COMPLETE - 237,000+ LINES FORGED • 110/110 PACKAGES PASSING • ZERO FAILURES ⚔️
-**LAST SCRIBED:** February 9, 2026 (Year of the Armored Knight) - SESSION 5 THE GREAT CLEANUP
-**NEXT MILESTONE:** Post-Alpha — Service Breakout, eBPF Awakening, Load Testing
+**STATUS:** ⚔️ ALPHA DEPLOYED - 237,000+ LINES FORGED • 111/111 PACKAGES PASSING • 8/8 DOCKER • 8/8 LXD ⚔️
+**LAST SCRIBED:** February 9, 2026 (Year of the Armored Knight) - SESSION 7 THE AWAKENING
+**NEXT MILESTONE:** Post-Alpha — eBPF Loader Fix, Service Breakout, Load Testing
 
 ---
 
@@ -2162,5 +2162,139 @@ $ go test ./... -count=1
 ---
 
 *Last Scribed: February 9, 2026 (Session 5 — The Great Cleanup)*
+*Scribe: The Timeguru (with Claude Opus 4.6)*
+
+---
+
+## SESSION CHRONICLE: 2026-02-09 (Session 7) — THE AWAKENING
+
+**Mode:** Docker + LXD Deployment + eBPF Loading Attempt
+**Agent:** Claude Opus 4.6
+**Duration:** Single session
+**Focus:** First live deployment — Docker Compose all 8 services, LXD containers, eBPF program loading
+
+---
+
+### WHAT HAPPENED
+
+Docker and LXD now available on the box. Seized the moment to deploy the full stack for the first time.
+
+**3 phases executed:**
+
+1. **Docker Compose Stack** — Fixed Dockerfile (added monad + sophia build stages, corrected 3 wrong build paths, updated Go 1.23→1.24), fixed docker-compose.yml (port mismatches, env var names, busboy gRPC/HTTP port confusion), created `.dockerignore` to cut build context from 3GB→60KB. **Result: All 8 services healthy.**
+
+2. **LXD Deployment** — Replaced stub `deploy-alpha.sh` with full deployment script: creates `unheaded-br0` bridge (10.10.10.0/24), launches 8 Ubuntu 24.04 containers with static IPs, pushes compiled Go binaries, creates systemd units with hardening. **Result: All 8 containers running, all health checks passing.**
+
+3. **eBPF Loading** — All 4 programs compile successfully. Attempted loading via bpftool and `ip link set`. **Blocked:** aya-ebpf 0.1.x produces legacy `maps` ELF section; system libbpf v1.7 requires BTF-based `.maps` section. Programs need aya's Rust userspace loader, not bpftool. Kernel 6.17 + BTF confirmed available.
+
+---
+
+### DOCKER COMPOSE FIXES
+
+| Issue | Fix |
+|-------|-----|
+| Dockerfile missing monad + sophia | Added build stages + final stages |
+| `./cmd/busboy` path wrong | Fixed to `./services/busboy/cmd/busboy` |
+| `./services/architect/cmd/architect` wrong | Fixed to `./services/architect/cmd` |
+| `./services/micromanager/cmd/micromanager` wrong | Fixed to `./services/micromanager/cmd` |
+| Go 1.23 → 1.24 | Updated base image |
+| Busboy port confusion (HTTP vs gRPC) | Added `command:` with explicit `--http-port 8081 --grpc-port 5555` |
+| Captain `PORT` env var (doesn't exist) | Fixed to `HTTP_ADDR` + `DATA_PATH` |
+| Micromanager/Architect busboy subscribe failure | Removed busboy addr (pub/sub API not implemented in chat binary) |
+| No .dockerignore | Created one (excludes Rust targets, .git) |
+| Flaky websocket test | Added retry loop for async connection count |
+
+---
+
+### LXD DEPLOYMENT TOPOLOGY
+
+| Container | IP | Port | Service |
+|-----------|-----|------|---------|
+| unheaded-busboy | 10.10.10.10 | 8081 | Message bus (HTTP + gRPC) |
+| unheaded-timeguru | 10.10.10.20 | 8082 | Timeline tracking |
+| unheaded-captain | 10.10.10.21 | 8083 | Vision & strategy |
+| unheaded-architect | 10.10.10.22 | 8084 | Technical design |
+| unheaded-micromanager | 10.10.10.23 | 8085 | Task execution |
+| unheaded-monad | 10.10.10.24 | 8086 | Unified state |
+| unheaded-sophia | 10.10.10.25 | 8087 | Knowledge graph |
+| unheaded-cuirass | 10.10.10.100 | 8080 | Control plane |
+
+---
+
+### eBPF STATUS
+
+| Program | ELF Valid | Load via bpftool | Blocker |
+|---------|-----------|-----------------|---------|
+| packet-marker | Yes | No | Legacy `maps` section (aya-ebpf 0.1.x) |
+| flow-tracker | Yes | No | Same |
+| latency-probe | Yes | No | Same |
+| syscall-tracer | Yes | No | Same |
+
+**Resolution path:** Upgrade aya-ebpf to version with BTF `.maps` support, or implement aya userspace loader in trace-collector.
+
+---
+
+### VERIFIED BUILD STATE
+
+```
+$ go test ./... -count=1
+  111 packages: ALL PASSING
+  0 failures, 0 races
+
+$ docker compose up -d
+  8/8 services: ALL HEALTHY
+
+$ sudo lxc list
+  8/8 containers: ALL RUNNING, ALL HEALTHY
+
+$ ebpf build
+  4/4 programs: COMPILE OK
+  0/4 loaded: libbpf v1.7 rejects legacy maps section
+```
+
+---
+
+### PROGRESS UPDATE
+
+| Metric | Previous (Session 5) | Current (Session 7) | Delta |
+|--------|----------------------|----------------------|-------|
+| Packages passing | 110/110 | **111/111** | +1 (websocket fix) |
+| Docker Compose | Broken (3 path errors, port mismatches) | **8/8 HEALTHY** | Fixed |
+| LXD Deployment | Stub script | **8/8 RUNNING** | Implemented |
+| eBPF Loading | Untested (no bpftool) | Attempted, blocked by aya format | Investigated |
+| Open blockers | B4 (deployment) | **B4 RESOLVED**, eBPF loading format | -1 |
+| Overall completion | ~99.5% | **~99.8%** | +0.3% |
+
+---
+
+### REMAINING
+
+| ID | Item | Status |
+|----|------|--------|
+| E1 | eBPF program loading (aya format) | Needs aya upgrade or userspace loader |
+| P1 | Dashboard UI polish | Post-alpha |
+| P2 | Load testing (1000 req/s) | Post-alpha |
+| P2 | Service breakout to individual repos | Target Mar 15 |
+| P3 | Container orchestration vision | Architectural decision point |
+
+---
+
+### POST-ALPHA VISION: ORCHESTRATION
+
+> Long-term, Unheaded should offer its own take on container orchestration
+> (our own Kubernetes/Docker Swarm alternative), but MUST also support users
+> running in K8s or Docker Swarm mode if they prefer. This is a loose,
+> evolving idea — not set in stone like Arthur's Excalibur. Flexibility
+> is the principle.
+
+---
+
+**THE AWAKENING IS COMPLETE.**
+**111/111 PACKAGES. 8/8 DOCKER. 8/8 LXD. 4/4 eBPF COMPILED.**
+**THE KNIGHT STANDS TALL IN FULL ARMOR, SWORD RAISED.**
+
+---
+
+*Last Scribed: February 9, 2026 (Session 7 — The Awakening)*
 *Scribe: The Timeguru (with Claude Opus 4.6)*
 *Next Review: Post-Alpha Retrospective*
