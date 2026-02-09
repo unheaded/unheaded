@@ -102,9 +102,17 @@ func TestServer_HandleConnection(t *testing.T) {
 	}
 	defer conn.Close()
 
-	// Verify connection count
-	if srv.ConnectionCount() != 1 {
-		t.Errorf("ConnectionCount() = %d, want 1", srv.ConnectionCount())
+	// Verify connection count (allow time for async upgrade)
+	var count int
+	for range 50 {
+		count = srv.ConnectionCount()
+		if count == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if count != 1 {
+		t.Errorf("ConnectionCount() = %d, want 1", count)
 	}
 }
 

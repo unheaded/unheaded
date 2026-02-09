@@ -58,6 +58,7 @@ target/
 
 # ─── Build Artifacts ───
 build/
+.build/
 dist/
 *.o
 *.a
