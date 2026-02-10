@@ -2230,7 +2230,9 @@ Docker and LXD now available on the box. Seized the moment to deploy the full st
 | latency-probe | Yes | No | Same |
 | syscall-tracer | Yes | No | Same |
 
-**Resolution path:** Upgrade aya-ebpf to version with BTF `.maps` support, or implement aya userspace loader in trace-collector.
+**Resolution:** Implemented aya userspace loader (`cmd/ebpf-loader/`) using `aya` crate v0.13.1. The loader handles legacy `maps` ELF sections natively, bypassing libbpf v1.7 incompatibility. All 4 programs now load and attach successfully.
+
+**Remaining limitation:** packet-marker TCP/IP option trace ID extraction disabled due to LLVM/BPF verifier incompatibility. LLVM eliminates bounds checks the verifier requires. Re-enable when aya-ebpf supports BPF subprograms or BTF maps.
 
 ---
 
@@ -2249,7 +2251,13 @@ $ sudo lxc list
 
 $ ebpf build
   4/4 programs: COMPILE OK
-  0/4 loaded: libbpf v1.7 rejects legacy maps section
+
+$ ebpf-loader --dry-run
+  4/4 programs: VALIDATED
+
+$ sudo ebpf-loader --interface lo
+  4/4 programs: LOADED INTO KERNEL
+  packet-marker (XDP), flow-tracker (TC), latency-probe (kprobes), syscall-tracer (raw_tp)
 ```
 
 ---
@@ -2271,7 +2279,7 @@ $ ebpf build
 
 | ID | Item | Status |
 |----|------|--------|
-| E1 | eBPF program loading (aya format) | Needs aya upgrade or userspace loader |
+| E1 | eBPF program loading (aya format) | **RESOLVED** — aya userspace loader, 4/4 loaded |
 | P1 | Dashboard UI polish | Post-alpha |
 | P2 | Load testing (1000 req/s) | Post-alpha |
 | P2 | Service breakout to individual repos | Target Mar 15 |
@@ -2289,12 +2297,55 @@ $ ebpf build
 
 ---
 
+### POST-ALPHA VISION: MONITORING & OBSERVABILITY COMPATIBILITY
+
+> **TODO (Pipe Dream):** Provide "sort of easy" compatibility with the
+> established monitoring/observability ecosystem — in addition to our own
+> in-house variants. The goal is: customers who already use these tools
+> should be able to plug Unheaded into their existing stack with minimal
+> friction.
+>
+> **Target integrations:**
+> - **Metrics:** Prometheus, Grafana
+> - **Log aggregation:** Splunk, ELK (Elasticsearch/Logstash/Kibana),
+>   OpenSearch, Loki, Fluentd, Graylog
+> - **Tracing/APM:** SigNoz, Jaeger, Zipkin
+> - **Alerting/Incident:** PagerDuty, OpsGenie
+>
+> This is NOT about replacing these tools — it's about being a good
+> citizen in existing infrastructure. Export OpenTelemetry, expose
+> Prometheus endpoints, ship logs in standard formats. Let customers
+> choose their stack while we offer our own opinionated alternative
+> for those who want the full Unheaded experience.
+
+---
+
 **THE AWAKENING IS COMPLETE.**
 **111/111 PACKAGES. 8/8 DOCKER. 8/8 LXD. 4/4 eBPF COMPILED.**
 **THE KNIGHT STANDS TALL IN FULL ARMOR, SWORD RAISED.**
 
 ---
 
-*Last Scribed: February 9, 2026 (Session 7 — The Awakening)*
+### Session 8 (Feb 9) — The Kernel Stirs
+
+**eBPF loading breakthrough: 4/4 programs loaded into the kernel.**
+
+The aya userspace loader (`cmd/ebpf-loader/`) was created using the `aya` crate v0.13.1, which handles the legacy `maps` ELF section that libbpf v1.7 rejects. This bypassed the blocker entirely without requiring an aya-ebpf upgrade (none exists).
+
+**Programs loaded:**
+| Program | Type | Attach Points | Status |
+|---------|------|--------------|--------|
+| packet-marker | XDP | lo (configurable) | LOADED |
+| flow-tracker | TC | Ingress + Egress clsact | LOADED |
+| latency-probe | KProbe/KRetProbe | tcp_sendmsg, tcp_recvmsg, tcp_v4_connect (6 probes) | LOADED |
+| syscall-tracer | RawTracePoint | sys_enter, sys_exit | LOADED |
+
+**BPF verifier battle (packet-marker):** LLVM's optimizer eliminates packet bounds checks that the BPF verifier requires, because it can prove `offset < options_end <= data_end` algebraically. After 6 fix iterations (black_box, read_volatile, loop bound tuning), TCP/IP option parsing was pragmatically disabled. Core packet flow tracking works. Option parsing awaits BPF subprogram support in aya-ebpf.
+
+**E1 status: RESOLVED.**
+
+---
+
+*Last Scribed: February 9, 2026 (Session 8 — The Kernel Stirs)*
 *Scribe: The Timeguru (with Claude Opus 4.6)*
 *Next Review: Post-Alpha Retrospective*
