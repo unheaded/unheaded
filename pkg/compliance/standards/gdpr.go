@@ -29,6 +29,7 @@ func (s *GDPRStandard) initializeControls() {
 	s.addSecurityControls()
 	s.addAccountabilityControls()
 	s.addTransferControls()
+	s.addPIIContainmentControls()
 }
 
 func (s *GDPRStandard) addDataProcessingControls() {
@@ -420,4 +421,50 @@ func (s *GDPRStandard) addTransferControls() {
 		"Standard Contractual Clauses",
 		"Appropriate safeguards may be provided by standard contractual clauses",
 	).WithCategory(controls.CategoryVendorManagement).WithSeverity(controls.SeverityHigh))
+}
+
+func (s *GDPRStandard) addPIIContainmentControls() {
+	// Unheaded PII Containment — platform-enforced controls
+	// "PII is radioactive. You need containment, handling and disposal procedures,
+	// you need to allow users to inspect it at any time and if you accidentally
+	// expose anyone to it that's a major emergency incident."
+	// — hnbad (https://news.ycombinator.com/user?id=hnbad)
+
+	s.AddControl(controls.NewControl(
+		"UH-PII-1",
+		"GDPR",
+		"PII Containment Mode",
+		"Platform-level PII containment with configurable enforcement (pii_mode: eu|strict). "+
+			"When enabled, all services treat PII as radioactive material requiring containment, "+
+			"handling procedures, and disposal protocols",
+	).WithCategory(controls.CategoryDataProtection).WithSeverity(controls.SeverityCritical).
+		AddMapping("NIST", "PM-11").
+		AddMapping("SOC2", "P3.1"))
+
+	s.AddControl(controls.NewControl(
+		"UH-PII-2",
+		"GDPR",
+		"PII Access Inspection",
+		"Users can inspect all PII held about them at any time via self-service API. "+
+			"Implements Art.15 right-of-access as an automated platform capability",
+	).WithCategory(controls.CategoryPrivacy).WithSeverity(controls.SeverityCritical).
+		AddMapping("SOC2", "P6.1"))
+
+	s.AddControl(controls.NewControl(
+		"UH-PII-3",
+		"GDPR",
+		"PII Erasure on Demand",
+		"Right-of-erasure (Art.17) implemented as automated platform capability. "+
+			"Erasure propagates across all services and storage backends",
+	).WithCategory(controls.CategoryPrivacy).WithSeverity(controls.SeverityCritical).
+		AddMapping("SOC2", "P5.2"))
+
+	s.AddControl(controls.NewControl(
+		"UH-PII-4",
+		"GDPR",
+		"PII Exposure Breach Alert",
+		"Accidental PII exposure triggers immediate emergency incident via Busboy "+
+			"alerts.critical topic. Satisfies Art.33 72-hour notification window "+
+			"by detecting breaches in real time",
+	).WithCategory(controls.CategoryIncidentResponse).WithSeverity(controls.SeverityCritical))
 }

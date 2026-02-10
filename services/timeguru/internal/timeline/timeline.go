@@ -28,16 +28,16 @@ var (
 
 // Milestone represents a single project milestone
 type Milestone struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Status      string    `json:"status"` // pending, in_progress, completed, blocked
-	ETA         time.Time `json:"eta,omitempty"`
-	Progress    int       `json:"progress"` // 0-100
-	Owner       string    `json:"owner,omitempty"`
-	Risk        string    `json:"risk,omitempty"` // low, medium, high
-	Description string    `json:"description,omitempty"`
-	Tasks       []string  `json:"tasks,omitempty"`
-	Dependencies []string `json:"dependencies,omitempty"`
+	ID           string    `json:"id" yaml:"id" toml:"id"`
+	Name         string    `json:"name" yaml:"name" toml:"name"`
+	Status       string    `json:"status" yaml:"status" toml:"status"` // pending, in_progress, completed, blocked
+	ETA          time.Time `json:"eta,omitempty" yaml:"eta,omitempty" toml:"eta,omitempty"`
+	Progress     int       `json:"progress" yaml:"progress" toml:"progress"` // 0-100
+	Owner        string    `json:"owner,omitempty" yaml:"owner,omitempty" toml:"owner,omitempty"`
+	Risk         string    `json:"risk,omitempty" yaml:"risk,omitempty" toml:"risk,omitempty"` // low, medium, high
+	Description  string    `json:"description,omitempty" yaml:"description,omitempty" toml:"description,omitempty"`
+	Tasks        []string  `json:"tasks,omitempty" yaml:"tasks,omitempty" toml:"tasks,omitempty"`
+	Dependencies []string  `json:"dependencies,omitempty" yaml:"dependencies,omitempty" toml:"dependencies,omitempty"`
 }
 
 // Validate performs defensive validation on a Milestone
@@ -85,14 +85,14 @@ func (m *Milestone) Validate() error {
 
 // Phase represents a project phase (e.g., Alpha, Beta)
 type Phase struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Status      string    `json:"status"` // planned, in_progress, completed
-	StartDate   time.Time `json:"start_date,omitempty"`
-	EndDate     time.Time `json:"end_date,omitempty"`
-	Progress    int       `json:"progress"` // 0-100
-	Description string    `json:"description,omitempty"`
-	Milestones  []string  `json:"milestones,omitempty"` // References to milestone IDs
+	ID          string    `json:"id" yaml:"id" toml:"id"`
+	Name        string    `json:"name" yaml:"name" toml:"name"`
+	Status      string    `json:"status" yaml:"status" toml:"status"` // planned, in_progress, completed
+	StartDate   time.Time `json:"start_date,omitempty" yaml:"start_date,omitempty" toml:"start_date,omitempty"`
+	EndDate     time.Time `json:"end_date,omitempty" yaml:"end_date,omitempty" toml:"end_date,omitempty"`
+	Progress    int       `json:"progress" yaml:"progress" toml:"progress"` // 0-100
+	Description string    `json:"description,omitempty" yaml:"description,omitempty" toml:"description,omitempty"`
+	Milestones  []string  `json:"milestones,omitempty" yaml:"milestones,omitempty" toml:"milestones,omitempty"` // References to milestone IDs
 }
 
 // Validate performs defensive validation on a Phase
@@ -130,13 +130,13 @@ func (p *Phase) Validate() error {
 
 // Timeline represents the complete project timeline
 type Timeline struct {
-	Version     string       `json:"version"`
-	LastUpdated time.Time    `json:"last_updated"`
-	Status      string       `json:"status"` // planning, alpha, beta, mvp, production
-	Vision      string       `json:"vision,omitempty"`
-	Phases      []*Phase     `json:"phases"`
-	Milestones  []*Milestone `json:"milestones"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	Version     string            `json:"version" yaml:"version" toml:"version"`
+	LastUpdated time.Time         `json:"last_updated" yaml:"last_updated" toml:"last_updated"`
+	Status      string            `json:"status" yaml:"status" toml:"status"` // planning, alpha, beta, mvp, production
+	Vision      string            `json:"vision,omitempty" yaml:"vision,omitempty" toml:"vision,omitempty"`
+	Phases      []*Phase          `json:"phases" yaml:"phases" toml:"phases"`
+	Milestones  []*Milestone      `json:"milestones" yaml:"milestones" toml:"milestones"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty" toml:"metadata,omitempty"`
 }
 
 // Validate performs defensive validation on a Timeline
