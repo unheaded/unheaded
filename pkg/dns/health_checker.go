@@ -33,6 +33,8 @@ type serviceHealthState struct {
 
 type endpointHealthState struct {
 	endpoint         *ServiceEndpoint
+	health           HealthState // local copy, safe under hc.mu
+	responseTime     time.Duration // local copy, safe under hc.mu
 	consecutiveOK    int
 	consecutiveFail  int
 	lastCheck        time.Time
@@ -131,6 +133,8 @@ func (hc *EnhancedHealthChecker) AddService(svc *ServiceDefinition) {
 	for _, ep := range svc.Endpoints {
 		state.endpoints[ep.ID] = &endpointHealthState{
 			endpoint:     ep,
+			health:       ep.Health,
+			responseTime: ep.ResponseTime,
 			circuitState: CircuitClosed,
 		}
 	}
@@ -239,14 +243,15 @@ func (hc *EnhancedHealthChecker) checkEndpoint(svc *ServiceDefinition, epState *
 	epState.lastCheck = time.Now()
 	epState.lastError = err
 
-	// Update response time (exponential moving average)
-	if ep.ResponseTime == 0 {
-		ep.ResponseTime = responseTime
+	// Update response time (exponential moving average) on local copy
+	if epState.responseTime == 0 {
+		epState.responseTime = responseTime
 	} else {
-		ep.ResponseTime = (ep.ResponseTime*7 + responseTime*3) / 10
+		epState.responseTime = (epState.responseTime*7 + responseTime*3) / 10
 	}
 
 	newHealth := hc.determineHealth(epState, err, config)
+	epState.health = newHealth
 
 	// Update circuit breaker state
 	if svc.CircuitBreaker != nil && svc.CircuitBreaker.Enabled {
@@ -255,7 +260,7 @@ func (hc *EnhancedHealthChecker) checkEndpoint(svc *ServiceDefinition, epState *
 
 	hc.mu.Unlock()
 
-	// Update health through service discovery (uses sd.mu exclusively for ep.Health).
+	// Update health through service discovery (uses sd.mu exclusively for ep fields).
 	// UpdateEndpointHealth no-ops when health hasn't changed.
 	hc.sd.UpdateEndpointHealth(svc.Name, ep.ID, newHealth)
 }
@@ -274,30 +279,26 @@ func (hc *EnhancedHealthChecker) determineHealth(epState *endpointHealthState, e
 	if err == nil {
 		epState.consecutiveOK++
 		epState.consecutiveFail = 0
-		epState.endpoint.SuccessCount++
-		epState.endpoint.FailCount = 0
 
 		if epState.consecutiveOK >= healthyThreshold {
 			return HealthStateHealthy
 		}
-		if epState.endpoint.Health == HealthStateUnhealthy {
+		if epState.health == HealthStateUnhealthy {
 			return HealthStateDegraded
 		}
-		return epState.endpoint.Health
+		return epState.health
 	}
 
 	epState.consecutiveFail++
 	epState.consecutiveOK = 0
-	epState.endpoint.FailCount++
-	epState.endpoint.SuccessCount = 0
 
 	if epState.consecutiveFail >= unhealthyThreshold {
 		return HealthStateUnhealthy
 	}
-	if epState.endpoint.Health == HealthStateHealthy {
+	if epState.health == HealthStateHealthy {
 		return HealthStateDegraded
 	}
-	return epState.endpoint.Health
+	return epState.health
 }
 
 // allowCheck checks if a health check is allowed by the circuit breaker
@@ -427,13 +428,13 @@ func (hc *EnhancedHealthChecker) GetEndpointHealth(serviceName, endpointID strin
 
 	return &EndpointHealthInfo{
 		ID:              endpointID,
-		Health:          epState.endpoint.Health,
+		Health:          epState.health,
 		ConsecutiveOK:   epState.consecutiveOK,
 		ConsecutiveFail: epState.consecutiveFail,
 		LastCheck:       epState.lastCheck,
 		LastError:       epState.lastError,
 		CircuitState:    epState.circuitState,
-		ResponseTime:    epState.endpoint.ResponseTime,
+		ResponseTime:    epState.responseTime,
 	}, nil
 }
 
@@ -479,13 +480,13 @@ func (hc *EnhancedHealthChecker) HealthStats() map[string]*ServiceHealthStats {
 		for epID, epState := range state.endpoints {
 			svcStats.Endpoints[epID] = &EndpointHealthStats{
 				ID:           epID,
-				Health:       epState.endpoint.Health,
+				Health:       epState.health,
 				LastCheck:    epState.lastCheck,
 				CircuitState: epState.circuitState,
-				ResponseTime: epState.endpoint.ResponseTime,
+				ResponseTime: epState.responseTime,
 			}
 			svcStats.TotalEndpoints++
-			if epState.endpoint.IsHealthy() {
+			if epState.health == HealthStateHealthy || epState.health == HealthStateDegraded {
 				svcStats.HealthyEndpoints++
 			}
 		}
