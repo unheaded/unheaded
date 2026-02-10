@@ -55,7 +55,7 @@ func init() {
 func main() {
 	// Flags
 	addr := flag.String("addr", ":8001", "HTTP listen address")
-	busboyAddr := flag.String("busboy", "localhost:9090", "Busboy address")
+	busboyAddr := flag.String("busboy", "localhost:8081", "Busboy HTTP address")
 	logLevel := flag.String("log", "info", "Log level (debug, info, warn, error)")
 	useMock := flag.Bool("mock-busboy", false, "Use mock Busboy client for testing")
 	flag.Parse()

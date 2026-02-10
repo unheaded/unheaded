@@ -98,7 +98,10 @@ for port in 8080 8081 8082 8083 8084 8085 8086 8087; do
 done
 ```
 
-**Expected:** All 8 return JSON with `"status":"healthy"` or similar.
+**Expected:** All 8 return standard Kingdom health format:
+```json
+{"service":"<name>","status":"healthy","version":"<semver>","timestamp":"<RFC3339>"}
+```
 
 ---
 
@@ -211,16 +214,34 @@ TIMEGURU_ADDR=localhost:8000 BUSBOY_ADDR=localhost:9090 \
 
 Default ports when running standalone (without Docker):
 
-| Service | Default Port |
-|---------|-------------|
-| Busboy gRPC | 9090 |
-| Busboy HTTP | 8080 |
-| Timeguru | 8082 |
-| Captain | 8083 |
-| Kanban App | 8080 |
-| Dashboard | 8080 |
+| Service | Default Port | Config Method |
+|---------|-------------|---------------|
+| Busboy HTTP | 8080 | `--http-port` flag |
+| Busboy gRPC | 9090 | `--grpc-port` flag |
+| Timeguru | 8000 | `PORT` env |
+| Captain | 8000 | `HTTP_ADDR` env |
+| Architect | 8001 | `-addr` flag |
+| Micromanager | 8003 | `-port` flag |
+| Monad | 8004 | `MONAD_PORT` env |
+| Sophia | 8005 | `SOPHIA_LISTEN_ADDR` env |
+| Cuirass | 8080 | `HTTP_ADDR` env |
+| Kanban App | 8080 | `PORT` env |
+| Dashboard | 8080 | `-listen` flag |
 
-> **Note:** Kanban and Dashboard both default to 8080. Override with `PORT=8090` or `-listen :8088`.
+> **Note:** Several services default to 8080. Docker Compose remaps them to 8080-8087. When running standalone, override with env vars or flags.
+
+**Docker Compose port assignments:**
+
+| Service | Docker Port | Health Check |
+|---------|------------|--------------|
+| Cuirass | 8080 | `localhost:8080/health` |
+| Busboy | 8081 (HTTP), 5555 (gRPC) | `localhost:8081/health` |
+| Timeguru | 8082 | `localhost:8082/health` |
+| Captain | 8083 | `localhost:8083/health` |
+| Architect | 8084 | `localhost:8084/health` |
+| Micromanager | 8085 | `localhost:8085/health` |
+| Monad | 8086 | `localhost:8086/health` |
+| Sophia | 8087 | `localhost:8087/health` |
 
 ---
 
@@ -283,7 +304,7 @@ sudo ./scripts/load-ebpf.sh
 | [`CLAUDE.md`](CLAUDE.md) | Development standards, architecture, coding guidelines |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 6-layer architecture deep dive |
 | [`references/timeline.md`](references/timeline.md) | Living roadmap (canonical source of truth) |
-| [`docs/HANDOFF_2026-02-08_S4.md`](docs/HANDOFF_2026-02-08_S4.md) | Latest session status |
+| [`docs/HANDOFF_2026-02-09_S8.md`](docs/HANDOFF_2026-02-09_S8.md) | Latest session status |
 | [`scripts/README.md`](scripts/README.md) | Deployment script documentation |
 
 ---

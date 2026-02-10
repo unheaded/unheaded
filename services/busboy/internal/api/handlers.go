@@ -22,6 +22,10 @@ type Server struct {
 	Busboy                 *busboy.Busboy
 	PendingApprovalTimeout time.Duration
 	AdminAPIKey            string // API key for admin endpoints
+
+	// Topic pub/sub state (initialized by InitTopics)
+	topicSeqs *topicSeqCounter
+	topicSubs *topicSubscribers
 }
 
 // NewServer creates a new API server
@@ -412,11 +416,13 @@ func (s *Server) ApproveAllMembers(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Health check endpoint
+// Health check endpoint — standard Kingdom format
 func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
 	health := map[string]interface{}{
-		"status":        "ok",
-		"timestamp":     time.Now(),
+		"service":       "busboy",
+		"status":        "healthy",
+		"version":       "0.1.0",
+		"timestamp":     time.Now().UTC(),
 		"rooms":         s.RoomManager.Count(),
 		"total_members": s.MemberManager.Count(),
 	}

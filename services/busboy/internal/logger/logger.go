@@ -58,7 +58,7 @@ func Initialize(cfg Config) {
 	logger := zerolog.New(output).
 		With().
 		Timestamp().
-		Str("service", "unheaded-chat").
+		Str("service", "busboy").
 		Logger()
 
 	if cfg.WithCaller {

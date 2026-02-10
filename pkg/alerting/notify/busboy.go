@@ -359,6 +359,20 @@ func (m *MockBusboyPublisher) Close() error {
 	return nil
 }
 
+// EventCount returns the number of recorded events (thread-safe).
+func (m *MockBusboyPublisher) EventCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.Events)
+}
+
+// BatchCount returns the number of recorded batches (thread-safe).
+func (m *MockBusboyPublisher) BatchCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.Batches)
+}
+
 // GetEvents returns a copy of recorded events as JSON for inspection.
 func (m *MockBusboyPublisher) GetEventsJSON() ([]byte, error) {
 	m.mu.Lock()

@@ -701,7 +701,10 @@ func (d *Daemon) registerHandlers(mux *http.ServeMux) {
 func (d *Daemon) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
+		"service":   "cuirass",
 		"status":    "healthy",
+		"version":   "0.1.0",
+		"timestamp": time.Now().UTC(),
 		"component": "cuirass",
 		"hollow":    "crystal_grotto",
 	})

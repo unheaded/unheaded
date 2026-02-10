@@ -108,6 +108,7 @@ func main() {
 
 	// Create API server
 	apiServer := api.NewServer(roomManager, memberManager, messageBusboy, config.PendingApprovalTimeout)
+	apiServer.InitTopics() // Enable topic pub/sub (Fae Chamber message bus)
 
 	// Setup rate limiter
 	rateLimiter := middleware.NewRateLimiter(
@@ -282,7 +283,11 @@ func setupHTTPRoutes(s *api.Server, adminEnabled bool, m *metrics.Metrics) *http
 		}
 	})
 
-	// API endpoints (with rate limiting)
+	// Topic pub/sub endpoints (Fae Chamber message bus)
+	mux.HandleFunc("/api/v1/topics/", s.TopicRouter)
+	mux.HandleFunc("/api/v1/topics", s.TopicRouter)
+
+	// Room-based API endpoints (legacy chat)
 	mux.HandleFunc("/api/v1/join", s.JoinRoom)
 	mux.HandleFunc("/api/v1/messages/send", s.SendMessage)
 	mux.HandleFunc("/api/v1/messages/delete", s.DeleteMessage)
