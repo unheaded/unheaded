@@ -663,7 +663,7 @@ func TestBusboyChannel(t *testing.T) {
 	// Wait a bit for async processing
 	time.Sleep(100 * time.Millisecond)
 
-	if len(mockPublisher.Events) == 0 {
+	if mockPublisher.EventCount() == 0 {
 		t.Error("Expected at least one event to be published")
 	}
 }

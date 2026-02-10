@@ -128,7 +128,12 @@ func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "healthy"})
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"service":   "captain",
+		"status":    "healthy",
+		"version":   "0.1.0",
+		"timestamp": time.Now().UTC(),
+	})
 }
 
 // readyHandler responds to readiness checks

@@ -198,7 +198,7 @@ services:
     container_name: unheaded-architect
     hostname: architect
     restart: unless-stopped
-    command: ["-addr", ":8084"]
+    command: ["-addr", ":8084", "-busboy", "busboy:8081"]
     depends_on:
       busboy:
         condition: service_healthy
@@ -242,7 +242,7 @@ services:
     container_name: unheaded-micromanager
     hostname: micromanager
     restart: unless-stopped
-    command: ["-port", "8085"]
+    command: ["-port", "8085", "-busboy", "busboy:8081"]
     depends_on:
       busboy:
         condition: service_healthy

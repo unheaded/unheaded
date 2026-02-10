@@ -70,7 +70,12 @@ func (h *HTTPHandler) Health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeSuccess(w, http.StatusOK, map[string]bool{"healthy": true})
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"service":   "architect",
+		"status":    "healthy",
+		"version":   "0.1.0",
+		"timestamp": time.Now().UTC(),
+	})
 }
 
 // ============================================================================

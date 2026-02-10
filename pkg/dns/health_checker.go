@@ -246,9 +246,7 @@ func (hc *EnhancedHealthChecker) checkEndpoint(svc *ServiceDefinition, epState *
 		ep.ResponseTime = (ep.ResponseTime*7 + responseTime*3) / 10
 	}
 
-	oldHealth := ep.Health
 	newHealth := hc.determineHealth(epState, err, config)
-	ep.Health = newHealth
 
 	// Update circuit breaker state
 	if svc.CircuitBreaker != nil && svc.CircuitBreaker.Enabled {
@@ -257,10 +255,9 @@ func (hc *EnhancedHealthChecker) checkEndpoint(svc *ServiceDefinition, epState *
 
 	hc.mu.Unlock()
 
-	// Notify service discovery of health change
-	if oldHealth != newHealth {
-		hc.sd.UpdateEndpointHealth(svc.Name, ep.ID, newHealth)
-	}
+	// Update health through service discovery (uses sd.mu exclusively for ep.Health).
+	// UpdateEndpointHealth no-ops when health hasn't changed.
+	hc.sd.UpdateEndpointHealth(svc.Name, ep.ID, newHealth)
 }
 
 // determineHealth determines the health state based on check results

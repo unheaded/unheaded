@@ -803,21 +803,46 @@ func TestBusboyChannel_PublishWithRetrySuccess(t *testing.T) {
 }
 
 func TestBusboyChannel_PublishWithRetryExhausted(t *testing.T) {
-	pub := &flakyPublisher{
-		failUntil: 100, // always fail
-		inner:     NewMockBusboyPublisher(),
+	// Use a publisher that blocks in PublishBatch to freeze the flushLoop,
+	// then deterministically overflow the queue to trigger publishWithRetry.
+	enteredCh := make(chan struct{}, 1)
+	blockCh := make(chan struct{})
+
+	pub := &blockingBatchPublisher{
+		enteredCh: enteredCh,
+		blockCh:   blockCh,
+		publishFn: func(_ context.Context, _ string, _ *BusboyEvent) error {
+			return fmt.Errorf("always fail")
+		},
 	}
+
 	ch := NewBusboyChannel(BusboyConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 		RetryCount:    2,
 		RetryDelay:    1 * time.Millisecond,
 		QueueSize:     1,
+		BatchSize:     1, // Force immediate flush attempt after reading 1 event
 	}, pub)
-	defer ch.Close()
+	defer func() {
+		close(blockCh) // unblock flushLoop before Close
+		ch.Close()
+	}()
 
-	// Fill the queue.
+	// Send #1: goes into queue buffer (size 1)
 	_ = ch.Send(context.Background(), []*alerting.Alert{newTestAlert()})
 
+	// Wait for flushLoop to read event #1 and block in PublishBatch
+	select {
+	case <-enteredCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for flushLoop to enter PublishBatch")
+	}
+
+	// FlushLoop is now blocked. Queue is empty after its read.
+	// Send #2: fills the queue buffer again
+	_ = ch.Send(context.Background(), []*alerting.Alert{newTestAlert()})
+
+	// Send #3: queue is full (flushLoop blocked, can't drain) → publishWithRetry → all fail
 	err := ch.Send(context.Background(), []*alerting.Alert{newTestAlert()})
 	if err == nil {
 		t.Fatal("expected error after exhausting retries")
@@ -958,6 +983,29 @@ func (f *flakyPublisher) PublishBatch(ctx context.Context, topic string, events 
 }
 
 func (f *flakyPublisher) Close() error { return nil }
+
+// blockingBatchPublisher blocks in PublishBatch until blockCh is closed,
+// signalling via enteredCh when it enters. Publish delegates to publishFn.
+type blockingBatchPublisher struct {
+	enteredCh chan struct{}
+	blockCh   chan struct{}
+	publishFn func(context.Context, string, *BusboyEvent) error
+}
+
+func (b *blockingBatchPublisher) Publish(ctx context.Context, topic string, event *BusboyEvent) error {
+	return b.publishFn(ctx, topic, event)
+}
+
+func (b *blockingBatchPublisher) PublishBatch(_ context.Context, _ string, _ []*BusboyEvent) error {
+	select {
+	case b.enteredCh <- struct{}{}:
+	default:
+	}
+	<-b.blockCh
+	return nil
+}
+
+func (b *blockingBatchPublisher) Close() error { return nil }
 
 // ---------------------------------------------------------------------------
 // 6. Email notifier

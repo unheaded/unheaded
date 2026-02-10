@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -60,11 +61,13 @@ type ErrorResponse struct {
 	Code    int    `json:"code"`
 }
 
-// Health checks service health
+// Health checks service health — standard Kingdom format
 func (a *API) Health(w http.ResponseWriter, r *http.Request) {
-	httputil.WriteJSON(w, http.StatusOK, map[string]string{
-		"status":  "healthy",
-		"service": "micromanager",
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"service":   "micromanager",
+		"status":    "healthy",
+		"version":   "1.0.0",
+		"timestamp": time.Now().UTC(),
 	})
 }
 

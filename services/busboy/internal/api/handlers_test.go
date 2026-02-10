@@ -999,8 +999,14 @@ func TestHealth_Success(t *testing.T) {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	if resp["status"] != "ok" {
-		t.Errorf("status = %v, want 'ok'", resp["status"])
+	if resp["status"] != "healthy" {
+		t.Errorf("status = %v, want 'healthy'", resp["status"])
+	}
+	if resp["service"] != "busboy" {
+		t.Errorf("service = %v, want 'busboy'", resp["service"])
+	}
+	if resp["version"] != "0.1.0" {
+		t.Errorf("version = %v, want '0.1.0'", resp["version"])
 	}
 	if resp["rooms"].(float64) != 2 {
 		t.Errorf("rooms = %v, want 2", resp["rooms"])

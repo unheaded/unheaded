@@ -1,8 +1,8 @@
 # Unheaded
 
-**Orchestration platform wrote with Claude AI**
+**Orchestration platform written with Claude AI**
 
-Unheaded is a configuration management automation platform that delivers the complete "suit of armor" for modern SaaS applications. You bring your application ("the head"), it provide everything else.
+Unheaded is a configuration management automation platform that delivers the complete "suit of armor" for modern SaaS applications. You bring your application ("the head"), it provides everything else.
 
 ## What is Unheaded?
 

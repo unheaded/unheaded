@@ -75,11 +75,12 @@ type UpdateMilestoneRequest struct {
 	Status   string `json:"status"`
 }
 
-// HealthResponse represents health check response
+// HealthResponse represents health check response (standard Kingdom format)
 type HealthResponse struct {
-	Status  string `json:"status"`
-	Service string `json:"service"`
-	Version string `json:"version"`
+	Service   string    `json:"service"`
+	Status    string    `json:"status"`
+	Version   string    `json:"version"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // KanbanTask represents a task in kanban format for the frontend
@@ -485,9 +486,10 @@ func (h *Handler) HandleUpdateMilestone(w http.ResponseWriter, r *http.Request, 
 // HandleHealth handles GET /health
 func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, HealthResponse{
-		Status:  "healthy",
-		Service: "timeguru",
-		Version: "1.0.0",
+		Service:   "timeguru",
+		Status:    "healthy",
+		Version:   "1.0.0",
+		Timestamp: time.Now().UTC(),
 	})
 }
 

@@ -26,10 +26,17 @@ func TestHTTPHandler_Health_Success(t *testing.T) {
 		t.Errorf("status = %d, want %d", status, http.StatusOK)
 	}
 
-	var resp httputil.Response
+	// Health endpoint returns standard Kingdom format (not httputil.Response envelope)
+	var resp map[string]interface{}
 	json.NewDecoder(rr.Body).Decode(&resp)
-	if healthy, ok := resp.Data.(map[string]interface{})["healthy"]; !ok || !healthy.(bool) {
-		t.Errorf("healthy field missing or false")
+	if resp["service"] != "architect" {
+		t.Errorf("service = %v, want 'architect'", resp["service"])
+	}
+	if resp["status"] != "healthy" {
+		t.Errorf("status = %v, want 'healthy'", resp["status"])
+	}
+	if resp["version"] != "0.1.0" {
+		t.Errorf("version = %v, want '0.1.0'", resp["version"])
 	}
 }
 
@@ -348,10 +355,11 @@ func TestHTTPHandler_SuccessResponse_HasTimestamp(t *testing.T) {
 
 	handler.Health(rr, req)
 
-	var resp httputil.Response
+	// Health endpoint returns standard Kingdom format with top-level timestamp
+	var resp map[string]interface{}
 	json.NewDecoder(rr.Body).Decode(&resp)
 
-	if resp.Meta == nil || resp.Meta.Timestamp.IsZero() {
+	if _, ok := resp["timestamp"]; !ok {
 		t.Errorf("timestamp not set")
 	}
 }
