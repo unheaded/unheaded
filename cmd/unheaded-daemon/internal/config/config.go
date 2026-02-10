@@ -157,6 +157,11 @@ type DataIsolationConfig struct {
 	// Audit logging for all data access
 	AuditEnabled bool   `json:"audit_enabled"`
 	AuditPath    string `json:"audit_path"`
+
+	// PII Containment — GDPR/ePrivacy compliance
+	// "PII is radioactive." — hnbad (https://news.ycombinator.com/user?id=hnbad)
+	PIIContainmentEnabled bool   `json:"pii_containment_enabled"`
+	PIIMode               string `json:"pii_mode"` // off, eu, strict
 }
 
 // MetricsConfig holds metrics/observability settings
@@ -357,6 +362,12 @@ func LoadFromEnv() *Config {
 		cfg.EBPF.Enabled = false
 	}
 
+	// PII containment
+	if v := os.Getenv("UNHEADED_PII_MODE"); v != "" {
+		cfg.Security.DataIsolation.PIIContainmentEnabled = v != "off"
+		cfg.Security.DataIsolation.PIIMode = v
+	}
+
 	return cfg
 }
 
@@ -391,6 +402,14 @@ func (c *Config) Validate() error {
 	validFormats := map[string]bool{"json": true, "text": true}
 	if !validFormats[c.Logging.Format] {
 		return fmt.Errorf("%w: invalid log format %q", ErrInvalidConfig, c.Logging.Format)
+	}
+
+	// Validate PII mode if containment is enabled
+	if c.Security.DataIsolation.PIIContainmentEnabled {
+		validPIIModes := map[string]bool{"eu": true, "strict": true}
+		if !validPIIModes[c.Security.DataIsolation.PIIMode] {
+			return fmt.Errorf("%w: invalid pii_mode %q (must be eu or strict)", ErrInvalidConfig, c.Security.DataIsolation.PIIMode)
+		}
 	}
 
 	return nil

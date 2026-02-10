@@ -10,9 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/httputil"
+	tsync "unheaded/services/timeguru/internal/sync"
 	"unheaded/services/timeguru/internal/timeline"
 )
 
@@ -44,7 +46,8 @@ type Store interface {
 
 // Handler provides HTTP handlers for the timeguru API
 type Handler struct {
-	store Store
+	store  Store
+	syncer *tsync.Syncer // optional file syncer, nil if not configured
 }
 
 // NewHandler creates a new Handler with defensive validation
@@ -53,6 +56,11 @@ func NewHandler(store Store) *Handler {
 		panic("store cannot be nil")
 	}
 	return &Handler{store: store}
+}
+
+// SetSyncer attaches a file syncer for auto-sync on timeline changes.
+func (h *Handler) SetSyncer(s *tsync.Syncer) {
+	h.syncer = s
 }
 
 // ============================================================================
@@ -477,6 +485,9 @@ func (h *Handler) HandleUpdateMilestone(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	// Auto-sync to files after milestone update
+	h.AutoSync(tl)
+
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"milestone": milestone,
 		"message":   "milestone updated successfully",
@@ -553,6 +564,8 @@ func (h *Handler) HandleGetTimelineWithFormat(w http.ResponseWriter, r *http.Req
 		switch {
 		case strings.Contains(accept, "application/yaml"), strings.Contains(accept, "text/yaml"):
 			format = "yaml"
+		case strings.Contains(accept, "application/toml"), strings.Contains(accept, "text/toml"):
+			format = "toml"
 		case strings.Contains(accept, "text/markdown"):
 			format = "markdown"
 		default:
@@ -563,11 +576,134 @@ func (h *Handler) HandleGetTimelineWithFormat(w http.ResponseWriter, r *http.Req
 	switch strings.ToLower(format) {
 	case "yaml", "yml":
 		h.writeYAML(w, http.StatusOK, TimelineResponse{Timeline: tl})
+	case "toml":
+		h.writeTOML(w, http.StatusOK, tl)
 	case "markdown", "md":
 		h.writeMarkdown(w, http.StatusOK, tl)
 	default:
 		h.writeJSON(w, http.StatusOK, TimelineResponse{Timeline: tl})
 	}
+}
+
+// ============================================================================
+// SYNC & IMPORT ENDPOINTS
+// ============================================================================
+
+// SyncResponse represents the result of a sync operation
+type SyncResponse struct {
+	FilesWritten []string `json:"files_written"`
+	Errors       []string `json:"errors,omitempty"`
+}
+
+// HandleSync handles POST /api/v1/timeline/sync - triggers file sync to all formats
+func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
+	if h.syncer == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "SYNC_NOT_CONFIGURED",
+			"file sync is not configured (no output directory)", nil)
+		return
+	}
+
+	ctx := r.Context()
+	tl, err := h.store.GetTimeline(ctx)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			h.writeError(w, http.StatusNotFound, "NOT_FOUND", "timeline not found", err)
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to retrieve timeline", err)
+		return
+	}
+
+	result := h.syncer.Sync(tl)
+	resp := SyncResponse{
+		FilesWritten: result.FilesWritten,
+	}
+	for _, e := range result.Errors {
+		resp.Errors = append(resp.Errors, e.Error())
+	}
+
+	if len(result.Errors) > 0 && len(result.FilesWritten) == 0 {
+		h.writeJSON(w, http.StatusInternalServerError, resp)
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, resp)
+}
+
+// HandleImport handles POST /api/v1/timeline/import - imports timeline from JSON/YAML/TOML body
+func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
+	// Determine format from query param or Content-Type
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		ct := r.Header.Get("Content-Type")
+		switch {
+		case strings.Contains(ct, "application/json"):
+			format = "json"
+		case strings.Contains(ct, "application/yaml"), strings.Contains(ct, "text/yaml"):
+			format = "yaml"
+		case strings.Contains(ct, "application/toml"), strings.Contains(ct, "text/toml"):
+			format = "toml"
+		default:
+			format = "json"
+		}
+	}
+
+	f, err := tsync.DetectFormat("dummy." + format)
+	if err != nil || f == tsync.FormatMarkdown {
+		h.writeError(w, http.StatusBadRequest, "INVALID_FORMAT",
+			fmt.Sprintf("unsupported import format %q (use json, yaml, or toml)", format), nil)
+		return
+	}
+
+	// SECURITY: limit body to 10MB
+	body, err := io.ReadAll(io.LimitReader(r.Body, 10*1024*1024))
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "READ_ERROR", "failed to read request body", err)
+		return
+	}
+	defer r.Body.Close()
+
+	tl, err := tsync.Decode(body, f)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "DECODE_ERROR",
+			fmt.Sprintf("failed to decode %s: %s", format, err.Error()), nil)
+		return
+	}
+
+	// Update last_updated timestamp
+	tl.LastUpdated = time.Now().UTC()
+
+	ctx := r.Context()
+	if err := h.store.SaveTimeline(ctx, tl); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "SAVE_ERROR", "failed to save imported timeline", err)
+		return
+	}
+
+	// Auto-sync to files if syncer is configured
+	if h.syncer != nil {
+		go func() {
+			result := h.syncer.Sync(tl)
+			tsync.LogSyncResult(result)
+		}()
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":    "timeline imported successfully",
+		"version":    tl.Version,
+		"phases":     len(tl.Phases),
+		"milestones": len(tl.Milestones),
+	})
+}
+
+// AutoSync runs a background sync if a syncer is configured. Fire-and-forget.
+func (h *Handler) AutoSync(tl *timeline.Timeline) {
+	if h.syncer == nil || tl == nil {
+		return
+	}
+	go func() {
+		result := h.syncer.Sync(tl)
+		tsync.LogSyncResult(result)
+	}()
 }
 
 // ============================================================================
@@ -582,6 +718,17 @@ func (h *Handler) writeYAML(w http.ResponseWriter, status int, data interface{})
 	encoder := yaml.NewEncoder(w)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(data); err != nil {
+		_ = err // Headers already sent
+	}
+}
+
+// writeTOML writes TOML response
+func (h *Handler) writeTOML(w http.ResponseWriter, status int, tl *timeline.Timeline) {
+	w.Header().Set("Content-Type", "application/toml")
+	w.WriteHeader(status)
+
+	encoder := toml.NewEncoder(w)
+	if err := encoder.Encode(tl); err != nil {
 		_ = err // Headers already sent
 	}
 }
