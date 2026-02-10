@@ -17,6 +17,7 @@ import (
 	"unheaded/services/timeguru/internal/api"
 	"unheaded/services/timeguru/internal/parser"
 	"unheaded/services/timeguru/internal/storage"
+	tsync "unheaded/services/timeguru/internal/sync"
 )
 
 const (
@@ -36,6 +37,7 @@ type Config struct {
 	BusboyAddr   string
 	DBPath       string
 	TimelinePath string
+	SyncDir      string // directory for synced timeline files (JSON/TOML/YAML/MD)
 }
 
 func main() {
@@ -52,6 +54,7 @@ func main() {
 	log.Printf("[timeguru]   Busboy: %s", config.BusboyAddr)
 	log.Printf("[timeguru]   Database: %s", config.DBPath)
 	log.Printf("[timeguru]   Timeline: %s", config.TimelinePath)
+	log.Printf("[timeguru]   SyncDir: %s", config.SyncDir)
 
 	// Initialize storage
 	store, err := storage.NewStore(config.DBPath)
@@ -86,15 +89,36 @@ func main() {
 	// Initialize HTTP handler
 	handler := api.NewHandler(store)
 
+	// Initialize file syncer if sync directory is configured
+	if config.SyncDir != "" {
+		syncer, err := tsync.NewSyncer(config.SyncDir)
+		if err != nil {
+			log.Printf("[timeguru] WARNING: sync setup failed: %v", err)
+		} else {
+			handler.SetSyncer(syncer)
+			log.Printf("[timeguru] File sync enabled → %s (JSON/TOML/YAML/MD)", config.SyncDir)
+
+			// Initial sync from current timeline state
+			if tl, err := store.GetTimeline(context.Background()); err == nil {
+				result := syncer.Sync(tl)
+				tsync.LogSyncResult(result)
+			}
+		}
+	}
+
 	// Setup HTTP router with all endpoints
 	mux := http.NewServeMux()
 
 	// Health & metrics
 	mux.HandleFunc("/health", handler.HandleHealth)
 
-	// Timeline endpoints (multiple formats)
+	// Timeline endpoints (multiple formats: JSON, YAML, TOML, Markdown)
 	mux.HandleFunc("/timeline", handler.HandleGetTimelineWithFormat)
 	mux.HandleFunc("/api/v1/timeline", handler.HandleGetTimelineWithFormat)
+
+	// Sync & import endpoints
+	mux.HandleFunc("/api/v1/timeline/sync", handler.HandleSync)
+	mux.HandleFunc("/api/v1/timeline/import", handler.HandleImport)
 
 	// Kanban tasks endpoint - transforms timeline data for kanban frontend
 	mux.HandleFunc("/api/v1/timeline/tasks", handler.HandleGetTasks)
@@ -125,21 +149,23 @@ func main() {
 	go func() {
 		log.Printf("[timeguru] HTTP server listening on :%s", config.Port)
 		log.Println("[timeguru] Endpoints available:")
-		log.Println("[timeguru]   GET  /health                  - Health check")
-		log.Println("[timeguru]   GET  /timeline                - Timeline (JSON/YAML/MD)")
-		log.Println("[timeguru]   GET  /milestones              - All milestones")
-		log.Println("[timeguru]   POST /milestones/:id/update   - Update milestone")
-		log.Println("[timeguru]   GET  /api/v1/timeline/tasks   - Kanban tasks")
-		log.Println("[timeguru]   GET  /api/v1/timeline/stream  - SSE real-time updates")
+		log.Println("[timeguru]   GET  /health                   - Health check")
+		log.Println("[timeguru]   GET  /timeline?format=         - Timeline (json/yaml/toml/md)")
+		log.Println("[timeguru]   GET  /milestones               - All milestones")
+		log.Println("[timeguru]   POST /milestones/:id/update    - Update milestone")
+		log.Println("[timeguru]   POST /api/v1/timeline/sync     - Sync to JSON/TOML/YAML/MD files")
+		log.Println("[timeguru]   POST /api/v1/timeline/import   - Import from JSON/YAML/TOML")
+		log.Println("[timeguru]   GET  /api/v1/timeline/tasks    - Kanban tasks")
+		log.Println("[timeguru]   GET  /api/v1/timeline/stream   - SSE real-time updates")
 		log.Println("[timeguru] ═══════════════════════════════════════════════")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[timeguru] HTTP server failed: %v", err)
 		}
 	}()
 
-	// Start file watcher for timeline.md auto-reload
+	// Start file watcher for timeline.md auto-reload + sync
 	if config.TimelinePath != "" {
-		go watchTimelineFile(ctx, config.TimelinePath, store, busboy)
+		go watchTimelineFile(ctx, config.TimelinePath, store, busboy, handler)
 	}
 
 	// Start busboy message listener if connected
@@ -172,6 +198,7 @@ func loadConfig() Config {
 		BusboyAddr:   getEnv("BUSBOY_ADDR", defaultBusboyAddr),
 		DBPath:       getEnv("DB_PATH", defaultDBPath),
 		TimelinePath: getEnv("TIMELINE_PATH", defaultTimelinePath),
+		SyncDir:      os.Getenv("SYNC_DIR"), // empty = disabled
 	}
 
 	// Defensive: validate all paths
@@ -183,6 +210,11 @@ func loadConfig() Config {
 	}
 	if config.DBPath == "" {
 		config.DBPath = defaultDBPath
+	}
+
+	// Default sync dir to the directory containing timeline.md
+	if config.SyncDir == "" && config.TimelinePath != "" {
+		config.SyncDir = filepath.Dir(config.TimelinePath)
 	}
 
 	return config
@@ -221,8 +253,8 @@ func loadTimelineFromFile(filePath string, store *storage.Store) error {
 	return nil
 }
 
-// watchTimelineFile watches for changes to timeline.md and reloads
-func watchTimelineFile(ctx context.Context, filePath string, store *storage.Store, busboy *busboyClient.Client) {
+// watchTimelineFile watches for changes to timeline.md and reloads + syncs
+func watchTimelineFile(ctx context.Context, filePath string, store *storage.Store, busboy *busboyClient.Client, handler *api.Handler) {
 	watcher, err := parser.NewFileWatcher(filePath)
 	if err != nil {
 		log.Printf("[timeguru] File watcher setup failed: %v", err)
@@ -265,6 +297,9 @@ func watchTimelineFile(ctx context.Context, filePath string, store *storage.Stor
 
 				log.Printf("[timeguru] Timeline reloaded: %d phases, %d milestones",
 					len(tl.Phases), len(tl.Milestones))
+
+				// Auto-sync to all format mirrors (JSON/TOML/YAML/MD)
+				handler.AutoSync(tl)
 
 				// Publish update event to Busboy if connected
 				if busboy != nil {

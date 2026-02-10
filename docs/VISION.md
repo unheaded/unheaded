@@ -26,6 +26,7 @@ in a mock infrastructure environment.
 - Control plane with declarative config and drift detection.
 - Security baseline aligned to FEDRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, and GDPR.
 - Zero application data access via architectural isolation.
+- GDPR/ePrivacy PII containment: *"When GDPR and ePrivacy are in effect, PII is radioactive. You need containment, handling and disposal procedures, you need to allow users to inspect it at any time and if you accidentally expose anyone to it that's a major emergency incident."* — [hnbad](https://news.ycombinator.com/user?id=hnbad). Configurable per-deployment (`pii_mode: eu`) with containment, right-of-access, right-of-erasure, and breach alerting baked in from day one.
 - Real-time dashboard and the Kanban "Meta Moment" app running on the platform.
 
 ## How It Works

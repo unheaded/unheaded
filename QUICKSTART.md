@@ -94,7 +94,7 @@ docker compose --profile observability up -d
 # Quick health check across all services
 for port in 8080 8081 8082 8083 8084 8085 8086 8087; do
   printf "localhost:%-5s → " "$port"
-  curl -sf http://localhost:$port/health && echo "" || echo "UNREACHABLE"
+  curl -sf "http://localhost:$port/health" && echo "" || echo "UNREACHABLE"
 done
 ```
 
@@ -105,11 +105,100 @@ done
 
 ---
 
-## 5. Kanban E2E Smoke Test
+## 5. Topic Pub/Sub Smoke Test (Busboy)
+
+Busboy is the message bus. Verify topic subscribe/publish/messages work.
+
+> **Important:** Quote all URLs containing `?` when using zsh (e.g. `'http://...'`).
+
+```bash
+# Subscribe to a test topic
+curl -s -X POST 'http://localhost:8081/api/v1/topics/test.events/subscribe' \
+  -H 'Content-Type: application/json' \
+  -d '{"display_name":"smoke-tester"}'
+# → returns {"subscriber_id":"...","status":"subscribed",...}
+
+# Save the subscriber_id, then publish a message
+SID="<paste subscriber_id from above>"
+curl -s -X POST 'http://localhost:8081/api/v1/topics/test.events/publish' \
+  -H 'Content-Type: application/json' \
+  -d "{\"subscriber_id\":\"$SID\",\"payload\":{\"msg\":\"hello kingdom\"}}"
+# → returns {"status":"published","seq":1}
+
+# Read messages back
+curl -s 'http://localhost:8081/api/v1/topics/test.events/messages'
+# → returns array of messages with seq numbers
+
+# List all active topics
+curl -s 'http://localhost:8081/api/v1/topics'
+```
+
+**Success criteria:**
+- [ ] Subscribe returns subscriber_id
+- [ ] Publish succeeds (requires subscriber_id in payload)
+- [ ] Messages returns published messages with seq numbers
+- [ ] List topics shows active topics
+
+---
+
+## 6. Timeline Multi-Format Smoke Test (Timeguru)
+
+Timeguru serves the timeline in JSON, YAML, TOML, and Markdown via `?format=` query param.
+
+```bash
+# JSON (default)
+curl -s 'http://localhost:8082/timeline?format=json' | head -c 200
+echo
+
+# YAML
+curl -s 'http://localhost:8082/timeline?format=yaml' | head -c 200
+echo
+
+# TOML
+curl -s 'http://localhost:8082/timeline?format=toml' | head -c 200
+echo
+
+# Markdown
+curl -s 'http://localhost:8082/timeline?format=md' | head -c 200
+echo
+
+# Kanban tasks view
+curl -s 'http://localhost:8082/api/v1/timeline/tasks' | head -c 200
+echo
+```
+
+### 6a. Sync & Import Endpoints
+
+```bash
+# Sync current timeline to JSON/TOML/YAML/MD files in the sync directory
+curl -s -X POST 'http://localhost:8082/api/v1/timeline/sync'
+# → returns {"files_written":[...],"errors":[...]}
+# Note: timeline.md write may fail in Docker (mounted :ro) — this is correct
+
+# Import a timeline from JSON (round-trip test)
+curl -s 'http://localhost:8082/timeline?format=json' | \
+  curl -s -X POST 'http://localhost:8082/api/v1/timeline/import?format=json' \
+    -H 'Content-Type: application/json' -d @-
+# → returns {"message":"timeline imported successfully","version":"..."}
+
+# Import from TOML (round-trip test)
+curl -s 'http://localhost:8082/timeline?format=toml' | \
+  curl -s -X POST 'http://localhost:8082/api/v1/timeline/import?format=toml' \
+    -H 'Content-Type: application/toml' -d @-
+```
+
+**Success criteria:**
+- [ ] All 4 formats return valid, non-empty content
+- [ ] Sync writes 3+ files (MD may fail in Docker — expected)
+- [ ] Import round-trips without data loss (version/phases/milestones match)
+
+---
+
+## 7. Kanban E2E Smoke Test
 
 The Kanban app is the "meta moment" — Unheaded tracking its own development.
 
-### 5a. Start Kanban App (separate from Docker Compose)
+### 7a. Start Kanban App (separate from Docker Compose)
 
 ```bash
 # Kanban-app connects to Timeguru + Busboy
@@ -119,20 +208,20 @@ PORT=8090 TIMEGURU_ADDR=localhost:8082 BUSBOY_ADDR=localhost:5555 \
 
 Open browser: **http://localhost:8090**
 
-### 5b. API Smoke Test (curl)
+### 7b. API Smoke Test (curl)
 
 ```bash
 # Get timeline from Timeguru
-curl -s http://localhost:8082/api/v1/timeline | head -c 200
+curl -s 'http://localhost:8082/api/v1/timeline' | head -c 200
 echo
 
 # Get timeline as kanban cards
-curl -s http://localhost:8082/api/v1/timeline/tasks | head -c 200
+curl -s 'http://localhost:8082/api/v1/timeline/tasks' | head -c 200
 echo
 
 # Create a test task
-curl -s -X POST http://localhost:8090/api/v1/tasks \
-  -H "Content-Type: application/json" \
+curl -s -X POST 'http://localhost:8090/api/v1/tasks' \
+  -H 'Content-Type: application/json' \
   -d '{
     "id": "smoke-test-1",
     "title": "E2E Smoke Test Task",
@@ -142,17 +231,17 @@ curl -s -X POST http://localhost:8090/api/v1/tasks \
 echo
 
 # Move task to in-progress
-curl -s -X PUT http://localhost:8090/api/v1/tasks/smoke-test-1 \
-  -H "Content-Type: application/json" \
+curl -s -X PUT 'http://localhost:8090/api/v1/tasks/smoke-test-1' \
+  -H 'Content-Type: application/json' \
   -d '{"status": "in_progress"}'
 echo
 
 # Verify task exists
-curl -s http://localhost:8090/api/v1/tasks/smoke-test-1
+curl -s 'http://localhost:8090/api/v1/tasks/smoke-test-1'
 echo
 
 # Delete test task
-curl -s -X DELETE http://localhost:8090/api/v1/tasks/smoke-test-1
+curl -s -X DELETE 'http://localhost:8090/api/v1/tasks/smoke-test-1'
 echo
 ```
 
@@ -164,8 +253,6 @@ echo
 - [ ] Browser shows kanban board with task cards
 
 ---
-
-## 6. Dashboard Verification
 
 ```bash
 # Start dashboard-backend (separate terminal)
@@ -181,7 +268,7 @@ Open browser: **http://localhost:8088**
 
 ---
 
-## 7. Shut Down
+## 9. Shut Down
 
 ```bash
 # Stop Docker Compose services
@@ -193,24 +280,29 @@ docker compose down -v
 
 ---
 
-## 8. Running Without Docker
+## 10. Running Without Docker
 
 Each service can run standalone for development:
 
 ```bash
 # Terminal 1: Busboy (message bus — start first)
 go run ./services/busboy/cmd/busboy/...
+# Defaults: HTTP :8080, gRPC :9090
 
 # Terminal 2: Timeguru (needs Busboy)
-BUSBOY_ADDR=localhost:9090 go run ./services/timeguru/cmd/timeguru/...
+BUSBOY_ADDR=localhost:8080 go run ./services/timeguru/cmd/timeguru/...
+# Default: :8000
 
 # Terminal 3: Captain
-BUSBOY_ADDR=localhost:9090 go run ./services/captain/cmd/captain/...
+BUSBOY_ADDR=localhost:8080 HTTP_ADDR=:8001 go run ./services/captain/cmd/captain/...
 
 # Terminal 4: Kanban App (needs Timeguru + Busboy)
-TIMEGURU_ADDR=localhost:8000 BUSBOY_ADDR=localhost:9090 \
+TIMEGURU_ADDR=localhost:8000 BUSBOY_ADDR=localhost:8080 \
   go run ./cmd/kanban-app/...
 ```
+
+> **Note:** Standalone Busboy defaults HTTP to :8080 (not :8081 like Docker Compose).
+> Override with `--http-port 8081` to match Docker port assignments.
 
 Default ports when running standalone (without Docker):
 
@@ -245,7 +337,7 @@ Default ports when running standalone (without Docker):
 
 ---
 
-## 9. Production Deployment (Linux + LXD)
+## 11. Production Deployment (Linux + LXD)
 
 Production uses NixOS containers on LXD — **requires a Linux host**.
 
@@ -281,11 +373,11 @@ sudo ./scripts/load-ebpf.sh
 
 ---
 
-## 10. Next Steps
+## 12. Next Steps
 
 ### P0 — Ship Blockers
-- **Run the Kanban E2E smoke test** (Section 5 above) and validate all criteria pass
-- **Production LXD deployment** — requires Linux host with LXD (see Section 9)
+- **Run the smoke tests** (Sections 5-7 above) and validate all criteria pass
+- **Production LXD deployment** — requires Linux host with LXD (see Section 11)
 
 ### P1 — Important
 - Dashboard UI polish (responsive layout, Kingdom theming)
@@ -304,7 +396,7 @@ sudo ./scripts/load-ebpf.sh
 | [`CLAUDE.md`](CLAUDE.md) | Development standards, architecture, coding guidelines |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 6-layer architecture deep dive |
 | [`references/timeline.md`](references/timeline.md) | Living roadmap (canonical source of truth) |
-| [`docs/HANDOFF_2026-02-09_S8.md`](docs/HANDOFF_2026-02-09_S8.md) | Latest session status |
+| [`docs/HANDOFF_2026-02-09_S10.md`](docs/HANDOFF_2026-02-09_S10.md) | Latest session status |
 | [`scripts/README.md`](scripts/README.md) | Deployment script documentation |
 
 ---
