@@ -1,0 +1,14 @@
+[package]
+name = "ebpf-loader"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-only"
+description = "Userspace loader for Unheaded eBPF programs using aya"
+
+[dependencies]
+aya = "0.13"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+log = "0.4"
+env_logger = "0.11"
+ctrlc = "3"
