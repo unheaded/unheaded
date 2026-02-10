@@ -163,9 +163,9 @@ func TestDefaultHealthGateDefinition(t *testing.T) {
 func TestHealthGateSetEventCallback(t *testing.T) {
 	gate := NewHealthGate()
 
-	var receivedEvent *HealthGateEvent
+	eventCh := make(chan *HealthGateEvent, 1)
 	callback := func(event *HealthGateEvent) {
-		receivedEvent = event
+		eventCh <- event
 	}
 
 	gate.SetEventCallback(callback)
@@ -188,10 +188,13 @@ func TestHealthGateSetEventCallback(t *testing.T) {
 
 	gate.emitEvent(execution, "test_event", nil)
 
-	time.Sleep(50 * time.Millisecond)
-
-	if receivedEvent == nil {
-		t.Error("expected event to be received")
+	select {
+	case received := <-eventCh:
+		if received == nil {
+			t.Error("expected non-nil event")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for event callback")
 	}
 }
 

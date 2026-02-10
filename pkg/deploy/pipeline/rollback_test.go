@@ -330,9 +330,9 @@ func TestNewRollbackManager(t *testing.T) {
 func TestSetEventCallback(t *testing.T) {
 	manager := NewRollbackManager(nil, nil, nil, nil, nil)
 
-	var receivedEvent *RollbackEvent
+	eventCh := make(chan *RollbackEvent, 1)
 	callback := func(event *RollbackEvent) {
-		receivedEvent = event
+		eventCh <- event
 	}
 
 	manager.SetEventCallback(callback)
@@ -347,19 +347,19 @@ func TestSetEventCallback(t *testing.T) {
 
 	manager.emitEvent(rollback, "test_event", nil)
 
-	// Wait a bit for goroutine
-	time.Sleep(50 * time.Millisecond)
-
-	if receivedEvent == nil {
-		t.Fatal("expected event to be received")
-	}
-
-	if receivedEvent.Type != "test_event" {
-		t.Errorf("expected event type 'test_event', got %q", receivedEvent.Type)
-	}
-
-	if receivedEvent.RollbackID != "test-rollback" {
-		t.Errorf("expected rollback ID 'test-rollback', got %q", receivedEvent.RollbackID)
+	select {
+	case receivedEvent := <-eventCh:
+		if receivedEvent == nil {
+			t.Fatal("expected non-nil event")
+		}
+		if receivedEvent.Type != "test_event" {
+			t.Errorf("expected event type 'test_event', got %q", receivedEvent.Type)
+		}
+		if receivedEvent.RollbackID != "test-rollback" {
+			t.Errorf("expected rollback ID 'test-rollback', got %q", receivedEvent.RollbackID)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for event callback")
 	}
 }
 
@@ -466,8 +466,12 @@ func TestInitiateRollback(t *testing.T) {
 			t.Errorf("expected trigger 'manual', got %q", rollback.Trigger)
 		}
 
-		if rollback.State != RollbackStatePending {
-			t.Errorf("expected state 'pending', got %q", rollback.State)
+		// Read state under lock — executeRollback goroutine may have progressed it
+		manager.mu.RLock()
+		currentState := rollback.State
+		manager.mu.RUnlock()
+		if currentState != RollbackStatePending && currentState != RollbackStateExecuting {
+			t.Errorf("expected state 'pending' or 'executing', got %q", currentState)
 		}
 
 		if rollback.InitiatedBy != "test-user" {
