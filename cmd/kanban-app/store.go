@@ -21,6 +21,7 @@ var (
 	ErrStoreNilTask     = errors.New("task cannot be nil")
 	ErrStoreEmptyTaskID = errors.New("task ID cannot be empty")
 	ErrStoreNotFound    = errors.New("task not found in store")
+	ErrStoreClosed      = errors.New("store is closed")
 )
 
 // ============================================================================
@@ -31,8 +32,17 @@ var (
 // Acts as the "local memory" in the L1 (SQLite) / L2 (Busboy) hybrid model.
 // Mirrors the pattern from services/timeguru/internal/storage/storage.go.
 type Store struct {
-	db *sql.DB
-	mu sync.RWMutex
+	db     *sql.DB
+	mu     sync.RWMutex
+	closed bool
+}
+
+// checkOpen returns ErrStoreClosed if the store has been closed.
+func (s *Store) checkOpen() error {
+	if s.db == nil || s.closed {
+		return ErrStoreClosed
+	}
+	return nil
 }
 
 // NewStore creates a new Store with defensive validation.
@@ -118,6 +128,9 @@ func (s *Store) initSchema() error {
 func (s *Store) SeedIfEmpty() (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.checkOpen(); err != nil {
+		return 0, err
+	}
 
 	var count int
 	if err := s.db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&count); err != nil {
@@ -184,6 +197,9 @@ func (s *Store) SeedIfEmpty() (int, error) {
 func (s *Store) GetAllTasks() ([]Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if err := s.checkOpen(); err != nil {
+		return nil, err
+	}
 
 	rows, err := s.db.Query(`
 		SELECT id, title, description, status, type, owner, progress, created_at, updated_at
@@ -214,6 +230,9 @@ func (s *Store) GetTask(id string) (*Task, error) {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if err := s.checkOpen(); err != nil {
+		return nil, err
+	}
 
 	row := s.db.QueryRow(`
 		SELECT id, title, description, status, type, owner, progress, created_at, updated_at
@@ -242,6 +261,9 @@ func (s *Store) SaveTask(task *Task) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
 
 	now := time.Now().Format(time.RFC3339)
 	createdAt := task.CreatedAt.Format(time.RFC3339)
@@ -277,6 +299,9 @@ func (s *Store) DeleteTask(id string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
 
 	result, err := s.db.Exec("DELETE FROM tasks WHERE id = ?", id)
 	if err != nil {
@@ -298,18 +323,26 @@ func (s *Store) DeleteTask(id string) error {
 func (s *Store) TaskCount() (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if err := s.checkOpen(); err != nil {
+		return 0, err
+	}
 
 	var count int
 	err := s.db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&count)
 	return count, err
 }
 
-// Close closes the database connection.
+// Close closes the database connection and marks the store as closed.
+// Subsequent calls to any Store method will return ErrStoreClosed.
 func (s *Store) Close() error {
-	if s.db != nil {
-		return s.db.Close()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed || s.db == nil {
+		return nil
 	}
-	return nil
+	s.closed = true
+	return s.db.Close()
 }
 
 // ============================================================================
