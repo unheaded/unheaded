@@ -203,6 +203,37 @@
     border: 1px solid var(--priority-p0);
 }
 
+.type-badge.type-infra {
+    background: rgba(0, 200, 140, 0.2);
+    color: #00c88c;
+    border: 1px solid #00c88c;
+}
+
+.type-badge.type-vision {
+    background: rgba(160, 80, 255, 0.2);
+    color: #a050ff;
+    border: 1px solid #a050ff;
+}
+
+.type-badge.type-wishlist {
+    background: rgba(255, 120, 200, 0.2);
+    color: #ff78c8;
+    border: 1px solid #ff78c8;
+}
+
+.type-badge.type-tech-debt {
+    background: rgba(255, 180, 0, 0.2);
+    color: #ffb400;
+    border: 1px solid #ffb400;
+}
+
+.type-badge.type-epic {
+    background: rgba(255, 215, 0, 0.15);
+    color: var(--kingdom-gold);
+    border: 1px solid var(--kingdom-gold);
+    font-weight: 800;
+}
+
 /* ============================================
    Card Description (Preview)
    ============================================ */
