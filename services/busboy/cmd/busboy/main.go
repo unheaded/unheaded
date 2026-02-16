@@ -166,8 +166,14 @@ func main() {
 		}
 	}()
 
-	// Create and start gRPC streaming service
+	// Create and start gRPC streaming services
 	chatService := grpcservice.NewChatService(roomManager, memberManager, messageBusboy)
+
+	// Create shared topic sequence counter (used by both HTTP and gRPC)
+	topicSeqCounter := grpcservice.NewTopicSequenceCounter()
+
+	// Create TopicStream gRPC service - THE COSMIC WHEEL
+	topicService := grpcservice.NewTopicServiceWithCounter(roomManager, memberManager, messageBusboy, topicSeqCounter)
 
 	go func() {
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GRPCPort))
@@ -186,13 +192,14 @@ func main() {
 			grpcServer = grpc.NewServer()
 		}
 
-		// Register gRPC service implementation
+		// Register gRPC service implementations
 		chatpb.RegisterChatStreamServer(grpcServer, chatService)
+		chatpb.RegisterTopicStreamServer(grpcServer, topicService)
 
 		log.Info().
 			Int("port", config.GRPCPort).
 			Bool("tls", config.EnableTLS).
-			Msg("starting_grpc_server")
+			Msg("starting_grpc_server (ChatStream + TopicStream)")
 
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatal().Err(err).Msg("grpc_server_error")

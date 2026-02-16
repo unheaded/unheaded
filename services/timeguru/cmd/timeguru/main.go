@@ -22,7 +22,7 @@ import (
 
 const (
 	defaultPort         = "8000"
-	defaultBusboyAddr   = "localhost:9090"
+	defaultBusboyAddr   = "localhost:8080"  // HTTP control plane (not gRPC 9090)
 	defaultDBPath       = "/opt/unheaded/data/timeguru.db"
 	defaultTimelinePath = "/opt/unheaded/data/timeline.md"
 	shutdownTimeout     = 30 * time.Second
@@ -33,11 +33,12 @@ const (
 
 // Config holds service configuration
 type Config struct {
-	Port         string
-	BusboyAddr   string
-	DBPath       string
-	TimelinePath string
-	SyncDir      string // directory for synced timeline files (JSON/TOML/YAML/MD)
+	Port           string
+	BusboyAddr     string // HTTP control plane (subscribe, publish)
+	BusboyGRPCAddr string // gRPC data plane (streaming) — preferred for perf
+	DBPath         string
+	TimelinePath   string
+	SyncDir        string // directory for synced timeline files (JSON/TOML/YAML/MD)
 }
 
 func main() {
@@ -51,7 +52,8 @@ func main() {
 
 	log.Printf("[timeguru] Configuration:")
 	log.Printf("[timeguru]   Port: %s", config.Port)
-	log.Printf("[timeguru]   Busboy: %s", config.BusboyAddr)
+	log.Printf("[timeguru]   Busboy HTTP: %s", config.BusboyAddr)
+	log.Printf("[timeguru]   Busboy gRPC: %s", config.BusboyGRPCAddr)
 	log.Printf("[timeguru]   Database: %s", config.DBPath)
 	log.Printf("[timeguru]   Timeline: %s", config.TimelinePath)
 	log.Printf("[timeguru]   SyncDir: %s", config.SyncDir)
@@ -76,7 +78,7 @@ func main() {
 
 	// Initialize busboy client
 	var busboy *busboyClient.Client
-	busboy, err = initBusboy(config.BusboyAddr)
+	busboy, err = initBusboy(config.BusboyAddr, config.BusboyGRPCAddr)
 	if err != nil {
 		log.Printf("[timeguru] WARNING: Fae Chamber connection failed: %v", err)
 		log.Println("[timeguru] Continuing without Busboy integration")
@@ -194,11 +196,12 @@ func main() {
 // loadConfig loads configuration from environment variables with defensive defaults
 func loadConfig() Config {
 	config := Config{
-		Port:         getEnv("PORT", defaultPort),
-		BusboyAddr:   getEnv("BUSBOY_ADDR", defaultBusboyAddr),
-		DBPath:       getEnv("DB_PATH", defaultDBPath),
-		TimelinePath: getEnv("TIMELINE_PATH", defaultTimelinePath),
-		SyncDir:      os.Getenv("SYNC_DIR"), // empty = disabled
+		Port:           getEnv("PORT", defaultPort),
+		BusboyAddr:     getEnv("BUSBOY_ADDR", defaultBusboyAddr),
+		BusboyGRPCAddr: getEnv("BUSBOY_GRPC_ADDR", "localhost:9090"),
+		DBPath:         getEnv("DB_PATH", defaultDBPath),
+		TimelinePath:   getEnv("TIMELINE_PATH", defaultTimelinePath),
+		SyncDir:        os.Getenv("SYNC_DIR"), // empty = disabled
 	}
 
 	// Defensive: validate all paths
@@ -335,11 +338,23 @@ func handleMilestoneRoutes(handler *api.Handler) http.HandlerFunc {
 	}
 }
 
-// initBusboy initializes busboy client connection
-func initBusboy(addr string) (*busboyClient.Client, error) {
-	client, err := busboyClient.NewClient(addr)
-	if err != nil {
-		return nil, fmt.Errorf("create client: %w", err)
+// initBusboy initializes busboy client connection with dual transport
+// HTTP for control plane (subscribe/publish), gRPC for data plane (streaming)
+func initBusboy(httpAddr, grpcAddr string) (*busboyClient.Client, error) {
+	var client *busboyClient.Client
+	var err error
+	if grpcAddr != "" {
+		client, err = busboyClient.NewClientWithGRPC(httpAddr, grpcAddr)
+		if err != nil {
+			return nil, fmt.Errorf("create dual-transport client: %w", err)
+		}
+		log.Printf("[timeguru] Busboy client: HTTP=%s gRPC=%s (dual transport)", httpAddr, grpcAddr)
+	} else {
+		client, err = busboyClient.NewClient(httpAddr)
+		if err != nil {
+			return nil, fmt.Errorf("create HTTP client: %w", err)
+		}
+		log.Printf("[timeguru] Busboy client: HTTP=%s (HTTP-only)", httpAddr)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

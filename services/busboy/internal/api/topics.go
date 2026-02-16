@@ -348,7 +348,8 @@ func isTopicChar(c rune) bool {
 	return (c >= 'a' && c <= 'z') ||
 		(c >= 'A' && c <= 'Z') ||
 		(c >= '0' && c <= '9') ||
-		c == '.' || c == '-' || c == '_'
+		c == '.' || c == '-' || c == '_' ||
+		c == '*' || c == '#' // wildcard pattern chars for subscriptions
 }
 
 func ringbufferToTopicMessage(msg *ringbuffer.Message, topic string, seq int64) TopicMessage {

@@ -1,0 +1,34 @@
+version = "1.0.0"
+last_updated = 2026-02-16T03:43:20.568513-06:00
+status = "alpha"
+milestones = []
+
+[[phases]]
+  id = "phase-0"
+  name = "The Foundation Stone"
+  status = "completed"
+  progress = 0
+
+[[phases]]
+  id = "phase-1"
+  name = "The Alpha Ascension"
+  status = "in_progress"
+  progress = 25
+
+[[phases]]
+  id = "phase-2"
+  name = "The Beta Trials"
+  status = "completed"
+  progress = 80
+
+[[phases]]
+  id = "phase-3"
+  name = "The MVP Era (📋 PLANNED) (📋 PLANNED)"
+  status = "planned"
+  progress = 0
+
+[[phases]]
+  id = "phase-4"
+  name = "The Scaling Era"
+  status = "completed"
+  progress = 0

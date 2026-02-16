@@ -30,7 +30,7 @@ echo "Generating Go code from protobuf..."
 
 protoc --go_out=. --go_opt=paths=source_relative \
        --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-       chat.proto
+       chat.proto topic.proto
 
 echo "Done! Generated files:"
 ls -lh *.pb.go
