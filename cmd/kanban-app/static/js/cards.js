@@ -21,9 +21,14 @@ const Cards = (function() {
     // Task type to priority mapping
     const TYPE_PRIORITIES = {
         'milestone': 0,
+        'bug': 0,
+        'infra': 1,
         'feature': 1,
         'task': 2,
-        'bug': 0,
+        'tech-debt': 3,
+        'vision': 3,
+        'wishlist': 4,
+        'epic': 0,
         'default': 2
     };
 
