@@ -29,6 +29,63 @@
             </div>
         </header>
 
+        <!-- Sort & Filter Toolbar -->
+        <div class="board-toolbar" id="boardToolbar">
+            <div class="toolbar-left">
+                <div class="toolbar-group">
+                    <label class="toolbar-label">Sort</label>
+                    <select class="toolbar-select" id="sortSelect">
+                        <option value="priority">Priority</option>
+                        <option value="progress">Progress</option>
+                        <option value="type">Type</option>
+                        <option value="owner">Owner</option>
+                        <option value="updated">Recently Updated</option>
+                        <option value="created">Recently Created</option>
+                        <option value="title">Title (A-Z)</option>
+                    </select>
+                </div>
+                <div class="toolbar-group">
+                    <label class="toolbar-label">Type</label>
+                    <select class="toolbar-select" id="typeFilter">
+                        <option value="">All Types</option>
+                        <option value="milestone">Milestone</option>
+                        <option value="infra">Infra</option>
+                        <option value="feature">Feature</option>
+                        <option value="task">Task</option>
+                        <option value="bug">Bug</option>
+                        <option value="tech-debt">Tech Debt</option>
+                        <option value="vision">Vision</option>
+                        <option value="wishlist">Wishlist</option>
+                    </select>
+                </div>
+                <div class="toolbar-group">
+                    <label class="toolbar-label">Owner</label>
+                    <select class="toolbar-select" id="ownerFilter">
+                        <option value="">All Owners</option>
+                        <option value="Architect">Architect</option>
+                        <option value="Developer">Developer</option>
+                        <option value="Captain">Captain</option>
+                        <option value="Muck">Muck</option>
+                        <option value="Team">Team</option>
+                    </select>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <div class="toolbar-group">
+                    <input type="text" class="toolbar-search" id="searchInput"
+                           placeholder="Search cards..." autocomplete="off">
+                </div>
+                <button class="btn btn-ghost" id="clearFiltersBtn" title="Clear all filters">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    Clear
+                </button>
+                <span class="toolbar-count" id="taskCount">0 tasks</span>
+            </div>
+        </div>
+
         <!-- Main Board -->
         <main class="board-container">
             <div class="board" id="kanbanBoard">
@@ -106,8 +163,12 @@
                             <select id="taskType" name="type">
                                 <option value="task">Task</option>
                                 <option value="feature">Feature</option>
+                                <option value="infra">Infra</option>
                                 <option value="milestone">Milestone</option>
                                 <option value="bug">Bug</option>
+                                <option value="tech-debt">Tech Debt</option>
+                                <option value="vision">Vision</option>
+                                <option value="wishlist">Wishlist</option>
                             </select>
                         </div>
 

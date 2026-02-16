@@ -15,9 +15,11 @@ const Board = (function() {
         columns: ['backlog', 'in_progress', 'review', 'done'],
         isLoading: false,
         lastUpdate: null,
+        sortBy: 'priority',         // priority, progress, type, owner, updated, created, title
         filters: {
             priority: null,
             assignee: null,
+            type: null,
             search: ''
         }
     };
@@ -40,7 +42,77 @@ const Board = (function() {
         // Initialize drag and drop
         Cards.initDragDrop();
 
+        // Initialize toolbar controls
+        initToolbar();
+
         console.log('[Board] Initialized');
+    }
+
+    /**
+     * Initialize sort/filter toolbar event listeners
+     */
+    function initToolbar() {
+        const sortSelect = document.getElementById('sortSelect');
+        const typeFilter = document.getElementById('typeFilter');
+        const ownerFilter = document.getElementById('ownerFilter');
+        const searchInput = document.getElementById('searchInput');
+        const clearBtn = document.getElementById('clearFiltersBtn');
+
+        if (sortSelect) {
+            sortSelect.addEventListener('change', (e) => {
+                state.sortBy = e.target.value;
+                renderAllColumns();
+            });
+        }
+
+        if (typeFilter) {
+            typeFilter.addEventListener('change', (e) => {
+                state.filters.type = e.target.value || null;
+                renderAllColumns();
+                updateTaskCount();
+            });
+        }
+
+        if (ownerFilter) {
+            ownerFilter.addEventListener('change', (e) => {
+                state.filters.assignee = e.target.value || null;
+                renderAllColumns();
+                updateTaskCount();
+            });
+        }
+
+        if (searchInput) {
+            let debounceTimer;
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    state.filters.search = e.target.value;
+                    renderAllColumns();
+                    updateTaskCount();
+                }, 200);
+            });
+        }
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', clearFilters);
+        }
+    }
+
+    /**
+     * Update the visible task count in the toolbar
+     */
+    function updateTaskCount() {
+        const countEl = document.getElementById('taskCount');
+        if (!countEl) return;
+        let visible = 0;
+        let total = state.tasks.size;
+        state.tasks.forEach(task => {
+            const passes = applyFilters([task]);
+            if (passes.length > 0) visible++;
+        });
+        countEl.textContent = visible === total
+            ? `${total} tasks`
+            : `${visible} of ${total} tasks`;
     }
 
     /**
@@ -114,6 +186,7 @@ const Board = (function() {
         state.columns.forEach(status => {
             renderColumn(status);
         });
+        updateTaskCount();
     }
 
     /**
@@ -130,12 +203,27 @@ const Board = (function() {
         // Apply filters
         const filteredTasks = applyFilters(tasks);
 
-        // Sort tasks by priority (P0 first) then by creation date
+        // Sort tasks by selected sort option
         filteredTasks.sort((a, b) => {
-            if (a.priority !== b.priority) {
-                return a.priority - b.priority;
+            switch (state.sortBy) {
+                case 'priority':
+                    if (a.priority !== b.priority) return a.priority - b.priority;
+                    return new Date(b.created_at) - new Date(a.created_at);
+                case 'progress':
+                    return (b.progress || 0) - (a.progress || 0);
+                case 'type':
+                    return (a.type || '').localeCompare(b.type || '');
+                case 'owner':
+                    return (a.owner || a.assignee || '').localeCompare(b.owner || b.assignee || '');
+                case 'updated':
+                    return new Date(b.updated_at || 0) - new Date(a.updated_at || 0);
+                case 'created':
+                    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+                case 'title':
+                    return (a.title || '').localeCompare(b.title || '');
+                default:
+                    return a.priority - b.priority;
             }
-            return new Date(b.created_at) - new Date(a.created_at);
         });
 
         // Clear column
@@ -190,9 +278,17 @@ const Board = (function() {
                 return false;
             }
 
-            // Assignee filter
-            if (state.filters.assignee && task.assignee !== state.filters.assignee) {
+            // Type filter
+            if (state.filters.type && task.type !== state.filters.type) {
                 return false;
+            }
+
+            // Assignee/owner filter
+            if (state.filters.assignee) {
+                const owner = task.assignee || task.owner || '';
+                if (owner !== state.filters.assignee) {
+                    return false;
+                }
             }
 
             // Search filter
@@ -376,8 +472,20 @@ const Board = (function() {
     function clearFilters() {
         state.filters.priority = null;
         state.filters.assignee = null;
+        state.filters.type = null;
         state.filters.search = '';
+        state.sortBy = 'priority';
+        // Reset toolbar controls
+        const sortEl = document.getElementById('sortSelect');
+        const typeEl = document.getElementById('typeFilter');
+        const ownerEl = document.getElementById('ownerFilter');
+        const searchEl = document.getElementById('searchInput');
+        if (sortEl) sortEl.value = 'priority';
+        if (typeEl) typeEl.value = '';
+        if (ownerEl) ownerEl.value = '';
+        if (searchEl) searchEl.value = '';
         renderAllColumns();
+        updateTaskCount();
     }
 
     /**
