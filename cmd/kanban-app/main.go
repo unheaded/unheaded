@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -52,22 +53,27 @@ type Task struct {
 
 // Server holds the HTTP server and dependencies
 type Server struct {
-	config      Config
-	httpServer  *http.Server
-	tasks       []Task // DEPRECATED: Use taskManager instead
-	tasksMu     sync.RWMutex
-	sseClients  map[chan []byte]bool
-	sseMu       sync.RWMutex
-	taskManager *TaskManager // NEW: Busboy-integrated task management
+	config          Config
+	httpServer      *http.Server
+	tasks           []Task // DEPRECATED: Use taskManager instead
+	tasksMu         sync.RWMutex
+	sseClients      map[chan []byte]bool
+	sseMu           sync.RWMutex
+	taskManager     *TaskManager     // Busboy-integrated task management
+	timelineManager *TimelineManager // Standalone Timeguru HTTP polling fallback
 }
 
-// NewServer creates a new kanban server
+// NewServer creates a new kanban server with standalone timeline polling
 func NewServer(cfg Config) *Server {
 	s := &Server{
 		config:     cfg,
 		sseClients: make(map[chan []byte]bool),
-		tasks:      getInitialTasks(), // DEPRECATED: Fallback for backward compat
+		tasks:      getInitialTasks(), // Fallback if Timeguru unreachable
 	}
+	// Create standalone TimelineManager for direct Timeguru HTTP polling
+	s.timelineManager = NewTimelineManager(func(eventType string, data interface{}) {
+		s.broadcastUpdate(eventType, data)
+	})
 	return s
 }
 
@@ -226,9 +232,9 @@ func (s *Server) Start() error {
 
 	// Rate limiting (configurable)
 	if getEnv("RATE_LIMIT_ENABLED", "true") == "true" {
-		rateLimiter := NewRateLimiter(60, 10) // 60 req/min, burst 10
+		rateLimiter := NewRateLimiter(120, 30) // 120 req/min, burst 30 (page load is ~15 resources)
 		handler = rateLimitMiddleware(rateLimiter)(handler)
-		log.Info().Msg("Rate limiting enabled: 60 req/min, burst 10")
+		log.Info().Msg("Rate limiting enabled: 120 req/min, burst 30")
 	}
 
 	s.httpServer = &http.Server{
@@ -261,6 +267,80 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
 
+// getTimelineManager returns the active TimelineManager.
+// Prefers TaskManager's timeline (Busboy-backed) when available,
+// falls back to standalone HTTP-polling TimelineManager.
+func (s *Server) getTimelineManager() *TimelineManager {
+	if s.taskManager != nil {
+		return s.taskManager.timelineManager
+	}
+	return s.timelineManager
+}
+
+// fetchTimelineFromTimeguru fetches the timeline via HTTP from Timeguru
+func (s *Server) fetchTimelineFromTimeguru() error {
+	url := fmt.Sprintf("http://%s/timeline", s.config.TimeGuruAddr)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Errorf("fetch timeline: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("timeguru returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Timeline *Timeline `json:"timeline"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("decode timeline: %w", err)
+	}
+
+	if result.Timeline == nil {
+		return fmt.Errorf("timeguru returned nil timeline")
+	}
+
+	tm := s.getTimelineManager()
+	if tm == nil {
+		return fmt.Errorf("no timeline manager available")
+	}
+	return tm.UpdateTimeline(result.Timeline)
+}
+
+// pollTimeguru periodically fetches timeline from Timeguru via HTTP.
+// Used as fallback when Busboy is unavailable, or to seed initial data.
+func (s *Server) pollTimeguru(ctx context.Context, interval time.Duration) {
+	// Initial fetch
+	if err := s.fetchTimelineFromTimeguru(); err != nil {
+		log.Warn().Err(err).Str("addr", s.config.TimeGuruAddr).Msg("initial timeline fetch failed (will retry)")
+	} else {
+		tm := s.getTimelineManager()
+		var count int
+		if tm != nil {
+			count = len(tm.GetTimelineTasks())
+		}
+		log.Info().Int("tasks", count).Msg("loaded timeline from Timeguru via HTTP")
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := s.fetchTimelineFromTimeguru(); err != nil {
+				log.Warn().Err(err).Msg("timeline poll failed")
+			}
+		}
+	}
+}
+
 // loggingMiddleware logs HTTP requests
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -290,6 +370,14 @@ func (w *statusWriter) WriteHeader(status int) {
 	w.ResponseWriter.WriteHeader(status)
 }
 
+// Flush proxies to the underlying ResponseWriter if it supports http.Flusher.
+// Required for SSE (Server-Sent Events) and streaming responses.
+func (w *statusWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // handleTasks routes task operations (GET, POST, PUT, DELETE)
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -308,16 +396,25 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 
 // handleGetTasks returns all tasks
 func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
-	// Use TaskManager if available, otherwise fallback
 	var tasks interface{}
 	var count int
 
 	if s.taskManager != nil {
+		// Prefer Busboy-backed TaskManager
 		taskList := s.taskManager.GetAllTasks()
 		tasks = taskList
 		count = len(taskList)
-	} else {
-		// Fallback to old implementation
+	} else if tm := s.getTimelineManager(); tm != nil {
+		// Fallback: timeline tasks from direct Timeguru HTTP polling
+		timelineTasks := tm.GetTimelineTasks()
+		if len(timelineTasks) > 0 {
+			tasks = timelineTasks
+			count = len(timelineTasks)
+		}
+	}
+
+	// Last resort: hardcoded initial tasks
+	if tasks == nil {
 		s.tasksMu.RLock()
 		tasks = s.tasks
 		count = len(s.tasks)
@@ -696,18 +793,25 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		s.sseMu.Unlock()
 	}()
 
-	// Send initial tasks (prefer timeline tasks if available)
+	// Send initial tasks — prefer kanban cards (GetAllTasks) over timeline milestones
 	var initialData []byte
 	if s.taskManager != nil {
-		timelineTasks := s.taskManager.GetTimelineTasks()
-		if timelineTasks != nil && len(timelineTasks) > 0 {
-			initialData, _ = json.Marshal(timelineTasks)
-			log.Info().Int("count", len(timelineTasks)).Msg("SSE sending timeline tasks")
-		} else {
-			allTasks := s.taskManager.GetAllTasks()
+		// Busboy mode: send real kanban task cards
+		allTasks := s.taskManager.GetAllTasks()
+		if len(allTasks) > 0 {
 			initialData, _ = json.Marshal(allTasks)
+			log.Info().Int("count", len(allTasks)).Msg("SSE sending kanban tasks (Busboy)")
 		}
-	} else {
+	} else if tm := s.getTimelineManager(); tm != nil {
+		// Standalone mode: send timeline milestones as tasks
+		timelineTasks := tm.GetTimelineTasks()
+		if len(timelineTasks) > 0 {
+			initialData, _ = json.Marshal(timelineTasks)
+			log.Info().Int("count", len(timelineTasks)).Msg("SSE sending timeline tasks (Timeguru HTTP)")
+		}
+	}
+	if initialData == nil {
+		// Last resort: hardcoded fallback tasks
 		s.tasksMu.RLock()
 		initialData, _ = json.Marshal(s.tasks)
 		s.tasksMu.RUnlock()
@@ -742,10 +846,14 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Check timeline subscription status
 	timelineSubscribed := false
 	if s.taskManager != nil {
 		timelineSubscribed = s.taskManager.IsTimelineSubscribed()
+	}
+
+	timelineHTTP := false
+	if tm := s.getTimelineManager(); tm != nil {
+		timelineHTTP = tm.GetTimeline() != nil
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -754,6 +862,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"version":             "0.1.0",
 		"busboy_enabled":      s.taskManager != nil,
 		"timeline_subscribed": timelineSubscribed,
+		"timeline_http":       timelineHTTP,
+		"timeguru_addr":       s.config.TimeGuruAddr,
 	})
 }
 
@@ -819,17 +929,17 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.taskManager == nil {
-		http.Error(w, "Timeline not available (Busboy not connected)", http.StatusServiceUnavailable)
+	tm := s.getTimelineManager()
+	if tm == nil {
+		http.Error(w, "Timeline not available", http.StatusServiceUnavailable)
 		return
 	}
 
-	timeline := s.taskManager.GetTimeline()
+	timeline := tm.GetTimeline()
 
 	w.Header().Set("Content-Type", "application/json")
 
 	if timeline == nil {
-		// Return empty timeline structure
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"timeline": nil,
 			"message":  "No timeline data available yet. Waiting for Timeguru updates.",
@@ -851,16 +961,31 @@ func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
 
 	var tasks interface{}
 	var count int
+	source := "timeline"
 
+	// Try Busboy-backed TaskManager first
 	if s.taskManager != nil {
 		timelineTasks := s.taskManager.GetTimelineTasks()
-		if timelineTasks != nil && len(timelineTasks) > 0 {
+		if len(timelineTasks) > 0 {
 			tasks = timelineTasks
 			count = len(timelineTasks)
+			source = "timeline-busboy"
 		}
 	}
 
-	// Fallback to regular tasks if no timeline tasks
+	// Fallback: standalone TimelineManager (direct Timeguru HTTP)
+	if tasks == nil {
+		if tm := s.getTimelineManager(); tm != nil {
+			timelineTasks := tm.GetTimelineTasks()
+			if len(timelineTasks) > 0 {
+				tasks = timelineTasks
+				count = len(timelineTasks)
+				source = "timeline-http"
+			}
+		}
+	}
+
+	// Last resort: regular tasks
 	if tasks == nil {
 		if s.taskManager != nil {
 			taskList := s.taskManager.GetAllTasks()
@@ -872,13 +997,14 @@ func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
 			count = len(s.tasks)
 			s.tasksMu.RUnlock()
 		}
+		source = "fallback"
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"tasks":  tasks,
 		"count":  count,
-		"source": "timeline",
+		"source": source,
 	})
 }
 
@@ -917,24 +1043,41 @@ func main() {
 
 	// Load config
 	cfg := Config{
-		Port:            getEnv("PORT", "8080"),
-		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:9091"),
-		BusboyAddr:      getEnv("BUSBOY_ADDR", "localhost:9090"),
+		Port:            getEnv("PORT", "8081"),
+		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:8000"),
+		BusboyAddr:      getEnv("BUSBOY_ADDR", "localhost:8080"),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
 	}
 
 	// Initialize Busboy client
+	// BUSBOY_ADDR = HTTP control plane (subscribe, publish, admin)
+	// BUSBOY_GRPC_ADDR = gRPC data plane (streaming) — preferred for perf
 	var server *Server
 	busboyEnabled := getEnv("BUSBOY_ENABLED", "true") == "true"
+	busboyGRPCAddr := getEnv("BUSBOY_GRPC_ADDR", "localhost:9090")
 
 	if busboyEnabled {
 		log.Info().
-			Str("busboy_addr", cfg.BusboyAddr).
+			Str("busboy_http", cfg.BusboyAddr).
+			Str("busboy_grpc", busboyGRPCAddr).
 			Msg("Initializing Busboy client")
 
-		busboyClient, err := busboyClient.NewClient(cfg.BusboyAddr)
+		var bc *busboyClient.Client
+		var err error
+		if busboyGRPCAddr != "" {
+			bc, err = busboyClient.NewClientWithGRPC(cfg.BusboyAddr, busboyGRPCAddr)
+			if err == nil {
+				log.Info().
+					Str("transport", bc.Transport().String()).
+					Bool("grpc_healthy", bc.IsGRPCHealthy()).
+					Msg("Busboy transport selected")
+			}
+		} else {
+			bc, err = busboyClient.NewClient(cfg.BusboyAddr)
+		}
+		busboyClient := bc // shadows package name — variable used by NewTaskManager below
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -975,6 +1118,17 @@ func main() {
 		server = NewServer(cfg)
 	}
 
+	// Start Timeguru HTTP polling ONLY in standalone mode.
+	// When Busboy integration is active, timeline updates arrive via
+	// the timeline.updates subscription — no polling needed.
+	pollCtx, pollCancel := context.WithCancel(context.Background())
+	if server.taskManager == nil {
+		go server.pollTimeguru(pollCtx, 30*time.Second)
+		log.Info().Msg("Timeguru HTTP polling enabled (standalone mode)")
+	} else {
+		log.Info().Msg("Timeguru HTTP polling disabled (Busboy handles timeline events)")
+	}
+
 	// Start server in goroutine
 	go func() {
 		if err := server.Start(); err != nil && err != http.ErrServerClosed {
@@ -988,6 +1142,9 @@ func main() {
 	<-quit
 
 	log.Info().Msg("Shutting down server...")
+
+	// Stop timeline polling
+	pollCancel()
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)

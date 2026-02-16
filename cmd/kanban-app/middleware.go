@@ -156,6 +156,14 @@ func (rl *RateLimiter) cleanup() {
 func rateLimitMiddleware(limiter *RateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Exempt long-lived streaming endpoints from rate limiting.
+			// SSE and WebSocket connections are persistent — consuming a
+			// token per reconnect attempt causes cascading rate limit failures.
+			if r.URL.Path == "/ws" || r.URL.Path == "/api/v1/stream" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			// Extract client IP
 			clientIP := getClientIP(r)
 

@@ -352,7 +352,7 @@ const file_chat_proto_rawDesc = "" +
 	"\n" +
 	"ChatStream\x12;\n" +
 	"\x0eStreamMessages\x12\x13.chat.StreamRequest\x1a\x12.chat.MessageEvent0\x01\x12-\n" +
-	"\x04Ping\x12\x11.chat.PingRequest\x1a\x12.chat.PongResponseB'Z%unheaded/services/busboy/proto;chatpbb\x06proto3"
+	"\x04Ping\x12\x11.chat.PingRequest\x1a\x12.chat.PongResponseB'Z%github.com/unheaded/chat/proto;chatpbb\x06proto3"
 
 var (
 	file_chat_proto_rawDescOnce sync.Once
