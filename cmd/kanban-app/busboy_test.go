@@ -20,7 +20,7 @@ func createTestTaskManager(t *testing.T) (*TaskManager, *mock.MockClient) {
 	mockClient := mock.NewMockClient(mock.WithAutoApprove())
 	broadcast := func(eventType string, data interface{}) {}
 
-	tm, err := NewTaskManager(mockClient, broadcast)
+	tm, err := NewTaskManager(mockClient, broadcast, nil)
 	if err != nil {
 		t.Fatalf("failed to create task manager: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestNewTaskManager_ValidInputs(t *testing.T) {
 	mockClient := mock.NewMockClient()
 	broadcast := func(eventType string, data interface{}) {}
 
-	tm, err := NewTaskManager(mockClient, broadcast)
+	tm, err := NewTaskManager(mockClient, broadcast, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -71,7 +71,7 @@ func TestNewTaskManager_ValidInputs(t *testing.T) {
 func TestNewTaskManager_NilClient_ReturnsError(t *testing.T) {
 	broadcast := func(eventType string, data interface{}) {}
 
-	tm, err := NewTaskManager(nil, broadcast)
+	tm, err := NewTaskManager(nil, broadcast, nil)
 	if err != ErrNilClient {
 		t.Errorf("expected ErrNilClient, got %v", err)
 	}
@@ -84,7 +84,7 @@ func TestNewTaskManager_NilClient_ReturnsError(t *testing.T) {
 func TestNewTaskManager_NilBroadcast_ReturnsError(t *testing.T) {
 	mockClient := mock.NewMockClient()
 
-	tm, err := NewTaskManager(mockClient, nil)
+	tm, err := NewTaskManager(mockClient, nil, nil)
 	if err == nil {
 		t.Error("expected error for nil broadcast function")
 	}
@@ -159,6 +159,9 @@ func TestTaskManager_CreateTask_HappyPath(t *testing.T) {
 	if err := tm.CreateTask(ctx, task); err != nil {
 		t.Fatalf("CreateTask failed: %v", err)
 	}
+
+	// Wait for async publish goroutine to complete
+	tm.inflight.Wait()
 
 	// Verify task was added
 	retrieved, err := tm.GetTask("task-1")
@@ -250,7 +253,7 @@ func TestTaskManager_CreateTask_DuplicateID_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestTaskManager_CreateTask_PublishFails_RollsBack(t *testing.T) {
+func TestTaskManager_CreateTask_PublishFails_StillPersistsLocally(t *testing.T) {
 	tm, mockClient := createTestTaskManager(t)
 	ctx := context.Background()
 
@@ -260,17 +263,21 @@ func TestTaskManager_CreateTask_PublishFails_RollsBack(t *testing.T) {
 	publishErr := busboyClient.ErrSubscriptionPending
 	mockClient.SetError("publish", publishErr)
 
-	task := createTestTask("rollback-test")
+	task := createTestTask("publish-fail-create")
 
+	// Create should succeed locally even when publish fails (best-effort)
 	err := tm.CreateTask(ctx, task)
-	if err == nil {
-		t.Fatal("expected error when publish fails")
+	if err != nil {
+		t.Fatalf("expected no error (best-effort publish), got: %v", err)
 	}
 
-	// Verify task was NOT added (rollback successful)
-	_, err = tm.GetTask("rollback-test")
-	if err != ErrTaskNotFound {
-		t.Error("expected task to be rolled back")
+	// Verify task WAS added locally despite publish failure
+	retrieved, err := tm.GetTask("publish-fail-create")
+	if err != nil {
+		t.Fatal("expected task to persist locally despite publish failure")
+	}
+	if retrieved.Title != task.Title {
+		t.Errorf("expected title %q, got %q", task.Title, retrieved.Title)
 	}
 }
 
@@ -292,6 +299,7 @@ func TestTaskManager_UpdateTask_HappyPath(t *testing.T) {
 	if err := tm.CreateTask(ctx, task); err != nil {
 		t.Fatalf("CreateTask failed: %v", err)
 	}
+	tm.inflight.Wait() // Drain create's async publish before measuring update
 
 	// Subscribe to the specific topic that UpdateTask publishes to
 	mockClient.Subscribe(ctx, TopicTasksUpdated, "test-publisher")
@@ -306,6 +314,9 @@ func TestTaskManager_UpdateTask_HappyPath(t *testing.T) {
 	if err := tm.UpdateTask(ctx, task); err != nil {
 		t.Fatalf("UpdateTask failed: %v", err)
 	}
+
+	// Wait for async publish goroutine to complete
+	tm.inflight.Wait()
 
 	// Verify update
 	retrieved, _ := tm.GetTask("update-test")
@@ -335,7 +346,7 @@ func TestTaskManager_UpdateTask_NotFound_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestTaskManager_UpdateTask_PublishFails_RollsBack(t *testing.T) {
+func TestTaskManager_UpdateTask_PublishFails_StillPersistsLocally(t *testing.T) {
 	tm, mockClient := createTestTaskManager(t)
 	ctx := context.Background()
 
@@ -345,11 +356,11 @@ func TestTaskManager_UpdateTask_PublishFails_RollsBack(t *testing.T) {
 	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	// Create task
-	task := createTestTask("rollback-update")
-	originalTitle := task.Title
+	task := createTestTask("publish-fail-update")
 	if err := tm.CreateTask(ctx, task); err != nil {
 		t.Fatalf("CreateTask failed: %v", err)
 	}
+	tm.inflight.Wait() // Drain create's async publish before injecting error
 
 	// Subscribe to the specific topic that UpdateTask publishes to
 	mockClient.Subscribe(ctx, TopicTasksUpdated, "test-publisher")
@@ -358,17 +369,17 @@ func TestTaskManager_UpdateTask_PublishFails_RollsBack(t *testing.T) {
 	// Inject error for update publish
 	mockClient.SetError("publish", busboyClient.ErrRateLimited)
 
-	// Try to update
-	task.Title = "Should Rollback"
+	// Update should succeed locally even when publish fails (best-effort)
+	task.Title = "Updated Despite Publish Failure"
 	err := tm.UpdateTask(ctx, task)
-	if err == nil {
-		t.Fatal("expected error when publish fails")
+	if err != nil {
+		t.Fatalf("expected no error (best-effort publish), got: %v", err)
 	}
 
-	// Verify rollback
-	retrieved, _ := tm.GetTask("rollback-update")
-	if retrieved.Title != originalTitle {
-		t.Errorf("expected rollback to original title, got %s", retrieved.Title)
+	// Verify local update persisted
+	retrieved, _ := tm.GetTask("publish-fail-update")
+	if retrieved.Title != "Updated Despite Publish Failure" {
+		t.Errorf("expected local update to persist, got %s", retrieved.Title)
 	}
 }
 
@@ -390,6 +401,7 @@ func TestTaskManager_DeleteTask_HappyPath(t *testing.T) {
 	if err := tm.CreateTask(ctx, task); err != nil {
 		t.Fatalf("CreateTask failed: %v", err)
 	}
+	tm.inflight.Wait() // Drain create's async publish
 
 	// Subscribe to the specific topic that DeleteTask publishes to
 	mockClient.Subscribe(ctx, TopicTasksDeleted, "test-publisher")
@@ -427,7 +439,7 @@ func TestTaskManager_DeleteTask_NotFound_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestTaskManager_DeleteTask_PublishFails_RollsBack(t *testing.T) {
+func TestTaskManager_DeleteTask_PublishFails_StillDeletesLocally(t *testing.T) {
 	tm, mockClient := createTestTaskManager(t)
 	ctx := context.Background()
 
@@ -437,10 +449,11 @@ func TestTaskManager_DeleteTask_PublishFails_RollsBack(t *testing.T) {
 	mockClient.ApproveSubscription(TopicTasksCreated)
 
 	// Create task
-	task := createTestTask("rollback-delete")
+	task := createTestTask("publish-fail-delete")
 	if err := tm.CreateTask(ctx, task); err != nil {
 		t.Fatalf("CreateTask failed: %v", err)
 	}
+	tm.inflight.Wait() // Drain create's async publish before injecting error
 
 	// Subscribe to the specific topic that DeleteTask publishes to
 	mockClient.Subscribe(ctx, TopicTasksDeleted, "test-publisher")
@@ -449,16 +462,16 @@ func TestTaskManager_DeleteTask_PublishFails_RollsBack(t *testing.T) {
 	// Inject error
 	mockClient.SetError("publish", busboyClient.ErrRateLimited)
 
-	// Try to delete
-	err := tm.DeleteTask(ctx, "rollback-delete")
-	if err == nil {
-		t.Fatal("expected error when publish fails")
+	// Delete should succeed locally even when publish fails (best-effort)
+	err := tm.DeleteTask(ctx, "publish-fail-delete")
+	if err != nil {
+		t.Fatalf("expected no error (best-effort publish), got: %v", err)
 	}
 
-	// Verify rollback (task still exists)
-	_, err = tm.GetTask("rollback-delete")
-	if err != nil {
-		t.Error("expected task to be rolled back (still exists)")
+	// Verify local delete persisted (task should be gone)
+	_, err = tm.GetTask("publish-fail-delete")
+	if err != ErrTaskNotFound {
+		t.Error("expected task to be deleted locally despite publish failure")
 	}
 }
 

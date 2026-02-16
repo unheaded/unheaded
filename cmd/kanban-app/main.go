@@ -30,11 +30,12 @@ var staticFiles embed.FS
 
 // Config holds server configuration
 type Config struct {
-	Port           string
-	TimeGuruAddr   string
-	BusboyAddr     string
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
+	Port            string
+	TimeGuruAddr    string
+	BusboyAddr      string
+	DataDir         string        // Directory for SQLite persistence (default: ./data)
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
 }
 
@@ -55,7 +56,8 @@ type Task struct {
 type Server struct {
 	config          Config
 	httpServer      *http.Server
-	tasks           []Task // DEPRECATED: Use taskManager instead
+	store           *Store           // SQLite L1 persistence
+	tasks           []Task           // DEPRECATED: Use store or taskManager instead
 	tasksMu         sync.RWMutex
 	sseClients      map[chan []byte]bool
 	sseMu           sync.RWMutex
@@ -63,13 +65,34 @@ type Server struct {
 	timelineManager *TimelineManager // Standalone Timeguru HTTP polling fallback
 }
 
-// NewServer creates a new kanban server with standalone timeline polling
+// NewServer creates a new kanban server with standalone timeline polling.
+// Initializes SQLite store for persistence. Falls back to in-memory if store fails.
 func NewServer(cfg Config) *Server {
 	s := &Server{
 		config:     cfg,
 		sseClients: make(map[chan []byte]bool),
-		tasks:      getInitialTasks(), // Fallback if Timeguru unreachable
 	}
+
+	// Initialize SQLite L1 persistence
+	dbPath := cfg.DataDir + "/kanban.db"
+	if cfg.DataDir == "" {
+		dbPath = "./data/kanban.db"
+	}
+	store, err := NewStore(dbPath)
+	if err != nil {
+		log.Error().Err(err).Str("path", dbPath).Msg("failed to initialize SQLite store — falling back to in-memory")
+		s.tasks = getInitialTasks()
+	} else {
+		s.store = store
+		// Seed on first run (Genesis Event), no-op on subsequent starts
+		if _, err := store.SeedIfEmpty(); err != nil {
+			log.Error().Err(err).Msg("failed to seed store — falling back to in-memory")
+			s.store = nil
+			store.Close()
+			s.tasks = getInitialTasks()
+		}
+	}
+
 	// Create standalone TimelineManager for direct Timeguru HTTP polling
 	s.timelineManager = NewTimelineManager(func(eventType string, data interface{}) {
 		s.broadcastUpdate(eventType, data)
@@ -77,10 +100,11 @@ func NewServer(cfg Config) *Server {
 	return s
 }
 
-// NewServerWithTaskManager creates a server with Busboy integration
-func NewServerWithTaskManager(cfg Config, tm *TaskManager) *Server {
+// NewServerWithTaskManager creates a server with Busboy integration and shared Store.
+func NewServerWithTaskManager(cfg Config, tm *TaskManager, store *Store) *Server {
 	s := &Server{
 		config:      cfg,
+		store:       store,
 		sseClients:  make(map[chan []byte]bool),
 		taskManager: tm,
 	}
@@ -174,13 +198,21 @@ func getInitialTasks() []Task {
 		// =====================================================================
 		{ID: "wish-multi-cloud", Title: "Multi-Cloud Orchestration", Description: "Deploy across AWS, GCP, Azure, bare metal from single config.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
 		{ID: "wish-self-healing", Title: "Self-Healing Infrastructure", Description: "Yaldabaoth chaos + Pleroma/Kenoma reconciliation = auto-recovery.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-		{ID: "wish-marketplace", Title: "Unheaded Marketplace", Description: "Community-contributed armor pieces, compliance templates, eBPF probes.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
+		{ID: "wish-bazaar", Title: "Unheaded Bazaar", Description: "Community-contributed armor pieces, compliance templates, eBPF probes. The Bazaar where the kingdom trades.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
 		{ID: "wish-nixos-fleet", Title: "NixOS Container Fleet", Description: "Full L2-L7 network stack inside NixOS LXD containers on Debian bare metal.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
 		{ID: "wish-gpu-sched", Title: "GPU-Aware Scheduling", Description: "Greaves scheduler with GPU affinity for ML/AI workloads.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-		{ID: "wish-norse-naming", Title: "Norse/Ragnarok Service Names", Description: "Alternate naming: Yggdrasil (network fabric), Loki (chaos eng), Heimdall (gateway/WAF), Odin (control plane), Bifrost (service mesh), Valkyrie (scheduler), Mjolnir (deploy), Fenrir (container runtime). Ragnarok Online vibes.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-hindu-naming", Title: "Hindu/Indian Mythology Names", Description: "Indra (load balancer/thunder), Agni (firewall/WAF), Vishnu (state reconciler/preserver), Shiva (chaos eng/destroyer), Brahma (provisioner/creator), Maya (container runtime/illusion), Dharma (compliance/law), Karma (event sourcing/cause-effect), Chakra (service mesh/wheel), Garuda (scheduler/eagle mount).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-chinese-naming", Title: "Chinese Mythology Names", Description: "Pangu (bootstrap/creation), Nuwa (self-healing/repair), Sun Wukong (chaos eng/monkey king), Guanyin (observability/all-seeing), Long Wang (network fabric/dragon king), Zhurong (firewall/fire god), Fuxi (state management/order), Yama (cleanup/reaper), Jade Emperor (control plane), Bai Ze (knowledge/wisdom).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-japanese-naming", Title: "Japanese/Shinto Mythology Names", Description: "Amaterasu (observability/sun/light), Susanoo (chaos eng/storm), Tsukuyomi (scheduler/moon/cycles), Izanagi (provisioner/creator), Raijin (load balancer/thunder), Fujin (CDN/wind), Inari (storage/abundance), Jizo (guardian/security), Tengu (WAF/protector), Kitsune (shape-shifting/service mesh).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-norse-naming", Title: "Norse/Ragnarok Religious & Mythological Service Names", Description: "Alternate or additional naming: Yggdrasil (network fabric), Loki (chaos eng), Heimdall (gateway/WAF), Odin (control plane), Bifrost (service mesh), Valkyrie (scheduler), Mjolnir (deploy), Fenrir (container runtime). Ragnarok Online and/or Norse vibes.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-hindu-naming", Title: "Hindu/Indian/Yoga Religious & Mythological Service Names", Description: "Alternate or additional naming: Indra (load balancer/thunder), Agni (firewall/WAF), Vishnu (state reconciler/preserver), Shiva (chaos eng/destroyer), Brahma (provisioner/creator), Maya (container runtime/illusion), Dharma (compliance/law), Karma (event sourcing/cause-effect), Chakra (service mesh/wheel), Garuda (scheduler/eagle mount).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-chinese-naming", Title: "Chinese/Taoism Religious & Mythological Service Names", Description: "Alternate or additional naming: Pangu (bootstrap/creation), Nuwa (self-healing/repair), Sun Wukong (chaos eng/monkey king), Guanyin (observability/all-seeing), Long Wang (network fabric/dragon king), Zhurong (firewall/fire god), Fuxi (state management/order), Yama (cleanup/reaper), Jade Emperor (control plane), Bai Ze (knowledge/wisdom).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-japanese-naming", Title: "Japanese/Shinto/FF/Anime Religious & Mythological Service Names", Description: "Alternate or additional naming: Amaterasu (observability/sun/light), Susanoo (chaos eng/storm), Tsukuyomi (scheduler/moon/cycles), Izanagi (provisioner/creator), Raijin (load balancer/thunder), Fujin (CDN/wind), Inari (storage/abundance), Jizo (guardian/security), Tengu (WAF/protector), Kitsune (shape-shifting/service mesh).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-pagan-naming", Title: "Pagan/Wiccan/Druidic Mythological Service Names", Description: "Alternate or additional naming: Cernunnos (network fabric/horned god of connections), Brigid (firewall/forge-keeper/healer), Morrigan (chaos eng/phantom queen), Dagda (control plane/all-father with cauldron of plenty), Danu (provisioner/mother of creation), Lugh (load balancer/master of all skills), Arianrhod (scheduler/silver wheel of time), Cerridwen (state store/cauldron of transformation), Herne (service mesh/wild hunt leader), Greenman (self-healing/regeneration spirit).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-shaman-naming", Title: "Shamanistic/Animist/Indigenous Mythological Service Names", Description: "Alternate or additional naming: Thunderbird (load balancer/storm bringer), Coyote (chaos eng/trickster), Spider Woman (service mesh/weaver of connections), Raven (observability/all-seeing creator), Bear Spirit (WAF/guardian protector), Eagle Spirit (gateway/sky surveyor), Snake Spirit (secrets/shedding/renewal), Wendigo (garbage collector/consumer), Dreamtime (event sourcing/eternal now), World Tree (network fabric/axis mundi connecting all layers).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-jewish-naming", Title: "Jewish/Kabbalistic/Hebrew Mythological Service Names", Description: "Alternate or additional naming: Sefirot (service mesh/ten emanations), Ein Sof (control plane/the infinite), Golem (container runtime/animated construct), Shekinah (observability/divine presence), Metatron (gateway/angel of the presence), Tikkun (self-healing/repair of the world), Merkabah (scheduler/divine chariot), Tzimtzum (namespace isolation/divine contraction), Ruach (message bus/divine breath/wind), Malakh (deploy pipeline/messenger angel).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-islamic-naming", Title: "Islamic/Sufi/Arabic Mythological Service Names", Description: "Alternate or additional naming: Jibril (message bus/angel of revelation), Israfil (alerting/trumpet of judgment), Buraq (scheduler/lightning-fast mount), Ruh (control plane/the spirit), Nur (observability/divine light), Mizan (load balancer/scales of balance), Barzakh (network isolation/barrier between realms), Lawh al-Mahfuz (event log/preserved tablet), Qadr (state reconciler/divine decree), Djinn (container runtime/beings of smokeless fire).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "wish-christian-naming", Title: "Christian/Biblical/Angelic Mythological Service Names", Description: "Alternate or additional naming: Seraphim (firewall/burning guardians), Cherubim (WAF/gate keepers of Eden), Logos (control plane/the Word/divine reason), Paraclete (message bus/the helper/advocate), Ark (state store/covenant container), Manna (provisioner/heaven-sent resources), Babel (DNS resolver/language of all tongues), Lazarus (self-healing/resurrection), Alpha-Omega (lifecycle manager/beginning and end), Burning Bush (alerting/unconsumed signal fire).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
+
+		// REFACTOR
+		{ID: "refactor-taskmanager-rename", Title: "Rename TaskManager to Mythology-Aligned Name", Description: "TaskManager is the nervous system coordinator. Rename to something fitting: Hermes (messenger), Iris (rainbow messenger), Vayu (Hindu wind/messenger), Fujin (wind god), Bifrost (bridge). The unheaded-busboy SKILL stays — only the Go struct/service gets renamed.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
 	}
 }
 
@@ -404,7 +436,15 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Last resort: hardcoded initial tasks
+	// Next: SQLite store (L1 persistence)
+	if tasks == nil && s.store != nil {
+		if storeTasks, err := s.store.GetAllTasks(); err == nil && len(storeTasks) > 0 {
+			tasks = storeTasks
+			count = len(storeTasks)
+		}
+	}
+
+	// Last resort: in-memory hardcoded tasks
 	if tasks == nil {
 		s.tasksMu.RLock()
 		tasks = s.tasks
@@ -450,8 +490,22 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+	} else if s.store != nil {
+		// Standalone + SQLite persistence
+		now := time.Now()
+		task.CreatedAt = now
+		task.UpdatedAt = now
+		if existing, _ := s.store.GetTask(task.ID); existing != nil {
+			http.Error(w, "task already exists", http.StatusConflict)
+			return
+		}
+		if err := s.store.SaveTask(&task); err != nil {
+			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to save task to store")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 	} else {
-		// Standalone mode: in-memory CRUD
+		// Fallback: in-memory only (no persistence)
 		now := time.Now()
 		task.CreatedAt = now
 		task.UpdatedAt = now
@@ -505,8 +559,22 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+	} else if s.store != nil {
+		// Standalone + SQLite persistence
+		existing, err := s.store.GetTask(task.ID)
+		if err != nil {
+			http.Error(w, "task not found", http.StatusNotFound)
+			return
+		}
+		task.CreatedAt = existing.CreatedAt
+		task.UpdatedAt = time.Now()
+		if err := s.store.SaveTask(&task); err != nil {
+			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to update task in store")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 	} else {
-		// Standalone mode: in-memory update
+		// Fallback: in-memory only
 		s.tasksMu.Lock()
 		found := false
 		for i, t := range s.tasks {
@@ -556,8 +624,19 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+	} else if s.store != nil {
+		// Standalone + SQLite persistence
+		if err := s.store.DeleteTask(taskID); err != nil {
+			if errors.Is(err, ErrStoreNotFound) {
+				http.Error(w, "task not found", http.StatusNotFound)
+			} else {
+				log.Error().Err(err).Str("task_id", taskID).Msg("failed to delete task from store")
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
+		}
 	} else {
-		// Standalone mode: in-memory delete
+		// Fallback: in-memory only
 		s.tasksMu.Lock()
 		found := false
 		for i, t := range s.tasks {
@@ -625,7 +704,19 @@ func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskI
 		return
 	}
 
-	// Standalone mode: search in-memory tasks
+	// Standalone + SQLite
+	if s.store != nil {
+		task, err := s.store.GetTask(taskID)
+		if err != nil {
+			http.Error(w, "Task not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(task)
+		return
+	}
+
+	// Fallback: in-memory
 	s.tasksMu.RLock()
 	defer s.tasksMu.RUnlock()
 	for _, t := range s.tasks {
@@ -656,8 +747,22 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 			}
 			return
 		}
+	} else if s.store != nil {
+		// Standalone + SQLite persistence
+		existing, err := s.store.GetTask(taskID)
+		if err != nil {
+			http.Error(w, "Task not found", http.StatusNotFound)
+			return
+		}
+		task.CreatedAt = existing.CreatedAt
+		task.UpdatedAt = time.Now()
+		if err := s.store.SaveTask(&task); err != nil {
+			log.Error().Err(err).Str("task_id", taskID).Msg("failed to update task in store")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 	} else {
-		// Standalone mode: in-memory update
+		// Fallback: in-memory only
 		s.tasksMu.Lock()
 		found := false
 		for i, t := range s.tasks {
@@ -691,8 +796,19 @@ func (s *Server) handleDeleteTaskByID(w http.ResponseWriter, r *http.Request, ta
 			}
 			return
 		}
+	} else if s.store != nil {
+		// Standalone + SQLite persistence
+		if err := s.store.DeleteTask(taskID); err != nil {
+			if errors.Is(err, ErrStoreNotFound) {
+				http.Error(w, "Task not found", http.StatusNotFound)
+			} else {
+				log.Error().Err(err).Str("task_id", taskID).Msg("failed to delete task from store")
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
+		}
 	} else {
-		// Standalone mode: in-memory delete
+		// Fallback: in-memory only
 		s.tasksMu.Lock()
 		found := false
 		for i, t := range s.tasks {
@@ -1037,6 +1153,7 @@ func main() {
 		Port:            getEnv("PORT", "8081"),
 		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:8000"),
 		BusboyAddr:      getEnv("BUSBOY_ADDR", "localhost:8080"),
+		DataDir:         getEnv("DATA_DIR", "./data"),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
@@ -1075,21 +1192,33 @@ func main() {
 				Msg("Failed to create Busboy client, falling back to standalone mode")
 			server = NewServer(cfg)
 		} else {
-			// Create TaskManager with broadcast function
+			// Initialize SQLite L1 store (shared between TaskManager and Server)
+			dbPath := cfg.DataDir + "/kanban.db"
+			if cfg.DataDir == "" {
+				dbPath = "./data/kanban.db"
+			}
+			var kanbanStore *Store
+			kanbanStore, err = NewStore(dbPath)
+			if err != nil {
+				log.Warn().Err(err).Str("path", dbPath).Msg("SQLite store init failed — TaskManager will run in-memory only")
+				kanbanStore = nil
+			}
+
+			// Create TaskManager with broadcast function and Store
 			broadcast := func(eventType string, data interface{}) {
 				if server != nil {
 					server.broadcastUpdate(eventType, data)
 				}
 			}
 
-			taskManager, err := NewTaskManager(busboyClient, broadcast)
+			taskManager, err := NewTaskManager(busboyClient, broadcast, kanbanStore)
 			if err != nil {
 				log.Error().
 					Err(err).
 					Msg("Failed to create TaskManager, falling back to standalone mode")
 				server = NewServer(cfg)
 			} else {
-				// Initialize TaskManager (loads tasks + subscribes to Busboy)
+				// Initialize TaskManager (loads tasks from Store + subscribes to Busboy)
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				if err := taskManager.Initialize(ctx); err != nil {
 					log.Error().
@@ -1099,8 +1228,8 @@ func main() {
 					server = NewServer(cfg)
 				} else {
 					cancel()
-					server = NewServerWithTaskManager(cfg, taskManager)
-					log.Info().Msg("Busboy integration enabled")
+					server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
+					log.Info().Msg("Busboy integration enabled with SQLite L1 persistence")
 				}
 			}
 		}
@@ -1149,6 +1278,15 @@ func main() {
 	if server.taskManager != nil {
 		if err := server.taskManager.Close(); err != nil {
 			log.Error().Err(err).Msg("Failed to close TaskManager")
+		}
+	}
+
+	// Close SQLite store if present
+	if server.store != nil {
+		if err := server.store.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close SQLite store")
+		} else {
+			log.Info().Msg("SQLite store closed cleanly")
 		}
 	}
 
