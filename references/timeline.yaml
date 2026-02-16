@@ -1,0 +1,25 @@
+version: 1.0.0
+last_updated: 2026-02-16T03:43:20.568513-06:00
+status: alpha
+phases:
+  - id: phase-0
+    name: The Foundation Stone
+    status: completed
+    progress: 0
+  - id: phase-1
+    name: The Alpha Ascension
+    status: in_progress
+    progress: 25
+  - id: phase-2
+    name: The Beta Trials
+    status: completed
+    progress: 80
+  - id: phase-3
+    name: "The MVP Era (\U0001F4CB PLANNED) (\U0001F4CB PLANNED)"
+    status: planned
+    progress: 0
+  - id: phase-4
+    name: The Scaling Era
+    status: completed
+    progress: 0
+milestones: []

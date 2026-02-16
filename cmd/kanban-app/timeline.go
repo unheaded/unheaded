@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // TopicTimelineUpdates is defined in busboy.go
@@ -256,7 +258,7 @@ func (tm *TimelineManager) convertMilestonesToTasks(timeline *Timeline) map[stri
 
 		// Add risk level if present
 		if m.Risk != "" {
-			task.Description = fmt.Sprintf("%s\nRisk: %s", task.Description, strings.Title(m.Risk))
+			task.Description = fmt.Sprintf("%s\nRisk: %s", task.Description, cases.Title(language.English).String(m.Risk))
 		}
 
 		tasks[task.ID] = task

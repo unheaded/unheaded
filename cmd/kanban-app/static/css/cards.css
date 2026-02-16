@@ -358,7 +358,7 @@
    ============================================ */
 .card-actions {
     position: absolute;
-    top: var(--spacing-sm);
+    bottom: var(--spacing-sm);
     right: var(--spacing-sm);
     display: flex;
     gap: 4px;

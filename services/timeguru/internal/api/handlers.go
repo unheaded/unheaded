@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/httputil"
@@ -748,7 +750,7 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 
 	sb.WriteString("# The Unheaded Chronicles\n\n")
 	sb.WriteString("## A Living Grimoire of the Kingdom's Journey\n\n")
-	sb.WriteString(fmt.Sprintf("**STATUS:** %s\n", strings.Title(tl.Status)))
+	sb.WriteString(fmt.Sprintf("**STATUS:** %s\n", cases.Title(language.English).String(tl.Status)))
 	sb.WriteString(fmt.Sprintf("**LAST UPDATED:** %s\n\n", tl.LastUpdated.Format("January 2, 2006")))
 	sb.WriteString("---\n\n")
 
@@ -811,7 +813,7 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 				sb.WriteString(fmt.Sprintf("**Owner:** %s\n", m.Owner))
 			}
 			if m.Risk != "" {
-				sb.WriteString(fmt.Sprintf("**Risk:** %s\n", strings.Title(m.Risk)))
+				sb.WriteString(fmt.Sprintf("**Risk:** %s\n", cases.Title(language.English).String(m.Risk)))
 			}
 			sb.WriteString(fmt.Sprintf("**Progress:** %d%%\n", m.Progress))
 			sb.WriteString(fmt.Sprintf("**Status:** %s\n\n", m.Status))

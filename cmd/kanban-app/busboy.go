@@ -603,6 +603,7 @@ func (tm *TaskManager) validateTask(task *Task) error {
 	validStatuses := map[string]bool{
 		"todo":        true,
 		"in-progress": true,
+		"review":      true,
 		"done":        true,
 	}
 	if !validStatuses[task.Status] {

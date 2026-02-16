@@ -152,6 +152,16 @@ const Board = (function() {
     }
 
     /**
+     * Normalize a backend status to a frontend column name.
+     * Backend uses "todo" / "in-progress"; columns use "backlog" / "in_progress".
+     * @param {string} status - Backend or frontend status
+     * @returns {string} - Frontend column status
+     */
+    function normalizeColumnStatus(status) {
+        return Cards.STATUS_MAP[status] || status;
+    }
+
+    /**
      * Get tasks for a specific status
      * @param {string} status - Column status (frontend format)
      * @returns {Array}
@@ -223,7 +233,7 @@ const Board = (function() {
      */
     function addTask(task) {
         state.tasks.set(task.id, task);
-        renderColumn(task.status);
+        renderColumn(normalizeColumnStatus(task.status));
 
         // Animate the new card
         const card = document.querySelector(`[data-task-id="${task.id}"]`);
@@ -244,9 +254,9 @@ const Board = (function() {
         state.tasks.set(task.id, task);
 
         if (statusChanged) {
-            // Re-render both columns
-            renderColumn(oldTask.status);
-            renderColumn(task.status);
+            // Re-render both columns (normalize backend → frontend column names)
+            renderColumn(normalizeColumnStatus(oldTask.status));
+            renderColumn(normalizeColumnStatus(task.status));
         } else {
             // Just update the card
             const card = document.querySelector(`[data-task-id="${task.id}"]`);
@@ -270,7 +280,7 @@ const Board = (function() {
             card.classList.add('deleting');
             setTimeout(() => {
                 state.tasks.delete(taskId);
-                renderColumn(task.status);
+                renderColumn(normalizeColumnStatus(task.status));
             }, 300);
         } else {
             state.tasks.delete(taskId);

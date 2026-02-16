@@ -41,8 +41,8 @@ func (s *Service) Start(ctx context.Context) error {
 	// Subscribe to alerts
 	sub, err := s.busboy.Subscribe(ctx, "alerts.critical", "micromanager-service")
 	if err != nil {
-		log.Error().Err(err).Msg("failed to subscribe to alerts.critical")
-		return err
+		log.Warn().Err(err).Msg("failed to subscribe to alerts.critical, continuing without subscription")
+		return nil
 	}
 
 	log.Info().

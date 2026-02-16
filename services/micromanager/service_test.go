@@ -366,9 +366,9 @@ func TestStart_WithBusboy_SubscribeFails(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	// Start will attempt to subscribe and fail (no busboy server)
+	// Start will attempt to subscribe and fail, but should warn and continue
 	err = service.Start(ctx)
-	if err == nil {
-		t.Error("Start should return error when subscribe fails")
+	if err != nil {
+		t.Errorf("Start should warn and continue on subscribe failure, got: %v", err)
 	}
 }

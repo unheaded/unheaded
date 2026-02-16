@@ -46,11 +46,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/architect ./services/architect/cmd
+    -o /build/bin/architect ./services/architect/cmd/architect
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/micromanager ./services/micromanager/cmd
+    -o /build/bin/micromanager ./services/micromanager/cmd/micromanager
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \

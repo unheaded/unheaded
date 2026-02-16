@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
 
 	"unheaded/services/timeguru/internal/timeline"
@@ -43,9 +45,14 @@ type Syncer struct {
 
 // NewSyncer creates a Syncer that writes to the given directory in the specified formats.
 // If formats is empty, all 4 formats are used.
+// Creates the directory if it doesn't exist.
 func NewSyncer(dir string, formats ...Format) (*Syncer, error) {
 	if dir == "" {
 		return nil, ErrEmptyDirectory
+	}
+	// Ensure output directory exists
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("create sync directory %s: %w", dir, err)
 	}
 	if len(formats) == 0 {
 		formats = []Format{FormatJSON, FormatTOML, FormatYAML, FormatMarkdown}
@@ -257,7 +264,7 @@ func encodeMarkdown(tl *timeline.Timeline) string {
 				sb.WriteString(fmt.Sprintf("**Owner:** %s\n", m.Owner))
 			}
 			if m.Risk != "" {
-				sb.WriteString(fmt.Sprintf("**Risk:** %s\n", strings.Title(m.Risk)))
+				sb.WriteString(fmt.Sprintf("**Risk:** %s\n", cases.Title(language.English).String(m.Risk)))
 			}
 			sb.WriteString(fmt.Sprintf("**Progress:** %d%%\n", m.Progress))
 			sb.WriteString(fmt.Sprintf("**Status:** %s\n\n", m.Status))

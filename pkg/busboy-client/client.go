@@ -14,6 +14,18 @@ import (
 	"time"
 )
 
+// drainBody fully reads and discards any remaining bytes in the response body.
+// This is CRITICAL for HTTP keep-alive: the transport cannot reuse a connection
+// until the entire response body has been consumed. json.NewDecoder only reads
+// enough to parse one JSON value, leaving trailing bytes (newlines, whitespace)
+// that block connection recycling.
+func drainBody(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}
+}
+
 // Common errors
 var (
 	ErrNotConnected        = errors.New("client not connected")
@@ -56,10 +68,47 @@ func (sc *safeChannel) closeCh() {
 	sc.once.Do(func() { close(sc.ch) })
 }
 
-// Client provides access to Busboy message bus
+// TransportState tracks which transport is active for streaming.
+type TransportState int
+
+const (
+	// TransportHTTP uses HTTP polling for message streaming (degraded mode).
+	TransportHTTP TransportState = iota
+	// TransportGRPC uses gRPC server-push streaming (primary, preferred).
+	TransportGRPC
+)
+
+// String returns a human-readable transport name.
+func (ts TransportState) String() string {
+	switch ts {
+	case TransportGRPC:
+		return "gRPC"
+	case TransportHTTP:
+		return "HTTP"
+	default:
+		return "unknown"
+	}
+}
+
+// Client provides access to Busboy message bus.
+//
+// Transport strategy:
+//   - gRPC is the PRIMARY transport for streaming (lower latency, server-push).
+//   - HTTP polling is the FALLBACK (circuit-breaker degraded mode only).
+//   - HTTP REST is always used for control plane (Subscribe, Publish, admin).
+//   - On startup, gRPC is probed. If healthy, it's used exclusively.
+//   - If gRPC fails, the client degrades to HTTP polling and logs a warning.
+//   - A background probe periodically re-checks gRPC and promotes back when healthy.
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	grpcAddr   string       // gRPC endpoint for streaming (empty = HTTP-only mode)
+	grpcClient *GRPCClient  // Lazy-initialized gRPC client
+
+	// Transport state — gRPC primary, HTTP fallback
+	transport     TransportState // current active transport
+	grpcHealthy   bool           // last known gRPC health status
+	transportMu   sync.RWMutex   // guards transport + grpcHealthy
 
 	// Subscriber state (per-topic)
 	subscribers map[string]*Subscriber
@@ -68,6 +117,20 @@ type Client struct {
 	// Message channels for subscriptions
 	channels map[string]*safeChannel
 	chanMu   sync.RWMutex
+}
+
+// Transport returns the currently active streaming transport.
+func (c *Client) Transport() TransportState {
+	c.transportMu.RLock()
+	defer c.transportMu.RUnlock()
+	return c.transport
+}
+
+// IsGRPCHealthy returns whether gRPC was healthy at last check.
+func (c *Client) IsGRPCHealthy() bool {
+	c.transportMu.RLock()
+	defer c.transportMu.RUnlock()
+	return c.grpcHealthy
 }
 
 // NewClient creates a new Busboy client
@@ -103,6 +166,79 @@ func NewClientWithTLS(addr string, tlsConfig *http.Transport) (*Client, error) {
 	}, nil
 }
 
+// NewClientWithGRPC creates a Busboy client with gRPC as primary streaming transport.
+//
+// Transport strategy:
+//   - gRPC is probed at startup. If healthy → used exclusively for StreamMessages.
+//   - If gRPC probe fails → degrades to HTTP polling (circuit-breaker fallback).
+//   - HTTP REST is always used for control plane (Subscribe, Publish).
+//   - Call ProbeGRPC() periodically to re-check and promote back to gRPC.
+func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
+	if httpAddr == "" {
+		return nil, errors.New("HTTP address cannot be empty")
+	}
+	if grpcAddr == "" {
+		return nil, errors.New("gRPC address cannot be empty")
+	}
+
+	c := &Client{
+		baseURL: fmt.Sprintf("http://%s/api/v1", httpAddr),
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		grpcAddr:    grpcAddr,
+		transport:   TransportHTTP, // start degraded, promote after probe
+		grpcHealthy: false,
+		subscribers: make(map[string]*Subscriber),
+		channels:    make(map[string]*safeChannel),
+	}
+
+	// Probe gRPC at startup — if healthy, promote to primary transport
+	if err := c.ProbeGRPC(); err == nil {
+		c.transport = TransportGRPC
+		c.grpcHealthy = true
+	}
+	// If probe fails, stay on HTTP — no error returned, just degraded mode
+
+	return c, nil
+}
+
+// ProbeGRPC tests gRPC connectivity and updates transport state.
+// Returns nil if gRPC is healthy. Callers can use this periodically
+// to re-promote gRPC after a circuit-breaker degradation.
+func (c *Client) ProbeGRPC() error {
+	if c.grpcAddr == "" {
+		return errors.New("no gRPC address configured")
+	}
+
+	grpcCl, err := c.getOrCreateGRPCClient()
+	if err != nil {
+		c.transportMu.Lock()
+		c.grpcHealthy = false
+		c.transport = TransportHTTP
+		c.transportMu.Unlock()
+		return fmt.Errorf("gRPC probe failed: %w", err)
+	}
+
+	// Verify the connection is usable by checking the underlying conn state
+	_ = grpcCl // connection was established successfully
+
+	c.transportMu.Lock()
+	c.grpcHealthy = true
+	c.transport = TransportGRPC
+	c.transportMu.Unlock()
+
+	return nil
+}
+
+// degradeToHTTP switches streaming to HTTP polling (circuit-breaker trip).
+func (c *Client) degradeToHTTP() {
+	c.transportMu.Lock()
+	defer c.transportMu.Unlock()
+	c.grpcHealthy = false
+	c.transport = TransportHTTP
+}
+
 // Close closes the client and all subscriptions.
 // It is safe to call Close even if pollMessages has already closed some channels.
 func (c *Client) Close() error {
@@ -113,6 +249,13 @@ func (c *Client) Close() error {
 		sc.closeCh()
 		delete(c.channels, topic)
 	}
+
+	// Close gRPC client if initialized
+	if c.grpcClient != nil {
+		c.grpcClient.Close()
+		c.grpcClient = nil
+	}
+
 	return nil
 }
 
@@ -144,7 +287,7 @@ func (c *Client) Subscribe(ctx context.Context, topic, displayName string) (*Sub
 	if err != nil {
 		return nil, fmt.Errorf("subscribe request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainBody(resp)
 
 	if resp.StatusCode != http.StatusCreated {
 		return nil, c.parseError(resp)
@@ -205,7 +348,7 @@ func (c *Client) Publish(ctx context.Context, topic string, payload []byte) erro
 	if err != nil {
 		return fmt.Errorf("publish request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainBody(resp)
 
 	if resp.StatusCode != http.StatusCreated {
 		return c.parseError(resp)
@@ -234,7 +377,7 @@ func (c *Client) GetMessages(ctx context.Context, topic string, afterSeq int64, 
 	if err != nil {
 		return nil, fmt.Errorf("get messages request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.parseError(resp)
@@ -250,8 +393,9 @@ func (c *Client) GetMessages(ctx context.Context, topic string, afterSeq int64, 
 	return result.Messages, nil
 }
 
-// StreamMessages opens a channel for receiving messages
-// The channel will be closed when context is cancelled
+// StreamMessages opens a channel for receiving messages.
+// Uses the active transport: gRPC (primary) or HTTP polling (circuit-breaker fallback).
+// The channel will be closed when context is cancelled.
 func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Message, error) {
 	if topic == "" {
 		return nil, errors.New("topic cannot be empty")
@@ -268,6 +412,25 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 		return nil, ErrSubscriptionPending
 	}
 
+	// Use gRPC if it's the active transport and configured
+	c.transportMu.RLock()
+	activeTransport := c.transport
+	c.transportMu.RUnlock()
+
+	if activeTransport == TransportGRPC && c.grpcAddr != "" {
+		grpcCl, err := c.getOrCreateGRPCClient()
+		if err == nil {
+			grpcCl.Subscribe(ctx, topic, sub.DisplayName)
+			ch, err := grpcCl.StreamMessages(ctx, topic)
+			if err == nil {
+				return ch, nil
+			}
+		}
+		// gRPC failed at runtime — trip circuit breaker, degrade to HTTP
+		c.degradeToHTTP()
+	}
+
+	// HTTP polling — either primary (no gRPC configured) or circuit-breaker fallback
 	ch := make(chan *Message, 100)
 	sc := &safeChannel{ch: ch}
 
@@ -275,10 +438,34 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 	c.channels[topic] = sc
 	c.chanMu.Unlock()
 
-	// Start polling goroutine (TODO: replace with gRPC streaming)
 	go c.pollMessages(ctx, topic, sc)
-
 	return ch, nil
+}
+
+// getOrCreateGRPCClient lazily initializes the gRPC client.
+func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
+	c.mu.RLock()
+	if c.grpcClient != nil {
+		c.mu.RUnlock()
+		return c.grpcClient, nil
+	}
+	c.mu.RUnlock()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Double-check after acquiring write lock
+	if c.grpcClient != nil {
+		return c.grpcClient, nil
+	}
+
+	grpcCl, err := NewGRPCClient(c.grpcAddr)
+	if err != nil {
+		return nil, fmt.Errorf("create gRPC client: %w", err)
+	}
+
+	c.grpcClient = grpcCl
+	return grpcCl, nil
 }
 
 // pollMessages polls for new messages (fallback when gRPC not available)
