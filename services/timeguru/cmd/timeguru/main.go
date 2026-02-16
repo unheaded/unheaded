@@ -23,8 +23,8 @@ import (
 const (
 	defaultPort         = "8000"
 	defaultBusboyAddr   = "localhost:8080"  // HTTP control plane (not gRPC 9090)
-	defaultDBPath       = "/opt/unheaded/data/timeguru.db"
-	defaultTimelinePath = "/opt/unheaded/data/timeline.md"
+	defaultDBPath       = "./data/timeguru.db"
+	defaultTimelinePath = "./references/timeline.md"
 	shutdownTimeout     = 30 * time.Second
 	fileWatchInterval   = 5 * time.Second
 	busboyTopic         = "timeline.updates"

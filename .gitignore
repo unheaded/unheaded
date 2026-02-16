@@ -101,6 +101,7 @@ htmlcov/
 .pytest_cache/
 .tox/
 .nox/
+*-results.txt
 
 # ─── Docker ───
 .docker/
@@ -127,6 +128,7 @@ temp/
 *.temp
 *.bak
 *.backup
+data/*.db
 
 # ─── Dev Placeholders (external deps) ───
 # These are intentionally tracked as .dev files

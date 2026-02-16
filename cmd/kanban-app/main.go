@@ -87,109 +87,96 @@ func NewServerWithTaskManager(cfg Config, tm *TaskManager) *Server {
 	return s
 }
 
-// getInitialTasks returns initial task data (from timeline.md)
+// getInitialTasks returns the full Unheaded Kingdom inventory.
+// Every armor piece, gnostic service, active task, vision item, and wishlist entry.
+// This is the COMPLETE view of the project — past, present, and future.
 func getInitialTasks() []Task {
 	now := time.Now()
+	d := 24 * time.Hour // shorthand
+
 	return []Task{
-		{
-			ID:          "ms-alpha",
-			Title:       "Phase 1 Alpha Release",
-			Description: "eBPF Foundation + Control Plane + Microservices",
-			Status:      "in-progress",
-			Type:        "milestone",
-			Owner:       "Team",
-			Progress:    75,
-			CreatedAt:   now.Add(-30 * 24 * time.Hour),
-			UpdatedAt:   now,
-		},
-		{
-			ID:          "ebpf-probes",
-			Title:       "eBPF Probes Implementation",
-			Description: "packet_marker, flow_tracker, latency_probe",
-			Status:      "in-progress",
-			Type:        "feature",
-			Owner:       "Architect",
-			Progress:    40,
-			CreatedAt:   now.Add(-14 * 24 * time.Hour),
-			UpdatedAt:   now,
-		},
-		{
-			ID:          "busboy-tests",
-			Title:       "Busboy Unit Test Suite",
-			Description: "Comprehensive unit tests for core components",
-			Status:      "todo",
-			Type:        "task",
-			Owner:       "Developer",
-			Progress:    0,
-			CreatedAt:   now.Add(-7 * 24 * time.Hour),
-			UpdatedAt:   now,
-		},
-		{
-			ID:          "control-plane",
-			Title:       "Control Plane REST API",
-			Description: "Full CRUD + admin operations",
-			Status:      "done",
-			Type:        "feature",
-			Owner:       "Architect",
-			Progress:    100,
-			CreatedAt:   now.Add(-21 * 24 * time.Hour),
-			UpdatedAt:   now.Add(-3 * 24 * time.Hour),
-		},
-		{
-			ID:          "grpc-streaming",
-			Title:       "gRPC Bidirectional Streaming",
-			Description: "Real-time message streaming with historical replay",
-			Status:      "done",
-			Type:        "feature",
-			Owner:       "Architect",
-			Progress:    100,
-			CreatedAt:   now.Add(-20 * 24 * time.Hour),
-			UpdatedAt:   now.Add(-5 * 24 * time.Hour),
-		},
-		{
-			ID:          "rate-limiting",
-			Title:       "Rate Limiting & Circuit Breakers",
-			Description: "Token bucket per-client rate limiting",
-			Status:      "done",
-			Type:        "feature",
-			Owner:       "Developer",
-			Progress:    100,
-			CreatedAt:   now.Add(-18 * 24 * time.Hour),
-			UpdatedAt:   now.Add(-7 * 24 * time.Hour),
-		},
-		{
-			ID:          "kanban-frontend",
-			Title:       "Kanban Dashboard Frontend",
-			Description: "Real-time board with Busboy integration",
-			Status:      "in-progress",
-			Type:        "feature",
-			Owner:       "Developer",
-			Progress:    60,
-			CreatedAt:   now.Add(-2 * 24 * time.Hour),
-			UpdatedAt:   now,
-		},
-		{
-			ID:          "skill-updates",
-			Title:       "Skill Cross-References",
-			Description: "Update all skills with cross-references",
-			Status:      "todo",
-			Type:        "task",
-			Owner:       "Captain",
-			Progress:    0,
-			CreatedAt:   now.Add(-1 * 24 * time.Hour),
-			UpdatedAt:   now,
-		},
-		{
-			ID:          "ci-cd",
-			Title:       "CI/CD Pipeline Templates",
-			Description: "GitHub Actions for build, test, deploy",
-			Status:      "todo",
-			Type:        "task",
-			Owner:       "Developer",
-			Progress:    0,
-			CreatedAt:   now.Add(-1 * 24 * time.Hour),
-			UpdatedAt:   now,
-		},
+		// =====================================================================
+		// MILESTONES — high-level phase gates
+		// =====================================================================
+		{ID: "ms-phase0", Title: "Age 0: The Foundation Stone", Description: "Busboy message bus proves pub/sub patterns. 13,504 LOC shipped.", Status: "done", Type: "milestone", Owner: "Team", Progress: 100, CreatedAt: now.Add(-60 * d), UpdatedAt: now.Add(-45 * d)},
+		{ID: "ms-phase1", Title: "Age 1: The Alpha Ascension", Description: "Full infrastructure armor forged. 237K+ LOC. Target: Feb 2026.", Status: "in-progress", Type: "milestone", Owner: "Team", Progress: 96, CreatedAt: now.Add(-45 * d), UpdatedAt: now},
+		{ID: "ms-phase2", Title: "Age 2: The Beta Trials", Description: "Production hardening, multi-tenant isolation, performance tuning.", Status: "todo", Type: "milestone", Owner: "Team", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
+		{ID: "ms-phase3", Title: "Age 3: The MVP Era", Description: "Full compliance templates, self-healing infra, multi-cloud.", Status: "todo", Type: "milestone", Owner: "Team", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
+
+		// =====================================================================
+		// ARMOR PIECES — infrastructure components (The Knight's Armor)
+		// =====================================================================
+		{ID: "armor-shield", Title: "Shield (WAF)", Description: "Web Application Firewall. 6,057 LOC. Security verified.", Status: "done", Type: "infra", Owner: "Architect", Progress: 95, CreatedAt: now.Add(-40 * d), UpdatedAt: now.Add(-5 * d)},
+		{ID: "armor-hauberk", Title: "Hauberk (Service Mesh)", Description: "Full service discovery, circuit breakers, load-aware routing. 5,914 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 90, CreatedAt: now.Add(-38 * d), UpdatedAt: now},
+		{ID: "armor-pauldrons", Title: "Pauldrons (Load Balancer)", Description: "L4/L7 load balancing, Maglev consistent hashing, session persistence. 6,719 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 90, CreatedAt: now.Add(-36 * d), UpdatedAt: now},
+		{ID: "armor-sword", Title: "Sword (Deploy Pipeline)", Description: "Canary, blue-green, rolling deploys. 7,746 LOC.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 85, CreatedAt: now.Add(-35 * d), UpdatedAt: now},
+		{ID: "armor-helm", Title: "Helm (DNS Resolver)", Description: "Full DNS-SD, DNSSEC, DoH/DoT. 4,462 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 85, CreatedAt: now.Add(-34 * d), UpdatedAt: now},
+		{ID: "armor-greaves", Title: "Greaves (Scheduler)", Description: "Bin-pack, affinity rules, preemption. 5,496 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 85, CreatedAt: now.Add(-33 * d), UpdatedAt: now},
+		{ID: "armor-cuirass", Title: "Cuirass (Control Plane)", Description: "Daemon + state management, API gateway.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 75, CreatedAt: now.Add(-32 * d), UpdatedAt: now},
+		{ID: "armor-gauntlets", Title: "Gauntlets (Container Runtime)", Description: "OCI-compliant, cgroups v2, namespace isolation. 6,955 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 75, CreatedAt: now.Add(-31 * d), UpdatedAt: now},
+		{ID: "armor-visor", Title: "Visor (Dashboard Backend)", Description: "WebSocket-ready metrics + event aggregation. 5,926 LOC.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 70, CreatedAt: now.Add(-20 * d), UpdatedAt: now},
+		{ID: "armor-void", Title: "Whispering Void (eBPF)", Description: "Packet marking, flow tracing, latency probes. 7,196 LOC. Awaiting Linux env.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 55, CreatedAt: now.Add(-28 * d), UpdatedAt: now},
+		{ID: "armor-crest", Title: "Crest (Kanban Frontend)", Description: "Real-time Kanban board with SSE + Busboy integration.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 95, CreatedAt: now.Add(-10 * d), UpdatedAt: now},
+
+		// =====================================================================
+		// GNOSTIC SERVICES — state & wisdom layer
+		// =====================================================================
+		{ID: "gnostic-monad", Title: "Monad (The One)", Description: "Functional composition engine. ~500 LOC.", Status: "done", Type: "feature", Owner: "Architect", Progress: 100, CreatedAt: now.Add(-15 * d), UpdatedAt: now.Add(-10 * d)},
+		{ID: "gnostic-sophia", Title: "Sophia (Wisdom)", Description: "Knowledge/wisdom management service. ~700 LOC.", Status: "done", Type: "feature", Owner: "Architect", Progress: 100, CreatedAt: now.Add(-15 * d), UpdatedAt: now.Add(-10 * d)},
+		{ID: "gnostic-pleroma", Title: "Pleroma (Desired State)", Description: "Declarative desired state store. The fullness.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 70, CreatedAt: now.Add(-25 * d), UpdatedAt: now},
+		{ID: "gnostic-kenoma", Title: "Kenoma (Actual State)", Description: "Runtime actual state observer. The void/deficiency.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 70, CreatedAt: now.Add(-25 * d), UpdatedAt: now},
+		{ID: "gnostic-anamnesis", Title: "Anamnesis (Event History)", Description: "Immutable event log. Remembrance of all state transitions.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 60, CreatedAt: now.Add(-22 * d), UpdatedAt: now},
+		{ID: "gnostic-yaldabaoth", Title: "Yaldabaoth (Chaos Engineering)", Description: "Controlled chaos injection. The demiurge tests resilience.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 40, CreatedAt: now.Add(-20 * d), UpdatedAt: now},
+
+		// =====================================================================
+		// SUPPORT SERVICES
+		// =====================================================================
+		{ID: "svc-busboy", Title: "Busboy (Message Bus)", Description: "Pub/sub message bus. HTTP+gRPC dual transport. 13,504 LOC.", Status: "done", Type: "feature", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-50 * d), UpdatedAt: now.Add(-2 * d)},
+		{ID: "svc-timeguru", Title: "Timeguru (Timeline Oracle)", Description: "Project timeline tracking, sync to JSON/YAML/TOML/MD.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 80, CreatedAt: now.Add(-18 * d), UpdatedAt: now},
+		{ID: "svc-gateway", Title: "Gateway (API Gateway)", Description: "Unified API ingress, auth, rate limiting.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 60, CreatedAt: now.Add(-16 * d), UpdatedAt: now},
+		{ID: "svc-cape", Title: "Cape (Auth/Identity)", Description: "Authentication, authorization, identity management.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 50, CreatedAt: now.Add(-14 * d), UpdatedAt: now},
+		{ID: "svc-cloak", Title: "Cloak (Secrets Manager)", Description: "SOPS + age secrets management, rotation, audit.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 45, CreatedAt: now.Add(-12 * d), UpdatedAt: now},
+		{ID: "svc-sabatons", Title: "Sabatons (Boot/Init)", Description: "System bootstrap, service startup orchestration.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 40, CreatedAt: now.Add(-10 * d), UpdatedAt: now},
+		{ID: "svc-tassets", Title: "Tassets (Storage Layer)", Description: "Persistent storage abstraction, volume management.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 35, CreatedAt: now.Add(-10 * d), UpdatedAt: now},
+		{ID: "svc-vambraces", Title: "Vambraces (Logging/Telemetry)", Description: "Vector -> ClickHouse pipeline, structured logging.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 50, CreatedAt: now.Add(-8 * d), UpdatedAt: now},
+
+		// =====================================================================
+		// ACTIVE TASKS — work in progress
+		// =====================================================================
+		{ID: "task-transport-bench", Title: "Transport Benchmarks (HTTP vs gRPC)", Description: "Validated: gRPC 6.2x faster on PollCycle, 10x fewer allocs.", Status: "done", Type: "task", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-2 * d), UpdatedAt: now},
+		{ID: "task-drainbody", Title: "HTTP drainBody() Fix", Description: "json.Decoder left trailing bytes -> socket leak. Production bug caught by benchmarks.", Status: "done", Type: "bug", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
+		{ID: "task-split-brain", Title: "Kanban Split-Brain Fix", Description: "pollTimeguru disabled when Busboy active. SSE prefers kanban cards.", Status: "done", Type: "bug", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
+		{ID: "task-dual-transport", Title: "gRPC Primary / HTTP Fallback", Description: "TransportState machine: probe at startup, circuit-breaker degradation.", Status: "done", Type: "feature", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-2 * d), UpdatedAt: now},
+		{ID: "task-busboy-tests", Title: "Busboy Unit Test Suite", Description: "Comprehensive unit tests for core message bus components.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-7 * d), UpdatedAt: now},
+		{ID: "task-skill-xrefs", Title: "Skill Cross-References", Description: "Update all skills with bidirectional cross-references.", Status: "todo", Type: "task", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-3 * d), UpdatedAt: now},
+		{ID: "task-cicd", Title: "CI/CD Pipeline Templates", Description: "GitHub Actions for build, test, deploy, release.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-3 * d), UpdatedAt: now},
+		{ID: "task-e2e-integration", Title: "Full E2E Integration Tests", Description: "All 23 services wired, health checks green, message flow verified.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "task-linux-env", Title: "Linux Dev Environment", Description: "eBPF requires Linux kernel. Set up NixOS VM or bare metal.", Status: "todo", Type: "task", Owner: "Muck", Progress: 0, CreatedAt: now.Add(-14 * d), UpdatedAt: now},
+
+		// =====================================================================
+		// TECH DEBT
+		// =====================================================================
+		{ID: "debt-docker-compose", Title: "Fix Docker Compose Ports", Description: "docker-compose.yml has busboy on 8081/5555, should match standalone defaults 8080/9090.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
+		{ID: "debt-timeguru-db", Title: "Timeguru Local Dev Defaults", Description: "DB_PATH defaults to /opt/unheaded/data/ which doesn't exist on macOS.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "debt-timeline-sync", Title: "Timeline Data Hydration", Description: "timeline.json milestones array is empty. Sync overwrites timeline.md to stubs.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
+
+		// =====================================================================
+		// VISION — high-level north star items
+		// =====================================================================
+		{ID: "vision-4hr-deploy", Title: "4-Hour Production Deploy", Description: "Customer provides app, Unheaded delivers full prod infra in ~4 hours.", Status: "todo", Type: "vision", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
+		{ID: "vision-compliance", Title: "Drop-In Compliance Templates", Description: "FEDRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, GDPR — overlapping controls visualization.", Status: "todo", Type: "vision", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
+		{ID: "vision-ebpf-dash", Title: "eBPF Custom Dashboards", Description: "Packet-level observability with in-house dashboards. Trace any flow, graph it, log it.", Status: "todo", Type: "vision", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
+		{ID: "vision-idp-siem", Title: "Full IDP/SIEM/SOC/NOC Stack", Description: "Complete security operations as drop-in infrastructure components.", Status: "todo", Type: "vision", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
+		{ID: "vision-zero-trust", Title: "Zero Trust Everywhere", Description: "mTLS everywhere, short-lived certs, zero trust architecture end to end.", Status: "todo", Type: "vision", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
+
+		// =====================================================================
+		// WISHLIST — future exploration items
+		// =====================================================================
+		{ID: "wish-multi-cloud", Title: "Multi-Cloud Orchestration", Description: "Deploy across AWS, GCP, Azure, bare metal from single config.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
+		{ID: "wish-self-healing", Title: "Self-Healing Infrastructure", Description: "Yaldabaoth chaos + Pleroma/Kenoma reconciliation = auto-recovery.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
+		{ID: "wish-marketplace", Title: "Unheaded Marketplace", Description: "Community-contributed armor pieces, compliance templates, eBPF probes.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
+		{ID: "wish-nixos-fleet", Title: "NixOS Container Fleet", Description: "Full L2-L7 network stack inside NixOS LXD containers on Debian bare metal.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
+		{ID: "wish-gpu-sched", Title: "GPU-Aware Scheduling", Description: "Greaves scheduler with GPU affinity for ML/AI workloads.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
 	}
 }
 
