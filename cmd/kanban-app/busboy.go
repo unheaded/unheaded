@@ -52,6 +52,7 @@ type BusboyClient interface {
 // TaskManager handles task operations with Busboy integration
 type TaskManager struct {
 	client BusboyClient
+	store  *Store // SQLite L1 persistence — the memory
 	tasks  map[string]*Task
 	mu     sync.RWMutex
 
@@ -60,6 +61,9 @@ type TaskManager struct {
 	timelineSubscribed bool
 	subMu              sync.RWMutex
 
+	// Wait/Drain — track inflight async publishes so shutdown doesn't lose data
+	inflight sync.WaitGroup
+
 	// Timeline manager for THE META MOMENT
 	timelineManager *TimelineManager
 
@@ -67,8 +71,9 @@ type TaskManager struct {
 	broadcast func(eventType string, data interface{})
 }
 
-// NewTaskManager creates a task manager with Busboy client
-func NewTaskManager(client BusboyClient, broadcast func(string, interface{})) (*TaskManager, error) {
+// NewTaskManager creates a task manager with Busboy client and optional SQLite store.
+// If store is nil, TaskManager works in-memory only (no persistence across restarts).
+func NewTaskManager(client BusboyClient, broadcast func(string, interface{}), store *Store) (*TaskManager, error) {
 	if client == nil {
 		return nil, ErrNilClient
 	}
@@ -78,6 +83,7 @@ func NewTaskManager(client BusboyClient, broadcast func(string, interface{})) (*
 
 	tm := &TaskManager{
 		client:          client,
+		store:           store,
 		tasks:           make(map[string]*Task),
 		broadcast:       broadcast,
 		timelineManager: NewTimelineManager(broadcast),
@@ -92,23 +98,49 @@ func (tm *TaskManager) Initialize(ctx context.Context) error {
 		ctx = context.Background()
 	}
 
-	// Load hardcoded initial tasks
-	initialTasks := getInitialTasks()
-	for i := range initialTasks {
-		task := &initialTasks[i]
-		if err := tm.validateTask(task); err != nil {
-			log.Warn().
-				Err(err).
-				Str("task_id", task.ID).
-				Msg("skipping invalid initial task")
-			continue
+	// Load tasks: prefer Store (SQLite L1) → fall back to hardcoded seed
+	if tm.store != nil {
+		// Seed Store on first run (Genesis Event), no-op if already populated
+		if _, err := tm.store.SeedIfEmpty(); err != nil {
+			log.Error().Err(err).Msg("store seed failed, falling back to hardcoded tasks")
+			tm.store = nil // disable broken store
 		}
-		tm.tasks[task.ID] = task
 	}
 
-	log.Info().
-		Int("count", len(tm.tasks)).
-		Msg("loaded initial tasks")
+	if tm.store != nil {
+		// Load from SQLite — persisted state survives restarts
+		storeTasks, err := tm.store.GetAllTasks()
+		if err != nil {
+			log.Error().Err(err).Msg("store load failed, falling back to hardcoded tasks")
+		} else {
+			for i := range storeTasks {
+				task := &storeTasks[i]
+				tm.tasks[task.ID] = task
+			}
+			log.Info().
+				Int("count", len(tm.tasks)).
+				Msg("loaded tasks from SQLite L1 store")
+		}
+	}
+
+	// Fallback: hardcoded initial tasks (no persistence)
+	if len(tm.tasks) == 0 {
+		initialTasks := getInitialTasks()
+		for i := range initialTasks {
+			task := &initialTasks[i]
+			if err := tm.validateTask(task); err != nil {
+				log.Warn().
+					Err(err).
+					Str("task_id", task.ID).
+					Msg("skipping invalid initial task")
+				continue
+			}
+			tm.tasks[task.ID] = task
+		}
+		log.Info().
+			Int("count", len(tm.tasks)).
+			Msg("loaded initial tasks (in-memory fallback)")
+	}
 
 	// Subscribe to task updates
 	if err := tm.subscribeToTasks(ctx); err != nil {
@@ -319,12 +351,27 @@ func (tm *TaskManager) handleMessage(msg *busboyClient.Message) error {
 	case TopicTasksCreated:
 		eventType = "task.created"
 		tm.addTask(&task)
+		if tm.store != nil {
+			if err := tm.store.SaveTask(&task); err != nil {
+				log.Warn().Err(err).Str("task_id", task.ID).Msg("failed to persist inbound create to SQLite L1")
+			}
+		}
 	case TopicTasksUpdated:
 		eventType = "task.updated"
 		tm.updateTask(&task)
+		if tm.store != nil {
+			if err := tm.store.SaveTask(&task); err != nil {
+				log.Warn().Err(err).Str("task_id", task.ID).Msg("failed to persist inbound update to SQLite L1")
+			}
+		}
 	case TopicTasksDeleted:
 		eventType = "task.deleted"
 		tm.deleteTask(task.ID)
+		if tm.store != nil {
+			if err := tm.store.DeleteTask(task.ID); err != nil {
+				log.Warn().Err(err).Str("task_id", task.ID).Msg("failed to persist inbound delete to SQLite L1")
+			}
+		}
 	default:
 		// Infer from task existence
 		if tm.taskExists(task.ID) {
@@ -333,6 +380,11 @@ func (tm *TaskManager) handleMessage(msg *busboyClient.Message) error {
 		} else {
 			eventType = "task.created"
 			tm.addTask(&task)
+		}
+		if tm.store != nil {
+			if err := tm.store.SaveTask(&task); err != nil {
+				log.Warn().Err(err).Str("task_id", task.ID).Msg("failed to persist inbound task to SQLite L1")
+			}
 		}
 	}
 
@@ -374,15 +426,28 @@ func (tm *TaskManager) CreateTask(ctx context.Context, task *Task) error {
 	task.CreatedAt = now
 	task.UpdatedAt = now
 
-	// Add to local store
+	// Add to local map
 	tm.addTask(task)
 
-	// Publish to Busboy
-	if err := tm.publishTask(ctx, TopicTasksCreated, task); err != nil {
-		// Rollback local add
-		tm.deleteTask(task.ID)
-		return err
+	// Persist to SQLite L1 store (if available)
+	if tm.store != nil {
+		if err := tm.store.SaveTask(task); err != nil {
+			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to persist task to SQLite L1")
+		}
 	}
+
+	// Publish to Busboy L2 (best-effort async — don't fail the create if bus is down)
+	tm.inflight.Add(1)
+	go func() {
+		defer tm.inflight.Done()
+		if err := tm.publishTask(ctx, TopicTasksCreated, task); err != nil {
+			log.Warn().
+				Err(err).
+				Str("task_id", task.ID).
+				Str("topic", TopicTasksCreated).
+				Msg("failed to publish task creation to busboy (local create persisted)")
+		}
+	}()
 
 	return nil
 }
@@ -411,20 +476,28 @@ func (tm *TaskManager) UpdateTask(ctx context.Context, task *Task) error {
 	// Update timestamp
 	task.UpdatedAt = time.Now()
 
-	// Store old task for rollback (getTask returns a copy since addTask/updateTask store copies)
-	oldTask := tm.getTask(task.ID)
-
-	// Update local store
+	// Update local map
 	tm.updateTask(task)
 
-	// Publish to Busboy
-	if err := tm.publishTask(ctx, TopicTasksUpdated, task); err != nil {
-		// Rollback update
-		if oldTask != nil {
-			tm.updateTask(oldTask)
+	// Persist to SQLite L1 store (if available)
+	if tm.store != nil {
+		if err := tm.store.SaveTask(task); err != nil {
+			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to persist task update to SQLite L1")
 		}
-		return err
 	}
+
+	// Publish to Busboy L2 (best-effort async — don't fail the update if bus is down)
+	tm.inflight.Add(1)
+	go func() {
+		defer tm.inflight.Done()
+		if err := tm.publishTask(ctx, TopicTasksUpdated, task); err != nil {
+			log.Warn().
+				Err(err).
+				Str("task_id", task.ID).
+				Str("topic", TopicTasksUpdated).
+				Msg("failed to publish task update to busboy (local update persisted)")
+		}
+	}()
 
 	return nil
 }
@@ -444,15 +517,28 @@ func (tm *TaskManager) DeleteTask(ctx context.Context, taskID string) error {
 		return ErrTaskNotFound
 	}
 
-	// Delete from local store
+	// Delete from local map
 	tm.deleteTask(taskID)
 
-	// Publish to Busboy
-	if err := tm.publishTask(ctx, TopicTasksDeleted, task); err != nil {
-		// Rollback delete
-		tm.addTask(task)
-		return err
+	// Delete from SQLite L1 store (if available)
+	if tm.store != nil {
+		if err := tm.store.DeleteTask(taskID); err != nil {
+			log.Error().Err(err).Str("task_id", taskID).Msg("failed to delete task from SQLite L1")
+		}
 	}
+
+	// Publish to Busboy L2 (best-effort async — don't fail the delete if bus is down)
+	tm.inflight.Add(1)
+	go func() {
+		defer tm.inflight.Done()
+		if err := tm.publishTask(ctx, TopicTasksDeleted, task); err != nil {
+			log.Warn().
+				Err(err).
+				Str("task_id", task.ID).
+				Str("topic", TopicTasksDeleted).
+				Msg("failed to publish task deletion to busboy (local delete persisted)")
+		}
+	}()
 
 	return nil
 }
@@ -491,11 +577,27 @@ func (tm *TaskManager) IsSubscribed() bool {
 	return tm.subscribed
 }
 
-// Close closes the Busboy client
+// Close gracefully shuts down TaskManager.
+// Drains inflight Busboy publishes (5s timeout), then closes the client.
 func (tm *TaskManager) Close() error {
 	if tm.client == nil {
 		return ErrNilClient
 	}
+
+	// Wait for inflight publishes to complete (or timeout)
+	done := make(chan struct{})
+	go func() {
+		tm.inflight.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Info().Msg("all inflight Busboy publishes drained")
+	case <-time.After(5 * time.Second):
+		log.Warn().Msg("timed out waiting for inflight Busboy publishes (5s) — closing anyway")
+	}
+
 	return tm.client.Close()
 }
 

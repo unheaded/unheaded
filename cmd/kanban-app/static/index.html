@@ -13,9 +13,11 @@
         <!-- Header -->
         <header class="kingdom-header">
             <div class="header-left">
-                <h1 class="kingdom-title">The Unheaded Kingdom</h1>
-                <span class="header-divider"></span>
-                <span class="board-title">Kanban Board</span>
+                <a href="#" class="kingdom-title-link" id="scrollToTop" title="Scroll to top">
+                    <h1 class="kingdom-title">The Unheaded Kingdom</h1>
+                    <span class="header-divider"></span>
+                    <span class="board-title">Kanban Board</span>
+                </a>
             </div>
             <div class="header-right">
                 <div class="connection-status" id="connectionStatus">
@@ -39,9 +41,12 @@
                         <option value="progress">Progress</option>
                         <option value="type">Type</option>
                         <option value="owner">Owner</option>
-                        <option value="updated">Recently Updated</option>
-                        <option value="created">Recently Created</option>
+                        <option value="updated">Last Updated</option>
+                        <option value="updated-oldest">Oldest Updated</option>
+                        <option value="created">Last Created</option>
+                        <option value="created-oldest">Oldest Created</option>
                         <option value="title">Title (A-Z)</option>
+                        <option value="title-reverse">Title (Z-A)</option>
                     </select>
                 </div>
                 <div class="toolbar-group">
