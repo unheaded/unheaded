@@ -96,6 +96,15 @@ const Board = (function() {
         if (clearBtn) {
             clearBtn.addEventListener('click', clearFilters);
         }
+
+        // Scroll-to-top on header title click
+        const scrollToTop = document.getElementById('scrollToTop');
+        if (scrollToTop) {
+            scrollToTop.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
     }
 
     /**
@@ -217,10 +226,16 @@ const Board = (function() {
                     return (a.owner || a.assignee || '').localeCompare(b.owner || b.assignee || '');
                 case 'updated':
                     return new Date(b.updated_at || 0) - new Date(a.updated_at || 0);
+                case 'updated-oldest':
+                    return new Date(a.updated_at || 0) - new Date(b.updated_at || 0);
                 case 'created':
                     return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+                case 'created-oldest':
+                    return new Date(a.created_at || 0) - new Date(b.created_at || 0);
                 case 'title':
                     return (a.title || '').localeCompare(b.title || '');
+                case 'title-reverse':
+                    return (b.title || '').localeCompare(a.title || '');
                 default:
                     return a.priority - b.priority;
             }

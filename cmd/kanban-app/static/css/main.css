@@ -169,6 +169,19 @@ a:hover {
     gap: var(--spacing-md);
 }
 
+.kingdom-title-link {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.kingdom-title-link:hover {
+    opacity: 0.85;
+}
+
 .kingdom-title {
     font-family: var(--font-serif);
     font-size: 1.5rem;
@@ -689,6 +702,39 @@ select {
     background: var(--kingdom-bg-primary);
     border-radius: var(--radius-md);
     border-left: 4px solid var(--status-error);
+}
+
+/* Delete modal — neon red flashing border */
+#deleteModal.active .modal {
+    border: 3px solid #ff0040;
+    box-shadow:
+        0 0 10px rgba(255, 0, 64, 0.6),
+        0 0 30px rgba(255, 0, 64, 0.3),
+        0 0 60px rgba(255, 0, 64, 0.15),
+        inset 0 0 10px rgba(255, 0, 64, 0.05);
+    animation: deleteFlash 1.2s ease-in-out infinite;
+}
+
+@keyframes deleteFlash {
+    0%, 100% {
+        border-color: #ff0040;
+        box-shadow:
+            0 0 10px rgba(255, 0, 64, 0.6),
+            0 0 30px rgba(255, 0, 64, 0.3),
+            0 0 60px rgba(255, 0, 64, 0.15);
+    }
+    50% {
+        border-color: #ff3366;
+        box-shadow:
+            0 0 20px rgba(255, 0, 64, 0.9),
+            0 0 50px rgba(255, 0, 64, 0.5),
+            0 0 80px rgba(255, 0, 64, 0.25);
+    }
+}
+
+#deleteModal.active .modal-header .modal-title {
+    color: #ff0040;
+    text-shadow: 0 0 8px rgba(255, 0, 64, 0.4);
 }
 
 /* ============================================
