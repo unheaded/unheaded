@@ -238,12 +238,16 @@ func (m *MockClient) StreamMessages(ctx context.Context, topic string) (<-chan *
 
 	m.mu.RLock()
 	sub, ok := m.subscribers[topic]
+	var status string
+	if ok {
+		status = sub.Status
+	}
 	m.mu.RUnlock()
 
 	if !ok {
 		return nil, errors.New("not subscribed to topic")
 	}
-	if sub.Status != "approved" {
+	if status != "approved" {
 		return nil, busboyClient.ErrSubscriptionPending
 	}
 

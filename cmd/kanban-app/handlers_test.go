@@ -138,7 +138,12 @@ func TestHandleCreateTask_DuplicateID_Returns409(t *testing.T) {
 }
 
 func TestHandleCreateTask_NoTaskManager_StandaloneMode(t *testing.T) {
-	server := NewServer(Config{Port: "0"}) // Standalone mode, no TaskManager
+	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	t.Cleanup(func() {
+		if server.store != nil {
+			server.store.Close()
+		}
+	})
 
 	task := createTestTask("standalone-test")
 	payload, _ := json.Marshal(task)
@@ -176,6 +181,7 @@ func TestHandleUpdateTask_HappyPath(t *testing.T) {
 	// Create task first
 	task := createTestTask("http-update-1")
 	tm.CreateTask(ctx, task)
+	tm.inflight.Wait() // Drain async publish before mutating task
 
 	// Update via HTTP
 	task.Title = "Updated via HTTP"
@@ -258,6 +264,7 @@ func TestHandleDeleteTask_HappyPath(t *testing.T) {
 	// Create task
 	task := createTestTask("http-delete-1")
 	tm.CreateTask(ctx, task)
+	tm.inflight.Wait() // Drain async publish
 
 	// Delete via HTTP
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/timeline/tasks?id=http-delete-1", nil)
@@ -490,6 +497,7 @@ func TestFullHTTPFlow_CreateUpdateDelete(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create failed with status %d", w.Code)
 	}
+	tm.inflight.Wait() // Drain async publish before next op
 
 	// 2. Update task
 	task.Title = "Updated in Flow"

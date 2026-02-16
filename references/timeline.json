@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "last_updated": "2026-02-16T05:12:57.13799-06:00",
+  "last_updated": "2026-02-16T08:45:57.148559-06:00",
   "status": "alpha",
   "phases": [
     {
@@ -29,7 +29,7 @@
     },
     {
       "id": "phase-3",
-      "name": "The MVP Era (📋 PLANNED) (📋 PLANNED) (📋 PLANNED) (📋 PLANNED) (📋 PLANNED)",
+      "name": "The MVP Era (📋 PLANNED) (📋 PLANNED) (📋 PLANNED) (📋 PLANNED) (📋 PLANNED) (📋 PLANNED) (📋 PLANNED)",
       "status": "planned",
       "start_date": "0001-01-01T00:00:00Z",
       "end_date": "0001-01-01T00:00:00Z",
