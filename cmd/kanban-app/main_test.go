@@ -19,11 +19,18 @@ func createTestServer(t *testing.T) *Server {
 		Port:            "8080",
 		TimeGuruAddr:    "localhost:9091",
 		BusboyAddr:      "localhost:9090",
+		DataDir:         t.TempDir(),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
 	}
-	return NewServer(cfg)
+	s := NewServer(cfg)
+	t.Cleanup(func() {
+		if s.store != nil {
+			s.store.Close()
+		}
+	})
+	return s
 }
 
 // ============================================================================
@@ -150,12 +157,18 @@ func TestNewServer_ValidConfig(t *testing.T) {
 		Port:            "8080",
 		TimeGuruAddr:    "localhost:9091",
 		BusboyAddr:      "localhost:9090",
+		DataDir:         t.TempDir(),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
 	}
 
 	server := NewServer(cfg)
+	t.Cleanup(func() {
+		if server.store != nil {
+			server.store.Close()
+		}
+	})
 
 	if server == nil {
 		t.Fatal("expected non-nil server")
@@ -169,8 +182,17 @@ func TestNewServer_ValidConfig(t *testing.T) {
 		t.Error("expected initialized sseClients map")
 	}
 
-	if len(server.tasks) == 0 {
-		t.Error("expected initial tasks to be loaded")
+	// Tasks are now in SQLite Store (L1), not in-memory slice
+	if server.store == nil {
+		t.Error("expected store to be initialized")
+	} else {
+		count, err := server.store.TaskCount()
+		if err != nil {
+			t.Fatalf("failed to get task count: %v", err)
+		}
+		if count == 0 {
+			t.Error("expected initial tasks to be seeded in store")
+		}
 	}
 }
 
@@ -382,12 +404,12 @@ func TestServer_ConcurrentBroadcast(t *testing.T) {
 // ============================================================================
 
 func TestHandleGetTasks_EmptyTasksList(t *testing.T) {
-	server := createTestServer(t)
-
-	// Clear tasks
-	server.tasksMu.Lock()
-	server.tasks = []Task{}
-	server.tasksMu.Unlock()
+	// Create a server with NO store and NO tasks to test the empty fallback
+	server := &Server{
+		config:     Config{Port: "0"},
+		sseClients: make(map[chan []byte]bool),
+		tasks:      []Task{},
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline/tasks", nil)
 	w := httptest.NewRecorder()

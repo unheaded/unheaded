@@ -437,13 +437,15 @@ func (tm *TaskManager) CreateTask(ctx context.Context, task *Task) error {
 	}
 
 	// Publish to Busboy L2 (best-effort async — don't fail the create if bus is down)
+	// Snapshot task to avoid data race with caller mutating the pointer after return
+	taskSnap := *task
 	tm.inflight.Add(1)
 	go func() {
 		defer tm.inflight.Done()
-		if err := tm.publishTask(ctx, TopicTasksCreated, task); err != nil {
+		if err := tm.publishTask(ctx, TopicTasksCreated, &taskSnap); err != nil {
 			log.Warn().
 				Err(err).
-				Str("task_id", task.ID).
+				Str("task_id", taskSnap.ID).
 				Str("topic", TopicTasksCreated).
 				Msg("failed to publish task creation to busboy (local create persisted)")
 		}
@@ -487,13 +489,15 @@ func (tm *TaskManager) UpdateTask(ctx context.Context, task *Task) error {
 	}
 
 	// Publish to Busboy L2 (best-effort async — don't fail the update if bus is down)
+	// Snapshot task to avoid data race with caller mutating the pointer after return
+	taskSnap := *task
 	tm.inflight.Add(1)
 	go func() {
 		defer tm.inflight.Done()
-		if err := tm.publishTask(ctx, TopicTasksUpdated, task); err != nil {
+		if err := tm.publishTask(ctx, TopicTasksUpdated, &taskSnap); err != nil {
 			log.Warn().
 				Err(err).
-				Str("task_id", task.ID).
+				Str("task_id", taskSnap.ID).
 				Str("topic", TopicTasksUpdated).
 				Msg("failed to publish task update to busboy (local update persisted)")
 		}
@@ -528,13 +532,15 @@ func (tm *TaskManager) DeleteTask(ctx context.Context, taskID string) error {
 	}
 
 	// Publish to Busboy L2 (best-effort async — don't fail the delete if bus is down)
+	// Snapshot task to avoid data race with caller mutating the pointer after return
+	taskSnap := *task
 	tm.inflight.Add(1)
 	go func() {
 		defer tm.inflight.Done()
-		if err := tm.publishTask(ctx, TopicTasksDeleted, task); err != nil {
+		if err := tm.publishTask(ctx, TopicTasksDeleted, &taskSnap); err != nil {
 			log.Warn().
 				Err(err).
-				Str("task_id", task.ID).
+				Str("task_id", taskSnap.ID).
 				Str("topic", TopicTasksDeleted).
 				Msg("failed to publish task deletion to busboy (local delete persisted)")
 		}
