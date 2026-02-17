@@ -469,6 +469,7 @@ func escapeJSON(s []byte) string {
 
 // MultiplexedLogReader reads multiplexed log output (combined stdout/stderr).
 type MultiplexedLogReader struct {
+	mu      sync.Mutex
 	readers map[StreamType]io.Reader
 	current StreamType
 	buffer  []byte
@@ -495,63 +496,74 @@ func NewMultiplexedLogReader(stdout, stderr io.Reader) *MultiplexedLogReader {
 // Read reads multiplexed output with stream headers.
 // Format: [stream_type(1 byte)][reserved(3 bytes)][size(4 bytes)][data]
 func (m *MultiplexedLogReader) Read(p []byte) (int, error) {
-	// First try to read any buffered data
-	if m.pos < len(m.buffer) {
-		n := copy(p, m.buffer[m.pos:])
-		m.pos += n
-		return n, nil
-	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	// Read from current stream
-	reader, ok := m.readers[m.current]
-	if !ok {
-		// Try other stream
+	return m.readLocked(p)
+}
+
+// readLocked performs the read while the mutex is held. Uses a loop instead of
+// recursion to avoid deadlock when switching streams after EOF.
+func (m *MultiplexedLogReader) readLocked(p []byte) (int, error) {
+	for {
+		// First try to read any buffered data
+		if m.pos < len(m.buffer) {
+			n := copy(p, m.buffer[m.pos:])
+			m.pos += n
+			return n, nil
+		}
+
+		// Read from current stream
+		reader, ok := m.readers[m.current]
+		if !ok {
+			// Try other stream
+			if m.current == StreamStdout {
+				m.current = StreamStderr
+			} else {
+				m.current = StreamStdout
+			}
+			reader, ok = m.readers[m.current]
+			if !ok {
+				return 0, io.EOF
+			}
+		}
+
+		// Read data
+		data := make([]byte, 4096)
+		n, err := reader.Read(data)
+		if err != nil && err != io.EOF {
+			return 0, err
+		}
+		if n == 0 && err == io.EOF {
+			// Remove this reader
+			delete(m.readers, m.current)
+			if len(m.readers) == 0 {
+				return 0, io.EOF
+			}
+			continue // Try other stream
+		}
+
+		// Build multiplexed frame
+		// Header: [stream_type][0][0][0][size_big_endian_32]
+		header := make([]byte, 8)
+		header[0] = byte(m.current)
+		binary.BigEndian.PutUint32(header[4:], uint32(n))
+
+		m.buffer = append(header, data[:n]...)
+		m.pos = 0
+
+		copied := copy(p, m.buffer)
+		m.pos = copied
+
+		// Alternate streams for fairness
 		if m.current == StreamStdout {
 			m.current = StreamStderr
 		} else {
 			m.current = StreamStdout
 		}
-		reader, ok = m.readers[m.current]
-		if !ok {
-			return 0, io.EOF
-		}
+
+		return copied, nil
 	}
-
-	// Read data
-	data := make([]byte, 4096)
-	n, err := reader.Read(data)
-	if err != nil && err != io.EOF {
-		return 0, err
-	}
-	if n == 0 && err == io.EOF {
-		// Remove this reader
-		delete(m.readers, m.current)
-		if len(m.readers) == 0 {
-			return 0, io.EOF
-		}
-		return m.Read(p) // Try other stream
-	}
-
-	// Build multiplexed frame
-	// Header: [stream_type][0][0][0][size_big_endian_32]
-	header := make([]byte, 8)
-	header[0] = byte(m.current)
-	binary.BigEndian.PutUint32(header[4:], uint32(n))
-
-	m.buffer = append(header, data[:n]...)
-	m.pos = 0
-
-	copied := copy(p, m.buffer)
-	m.pos = copied
-
-	// Alternate streams for fairness
-	if m.current == StreamStdout {
-		m.current = StreamStderr
-	} else {
-		m.current = StreamStdout
-	}
-
-	return copied, nil
 }
 
 // LogCopier copies logs from container streams to log files.

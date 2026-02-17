@@ -28,12 +28,14 @@ import (
 	"syscall"
 	"time"
 
+	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
 	"unheaded/cmd/dashboard-backend/internal/packetflow"
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
+	busboyClient "unheaded/pkg/busboy-client"
 	"unheaded/pkg/logger"
 )
 
@@ -45,10 +47,11 @@ var (
 )
 
 var (
-	listenAddr = flag.String("listen", ":8080", "HTTP listen address")
-	busboyAddr = flag.String("busboy", "localhost:9090", "Busboy server address")
-	debug      = flag.Bool("debug", false, "Enable debug logging")
-	jsonLogs   = flag.Bool("json", false, "Output logs in JSON format")
+	listenAddr     = flag.String("listen", ":8080", "HTTP listen address")
+	busboyAddr     = flag.String("busboy", "localhost:9090", "Busboy server address")
+	busboyGRPCAddr = flag.String("busboy-grpc-addr", "", "Busboy gRPC address for TopicStream (enables real eBPF events)")
+	debug          = flag.Bool("debug", false, "Enable debug logging")
+	jsonLogs       = flag.Bool("json", false, "Output logs in JSON format")
 
 	// Scraper settings
 	scrapeInterval = flag.Duration("scrape-interval", 15*time.Second, "Metrics scrape interval")
@@ -140,6 +143,27 @@ func main() {
 		},
 	}
 
+	// Create eBPF ingestor if gRPC address is provided (or from BUSBOY_GRPC_ADDR env)
+	grpcAddr := *busboyGRPCAddr
+	if grpcAddr == "" {
+		grpcAddr = os.Getenv("BUSBOY_GRPC_ADDR")
+	}
+	if grpcAddr != "" {
+		log.Info().Str("grpc_addr", grpcAddr).Msg("creating TopicStreamClient for eBPF event ingestion")
+
+		httpFallback, _ := busboyClient.NewClient(*busboyAddr)
+		tsc, err := busboyClient.NewTopicStreamClient(grpcAddr,
+			busboyClient.WithHTTPFallback(httpFallback),
+		)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed to create TopicStreamClient, eBPF events disabled")
+		} else {
+			ingestorConfig := ebpfPkg.DefaultIngestorConfig()
+			config.EBPFIngestor = ebpfPkg.NewIngestor(ingestorConfig, tsc, log)
+			log.Info().Msg("eBPF event ingestor configured")
+		}
+	}
+
 	// Create server
 	srv, err := server.NewServer(config, log)
 	if err != nil {
@@ -197,5 +221,9 @@ func getEventTopics() []string {
 		"decisions.*",
 		"state.*",
 		"architecture.*",
+		"ebpf.packet.events",
+		"ebpf.flow.events",
+		"ebpf.latency.events",
+		"ebpf.syscall.events",
 	}
 }

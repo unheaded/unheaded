@@ -1,1080 +1,933 @@
 /**
- * Kingdom Dashboard - Frontend JavaScript
- * Real-time monitoring dashboard for Unheaded infrastructure
- *
- * Features:
- * - WebSocket connection with auto-reconnect
- * - Real-time metrics display with charts and gauges
- * - Service health status cards
- * - Packet flow visualization
- * - Event feed with filtering
- * - Toast notifications
+ * Kingdom Dashboard - Frontend JavaScript (Campaign 2.3)
+ * Real-time monitoring dashboard with 4 pages:
+ *   1. Overview — system metrics, eBPF stats, service health
+ *   2. Flow Graph — real-time network topology canvas
+ *   3. Latency — P50/P90/P99 bar charts per operation
+ *   4. Events — live scrolling event stream with topic filtering
  */
-
 (function() {
     'use strict';
 
-    // ==========================================================================
+    // ======================================================================
     // Configuration
-    // ==========================================================================
-    const CONFIG = {
-        // WebSocket
+    // ======================================================================
+    var CONFIG = {
         wsEndpoint: '/ws',
-        streamEndpoint: '/api/v1/stream',
         reconnectBaseDelay: 1000,
         reconnectMaxDelay: 30000,
         reconnectMultiplier: 1.5,
         heartbeatInterval: 30000,
 
-        // API endpoints
         api: {
             health: '/api/v1/health',
             services: '/api/v1/services',
             metrics: '/api/v1/metrics',
             events: '/api/v1/events',
             stats: '/api/v1/stats',
-            flows: '/api/v1/flows'
+            flows: '/api/v1/flows',
+            latency: '/api/v1/latency',
+            ebpfStats: '/api/v1/ebpf/stats',
+            ebpfEvents: '/api/v1/ebpf/events'
         },
 
-        // Data refresh intervals (ms)
         refreshIntervals: {
             health: 15000,
             services: 10000,
-            metrics: 5000,
-            events: 10000,
-            stats: 5000
+            stats: 5000,
+            flows: 3000,
+            latency: 3000,
+            ebpfStats: 5000,
+            ebpfEvents: 2000
         },
 
-        // Chart settings
-        charts: {
-            maxDataPoints: 60,
-            animationDuration: 300
-        },
-
-        // Flow visualization
-        flow: {
-            maxFlows: 50,
-            particleSpeed: 2,
-            trailLength: 10
-        },
-
-        // Events
-        events: {
-            maxEvents: 100
-        }
+        charts: { maxDataPoints: 60 },
+        flow: { maxNodes: 40, maxFlows: 80 },
+        events: { maxItems: 200 }
     };
 
-    // ==========================================================================
-    // State Management
-    // ==========================================================================
-    const state = {
-        // Connection state
+    // ======================================================================
+    // State
+    // ======================================================================
+    var state = {
         ws: null,
         wsConnected: false,
         reconnectAttempts: 0,
         reconnectTimeout: null,
         lastHeartbeat: null,
+        activePage: 'overview',
 
-        // Data state
         services: {},
         systemHealth: null,
         stats: null,
         events: [],
         flows: [],
-        currentFilter: 'all',
+        flowNodes: [],
+        flowSource: 'unknown',
+        latencyData: {},
+        ebpfStats: {},
+        ebpfEvents: [],
+        ebpfActive: false,
 
-        // Metrics history for charts
-        metricsHistory: {
-            requests: [],
-            latency: [],
-            timestamps: []
-        },
+        eventStreamPaused: false,
+        eventTopicFilter: '',
+        eventTypeFilter: 'all',
+        eventStreamTotal: 0,
 
-        // Gauges
-        gauges: {
-            cpu: 0,
-            memory: 0,
-            goroutines: 0
-        },
+        latencyHistory: [],
+        metricsHistory: { requests: [], latency: [], timestamps: [] },
+        gauges: { cpu: 0, memory: 0, goroutines: 0 },
 
-        // Animation state
         animationFrame: null,
         startTime: Date.now()
     };
 
-    // ==========================================================================
-    // DOM Elements Cache
-    // ==========================================================================
-    const elements = {};
+    // ======================================================================
+    // DOM Element Cache
+    // ======================================================================
+    var el = {};
 
     function cacheElements() {
-        // Header elements
-        elements.overallStatusIndicator = document.getElementById('overall-status-indicator');
-        elements.overallStatusText = document.getElementById('overall-status-text');
-        elements.wsIndicator = document.getElementById('ws-indicator');
-        elements.wsStatusText = document.getElementById('ws-status-text');
-        elements.lastUpdate = document.getElementById('last-update');
+        el.wsIndicator = document.getElementById('ws-indicator');
+        el.wsStatusText = document.getElementById('ws-status-text');
+        el.lastUpdate = document.getElementById('last-update');
 
-        // Overview metrics
-        elements.totalServices = document.getElementById('total-services');
-        elements.healthyServices = document.getElementById('healthy-services');
-        elements.degradedServices = document.getElementById('degraded-services');
-        elements.unhealthyServices = document.getElementById('unhealthy-services');
-        elements.wsConnections = document.getElementById('ws-connections');
-        elements.eventCount = document.getElementById('event-count');
+        el.totalServices = document.getElementById('total-services');
+        el.healthyServices = document.getElementById('healthy-services');
+        el.degradedServices = document.getElementById('degraded-services');
+        el.unhealthyServices = document.getElementById('unhealthy-services');
+        el.ebpfEventsCount = document.getElementById('ebpf-events-count');
+        el.activeFlowsCount = document.getElementById('active-flows-count');
+        el.servicesGrid = document.getElementById('services-grid');
 
-        // Services
-        elements.servicesGrid = document.getElementById('services-grid');
+        el.statPackets = document.getElementById('stat-packets');
+        el.statFlows = document.getElementById('stat-flows');
+        el.statLatencySamples = document.getElementById('stat-latency-samples');
+        el.statErrors = document.getElementById('stat-errors');
+        el.statEps = document.getElementById('stat-eps');
+        el.statUptime = document.getElementById('stat-uptime');
 
-        // Flow
-        elements.flowCanvas = document.getElementById('flow-canvas');
-        elements.flowCount = document.getElementById('flow-count');
-        elements.avgLatency = document.getElementById('avg-latency');
+        el.cpuGauge = document.getElementById('cpu-gauge');
+        el.memoryGauge = document.getElementById('memory-gauge');
+        el.goroutinesGauge = document.getElementById('goroutines-gauge');
+        el.cpuValue = document.getElementById('cpu-value');
+        el.memoryValue = document.getElementById('memory-value');
+        el.goroutinesValue = document.getElementById('goroutines-value');
 
-        // Charts
-        elements.requestsChart = document.getElementById('requests-chart');
-        elements.latencyChart = document.getElementById('latency-chart');
+        el.flowCanvas = document.getElementById('flow-canvas');
+        el.flowGraphCount = document.getElementById('flow-graph-count');
+        el.flowBytesSec = document.getElementById('flow-bytes-sec');
+        el.flowPktsSec = document.getElementById('flow-pkts-sec');
+        el.flowTableBody = document.getElementById('flow-table-body');
 
-        // Gauges
-        elements.cpuGauge = document.getElementById('cpu-gauge');
-        elements.memoryGauge = document.getElementById('memory-gauge');
-        elements.goroutinesGauge = document.getElementById('goroutines-gauge');
-        elements.cpuValue = document.getElementById('cpu-value');
-        elements.memoryValue = document.getElementById('memory-value');
-        elements.goroutinesValue = document.getElementById('goroutines-value');
+        el.latencySummaryGrid = document.getElementById('latency-summary-grid');
+        el.latencyHistoryCanvas = document.getElementById('latency-history-canvas');
 
-        // Events
-        elements.filterToggle = document.getElementById('filter-toggle');
-        elements.eventFilters = document.getElementById('event-filters');
-        elements.eventsList = document.getElementById('events-list');
+        el.eventTopicInput = document.getElementById('event-topic-input');
+        el.eventPauseBtn = document.getElementById('event-pause-btn');
+        el.eventStreamList = document.getElementById('event-stream-list');
+        el.eventStreamTotal = document.getElementById('event-stream-total');
+        el.eventStreamVisible = document.getElementById('event-stream-visible');
+        el.eventStreamRate = document.getElementById('event-stream-rate');
 
-        // Footer
-        elements.uptime = document.getElementById('uptime');
-        elements.serverTime = document.getElementById('server-time');
-
-        // Toast container
-        elements.toastContainer = document.getElementById('toast-container');
+        el.uptime = document.getElementById('uptime');
+        el.serverTime = document.getElementById('server-time');
+        el.toastContainer = document.getElementById('toast-container');
     }
 
-    // ==========================================================================
-    // WebSocket Connection
-    // ==========================================================================
+    // ======================================================================
+    // Navigation
+    // ======================================================================
+    function setupNavigation() {
+        document.querySelectorAll('.nav-tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                switchPage(this.dataset.page);
+            });
+        });
+    }
+
+    function switchPage(page) {
+        state.activePage = page;
+        document.querySelectorAll('.nav-tab').forEach(function(tab) {
+            tab.classList.toggle('active', tab.dataset.page === page);
+        });
+        document.querySelectorAll('.page-content').forEach(function(p) {
+            p.classList.toggle('active', p.id === 'page-' + page);
+        });
+        if (page === 'flows') resizeFlowCanvas();
+    }
+
+    // ======================================================================
+    // WebSocket
+    // ======================================================================
     function connectWebSocket() {
-        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-            return;
-        }
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}${CONFIG.wsEndpoint}`;
-
+        if (state.ws && state.ws.readyState === WebSocket.OPEN) return;
+        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var wsUrl = protocol + '//' + window.location.host + CONFIG.wsEndpoint;
         updateConnectionStatus('connecting');
-        console.log('[WS] Connecting to:', wsUrl);
 
         try {
             state.ws = new WebSocket(wsUrl);
-
-            state.ws.onopen = handleWebSocketOpen;
-            state.ws.onclose = handleWebSocketClose;
-            state.ws.onerror = handleWebSocketError;
+            state.ws.onopen = function() {
+                state.wsConnected = true;
+                state.reconnectAttempts = 0;
+                state.lastHeartbeat = Date.now();
+                updateConnectionStatus('connected');
+                showToast('success', 'Connected', 'WebSocket connection established');
+            };
+            state.ws.onclose = function() {
+                state.wsConnected = false;
+                updateConnectionStatus('disconnected');
+                scheduleReconnect();
+            };
+            state.ws.onerror = function() {
+                state.wsConnected = false;
+                updateConnectionStatus('disconnected');
+            };
             state.ws.onmessage = handleWebSocketMessage;
-        } catch (error) {
-            console.error('[WS] Connection error:', error);
+        } catch (e) {
             scheduleReconnect();
-        }
-    }
-
-    function handleWebSocketOpen(event) {
-        console.log('[WS] Connected');
-        state.wsConnected = true;
-        state.reconnectAttempts = 0;
-        state.lastHeartbeat = Date.now();
-        updateConnectionStatus('connected');
-        showToast('success', 'Connected', 'WebSocket connection established');
-
-        // Start heartbeat monitoring
-        startHeartbeatMonitor();
-    }
-
-    function handleWebSocketClose(event) {
-        console.log('[WS] Disconnected:', event.code, event.reason);
-        state.wsConnected = false;
-        state.ws = null;
-        updateConnectionStatus('disconnected');
-
-        if (event.code !== 1000) {
-            scheduleReconnect();
-        }
-    }
-
-    function handleWebSocketError(error) {
-        console.error('[WS] Error:', error);
-        state.wsConnected = false;
-        updateConnectionStatus('disconnected');
-    }
-
-    function handleWebSocketMessage(event) {
-        state.lastHeartbeat = Date.now();
-
-        try {
-            const message = JSON.parse(event.data);
-            processMessage(message);
-        } catch (error) {
-            console.error('[WS] Parse error:', error);
-        }
-    }
-
-    function processMessage(message) {
-        switch (message.type) {
-            case 'health_update':
-                handleHealthUpdate(message.data);
-                break;
-            case 'packet_flow':
-                handlePacketFlow(message.data);
-                break;
-            case 'event':
-                handleEvent(message.data);
-                break;
-            case 'metrics':
-                handleMetricsUpdate(message.data);
-                break;
-            case 'pong':
-                // Heartbeat response
-                break;
-            default:
-                console.log('[WS] Unknown message type:', message.type);
         }
     }
 
     function scheduleReconnect() {
-        if (state.reconnectTimeout) {
-            clearTimeout(state.reconnectTimeout);
-        }
-
-        const delay = Math.min(
+        if (state.reconnectTimeout) return;
+        var delay = Math.min(
             CONFIG.reconnectBaseDelay * Math.pow(CONFIG.reconnectMultiplier, state.reconnectAttempts),
             CONFIG.reconnectMaxDelay
         );
-
         state.reconnectAttempts++;
-        console.log(`[WS] Reconnecting in ${delay}ms (attempt ${state.reconnectAttempts})`);
-
-        state.reconnectTimeout = setTimeout(() => {
+        state.reconnectTimeout = setTimeout(function() {
+            state.reconnectTimeout = null;
             connectWebSocket();
         }, delay);
     }
 
-    function startHeartbeatMonitor() {
-        setInterval(() => {
-            if (state.wsConnected && state.ws) {
-                // Send ping
-                try {
-                    state.ws.send(JSON.stringify({ type: 'ping' }));
-                } catch (e) {
-                    console.error('[WS] Ping failed:', e);
-                }
-
-                // Check for stale connection
-                const timeSinceHeartbeat = Date.now() - state.lastHeartbeat;
-                if (timeSinceHeartbeat > CONFIG.heartbeatInterval * 2) {
-                    console.warn('[WS] Connection appears stale, reconnecting...');
-                    state.ws.close();
-                    connectWebSocket();
-                }
+    function handleWebSocketMessage(event) {
+        state.lastHeartbeat = Date.now();
+        try {
+            var msg = JSON.parse(event.data);
+            var type = msg.type || '';
+            var data = msg.data || msg;
+            // Map backend WS message types to handlers
+            if (type === 'health' || type === 'health_update') updateHealthData(data);
+            else if (type === 'services') updateServicesData(data);
+            else if (type === 'metrics') updateMetricsData(data);
+            else if (type === 'stats') updateStatsData(data);
+            else if (type === 'flows' || type === 'packet_flow') {
+                // packet_flow is a single flow event — wrap for updateFlowsData
+                if (type === 'packet_flow') addFlowEvent(data);
+                else updateFlowsData(data);
             }
-        }, CONFIG.heartbeatInterval);
+            else if (type === 'event' || type === 'events') addEvent(data);
+            else if (type.indexOf('ebpf_') === 0) addEBPFEvent(type, data);
+        } catch (e) { /* ignore parse errors */ }
     }
 
     function updateConnectionStatus(status) {
-        const indicator = elements.wsIndicator;
-        const text = elements.wsStatusText;
-
-        indicator.className = 'connection-indicator';
-
-        switch (status) {
-            case 'connected':
-                indicator.classList.add('connected');
-                text.textContent = 'Connected';
-                break;
-            case 'connecting':
-                indicator.classList.add('connecting');
-                text.textContent = 'Connecting...';
-                break;
-            case 'disconnected':
-            default:
-                indicator.classList.add('disconnected');
-                text.textContent = 'Disconnected';
-                break;
-        }
+        if (!el.wsIndicator) return;
+        el.wsIndicator.className = 'connection-indicator ' + status;
+        var labels = { connected: 'Connected', disconnected: 'Disconnected', connecting: 'Connecting...' };
+        el.wsStatusText.textContent = labels[status] || status;
     }
 
-    // ==========================================================================
+    // ======================================================================
     // API Fetching
-    // ==========================================================================
-    async function fetchJSON(url) {
-        try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            return await response.json();
-        } catch (error) {
-            console.error(`[API] Fetch error for ${url}:`, error);
-            return null;
+    // ======================================================================
+    function fetchJSON(url, callback) {
+        fetch(url).then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        }).then(callback).catch(function() {});
+    }
+
+    function refreshHealth()     { fetchJSON(CONFIG.api.health,     updateHealthData); }
+    function refreshServices()   { fetchJSON(CONFIG.api.services,   updateServicesData); }
+    function refreshStats()      { fetchJSON(CONFIG.api.stats,      updateStatsData); }
+    function refreshFlows()      { fetchJSON(CONFIG.api.flows,      updateFlowsData); }
+    function refreshLatency()    { fetchJSON(CONFIG.api.latency,    updateLatencyData); }
+    function refreshEBPFStats()  { fetchJSON(CONFIG.api.ebpfStats,  updateEBPFStats); }
+    function refreshEBPFEvents() { fetchJSON(CONFIG.api.ebpfEvents, updateEBPFEvents); }
+
+    // ======================================================================
+    // Data Handlers
+    // ======================================================================
+    function updateHealthData(data) {
+        state.systemHealth = data;
+        // Backend returns healthy_count/degraded_count/unhealthy_count/total_services
+        var h = data.healthy_count || data.healthy || 0;
+        var d = data.degraded_count || data.degraded || 0;
+        var u = data.unhealthy_count || data.unhealthy || 0;
+        var total = data.total_services || data.total || (h + d + u);
+        setText(el.totalServices, total);
+        setText(el.healthyServices, h);
+        setText(el.degradedServices, d);
+        setText(el.unhealthyServices, u);
+        updateTimestamp();
+    }
+
+    function updateServicesData(data) {
+        var services = data.services || data;
+        if (!Array.isArray(services)) return;
+        state.services = {};
+        services.forEach(function(s) { state.services[s.name] = s; });
+        renderServicesGrid(services);
+    }
+
+    function updateStatsData(data) {
+        state.stats = data;
+        // Backend /api/v1/stats returns nested: {server:{ws_connections}, health:{healthy, ...}, scraper:{...}}
+        // Extract what we can for gauges
+        var h = data.health || {};
+        var srv = data.server || {};
+        // Use health ratio as a pseudo-CPU metric (% healthy)
+        var totalSvc = h.total_services || 0;
+        var healthySvc = h.healthy || 0;
+        if (totalSvc > 0) state.gauges.cpu = (healthySvc / totalSvc) * 100;
+        // Use scraper series count as pseudo-memory metric
+        var sc = data.scraper || {};
+        state.gauges.memory = Math.min((sc.series_count || 0) / 10, 100);
+        // WebSocket connections for goroutines gauge
+        state.gauges.goroutines = srv.ws_connections || 0;
+        // Direct flat fields override nested (for WS messages with flat data)
+        if (data.cpu !== undefined) state.gauges.cpu = data.cpu;
+        if (data.memory !== undefined) state.gauges.memory = data.memory;
+        if (data.goroutines !== undefined) state.gauges.goroutines = data.goroutines;
+        updateGauges();
+    }
+
+    function updateFlowsData(data) {
+        // Backend returns {source: "ebpf"|"synthetic", active_flows: [...], stats: {...}}
+        var flows = data.active_flows || data.flows || data;
+        if (!Array.isArray(flows)) flows = [];
+        state.flows = flows;
+        state.flowSource = data.source || 'unknown';
+        var stats = data.stats || {};
+        setText(el.flowGraphCount, flows.length);
+        setText(el.activeFlowsCount, flows.length);
+        setText(el.flowBytesSec, formatBytes(stats.bytes_per_sec || 0));
+        setText(el.flowPktsSec, formatNumber(stats.packets_per_sec || 0));
+        buildFlowNodes(flows);
+        if (state.activePage === 'flows') {
+            renderFlowGraph();
+            renderFlowTable(flows);
         }
     }
 
-    async function refreshHealth() {
-        const data = await fetchJSON(CONFIG.api.health);
-        if (data) {
-            state.systemHealth = data;
-            updateSystemHealthUI(data);
+    function updateLatencyData(data) {
+        // Backend returns {percentiles: {...}, stats: {...}} or {message: "...", data: null}
+        // Normalize: wrap percentiles as "operations" for rendering
+        if (data.percentiles && !data.operations) {
+            data.operations = data.percentiles;
+        }
+        state.latencyData = data;
+        if (state.activePage === 'latency') {
+            renderLatencySummary(data);
+            renderLatencyCharts(data);
+            renderLatencyHistory(data);
         }
     }
 
-    async function refreshServices() {
-        const data = await fetchJSON(CONFIG.api.services);
-        if (data) {
-            state.services = data.services || [];
-            updateServicesUI(data);
+    function updateEBPFStats(data) {
+        // Backend returns {active: bool, stats: {...}} or {active: false, message: "..."}
+        var stats = data.stats || data;
+        state.ebpfStats = stats;
+        setText(el.statPackets, formatNumber(stats.packets_ingested || 0));
+        setText(el.statFlows, formatNumber(stats.flows_tracked || 0));
+        setText(el.statLatencySamples, formatNumber(stats.latency_samples || 0));
+        setText(el.statErrors, formatNumber(stats.parse_errors || 0));
+        setText(el.statEps, formatNumber(stats.events_per_sec || 0));
+        setText(el.statUptime, formatUptime(stats.uptime_ms || 0));
+        setText(el.ebpfEventsCount, formatNumber(stats.total_events || 0));
+        // Update eBPF active indicator
+        state.ebpfActive = data.active === true;
+    }
+
+    function updateEBPFEvents(data) {
+        var events = data.events || data;
+        if (!Array.isArray(events) || events.length === 0) return;
+        // Normalize events for the event stream
+        var normalized = events.map(function(ev) {
+            return {
+                type: ev.type || ev.event_type || 'packet',
+                event_type: ev.type || ev.event_type || 'packet',
+                topic: ev.topic || 'ebpf.events',
+                data: ev,
+                timestamp: ev.timestamp || new Date().toISOString(),
+                summary: ev.message || ev.summary || JSON.stringify(ev).slice(0, 120)
+            };
+        });
+        state.ebpfEvents = normalized.concat(state.ebpfEvents).slice(0, CONFIG.events.maxItems);
+        state.eventStreamTotal += events.length;
+        if (!state.eventStreamPaused && state.activePage === 'events') {
+            appendEventStreamItems(normalized);
         }
     }
 
-    async function refreshEvents() {
-        const data = await fetchJSON(CONFIG.api.events + '?limit=50');
-        if (data && data.events) {
-            state.events = data.events;
-            updateEventsUI();
+    function updateMetricsData(data) {
+        if (data.request_rate !== undefined) {
+            state.metricsHistory.requests.push(data.request_rate);
+            if (state.metricsHistory.requests.length > CONFIG.charts.maxDataPoints)
+                state.metricsHistory.requests.shift();
+        }
+        if (data.avg_latency !== undefined) {
+            state.metricsHistory.latency.push(data.avg_latency);
+            if (state.metricsHistory.latency.length > CONFIG.charts.maxDataPoints)
+                state.metricsHistory.latency.shift();
         }
     }
 
-    async function refreshStats() {
-        const data = await fetchJSON(CONFIG.api.stats);
-        if (data) {
-            state.stats = data;
-            updateStatsUI(data);
+    function addEvent(data) {
+        state.events.unshift(data);
+        if (state.events.length > CONFIG.events.maxItems) state.events.pop();
+    }
+
+    function addFlowEvent(flowData) {
+        // Single flow event from WS — merge into state.flows
+        if (!flowData) return;
+        state.flows.push(flowData);
+        if (state.flows.length > CONFIG.flow.maxFlows) state.flows.shift();
+        buildFlowNodes(state.flows);
+        setText(el.flowGraphCount, state.flows.length);
+        setText(el.activeFlowsCount, state.flows.length);
+        if (state.activePage === 'flows') {
+            renderFlowGraph();
+            renderFlowTable(state.flows);
         }
     }
 
-    // ==========================================================================
-    // UI Updates
-    // ==========================================================================
-    function updateSystemHealthUI(health) {
-        // Update overall status
-        const indicator = elements.overallStatusIndicator;
-        const text = elements.overallStatusText;
-
-        indicator.className = 'status-indicator';
-        indicator.classList.add(health.status);
-        text.textContent = health.message || health.status;
-
-        // Update counts
-        elements.totalServices.textContent = health.total_services || 0;
-        elements.healthyServices.textContent = health.healthy_count || 0;
-        elements.degradedServices.textContent = health.degraded_count || 0;
-        elements.unhealthyServices.textContent = health.unhealthy_count || 0;
-
-        // Update timestamp
-        elements.lastUpdate.textContent = new Date().toLocaleTimeString();
+    function addEBPFEvent(type, data) {
+        // eBPF events from WS — add to event stream and update counters
+        var evType = type.replace('ebpf_', '');
+        var ev = {
+            type: evType,
+            event_type: evType,
+            topic: 'ebpf.' + evType + '.events',
+            data: data,
+            timestamp: new Date().toISOString(),
+            summary: formatEBPFSummary(evType, data)
+        };
+        state.ebpfEvents.unshift(ev);
+        if (state.ebpfEvents.length > CONFIG.events.maxItems) state.ebpfEvents.pop();
+        state.eventStreamTotal++;
+        if (!state.eventStreamPaused && state.activePage === 'events') {
+            appendEventStreamItems([ev]);
+        }
     }
 
-    function updateServicesUI(data) {
-        const grid = elements.servicesGrid;
-        const services = data.services || [];
+    function formatEBPFSummary(type, data) {
+        if (!data) return type + ' event';
+        if (type === 'packet') return (data.src_ip || '?') + ' → ' + (data.dst_ip || '?') + ' ' + (data.protocol || '');
+        if (type === 'flow') return (data.src_ip || '?') + ':' + (data.src_port || '') + ' → ' + (data.dst_ip || '?') + ':' + (data.dst_port || '') + ' [' + (data.state || '') + ']';
+        if (type === 'latency') return (data.operation || '?') + ' ' + (data.latency_us || 0) + 'μs';
+        if (type === 'syscall') return (data.syscall || '?') + ' pid=' + (data.pid || 0);
+        return type + ' event';
+    }
 
-        // Clear placeholder
-        grid.innerHTML = '';
-
+    // ======================================================================
+    // Overview — Service Health Grid
+    // ======================================================================
+    function renderServicesGrid(services) {
+        if (!el.servicesGrid) return;
+        el.servicesGrid.innerHTML = '';
         if (services.length === 0) {
-            grid.innerHTML = '<div class="service-card placeholder"><div class="service-skeleton"></div></div>';
+            el.servicesGrid.innerHTML = '<div class="service-card placeholder"><div class="service-skeleton"></div></div>';
             return;
         }
-
-        services.forEach(service => {
-            const card = createServiceCard(service);
-            grid.appendChild(card);
+        services.forEach(function(svc) {
+            var status = (svc.status || 'unknown').toLowerCase();
+            var card = document.createElement('div');
+            card.className = 'service-card ' + status;
+            // Backend returns average_latency_ms (or avg_latency_ms) and uptime_percent
+            var latency = svc.average_latency_ms != null ? svc.average_latency_ms : svc.avg_latency_ms;
+            var uptime = svc.uptime_percent != null ? svc.uptime_percent : null;
+            card.innerHTML =
+                '<div class="service-header">' +
+                    '<span class="service-name">' + esc(svc.name) + '</span>' +
+                    '<span class="service-status-badge ' + status + '">' + status + '</span>' +
+                '</div>' +
+                '<div class="service-metrics">' +
+                    '<div class="service-metric">Uptime <span class="service-metric-value">' +
+                        (uptime != null ? Number(uptime).toFixed(1) + '%' : '--') +
+                    '</span></div>' +
+                    '<div class="service-metric">Latency <span class="service-metric-value">' +
+                        (latency != null ? Number(latency).toFixed(0) + 'ms' : '--') +
+                    '</span></div>' +
+                '</div>' +
+                '<div class="service-uptime-bar"><div class="service-uptime-fill" style="width:' +
+                    (uptime || 0) + '%"></div></div>';
+            el.servicesGrid.appendChild(card);
         });
     }
 
-    function createServiceCard(service) {
-        const card = document.createElement('div');
-        card.className = `service-card ${service.status}`;
-        card.dataset.service = service.name;
-
-        const uptime = service.uptime_percent || 0;
-        const latency = service.average_latency_ms || 0;
-
-        card.innerHTML = `
-            <div class="service-header">
-                <span class="service-name">${escapeHtml(service.name)}</span>
-                <span class="service-status-badge ${service.status}">${service.status}</span>
-            </div>
-            <div class="service-metrics">
-                <div class="service-metric">
-                    <span>Uptime:</span>
-                    <span class="service-metric-value">${uptime.toFixed(1)}%</span>
-                </div>
-                <div class="service-metric">
-                    <span>Latency:</span>
-                    <span class="service-metric-value">${latency}ms</span>
-                </div>
-                <div class="service-metric">
-                    <span>Checks:</span>
-                    <span class="service-metric-value">${service.consecutive_successes || 0}/${service.consecutive_failures || 0}</span>
-                </div>
-            </div>
-            <div class="service-uptime-bar">
-                <div class="service-uptime-fill" style="width: ${Math.min(uptime, 100)}%"></div>
-            </div>
-        `;
-
-        card.addEventListener('click', () => {
-            showServiceDetails(service);
-        });
-
-        return card;
+    // ======================================================================
+    // Overview — Gauges
+    // ======================================================================
+    function updateGauges() {
+        drawGauge(el.cpuGauge, state.gauges.cpu / 100, gaugeColor(state.gauges.cpu));
+        setText(el.cpuValue, state.gauges.cpu.toFixed(0) + '%');
+        drawGauge(el.memoryGauge, state.gauges.memory / 100, gaugeColor(state.gauges.memory));
+        setText(el.memoryValue, state.gauges.memory.toFixed(0) + '%');
+        var gNorm = Math.min(state.gauges.goroutines / 500, 1);
+        drawGauge(el.goroutinesGauge, gNorm, '#ffd700');
+        setText(el.goroutinesValue, state.gauges.goroutines);
     }
 
-    function updateEventsUI() {
-        const list = elements.eventsList;
-        const events = filterEvents(state.events);
-
-        list.innerHTML = '';
-
-        if (events.length === 0) {
-            list.innerHTML = '<div class="event-item info"><div class="event-header"><span class="event-title">No events</span></div></div>';
-            return;
-        }
-
-        events.slice(0, CONFIG.events.maxEvents).forEach(event => {
-            const item = createEventItem(event);
-            list.appendChild(item);
-        });
-
-        elements.eventCount.textContent = state.events.length;
-    }
-
-    function createEventItem(event) {
-        const item = document.createElement('div');
-        item.className = `event-item ${event.severity || 'info'}`;
-
-        const time = new Date(event.timestamp).toLocaleTimeString();
-
-        item.innerHTML = `
-            <div class="event-header">
-                <span class="event-title">${escapeHtml(event.title || event.type)}</span>
-                <span class="event-time">${time}</span>
-            </div>
-            <div class="event-body">
-                <span class="event-message">${escapeHtml(event.message || '')}</span>
-                <span class="event-source">${escapeHtml(event.source || 'system')}</span>
-            </div>
-        `;
-
-        return item;
-    }
-
-    function filterEvents(events) {
-        if (state.currentFilter === 'all') {
-            return events;
-        }
-        return events.filter(e => e.severity === state.currentFilter);
-    }
-
-    function updateStatsUI(stats) {
-        if (stats.server) {
-            elements.wsConnections.textContent = stats.server.ws_connections || 0;
-        }
-
-        // Update footer
-        if (stats.server && stats.server.started) {
-            const uptime = formatUptime(Date.now() - state.startTime);
-            elements.uptime.textContent = `Uptime: ${uptime}`;
-        }
-
-        elements.serverTime.textContent = `Server: ${new Date().toLocaleTimeString()}`;
-
-        // Simulate gauge updates (in production, these would come from actual metrics)
-        updateGaugeValues({
-            cpu: Math.random() * 40 + 20,
-            memory: Math.random() * 30 + 40,
-            goroutines: Math.floor(Math.random() * 50 + 100)
-        });
-    }
-
-    function updateGaugeValues(values) {
-        state.gauges = values;
-
-        drawGauge(elements.cpuGauge, values.cpu, 100, getGaugeColor(values.cpu, 100));
-        drawGauge(elements.memoryGauge, values.memory, 100, getGaugeColor(values.memory, 100));
-        drawGauge(elements.goroutinesGauge, values.goroutines, 500, '#ffd700');
-
-        elements.cpuValue.textContent = `${values.cpu.toFixed(1)}%`;
-        elements.memoryValue.textContent = `${values.memory.toFixed(1)}%`;
-        elements.goroutinesValue.textContent = values.goroutines;
-    }
-
-    function getGaugeColor(value, max) {
-        const percent = value / max;
-        if (percent < 0.5) return '#00d26a';
-        if (percent < 0.75) return '#ff9800';
-        return '#ff4757';
-    }
-
-    // ==========================================================================
-    // Event Handlers
-    // ==========================================================================
-    function handleHealthUpdate(data) {
-        if (data.service) {
-            // Update specific service card
-            const card = document.querySelector(`.service-card[data-service="${data.service}"]`);
-            if (card) {
-                card.className = `service-card ${data.new_status}`;
-                const badge = card.querySelector('.service-status-badge');
-                if (badge) {
-                    badge.className = `service-status-badge ${data.new_status}`;
-                    badge.textContent = data.new_status;
-                }
-            }
-
-            // Show toast for status changes
-            if (data.old_status !== data.new_status) {
-                const severity = data.new_status === 'unhealthy' ? 'error' :
-                                 data.new_status === 'degraded' ? 'warning' : 'success';
-                showToast(severity, `${data.service} Status Change`,
-                    `${data.old_status} -> ${data.new_status}`);
-            }
-        }
-
-        // Refresh health data
-        refreshHealth();
-    }
-
-    function handlePacketFlow(flow) {
-        // Add to flows array
-        state.flows.push(flow);
-        if (state.flows.length > CONFIG.flow.maxFlows) {
-            state.flows.shift();
-        }
-
-        // Update flow stats
-        elements.flowCount.textContent = state.flows.length;
-
-        const avgLatency = state.flows.reduce((sum, f) => sum + (f.total_time / 1e6), 0) / state.flows.length;
-        elements.avgLatency.textContent = `${avgLatency.toFixed(2)}ms`;
-
-        // Update metrics history
-        updateMetricsHistory(flow);
-    }
-
-    function handleEvent(event) {
-        // Add to events array
-        state.events.unshift(event);
-        if (state.events.length > CONFIG.events.maxEvents) {
-            state.events.pop();
-        }
-
-        // Update UI
-        updateEventsUI();
-
-        // Show toast for critical/error events
-        if (event.severity === 'critical' || event.severity === 'error') {
-            showToast(event.severity, event.title || 'Alert', event.message || '');
-        }
-    }
-
-    function handleMetricsUpdate(data) {
-        // Update gauges if metrics contain relevant data
-        if (data.cpu_percent !== undefined) {
-            state.gauges.cpu = data.cpu_percent;
-        }
-        if (data.memory_percent !== undefined) {
-            state.gauges.memory = data.memory_percent;
-        }
-        if (data.goroutines !== undefined) {
-            state.gauges.goroutines = data.goroutines;
-        }
-
-        updateGaugeValues(state.gauges);
-    }
-
-    // ==========================================================================
-    // Charts
-    // ==========================================================================
-    function updateMetricsHistory(flow) {
-        const now = Date.now();
-
-        // Calculate request rate (flows per second)
-        const recentFlows = state.flows.filter(f =>
-            new Date(f.timestamp).getTime() > now - 60000
-        ).length;
-
-        state.metricsHistory.requests.push(recentFlows);
-        state.metricsHistory.latency.push(flow.total_time / 1e6);
-        state.metricsHistory.timestamps.push(now);
-
-        // Keep last N data points
-        const maxPoints = CONFIG.charts.maxDataPoints;
-        if (state.metricsHistory.requests.length > maxPoints) {
-            state.metricsHistory.requests.shift();
-            state.metricsHistory.latency.shift();
-            state.metricsHistory.timestamps.shift();
-        }
-
-        // Redraw charts
-        drawLineChart(elements.requestsChart, state.metricsHistory.requests, '#ffd700');
-        drawLineChart(elements.latencyChart, state.metricsHistory.latency, '#00bcd4');
-    }
-
-    function drawLineChart(canvas, data, color) {
-        if (!canvas || data.length < 2) return;
-
-        const ctx = canvas.getContext('2d');
-        const width = canvas.width;
-        const height = canvas.height;
-        const padding = 10;
-
-        // Clear canvas
-        ctx.fillStyle = '#1e2746';
-        ctx.fillRect(0, 0, width, height);
-
-        // Calculate scales
-        const maxValue = Math.max(...data, 1);
-        const minValue = Math.min(...data, 0);
-        const range = maxValue - minValue || 1;
-
-        const xStep = (width - padding * 2) / (data.length - 1);
-        const yScale = (height - padding * 2) / range;
-
-        // Draw grid lines
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 5; i++) {
-            const y = padding + (height - padding * 2) * i / 4;
-            ctx.beginPath();
-            ctx.moveTo(padding, y);
-            ctx.lineTo(width - padding, y);
-            ctx.stroke();
-        }
-
-        // Draw line
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-
-        ctx.beginPath();
-        data.forEach((value, i) => {
-            const x = padding + i * xStep;
-            const y = height - padding - (value - minValue) * yScale;
-
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-        });
-        ctx.stroke();
-
-        // Draw gradient fill
-        const gradient = ctx.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, color.replace(')', ', 0.3)').replace('rgb', 'rgba'));
-        gradient.addColorStop(1, color.replace(')', ', 0)').replace('rgb', 'rgba'));
-
-        ctx.fillStyle = gradient;
-        ctx.lineTo(width - padding, height - padding);
-        ctx.lineTo(padding, height - padding);
-        ctx.closePath();
-        ctx.fill();
-
-        // Draw current value
-        if (data.length > 0) {
-            const currentValue = data[data.length - 1];
-            ctx.fillStyle = '#f8f9fa';
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'right';
-            ctx.fillText(currentValue.toFixed(1), width - padding, padding + 12);
-        }
-    }
-
-    function drawGauge(canvas, value, max, color) {
+    function drawGauge(canvas, fraction, color) {
         if (!canvas) return;
-
-        const ctx = canvas.getContext('2d');
-        const width = canvas.width;
-        const height = canvas.height;
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const radius = Math.min(width, height) / 2 - 10;
-
-        // Clear canvas
-        ctx.clearRect(0, 0, width, height);
-
-        // Draw background arc
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, Math.PI * 0.75, Math.PI * 2.25, false);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 10;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-
-        // Draw value arc
-        const percentage = Math.min(value / max, 1);
-        const endAngle = Math.PI * 0.75 + (Math.PI * 1.5 * percentage);
-
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, Math.PI * 0.75, endAngle, false);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 10;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-
-        // Add glow effect
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, endAngle - 0.1, endAngle, false);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        var ctx = canvas.getContext('2d');
+        var w = canvas.width, h = canvas.height;
+        var cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 10;
+        var startA = 0.75 * Math.PI, endA = 2.25 * Math.PI;
+        ctx.clearRect(0, 0, w, h);
+        ctx.beginPath(); ctx.arc(cx, cy, r, startA, endA);
+        ctx.strokeStyle = '#1e2746'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.stroke();
+        var valA = startA + (endA - startA) * Math.max(0, Math.min(1, fraction));
+        ctx.beginPath(); ctx.arc(cx, cy, r, startA, valA);
+        ctx.strokeStyle = color; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.stroke();
     }
 
-    // ==========================================================================
-    // Packet Flow Visualization
-    // ==========================================================================
-    const flowViz = {
-        particles: [],
-        nodes: [
-            { name: 'XDP', x: 0.1, y: 0.5, color: '#ff6b6b' },
-            { name: 'Gateway', x: 0.3, y: 0.3, color: '#ffd700' },
-            { name: 'Busboy', x: 0.5, y: 0.5, color: '#4ecdc4' },
-            { name: 'Service', x: 0.7, y: 0.3, color: '#45b7d1' },
-            { name: 'Collector', x: 0.9, y: 0.5, color: '#a29bfe' }
-        ]
-    };
+    function gaugeColor(pct) {
+        if (pct > 80) return '#ff4757';
+        if (pct > 60) return '#ff9800';
+        return '#00d26a';
+    }
 
-    function initFlowVisualization() {
-        const canvas = elements.flowCanvas;
-        if (!canvas) return;
-
-        // Set canvas size
-        resizeFlowCanvas();
-        window.addEventListener('resize', resizeFlowCanvas);
-
-        // Start animation loop
-        animateFlow();
+    // ======================================================================
+    // Flow Graph — Canvas
+    // ======================================================================
+    function buildFlowNodes(flows) {
+        var nodeMap = {};
+        flows.forEach(function(f) {
+            var src = (f.src_ip || f.source || '') + (f.src_port ? ':' + f.src_port : '');
+            var dst = (f.dst_ip || f.destination || '') + (f.dst_port ? ':' + f.dst_port : '');
+            if (src && !nodeMap[src]) nodeMap[src] = { id: src, label: src, conns: 0 };
+            if (dst && !nodeMap[dst]) nodeMap[dst] = { id: dst, label: dst, conns: 0 };
+            if (src) nodeMap[src].conns++;
+            if (dst) nodeMap[dst].conns++;
+        });
+        state.flowNodes = Object.values(nodeMap).slice(0, CONFIG.flow.maxNodes);
     }
 
     function resizeFlowCanvas() {
-        const canvas = elements.flowCanvas;
-        const wrapper = canvas.parentElement;
-        canvas.width = wrapper.clientWidth;
-        canvas.height = wrapper.clientHeight;
+        if (!el.flowCanvas) return;
+        var wrapper = el.flowCanvas.parentElement;
+        el.flowCanvas.width = wrapper.clientWidth;
+        el.flowCanvas.height = wrapper.clientHeight || 500;
+        renderFlowGraph();
     }
 
-    function animateFlow() {
-        const canvas = elements.flowCanvas;
-        const ctx = canvas.getContext('2d');
-        const width = canvas.width;
-        const height = canvas.height;
+    function renderFlowGraph() {
+        var canvas = el.flowCanvas;
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var W = canvas.width, H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
 
-        // Clear canvas
-        ctx.fillStyle = '#1e2746';
-        ctx.fillRect(0, 0, width, height);
-
-        // Draw connections
-        drawFlowConnections(ctx, width, height);
-
-        // Draw nodes
-        drawFlowNodes(ctx, width, height);
-
-        // Update and draw particles
-        updateFlowParticles();
-        drawFlowParticles(ctx, width, height);
-
-        // Add new particles from recent flows
-        if (state.flows.length > 0 && Math.random() < 0.3) {
-            addFlowParticle();
-        }
-
-        state.animationFrame = requestAnimationFrame(animateFlow);
-    }
-
-    function drawFlowConnections(ctx, width, height) {
-        ctx.strokeStyle = 'rgba(255, 215, 0, 0.2)';
-        ctx.lineWidth = 2;
-
-        for (let i = 0; i < flowViz.nodes.length - 1; i++) {
-            const from = flowViz.nodes[i];
-            const to = flowViz.nodes[i + 1];
-
-            ctx.beginPath();
-            ctx.moveTo(from.x * width, from.y * height);
-
-            // Bezier curve for smooth connections
-            const cp1x = from.x * width + (to.x - from.x) * width * 0.5;
-            const cp1y = from.y * height;
-            const cp2x = from.x * width + (to.x - from.x) * width * 0.5;
-            const cp2y = to.y * height;
-
-            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, to.x * width, to.y * height);
-            ctx.stroke();
-        }
-    }
-
-    function drawFlowNodes(ctx, width, height) {
-        flowViz.nodes.forEach(node => {
-            const x = node.x * width;
-            const y = node.y * height;
-            const radius = 20;
-
-            // Draw glow
-            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 2);
-            gradient.addColorStop(0, node.color + '40');
-            gradient.addColorStop(1, 'transparent');
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(x, y, radius * 2, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Draw node
-            ctx.fillStyle = node.color;
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Draw border
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Draw label
-            ctx.fillStyle = '#f8f9fa';
-            ctx.font = '10px sans-serif';
+        var nodes = state.flowNodes;
+        var flows = state.flows;
+        if (nodes.length === 0) {
+            ctx.fillStyle = '#6c757d'; ctx.font = '16px -apple-system, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(node.name, x, y + radius + 15);
-        });
-    }
-
-    function addFlowParticle() {
-        const flow = state.flows[Math.floor(Math.random() * state.flows.length)];
-        const isError = flow && flow.status_code >= 400;
-
-        flowViz.particles.push({
-            progress: 0,
-            speed: 0.01 + Math.random() * 0.01,
-            color: isError ? '#ff4757' : '#ffd700',
-            size: 3 + Math.random() * 2,
-            trail: []
-        });
-    }
-
-    function updateFlowParticles() {
-        flowViz.particles = flowViz.particles.filter(particle => {
-            particle.progress += particle.speed;
-
-            // Store trail
-            if (particle.trail.length > CONFIG.flow.trailLength) {
-                particle.trail.shift();
+            if (state.flowSource === 'synthetic') {
+                ctx.fillText('Synthetic mode — start trace-collector for real eBPF flows', W / 2, H / 2 - 12);
+                ctx.font = '12px -apple-system, sans-serif';
+                ctx.fillText('Waiting for real network flow data...', W / 2, H / 2 + 12);
+            } else {
+                ctx.fillText('No active flows', W / 2, H / 2);
             }
-            particle.trail.push(particle.progress);
+            return;
+        }
 
-            return particle.progress < 1;
+        // Circular layout
+        var cx = W / 2, cy = H / 2, radius = Math.min(W, H) * 0.35;
+        var pos = {};
+        nodes.forEach(function(n, i) {
+            var a = (2 * Math.PI * i / nodes.length) - Math.PI / 2;
+            pos[n.id] = { x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) };
+        });
+
+        // Edges
+        flows.forEach(function(f) {
+            var src = (f.src_ip || f.source || '') + (f.src_port ? ':' + f.src_port : '');
+            var dst = (f.dst_ip || f.destination || '') + (f.dst_port ? ':' + f.dst_port : '');
+            var p1 = pos[src], p2 = pos[dst];
+            if (!p1 || !p2) return;
+
+            var proto = (f.protocol || 'tcp').toLowerCase();
+            var st = (f.state || '').toLowerCase();
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+
+            if (st === 'new') ctx.strokeStyle = '#ffd700';
+            else if (st === 'closing' || st === 'closed') ctx.strokeStyle = '#6c757d';
+            else if (st === 'error') ctx.strokeStyle = '#ff6b6b';
+            else if (proto === 'udp') ctx.strokeStyle = '#00d26a';
+            else ctx.strokeStyle = '#4ecdc4';
+
+            var bytes = f.bytes || f.byte_count || 1;
+            ctx.lineWidth = Math.max(1, Math.min(6, Math.log2(bytes / 100)));
+            ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1.0;
+        });
+
+        // Nodes
+        nodes.forEach(function(n) {
+            var p = pos[n.id]; if (!p) return;
+            var r = Math.max(6, Math.min(16, 4 + n.conns * 2));
+            ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
+            ctx.fillStyle = '#1e2746'; ctx.fill();
+            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = '#adb5bd'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+            var label = n.label.length > 20 ? n.label.slice(0, 18) + '..' : n.label;
+            ctx.fillText(label, p.x, p.y + r + 14);
         });
     }
 
-    function drawFlowParticles(ctx, width, height) {
-        flowViz.particles.forEach(particle => {
-            const pos = getParticlePosition(particle.progress, width, height);
-
-            // Draw trail
-            ctx.strokeStyle = particle.color + '40';
-            ctx.lineWidth = particle.size / 2;
-            ctx.beginPath();
-            particle.trail.forEach((p, i) => {
-                const trailPos = getParticlePosition(p, width, height);
-                if (i === 0) {
-                    ctx.moveTo(trailPos.x, trailPos.y);
-                } else {
-                    ctx.lineTo(trailPos.x, trailPos.y);
-                }
-            });
-            ctx.stroke();
-
-            // Draw particle
-            ctx.fillStyle = particle.color;
-            ctx.shadowColor = particle.color;
-            ctx.shadowBlur = 10;
-            ctx.beginPath();
-            ctx.arc(pos.x, pos.y, particle.size, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
+    function renderFlowTable(flows) {
+        if (!el.flowTableBody) return;
+        var html = '';
+        flows.slice(0, 50).forEach(function(f) {
+            var src = (f.src_ip || f.source || '?') + (f.src_port ? ':' + f.src_port : '');
+            var dst = (f.dst_ip || f.destination || '?') + (f.dst_port ? ':' + f.dst_port : '');
+            html += '<tr>' +
+                '<td>' + esc(src) + '</td>' +
+                '<td>' + esc(dst) + '</td>' +
+                '<td>' + esc((f.protocol || 'tcp').toUpperCase()) + '</td>' +
+                '<td>' + formatNumber(f.packets || f.packet_count || 0) + '</td>' +
+                '<td>' + formatBytes(f.bytes || f.byte_count || 0) + '</td>' +
+                '<td>' + esc(f.state || 'active') + '</td>' +
+                '<td>' + (f.age_ms ? formatDuration(f.age_ms) : '--') + '</td>' +
+                '</tr>';
         });
+        el.flowTableBody.innerHTML = html;
     }
 
-    function getParticlePosition(progress, width, height) {
-        const nodes = flowViz.nodes;
-        const totalSegments = nodes.length - 1;
-        const segment = Math.min(Math.floor(progress * totalSegments), totalSegments - 1);
-        const segmentProgress = (progress * totalSegments) - segment;
-
-        const from = nodes[segment];
-        const to = nodes[segment + 1];
-
-        // Bezier curve interpolation
-        const t = segmentProgress;
-        const cp1x = from.x + (to.x - from.x) * 0.5;
-        const cp1y = from.y;
-        const cp2x = from.x + (to.x - from.x) * 0.5;
-        const cp2y = to.y;
-
-        const x = Math.pow(1-t, 3) * from.x +
-                  3 * Math.pow(1-t, 2) * t * cp1x +
-                  3 * (1-t) * Math.pow(t, 2) * cp2x +
-                  Math.pow(t, 3) * to.x;
-
-        const y = Math.pow(1-t, 3) * from.y +
-                  3 * Math.pow(1-t, 2) * t * cp1y +
-                  3 * (1-t) * Math.pow(t, 2) * cp2y +
-                  Math.pow(t, 3) * to.y;
-
-        return { x: x * width, y: y * height };
+    // ======================================================================
+    // Latency Page
+    // ======================================================================
+    function renderLatencySummary(data) {
+        if (!el.latencySummaryGrid) return;
+        // Handle "not active" response
+        if (data.message && !data.operations) {
+            el.latencySummaryGrid.innerHTML =
+                '<div class="latency-chart-card" style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:var(--spacing-xl)">' +
+                '<p>' + esc(data.message) + '</p></div>';
+            return;
+        }
+        var ops = data.operations || data;
+        if (typeof ops !== 'object') return;
+        var keys = Object.keys(ops);
+        if (keys.length === 0) {
+            el.latencySummaryGrid.innerHTML =
+                '<div class="latency-chart-card" style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:var(--spacing-xl)">' +
+                '<p>No latency data yet. Waiting for eBPF events...</p></div>';
+            return;
+        }
+        var html = '';
+        keys.forEach(function(name) {
+            var op = ops[name];
+            var u = op.unit || 'ms';
+            html += '<div class="latency-chart-card">' +
+                '<h3 class="chart-title">' + esc(name) + '</h3>' +
+                '<div class="latency-percentiles">' +
+                    '<span class="badge p50">P50: ' + (op.p50 || 0).toFixed(2) + u + '</span>' +
+                    '<span class="badge p90">P90: ' + (op.p90 || 0).toFixed(2) + u + '</span>' +
+                    '<span class="badge p99">P99: ' + (op.p99 || 0).toFixed(2) + u + '</span>' +
+                '</div></div>';
+        });
+        el.latencySummaryGrid.innerHTML = html;
     }
 
-    // ==========================================================================
-    // Toast Notifications
-    // ==========================================================================
-    function showToast(type, title, message, duration = 5000) {
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-
-        const icons = {
-            success: '&#x2705;',
-            error: '&#x274C;',
-            warning: '&#x26A0;',
-            info: '&#x2139;'
+    function renderLatencyCharts(data) {
+        var ops = data.operations || data;
+        if (typeof ops !== 'object') return;
+        var mapping = {
+            'tcp_connect': 'latency-chart-connect',
+            'tcp_send': 'latency-chart-send',
+            'tcp_recv': 'latency-chart-recv',
+            'http_request': 'latency-chart-http'
         };
+        Object.keys(mapping).forEach(function(opName) {
+            var canvas = document.getElementById(mapping[opName]);
+            if (!canvas) return;
+            var op = ops[opName];
+            if (!op) { drawEmpty(canvas, opName); return; }
+            drawBarChart(canvas, op);
+            var pEl = document.getElementById('percentiles-' + mapping[opName].split('-').pop());
+            if (pEl) {
+                var u = op.unit || 'ms';
+                pEl.innerHTML =
+                    '<span class="badge p50">P50: ' + (op.p50 || 0).toFixed(2) + u + '</span>' +
+                    '<span class="badge p90">P90: ' + (op.p90 || 0).toFixed(2) + u + '</span>' +
+                    '<span class="badge p99">P99: ' + (op.p99 || 0).toFixed(2) + u + '</span>';
+            }
+        });
+    }
 
-        toast.innerHTML = `
-            <span class="toast-icon">${icons[type] || icons.info}</span>
-            <div class="toast-content">
-                <div class="toast-title">${escapeHtml(title)}</div>
-                <div class="toast-message">${escapeHtml(message)}</div>
-            </div>
-            <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
-        `;
+    function drawBarChart(canvas, op) {
+        var ctx = canvas.getContext('2d');
+        var W = canvas.width, H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
 
-        elements.toastContainer.appendChild(toast);
+        var buckets = op.histogram || op.buckets;
+        if (buckets && Array.isArray(buckets) && buckets.length > 0) {
+            var maxC = Math.max.apply(null, buckets.map(function(b) { return b.count || 0; })) || 1;
+            var bw = (W - 20) / buckets.length;
+            buckets.forEach(function(b, i) {
+                var bh = ((b.count || 0) / maxC) * (H - 35);
+                ctx.fillStyle = '#4ecdc4';
+                ctx.fillRect(10 + i * bw + 1, H - 25 - bh, bw - 2, bh);
+            });
+            return;
+        }
 
-        // Auto remove after duration
-        setTimeout(() => {
+        // Fallback: draw P50/P90/P99 as bars
+        var vals = [
+            { label: 'P50', value: op.p50 || 0, color: '#00d26a' },
+            { label: 'P90', value: op.p90 || 0, color: '#ffd700' },
+            { label: 'P99', value: op.p99 || 0, color: '#ff4757' }
+        ];
+        var maxV = Math.max.apply(null, vals.map(function(v) { return v.value; })) || 1;
+        var bw = W / 7;
+        vals.forEach(function(v, i) {
+            var bh = (v.value / maxV) * (H - 50);
+            var x = bw + i * bw * 2;
+            ctx.fillStyle = v.color;
+            ctx.fillRect(x, H - 30 - bh, bw, bh);
+            ctx.fillStyle = '#f8f9fa'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+            ctx.fillText(v.value.toFixed(1), x + bw / 2, H - 34 - bh);
+            ctx.fillStyle = '#adb5bd';
+            ctx.fillText(v.label, x + bw / 2, H - 8);
+        });
+    }
+
+    function drawEmpty(canvas, label) {
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#6c757d'; ctx.font = '12px -apple-system, sans-serif';
+        ctx.textAlign = 'center'; ctx.fillText('No data for ' + label, canvas.width / 2, canvas.height / 2);
+    }
+
+    function renderLatencyHistory(data) {
+        if (!el.latencyHistoryCanvas) return;
+        var ops = data.operations || data;
+        if (typeof ops !== 'object') return;
+        var avg = 0, cnt = 0;
+        Object.keys(ops).forEach(function(k) { if (ops[k].p50) { avg += ops[k].p50; cnt++; } });
+        if (cnt > 0) avg /= cnt;
+        state.latencyHistory.push(avg);
+        if (state.latencyHistory.length > CONFIG.charts.maxDataPoints) state.latencyHistory.shift();
+        drawSparkline(el.latencyHistoryCanvas, state.latencyHistory, '#ffd700');
+    }
+
+    function drawSparkline(canvas, data, lineColor) {
+        if (!canvas || data.length < 2) return;
+        var ctx = canvas.getContext('2d');
+        var W = canvas.width, H = canvas.height, pad = 20;
+        ctx.clearRect(0, 0, W, H);
+        var maxV = Math.max.apply(null, data) || 1;
+        var minV = Math.min.apply(null, data);
+        var range = maxV - minV || 1;
+
+        // Grid
+        ctx.strokeStyle = 'rgba(255,215,0,0.1)'; ctx.lineWidth = 1;
+        for (var g = 0; g < 4; g++) {
+            var gy = pad + g * ((H - 2 * pad) / 3);
+            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+        }
+
+        // Line
+        ctx.beginPath(); ctx.strokeStyle = lineColor; ctx.lineWidth = 2;
+        data.forEach(function(v, i) {
+            var x = (i / (data.length - 1)) * (W - 2 * pad) + pad;
+            var y = H - pad - ((v - minV) / range) * (H - 2 * pad);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        ctx.fillStyle = '#adb5bd'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
+        ctx.fillText(maxV.toFixed(1) + 'ms', W - 4, pad + 10);
+        ctx.fillText(minV.toFixed(1) + 'ms', W - 4, H - pad);
+    }
+
+    // ======================================================================
+    // Event Stream Page
+    // ======================================================================
+    function setupEventStream() {
+        if (el.eventPauseBtn) {
+            el.eventPauseBtn.addEventListener('click', function() {
+                state.eventStreamPaused = !state.eventStreamPaused;
+                this.textContent = state.eventStreamPaused ? 'Resume' : 'Pause';
+                this.classList.toggle('paused', state.eventStreamPaused);
+            });
+        }
+        if (el.eventTopicInput) {
+            el.eventTopicInput.addEventListener('input', function() {
+                state.eventTopicFilter = this.value.trim();
+            });
+        }
+        document.querySelectorAll('.event-type-filters button').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.event-type-filters button').forEach(function(b) { b.classList.remove('active'); });
+                this.classList.add('active');
+                state.eventTypeFilter = this.dataset.type;
+            });
+        });
+    }
+
+    function appendEventStreamItems(events) {
+        if (!el.eventStreamList) return;
+        var filtered = events.filter(function(ev) {
+            var type = ev.type || ev.event_type || '';
+            if (state.eventTypeFilter !== 'all' && type !== state.eventTypeFilter) return false;
+            if (state.eventTopicFilter) return matchTopic(state.eventTopicFilter, ev.topic || '');
+            return true;
+        });
+        filtered.forEach(function(ev) {
+            var type = ev.type || ev.event_type || 'packet';
+            var time = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+            var msg = ev.message || ev.summary || JSON.stringify(ev.data || ev).slice(0, 120);
+            var item = document.createElement('div');
+            item.className = 'event-stream-item type-' + type;
+            item.innerHTML =
+                '<span class="event-stream-time">' + time + '</span>' +
+                '<span class="event-stream-type">' + esc(type) + '</span>' +
+                '<span class="event-stream-message">' + esc(msg) + '</span>';
+            el.eventStreamList.insertBefore(item, el.eventStreamList.firstChild);
+        });
+        while (el.eventStreamList.children.length > CONFIG.events.maxItems)
+            el.eventStreamList.removeChild(el.eventStreamList.lastChild);
+        setText(el.eventStreamTotal, state.eventStreamTotal);
+        setText(el.eventStreamVisible, el.eventStreamList.children.length);
+    }
+
+    function matchTopic(pattern, topic) {
+        if (!pattern || pattern === '*') return true;
+        var pp = pattern.split('.'), tp = topic.split('.');
+        for (var i = 0; i < pp.length; i++) {
+            if (pp[i] === '#') return true;
+            if (i >= tp.length) return false;
+            if (pp[i] !== '*' && pp[i] !== tp[i]) return false;
+        }
+        return pp.length === tp.length;
+    }
+
+    // ======================================================================
+    // Toast Notifications
+    // ======================================================================
+    function showToast(type, title, message, duration) {
+        if (!el.toastContainer) return;
+        duration = duration || 3000;
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+        var icons = { success: '&#x2705;', error: '&#x274C;', warning: '&#x26A0;', info: '&#x2139;' };
+        toast.innerHTML =
+            '<span class="toast-icon">' + (icons[type] || icons.info) + '</span>' +
+            '<div class="toast-content">' +
+                '<div class="toast-title">' + esc(title) + '</div>' +
+                '<div class="toast-message">' + esc(message) + '</div>' +
+            '</div>' +
+            '<button class="toast-close" onclick="this.parentElement.remove()">&times;</button>';
+        el.toastContainer.appendChild(toast);
+        setTimeout(function() {
             toast.classList.add('hiding');
-            setTimeout(() => toast.remove(), 300);
+            setTimeout(function() { toast.remove(); }, 300);
         }, duration);
     }
 
-    // ==========================================================================
-    // Event Filtering
-    // ==========================================================================
-    function setupEventFiltering() {
-        elements.filterToggle.addEventListener('click', () => {
-            elements.eventFilters.classList.toggle('show');
-        });
-
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                state.currentFilter = btn.dataset.severity;
-                updateEventsUI();
-            });
-        });
-    }
-
-    // ==========================================================================
-    // Service Details Modal
-    // ==========================================================================
-    function showServiceDetails(service) {
-        // For now, just log - could be extended to show a modal
-        console.log('Service details:', service);
-        showToast('info', service.name, `Status: ${service.status}, Uptime: ${(service.uptime_percent || 0).toFixed(1)}%`);
-    }
-
-    // ==========================================================================
-    // Utility Functions
-    // ==========================================================================
-    function escapeHtml(text) {
+    // ======================================================================
+    // Utilities
+    // ======================================================================
+    function esc(text) {
         if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        var d = document.createElement('div');
+        d.textContent = String(text);
+        return d.innerHTML;
+    }
+
+    function setText(element, value) { if (element) element.textContent = value; }
+
+    function formatNumber(n) {
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+        return String(n);
+    }
+
+    function formatBytes(b) {
+        if (b >= 1e9) return (b / 1e9).toFixed(1) + 'GB';
+        if (b >= 1e6) return (b / 1e6).toFixed(1) + 'MB';
+        if (b >= 1e3) return (b / 1e3).toFixed(1) + 'KB';
+        return b + 'B';
     }
 
     function formatUptime(ms) {
-        const seconds = Math.floor(ms / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-
-        if (days > 0) return `${days}d ${hours % 24}h`;
-        if (hours > 0) return `${hours}h ${minutes % 60}m`;
-        if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-        return `${seconds}s`;
+        var s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
+        if (d > 0) return d + 'd ' + (h % 24) + 'h';
+        if (h > 0) return h + 'h ' + (m % 60) + 'm';
+        if (m > 0) return m + 'm ' + (s % 60) + 's';
+        return s + 's';
     }
 
-    // ==========================================================================
-    // Initialization
-    // ==========================================================================
+    function formatDuration(ms) {
+        if (ms >= 60000) return (ms / 60000).toFixed(0) + 'm';
+        if (ms >= 1000) return (ms / 1000).toFixed(1) + 's';
+        return ms + 'ms';
+    }
+
+    function updateTimestamp() {
+        if (el.lastUpdate) el.lastUpdate.textContent = new Date().toLocaleTimeString();
+        if (el.serverTime) el.serverTime.textContent = 'Server: ' + new Date().toLocaleTimeString();
+        if (el.uptime) el.uptime.textContent = 'Uptime: ' + formatUptime(Date.now() - state.startTime);
+    }
+
+    // ======================================================================
+    // Init
+    // ======================================================================
     function init() {
-        console.log('[Dashboard] Initializing...');
-
-        // Cache DOM elements
         cacheElements();
-
-        // Setup event filtering
-        setupEventFiltering();
-
-        // Connect WebSocket
+        setupNavigation();
+        setupEventStream();
         connectWebSocket();
 
-        // Initialize visualizations
-        initFlowVisualization();
-
-        // Initial data fetch
         refreshHealth();
         refreshServices();
-        refreshEvents();
         refreshStats();
+        refreshFlows();
+        refreshLatency();
+        refreshEBPFStats();
+        refreshEBPFEvents();
 
-        // Setup refresh intervals
         setInterval(refreshHealth, CONFIG.refreshIntervals.health);
         setInterval(refreshServices, CONFIG.refreshIntervals.services);
-        setInterval(refreshEvents, CONFIG.refreshIntervals.events);
         setInterval(refreshStats, CONFIG.refreshIntervals.stats);
+        setInterval(refreshFlows, CONFIG.refreshIntervals.flows);
+        setInterval(refreshLatency, CONFIG.refreshIntervals.latency);
+        setInterval(refreshEBPFStats, CONFIG.refreshIntervals.ebpfStats);
+        setInterval(refreshEBPFEvents, CONFIG.refreshIntervals.ebpfEvents);
+        setInterval(updateTimestamp, 1000);
 
-        // Initialize charts with empty data
-        drawLineChart(elements.requestsChart, [0], '#ffd700');
-        drawLineChart(elements.latencyChart, [0], '#00bcd4');
+        updateGauges();
 
-        // Initialize gauges
-        updateGaugeValues({ cpu: 0, memory: 0, goroutines: 0 });
+        window.addEventListener('resize', function() {
+            if (state.activePage === 'flows') resizeFlowCanvas();
+        });
 
-        console.log('[Dashboard] Initialized');
+        // Event rate counter
+        var lastTotal = 0;
+        setInterval(function() {
+            var rate = state.eventStreamTotal - lastTotal;
+            lastTotal = state.eventStreamTotal;
+            setText(el.eventStreamRate, rate);
+        }, 1000);
     }
 
-    // Start when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
         init();
     }
 
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', () => {
-        if (state.ws) {
-            state.ws.close(1000, 'Page unload');
-        }
-        if (state.animationFrame) {
-            cancelAnimationFrame(state.animationFrame);
-        }
+    window.addEventListener('beforeunload', function() {
+        if (state.ws) state.ws.close(1000, 'Page unload');
     });
 
 })();

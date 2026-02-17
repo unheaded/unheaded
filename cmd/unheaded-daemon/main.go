@@ -263,6 +263,7 @@ type Config struct {
 	GRPCAddr     string
 	LXDSocket    string
 	BusboyAddr   string
+	BusboyGRPCAddr string
 	PollInterval time.Duration
 	LogLevel     string
 }
@@ -1277,6 +1278,7 @@ type yamlConfig struct {
 	GRPCAddr     string `yaml:"grpc_addr"`
 	LXDSocket    string `yaml:"lxd_socket"`
 	BusboyAddr   string `yaml:"busboy_addr"`
+	BusboyGRPCAddr string `yaml:"busboy_grpc_addr"`
 	PollInterval string `yaml:"poll_interval"`
 	LogLevel     string `yaml:"log_level"`
 }
@@ -1290,6 +1292,7 @@ func loadConfig(path string) *Config {
 		GRPCAddr:     getEnvOrDefault("GRPC_ADDR", ":9090"),
 		LXDSocket:    getEnvOrDefault("LXD_SOCKET", "/var/lib/lxd/unix.socket"),
 		BusboyAddr:   getEnvOrDefault("BUSBOY_ADDR", "localhost:5555"),
+		BusboyGRPCAddr: getEnvOrDefault("BUSBOY_GRPC_ADDR", ""),
 		PollInterval: 30 * time.Second,
 		LogLevel:     getEnvOrDefault("LOG_LEVEL", "info"),
 	}
@@ -1326,6 +1329,9 @@ func loadConfig(path string) *Config {
 		}
 		if yc.BusboyAddr != "" {
 			cfg.BusboyAddr = yc.BusboyAddr
+		}
+		if yc.BusboyGRPCAddr != "" {
+			cfg.BusboyGRPCAddr = yc.BusboyGRPCAddr
 		}
 		if yc.LogLevel != "" {
 			cfg.LogLevel = yc.LogLevel

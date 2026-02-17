@@ -175,26 +175,27 @@ func main() {
 	// Create TopicStream gRPC service - THE COSMIC WHEEL
 	topicService := grpcservice.NewTopicServiceWithCounter(roomManager, memberManager, messageBusboy, topicSeqCounter)
 
+	// Create gRPC server (accessible for graceful shutdown)
+	var grpcServer *grpc.Server
+	if config.EnableTLS {
+		creds, err := credentials.NewServerTLSFromFile(config.TLSCertFile, config.TLSKeyFile)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed_to_load_tls_credentials")
+		}
+		grpcServer = grpc.NewServer(grpc.Creds(creds))
+	} else {
+		grpcServer = grpc.NewServer()
+	}
+
+	// Register gRPC service implementations
+	chatpb.RegisterChatStreamServer(grpcServer, chatService)
+	chatpb.RegisterTopicStreamServer(grpcServer, topicService)
+
 	go func() {
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GRPCPort))
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed_to_listen_grpc_port")
 		}
-
-		var grpcServer *grpc.Server
-		if config.EnableTLS {
-			creds, err := credentials.NewServerTLSFromFile(config.TLSCertFile, config.TLSKeyFile)
-			if err != nil {
-				log.Fatal().Err(err).Msg("failed_to_load_tls_credentials")
-			}
-			grpcServer = grpc.NewServer(grpc.Creds(creds))
-		} else {
-			grpcServer = grpc.NewServer()
-		}
-
-		// Register gRPC service implementations
-		chatpb.RegisterChatStreamServer(grpcServer, chatService)
-		chatpb.RegisterTopicStreamServer(grpcServer, topicService)
 
 		log.Info().
 			Int("port", config.GRPCPort).
@@ -224,6 +225,9 @@ func main() {
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
+	log.Info().Msg("draining_grpc_connections")
+	grpcServer.GracefulStop()
 
 	log.Info().Msg("shutting_down_http_server")
 	if err := httpServer.Shutdown(ctx); err != nil {

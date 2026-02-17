@@ -86,13 +86,19 @@ impl RingBufReader {
 
         // mmap the ring buffer
         // Layout: producer page | consumer page | data pages (x2 for wrap-around)
+        //
+        // IMPORTANT: We must keep the File alive across all mmaps. File::from_raw_fd
+        // takes ownership, so we create it once and borrow for each mmap call.
+        // We use ManuallyDrop to prevent the File from closing our fd on drop
+        // (we close it ourselves in RingBufReader::drop).
+        let file = std::mem::ManuallyDrop::new(unsafe { std::fs::File::from_raw_fd(fd) });
 
         // Producer page (read-only, offset 0)
         let producer_mmap = unsafe {
             MmapOptions::new()
                 .len(PAGE_SIZE)
                 .offset(0)
-                .map_mut(&std::fs::File::from_raw_fd(fd))
+                .map_mut(&*file)
                 .map_err(|e| BpfError::Mmap(e.to_string()))?
         };
 
@@ -101,7 +107,7 @@ impl RingBufReader {
             MmapOptions::new()
                 .len(PAGE_SIZE)
                 .offset(PAGE_SIZE as u64)
-                .map_mut(&std::fs::File::from_raw_fd(fd))
+                .map_mut(&*file)
                 .map_err(|e| BpfError::Mmap(e.to_string()))?
         };
 
@@ -110,7 +116,7 @@ impl RingBufReader {
             MmapOptions::new()
                 .len(data_size * 2)
                 .offset((2 * PAGE_SIZE) as u64)
-                .map_mut(&std::fs::File::from_raw_fd(fd))
+                .map_mut(&*file)
                 .map_err(|e| BpfError::Mmap(e.to_string()))?
         };
 

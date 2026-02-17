@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
 	internalMetrics "unheaded/cmd/dashboard-backend/internal/metrics"
@@ -54,6 +55,9 @@ type Config struct {
 	HealthConfig      *health.Config
 	EventsConfig      *events.Config
 	PacketFlowConfig  *packetflow.Config
+
+	// eBPF ingestor (optional — set when trace-collector is publishing)
+	EBPFIngestor *ebpfPkg.Ingestor
 }
 
 // DefaultConfig returns default server configuration
@@ -178,6 +182,7 @@ type Server struct {
 	metricsAggregator *internalMetrics.Aggregator
 	traceCollector    TraceCollector    // Optional: set via SetTraceCollector
 	healthAggregator  HealthAggregator  // Optional: set via SetHealthAggregator
+	ebpfIngestor      *ebpfPkg.Ingestor // Optional: set via config when trace-collector active
 
 	// Stream subscriptions for /api/v1/stream
 	streamSubs   map[chan *StreamMessage]StreamFilter
@@ -272,6 +277,7 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		eventStreamer:     eventStreamer,
 		flowGenerator:     flowGenerator,
 		metricsAggregator: metricsAggregator,
+		ebpfIngestor:      config.EBPFIngestor,
 		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
 		shutdown:          make(chan struct{}),
 	}
@@ -363,6 +369,11 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/aggregated/metrics", s.handleAggregatedMetrics)
 	s.mux.HandleFunc("/api/v1/aggregated/health", s.handleAggregatedHealth)
 
+	// eBPF endpoints (Campaign 2.2)
+	s.mux.HandleFunc("/api/v1/latency", s.handleLatency)
+	s.mux.HandleFunc("/api/v1/ebpf/stats", s.handleEBPFStats)
+	s.mux.HandleFunc("/api/v1/ebpf/events", s.handleEBPFEvents)
+
 	// Static file serving for dashboard UI
 	// Serve static files from ./static directory
 	staticHandler := http.FileServer(http.Dir("static"))
@@ -425,11 +436,26 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("start flow generator: %w", err)
 	}
 
+	// Start eBPF ingestor if configured
+	if s.ebpfIngestor != nil {
+		if err := s.ebpfIngestor.Start(ctx); err != nil {
+			s.log.Warn().Err(err).Msg("ebpf ingestor start failed, continuing with synthetic flows")
+		} else {
+			s.log.Info().Msg("ebpf ingestor started — real eBPF events active")
+		}
+	}
+
 	// Start broadcasters
 	s.wg.Add(3)
 	go s.broadcastFlows(ctx, flowCh)
 	go s.broadcastHealthUpdates(ctx)
 	go s.broadcastEvents(ctx)
+
+	// Start eBPF event broadcaster if ingestor is active
+	if s.ebpfIngestor != nil {
+		s.wg.Add(1)
+		go s.broadcastEBPFEvents(ctx)
+	}
 
 	// Start metrics updater
 	s.wg.Add(1)
@@ -835,7 +861,7 @@ func (s *Server) handleServiceHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleFlows handles GET /api/v1/flows - packet flow info
+// handleFlows handles GET /api/v1/flows - active network flows
 func (s *Server) handleFlows(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -843,10 +869,25 @@ func (s *Server) handleFlows(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
+	// Return real eBPF flow data when ingestor is active
+	if s.ebpfIngestor != nil {
+		flows := s.ebpfIngestor.FlowGraph().GetActiveFlows()
+		stats := s.ebpfIngestor.FlowGraph().Stats()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"source":       "ebpf",
+			"active_flows": flows,
+			"stats":        stats,
+			"ws_endpoint":  "/ws",
+		})
+		return
+	}
+
+	// Fallback: synthetic flow info
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":       "active",
+		"source":       "synthetic",
 		"ws_endpoint":  "/ws",
-		"description":  "Connect to /ws for real-time packet flow updates",
+		"description":  "Connect to /ws for real-time packet flow updates. Start trace-collector for real eBPF data.",
 		"flow_rate_ms": s.config.PacketFlowConfig.Interval.Milliseconds(),
 	})
 }
@@ -1219,6 +1260,132 @@ func (s *Server) handleAggregatedHealth(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+// broadcastEBPFEvents listens to the eBPF ingestor and broadcasts events via WebSocket.
+func (s *Server) broadcastEBPFEvents(ctx context.Context) {
+	defer s.wg.Done()
+
+	s.ebpfIngestor.OnEvent(func(env ebpfPkg.EventEnvelope) {
+		data, err := json.Marshal(map[string]interface{}{
+			"type": "ebpf_" + env.Type,
+			"data": env.Data,
+		})
+		if err != nil {
+			return
+		}
+		s.wsServer.Broadcast(data)
+
+		// Also send to stream subscribers
+		streamMsg := &StreamMessage{
+			Type:      "ebpf_" + env.Type,
+			Service:   "trace-collector",
+			Timestamp: env.Timestamp,
+			Data:      env.Data,
+		}
+		s.broadcastToStream(streamMsg)
+	})
+
+	<-ctx.Done()
+}
+
+// handleLatency handles GET /api/v1/latency - latency histogram data
+func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.ebpfIngestor == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "eBPF ingestor not active. Start trace-collector to get real latency data.",
+			"data":    nil,
+		})
+		return
+	}
+
+	// Parse optional operation filter
+	op := r.URL.Query().Get("operation")
+
+	if op != "" {
+		// Single operation
+		latOp := ebpfPkg.LatencyOperation(op)
+		windows := s.ebpfIngestor.LatencyHistogram().GetAllPercentiles()
+		result, ok := windows[latOp]
+		if !ok {
+			http.Error(w, "unknown operation", http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"operation":   op,
+			"percentiles": result,
+		})
+		return
+	}
+
+	// All operations
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"percentiles": s.ebpfIngestor.LatencyHistogram().GetAllPercentiles(),
+		"stats":       s.ebpfIngestor.LatencyHistogram().Stats(),
+	})
+}
+
+// handleEBPFStats handles GET /api/v1/ebpf/stats - eBPF program statistics
+func (s *Server) handleEBPFStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.ebpfIngestor == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"active":  false,
+			"message": "eBPF ingestor not active. Start trace-collector to get real stats.",
+		})
+		return
+	}
+
+	stats := s.ebpfIngestor.Stats()
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"active": true,
+		"stats":  stats,
+	})
+}
+
+// handleEBPFEvents handles GET /api/v1/ebpf/events - recent eBPF events
+func (s *Server) handleEBPFEvents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.ebpfIngestor == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"events": []interface{}{},
+			"count":  0,
+		})
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit := 100
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
+			limit = l
+		}
+	}
+
+	events := s.ebpfIngestor.RecentEvents(limit)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"events": events,
+		"count":  len(events),
+	})
 }
 
 // SetTraceCollector sets the trace collector for the server
