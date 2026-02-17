@@ -181,21 +181,21 @@ func TestClose(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ch1 := make(chan *Message, 1)
-		ch2 := make(chan *Message, 1)
-		c.channels["topic1"] = &safeChannel{ch: ch1}
-		c.channels["topic2"] = &safeChannel{ch: ch2}
+		sc1 := newSafeChannel(1)
+		sc2 := newSafeChannel(1)
+		c.channels["topic1"] = sc1
+		c.channels["topic2"] = sc2
 
 		if err := c.Close(); err != nil {
 			t.Fatalf("Close returned error: %v", err)
 		}
 
 		// Verify channels were closed by trying to receive (should return zero value and false).
-		_, ok1 := <-ch1
+		_, ok1 := <-sc1.ch
 		if ok1 {
 			t.Error("channel topic1 was not closed")
 		}
-		_, ok2 := <-ch2
+		_, ok2 := <-sc2.ch
 		if ok2 {
 			t.Error("channel topic2 was not closed")
 		}
@@ -1528,14 +1528,14 @@ func TestBackpressureOnFullChannel(t *testing.T) {
 	// The channel buffer is 100. Verify behavior when channel is full.
 	c, _ := NewClient("localhost:9090")
 
-	ch := make(chan *Message, 100)
+	sc := newSafeChannel(100)
 	c.chanMu.Lock()
-	c.channels["chat"] = &safeChannel{ch: ch}
+	c.channels["chat"] = sc
 	c.chanMu.Unlock()
 
 	// Fill the channel.
 	for i := 0; i < 100; i++ {
-		ch <- &Message{
+		sc.ch <- &Message{
 			MessageID: fmt.Sprintf("msg-%d", i),
 			Seq:       int64(i + 1),
 			Payload:   fmt.Sprintf("payload-%d", i),
@@ -1543,13 +1543,13 @@ func TestBackpressureOnFullChannel(t *testing.T) {
 	}
 
 	// Verify channel is full.
-	if len(ch) != 100 {
-		t.Fatalf("channel len = %d, want 100", len(ch))
+	if len(sc.ch) != 100 {
+		t.Fatalf("channel len = %d, want 100", len(sc.ch))
 	}
 
 	// Now verify the channel is at capacity.
 	select {
-	case ch <- &Message{Payload: "overflow"}:
+	case sc.ch <- &Message{Payload: "overflow"}:
 		t.Fatal("should not be able to send to a full channel without blocking")
 	default:
 		// Expected: channel is full, send would block.
@@ -2063,8 +2063,8 @@ func TestCloseIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ch := make(chan *Message, 1)
-	c.channels["topic"] = &safeChannel{ch: ch}
+	sc := newSafeChannel(1)
+	c.channels["topic"] = sc
 
 	// First close.
 	if err := c.Close(); err != nil {

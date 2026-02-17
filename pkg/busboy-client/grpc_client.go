@@ -238,8 +238,7 @@ func (gc *GRPCClient) StreamMessages(ctx context.Context, topic string) (<-chan 
 	}
 
 	// Create buffered channel
-	ch := make(chan *Message, 100)
-	sc := &safeChannel{ch: ch}
+	sc := newSafeChannel(100)
 
 	gc.chanMu.Lock()
 	gc.channels[topic] = sc
@@ -248,7 +247,7 @@ func (gc *GRPCClient) StreamMessages(ctx context.Context, topic string) (<-chan 
 	// Start goroutine that handles the stream with reconnection logic
 	go gc.streamMessagesWithRetry(ctx, topic, sub, sc)
 
-	return ch, nil
+	return sc.ch, nil
 }
 
 // streamMessagesWithRetry handles stream reading with exponential backoff retry
@@ -317,10 +316,7 @@ func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, su
 
 		msg := topicEventToMessage(event)
 
-		select {
-		case sc.ch <- msg:
-			// Message sent successfully
-		case <-ctx.Done():
+		if !sc.send(ctx, msg) {
 			return ctx.Err()
 		}
 	}
