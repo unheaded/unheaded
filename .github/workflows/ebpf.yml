@@ -1,0 +1,79 @@
+name: eBPF & Rust
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'ebpf/**'
+      - 'cmd/trace-collector/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ebpf/**'
+      - 'cmd/trace-collector/**'
+
+jobs:
+  trace-collector:
+    name: Trace Collector (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            cmd/trace-collector/target
+          key: ${{ runner.os }}-cargo-trace-${{ hashFiles('cmd/trace-collector/Cargo.lock') }}
+
+      - name: Check
+        working-directory: cmd/trace-collector
+        run: cargo check
+
+      - name: Clippy
+        working-directory: cmd/trace-collector
+        run: cargo clippy -- -D warnings
+
+      - name: Format check
+        working-directory: cmd/trace-collector
+        run: cargo fmt -- --check
+
+      - name: Test
+        working-directory: cmd/trace-collector
+        run: cargo test
+
+  ebpf-programs:
+    name: eBPF Programs (Rust/Aya)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy, rustfmt, rust-src
+          targets: bpfel-unknown-none
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ebpf/target
+          key: ${{ runner.os }}-cargo-ebpf-${{ hashFiles('ebpf/Cargo.lock') }}
+
+      - name: Check eBPF programs
+        working-directory: ebpf
+        run: cargo check --target=bpfel-unknown-none
+
+      - name: Format check
+        working-directory: ebpf
+        run: cargo fmt -- --check
