@@ -1314,7 +1314,7 @@ func TestStartScrape_EndToEnd(t *testing.T) {
 
 func TestRegisterKingdomServices(t *testing.T) {
 	s := newTestScraper(t)
-	s.RegisterKingdomServices()
+	s.RegisterKingdomServices(nil)
 
 	targets := s.GetTargets()
 	expectedNames := []string{"architect", "busboy", "captain", "gateway", "micromanager", "timeguru"}

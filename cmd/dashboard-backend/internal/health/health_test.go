@@ -1398,7 +1398,7 @@ func TestStartPolls(t *testing.T) {
 
 func TestRegisterKingdomServices(t *testing.T) {
 	m := newTestMonitor(t)
-	m.RegisterKingdomServices()
+	m.RegisterKingdomServices(nil)
 
 	targets := m.GetTargets()
 	expectedNames := []string{"architect", "busboy", "captain", "gateway", "micromanager", "timeguru"}
