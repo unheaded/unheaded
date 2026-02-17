@@ -19,10 +19,12 @@
                 </h1>
             </div>
             <div class="header-center">
-                <div class="system-status" id="system-status">
-                    <span class="status-indicator" id="overall-status-indicator"></span>
-                    <span class="status-text" id="overall-status-text">Connecting...</span>
-                </div>
+                <nav class="nav-tabs" id="nav-tabs">
+                    <button class="nav-tab active" data-page="overview">Overview</button>
+                    <button class="nav-tab" data-page="flows">Flow Graph</button>
+                    <button class="nav-tab" data-page="latency">Latency</button>
+                    <button class="nav-tab" data-page="events">Events</button>
+                </nav>
             </div>
             <div class="header-right">
                 <div class="connection-status" id="connection-status">
@@ -33,9 +35,11 @@
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Top Row: System Overview -->
+        <!-- ================================================================ -->
+        <!-- PAGE: Overview (System Overview + Service Health)                 -->
+        <!-- ================================================================ -->
+        <main class="page-content active" id="page-overview">
+            <!-- Metrics Cards Row -->
             <section class="section section-overview">
                 <h2 class="section-title">System Overview</h2>
                 <div class="metrics-grid">
@@ -67,88 +71,57 @@
                             <div class="metric-label">Unhealthy</div>
                         </div>
                     </div>
-                    <div class="metric-card" id="metric-ws">
-                        <div class="metric-icon">&#x1F517;</div>
+                    <div class="metric-card" id="metric-ebpf-events">
+                        <div class="metric-icon">&#x1F50D;</div>
                         <div class="metric-content">
-                            <div class="metric-value" id="ws-connections">0</div>
-                            <div class="metric-label">WS Clients</div>
+                            <div class="metric-value" id="ebpf-events-count">0</div>
+                            <div class="metric-label">eBPF Events</div>
                         </div>
                     </div>
-                    <div class="metric-card" id="metric-events">
-                        <div class="metric-icon">&#x1F4AC;</div>
+                    <div class="metric-card" id="metric-active-flows">
+                        <div class="metric-icon">&#x1F310;</div>
                         <div class="metric-content">
-                            <div class="metric-value" id="event-count">0</div>
-                            <div class="metric-label">Events</div>
+                            <div class="metric-value" id="active-flows-count">0</div>
+                            <div class="metric-label">Active Flows</div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Middle Row: Services + Packet Flow -->
-            <div class="middle-row">
-                <!-- Services Health -->
-                <section class="section section-services">
-                    <h2 class="section-title">Service Health</h2>
-                    <div class="services-grid" id="services-grid">
-                        <!-- Service cards will be dynamically inserted here -->
-                        <div class="service-card placeholder">
-                            <div class="service-skeleton"></div>
+            <!-- eBPF Stats + Gauges -->
+            <div class="overview-row">
+                <section class="section section-ebpf-stats">
+                    <h2 class="section-title">eBPF Program Stats</h2>
+                    <div class="ebpf-stats-grid" id="ebpf-stats-grid">
+                        <div class="ebpf-stat-card">
+                            <div class="ebpf-stat-label">Packets Ingested</div>
+                            <div class="ebpf-stat-value" id="stat-packets">0</div>
+                        </div>
+                        <div class="ebpf-stat-card">
+                            <div class="ebpf-stat-label">Flows Tracked</div>
+                            <div class="ebpf-stat-value" id="stat-flows">0</div>
+                        </div>
+                        <div class="ebpf-stat-card">
+                            <div class="ebpf-stat-label">Latency Samples</div>
+                            <div class="ebpf-stat-value" id="stat-latency-samples">0</div>
+                        </div>
+                        <div class="ebpf-stat-card">
+                            <div class="ebpf-stat-label">Parse Errors</div>
+                            <div class="ebpf-stat-value error" id="stat-errors">0</div>
+                        </div>
+                        <div class="ebpf-stat-card">
+                            <div class="ebpf-stat-label">Events/sec</div>
+                            <div class="ebpf-stat-value" id="stat-eps">0</div>
+                        </div>
+                        <div class="ebpf-stat-card">
+                            <div class="ebpf-stat-label">Uptime</div>
+                            <div class="ebpf-stat-value" id="stat-uptime">--</div>
                         </div>
                     </div>
                 </section>
 
-                <!-- Packet Flow Visualization -->
-                <section class="section section-flow">
-                    <h2 class="section-title">Packet Flow</h2>
-                    <div class="flow-container" id="flow-container">
-                        <div class="flow-header">
-                            <span class="flow-stat">Flows: <span id="flow-count">0</span></span>
-                            <span class="flow-stat">Avg Latency: <span id="avg-latency">--</span></span>
-                        </div>
-                        <div class="flow-canvas-wrapper">
-                            <canvas id="flow-canvas" width="600" height="300"></canvas>
-                        </div>
-                        <div class="flow-legend">
-                            <div class="legend-item">
-                                <span class="legend-color xdp"></span>
-                                <span>XDP</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color gateway"></span>
-                                <span>Gateway</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color busboy"></span>
-                                <span>Busboy</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color service"></span>
-                                <span>Service</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color collector"></span>
-                                <span>Collector</span>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <!-- Bottom Row: Metrics Charts + Events -->
-            <div class="bottom-row">
-                <!-- Real-time Metrics -->
-                <section class="section section-charts">
-                    <h2 class="section-title">Real-time Metrics</h2>
-                    <div class="charts-container">
-                        <div class="chart-wrapper">
-                            <h3 class="chart-title">Request Rate (req/s)</h3>
-                            <canvas id="requests-chart" width="400" height="150"></canvas>
-                        </div>
-                        <div class="chart-wrapper">
-                            <h3 class="chart-title">Latency (ms)</h3>
-                            <canvas id="latency-chart" width="400" height="150"></canvas>
-                        </div>
-                    </div>
+                <section class="section section-gauges">
+                    <h2 class="section-title">System Resources</h2>
                     <div class="gauges-container">
                         <div class="gauge-wrapper">
                             <canvas id="cpu-gauge" width="120" height="120"></canvas>
@@ -167,34 +140,153 @@
                         </div>
                     </div>
                 </section>
-
-                <!-- Events Feed -->
-                <section class="section section-events">
-                    <h2 class="section-title">
-                        Recent Events
-                        <span class="event-filter-toggle" id="filter-toggle">Filter</span>
-                    </h2>
-                    <div class="event-filters" id="event-filters">
-                        <button class="filter-btn active" data-severity="all">All</button>
-                        <button class="filter-btn" data-severity="critical">Critical</button>
-                        <button class="filter-btn" data-severity="error">Error</button>
-                        <button class="filter-btn" data-severity="warning">Warning</button>
-                        <button class="filter-btn" data-severity="info">Info</button>
-                    </div>
-                    <div class="events-list" id="events-list">
-                        <!-- Events will be dynamically inserted here -->
-                        <div class="event-item placeholder">
-                            <div class="event-skeleton"></div>
-                        </div>
-                    </div>
-                </section>
             </div>
+
+            <!-- Service Health Grid -->
+            <section class="section section-services">
+                <h2 class="section-title">Service Health</h2>
+                <div class="services-grid" id="services-grid">
+                    <div class="service-card placeholder">
+                        <div class="service-skeleton"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ================================================================ -->
+        <!-- PAGE: Flow Graph (Real-time network topology)                    -->
+        <!-- ================================================================ -->
+        <main class="page-content" id="page-flows">
+            <section class="section section-flow-full">
+                <div class="flow-toolbar">
+                    <h2 class="section-title">Network Flow Graph</h2>
+                    <div class="flow-controls">
+                        <span class="flow-stat">Active Flows: <span id="flow-graph-count">0</span></span>
+                        <span class="flow-stat">Bytes/s: <span id="flow-bytes-sec">0</span></span>
+                        <span class="flow-stat">Packets/s: <span id="flow-pkts-sec">0</span></span>
+                    </div>
+                </div>
+                <div class="flow-graph-wrapper">
+                    <canvas id="flow-canvas" width="1200" height="600"></canvas>
+                </div>
+                <div class="flow-legend">
+                    <div class="legend-item"><span class="legend-color" style="background:#4ecdc4"></span><span>TCP</span></div>
+                    <div class="legend-item"><span class="legend-color" style="background:#00d26a"></span><span>UDP</span></div>
+                    <div class="legend-item"><span class="legend-color" style="background:#ff6b6b"></span><span>Error</span></div>
+                    <div class="legend-item"><span class="legend-color" style="background:#ffd700"></span><span>New Flow</span></div>
+                    <div class="legend-item"><span class="legend-color" style="background:#6c757d"></span><span>Closing</span></div>
+                </div>
+            </section>
+
+            <!-- Flow table below graph -->
+            <section class="section section-flow-table">
+                <h2 class="section-title">Active Connections</h2>
+                <div class="flow-table-wrapper">
+                    <table class="flow-table" id="flow-table">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Destination</th>
+                                <th>Protocol</th>
+                                <th>Packets</th>
+                                <th>Bytes</th>
+                                <th>State</th>
+                                <th>Age</th>
+                            </tr>
+                        </thead>
+                        <tbody id="flow-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- ================================================================ -->
+        <!-- PAGE: Latency Dashboard (P50/P90/P99 histograms)                 -->
+        <!-- ================================================================ -->
+        <main class="page-content" id="page-latency">
+            <section class="section section-latency-summary">
+                <h2 class="section-title">Latency Overview</h2>
+                <div class="latency-summary-grid" id="latency-summary-grid">
+                    <!-- Dynamically populated -->
+                </div>
+            </section>
+
+            <section class="section section-latency-charts">
+                <h2 class="section-title">Latency by Operation</h2>
+                <div class="latency-charts-grid" id="latency-charts-grid">
+                    <!-- Per-operation latency charts -->
+                    <div class="latency-chart-card">
+                        <h3 class="chart-title">tcp_connect</h3>
+                        <canvas id="latency-chart-connect" width="500" height="200"></canvas>
+                        <div class="latency-percentiles" id="percentiles-connect"></div>
+                    </div>
+                    <div class="latency-chart-card">
+                        <h3 class="chart-title">tcp_send</h3>
+                        <canvas id="latency-chart-send" width="500" height="200"></canvas>
+                        <div class="latency-percentiles" id="percentiles-send"></div>
+                    </div>
+                    <div class="latency-chart-card">
+                        <h3 class="chart-title">tcp_recv</h3>
+                        <canvas id="latency-chart-recv" width="500" height="200"></canvas>
+                        <div class="latency-percentiles" id="percentiles-recv"></div>
+                    </div>
+                    <div class="latency-chart-card">
+                        <h3 class="chart-title">http_request</h3>
+                        <canvas id="latency-chart-http" width="500" height="200"></canvas>
+                        <div class="latency-percentiles" id="percentiles-http"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Latency sparkline history -->
+            <section class="section section-latency-history">
+                <h2 class="section-title">Latency Trend (60s)</h2>
+                <div class="latency-history-wrapper">
+                    <canvas id="latency-history-canvas" width="1200" height="200"></canvas>
+                </div>
+            </section>
+        </main>
+
+        <!-- ================================================================ -->
+        <!-- PAGE: Event Stream (Live scrolling log)                          -->
+        <!-- ================================================================ -->
+        <main class="page-content" id="page-events">
+            <section class="section section-event-controls">
+                <div class="event-toolbar">
+                    <h2 class="section-title">Live Event Stream</h2>
+                    <div class="event-controls">
+                        <div class="event-topic-filter">
+                            <input type="text" id="event-topic-input" class="topic-input" placeholder="Filter by topic (e.g. ebpf.*)">
+                        </div>
+                        <div class="event-type-filters">
+                            <button class="filter-btn active" data-type="all">All</button>
+                            <button class="filter-btn" data-type="packet">Packet</button>
+                            <button class="filter-btn" data-type="flow">Flow</button>
+                            <button class="filter-btn" data-type="latency">Latency</button>
+                            <button class="filter-btn" data-type="syscall">Syscall</button>
+                        </div>
+                        <button class="pause-btn" id="event-pause-btn">Pause</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section section-event-stream">
+                <div class="event-stream-stats">
+                    <span>Events: <strong id="event-stream-total">0</strong></span>
+                    <span>Visible: <strong id="event-stream-visible">0</strong></span>
+                    <span>Rate: <strong id="event-stream-rate">0</strong>/s</span>
+                </div>
+                <div class="event-stream-list" id="event-stream-list">
+                    <!-- Live events scroll here -->
+                </div>
+            </section>
         </main>
 
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-left">
-                <span>Unheaded Kingdom Dashboard v0.1.0</span>
+                <span>Unheaded Kingdom Dashboard v0.2.0</span>
             </div>
             <div class="footer-right">
                 <span id="uptime">Uptime: --</span>
