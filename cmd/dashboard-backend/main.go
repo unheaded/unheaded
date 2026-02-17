@@ -21,10 +21,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -67,6 +70,12 @@ var (
 	// Packet flow settings
 	flowInterval = flag.Duration("flow-interval", 100*time.Millisecond, "Packet flow generation interval")
 	maxFlows     = flag.Int("max-flows", 50, "Maximum concurrent flows")
+
+	// Service endpoint overrides
+	// TODO: Default to 127.0.0.1 endpoints instead of LXD IPs. --services-file
+	// should remain as an override option, but defaults should be localhost.
+	// Eventually move to a main config file and/or UI-based configuration.
+	servicesFile = flag.String("services-file", "", "Path to services endpoint file (name=host:port per line)")
 )
 
 func main() {
@@ -93,6 +102,18 @@ func main() {
 		Str("build_time", BuildTime).
 		Str("git_commit", GitCommit).
 		Msg("starting dashboard backend")
+
+	// Load service endpoint overrides
+	serviceEndpoints, err := loadServiceEndpoints(*servicesFile)
+	if err != nil {
+		log.Fatal().Err(err).Str("file", *servicesFile).Msg("failed to load services file")
+	}
+	if len(serviceEndpoints) > 0 {
+		log.Info().Int("count", len(serviceEndpoints)).Msg("loaded service endpoint overrides")
+		for name, addr := range serviceEndpoints {
+			log.Info().Str("service", name).Str("addr", addr).Msg("service endpoint")
+		}
+	}
 
 	// Create server config
 	config := &server.Config{
@@ -141,6 +162,8 @@ func main() {
 			MaxFlows:       *maxFlows,
 			TraceIDPattern: "trace-%d",
 		},
+
+		ServiceEndpoints: serviceEndpoints,
 	}
 
 	// Create eBPF ingestor if gRPC address is provided (or from BUSBOY_GRPC_ADDR env)
@@ -226,4 +249,47 @@ func getEventTopics() []string {
 		"ebpf.latency.events",
 		"ebpf.syscall.events",
 	}
+}
+
+// loadServiceEndpoints loads service endpoint overrides from a file.
+// File format: one "name=host:port" per line. Lines starting with # are comments.
+// Also checks SERVICES_FILE env var if no flag provided.
+// Returns nil map (no overrides) if no file specified.
+func loadServiceEndpoints(path string) (map[string]string, error) {
+	if path == "" {
+		path = os.Getenv("SERVICES_FILE")
+	}
+	if path == "" {
+		return nil, nil
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open services file: %w", err)
+	}
+	defer f.Close()
+
+	endpoints := make(map[string]string)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid line (expected name=host:port): %q", line)
+		}
+		name := strings.TrimSpace(parts[0])
+		addr := strings.TrimSpace(parts[1])
+		if name == "" || addr == "" {
+			return nil, fmt.Errorf("empty name or address in: %q", line)
+		}
+		endpoints[name] = addr
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read services file: %w", err)
+	}
+
+	return endpoints, nil
 }

@@ -56,6 +56,9 @@ type Config struct {
 	EventsConfig      *events.Config
 	PacketFlowConfig  *packetflow.Config
 
+	// Service endpoint overrides (name → "host:port")
+	ServiceEndpoints map[string]string
+
 	// eBPF ingestor (optional — set when trace-collector is publishing)
 	EBPFIngestor *ebpfPkg.Ingestor
 }
@@ -407,8 +410,8 @@ func (s *Server) Start(ctx context.Context) error {
 		Msg("starting dashboard backend")
 
 	// Register Kingdom services for scraping and monitoring
-	s.scraper.RegisterKingdomServices()
-	s.healthMonitor.RegisterKingdomServices()
+	s.scraper.RegisterKingdomServices(s.config.ServiceEndpoints)
+	s.healthMonitor.RegisterKingdomServices(s.config.ServiceEndpoints)
 
 	// Start WebSocket server
 	if err := s.wsServer.Start(ctx); err != nil {

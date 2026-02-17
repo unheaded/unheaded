@@ -48,15 +48,16 @@ coverage.html
 /captain
 /main
 /timeguru
-# Binaries built inside cmd/ subdirectories 
+# Binaries built inside cmd/ subdirectories
 cmd/*/kanban-app
 cmd/*/dashboard-backend
 cmd/*/trace-collector
 cmd/*/ebpf-loader
+# Runtime data directories (SQLite DBs, temp files)
+cmd/*/data/
 
 # ─── Rust / Cargo ───
 target/
-
 **/*.rs.bk
 # Cargo.lock — COMMITTED for binary crates (trace-collector, ebpf programs)
 # Only ignore for library crates
