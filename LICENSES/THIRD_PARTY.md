@@ -337,6 +337,178 @@ END OF TERMS AND CONDITIONS
 
 ---
 
+### modernc.org/sqlite
+
+**Copyright:** Jan Mercl
+**License:** BSD 3-Clause
+**URL:** https://gitlab.com/cznic/sqlite
+
+Used for SQLite L1 persistence in the Kanban app (pure Go, no CGO).
+
+---
+
+### github.com/sony/gobreaker
+
+**Copyright:** Sony Corporation
+**License:** MIT
+**URL:** https://github.com/sony/gobreaker
+
+Referenced for circuit breaker patterns in TopicStreamClient.
+
+---
+
+### github.com/google/uuid
+
+**Copyright:** Google Inc.
+**License:** BSD 3-Clause
+**URL:** https://github.com/google/uuid
+
+Used for UUID generation throughout the Kingdom.
+
+---
+
+### github.com/BurntSushi/toml
+
+**Copyright:** Andrew Gallant
+**License:** MIT
+**URL:** https://github.com/BurntSushi/toml
+
+Used for TOML configuration parsing.
+
+---
+
+### golang.org/x/crypto
+
+**Copyright:** The Go Authors
+**License:** BSD 3-Clause
+**URL:** https://go.googlesource.com/crypto
+
+Used for cryptographic operations including mTLS and API key hashing.
+
+---
+
+### golang.org/x/time
+
+**Copyright:** The Go Authors
+**License:** BSD 3-Clause
+**URL:** https://go.googlesource.com/time
+
+Used for rate limiting.
+
+---
+
+## Rust Dependencies (trace-collector + eBPF programs)
+
+### tokio
+
+**Copyright:** Tokio Contributors
+**License:** MIT
+**URL:** https://github.com/tokio-rs/tokio
+
+Async runtime for the trace-collector.
+
+---
+
+### tonic
+
+**Copyright:** Lucio Franco
+**License:** MIT
+**URL:** https://github.com/hyperium/tonic
+
+gRPC framework for trace-collector → Busboy communication.
+
+---
+
+### prost
+
+**Copyright:** Dan Burkert
+**License:** Apache License 2.0
+**URL:** https://github.com/tokio-rs/prost
+
+Protocol Buffers implementation for Rust.
+
+---
+
+### aya / aya-ebpf
+
+**Copyright:** The Aya Contributors
+**License:** MIT / Apache License 2.0
+**URL:** https://github.com/aya-rs/aya
+
+eBPF framework for Rust. Used in all 4 eBPF programs (packet-marker, flow-tracker, latency-probe, syscall-tracer).
+
+---
+
+### clap
+
+**Copyright:** Kevin K. and clap Contributors
+**License:** MIT / Apache License 2.0
+**URL:** https://github.com/clap-rs/clap
+
+Command-line argument parser for trace-collector.
+
+---
+
+### serde / serde_json
+
+**Copyright:** David Tolnay
+**License:** MIT / Apache License 2.0
+**URL:** https://github.com/serde-rs/serde
+
+Serialization framework used in trace-collector for JSON event encoding.
+
+---
+
+### crossbeam
+
+**Copyright:** The Crossbeam Project Developers
+**License:** MIT / Apache License 2.0
+**URL:** https://github.com/crossbeam-rs/crossbeam
+
+Lock-free data structures used in trace-collector for event batching.
+
+---
+
+### hyper
+
+**Copyright:** Sean McArthur
+**License:** MIT
+**URL:** https://github.com/hyperium/hyper
+
+HTTP library used for trace-collector health endpoint.
+
+---
+
+### nix
+
+**Copyright:** The nix-rust Contributors
+**License:** MIT
+**URL:** https://github.com/nix-rust/nix
+
+Unix API bindings used for BPF map operations and ring buffer reading.
+
+---
+
+### memmap2
+
+**Copyright:** Dan Burkert, Yevhenii Reizner
+**License:** MIT / Apache License 2.0
+**URL:** https://github.com/RazrFalcon/memmap2-rs
+
+Memory-mapped file I/O for zero-copy ring buffer reads from eBPF maps.
+
+---
+
+### prometheus (Rust)
+
+**Copyright:** The Prometheus Authors / tikv contributors
+**License:** Apache License 2.0
+**URL:** https://github.com/tikv/rust-prometheus
+
+Prometheus metrics exposition for trace-collector.
+
+---
+
 ## Attribution Notice
 
 This software includes code from the following projects:
@@ -345,5 +517,17 @@ This software includes code from the following projects:
 - **Prometheus Go client** - Go client library for Prometheus
 - **gRPC-Go** - The Go implementation of gRPC
 - **zerolog** - Zero allocation JSON logger
+- **Aya** - eBPF framework for Rust (kernel programs)
+- **Tokio** - Async runtime for Rust (trace-collector)
+- **Tonic** - gRPC for Rust (trace-collector → Busboy)
+- **modernc.org/sqlite** - Pure Go SQLite (Kanban persistence)
 
 We thank the maintainers and contributors of these projects for their work.
+
+---
+
+## Session 14 Code Generation Attribution
+
+Portions of this codebase were generated with assistance from:
+- **Claude Opus 4.6** (Anthropic) — Campaign 1 (TopicStream gRPC Sprint), Campaign 2.2 (Dashboard Backend eBPF Wiring)
+- **Gemini** (Google) — Campaign 3 (Security Hardening Pass)
