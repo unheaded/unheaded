@@ -293,10 +293,12 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	s.setupRoutes()
 
 	s.httpServer = &http.Server{
-		Addr:         config.ListenAddr,
-		Handler:      s.mux,
-		ReadTimeout:  config.ReadTimeout,
-		WriteTimeout: config.WriteTimeout,
+		Addr:           config.ListenAddr,
+		Handler:        s.mux,
+		ReadTimeout:    config.ReadTimeout,
+		WriteTimeout:   config.WriteTimeout,
+		IdleTimeout:    5 * config.ReadTimeout,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	return s, nil

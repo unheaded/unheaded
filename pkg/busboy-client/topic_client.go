@@ -367,8 +367,7 @@ func (c *TopicStreamClient) StreamMessages(ctx context.Context, topicPattern str
 		return nil, ErrSubscriptionPending
 	}
 
-	ch := make(chan *Message, c.bufferSize)
-	sc := &safeChannel{ch: ch}
+	sc := newSafeChannel(c.bufferSize)
 
 	streamCtx, cancel := context.WithCancel(ctx)
 
@@ -383,7 +382,7 @@ func (c *TopicStreamClient) StreamMessages(ctx context.Context, topicPattern str
 
 	go c.streamLoop(streamCtx, topicPattern, sub, as)
 
-	return ch, nil
+	return sc.ch, nil
 }
 
 // streamLoop is the main streaming goroutine with reconnection logic.
@@ -489,9 +488,7 @@ func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern strin
 			sinceSeq = msg.Seq
 		}
 
-		select {
-		case as.sc.ch <- msg:
-		case <-ctx.Done():
+		if !as.sc.send(ctx, msg) {
 			return ctx.Err()
 		}
 	}
@@ -524,9 +521,7 @@ func (c *TopicStreamClient) pollHTTPFallback(ctx context.Context, topicPattern s
 					as.lastSeq.Store(msg.Seq)
 					lastSeq = msg.Seq
 				}
-				select {
-				case as.sc.ch <- msg:
-				case <-ctx.Done():
+				if !as.sc.send(ctx, msg) {
 					return
 				}
 			}

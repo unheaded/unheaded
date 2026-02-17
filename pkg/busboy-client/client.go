@@ -59,13 +59,38 @@ type Subscriber struct {
 // idempotently from both pollMessages and Client.Close without panic.
 type safeChannel struct {
 	ch   chan *Message
+	done chan struct{} // signals that ch is closed; select on this before sending
 	once sync.Once
 }
 
+// newSafeChannel creates a safeChannel with the done signal initialized.
+func newSafeChannel(bufSize int) *safeChannel {
+	return &safeChannel{
+		ch:   make(chan *Message, bufSize),
+		done: make(chan struct{}),
+	}
+}
+
 // closeCh closes the underlying channel exactly once, regardless of how many
-// times closeCh is called.
+// times closeCh is called. Closes done first so senders can bail out.
 func (sc *safeChannel) closeCh() {
-	sc.once.Do(func() { close(sc.ch) })
+	sc.once.Do(func() {
+		close(sc.done)
+		close(sc.ch)
+	})
+}
+
+// send attempts to send a message on ch, returning false if the channel is
+// closed or the context is cancelled. Prevents send-on-closed-channel panic.
+func (sc *safeChannel) send(ctx context.Context, msg *Message) bool {
+	select {
+	case <-sc.done:
+		return false
+	case <-ctx.Done():
+		return false
+	case sc.ch <- msg:
+		return true
+	}
 }
 
 // TransportState tracks which transport is active for streaming.
@@ -431,15 +456,14 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 	}
 
 	// HTTP polling — either primary (no gRPC configured) or circuit-breaker fallback
-	ch := make(chan *Message, 100)
-	sc := &safeChannel{ch: ch}
+	sc := newSafeChannel(100)
 
 	c.chanMu.Lock()
 	c.channels[topic] = sc
 	c.chanMu.Unlock()
 
 	go c.pollMessages(ctx, topic, sc)
-	return ch, nil
+	return sc.ch, nil
 }
 
 // getOrCreateGRPCClient lazily initializes the gRPC client.
@@ -493,13 +517,11 @@ func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel
 				continue // retry on error
 			}
 			for _, msg := range msgs {
-				select {
-				case sc.ch <- msg:
-					if msg.Seq > lastSeq {
-						lastSeq = msg.Seq
-					}
-				case <-ctx.Done():
+				if !sc.send(ctx, msg) {
 					return
+				}
+				if msg.Seq > lastSeq {
+					lastSeq = msg.Seq
 				}
 			}
 		}

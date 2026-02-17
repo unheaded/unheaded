@@ -12,23 +12,46 @@ import (
 // CORS MIDDLEWARE
 // ============================================================================
 
-// corsMiddleware adds CORS headers with secure defaults
+// allowedOrigins contains the whitelist of permitted CORS origins.
+// Add production domains here when deploying.
+var allowedOrigins = []string{
+	"http://localhost:8080",
+	"http://localhost:3000",
+	"http://127.0.0.1:8080",
+	"http://127.0.0.1:3000",
+	"https://localhost:8080",
+	"https://localhost:3000",
+}
+
+// isAllowedOrigin checks if the given origin is in the whitelist.
+func isAllowedOrigin(origin string) bool {
+	for _, allowed := range allowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// corsMiddleware adds CORS headers with origin whitelist
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow specific origins in production - for now use restrictive wildcard
 		origin := r.Header.Get("Origin")
-		if origin == "" {
-			origin = "*" // Fallback for non-CORS requests
-		}
 
-		// Restrictive CORS policy
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+		// Only set CORS headers if origin is in whitelist
+		if origin != "" && isAllowedOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+		}
 
 		// Handle preflight
 		if r.Method == http.MethodOptions {
+			if origin == "" || !isAllowedOrigin(origin) {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -230,11 +253,11 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 		// Referrer policy
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
-		// Content Security Policy (strict)
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:")
+		// Content Security Policy — unsafe-inline removed from script-src
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:")
 
 		// Force HTTPS (when behind TLS termination)
-		// w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 
 		next.ServeHTTP(w, r)
 	})

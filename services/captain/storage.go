@@ -20,7 +20,11 @@ type FileStorage struct {
 // NewFileStorage creates a new file-based storage
 func NewFileStorage(basePath string) (*FileStorage, error) {
 	if basePath == "" {
-		basePath = "/tmp/captain-data"
+		// Default: use CAPTAIN_DATA_DIR env, fall back to ./data/captain
+		basePath = os.Getenv("CAPTAIN_DATA_DIR")
+		if basePath == "" {
+			basePath = "./data/captain"
+		}
 	}
 
 	// Validate path
