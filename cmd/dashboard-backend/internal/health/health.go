@@ -844,26 +844,32 @@ func (m *Monitor) ForceCheck(ctx context.Context, name string) (*CheckResult, er
 	return &result, nil
 }
 
-// RegisterKingdomServices registers the standard Kingdom services for monitoring
-func (m *Monitor) RegisterKingdomServices() {
-	services := []struct {
-		name string
-		addr string
-		port int
-	}{
-		{"timeguru", "10.10.10.20", 8000},
-		{"captain", "10.10.10.21", 8001},
-		{"architect", "10.10.10.22", 8002},
-		{"micromanager", "10.10.10.23", 8003},
-		{"busboy", "10.10.10.10", 9090},
-		{"gateway", "10.10.10.100", 8080},
+// DefaultServiceEndpoints returns the default LXD bridge addresses for Kingdom services.
+var DefaultServiceEndpoints = map[string]string{
+	"timeguru":     "10.10.10.20:8000",
+	"captain":      "10.10.10.21:8001",
+	"architect":    "10.10.10.22:8002",
+	"micromanager": "10.10.10.23:8003",
+	"busboy":       "10.10.10.10:9090",
+	"gateway":      "10.10.10.100:8080",
+}
+
+// RegisterKingdomServices registers the standard Kingdom services for monitoring.
+// If overrides is non-nil, entries override the default addresses (format: "host:port").
+func (m *Monitor) RegisterKingdomServices(overrides map[string]string) {
+	endpoints := make(map[string]string, len(DefaultServiceEndpoints))
+	for k, v := range DefaultServiceEndpoints {
+		endpoints[k] = v
+	}
+	for k, v := range overrides {
+		endpoints[k] = v
 	}
 
-	for _, svc := range services {
+	for name, hostPort := range endpoints {
 		target := &ServiceTarget{
-			Name:      svc.name,
-			HealthURL: fmt.Sprintf("http://%s:%d/health", svc.addr, svc.port),
-			ReadyURL:  fmt.Sprintf("http://%s:%d/ready", svc.addr, svc.port),
+			Name:      name,
+			HealthURL: fmt.Sprintf("http://%s/health", hostPort),
+			ReadyURL:  fmt.Sprintf("http://%s/ready", hostPort),
 			Tags:      []string{"kingdom"},
 		}
 		m.RegisterTarget(target)
