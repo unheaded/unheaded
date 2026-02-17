@@ -264,10 +264,12 @@ func (s *Server) Start() error {
 	}
 
 	s.httpServer = &http.Server{
-		Addr:         ":" + s.config.Port,
-		Handler:      handler,
-		ReadTimeout:  s.config.ReadTimeout,
-		WriteTimeout: s.config.WriteTimeout,
+		Addr:           ":" + s.config.Port,
+		Handler:        handler,
+		ReadTimeout:    s.config.ReadTimeout,
+		WriteTimeout:   s.config.WriteTimeout,
+		IdleTimeout:    5 * s.config.ReadTimeout,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	log.Info().
@@ -887,7 +889,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// CORS origin set by corsMiddleware — no duplicate wildcard here
 
 	// Create client channel
 	clientCh := make(chan []byte, 10)

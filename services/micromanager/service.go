@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,6 +18,7 @@ type Service struct {
 	busboy         *busboyClient.Client
 	taskIDCounter  int64
 	subscriptions  map[string]bool
+	subMu          sync.RWMutex
 	alertListener  chan *busboyClient.Message
 }
 
@@ -50,7 +52,9 @@ func (s *Service) Start(ctx context.Context) error {
 		Str("status", sub.Status).
 		Msg("subscribed to alerts.critical")
 
+	s.subMu.Lock()
 	s.subscriptions["alerts.critical"] = true
+	s.subMu.Unlock()
 
 	// Start alert listener goroutine
 	go s.listenForAlerts(ctx)
@@ -250,7 +254,9 @@ func (s *Service) HealthStatus() map[string]interface{} {
 
 	if s.busboy != nil {
 		status["busboy_connected"] = true
+		s.subMu.RLock()
 		status["subscriptions"] = len(s.subscriptions)
+		s.subMu.RUnlock()
 	} else {
 		status["busboy_connected"] = false
 	}

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -316,20 +317,23 @@ func watchTimelineFile(ctx context.Context, filePath string, store *storage.Stor
 // handleMilestoneRoutes creates a handler for /milestones/:id routes
 func handleMilestoneRoutes(handler *api.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		if len(path) < len("/milestones/") {
+		// Parse URL path segments — never use filepath on URL paths (traversal risk)
+		// Expected: /milestones/{id}/update
+		trimmed := strings.TrimPrefix(r.URL.Path, "/milestones/")
+		if trimmed == "" || trimmed == r.URL.Path {
 			http.Error(w, "milestone ID required", http.StatusBadRequest)
 			return
 		}
 
-		// Parse ID from /milestones/:id/update
-		pathParts := filepath.Base(path)
-		if pathParts == "update" {
-			milestoneID := filepath.Base(filepath.Dir(path))
-			if milestoneID == "" || milestoneID == "milestones" || milestoneID == "v1" {
-				http.Error(w, "milestone ID required", http.StatusBadRequest)
-				return
-			}
+		parts := strings.SplitN(trimmed, "/", 2)
+		milestoneID := parts[0]
+		if milestoneID == "" {
+			http.Error(w, "milestone ID required", http.StatusBadRequest)
+			return
+		}
+
+		// /milestones/{id}/update
+		if len(parts) == 2 && parts[1] == "update" {
 			handler.HandleUpdateMilestone(w, r, milestoneID)
 			return
 		}

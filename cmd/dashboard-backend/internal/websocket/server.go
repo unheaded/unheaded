@@ -336,15 +336,13 @@ func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.
 	}
 
 	// CORS origin validation - prevents cross-origin WebSocket hijacking
-	if len(s.config.AllowedOrigins) > 0 {
-		origin := r.Header.Get("Origin")
-		if !s.isOriginAllowed(origin) {
-			s.log.Warn().
-				Str("origin", origin).
-				Msg("WebSocket connection rejected: origin not allowed")
-			http.Error(w, "origin not allowed", http.StatusForbidden)
-			return nil, errors.New("origin not allowed")
-		}
+	origin := r.Header.Get("Origin")
+	if origin != "" && !s.isOriginAllowed(origin) {
+		s.log.Warn().
+			Str("origin", origin).
+			Msg("WebSocket connection rejected: origin not allowed")
+		http.Error(w, "origin not allowed", http.StatusForbidden)
+		return nil, errors.New("origin not allowed")
 	}
 
 	upgrade := r.Header.Get("Upgrade")
@@ -699,12 +697,26 @@ func (s *Server) IsRunning() bool {
 	return s.running
 }
 
-// isOriginAllowed checks if the given origin is in the allowed list
-func (s *Server) isOriginAllowed(origin string) bool {
-	if len(s.config.AllowedOrigins) == 0 {
-		return true // No restrictions if list is empty
+// DefaultAllowedOrigins returns localhost origins for development.
+func DefaultAllowedOrigins() []string {
+	return []string{
+		"http://localhost:8080",
+		"http://localhost:3000",
+		"http://127.0.0.1:8080",
+		"http://127.0.0.1:3000",
+		"https://localhost:8080",
+		"https://localhost:3000",
 	}
-	for _, allowed := range s.config.AllowedOrigins {
+}
+
+// isOriginAllowed checks if the given origin is in the allowed list.
+// Denies by default when no origins are configured.
+func (s *Server) isOriginAllowed(origin string) bool {
+	origins := s.config.AllowedOrigins
+	if len(origins) == 0 {
+		origins = DefaultAllowedOrigins()
+	}
+	for _, allowed := range origins {
 		if origin == allowed {
 			return true
 		}

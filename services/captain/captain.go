@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	busboyClient "unheaded/pkg/busboy-client"
@@ -123,6 +124,7 @@ type Service struct {
 	vision          *Vision
 	strategy        *Strategy
 	metricsCallback func(metric string, value interface{})
+	idCounter       int64 // atomic counter for unique decision IDs
 }
 
 // Config holds service configuration
@@ -257,9 +259,10 @@ func (s *Service) LogDecision(ctx context.Context, decision *Decision) error {
 		decision.Status = "pending"
 	}
 
-	// Generate ID if not set
+	// Generate ID if not set — atomic counter prevents collision under concurrency
 	if decision.ID == "" {
-		decision.ID = fmt.Sprintf("decision_%d", now.UnixNano())
+		seq := atomic.AddInt64(&s.idCounter, 1)
+		decision.ID = fmt.Sprintf("decision_%d_%d", now.UnixNano(), seq)
 	}
 
 	// Persist decision
