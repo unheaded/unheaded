@@ -1163,8 +1163,14 @@ func main() {
 	}
 
 	// Initialize Busboy client
-	// BUSBOY_ADDR = HTTP control plane (subscribe, publish, admin)
-	// BUSBOY_GRPC_ADDR = gRPC data plane (streaming) — preferred for perf
+	// BUSBOY_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)
+	// BUSBOY_GRPC_ADDR = gRPC data plane (TopicStream) — primary transport for streaming
+	//
+	// Transport strategy (Campaign 1 — TopicStream gRPC Sprint):
+	//   1. If BUSBOY_GRPC_ADDR is set → create TopicStreamClient (gRPC streaming primary)
+	//      with HTTP Client as circuit-breaker fallback
+	//   2. If gRPC unavailable → create plain HTTP Client (polling mode)
+	//   3. If BUSBOY_ENABLED=false → standalone mode (no Busboy)
 	var server *Server
 	busboyEnabled := getEnv("BUSBOY_ENABLED", "true") == "true"
 	busboyGRPCAddr := getEnv("BUSBOY_GRPC_ADDR", "localhost:9090")
@@ -1175,20 +1181,62 @@ func main() {
 			Str("busboy_grpc", busboyGRPCAddr).
 			Msg("Initializing Busboy client")
 
-		var bc *busboyClient.Client
+		var busClient BusboyClient
 		var err error
+		var transportName string
+
 		if busboyGRPCAddr != "" {
-			bc, err = busboyClient.NewClientWithGRPC(cfg.BusboyAddr, busboyGRPCAddr)
-			if err == nil {
-				log.Info().
-					Str("transport", bc.Transport().String()).
-					Bool("grpc_healthy", bc.IsGRPCHealthy()).
-					Msg("Busboy transport selected")
+			// Primary path: TopicStreamClient with gRPC streaming + HTTP fallback
+			// Create HTTP client first as circuit-breaker fallback
+			httpFallback, httpErr := busboyClient.NewClient(cfg.BusboyAddr)
+			if httpErr != nil {
+				log.Warn().Err(httpErr).Msg("HTTP fallback client creation failed — TopicStream will run without fallback")
+			}
+
+			var tsOpts []busboyClient.TopicStreamOption
+			tsOpts = append(tsOpts, busboyClient.WithRetryPolicy(
+				100*time.Millisecond, // initial backoff
+				30*time.Second,       // max backoff cap
+				10,                   // max consecutive failures before circuit break
+			))
+			tsOpts = append(tsOpts, busboyClient.WithBufferSize(256))
+			if httpFallback != nil {
+				tsOpts = append(tsOpts, busboyClient.WithHTTPFallback(httpFallback))
+			}
+
+			tsc, tsErr := busboyClient.NewTopicStreamClient(busboyGRPCAddr, tsOpts...)
+			if tsErr != nil {
+				log.Warn().Err(tsErr).Msg("TopicStreamClient creation failed — falling back to HTTP polling client")
+				busClient, err = busboyClient.NewClient(cfg.BusboyAddr)
+				transportName = "http-poll"
+			} else {
+				// Probe gRPC health to provide an informative startup log message.
+				// The client will handle reconnection automatically regardless of the probe's outcome.
+				probeCtx, probeCancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer probeCancel()
+				if pingErr := tsc.Ping(probeCtx); pingErr != nil {
+					log.Warn().Err(pingErr).Msg("gRPC health probe failed. Client will attempt to connect in the background")
+					transportName = "grpc-stream (degraded)"
+				} else {
+					transportName = "grpc-stream"
+				}
+				busClient = tsc
 			}
 		} else {
-			bc, err = busboyClient.NewClient(cfg.BusboyAddr)
+			// No gRPC address — HTTP-only mode
+			bc, bcErr := busboyClient.NewClient(cfg.BusboyAddr)
+			if bcErr != nil {
+				err = bcErr
+			} else {
+				busClient = bc
+				transportName = "http-poll"
+			}
 		}
-		busboyClient := bc // shadows package name — variable used by NewTaskManager below
+
+		if transportName != "" {
+			log.Info().Str("transport", transportName).Msg("Busboy transport selected")
+		}
+
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -1214,7 +1262,7 @@ func main() {
 				}
 			}
 
-			taskManager, err := NewTaskManager(busboyClient, broadcast, kanbanStore)
+			taskManager, err := NewTaskManager(busClient, broadcast, kanbanStore)
 			if err != nil {
 				log.Error().
 					Err(err).
@@ -1232,7 +1280,9 @@ func main() {
 				} else {
 					cancel()
 					server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
-					log.Info().Msg("Busboy integration enabled with SQLite L1 persistence")
+					log.Info().
+						Str("transport", transportName).
+						Msg("Busboy integration enabled with SQLite L1 persistence")
 				}
 			}
 		}
