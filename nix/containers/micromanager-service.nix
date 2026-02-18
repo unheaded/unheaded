@@ -6,7 +6,7 @@
   # =============================================================================
   # Execution tracking and task management service.
   #
-  # Service: Execution API (REST + Busboy)
+  # Service: Execution API (REST + Wotan)
   # IP: 10.10.10.22
   # Ports: 8002 (HTTP), 9100 (metrics)
   # =============================================================================
@@ -45,9 +45,9 @@
   systemd.services.micromanager = {
     description = "Micromanager Execution Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";

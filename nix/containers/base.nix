@@ -93,22 +93,22 @@
           description = "CIDR blocks allowed to connect to this container";
         };
 
-        allowBusboyAccess = lib.mkOption {
+        allowWotanAccess = lib.mkOption {
           type = lib.types.bool;
           default = true;
-          description = "Allow outbound connections to Busboy message bus";
+          description = "Allow outbound connections to Wotan message bus";
         };
 
-        busboyAddress = lib.mkOption {
+        wotanAddress = lib.mkOption {
           type = lib.types.str;
           default = "10.10.10.10";
-          description = "Busboy service IP address";
+          description = "Wotan service IP address";
         };
 
-        busboyPort = lib.mkOption {
+        wotanPort = lib.mkOption {
           type = lib.types.int;
           default = 9090;
-          description = "Busboy gRPC port";
+          description = "Wotan gRPC port";
         };
       };
 
@@ -399,13 +399,13 @@
           iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
           iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
 
-          ${lib.optionalString config.unheaded.container.network.allowBusboyAccess ''
-            # Allow Busboy gRPC connection
-            iptables -A OUTPUT -d ${config.unheaded.container.network.busboyAddress} \
-              -p tcp --dport ${toString config.unheaded.container.network.busboyPort} -j ACCEPT
+          ${lib.optionalString config.unheaded.container.network.allowWotanAccess ''
+            # Allow Wotan gRPC connection
+            iptables -A OUTPUT -d ${config.unheaded.container.network.wotanAddress} \
+              -p tcp --dport ${toString config.unheaded.container.network.wotanPort} -j ACCEPT
 
-            # Allow Busboy HTTP connection (REST API)
-            iptables -A OUTPUT -d ${config.unheaded.container.network.busboyAddress} \
+            # Allow Wotan HTTP connection (REST API)
+            iptables -A OUTPUT -d ${config.unheaded.container.network.wotanAddress} \
               -p tcp --dport 8080 -j ACCEPT
           ''}
 
@@ -597,8 +597,8 @@
       UNHEADED_CONTAINER_NAME = config.unheaded.container.name;
       UNHEADED_CONTAINER_IP = config.unheaded.container.network.ip;
 
-      # Busboy connection
-      UNHEADED_BUSBOY_ADDR = "${config.unheaded.container.network.busboyAddress}:${toString config.unheaded.container.network.busboyPort}";
+      # Wotan connection
+      UNHEADED_WOTAN_ADDR = "${config.unheaded.container.network.wotanAddress}:${toString config.unheaded.container.network.wotanPort}";
 
       # Health check
       UNHEADED_HEALTH_PORT = toString config.unheaded.container.healthCheck.port;

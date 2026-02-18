@@ -7,7 +7,7 @@
   # Unified state management and operations service.
   # "The One" - All operations pass through the Monad.
   #
-  # Service: Monad API (REST + Busboy)
+  # Service: Monad API (REST + Wotan)
   # IP: 10.10.10.27
   # Ports: 8006 (HTTP), 9100 (metrics)
   # =============================================================================
@@ -45,9 +45,9 @@
   systemd.services.monad = {
     description = "Monad Unified State Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";

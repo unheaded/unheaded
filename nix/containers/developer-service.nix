@@ -6,7 +6,7 @@
   # =============================================================================
   # Development and coding service.
   #
-  # Service: Development API (REST + Busboy)
+  # Service: Development API (REST + Wotan)
   # IP: 10.10.10.24
   # Ports: 8004 (HTTP), 9100 (metrics)
   # =============================================================================
@@ -45,9 +45,9 @@
   systemd.services.developer = {
     description = "Developer Coding Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";

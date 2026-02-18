@@ -7,7 +7,7 @@
   # Divine wisdom and knowledge graph service.
   # Knowledge management, semantic search, inference, and decision support.
   #
-  # Service: Sophia API (REST + Busboy)
+  # Service: Sophia API (REST + Wotan)
   # IP: 10.10.10.26
   # Ports: 8007 (HTTP), 9100 (metrics)
   # =============================================================================
@@ -45,9 +45,9 @@
   systemd.services.sophia = {
     description = "Sophia Knowledge Graph Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";

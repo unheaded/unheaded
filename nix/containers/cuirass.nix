@@ -7,7 +7,7 @@
   # The Unheaded control plane - orchestrates container lifecycle,
   # configuration management, and system-wide coordination.
   #
-  # Service: Control Plane API (REST + gRPC + Busboy)
+  # Service: Control Plane API (REST + gRPC + Wotan)
   # IP: 10.10.10.5
   # Ports: 8005 (HTTP API), 9005 (gRPC), 9100 (metrics)
   # Critical: Manages all other containers
@@ -52,7 +52,7 @@
       ip = "10.10.10.5";
       ports = [ 8005 9005 9100 ];
       allowedSources = [ "10.10.10.0/24" ];
-      allowBusboyAccess = true;
+      allowWotanAccess = true;
     };
 
     # Health check
@@ -113,9 +113,9 @@
   systemd.services.cuirass = {
     description = "Cuirass Control Plane - Container Orchestration";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";
@@ -135,9 +135,9 @@
         "CUIRASS_GRPC_ADDR=0.0.0.0:9005"
         "CUIRASS_METRICS_ADDR=0.0.0.0:9100"
 
-        # Busboy connection
-        "CUIRASS_BUSBOY_ADDR=10.10.10.10:9090"
-        "CUIRASS_BUSBOY_HTTP=http://10.10.10.10:8080"
+        # Wotan connection
+        "CUIRASS_WOTAN_ADDR=10.10.10.10:9090"
+        "CUIRASS_WOTAN_HTTP=http://10.10.10.10:8080"
 
         # State management
         "CUIRASS_STATE_DIR=/var/lib/unheaded/state"
@@ -149,7 +149,7 @@
         "CUIRASS_DRIFT_DETECTION=true"
 
         # Managed containers
-        "CUIRASS_MANAGED_CONTAINERS=busboy,timeguru,captain,micromanager,architect,developer,monad,sophia,gateway,kanban,dashboard"
+        "CUIRASS_MANAGED_CONTAINERS=wotan,timeguru,captain,micromanager,architect,developer,monad,sophia,gateway,kanban,dashboard"
 
         # Logging
         "CUIRASS_LOG_LEVEL=info"
@@ -212,11 +212,11 @@
       # =======================================================================
       # Health Aggregation Script
       # =======================================================================
-      # Collects health status from all managed containers and reports to Busboy
+      # Collects health status from all managed containers and reports to Wotan
       # =======================================================================
       set -euo pipefail
 
-      CONTAINERS="busboy timeguru captain micromanager architect developer monad sophia gateway kanban dashboard"
+      CONTAINERS="wotan timeguru captain micromanager architect developer monad sophia gateway kanban dashboard"
       STATE_DIR="/var/lib/unheaded/state"
       TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -227,7 +227,7 @@
       for container in $CONTAINERS; do
         # Get container IP (from known network layout)
         case "$container" in
-          busboy)        IP="10.10.10.10"; PORT="8080" ;;
+          wotan)        IP="10.10.10.10"; PORT="8080" ;;
           timeguru)      IP="10.10.10.20"; PORT="8000" ;;
           captain)       IP="10.10.10.21"; PORT="8001" ;;
           micromanager)  IP="10.10.10.22"; PORT="8002" ;;
@@ -257,7 +257,7 @@
       # Write to state file
       echo "$HEALTH_REPORT" > "$STATE_DIR/health-report.json"
 
-      # Publish to Busboy (if available)
+      # Publish to Wotan (if available)
       curl -sf -X POST \
         -H "Content-Type: application/json" \
         -d "$HEALTH_REPORT" \
@@ -325,7 +325,7 @@
         grpc_addr: "0.0.0.0:9005"
         metrics_addr: "0.0.0.0:9100"
 
-      busboy:
+      wotan:
         grpc_addr: "10.10.10.10:9090"
         http_addr: "http://10.10.10.10:8080"
         topics:
@@ -350,7 +350,7 @@
 
       containers:
         managed:
-          - name: "busboy"
+          - name: "wotan"
             ip: "10.10.10.10"
             ports: [9090, 8080, 9100]
             critical: true
@@ -358,55 +358,55 @@
           - name: "timeguru"
             ip: "10.10.10.20"
             ports: [8000, 9100]
-            depends_on: ["busboy"]
+            depends_on: ["wotan"]
 
           - name: "captain"
             ip: "10.10.10.21"
             ports: [8001, 9100]
-            depends_on: ["busboy"]
+            depends_on: ["wotan"]
 
           - name: "micromanager"
             ip: "10.10.10.22"
             ports: [8002, 9100]
-            depends_on: ["busboy"]
+            depends_on: ["wotan"]
 
           - name: "architect"
             ip: "10.10.10.23"
             ports: [8003, 9100]
-            depends_on: ["busboy"]
+            depends_on: ["wotan"]
 
           - name: "developer"
             ip: "10.10.10.24"
             ports: [8004, 9100]
-            depends_on: ["busboy"]
+            depends_on: ["wotan"]
 
           - name: "monad"
             ip: "10.10.10.27"
             ports: [8006, 9100]
-            depends_on: ["busboy"]
+            depends_on: ["wotan"]
 
           - name: "sophia"
             ip: "10.10.10.26"
             ports: [8007, 9100]
-            depends_on: ["busboy"]
+            depends_on: ["wotan"]
 
           - name: "gateway"
             ip: "10.10.10.100"
             ports: [80, 443, 9100]
-            depends_on: ["busboy", "timeguru", "captain", "micromanager", "architect", "monad", "sophia"]
+            depends_on: ["wotan", "timeguru", "captain", "micromanager", "architect", "monad", "sophia"]
             public: true
             critical: true
 
           - name: "kanban"
             ip: "10.10.10.200"
             ports: [8080, 9100]
-            depends_on: ["busboy", "timeguru"]
+            depends_on: ["wotan", "timeguru"]
             public: true
 
           - name: "dashboard"
             ip: "10.10.10.201"
             ports: [8081, 9100]
-            depends_on: ["busboy"]
+            depends_on: ["wotan"]
             public: true
 
       logging:

@@ -6,7 +6,7 @@
   # =============================================================================
   # Strategic planning and leadership service.
   #
-  # Service: Strategy API (REST + Busboy)
+  # Service: Strategy API (REST + Wotan)
   # IP: 10.10.10.21
   # Ports: 8001 (HTTP), 9100 (metrics)
   # =============================================================================
@@ -45,9 +45,9 @@
   systemd.services.captain = {
     description = "Captain Strategy Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";
