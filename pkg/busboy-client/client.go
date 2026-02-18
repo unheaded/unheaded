@@ -9,9 +9,22 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"sync"
 	"time"
+)
+
+// Backoff constants for pollMessages exponential backoff.
+const (
+	pollBackoffMin = 500 * time.Millisecond // initial/success poll interval
+	pollBackoffMax = 30 * time.Second       // maximum backoff on consecutive errors
+)
+
+// Timeout constants for split HTTP clients.
+const (
+	controlPlaneTimeout = 5 * time.Second  // Subscribe, Publish
+	streamingTimeout    = 30 * time.Second // GetMessages, polling
 )
 
 // drainBody fully reads and discards any remaining bytes in the response body.
@@ -125,10 +138,11 @@ func (ts TransportState) String() string {
 //   - If gRPC fails, the client degrades to HTTP polling and logs a warning.
 //   - A background probe periodically re-checks gRPC and promotes back when healthy.
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	grpcAddr   string       // gRPC endpoint for streaming (empty = HTTP-only mode)
-	grpcClient *GRPCClient  // Lazy-initialized gRPC client
+	baseURL       string
+	controlClient *http.Client // short timeout for Subscribe, Publish (5s)
+	streamClient  *http.Client // long timeout for GetMessages, polling (30s)
+	grpcAddr      string       // gRPC endpoint for streaming (empty = HTTP-only mode)
+	grpcClient    *GRPCClient  // Lazy-initialized gRPC client
 
 	// Transport state — gRPC primary, HTTP fallback
 	transport     TransportState // current active transport
@@ -165,29 +179,26 @@ func NewClient(addr string) (*Client, error) {
 	}
 
 	return &Client{
-		baseURL: fmt.Sprintf("http://%s/api/v1", addr),
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		subscribers: make(map[string]*Subscriber),
-		channels:    make(map[string]*safeChannel),
+		baseURL:       fmt.Sprintf("http://%s/api/v1", addr),
+		controlClient: &http.Client{Timeout: controlPlaneTimeout},
+		streamClient:  &http.Client{Timeout: streamingTimeout},
+		subscribers:   make(map[string]*Subscriber),
+		channels:      make(map[string]*safeChannel),
 	}, nil
 }
 
-// NewClientWithTLS creates a client with TLS support
+// NewClientWithTLS creates a client with TLS support and split timeouts.
 func NewClientWithTLS(addr string, tlsConfig *http.Transport) (*Client, error) {
 	if addr == "" {
 		return nil, errors.New("address cannot be empty")
 	}
 
 	return &Client{
-		baseURL: fmt.Sprintf("https://%s/api/v1", addr),
-		httpClient: &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: tlsConfig,
-		},
-		subscribers: make(map[string]*Subscriber),
-		channels:    make(map[string]*safeChannel),
+		baseURL:       fmt.Sprintf("https://%s/api/v1", addr),
+		controlClient: &http.Client{Timeout: controlPlaneTimeout, Transport: tlsConfig},
+		streamClient:  &http.Client{Timeout: streamingTimeout, Transport: tlsConfig},
+		subscribers:   make(map[string]*Subscriber),
+		channels:      make(map[string]*safeChannel),
 	}, nil
 }
 
@@ -207,11 +218,10 @@ func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
 	}
 
 	c := &Client{
-		baseURL: fmt.Sprintf("http://%s/api/v1", httpAddr),
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		grpcAddr:    grpcAddr,
+		baseURL:       fmt.Sprintf("http://%s/api/v1", httpAddr),
+		controlClient: &http.Client{Timeout: controlPlaneTimeout},
+		streamClient:  &http.Client{Timeout: streamingTimeout},
+		grpcAddr:      grpcAddr,
 		transport:   TransportHTTP, // start degraded, promote after probe
 		grpcHealthy: false,
 		subscribers: make(map[string]*Subscriber),
@@ -308,7 +318,7 @@ func (c *Client) Subscribe(ctx context.Context, topic, displayName string) (*Sub
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.controlClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("subscribe request: %w", err)
 	}
@@ -369,7 +379,7 @@ func (c *Client) Publish(ctx context.Context, topic string, payload []byte) erro
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.controlClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("publish request: %w", err)
 	}
@@ -398,7 +408,7 @@ func (c *Client) GetMessages(ctx context.Context, topic string, afterSeq int64, 
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.streamClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("get messages request: %w", err)
 	}
@@ -492,7 +502,20 @@ func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
 	return grpcCl, nil
 }
 
-// pollMessages polls for new messages (fallback when gRPC not available)
+// backoff calculates exponential backoff: min(pollBackoffMin * 2^failures, pollBackoffMax).
+func backoff(failures int) time.Duration {
+	if failures <= 0 {
+		return pollBackoffMin
+	}
+	delay := time.Duration(float64(pollBackoffMin) * math.Pow(2, float64(failures)))
+	if delay > pollBackoffMax {
+		return pollBackoffMax
+	}
+	return delay
+}
+
+// pollMessages polls for new messages (fallback when gRPC not available).
+// Uses exponential backoff on errors: 500ms -> 1s -> 2s -> ... -> 30s max.
 func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel) {
 	defer func() {
 		sc.closeCh()
@@ -504,18 +527,24 @@ func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel
 	}()
 
 	var lastSeq int64 = 0
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
+	var consecutiveFailures int
+
+	timer := time.NewTimer(pollBackoffMin)
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			msgs, err := c.GetMessages(ctx, topic, lastSeq, 100)
 			if err != nil {
-				continue // retry on error
+				consecutiveFailures++
+				timer.Reset(backoff(consecutiveFailures))
+				continue
 			}
+			// Success — reset backoff to base interval
+			consecutiveFailures = 0
 			for _, msg := range msgs {
 				if !sc.send(ctx, msg) {
 					return
@@ -524,6 +553,7 @@ func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel
 					lastSeq = msg.Seq
 				}
 			}
+			timer.Reset(pollBackoffMin)
 		}
 	}
 }

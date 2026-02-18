@@ -7,13 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
@@ -155,10 +155,10 @@ func DetectFormat(filename string) (Format, error) {
 // LogSyncResult logs the outcome of a sync operation.
 func LogSyncResult(r *SyncResult) {
 	for _, f := range r.FilesWritten {
-		log.Printf("[timeguru/sync] wrote %s", f)
+		log.Info().Str("file", f).Msg("sync wrote file")
 	}
 	for _, e := range r.Errors {
-		log.Printf("[timeguru/sync] error: %v", e)
+		log.Error().Err(e).Msg("sync error")
 	}
 }
 

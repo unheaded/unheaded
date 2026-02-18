@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -79,8 +80,9 @@ type clientBucket struct {
 	mu         sync.Mutex
 }
 
-// NewRateLimiter creates a rate limiter
-func NewRateLimiter(requestsPerMinute, burstSize int) *RateLimiter {
+// NewRateLimiter creates a rate limiter. The provided context controls the
+// lifetime of the background cleanup goroutine — cancelling it stops the loop.
+func NewRateLimiter(ctx context.Context, requestsPerMinute, burstSize int) *RateLimiter {
 	rl := &RateLimiter{
 		clients:           make(map[string]*clientBucket),
 		requestsPerMinute: requestsPerMinute,
@@ -88,7 +90,7 @@ func NewRateLimiter(requestsPerMinute, burstSize int) *RateLimiter {
 	}
 
 	// Cleanup old clients every 5 minutes
-	go rl.cleanupLoop()
+	go rl.cleanupLoop(ctx)
 
 	return rl
 }
@@ -144,13 +146,18 @@ func (cb *clientBucket) take(refillRate, burstSize int) bool {
 	return false
 }
 
-// cleanupLoop removes stale client buckets
-func (rl *RateLimiter) cleanupLoop() {
+// cleanupLoop removes stale client buckets. It exits when ctx is cancelled.
+func (rl *RateLimiter) cleanupLoop(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		rl.cleanup()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			rl.cleanup()
+		}
 	}
 }
 

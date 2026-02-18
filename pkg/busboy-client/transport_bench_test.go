@@ -228,9 +228,10 @@ func TestMain(m *testing.M) {
 func sharedHTTPBenchClient(tb testing.TB) *Client {
 	tb.Helper()
 	c := &Client{
-		baseURL:     fmt.Sprintf("http://%s/api/v1", sharedAddr),
-		httpClient:  sharedHTTPClient,
-		transport:   TransportHTTP,
+		baseURL:       fmt.Sprintf("http://%s/api/v1", sharedAddr),
+		controlClient: sharedHTTPClient,
+		streamClient:  sharedHTTPClient,
+		transport:     TransportHTTP,
 		subscribers: make(map[string]*Subscriber),
 		channels:    make(map[string]*safeChannel),
 	}

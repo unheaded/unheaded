@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +12,8 @@ import (
 	busboyClient "unheaded/pkg/busboy-client"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -51,15 +52,19 @@ func main() {
 		timelinePath = "/opt/unheaded/references/timeline.md"
 	}
 
+	// Configure zerolog
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+
 	// Load the timeline
 	if err := loadTimeline(timelinePath); err != nil {
-		log.Printf("Warning: Failed to load timeline from %s: %v (starting with empty timeline)", timelinePath, err)
+		log.Warn().Err(err).Str("path", timelinePath).Msg("failed to load timeline, starting with empty timeline")
 	}
 
 	// Connect to Busboy
 	client, err := busboyClient.NewClient(busboyAddress)
 	if err != nil {
-		log.Printf("Warning: Failed to create busboy client: %v (running without pub/sub)", err)
+		log.Warn().Err(err).Msg("failed to create busboy client, running without pub/sub")
 	}
 
 	// Start HTTP server (REST API)
@@ -73,14 +78,16 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         listenAddress,
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	go func() {
-		log.Printf("Timeguru starting on %s", listenAddress)
+		log.Info().Str("addr", listenAddress).Msg("timeguru starting")
 		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatalf("HTTP server failed: %v", err)
+			log.Fatal().Err(err).Msg("HTTP server failed")
 		}
 	}()
 
@@ -89,7 +96,7 @@ func main() {
 		ctx := context.Background()
 		_, subErr := client.Subscribe(ctx, "timeline.updates", "timeguru")
 		if subErr != nil {
-			log.Printf("Warning: Failed to subscribe to timeline.updates: %v", subErr)
+			log.Warn().Err(subErr).Msg("failed to subscribe to timeline.updates")
 		} else {
 			go streamTimelineUpdates(ctx, client)
 		}
@@ -100,20 +107,20 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	log.Println("Shutdown signal received")
+	log.Info().Msg("shutdown signal received")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := httpServer.Shutdown(ctx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+		log.Error().Err(err).Msg("HTTP server shutdown error")
 	}
 
 	if client != nil {
 		client.Close()
 	}
 
-	log.Println("Timeguru stopped gracefully")
+	log.Info().Msg("timeguru stopped gracefully")
 }
 
 func loadTimeline(path string) error {
@@ -127,7 +134,7 @@ func loadTimeline(path string) error {
 func streamTimelineUpdates(ctx context.Context, client *busboyClient.Client) {
 	ch, err := client.StreamMessages(ctx, "timeline.updates")
 	if err != nil {
-		log.Printf("Failed to stream timeline updates: %v", err)
+		log.Error().Err(err).Msg("failed to stream timeline updates")
 		return
 	}
 
@@ -176,9 +183,9 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 func updateTimeline(data []byte) {
 	var newTimeline Timeline
 	if err := json.Unmarshal(data, &newTimeline); err != nil {
-		log.Printf("Failed to unmarshal timeline update: %v", err)
+		log.Error().Err(err).Msg("failed to unmarshal timeline update")
 		return
 	}
 	timeline = newTimeline
-	log.Println("Timeline updated")
+	log.Info().Msg("timeline updated")
 }

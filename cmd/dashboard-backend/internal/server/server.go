@@ -1268,6 +1268,8 @@ func (s *Server) handleAggregatedHealth(w http.ResponseWriter, r *http.Request) 
 }
 
 // broadcastEBPFEvents listens to the eBPF ingestor and broadcasts events via WebSocket.
+// When an ebpf_packet event is received, also emits a packet_flow message so
+// the existing canvas visualization renders real eBPF data.
 func (s *Server) broadcastEBPFEvents(ctx context.Context) {
 	defer s.wg.Done()
 
@@ -1289,9 +1291,73 @@ func (s *Server) broadcastEBPFEvents(ctx context.Context) {
 			Data:      env.Data,
 		}
 		s.broadcastToStream(streamMsg)
+
+		// Convert ebpf_packet events into packet_flow messages for the canvas
+		if env.Type == "packet" {
+			if pkt, ok := env.Data.(*ebpfPkg.PacketEvent); ok {
+				srcService := s.resolveServiceName(pkt.FlowKey.SrcAddr)
+				dstService := s.resolveServiceName(pkt.FlowKey.DstAddr)
+				// Use mesh service_id if available for better hop mapping
+				if pkt.Mesh != nil {
+					if name := s.resolveServiceByID(pkt.Mesh.SrcServiceID); name != "" {
+						srcService = name
+					}
+					if name := s.resolveServiceByID(pkt.Mesh.DstServiceID); name != "" {
+						dstService = name
+					}
+				}
+				flowData, _ := json.Marshal(map[string]interface{}{
+					"type": "packet_flow",
+					"data": map[string]interface{}{
+						"source":      srcService,
+						"destination": dstService,
+						"protocol":    pkt.FlowKey.Protocol,
+						"size":        pkt.PacketLen,
+						"timestamp":   env.Timestamp,
+						"trace_id":    pkt.TraceID.String(),
+						"direction":   pkt.Direction,
+					},
+				})
+				s.wsServer.Broadcast(flowData)
+			}
+		}
 	})
 
 	<-ctx.Done()
+}
+
+// resolveServiceName maps an IP address to a service name using config.ServiceEndpoints.
+func (s *Server) resolveServiceName(addr string) string {
+	if s.config.ServiceEndpoints == nil {
+		return addr
+	}
+	for name, endpoint := range s.config.ServiceEndpoints {
+		// endpoint is "host:port", strip port for comparison
+		host := endpoint
+		if idx := strings.LastIndex(endpoint, ":"); idx >= 0 {
+			host = endpoint[:idx]
+		}
+		if host == addr {
+			return name
+		}
+	}
+	return addr
+}
+
+// resolveServiceByID maps a mesh service_id byte to a service name.
+// Convention: 0=unknown, 1-N map to services in config order.
+func (s *Server) resolveServiceByID(id uint8) string {
+	if id == 0 || s.config.ServiceEndpoints == nil {
+		return ""
+	}
+	i := uint8(1)
+	for name := range s.config.ServiceEndpoints {
+		if i == id {
+			return name
+		}
+		i++
+	}
+	return ""
 }
 
 // handleLatency handles GET /api/v1/latency - latency histogram data
