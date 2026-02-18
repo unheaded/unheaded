@@ -29,7 +29,7 @@ var (
 // ============================================================================
 
 // Store provides task persistence using SQLite.
-// Acts as the "local memory" in the L1 (SQLite) / L2 (Busboy) hybrid model.
+// Acts as the "local memory" in the L1 (SQLite) / L2 (Wotan) hybrid model.
 // Mirrors the pattern from services/timeguru/internal/storage/storage.go.
 type Store struct {
 	db     *sql.DB

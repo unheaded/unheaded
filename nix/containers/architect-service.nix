@@ -6,7 +6,7 @@
   # =============================================================================
   # Infrastructure design and architecture service.
   #
-  # Service: Architecture API (REST + Busboy)
+  # Service: Architecture API (REST + Wotan)
   # IP: 10.10.10.23
   # Ports: 8003 (HTTP), 9100 (metrics)
   # =============================================================================
@@ -45,9 +45,9 @@
   systemd.services.architect = {
     description = "Architect Design Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";

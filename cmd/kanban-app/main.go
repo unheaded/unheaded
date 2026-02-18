@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -32,7 +32,7 @@ var staticFiles embed.FS
 type Config struct {
 	Port            string
 	TimeGuruAddr    string
-	BusboyAddr      string
+	WotanAddr      string
 	DataDir         string        // Directory for SQLite persistence (default: ./data)
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
@@ -61,7 +61,7 @@ type Server struct {
 	tasksMu         sync.RWMutex
 	sseClients      map[chan []byte]bool
 	sseMu           sync.RWMutex
-	taskManager     *TaskManager     // Busboy-integrated task management
+	taskManager     *TaskManager     // Wotan-integrated task management
 	timelineManager *TimelineManager // Standalone Timeguru HTTP polling fallback
 	ctx             context.Context    // server lifecycle context
 	cancel          context.CancelFunc // cancels ctx on shutdown
@@ -105,7 +105,7 @@ func NewServer(cfg Config) *Server {
 	return s
 }
 
-// NewServerWithTaskManager creates a server with Busboy integration and shared Store.
+// NewServerWithTaskManager creates a server with Wotan integration and shared Store.
 func NewServerWithTaskManager(cfg Config, tm *TaskManager, store *Store) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
@@ -130,7 +130,7 @@ func getInitialTasks() []Task {
 		// =====================================================================
 		// MILESTONES — high-level phase gates
 		// =====================================================================
-		{ID: "ms-phase0", Title: "Age 0: The Foundation Stone", Description: "Busboy message bus proves pub/sub patterns. 13,504 LOC shipped.", Status: "done", Type: "milestone", Owner: "Team", Progress: 100, CreatedAt: now.Add(-60 * d), UpdatedAt: now.Add(-45 * d)},
+		{ID: "ms-phase0", Title: "Age 0: The Foundation Stone", Description: "Wotan message bus proves pub/sub patterns. 13,504 LOC shipped.", Status: "done", Type: "milestone", Owner: "Team", Progress: 100, CreatedAt: now.Add(-60 * d), UpdatedAt: now.Add(-45 * d)},
 		{ID: "ms-phase1", Title: "Age 1: The Alpha Ascension", Description: "Full infrastructure armor forged. 237K+ LOC. Target: Feb 2026.", Status: "in-progress", Type: "milestone", Owner: "Team", Progress: 96, CreatedAt: now.Add(-45 * d), UpdatedAt: now},
 		{ID: "ms-phase2", Title: "Age 2: The Beta Trials", Description: "Production hardening, multi-tenant isolation, performance tuning.", Status: "todo", Type: "milestone", Owner: "Team", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
 		{ID: "ms-phase3", Title: "Age 3: The MVP Era", Description: "Full compliance templates, self-healing infra, multi-cloud.", Status: "todo", Type: "milestone", Owner: "Team", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
@@ -148,7 +148,7 @@ func getInitialTasks() []Task {
 		{ID: "armor-gauntlets", Title: "Gauntlets (Container Runtime)", Description: "OCI-compliant, cgroups v2, namespace isolation. 6,955 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 75, CreatedAt: now.Add(-31 * d), UpdatedAt: now},
 		{ID: "armor-visor", Title: "Visor (Dashboard Backend)", Description: "WebSocket-ready metrics + event aggregation. 5,926 LOC.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 70, CreatedAt: now.Add(-20 * d), UpdatedAt: now},
 		{ID: "armor-void", Title: "Whispering Void (eBPF)", Description: "Packet marking, flow tracing, latency probes. 7,196 LOC. Awaiting Linux env.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 55, CreatedAt: now.Add(-28 * d), UpdatedAt: now},
-		{ID: "armor-crest", Title: "Crest (Kanban Frontend)", Description: "Real-time Kanban board with SSE + Busboy integration.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 95, CreatedAt: now.Add(-10 * d), UpdatedAt: now},
+		{ID: "armor-crest", Title: "Crest (Kanban Frontend)", Description: "Real-time Kanban board with SSE + Wotan integration.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 95, CreatedAt: now.Add(-10 * d), UpdatedAt: now},
 
 		// =====================================================================
 		// GNOSTIC SERVICES — state & wisdom layer
@@ -163,7 +163,7 @@ func getInitialTasks() []Task {
 		// =====================================================================
 		// SUPPORT SERVICES
 		// =====================================================================
-		{ID: "svc-busboy", Title: "Busboy (Message Bus)", Description: "Pub/sub message bus. HTTP+gRPC dual transport. 13,504 LOC.", Status: "done", Type: "feature", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-50 * d), UpdatedAt: now.Add(-2 * d)},
+		{ID: "svc-wotan", Title: "Wotan (Message Bus)", Description: "Pub/sub message bus. HTTP+gRPC dual transport. 13,504 LOC.", Status: "done", Type: "feature", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-50 * d), UpdatedAt: now.Add(-2 * d)},
 		{ID: "svc-timeguru", Title: "Timeguru (Timeline Oracle)", Description: "Project timeline tracking, sync to JSON/YAML/TOML/MD.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 80, CreatedAt: now.Add(-18 * d), UpdatedAt: now},
 		{ID: "svc-gateway", Title: "Gateway (API Gateway)", Description: "Unified API ingress, auth, rate limiting.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 60, CreatedAt: now.Add(-16 * d), UpdatedAt: now},
 		{ID: "svc-cape", Title: "Cape (Auth/Identity)", Description: "Authentication, authorization, identity management.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 50, CreatedAt: now.Add(-14 * d), UpdatedAt: now},
@@ -177,9 +177,9 @@ func getInitialTasks() []Task {
 		// =====================================================================
 		{ID: "task-transport-bench", Title: "Transport Benchmarks (HTTP vs gRPC)", Description: "Validated: gRPC 6.2x faster on PollCycle, 10x fewer allocs.", Status: "done", Type: "task", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-2 * d), UpdatedAt: now},
 		{ID: "task-drainbody", Title: "HTTP drainBody() Fix", Description: "json.Decoder left trailing bytes -> socket leak. Production bug caught by benchmarks.", Status: "done", Type: "bug", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
-		{ID: "task-split-brain", Title: "Kanban Split-Brain Fix", Description: "pollTimeguru disabled when Busboy active. SSE prefers kanban cards.", Status: "done", Type: "bug", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
+		{ID: "task-split-brain", Title: "Kanban Split-Brain Fix", Description: "pollTimeguru disabled when Wotan active. SSE prefers kanban cards.", Status: "done", Type: "bug", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
 		{ID: "task-dual-transport", Title: "gRPC Primary / HTTP Fallback", Description: "TransportState machine: probe at startup, circuit-breaker degradation.", Status: "done", Type: "feature", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-2 * d), UpdatedAt: now},
-		{ID: "task-busboy-tests", Title: "Busboy Unit Test Suite", Description: "Comprehensive unit tests for core message bus components.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-7 * d), UpdatedAt: now},
+		{ID: "task-wotan-tests", Title: "Wotan Unit Test Suite", Description: "Comprehensive unit tests for core message bus components.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-7 * d), UpdatedAt: now},
 		{ID: "task-skill-xrefs", Title: "Skill Cross-References", Description: "Update all skills with bidirectional cross-references.", Status: "todo", Type: "task", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-3 * d), UpdatedAt: now},
 		{ID: "task-cicd", Title: "CI/CD Pipeline Templates", Description: "GitHub Actions for build, test, deploy, release.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-3 * d), UpdatedAt: now},
 		{ID: "task-e2e-integration", Title: "Full E2E Integration Tests", Description: "All 23 services wired, health checks green, message flow verified.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
@@ -188,7 +188,7 @@ func getInitialTasks() []Task {
 		// =====================================================================
 		// TECH DEBT
 		// =====================================================================
-		{ID: "debt-docker-compose", Title: "Fix Docker Compose Ports", Description: "docker-compose.yml has busboy on 8081/5555, should match standalone defaults 8080/9090.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
+		{ID: "debt-docker-compose", Title: "Fix Docker Compose Ports", Description: "docker-compose.yml has wotan on 8081/5555, should match standalone defaults 8080/9090.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
 		{ID: "debt-timeguru-db", Title: "Timeguru Local Dev Defaults", Description: "DB_PATH defaults to /opt/unheaded/data/ which doesn't exist on macOS.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
 		{ID: "debt-timeline-sync", Title: "Timeline Data Hydration", Description: "timeline.json milestones array is empty. Sync overwrites timeline.md to stubs.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
 
@@ -223,7 +223,7 @@ func getInitialTasks() []Task {
 		{ID: "wish-taoist-alchemy-naming", Title: "Taoist Alchemy & Metaphysics Conceptual Service Names", Description: "Inner/outer alchemy and metaphysics mapped to infra: Neidan/Inner Alchemy (internal service optimization/profiling/the body as tripod cauldron = container self-tuning), Waidan/Outer Alchemy (external tooling/CI-CD/build systems — ritual cauldron crafting physical elixirs of power = artifact builds), Jing-Chi-Shen Trinity (Jing=storage/data layer/nutritive force, Chi=compute/processing/life force, Shen=observability/consciousness/divine intelligence), Wu Xing/Five Movements (five-element resource model — Wood/growth, Fire/processing, Earth/storage, Metal/networking, Water/cooling/cleanup), Bagua/Eight Trigrams (eight-dimensional service health matrix), Yin-Yang (read/write split, hot/cold storage, active/passive failover), Junzi/The Sage (SLO/SLI targets — strive for perfection knowing you will never achieve 100% but never stop aspiring), Qigong (resource management/capacity planning/chi cultivation = the personal power that fuels all rituals, without compute budget your talismans are empty).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
 
 		// REFACTOR
-		{ID: "refactor-taskmanager-rename", Title: "Rename TaskManager to Mythology-Aligned Name", Description: "TaskManager is the nervous system coordinator. Rename to something fitting: Hermes (messenger), Iris (rainbow messenger), Vayu (Hindu wind/messenger), Fujin (wind god), Bifrost (bridge). The unheaded-busboy SKILL stays — only the Go struct/service gets renamed.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "refactor-taskmanager-rename", Title: "Rename TaskManager to Mythology-Aligned Name", Description: "TaskManager is the nervous system coordinator. Rename to something fitting: Hermes (messenger), Iris (rainbow messenger), Vayu (Hindu wind/messenger), Fujin (wind god), Bifrost (bridge). The unheaded-wotan SKILL stays — only the Go struct/service gets renamed.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
 	}
 }
 
@@ -283,8 +283,8 @@ func (s *Server) Start() error {
 	log.Info().
 		Str("port", s.config.Port).
 		Str("timeguru", s.config.TimeGuruAddr).
-		Str("busboy", s.config.BusboyAddr).
-		Bool("busboy_enabled", s.taskManager != nil).
+		Str("wotan", s.config.WotanAddr).
+		Bool("wotan_enabled", s.taskManager != nil).
 		Msg("Starting kanban-app server")
 
 	return s.httpServer.ListenAndServe()
@@ -307,7 +307,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 // getTimelineManager returns the active TimelineManager.
-// Prefers TaskManager's timeline (Busboy-backed) when available,
+// Prefers TaskManager's timeline (Wotan-backed) when available,
 // falls back to standalone HTTP-polling TimelineManager.
 func (s *Server) getTimelineManager() *TimelineManager {
 	if s.taskManager != nil {
@@ -351,7 +351,7 @@ func (s *Server) fetchTimelineFromTimeguru() error {
 }
 
 // pollTimeguru periodically fetches timeline from Timeguru via HTTP.
-// Used as fallback when Busboy is unavailable, or to seed initial data.
+// Used as fallback when Wotan is unavailable, or to seed initial data.
 func (s *Server) pollTimeguru(ctx context.Context, interval time.Duration) {
 	// Initial fetch
 	if err := s.fetchTimelineFromTimeguru(); err != nil {
@@ -439,7 +439,7 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	var count int
 
 	if s.taskManager != nil {
-		// Prefer Busboy-backed TaskManager
+		// Prefer Wotan-backed TaskManager
 		taskList := s.taskManager.GetAllTasks()
 		tasks = taskList
 		count = len(taskList)
@@ -919,11 +919,11 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	// Send initial tasks — prefer kanban cards (GetAllTasks) over timeline milestones
 	var initialData []byte
 	if s.taskManager != nil {
-		// Busboy mode: send real kanban task cards
+		// Wotan mode: send real kanban task cards
 		allTasks := s.taskManager.GetAllTasks()
 		if len(allTasks) > 0 {
 			initialData, _ = json.Marshal(allTasks)
-			log.Info().Int("count", len(allTasks)).Msg("SSE sending kanban tasks (Busboy)")
+			log.Info().Int("count", len(allTasks)).Msg("SSE sending kanban tasks (Wotan)")
 		}
 	} else if tm := s.getTimelineManager(); tm != nil {
 		// Standalone mode: send timeline milestones as tasks
@@ -983,7 +983,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":              "healthy",
 		"timestamp":           time.Now().UTC().Format(time.RFC3339),
 		"version":             "0.1.0",
-		"busboy_enabled":      s.taskManager != nil,
+		"wotan_enabled":      s.taskManager != nil,
 		"timeline_subscribed": timelineSubscribed,
 		"timeline_http":       timelineHTTP,
 		"timeguru_addr":       s.config.TimeGuruAddr,
@@ -1036,12 +1036,12 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "# HELP kanban_sse_clients_active Active SSE client connections\n")
 	fmt.Fprintf(w, "# TYPE kanban_sse_clients_active gauge\n")
 	fmt.Fprintf(w, "kanban_sse_clients_active %d\n", sseClients)
-	fmt.Fprintf(w, "# HELP kanban_busboy_enabled Whether Busboy integration is enabled\n")
-	fmt.Fprintf(w, "# TYPE kanban_busboy_enabled gauge\n")
+	fmt.Fprintf(w, "# HELP kanban_wotan_enabled Whether Wotan integration is enabled\n")
+	fmt.Fprintf(w, "# TYPE kanban_wotan_enabled gauge\n")
 	if s.taskManager != nil {
-		fmt.Fprintf(w, "kanban_busboy_enabled 1\n")
+		fmt.Fprintf(w, "kanban_wotan_enabled 1\n")
 	} else {
-		fmt.Fprintf(w, "kanban_busboy_enabled 0\n")
+		fmt.Fprintf(w, "kanban_wotan_enabled 0\n")
 	}
 }
 
@@ -1086,13 +1086,13 @@ func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
 	var count int
 	source := "timeline"
 
-	// Try Busboy-backed TaskManager first
+	// Try Wotan-backed TaskManager first
 	if s.taskManager != nil {
 		timelineTasks := s.taskManager.GetTimelineTasks()
 		if len(timelineTasks) > 0 {
 			tasks = timelineTasks
 			count = len(timelineTasks)
-			source = "timeline-busboy"
+			source = "timeline-wotan"
 		}
 	}
 
@@ -1168,59 +1168,59 @@ func main() {
 	cfg := Config{
 		Port:            getEnv("PORT", "8081"),
 		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:8000"),
-		BusboyAddr:      getEnv("BUSBOY_ADDR", "localhost:8080"),
+		WotanAddr:      getEnv("WOTAN_ADDR", "localhost:8080"),
 		DataDir:         getEnv("DATA_DIR", "./data"),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
 	}
 
-	// Initialize Busboy client
-	// BUSBOY_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)
-	// BUSBOY_GRPC_ADDR = gRPC data plane (TopicStream) — primary transport for streaming
+	// Initialize Wotan client
+	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)
+	// WOTAN_GRPC_ADDR = gRPC data plane (TopicStream) — primary transport for streaming
 	//
 	// Transport strategy (Campaign 1 — TopicStream gRPC Sprint):
-	//   1. If BUSBOY_GRPC_ADDR is set → create TopicStreamClient (gRPC streaming primary)
+	//   1. If WOTAN_GRPC_ADDR is set → create TopicStreamClient (gRPC streaming primary)
 	//      with HTTP Client as circuit-breaker fallback
 	//   2. If gRPC unavailable → create plain HTTP Client (polling mode)
-	//   3. If BUSBOY_ENABLED=false → standalone mode (no Busboy)
+	//   3. If WOTAN_ENABLED=false → standalone mode (no Wotan)
 	var server *Server
-	busboyEnabled := getEnv("BUSBOY_ENABLED", "true") == "true"
-	busboyGRPCAddr := getEnv("BUSBOY_GRPC_ADDR", "localhost:9090")
+	wotanEnabled := getEnv("WOTAN_ENABLED", "true") == "true"
+	wotanGRPCAddr := getEnv("WOTAN_GRPC_ADDR", "localhost:9090")
 
-	if busboyEnabled {
+	if wotanEnabled {
 		log.Info().
-			Str("busboy_http", cfg.BusboyAddr).
-			Str("busboy_grpc", busboyGRPCAddr).
-			Msg("Initializing Busboy client")
+			Str("wotan_http", cfg.WotanAddr).
+			Str("wotan_grpc", wotanGRPCAddr).
+			Msg("Initializing Wotan client")
 
-		var busClient BusboyClient
+		var busClient WotanClient
 		var err error
 		var transportName string
 
-		if busboyGRPCAddr != "" {
+		if wotanGRPCAddr != "" {
 			// Primary path: TopicStreamClient with gRPC streaming + HTTP fallback
 			// Create HTTP client first as circuit-breaker fallback
-			httpFallback, httpErr := busboyClient.NewClient(cfg.BusboyAddr)
+			httpFallback, httpErr := wotanClient.NewClient(cfg.WotanAddr)
 			if httpErr != nil {
 				log.Warn().Err(httpErr).Msg("HTTP fallback client creation failed — TopicStream will run without fallback")
 			}
 
-			var tsOpts []busboyClient.TopicStreamOption
-			tsOpts = append(tsOpts, busboyClient.WithRetryPolicy(
+			var tsOpts []wotanClient.TopicStreamOption
+			tsOpts = append(tsOpts, wotanClient.WithRetryPolicy(
 				100*time.Millisecond, // initial backoff
 				30*time.Second,       // max backoff cap
 				10,                   // max consecutive failures before circuit break
 			))
-			tsOpts = append(tsOpts, busboyClient.WithBufferSize(256))
+			tsOpts = append(tsOpts, wotanClient.WithBufferSize(256))
 			if httpFallback != nil {
-				tsOpts = append(tsOpts, busboyClient.WithHTTPFallback(httpFallback))
+				tsOpts = append(tsOpts, wotanClient.WithHTTPFallback(httpFallback))
 			}
 
-			tsc, tsErr := busboyClient.NewTopicStreamClient(busboyGRPCAddr, tsOpts...)
+			tsc, tsErr := wotanClient.NewTopicStreamClient(wotanGRPCAddr, tsOpts...)
 			if tsErr != nil {
 				log.Warn().Err(tsErr).Msg("TopicStreamClient creation failed — falling back to HTTP polling client")
-				busClient, err = busboyClient.NewClient(cfg.BusboyAddr)
+				busClient, err = wotanClient.NewClient(cfg.WotanAddr)
 				transportName = "http-poll"
 			} else {
 				// Probe gRPC health to provide an informative startup log message.
@@ -1237,7 +1237,7 @@ func main() {
 			}
 		} else {
 			// No gRPC address — HTTP-only mode
-			bc, bcErr := busboyClient.NewClient(cfg.BusboyAddr)
+			bc, bcErr := wotanClient.NewClient(cfg.WotanAddr)
 			if bcErr != nil {
 				err = bcErr
 			} else {
@@ -1247,13 +1247,13 @@ func main() {
 		}
 
 		if transportName != "" {
-			log.Info().Str("transport", transportName).Msg("Busboy transport selected")
+			log.Info().Str("transport", transportName).Msg("Wotan transport selected")
 		}
 
 		if err != nil {
 			log.Error().
 				Err(err).
-				Msg("Failed to create Busboy client, falling back to standalone mode")
+				Msg("Failed to create Wotan client, falling back to standalone mode")
 			server = NewServer(cfg)
 		} else {
 			// Initialize SQLite L1 store (shared between TaskManager and Server)
@@ -1282,7 +1282,7 @@ func main() {
 					Msg("Failed to create TaskManager, falling back to standalone mode")
 				server = NewServer(cfg)
 			} else {
-				// Initialize TaskManager (loads tasks from Store + subscribes to Busboy)
+				// Initialize TaskManager (loads tasks from Store + subscribes to Wotan)
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				if err := taskManager.Initialize(ctx); err != nil {
 					log.Error().
@@ -1295,24 +1295,24 @@ func main() {
 					server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
 					log.Info().
 						Str("transport", transportName).
-						Msg("Busboy integration enabled with SQLite L1 persistence")
+						Msg("Wotan integration enabled with SQLite L1 persistence")
 				}
 			}
 		}
 	} else {
-		log.Warn().Msg("Busboy disabled, running in standalone mode")
+		log.Warn().Msg("Wotan disabled, running in standalone mode")
 		server = NewServer(cfg)
 	}
 
 	// Start Timeguru HTTP polling ONLY in standalone mode.
-	// When Busboy integration is active, timeline updates arrive via
+	// When Wotan integration is active, timeline updates arrive via
 	// the timeline.updates subscription — no polling needed.
 	pollCtx, pollCancel := context.WithCancel(context.Background())
 	if server.taskManager == nil {
 		go server.pollTimeguru(pollCtx, 30*time.Second)
 		log.Info().Msg("Timeguru HTTP polling enabled (standalone mode)")
 	} else {
-		log.Info().Msg("Timeguru HTTP polling disabled (Busboy handles timeline events)")
+		log.Info().Msg("Timeguru HTTP polling disabled (Wotan handles timeline events)")
 	}
 
 	// Start server in goroutine

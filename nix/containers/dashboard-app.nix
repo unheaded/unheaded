@@ -45,9 +45,9 @@
   systemd.services.dashboard-app = {
     description = "Dashboard App - eBPF Trace Visualization";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";
@@ -61,7 +61,7 @@
 
       Environment = [
         "DASHBOARD_ADDR=0.0.0.0:8081"
-        "DASHBOARD_BUSBOY_URL=http://10.10.10.10:8080"
+        "DASHBOARD_WOTAN_URL=http://10.10.10.10:8080"
         "DASHBOARD_WS_ENABLED=true"
       ];
 

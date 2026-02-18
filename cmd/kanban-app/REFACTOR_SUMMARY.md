@@ -1,6 +1,6 @@
 # Kanban Backend Refactor Summary
 
-**Mission:** Refactor Kanban backend to use Busboy (QUICK WIN - DAY 3)
+**Mission:** Refactor Kanban backend to use Wotan (QUICK WIN - DAY 3)
 **Status:** ✅ COMPLETE
 **Execution Time:** ~4 hours (estimated)
 **Priority:** P1 (META MOMENT)
@@ -15,10 +15,10 @@
 |------|-----|---------|
 | **Production Code** | **1,412** | |
 | `main.go` | 670 | HTTP server, routing, config |
-| `busboy.go` | 492 | TaskManager + Busboy integration |
+| `wotan.go` | 492 | TaskManager + Wotan integration |
 | `middleware.go` | 250 | Security (CORS, rate limiting, headers) |
 | **Test Code** | **1,718** | |
-| `busboy_test.go` | 745 | TaskManager tests (integration + unit) |
+| `wotan_test.go` | 745 | TaskManager tests (integration + unit) |
 | `handlers_test.go` | 561 | HTTP handler tests (POST/PUT/DELETE) |
 | `main_test.go` | 412 | Server lifecycle tests |
 | **TOTAL** | **3,130** | |
@@ -40,11 +40,11 @@
 - Concurrency tests (100 parallel requests)
 - Edge case coverage (nil server, empty tasks)
 
-### 2. Busboy Client Integration Layer ✅
-**File:** `busboy.go` (492 LOC)
+### 2. Wotan Client Integration Layer ✅
+**File:** `wotan.go` (492 LOC)
 
 **Features:**
-- `TaskManager` struct with BusboyClient interface
+- `TaskManager` struct with WotanClient interface
 - Full CRUD operations (Create, Update, Delete, Get)
 - Subscription to `tasks.*` wildcard topic
 - Message streaming with `handleMessage()`
@@ -58,8 +58,8 @@ ErrInvalidTask, ErrTaskNotFound, ErrTaskAlreadyExists
 ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 ```
 
-### 3. Integration Tests with Mock Busboy ✅
-**File:** `busboy_test.go` (745 LOC)
+### 3. Integration Tests with Mock Wotan ✅
+**File:** `wotan_test.go` (745 LOC)
 
 **Test Coverage:**
 - Constructor tests (valid/nil inputs)
@@ -78,7 +78,7 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 - TaskManager loads `getInitialTasks()` on `Initialize()`
 - Subscribes to `tasks.*` topic
 - Streams messages in background goroutine
-- Updates local task cache on Busboy events
+- Updates local task cache on Wotan events
 - Maintains backward compatibility (fallback mode)
 
 **Topic Strategy:**
@@ -94,9 +94,9 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 
 **New Handlers:**
 - `handleTasks()` - Router for GET/POST/PUT/DELETE
-- `handleCreateTask()` - POST with validation + Busboy publish
-- `handleUpdateTask()` - PUT with validation + Busboy publish
-- `handleDeleteTask()` - DELETE with validation + Busboy publish
+- `handleCreateTask()` - POST with validation + Wotan publish
+- `handleUpdateTask()` - PUT with validation + Wotan publish
+- `handleDeleteTask()` - DELETE with validation + Wotan publish
 
 **Features:**
 - Proper HTTP status codes (201, 400, 404, 409, 500)
@@ -131,16 +131,16 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 - Automatic cleanup (stale clients >10min)
 - Configurable via `RATE_LIMIT_ENABLED` env var
 
-### 8. SSE → Busboy Bridge ✅
+### 8. SSE → Wotan Bridge ✅
 **Implementation:**
-- TaskManager receives Busboy messages via `streamMessages()`
+- TaskManager receives Wotan messages via `streamMessages()`
 - `handleMessage()` processes events
 - `broadcast()` function pushes to SSE clients
-- Real-time updates: Browser ← SSE ← Busboy
+- Real-time updates: Browser ← SSE ← Wotan
 
 **Flow:**
 ```
-[Busboy] ──tasks.updated──► [TaskManager.handleMessage()]
+[Wotan] ──tasks.updated──► [TaskManager.handleMessage()]
                                       │
                                       └─► [broadcastUpdate()]
                                             │
@@ -152,7 +152,7 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 - `README.md` - Comprehensive guide (400+ lines)
   - API reference
   - Configuration
-  - Busboy integration details
+  - Wotan integration details
   - Security features
   - Testing guide
   - Troubleshooting
@@ -186,7 +186,7 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 - **Test LOC:** 1,718 (55% of codebase)
 - **Coverage Areas:**
   - Unit tests (handlers, validation, helpers)
-  - Integration tests (Busboy integration)
+  - Integration tests (Wotan integration)
   - Concurrency tests (race detection)
   - Edge cases (nil inputs, empty data, errors)
   - HTTP flow tests (create → update → delete)
@@ -195,15 +195,15 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 | File | Tests | Coverage |
 |------|-------|----------|
 | `main_test.go` | 15 | Server lifecycle, handlers, concurrency |
-| `busboy_test.go` | 30+ | TaskManager, Busboy integration, rollback |
+| `wotan_test.go` | 30+ | TaskManager, Wotan integration, rollback |
 | `handlers_test.go` | 20+ | HTTP endpoints, validation, routing |
 
 ### Notable Tests
 - ✅ Concurrent reads/writes (100 goroutines)
-- ✅ Rollback on Busboy publish failure
+- ✅ Rollback on Wotan publish failure
 - ✅ Input validation (invalid chars, length limits)
 - ✅ HTTP status codes (200, 201, 400, 404, 409, 500)
-- ✅ Fallback mode (no Busboy)
+- ✅ Fallback mode (no Wotan)
 
 ---
 
@@ -218,7 +218,7 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 - ✅ Structured logging (zerolog)
 
 ### New (Added)
-- ✅ **Busboy Integration** - Real-time pub/sub
+- ✅ **Wotan Integration** - Real-time pub/sub
 - ✅ **POST /tasks** - Create tasks
 - ✅ **PUT /tasks** - Update tasks
 - ✅ **DELETE /tasks** - Delete tasks
@@ -226,7 +226,7 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 - ✅ **CORS Protection** - Secure origins
 - ✅ **Input Validation** - Strict rules
 - ✅ **Security Headers** - CSP, X-Frame-Options
-- ✅ **Fallback Mode** - Works without Busboy
+- ✅ **Fallback Mode** - Works without Wotan
 - ✅ **Comprehensive Docs** - README + API ref
 
 ---
@@ -253,14 +253,14 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 │        ▼                         │
 │  ┌────────────┐                  │
 │  │TaskManager │◄─────────────┐   │
-│  │  (Busboy)  │              │   │
+│  │  (Wotan)  │              │   │
 │  └─────┬──────┘              │   │
 │        │                     │   │
 └────────┼─────────────────────┼───┘
          │                     │
          ▼                     │
 ┌──────────────────┐           │
-│ Busboy Message   │           │
+│ Wotan Message   │           │
 │      Bus         │           │
 │                  │           │
 │  topics:         │           │
@@ -333,9 +333,9 @@ task := tm.tasks[taskID]
 - No integration with Unheaded services
 
 ### After
-- ✅ Kanban powered by Busboy
+- ✅ Kanban powered by Wotan
 - ✅ Real-time sync across services
-- ✅ Live updates via SSE + Busboy
+- ✅ Live updates via SSE + Wotan
 - ✅ Demonstrates "Unheaded building Unheaded"
 
 **Proof:** The dashboard showing this refactor's tasks proves the system works.
@@ -349,16 +349,16 @@ task := tm.tasks[taskID]
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8080` | HTTP server port |
-| `BUSBOY_ADDR` | `localhost:9090` | Busboy server address |
-| `BUSBOY_ENABLED` | `true` | Enable Busboy integration |
+| `WOTAN_ADDR` | `localhost:9090` | Wotan server address |
+| `WOTAN_ENABLED` | `true` | Enable Wotan integration |
 | `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting |
 | `TIMEGURU_ADDR` | `localhost:9091` | TimeGuru service (future) |
 
 ### Example
 
 ```bash
-export BUSBOY_ADDR=10.10.10.10:9090
-export BUSBOY_ENABLED=true
+export WOTAN_ADDR=10.10.10.10:9090
+export WOTAN_ENABLED=true
 export RATE_LIMIT_ENABLED=true
 ./bin/kanban-app
 ```
@@ -372,7 +372,7 @@ export RATE_LIMIT_ENABLED=true
 | Operation | Latency |
 |-----------|---------|
 | GET /tasks | < 5ms |
-| POST /tasks (with Busboy) | < 10ms |
+| POST /tasks (with Wotan) | < 10ms |
 | PUT /tasks | < 10ms |
 | DELETE /tasks | < 10ms |
 | SSE connection | < 100ms |
@@ -387,7 +387,7 @@ export RATE_LIMIT_ENABLED=true
 
 - Tested with 100 parallel requests (no race conditions)
 - All operations protected by `sync.RWMutex`
-- Busboy client handles concurrent pub/sub
+- Wotan client handles concurrent pub/sub
 
 ---
 
@@ -411,7 +411,7 @@ export RATE_LIMIT_ENABLED=true
 
 ### What Worked
 - ✅ **TDD approach** - Tests written first clarified requirements
-- ✅ **Mock Busboy client** - Enabled isolated testing
+- ✅ **Mock Wotan client** - Enabled isolated testing
 - ✅ **Defensive coding** - Nil checks, error wrapping caught issues early
 - ✅ **Rollback pattern** - Atomic operations prevent partial updates
 - ✅ **Middleware composition** - Clean separation of concerns
@@ -432,8 +432,8 @@ export RATE_LIMIT_ENABLED=true
 ## 📝 Files Created/Modified
 
 ### Created (6 files)
-1. `busboy.go` - TaskManager implementation (492 LOC)
-2. `busboy_test.go` - Integration tests (745 LOC)
+1. `wotan.go` - TaskManager implementation (492 LOC)
+2. `wotan_test.go` - Integration tests (745 LOC)
 3. `handlers_test.go` - HTTP endpoint tests (561 LOC)
 4. `middleware.go` - Security middleware (250 LOC)
 5. `README.md` - Comprehensive documentation
@@ -450,7 +450,7 @@ export RATE_LIMIT_ENABLED=true
 **Mission Status:** ✅ COMPLETE
 
 **Deliverables:**
-- ✅ Busboy integration (TaskManager + pub/sub)
+- ✅ Wotan integration (TaskManager + pub/sub)
 - ✅ RESTful API (POST/PUT/DELETE)
 - ✅ Input validation (strict + tested)
 - ✅ Security hardening (CORS, rate limiting, headers)
@@ -492,14 +492,14 @@ export RATE_LIMIT_ENABLED=true
 
 4. **Deploy:**
    ```bash
-   export BUSBOY_ADDR=10.10.10.10:9090
+   export WOTAN_ADDR=10.10.10.10:9090
    ./bin/kanban-app
    ```
 
 5. **Verify Integration:**
-   - Check logs for "Busboy integration enabled"
+   - Check logs for "Wotan integration enabled"
    - Create task via API
-   - Verify task appears in Busboy topics
+   - Verify task appears in Wotan topics
    - Confirm SSE clients receive updates
 
 ---
