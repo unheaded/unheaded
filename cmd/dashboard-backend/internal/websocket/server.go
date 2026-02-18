@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"unheaded/pkg/logger"
@@ -156,6 +157,9 @@ type Server struct {
 	wg           sync.WaitGroup
 	running      bool
 	runMu        sync.RWMutex
+
+	// clientIDCounter avoids collision risk of UnixNano()-only IDs under high throughput
+	clientIDCounter int64
 
 	// Callbacks
 	onConnect    func(*Client)
@@ -310,9 +314,10 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create client
+	// Create client with atomic counter + timestamp to avoid ID collisions
+	counter := atomic.AddInt64(&s.clientIDCounter, 1)
 	client := &Client{
-		id:     fmt.Sprintf("%s-%d", r.RemoteAddr, time.Now().UnixNano()),
+		id:     fmt.Sprintf("%s-%d-%d", r.RemoteAddr, time.Now().Unix(), counter),
 		conn:   conn,
 		server: s,
 		send:   make(chan []byte, s.config.BufferSize),
@@ -602,13 +607,6 @@ func (s *Server) Broadcast(message []byte) {
 		// Broadcast channel full, drop message
 		s.log.Warn().Msg("broadcast channel full, dropping message")
 	}
-}
-
-// BroadcastJSON sends a JSON message to all connected clients
-func (s *Server) BroadcastJSON(data interface{}) error {
-	// Simple JSON encoding without external deps
-	// For complex objects, this would need proper JSON encoding
-	return errors.New("use Broadcast with pre-encoded JSON")
 }
 
 // SendTo sends a message to a specific client

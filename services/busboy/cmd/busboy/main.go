@@ -128,7 +128,8 @@ func main() {
 		Handler:      httpHandler,
 		ReadTimeout:  config.ReadTimeout,
 		WriteTimeout: config.WriteTimeout,
-		IdleTimeout:  config.IdleTimeout,
+		IdleTimeout:    config.IdleTimeout,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	// Configure TLS if enabled

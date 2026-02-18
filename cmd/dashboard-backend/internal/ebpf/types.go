@@ -102,6 +102,20 @@ func (k FlowKey) String() string {
 	return fmt.Sprintf("%s:%d→%s:%d/%s", k.SrcAddr, k.SrcPort, k.DstAddr, k.DstPort, proto)
 }
 
+// MeshMeta contains service mesh metadata extracted from IPv4-mapped address prefix bytes.
+// Present only on IPv4 packets when the eBPF collector stamps mesh context.
+type MeshMeta struct {
+	Version        uint8    `json:"version"`
+	SrcServiceID   uint8    `json:"src_service_id"`
+	DstServiceID   uint8    `json:"dst_service_id"`
+	HopCount       uint8    `json:"hop_count"`
+	FlowFlags      []string `json:"flow_flags"`
+	TraceHash      string   `json:"trace_hash"`
+	QosClass       uint16   `json:"qos_class"`
+	NatType        string   `json:"nat_type"`
+	LatencyHintNs  uint32   `json:"latency_hint_ns"`
+}
+
 // PacketEvent represents a packet captured by the XDP packet-marker program.
 type PacketEvent struct {
 	TimestampNs uint64       `json:"timestamp_ns"`
@@ -110,6 +124,7 @@ type PacketEvent struct {
 	PacketLen   uint32       `json:"packet_len"`
 	Action      PacketAction `json:"action"`
 	Direction   Direction    `json:"direction"`
+	Mesh        *MeshMeta    `json:"mesh,omitempty"`
 }
 
 // Time returns the event timestamp as time.Time.

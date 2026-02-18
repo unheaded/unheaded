@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -31,6 +32,9 @@ const (
 	busboyTopic         = "timeline.updates"
 	busboyDisplayName   = "timeguru-service"
 )
+
+// traceIDCounter avoids collision risk of UnixNano()-only IDs under high throughput
+var traceIDCounter int64
 
 // Config holds service configuration
 type Config struct {
@@ -141,7 +145,8 @@ func main() {
 		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	// Graceful shutdown setup
@@ -389,8 +394,9 @@ func publishTimelineUpdate(client *busboyClient.Client, eventType string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Generate trace_id for this event
-	traceID := fmt.Sprintf("timeguru-%d", time.Now().UnixNano())
+	// Generate trace_id using atomic counter + timestamp to avoid collisions
+	counter := atomic.AddInt64(&traceIDCounter, 1)
+	traceID := fmt.Sprintf("timeguru-%d-%d", time.Now().Unix(), counter)
 
 	payload := fmt.Sprintf(`{"event":"%s","timestamp":"%s","timestamp_ms":%d,"source":"timeguru","service":"timeguru","trace_id":"%s"}`,
 		eventType, time.Now().Format(time.RFC3339), time.Now().UnixMilli(), traceID)

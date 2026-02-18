@@ -1617,7 +1617,7 @@ func TestPollMessagesRetriesOnError(t *testing.T) {
 	}
 	c.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 
 	ch, err := c.StreamMessages(ctx, "retry")
@@ -1633,8 +1633,8 @@ func TestPollMessagesRetriesOnError(t *testing.T) {
 		if msg.MessageID != "recovered" {
 			t.Errorf("MessageID = %q, want recovered", msg.MessageID)
 		}
-	case <-time.After(4 * time.Second):
-		t.Fatal("timeout: polling did not recover after errors")
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout: polling did not recover after errors (exponential backoff)")
 	}
 
 	finalCount := atomic.LoadInt64(&callCount)
@@ -1819,8 +1819,11 @@ func TestClientHTTPTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.httpClient.Timeout != 30*time.Second {
-		t.Errorf("timeout = %v, want 30s", c.httpClient.Timeout)
+	if c.streamClient.Timeout != 30*time.Second {
+		t.Errorf("stream timeout = %v, want 30s", c.streamClient.Timeout)
+	}
+	if c.controlClient.Timeout != 5*time.Second {
+		t.Errorf("control timeout = %v, want 5s", c.controlClient.Timeout)
 	}
 }
 
@@ -2031,8 +2034,11 @@ func TestNewClientWithTLSTransport(t *testing.T) {
 		t.Fatalf("NewClientWithTLS: %v", err)
 	}
 
-	if c.httpClient.Transport != transport {
-		t.Error("transport was not set on the HTTP client")
+	if c.controlClient.Transport != transport {
+		t.Error("transport was not set on the control client")
+	}
+	if c.streamClient.Transport != transport {
+		t.Error("transport was not set on the stream client")
 	}
 
 	if !strings.HasPrefix(c.baseURL, "https://") {
