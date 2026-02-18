@@ -54,6 +54,21 @@
             <div id="metrics-grid" role="region" aria-label="Metrics data grid"></div>
         </section>
 
+        <section id="doom-viewport" aria-label="Compute Viewport">
+            <h2>
+                <span class="section-icon" aria-hidden="true">🎮</span>
+                Compute Viewport
+                <span class="doom-badge">MBC VM</span>
+            </h2>
+            <p class="section-description">Real-time framebuffer from the Monad CPU BPF program. 320x200 pixels rendered via IPv6 extension header compute.</p>
+            <div id="doom-container" class="doom-container" role="img" aria-label="MBC framebuffer output (320x200)"></div>
+            <div class="doom-controls">
+                <button class="doom-control-btn" onclick="window.DoomViewport && window.DoomViewport.runDemoGradient()" aria-label="Run gradient demo">Gradient Demo</button>
+                <button class="doom-control-btn" onclick="window.DoomViewport && window.DoomViewport.runDemoCheckerboard()" aria-label="Run checkerboard demo">Checkerboard Demo</button>
+                <button class="doom-control-btn" onclick="window.DoomViewport && window.DoomViewport.toggleOverlay()" aria-label="Toggle stats overlay">Toggle Stats</button>
+            </div>
+        </section>
+
         <section id="quick-actions" class="quick-actions-section" aria-label="Quick Actions">
             <h2>
                 <span class="section-icon" aria-hidden="true">⚡</span>
@@ -115,6 +130,7 @@
     <script src="/js/particles.js"></script>
     <script src="/js/packet-flow.js"></script>
     <script src="/js/metrics.js"></script>
+    <script src="/js/doom-viewport.js"></script>
     <script>
         // Update footer timestamp
         document.getElementById('footer-timestamp').textContent = new Date().toLocaleDateString('en-US', {

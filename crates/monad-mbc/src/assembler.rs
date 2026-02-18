@@ -61,8 +61,8 @@ fn parse_register(s: &str) -> Result<u8, AssembleError> {
 /// Parse an immediate value (decimal, hex with 0x prefix, or negative).
 fn parse_immediate(s: &str) -> Result<i16, AssembleError> {
     let s = s.trim();
-    let val: i32 = if s.starts_with("0x") || s.starts_with("0X") {
-        i32::from_str_radix(&s[2..], 16).map_err(|_| AssembleError::InvalidInstruction {
+    let val: i64 = if s.starts_with("0x") || s.starts_with("0X") {
+        i64::from_str_radix(&s[2..], 16).map_err(|_| AssembleError::InvalidInstruction {
             message: format!("Invalid hex immediate: '{}'", s),
         })?
     } else {
@@ -71,10 +71,12 @@ fn parse_immediate(s: &str) -> Result<i16, AssembleError> {
         })?
     };
 
-    if val < -32768 || val > 32767 {
-        return Err(AssembleError::ImmediateOutOfRange { value: val });
+    // Accept both signed i16 range (-32768..32767) and unsigned u16 range (0..65535).
+    // Values 32768..65535 (e.g. 0xC000) are stored as their u16 bit pattern reinterpreted as i16.
+    if val < -32768 || val > 65535 {
+        return Err(AssembleError::ImmediateOutOfRange { value: val as i32 });
     }
-    Ok(val as i16)
+    Ok(val as u16 as i16)
 }
 
 /// Strip comments and whitespace from a line.
@@ -132,15 +134,8 @@ fn parse_instruction(
         "ADD" | "SUB" | "MUL" | "DIV" | "MOD" | "AND" | "OR" | "XOR" | "MOV" | "CMP"
     ) {
         require_tokens!(2);
-        let dst = parse_register(tokens[1]).map_err(|_| AssembleError::Line {
-            line: line_num,
-            message: format!("Invalid destination register: '{}'", tokens[1]),
-        })?;
-        let src = parse_register(tokens[2].trim_end_matches(','))
-            .map_err(|_| AssembleError::Line {
-                line: line_num,
-                message: format!("Invalid source register: '{}'", tokens[2]),
-            })?;
+        let dst = parse_register(tokens[1].trim_end_matches(','))?;
+        let src = parse_register(tokens[2].trim_end_matches(','))?;
 
         let opcode = match mnemonic.as_str() {
             "ADD" => op::ADD,
@@ -221,7 +216,7 @@ fn parse_instruction(
     // Shift instructions: SHL, SHR, SAR
     if matches!(mnemonic.as_str(), "SHL" | "SHR" | "SAR") {
         require_tokens!(2);
-        let dst = parse_register(tokens[1]).map_err(|_| AssembleError::Line {
+        let dst = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
             line: line_num,
             message: format!("Invalid register: '{}'", tokens[1]),
         })?;
@@ -250,7 +245,7 @@ fn parse_instruction(
     // MOVI instruction
     if mnemonic == "MOVI" {
         require_tokens!(2);
-        let dst = parse_register(tokens[1]).map_err(|_| AssembleError::Line {
+        let dst = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
             line: line_num,
             message: format!("Invalid register: '{}'", tokens[1]),
         })?;
@@ -308,10 +303,10 @@ fn parse_instruction(
         // Parse memory operand format: [rN+M] or [rN-M]
         let mem_str = if mnemonic.starts_with('S') {
             // ST: [r0+N], r1
-            tokens[1]
+            tokens[1].trim_end_matches(',')
         } else {
             // LD: r0, [r1+N]
-            tokens[2]
+            tokens[2].trim_end_matches(',')
         };
 
         if !mem_str.starts_with('[') || !mem_str.ends_with(']') {
@@ -322,12 +317,14 @@ fn parse_instruction(
         }
 
         let inner = &mem_str[1..mem_str.len() - 1];
+        let neg_offset;
         let (reg_str, offset_str) = if let Some(plus_pos) = inner.find('+') {
             let (r, o) = inner.split_at(plus_pos);
             (r.trim(), o[1..].trim())
         } else if let Some(minus_pos) = inner.find('-') {
             let (r, o) = inner.split_at(minus_pos);
-            (r.trim(), &format!("-{}", o[1..].trim()))
+            neg_offset = format!("-{}", o[1..].trim());
+            (r.trim(), neg_offset.as_str())
         } else {
             return Err(AssembleError::Line {
                 line: line_num,
@@ -370,7 +367,7 @@ fn parse_instruction(
             }));
         } else {
             // LD: r0, [r1+N]
-            let val_reg = parse_register(tokens[1]).map_err(|_| AssembleError::Line {
+            let val_reg = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
                 line: line_num,
                 message: format!("Invalid register: '{}'", tokens[1]),
             })?;
