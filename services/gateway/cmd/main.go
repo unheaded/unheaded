@@ -191,9 +191,9 @@ func defaultRoutes(cfg *config.Config) []config.RouteConfig {
 		},
 		// Infrastructure services
 		{
-			Name:           "busboy",
+			Name:           "wotan",
 			PathPrefix:     "/events/",
-			Backends:       []string{"http://" + getEnv("BUSBOY_HOST", "busboy:8081")},
+			Backends:       []string{"http://" + getEnv("WOTAN_HOST", "wotan:8081")},
 			LoadBalancer:   "round_robin",
 			HealthCheckURL: "/health",
 			Timeout:        30 * time.Second,

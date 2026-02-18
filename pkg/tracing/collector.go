@@ -7,7 +7,7 @@
 // - Correlates traces by trace ID across kernel and application layers
 // - Stores traces in memory with configurable retention
 // - Supports querying traces by ID, service, time range, duration, and error status
-// - Exports traces to Busboy for real-time streaming
+// - Exports traces to Wotan for real-time streaming
 package tracing
 
 import (
@@ -42,7 +42,7 @@ var (
 	ErrStorageFull       = errors.New("trace storage full")
 	ErrInvalidQuery      = errors.New("invalid query parameters")
 	ErrSamplingRejected  = errors.New("span rejected by sampler")
-	ErrBusboyUnavailable = errors.New("busboy connection unavailable")
+	ErrWotanUnavailable = errors.New("wotan connection unavailable")
 )
 
 // ============================================================================
@@ -1107,17 +1107,17 @@ func matchesAttributes(attrs, query map[string]string) bool {
 }
 
 // ============================================================================
-// BUSBOY INTEGRATION - PUBLISHING TO THE KINGDOM
+// WOTAN INTEGRATION - PUBLISHING TO THE KINGDOM
 // ============================================================================
 
-// BusboyPublisher publishes traces to Busboy
-type BusboyPublisher interface {
+// WotanPublisher publishes traces to Wotan
+type WotanPublisher interface {
 	Publish(ctx context.Context, topic string, payload []byte) error
 	Close() error
 }
 
-// BusboyConfig configures Busboy integration
-type BusboyConfig struct {
+// WotanConfig configures Wotan integration
+type WotanConfig struct {
 	Address           string        `json:"address"`
 	TraceTopic        string        `json:"trace_topic"`
 	SpanTopic         string        `json:"span_topic"`
@@ -1145,8 +1145,8 @@ type CollectorConfig struct {
 	// Sampling configuration
 	Sampling SamplerConfig `json:"sampling"`
 
-	// Busboy configuration
-	Busboy BusboyConfig `json:"busboy"`
+	// Wotan configuration
+	Wotan WotanConfig `json:"wotan"`
 
 	// Correlation settings
 	CorrelationWindow  time.Duration `json:"correlation_window_ns"`
@@ -1167,8 +1167,8 @@ type Collector struct {
 	pendingKernel  map[TraceID][]*KernelEvent
 	pendingMu      sync.RWMutex
 
-	// Busboy publisher
-	busboy BusboyPublisher
+	// Wotan publisher
+	wotan WotanPublisher
 
 	// Stream subscribers
 	streamSubs map[chan *Trace]*StreamFilter
@@ -1196,8 +1196,8 @@ type collectorMetrics struct {
 	correlationTime  prometheus.Histogram
 	queryLatency     prometheus.Histogram
 	samplingRejected prometheus.Counter
-	busboyPublished  prometheus.Counter
-	busboyErrors     prometheus.Counter
+	wotanPublished  prometheus.Counter
+	wotanErrors     prometheus.Counter
 }
 
 func newCollectorMetrics(reg prometheus.Registerer) *collectorMetrics {
@@ -1236,20 +1236,20 @@ func newCollectorMetrics(reg prometheus.Registerer) *collectorMetrics {
 			Name: "unheaded_traces_sampling_rejected_total",
 			Help: "Total number of spans rejected by sampling",
 		}),
-		busboyPublished: promauto.With(reg).NewCounter(prometheus.CounterOpts{
-			Name: "unheaded_traces_busboy_published_total",
-			Help: "Total number of traces published to Busboy",
+		wotanPublished: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Name: "unheaded_traces_wotan_published_total",
+			Help: "Total number of traces published to Wotan",
 		}),
-		busboyErrors: promauto.With(reg).NewCounter(prometheus.CounterOpts{
-			Name: "unheaded_traces_busboy_errors_total",
-			Help: "Total number of Busboy publish errors",
+		wotanErrors: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Name: "unheaded_traces_wotan_errors_total",
+			Help: "Total number of Wotan publish errors",
 		}),
 	}
 	return m
 }
 
 // NewCollector creates a new trace collector
-func NewCollector(config CollectorConfig, busboy BusboyPublisher, reg prometheus.Registerer) (*Collector, error) {
+func NewCollector(config CollectorConfig, wotan WotanPublisher, reg prometheus.Registerer) (*Collector, error) {
 	// Set defaults
 	if config.CorrelationWindow <= 0 {
 		config.CorrelationWindow = 5 * time.Second
@@ -1276,7 +1276,7 @@ func NewCollector(config CollectorConfig, busboy BusboyPublisher, reg prometheus
 		sampler:       NewSampler(config.Sampling),
 		pendingSpans:  make(map[TraceID][]*Span),
 		pendingKernel: make(map[TraceID][]*KernelEvent),
-		busboy:        busboy,
+		wotan:        wotan,
 		streamSubs:    make(map[chan *Trace]*StreamFilter),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -1425,8 +1425,8 @@ func (c *Collector) CorrelateTraces() error {
 		// Publish to stream subscribers
 		c.notifyStreamSubscribers(trace)
 
-		// Publish to Busboy
-		c.publishToBusboy(trace)
+		// Publish to Wotan
+		c.publishToWotan(trace)
 
 		// Remove from pending
 		delete(c.pendingSpans, traceID)
@@ -1636,32 +1636,32 @@ func (c *Collector) matchesStreamFilter(trace *Trace, filter *StreamFilter) bool
 	return true
 }
 
-// publishToBusboy publishes trace to Busboy
-func (c *Collector) publishToBusboy(trace *Trace) {
-	if c.busboy == nil {
+// publishToWotan publishes trace to Wotan
+func (c *Collector) publishToWotan(trace *Trace) {
+	if c.wotan == nil {
 		return
 	}
 
 	data, err := json.Marshal(trace)
 	if err != nil {
-		c.metrics.busboyErrors.Inc()
+		c.metrics.wotanErrors.Inc()
 		return
 	}
 
-	topic := c.config.Busboy.TraceTopic
+	topic := c.config.Wotan.TraceTopic
 	if topic == "" {
 		topic = "traces.collected"
 	}
 
-	ctx, cancel := context.WithTimeout(c.ctx, c.config.Busboy.PublishTimeout)
+	ctx, cancel := context.WithTimeout(c.ctx, c.config.Wotan.PublishTimeout)
 	defer cancel()
 
-	if err := c.busboy.Publish(ctx, topic, data); err != nil {
-		c.metrics.busboyErrors.Inc()
+	if err := c.wotan.Publish(ctx, topic, data); err != nil {
+		c.metrics.wotanErrors.Inc()
 		return
 	}
 
-	c.metrics.busboyPublished.Inc()
+	c.metrics.wotanPublished.Inc()
 }
 
 // ============================================================================

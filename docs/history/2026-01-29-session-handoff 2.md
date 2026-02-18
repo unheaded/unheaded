@@ -7,18 +7,18 @@
 
 **Duration:** Full session
 **Mode:** Service Integration & Event Contracts
-**Focus:** Wire all services to Busboy, define message contracts, create event routing
+**Focus:** Wire all services to Wotan, define message contracts, create event routing
 **Outcome:** SUCCESS ✅
 
 ---
 
 ## Critical Discovery
 
-**ALL ROYAL COURT SERVICES WERE ALREADY WIRED TO BUSBOY!** 🎉
+**ALL ROYAL COURT SERVICES WERE ALREADY WIRED TO WOTAN!** 🎉
 
 Previous sessions had done excellent work connecting services. This session formalized the contracts and added shared event infrastructure.
 
-| Service | Busboy Status | Primary Topics |
+| Service | Wotan Status | Primary Topics |
 |---------|---------------|----------------|
 | **Timeguru** | ✅ Connected | `timeline.updates`, `timeline.milestone.*` |
 | **Captain** | ✅ Connected | `alerts.critical`, `decisions.*` |
@@ -175,7 +175,7 @@ cat cmd/dashboard-backend/main.go
 **ZERO customer data access** - architectural isolation, not policy. Every component enforces this.
 
 ### Technology Stack
-- **Go 1.21+** for services (Busboy, Cuirass, Royal Court)
+- **Go 1.21+** for services (Wotan, Cuirass, Royal Court)
 - **Rust + Aya** for eBPF (Whispering Void) - NOT YET STARTED
 - **NixOS** for immutable containers
 - **gRPC + HTTP/3** for communication
@@ -186,7 +186,7 @@ cat cmd/dashboard-backend/main.go
 | Domain | Hollow | Technical Mapping |
 |--------|--------|-------------------|
 | Control Plane | Crystal Grotto | unheaded-daemon, state management |
-| Message Bus | Fae Chamber | Busboy, pub/sub |
+| Message Bus | Fae Chamber | Wotan, pub/sub |
 | eBPF | Whispering Void | packet_marker, flow_tracker |
 | Timeline | Oracle's Antre | Timeguru service |
 | ADRs | Sage's Lair | Architect service |
@@ -204,7 +204,7 @@ cat cmd/dashboard-backend/main.go
 │   ├── architect/          # ADR service
 │   └── micromanager/       # Task service
 ├── pkg/
-│   ├── busboy-client/      # Fae Chamber client
+│   ├── wotan-client/      # Fae Chamber client
 │   └── events/             # Shared event types (NEW)
 ├── docs/
 │   └── FAE_CHAMBER_CONTRACTS.md (NEW)
@@ -226,7 +226,7 @@ docker compose up -d
 # Run individual services
 make run-daemon       # Cuirass
 make run-timeguru     # Timeguru
-make run-busboy       # Busboy (Fae Chamber)
+make run-wotan       # Wotan (Fae Chamber)
 
 # Run tests
 make test

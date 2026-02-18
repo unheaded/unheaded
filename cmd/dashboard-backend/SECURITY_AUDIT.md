@@ -179,7 +179,7 @@ a.seriesMu.Unlock()
 **Current State:**
 - No authentication on WebSocket endpoint
 - No authorization for metric queries
-- Busboy subscription approval required (good)
+- Wotan subscription approval required (good)
 
 **Justification:**
 - Alpha deployment on internal network (10.10.10.0/24)

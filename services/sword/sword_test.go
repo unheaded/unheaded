@@ -75,7 +75,7 @@ func TestDefaultConfig(t *testing.T) {
 		{"HealthCheckTimeout", cfg.HealthCheckTimeout, 30 * time.Second},
 		{"RollbackOnFailure", cfg.RollbackOnFailure, true},
 		{"CanaryPercentage", cfg.CanaryPercentage, 10},
-		{"BusboyTopic", cfg.BusboyTopic, "sword.deployments"},
+		{"WotanTopic", cfg.WotanTopic, "sword.deployments"},
 	}
 
 	for _, tc := range tests {
@@ -114,7 +114,7 @@ func TestNewService(t *testing.T) {
 			HealthCheckTimeout:   1 * time.Minute,
 			RollbackOnFailure:    false,
 			CanaryPercentage:     25,
-			BusboyTopic:          "custom.topic",
+			WotanTopic:          "custom.topic",
 		}
 		svc := NewService(newTestLogger(), nil, cfg)
 
@@ -127,8 +127,8 @@ func TestNewService(t *testing.T) {
 		if svc.config.RollbackOnFailure {
 			t.Error("Expected RollbackOnFailure=false")
 		}
-		if svc.config.BusboyTopic != "custom.topic" {
-			t.Errorf("Expected BusboyTopic='custom.topic', got %q", svc.config.BusboyTopic)
+		if svc.config.WotanTopic != "custom.topic" {
+			t.Errorf("Expected WotanTopic='custom.topic', got %q", svc.config.WotanTopic)
 		}
 	})
 }
@@ -551,7 +551,7 @@ func TestExecuteCanary(t *testing.T) {
 			HealthCheckTimeout:   30 * time.Second,
 			RollbackOnFailure:    false,
 			CanaryPercentage:     50,
-			BusboyTopic:          "sword.test",
+			WotanTopic:          "sword.test",
 		}
 		svc2 := newTestServiceWithConfig(cfg)
 
@@ -745,7 +745,7 @@ func TestAutoRollbackOnFailure(t *testing.T) {
 			HealthCheckTimeout:   30 * time.Second,
 			RollbackOnFailure:    true,
 			CanaryPercentage:     10,
-			BusboyTopic:          "sword.test",
+			WotanTopic:          "sword.test",
 		}
 		svc := newTestServiceWithConfig(cfg)
 
@@ -771,7 +771,7 @@ func TestAutoRollbackOnFailure(t *testing.T) {
 			HealthCheckTimeout:   30 * time.Second,
 			RollbackOnFailure:    true,
 			CanaryPercentage:     10,
-			BusboyTopic:          "sword.test",
+			WotanTopic:          "sword.test",
 		}
 		svc := newTestServiceWithConfig(cfg)
 
@@ -796,7 +796,7 @@ func TestAutoRollbackOnFailure(t *testing.T) {
 			HealthCheckTimeout:   30 * time.Second,
 			RollbackOnFailure:    false, // disabled
 			CanaryPercentage:     10,
-			BusboyTopic:          "sword.test",
+			WotanTopic:          "sword.test",
 		}
 		svc := newTestServiceWithConfig(cfg)
 
@@ -821,7 +821,7 @@ func TestAutoRollbackOnFailure(t *testing.T) {
 			HealthCheckTimeout:   30 * time.Second,
 			RollbackOnFailure:    true,
 			CanaryPercentage:     10,
-			BusboyTopic:          "sword.test",
+			WotanTopic:          "sword.test",
 		}
 		svc := newTestServiceWithConfig(cfg)
 
@@ -1442,7 +1442,7 @@ func TestStatsAfterRollback(t *testing.T) {
 			HealthCheckTimeout:   30 * time.Second,
 			RollbackOnFailure:    true,
 			CanaryPercentage:     10,
-			BusboyTopic:          "sword.test",
+			WotanTopic:          "sword.test",
 		}
 		svc := newTestServiceWithConfig(cfg)
 		d := makeDeployment("invalid_strategy")
@@ -1463,7 +1463,7 @@ func TestStatsAfterRollback(t *testing.T) {
 			HealthCheckTimeout:   30 * time.Second,
 			RollbackOnFailure:    false, // rollback disabled
 			CanaryPercentage:     10,
-			BusboyTopic:          "sword.test",
+			WotanTopic:          "sword.test",
 		}
 		svc := newTestServiceWithConfig(cfg)
 		d := makeDeployment("invalid_strategy")
@@ -1722,7 +1722,7 @@ func TestFullRollbackWorkflow(t *testing.T) {
 		HealthCheckTimeout:   30 * time.Second,
 		RollbackOnFailure:    true,
 		CanaryPercentage:     10,
-		BusboyTopic:          "sword.test",
+		WotanTopic:          "sword.test",
 	}
 	svc := newTestServiceWithConfig(cfg)
 	ctx := context.Background()

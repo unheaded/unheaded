@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/timeguru/internal/api"
 	"unheaded/services/timeguru/internal/parser"
 	"unheaded/services/timeguru/internal/storage"
@@ -24,13 +24,13 @@ import (
 
 const (
 	defaultPort         = "8000"
-	defaultBusboyAddr   = "localhost:8080"  // HTTP control plane (not gRPC 9090)
+	defaultWotanAddr   = "localhost:8080"  // HTTP control plane (not gRPC 9090)
 	defaultDBPath       = "./data/timeguru.db"
 	defaultTimelinePath = "./references/timeline.md"
 	shutdownTimeout     = 30 * time.Second
 	fileWatchInterval   = 5 * time.Second
-	busboyTopic         = "timeline.updates"
-	busboyDisplayName   = "timeguru-service"
+	wotanTopic         = "timeline.updates"
+	wotanDisplayName   = "timeguru-service"
 )
 
 // traceIDCounter avoids collision risk of UnixNano()-only IDs under high throughput
@@ -39,8 +39,8 @@ var traceIDCounter int64
 // Config holds service configuration
 type Config struct {
 	Port           string
-	BusboyAddr     string // HTTP control plane (subscribe, publish)
-	BusboyGRPCAddr string // gRPC data plane (streaming) — preferred for perf
+	WotanAddr     string // HTTP control plane (subscribe, publish)
+	WotanGRPCAddr string // gRPC data plane (streaming) — preferred for perf
 	DBPath         string
 	TimelinePath   string
 	SyncDir        string // directory for synced timeline files (JSON/TOML/YAML/MD)
@@ -57,8 +57,8 @@ func main() {
 
 	log.Printf("[timeguru] Configuration:")
 	log.Printf("[timeguru]   Port: %s", config.Port)
-	log.Printf("[timeguru]   Busboy HTTP: %s", config.BusboyAddr)
-	log.Printf("[timeguru]   Busboy gRPC: %s", config.BusboyGRPCAddr)
+	log.Printf("[timeguru]   Wotan HTTP: %s", config.WotanAddr)
+	log.Printf("[timeguru]   Wotan gRPC: %s", config.WotanGRPCAddr)
 	log.Printf("[timeguru]   Database: %s", config.DBPath)
 	log.Printf("[timeguru]   Timeline: %s", config.TimelinePath)
 	log.Printf("[timeguru]   SyncDir: %s", config.SyncDir)
@@ -81,16 +81,16 @@ func main() {
 		}
 	}
 
-	// Initialize busboy client
-	var busboy *busboyClient.Client
-	busboy, err = initBusboy(config.BusboyAddr, config.BusboyGRPCAddr)
+	// Initialize wotan client
+	var wotan *wotanClient.Client
+	wotan, err = initWotan(config.WotanAddr, config.WotanGRPCAddr)
 	if err != nil {
 		log.Printf("[timeguru] WARNING: Fae Chamber connection failed: %v", err)
-		log.Println("[timeguru] Continuing without Busboy integration")
-		busboy = nil
+		log.Println("[timeguru] Continuing without Wotan integration")
+		wotan = nil
 	} else {
-		defer busboy.Close()
-		log.Println("[timeguru] Fae Chamber connected (Busboy online)")
+		defer wotan.Close()
+		log.Println("[timeguru] Fae Chamber connected (Wotan online)")
 	}
 
 	// Initialize HTTP handler
@@ -173,13 +173,13 @@ func main() {
 
 	// Start file watcher for timeline.md auto-reload + sync
 	if config.TimelinePath != "" {
-		go watchTimelineFile(ctx, config.TimelinePath, store, busboy, handler)
+		go watchTimelineFile(ctx, config.TimelinePath, store, wotan, handler)
 	}
 
-	// Start busboy message listener if connected
-	if busboy != nil {
-		go listenForMessages(ctx, busboy)
-		go listenForAlerts(ctx, busboy)
+	// Start wotan message listener if connected
+	if wotan != nil {
+		go listenForMessages(ctx, wotan)
+		go listenForAlerts(ctx, wotan)
 	}
 
 	// Wait for shutdown signal
@@ -203,8 +203,8 @@ func main() {
 func loadConfig() Config {
 	config := Config{
 		Port:           getEnv("PORT", defaultPort),
-		BusboyAddr:     getEnv("BUSBOY_ADDR", defaultBusboyAddr),
-		BusboyGRPCAddr: getEnv("BUSBOY_GRPC_ADDR", "localhost:9090"),
+		WotanAddr:     getEnv("WOTAN_ADDR", defaultWotanAddr),
+		WotanGRPCAddr: getEnv("WOTAN_GRPC_ADDR", "localhost:9090"),
 		DBPath:         getEnv("DB_PATH", defaultDBPath),
 		TimelinePath:   getEnv("TIMELINE_PATH", defaultTimelinePath),
 		SyncDir:        os.Getenv("SYNC_DIR"), // empty = disabled
@@ -214,8 +214,8 @@ func loadConfig() Config {
 	if config.Port == "" {
 		config.Port = defaultPort
 	}
-	if config.BusboyAddr == "" {
-		config.BusboyAddr = defaultBusboyAddr
+	if config.WotanAddr == "" {
+		config.WotanAddr = defaultWotanAddr
 	}
 	if config.DBPath == "" {
 		config.DBPath = defaultDBPath
@@ -263,7 +263,7 @@ func loadTimelineFromFile(filePath string, store *storage.Store) error {
 }
 
 // watchTimelineFile watches for changes to timeline.md and reloads + syncs
-func watchTimelineFile(ctx context.Context, filePath string, store *storage.Store, busboy *busboyClient.Client, handler *api.Handler) {
+func watchTimelineFile(ctx context.Context, filePath string, store *storage.Store, wotan *wotanClient.Client, handler *api.Handler) {
 	watcher, err := parser.NewFileWatcher(filePath)
 	if err != nil {
 		log.Printf("[timeguru] File watcher setup failed: %v", err)
@@ -310,9 +310,9 @@ func watchTimelineFile(ctx context.Context, filePath string, store *storage.Stor
 				// Auto-sync to all format mirrors (JSON/TOML/YAML/MD)
 				handler.AutoSync(tl)
 
-				// Publish update event to Busboy if connected
-				if busboy != nil {
-					go publishTimelineUpdate(busboy, "timeline_reloaded")
+				// Publish update event to Wotan if connected
+				if wotan != nil {
+					go publishTimelineUpdate(wotan, "timeline_reloaded")
 				}
 			}
 		}
@@ -347,30 +347,30 @@ func handleMilestoneRoutes(handler *api.Handler) http.HandlerFunc {
 	}
 }
 
-// initBusboy initializes busboy client connection with dual transport
+// initWotan initializes wotan client connection with dual transport
 // HTTP for control plane (subscribe/publish), gRPC for data plane (streaming)
-func initBusboy(httpAddr, grpcAddr string) (*busboyClient.Client, error) {
-	var client *busboyClient.Client
+func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
+	var client *wotanClient.Client
 	var err error
 	if grpcAddr != "" {
-		client, err = busboyClient.NewClientWithGRPC(httpAddr, grpcAddr)
+		client, err = wotanClient.NewClientWithGRPC(httpAddr, grpcAddr)
 		if err != nil {
 			return nil, fmt.Errorf("create dual-transport client: %w", err)
 		}
-		log.Printf("[timeguru] Busboy client: HTTP=%s gRPC=%s (dual transport)", httpAddr, grpcAddr)
+		log.Printf("[timeguru] Wotan client: HTTP=%s gRPC=%s (dual transport)", httpAddr, grpcAddr)
 	} else {
-		client, err = busboyClient.NewClient(httpAddr)
+		client, err = wotanClient.NewClient(httpAddr)
 		if err != nil {
 			return nil, fmt.Errorf("create HTTP client: %w", err)
 		}
-		log.Printf("[timeguru] Busboy client: HTTP=%s (HTTP-only)", httpAddr)
+		log.Printf("[timeguru] Wotan client: HTTP=%s (HTTP-only)", httpAddr)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Subscribe to alerts.critical (required by CLAUDE.md)
-	alertSub, err := client.Subscribe(ctx, "alerts.critical", busboyDisplayName)
+	alertSub, err := client.Subscribe(ctx, "alerts.critical", wotanDisplayName)
 	if err != nil {
 		log.Printf("[timeguru] WARNING: failed to subscribe to alerts.critical: %v", err)
 	} else {
@@ -378,19 +378,19 @@ func initBusboy(httpAddr, grpcAddr string) (*busboyClient.Client, error) {
 	}
 
 	// Subscribe to timeline updates topic
-	subscriber, err := client.Subscribe(ctx, busboyTopic, busboyDisplayName)
+	subscriber, err := client.Subscribe(ctx, wotanTopic, wotanDisplayName)
 	if err != nil {
 		client.Close()
-		return nil, fmt.Errorf("subscribe to %s: %w", busboyTopic, err)
+		return nil, fmt.Errorf("subscribe to %s: %w", wotanTopic, err)
 	}
 
-	log.Printf("[timeguru] Subscribed to topic %q (status: %s)", busboyTopic, subscriber.Status)
+	log.Printf("[timeguru] Subscribed to topic %q (status: %s)", wotanTopic, subscriber.Status)
 
 	return client, nil
 }
 
-// publishTimelineUpdate publishes an update event to Busboy with trace_id
-func publishTimelineUpdate(client *busboyClient.Client, eventType string) {
+// publishTimelineUpdate publishes an update event to Wotan with trace_id
+func publishTimelineUpdate(client *wotanClient.Client, eventType string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -401,7 +401,7 @@ func publishTimelineUpdate(client *busboyClient.Client, eventType string) {
 	payload := fmt.Sprintf(`{"event":"%s","timestamp":"%s","timestamp_ms":%d,"source":"timeguru","service":"timeguru","trace_id":"%s"}`,
 		eventType, time.Now().Format(time.RFC3339), time.Now().UnixMilli(), traceID)
 
-	err := client.Publish(ctx, busboyTopic, []byte(payload))
+	err := client.Publish(ctx, wotanTopic, []byte(payload))
 	if err != nil {
 		log.Printf("[timeguru] Failed to publish update event: %v", err)
 		return
@@ -410,12 +410,12 @@ func publishTimelineUpdate(client *busboyClient.Client, eventType string) {
 	log.Printf("[timeguru] Published event: %s (trace_id: %s)", eventType, traceID)
 }
 
-// listenForMessages listens for busboy messages
-func listenForMessages(ctx context.Context, client *busboyClient.Client) {
-	log.Printf("[timeguru] Listening for messages on topic %q", busboyTopic)
+// listenForMessages listens for wotan messages
+func listenForMessages(ctx context.Context, client *wotanClient.Client) {
+	log.Printf("[timeguru] Listening for messages on topic %q", wotanTopic)
 
 	// Stream messages
-	msgCh, err := client.StreamMessages(ctx, busboyTopic)
+	msgCh, err := client.StreamMessages(ctx, wotanTopic)
 	if err != nil {
 		log.Printf("[timeguru] Failed to stream messages: %v", err)
 		return
@@ -437,8 +437,8 @@ func listenForMessages(ctx context.Context, client *busboyClient.Client) {
 	}
 }
 
-// listenForAlerts listens for critical alerts from Busboy
-func listenForAlerts(ctx context.Context, client *busboyClient.Client) {
+// listenForAlerts listens for critical alerts from Wotan
+func listenForAlerts(ctx context.Context, client *wotanClient.Client) {
 	log.Println("[timeguru] Listening for critical alerts")
 
 	msgCh, err := client.StreamMessages(ctx, "alerts.critical")

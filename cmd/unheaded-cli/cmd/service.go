@@ -126,10 +126,10 @@ func newServiceListCommand() *Command {
 						UpdatedAt: time.Now().Add(-1 * time.Hour),
 					},
 					{
-						Name:      "busboy",
+						Name:      "wotan",
 						Status:    "Running",
 						Replicas:  "1/1",
-						Image:     "unheaded/busboy:latest",
+						Image:     "unheaded/wotan:latest",
 						Endpoint:  "http://10.10.10.10:9090",
 						CreatedAt: time.Now().Add(-48 * time.Hour),
 						UpdatedAt: time.Now().Add(-24 * time.Hour),
@@ -333,12 +333,12 @@ func newServiceLogsCommand() *Command {
 
 			mockLogs := []string{
 				fmt.Sprintf("[%s] %s | INFO  | Service started on port 8000", time.Now().Add(-30*time.Minute).Format("2006-01-02 15:04:05"), name),
-				fmt.Sprintf("[%s] %s | INFO  | Connected to Busboy at 10.10.10.10:9090", time.Now().Add(-30*time.Minute).Format("2006-01-02 15:04:05"), name),
+				fmt.Sprintf("[%s] %s | INFO  | Connected to Wotan at 10.10.10.10:9090", time.Now().Add(-30*time.Minute).Format("2006-01-02 15:04:05"), name),
 				fmt.Sprintf("[%s] %s | INFO  | Health check endpoint ready", time.Now().Add(-29*time.Minute).Format("2006-01-02 15:04:05"), name),
 				fmt.Sprintf("[%s] %s | INFO  | Processing request GET /api/v1/status", time.Now().Add(-15*time.Minute).Format("2006-01-02 15:04:05"), name),
 				fmt.Sprintf("[%s] %s | DEBUG | Request completed in 12ms", time.Now().Add(-15*time.Minute).Format("2006-01-02 15:04:05"), name),
 				fmt.Sprintf("[%s] %s | INFO  | Processing request POST /api/v1/events", time.Now().Add(-10*time.Minute).Format("2006-01-02 15:04:05"), name),
-				fmt.Sprintf("[%s] %s | DEBUG | Event published to Busboy", time.Now().Add(-10*time.Minute).Format("2006-01-02 15:04:05"), name),
+				fmt.Sprintf("[%s] %s | DEBUG | Event published to Wotan", time.Now().Add(-10*time.Minute).Format("2006-01-02 15:04:05"), name),
 				fmt.Sprintf("[%s] %s | INFO  | Health check: OK", time.Now().Add(-5*time.Minute).Format("2006-01-02 15:04:05"), name),
 			}
 

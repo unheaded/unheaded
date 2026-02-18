@@ -15,7 +15,7 @@ import (
 // Test helpers
 // ---------------------------------------------------------------------------
 
-// newTestService creates a Service wired to a silent logger and no busboy
+// newTestService creates a Service wired to a silent logger and no wotan
 // dependency.  Every test gets an isolated instance.
 func newTestService(cfg *Config) *Service {
 	log := logger.New(io.Discard)
@@ -69,8 +69,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.HeartbeatTimeout != 60*time.Second {
 		t.Errorf("HeartbeatTimeout = %v, want %v", cfg.HeartbeatTimeout, 60*time.Second)
 	}
-	if cfg.BusboyTopic != "sabatons.hardware" {
-		t.Errorf("BusboyTopic = %q, want %q", cfg.BusboyTopic, "sabatons.hardware")
+	if cfg.WotanTopic != "sabatons.hardware" {
+		t.Errorf("WotanTopic = %q, want %q", cfg.WotanTopic, "sabatons.hardware")
 	}
 }
 
@@ -92,14 +92,14 @@ func TestNewService_CustomConfig(t *testing.T) {
 		TFTPRoot:          "/custom/tftp",
 		DiscoveryInterval: 10 * time.Second,
 		HeartbeatTimeout:  20 * time.Second,
-		BusboyTopic:       "custom.topic",
+		WotanTopic:       "custom.topic",
 	}
 	svc := newTestService(cfg)
 	if svc.config.PXEServerAddress != "10.0.0.1:69" {
 		t.Errorf("expected custom PXEServerAddress, got %q", svc.config.PXEServerAddress)
 	}
-	if svc.config.BusboyTopic != "custom.topic" {
-		t.Errorf("expected custom BusboyTopic, got %q", svc.config.BusboyTopic)
+	if svc.config.WotanTopic != "custom.topic" {
+		t.Errorf("expected custom WotanTopic, got %q", svc.config.WotanTopic)
 	}
 }
 
@@ -143,7 +143,7 @@ func TestStart_HeartbeatLoopExitsOnCancel(t *testing.T) {
 		TFTPRoot:          "/tmp",
 		DiscoveryInterval: 10 * time.Millisecond, // fast for testing
 		HeartbeatTimeout:  20 * time.Millisecond,
-		BusboyTopic:       "test",
+		WotanTopic:       "test",
 	}
 	svc := newTestService(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1152,7 +1152,7 @@ func TestCheckHeartbeats_MarksStale(t *testing.T) {
 		TFTPRoot:          "/tmp",
 		DiscoveryInterval: time.Hour, // we will call checkHeartbeats manually
 		HeartbeatTimeout:  10 * time.Millisecond,
-		BusboyTopic:       "test",
+		WotanTopic:       "test",
 	}
 	svc := newTestService(cfg)
 
@@ -1181,7 +1181,7 @@ func TestCheckHeartbeats_DoesNotAffectOffMachines(t *testing.T) {
 		TFTPRoot:          "/tmp",
 		DiscoveryInterval: time.Hour,
 		HeartbeatTimeout:  10 * time.Millisecond,
-		BusboyTopic:       "test",
+		WotanTopic:       "test",
 	}
 	svc := newTestService(cfg)
 
@@ -1210,7 +1210,7 @@ func TestCheckHeartbeats_RecentMachineStaysOn(t *testing.T) {
 		TFTPRoot:          "/tmp",
 		DiscoveryInterval: time.Hour,
 		HeartbeatTimeout:  5 * time.Second,
-		BusboyTopic:       "test",
+		WotanTopic:       "test",
 	}
 	svc := newTestService(cfg)
 

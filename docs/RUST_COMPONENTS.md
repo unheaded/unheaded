@@ -15,12 +15,12 @@
 
 #### 2. trace-collector (Rust binary)
 **Location:** `cmd/trace-collector/` (already exists as Cargo project)
-**Purpose:** Bridge from kernel eBPF to Fae Chamber (Busboy)
+**Purpose:** Bridge from kernel eBPF to Fae Chamber (Wotan)
 
 Features:
 - Ring buffer reading with zero-copy
 - Perf event array processing
-- Direct publishing to Busboy via gRPC
+- Direct publishing to Wotan via gRPC
 - Sub-microsecond latency
 - Memory-mapped I/O
 - Lock-free data structures
@@ -47,7 +47,7 @@ Features:
 - `unheaded-query` - PromQL-compatible query engine
 
 ### High-Performance Data Path
-- Message bus hot path (Busboy core) - consider Rust rewrite
+- Message bus hot path (Wotan core) - consider Rust rewrite
 - Network policy enforcement (XDP/TC programs)
 - TLS termination (if we do our own)
 

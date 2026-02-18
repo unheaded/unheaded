@@ -2,7 +2,7 @@
 // Every service's /health endpoint MUST return this shape for platform consistency:
 //
 //	{
-//	  "service": "busboy",
+//	  "service": "wotan",
 //	  "status": "healthy",
 //	  "version": "0.1.0",
 //	  "timestamp": "2026-02-10T01:25:57Z"

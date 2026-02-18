@@ -28,7 +28,7 @@ import (
 	"syscall"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 	"unheaded/services/sophia"
 )
@@ -42,7 +42,7 @@ var (
 
 var (
 	listenAddr = flag.String("listen", ":8005", "HTTP listen address")
-	busboyAddr = flag.String("busboy", "localhost:9090", "Busboy server address")
+	wotanAddr = flag.String("wotan", "localhost:9090", "Wotan server address")
 	debug      = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs   = flag.Bool("json", false, "Output logs in JSON format")
 )
@@ -50,7 +50,7 @@ var (
 // HTTPServer provides REST API endpoints for the Sophia service.
 type HTTPServer struct {
 	service   *sophia.Service
-	busboy    *busboyClient.Client
+	wotan    *wotanClient.Client
 	log       *logger.Logger
 	server    *http.Server
 	metrics   *HTTPMetrics
@@ -125,7 +125,7 @@ type DecideRequest struct {
 }
 
 // NewHTTPServer creates a new HTTP server for Sophia.
-func NewHTTPServer(service *sophia.Service, busboy *busboyClient.Client, log *logger.Logger, addr string) (*HTTPServer, error) {
+func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logger.Logger, addr string) (*HTTPServer, error) {
 	if service == nil {
 		return nil, errors.New("service cannot be nil")
 	}
@@ -138,7 +138,7 @@ func NewHTTPServer(service *sophia.Service, busboy *busboyClient.Client, log *lo
 
 	hs := &HTTPServer{
 		service: service,
-		busboy:  busboy,
+		wotan:  wotan,
 		log:     log,
 		metrics: &HTTPMetrics{},
 	}
@@ -730,8 +730,8 @@ func main() {
 	if addr := os.Getenv("SOPHIA_LISTEN_ADDR"); addr != "" {
 		*listenAddr = addr
 	}
-	if addr := os.Getenv("BUSBOY_ADDR"); addr != "" {
-		*busboyAddr = addr
+	if addr := os.Getenv("WOTAN_ADDR"); addr != "" {
+		*wotanAddr = addr
 	}
 	if os.Getenv("SOPHIA_DEBUG") == "true" {
 		*debug = true
@@ -762,26 +762,26 @@ func main() {
 		Str("git_commit", GitCommit).
 		Msg("Sophia awakens - wisdom flows through the Kingdom")
 
-	// Connect to Busboy
-	var busboyInstance *busboyClient.Client
-	busboyEnabled := os.Getenv("BUSBOY_ENABLED") != "false"
+	// Connect to Wotan
+	var wotanInstance *wotanClient.Client
+	wotanEnabled := os.Getenv("WOTAN_ENABLED") != "false"
 
-	if busboyEnabled && *busboyAddr != "" {
+	if wotanEnabled && *wotanAddr != "" {
 		log.Info().
-			Str("busboy_addr", *busboyAddr).
-			Msg("connecting to Busboy")
+			Str("wotan_addr", *wotanAddr).
+			Msg("connecting to Wotan")
 
-		client, err := busboyClient.NewClient(*busboyAddr)
+		client, err := wotanClient.NewClient(*wotanAddr)
 		if err != nil {
 			log.Warn().
 				Err(err).
-				Msg("failed to connect to Busboy, continuing without event bus")
+				Msg("failed to connect to Wotan, continuing without event bus")
 		} else {
-			busboyInstance = client
-			log.Info().Msg("connected to Busboy")
+			wotanInstance = client
+			log.Info().Msg("connected to Wotan")
 		}
 	} else {
-		log.Warn().Msg("Busboy disabled, running standalone")
+		log.Warn().Msg("Wotan disabled, running standalone")
 	}
 
 	// Create Sophia service configuration
@@ -802,7 +802,7 @@ func main() {
 	}
 
 	// Create Sophia service
-	sophiaService := sophia.NewService(log, busboyInstance, sophiaConfig)
+	sophiaService := sophia.NewService(log, wotanInstance, sophiaConfig)
 
 	// Start the Sophia service
 	ctx, cancel := context.WithCancel(context.Background())
@@ -813,7 +813,7 @@ func main() {
 	}
 
 	// Create HTTP server
-	httpServer, err := NewHTTPServer(sophiaService, busboyInstance, log, *listenAddr)
+	httpServer, err := NewHTTPServer(sophiaService, wotanInstance, log, *listenAddr)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create HTTP server")
 	}
@@ -825,8 +825,8 @@ func main() {
 
 	log.Info().
 		Str("addr", *listenAddr).
-		Str("busboy", *busboyAddr).
-		Bool("busboy_connected", busboyInstance != nil).
+		Str("wotan", *wotanAddr).
+		Bool("wotan_connected", wotanInstance != nil).
 		Bool("inference_enabled", sophiaConfig.EnableInference).
 		Msg("Sophia HTTP server running")
 
@@ -856,10 +856,10 @@ func main() {
 		log.Error().Err(err).Msg("Sophia service stop error")
 	}
 
-	// Close Busboy connection
-	if busboyInstance != nil {
-		if err := busboyInstance.Close(); err != nil {
-			log.Error().Err(err).Msg("Busboy client close error")
+	// Close Wotan connection
+	if wotanInstance != nil {
+		if err := wotanInstance.Close(); err != nil {
+			log.Error().Err(err).Msg("Wotan client close error")
 		}
 	}
 

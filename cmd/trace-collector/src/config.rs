@@ -20,7 +20,7 @@ pub struct Config {
     #[serde(default = "default_perf_buffer_pages")]
     pub perf_buffer_pages: usize,
 
-    /// Busboy publisher configuration
+    /// Wotan publisher configuration
     #[serde(default)]
     pub publisher: PublisherConfig,
 

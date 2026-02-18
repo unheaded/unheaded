@@ -28,7 +28,7 @@ func TestCheckTypeConstants(t *testing.T) {
 		CheckTypeTCP,
 		CheckTypeGRPC,
 		CheckTypeExec,
-		CheckTypeBusboy,
+		CheckTypeWotan,
 	}
 
 	for _, ct := range checkTypes {

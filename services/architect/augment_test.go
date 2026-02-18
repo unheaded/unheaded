@@ -11,17 +11,17 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/httputil"
 )
 
 // ============================================================================
-// BUSBOY TEST HELPERS
+// WOTAN TEST HELPERS
 // ============================================================================
 
-// fakeBusboyServer creates a test HTTP server that mimics the Busboy API.
+// fakeWotanServer creates a test HTTP server that mimics the Wotan API.
 // It returns the server and a cleanup function.
-func fakeBusboyServer(t *testing.T) *httptest.Server {
+func fakeWotanServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 
@@ -56,35 +56,35 @@ func fakeBusboyServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// createBusboyClient creates a real busboyClient.Client pointed at a test server.
-func createBusboyClient(t *testing.T, serverURL string) *busboyClient.Client {
+// createWotanClient creates a real wotanClient.Client pointed at a test server.
+func createWotanClient(t *testing.T, serverURL string) *wotanClient.Client {
 	t.Helper()
 	// Strip "http://" prefix and pass just the host:port
 	addr := serverURL[len("http://"):]
-	client, err := busboyClient.NewClient(addr)
+	client, err := wotanClient.NewClient(addr)
 	if err != nil {
-		t.Fatalf("failed to create busboy client: %v", err)
+		t.Fatalf("failed to create wotan client: %v", err)
 	}
 	return client
 }
 
 // ============================================================================
-// NewWithBusboy TESTS
+// NewWithWotan TESTS
 // ============================================================================
 
-func TestArchitectService_NewWithBusboy(t *testing.T) {
-	server := fakeBusboyServer(t)
+func TestArchitectService_NewWithWotan(t *testing.T) {
+	server := fakeWotanServer(t)
 	defer server.Close()
 
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 	if svc == nil {
-		t.Fatal("NewWithBusboy returned nil")
+		t.Fatal("NewWithWotan returned nil")
 	}
-	if svc.busboy != client {
-		t.Error("busboy client not set correctly")
+	if svc.wotan != client {
+		t.Error("wotan client not set correctly")
 	}
 	if svc.infra == nil {
 		t.Error("infra state not initialized")
@@ -97,55 +97,55 @@ func TestArchitectService_NewWithBusboy(t *testing.T) {
 	}
 }
 
-func TestArchitectService_NewWithBusboy_NilClient(t *testing.T) {
-	svc := NewWithBusboy(nil)
+func TestArchitectService_NewWithWotan_NilClient(t *testing.T) {
+	svc := NewWithWotan(nil)
 	if svc == nil {
-		t.Fatal("NewWithBusboy(nil) returned nil")
+		t.Fatal("NewWithWotan(nil) returned nil")
 	}
-	if svc.busboy != nil {
-		t.Error("busboy should be nil when created with nil client")
+	if svc.wotan != nil {
+		t.Error("wotan should be nil when created with nil client")
 	}
 }
 
 // ============================================================================
-// SetBusboy TESTS
+// SetWotan TESTS
 // ============================================================================
 
-func TestArchitectService_SetBusboy(t *testing.T) {
+func TestArchitectService_SetWotan(t *testing.T) {
 	svc := New()
-	if svc.busboy != nil {
-		t.Error("busboy should initially be nil")
+	if svc.wotan != nil {
+		t.Error("wotan should initially be nil")
 	}
 
-	server := fakeBusboyServer(t)
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc.SetBusboy(client)
-	if svc.busboy != client {
-		t.Error("SetBusboy did not set client")
+	svc.SetWotan(client)
+	if svc.wotan != client {
+		t.Error("SetWotan did not set client")
 	}
 }
 
-func TestArchitectService_SetBusboy_Nil(t *testing.T) {
-	server := fakeBusboyServer(t)
+func TestArchitectService_SetWotan_Nil(t *testing.T) {
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
-	svc.SetBusboy(nil)
-	if svc.busboy != nil {
-		t.Error("SetBusboy(nil) should clear the client")
+	svc := NewWithWotan(client)
+	svc.SetWotan(nil)
+	if svc.wotan != nil {
+		t.Error("SetWotan(nil) should clear the client")
 	}
 }
 
-func TestArchitectService_SetBusboy_ConcurrentAccess(t *testing.T) {
+func TestArchitectService_SetWotan_ConcurrentAccess(t *testing.T) {
 	svc := New()
-	server := fakeBusboyServer(t)
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
 	var wg sync.WaitGroup
@@ -153,7 +153,7 @@ func TestArchitectService_SetBusboy_ConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			svc.SetBusboy(client)
+			svc.SetWotan(client)
 		}()
 	}
 	wg.Wait()
@@ -163,31 +163,31 @@ func TestArchitectService_SetBusboy_ConcurrentAccess(t *testing.T) {
 // Start TESTS
 // ============================================================================
 
-func TestArchitectService_Start_NilBusboy(t *testing.T) {
+func TestArchitectService_Start_NilWotan(t *testing.T) {
 	svc := New()
 	ctx := context.Background()
 
 	err := svc.Start(ctx)
 	if err != nil {
-		t.Errorf("Start() with nil busboy should return nil, got %v", err)
+		t.Errorf("Start() with nil wotan should return nil, got %v", err)
 	}
 }
 
-func TestArchitectService_Start_WithBusboy(t *testing.T) {
-	server := fakeBusboyServer(t)
+func TestArchitectService_Start_WithWotan(t *testing.T) {
+	server := fakeWotanServer(t)
 	defer server.Close()
 
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	err := svc.Start(ctx)
 	if err != nil {
-		t.Errorf("Start() with valid busboy should succeed, got %v", err)
+		t.Errorf("Start() with valid wotan should succeed, got %v", err)
 	}
 }
 
@@ -207,10 +207,10 @@ func TestArchitectService_Start_SubscribeError(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 	ctx := context.Background()
 
 	err := svc.Start(ctx)
@@ -223,7 +223,7 @@ func TestArchitectService_Start_SubscribeError(t *testing.T) {
 // listenForAlerts TESTS
 // ============================================================================
 
-func TestArchitectService_listenForAlerts_NilBusboy(t *testing.T) {
+func TestArchitectService_listenForAlerts_NilWotan(t *testing.T) {
 	svc := New()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -232,14 +232,14 @@ func TestArchitectService_listenForAlerts_NilBusboy(t *testing.T) {
 }
 
 func TestArchitectService_listenForAlerts_ContextCancelled(t *testing.T) {
-	server := fakeBusboyServer(t)
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	// Do not defer client.Close() because StreamMessages' internal polling
 	// goroutine also closes the channel on ctx cancel, and Close() would
 	// double-close it. Instead, just let the client be garbage collected.
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 	// Subscribe first so StreamMessages can work
@@ -279,7 +279,7 @@ func TestArchitectService_handleCriticalAlert_NilMessage(t *testing.T) {
 func TestArchitectService_handleCriticalAlert_ValidMessage(t *testing.T) {
 	svc := New()
 	ctx := context.Background()
-	msg := &busboyClient.Message{
+	msg := &wotanClient.Message{
 		MessageID: "msg-1",
 		Topic:     "alerts.critical",
 		Payload:   `{"severity":"critical","message":"test alert"}`,
@@ -293,7 +293,7 @@ func TestArchitectService_handleCriticalAlert_ValidMessage(t *testing.T) {
 // publishStateChange TESTS
 // ============================================================================
 
-func TestArchitectService_publishStateChange_NilBusboy(t *testing.T) {
+func TestArchitectService_publishStateChange_NilWotan(t *testing.T) {
 	svc := New()
 	ctx := context.Background()
 	// Should return immediately without panic
@@ -301,12 +301,12 @@ func TestArchitectService_publishStateChange_NilBusboy(t *testing.T) {
 }
 
 func TestArchitectService_publishStateChange_WithTraceID(t *testing.T) {
-	server := fakeBusboyServer(t)
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 	ctx := context.Background()
 
 	// Subscribe first so we're subscribed to architecture.updates
@@ -323,12 +323,12 @@ func TestArchitectService_publishStateChange_WithTraceID(t *testing.T) {
 }
 
 func TestArchitectService_publishStateChange_WithoutTraceID(t *testing.T) {
-	server := fakeBusboyServer(t)
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 	ctx := context.Background()
 
 	_, err := client.Subscribe(ctx, "architecture.updates", "test")
@@ -799,7 +799,7 @@ func TestDesignReviewWorkflow(t *testing.T) {
 
 	// 1. Add infrastructure services
 	services := []Service{
-		{ServiceID: "svc-busboy", Name: "Busboy", Type: "message-bus", Status: "running", Port: 9090},
+		{ServiceID: "svc-wotan", Name: "Wotan", Type: "message-bus", Status: "running", Port: 9090},
 		{ServiceID: "svc-gateway", Name: "Gateway", Type: "proxy", Status: "running", Port: 443},
 		{ServiceID: "svc-timeguru", Name: "Timeguru", Type: "service", Status: "running", Port: 8000},
 	}
@@ -835,8 +835,8 @@ func TestDesignReviewWorkflow(t *testing.T) {
 	// 3. Log design decision about this architecture
 	decision := ArchitectureDecision{
 		DecisionID:  "ADR-ARCH-1",
-		Title:       "Hub-and-spoke via Busboy",
-		Description: "All inter-service communication goes through Busboy message bus",
+		Title:       "Hub-and-spoke via Wotan",
+		Description: "All inter-service communication goes through Wotan message bus",
 		Component:   "architecture",
 		Status:      "implemented",
 	}
@@ -891,16 +891,16 @@ func TestDesignReviewWorkflow(t *testing.T) {
 }
 
 // ============================================================================
-// BUSBOY INTEGRATION TESTS
+// WOTAN INTEGRATION TESTS
 // ============================================================================
 
-func TestBusboyIntegration_AddServicePublishes(t *testing.T) {
-	server := fakeBusboyServer(t)
+func TestWotanIntegration_AddServicePublishes(t *testing.T) {
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 	ctx := context.Background()
 
 	// Subscribe to architecture.updates so publish can work
@@ -920,13 +920,13 @@ func TestBusboyIntegration_AddServicePublishes(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func TestBusboyIntegration_AddNetworkNodePublishes(t *testing.T) {
-	server := fakeBusboyServer(t)
+func TestWotanIntegration_AddNetworkNodePublishes(t *testing.T) {
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 	ctx := context.Background()
 
 	_, err := client.Subscribe(ctx, "architecture.updates", "test")
@@ -943,13 +943,13 @@ func TestBusboyIntegration_AddNetworkNodePublishes(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func TestBusboyIntegration_LogDecisionPublishes(t *testing.T) {
-	server := fakeBusboyServer(t)
+func TestWotanIntegration_LogDecisionPublishes(t *testing.T) {
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	defer client.Close()
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 	ctx := context.Background()
 
 	_, err := client.Subscribe(ctx, "architecture.updates", "test")
@@ -966,15 +966,15 @@ func TestBusboyIntegration_LogDecisionPublishes(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func TestBusboyIntegration_StartAndListen(t *testing.T) {
-	server := fakeBusboyServer(t)
+func TestWotanIntegration_StartAndListen(t *testing.T) {
+	server := fakeWotanServer(t)
 	defer server.Close()
-	client := createBusboyClient(t, server.URL)
+	client := createWotanClient(t, server.URL)
 	// Do not defer client.Close() -- Start -> listenForAlerts -> StreamMessages
 	// starts an internal goroutine that closes the channel on ctx cancel.
 	// Calling client.Close() afterward would double-close.
 
-	svc := NewWithBusboy(client)
+	svc := NewWithWotan(client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

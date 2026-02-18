@@ -1,7 +1,7 @@
-// Package busboyClient provides a gRPC streaming client for the Busboy message bus.
+// Package wotanClient provides a gRPC streaming client for the Wotan message bus.
 // This implementation supports bidirectional streaming, automatic reconnection,
 // backpressure handling, and client-side load balancing.
-package busboyClient
+package wotanClient
 
 import (
 	"context"
@@ -32,8 +32,8 @@ import (
 // PROTO DEFINITIONS (inline - would normally be in separate .proto file)
 // ============================================================================
 
-// MessageProto represents a Busboy message in protobuf format.
-// In production, this would be generated from busboy.proto:
+// MessageProto represents a Wotan message in protobuf format.
+// In production, this would be generated from wotan.proto:
 //
 //	message Message {
 //	    string message_id = 1;
@@ -147,7 +147,7 @@ type HistoryResponse struct {
 var (
 	grpcMessagesReceived = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "busboy",
+			Namespace: "wotan",
 			Subsystem: "grpc_client",
 			Name:      "messages_received_total",
 			Help:      "Total messages received via gRPC stream",
@@ -157,7 +157,7 @@ var (
 
 	grpcMessagesPublished = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "busboy",
+			Namespace: "wotan",
 			Subsystem: "grpc_client",
 			Name:      "messages_published_total",
 			Help:      "Total messages published via gRPC stream",
@@ -167,7 +167,7 @@ var (
 
 	grpcPublishLatency = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "busboy",
+			Namespace: "wotan",
 			Subsystem: "grpc_client",
 			Name:      "publish_latency_seconds",
 			Help:      "Latency of publish operations",
@@ -178,7 +178,7 @@ var (
 
 	grpcStreamErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "busboy",
+			Namespace: "wotan",
 			Subsystem: "grpc_client",
 			Name:      "stream_errors_total",
 			Help:      "Total stream errors",
@@ -188,7 +188,7 @@ var (
 
 	grpcReconnections = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "busboy",
+			Namespace: "wotan",
 			Subsystem: "grpc_client",
 			Name:      "reconnections_total",
 			Help:      "Total reconnection attempts",
@@ -198,7 +198,7 @@ var (
 
 	grpcActiveSubscriptions = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "busboy",
+			Namespace: "wotan",
 			Subsystem: "grpc_client",
 			Name:      "active_subscriptions",
 			Help:      "Number of active subscriptions",
@@ -208,7 +208,7 @@ var (
 
 	grpcConnectionState = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "busboy",
+			Namespace: "wotan",
 			Subsystem: "grpc_client",
 			Name:      "connection_state",
 			Help:      "Current connection state (0=disconnected, 1=connecting, 2=connected)",
@@ -218,7 +218,7 @@ var (
 
 	grpcBackpressure = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "busboy",
+			Namespace: "wotan",
 			Subsystem: "grpc_client",
 			Name:      "backpressure_events_total",
 			Help:      "Total backpressure events (slow consumers)",
@@ -297,7 +297,7 @@ func DefaultGRPCClientConfig() *GRPCClientConfig {
 // GRPC CLIENT
 // ============================================================================
 
-// GRPCClient provides gRPC streaming access to Busboy message bus
+// GRPCClient provides gRPC streaming access to Wotan message bus
 type GRPCClient struct {
 	config *GRPCClientConfig
 	logger zerolog.Logger
@@ -310,7 +310,7 @@ type GRPCClient struct {
 
 	// Bidirectional stream
 	// In production, this would be the actual gRPC stream type:
-	// stream pb.BusboyService_StreamMessagesClient
+	// stream pb.WotanService_StreamMessagesClient
 	streamMu     sync.RWMutex
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
@@ -421,7 +421,7 @@ func (c *GRPCClient) Connect(ctx context.Context) error {
 		return nil // Already connected
 	}
 
-	c.logger.Info().Strs("addresses", c.config.Addresses).Msg("connecting to Busboy gRPC")
+	c.logger.Info().Strs("addresses", c.config.Addresses).Msg("connecting to Wotan gRPC")
 	grpcConnectionState.WithLabelValues(c.clientID).Set(1) // connecting
 
 	// Build dial options
@@ -444,7 +444,7 @@ func (c *GRPCClient) Connect(ctx context.Context) error {
 	atomic.StoreInt32(&c.connected, 1)
 	grpcConnectionState.WithLabelValues(c.clientID).Set(2) // connected
 
-	c.logger.Info().Msg("connected to Busboy gRPC")
+	c.logger.Info().Msg("connected to Wotan gRPC")
 
 	// Start stream
 	if err := c.startStream(ctx); err != nil {
@@ -465,7 +465,7 @@ func (c *GRPCClient) buildDialOptions() []grpc.DialOption {
 		grpc.WithDefaultServiceConfig(`{
 			"loadBalancingPolicy": "round_robin",
 			"methodConfig": [{
-				"name": [{"service": "busboy.BusboyService"}],
+				"name": [{"service": "wotan.WotanService"}],
 				"waitForReady": true,
 				"retryPolicy": {
 					"maxAttempts": 5,
@@ -1648,8 +1648,8 @@ func NewGRPCClientWithOptions(opts ...GRPCClientOption) (*GRPCClient, error) {
 // INTERFACE COMPATIBILITY
 // ============================================================================
 
-// BusboyClient defines the interface that both HTTP and gRPC clients implement
-type BusboyClient interface {
+// WotanClient defines the interface that both HTTP and gRPC clients implement
+type WotanClient interface {
 	// Subscription management
 	Subscribe(ctx context.Context, topic, displayName string) (*Subscriber, error)
 	Unsubscribe(ctx context.Context, topic string) error
@@ -1668,8 +1668,8 @@ type BusboyClient interface {
 	Close() error
 }
 
-// Verify GRPCClient implements BusboyClient
-var _ BusboyClient = (*GRPCClient)(nil)
+// Verify GRPCClient implements WotanClient
+var _ WotanClient = (*GRPCClient)(nil)
 
 // ============================================================================
 // LOAD BALANCING HELPERS

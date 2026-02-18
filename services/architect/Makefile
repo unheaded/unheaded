@@ -45,7 +45,7 @@ clean:
 
 # Development
 dev:
-	go run ./cmd -addr :8001 -busboy localhost:9090 -log debug -mock-busboy
+	go run ./cmd -addr :8001 -wotan localhost:9090 -log debug -mock-wotan
 
 # Docker
 docker-build:

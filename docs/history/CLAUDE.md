@@ -17,7 +17,7 @@ Unheaded is a configuration management automation platform delivering complete i
 - ✅ eBPF-based observability (L2-L7 tracing)
 - ✅ Immutable NixOS infrastructure
 - ✅ Zero customer data access (architectural isolation)
-- ✅ Service mesh built on Busboy message bus
+- ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
 - ✅ Self-hosting proof (The Meta Moment)
 
@@ -57,7 +57,7 @@ ALPHA TARGET: February 8-15, 2026
 
 | Component | Status | LOC | Notes |
 |-----------|--------|-----|-------|
-| **Busboy (Phase 0)** | ✅ 100% | 13,504 | Message bus complete |
+| **Wotan (Phase 0)** | ✅ 100% | 13,504 | Message bus complete |
 | **Hauberk (Mesh)** | ✅ 85% | 5,914 | Service mesh |
 | **Pauldrons (LB)** | ✅ 90% | 6,719 | Load balancer |
 | **Shield (WAF)** | ✅ 90% | 6,057 | WAF detection |
@@ -92,7 +92,7 @@ THE ARMORY (Infrastructure)
 THE ARCANE HOLLOWS (Hidden Layer)
 ├── 🌑 WHISPERING VOID   - eBPF tracing
 ├── 💎 CRYSTAL GROTTO    - Secrets/State
-├── 🧚 FAE CHAMBER       - Message Bus (Busboy)
+├── 🧚 FAE CHAMBER       - Message Bus (Wotan)
 ├── 📚 SAGE'S LAIR       - ADR vault
 └── 🔮 ORACLE'S ANTRE    - Timeline (Timeguru)
 ```
@@ -104,7 +104,7 @@ THE ARCANE HOLLOWS (Hidden Layer)
 | eBPF programs | **Rust** (Aya framework) | Memory safety + performance for kernel |
 | Services | **Go 1.21+** | Simplicity, concurrency, std lib only |
 | Containers | **NixOS** | Declarative, immutable, reproducible |
-| Message Bus | **Busboy** (Go + gRPC) | Custom, proven, no deps |
+| Message Bus | **Wotan** (Go + gRPC) | Custom, proven, no deps |
 | Gateway | Custom Go | HTTP/3, QUIC, no nginx needed |
 | Frontend | **Vanilla JS** | No framework overhead |
 | Orchestration | **LXD** | Lightweight system containers |
@@ -116,7 +116,7 @@ THE ARCANE HOLLOWS (Hidden Layer)
 ```
 ~/tmp/
 ├── timeline.md                    # ← CANONICAL TIMELINE (ROOT)
-├── busboy/                        # Phase 0 complete (13,504 LOC)
+├── wotan/                        # Phase 0 complete (13,504 LOC)
 └── unheaded/
     ├── cmd/
     │   ├── unheaded-daemon/       # Cuirass control plane
@@ -150,7 +150,7 @@ THE ARCANE HOLLOWS (Hidden Layer)
     │   ├── audit/                 # Audit system (5,022 LOC)
     │   ├── alerting/              # Alerting (4,888 LOC)
     │   ├── lxd/                   # LXD client
-    │   ├── busboy-client/         # Busboy gRPC client
+    │   ├── wotan-client/         # Wotan gRPC client
     │   ├── state/                 # Reconciler
     │   ├── nix/                   # NixOS builder
     │   ├── health/                # Health aggregator
@@ -224,7 +224,7 @@ THE ARCANE HOLLOWS (Hidden Layer)
 **Every component must:**
 - Publish metrics (pkg/metrics)
 - Log structured JSON (pkg/logger)
-- Report to Busboy message bus
+- Report to Wotan message bus
 - Support distributed tracing
 - Expose /health and /ready endpoints
 
@@ -319,7 +319,7 @@ Unheaded uses a skill-based AI persona system for development:
 | **Micromanager** | WHAT/WHEN | roadmap, milestone, QA, testing |
 | **Developer** | BUILD | code, implement, TDD, Go, Rust |
 | **Timeguru** | TIMELINE | timeline, progress, status, eta |
-| **Busboy** | GLUE | coordinate, clarify, summarize |
+| **Wotan** | GLUE | coordinate, clarify, summarize |
 | **Calendar** | SCHEDULE | tomorrow, next week, plan |
 
 **Key files:**
@@ -335,7 +335,7 @@ Unheaded uses a skill-based AI persona system for development:
 **For parallel agents:**
 1. Spawn all at once (not sequential)
 2. Agents work independently
-3. All use Busboy (no direct service-to-service)
+3. All use Wotan (no direct service-to-service)
 4. Shared types in `pkg/`
 5. Review all output together
 6. Integration test after merge
@@ -353,7 +353,7 @@ Context:
 Requirements:
 - Go 1.21+
 - REST API with /health, /ready, /metrics
-- Busboy integration via pkg/busboy-client
+- Wotan integration via pkg/wotan-client
 - Use pkg/logger for logging
 - Use pkg/metrics for metrics
 - Unit tests (80%+ coverage)
@@ -375,7 +375,7 @@ THE SACRED LAW:
 - `docs/SECURITY-AUDIT-2026-01-30.md` - Security findings
 
 **External:**
-- [Busboy](https://github.com/unheaded/busboy) - Message bus (Phase 0)
+- [Wotan](https://github.com/unheaded/wotan) - Message bus (Phase 0)
 - [Aya](https://aya-rs.dev/) - eBPF framework for Rust
 - [NixOS Manual](https://nixos.org/manual/) - Container definitions
 

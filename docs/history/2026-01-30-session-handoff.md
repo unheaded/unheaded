@@ -216,7 +216,7 @@ Created `/Users/govan/tmp/unheaded/SECURITY-AUDIT-2026-01-30.md`:
 - `internal/scraper/scraper.go` (~822 lines) - Metrics scraping
 - `internal/websocket/server.go` (~685 lines) - Pure Go WebSocket
 - `internal/health/health.go` (~872 lines) - Service health monitoring
-- `internal/events/events.go` (~830 lines) - Busboy event streaming
+- `internal/events/events.go` (~830 lines) - Wotan event streaming
 - `internal/server/server.go` (~811 lines) - REST API + WebSocket
 - `internal/packetflow/generator.go` (~253 lines) - Mock eBPF traces
 - `internal/metrics/aggregator.go` (~407 lines) - Metrics aggregation
@@ -257,7 +257,7 @@ pkg/container/image/image.go.dev    # zerolog
 pkg/container/storage/storage.go.dev # zerolog
 pkg/container/network/network.go.dev # zerolog
 pkg/container/lxd/lxd.go.dev        # zerolog
-pkg/busboy-client/grpc_client.go.dev # grpc
+pkg/wotan-client/grpc_client.go.dev # grpc
 ```
 
 ---

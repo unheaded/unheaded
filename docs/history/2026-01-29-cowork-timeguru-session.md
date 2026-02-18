@@ -19,7 +19,7 @@ User (Muck) requested a full skill ecosystem check-in using the Timeguru skill t
 
 ```
 ~/tmp/ contains:
-├── busboy/                    (message bus - Phase 0)
+├── wotan/                    (message bus - Phase 0)
 ├── unheaded/                  (main platform repo)
 ├── 16 armor component dirs    (unheaded-{shield,sword,cuirass,...})
 ├── timeline.md                (ROOT CANONICAL TIMELINE)
@@ -73,7 +73,7 @@ All 7 Unheaded skills verified:
 | **Architect** | ✅ ALIGNED | 4 pillars active, services wired |
 | **Micromanager** | ✅ ALIGNED | Execution engine, QA gates, ZERO customer data access |
 | **Developer** | ✅ ALIGNED | TDD active, Go+Rust, security-first |
-| **Busboy (Coord)** | ✅ ALIGNED | Coordination operational, circular workflow |
+| **Wotan (Coord)** | ✅ ALIGNED | Coordination operational, circular workflow |
 | **Kingdom** | ✅ ALIGNED | Lore documented, Sacred Hierarchy established |
 | **Calendar** | ✅ ALIGNED | Date-based capture, nn-inspired structure |
 | **Timeguru** | ✅ UPDATED | This session - full ecosystem audit |
@@ -94,7 +94,7 @@ All 7 Unheaded skills verified:
 
 | Milestone | Old % | Real % | Evidence |
 |-----------|-------|--------|----------|
-| Phase 0: Busboy | 100% | 100% ✅ | 13,504 LOC, tests pass |
+| Phase 0: Wotan | 100% | 100% ✅ | 13,504 LOC, tests pass |
 | 1.1 Whispering Void (eBPF) | 45% | 55% | 5,293 Rust LOC |
 | 1.2 Cuirass (Control Plane) | 65% | 75% | Daemon + state mgmt |
 | 1.3 Microservices | 35% | 70% | 4 services wired |
@@ -138,7 +138,7 @@ All 7 Unheaded skills verified:
 - **QA Philosophy:** Test EVERYTHING before ship
 - **Session Protocol:** Always read Timeguru first
 
-### From Busboy (Coordinator) Skill:
+### From Wotan (Coordinator) Skill:
 - Connects all skills in circular workflow
 - Tracks crew status, blockers, wins
 - "Read timeline.md first" - enforced
@@ -193,7 +193,7 @@ Feb 8-15:         Alpha Launch Window
 
 - **Duration:** ~45 minutes
 - **Tools Used:** Read, Glob, Bash, Edit, Write, TodoWrite
-- **Skills Invoked:** Timeguru (primary), reviewed Busboy + Micromanager
+- **Skills Invoked:** Timeguru (primary), reviewed Wotan + Micromanager
 - **LOC Analyzed:** 119,838
 - **Files Touched:** 2 timeline.md files updated
 

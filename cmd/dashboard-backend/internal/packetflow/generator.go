@@ -151,7 +151,7 @@ func (g *Generator) generateFlow() *PacketFlow {
 // generateHops generates realistic packet hops through Unheaded architecture
 func (g *Generator) generateHops(startTime time.Time) []Hop {
 	// Unheaded packet flow:
-	// XDP -> Gateway -> Busboy -> Service -> trace-collector
+	// XDP -> Gateway -> Wotan -> Service -> trace-collector
 
 	components := []struct {
 		name       string
@@ -160,7 +160,7 @@ func (g *Generator) generateHops(startTime time.Time) []Hop {
 	}{
 		{"xdp_packet_marker", 50 * time.Microsecond, 200 * time.Microsecond},
 		{"gateway", 1 * time.Millisecond, 5 * time.Millisecond},
-		{"busboy", 500 * time.Microsecond, 2 * time.Millisecond},
+		{"wotan", 500 * time.Microsecond, 2 * time.Millisecond},
 		{"service", 5 * time.Millisecond, 20 * time.Millisecond},
 		{"trace-collector", 1 * time.Millisecond, 3 * time.Millisecond},
 	}
@@ -241,7 +241,7 @@ func (g *Generator) randomStatusCode() int {
 // randomHost returns a random container host
 func (g *Generator) randomHost() string {
 	hosts := []string{
-		"10.10.10.10",  // busboy
+		"10.10.10.10",  // wotan
 		"10.10.10.20",  // timeguru
 		"10.10.10.21",  // captain
 		"10.10.10.22",  // micromanager

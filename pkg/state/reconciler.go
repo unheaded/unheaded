@@ -27,7 +27,7 @@ var (
 	ErrRateLimited          = errors.New("rate limited")
 	ErrDryRunMode           = errors.New("action skipped in dry-run mode")
 	ErrLXDClientNil         = errors.New("LXD client is nil")
-	ErrBusboyClientNil      = errors.New("Busboy client is nil")
+	ErrWotanClientNil      = errors.New("Wotan client is nil")
 	ErrInvalidStatePath     = errors.New("invalid state file path")
 	ErrContainerNotFound    = errors.New("container not found")
 	ErrMaxRetriesExceeded   = errors.New("max retries exceeded")
@@ -381,7 +381,7 @@ type LXDClient interface {
 }
 
 // ============================================================================
-// EVENT TYPES FOR BUSBOY
+// EVENT TYPES FOR WOTAN
 // ============================================================================
 
 // EventType represents the type of reconciliation event
@@ -403,7 +403,7 @@ const (
 	EventContainerUnhealthy  EventType = "container.unhealthy"
 )
 
-// ReconciliationEvent represents an event to publish to Busboy
+// ReconciliationEvent represents an event to publish to Wotan
 type ReconciliationEvent struct {
 	Type        EventType              `json:"type"`
 	Timestamp   time.Time              `json:"timestamp"`
@@ -415,8 +415,8 @@ type ReconciliationEvent struct {
 	Data        map[string]interface{} `json:"data,omitempty"`
 }
 
-// BusboyClient defines the interface for event publishing
-type BusboyClient interface {
+// WotanClient defines the interface for event publishing
+type WotanClient interface {
 	Publish(ctx context.Context, topic string, payload []byte) error
 }
 
@@ -627,7 +627,7 @@ type Reconciler struct {
 
 	// Clients
 	lxd    LXDClient
-	busboy BusboyClient
+	wotan WotanClient
 	logger Logger
 
 	// State
@@ -652,7 +652,7 @@ type Reconciler struct {
 }
 
 // NewReconciler creates a new reconciler instance
-func NewReconciler(config ReconcilerConfig, lxd LXDClient, busboy BusboyClient, logger Logger) (*Reconciler, error) {
+func NewReconciler(config ReconcilerConfig, lxd LXDClient, wotan WotanClient, logger Logger) (*Reconciler, error) {
 	if lxd == nil {
 		return nil, ErrLXDClientNil
 	}
@@ -664,7 +664,7 @@ func NewReconciler(config ReconcilerConfig, lxd LXDClient, busboy BusboyClient, 
 	return &Reconciler{
 		config:      config,
 		lxd:         lxd,
-		busboy:      busboy,
+		wotan:      wotan,
 		logger:      logger,
 		rateLimiter: NewRateLimiter(config.MaxActionsPerSecond),
 		history:     make([]*ReconciliationRun, 0, config.MaxHistorySize),
@@ -987,7 +987,7 @@ func (r *Reconciler) DetectDrift(desired *DesiredState, actual *ActualState) (*D
 	r.lastDrift = report
 	r.mu.Unlock()
 
-	// Emit event to Busboy
+	// Emit event to Wotan
 	if len(drifts) > 0 {
 		r.emitEvent(context.Background(), ReconciliationEvent{
 			Type:      EventDriftDetected,
@@ -1722,9 +1722,9 @@ func (r *Reconciler) IsClosed() bool {
 // HELPER METHODS
 // ============================================================================
 
-// emitEvent publishes an event to Busboy
+// emitEvent publishes an event to Wotan
 func (r *Reconciler) emitEvent(ctx context.Context, event ReconciliationEvent) {
-	if r.busboy == nil {
+	if r.wotan == nil {
 		return
 	}
 
@@ -1737,7 +1737,7 @@ func (r *Reconciler) emitEvent(ctx context.Context, event ReconciliationEvent) {
 		return
 	}
 
-	if err := r.busboy.Publish(ctx, r.config.EventTopic, data); err != nil {
+	if err := r.wotan.Publish(ctx, r.config.EventTopic, data); err != nil {
 		r.logger.Warn("failed to publish event", map[string]interface{}{
 			"error": err.Error(),
 			"type":  event.Type,

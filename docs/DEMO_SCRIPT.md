@@ -47,15 +47,15 @@
 
 > This is the Unheaded dashboard. What you are seeing is live network traffic between our services, visualized in real time.
 
-**[VISUAL: Zoom into the packet flow canvas. Gold dots travel along connection lines between labeled service nodes: Gateway, Busboy, Timeguru, Captain, Architect, Micromanager, Monad, Sophia. A packet enters at the Gateway node and traces a path downward.]**
+**[VISUAL: Zoom into the packet flow canvas. Gold dots travel along connection lines between labeled service nodes: Gateway, Wotan, Timeguru, Captain, Architect, Micromanager, Monad, Sophia. A packet enters at the Gateway node and traces a path downward.]**
 
-> Every dot is a real packet. Every packet carries a 128-bit W3C-compatible trace ID injected at the XDP layer before user space even sees it. Watch this one -- it enters through the Gateway, passes through Busboy, the message bus, and arrives at Timeguru, our timeline service. Six hops. Forty-seven milliseconds. Every hop logged, correlated, and displayed here.
+> Every dot is a real packet. Every packet carries a 128-bit W3C-compatible trace ID injected at the XDP layer before user space even sees it. Watch this one -- it enters through the Gateway, passes through Wotan, the message bus, and arrives at Timeguru, our timeline service. Six hops. Forty-seven milliseconds. Every hop logged, correlated, and displayed here.
 
 **[VISUAL: Click the "Demo Packet" quick action button. A green packet appears at Gateway and travels through the mesh. The trace ID appears in gold text beside it.]**
 
-> The connection status indicator in the nav bar shows we are live on WebSocket. Metrics refresh every five seconds from the dashboard backend. Service health, request counts, latency histograms, Busboy message throughput -- all streaming in.
+> The connection status indicator in the nav bar shows we are live on WebSocket. Metrics refresh every five seconds from the dashboard backend. Service health, request counts, latency histograms, Wotan message throughput -- all streaming in.
 
-**[VISUAL: Pan down to the System Metrics section. Cards show request counts, latency percentiles, uptime, Busboy messages published. Numbers tick upward in real time.]**
+**[VISUAL: Pan down to the System Metrics section. Cards show request counts, latency percentiles, uptime, Wotan messages published. Numbers tick upward in real time.]**
 
 ---
 
@@ -67,7 +67,7 @@
 
 > Now here is where it gets interesting. This is our Kanban board. It shows our own development progress -- pulled live from our Timeguru service, which parses our timeline markdown, converts it to JSON, and serves it over REST. The same infrastructure. The same services. The same eBPF tracing.
 
-**[VISUAL: Three columns are visible -- TODO, IN PROGRESS, DONE. Task cards populate with real data: "Busboy Phase 1" in DONE, "eBPF Foundation" in IN PROGRESS, items with priority badges and progress bars.]**
+**[VISUAL: Three columns are visible -- TODO, IN PROGRESS, DONE. Task cards populate with real data: "Wotan Phase 1" in DONE, "eBPF Foundation" in IN PROGRESS, items with priority badges and progress bars.]**
 
 > We call this The Meta Moment. Unheaded is tracking its own development, on its own infrastructure, traced by its own eBPF programs, managed by its own control plane. We drink our own champagne.
 
@@ -75,7 +75,7 @@
 
 > Every request you just saw -- the page load, the timeline fetch, the WebSocket connection -- was traced end to end. If we switch back to the dashboard...
 
-**[VISUAL: Navigate back to the dashboard. A cluster of new packets appear in the flow visualization, tracing the path: Gateway to Kanban App to Timeguru to Busboy and back.]**
+**[VISUAL: Navigate back to the dashboard. A cluster of new packets appear in the flow visualization, tracing the path: Gateway to Kanban App to Timeguru to Wotan and back.]**
 
 > ...there they are. The packets from the Kanban load. From browser to gateway to service to message bus and back. Full circle. The infrastructure observing itself.
 
@@ -99,23 +99,23 @@
 >
 > Third, the Latency Probe. Kprobes on tcp_sendmsg and tcp_recvmsg that measure round-trip time at the kernel level, not the application level. No sampling. No approximation. Every packet, measured.
 
-**[VISUAL: Show a trace event flowing from eBPF (kernel) through the trace-collector (Rust) to Busboy (Go) to the dashboard WebSocket.]**
+**[VISUAL: Show a trace event flowing from eBPF (kernel) through the trace-collector (Rust) to Wotan (Go) to the dashboard WebSocket.]**
 
-> The trace-collector, also written in Rust, reads from the ring buffer and publishes events to Busboy. From there, the dashboard backend streams them to your browser. Layer 2 to Layer 7. Kernel to canvas. That is the depth of visibility Unheaded provides out of the box.
+> The trace-collector, also written in Rust, reads from the ring buffer and publishes events to Wotan. From there, the dashboard backend streams them to your browser. Layer 2 to Layer 7. Kernel to canvas. That is the depth of visibility Unheaded provides out of the box.
 
 ---
 
-## ACT 5: THE SERVICE MESH AND BUSBOY (3:15 - 3:45)
+## ACT 5: THE SERVICE MESH AND WOTAN (3:15 - 3:45)
 
-**[VISUAL: Architecture diagram focusing on Layer 3 -- Busboy at the center, with gRPC streams radiating out to all services.]**
+**[VISUAL: Architecture diagram focusing on Layer 3 -- Wotan at the center, with gRPC streams radiating out to all services.]**
 
 **NARRATOR:**
 
-> At the heart of the Kingdom is Busboy, our custom message bus. Eleven thousand lines of Go. gRPC bidirectional streaming. Pub/sub with topic-based routing. A ring buffer for high-throughput message storage. Rate limiting. Circuit breakers. Backpressure handling.
+> At the heart of the Kingdom is Wotan, our custom message bus. Eleven thousand lines of Go. gRPC bidirectional streaming. Pub/sub with topic-based routing. A ring buffer for high-throughput message storage. Rate limiting. Circuit breakers. Backpressure handling.
 
 **[VISUAL: Show the Fae Chamber Contracts topic list: tasks.created, timeline.updates, alerts.critical, state.drift.detected, and others scrolling by.]**
 
-> Every service in the mesh communicates through Busboy. Timeguru publishes timeline updates. Micromanager subscribes to task events. Captain monitors strategic alerts. Architect tracks design decisions. No direct service-to-service calls. Every message carries a trace ID. Every message is observable.
+> Every service in the mesh communicates through Wotan. Timeguru publishes timeline updates. Micromanager subscribes to task events. Captain monitors strategic alerts. Architect tracks design decisions. No direct service-to-service calls. Every message carries a trace ID. Every message is observable.
 >
 > The mesh layer adds service discovery, circuit breakers with configurable thresholds, and mutual TLS between containers. Default deny networking. Explicit allow only. The knight is never without armor.
 
@@ -188,7 +188,7 @@
 | Dashboard | 1:00 | 50s | Packet flow, metrics grid |
 | Meta Moment | 1:50 | 40s | Kanban board, recursive proof |
 | eBPF Tracing | 2:30 | 45s | Rust code, kernel-to-canvas flow |
-| Service Mesh | 3:15 | 30s | Busboy hub, topic routing |
+| Service Mesh | 3:15 | 30s | Wotan hub, topic routing |
 | Security | 3:45 | 25s | NixOS hardening, zero trust |
 | Closing | 4:10 | 20s | Full dashboard, CTA |
 | **Total** | | **~4:30** | |

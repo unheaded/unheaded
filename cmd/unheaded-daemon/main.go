@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 
 	"gopkg.in/yaml.v3"
@@ -58,7 +58,7 @@ var (
 // DAEMON STRUCTURE
 // ============================================================================
 
-// Busboy topic constants
+// Wotan topic constants
 const (
 	TopicCuirassDrift   = "cuirass.drift"
 	TopicCuirassMetrics = "cuirass.metrics"
@@ -73,10 +73,10 @@ type Daemon struct {
 	// State management
 	stateManager *StateManager
 
-	// Busboy client for event publishing
-	busboyClient *busboyClient.Client
-	busboyReady  bool
-	busboyMu     sync.RWMutex
+	// Wotan client for event publishing
+	wotanClient *wotanClient.Client
+	wotanReady  bool
+	wotanMu     sync.RWMutex
 
 	// LXD client for container operations
 	lxdClient LXDClient
@@ -262,8 +262,8 @@ type Config struct {
 	HTTPAddr     string
 	GRPCAddr     string
 	LXDSocket    string
-	BusboyAddr   string
-	BusboyGRPCAddr string
+	WotanAddr   string
+	WotanGRPCAddr string
 	PollInterval time.Duration
 	LogLevel     string
 }
@@ -392,9 +392,9 @@ func NewDaemon(cfg *Config, log *logger.Logger) *Daemon {
 
 // Start starts the daemon
 func (d *Daemon) Start() error {
-	// Initialize Busboy client
-	if err := d.initBusboy(); err != nil {
-		d.log.Warn().Err(err).Msg("Busboy connection failed, will retry")
+	// Initialize Wotan client
+	if err := d.initWotan(); err != nil {
+		d.log.Warn().Err(err).Msg("Wotan connection failed, will retry")
 	}
 
 	// Log LXD client status
@@ -422,9 +422,9 @@ func (d *Daemon) Start() error {
 		}
 	}()
 
-	// Start Busboy connection manager (handles reconnection)
+	// Start Wotan connection manager (handles reconnection)
 	d.wg.Add(1)
-	go d.busboyConnectionLoop()
+	go d.wotanConnectionLoop()
 
 	// Start metrics publishing loop
 	d.wg.Add(1)
@@ -451,16 +451,16 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	// Close Busboy client
-	d.busboyMu.Lock()
-	if d.busboyClient != nil {
-		if err := d.busboyClient.Close(); err != nil {
-			d.log.Warn().Err(err).Msg("Error closing Busboy client")
+	// Close Wotan client
+	d.wotanMu.Lock()
+	if d.wotanClient != nil {
+		if err := d.wotanClient.Close(); err != nil {
+			d.log.Warn().Err(err).Msg("Error closing Wotan client")
 		}
-		d.busboyClient = nil
-		d.busboyReady = false
+		d.wotanClient = nil
+		d.wotanReady = false
 	}
-	d.busboyMu.Unlock()
+	d.wotanMu.Unlock()
 
 	// Wait for goroutines with timeout
 	done := make(chan struct{})
@@ -478,14 +478,14 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 }
 
 // ============================================================================
-// BUSBOY INTEGRATION
+// WOTAN INTEGRATION
 // ============================================================================
 
-// initBusboy initializes the Busboy client and subscribes to required topics
-func (d *Daemon) initBusboy() error {
-	client, err := busboyClient.NewClient(d.config.BusboyAddr)
+// initWotan initializes the Wotan client and subscribes to required topics
+func (d *Daemon) initWotan() error {
+	client, err := wotanClient.NewClient(d.config.WotanAddr)
 	if err != nil {
-		return fmt.Errorf("create busboy client: %w", err)
+		return fmt.Errorf("create wotan client: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -505,17 +505,17 @@ func (d *Daemon) initBusboy() error {
 		return fmt.Errorf("subscribe to %s: %w", TopicCuirassMetrics, err)
 	}
 
-	d.busboyMu.Lock()
-	d.busboyClient = client
-	d.busboyReady = true
-	d.busboyMu.Unlock()
+	d.wotanMu.Lock()
+	d.wotanClient = client
+	d.wotanReady = true
+	d.wotanMu.Unlock()
 
-	d.log.Info().Str("addr", d.config.BusboyAddr).Msg("Busboy connected")
+	d.log.Info().Str("addr", d.config.WotanAddr).Msg("Wotan connected")
 	return nil
 }
 
-// busboyConnectionLoop manages Busboy connection with automatic reconnection
-func (d *Daemon) busboyConnectionLoop() {
+// wotanConnectionLoop manages Wotan connection with automatic reconnection
+func (d *Daemon) wotanConnectionLoop() {
 	defer d.wg.Done()
 
 	reconnectInterval := 5 * time.Second
@@ -528,14 +528,14 @@ func (d *Daemon) busboyConnectionLoop() {
 		default:
 		}
 
-		d.busboyMu.RLock()
-		isReady := d.busboyReady
-		d.busboyMu.RUnlock()
+		d.wotanMu.RLock()
+		isReady := d.wotanReady
+		d.wotanMu.RUnlock()
 
 		if !isReady {
-			d.log.Info().Str("addr", d.config.BusboyAddr).Msg("Attempting Busboy reconnection")
-			if err := d.initBusboy(); err != nil {
-				d.log.Warn().Err(err).Dur("retry_in", reconnectInterval).Msg("Busboy reconnection failed")
+			d.log.Info().Str("addr", d.config.WotanAddr).Msg("Attempting Wotan reconnection")
+			if err := d.initWotan(); err != nil {
+				d.log.Warn().Err(err).Dur("retry_in", reconnectInterval).Msg("Wotan reconnection failed")
 
 				select {
 				case <-d.shutdown:
@@ -563,7 +563,7 @@ func (d *Daemon) busboyConnectionLoop() {
 	}
 }
 
-// metricsPublishLoop publishes metrics to Busboy periodically
+// metricsPublishLoop publishes metrics to Wotan periodically
 func (d *Daemon) metricsPublishLoop() {
 	defer d.wg.Done()
 
@@ -580,12 +580,12 @@ func (d *Daemon) metricsPublishLoop() {
 	}
 }
 
-// publishMetrics publishes current metrics to Busboy
+// publishMetrics publishes current metrics to Wotan
 func (d *Daemon) publishMetrics() {
-	d.busboyMu.RLock()
-	client := d.busboyClient
-	ready := d.busboyReady
-	d.busboyMu.RUnlock()
+	d.wotanMu.RLock()
+	client := d.wotanClient
+	ready := d.wotanReady
+	d.wotanMu.RUnlock()
 
 	if !ready || client == nil {
 		return
@@ -614,31 +614,31 @@ func (d *Daemon) publishMetrics() {
 
 	if err := client.Publish(ctx, TopicCuirassMetrics, payload); err != nil {
 		// Mark connection as unhealthy for reconnection
-		if err == busboyClient.ErrNotConnected || err == busboyClient.ErrSubscriptionPending {
-			d.busboyMu.Lock()
-			d.busboyReady = false
-			d.busboyMu.Unlock()
+		if err == wotanClient.ErrNotConnected || err == wotanClient.ErrSubscriptionPending {
+			d.wotanMu.Lock()
+			d.wotanReady = false
+			d.wotanMu.Unlock()
 		}
-		d.log.Error().Err(err).Msg("Error publishing metrics to Busboy")
+		d.log.Error().Err(err).Msg("Error publishing metrics to Wotan")
 		return
 	}
 
 	d.log.Debug().Str("topic", TopicCuirassMetrics).Msg("Published metrics")
 }
 
-// publishDriftEvents publishes drift events to Busboy
+// publishDriftEvents publishes drift events to Wotan
 func (d *Daemon) publishDriftEvents(drifts []DriftReport) {
 	if len(drifts) == 0 {
 		return
 	}
 
-	d.busboyMu.RLock()
-	client := d.busboyClient
-	ready := d.busboyReady
-	d.busboyMu.RUnlock()
+	d.wotanMu.RLock()
+	client := d.wotanClient
+	ready := d.wotanReady
+	d.wotanMu.RUnlock()
 
 	if !ready || client == nil {
-		d.log.Warn().Msg("Busboy not ready, skipping drift event publish")
+		d.log.Warn().Msg("Wotan not ready, skipping drift event publish")
 		return
 	}
 
@@ -662,12 +662,12 @@ func (d *Daemon) publishDriftEvents(drifts []DriftReport) {
 
 	if err := client.Publish(ctx, TopicCuirassDrift, payload); err != nil {
 		// Mark connection as unhealthy for reconnection
-		if err == busboyClient.ErrNotConnected || err == busboyClient.ErrSubscriptionPending {
-			d.busboyMu.Lock()
-			d.busboyReady = false
-			d.busboyMu.Unlock()
+		if err == wotanClient.ErrNotConnected || err == wotanClient.ErrSubscriptionPending {
+			d.wotanMu.Lock()
+			d.wotanReady = false
+			d.wotanMu.Unlock()
 		}
-		d.log.Error().Err(err).Msg("Error publishing drift events to Busboy")
+		d.log.Error().Err(err).Msg("Error publishing drift events to Wotan")
 		return
 	}
 
@@ -1124,12 +1124,12 @@ func (d *Daemon) syncActualStateFromLXD() {
 	}
 }
 
-// publishReconcileEvents publishes reconciliation action events to Busboy
+// publishReconcileEvents publishes reconciliation action events to Wotan
 func (d *Daemon) publishReconcileEvents(actions []ReconcileAction) {
-	d.busboyMu.RLock()
-	client := d.busboyClient
-	ready := d.busboyReady
-	d.busboyMu.RUnlock()
+	d.wotanMu.RLock()
+	client := d.wotanClient
+	ready := d.wotanReady
+	d.wotanMu.RUnlock()
 
 	if !ready || client == nil {
 		return
@@ -1169,12 +1169,12 @@ func (d *Daemon) publishReconcileEvents(actions []ReconcileAction) {
 
 	// Publish reconcile events to drift topic (related to state changes)
 	if err := client.Publish(ctx, TopicCuirassDrift, payload); err != nil {
-		if err == busboyClient.ErrNotConnected || err == busboyClient.ErrSubscriptionPending {
-			d.busboyMu.Lock()
-			d.busboyReady = false
-			d.busboyMu.Unlock()
+		if err == wotanClient.ErrNotConnected || err == wotanClient.ErrSubscriptionPending {
+			d.wotanMu.Lock()
+			d.wotanReady = false
+			d.wotanMu.Unlock()
 		}
-		d.log.Error().Err(err).Msg("Error publishing reconcile events to Busboy")
+		d.log.Error().Err(err).Msg("Error publishing reconcile events to Wotan")
 		return
 	}
 
@@ -1259,7 +1259,7 @@ func (d *Daemon) detectDrift() {
 
 	if len(drifts) > 0 {
 		d.log.Info().Int("count", len(drifts)).Msg("Detected drifts")
-		// Publish drift events to Busboy
+		// Publish drift events to Wotan
 		go d.publishDriftEvents(drifts)
 	}
 
@@ -1278,8 +1278,8 @@ type yamlConfig struct {
 	HTTPAddr     string `yaml:"http_addr"`
 	GRPCAddr     string `yaml:"grpc_addr"`
 	LXDSocket    string `yaml:"lxd_socket"`
-	BusboyAddr   string `yaml:"busboy_addr"`
-	BusboyGRPCAddr string `yaml:"busboy_grpc_addr"`
+	WotanAddr   string `yaml:"wotan_addr"`
+	WotanGRPCAddr string `yaml:"wotan_grpc_addr"`
 	PollInterval string `yaml:"poll_interval"`
 	LogLevel     string `yaml:"log_level"`
 }
@@ -1292,8 +1292,8 @@ func loadConfig(path string) *Config {
 		HTTPAddr:     getEnvOrDefault("HTTP_ADDR", ":8080"),
 		GRPCAddr:     getEnvOrDefault("GRPC_ADDR", ":9090"),
 		LXDSocket:    getEnvOrDefault("LXD_SOCKET", "/var/lib/lxd/unix.socket"),
-		BusboyAddr:   getEnvOrDefault("BUSBOY_ADDR", "localhost:5555"),
-		BusboyGRPCAddr: getEnvOrDefault("BUSBOY_GRPC_ADDR", ""),
+		WotanAddr:   getEnvOrDefault("WOTAN_ADDR", "localhost:5555"),
+		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
 		PollInterval: 30 * time.Second,
 		LogLevel:     getEnvOrDefault("LOG_LEVEL", "info"),
 	}
@@ -1328,11 +1328,11 @@ func loadConfig(path string) *Config {
 		if yc.LXDSocket != "" {
 			cfg.LXDSocket = yc.LXDSocket
 		}
-		if yc.BusboyAddr != "" {
-			cfg.BusboyAddr = yc.BusboyAddr
+		if yc.WotanAddr != "" {
+			cfg.WotanAddr = yc.WotanAddr
 		}
-		if yc.BusboyGRPCAddr != "" {
-			cfg.BusboyGRPCAddr = yc.BusboyGRPCAddr
+		if yc.WotanGRPCAddr != "" {
+			cfg.WotanGRPCAddr = yc.WotanGRPCAddr
 		}
 		if yc.LogLevel != "" {
 			cfg.LogLevel = yc.LogLevel

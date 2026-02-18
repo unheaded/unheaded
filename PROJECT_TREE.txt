@@ -19,7 +19,7 @@ unheaded/nix
 unheaded/nix/containers
 unheaded/nix/modules
 unheaded/pkg
-unheaded/pkg/busboy-client
+unheaded/pkg/wotan-client
 unheaded/pkg/lxd
 unheaded/pkg/state
 unheaded/pkg/telemetry
@@ -27,7 +27,7 @@ unheaded/references
 unheaded/scripts
 unheaded/services
 unheaded/services/architect
-unheaded/services/busboy
+unheaded/services/wotan
 unheaded/services/captain
 unheaded/services/micromanager
 unheaded/services/timeguru

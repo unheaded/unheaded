@@ -21,7 +21,7 @@ Specifically, the Kanban app that displays our development progress is:
 Unheaded Alpha
   ├── Manages: LXD containers (NixOS)
   ├── Traces: Every packet with eBPF
-  ├── Monitors: All services via Busboy
+  ├── Monitors: All services via Wotan
   └── Hosts: Kanban app showing... itself building itself 🔄
 ```
 
@@ -58,7 +58,7 @@ Displays our project timeline as an interactive Kanban board:
 ┌──────────────┬──────────────┬──────────────┐
 │    TODO      │ IN PROGRESS  │     DONE     │
 ├──────────────┼──────────────┼──────────────┤
-│ Milestone    │ eBPF         │ Busboy       │
+│ Milestone    │ eBPF         │ Wotan       │
 │ 1.3          │ Foundation   │ Phase 1      │
 │              │              │              │
 │ Microserv.   │ Setup Script │ Architecture │
@@ -85,7 +85,7 @@ Displays our project timeline as an interactive Kanban board:
 - **Frontend:** Vanilla JS + Canvas API
 - **Data:** timeline.md (source) → timeline.json (API) → timeline.yaml (config)
 - **Transport:** HTTP/3 (gateway) → HTTP (kanban-app) → HTTP (timeguru)
-- **Observability:** Full eBPF tracing, Busboy pub/sub
+- **Observability:** Full eBPF tracing, Wotan pub/sub
 
 ### Design
 
@@ -188,7 +188,7 @@ The Meta Moment is successful when:
 - Drag & drop cards to update status
 - Writes back to timeline.md via timeguru API
 - Git commit automatically triggered
-- Full audit trail in Busboy
+- Full audit trail in Wotan
 
 ### Phase 3: Multi-Project
 - Support multiple projects (not just Unheaded)

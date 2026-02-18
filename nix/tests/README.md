@@ -60,7 +60,7 @@ container_test.go
 │   └── TestSecurity_NoPrivilegeEscalation
 │
 ├── Network Tests
-│   ├── TestNetwork_ContainerCanReachBusboy
+│   ├── TestNetwork_ContainerCanReachWotan
 │   ├── TestNetwork_ContainerIsolation
 │   └── TestNetwork_FirewallRulesActive
 │
@@ -77,14 +77,14 @@ container_test.go
 
 | Container | IP | Port | Dependencies |
 |-----------|-----|------|--------------|
-| busboy | 10.10.10.10 | 8080 | - |
-| timeguru | 10.10.10.20 | 8000 | busboy |
-| captain | 10.10.10.21 | 8001 | busboy |
-| micromanager | 10.10.10.22 | 8002 | busboy |
-| architect | 10.10.10.23 | 8003 | busboy |
-| developer | 10.10.10.24 | 8004 | busboy |
+| wotan | 10.10.10.10 | 8080 | - |
+| timeguru | 10.10.10.20 | 8000 | wotan |
+| captain | 10.10.10.21 | 8001 | wotan |
+| micromanager | 10.10.10.22 | 8002 | wotan |
+| architect | 10.10.10.23 | 8003 | wotan |
+| developer | 10.10.10.24 | 8004 | wotan |
 | kanban | 10.10.10.200 | 8080 | timeguru |
-| dashboard | 10.10.10.201 | 8081 | busboy |
+| dashboard | 10.10.10.201 | 8081 | wotan |
 
 ## Writing New Tests
 
@@ -130,7 +130,7 @@ Tests run automatically on:
 
 ### Check Container Logs
 ```bash
-lxc exec unheaded-busboy -- journalctl -u busboy -f
+lxc exec unheaded-wotan -- journalctl -u wotan -f
 ```
 
 ### Check Network Connectivity
@@ -140,13 +140,13 @@ lxc exec unheaded-timeguru -- curl -v http://10.10.10.10:8080/health
 
 ### Check Security Settings
 ```bash
-lxc exec unheaded-busboy -- grep Seccomp /proc/1/status
-lxc exec unheaded-busboy -- getpcaps 1
+lxc exec unheaded-wotan -- grep Seccomp /proc/1/status
+lxc exec unheaded-wotan -- getpcaps 1
 ```
 
 ### Check Resource Limits
 ```bash
-systemctl show unheaded-busboy | grep -E '(Memory|CPU)'
+systemctl show unheaded-wotan | grep -E '(Memory|CPU)'
 ```
 
 ## Coverage Goals
@@ -159,8 +159,8 @@ systemctl show unheaded-busboy | grep -E '(Memory|CPU)'
 ## Performance Benchmarks
 
 Expected startup times:
-- Busboy: <5s
-- Services: <3s (after busboy)
+- Wotan: <5s
+- Services: <3s (after wotan)
 - Apps: <5s (after dependencies)
 
 Health check latency:

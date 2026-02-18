@@ -136,7 +136,7 @@ func newConfigListCommand() *Command {
 			if cluster, err := ctx.Config.GetCurrentCluster(); err == nil {
 				result.Items = append(result.Items,
 					ConfigItem{Key: "context.endpoint", Value: cluster.Endpoint, Source: "file", Description: "API endpoint"},
-					ConfigItem{Key: "context.busboy_addr", Value: cluster.BusboyAddr, Source: "file", Description: "Busboy address"},
+					ConfigItem{Key: "context.wotan_addr", Value: cluster.WotanAddr, Source: "file", Description: "Wotan address"},
 				)
 			}
 
@@ -333,8 +333,8 @@ func getConfigValue(config *Config, key string) (string, error) {
 				return ctx.Name, nil
 			case "endpoint":
 				return ctx.Endpoint, nil
-			case "busboy_addr":
-				return ctx.BusboyAddr, nil
+			case "wotan_addr":
+				return ctx.WotanAddr, nil
 			default:
 				return "", fmt.Errorf("unknown context field: %s", field)
 			}
@@ -377,8 +377,8 @@ func setConfigValue(config *Config, key, value string) error {
 			switch field {
 			case "endpoint":
 				ctx.Endpoint = value
-			case "busboy_addr":
-				ctx.BusboyAddr = value
+			case "wotan_addr":
+				ctx.WotanAddr = value
 			default:
 				return fmt.Errorf("unknown context field: %s", field)
 			}

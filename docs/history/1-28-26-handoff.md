@@ -19,7 +19,7 @@ Two major accomplishments this session:
 
 ### What Was Built
 
-**New Package: `busboy/server/internal/store/`**
+**New Package: `wotan/server/internal/store/`**
 
 | File | Purpose |
 |------|---------|
@@ -59,7 +59,7 @@ Two major accomplishments this session:
 
 ```bash
 # Run tests (requires Go installed)
-cd ~/tmp/busboy/server && go test -v -race ./internal/store/...
+cd ~/tmp/wotan/server && go test -v -race ./internal/store/...
 
 # Enable pre-commit hooks
 pip install pre-commit && pre-commit install
@@ -152,7 +152,7 @@ Unheaded components named after armor pieces, each with a clear metaphorical pur
         │           │           │
         └─────┬─────┴─────┬─────┘
               │           │
-         Developer ◄────► Busboy
+         Developer ◄────► Wotan
          (Build)        (Message Bus)
               │
     ┌─────────┴─────────────────────────────────┐
@@ -207,7 +207,7 @@ Unheaded components named after armor pieces, each with a clear metaphorical pur
 
 ### Epic 2.1 (Storage)
 1. Review `store/` package design - does interface look right?
-2. Ready to integrate into busboy main code?
+2. Ready to integrate into wotan main code?
 
 ### Armor Ecosystem
 1. Which armor pieces are MVP vs nice-to-have?
@@ -253,7 +253,7 @@ The canonical timeline at `~/tmp/unheaded/references/timeline.md` has been updat
 
 ## Part 3: Additional Work Completed (While Muck Away)
 
-### Busboy Repo Improvements
+### Wotan Repo Improvements
 
 | File | Purpose |
 |------|---------|
@@ -356,9 +356,9 @@ Users can enable additional routing protocols for integration with existing netw
 
 **Implementation: FRR (Free Range Routing) 9.x+**
 
-### Busboy Network Integration
+### Wotan Network Integration
 
-Busboy runs IN PARALLEL with the network stack:
+Wotan runs IN PARALLEL with the network stack:
 - Reports BGP session state changes
 - Alerts on BFD failure events
 - Tracks route flaps and convergence
@@ -372,7 +372,7 @@ Every Unheaded component MUST:
 3. Advertise service endpoints via BGP
 4. Support VXLAN/EVPN overlay
 5. Implement health checks tied to BGP
-6. Report network events to Busboy
+6. Report network events to Wotan
 7. Support optional protocol overlays
 
 ---

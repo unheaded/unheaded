@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -127,7 +127,7 @@ type Rule struct {
 // Service is the main Sophia service for wisdom and knowledge management.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu         sync.RWMutex
@@ -147,7 +147,7 @@ type Service struct {
 	decisionCounter  int64
 
 	// Alert handling
-	alertsCh chan *busboyClient.Message
+	alertsCh chan *wotanClient.Message
 }
 
 // Config holds Sophia service configuration.
@@ -157,7 +157,7 @@ type Config struct {
 	MinConfidence     float64       `json:"min_confidence"`
 	EnableInference   bool          `json:"enable_inference"`
 	InferenceInterval time.Duration `json:"inference_interval"`
-	BusboyTopic       string        `json:"busboy_topic"`
+	WotanTopic       string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -168,19 +168,19 @@ func DefaultConfig() *Config {
 		MinConfidence:     0.5,
 		EnableInference:   true,
 		InferenceInterval: 5 * time.Minute,
-		BusboyTopic:       "sophia.wisdom",
+		WotanTopic:       "sophia.wisdom",
 	}
 }
 
 // NewService creates a new Sophia service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, config *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, config *Config) *Service {
 	if config == nil {
 		config = DefaultConfig()
 	}
 
 	return &Service{
 		log:            log,
-		busboy:         busboy,
+		wotan:         wotan,
 		config:         config,
 		knowledge:      make(map[string]*Knowledge),
 		insights:       make(map[string]*Insight),
@@ -189,7 +189,7 @@ func NewService(log *logger.Logger, busboy *busboyClient.Client, config *Config)
 		subjectIndex:   make(map[string][]string),
 		predicateIndex: make(map[string][]string),
 		typeIndex:      make(map[KnowledgeType][]string),
-		alertsCh:       make(chan *busboyClient.Message, 100),
+		alertsCh:       make(chan *wotanClient.Message, 100),
 	}
 }
 
@@ -205,20 +205,20 @@ func (s *Service) Start(ctx context.Context) error {
 		go s.inferenceLoop(ctx)
 	}
 
-	// Subscribe to Busboy topics
-	if s.busboy != nil {
+	// Subscribe to Wotan topics
+	if s.wotan != nil {
 		// Subscribe to alerts.critical (required by CLAUDE.md)
-		if _, err := s.busboy.Subscribe(ctx, "alerts.critical", "sophia-service"); err != nil {
+		if _, err := s.wotan.Subscribe(ctx, "alerts.critical", "sophia-service"); err != nil {
 			s.log.Warn().Err(err).Msg("failed to subscribe to alerts.critical")
 		} else {
 			s.log.Info().Msg("subscribed to alerts.critical")
 		}
 
 		// Subscribe to sophia.wisdom for own topic
-		if _, err := s.busboy.Subscribe(ctx, s.config.BusboyTopic, "sophia-service"); err != nil {
+		if _, err := s.wotan.Subscribe(ctx, s.config.WotanTopic, "sophia-service"); err != nil {
 			s.log.Warn().Err(err).Msg("failed to subscribe to sophia.wisdom")
 		} else {
-			s.log.Info().Str("topic", s.config.BusboyTopic).Msg("subscribed to topic")
+			s.log.Info().Str("topic", s.config.WotanTopic).Msg("subscribed to topic")
 		}
 
 		// Start alert listener
@@ -240,13 +240,13 @@ func (s *Service) Stop() error {
 	return nil
 }
 
-// listenForAlerts listens for critical alerts from Busboy
+// listenForAlerts listens for critical alerts from Wotan
 func (s *Service) listenForAlerts(ctx context.Context) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
-	msgCh, err := s.busboy.StreamMessages(ctx, "alerts.critical")
+	msgCh, err := s.wotan.StreamMessages(ctx, "alerts.critical")
 	if err != nil {
 		s.log.Warn().Err(err).Msg("failed to stream alerts.critical")
 		return
@@ -266,7 +266,7 @@ func (s *Service) listenForAlerts(ctx context.Context) {
 }
 
 // handleCriticalAlert processes critical alerts
-func (s *Service) handleCriticalAlert(ctx context.Context, msg *busboyClient.Message) {
+func (s *Service) handleCriticalAlert(ctx context.Context, msg *wotanClient.Message) {
 	if msg == nil {
 		return
 	}
@@ -805,12 +805,12 @@ func (s *Service) runInference(ctx context.Context) {
 
 // subscribeToEvents listens for knowledge events.
 func (s *Service) subscribeToEvents(ctx context.Context) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
 	// Subscribe to knowledge sharing events
-	_, err := s.busboy.Subscribe(ctx, "knowledge.shared", "sophia-service")
+	_, err := s.wotan.Subscribe(ctx, "knowledge.shared", "sophia-service")
 	if err != nil {
 		s.log.Warn().Err(err).Msg("Failed to subscribe to knowledge events")
 		return
@@ -819,9 +819,9 @@ func (s *Service) subscribeToEvents(ctx context.Context) {
 	s.log.Info().Msg("Subscribed to knowledge events")
 }
 
-// publishEvent sends an event to Busboy.
+// publishEvent sends an event to Wotan.
 func (s *Service) publishEvent(ctx context.Context, eventType string, data map[string]interface{}) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
@@ -852,7 +852,7 @@ func (s *Service) publishEvent(ctx context.Context, eventType string, data map[s
 	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := s.busboy.Publish(pubCtx, s.config.BusboyTopic, payload); err != nil {
+	if err := s.wotan.Publish(pubCtx, s.config.WotanTopic, payload); err != nil {
 		s.log.Warn().Err(err).Msg("Failed to publish event")
 	}
 }

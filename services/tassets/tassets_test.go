@@ -20,7 +20,7 @@ import (
 // ---------------------------------------------------------------------------
 
 // newTestService creates a Service wired to a silent logger and default config.
-// The busboy client is nil because Service never invokes it directly.
+// The wotan client is nil because Service never invokes it directly.
 func newTestService(t *testing.T) *Service {
 	t.Helper()
 	log := logger.New(io.Discard)
@@ -83,8 +83,8 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.EnableEncryption {
 		t.Error("EnableEncryption should be true by default")
 	}
-	if cfg.BusboyTopic != "tassets.storage" {
-		t.Errorf("BusboyTopic = %q, want %q", cfg.BusboyTopic, "tassets.storage")
+	if cfg.WotanTopic != "tassets.storage" {
+		t.Errorf("WotanTopic = %q, want %q", cfg.WotanTopic, "tassets.storage")
 	}
 }
 
@@ -113,7 +113,7 @@ func TestNewService_CustomConfig(t *testing.T) {
 		MaxObjectSize:       1024,
 		DefaultRetention:    7,
 		EnableEncryption:    false,
-		BusboyTopic:         "custom.topic",
+		WotanTopic:         "custom.topic",
 	}
 	svc := newTestServiceWithConfig(t, cfg)
 

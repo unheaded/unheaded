@@ -10,7 +10,7 @@
   #   - 4 shared modules (base, common, hardening, networking)
   #   - 10 container definitions:
   #     - Control plane: cuirass
-  #     - Message bus: busboy
+  #     - Message bus: wotan
   #     - Agent services: timeguru, captain, micromanager, architect, developer
   #     - Applications: kanban, dashboard
   #   - Security: seccomp, capabilities, read-only FS, minimal capabilities
@@ -91,8 +91,8 @@
             echo "================================"
             echo ""
             echo "Container commands:"
-            echo "  nix build .#nixosConfigurations.busboy.config.system.build.toplevel"
-            echo "  lxc launch images:nixos/unstable unheaded-busboy"
+            echo "  nix build .#nixosConfigurations.wotan.config.system.build.toplevel"
+            echo "  lxc launch images:nixos/unstable unheaded-wotan"
             echo ""
             echo "Build all services:"
             echo "  make build"
@@ -125,12 +125,12 @@
         # ---------------------------------------------------------------------
         # MESSAGE BUS (Critical - All services depend on this)
         # ---------------------------------------------------------------------
-        busboy = mkContainer "busboy" [
-          ./containers/busboy.nix
+        wotan = mkContainer "wotan" [
+          ./containers/wotan.nix
         ];
 
         # ---------------------------------------------------------------------
-        # AGENT SERVICES (REST APIs + Busboy clients)
+        # AGENT SERVICES (REST APIs + Wotan clients)
         # ---------------------------------------------------------------------
         timeguru = mkContainer "timeguru" [
           ./containers/timeguru-service.nix
@@ -162,8 +162,8 @@
         ];
 
         # Legacy compatibility (duplicate for service discovery)
-        busboy-service = mkContainer "busboy-service" [
-          ./containers/busboy-service.nix
+        wotan-service = mkContainer "wotan-service" [
+          ./containers/wotan-service.nix
         ];
 
         # ---------------------------------------------------------------------
@@ -200,7 +200,7 @@
       overlays.default = final: prev: {
         # ALPHA: Uses pre-built binaries. Build from Go source (services/*/) planned for Age 2. See docs/SERVICE_BREAKOUT_STRATEGY.md
         # For now, these are placeholders that reference local paths
-        busboy = prev.callPackage ./packages/busboy.nix { };
+        wotan = prev.callPackage ./packages/wotan.nix { };
         timeguru = prev.callPackage ./packages/timeguru.nix { };
         captain = prev.callPackage ./packages/captain.nix { };
         micromanager = prev.callPackage ./packages/micromanager.nix { };
@@ -245,7 +245,7 @@
               echo "Generating LXD profiles for Unheaded containers..."
 
               # Generate profiles for each container
-              for container in busboy timeguru captain micromanager architect monad sophia gateway kanban dashboard cuirass; do
+              for container in wotan timeguru captain micromanager architect monad sophia gateway kanban dashboard cuirass; do
                 echo "Processing: $container"
                 nix eval .#nixosConfigurations.$container.config.unheaded --json > profiles/$container.json
               done
@@ -264,7 +264,7 @@
               # Build all containers
               echo "Building containers..."
               nix build \
-                .#nixosConfigurations.busboy.config.system.build.toplevel \
+                .#nixosConfigurations.wotan.config.system.build.toplevel \
                 .#nixosConfigurations.timeguru.config.system.build.toplevel \
                 .#nixosConfigurations.captain.config.system.build.toplevel \
                 .#nixosConfigurations.micromanager.config.system.build.toplevel \

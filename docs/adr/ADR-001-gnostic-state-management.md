@@ -40,7 +40,7 @@ Pleroma (desired) --> compare --> Kenoma (actual) --> if drift --> remediate
                                                    --> Yaldabaoth injects faults for testing
 ```
 
-State drift events are published to the Busboy topic `state.drift.detected`. Remediation events are published to `state.drift.resolved`. All transitions are recorded in Anamnesis for full auditability.
+State drift events are published to the Wotan topic `state.drift.detected`. Remediation events are published to `state.drift.resolved`. All transitions are recorded in Anamnesis for full auditability.
 
 ## Consequences
 

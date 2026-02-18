@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -107,7 +107,7 @@ type bucket struct {
 // Service is the main Shield WAF service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu           sync.RWMutex
@@ -126,7 +126,7 @@ type Config struct {
 	RateLimitWindow     time.Duration `json:"rate_limit_window"`
 	MaxRequestBodySize  int64         `json:"max_request_body_size"`
 	EnableThreatLogging bool          `json:"enable_threat_logging"`
-	BusboyTopic         string        `json:"busboy_topic"`
+	WotanTopic         string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -136,19 +136,19 @@ func DefaultConfig() *Config {
 		RateLimitWindow:     time.Minute,
 		MaxRequestBodySize:  10 * 1024 * 1024, // 10MB
 		EnableThreatLogging: true,
-		BusboyTopic:         "shield.events",
+		WotanTopic:         "shield.events",
 	}
 }
 
 // NewService creates a new Shield WAF service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:    log,
-		busboy: busboy,
+		wotan: wotan,
 		config: cfg,
 		rules:  make(map[string]*Rule),
 		threats: make([]*ThreatEvent, 0),

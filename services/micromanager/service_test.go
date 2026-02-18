@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // TestNewService creates a service successfully
@@ -58,33 +58,33 @@ func TestGenerateTaskID_Sequential(t *testing.T) {
 	}
 }
 
-// TestPublishTaskCreated without busboy (should not error)
-func TestPublishTaskCreated_NoBusboy(t *testing.T) {
+// TestPublishTaskCreated without wotan (should not error)
+func TestPublishTaskCreated_NoWotan(t *testing.T) {
 	store := NewStore()
-	service := NewService(store, nil) // No busboy
+	service := NewService(store, nil) // No wotan
 	task := NewTask("task-1", "Test", "owner")
 
-	// Should not panic or error with nil busboy
+	// Should not panic or error with nil wotan
 	err := service.PublishTaskCreated("task-1", task)
 	if err != nil {
-		t.Errorf("PublishTaskCreated(nil busboy) = %v, want nil", err)
+		t.Errorf("PublishTaskCreated(nil wotan) = %v, want nil", err)
 	}
 }
 
-// TestPublishTaskUpdated without busboy (should not error)
-func TestPublishTaskUpdated_NoBusboy(t *testing.T) {
+// TestPublishTaskUpdated without wotan (should not error)
+func TestPublishTaskUpdated_NoWotan(t *testing.T) {
 	store := NewStore()
 	service := NewService(store, nil)
 	task := NewTask("task-1", "Test", "owner")
 
 	err := service.PublishTaskUpdated("task-1", task)
 	if err != nil {
-		t.Errorf("PublishTaskUpdated(nil busboy) = %v, want nil", err)
+		t.Errorf("PublishTaskUpdated(nil wotan) = %v, want nil", err)
 	}
 }
 
-// TestPublishTaskCompleted without busboy (should not error)
-func TestPublishTaskCompleted_NoBusboy(t *testing.T) {
+// TestPublishTaskCompleted without wotan (should not error)
+func TestPublishTaskCompleted_NoWotan(t *testing.T) {
 	store := NewStore()
 	service := NewService(store, nil)
 	task := NewTask("task-1", "Test", "owner")
@@ -94,19 +94,19 @@ func TestPublishTaskCompleted_NoBusboy(t *testing.T) {
 
 	err := service.PublishTaskCompleted("task-1", task)
 	if err != nil {
-		t.Errorf("PublishTaskCompleted(nil busboy) = %v, want nil", err)
+		t.Errorf("PublishTaskCompleted(nil wotan) = %v, want nil", err)
 	}
 }
 
-// TestStart without busboy (should not error)
-func TestStart_NoBusboy(t *testing.T) {
+// TestStart without wotan (should not error)
+func TestStart_NoWotan(t *testing.T) {
 	store := NewStore()
 	service := NewService(store, nil)
 	ctx := context.Background()
 
 	err := service.Start(ctx)
 	if err != nil {
-		t.Errorf("Start(nil busboy) = %v, want nil", err)
+		t.Errorf("Start(nil wotan) = %v, want nil", err)
 	}
 }
 
@@ -147,8 +147,8 @@ func TestHealthStatus(t *testing.T) {
 		t.Errorf("tasks_count = %d, want 1", status["tasks_count"])
 	}
 
-	if status["busboy_connected"] != false {
-		t.Error("busboy_connected should be false when busboy is nil")
+	if status["wotan_connected"] != false {
+		t.Error("wotan_connected should be false when wotan is nil")
 	}
 }
 
@@ -195,15 +195,15 @@ func TestHandleAlert_NilAlert(t *testing.T) {
 	service.handleAlert(nil)
 }
 
-// TestListenForAlerts_NilBusboy returns immediately
-func TestListenForAlerts_NilBusboy(t *testing.T) {
+// TestListenForAlerts_NilWotan returns immediately
+func TestListenForAlerts_NilWotan(t *testing.T) {
 	store := NewStore()
 	service := NewService(store, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
 
-	// Should return immediately with nil busboy
+	// Should return immediately with nil wotan
 	done := make(chan struct{})
 	go func() {
 		service.listenForAlerts(ctx)
@@ -248,29 +248,29 @@ func TestHealthStatus_TimestampPresent(t *testing.T) {
 	}
 }
 
-// TestStop_NilBusboy stops service cleanly with nil busboy
-func TestStop_NilBusboy(t *testing.T) {
+// TestStop_NilWotan stops service cleanly with nil wotan
+func TestStop_NilWotan(t *testing.T) {
 	store := NewStore()
 	service := NewService(store, nil)
 
 	ctx := context.Background()
 	err := service.Stop(ctx)
 	if err != nil {
-		t.Errorf("Stop(nil busboy) = %v, want nil", err)
+		t.Errorf("Stop(nil wotan) = %v, want nil", err)
 	}
 }
 
 // TestPublishTaskCreated_NotApproved skips publish when topic not approved
 func TestPublishTaskCreated_NotApproved(t *testing.T) {
 	store := NewStore()
-	busboy, err := busboyClient.NewClient("localhost:19999")
+	wotan, err := wotanClient.NewClient("localhost:19999")
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	service := NewService(store, busboy)
+	service := NewService(store, wotan)
 	task := NewTask("task-1", "Test", "owner")
 
-	// busboy is not nil but has no approved subscriptions
+	// wotan is not nil but has no approved subscriptions
 	// IsApproved will return false, so publish is skipped
 	err = service.PublishTaskCreated("task-1", task)
 	if err != nil {
@@ -281,11 +281,11 @@ func TestPublishTaskCreated_NotApproved(t *testing.T) {
 // TestPublishTaskUpdated_NotApproved skips publish when topic not approved
 func TestPublishTaskUpdated_NotApproved(t *testing.T) {
 	store := NewStore()
-	busboy, err := busboyClient.NewClient("localhost:19999")
+	wotan, err := wotanClient.NewClient("localhost:19999")
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	service := NewService(store, busboy)
+	service := NewService(store, wotan)
 	task := NewTask("task-1", "Test", "owner")
 
 	err = service.PublishTaskUpdated("task-1", task)
@@ -297,11 +297,11 @@ func TestPublishTaskUpdated_NotApproved(t *testing.T) {
 // TestPublishTaskCompleted_NotApproved skips publish when topic not approved
 func TestPublishTaskCompleted_NotApproved(t *testing.T) {
 	store := NewStore()
-	busboy, err := busboyClient.NewClient("localhost:19999")
+	wotan, err := wotanClient.NewClient("localhost:19999")
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	service := NewService(store, busboy)
+	service := NewService(store, wotan)
 	task := NewTask("task-1", "Test", "owner")
 	now := time.Now()
 	task.CompletedAt = &now
@@ -312,37 +312,37 @@ func TestPublishTaskCompleted_NotApproved(t *testing.T) {
 	}
 }
 
-// TestStop_WithBusboy stops service with busboy client
-func TestStop_WithBusboy(t *testing.T) {
+// TestStop_WithWotan stops service with wotan client
+func TestStop_WithWotan(t *testing.T) {
 	store := NewStore()
-	busboy, err := busboyClient.NewClient("localhost:19999")
+	wotan, err := wotanClient.NewClient("localhost:19999")
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	service := NewService(store, busboy)
+	service := NewService(store, wotan)
 
 	ctx := context.Background()
 	err = service.Stop(ctx)
 	if err != nil {
-		t.Errorf("Stop(with busboy) = %v, want nil", err)
+		t.Errorf("Stop(with wotan) = %v, want nil", err)
 	}
 }
 
-// TestHealthStatus_WithBusboy returns status with busboy connected info
-func TestHealthStatus_WithBusboy(t *testing.T) {
+// TestHealthStatus_WithWotan returns status with wotan connected info
+func TestHealthStatus_WithWotan(t *testing.T) {
 	store := NewStore()
 	task := NewTask("task-1", "Test", "owner")
 	store.Create(task)
 
-	busboy, err := busboyClient.NewClient("localhost:19999")
+	wotan, err := wotanClient.NewClient("localhost:19999")
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	service := NewService(store, busboy)
+	service := NewService(store, wotan)
 	status := service.HealthStatus()
 
-	if status["busboy_connected"] != true {
-		t.Error("busboy_connected should be true when busboy is configured")
+	if status["wotan_connected"] != true {
+		t.Error("wotan_connected should be true when wotan is configured")
 	}
 	subs, ok := status["subscriptions"]
 	if !ok {
@@ -353,15 +353,15 @@ func TestHealthStatus_WithBusboy(t *testing.T) {
 	}
 }
 
-// TestStart_WithBusboy_SubscribeFails tests Start with busboy that fails
-func TestStart_WithBusboy_SubscribeFails(t *testing.T) {
+// TestStart_WithWotan_SubscribeFails tests Start with wotan that fails
+func TestStart_WithWotan_SubscribeFails(t *testing.T) {
 	store := NewStore()
 	// Use an address that will fail to connect
-	busboy, err := busboyClient.NewClient("localhost:19999")
+	wotan, err := wotanClient.NewClient("localhost:19999")
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
 	}
-	service := NewService(store, busboy)
+	service := NewService(store, wotan)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

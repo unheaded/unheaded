@@ -1,4 +1,4 @@
-// Package events provides event streaming integration with Busboy message bus.
+// Package events provides event streaming integration with Wotan message bus.
 // It subscribes to relevant topics and maintains an event buffer for the dashboard.
 package events
 
@@ -11,15 +11,15 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
 var (
 	// ErrNilConfig indicates nil configuration
 	ErrNilConfig = errors.New("config cannot be nil")
-	// ErrNotConnected indicates not connected to Busboy
-	ErrNotConnected = errors.New("not connected to busboy")
+	// ErrNotConnected indicates not connected to Wotan
+	ErrNotConnected = errors.New("not connected to wotan")
 	// ErrStreamStopped indicates stream has been stopped
 	ErrStreamStopped = errors.New("stream has been stopped")
 )
@@ -60,8 +60,8 @@ const (
 
 // Config holds event streamer configuration
 type Config struct {
-	// BusboyAddr is the Busboy server address
-	BusboyAddr string
+	// WotanAddr is the Wotan server address
+	WotanAddr string
 	// ServiceName is the name of this service
 	ServiceName string
 	// Topics are the topics to subscribe to
@@ -77,7 +77,7 @@ type Config struct {
 // DefaultConfig returns default event streamer configuration
 func DefaultConfig() *Config {
 	return &Config{
-		BusboyAddr:  "localhost:9090",
+		WotanAddr:  "localhost:9090",
 		ServiceName: "dashboard-backend",
 		Topics: []string{
 			"metrics.*",
@@ -99,8 +99,8 @@ func (c *Config) Validate() error {
 	if c == nil {
 		return ErrNilConfig
 	}
-	if c.BusboyAddr == "" {
-		return errors.New("busboy address cannot be empty")
+	if c.WotanAddr == "" {
+		return errors.New("wotan address cannot be empty")
 	}
 	if c.ServiceName == "" {
 		c.ServiceName = "dashboard-backend"
@@ -290,11 +290,11 @@ func (b *EventBuffer) Count() int {
 	return len(b.events)
 }
 
-// Streamer streams events from Busboy to the dashboard
+// Streamer streams events from Wotan to the dashboard
 type Streamer struct {
 	config  *Config
 	log     *logger.Logger
-	client  *busboyClient.Client
+	client  *wotanClient.Client
 	buffer  *EventBuffer
 
 	running  bool
@@ -356,7 +356,7 @@ func (s *Streamer) Start(ctx context.Context) error {
 	go s.cleanupLoop(ctx)
 
 	s.log.Info().
-		Str("busboy", s.config.BusboyAddr).
+		Str("wotan", s.config.WotanAddr).
 		Strs("topics", s.config.Topics).
 		Msg("event streamer started")
 
@@ -386,7 +386,7 @@ func (s *Streamer) Stop() error {
 	return nil
 }
 
-// connectionLoop manages Busboy connection and streaming
+// connectionLoop manages Wotan connection and streaming
 func (s *Streamer) connectionLoop(ctx context.Context) {
 	defer s.wg.Done()
 
@@ -399,9 +399,9 @@ func (s *Streamer) connectionLoop(ctx context.Context) {
 		default:
 		}
 
-		// Connect to Busboy
+		// Connect to Wotan
 		if err := s.connect(ctx); err != nil {
-			s.log.Error().Err(err).Msg("failed to connect to busboy")
+			s.log.Error().Err(err).Msg("failed to connect to wotan")
 			select {
 			case <-ctx.Done():
 				return
@@ -429,9 +429,9 @@ func (s *Streamer) connectionLoop(ctx context.Context) {
 	}
 }
 
-// connect establishes connection to Busboy
+// connect establishes connection to Wotan
 func (s *Streamer) connect(ctx context.Context) error {
-	client, err := busboyClient.NewClient(s.config.BusboyAddr)
+	client, err := wotanClient.NewClient(s.config.WotanAddr)
 	if err != nil {
 		return fmt.Errorf("create client: %w", err)
 	}
@@ -460,11 +460,11 @@ func (s *Streamer) connect(ctx context.Context) error {
 	s.connected = true
 	s.connMu.Unlock()
 
-	s.log.Info().Msg("connected to busboy")
+	s.log.Info().Msg("connected to wotan")
 	return nil
 }
 
-// disconnect closes Busboy connection
+// disconnect closes Wotan connection
 func (s *Streamer) disconnect() {
 	s.connMu.Lock()
 	s.connected = false
@@ -522,8 +522,8 @@ func (s *Streamer) streamTopic(ctx context.Context, topic string) {
 	}
 }
 
-// parseMessage parses a Busboy message into an Event
-func (s *Streamer) parseMessage(msg *busboyClient.Message) Event {
+// parseMessage parses a Wotan message into an Event
+func (s *Streamer) parseMessage(msg *wotanClient.Message) Event {
 	event := Event{
 		ID:        msg.MessageID,
 		Topic:     msg.Topic,
@@ -674,7 +674,7 @@ func (s *Streamer) GetStats() map[string]interface{} {
 	}
 }
 
-// IsConnected returns whether connected to Busboy
+// IsConnected returns whether connected to Wotan
 func (s *Streamer) IsConnected() bool {
 	s.connMu.RLock()
 	defer s.connMu.RUnlock()
@@ -880,9 +880,9 @@ func (s *Streamer) matchTopicPattern(pattern, topic string) bool {
 	return false
 }
 
-// PublishToBusboy publishes an event to the Busboy message bus
+// PublishToWotan publishes an event to the Wotan message bus
 // Returns error if not connected or publish fails
-func (s *Streamer) PublishToBusboy(ctx context.Context, topic string, event Event) error {
+func (s *Streamer) PublishToWotan(ctx context.Context, topic string, event Event) error {
 	s.connMu.RLock()
 	connected := s.connected
 	client := s.client
@@ -912,19 +912,19 @@ func (s *Streamer) PublishToBusboy(ctx context.Context, topic string, event Even
 		s.log.Warn().
 			Err(err).
 			Str("topic", topic).
-			Msg("failed to publish event to busboy")
-		return fmt.Errorf("publish to busboy: %w", err)
+			Msg("failed to publish event to wotan")
+		return fmt.Errorf("publish to wotan: %w", err)
 	}
 
 	s.log.Debug().
 		Str("topic", topic).
 		Str("event_id", event.ID).
-		Msg("published event to busboy")
+		Msg("published event to wotan")
 
 	return nil
 }
 
-// PublishMetricEvent publishes a metrics event to Busboy
+// PublishMetricEvent publishes a metrics event to Wotan
 func (s *Streamer) PublishMetricEvent(ctx context.Context, serviceName string, metricName string, value float64, labels map[string]interface{}) error {
 	event := Event{
 		Type:     EventTypeMetrics,
@@ -939,10 +939,10 @@ func (s *Streamer) PublishMetricEvent(ctx context.Context, serviceName string, m
 	}
 
 	topic := fmt.Sprintf("metrics.%s", serviceName)
-	return s.PublishToBusboy(ctx, topic, event)
+	return s.PublishToWotan(ctx, topic, event)
 }
 
-// PublishHealthEvent publishes a health event to Busboy
+// PublishHealthEvent publishes a health event to Wotan
 func (s *Streamer) PublishHealthEvent(ctx context.Context, serviceName string, status string, message string) error {
 	severity := SeverityInfo
 	switch status {
@@ -967,10 +967,10 @@ func (s *Streamer) PublishHealthEvent(ctx context.Context, serviceName string, s
 	}
 
 	topic := fmt.Sprintf("health.%s", serviceName)
-	return s.PublishToBusboy(ctx, topic, event)
+	return s.PublishToWotan(ctx, topic, event)
 }
 
-// PublishAlertEvent publishes an alert event to Busboy
+// PublishAlertEvent publishes an alert event to Wotan
 func (s *Streamer) PublishAlertEvent(ctx context.Context, severity Severity, title, message string, data map[string]interface{}) error {
 	event := Event{
 		Type:     EventTypeAlert,
@@ -982,12 +982,12 @@ func (s *Streamer) PublishAlertEvent(ctx context.Context, severity Severity, tit
 	}
 
 	topic := "alerts." + string(severity)
-	return s.PublishToBusboy(ctx, topic, event)
+	return s.PublishToWotan(ctx, topic, event)
 }
 
-// GetBusboyClient returns the underlying Busboy client (if connected)
+// GetWotanClient returns the underlying Wotan client (if connected)
 // This allows direct access for advanced operations
-func (s *Streamer) GetBusboyClient() *busboyClient.Client {
+func (s *Streamer) GetWotanClient() *wotanClient.Client {
 	s.connMu.RLock()
 	defer s.connMu.RUnlock()
 	return s.client

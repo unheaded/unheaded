@@ -29,8 +29,8 @@ func newTestLogger() *logger.Logger {
 	return logger.New(io.Discard)
 }
 
-// newTestService creates a Service with sensible test defaults and no busboy
-// dependency. The busboy field is left nil; none of the methods under test
+// newTestService creates a Service with sensible test defaults and no wotan
+// dependency. The wotan field is left nil; none of the methods under test
 // call it directly.
 func newTestService(opts ...func(*Config)) *Service {
 	cfg := DefaultConfig()
@@ -77,7 +77,7 @@ func TestDefaultConfig(t *testing.T) {
 		{"CBTimeout", cfg.CBTimeout, 30 * time.Second},
 		{"MTLSEnabled", cfg.MTLSEnabled, true},
 		{"CertRotationInterval", cfg.CertRotationInterval, 24 * time.Hour},
-		{"BusboyTopic", cfg.BusboyTopic, "hauberk.mesh"},
+		{"WotanTopic", cfg.WotanTopic, "hauberk.mesh"},
 	}
 
 	for _, tc := range tests {
@@ -110,7 +110,7 @@ func TestNewService(t *testing.T) {
 			CBThreshold:    3,
 			CBTimeout:      10 * time.Second,
 			MTLSEnabled:    false,
-			BusboyTopic:    "custom.topic",
+			WotanTopic:    "custom.topic",
 		}
 		svc := NewService(newTestLogger(), nil, cfg)
 		if svc.config.DefaultTimeout != 5*time.Second {
@@ -122,8 +122,8 @@ func TestNewService(t *testing.T) {
 		if svc.config.MTLSEnabled {
 			t.Error("expected MTLSEnabled false")
 		}
-		if svc.config.BusboyTopic != "custom.topic" {
-			t.Errorf("expected custom.topic, got %s", svc.config.BusboyTopic)
+		if svc.config.WotanTopic != "custom.topic" {
+			t.Errorf("expected custom.topic, got %s", svc.config.WotanTopic)
 		}
 	})
 

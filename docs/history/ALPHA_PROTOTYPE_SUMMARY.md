@@ -23,12 +23,12 @@ A complete **architectural foundation and project scaffold** for the Unheaded al
 github.com/unheaded/unheaded/
 ├── cmd/                          ← Service binaries
 │   ├── unheaded-daemon/         # Control plane (Go)
-│   ├── trace-collector/         # eBPF → Busboy (Rust)
+│   ├── trace-collector/         # eBPF → Wotan (Rust)
 │   ├── dashboard-backend/       # Metrics + WebSocket (Go)
 │   └── kanban-app/              # The meta moment (Go + JS)
 │
 ├── services/                     ← Microservice integration
-│   ├── busboy/                  # github.com/unheaded/busboy
+│   ├── wotan/                  # github.com/unheaded/wotan
 │   ├── timeguru/                # Timeline tracking
 │   ├── captain/                 # Strategy service
 │   ├── micromanager/            # Execution service
@@ -58,7 +58,7 @@ github.com/unheaded/unheaded/
 │   ├── lxd/                     # LXD client
 │   ├── state/                   # State management
 │   ├── telemetry/               # Common telemetry
-│   └── busboy-client/           # Busboy Go client
+│   └── wotan-client/           # Wotan Go client
 │
 ├── docs/                         ← Documentation
 │   ├── ARCHITECTURE.md          # Complete architecture
@@ -91,7 +91,7 @@ github.com/unheaded/unheaded/
 | eBPF programs | **Rust** (Aya framework) | Memory safety + performance |
 | Services | **Go** | Simplicity, concurrency, proven |
 | Containers | **NixOS** | Declarative, immutable |
-| Message bus | **Busboy** (Go + gRPC) | Already proven in Phase 1 |
+| Message bus | **Wotan** (Go + gRPC) | Already proven in Phase 1 |
 | Gateway | **nginx** | HTTP/3, battle-tested |
 | Frontend | **Vanilla JS** | No framework overhead |
 
@@ -99,7 +99,7 @@ github.com/unheaded/unheaded/
 ```
 Layer 5: User Interface (Dashboard, Kanban)
 Layer 4: Application Services (timeguru, captain, etc)
-Layer 3: Infrastructure Services (busboy, trace-collector, gateway)
+Layer 3: Infrastructure Services (wotan, trace-collector, gateway)
 Layer 2: Control Plane (unheaded-daemon)
 Layer 1: Data Plane (eBPF programs)
 Layer 0: Infrastructure (LXD, host OS)
@@ -298,13 +298,13 @@ cd services/timeguru && # create new Go module
 ```
 1. eBPF programs (packet_marker at minimum)
    ↓
-2. trace-collector (reads eBPF, publishes to Busboy)
+2. trace-collector (reads eBPF, publishes to Wotan)
    ↓
 3. timeguru service (serves timeline.md as JSON)
    ↓
 4. Kanban app (reads timeguru, displays board)
    ↓
-5. NixOS containers (minimal: busboy, timeguru, kanban, gateway)
+5. NixOS containers (minimal: wotan, timeguru, kanban, gateway)
    ↓
 6. unheaded-daemon (launches containers)
    ↓

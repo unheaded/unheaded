@@ -7,7 +7,7 @@
 
 1. **Commit all pending changes** — clear git lock files (`rm -f .git/*.lock`), then stage and commit toolbar, 51-card inventory, mythology wishlist, Timeguru DB fix
 2. **Browser-verify sort/filter toolbar** — test all 7 sort options (priority/progress/type/owner/updated/created/title), type filter, owner filter, search with debounce, clear all, task count
-3. **Run full 3-service integration** — `Busboy :8080/:9090` → `Timeguru :8000` → `Kanban :8081`, verify gRPC transport selection logged at startup
+3. **Run full 3-service integration** — `Wotan :8080/:9090` → `Timeguru :8000` → `Kanban :8081`, verify gRPC transport selection logged at startup
 4. **Hydrate timeline.json milestones** — populate the empty milestones array from the 51-card inventory so Timeguru serves real phase/milestone data to the board
 5. **Fix Phase 3 name duplication** — timeline.json shows "The MVP Era (PLANNED) (PLANNED) (PLANNED) (PLANNED)" from repeated syncs
 
@@ -15,10 +15,10 @@
 
 ## Short Term (Next 2 Weeks)
 
-6. **TopicStream gRPC service** — the approved plan (`sprightly-conjuring-simon.md`): topic.proto, pattern matcher, server-side streaming, gRPC client implementing BusboyClient interface, zero-breaking-change migration path. Eliminates 500ms HTTP polling.
-7. **Busboy unit test suite** — comprehensive tests for core message bus: pub/sub, ring buffer, member management, topic lifecycle
+6. **TopicStream gRPC service** — the approved plan (`sprightly-conjuring-simon.md`): topic.proto, pattern matcher, server-side streaming, gRPC client implementing WotanClient interface, zero-breaking-change migration path. Eliminates 500ms HTTP polling.
+7. **Wotan unit test suite** — comprehensive tests for core message bus: pub/sub, ring buffer, member management, topic lifecycle
 8. **CI/CD pipeline templates** — GitHub Actions for `go build`, `go test -race`, `go vet`, lint, deploy gates
-9. **E2E integration tests** — all 23 services health-checked, end-to-end message flow verified across Busboy → consumers
+9. **E2E integration tests** — all 23 services health-checked, end-to-end message flow verified across Wotan → consumers
 10. **Linux dev environment** — NixOS VM or bare metal for eBPF development (blocker B1, owner: Muck)
 
 ---
@@ -29,8 +29,8 @@
 12. **Anamnesis event history** — immutable append-only event log for state reconstruction and audit trail
 13. **Gateway API unification** — single ingress point with routing, rate limiting, auth middleware
 14. **Cape auth/identity** — authentication + authorization layer, JWT/mTLS, RBAC
-15. **Busboy service rename exploration** — the `unheaded-busboy` skill stays (essential coordinator), but `services/busboy/` message bus could adopt a mythology-inspired name (Hermes, Bifrost, Vayu, Fujin — messenger/bridge archetypes across pantheons)
-16. **Docker Compose port alignment** — docker-compose.yml has busboy on 8081/5555, standalone defaults are 8080/9090. Unify.
+15. **Wotan service rename exploration** — the `unheaded-wotan` skill stays (essential coordinator), but `services/wotan/` message bus could adopt a mythology-inspired name (Hermes, Bifrost, Vayu, Fujin — messenger/bridge archetypes across pantheons)
+16. **Docker Compose port alignment** — docker-compose.yml has wotan on 8081/5555, standalone defaults are 8080/9090. Unify.
 
 ---
 

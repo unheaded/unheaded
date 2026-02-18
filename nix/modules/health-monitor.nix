@@ -7,7 +7,7 @@
   # Implements the Gauntlets Law severity system from CLAUDE.md.
   #
   # Each service health-checks all services it depends on.
-  # Failures are reported to Busboy topic `system.outage.reports`.
+  # Failures are reported to Wotan topic `system.outage.reports`.
   # Severity is determined by percentage-based consensus:
   #
   #   | % Reporting | Severity | UI Color  | Hex     | Actions          |
@@ -26,7 +26,7 @@
   #     enable = true;
   #     serviceName = "timeguru";
   #     dependencies = [
-  #       { name = "busboy"; ip = "10.10.10.10"; port = 8080; path = "/health"; }
+  #       { name = "wotan"; ip = "10.10.10.10"; port = 8080; path = "/health"; }
   #     ];
   #   };
   # =============================================================================
@@ -78,10 +78,10 @@
         description = "HTTP timeout in seconds for each health check";
       };
 
-      busboyAddr = lib.mkOption {
+      wotanAddr = lib.mkOption {
         type = lib.types.str;
         default = "http://10.10.10.10:8080";
-        description = "Busboy REST API address for publishing reports";
+        description = "Wotan REST API address for publishing reports";
       };
 
       totalServices = lib.mkOption {
@@ -101,13 +101,13 @@
     # HEALTH MONITOR SCRIPT
     # =========================================================================
     # Checks all dependencies, calculates Gauntlets Law severity,
-    # writes local report, and publishes to Busboy.
+    # writes local report, and publishes to Wotan.
     # =========================================================================
     environment.etc."unheaded/health/monitor.sh" = {
       text = let
         serviceName = config.unheaded.healthMonitor.serviceName;
         timeout = toString config.unheaded.healthMonitor.checkTimeout;
-        busboyAddr = config.unheaded.healthMonitor.busboyAddr;
+        wotanAddr = config.unheaded.healthMonitor.wotanAddr;
         totalServices = toString config.unheaded.healthMonitor.totalServices;
         deps = config.unheaded.healthMonitor.dependencies;
 
@@ -131,7 +131,7 @@
         # Cross-Service Health Monitor for ${serviceName}
         # =======================================================================
         # Implements Gauntlets Law percentage-based consensus severity.
-        # Reports to Busboy topic: system.outage.reports
+        # Reports to Wotan topic: system.outage.reports
         # =======================================================================
         set -euo pipefail
 
@@ -217,14 +217,14 @@
         echo "$REPORT" > "$STATE_DIR/health-report.json"
 
         # ===================================================================
-        # PUBLISH TO BUSBOY
+        # PUBLISH TO WOTAN
         # ===================================================================
         # Only publish if there are failures (reduce noise)
         if [ "$FAILED_COUNT" -gt 0 ]; then
           curl -sf -X POST \
             -H "Content-Type: application/json" \
             -d "$REPORT" \
-            "${busboyAddr}/api/v1/publish/system.outage.reports" \
+            "${wotanAddr}/api/v1/publish/system.outage.reports" \
             > /dev/null 2>&1 || true
 
           echo "[$SEVERITY] ${serviceName}: $FAILED_COUNT/$TOTAL_DEPS deps unhealthy ($FAIL_PERCENT%) -$FAILED_SERVICES"

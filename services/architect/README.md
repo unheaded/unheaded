@@ -4,7 +4,7 @@ Infrastructure design and architecture decision tracking service for Unheaded.
 
 **Component**: Layer 4 - Application Services
 **Language**: Go 1.21+
-**Dependencies**: Busboy, Prometheus, zerolog
+**Dependencies**: Wotan, Prometheus, zerolog
 
 ## Overview
 
@@ -15,7 +15,7 @@ The Architect service maintains the state of infrastructure topology, network de
 - **Infrastructure State**: Track services, their status, ports, and metadata
 - **Network Topology**: Maintain network nodes, CIDRs, and connectivity information
 - **Architecture Decisions**: Log and retrieve all architecture decisions with status tracking
-- **Observability**: Publish metrics and events to Busboy for correlation with eBPF traces
+- **Observability**: Publish metrics and events to Wotan for correlation with eBPF traces
 
 ## Architecture
 
@@ -37,7 +37,7 @@ The Architect service maintains the state of infrastructure topology, network de
 │ ├── NetworkTopology                     │
 │ └── ArchitectureDecisions               │
 ├─────────────────────────────────────────┤
-│ Busboy Integration                      │
+│ Wotan Integration                      │
 │ └── Subscribe: architecture.updates     │
 └─────────────────────────────────────────┘
 ```
@@ -77,9 +77,9 @@ Returns complete infrastructure state including all services and decisions.
 {
   "data": {
     "services": {
-      "busboy-service": {
-        "service_id": "busboy-service",
-        "name": "Busboy Message Bus",
+      "wotan-service": {
+        "service_id": "wotan-service",
+        "name": "Wotan Message Bus",
         "type": "message-bus",
         "status": "healthy",
         "address": "10.10.10.10",
@@ -92,8 +92,8 @@ Returns complete infrastructure state including all services and decisions.
     "decisions": [
       {
         "decision_id": "dec-1",
-        "title": "Use Busboy for message bus",
-        "description": "Chose Busboy due to low latency and proven architecture",
+        "title": "Use Wotan for message bus",
+        "description": "Chose Wotan due to low latency and proven architecture",
         "component": "message-bus",
         "status": "approved",
         "created_at": "2026-01-27T12:00:00Z",
@@ -253,7 +253,7 @@ Returns all recorded architecture decisions.
   "data": [
     {
       "decision_id": "dec-1",
-      "title": "Use Busboy for message bus",
+      "title": "Use Wotan for message bus",
       "description": "...",
       "component": "message-bus",
       "status": "approved",
@@ -271,12 +271,12 @@ Returns all recorded architecture decisions.
 
 - Go 1.21+
 - Make
-- Access to Busboy (optional - can run with mock)
+- Access to Wotan (optional - can run with mock)
 
 ### Development
 
 ```bash
-# Run with mock Busboy (no dependencies)
+# Run with mock Wotan (no dependencies)
 make dev
 
 # Run tests
@@ -298,7 +298,7 @@ make build
 # Run service
 ./bin/architect \
   -addr :8001 \
-  -busboy 10.10.10.10:9090 \
+  -wotan 10.10.10.10:9090 \
   -log info
 
 # With NixOS container
@@ -335,7 +335,7 @@ open coverage.html
    - JSON serialization
 
 3. **Integration Tests** (optional)
-   - Busboy integration
+   - Wotan integration
    - End-to-end workflows
 
 ### Key Test Patterns
@@ -398,7 +398,7 @@ All API inputs are validated:
 ```
 unheaded_http_requests_total{service="architect",method="GET",path="/infrastructure",status="200"}
 unheaded_http_request_duration_seconds{service="architect",method="GET",path="/infrastructure"}
-unheaded_busboy_messages_published_total{service="architect",topic="architecture.updates"}
+unheaded_wotan_messages_published_total{service="architect",topic="architecture.updates"}
 ```
 
 ### Structured Logging
@@ -407,7 +407,7 @@ unheaded_busboy_messages_published_total{service="architect",topic="architecture
 {"time":"2026-01-27T12:00:00Z","level":"info","service":"architect","operation":"ADD_SERVICE","message":"service added"}
 ```
 
-### Busboy Integration
+### Wotan Integration
 
 - **Subscribe**: `architecture.updates` (for receiving external changes)
 - **Publish**: Architecture decisions and state changes
@@ -470,7 +470,7 @@ ab -c 100 -n 10000 http://localhost:8001/infrastructure
 ## Future Enhancements
 
 1. **Persistence**: Add RocksDB for durable state
-2. **Message Bus**: Publish state changes to Busboy
+2. **Message Bus**: Publish state changes to Wotan
 3. **Multi-region**: Support federated architect services
 4. **Advanced Queries**: Filter and search infrastructure
 5. **Change History**: Full audit log of state changes

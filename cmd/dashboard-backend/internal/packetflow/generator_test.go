@@ -294,7 +294,7 @@ func TestGenerator_ComponentNames(t *testing.T) {
 		expectedComponents := []string{
 			"xdp_packet_marker",
 			"gateway",
-			"busboy",
+			"wotan",
 			"service",
 			"trace-collector",
 		}

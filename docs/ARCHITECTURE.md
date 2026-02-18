@@ -45,8 +45,8 @@ Unheaded is a configuration management automation platform that delivers product
 ┌────────────────────────────────────────────────────────────────┐
 │ Layer 3: INFRASTRUCTURE SERVICES                                │
 │ ┌──────────────────────┐ ┌──────────────────────┐             │
-│ │       busboy         │ │   trace-collector    │             │
-│ │   (Message bus)      │ │   (eBPF → Busboy)    │             │
+│ │       wotan         │ │   trace-collector    │             │
+│ │   (Message bus)      │ │   (eBPF → Wotan)    │             │
 │ │                      │ │                      │             │
 │ │ • gRPC streaming     │ │ • Rust performance   │             │
 │ │ • Pub/sub topics     │ │ • Ring buffer read   │             │
@@ -73,7 +73,7 @@ Unheaded is a configuration management automation platform that delivers product
 │ │ • eBPF program loading/unloading                           │ │
 │ │ • State enforcement (immutability)                         │ │
 │ │ • Drift detection and remediation                          │ │
-│ │ • Telemetry reporting to Busboy                            │ │
+│ │ • Telemetry reporting to Wotan                            │ │
 │ │ • Health monitoring                                        │ │
 │ └────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────┘
@@ -116,7 +116,7 @@ Unheaded is a configuration management automation platform that delivers product
 lxdbr0: 10.10.10.1/24 (bridge)
 
 Container IPs:
-├── busboy:            10.10.10.10
+├── wotan:            10.10.10.10
 ├── trace-collector:   10.10.10.11
 ├── timeguru:          10.10.10.20
 ├── captain:           10.10.10.21
@@ -131,7 +131,7 @@ Container IPs:
 ### Port Assignments
 
 ```
-busboy:
+wotan:
   - 8080: HTTP REST API
   - 9090: gRPC streaming
 
@@ -170,16 +170,16 @@ Backend         App            (timeguru, etc)
 │               │               │
 └───────────────┴───────────────┴───────────────┘
                 ↓
-            Busboy (10.10.10.10)
+            Wotan (10.10.10.10)
                 ↓
         trace-collector (10.10.10.11)
                 ↓
          eBPF Ring Buffer
 ```
 
-## Message Bus (Busboy) Topics
+## Message Bus (Wotan) Topics
 
-All services communicate via Busboy pub/sub:
+All services communicate via Wotan pub/sub:
 
 | Topic | Publisher | Subscribers | Purpose |
 |-------|-----------|-------------|---------|
@@ -205,7 +205,7 @@ All services communicate via Busboy pub/sub:
        ↓
 5. trace-collector (Rust) reads ring buffer
        ↓
-6. trace-collector publishes to Busboy topic "network.traces"
+6. trace-collector publishes to Wotan topic "network.traces"
        ↓
 7. dashboard-backend subscribes, receives event
        ↓
@@ -343,7 +343,7 @@ Tracked by unheaded-daemon:
 unheaded-daemon polls every 30 seconds:
 1. Compare desired (Nix) vs actual (LXD)
 2. If drift detected:
-   - Log event to Busboy
+   - Log event to Wotan
    - Auto-remediate (restart container with correct config)
    - Alert dashboard
 ```
@@ -353,7 +353,7 @@ unheaded-daemon polls every 30 seconds:
 | Metric | Target | Notes |
 |--------|--------|-------|
 | eBPF overhead | < 5% CPU | Per-packet processing |
-| Message latency | < 5ms | Busboy publish → subscribe |
+| Message latency | < 5ms | Wotan publish → subscribe |
 | Dashboard latency | < 50ms | Packet → browser |
 | Container startup | < 10s | NixOS container boot |
 | API response | < 100ms | p99 for REST endpoints |
@@ -364,7 +364,7 @@ unheaded-daemon polls every 30 seconds:
 |---------|-----------|----------|
 | Container crash | unheaded-daemon health check | Automatic restart |
 | eBPF program crash | Kernel verifier prevents | N/A (cannot happen) |
-| Busboy unavailable | Service health checks | Restart, queue locally |
+| Wotan unavailable | Service health checks | Restart, queue locally |
 | Network partition | Connection timeouts | Retry with backoff |
 | Disk full | Metrics threshold | Alert, rotate logs |
 | Memory exhaustion | cgroup limits | OOM kill container, restart |
@@ -376,7 +376,7 @@ unheaded-daemon polls every 30 seconds:
 | eBPF programs | Rust (Aya framework) | Memory safety, performance |
 | Services | Go | Simplicity, concurrency, tooling |
 | Containers | NixOS | Declarative, immutable, reproducible |
-| Message bus | Busboy (Go + gRPC) | Custom, high-perf, proven in Phase 1 |
+| Message bus | Wotan (Go + gRPC) | Custom, high-perf, proven in Phase 1 |
 | Gateway | nginx | Battle-tested, HTTP/3 support |
 | Frontend | Vanilla JS | No framework overhead, full control |
 | Orchestration | LXD | Lightweight, system containers |

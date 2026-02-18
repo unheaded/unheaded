@@ -416,7 +416,7 @@ func TestGatewayIntegration(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Auth.Enabled = false
-	cfg.Busboy.Enabled = false
+	cfg.Wotan.Enabled = false
 	cfg.Routes = []config.RouteConfig{
 		{
 			Name:       "test",
@@ -484,7 +484,7 @@ func TestHealthEndpoints(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Auth.Enabled = false
-	cfg.Busboy.Enabled = false
+	cfg.Wotan.Enabled = false
 
 	gw, err := New(cfg, log)
 	if err != nil {
@@ -521,7 +521,7 @@ func TestGatewayStartStop(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Server.HTTPPort = 0 // Use random port
 	cfg.Auth.Enabled = false
-	cfg.Busboy.Enabled = false
+	cfg.Wotan.Enabled = false
 
 	gw, err := New(cfg, log)
 	if err != nil {

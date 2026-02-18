@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -128,7 +128,7 @@ const (
 // Service is the main Tassets data layer service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu        sync.RWMutex
@@ -145,7 +145,7 @@ type Config struct {
 	MaxObjectSize       int64         `json:"max_object_size"`
 	DefaultRetention    int           `json:"default_retention_days"`
 	EnableEncryption    bool          `json:"enable_encryption"`
-	BusboyTopic         string        `json:"busboy_topic"`
+	WotanTopic         string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -155,19 +155,19 @@ func DefaultConfig() *Config {
 		MaxObjectSize:       5 * 1024 * 1024 * 1024, // 5GB
 		DefaultRetention:    30,
 		EnableEncryption:    true,
-		BusboyTopic:         "tassets.storage",
+		WotanTopic:         "tassets.storage",
 	}
 }
 
 // NewService creates a new Tassets data layer service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:       log,
-		busboy:    busboy,
+		wotan:    wotan,
 		config:    cfg,
 		buckets:   make(map[string]*Bucket),
 		objects:   make(map[string]map[string]*Object),

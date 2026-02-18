@@ -22,8 +22,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.ReconcileInterval != 30*time.Second {
 		t.Errorf("expected ReconcileInterval 30s, got %v", cfg.ReconcileInterval)
 	}
-	if cfg.BusboyTopic != "pleroma.configurations" {
-		t.Errorf("expected BusboyTopic 'pleroma.configurations', got %s", cfg.BusboyTopic)
+	if cfg.WotanTopic != "pleroma.configurations" {
+		t.Errorf("expected WotanTopic 'pleroma.configurations', got %s", cfg.WotanTopic)
 	}
 }
 

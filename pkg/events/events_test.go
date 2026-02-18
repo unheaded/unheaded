@@ -397,13 +397,13 @@ func TestTopicConstants(t *testing.T) {
 func TestContainerStateEvent(t *testing.T) {
 	event := ContainerStateEvent{
 		ContainerID:   "container-123",
-		ContainerName: "busboy-1",
+		ContainerName: "wotan-1",
 		State:         "running",
 		PreviousState: "stopped",
 		HealthStatus:  "healthy",
 		Timestamp:     time.Now(),
 		Metadata: map[string]string{
-			"image": "unheaded/busboy:latest",
+			"image": "unheaded/wotan:latest",
 		},
 	}
 

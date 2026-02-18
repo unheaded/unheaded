@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -17,15 +17,15 @@ import (
 // Helpers
 // ---------------------------------------------------------------------------
 
-// newTestService creates a Service wired to a silent logger and nil busboy
+// newTestService creates a Service wired to a silent logger and nil wotan
 // client, suitable for unit testing without external dependencies.
 func newTestService(cfg *Config) *Service {
 	log := logger.New(io.Discard)
 	return NewService(log, nil, cfg)
 }
 
-// newTestServiceWithBusboy creates a Service with an explicit busboy client.
-func newTestServiceWithBusboy(cfg *Config, bb *busboyClient.Client) *Service {
+// newTestServiceWithWotan creates a Service with an explicit wotan client.
+func newTestServiceWithWotan(cfg *Config, bb *wotanClient.Client) *Service {
 	log := logger.New(io.Discard)
 	return NewService(log, bb, cfg)
 }
@@ -72,8 +72,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.MaglevTableSize != 65537 {
 		t.Errorf("MaglevTableSize = %d; want 65537", cfg.MaglevTableSize)
 	}
-	if cfg.BusboyTopic != "pauldrons.lb" {
-		t.Errorf("BusboyTopic = %q; want %q", cfg.BusboyTopic, "pauldrons.lb")
+	if cfg.WotanTopic != "pauldrons.lb" {
+		t.Errorf("WotanTopic = %q; want %q", cfg.WotanTopic, "pauldrons.lb")
 	}
 }
 
@@ -93,7 +93,7 @@ func TestNewService_CustomConfig(t *testing.T) {
 		HealthCheckInterval: 10 * time.Second,
 		SessionTTL:          1 * time.Hour,
 		MaglevTableSize:     127,
-		BusboyTopic:         "custom.topic",
+		WotanTopic:         "custom.topic",
 	}
 	svc := newTestService(cfg)
 	if svc.config.DefaultAlgorithm != AlgoLeastConn {
@@ -142,7 +142,7 @@ func TestStart_HealthCheckLoopCancellation(t *testing.T) {
 		HealthCheckInterval: 10 * time.Millisecond,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     65537,
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -516,7 +516,7 @@ func TestSelectBackend_Maglev_Basic(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     127, // small prime for testing
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -541,7 +541,7 @@ func TestSelectBackend_Maglev_Consistency(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     127,
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -573,7 +573,7 @@ func TestSelectBackend_Maglev_Distribution(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     127,
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -605,7 +605,7 @@ func TestBuildMaglevTable_EmptyBackends(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     127,
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 	pool := &Pool{ID: "empty", Algorithm: AlgoMaglev}
@@ -627,7 +627,7 @@ func TestBuildMaglevTable_RebuildOnAddRemove(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     31,
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 	pool := &Pool{ID: "rebuild", Algorithm: AlgoMaglev}
@@ -966,7 +966,7 @@ func TestSelectBackend_TableDriven(t *testing.T) {
 				HealthCheckInterval: 5 * time.Second,
 				SessionTTL:          30 * time.Minute,
 				MaglevTableSize:     31,
-				BusboyTopic:         "pauldrons.lb",
+				WotanTopic:         "pauldrons.lb",
 			}
 			svc := newTestService(cfg)
 
@@ -1544,7 +1544,7 @@ func TestConcurrent_HealthChecksAndSelections(t *testing.T) {
 		HealthCheckInterval: 5 * time.Millisecond,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     31,
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 	pool := &Pool{ID: "hc-race", Algorithm: AlgoRoundRobin}
@@ -1612,7 +1612,7 @@ func TestSelectBackend_Maglev_FallbackWhenIndexOutOfRange(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     31,
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -1711,18 +1711,18 @@ func TestSelectBackend_Weighted_MixedWeights(t *testing.T) {
 	}
 }
 
-func TestNewService_NilBusboyClient(t *testing.T) {
-	// Verify that a nil busboy client does not cause panics.
-	svc := newTestServiceWithBusboy(nil, nil)
-	if svc.busboy != nil {
-		t.Error("busboy should be nil")
+func TestNewService_NilWotanClient(t *testing.T) {
+	// Verify that a nil wotan client does not cause panics.
+	svc := newTestServiceWithWotan(nil, nil)
+	if svc.wotan != nil {
+		t.Error("wotan should be nil")
 	}
 	// Operations should still work.
 	svc.CreatePool(&Pool{ID: "p1"})
 	svc.AddBackend("p1", makeBackend("b1", "10.0.0.1", 80, 1))
 	_, err := svc.SelectBackend("p1", "key")
 	if err != nil {
-		t.Fatalf("operations with nil busboy: %v", err)
+		t.Fatalf("operations with nil wotan: %v", err)
 	}
 }
 
@@ -1849,7 +1849,7 @@ func BenchmarkSelectBackend_Maglev(b *testing.B) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     65537,
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 	pool := &Pool{ID: "bench-mg", Algorithm: AlgoMaglev}

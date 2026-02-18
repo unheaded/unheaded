@@ -1,5 +1,5 @@
 // Timeline reader - connects to API and streams updates
-// Uses Busboy message bus for real-time updates
+// Uses Wotan message bus for real-time updates
 
 (function() {
     'use strict';

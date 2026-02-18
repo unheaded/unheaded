@@ -22,8 +22,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.RetentionPeriod != 24*time.Hour {
 		t.Errorf("expected RetentionPeriod 24h, got %v", cfg.RetentionPeriod)
 	}
-	if cfg.BusboyTopic != "kenoma.observations" {
-		t.Errorf("expected BusboyTopic 'kenoma.observations', got %s", cfg.BusboyTopic)
+	if cfg.WotanTopic != "kenoma.observations" {
+		t.Errorf("expected WotanTopic 'kenoma.observations', got %s", cfg.WotanTopic)
 	}
 }
 

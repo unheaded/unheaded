@@ -424,7 +424,7 @@ func createRichMockTimeline() *timeline.Timeline {
 				Name:        "Foundation",
 				Status:      "completed",
 				Progress:    100,
-				Description: "The forging of Busboy",
+				Description: "The forging of Wotan",
 				EndDate:     time.Date(2026, 1, 26, 0, 0, 0, 0, time.UTC),
 			},
 			{

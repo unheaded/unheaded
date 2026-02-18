@@ -6,5 +6,5 @@ timeguru=127.0.0.1:8000
 captain=127.0.0.1:8001
 architect=127.0.0.1:8002
 micromanager=127.0.0.1:8003
-busboy=127.0.0.1:9090
+wotan=127.0.0.1:9090
 gateway=127.0.0.1:8080

@@ -15,7 +15,7 @@ This audit verifies the architectural claim that **no code path allows platform 
 
 **Overall Result: PASS with WARNINGS**
 
-The Unheaded platform fundamentally upholds the zero customer data access principle. The architecture is sound: eBPF observability captures packet metadata (IPs, ports, sizes, flags) not packet contents, services communicate through Busboy rather than direct connections, and container hardening enforces strict isolation. However, several warnings require attention before production deployment.
+The Unheaded platform fundamentally upholds the zero customer data access principle. The architecture is sound: eBPF observability captures packet metadata (IPs, ports, sizes, flags) not packet contents, services communicate through Wotan rather than direct connections, and container hardening enforces strict isolation. However, several warnings require attention before production deployment.
 
 ---
 
@@ -33,7 +33,7 @@ The Unheaded platform fundamentally upholds the zero customer data access princi
 - Reviewed network segmentation in `nix/modules/networking.nix` and `nix/modules/hardening.nix`
 - Reviewed container isolation in `nix/containers/base.nix` and per-service configs
 - Reviewed `docker-compose.yml` for network segregation
-- Reviewed Busboy message bus topic structure for data leak paths
+- Reviewed Wotan message bus topic structure for data leak paths
 - Reviewed eBPF trace-collector for packet content exposure
 
 ### 3. Observability Data Review
@@ -108,11 +108,11 @@ Both modules enforce default-deny firewall policies:
 - FORWARD chain policy is DROP
 - IP forwarding disabled (`net.ipv4.ip_forward = 0`)
 
-#### [PASS] F-007: Services Communicate via Busboy, Not Direct Connections
+#### [PASS] F-007: Services Communicate via Wotan, Not Direct Connections
 **Severity:** N/A
 **Files:** `docker-compose.yml`, `docs/ARCHITECTURE.md`, `docs/MICROSERVICES.md`
 
-The architecture mandates all inter-service communication through the Busboy message bus. Services connect to Busboy at 10.10.10.10:9090 (or 172.28.1.1:5555 in Docker Compose). Direct service-to-service HTTP calls exist only for:
+The architecture mandates all inter-service communication through the Wotan message bus. Services connect to Wotan at 10.10.10.10:9090 (or 172.28.1.1:5555 in Docker Compose). Direct service-to-service HTTP calls exist only for:
 - Captain -> Timeguru (documented dependency for strategy/timeline coordination)
 - Micromanager -> Timeguru and Captain (documented dependency)
 These are intra-platform connections, not customer data paths.
@@ -247,13 +247,13 @@ Default configuration enables mTLS (`MTLSEnabled: true`) and seccomp (`SeccompEn
 
 ---
 
-### CATEGORY 6: Busboy Message Bus Data Safety
+### CATEGORY 6: Wotan Message Bus Data Safety
 
-#### [PASS] F-019: Busboy Topics Carry Operational Data Only
+#### [PASS] F-019: Wotan Topics Carry Operational Data Only
 **Severity:** N/A
 **File:** `docs/ARCHITECTURE.md` (topic table)
 
-Busboy pub/sub topics carry only:
+Wotan pub/sub topics carry only:
 - `network.traces` -- eBPF packet metadata (IPs, ports, latency)
 - `system.metrics` -- Container health metrics
 - `timeline.updates` -- Roadmap changes
@@ -326,7 +326,7 @@ While these are not customer data access violations, they represent attack vecto
 | F-004 | Data isolation config enforces namespaces | Isolation | PASS | -- |
 | F-005 | Secrets manager infrastructure-only | Isolation | PASS | -- |
 | F-006 | Firewall default deny | Network | PASS | -- |
-| F-007 | Services communicate via Busboy | Network | PASS | -- |
+| F-007 | Services communicate via Wotan | Network | PASS | -- |
 | F-008 | Container hardening applied uniformly | Network | PASS | -- |
 | F-009 | Docker Compose isolated network | Network | PASS | -- |
 | F-010 | Grafana default password | Credentials | WARN | LOW |
@@ -338,7 +338,7 @@ While these are not customer data access violations, they represent attack vecto
 | F-016 | CLI does not log secret values | Logging | PASS | -- |
 | F-017 | InsecureSkipVerify instances | TLS | WARN | MEDIUM |
 | F-018 | TLS defaults are secure | TLS | PASS | -- |
-| F-019 | Busboy topics carry ops data only | Data Flow | PASS | -- |
+| F-019 | Wotan topics carry ops data only | Data Flow | PASS | -- |
 | F-020 | WAF inspects for data leakage | Data Flow | PASS | -- |
 | F-021 | Compliance framework correct | Compliance | PASS | -- |
 | F-022 | Audit logs ops, not data | Compliance | PASS | -- |
@@ -366,7 +366,7 @@ While these are not customer data access violations, they represent attack vecto
 
 4. **Secure BGP config generation** (F-011). Ensure generated FRR config files have 0600 permissions and consider FRR encrypted password support.
 
-5. **Add runtime validation** that services cannot subscribe to topics outside their authorized scope in Busboy.
+5. **Add runtime validation** that services cannot subscribe to topics outside their authorized scope in Wotan.
 
 6. **Implement mTLS** for inter-container communication as noted in the architecture docs ("future" item). This adds cryptographic enforcement to the network isolation.
 
@@ -380,7 +380,7 @@ While these are not customer data access violations, they represent attack vecto
 
 ## Conclusion
 
-The Unheaded platform's zero customer data access claim is **architecturally valid**. The eBPF layer captures packet metadata (IPs, ports, sizes, flags) without payload content. The Busboy message bus carries only operational data (metrics, traces, tasks, timeline). Container hardening with seccomp, capability restrictions, and network firewalls enforces isolation at the OS level. Secrets management separates customer and operator namespaces with audit logging.
+The Unheaded platform's zero customer data access claim is **architecturally valid**. The eBPF layer captures packet metadata (IPs, ports, sizes, flags) without payload content. The Wotan message bus carries only operational data (metrics, traces, tasks, timeline). Container hardening with seccomp, capability restrictions, and network firewalls enforces isolation at the OS level. Secrets management separates customer and operator namespaces with audit logging.
 
 The four warnings identified are configuration hygiene issues (default passwords, TLS skip options) and pre-existing injection vulnerabilities from the January 30 audit. None represent an active path for customer data access. However, the injection vulnerabilities (F-023) must be remediated before production because they could theoretically be leveraged by an attacker to escape the isolation boundary.
 

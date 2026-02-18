@@ -6,7 +6,7 @@
 
 ## Context
 
-Unheaded's core value proposition is packet-level observability from L2 through L7. This requires eBPF programs running in kernel space at the XDP, TC, and kprobe attach points, plus a userspace collector that reads events from BPF ring buffers and forwards them to the Busboy message bus. The data plane must process every packet traversing the host network interface with less than 5% CPU overhead and sub-microsecond per-packet latency.
+Unheaded's core value proposition is packet-level observability from L2 through L7. This requires eBPF programs running in kernel space at the XDP, TC, and kprobe attach points, plus a userspace collector that reads events from BPF ring buffers and forwards them to the Wotan message bus. The data plane must process every packet traversing the host network interface with less than 5% CPU overhead and sub-microsecond per-packet latency.
 
 The eBPF programs and the trace-collector must be written in a systems language. The candidates were:
 
@@ -36,7 +36,7 @@ The eBPF programs and the trace-collector must be written in a systems language.
 We write all eBPF programs and the trace-collector in **Rust using the Aya framework**. Specifically:
 
 - **eBPF programs** (`ebpf/packet-marker/`, `ebpf/flow-tracker/`, `ebpf/latency-probe/`, `ebpf/syscall-tracer/`) are written in Rust, compiled to BPF bytecode via `aya-bpf` macros.
-- **trace-collector** (`cmd/trace-collector/`) is a Rust binary that uses Aya to load eBPF programs, read ring buffers with zero-copy, and publish events to Busboy via gRPC.
+- **trace-collector** (`cmd/trace-collector/`) is a Rust binary that uses Aya to load eBPF programs, read ring buffers with zero-copy, and publish events to Wotan via gRPC.
 - **Shared types** (`ebpf/common/src/lib.rs`) define structures like `TraceId` and `FlowKey` used by both eBPF programs and the userspace collector, ensuring type-safe communication across the kernel/userspace boundary.
 
 The Go services in the control plane (Layer 2-5) remain in Go. Rust is used exclusively for the data plane (Layer 1) and its bridge to Layer 3.
@@ -49,7 +49,7 @@ The Go services in the control plane (Layer 2-5) remain in Go. Rust is used excl
 - **Single language for the data plane**: Both eBPF programs and the userspace collector are Rust, eliminating the C/Go impedance mismatch. Shared types in `ebpf/common/` prevent serialization bugs between kernel and userspace.
 - **No libbpf dependency**: Aya is pure Rust with no C dependencies, simplifying the build toolchain and eliminating a class of linking issues. The eBPF programs compile to BPF bytecode directly via `bpf-linker`.
 - **Performance**: Rust's zero-cost abstractions and lack of garbage collector make it ideal for the ring buffer reader in trace-collector, which must sustain sub-microsecond latency under high packet rates. Lock-free data structures and memory-mapped I/O are idiomatic Rust.
-- **Future extensibility**: The `docs/RUST_COMPONENTS.md` roadmap identifies Busboy hot-path, custom metrics system, and network policy enforcement as future Rust rewrites. Establishing Rust expertise now prepares the team.
+- **Future extensibility**: The `docs/RUST_COMPONENTS.md` roadmap identifies Wotan hot-path, custom metrics system, and network policy enforcement as future Rust rewrites. Establishing Rust expertise now prepares the team.
 
 ### Negative
 

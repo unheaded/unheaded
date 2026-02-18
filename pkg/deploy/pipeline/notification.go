@@ -116,7 +116,7 @@ type ChannelType string
 const (
 	ChannelTypeWebhook  ChannelType = "webhook"
 	ChannelTypeSlack    ChannelType = "slack"
-	ChannelTypeBusboy   ChannelType = "busboy"
+	ChannelTypeWotan   ChannelType = "wotan"
 	ChannelTypeEmail    ChannelType = "email"
 	ChannelTypePagerDuty ChannelType = "pagerduty"
 	ChannelTypeOpsGenie ChannelType = "opsgenie"
@@ -186,8 +186,8 @@ type ChannelConfig struct {
 	SlackUsername string `json:"slack_username,omitempty"`
 	SlackIconEmoji string `json:"slack_icon_emoji,omitempty"`
 
-	// Busboy config
-	BusboyTopic string `json:"busboy_topic,omitempty"`
+	// Wotan config
+	WotanTopic string `json:"wotan_topic,omitempty"`
 
 	// Email config
 	EmailFrom    string   `json:"email_from,omitempty"`
@@ -223,8 +223,8 @@ type NotificationManager struct {
 	// httpClient for HTTP-based notifications
 	httpClient *http.Client
 
-	// busboyPublisher for Busboy notifications
-	busboyPublisher BusboyPublisher
+	// wotanPublisher for Wotan notifications
+	wotanPublisher WotanPublisher
 
 	// history stores recent notifications
 	history []*NotificationRecord
@@ -285,11 +285,11 @@ func NewNotificationManager() *NotificationManager {
 	}
 }
 
-// SetBusboyPublisher sets the Busboy publisher.
-func (m *NotificationManager) SetBusboyPublisher(publisher BusboyPublisher) {
+// SetWotanPublisher sets the Wotan publisher.
+func (m *NotificationManager) SetWotanPublisher(publisher WotanPublisher) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.busboyPublisher = publisher
+	m.wotanPublisher = publisher
 }
 
 // AddChannel adds a notification channel.
@@ -518,8 +518,8 @@ func (m *NotificationManager) sendToChannel(ctx context.Context, channel *Channe
 		err = m.sendWebhook(ctx, channel, formattedNotification)
 	case ChannelTypeSlack:
 		err = m.sendSlack(ctx, channel, formattedNotification)
-	case ChannelTypeBusboy:
-		err = m.sendBusboy(ctx, channel, formattedNotification)
+	case ChannelTypeWotan:
+		err = m.sendWotan(ctx, channel, formattedNotification)
 	case ChannelTypeTeams:
 		err = m.sendTeams(ctx, channel, formattedNotification)
 	case ChannelTypeDiscord:
@@ -731,15 +731,15 @@ func (m *NotificationManager) sendSlack(ctx context.Context, channel *Channel, n
 	return nil
 }
 
-// sendBusboy sends a notification to Busboy.
-func (m *NotificationManager) sendBusboy(ctx context.Context, channel *Channel, notification *Notification) error {
-	if m.busboyPublisher == nil {
-		return fmt.Errorf("%w: Busboy publisher not configured", ErrChannelNotConfigured)
+// sendWotan sends a notification to Wotan.
+func (m *NotificationManager) sendWotan(ctx context.Context, channel *Channel, notification *Notification) error {
+	if m.wotanPublisher == nil {
+		return fmt.Errorf("%w: Wotan publisher not configured", ErrChannelNotConfigured)
 	}
 
 	topic := "notifications"
-	if channel.Config != nil && channel.Config.BusboyTopic != "" {
-		topic = channel.Config.BusboyTopic
+	if channel.Config != nil && channel.Config.WotanTopic != "" {
+		topic = channel.Config.WotanTopic
 	}
 
 	body, err := json.Marshal(notification)
@@ -747,7 +747,7 @@ func (m *NotificationManager) sendBusboy(ctx context.Context, channel *Channel, 
 		return fmt.Errorf("failed to marshal notification: %w", err)
 	}
 
-	return m.busboyPublisher.Publish(ctx, topic, body)
+	return m.wotanPublisher.Publish(ctx, topic, body)
 }
 
 // sendTeams sends a notification to Microsoft Teams.

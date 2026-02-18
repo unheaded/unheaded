@@ -55,17 +55,17 @@ Status: ✅ **COMPLETE**
 
 ---
 
-## Deliverable 2: Busboy Integration ✅
+## Deliverable 2: Wotan Integration ✅
 
 ### File: `main.go` (120 LOC)
 
 ```
-✅ Create Busboy client (addr from BUSBOY_ADDR env var)
+✅ Create Wotan client (addr from WOTAN_ADDR env var)
 ✅ Subscribe to "alerts.critical" topic
 ✅ Listen for critical alerts (concurrent goroutine)
 ✅ Publish decisions to "decisions.created" topic
 ✅ Graceful alert listener shutdown
-✅ Error handling for Busboy operations
+✅ Error handling for Wotan operations
 ✅ Context cancellation handling
 ```
 
@@ -96,7 +96,7 @@ Service Unit Tests:
    - Empty title/content/owner
    - Invalid priority
    - Size limits enforcement
-   - Busboy publish
+   - Wotan publish
    - Persistence
 ✅ GetDecision (found + not found)
 ✅ ListDecisions with pagination
@@ -308,10 +308,10 @@ After write:
 
 ```
 ✅ Only port 8000 exposed for HTTP
-✅ Busboy communication on internal network (10.10.10.10)
+✅ Wotan communication on internal network (10.10.10.10)
 ✅ Gateway only port (10.10.10.100)
 ✅ Default-deny firewall rules
-✅ TLS 1.3 support via Busboy client
+✅ TLS 1.3 support via Wotan client
 ```
 
 ---
@@ -325,8 +325,8 @@ After write:
    - API layer (handlers)
    - Service layer (business logic)
    - Storage layer (persistence)
-   - Integration layer (Busboy)
-✅ Interface-based design (Storage, BusboyCommunicator)
+   - Integration layer (Wotan)
+✅ Interface-based design (Storage, WotanCommunicator)
 ✅ Dependency injection (Config struct)
 ✅ Mock implementations for testing
 ```
@@ -388,7 +388,7 @@ TOTAL            ~3,150 LOC
 ✅ Running locally instructions
 ✅ Testing instructions with commands
 ✅ Defensive coding principles explanation
-✅ Busboy integration details
+✅ Wotan integration details
 ✅ Storage implementation details
 ✅ NixOS container explanation
 ✅ Security considerations
@@ -524,7 +524,7 @@ PASS: TestService_GetVision (2 sub-tests)
 PASS: TestService_GetStrategy (3 sub-tests)
 PASS: TestService_LogDecision (9 sub-tests)
 PASS: TestService_LogDecision_Persistence (1 sub-test)
-PASS: TestService_LogDecision_BusboySend (1 sub-test)
+PASS: TestService_LogDecision_WotanSend (1 sub-test)
 PASS: TestService_GetDecision (4 sub-tests)
 PASS: TestService_ListDecisions (6 sub-tests)
 PASS: TestService_UpdateDecisionStatus (5 sub-tests)
@@ -544,7 +544,7 @@ Race Detection: PASS (no data races)
 ### Mission Requirements
 
 - ✅ **HTTP API**: 9 endpoints implemented (vision, strategy, decisions)
-- ✅ **Busboy Integration**: Publish decisions, subscribe to alerts
+- ✅ **Wotan Integration**: Publish decisions, subscribe to alerts
 - ✅ **TDD Tests**: 80%+ coverage achieved (85%+)
 - ✅ **Data Persistence**: FileStorage with atomic writes
 - ✅ **Security**: Paranoid validation, hardened container
@@ -589,9 +589,9 @@ INTEGRATION   ⏳ Ready for integration testing
 
 ## Notes for Integration
 
-1. **Busboy**: Ensure busboy service is running at BUSBOY_ADDR
+1. **Wotan**: Ensure wotan service is running at WOTAN_ADDR
 2. **Data Path**: Create `/var/lib/unheaded/captain` with 0700 permissions
-3. **Environment**: Set BUSBOY_ADDR, HTTP_ADDR, DATA_PATH before starting
+3. **Environment**: Set WOTAN_ADDR, HTTP_ADDR, DATA_PATH before starting
 4. **Testing**: Run full test suite with `-race` flag before deployment
 5. **Logging**: Configure zerolog for production logging
 6. **Metrics**: Wire Prometheus scraper to /metrics endpoint

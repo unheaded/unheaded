@@ -9,7 +9,7 @@ import (
 	"sync"
 	"syscall"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/captain"
 )
 
@@ -26,11 +26,11 @@ func run() error {
 	defer cancel()
 
 	// Configuration
-	busboyAddr := getEnv("BUSBOY_ADDR", "localhost:9090")
+	wotanAddr := getEnv("WOTAN_ADDR", "localhost:9090")
 	httpAddr := getEnv("HTTP_ADDR", "0.0.0.0:8000")
 	dataPath := getEnv("DATA_PATH", "/var/lib/unheaded/captain")
 
-	log.Printf("captain service starting (http:%s, busboy:%s)", httpAddr, busboyAddr)
+	log.Printf("captain service starting (http:%s, wotan:%s)", httpAddr, wotanAddr)
 
 	// Create storage
 	storage, err := captain.NewFileStorage(dataPath)
@@ -38,22 +38,22 @@ func run() error {
 		return fmt.Errorf("create storage: %w", err)
 	}
 
-	// Create Busboy client
-	busboy, err := busboyClient.NewClient(busboyAddr)
+	// Create Wotan client
+	wotan, err := wotanClient.NewClient(wotanAddr)
 	if err != nil {
-		return fmt.Errorf("create busboy client: %w", err)
+		return fmt.Errorf("create wotan client: %w", err)
 	}
-	defer busboy.Close()
+	defer wotan.Close()
 
 	// Subscribe to critical alerts
-	if _, err := busboy.Subscribe(ctx, "alerts.critical", "captain"); err != nil {
+	if _, err := wotan.Subscribe(ctx, "alerts.critical", "captain"); err != nil {
 		log.Printf("warning: failed to subscribe to alerts: %v", err)
 	}
 
 	// Create captain service
 	svc, err := captain.NewService(captain.Config{
 		Storage: storage,
-		Busboy:  busboy,
+		Wotan:  wotan,
 		MetricsCallback: func(metric string, value interface{}) {
 			// Log metrics (would be sent to Prometheus in production)
 			log.Printf("metric: %s = %v", metric, value)
@@ -83,7 +83,7 @@ func run() error {
 	// Start alert listener
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go listenForAlerts(ctx, &wg, busboy)
+	go listenForAlerts(ctx, &wg, wotan)
 
 	// Wait for signal
 	sig := <-sigChan
@@ -102,11 +102,11 @@ func run() error {
 	return nil
 }
 
-// listenForAlerts listens for critical alerts from Busboy
-func listenForAlerts(ctx context.Context, wg *sync.WaitGroup, busboy *busboyClient.Client) {
+// listenForAlerts listens for critical alerts from Wotan
+func listenForAlerts(ctx context.Context, wg *sync.WaitGroup, wotan *wotanClient.Client) {
 	defer wg.Done()
 
-	msgs, err := busboy.StreamMessages(ctx, "alerts.critical")
+	msgs, err := wotan.StreamMessages(ctx, "alerts.critical")
 	if err != nil {
 		log.Printf("warning: failed to stream alerts: %v", err)
 		return

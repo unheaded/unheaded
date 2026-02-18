@@ -1,6 +1,6 @@
 # Captain Service
 
-Leadership and strategy service for Unheaded. Tracks executive decisions and publishes strategic updates via Busboy.
+Leadership and strategy service for Unheaded. Tracks executive decisions and publishes strategic updates via Wotan.
 
 ## Overview
 
@@ -34,7 +34,7 @@ The captain service represents organizational leadership and strategic decision-
    - Atomic writes
 
 4. **Main (main.go)**: Service entry point
-   - Busboy integration
+   - Wotan integration
    - Alert listening
    - Graceful shutdown
 
@@ -93,7 +93,7 @@ type Decision struct {
 Environment variables:
 
 ```bash
-BUSBOY_ADDR=localhost:9090    # Busboy message bus address
+WOTAN_ADDR=localhost:9090    # Wotan message bus address
 HTTP_ADDR=0.0.0.0:8000        # HTTP server address
 DATA_PATH=/var/lib/unheaded/captain  # Data directory
 LOG_LEVEL=info                # Logging level (debug/info/warn/error)
@@ -104,14 +104,14 @@ LOG_LEVEL=info                # Logging level (debug/info/warn/error)
 ### Prerequisites
 
 - Go 1.21+
-- Busboy service running
+- Wotan service running
 - Write access to `/var/lib/unheaded/captain`
 
 ### Start Service
 
 ```bash
 # With environment variables
-export BUSBOY_ADDR=localhost:9090
+export WOTAN_ADDR=localhost:9090
 export HTTP_ADDR=localhost:8000
 export DATA_PATH=/tmp/captain-data
 
@@ -249,9 +249,9 @@ All shared state is protected:
 - **Resource limits**: 10MB max request body
 - **Timeout protection**: 15s read/write timeouts
 
-## Busboy Integration
+## Wotan Integration
 
-The captain service publishes decision updates to Busboy:
+The captain service publishes decision updates to Wotan:
 
 ```
 Topic: decisions.created
@@ -409,7 +409,7 @@ journalctl -u captain -n 100
 journalctl -u captain -n 50
 
 # Verify environment
-echo $BUSBOY_ADDR $HTTP_ADDR $DATA_PATH
+echo $WOTAN_ADDR $HTTP_ADDR $DATA_PATH
 
 # Test connectivity
 curl http://localhost:9090/health
@@ -445,7 +445,7 @@ journalctl -u captain --since 1h -p warning
 
 - [CLAUDE.md](../../CLAUDE.md) - Development standards
 - [timeline.md](../../references/timeline.md) - Project timeline
-- [Busboy Documentation](https://github.com/unheaded/busboy)
+- [Wotan Documentation](https://github.com/unheaded/wotan)
 
 ## License
 

@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -147,7 +147,7 @@ type Broadcast struct {
 // Service is the main Cloak user dashboard service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu            sync.RWMutex
@@ -169,7 +169,7 @@ type Config struct {
 	TemplateDir       string        `json:"template_dir"`
 	StaticDir         string        `json:"static_dir"`
 	BroadcastBuffer   int           `json:"broadcast_buffer"`
-	BusboyTopic       string        `json:"busboy_topic"`
+	WotanTopic       string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -182,19 +182,19 @@ func DefaultConfig() *Config {
 		TemplateDir:      "./templates",
 		StaticDir:        "./static",
 		BroadcastBuffer:  1000,
-		BusboyTopic:      "cloak.dashboard",
+		WotanTopic:      "cloak.dashboard",
 	}
 }
 
 // NewService creates a new Cloak user dashboard service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:           log,
-		busboy:        busboy,
+		wotan:        wotan,
 		config:        cfg,
 		dashboards:    make(map[string]*Dashboard),
 		sessions:      make(map[string]*Session),

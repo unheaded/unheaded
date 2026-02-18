@@ -37,7 +37,7 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   │       ├── events/             # Event parsing
 │   │       ├── metrics/            # Prometheus exposition
 │   │       ├── proto/              # gRPC definitions
-│   │       └── publisher/          # Busboy integration
+│   │       └── publisher/          # Wotan integration
 │   │
 │   ├── dashboard-backend/          # 📊 THE CAPE - Metrics Aggregator
 │   │   ├── main.go                 # Entry point
@@ -46,14 +46,14 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   │       ├── scraper/            # Prometheus-compatible scraping
 │   │       ├── websocket/          # Pure Go WebSocket (no gorilla)
 │   │       ├── health/             # Service health monitoring
-│   │       ├── events/             # Busboy event streaming
+│   │       ├── events/             # Wotan event streaming
 │   │       ├── metrics/            # Metrics aggregation
 │   │       └── packetflow/         # eBPF trace visualization
 │   │
 │   ├── kanban-app/                 # 📋 THE META MOMENT - Self-Tracking
 │   │   ├── main.go                 # Go backend with embedded static files
 │   │   ├── middleware.go           # Logging, CORS, auth
-│   │   ├── busboy.go               # Busboy client integration
+│   │   ├── wotan.go               # Wotan client integration
 │   │   └── static/                 # Vanilla HTML/CSS/JS frontend
 │   │       ├── index.html          # Main HTML
 │   │       ├── css/
@@ -103,8 +103,8 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   ├── micromanager/               # 📋 EXECUTION ENGINE - Task Service
 │   │   └── cmd/                    # Entry point
 │   │
-│   └── busboy/                     # 🧚 THE FAE CHAMBER - Message Bus
-│       └── (external: github.com/unheaded/busboy)
+│   └── wotan/                     # 🧚 THE FAE CHAMBER - Message Bus
+│       └── (external: github.com/unheaded/wotan)
 │
 ├── pkg/                            # ═══════════════════════════════════════════
 │   │                               # SHARED PACKAGES - The Kingdom's Arsenal
@@ -277,7 +277,7 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   │   ├── client.go               # Mock client
 │   │   └── real_client.go.dev      # Real client (dev placeholder)
 │   │
-│   ├── busboy-client/              # 🧚 BUSBOY CLIENT (1,853 LOC)
+│   ├── wotan-client/              # 🧚 WOTAN CLIENT (1,853 LOC)
 │   │   ├── client.go               # HTTP client
 │   │   ├── grpc_client.go.dev      # gRPC client (dev placeholder)
 │   │   └── mock/                   # Mock for testing
@@ -363,7 +363,7 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   │                               # DOCUMENTATION - The Great Library
 │   │                               # ═══════════════════════════════════════════
 │   │
-│   ├── FAE_CHAMBER_CONTRACTS.md    # Busboy message contracts
+│   ├── FAE_CHAMBER_CONTRACTS.md    # Wotan message contracts
 │   ├── RUST_COMPONENTS.md          # What must be Rust
 │   ├── PROJECT_STRUCTURE.md        # This file
 │   └── adr/                        # Architecture Decision Records
@@ -421,7 +421,7 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 | 🌑 **Whispering Void** | eBPF | `pkg/ebpf/`, `ebpf/` (Rust) | 55% |
 | 💎 **Crystal Grotto** | Secrets | `pkg/secrets/` | 90% |
 | 🔮 **Oracle's Antre** | Timeline | `services/timeguru/` | 85% |
-| 🧚 **Fae Chamber** | Messages | `pkg/busboy-client/`, `pkg/events/` | 95% |
+| 🧚 **Fae Chamber** | Messages | `pkg/wotan-client/`, `pkg/events/` | 95% |
 | 📚 **Sage's Lair** | ADRs | `services/architect/`, `docs/adr/` | 80% |
 | 🌀 **Mythic Abyss** | Telemetry | `cmd/trace-collector/` | 60% |
 

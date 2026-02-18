@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Common errors
@@ -22,7 +22,7 @@ var (
 	ErrEmptyOwner      = errors.New("decision owner cannot be empty")
 	ErrInvalidPriority = errors.New("invalid priority level")
 	ErrServiceClosed   = errors.New("service is closed")
-	ErrNilBusboy       = errors.New("busboy client cannot be nil")
+	ErrNilWotan       = errors.New("wotan client cannot be nil")
 	ErrNilStorage      = errors.New("storage cannot be nil")
 )
 
@@ -108,11 +108,11 @@ type Storage interface {
 	DeleteDecision(ctx context.Context, id string) error
 }
 
-// BusboyCommunicator interface for messaging
-type BusboyCommunicator interface {
+// WotanCommunicator interface for messaging
+type WotanCommunicator interface {
 	Publish(ctx context.Context, topic string, payload []byte) error
-	Subscribe(ctx context.Context, topic, displayName string) (*busboyClient.Subscriber, error)
-	StreamMessages(ctx context.Context, topic string) (<-chan *busboyClient.Message, error)
+	Subscribe(ctx context.Context, topic, displayName string) (*wotanClient.Subscriber, error)
+	StreamMessages(ctx context.Context, topic string) (<-chan *wotanClient.Message, error)
 }
 
 // Service provides captain leadership functions
@@ -120,7 +120,7 @@ type Service struct {
 	mu              sync.RWMutex
 	closed          bool
 	storage         Storage
-	busboy          BusboyCommunicator
+	wotan          WotanCommunicator
 	vision          *Vision
 	strategy        *Strategy
 	metricsCallback func(metric string, value interface{})
@@ -130,7 +130,7 @@ type Service struct {
 // Config holds service configuration
 type Config struct {
 	Storage         Storage
-	Busboy          BusboyCommunicator
+	Wotan          WotanCommunicator
 	MetricsCallback func(string, interface{}) // Optional metrics callback
 }
 
@@ -139,13 +139,13 @@ func NewService(cfg Config) (*Service, error) {
 	if cfg.Storage == nil {
 		return nil, ErrNilStorage
 	}
-	if cfg.Busboy == nil {
-		return nil, ErrNilBusboy
+	if cfg.Wotan == nil {
+		return nil, ErrNilWotan
 	}
 
 	s := &Service{
 		storage:         cfg.Storage,
-		busboy:          cfg.Busboy,
+		wotan:          cfg.Wotan,
 		metricsCallback: cfg.MetricsCallback,
 		vision: &Vision{
 			Title:       "Production-ready infrastructure in hours, not months",
@@ -270,13 +270,13 @@ func (s *Service) LogDecision(ctx context.Context, decision *Decision) error {
 		return fmt.Errorf("save decision: %w", err)
 	}
 
-	// Publish to Busboy
+	// Publish to Wotan
 	payload, err := json.Marshal(decision)
 	if err != nil {
 		return fmt.Errorf("marshal decision: %w", err)
 	}
 
-	if err := s.busboy.Publish(ctx, "decisions.created", payload); err != nil {
+	if err := s.wotan.Publish(ctx, "decisions.created", payload); err != nil {
 		// Log error but don't fail the operation
 		if s.metricsCallback != nil {
 			s.metricsCallback("decisions.publish_error", 1)

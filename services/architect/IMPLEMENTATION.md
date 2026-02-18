@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The Architect service has been implemented with **paranoid security-first TDD discipline**. Every line of production code was driven by passing tests. The service is production-ready for integration with Busboy and eBPF tracing infrastructure.
+The Architect service has been implemented with **paranoid security-first TDD discipline**. Every line of production code was driven by passing tests. The service is production-ready for integration with Wotan and eBPF tracing infrastructure.
 
 ### Key Metrics
 
@@ -60,9 +60,9 @@ services/architect/
 │ ├── NetworkNode                         │
 │ └── ArchitectureDecision                │
 ├─────────────────────────────────────────┤
-│ Layer 1: Busboy & Metrics (cmd/main.go) │
+│ Layer 1: Wotan & Metrics (cmd/main.go) │
 │ ├── Prometheus metrics                  │
-│ └── Busboy pub/sub integration          │
+│ └── Wotan pub/sub integration          │
 └─────────────────────────────────────────┘
 ```
 
@@ -240,14 +240,14 @@ All handlers validate:
 #### Features
 
 - **Graceful Shutdown**: Handles SIGINT/SIGTERM
-- **Busboy Integration**:
+- **Wotan Integration**:
   - Real client for production
-  - Mock client for testing (via `-mock-busboy` flag)
+  - Mock client for testing (via `-mock-wotan` flag)
   - Auto-approval in test mode
 - **Prometheus Metrics**:
   - Request counters
   - Latency histograms
-  - Busboy message counters
+  - Wotan message counters
 - **Structured Logging**: JSON logs with request context
 - **Health Checks**: Periodic checks via systemd timers
 
@@ -256,9 +256,9 @@ All handlers validate:
 ```bash
 ./architect \
   -addr :8001 \                # HTTP listen address
-  -busboy localhost:9090 \     # Busboy address
+  -wotan localhost:9090 \     # Wotan address
   -log info \                  # Log level (debug, info, warn, error)
-  -mock-busboy                 # Use mock Busboy for testing
+  -mock-wotan                 # Use mock Wotan for testing
 ```
 
 #### Metrics
@@ -277,7 +277,7 @@ unheaded_http_request_duration_seconds{
   path="/infrastructure"
 }
 
-unheaded_busboy_messages_published_total{
+unheaded_wotan_messages_published_total{
   service="architect",
   topic="architecture.updates"
 }
@@ -595,7 +595,7 @@ nix/containers/architect.nix         (200 LOC)  - Security hardening
 
 ## Integration Points
 
-### Busboy Pub/Sub
+### Wotan Pub/Sub
 
 **Subscribe**:
 ```go
@@ -612,7 +612,7 @@ client.Publish(ctx, "architecture.updates", payload)
 Exposed at `/metrics` endpoint:
 - Request counters (method, path, status)
 - Request latency histograms
-- Busboy message counters
+- Wotan message counters
 
 ### Distributed Tracing
 
@@ -634,7 +634,7 @@ Ready for:
 - [x] Logging structured (JSON)
 - [x] NixOS container hardened
 - [x] Documentation complete
-- [x] Busboy integration ready
+- [x] Wotan integration ready
 - [x] Health checks implemented
 - [x] Graceful shutdown handling
 
@@ -646,7 +646,7 @@ Ready for:
 
 1. **State Persistence**: In-memory only (by design for Layer 4 service)
 2. **No Replication**: Single-instance (can add later)
-3. **No Change Webhooks**: Only Busboy pub/sub
+3. **No Change Webhooks**: Only Wotan pub/sub
 4. **No Query Language**: Basic list/get operations only
 
 ### Future Enhancements
@@ -687,7 +687,7 @@ Ready for:
 
 - `core.go`: Service logic and data models
 - `handlers.go`: HTTP API endpoint handlers
-- `cmd/main.go`: Entry point with Busboy/metrics integration
+- `cmd/main.go`: Entry point with Wotan/metrics integration
 - `core_test.go`: Comprehensive unit tests
 - `handlers_test.go`: HTTP handler tests
 
@@ -725,7 +725,7 @@ The Architect service is **production-ready** and fully implements the design sp
 - ✅ Complete error handling
 - ✅ Security hardening with NixOS
 - ✅ Prometheus metrics integration
-- ✅ Busboy pub/sub readiness
+- ✅ Wotan pub/sub readiness
 - ✅ Full HTTP API implementation
 
 All tests pass with race detection. Service is ready for integration testing with other Unheaded components.

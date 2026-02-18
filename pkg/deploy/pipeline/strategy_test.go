@@ -857,14 +857,14 @@ func TestNotificationConfig(t *testing.T) {
 // TestNotificationChannel verifies notification channel configuration.
 func TestNotificationChannel(t *testing.T) {
 	channel := NotificationChannel{
-		Type:     "busboy",
+		Type:     "wotan",
 		Target:   "deployment.events",
 		Template: "",
 		Severity: []string{"info", "warning", "critical"},
 	}
 
-	if channel.Type != "busboy" {
-		t.Errorf("expected type 'busboy', got %q", channel.Type)
+	if channel.Type != "wotan" {
+		t.Errorf("expected type 'wotan', got %q", channel.Type)
 	}
 
 	if channel.Target != "deployment.events" {

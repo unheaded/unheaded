@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -24,18 +24,18 @@ func newTestLogger() *logger.Logger {
 	return logger.New(io.Discard)
 }
 
-// newTestBusboy creates a minimal *busboyClient.Client for tests.
-// We only need the struct pointer; the cape service never calls busboy
+// newTestWotan creates a minimal *wotanClient.Client for tests.
+// We only need the struct pointer; the cape service never calls wotan
 // methods during the paths we exercise.
-func newTestBusboy() *busboyClient.Client {
-	c, _ := busboyClient.NewClient("localhost:19999")
+func newTestWotan() *wotanClient.Client {
+	c, _ := wotanClient.NewClient("localhost:19999")
 	return c
 }
 
 // newTestService returns a ready-to-use *Service with defaults.
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	return NewService(newTestLogger(), newTestBusboy(), nil)
+	return NewService(newTestLogger(), newTestWotan(), nil)
 }
 
 // newStartedService returns a *Service that has been Start()'d.
@@ -76,7 +76,7 @@ func TestDefaultConfig(t *testing.T) {
 		{"EnableHTTP3", cfg.EnableHTTP3, true},
 		{"EnableGRPC", cfg.EnableGRPC, true},
 		{"EnableWebSocket", cfg.EnableWebSocket, true},
-		{"BusboyTopic", cfg.BusboyTopic, "cape.framework"},
+		{"WotanTopic", cfg.WotanTopic, "cape.framework"},
 	}
 
 	for _, tc := range tests {
@@ -102,7 +102,7 @@ func TestNewService(t *testing.T) {
 
 	t.Run("nil config uses defaults", func(t *testing.T) {
 		t.Parallel()
-		svc := NewService(newTestLogger(), newTestBusboy(), nil)
+		svc := NewService(newTestLogger(), newTestWotan(), nil)
 		if svc.config.HTTPAddress != ":8080" {
 			t.Errorf("expected default HTTPAddress, got %s", svc.config.HTTPAddress)
 		}
@@ -110,13 +110,13 @@ func TestNewService(t *testing.T) {
 
 	t.Run("custom config is preserved", func(t *testing.T) {
 		t.Parallel()
-		cfg := &Config{HTTPAddress: ":9999", BusboyTopic: "test.topic"}
-		svc := NewService(newTestLogger(), newTestBusboy(), cfg)
+		cfg := &Config{HTTPAddress: ":9999", WotanTopic: "test.topic"}
+		svc := NewService(newTestLogger(), newTestWotan(), cfg)
 		if svc.config.HTTPAddress != ":9999" {
 			t.Errorf("expected :9999, got %s", svc.config.HTTPAddress)
 		}
-		if svc.config.BusboyTopic != "test.topic" {
-			t.Errorf("expected test.topic, got %s", svc.config.BusboyTopic)
+		if svc.config.WotanTopic != "test.topic" {
+			t.Errorf("expected test.topic, got %s", svc.config.WotanTopic)
 		}
 	})
 
@@ -1398,8 +1398,8 @@ func TestConfigJSON(t *testing.T) {
 	if decoded.HTTPAddress != cfg.HTTPAddress {
 		t.Errorf("HTTPAddress = %s, want %s", decoded.HTTPAddress, cfg.HTTPAddress)
 	}
-	if decoded.BusboyTopic != cfg.BusboyTopic {
-		t.Errorf("BusboyTopic = %s, want %s", decoded.BusboyTopic, cfg.BusboyTopic)
+	if decoded.WotanTopic != cfg.WotanTopic {
+		t.Errorf("WotanTopic = %s, want %s", decoded.WotanTopic, cfg.WotanTopic)
 	}
 }
 
@@ -1781,7 +1781,7 @@ func TestGRPCMethodInfo(t *testing.T) {
 func TestFullRequestLifecycle(t *testing.T) {
 	t.Parallel()
 	log := newTestLogger()
-	svc := NewService(log, newTestBusboy(), nil)
+	svc := NewService(log, newTestWotan(), nil)
 
 	// Add middleware
 	svc.Use(RecoveryMiddleware(log))
@@ -2288,7 +2288,7 @@ func TestStartIdempotent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func BenchmarkHandlerDispatch(b *testing.B) {
-	svc := NewService(logger.New(io.Discard), newTestBusboy(), nil)
+	svc := NewService(logger.New(io.Discard), newTestWotan(), nil)
 	svc.GET("/bench", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -2305,7 +2305,7 @@ func BenchmarkHandlerDispatch(b *testing.B) {
 
 func BenchmarkHandlerDispatchWithMiddleware(b *testing.B) {
 	log := logger.New(io.Discard)
-	svc := NewService(log, newTestBusboy(), nil)
+	svc := NewService(log, newTestWotan(), nil)
 	svc.Use(RecoveryMiddleware(log))
 	svc.Use(LoggingMiddleware(log))
 	svc.Use(CORSMiddleware([]string{"*"}))
@@ -2325,7 +2325,7 @@ func BenchmarkHandlerDispatchWithMiddleware(b *testing.B) {
 }
 
 func BenchmarkRouteRegistration(b *testing.B) {
-	svc := NewService(logger.New(io.Discard), newTestBusboy(), nil)
+	svc := NewService(logger.New(io.Discard), newTestWotan(), nil)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {

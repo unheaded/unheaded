@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -52,8 +52,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("DefaultConfig returned nil")
 	}
-	if cfg.BusboyAddr != "localhost:9090" {
-		t.Errorf("expected BusboyAddr localhost:9090, got %s", cfg.BusboyAddr)
+	if cfg.WotanAddr != "localhost:9090" {
+		t.Errorf("expected WotanAddr localhost:9090, got %s", cfg.WotanAddr)
 	}
 	if cfg.BufferSize != 1000 {
 		t.Errorf("expected BufferSize 1000, got %d", cfg.BufferSize)
@@ -82,16 +82,16 @@ func TestConfigValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "empty busboy address",
+			name: "empty wotan address",
 			cfg: &Config{
-				BusboyAddr: "",
+				WotanAddr: "",
 			},
 			wantErr: true,
 		},
 		{
 			name: "valid minimal config fills defaults",
 			cfg: &Config{
-				BusboyAddr: "localhost:9090",
+				WotanAddr: "localhost:9090",
 			},
 			wantErr: false,
 			check: func(t *testing.T, cfg *Config) {
@@ -116,7 +116,7 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "explicit values are preserved",
 			cfg: &Config{
-				BusboyAddr:        "busboy:1234",
+				WotanAddr:        "wotan:1234",
 				ServiceName:       "my-service",
 				Topics:            []string{"a", "b"},
 				BufferSize:        500,
@@ -562,7 +562,7 @@ func TestNewStreamer(t *testing.T) {
 		{
 			name: "invalid config returns error",
 			config: &Config{
-				BusboyAddr: "",
+				WotanAddr: "",
 			},
 			log:     testLogger(),
 			wantErr: true,
@@ -1158,7 +1158,7 @@ func TestParseMessage(t *testing.T) {
 
 	t.Run("valid JSON payload with fields", func(t *testing.T) {
 		payload := `{"title":"CPU High","message":"CPU at 95%","severity":"warning","extra":"data"}`
-		msg := &busboyClient.Message{
+		msg := &wotanClient.Message{
 			MessageID: "msg-1",
 			Topic:     "metrics.cpu",
 			SenderID:  "sender-1",
@@ -1201,7 +1201,7 @@ func TestParseMessage(t *testing.T) {
 	})
 
 	t.Run("invalid JSON payload uses defaults", func(t *testing.T) {
-		msg := &busboyClient.Message{
+		msg := &wotanClient.Message{
 			MessageID: "msg-2",
 			Topic:     "health.svc",
 			SenderID:  "sender-2",
@@ -1222,7 +1222,7 @@ func TestParseMessage(t *testing.T) {
 
 	t.Run("JSON without title gets default title", func(t *testing.T) {
 		payload := `{"value": 42}`
-		msg := &busboyClient.Message{
+		msg := &wotanClient.Message{
 			MessageID: "msg-3",
 			Topic:     "alerts.info",
 			SenderID:  "sender-3",
@@ -1240,7 +1240,7 @@ func TestParseMessage(t *testing.T) {
 
 	t.Run("raw message is preserved", func(t *testing.T) {
 		payload := `{"key":"value"}`
-		msg := &busboyClient.Message{
+		msg := &wotanClient.Message{
 			MessageID: "msg-4",
 			Topic:     "tasks.update",
 			SenderID:  "sender-4",
@@ -1291,16 +1291,16 @@ func TestCreateEvent(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// PublishToBusboy not connected tests
+// PublishToWotan not connected tests
 // ---------------------------------------------------------------------------
 
-func TestStreamerPublishToBusboyNotConnected(t *testing.T) {
+func TestStreamerPublishToWotanNotConnected(t *testing.T) {
 	s, err := NewStreamer(DefaultConfig(), testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = s.PublishToBusboy(t.Context(), "test.topic", Event{Title: "test"})
+	err = s.PublishToWotan(t.Context(), "test.topic", Event{Title: "test"})
 	if err != ErrNotConnected {
 		t.Errorf("expected ErrNotConnected, got %v", err)
 	}
@@ -1348,7 +1348,7 @@ func TestStreamerPublishAlertEventNotConnected(t *testing.T) {
 
 func TestPublishHealthEventSeverityMapping(t *testing.T) {
 	// We can test the severity mapping logic by inspecting events produced
-	// by publishHealthEvent. Since it calls PublishToBusboy which requires
+	// by publishHealthEvent. Since it calls PublishToWotan which requires
 	// a connection, we test indirectly by verifying the mapping table.
 	tests := []struct {
 		status   string
@@ -1398,16 +1398,16 @@ func TestStreamerSubscribeToTopicNotConnected(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// GetBusboyClient tests
+// GetWotanClient tests
 // ---------------------------------------------------------------------------
 
-func TestStreamerGetBusboyClientNil(t *testing.T) {
+func TestStreamerGetWotanClientNil(t *testing.T) {
 	s, err := NewStreamer(DefaultConfig(), testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if s.GetBusboyClient() != nil {
+	if s.GetWotanClient() != nil {
 		t.Error("expected nil client when not connected")
 	}
 }
@@ -1534,7 +1534,7 @@ func TestStreamerDisconnect(t *testing.T) {
 	}
 
 	// Simulate a connected state with a real client.
-	client, clientErr := busboyClient.NewClient("localhost:19999")
+	client, clientErr := wotanClient.NewClient("localhost:19999")
 	if clientErr != nil {
 		t.Fatal(clientErr)
 	}

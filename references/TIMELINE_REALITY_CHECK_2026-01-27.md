@@ -11,7 +11,7 @@
 | Metric | Previously Claimed | Actual | Variance |
 |--------|-------------------|--------|----------|
 | **Total LOC** | 34,000 | 1,234 | -96.4% |
-| **Busboy LOC** | 12,300 | 12,300 | ✓ Accurate |
+| **Wotan LOC** | 12,300 | 12,300 | ✓ Accurate |
 | **Unheaded LOC** | ~8,300 (claimed) | ~890 actual code | **-89.3%** |
 | **Completion %** | 70-80% | ~25% | Reality: 5-35% per component |
 | **eBPF Status** | 10% complete | Skeletal stubs only | 0% functional |
@@ -23,7 +23,7 @@
 **FOUNDATION IS SOLID:**
 - ✅ Project structure correctly architected
 - ✅ Comprehensive documentation complete
-- ✅ Busboy Phase 1 proven in production
+- ✅ Wotan Phase 1 proven in production
 - ✅ Automated setup script works
 - ✅ Clear path forward defined
 
@@ -38,7 +38,7 @@
 
 ## Component-by-Component Reality
 
-### Busboy (Phase 1 - Foundation)
+### Wotan (Phase 1 - Foundation)
 | Aspect | Status |
 |--------|--------|
 | Code | ✅ Complete, proven |
@@ -234,7 +234,7 @@ eBPF (4d) → Daemon (3d) → Services (4d) → Containers (2d) → Dashboard (2
 - Network policies
 
 **Day 5 (Jan 31):** Integration + Testing
-- Wire all services to Busboy
+- Wire all services to Wotan
 - E2E tests
 - Security audit
 
@@ -263,7 +263,7 @@ eBPF (4d) → Daemon (3d) → Services (4d) → Containers (2d) → Dashboard (2
 
 ## Velocity Reality Check
 
-### Historical (Busboy Phase 1)
+### Historical (Wotan Phase 1)
 - Duration: 4 weeks
 - Output: ~12,300 LOC
 - Team: 1 engineer + Claude pair programming
@@ -313,7 +313,7 @@ eBPF (4d) → Daemon (3d) → Services (4d) → Containers (2d) → Dashboard (2
    Agent 3: micromanager service (exec stub)
    Agent 4: architect service (design stub)
    Agent 5: eBPF programs (packet_marker, flow_tracker, latency_probe)
-   Agent 6: trace-collector (bridge eBPF → Busboy)
+   Agent 6: trace-collector (bridge eBPF → Wotan)
    Agent 7: unheaded-daemon (orchestration + state management)
    ```
 
@@ -329,11 +329,11 @@ eBPF (4d) → Daemon (3d) → Services (4d) → Containers (2d) → Dashboard (2
 **Must complete by Feb 3 (5 days):**
 - [ ] timeguru service (reads timeline.md, serves JSON)
 - [ ] eBPF programs (at least packet_marker)
-- [ ] trace-collector (publishes traces to Busboy)
+- [ ] trace-collector (publishes traces to Wotan)
 
 **Must complete by Feb 5 (7 days):**
 - [ ] unheaded-daemon basic functionality
-- [ ] Services wired to Busboy
+- [ ] Services wired to Wotan
 - [ ] NixOS container definitions
 
 **Must complete by Feb 8 (11 days):**
@@ -370,13 +370,13 @@ eBPF (4d) → Daemon (3d) → Services (4d) → Containers (2d) → Dashboard (2
 2. ✅ Each agent works independently with clear interfaces
 3. ✅ Integration tests run continuously
 4. ✅ eBPF dev environment is ready TODAY
-5. ✅ Services use Busboy as inter-service communication (no direct calls)
+5. ✅ Services use Wotan as inter-service communication (no direct calls)
 6. ✅ NixOS configs are straightforward (use templates)
 
 ### RISKS TO WATCH:
 1. ⚠️ eBPF programs don't verify on kernel (kernel version mismatch)
 2. ⚠️ LXD networking misconfiguration (bridging issues)
-3. ⚠️ Service integration failures (Busboy version compatibility)
+3. ⚠️ Service integration failures (Wotan version compatibility)
 4. ⚠️ Dashboard UI not ready (depends on backend latency)
 
 ### BUFFER:
@@ -434,7 +434,7 @@ If we ship Feb 8:
 **Recommendation:**
 1. Validate eBPF dev environment TODAY
 2. Create mock interfaces for services (before implementation)
-3. Define Busboy message contracts (ensure compatibility)
+3. Define Wotan message contracts (ensure compatibility)
 4. Pre-build container templates
 
 ### For Timeguru (You)
@@ -454,7 +454,7 @@ You thought you had:
 - Just 4k LOC left
 
 You actually have:
-- 1,234 LOC of real code + proven Busboy
+- 1,234 LOC of real code + proven Wotan
 - Clear architecture
 - ~3,000 LOC to write
 - 11 days with parallel execution
@@ -465,7 +465,7 @@ You actually have:
 2. Your architecture is clean before coding
 3. Your interfaces are defined
 4. Your test strategy is clear
-5. Busboy is proven and ready
+5. Wotan is proven and ready
 
 **That's why startups ship fast: good architecture + parallel execution beats solo sequential grinding.**
 

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 	"unheaded/services/gateway/config"
@@ -77,7 +77,7 @@ type Gateway struct {
 	router        *routes.Router
 	healthChecker *proxy.HealthChecker
 	rateLimiter   *middleware.RateLimiter
-	busboy        *busboyClient.Client
+	wotan        *wotanClient.Client
 	httpServer    *http.Server
 	http3Server   interface{} // http3.Server when enabled
 	healthMgr     *healthManager
@@ -104,13 +104,13 @@ func New(cfg *config.Config, log *logger.Logger) (*Gateway, error) {
 	// Create rate limiter
 	rateLimiter := middleware.NewRateLimiter(&cfg.RateLimit, log, metricsReg)
 
-	// Create Busboy client
-	var client *busboyClient.Client
-	if cfg.Busboy.Enabled {
+	// Create Wotan client
+	var client *wotanClient.Client
+	if cfg.Wotan.Enabled {
 		var err error
-		client, err = busboyClient.NewClient(cfg.Busboy.URL)
+		client, err = wotanClient.NewClient(cfg.Wotan.URL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create busboy client: %w", err)
+			return nil, fmt.Errorf("failed to create wotan client: %w", err)
 		}
 	}
 
@@ -124,7 +124,7 @@ func New(cfg *config.Config, log *logger.Logger) (*Gateway, error) {
 		router:        router,
 		healthChecker: healthChecker,
 		rateLimiter:   rateLimiter,
-		busboy:        client,
+		wotan:        client,
 		healthMgr:     healthMgr,
 	}
 
@@ -168,19 +168,19 @@ func (g *Gateway) buildHandler() http.Handler {
 	handler = corsMw.Handler(handler)
 
 	// Tracing (should be one of the first to execute)
-	tracingMw := middleware.NewTracingMiddleware(g.cfg.Busboy.ServiceName)
+	tracingMw := middleware.NewTracingMiddleware(g.cfg.Wotan.ServiceName)
 	handler = tracingMw.Handler(handler)
 
-	// Busboy event publishing
-	if g.busboy != nil {
-		handler = g.busboyMiddleware(handler)
+	// Wotan event publishing
+	if g.wotan != nil {
+		handler = g.wotanMiddleware(handler)
 	}
 
 	return handler
 }
 
-// busboyMiddleware publishes request events to Busboy.
-func (g *Gateway) busboyMiddleware(next http.Handler) http.Handler {
+// wotanMiddleware publishes request events to Wotan.
+func (g *Gateway) wotanMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Publish request event asynchronously
 		go func() {
@@ -200,7 +200,7 @@ func (g *Gateway) busboyMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			if err := g.busboy.Publish(r.Context(), g.cfg.Busboy.Topic, payload); err != nil {
+			if err := g.wotan.Publish(r.Context(), g.cfg.Wotan.Topic, payload); err != nil {
 				g.log.Warn().Str("error", err.Error()).Msg("Failed to publish request event")
 			}
 		}()
@@ -220,9 +220,9 @@ func (g *Gateway) Start(ctx context.Context) error {
 	g.mu.Unlock()
 
 	// Subscribe to alerts.critical (required by CLAUDE.md)
-	if g.busboy != nil {
+	if g.wotan != nil {
 		subCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if _, err := g.busboy.Subscribe(subCtx, "alerts.critical", "gateway-service"); err != nil {
+		if _, err := g.wotan.Subscribe(subCtx, "alerts.critical", "gateway-service"); err != nil {
 			g.log.Warn().Str("error", err.Error()).Msg("failed to subscribe to alerts.critical")
 		} else {
 			g.log.Info().Msg("subscribed to alerts.critical")
@@ -231,10 +231,10 @@ func (g *Gateway) Start(ctx context.Context) error {
 
 		// Subscribe to gateway.events for own topic
 		subCtx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
-		if _, err := g.busboy.Subscribe(subCtx2, g.cfg.Busboy.Topic, "gateway-service"); err != nil {
+		if _, err := g.wotan.Subscribe(subCtx2, g.cfg.Wotan.Topic, "gateway-service"); err != nil {
 			g.log.Warn().Str("error", err.Error()).Msg("failed to subscribe to gateway topic")
 		} else {
-			g.log.Info().Str("topic", g.cfg.Busboy.Topic).Msg("subscribed to gateway topic")
+			g.log.Info().Str("topic", g.cfg.Wotan.Topic).Msg("subscribed to gateway topic")
 		}
 		cancel2()
 
@@ -344,9 +344,9 @@ func (g *Gateway) Shutdown() error {
 	// Close router
 	g.router.Close()
 
-	// Close Busboy client
-	if g.busboy != nil {
-		g.busboy.Close()
+	// Close Wotan client
+	if g.wotan != nil {
+		g.wotan.Close()
 	}
 
 	// Shutdown HTTP server
@@ -359,13 +359,13 @@ func (g *Gateway) Shutdown() error {
 	return nil
 }
 
-// listenForAlerts listens for critical alerts from Busboy
+// listenForAlerts listens for critical alerts from Wotan
 func (g *Gateway) listenForAlerts(ctx context.Context) {
-	if g.busboy == nil {
+	if g.wotan == nil {
 		return
 	}
 
-	msgCh, err := g.busboy.StreamMessages(ctx, "alerts.critical")
+	msgCh, err := g.wotan.StreamMessages(ctx, "alerts.critical")
 	if err != nil {
 		g.log.Warn().Str("error", err.Error()).Msg("failed to stream alerts.critical")
 		return
@@ -385,7 +385,7 @@ func (g *Gateway) listenForAlerts(ctx context.Context) {
 }
 
 // handleCriticalAlert processes critical alerts
-func (g *Gateway) handleCriticalAlert(ctx context.Context, msg *busboyClient.Message) {
+func (g *Gateway) handleCriticalAlert(ctx context.Context, msg *wotanClient.Message) {
 	if msg == nil {
 		return
 	}

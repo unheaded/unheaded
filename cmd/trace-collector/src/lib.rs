@@ -1,18 +1,18 @@
 //! THE WHISPERING VOID - Library Root
 //!
 //! This crate provides the core functionality for eBPF event collection,
-//! parsing, and publishing to the Busboy message bus.
+//! parsing, and publishing to the Wotan message bus.
 //!
 //! # Architecture
 //!
 //! The trace-collector operates as a bridge between kernel-space eBPF programs
-//! and the Busboy message bus. It provides:
+//! and the Wotan message bus. It provides:
 //!
 //! - **BPF Readers**: Zero-copy event reading from ring buffers and perf arrays
 //! - **Multi-Source Reading**: Unified reading from all eBPF programs (packet-marker, flow-tracker, latency-probe, syscall-tracer)
 //! - **Event Parsing**: Strongly-typed event structures matching eBPF definitions
 //! - **Trace Correlation**: Cross-service trace correlation engine
-//! - **Publisher**: Batched, compressed gRPC client for Busboy
+//! - **Publisher**: Batched, compressed gRPC client for Wotan
 //! - **WebSocket**: Real-time trace streaming to dashboard
 //! - **Metrics**: Prometheus-compatible metrics endpoint
 //! - **Storage**: In-memory and file-based trace storage
@@ -26,17 +26,17 @@
 //! - `events` - Event types and parsing
 //! - `metrics` - Prometheus metrics and HTTP server
 //! - `proto` - Protocol buffer definitions
-//! - `publisher` - Busboy gRPC client and event batching
+//! - `publisher` - Wotan gRPC client and event batching
 //! - `websocket` - WebSocket server for real-time streaming
 //!
 //! # Example Usage
 //!
 //! ```ignore
-//! use trace_collector::{Config, Event, BusboyPublisher};
+//! use trace_collector::{Config, Event, WotanPublisher};
 //! use std::time::Duration;
 //!
 //! let config = Config::default();
-//! let publisher = BusboyPublisher::new(
+//! let publisher = WotanPublisher::new(
 //!     "http://localhost:50051",
 //!     1000,
 //!     Duration::from_millis(10)
@@ -63,7 +63,7 @@ pub mod websocket;
 // Re-export commonly used types
 pub use config::Config;
 pub use events::{Event, EventBatch, EventData, EventType, LatencyEvent, PacketEvent, SyscallEvent};
-pub use publisher::{BusboyPublisher, PublisherState, PublisherStats};
+pub use publisher::{WotanPublisher, PublisherState, PublisherStats};
 
 // Re-export collector types
 pub use collector::{

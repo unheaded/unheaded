@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -41,20 +41,20 @@ func DefaultIngestorConfig() IngestorConfig {
 	}
 }
 
-// BusboySubscriber abstracts the Busboy client interface needed by the ingestor.
-// Both busboyClient.Client and busboyClient.TopicStreamClient satisfy this.
-type BusboySubscriber interface {
-	Subscribe(ctx context.Context, topic, displayName string) (*busboyClient.Subscriber, error)
-	StreamMessages(ctx context.Context, topic string) (<-chan *busboyClient.Message, error)
+// WotanSubscriber abstracts the Wotan client interface needed by the ingestor.
+// Both wotanClient.Client and wotanClient.TopicStreamClient satisfy this.
+type WotanSubscriber interface {
+	Subscribe(ctx context.Context, topic, displayName string) (*wotanClient.Subscriber, error)
+	StreamMessages(ctx context.Context, topic string) (<-chan *wotanClient.Message, error)
 	Close() error
 }
 
-// Ingestor subscribes to eBPF Busboy topics and feeds events into
+// Ingestor subscribes to eBPF Wotan topics and feeds events into
 // the flow graph, latency histogram, and event buffer.
 type Ingestor struct {
 	config    IngestorConfig
 	log       *logger.Logger
-	client    BusboySubscriber
+	client    WotanSubscriber
 	flows     *FlowGraph
 	latency   *LatencyHistogram
 	events    *EventRing
@@ -127,7 +127,7 @@ func (r *EventRing) Count() int {
 }
 
 // NewIngestor creates a new eBPF event ingestor.
-func NewIngestor(config IngestorConfig, client BusboySubscriber, log *logger.Logger) *Ingestor {
+func NewIngestor(config IngestorConfig, client WotanSubscriber, log *logger.Logger) *Ingestor {
 	if log == nil {
 		log = logger.New(io.Discard)
 	}

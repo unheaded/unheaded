@@ -45,18 +45,18 @@ make build
 
 ---
 
-## Integration with Busboy
+## Integration with Wotan
 
-### 1. Busboy Address Configuration
+### 1. Wotan Address Configuration
 
 **Development** (with mock):
 ```bash
-./architect -mock-busboy -addr :8001 -log debug
+./architect -mock-wotan -addr :8001 -log debug
 ```
 
-**Staging** (with real Busboy):
+**Staging** (with real Wotan):
 ```bash
-./architect -addr :8001 -busboy 10.10.10.10:9090 -log info
+./architect -addr :8001 -wotan 10.10.10.10:9090 -log info
 ```
 
 ### 2. Topic Subscriptions
@@ -79,12 +79,12 @@ curl -X POST http://architect:8001/infrastructure/services \
   }'
 
 # Architect publishes to architecture.updates topic
-# Busboy delivers to all subscribers
+# Wotan delivers to all subscribers
 ```
 
 ### 3. Message Format
 
-Architect publishes JSON on Busboy:
+Architect publishes JSON on Wotan:
 ```json
 {
   "event_type": "service_added|service_updated|node_added|decision_logged",
@@ -100,7 +100,7 @@ Architect publishes JSON on Busboy:
 
 ### 1. Trace Correlation
 
-Architect includes `trace_id` in all Busboy messages:
+Architect includes `trace_id` in all Wotan messages:
 ```go
 log.Info().
     Str("trace_id", traceID).
@@ -113,7 +113,7 @@ This allows eBPF packets to correlate with architecture decisions.
 ### 2. eBPF Packet Markers
 
 When trace-collector sees a packet with trace_id:
-1. Lookup trace_id in Busboy `architecture.updates`
+1. Lookup trace_id in Wotan `architecture.updates`
 2. Correlate with architect service that initiated action
 3. Draw connection graph in dashboard
 
@@ -171,7 +171,7 @@ When user adds service via kanban:
 1. Kanban POST to `/infrastructure/services`
 2. Architect stores in memory
 3. Publishes to `architecture.updates`
-4. Kanban receives update via Busboy stream
+4. Kanban receives update via Wotan stream
 5. Re-renders board
 
 ---
@@ -189,7 +189,7 @@ Prometheus metrics available:
 ```
 unheaded_http_requests_total
 unheaded_http_request_duration_seconds
-unheaded_busboy_messages_published_total
+unheaded_wotan_messages_published_total
 ```
 
 ### 2. Service Health
@@ -205,7 +205,7 @@ Response indicates if architect is ready.
 
 Dashboard correlates:
 - HTTP request (from Architect metrics)
-- Busboy message (from architecture.updates)
+- Wotan message (from architecture.updates)
 - eBPF packet trace (from trace-collector)
 - Latency (from histogram)
 
@@ -232,12 +232,12 @@ containers.architect = {
 
 ```bash
 # Architect container IP: 10.10.10.25
-# Busboy IP: 10.10.10.10
+# Wotan IP: 10.10.10.10
 # Gateway IP: 10.10.10.100
 
 # Architect service binding
 -addr :8001          # Listen on container port 8001
--busboy 10.10.10.10:9090  # Connect to Busboy
+-wotan 10.10.10.10:9090  # Connect to Wotan
 ```
 
 ### 3. Security Verification
@@ -261,11 +261,11 @@ curl http://localhost:8001/health
 
 ## Testing Integration Points
 
-### 1. Test Busboy Connection
+### 1. Test Wotan Connection
 
 ```bash
-# Start architect with mock Busboy
-./architect -mock-busboy -addr :8001
+# Start architect with mock Wotan
+./architect -mock-wotan -addr :8001
 
 # Make request
 curl -X POST http://localhost:8001/infrastructure/services \
@@ -327,7 +327,7 @@ go test -race -count=100 ./...
 curl http://architect:8001/health
 
 # Check with verbose logging
-./architect -addr :8001 -busboy 10.10.10.10:9090 -log debug
+./architect -addr :8001 -wotan 10.10.10.10:9090 -log debug
 
 # Expected logs:
 # {"time":"...","level":"info","service":"architect","operation":"GET_INFRASTRUCTURE","message":"infrastructure state retrieved"}
@@ -415,15 +415,15 @@ Maximum sustainable state:
 
 ## Troubleshooting
 
-### Issue: Cannot connect to Busboy
+### Issue: Cannot connect to Wotan
 
-**Symptom**: Service starts but warns about Busboy connection
+**Symptom**: Service starts but warns about Wotan connection
 
 **Solution**:
-1. Check Busboy is running: `curl http://10.10.10.10:9090/health`
+1. Check Wotan is running: `curl http://10.10.10.10:9090/health`
 2. Check network connectivity: `ping 10.10.10.10`
 3. Check firewall: `iptables -L | grep 9090`
-4. Use mock mode for testing: `./architect -mock-busboy`
+4. Use mock mode for testing: `./architect -mock-wotan`
 
 ### Issue: High memory usage
 
@@ -443,7 +443,7 @@ Maximum sustainable state:
 1. Check load: `ab -c 10 -n 100 http://localhost:8001/infrastructure`
 2. Enable debug logging: `-log debug`
 3. Check system resources: `top`, `free -m`
-4. Check Busboy latency if publishing
+4. Check Wotan latency if publishing
 5. Consider caching layer (future enhancement)
 
 ### Issue: Race condition in tests
@@ -464,14 +464,14 @@ Before marking "SHIPPED":
 - [ ] `make test-race` passes (all tests, no races)
 - [ ] `make test-coverage` shows 80%+ coverage
 - [ ] `make build` produces binary
-- [ ] Binary runs: `./bin/architect -mock-busboy`
+- [ ] Binary runs: `./bin/architect -mock-wotan`
 - [ ] Health endpoint responds: `curl http://localhost:8001/health`
 - [ ] All endpoints documented in README.md
 - [ ] NixOS config correct
 - [ ] Security hardening verified
 - [ ] Load test passes: `ab -c 100 -n 10000`
 - [ ] Prometheus metrics exported
-- [ ] Busboy integration ready
+- [ ] Wotan integration ready
 - [ ] Error messages clear and actionable
 
 ---
@@ -486,7 +486,7 @@ Before marking "SHIPPED":
 ### Phase 2: Local Integration (2 hours)
 - [ ] Start architect service
 - [ ] Test all HTTP endpoints
-- [ ] Test Busboy connection
+- [ ] Test Wotan connection
 - [ ] Verify metrics
 
 ### Phase 3: Container Integration (2 hours)
@@ -497,7 +497,7 @@ Before marking "SHIPPED":
 
 ### Phase 4: Full System Test (2-4 hours)
 - [ ] Start all services (timeguru, captain, micromanager, architect)
-- [ ] Start busboy
+- [ ] Start wotan
 - [ ] Start dashboard
 - [ ] Start kanban
 - [ ] Verify end-to-end flow
@@ -521,7 +521,7 @@ The Architect service is **production-ready** for integration with Unheaded Alph
 ✅ Comprehensive tests (1062 LOC, 95%+ coverage)
 ✅ NixOS container with hardening
 ✅ Prometheus metrics integration
-✅ Busboy pub/sub ready
+✅ Wotan pub/sub ready
 ✅ Full HTTP API documentation
 ✅ Deployment guide (this file)
 
@@ -530,7 +530,7 @@ The Architect service is **production-ready** for integration with Unheaded Alph
 1. **Build**: `make build` in architect service directory
 2. **Test**: `make test-race` to verify everything works
 3. **Deploy**: Use NixOS container definition to deploy
-4. **Integrate**: Wire up to Busboy, dashboard, eBPF
+4. **Integrate**: Wire up to Wotan, dashboard, eBPF
 5. **Monitor**: Watch metrics and logs
 
 ---

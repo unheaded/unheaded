@@ -10,7 +10,7 @@ A drop-in infrastructure platform providing:
 
 - **eBPF-based observability** - Packet-level tracing from L2-L7
 - **Immutable infrastructure** - NixOS containers on LXD
-- **Service mesh** - Built on [Busboy](https://github.com/unheaded/busboy) message bus
+- **Service mesh** - Built on [Wotan](https://github.com/unheaded/wotan) message bus
 - **Control plane** - Declarative config with drift detection
 - **Security baseline** - FEDRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, GDPR
 - **Zero application data access** - Architectural isolation at every layer
@@ -31,8 +31,8 @@ BARE METAL HOST/VM
 ├── unheaded-daemon (control plane)
 ├── eBPF programs (packet tracing)
 └── LXD containers (NixOS)
-    ├── busboy (message bus)
-    ├── trace-collector (eBPF → Busboy)
+    ├── wotan (message bus)
+    ├── trace-collector (eBPF → Wotan)
     ├── timeguru (timeline tracking)
     ├── captain (strategy)
     ├── micromanager (execution)
@@ -92,12 +92,12 @@ sudo ./scripts/load-ebpf.sh
 unheaded/
 ├── cmd/                      # Service binaries
 │   ├── unheaded-daemon/     # Control plane agent
-│   ├── trace-collector/     # eBPF → Busboy bridge (Rust)
+│   ├── trace-collector/     # eBPF → Wotan bridge (Rust)
 │   ├── dashboard-backend/   # Metrics aggregator (Go)
 │   └── kanban-app/          # The meta moment (Go + JS)
 │
 ├── services/                 # Microservice integration
-│   ├── busboy/              # Message bus (github.com/unheaded/busboy)
+│   ├── wotan/              # Message bus (github.com/unheaded/wotan)
 │   ├── timeguru/            # Timeline tracking (Go)
 │   ├── captain/             # Strategy service (Go)
 │   ├── micromanager/        # Execution service (Go)
@@ -127,7 +127,7 @@ unheaded/
 │   ├── lxd/                 # LXD client
 │   ├── state/               # State management
 │   ├── telemetry/           # Common telemetry
-│   └── busboy-client/       # Busboy Go client
+│   └── wotan-client/       # Wotan Go client
 │
 ├── docs/                     # Documentation
 │   ├── ARCHITECTURE.md
@@ -154,18 +154,18 @@ unheaded/
 | eBPF Programs | Rust | Packet tracing, low-latency |
 | Services | Go | APIs, control plane, business logic |
 | Containers | NixOS | Immutable, declarative |
-| Message Bus | Busboy (Go + gRPC) | Service communication |
+| Message Bus | Wotan (Go + gRPC) | Service communication |
 | Frontend | Vanilla JS | Dashboard, Kanban app |
 | Gateway | Nginx | HTTP/3, QUIC, WebSocket |
 | Observability | Prometheus + custom | Metrics, tracing |
 
 ## The Microservices
 
-All services communicate via **Busboy** (the message bus):
+All services communicate via **Wotan** (the message bus):
 
 ### Core Services
-- **busboy** - Message routing, pub/sub, gRPC streaming
-- **trace-collector** - Reads eBPF, publishes to Busboy
+- **wotan** - Message routing, pub/sub, gRPC streaming
+- **trace-collector** - Reads eBPF, publishes to Wotan
 - **dashboard-backend** - Aggregates metrics, serves WebSocket
 - **gateway** - HTTP/3, gRPC-Web, WebSocket proxy
 

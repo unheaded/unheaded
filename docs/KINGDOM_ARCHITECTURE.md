@@ -74,7 +74,7 @@
              |     LAYER OF COORDINATION           |
              |                                     |
              |           +-----------+             |
-             |           |  BUSBOY   |             |
+             |           |  WOTAN   |             |
              |           | Message   |             |
              |           |   Broker  |             |
              |           +-----+-----+             |
@@ -146,7 +146,7 @@ flowchart TB
     end
 
     subgraph COORDINATION["LAYER OF COORDINATION"]
-        BUSBOY["Busboy<br/>Message Broker<br/>10.10.10.10:8080/9090"]
+        WOTAN["Wotan<br/>Message Broker<br/>10.10.10.10:8080/9090"]
     end
 
     subgraph OBSERVATION["LAYER OF OBSERVATION"]
@@ -224,7 +224,7 @@ flowchart TB
     |                    (Service Mesh Core)                             |
     |                                                                    |
     |     +-----------------+                                            |
-    |     |    BUSBOY       |<============= Message Backbone             |
+    |     |    WOTAN       |<============= Message Backbone             |
     |     | 10.10.10.10     |                                            |
     |     | :8080 HTTP      |   +--------+--------+--------+--------+   |
     |     | :9090 gRPC      |-->| Topic  | Topic  | Topic  | Topic  |   |
@@ -250,7 +250,7 @@ flowchart TB
     |         |               |                |                |        |
     |         +-------+-------+-------+--------+----------------+        |
     |                 |                                                  |
-    |                 v Publish to Busboy                                |
+    |                 v Publish to Wotan                                |
     +-------------------------------------------------------------------+
                                 |
                                 |
@@ -320,7 +320,7 @@ flowchart TB
     end
 
     subgraph BREASTPLATE["THE BREASTPLATE - Message Backbone"]
-        BUSBOY["Busboy<br/>10.10.10.10<br/>:8080 HTTP | :9090 gRPC"]
+        WOTAN["Wotan<br/>10.10.10.10<br/>:8080 HTTP | :9090 gRPC"]
 
         subgraph TOPICS["Message Topics"]
             T1["network.traces"]
@@ -331,7 +331,7 @@ flowchart TB
             T6["alerts.critical"]
         end
 
-        BUSBOY --> TOPICS
+        WOTAN --> TOPICS
     end
 
     subgraph GAUNTLETS["THE GAUNTLETS - Agent Services"]
@@ -365,10 +365,10 @@ flowchart TB
     end
 
     GW -->|TLS Term| BREASTPLATE
-    GAUNTLETS <-->|Pub/Sub| BUSBOY
-    BUSBOY <-->|Subscribe| GREAVES
+    GAUNTLETS <-->|Pub/Sub| WOTAN
+    WOTAN <-->|Subscribe| GREAVES
     TRACE -->|Read| RB
-    TRACE -->|Publish| BUSBOY
+    TRACE -->|Publish| WOTAN
     HELM -->|Route| GAUNTLETS
     HELM -->|Route| DASH
     HELM -.->|Only Access| SHIELD
@@ -492,7 +492,7 @@ flowchart TB
     |  |   |                                                           |  |  |
     |  |   |  +----------------+  +----------------+  +-------------+  |  |  |
     |  |   |  | Health         |  | Telemetry      |  | Config      |  |  |  |
-    |  |   |  | Monitoring     |  | to Busboy      |  | Management  |  |  |  |
+    |  |   |  | Monitoring     |  | to Wotan      |  | Management  |  |  |  |
     |  |   |  +----------------+  +----------------+  +-------------+  |  |  |
     |  |   +-----------------------------------------------------------+  |  |
     |  +------------------------------------------------------------------+  |
@@ -580,7 +580,7 @@ flowchart TB
             BPF["eBPF Program<br/>Lifecycle"]
             STATE["State<br/>Enforcement"]
             HEALTH["Health<br/>Monitoring"]
-            TEL["Telemetry<br/>to Busboy"]
+            TEL["Telemetry<br/>to Wotan"]
 
             DAEMON --> ORCH
             DAEMON --> BPF
@@ -662,7 +662,7 @@ flowchart TB
     |         |  /kanban     --> Kanban App (.200)                 |           |
     |         |  /api/*      --> Agent Services (.20-.23)          |           |
     |         |  /ws         --> Dashboard WebSocket (.30)         |           |
-    |         |  /grpc       --> Busboy gRPC-Web (.10)             |           |
+    |         |  /grpc       --> Wotan gRPC-Web (.10)             |           |
     |         +----------------------------------------------------+           |
     |                                  |                                       |
     ============================================================================
@@ -681,7 +681,7 @@ flowchart TB
     |         +--------------------------------------------------------+       |
     |                                                                          |
     |   +--------+     +--------+     +--------+     +--------+     +--------+ |
-    |   |BUSBOY  |<===>|TIMEGURU|<===>|CAPTAIN |<===>|MICRO-  |<===>|ARCHITECT||
+    |   |WOTAN  |<===>|TIMEGURU|<===>|CAPTAIN |<===>|MICRO-  |<===>|ARCHITECT||
     |   |.10     |     |.20     |     |.21     |     |MANAGER |     |.23     | |
     |   |        |     |        |     |        |     |.22     |     |        | |
     |   +---+----+     +---+----+     +---+----+     +---+----+     +---+----+ |
@@ -693,7 +693,7 @@ flowchart TB
     |                           |                   |                          |
     |                           | Protocol: gRPC    |                          |
     |                           | Pub/Sub via       |                          |
-    |                           | Busboy Topics     |                          |
+    |                           | Wotan Topics     |                          |
     |                           |                   |                          |
     |                           | Latency: <5ms     |                          |
     |                           +-------------------+                          |
@@ -702,9 +702,9 @@ flowchart TB
     |   |                                                                      |
     |   |                    CONNECTION MATRIX                                 |
     |   |                                                                      |
-    |   |    FROM/TO    | BUSBOY | GATEWAY | SERVICES | DASHBOARD | DEMO-APP  |
+    |   |    FROM/TO    | WOTAN | GATEWAY | SERVICES | DASHBOARD | DEMO-APP  |
     |   |    ---------- | ------ | ------- | -------- | --------- | --------  |
-    |   |    BUSBOY     |   -    |   N     |    Y     |     Y     |    N      |
+    |   |    WOTAN     |   -    |   N     |    Y     |     Y     |    N      |
     |   |    GATEWAY    |   Y    |   -     |    Y     |     Y     |    Y      |
     |   |    SERVICES   |   Y    |   N     |    Y     |     N     |    N      |
     |   |    DASHBOARD  |   Y    |   N     |    N     |     -     |    N      |
@@ -728,7 +728,7 @@ flowchart TB
     |                                                                          |
     |     BGP EVPN (Future):                                                   |
     |     - ASN: 65001 (Host 1), 65002 (Host 2)                               |
-    |     - Route Reflector: Busboy (primary)                                  |
+    |     - Route Reflector: Wotan (primary)                                  |
     |     - VTEP: Each host's bridge interface                                |
     |                                                                          |
     ============================================================================
@@ -758,7 +758,7 @@ flowchart TB
                                                              | gRPC :9090
                                                              v
                                                        +-----+------+
-                                                       | BUSBOY     |
+                                                       | WOTAN     |
                                                        | Pub/Sub    |
                                                        +-----+------+
                                                              |
@@ -797,7 +797,7 @@ flowchart TB
         end
 
         subgraph CORE["Core Infrastructure"]
-            BUSBOY["Busboy<br/>10.10.10.10<br/>:8080 HTTP<br/>:9090 gRPC"]
+            WOTAN["Wotan<br/>10.10.10.10<br/>:8080 HTTP<br/>:9090 gRPC"]
             TRACE["Trace Collector<br/>10.10.10.11"]
         end
 
@@ -836,9 +836,9 @@ flowchart TB
     GW -->|HTTP| AGENTS
     GW -.->|Only Path| DEMO
 
-    AGENTS <-->|gRPC Pub/Sub| BUSBOY
-    DASH <-->|Subscribe| BUSBOY
-    TRACE -->|Publish| BUSBOY
+    AGENTS <-->|gRPC Pub/Sub| WOTAN
+    DASH <-->|Subscribe| WOTAN
+    TRACE -->|Publish| WOTAN
     KANBAN -->|REST| TIME
 
     style DMZ fill:#7f1d1d,stroke:#fca5a5,stroke-width:2px
@@ -851,7 +851,7 @@ flowchart TB
 
 ## 5. Data Flow Diagrams
 
-### 5.1 Request Flow: User Through Shield to Services to Busboy
+### 5.1 Request Flow: User Through Shield to Services to Wotan
 
 #### ASCII Rendering
 
@@ -911,7 +911,7 @@ flowchart TB
     |   +----------------------------------------------------------+  |
     |                              |                                  |
     |   +----------------------------------------------------------+  |
-    |   |  Publish Event to Busboy                                 |  |
+    |   |  Publish Event to Wotan                                 |  |
     |   |  Topic: timeline.reads                                   |  |
     |   |  Payload: { reader: "web", timestamp: "..." }            |  |
     |   +----------------------------------------------------------+  |
@@ -921,7 +921,7 @@ flowchart TB
             Port 9090              |
                                    v
     +------------------------------+----------------------------------+
-    |              BUSBOY MESSAGE BUS                                 |
+    |              WOTAN MESSAGE BUS                                 |
     |              10.10.10.10:9090                                   |
     |                                                                 |
     |   +----------------------------------------------------------+  |
@@ -952,7 +952,7 @@ flowchart TB
     |                                                                 |
     |   +----------------------------------------------------------+  |
     |   |  Stream Handler                                          |  |
-    |   |  - Receive event from Busboy                             |  |
+    |   |  - Receive event from Wotan                             |  |
     |   |  - Aggregate metrics                                     |  |
     |   |  - Update in-memory state                                |  |
     |   +----------------------------------------------------------+  |
@@ -1131,7 +1131,7 @@ flowchart TB
     |   +------------------------------------------------------------------+   |
     |                              |                                           |
     |   +------------------------------------------------------------------+   |
-    |   |  Busboy Publisher (gRPC)                                         |   |
+    |   |  Wotan Publisher (gRPC)                                         |   |
     |   |                                                                  |   |
     |   |  client.publish(Topic::NetworkTraces, &correlated_trace)?;       |   |
     |   +------------------------------------------------------------------+   |
@@ -1141,7 +1141,7 @@ flowchart TB
                                        v
     +--------------------------------------------------------------------------+
     |                         THE MYTHIC ABYSS                                  |
-    |                     (Busboy - Observability Hub)                          |
+    |                     (Wotan - Observability Hub)                          |
     |                                                                           |
     |   +------------------------------------------------------------------+   |
     |   |  Topic: network.traces                                           |   |
@@ -1253,10 +1253,10 @@ flowchart TB
     |   secrets/                                                               |
     |   +-- .sops.yaml                    (SOPS configuration)                 |
     |   +-- production/                                                        |
-    |   |   +-- busboy.enc.yaml           (Encrypted: TLS certs, API keys)     |
+    |   |   +-- wotan.enc.yaml           (Encrypted: TLS certs, API keys)     |
     |   |   +-- services.enc.yaml         (Encrypted: Service tokens)          |
     |   +-- development/                                                       |
-    |       +-- busboy.enc.yaml           (Encrypted: Dev secrets)             |
+    |       +-- wotan.enc.yaml           (Encrypted: Dev secrets)             |
     |                                                                           |
     +--------------------------------------------------------------------------+
                                        |
@@ -1315,12 +1315,12 @@ flowchart TB
     |                    CONTAINER RUNTIME                                      |
     |                                                                           |
     |   +------------------------------------------------------------------+   |
-    |   |  BUSBOY Container (10.10.10.10)                                  |   |
+    |   |  WOTAN Container (10.10.10.10)                                  |   |
     |   |                                                                  |   |
     |   |  Environment:                                                    |   |
-    |   |    BUSBOY_TLS_CERT=/run/secrets/tls.crt                          |   |
-    |   |    BUSBOY_TLS_KEY=/run/secrets/tls.key                           |   |
-    |   |    BUSBOY_ADMIN_TOKEN=<injected at runtime>                      |   |
+    |   |    WOTAN_TLS_CERT=/run/secrets/tls.crt                          |   |
+    |   |    WOTAN_TLS_KEY=/run/secrets/tls.key                           |   |
+    |   |    WOTAN_ADMIN_TOKEN=<injected at runtime>                      |   |
     |   |                                                                  |   |
     |   |  /run/secrets/ (tmpfs - RAM only, never on disk):                |   |
     |   |    +-- tls.crt           (Decrypted TLS certificate)             |   |
@@ -1335,7 +1335,7 @@ flowchart TB
     |   |  TIMEGURU Container (10.10.10.20)                                |   |
     |   |                                                                  |   |
     |   |  /run/secrets/:                                                  |   |
-    |   |    +-- busboy-client-token.txt  (For Busboy auth)                |   |
+    |   |    +-- wotan-client-token.txt  (For Wotan auth)                |   |
     |   |    +-- api-signing-key.txt      (For response signing)           |   |
     |   +------------------------------------------------------------------+   |
     |                                                                          |
@@ -1348,7 +1348,7 @@ flowchart TB
     |                    SECRET ROTATION FLOW (Future)                          |
     |                                                                           |
     |   +------------------------------------------------------------------+   |
-    |   |  Automated Rotation (via Busboy coordination)                    |   |
+    |   |  Automated Rotation (via Wotan coordination)                    |   |
     |   |                                                                  |   |
     |   |  1. Generate new secret                                          |   |
     |   |  2. Encrypt with SOPS/AGE                                        |   |
@@ -1395,7 +1395,7 @@ sequenceDiagram
     participant U as User (Browser)
     participant GW as Gateway (Shield)
     participant TG as Timeguru
-    participant BB as Busboy
+    participant BB as Wotan
     participant TC as Trace Collector
     participant DB as Dashboard Backend
     participant D as Dashboard (Browser)
@@ -1470,7 +1470,7 @@ sequenceDiagram
          |   Monitors:                                                      |
          |     +------------------+                                         |
          |     | All Services     |                                         |
-         |     | (Busboy Pub/Sub) |                                         |
+         |     | (Wotan Pub/Sub) |                                         |
          |     +------------------+                                         |
          |                                                                  |
          |   Hosts:                                                         |
@@ -1488,7 +1488,7 @@ sequenceDiagram
          |     |   |  |   TODO   |  |IN PROGRESS| |   DONE   |  |  |        |
          |     |   |  +----------+  +----------+  +----------+  |  |        |
          |     |   |  |          |  |          |  |          |  |  |        |
-         |     |   |  | Milestone|  | Busboy   |  | eBPF     |  |  |        |
+         |     |   |  | Milestone|  | Wotan   |  | eBPF     |  |  |        |
          |     |   |  | 1.5      |  | Phase 2  |  | Phase 1  |  |  |        |
          |     |   |  |          |  |          |  |          |  |  |        |
          |     |   |  | Multi-   |  | Message  |  | Packet   |  |  |        |
@@ -1514,7 +1514,7 @@ sequenceDiagram
     |  unheaded-daemon                  |
     |       |                           |
     |       +-> Orchestrates:           |
-    |           - busboy container      |
+    |           - wotan container      |
     |           - timeguru container    |
     |           - kanban-app container  |
     |           - dashboard container   |
@@ -1669,10 +1669,10 @@ flowchart TB
 
             subgraph TRACE["Observability Layer"]
                 EBPF["eBPF Programs"]
-                BUSBOY["Busboy"]
+                WOTAN["Wotan"]
                 DASH["Dashboard"]
-                EBPF --> BUSBOY
-                BUSBOY --> DASH
+                EBPF --> WOTAN
+                WOTAN --> DASH
             end
 
             subgraph APPS["Application Layer"]
@@ -1725,7 +1725,7 @@ flowchart TB
 | **The Sacred Hierarchy** | System Architecture | Layered organization from user to kernel |
 | **The Complete Knight** | Full Service Stack | All armor pieces (components) connected |
 | **The Shield** | Gateway (nginx) | First line of defense, TLS termination |
-| **The Breastplate** | Busboy Message Bus | Core message routing backbone |
+| **The Breastplate** | Wotan Message Bus | Core message routing backbone |
 | **The Gauntlets** | Agent Services | Timeguru, Captain, Micromanager, Architect |
 | **The Greaves** | Observation Layer | Dashboard Backend, Trace Collector |
 | **The Sabatons** | eBPF Layer | Foundation touching the ground (kernel) |
@@ -1743,7 +1743,7 @@ flowchart TB
 | Service | IP Address | Ports | Kingdom Role |
 |---------|-----------|-------|--------------|
 | Gateway | 10.10.10.100 | 443, 80 | The Shield |
-| Busboy | 10.10.10.10 | 8080, 9090 | The Breastplate |
+| Wotan | 10.10.10.10 | 8080, 9090 | The Breastplate |
 | Trace Collector | 10.10.10.11 | 8081 | The Greaves (Left) |
 | Timeguru | 10.10.10.20 | 8000 | The Gauntlet (Time) |
 | Captain | 10.10.10.21 | 8000 | The Gauntlet (Strategy) |

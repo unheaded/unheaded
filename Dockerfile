@@ -34,7 +34,7 @@ ARG BUILD_TIME=unknown
 # Build all services
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
-    -o /build/bin/busboy ./services/busboy/cmd/busboy
+    -o /build/bin/wotan ./services/wotan/cmd/wotan
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
@@ -65,9 +65,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /build/bin/sophia ./cmd/sophia
 
 # ============================================================================
-# STAGE 2: BUSBOY - THE FAE CHAMBER
+# STAGE 2: WOTAN - THE FAE CHAMBER
 # ============================================================================
-FROM alpine:3.19 AS busboy
+FROM alpine:3.19 AS wotan
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -77,7 +77,7 @@ RUN addgroup -g 1000 unheaded && \
 
 WORKDIR /app
 
-COPY --from=builder /build/bin/busboy /app/busboy
+COPY --from=builder /build/bin/wotan /app/wotan
 
 # Create data directory
 RUN mkdir -p /data && chown unheaded:unheaded /data
@@ -89,7 +89,7 @@ EXPOSE 8080 9090
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["/app/busboy"]
+ENTRYPOINT ["/app/wotan"]
 
 # ============================================================================
 # STAGE 3: TIMEGURU - THE ORACLE'S ANTRE
@@ -291,8 +291,8 @@ RUN cat > /etc/supervisor.d/unheaded.ini << 'EOF'
 [supervisord]
 nodaemon=true
 
-[program:busboy]
-command=/app/busboy
+[program:wotan]
+command=/app/wotan
 autostart=true
 autorestart=true
 stderr_logfile=/dev/stderr

@@ -49,7 +49,7 @@ static EVENTS_TOTAL: Lazy<CounterVec> = Lazy::new(|| {
 static EVENTS_PUBLISHED_TOTAL: Lazy<CounterVec> = Lazy::new(|| {
     let opts = Opts::new(
         "trace_collector_events_published_total",
-        "Total events published to Busboy",
+        "Total events published to Wotan",
     )
     .namespace("whispering_void");
     let counter = CounterVec::new(opts, &["status"]).unwrap();
@@ -408,7 +408,7 @@ async fn handle_request(
         }
 
         path if path == config.ready_path || path == "/readyz" => {
-            // Check readiness (e.g., connected to Busboy)
+            // Check readiness (e.g., connected to Wotan)
             let ready = true; // In production, check actual connection state
 
             if ready {

@@ -20,7 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/lxd"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -841,8 +841,8 @@ type BuilderConfig struct {
 	// Watcher poll interval
 	WatchInterval time.Duration `json:"watch_interval"`
 
-	// Busboy topic for events
-	BusboyTopic string `json:"busboy_topic"`
+	// Wotan topic for events
+	WotanTopic string `json:"wotan_topic"`
 }
 
 // DefaultBuilderConfig returns sensible defaults.
@@ -857,7 +857,7 @@ func DefaultBuilderConfig() BuilderConfig {
 		MaxConcurrent:  2,
 		DefaultTimeout: 30 * time.Minute,
 		WatchInterval:  5 * time.Second,
-		BusboyTopic:    "nix.builds",
+		WotanTopic:    "nix.builds",
 	}
 }
 
@@ -867,7 +867,7 @@ type Builder struct {
 	cache  *BuildCache
 	queue  *BuildQueue
 	watcher *FlakeWatcher
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 
 	// Build results storage
 	resultsMu sync.RWMutex
@@ -880,7 +880,7 @@ type Builder struct {
 }
 
 // NewBuilder creates a new Builder service.
-func NewBuilder(config BuilderConfig, busboy *busboyClient.Client) (*Builder, error) {
+func NewBuilder(config BuilderConfig, wotan *wotanClient.Client) (*Builder, error) {
 	// Create output directory
 	if err := os.MkdirAll(config.OutputDir, 0755); err != nil {
 		return nil, fmt.Errorf("create output directory: %w", err)
@@ -899,7 +899,7 @@ func NewBuilder(config BuilderConfig, busboy *busboyClient.Client) (*Builder, er
 		config:  config,
 		cache:   cache,
 		queue:   queue,
-		busboy:  busboy,
+		wotan:  wotan,
 		results: make(map[string]*BuildResult),
 		stopCh:  make(chan struct{}),
 	}
@@ -1263,9 +1263,9 @@ func (b *Builder) onFlakeChange(path string, config *FlakeConfig) {
 	}
 }
 
-// publishBuildEvent sends a build event to Busboy.
+// publishBuildEvent sends a build event to Wotan.
 func (b *Builder) publishBuildEvent(result *BuildResult) {
-	if b.busboy == nil {
+	if b.wotan == nil {
 		return
 	}
 
@@ -1288,7 +1288,7 @@ func (b *Builder) publishBuildEvent(result *BuildResult) {
 	data, _ := json.Marshal(event)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	b.busboy.Publish(ctx, b.config.BusboyTopic, data)
+	b.wotan.Publish(ctx, b.config.WotanTopic, data)
 }
 
 // ============================================================================

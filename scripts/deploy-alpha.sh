@@ -40,7 +40,7 @@ log_step()  { echo -e "${BLUE}[STEP]${NC}  $*"; }
 
 # Service definitions: name:binary_path:port:static_ip
 declare -A SERVICES=(
-    [busboy]="services/busboy/cmd/busboy:8081:10.10.10.10"
+    [wotan]="services/wotan/cmd/wotan:8081:10.10.10.10"
     [timeguru]="services/timeguru/cmd/timeguru:8082:10.10.10.20"
     [captain]="services/captain/cmd/captain:8083:10.10.10.21"
     [architect]="services/architect/cmd:8084:10.10.10.22"
@@ -50,8 +50,8 @@ declare -A SERVICES=(
     [cuirass]="cmd/unheaded-daemon:8080:10.10.10.100"
 )
 
-# Deploy order (busboy first as hub)
-DEPLOY_ORDER=(busboy timeguru captain architect micromanager monad sophia cuirass)
+# Deploy order (wotan first as hub)
+DEPLOY_ORDER=(wotan timeguru captain architect micromanager monad sophia cuirass)
 
 # Flags
 TEARDOWN=false
@@ -262,14 +262,14 @@ for svc in "${DEPLOY_ORDER[@]}"; do
     local_cmd="/app/${svc}"
 
     case "$svc" in
-        busboy)
-            local_cmd="/app/busboy --http-port ${port} --grpc-port 5555"
+        wotan)
+            local_cmd="/app/wotan --http-port ${port} --grpc-port 5555"
             ;;
         timeguru)
-            local_env="PORT=${port}\nBUSBOY_ADDR=${GATEWAY}:8081\nDB_PATH=/data/timeguru.db\nTIMELINE_PATH=/data/timeline.md"
+            local_env="PORT=${port}\nWOTAN_ADDR=${GATEWAY}:8081\nDB_PATH=/data/timeguru.db\nTIMELINE_PATH=/data/timeline.md"
             ;;
         captain)
-            local_env="HTTP_ADDR=0.0.0.0:${port}\nDATA_PATH=/data\nBUSBOY_ADDR=${GATEWAY}:8081"
+            local_env="HTTP_ADDR=0.0.0.0:${port}\nDATA_PATH=/data\nWOTAN_ADDR=${GATEWAY}:8081"
             ;;
         architect)
             local_cmd="/app/architect -addr :${port}"
@@ -278,13 +278,13 @@ for svc in "${DEPLOY_ORDER[@]}"; do
             local_cmd="/app/micromanager -port ${port}"
             ;;
         monad)
-            local_env="MONAD_PORT=${port}\nBUSBOY_ADDR=${GATEWAY}:8081"
+            local_env="MONAD_PORT=${port}\nWOTAN_ADDR=${GATEWAY}:8081"
             ;;
         sophia)
-            local_env="SOPHIA_LISTEN_ADDR=:${port}\nBUSBOY_ADDR=${GATEWAY}:8081"
+            local_env="SOPHIA_LISTEN_ADDR=:${port}\nWOTAN_ADDR=${GATEWAY}:8081"
             ;;
         cuirass)
-            local_env="HTTP_ADDR=:${port}\nBUSBOY_ADDR=${GATEWAY}:8081"
+            local_env="HTTP_ADDR=:${port}\nWOTAN_ADDR=${GATEWAY}:8081"
             ;;
     esac
 

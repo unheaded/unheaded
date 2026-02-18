@@ -46,8 +46,8 @@ type Config struct {
 	// State
 	State StateConfig `json:"state"`
 
-	// Busboy (Message Bus)
-	Busboy BusboyConfig `json:"busboy"`
+	// Wotan (Message Bus)
+	Wotan WotanConfig `json:"wotan"`
 
 	// Logging
 	Logging LoggingConfig `json:"logging"`
@@ -102,8 +102,8 @@ type StateConfig struct {
 	MaxDriftReports   int           `json:"max_drift_reports"`
 }
 
-// BusboyConfig holds message bus settings
-type BusboyConfig struct {
+// WotanConfig holds message bus settings
+type WotanConfig struct {
 	Addr         string        `json:"addr"`
 	Topics       []string      `json:"topics"`
 	BatchSize    int           `json:"batch_size"`
@@ -221,7 +221,7 @@ func DefaultConfig() *Config {
 			MaxDriftReports:    1000,
 		},
 
-		Busboy: BusboyConfig{
+		Wotan: WotanConfig{
 			Addr:         "localhost:5555",
 			Topics:       []string{"cuirass.events", "cuirass.drift", "cuirass.metrics"},
 			BatchSize:    100,
@@ -344,9 +344,9 @@ func LoadFromEnv() *Config {
 		cfg.LXD.Socket = v
 	}
 
-	// Busboy
-	if v := os.Getenv("BUSBOY_ADDR"); v != "" {
-		cfg.Busboy.Addr = v
+	// Wotan
+	if v := os.Getenv("WOTAN_ADDR"); v != "" {
+		cfg.Wotan.Addr = v
 	}
 
 	// Logging

@@ -31,7 +31,7 @@ updated: 2026-01-29T23:45:00Z
 
 **Context from Jan 29 session:**
 - Fae Chamber Protocols complete (`pkg/events/`)
-- All services already wired to Busboy
+- All services already wired to Wotan
 - Kingdom at ~30% progress
 - Alpha target: Feb 8, 2026
 

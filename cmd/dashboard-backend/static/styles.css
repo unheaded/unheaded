@@ -42,7 +42,7 @@
     /* Flow Colors */
     --flow-xdp: #ff6b6b;
     --flow-gateway: #ffd700;
-    --flow-busboy: #4ecdc4;
+    --flow-wotan: #4ecdc4;
     --flow-service: #45b7d1;
     --flow-collector: #a29bfe;
 
@@ -545,7 +545,7 @@ body {
 
 .legend-color.xdp { background: var(--flow-xdp); }
 .legend-color.gateway { background: var(--flow-gateway); }
-.legend-color.busboy { background: var(--flow-busboy); }
+.legend-color.wotan { background: var(--flow-wotan); }
 .legend-color.service { background: var(--flow-service); }
 .legend-color.collector { background: var(--flow-collector); }
 

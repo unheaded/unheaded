@@ -3,7 +3,7 @@
 //! THE WHISPERING VOID speaks in protocol buffers, a language understood
 //! by all services in the Unheaded Kingdom.
 //!
-//! These definitions match the Busboy service protobuf schema and enable
+//! These definitions match the Wotan service protobuf schema and enable
 //! efficient serialization of trace events.
 
 use prost::Message;

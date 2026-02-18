@@ -16,7 +16,7 @@ The threat model includes:
 4. **Lateral movement**: An attacker moves from one compromised container to others on the same network.
 5. **Data exfiltration**: An attacker attempts to read secrets, customer data, or platform state from a compromised container.
 
-The hardening strategy must address all five threats while keeping containers functional and allowing legitimate operations (network communication via Busboy, file I/O for timeline/strategy documents, metrics exposition).
+The hardening strategy must address all five threats while keeping containers functional and allowing legitimate operations (network communication via Wotan, file I/O for timeline/strategy documents, metrics exposition).
 
 ### Alternatives Considered
 

@@ -49,16 +49,16 @@ Built complete, production-ready NixOS container orchestration layer for Unheade
 ### ✅ Container Definitions (1,298 LOC)
 **8 production-ready containers with full security hardening:**
 
-1. **busboy.nix** (133 LOC) - Message hub at 10.10.10.10
+1. **wotan.nix** (133 LOC) - Message hub at 10.10.10.10
    - Central message bus (gRPC + REST)
    - No dependencies (starts first)
    - High availability (10 restart attempts)
    - 1GB memory, 2 CPUs
 
 2. **timeguru-service.nix** (110 LOC) - Timeline service at 10.10.10.20
-   - REST API + Busboy integration
+   - REST API + Wotan integration
    - Triple format support (MD/JSON/YAML)
-   - Depends on busboy
+   - Depends on wotan
 
 3. **captain-service.nix** (79 LOC) - Strategy service at 10.10.10.21
 4. **micromanager-service.nix** (79 LOC) - Execution service at 10.10.10.22
@@ -67,7 +67,7 @@ Built complete, production-ready NixOS container orchestration layer for Unheade
 
 All agent services:
 - 256MB memory, 1 CPU
-- Depend on busboy
+- Depend on wotan
 - REST API on ports 8000-8004
 - Metrics on port 9100
 
@@ -80,12 +80,12 @@ All agent services:
 8. **dashboard-app.nix** (93 LOC) - Dashboard at 10.10.10.201
    - eBPF trace visualization
    - WebSocket support
-   - Depends on busboy
+   - Depends on wotan
    - 1GB memory, 1.5 CPUs
 
 ### ✅ Package Builds (153 LOC)
 **8 Go package definitions for buildGoModule:**
-- busboy.nix (27 LOC) - from github.com/unheaded/busboy
+- wotan.nix (27 LOC) - from github.com/unheaded/wotan
 - timeguru.nix (18 LOC)
 - captain.nix (18 LOC)
 - micromanager.nix (18 LOC)
@@ -122,7 +122,7 @@ All agent services:
   - Read-only filesystem
   - NoNewPrivileges flag
 - Network tests: Isolation and connectivity
-  - Busboy reachability
+  - Wotan reachability
   - Container isolation
   - Firewall rules
 - Observability tests: Metrics and logging
@@ -187,7 +187,7 @@ All agent services:
 
 ### Network: Explicit Allow Only
 **Default DENY with explicit allow rules:**
-- Containers can reach busboy (required for messaging)
+- Containers can reach wotan (required for messaging)
 - Gateway can reach services (required for routing)
 - Apps CANNOT directly reach services (must go through gateway)
 - External access ONLY via gateway
@@ -217,15 +217,15 @@ All agent services:
 ## Performance Characteristics
 
 ### Startup Times (Expected)
-- Busboy: <5s (cold start)
-- Services: <3s (after busboy ready)
+- Wotan: <5s (cold start)
+- Services: <3s (after wotan ready)
 - Apps: <5s (after dependencies ready)
 - **Total stack cold start: <15s**
 
 ### Resource Usage (Baseline)
 | Container | Memory | CPU |
 |-----------|--------|-----|
-| busboy | 100MB | 2% |
+| wotan | 100MB | 2% |
 | 5x services | 50MB each | 1% each |
 | kanban | 80MB | 2% |
 | dashboard | 150MB | 5% |
@@ -303,13 +303,13 @@ CODE (Production):                2,980 LOC
 │   ├── networking.nix              210 LOC
 │   └── common.nix                  265 LOC
 ├── Containers (12 files)         1,298 LOC
-│   ├── busboy.nix                  133 LOC
+│   ├── wotan.nix                  133 LOC
 │   ├── timeguru-service.nix        110 LOC
 │   ├── captain-service.nix          79 LOC
 │   ├── micromanager-service.nix     79 LOC
 │   ├── architect-service.nix        79 LOC
 │   ├── developer-service.nix        79 LOC
-│   ├── busboy-service.nix           20 LOC
+│   ├── wotan-service.nix           20 LOC
 │   ├── kanban-app.nix               93 LOC
 │   └── dashboard-app.nix            93 LOC
 │   └── (+ 3 existing)              533 LOC
@@ -341,7 +341,7 @@ TOTAL:                            3,956 LOC
    - Use container definitions as spec
    - Health endpoints at /health
    - Metrics at /metrics
-   - Busboy integration
+   - Wotan integration
 
 2. **Test with real LXD**
    - Deploy all containers

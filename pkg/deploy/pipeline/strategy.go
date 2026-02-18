@@ -271,7 +271,7 @@ type NotificationConfig struct {
 
 // NotificationChannel defines a notification channel.
 type NotificationChannel struct {
-	// Type is the channel type (webhook, busboy, slack)
+	// Type is the channel type (webhook, wotan, slack)
 	Type string `json:"type"`
 
 	// Target is the channel target (URL, topic, channel name)

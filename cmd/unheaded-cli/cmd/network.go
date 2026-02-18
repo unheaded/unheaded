@@ -146,9 +146,9 @@ func newNetworkPolicyListCommand() *Command {
 						CreatedAt: time.Now().Add(-24 * time.Hour),
 					},
 					{
-						Name:      "allow-busboy",
+						Name:      "allow-wotan",
 						Namespace: "services",
-						Selector:  "app=busboy",
+						Selector:  "app=wotan",
 						Ingress:   5,
 						Egress:    1,
 						CreatedAt: time.Now().Add(-24 * time.Hour),
@@ -339,9 +339,9 @@ func newNetworkRouteListCommand() *Command {
 						Status:      "Active",
 					},
 					{
-						Name:        "services-to-busboy",
+						Name:        "services-to-wotan",
 						Source:      "services.*",
-						Destination: "busboy.local",
+						Destination: "wotan.local",
 						Protocol:    "gRPC",
 						Port:        9090,
 						Weight:      100,
@@ -469,7 +469,7 @@ func newNetworkInspectCommand() *Command {
 			endpoints := output.NewTable(w.Out()).SetColor(color)
 			endpoints.SetHeaders("SERVICE", "IP", "PORT", "STATUS")
 			endpoints.AddRow("Gateway", "10.10.10.100", "443", output.StatusOutput{Status: "Running"}.Colorize(color))
-			endpoints.AddRow("Busboy", "10.10.10.10", "9090", output.StatusOutput{Status: "Running"}.Colorize(color))
+			endpoints.AddRow("Wotan", "10.10.10.10", "9090", output.StatusOutput{Status: "Running"}.Colorize(color))
 			endpoints.AddRow("Timeguru", "10.10.10.20", "8000", output.StatusOutput{Status: "Running"}.Colorize(color))
 			endpoints.AddRow("Captain", "10.10.10.21", "8001", output.StatusOutput{Status: "Running"}.Colorize(color))
 			endpoints.AddRow("Micromanager", "10.10.10.22", "8002", output.StatusOutput{Status: "Running"}.Colorize(color))
@@ -482,7 +482,7 @@ func newNetworkInspectCommand() *Command {
 			rules.Add("ALLOW internal (10.10.10.0/24) -> all")
 			rules.Add("ALLOW external -> gateway:443 (TLS)")
 			rules.Add("ALLOW gateway -> services:8000-8010")
-			rules.Add("ALLOW services -> busboy:9090")
+			rules.Add("ALLOW services -> wotan:9090")
 			rules.Add("DENY all other traffic")
 			rules.Render()
 

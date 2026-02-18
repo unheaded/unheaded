@@ -25,7 +25,7 @@ We adopt a layered security baseline addressing all five threat categories:
 **Implementation:** `services/gateway/middleware/auth.go`
 
 - All service endpoints require an `X-API-Key` header
-- API keys stored in environment variables (`BUSBOY_API_KEY`, etc.), never in source
+- API keys stored in environment variables (`WOTAN_API_KEY`, etc.), never in source
 - Keys validated per-request with map-based lookup
 - Returns 401 Unauthorized when key missing, 403 Forbidden when invalid
 - Admin endpoints use a separate `ADMIN_API_KEY` with elevated privileges

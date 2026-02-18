@@ -6,22 +6,22 @@ The Unheaded project is a complex, cloud-native application with a microservices
 
 **Critical Vulnerabilities:**
 
-*   **No Authentication or Authorization on All Services:** None of the services (`busboy`, `timeguru`, `captain`) have any form of authentication or authorization. This is the most critical issue and needs to be addressed immediately.
-    *   **Affected Services:** `busboy`, `timeguru`, `captain`
+*   **No Authentication or Authorization on All Services:** None of the services (`wotan`, `timeguru`, `captain`) have any form of authentication or authorization. This is the most critical issue and needs to be addressed immediately.
+    *   **Affected Services:** `wotan`, `timeguru`, `captain`
     *   **Recommendation:** Implement a unified authentication and authorization mechanism for all services. This could be based on API keys, JWT tokens, or a more robust solution like OAuth2.
 
-*   **`busboy` Admin Endpoints Effectively Disabled:** The `busboy` service has admin endpoints that are intended to be protected by an API key. However, there is no mechanism to set the API key, which means the admin endpoints are disabled. This is a critical issue because it prevents administrators from managing the service.
-    *   **Affected Service:** `busboy`
+*   **`wotan` Admin Endpoints Effectively Disabled:** The `wotan` service has admin endpoints that are intended to be protected by an API key. However, there is no mechanism to set the API key, which means the admin endpoints are disabled. This is a critical issue because it prevents administrators from managing the service.
+    *   **Affected Service:** `wotan`
     *   **Recommendation:** Add a mechanism to set the admin API key, for example, via a command-line flag or an environment variable.
 
 **High-Severity Vulnerabilities:**
 
-*   **Permissive CORS Policies:** The `busboy` and `timeguru` services have permissive CORS policies that allow all origins. This could allow malicious websites to make requests to the services on behalf of users.
-    *   **Affected Services:** `busboy`, `timeguru`
+*   **Permissive CORS Policies:** The `wotan` and `timeguru` services have permissive CORS policies that allow all origins. This could allow malicious websites to make requests to the services on behalf of users.
+    *   **Affected Services:** `wotan`, `timeguru`
     *   **Recommendation:** Restrict the CORS policy to a specific set of trusted domains.
 
 *   **Lack of TLS:** None of the services use TLS to encrypt communication. This means that all traffic to and from the services is sent in cleartext, which could allow an attacker to intercept and read sensitive data.
-    *   **Affected Services:** `busboy`, `timeguru`, `captain`
+    *   **Affected Services:** `wotan`, `timeguru`, `captain`
     *   **Recommendation:** Enable TLS on all services. Use a service like Let's Encrypt to obtain free TLS certificates.
 
 *   **Privileged `cuirass` Container:** The `cuirass` service in the `docker-compose.yml` file runs with powerful capabilities (`CAP_SYS_ADMIN`, `CAP_NET_ADMIN`) and mounts the Docker socket. This gives it control over the Docker daemon and is a major security risk.
@@ -35,7 +35,7 @@ The Unheaded project is a complex, cloud-native application with a microservices
     *   **Recommendation:** Remove hardcoded passwords and use a secret management solution like HashiCorp Vault or AWS Secrets Manager.
 
 *   **Services Running as Root:** The services in the Docker containers run as the `root` user by default.
-    *   **Affected Services:** `busboy`, `timeguru`, `captain`
+    *   **Affected Services:** `wotan`, `timeguru`, `captain`
     *   **Recommendation:** Configure the services to run as a non-root user.
 
 *   **Lack of Input Validation:** The `timeguru` and `captain` services have endpoints that take an ID from the URL path without proper validation. This could lead to path traversal vulnerabilities.
@@ -45,7 +45,7 @@ The Unheaded project is a complex, cloud-native application with a microservices
 **Action Plan:**
 
 1.  **Implement Authentication and Authorization:** This is the highest priority. All other vulnerabilities are secondary to this.
-2.  **Fix `busboy` Admin Endpoints:** Add a mechanism to set the admin API key.
+2.  **Fix `wotan` Admin Endpoints:** Add a mechanism to set the admin API key.
 3.  **Restrict CORS Policies:** Lock down the CORS policies to a specific set of trusted domains.
 4.  **Enable TLS:** Enable TLS on all services.
 5.  **Harden `cuirass` Container:** Apply the principle of least privilege to the `cuirass` container.

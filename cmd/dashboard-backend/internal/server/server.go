@@ -45,8 +45,8 @@ type Config struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 
-	// Busboy
-	BusboyAddr  string
+	// Wotan
+	WotanAddr  string
 	ServiceName string
 
 	// Components
@@ -69,7 +69,7 @@ func DefaultConfig() *Config {
 		ListenAddr:   ":8080",
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
-		BusboyAddr:   "localhost:9090",
+		WotanAddr:   "localhost:9090",
 		ServiceName:  "dashboard-backend",
 	}
 }
@@ -88,8 +88,8 @@ func (c *Config) Validate() error {
 	if c.WriteTimeout == 0 {
 		c.WriteTimeout = 15 * time.Second
 	}
-	if c.BusboyAddr == "" {
-		return errors.New("busboy address required")
+	if c.WotanAddr == "" {
+		return errors.New("wotan address required")
 	}
 	if c.ServiceName == "" {
 		c.ServiceName = "dashboard-backend"
@@ -107,7 +107,7 @@ func (c *Config) Validate() error {
 	}
 	if c.EventsConfig == nil {
 		c.EventsConfig = events.DefaultConfig()
-		c.EventsConfig.BusboyAddr = c.BusboyAddr
+		c.EventsConfig.WotanAddr = c.WotanAddr
 		c.EventsConfig.ServiceName = c.ServiceName
 	}
 	if c.PacketFlowConfig == nil {
@@ -408,7 +408,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.log.Info().
 		Str("addr", s.config.ListenAddr).
-		Str("busboy", s.config.BusboyAddr).
+		Str("wotan", s.config.WotanAddr).
 		Msg("starting dashboard backend")
 
 	// Register Kingdom services for scraping and monitoring
@@ -432,7 +432,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Start event streamer
 	if err := s.eventStreamer.Start(ctx); err != nil {
-		s.log.Warn().Err(err).Msg("event streamer start failed, continuing without busboy")
+		s.log.Warn().Err(err).Msg("event streamer start failed, continuing without wotan")
 	}
 
 	// Start packet flow generator

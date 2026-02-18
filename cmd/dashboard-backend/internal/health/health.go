@@ -850,7 +850,7 @@ var DefaultServiceEndpoints = map[string]string{
 	"captain":      "10.10.10.21:8001",
 	"architect":    "10.10.10.22:8002",
 	"micromanager": "10.10.10.23:8003",
-	"busboy":       "10.10.10.10:9090",
+	"wotan":       "10.10.10.10:9090",
 	"gateway":      "10.10.10.100:8080",
 }
 

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -94,7 +94,7 @@ type ResponseWriter struct {
 // Service is the main Cape internal framework service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu          sync.RWMutex
@@ -118,7 +118,7 @@ type Config struct {
 	EnableGRPC      bool          `json:"enable_grpc"`
 	EnableWebSocket bool          `json:"enable_websocket"`
 	CORSOrigins     []string      `json:"cors_origins,omitempty"`
-	BusboyTopic     string        `json:"busboy_topic"`
+	WotanTopic     string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -134,19 +134,19 @@ func DefaultConfig() *Config {
 		EnableGRPC:      true,
 		EnableWebSocket: true,
 		CORSOrigins:     []string{},
-		BusboyTopic:     "cape.framework",
+		WotanTopic:     "cape.framework",
 	}
 }
 
 // NewService creates a new Cape internal framework service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:          log,
-		busboy:       busboy,
+		wotan:       wotan,
 		config:       cfg,
 		routes:       make(map[string]*Route),
 		groups:       make(map[string]*RouteGroup),

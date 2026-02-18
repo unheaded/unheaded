@@ -29,7 +29,7 @@ type HookType string
 const (
 	HookTypeExec    HookType = "exec"
 	HookTypeHTTP    HookType = "http"
-	HookTypeBusboy  HookType = "busboy"
+	HookTypeWotan  HookType = "wotan"
 	HookTypeWebhook HookType = "webhook"
 	HookTypeScript  HookType = "script"
 )
@@ -81,7 +81,7 @@ type HookConfig struct {
 	Headers map[string]string `json:"headers,omitempty"`
 	Body    interface{}       `json:"body,omitempty"`
 
-	// Busboy hook config
+	// Wotan hook config
 	Topic   string                 `json:"topic,omitempty"`
 	Payload map[string]interface{} `json:"payload,omitempty"`
 
@@ -138,12 +138,12 @@ type HookExecutor struct {
 	// httpClient for HTTP hooks
 	httpClient *http.Client
 
-	// busboyPublisher for Busboy hooks
-	busboyPublisher BusboyPublisher
+	// wotanPublisher for Wotan hooks
+	wotanPublisher WotanPublisher
 }
 
-// BusboyPublisher interface for publishing to Busboy.
-type BusboyPublisher interface {
+// WotanPublisher interface for publishing to Wotan.
+type WotanPublisher interface {
 	Publish(ctx context.Context, topic string, payload []byte) error
 }
 
@@ -156,9 +156,9 @@ func NewHookExecutor() *HookExecutor {
 	}
 }
 
-// SetBusboyPublisher sets the Busboy publisher.
-func (e *HookExecutor) SetBusboyPublisher(publisher BusboyPublisher) {
-	e.busboyPublisher = publisher
+// SetWotanPublisher sets the Wotan publisher.
+func (e *HookExecutor) SetWotanPublisher(publisher WotanPublisher) {
+	e.wotanPublisher = publisher
 }
 
 // Execute executes a hook.
@@ -202,8 +202,8 @@ func (e *HookExecutor) ExecuteWithResult(ctx context.Context, hook *Hook, pipeli
 			lastErr = e.executeExecHook(hookCtx, hook, result, pipelineCtx)
 		case HookTypeHTTP, HookTypeWebhook:
 			lastErr = e.executeHTTPHook(hookCtx, hook, result, pipelineCtx)
-		case HookTypeBusboy:
-			lastErr = e.executeBusboyHook(hookCtx, hook, result, pipelineCtx)
+		case HookTypeWotan:
+			lastErr = e.executeWotanHook(hookCtx, hook, result, pipelineCtx)
 		case HookTypeScript:
 			lastErr = e.executeScriptHook(hookCtx, hook, result, pipelineCtx)
 		default:
@@ -354,14 +354,14 @@ func (e *HookExecutor) executeHTTPHook(ctx context.Context, hook *Hook, result *
 	return nil
 }
 
-// executeBusboyHook executes a Busboy hook.
-func (e *HookExecutor) executeBusboyHook(ctx context.Context, hook *Hook, result *HookResult, pipelineCtx map[string]interface{}) error {
-	if e.busboyPublisher == nil {
-		return fmt.Errorf("Busboy publisher not configured")
+// executeWotanHook executes a Wotan hook.
+func (e *HookExecutor) executeWotanHook(ctx context.Context, hook *Hook, result *HookResult, pipelineCtx map[string]interface{}) error {
+	if e.wotanPublisher == nil {
+		return fmt.Errorf("Wotan publisher not configured")
 	}
 
 	if hook.Config == nil || hook.Config.Topic == "" {
-		return fmt.Errorf("Busboy hook requires topic")
+		return fmt.Errorf("Wotan hook requires topic")
 	}
 
 	// Build payload
@@ -381,9 +381,9 @@ func (e *HookExecutor) executeBusboyHook(ctx context.Context, hook *Hook, result
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	// Publish to Busboy
-	if err := e.busboyPublisher.Publish(ctx, hook.Config.Topic, payloadBytes); err != nil {
-		return fmt.Errorf("failed to publish to Busboy: %w", err)
+	// Publish to Wotan
+	if err := e.wotanPublisher.Publish(ctx, hook.Config.Topic, payloadBytes); err != nil {
+		return fmt.Errorf("failed to publish to Wotan: %w", err)
 	}
 
 	result.Output = fmt.Sprintf("Published to topic: %s", hook.Config.Topic)
@@ -627,13 +627,13 @@ func (b *HookBuilder) WithHeaders(headers map[string]string) *HookBuilder {
 	return b
 }
 
-// WithTopic sets the Busboy topic.
+// WithTopic sets the Wotan topic.
 func (b *HookBuilder) WithTopic(topic string) *HookBuilder {
 	b.hook.Config.Topic = topic
 	return b
 }
 
-// WithPayload sets the Busboy payload.
+// WithPayload sets the Wotan payload.
 func (b *HookBuilder) WithPayload(payload map[string]interface{}) *HookBuilder {
 	b.hook.Config.Payload = payload
 	return b
@@ -679,9 +679,9 @@ func WebhookHook(name string, url string) *Hook {
 		Build()
 }
 
-// BusboyHook creates a Busboy hook.
-func BusboyHook(name string, topic string, payload map[string]interface{}) *Hook {
-	return NewHookBuilder(name, HookTypeBusboy).
+// WotanHook creates a Wotan hook.
+func WotanHook(name string, topic string, payload map[string]interface{}) *Hook {
+	return NewHookBuilder(name, HookTypeWotan).
 		WithTopic(topic).
 		WithPayload(payload).
 		WithTimeout(10 * time.Second).

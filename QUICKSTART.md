@@ -70,7 +70,7 @@ docker compose logs -f
 
 | Service | Container | Port | Health Check | Role |
 |---------|-----------|------|-------------|------|
-| Busboy | unheaded-busboy | 5555, 8081 | `localhost:8081/health` | Message bus |
+| Wotan | unheaded-wotan | 5555, 8081 | `localhost:8081/health` | Message bus |
 | Timeguru | unheaded-timeguru | 8082 | `localhost:8082/health` | Timeline tracking |
 | Captain | unheaded-captain | 8083 | `localhost:8083/health` | Strategy & vision |
 | Architect | unheaded-architect | 8084 | `localhost:8084/health` | Infrastructure design |
@@ -105,9 +105,9 @@ done
 
 ---
 
-## 5. Topic Pub/Sub Smoke Test (Busboy)
+## 5. Topic Pub/Sub Smoke Test (Wotan)
 
-Busboy is the message bus. Verify topic subscribe/publish/messages work.
+Wotan is the message bus. Verify topic subscribe/publish/messages work.
 
 > **Important:** Quote all URLs containing `?` when using zsh (e.g. `'http://...'`).
 
@@ -201,8 +201,8 @@ The Kanban app is the "meta moment" — Unheaded tracking its own development.
 ### 7a. Start Kanban App (separate from Docker Compose)
 
 ```bash
-# Kanban-app connects to Timeguru + Busboy
-PORT=8090 TIMEGURU_ADDR=localhost:8082 BUSBOY_ADDR=localhost:5555 \
+# Kanban-app connects to Timeguru + Wotan
+PORT=8090 TIMEGURU_ADDR=localhost:8082 WOTAN_ADDR=localhost:5555 \
   go run ./cmd/kanban-app/...
 ```
 
@@ -256,7 +256,7 @@ echo
 
 ```bash
 # Start dashboard-backend (separate terminal)
-go run ./cmd/dashboard-backend/... -listen :8088 -busboy localhost:5555
+go run ./cmd/dashboard-backend/... -listen :8088 -wotan localhost:5555
 ```
 
 Open browser: **http://localhost:8088**
@@ -285,31 +285,31 @@ docker compose down -v
 Each service can run standalone for development:
 
 ```bash
-# Terminal 1: Busboy (message bus — start first)
-go run ./services/busboy/cmd/busboy/...
+# Terminal 1: Wotan (message bus — start first)
+go run ./services/wotan/cmd/wotan/...
 # Defaults: HTTP :8080, gRPC :9090
 
-# Terminal 2: Timeguru (needs Busboy)
-BUSBOY_ADDR=localhost:8080 go run ./services/timeguru/cmd/timeguru/...
+# Terminal 2: Timeguru (needs Wotan)
+WOTAN_ADDR=localhost:8080 go run ./services/timeguru/cmd/timeguru/...
 # Default: :8000
 
 # Terminal 3: Captain
-BUSBOY_ADDR=localhost:8080 HTTP_ADDR=:8001 go run ./services/captain/cmd/captain/...
+WOTAN_ADDR=localhost:8080 HTTP_ADDR=:8001 go run ./services/captain/cmd/captain/...
 
-# Terminal 4: Kanban App (needs Timeguru + Busboy)
-TIMEGURU_ADDR=localhost:8000 BUSBOY_ADDR=localhost:8080 \
+# Terminal 4: Kanban App (needs Timeguru + Wotan)
+TIMEGURU_ADDR=localhost:8000 WOTAN_ADDR=localhost:8080 \
   go run ./cmd/kanban-app/...
 ```
 
-> **Note:** Standalone Busboy defaults HTTP to :8080 (not :8081 like Docker Compose).
+> **Note:** Standalone Wotan defaults HTTP to :8080 (not :8081 like Docker Compose).
 > Override with `--http-port 8081` to match Docker port assignments.
 
 Default ports when running standalone (without Docker):
 
 | Service | Default Port | Config Method |
 |---------|-------------|---------------|
-| Busboy HTTP | 8080 | `--http-port` flag |
-| Busboy gRPC | 9090 | `--grpc-port` flag |
+| Wotan HTTP | 8080 | `--http-port` flag |
+| Wotan gRPC | 9090 | `--grpc-port` flag |
 | Timeguru | 8000 | `PORT` env |
 | Captain | 8000 | `HTTP_ADDR` env |
 | Architect | 8001 | `-addr` flag |
@@ -327,7 +327,7 @@ Default ports when running standalone (without Docker):
 | Service | Docker Port | Health Check |
 |---------|------------|--------------|
 | Cuirass | 8080 | `localhost:8080/health` |
-| Busboy | 8081 (HTTP), 5555 (gRPC) | `localhost:8081/health` |
+| Wotan | 8081 (HTTP), 5555 (gRPC) | `localhost:8081/health` |
 | Timeguru | 8082 | `localhost:8082/health` |
 | Captain | 8083 | `localhost:8083/health` |
 | Architect | 8084 | `localhost:8084/health` |
@@ -360,7 +360,7 @@ sudo ./scripts/load-ebpf.sh
 | Container | IP | Ports |
 |-----------|-----|-------|
 | Cuirass (control plane) | 10.10.10.5 | 8005, 9100 |
-| Busboy (message bus) | 10.10.10.10 | 9090, 8080 |
+| Wotan (message bus) | 10.10.10.10 | 9090, 8080 |
 | Timeguru | 10.10.10.20 | 8000, 9100 |
 | Captain | 10.10.10.21 | 8001, 9100 |
 | Micromanager | 10.10.10.22 | 8002, 9100 |

@@ -1,5 +1,5 @@
 // Package events provides shared event types for cross-service communication
-// through the Fae Chamber (Busboy message bus).
+// through the Fae Chamber (Wotan message bus).
 //
 // This package defines the canonical event structures that all services use
 // to communicate. Using shared types ensures type safety and consistency.

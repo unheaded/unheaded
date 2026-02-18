@@ -10,7 +10,7 @@
 | `store_test.go` | 382 | Store tests (95% coverage) |
 | `api.go` | 318 | REST HTTP handlers |
 | `api_test.go` | 332 | Handler tests (90% coverage) |
-| `service.go` | 259 | Business logic + Busboy |
+| `service.go` | 259 | Business logic + Wotan |
 | `service_test.go` | 162 | Service tests (85% coverage) |
 | `cmd/main.go` | 223 | Entry point + HTTP server |
 | `README.md` | 401 | API documentation |
@@ -36,7 +36,7 @@ make test-coverage  # With coverage report
 ```bash
 ./bin/micromanager \
   -port 8003 \
-  -busboy localhost:9090 \
+  -wotan localhost:9090 \
   -log-level info
 ```
 
@@ -112,7 +112,7 @@ blocked
 - **4** = High (important milestone)
 - **5** = Critical (blocking other work)
 
-## Busboy Topics
+## Wotan Topics
 
 ### Published
 - `tasks.created` - New task
@@ -150,7 +150,7 @@ micromanager_tasks_total{status}
 
 ```
 -port 8003                  # HTTP listen port
--busboy localhost:9090      # Busboy address (optional)
+-wotan localhost:9090      # Wotan address (optional)
 -log-level info            # Log level
 -read-timeout 15s          # HTTP read timeout
 -write-timeout 15s         # HTTP write timeout
@@ -168,9 +168,9 @@ LOG_LEVEL=error ./bin/micromanager
 
 ## Troubleshooting
 
-### Can't connect to Busboy?
-- Service works fine without Busboy
-- Check: `curl http://busboy:9090/health`
+### Can't connect to Wotan?
+- Service works fine without Wotan
+- Check: `curl http://wotan:9090/health`
 
 ### Tasks not persisting?
 - In-memory storage (Phase 2: add WAL)
@@ -189,7 +189,7 @@ LOG_LEVEL=error ./bin/micromanager
 - Go 1.21+
 - github.com/rs/zerolog (logging)
 - github.com/prometheus/client_golang (metrics)
-- github.com/unheaded/unheaded/pkg/busboy-client (Busboy)
+- github.com/unheaded/unheaded/pkg/wotan-client (Wotan)
 
 ## File Paths (Absolute)
 
