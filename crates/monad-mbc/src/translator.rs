@@ -1,12 +1,12 @@
-//\! RV32I to MBC translator: converts RISC-V 32-bit instructions to MBC bytecode.
-//\!
-//\! This module translates RV32I binary instructions to MBC format.
-//\! Register mapping:
-//\! - x0 (zero) → r0 (special handling: reads return 0, writes are discarded + r0 reset to 0)
-//\! - x1 (ra) → r14
-//\! - x2 (sp) → r15
-//\! - x3-x15 → r1-r13
-//\! - x16-x31 → unsupported
+//! RV32I to MBC translator: converts RISC-V 32-bit instructions to MBC bytecode.
+//!
+//! This module translates RV32I binary instructions to MBC format.
+//! Register mapping:
+//! - x0 (zero) → r0 (special handling: reads return 0, writes are discarded + r0 reset to 0)
+//! - x1 (ra) → r14
+//! - x2 (sp) → r15
+//! - x3-x15 → r1-r13
+//! - x16-x31 → unsupported
 
 use monad_common::{mbc_opcodes as op, MbcInsn};
 use thiserror::Error;
@@ -134,7 +134,7 @@ impl Translator {
                         }
                         // rd = rs1; rd += rs2
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::ADD, mbc_rd, mbc_rs2);
+                        self.emit(op::ADD, mbc_rd, mbc_rs2, 0);
 
                         if rd == 0 {
                             self.emit(op::MOVI, 0, 0, 0);
@@ -150,7 +150,7 @@ impl Translator {
                         }
                         // rd = rs1; rd -= rs2
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::SUB, mbc_rd, mbc_rs2);
+                        self.emit(op::SUB, mbc_rd, mbc_rs2, 0);
 
                         if rd == 0 {
                             self.emit(op::MOVI, 0, 0, 0);
@@ -165,7 +165,7 @@ impl Translator {
                             self.emit(op::MOVI, mbc_rd, 0, 0);
                         }
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::AND, mbc_rd, mbc_rs2);
+                        self.emit(op::AND, mbc_rd, mbc_rs2, 0);
 
                         if rd == 0 {
                             self.emit(op::MOVI, 0, 0, 0);
@@ -180,7 +180,7 @@ impl Translator {
                             self.emit(op::MOVI, mbc_rd, 0, 0);
                         }
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::OR, mbc_rd, mbc_rs2);
+                        self.emit(op::OR, mbc_rd, mbc_rs2, 0);
 
                         if rd == 0 {
                             self.emit(op::MOVI, 0, 0, 0);
@@ -195,7 +195,7 @@ impl Translator {
                             self.emit(op::MOVI, mbc_rd, 0, 0);
                         }
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::XOR, mbc_rd, mbc_rs2);
+                        self.emit(op::XOR, mbc_rd, mbc_rs2, 0);
 
                         if rd == 0 {
                             self.emit(op::MOVI, 0, 0, 0);
@@ -203,7 +203,7 @@ impl Translator {
                     }
                     (1, 0) => {
                         // SLL: rd = rs1 << rs2
-                        if rs2 \!= 0 {
+                        if rs2 != 0 {
                             if rs1 == 0 {
                                 self.emit(op::MOVI, mbc_rd, 0, 0);
                             }
@@ -219,7 +219,7 @@ impl Translator {
                     }
                     (5, 0) => {
                         // SRL: rd = rs1 >> rs2 (logical)
-                        if rs2 \!= 0 {
+                        if rs2 != 0 {
                             if rs1 == 0 {
                                 self.emit(op::MOVI, mbc_rd, 0, 0);
                             }
@@ -234,7 +234,7 @@ impl Translator {
                     }
                     (5, 32) => {
                         // SRA: rd = rs1 >> rs2 (arithmetic)
-                        if rs2 \!= 0 {
+                        if rs2 != 0 {
                             if rs1 == 0 {
                                 self.emit(op::MOVI, mbc_rd, 0, 0);
                             }
@@ -274,12 +274,12 @@ impl Translator {
 
                         if imm12 >= 0 {
                             self.emit(op::MOVI, 0, 0, imm12 as u16);
-                            self.emit(op::ADD, mbc_rd, 0);
+                            self.emit(op::ADD, mbc_rd, 0, 0);
                         } else {
                             let abs_imm = (-imm12) as u16;
                             self.emit(op::MOVI, 0, 0, abs_imm);
-                            self.emit(op::NEG, 0);
-                            self.emit(op::ADD, mbc_rd, 0);
+                            self.emit(op::NEG, 0, 0, 0);
+                            self.emit(op::ADD, mbc_rd, 0, 0);
                         }
                         self.emit(op::MOVI, 0, 0, 0);
 
@@ -294,7 +294,7 @@ impl Translator {
                         } else {
                             self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
                             self.emit(op::MOVI, 0, 0, imm12 as u16);
-                            self.emit(op::AND, mbc_rd, 0);
+                            self.emit(op::AND, mbc_rd, 0, 0);
                             self.emit(op::MOVI, 0, 0, 0);
                         }
 
@@ -305,11 +305,11 @@ impl Translator {
                     6 => {
                         // ORI: rd = rs1 | imm12
                         if rs1 == 0 {
-                            self.emit(op::MOVI, mbc_rd, 0, 0, imm12 as u16);
+                            self.emit(op::MOVI, mbc_rd, 0, imm12 as u16);
                         } else {
                             self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
                             self.emit(op::MOVI, 0, 0, imm12 as u16);
-                            self.emit(op::OR, mbc_rd, 0);
+                            self.emit(op::OR, mbc_rd, 0, 0);
                             self.emit(op::MOVI, 0, 0, 0);
                         }
 
@@ -320,11 +320,11 @@ impl Translator {
                     4 => {
                         // XORI: rd = rs1 ^ imm12
                         if rs1 == 0 {
-                            self.emit(op::MOVI, mbc_rd, 0, 0, imm12 as u16);
+                            self.emit(op::MOVI, mbc_rd, 0, imm12 as u16);
                         } else {
                             self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
                             self.emit(op::MOVI, 0, 0, imm12 as u16);
-                            self.emit(op::XOR, mbc_rd, 0);
+                            self.emit(op::XOR, mbc_rd, 0, 0);
                             self.emit(op::MOVI, 0, 0, 0);
                         }
 
@@ -339,7 +339,7 @@ impl Translator {
                             self.emit(op::MOVI, mbc_rd, 0, 0);
                         } else {
                             self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                            self.emit(op::SHL, mbc_rd, shamt);
+                            self.emit(op::SHL, mbc_rd, 0, shamt);
                         }
 
                         if rd == 0 {
@@ -355,7 +355,7 @@ impl Translator {
                                 self.emit(op::MOVI, mbc_rd, 0, 0);
                             } else {
                                 self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                                self.emit(op::SHR, mbc_rd, shamt);
+                                self.emit(op::SHR, mbc_rd, 0, shamt);
                             }
                         } else {
                             // SRAI: rd = rs1 >> imm12[4:0] (arithmetic)
@@ -363,7 +363,7 @@ impl Translator {
                                 self.emit(op::MOVI, mbc_rd, 0, 0);
                             } else {
                                 self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                                self.emit(op::SAR, mbc_rd, shamt);
+                                self.emit(op::SAR, mbc_rd, 0, shamt);
                             }
                         }
 
@@ -489,14 +489,14 @@ impl Translator {
                 }
 
                 // Compare
-                self.emit(op::CMP, mbc_rs1, mbc_rs2);
+                self.emit(op::CMP, mbc_rs1, mbc_rs2, 0);
 
                 // Compute branch offset: imm_b = (insn[31] | insn[7] | insn[30:25] | insn[11:8]) << 1
                 let imm_b = ((insn >> 31) << 12)
                     | ((insn >> 7) << 11)
                     | ((insn >> 25) << 5)
                     | ((insn >> 8) << 1);
-                let imm_b = if imm_b & 0x1000 \!= 0 {
+                let imm_b = if imm_b & 0x1000 != 0 {
                     (imm_b | 0xFFFF_E000) as i32
                 } else {
                     imm_b as i32
@@ -509,7 +509,7 @@ impl Translator {
                         self.emit(op::JZ, 0, 0, imm_b as u16);
                     }
                     1 => {
-                        // BNE: if rs1 \!= rs2, branch
+                        // BNE: if rs1 != rs2, branch
                         self.emit(op::JNZ, 0, 0, imm_b as u16);
                     }
                     _ => {
@@ -532,7 +532,7 @@ impl Translator {
                     | ((insn >> 12) << 12)
                     | ((insn >> 20) << 11)
                     | ((insn >> 21) << 1);
-                let imm_j = if imm_j & 0x100000 \!= 0 {
+                let imm_j = if imm_j & 0x100000 != 0 {
                     (imm_j | 0xFFF0_0000) as i32
                 } else {
                     imm_j as i32
@@ -633,7 +633,7 @@ mod tests {
         // Opcode 0x37, rd=10, imm20=0x12345
         let insn = (0x12345 << 12) | (10 << 7) | 0x37;
         let result = Translator::translate_program(&[insn]);
-        assert\!(result.is_ok());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -642,7 +642,7 @@ mod tests {
         // R-type: funct7=0, rs2=3, rs1=2, funct3=0, rd=1, opcode=0x33
         let insn = (0 << 25) | (3 << 20) | (2 << 15) | (0 << 12) | (1 << 7) | 0x33;
         let result = Translator::translate_program(&[insn]);
-        assert\!(result.is_ok());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -651,7 +651,7 @@ mod tests {
         // I-type: imm12=100, rs1=2, funct3=0, rd=1, opcode=0x13
         let insn = (100 << 20) | (2 << 15) | (0 << 12) | (1 << 7) | 0x13;
         let result = Translator::translate_program(&[insn]);
-        assert\!(result.is_ok());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -661,7 +661,7 @@ mod tests {
         let imm = ((-50i32) & 0xFFF) as u32;
         let insn = (imm << 20) | (2 << 15) | (0 << 12) | (1 << 7) | 0x13;
         let result = Translator::translate_program(&[insn]);
-        assert\!(result.is_ok());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -670,7 +670,7 @@ mod tests {
         // I-type: imm12=0, rs1=2, funct3=2, rd=1, opcode=0x03
         let insn = (0 << 20) | (2 << 15) | (2 << 12) | (1 << 7) | 0x03;
         let result = Translator::translate_program(&[insn]);
-        assert\!(result.is_ok());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -679,7 +679,7 @@ mod tests {
         // S-type: imm[11:5]=0, rs2=3, rs1=2, funct3=2, imm[4:0]=0, opcode=0x23
         let insn = (0 << 25) | (3 << 20) | (2 << 15) | (2 << 12) | (0 << 7) | 0x23;
         let result = Translator::translate_program(&[insn]);
-        assert\!(result.is_ok());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -687,7 +687,7 @@ mod tests {
         // Try to access x20 (unsupported)
         let insn = (0 << 25) | (20 << 20) | (2 << 15) | (0 << 12) | (1 << 7) | 0x33;
         let result = Translator::translate_program(&[insn]);
-        assert\!(result.is_err());
+        assert!(result.is_err());
     }
 
     #[test]
@@ -696,12 +696,12 @@ mod tests {
         // B-type: imm[12|10:5|4:1|11]
         let insn = (0 << 25) | (2 << 20) | (1 << 15) | (0 << 12) | (0 << 7) | 0x63;
         let result = Translator::translate_program(&[insn]);
-        assert\!(result.is_ok());
+        assert!(result.is_ok());
     }
 
     #[test]
     fn test_translate_program_multiple() {
-        let program = vec\![
+        let program = vec![
             // ADDI x1, x0, 10
             (10 << 20) | (0 << 15) | (0 << 12) | (1 << 7) | 0x13,
             // ADDI x2, x0, 20
@@ -710,6 +710,6 @@ mod tests {
             (0 << 25) | (2 << 20) | (1 << 15) | (0 << 12) | (3 << 7) | 0x33,
         ];
         let result = Translator::translate_program(&program);
-        assert\!(result.is_ok());
+        assert!(result.is_ok());
     }
 }
