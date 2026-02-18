@@ -2,9 +2,9 @@
 
 ## A Living Grimoire of the Kingdom's Journey
 
-**STATUS:** ⚔️ BUILD SUCCESS - ALPHA 98% READY ⚔️
-**LAST SCRIBED:** February 4, 2026 (Year of the Armored Knight) - CODE CHURN SESSION
-**NEXT MILESTONE:** The Alpha Ascension (ACTUAL: ~98% complete - Tests Fortified, Single Blocker Remains)
+**STATUS:** ⚔️ BUILD SUCCESS - ALPHA 99% READY — THE PROTOCOL IS THE PATTERN ⚔️
+**LAST SCRIBED:** February 18, 2026 (Year of the Armored Knight) - THE PROTOCOL AWAKENING
+**NEXT MILESTONE:** The Alpha Ascension (ACTUAL: ~99% complete - 465K+ LOC, 23/23 E2E, B1 RESOLVED)
 
 ---
 
@@ -31,7 +31,7 @@
          ║  📋 MICROMANAGER - Execution/QA       (WHAT & WHEN)    ║
          ║  ⌛ TIMEGURU    - Living Timeline     (WHEN/WAS/WILL)  ║
          ║  💻 DEVELOPER   - Code/TDD/Security   (BUILD)          ║
-         ║  🍽️ BUSBOY      - Coordination        (GLUE)           ║
+         ║  🍽️ WOTAN      - Coordination        (GLUE)           ║
          ║  📅 CALENDAR    - Time Capture        (SCHEDULE)       ║
          ╚════════════════════════════╦═══════════════════════════╝
                                       ║
@@ -58,7 +58,7 @@
          ║  🕯️ ELDER HOLLOW      - Legacy protocols (ancient ways)║
          ║  🔮 ORACLE'S ANTRE    - Timeguru's chamber (prophecy)  ║
          ║  ⚫ PRIMORDIAL PIT    - Bare metal core (deepest layer)║
-         ║  🧚 FAE CHAMBER       - Busboy's dance (message magic) ║
+         ║  🧚 FAE CHAMBER       - Wotan's dance (message magic) ║
          ║  ☠️ CURSED PIT        - Quarantine zone (breach vault) ║
          ║  📚 SAGE'S LAIR       - Architect's wisdom (ADR vault) ║
          ║  🌀 MYTHIC ABYSS      - Deep telemetry (kernel traces) ║
@@ -96,10 +96,10 @@ The Unheaded Kingdom delivers the complete **Suit of Armor** for modern SaaS app
 ## The Ages of Development
 
 ### Age 0: The Foundation Stone (COMPLETE ✓)
-**The Forging of Busboy - The Fae Chamber Awakens**
+**The Forging of Wotan - The Fae Chamber Awakens**
 *December 2025 - January 2026*
 
-In the beginning, there was chaos - messages scattered like leaves in wind. Then came Busboy, the first forging: 11,669 lines of Go, hardened in the fires of production.
+In the beginning, there was chaos - messages scattered like leaves in wind. Then came Wotan, the first forging: 11,669 lines of Go, hardened in the fires of production.
 
 #### The Relics Forged:
 - [x] **Ring of Holding** - Ring buffer implementation (1,233 LOC)
@@ -112,7 +112,7 @@ In the beginning, there was chaos - messages scattered like leaves in wind. Then
 - [x] **The CLI Gauntlet** - Terminal client (complete)
 - [x] **The Scrolls** - Documentation (complete)
 
-**Outcome:** The Fae Chamber awakened. Busboy dances. The message magic flows.
+**Outcome:** The Fae Chamber awakened. Wotan dances. The message magic flows.
 
 ---
 
@@ -139,7 +139,7 @@ The deepest magic. Programs that attach to the kernel itself, seeing every packe
 - [ ] `trace-collector` - Rust bridge from kernel to Fae Chamber
 - [ ] Kernel verifier trials (the ancient tests)
 - [ ] Bare metal communion (live testing)
-- [ ] Fae Chamber integration (Busboy connection)
+- [ ] Fae Chamber integration (Wotan connection)
 
 **Dependencies:** None - can run parallel with other epochs
 **Risk:** Medium - the kernel verifier is a harsh judge
@@ -171,7 +171,7 @@ The beating heart of the Kingdom. The unheaded-daemon that orchestrates all cont
 
 #### Epoch 1.3: The Royal Court Assembles
 **Microservices - The Cavalry**
-*ETA: Feb 4-5, 2026 | STATUS: 85% COMPLETE ✓ (8 services wired to Busboy)*
+*ETA: Feb 4-5, 2026 | STATUS: 85% COMPLETE ✓ (8 services wired to Wotan)*
 
 Each persona of the Royal Court takes physical form as a running service. Four agents forge in parallel.
 
@@ -186,7 +186,7 @@ Each persona of the Royal Court takes physical form as a running service. Four a
 - [x] Strategy REST API - vision endpoints
 - [x] Health monitoring
 - [x] Scaffold complete with Kingdom branding
-- [ ] Alert subscription - Busboy connection (wiring)
+- [ ] Alert subscription - Wotan connection (wiring)
 
 **The Micromanager Service:** ✅
 - [x] Task execution API - WHAT & WHEN
@@ -201,7 +201,7 @@ Each persona of the Royal Court takes physical form as a running service. Four a
 - [ ] Wisdom storage connection (future)
 
 **Dependencies:** None - all four forge in parallel
-**Risk:** Low - patterns established from Busboy
+**Risk:** Low - patterns established from Wotan
 **Owner:** Four Cavalry agents (Micromanager coordinates)
 
 ---
@@ -330,8 +330,8 @@ The customer-facing layer. The Cape (internal framework) powers the Cloak (custo
   - [x] **QA:** Survives network interruption
   - [x] **Security:** WSS only (no plain WS) ✓
 
-**Story 3.2: Busboy Event Subscription**
-- [x] **Task:** Subscribe to task events via Busboy
+**Story 3.2: Wotan Event Subscription**
+- [x] **Task:** Subscribe to task events via Wotan
   - [x] Subtask: Subscribe to `tasks.created`
   - [x] Subtask: Subscribe to `tasks.updated`
   - [x] Subtask: Subscribe to `tasks.completed`
@@ -393,7 +393,7 @@ The customer-facing layer. The Cape (internal framework) powers the Cloak (custo
   - [x] Subtask: Load board in browser
   - [ ] Subtask: Create/move/complete a task
   - [ ] Subtask: Verify persistence in timeline.md
-  - [ ] Subtask: Verify Busboy event published
+  - [ ] Subtask: Verify Wotan event published
   - [ ] **QA:** Manual E2E test passes
   - [x] **Security:** Full security checklist ✓
 
@@ -453,7 +453,7 @@ The ultimate proof: Unheaded tracking its own development. The Kanban board show
 The armor is tested in battle. Edge cases reveal themselves. The first customers approach the gates.
 
 **Milestones to Come:**
-- [ ] **Busboy Redundancy (CRITICAL - ADD EARLY)** - HA clustering for the Fae Chamber
+- [ ] **Wotan Redundancy (CRITICAL - ADD EARLY)** - HA clustering for the Fae Chamber
   - Active-passive or active-active replication
   - State synchronization between nodes
   - Automatic failover (leader election)
@@ -535,7 +535,7 @@ The Great Code Storm sessions (Jan 29-Feb 1) delivered unprecedented velocity:
 - [ ] **Real LXD Integration:** Ready to start when env available
 
 ### Upcoming Priorities (Post-Alpha)
-- [ ] **⚠️ Busboy Redundancy:** Single point of failure identified - implement HA clustering early in Age 2 while architecture is fresh (easier now than later)
+- [ ] **⚠️ Wotan Redundancy:** Single point of failure identified - implement HA clustering early in Age 2 while architecture is fresh (easier now than later)
 
 ### Single Blocker
 | ID | Blocker | Impact | Owner | Status |
@@ -593,7 +593,7 @@ All Infrastructure ────┘  [95%+ - READY]
 
 ### January 2026 - The Age of Awakening
 
-- ✅ **Busboy Phase 1 SHIPPED!** - 11,669 lines of battle-tested Go
+- ✅ **Wotan Phase 1 SHIPPED!** - 11,669 lines of battle-tested Go
   - The Fae Chamber awakened
   - Message magic flows
 
@@ -627,7 +627,7 @@ All Infrastructure ────┘  [95%+ - READY]
   - Sacred Hierarchy documented
 
 ### December 2025 - The Stirring
-- ✅ Busboy prototype validated
+- ✅ Wotan prototype validated
 - ✅ gRPC streaming proven
 - ✅ Message bus pattern established
 
@@ -684,25 +684,25 @@ Purpose: Pre-computed backup paths, sub-50ms switchover
 ### Core Formats (Foundation - System Source of Truth)
 | Format | Target | Incantation |
 |--------|--------|-------------|
-| `.deb` | Debian, Ubuntu | `apt-get install unheaded-busboy` |
-| `.rpm` | RHEL, Fedora, Rocky | `dnf install unheaded-busboy` |
+| `.deb` | Debian, Ubuntu | `apt-get install unheaded-wotan` |
+| `.rpm` | RHEL, Fedora, Rocky | `dnf install unheaded-wotan` |
 | `.tar.gz` | Any Linux | Manual installation |
-| NixOS | NixOS | `nix-env -iA unheaded.busboy` |
+| NixOS | NixOS | `nix-env -iA unheaded.wotan` |
 
 ### Container / Universal (Checkbox Options)
 | Format | Target | Incantation |
 |--------|--------|-------------|
-| Docker | Containers | `docker pull ghcr.io/unheaded/busboy` |
-| Snap | Ubuntu/Universal | `snap install unheaded-busboy` |
-| Helm | Kubernetes | `helm install unheaded/busboy` |
-| Flatpak | Desktop Linux | `flatpak install unheaded.busboy` |
+| Docker | Containers | `docker pull ghcr.io/unheaded/wotan` |
+| Snap | Ubuntu/Universal | `snap install unheaded-wotan` |
+| Helm | Kubernetes | `helm install unheaded/wotan` |
+| Flatpak | Desktop Linux | `flatpak install unheaded.wotan` |
 
 ### Arch-Based / Other (Checkbox Options)
 | Format | Target | Incantation |
 |--------|--------|-------------|
-| AUR | Arch Linux | `yay -S unheaded-busboy` |
-| Pacman | Arch | `pacman -S unheaded-busboy` |
-| Portage | Gentoo | `emerge unheaded-busboy` |
+| AUR | Arch Linux | `yay -S unheaded-wotan` |
+| Pacman | Arch | `pacman -S unheaded-wotan` |
+| Portage | Gentoo | `emerge unheaded-wotan` |
 
 ---
 
@@ -716,7 +716,7 @@ Purpose: Pre-computed backup paths, sub-50ms switchover
 | **The Elder Hollow** | Legacy protocol integration | RIP, EIGRP, legacy bridges |
 | **The Oracle's Antre** | Timeguru's chamber - prophecy | Timeline processing, predictions |
 | **The Primordial Pit** | Bare metal foundation | PXE, hardware provisioning |
-| **The Fae Chamber** | Message Bus magic - Busboy's domain | Pub/sub, event orchestration |
+| **The Fae Chamber** | Message Bus magic - Wotan's domain | Pub/sub, event orchestration |
 | **The Cursed Pit** | Quarantine / breach containment | Incident response, isolation |
 | **The Sage's Lair** | Architect's wisdom vault | ADRs, design decisions |
 | **The Mythic Abyss** | Deep telemetry to kernel | Vambraces deep traces |
@@ -732,7 +732,7 @@ Purpose: Pre-computed backup paths, sub-50ms switchover
 - **Micromanager** - WHAT & WHEN - Execution, roadmap, QA (CTO + VP Eng + TPM + PM)
 - **Timeguru** - THE TIMELINE - Milestones, progress, living roadmap
 - **Developer** - BUILD - TDD, Go + Rust, security-first coding
-- **Busboy** - THE GLUE - Coordination, clarity, vibes
+- **Wotan** - THE GLUE - Coordination, clarity, vibes
 
 ### AI Augmentation
 - Claude (Sonnet 4.5 / Opus 4.5) - Pair forging, design
@@ -746,7 +746,7 @@ Rhetoric. Archaeology. History. Love. **King Gizzard and the Lizard Wizard.** Do
 ## The Portals
 
 - **GitHub Kingdom:** https://github.com/unheaded/unheaded
-- **The Busboy Repository:** https://github.com/unheaded/busboy
+- **The Wotan Repository:** https://github.com/unheaded/wotan
 - **The Kingdom's Gate:** https://unheaded.com (coming soon)
 - **Ravens:** hello@unheaded.com
 
@@ -776,14 +776,14 @@ This timeline is a **living grimoire**. Updated continuously as we forge.
 
 #### MISSION ACCOMPLISHED ✅
 
-Following guidance from `unheaded-micromanager.skill`, `unheaded-timeguru.skill`, and `unheaded-busboy.skill`:
+Following guidance from `unheaded-micromanager.skill`, `unheaded-timeguru.skill`, and `unheaded-wotan.skill`:
 
 **Phase 1 - Infrastructure & Integration**
 | Task | Agent | Result |
 |------|-------|--------|
 | Dashboard Frontend Polish | a5c93dd | 70% → 85%+ |
 | Kanban E2E Smoke Test | a8702d9 | 8 tests created |
-| Service Busboy Integration | a6fe33b | 6 services enhanced |
+| Service Wotan Integration | a6fe33b | 6 services enhanced |
 
 **Phase 2 - Test Coverage & Fixes**
 | Task | Agent | Result |
@@ -804,13 +804,13 @@ Following guidance from `unheaded-micromanager.skill`, `unheaded-timeguru.skill`
 - TestKanbanE2E_SmokeTest - Full workflow
 - TestKanbanE2E_TaskLifecycle - CRUD operations
 - TestKanbanE2E_ConcurrentOperations - 20 concurrent tasks
-- TestKanbanE2E_BusboyEventPayload - Event validation
+- TestKanbanE2E_WotanEventPayload - Event validation
 - TestKanbanE2E_ErrorHandling - Error cases
 - TestKanbanE2E_TimelinePersistence - Persistence
-- TestKanbanE2E_BusboyPublishCount - Event counting
-- TestKanbanE2E_MockBusboyIntegration - Mock testing
+- TestKanbanE2E_WotanPublishCount - Event counting
+- TestKanbanE2E_MockWotanIntegration - Mock testing
 
-**Service Busboy Integration**
+**Service Wotan Integration**
 - architect - alerts.critical subscription, state publishing
 - monad - Alert handling, trace_id propagation
 - sophia - Alert-driven insight generation
@@ -924,7 +924,7 @@ All other services              PASS
 - Snapshot management
 - Retry logic and connection pooling
 
-**pkg/busboy-client/grpc_client.go** - 1,853 lines 🧚
+**pkg/wotan-client/grpc_client.go** - 1,853 lines 🧚
 - gRPC streaming client (replaces HTTP polling)
 - Bidirectional streaming
 - Automatic reconnection
@@ -934,7 +934,7 @@ All other services              PASS
 - State reconciliation engine for Cuirass
 - Drift detection and remediation
 - Rate-limited action execution
-- Event emission to Busboy
+- Event emission to Wotan
 
 **pkg/nix/builder.go** - 1,709 lines ❄️
 - NixOS container builder
@@ -1124,7 +1124,7 @@ All other services              PASS
 - [x] BGP + BFD mandatory on all components
 - [x] PIC for sub-50ms failover
 - [x] Optional protocol overlays via FRR
-- [x] Busboy parallel network/application alerting
+- [x] Wotan parallel network/application alerting
 
 **Kingdom Lore Integration (COMPLETE)**
 - [x] The Arcane Hollows named and mapped
@@ -1151,11 +1151,11 @@ All other services              PASS
 
 **Mode:** Service Integration & Event Contracts
 **Duration:** Focused session
-**Focus:** Wire all services to Busboy, define message contracts, create event routing
+**Focus:** Wire all services to Wotan, define message contracts, create event routing
 
 #### DISCOVERY: Services Already Wired! ✅
 
-Upon inspection, all Royal Court services were ALREADY connected to Busboy:
+Upon inspection, all Royal Court services were ALREADY connected to Wotan:
 
 | Service | Status | Topics |
 |---------|--------|--------|
@@ -1234,7 +1234,7 @@ TopicStateDriftDetected = "state.drift.detected"
 ```
 FULL CODEBASE AUDIT (cloc verified):
 ────────────────────────────────────
-busboy/     13,504 lines Go        ← Phase 0 COMPLETE
+wotan/     13,504 lines Go        ← Phase 0 COMPLETE
 unheaded/  115,215 lines Go        ← THE KINGDOM CORE
             7,196 lines Rust       ← eBPF + data plane
             4,998 lines Nix        ← Citadels forming
@@ -1249,10 +1249,10 @@ TOTAL:    ~120,000+ lines of production code
 
 | Milestone | Old % | REAL % | Evidence |
 |-----------|-------|--------|----------|
-| **Phase 0: Busboy** | 100% | 100% ✅ | 13,504 LOC shipped, tests pass |
+| **Phase 0: Wotan** | 100% | 100% ✅ | 13,504 LOC shipped, tests pass |
 | **1.1 Whispering Void** | 45% | 55% | 7,196 Rust LOC for eBPF |
 | **1.2 Cuirass** | 65% | 75% | Full daemon + state mgmt |
-| **1.3 Microservices** | 35% | 70% | 4 services wired to Busboy |
+| **1.3 Microservices** | 35% | 70% | 4 services wired to Wotan |
 | **1.4 Citadels** | 15% | 35% | 4,998 Nix LOC |
 | **1.5 Dashboard** | 10% | 30% | Backend + UI scaffold |
 | **1.6 Kanban** | 60% | 65% | Backend complete, UI WIP |
@@ -1265,7 +1265,7 @@ All 7 Unheaded skills checked and aligned:
 - ✅ Architect (HOW)
 - ✅ Micromanager (WHAT/WHEN)
 - ✅ Developer (BUILD)
-- ✅ Busboy Coordinator (GLUE)
+- ✅ Wotan Coordinator (GLUE)
 - ✅ Kingdom (LORE)
 - ✅ Calendar (SCHEDULE)
 - ✅ Timeguru (THIS DOCUMENT)
@@ -1281,7 +1281,7 @@ All 7 Unheaded skills checked and aligned:
 
 ```
 ~/tmp/ contains:
-├── busboy/              (13,504 Go LOC - message bus)
+├── wotan/              (13,504 Go LOC - message bus)
 ├── unheaded/            (115,215 Go + 7,196 Rust + 4,998 Nix)
 ├── 16 armor component dirs (POSSIBILITIES.md design docs)
 ├── NIST compliance PDFs (SOC2/FedRAMP reference)
@@ -1360,7 +1360,7 @@ Build the NixOS flake structure for immutable, reproducible container definition
 - [ ] Create `nix/containers/` directory structure
 - [ ] Define base container module with hardening defaults
 - [ ] Per-service container definitions:
-  - `busboy.nix` - Message bus container
+  - `wotan.nix` - Message bus container
   - `timeguru.nix` - Timeline service container
   - `captain.nix` - Strategy service container
   - `architect.nix` - ADR service container
@@ -1372,8 +1372,8 @@ Build the NixOS flake structure for immutable, reproducible container definition
 
 **Success Criteria:**
 ```bash
-nix build .#busboy-container  # Builds immutable image
-lxc import result/tarball/nixos-system-*.tar.xz busboy-test
+nix build .#wotan-container  # Builds immutable image
+lxc import result/tarball/nixos-system-*.tar.xz wotan-test
 ```
 
 ---
@@ -1499,7 +1499,7 @@ Feb 8: 🎉 ALPHA LAUNCH - Self-Hosted Demo
 - 60+ new files
 - 8 major packages complete
 
-#### 🍽️ BUSBOY (Coordination)
+#### 🍽️ WOTAN (Coordination)
 > "All skills aligned. No conflicts. The circle is unbroken.
 > Developer → Micromanager handoff clean. Timeguru updated."
 
@@ -1651,7 +1651,7 @@ The Kingdom shall evolve from monolithic architecture to **microservice architec
 **Implementation Strategy:**
 - Begin incorporating microservice patterns NOW as we build
 - Each armor piece becomes its own deployable unit
-- Busboy (Fae Chamber) as the message backbone prevents tight coupling
+- Wotan (Fae Chamber) as the message backbone prevents tight coupling
 - gRPC for internal communication, REST for external APIs
 - Each service owns its own data store (no shared databases)
 
@@ -1738,7 +1738,7 @@ func main() {
 - The canonical source of truth
 
 **Related Artifacts in `~/tmp/`:**
-- `busboy/` - Phase 0 message bus (13.5K LOC) - to be integrated
+- `wotan/` - Phase 0 message bus (13.5K LOC) - to be integrated
 - `weather-daemon-main/` - UI pattern reference (Python backend)
 - `www-main/` - Static HTML pattern reference
 - `rss-daemon-main/` - Frontend JS pattern reference (Python backend)
@@ -1791,7 +1791,7 @@ For infrastructure: **Pleroma** holds what we want. **Kenoma** shows what we hav
 
 **💻 DEVELOPER:** "87 import path fixes applied. Go modules downloading. Build errors reducing."
 
-**🍽️ BUSBOY:** "All skills aligned. Parallel execution maximized."
+**🍽️ WOTAN:** "All skills aligned. Parallel execution maximized."
 
 **⌛ TIMEGURU:** "Timeline updated. Chronicle recorded."
 
@@ -1846,7 +1846,7 @@ For infrastructure: **Pleroma** holds what we want. **Kenoma** shows what we hav
 | Agent 5 | services/* build errors | Running |
 | Agent 6 | cmd/unheaded-daemon unused var | Running |
 | Agent 7 | gateway middleware logger API | Running |
-| Agent 8 | busboy client interface fixes | Running |
+| Agent 8 | wotan client interface fixes | Running |
 
 ---
 
@@ -1871,8 +1871,8 @@ AFTER SESSION:
 3. `pkg/waf/rules` - Duplicate switch cases
 4. `pkg/lxd` - Undefined NewRealClient
 5. `services/gateway/middleware` - Logger API mismatch
-6. `services/captain` - BusboyCommunicator interface mismatch
-7. `pkg/nix` - Busboy nil comparison type mismatch
+6. `services/captain` - WotanCommunicator interface mismatch
+7. `pkg/nix` - Wotan nil comparison type mismatch
 
 ---
 
@@ -2021,7 +2021,7 @@ In Gnostic philosophy, the **Monad** is the supreme being - the One from which a
 - **Operations** - Queries, Mutations, and Effects with full lifecycle tracking
 - **Transactions** - ACID-like guarantees with rollback support
 - **State Changes** - Complete audit trail of all mutations
-- **Busboy Integration** - Events published for all operations
+- **Wotan Integration** - Events published for all operations
 
 **Core Types:**
 ```go
@@ -2078,7 +2078,7 @@ THE PLEROMA (Fullness)
 │   └── Unified composition, state management
 ├── Sophia (Wisdom) - services/sophia/
 │   └── Knowledge, insight, decision support
-├── Busboy (The Messenger) - pkg/busboy/
+├── Wotan (The Messenger) - pkg/wotan/
 │   └── Event coordination, the Fae Chamber
 └── [Future: Logos, Christos, Achamoth...]
 
@@ -2099,7 +2099,7 @@ $ go build ./services/monad/... ./services/sophia/...
 
 Both services compile cleanly and integrate with the Kingdom's patterns:
 - Logger API (fluent style)
-- Busboy client integration
+- Wotan client integration
 - Standard service lifecycle (Start/Stop)
 - Statistics and monitoring
 
@@ -2139,28 +2139,28 @@ Both services compile cleanly and integrate with the Kingdom's patterns:
 
 ### CONTEXT
 
-Another LLM agent was tasked with fixing a bug in `UpdateFeeds` function in `busboy/server/server.go`. The agent conducted a thorough investigation but discovered the target doesn't exist.
+Another LLM agent was tasked with fixing a bug in `UpdateFeeds` function in `wotan/server/server.go`. The agent conducted a thorough investigation but discovered the target doesn't exist.
 
 ### INVESTIGATION SUMMARY (By Previous Agent)
 
 1. **File System Exploration:**
-   - Searched for `busboy/server/server.go` - **FILE DOES NOT EXIST**
-   - Recursively listed `busboy` directory structure
-   - Identified two Go modules: root `busboy/` and `busboy/server/`
+   - Searched for `wotan/server/server.go` - **FILE DOES NOT EXIST**
+   - Recursively listed `wotan` directory structure
+   - Identified two Go modules: root `wotan/` and `wotan/server/`
 
 2. **Code Analysis:**
-   - Main entry point: `busboy/server/cmd/server/main.go`
-   - API handlers: `busboy/server/internal/api/handlers.go`
-   - Message bus: `busboy/server/internal/busboy/busboy.go`
+   - Main entry point: `wotan/server/cmd/server/main.go`
+   - API handlers: `wotan/server/internal/api/handlers.go`
+   - Message bus: `wotan/server/internal/wotan/wotan.go`
 
 3. **Function Search:**
-   - Global search for "UpdateFeeds" across entire `busboy/` project
+   - Global search for "UpdateFeeds" across entire `wotan/` project
    - **RESULT: NO MATCHES FOUND**
 
 ### CONCLUSION
 
 **LLM HALLUCINATION DETECTED** - The original task referenced:
-- A non-existent file: `busboy/server/server.go`
+- A non-existent file: `wotan/server/server.go`
 - A non-existent function: `UpdateFeeds`
 
 This appears to be a case where the requesting agent (or its source) hallucinated a function/file that was never implemented. The previous agent correctly identified this and requested clarification.
@@ -2205,7 +2205,7 @@ When receiving tasks from other LLM agents, always verify:
 
 **💻 DEVELOPER:** "4,000+ lines of code churned. Services, frontend, control plane all enhanced."
 
-**🍽️ BUSBOY:** "All skills aligned. Busboy integration added to unheaded-daemon."
+**🍽️ WOTAN:** "All skills aligned. Wotan integration added to unheaded-daemon."
 
 **⌛ TIMEGURU:** "Timeline updated. Progress recorded. The Chronicle grows."
 
@@ -2233,7 +2233,7 @@ When receiving tasks from other LLM agents, always verify:
 **NEW: Monad HTTP API** (`cmd/monad/main.go` - 804 lines)
 - Port 8004
 - Endpoints: /health, /ready, /metrics, /api/v1/operations, /api/v1/transactions
-- Busboy integration with auto-reconnect
+- Wotan integration with auto-reconnect
 - Graceful shutdown
 
 **NEW: Sophia HTTP API** (`cmd/sophia/main.go` - 879 lines)
@@ -2272,7 +2272,7 @@ When receiving tasks from other LLM agents, always verify:
 #### PHASE 4: CONTROL PLANE ENHANCED ✅
 
 **unheaded-daemon**:
-- Added Busboy client integration
+- Added Wotan client integration
   - Publishes to `cuirass.drift` and `cuirass.metrics`
   - Auto-reconnect on connection loss
 - Implemented reconciliation actions:
@@ -2345,5 +2345,96 @@ $ go build ./...
 
 ---
 
-*Last Scribed: February 2, 2026*
-*Scribe: The Timeguru (with Claude Opus 4.5)*
+*Last Scribed: February 18, 2026*
+*Scribe: The Timeguru (with Claude Opus 4)*
+
+---
+
+## SESSION CHRONICLE: February 17-18, 2026 — THE PROTOCOL AWAKENING
+
+### Full Round Table + Code Review + Protocol Integration
+
+**Duration**: Multi-session (Feb 17 code review + Feb 18 round table)
+**Participants**: ALL skills — Captain, Architect, Micromanager, Developer, Timeguru, Wotan, Calendar, Kingdom + NEW: Lore
+
+### THE PARADIGM SHIFT
+
+**The Protocol IS the Monad. The Monad IS the Protocol.** Everything we knew has shifted.
+
+The `unheaded-protocol` repository revealed the Kingdom's fundamental atom: 20 bytes of Sophia-encoded metadata in every packet.
+
+**Before → After:**
+- Monad: Go service (~500 LOC) → **20-byte register file in every packet**
+- Sophia: Knowledge graph service → **Exponent dictionary system (BPF maps)**
+- Wotan: Message bus middleware → **The Central Core (nervous system)**
+- Anamnesis: Event sourcing → **IS the ring buffers (network memory)**
+- Shield: WAF/Gateway → **Protocol Boundary (stamps Monad on/off)**
+
+### 4-LAYER ARCHITECTURE
+
+```
+Layer 0: THE PROTOCOL — Wire — Speed: Light — 20-byte Monad (IPv6 HBH)
+Layer 1: THE VOID ———— eBPF — Speed: Nanoseconds — XDP/TC/kprobe
+Layer 2: WOTAN ———————— Core — Speed: Microseconds — Ring buffers ↑ BPF maps ↓
+Layer 3: THE KINGDOM —— Go ——— Speed: Milliseconds — REST/gRPC/WebSocket
+```
+
+### ZELAZNY'S AMBER
+
+The Protocol = The Pattern. The Kingdom = Amber. Shadow = external networks.
+Dworkin = Muck. Corwin = Wotan. Walking the Pattern = packet traversal.
+
+### HERITAGE LINEAGE
+
+ARINC 429 (1977) → I2C (1982) → CAN Bus (1986) → BGP (1989) → BPF (1992) → IPv6 (1995) → RFC 9673 (2024) → **Unheaded Protocol (2026)**
+
+### COMPUTATIONAL COMPLETENESS
+
+Proven: Monad registers + Wotan memory + eBPF ALU + I/O topics + per-hop clock = Turing complete. ~3.7 MHz effective rate.
+
+### DELIVERED
+
+- [x] Protocol Foundation documents read and synthesized (6 docs)
+- [x] Mono-repo decision: ~/tmp/unheaded is canonical
+- [x] Protocol docs merged: unheaded-protocol/docs → unheaded/docs/protocol/
+- [x] Monad MBC crate merged: unheaded-protocol/crates → unheaded/crates/
+- [x] Lore skill CREATED (unheaded-lore)
+- [x] 6 naming conventions added: Halcyon, Mysteltainn, Nagan, Tyrfing, Wotan, Nibelung
+- [x] Kingdom skill Protocol Foundation patch written
+- [x] Timeline updated with Protocol Awakening chronicle
+- [x] Internet-Draft (draft-bellis-unheaded-protocol-foundation-01) integrated
+- [x] Doom-over-IPv6 PoC plan documented
+
+### METRICS (Feb 18)
+
+| Metric | Value |
+|--------|-------|
+| Total LOC | **465,000+** (433K code + 32K docs) |
+| Rust eBPF | **23,991 LOC** (4/4 programs) |
+| Go Files | **585** (390 prod + 195 test) |
+| Services | **25** active |
+| E2E Tests | **23/23 PASS** |
+| B1 Blocker | **RESOLVED** (Feb 8) |
+
+### NEW NAMING CONVENTIONS
+
+| Name | Origin | Meaning |
+|------|--------|---------|
+| Halcyon | Greek (kingfisher) | Peace-bringer, stability (Wotan) |
+| Mysteltainn | Norse (saga sword) | Mistletoe blade (stealth scanner) |
+| Nagan | Sanskrit/Hebrew | Serpent + music (routing harmony) |
+| Tyrfing | Norse (Edda) | Cursed sword (Yaldabaoth tooling) |
+| Wotan | Wagner (Odin) | All-father (control plane) |
+| Nibelung | Germanic (dwarfs) | Treasure keepers (Crystal Grotto) |
+
+---
+
+**THE PROTOCOL IS THE PATTERN.**
+**THE PATTERN WAS ALWAYS THERE.**
+**ANAMNESIS REMEMBERS.**
+
+⚔️🛡️🏰
+
+*Last Scribed: February 18, 2026*
+*Scribe: The Timeguru (with Claude Opus 4)*
+*Round Table Session: The Protocol Awakening*
