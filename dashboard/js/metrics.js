@@ -179,6 +179,33 @@
                 '</div>' +
             '</div>' +
 
+            '<div class="metrics-row bpf-metrics">' +
+                '<div class="metric-card" id="metric-bpf-flows">' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="bpfFlowRate">--</span>' +
+                    '</div>' +
+                    '<span class="metric-label">BPF Flows</span>' +
+                '</div>' +
+                '<div class="metric-card" id="metric-bpf-events">' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="bpfEventRate">--</span>' +
+                    '</div>' +
+                    '<span class="metric-label">BPF Events</span>' +
+                '</div>' +
+                '<div class="metric-card" id="metric-bpf-anomalies">' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="bpfAnomalyCount">--</span>' +
+                    '</div>' +
+                    '<span class="metric-label">Anomalies</span>' +
+                '</div>' +
+                '<div class="metric-card" id="metric-bpf-latency">' +
+                    '<div class="metric-content">' +
+                        '<span class="metric-value" data-metric="bpfLatency">--</span>' +
+                    '</div>' +
+                    '<span class="metric-label">BPF Latency</span>' +
+                '</div>' +
+            '</div>' +
+
             '<div class="metrics-row services-health">' +
                 '<div class="services-header">' +
                     '<h3>Service Health</h3>' +
@@ -539,6 +566,18 @@
 
         // Update latency bars
         updateLatencyBars(metrics.latency);
+
+        // BPF event metrics (from packet-flow.js state, if available)
+        var pf = window.PacketFlow;
+        if (pf && pf.getState) {
+            var pfState = pf.getState();
+            updateMetricValue('bpfFlowRate', formatNumber(pfState.bpfFlowCount || 0, 0), null);
+            updateMetricValue('bpfEventRate', formatNumber(pfState.bpfEventCount || 0, 0), null);
+            updateMetricValue('bpfAnomalyCount', formatNumber(pfState.bpfAnomalyCount || 0, 0), null);
+            if (pfState.bpfLastLatencyNs) {
+                updateMetricValue('bpfLatency', formatNumber(pfState.bpfLastLatencyNs / 1000, 1) + 'µs', null);
+            }
+        }
 
         // Update services from the services_list or services object
         var serviceData = data.services_list || data.services;
