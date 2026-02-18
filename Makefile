@@ -1,4 +1,6 @@
-.PHONY: all build test clean ebpf containers dev deploy docs help
+.PHONY: all build test clean ebpf containers dev deploy docs help \
+       ebpf-shield ebpf-hop ebpf-yaldabaoth ebpf-monad-cpu \
+       build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat
 
 # Build configuration
 BINARY_DIR := bin
@@ -34,7 +36,7 @@ build-daemon: ## Build unheaded-daemon
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/unheaded-daemon && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.Version=$(VERSION)" -o ../../$(BINARY_DIR)/unheaded-daemon
 
-build-services: build-busboy build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway ## Build all service binaries
+build-services: build-wotan build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway ## Build all service binaries
 	@echo "Building dashboard-backend..."
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/dashboard-backend && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/dashboard-backend
@@ -42,10 +44,10 @@ build-services: build-busboy build-timeguru build-captain build-architect build-
 	cd cmd/kanban-app && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/kanban-app
 	@echo "✓ Services built"
 
-build-busboy: ## Build Busboy (Fae Chamber - Message Bus)
-	@echo "🧚 Building Busboy..."
+build-wotan: ## Build Wotan (Fae Chamber - Message Bus)
+	@echo "🧚 Building Wotan..."
 	@mkdir -p $(BINARY_DIR)
-	cd services/busboy/cmd/busboy && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/busboy
+	cd services/wotan/cmd/wotan && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/wotan
 
 build-timeguru: ## Build Timeguru (Oracle's Antre - Timeline)
 	@echo "⌛ Building Timeguru..."
@@ -94,6 +96,41 @@ ebpf: ## Build eBPF programs (Rust)
 	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none
 	@echo "✓ eBPF programs built"
 
+##@ eBPF Protocol Foundation (individual targets)
+
+ebpf-shield: ## Build shield-ebpf only (Layer 0 boundary)
+	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none -Z build-std=core -p shield-ebpf
+
+ebpf-hop: ## Build hop-ebpf only (Layer 1 per-hop processor)
+	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none -Z build-std=core -p hop-ebpf
+
+ebpf-yaldabaoth: ## Build yaldabaoth-ebpf only (chaos injection)
+	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none -Z build-std=core -p yaldabaoth-ebpf
+
+ebpf-monad-cpu: ## Build monad-cpu-ebpf only (Doom PoC VM)
+	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none -Z build-std=core -p monad-cpu-ebpf
+
+build-monad-mbc: ## Build monad-mbc assembler/translator
+	@echo "Building monad-mbc..."
+	cd crates/monad-mbc && cargo build $(CARGO_BUILD_FLAGS)
+	@echo "✓ monad-mbc built"
+
+pin-ebpf: ## Load and pin eBPF programs to /sys/fs/bpf/unheaded/
+	@echo "Loading and pinning eBPF programs..."
+	@mkdir -p /sys/fs/bpf/unheaded
+	sudo ./scripts/load-ebpf.sh
+	@echo "✓ eBPF programs pinned"
+
+unpin-ebpf: ## Remove pinned eBPF maps from /sys/fs/bpf/unheaded/
+	@echo "Removing pinned eBPF maps..."
+	sudo rm -rf /sys/fs/bpf/unheaded/
+	@echo "✓ eBPF pins cleared"
+
+test-ebpf-compat: ## Verify eBPF workspace builds for host target (type-checks only)
+	@echo "Type-checking eBPF workspace for host target..."
+	cd $(EBPF_DIR) && cargo check --target=$(shell rustup show active-toolchain | grep -oP 'x86_64[^ ]+' || echo "x86_64-unknown-linux-gnu")
+	@echo "✓ eBPF type-check passed"
+
 ##@ Testing
 
 test: test-go test-rust ## Run all tests
@@ -107,6 +144,7 @@ test-rust: ## Run Rust tests
 	@echo "Running Rust tests..."
 	cd $(EBPF_DIR) && cargo test
 	cd cmd/trace-collector && cargo test
+	cd crates/monad-mbc && cargo test
 
 bench: ## Run benchmarks
 	@echo "Running benchmarks..."
@@ -119,8 +157,8 @@ containers: ## Build all NixOS container images
 	cd $(NIX_DIR) && nix build .#containers --out-link result-containers
 	@echo "✓ Containers built"
 
-container-busboy: ## Build Busboy container
-	cd $(NIX_DIR) && nix build .#containers.busboy
+container-wotan: ## Build Wotan container
+	cd $(NIX_DIR) && nix build .#containers.wotan
 
 container-gateway: ## Build Gateway container
 	cd $(NIX_DIR) && nix build .#containers.gateway
@@ -163,8 +201,8 @@ docker-restart: ## Restart Kingdom services
 docker-clean: ## Clean Docker resources
 	docker compose down -v --remove-orphans
 
-docker-busboy: ## Build only Busboy image
-	docker build --target busboy -t unheaded/busboy:$(VERSION) .
+docker-wotan: ## Build only Wotan image
+	docker build --target wotan -t unheaded/wotan:$(VERSION) .
 
 docker-timeguru: ## Build only Timeguru image
 	docker build --target timeguru -t unheaded/timeguru:$(VERSION) .

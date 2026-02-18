@@ -1,11 +1,18 @@
 [workspace]
 resolver = "2"
 members = [
+    # --- Observability Layer (existing) ---
     "common",
     "packet-marker",
     "flow-tracker",
     "latency-probe",
     "syscall-tracer",
+    # --- Protocol Foundation (Layer 0 + Layer 1) ---
+    "monad-common",
+    "shield-ebpf",
+    "hop-ebpf",
+    "yaldabaoth-ebpf",
+    "monad-cpu-ebpf",
 ]
 
 [workspace.package]
@@ -18,6 +25,7 @@ repository = "https://github.com/unheaded-kingdom/ebpf"
 aya-ebpf = "0.1"
 aya-log-ebpf = "0.1"
 unheaded-common = { path = "common" }
+monad-common = { path = "monad-common" }
 
 [profile.dev]
 opt-level = 3
