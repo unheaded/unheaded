@@ -376,6 +376,25 @@ const PacketFlowViz = (function() {
                 // Dashboard-backend broadcasts: { type: "packet_flow", data: PacketFlow }
                 handlePacketFlow(message.data);
                 break;
+
+            // ── Anamnesis event types (real BPF data) ─────────────────
+            case 'flow':
+                // Completed Anamnesis flow: BIRTH → HOP* → DEATH
+                handleAnamnesisFlow(message.data);
+                break;
+            case 'hop':
+                // Real-time hop marker from BPF
+                handleAnamnesisHop(message.data);
+                break;
+            case 'anomaly':
+                // CRC failure or decode error — red flash
+                handleAnamnesisAnomaly(message.data, '#ff0000');
+                break;
+            case 'chaos':
+                // Yaldabaoth chaos injection — orange pulse
+                handleAnamnesisAnomaly(message.data, '#ff5c00');
+                break;
+
             case 'health_update':
                 // Health updates from dashboard-backend - no visualization action
                 break;
@@ -398,6 +417,102 @@ const PacketFlowViz = (function() {
                     handlePacketFlow(message);
                 }
         }
+    }
+
+    // ========================================================================
+    // Anamnesis Event Handlers (real BPF data from trace-collector-go)
+    // ========================================================================
+
+    function handleAnamnesisFlow(flow) {
+        if (!flow) return;
+
+        // Convert Anamnesis flow to PacketFlow-compatible format
+        var hops = [];
+        if (flow.birth) hops.push({ component: 'shield-ingress', hop_id: flow.birth.hop_id, timestamp_ns: flow.birth.timestamp_ns });
+        if (flow.hops) {
+            flow.hops.forEach(function(h) {
+                hops.push({ component: 'hop-' + h.hop_id, hop_id: h.hop_id, timestamp_ns: h.timestamp_ns });
+            });
+        }
+        if (flow.death) hops.push({ component: 'shield-egress', hop_id: flow.death.hop_id, timestamp_ns: flow.death.timestamp_ns });
+
+        var syntheticFlow = {
+            trace_id: 'flow-' + flow.flow_label,
+            status_code: (flow.anomalies && flow.anomalies.length > 0) ? 500 : 200,
+            total_time: flow.latency_ns || 0,
+            method: 'BPF',
+            path: 'flow/' + flow.flow_label,
+            hops: hops.length >= 2 ? hops : [{ component: 'gateway' }, { component: 'wotan' }]
+        };
+
+        handlePacketFlow(syntheticFlow);
+
+        // Notify monad decoder if available
+        if (window.UnheadedMonad && flow.birth) {
+            window.UnheadedMonad.onAnamnesisEvent({
+                timestamp_ns: flow.birth.timestamp_ns,
+                event_type: 'birth',
+                hop_id: flow.birth.hop_id,
+                flow_label_lo: flow.flow_label,
+                monad: flow.birth.monad
+            });
+        }
+
+        // Update BPF flow stats
+        state.bpfFlowCount = (state.bpfFlowCount || 0) + 1;
+        state.bpfLastLatencyNs = flow.latency_ns || 0;
+
+        // Track hop latency for histogram
+        if (flow.hop_latency) {
+            if (!state.hopLatencies) state.hopLatencies = [];
+            flow.hop_latency.forEach(function(hl) {
+                state.hopLatencies.push(hl.latency_ns);
+                if (state.hopLatencies.length > 1000) state.hopLatencies.shift();
+            });
+        }
+    }
+
+    function handleAnamnesisHop(ev) {
+        if (!ev) return;
+        // Flash the hop node on the canvas
+        var hopKey = 'hop-' + ev.hop_id;
+        state.activeConnections.set(hopKey, Date.now());
+
+        // Notify monad decoder
+        if (window.UnheadedMonad) {
+            window.UnheadedMonad.onAnamnesisEvent(ev);
+        }
+
+        state.bpfEventCount = (state.bpfEventCount || 0) + 1;
+    }
+
+    function handleAnamnesisAnomaly(ev, flashColor) {
+        if (!ev) return;
+        // Create a brief flash effect for anomalies
+        var flashPacket = {
+            id: 'anomaly-' + generateId(),
+            traceId: 'anomaly',
+            route: ['gateway', 'wotan'],
+            currentSegment: 0,
+            progress: 0,
+            speed: CONFIG.packetSpeed * 2,
+            color: flashColor,
+            size: CONFIG.packetSize * 1.5,
+            trail: [],
+            latency: 0,
+            method: ev.event_type === 'chaos' ? 'CHAOS' : 'ANOMALY',
+            path: 'anomaly/' + ev.hop_id,
+            statusCode: 500,
+            timestamp: Date.now()
+        };
+        state.packets.push(flashPacket);
+
+        // Notify monad decoder
+        if (window.UnheadedMonad) {
+            window.UnheadedMonad.onAnamnesisEvent(ev);
+        }
+
+        state.bpfAnomalyCount = (state.bpfAnomalyCount || 0) + 1;
     }
 
     // ========================================================================
@@ -925,7 +1040,9 @@ const PacketFlowViz = (function() {
         });
 
         // Demo mode: simulate packet flow when BOTH sources are disconnected
-        if (!state.wsConnected && !state.traceWsConnected && CONFIG.demoFallback && Math.random() < 0.02) {
+        // Only active when ?demo=true is in the URL query string
+        var isDemoParam = (window.location.search.indexOf('demo=true') !== -1);
+        if (!state.wsConnected && !state.traceWsConnected && CONFIG.demoFallback && isDemoParam && Math.random() < 0.02) {
             simulatePacket();
         }
     }

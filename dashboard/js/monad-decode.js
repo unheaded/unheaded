@@ -176,12 +176,46 @@ window.UnheadedMonad = {
   },
 
   /**
-   * Process AnamnesisEvent with real monad data
+   * Process AnamnesisEvent with real monad data (from BPF ring buffer).
+   * The event has the shape:
+   *   { timestamp_ns, event_type, hop_id, flow_label_lo, monad: { ... } }
+   * where monad fields use the real Monad register file layout.
    */
   onAnamnesisEvent(evt) {
-    if (evt.monad) {
-      this.currentMonad = evt;
-      this.updateMonadPanel(evt);
+    if (!evt || !evt.monad) return;
+    var m = evt.monad;
+
+    // Normalize to the format updateMonadPanel expects
+    var normalized = {
+      timestamp_ns: evt.timestamp_ns,
+      event_type: evt.event_type,
+      hop_id: evt.hop_id,
+      flow_label_lo: evt.flow_label_lo || 0,
+      monad: {
+        flow_action: m.flow_action || 0,
+        hop_count: m.hop_count || 0,
+        flags: m.flags || 0,
+        circuit_state: m.circuit_state || 0,
+        src_service_id: m.src_service_id || 0,
+        dst_service_id: m.dst_service_id || 0,
+        regs: [m.version || 0, m.qos_class || 0, m.deploy_ring || 0, m.mesh_flags || 0],
+        scratch_r0: (m.scratch ? ((m.scratch[0] || 0) << 8) | (m.scratch[1] || 0) : 0),
+        scratch_r1: (m.scratch ? ((m.scratch[2] || 0) << 8) | (m.scratch[3] || 0) : 0),
+        crc: m.checksum || 0
+      },
+      checksum_valid: (m.checksum !== undefined && m.checksum !== 0),
+      is_chaos: (m.flags & 0x80) !== 0,
+      is_traced: (m.flags & 0x20) !== 0,
+      is_sampled: (m.flags & 0x08) !== 0
+    };
+
+    this.currentMonad = normalized;
+    this.updateMonadPanel(normalized);
+
+    // Update circuit breaker from real events
+    if (m.circuit_state === 2) { // OPEN
+      var key = 'svc' + m.src_service_id + '\u2192svc' + m.dst_service_id;
+      this.circuitBreakers.set(key, { state: 1, since: Date.now(), statusCode: 503 });
     }
   },
 

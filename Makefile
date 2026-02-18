@@ -1,6 +1,7 @@
 .PHONY: all build test clean ebpf containers dev deploy docs help \
        ebpf-shield ebpf-hop ebpf-yaldabaoth ebpf-monad-cpu \
-       build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat
+       build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
+       test-e2e-bpf
 
 # Build configuration
 BINARY_DIR := bin
@@ -145,6 +146,11 @@ test-rust: ## Run Rust tests
 	cd $(EBPF_DIR) && cargo test
 	cd cmd/trace-collector && cargo test
 	cd crates/monad-mbc && cargo test
+
+test-e2e-bpf: ## Run BPF → Dashboard E2E integration tests (requires root for real BPF)
+	@echo "Running BPF → Dashboard E2E tests..."
+	go test -v -race -count=1 -run TestE2E_BPFDashboard ./cmd/dashboard-backend/internal/ebpf/
+	@echo "✓ BPF E2E tests passed"
 
 bench: ## Run benchmarks
 	@echo "Running benchmarks..."
