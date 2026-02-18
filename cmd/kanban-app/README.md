@@ -1,4 +1,4 @@
-# Kanban App Backend - Busboy Integration
+# Kanban App Backend - Wotan Integration
 
 **Status:** Refactored (Day 3 - Quick Win)
 **LOC:** ~1,400 (408 original + ~1,000 new)
@@ -9,7 +9,7 @@
 
 ## Overview
 
-The Kanban App backend serves the Unheaded project's task dashboard and integrates with **Busboy** message bus for real-time task synchronization across services.
+The Kanban App backend serves the Unheaded project's task dashboard and integrates with **Wotan** message bus for real-time task synchronization across services.
 
 ### Architecture
 
@@ -25,7 +25,7 @@ The Kanban App backend serves the Unheaded project's task dashboard and integrat
 │  (Go server)    │
 └────┬────────┬───┘
      │        │
-     │        └──────► Busboy Message Bus
+     │        └──────► Wotan Message Bus
      │                (pub/sub tasks.*)
      │
      └────────► Static Files (HTML/CSS/JS)
@@ -38,8 +38,8 @@ The Kanban App backend serves the Unheaded project's task dashboard and integrat
 ### Core Functionality
 - ✅ **RESTful API** - Full CRUD for tasks
 - ✅ **Real-time SSE** - Server-Sent Events for live updates
-- ✅ **Busboy Integration** - Pub/sub to `tasks.*` topics
-- ✅ **Backward Compatible** - Falls back to hardcoded tasks if Busboy unavailable
+- ✅ **Wotan Integration** - Pub/sub to `tasks.*` topics
+- ✅ **Backward Compatible** - Falls back to hardcoded tasks if Wotan unavailable
 
 ### Security (NEW)
 - ✅ **CORS Protection** - Restrictive origin policy
@@ -173,8 +173,8 @@ Health check endpoint.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8080` | HTTP server port |
-| `BUSBOY_ADDR` | `localhost:9090` | Busboy server address |
-| `BUSBOY_ENABLED` | `true` | Enable Busboy integration |
+| `WOTAN_ADDR` | `localhost:9090` | Wotan server address |
+| `WOTAN_ENABLED` | `true` | Enable Wotan integration |
 | `TIMEGURU_ADDR` | `localhost:9091` | TimeGuru service address |
 | `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting |
 
@@ -182,8 +182,8 @@ Health check endpoint.
 
 ```bash
 export PORT=8080
-export BUSBOY_ADDR=10.10.10.10:9090
-export BUSBOY_ENABLED=true
+export WOTAN_ADDR=10.10.10.10:9090
+export WOTAN_ENABLED=true
 export RATE_LIMIT_ENABLED=true
 
 ./bin/kanban-app
@@ -191,7 +191,7 @@ export RATE_LIMIT_ENABLED=true
 
 ---
 
-## Busboy Integration
+## Wotan Integration
 
 ### Topic Strategy
 
@@ -211,15 +211,15 @@ The app subscribes to and publishes on these topics:
                                   │
                                   ├─ Validate input
                                   ├─ Create task locally
-                                  ├─ Publish to Busboy (tasks.created)
+                                  ├─ Publish to Wotan (tasks.created)
                                   │
                                   ▼
-                          [Busboy Message Bus]
+                          [Wotan Message Bus]
                                   │
                                   └──► Other subscribers
                                        (timeguru, dashboard, etc.)
 
-[Busboy] ──tasks.updated──► [Kanban Backend]
+[Wotan] ──tasks.updated──► [Kanban Backend]
                                   │
                                   ├─ Unmarshal task
                                   ├─ Validate task
@@ -233,7 +233,7 @@ The app subscribes to and publishes on these topics:
 
 ### Fallback Mode
 
-If Busboy is unavailable:
+If Wotan is unavailable:
 - App starts in **standalone mode**
 - Uses hardcoded initial tasks
 - Full API still functional (local state only)
@@ -260,12 +260,12 @@ go tool cover -func=coverage.out
 ### Test Files
 
 - `main_test.go` - HTTP handler tests, server lifecycle
-- `busboy_test.go` - TaskManager unit tests, Busboy integration
+- `wotan_test.go` - TaskManager unit tests, Wotan integration
 - `handlers_test.go` - HTTP endpoint tests, input validation
 
-### Mock Busboy
+### Mock Wotan
 
-Tests use `pkg/busboy-client/mock` for isolated testing:
+Tests use `pkg/wotan-client/mock` for isolated testing:
 
 ```go
 mockClient := mock.NewMockClient(mock.WithAutoApprove())
@@ -320,10 +320,10 @@ Restrictive CORS policy:
 ```
 cmd/kanban-app/
 ├── main.go           # Server setup, main()
-├── busboy.go         # TaskManager (Busboy integration)
+├── wotan.go         # TaskManager (Wotan integration)
 ├── middleware.go     # Security middleware
 ├── main_test.go      # Server tests
-├── busboy_test.go    # TaskManager tests
+├── wotan_test.go    # TaskManager tests
 ├── handlers_test.go  # HTTP handler tests
 └── README.md         # This file
 ```
@@ -353,17 +353,17 @@ cmd/kanban-app/
 
 ### Adding TaskManager Method
 
-1. Add method to `TaskManager` in `busboy.go`:
+1. Add method to `TaskManager` in `wotan.go`:
    ```go
    func (tm *TaskManager) NewOperation(ctx context.Context, ...) error {
        // 1. Validate inputs (nil checks, bounds)
        // 2. Perform operation
-       // 3. Publish to Busboy
+       // 3. Publish to Wotan
        // 4. Rollback on error
    }
    ```
 
-2. Write comprehensive tests in `busboy_test.go`:
+2. Write comprehensive tests in `wotan_test.go`:
    ```go
    func TestTaskManager_NewOperation_HappyPath(t *testing.T) { ... }
    func TestTaskManager_NewOperation_PublishFails_RollsBack(t *testing.T) { ... }
@@ -386,8 +386,8 @@ go build -o bin/kanban-app ./cmd/kanban-app
 # Standalone mode
 ./bin/kanban-app
 
-# With Busboy
-export BUSBOY_ADDR=busboy.unheaded.local:9090
+# With Wotan
+export WOTAN_ADDR=wotan.unheaded.local:9090
 ./bin/kanban-app
 ```
 
@@ -414,7 +414,7 @@ CMD ["/kanban-app"]
 | Metric | Value |
 |--------|-------|
 | GET /tasks | < 5ms |
-| POST /tasks | < 10ms (with Busboy) |
+| POST /tasks | < 10ms (with Wotan) |
 | SSE connection | < 100ms |
 | Memory (idle) | ~15MB |
 
@@ -423,25 +423,25 @@ CMD ["/kanban-app"]
 All operations are **concurrency-safe**:
 - TaskManager uses `sync.RWMutex`
 - SSE client map protected
-- Busboy mock client thread-safe
+- Wotan mock client thread-safe
 
 ### Scalability
 
 - Stateless (except in-memory task cache)
-- Horizontal scaling possible (with shared Busboy)
+- Horizontal scaling possible (with shared Wotan)
 - Rate limiter per-instance (consider Redis for distributed)
 
 ---
 
 ## Troubleshooting
 
-### Busboy Connection Failed
+### Wotan Connection Failed
 
 ```
-ERROR Failed to create Busboy client, falling back to standalone mode
+ERROR Failed to create Wotan client, falling back to standalone mode
 ```
 
-**Solution:** Check Busboy is running and address is correct.
+**Solution:** Check Wotan is running and address is correct.
 
 ```bash
 curl http://localhost:9090/health
@@ -485,8 +485,8 @@ task.id contains invalid characters
 
 ## References
 
-- [Busboy Message Bus](../../../busboy/README.md)
-- [Busboy Client](../../../pkg/busboy-client/client.go)
+- [Wotan Message Bus](../../../wotan/README.md)
+- [Wotan Client](../../../pkg/wotan-client/client.go)
 - [Unheaded Architecture](../../../docs/ARCHITECTURE.md)
 - [Security Guidelines](../../../docs/SECURITY.md)
 

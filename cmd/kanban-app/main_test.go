@@ -18,7 +18,7 @@ func createTestServer(t *testing.T) *Server {
 	cfg := Config{
 		Port:            "8080",
 		TimeGuruAddr:    "localhost:9091",
-		BusboyAddr:      "localhost:9090",
+		WotanAddr:      "localhost:9090",
 		DataDir:         t.TempDir(),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
@@ -156,7 +156,7 @@ func TestNewServer_ValidConfig(t *testing.T) {
 	cfg := Config{
 		Port:            "8080",
 		TimeGuruAddr:    "localhost:9091",
-		BusboyAddr:      "localhost:9090",
+		WotanAddr:      "localhost:9090",
 		DataDir:         t.TempDir(),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,

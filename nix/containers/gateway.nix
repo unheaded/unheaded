@@ -12,7 +12,7 @@
   # Ports: 80 (HTTP redirect), 443 (HTTPS/HTTP3)
   #
   # Proxies to:
-  #   - Busboy (10.10.10.10:9090) - Message bus gRPC
+  #   - Wotan (10.10.10.10:9090) - Message bus gRPC
   #   - Timeguru (10.10.10.20:8000) - Timeline API
   #   - Captain (10.10.10.21:8001) - Captain service
   #   - Micromanager (10.10.10.22:8002) - Micromanager service
@@ -88,7 +88,7 @@
     enable = true;
     serviceName = "gateway";
     dependencies = [
-      { name = "busboy"; ip = "10.10.10.10"; port = 8080; path = "/health"; }
+      { name = "wotan"; ip = "10.10.10.10"; port = 8080; path = "/health"; }
       { name = "timeguru"; ip = "10.10.10.20"; port = 8000; path = "/health"; }
       { name = "captain"; ip = "10.10.10.21"; port = 8001; path = "/health"; }
       { name = "micromanager"; ip = "10.10.10.22"; port = 8002; path = "/health"; }
@@ -178,7 +178,7 @@
       # UPSTREAM DEFINITIONS
       # =======================
       # All active services in the Unheaded platform
-      upstream busboy_backend {
+      upstream wotan_backend {
         server 10.10.10.10:9090;
         keepalive 32;
       }
@@ -285,8 +285,8 @@
           add_header Referrer-Policy "strict-origin-when-cross-origin" always;
           add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
 
-          # Default: proxy to busboy (can be customized)
-          proxy_pass http://busboy_backend;
+          # Default: proxy to wotan (can be customized)
+          proxy_pass http://wotan_backend;
           proxy_http_version 1.1;
           proxy_set_header Connection "";
           proxy_set_header Host $host;
@@ -321,9 +321,9 @@
       };
 
       # API routes with path-based routing
-      locations."/api/busboy/" = {
+      locations."/api/wotan/" = {
         extraConfig = ''
-          proxy_pass http://busboy_backend/;
+          proxy_pass http://wotan_backend/;
           proxy_http_version 1.1;
           proxy_set_header Connection "";
           proxy_set_header Host $host;

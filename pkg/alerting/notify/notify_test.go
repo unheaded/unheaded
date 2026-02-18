@@ -644,24 +644,24 @@ func TestDefaultTemplates_RenderBody(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Busboy notifier
+// 5. Wotan notifier
 // ---------------------------------------------------------------------------
 
-func TestBusboyChannel_Name(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
-		ChannelConfig: ChannelConfig{Name: "busboy-ch"},
+func TestWotanChannel_Name(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
+		ChannelConfig: ChannelConfig{Name: "wotan-ch"},
 	}, pub)
 	defer ch.Close()
 
-	if ch.Name() != "busboy-ch" {
-		t.Errorf("Name() = %q, want %q", ch.Name(), "busboy-ch")
+	if ch.Name() != "wotan-ch" {
+		t.Errorf("Name() = %q, want %q", ch.Name(), "wotan-ch")
 	}
 }
 
-func TestBusboyChannel_DefaultConfig(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{}, pub)
+func TestWotanChannel_DefaultConfig(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{}, pub)
 	defer ch.Close()
 
 	if ch.config.QueueSize != 1000 {
@@ -684,10 +684,10 @@ func TestBusboyChannel_DefaultConfig(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_SendQueuesEvent(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
-		ChannelConfig: ChannelConfig{Name: "busboy"},
+func TestWotanChannel_SendQueuesEvent(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
+		ChannelConfig: ChannelConfig{Name: "wotan"},
 		FlushInterval: 50 * time.Millisecond,
 	}, pub)
 
@@ -723,9 +723,9 @@ func TestBusboyChannel_SendQueuesEvent(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_SendEmptyAlerts(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
+func TestWotanChannel_SendEmptyAlerts(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 	}, pub)
 	defer ch.Close()
@@ -736,9 +736,9 @@ func TestBusboyChannel_SendEmptyAlerts(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_SendAfterClose(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
+func TestWotanChannel_SendAfterClose(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 	}, pub)
 	ch.Close()
@@ -752,12 +752,12 @@ func TestBusboyChannel_SendAfterClose(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_SendContextCancelled(t *testing.T) {
-	pub := NewMockBusboyPublisher()
+func TestWotanChannel_SendContextCancelled(t *testing.T) {
+	pub := NewMockWotanPublisher()
 	// Use a queue size of 0 to force the direct-publish path immediately.
 	// Since we cannot actually set a chan of size 0 (the constructor defaults to
 	// 1000), we fill the queue up first and then use a cancelled context.
-	ch := NewBusboyChannel(BusboyConfig{
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 		QueueSize:     1,
 		RetryCount:    0,
@@ -778,13 +778,13 @@ func TestBusboyChannel_SendContextCancelled(t *testing.T) {
 	_ = err
 }
 
-func TestBusboyChannel_PublishWithRetrySuccess(t *testing.T) {
+func TestWotanChannel_PublishWithRetrySuccess(t *testing.T) {
 	callCount := 0
 	pub := &flakyPublisher{
 		failUntil: 2,
-		inner:     NewMockBusboyPublisher(),
+		inner:     NewMockWotanPublisher(),
 	}
-	ch := NewBusboyChannel(BusboyConfig{
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 		RetryCount:    3,
 		RetryDelay:    1 * time.Millisecond,
@@ -802,7 +802,7 @@ func TestBusboyChannel_PublishWithRetrySuccess(t *testing.T) {
 	_ = callCount
 }
 
-func TestBusboyChannel_PublishWithRetryExhausted(t *testing.T) {
+func TestWotanChannel_PublishWithRetryExhausted(t *testing.T) {
 	// Use a publisher that blocks in PublishBatch to freeze the flushLoop,
 	// then deterministically overflow the queue to trigger publishWithRetry.
 	enteredCh := make(chan struct{}, 1)
@@ -811,12 +811,12 @@ func TestBusboyChannel_PublishWithRetryExhausted(t *testing.T) {
 	pub := &blockingBatchPublisher{
 		enteredCh: enteredCh,
 		blockCh:   blockCh,
-		publishFn: func(_ context.Context, _ string, _ *BusboyEvent) error {
+		publishFn: func(_ context.Context, _ string, _ *WotanEvent) error {
 			return fmt.Errorf("always fail")
 		},
 	}
 
-	ch := NewBusboyChannel(BusboyConfig{
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 		RetryCount:    2,
 		RetryDelay:    1 * time.Millisecond,
@@ -852,9 +852,9 @@ func TestBusboyChannel_PublishWithRetryExhausted(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_BuildEvent(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
+func TestWotanChannel_BuildEvent(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "test-receiver"},
 		Topic:         "custom.topic",
 		Headers:       map[string]string{"X-Custom": "value"},
@@ -891,9 +891,9 @@ func TestBusboyChannel_BuildEvent(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_BuildEventAllResolved(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
+func TestWotanChannel_BuildEventAllResolved(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 	}, pub)
 	defer ch.Close()
@@ -905,9 +905,9 @@ func TestBusboyChannel_BuildEventAllResolved(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_Test(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
+func TestWotanChannel_Test(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 		FlushInterval: 50 * time.Millisecond,
 	}, pub)
@@ -927,9 +927,9 @@ func TestBusboyChannel_Test(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_CloseIdempotent(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
+func TestWotanChannel_CloseIdempotent(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 	}, pub)
 
@@ -941,9 +941,9 @@ func TestBusboyChannel_CloseIdempotent(t *testing.T) {
 	}
 }
 
-func TestMockBusboyPublisher_GetEventsJSON(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	event := &BusboyEvent{
+func TestMockWotanPublisher_GetEventsJSON(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	event := &WotanEvent{
 		ID:   "test-1",
 		Type: "test.event",
 	}
@@ -963,10 +963,10 @@ type flakyPublisher struct {
 	mu        sync.Mutex
 	calls     int
 	failUntil int
-	inner     *MockBusboyPublisher
+	inner     *MockWotanPublisher
 }
 
-func (f *flakyPublisher) Publish(ctx context.Context, topic string, event *BusboyEvent) error {
+func (f *flakyPublisher) Publish(ctx context.Context, topic string, event *WotanEvent) error {
 	f.mu.Lock()
 	f.calls++
 	n := f.calls
@@ -978,7 +978,7 @@ func (f *flakyPublisher) Publish(ctx context.Context, topic string, event *Busbo
 	return f.inner.Publish(ctx, topic, event)
 }
 
-func (f *flakyPublisher) PublishBatch(ctx context.Context, topic string, events []*BusboyEvent) error {
+func (f *flakyPublisher) PublishBatch(ctx context.Context, topic string, events []*WotanEvent) error {
 	return f.inner.PublishBatch(ctx, topic, events)
 }
 
@@ -989,14 +989,14 @@ func (f *flakyPublisher) Close() error { return nil }
 type blockingBatchPublisher struct {
 	enteredCh chan struct{}
 	blockCh   chan struct{}
-	publishFn func(context.Context, string, *BusboyEvent) error
+	publishFn func(context.Context, string, *WotanEvent) error
 }
 
-func (b *blockingBatchPublisher) Publish(ctx context.Context, topic string, event *BusboyEvent) error {
+func (b *blockingBatchPublisher) Publish(ctx context.Context, topic string, event *WotanEvent) error {
 	return b.publishFn(ctx, topic, event)
 }
 
-func (b *blockingBatchPublisher) PublishBatch(_ context.Context, _ string, _ []*BusboyEvent) error {
+func (b *blockingBatchPublisher) PublishBatch(_ context.Context, _ string, _ []*WotanEvent) error {
 	select {
 	case b.enteredCh <- struct{}{}:
 	default:
@@ -2174,10 +2174,10 @@ func TestSlackChannel_ConcurrentSend(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel_ConcurrentSend(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
-		ChannelConfig: ChannelConfig{Name: "busboy"},
+func TestWotanChannel_ConcurrentSend(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
+		ChannelConfig: ChannelConfig{Name: "wotan"},
 		FlushInterval: 50 * time.Millisecond,
 		QueueSize:     100,
 	}, pub)
@@ -2281,9 +2281,9 @@ func TestSlackMessage_JSONRoundtrip(t *testing.T) {
 	}
 }
 
-func TestBusboyEvent_JSONRoundtrip(t *testing.T) {
-	pub := NewMockBusboyPublisher()
-	ch := NewBusboyChannel(BusboyConfig{
+func TestWotanEvent_JSONRoundtrip(t *testing.T) {
+	pub := NewMockWotanPublisher()
+	ch := NewWotanChannel(WotanConfig{
 		ChannelConfig: ChannelConfig{Name: "b"},
 	}, pub)
 	defer ch.Close()
@@ -2295,7 +2295,7 @@ func TestBusboyEvent_JSONRoundtrip(t *testing.T) {
 		t.Fatalf("Marshal: %v", err)
 	}
 
-	var decoded BusboyEvent
+	var decoded WotanEvent
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}

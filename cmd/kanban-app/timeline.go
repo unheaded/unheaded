@@ -1,5 +1,5 @@
 // Package main - Timeline integration for THE META MOMENT
-// Kanban tracks its own timeline in real-time via Busboy
+// Kanban tracks its own timeline in real-time via Wotan
 package main
 
 import (
@@ -13,7 +13,7 @@ import (
 	"golang.org/x/text/language"
 )
 
-// TopicTimelineUpdates is defined in busboy.go
+// TopicTimelineUpdates is defined in wotan.go
 
 // Timeline errors
 var (
@@ -84,7 +84,7 @@ func NewTimelineManager(broadcast func(string, interface{})) *TimelineManager {
 	}
 }
 
-// HandleTimelineUpdate processes a timeline update event from Busboy
+// HandleTimelineUpdate processes a timeline update event from Wotan
 func (tm *TimelineManager) HandleTimelineUpdate(payload []byte) error {
 	if len(payload) == 0 {
 		return ErrInvalidTimeline

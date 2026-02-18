@@ -6,7 +6,7 @@
   # =============================================================================
   # Timeline tracking and milestone management service.
   #
-  # Service: Timeline API (REST + Busboy)
+  # Service: Timeline API (REST + Wotan)
   # IP: 10.10.10.20
   # Ports: 8000 (HTTP), 9100 (metrics)
   # Data: /opt/unheaded/references/timeline.md
@@ -58,9 +58,9 @@
   systemd.services.timeguru = {
     description = "Timeguru Timeline Tracking Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" "busboy.service" ];
+    after = [ "network-online.target" "wotan.service" ];
     wants = [ "network-online.target" ];
-    requires = [ "busboy.service" ];
+    requires = [ "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";
