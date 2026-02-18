@@ -1950,6 +1950,111 @@ button:focus-visible,
 }
 
 /* =====================================================
+   Doom / Compute Viewport
+   ===================================================== */
+
+#doom-viewport {
+    margin-bottom: 2rem;
+}
+
+.doom-badge {
+    font-size: 0.65em;
+    background: linear-gradient(135deg, var(--accent-gold-dark), var(--accent-gold));
+    color: var(--bg-darker);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+    font-weight: 700;
+    vertical-align: middle;
+    letter-spacing: 0.05em;
+}
+
+.doom-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000;
+    border: 2px solid var(--accent-gold-dark);
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 400px;
+    margin-bottom: 1rem;
+}
+
+.doom-canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+.doom-overlay {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 12px;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    font-size: 0.75rem;
+    z-index: 10;
+}
+
+.doom-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.doom-stat-label {
+    color: rgba(255, 215, 0, 0.6);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.doom-stat-value {
+    color: var(--accent-gold);
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.doom-controls {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.doom-control-btn {
+    background: var(--bg-card);
+    color: var(--accent-gold);
+    border: 1px solid var(--accent-gold-dark);
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    font-family: inherit;
+}
+
+.doom-control-btn:hover {
+    background: var(--accent-gold-dark);
+    color: var(--bg-darker);
+    box-shadow: var(--shadow-gold);
+}
+
+.doom-control-btn:active {
+    transform: scale(0.97);
+}
+
+/* =====================================================
    Reduced Motion Support
    ===================================================== */
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,63 @@
+; gradient.mbc - Fills screen with diagonal color gradient
+; Demo 1: "Hello World" for the Monad CPU BPF VM
+;
+; Screen: 320x200 pixels at SCREEN_BASE (0xC000)
+; Each pixel is an 8-bit palette index.
+; Color at (x,y) = (x + y) & 0xFF
+;
+; Registers:
+;   r1  = screen base (0xC000)
+;   r2  = current y (0..199)
+;   r3  = height (200)
+;   r4  = current x (0..319)
+;   r5  = width (320)
+;   r6  = pixel address (computed)
+;   r7  = row offset (y * 320)
+;   r8  = color value
+;   r9  = 320 constant for multiply
+;   r14 = constant 1 (for increment)
+;
+; Instructions: 25
+; At 512 insn/tick, 35 Hz: completes in ~1 second
+
+    MOVI r1, 0xC000     ; screen base address
+    MOVI r3, 200        ; height
+    MOVI r5, 320        ; width
+    MOVI r9, 320        ; width for multiply
+    MOVI r14, 1         ; increment constant
+    MOVI r2, 0          ; y = 0
+
+y_loop:
+    MOVI r4, 0          ; x = 0
+    MOV r7, r2          ; r7 = y
+    MUL r7, r9          ; r7 = y * 320
+
+x_loop:
+    ; Compute pixel address: screen_base + y*320 + x
+    MOV r6, r7
+    ADD r6, r4
+    ADD r6, r1
+
+    ; Color = (x + y) & 0xFF (diagonal gradient)
+    MOV r8, r4
+    ADD r8, r2
+
+    ; Store byte: [r6 + 0] = r8 & 0xFF
+    STB [r6+0], r8
+
+    ; x++
+    ADD r4, r14
+    CMP r4, r5
+    JN x_loop
+
+    ; y++
+    ADD r2, r14
+    CMP r2, r3
+    JN y_loop
+
+    ; Draw the frame: SYSCALL 1 (DG_DrawFrame), r1 = fb pointer
+    MOVI r0, 1
+    MOVI r1, 0xC000
+    SYSCALL
+
+    HALT
