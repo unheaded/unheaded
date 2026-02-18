@@ -22,7 +22,7 @@ func floatEqual(a, b float64) bool {
 	return math.Abs(a-b) < 1e-9
 }
 
-// newTestService creates a Service wired to a silent logger and no busboy
+// newTestService creates a Service wired to a silent logger and no wotan
 // client, suitable for isolated unit tests.
 func newTestService() *Service {
 	log := logger.New(io.Discard)
@@ -65,8 +65,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.EvaluationInterval != 1*time.Minute {
 		t.Errorf("EvaluationInterval: want 1m, got %v", cfg.EvaluationInterval)
 	}
-	if cfg.BusboyTopic != "vambraces.observability" {
-		t.Errorf("BusboyTopic: want vambraces.observability, got %s", cfg.BusboyTopic)
+	if cfg.WotanTopic != "vambraces.observability" {
+		t.Errorf("WotanTopic: want vambraces.observability, got %s", cfg.WotanTopic)
 	}
 }
 
@@ -109,14 +109,14 @@ func TestNewService(t *testing.T) {
 			TraceRetention:     30 * time.Minute,
 			ScrapeInterval:     5 * time.Second,
 			EvaluationInterval: 10 * time.Second,
-			BusboyTopic:        "custom.topic",
+			WotanTopic:        "custom.topic",
 		}
 		svc := newTestServiceWithConfig(cfg)
 		if svc.config.MetricRetention != 1*time.Hour {
 			t.Errorf("expected 1h retention, got %v", svc.config.MetricRetention)
 		}
-		if svc.config.BusboyTopic != "custom.topic" {
-			t.Errorf("expected custom.topic, got %s", svc.config.BusboyTopic)
+		if svc.config.WotanTopic != "custom.topic" {
+			t.Errorf("expected custom.topic, got %s", svc.config.WotanTopic)
 		}
 	})
 }
@@ -131,7 +131,7 @@ func TestStartStop(t *testing.T) {
 		TraceRetention:     1 * time.Hour,
 		ScrapeInterval:     1 * time.Second,
 		EvaluationInterval: 50 * time.Millisecond,
-		BusboyTopic:        "test",
+		WotanTopic:        "test",
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -157,7 +157,7 @@ func TestStartContextCancellation(t *testing.T) {
 		TraceRetention:     1 * time.Hour,
 		ScrapeInterval:     1 * time.Second,
 		EvaluationInterval: 24 * time.Hour, // very long, we cancel immediately
-		BusboyTopic:        "test",
+		WotanTopic:        "test",
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1190,7 +1190,7 @@ func TestEvaluationLoopUpdatesState(t *testing.T) {
 		TraceRetention:     1 * time.Hour,
 		ScrapeInterval:     1 * time.Second,
 		EvaluationInterval: 25 * time.Millisecond,
-		BusboyTopic:        "test",
+		WotanTopic:        "test",
 	})
 
 	_ = svc.CreateSLO(&SLO{

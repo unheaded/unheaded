@@ -592,20 +592,20 @@ func TestNotificationRouter(t *testing.T) {
 	router := notify.NewRouter("default")
 
 	// Create mock channels
-	mockPublisher := notify.NewMockBusboyPublisher()
-	busboyChannel := notify.NewBusboyChannel(notify.BusboyConfig{
-		ChannelConfig: notify.ChannelConfig{Name: "busboy"},
+	mockPublisher := notify.NewMockWotanPublisher()
+	wotanChannel := notify.NewWotanChannel(notify.WotanConfig{
+		ChannelConfig: notify.ChannelConfig{Name: "wotan"},
 		Topic:         "alerts",
 	}, mockPublisher)
-	defer busboyChannel.Close()
+	defer wotanChannel.Close()
 
-	router.RegisterChannel(busboyChannel)
+	router.RegisterChannel(wotanChannel)
 
 	router.AddRoute(notify.Route{
 		Matchers: []alerting.LabelMatcher{
 			{Name: "severity", Value: "critical", Type: alerting.MatchTypeEqual},
 		},
-		Channel: "busboy",
+		Channel: "wotan",
 	})
 
 	ctx := context.Background()
@@ -630,10 +630,10 @@ func TestNotificationRouter(t *testing.T) {
 	}
 }
 
-func TestBusboyChannel(t *testing.T) {
-	mockPublisher := notify.NewMockBusboyPublisher()
-	channel := notify.NewBusboyChannel(notify.BusboyConfig{
-		ChannelConfig: notify.ChannelConfig{Name: "busboy-test"},
+func TestWotanChannel(t *testing.T) {
+	mockPublisher := notify.NewMockWotanPublisher()
+	channel := notify.NewWotanChannel(notify.WotanConfig{
+		ChannelConfig: notify.ChannelConfig{Name: "wotan-test"},
 		Topic:         "test.alerts",
 		FlushInterval: 10 * time.Millisecond, // Short interval for testing
 	}, mockPublisher)

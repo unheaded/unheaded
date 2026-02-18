@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
@@ -42,9 +42,9 @@ func main() {
 		listenAddress = ":8000"
 	}
 
-	busboyAddress := os.Getenv("BUSBOY_ADDRESS")
-	if busboyAddress == "" {
-		busboyAddress = "localhost:8080"
+	wotanAddress := os.Getenv("WOTAN_ADDRESS")
+	if wotanAddress == "" {
+		wotanAddress = "localhost:8080"
 	}
 
 	timelinePath := os.Getenv("TIMELINE_PATH")
@@ -61,10 +61,10 @@ func main() {
 		log.Warn().Err(err).Str("path", timelinePath).Msg("failed to load timeline, starting with empty timeline")
 	}
 
-	// Connect to Busboy
-	client, err := busboyClient.NewClient(busboyAddress)
+	// Connect to Wotan
+	client, err := wotanClient.NewClient(wotanAddress)
 	if err != nil {
-		log.Warn().Err(err).Msg("failed to create busboy client, running without pub/sub")
+		log.Warn().Err(err).Msg("failed to create wotan client, running without pub/sub")
 	}
 
 	// Start HTTP server (REST API)
@@ -91,7 +91,7 @@ func main() {
 		}
 	}()
 
-	// Subscribe to timeline updates via Busboy (if connected)
+	// Subscribe to timeline updates via Wotan (if connected)
 	if client != nil {
 		ctx := context.Background()
 		_, subErr := client.Subscribe(ctx, "timeline.updates", "timeguru")
@@ -131,7 +131,7 @@ func loadTimeline(path string) error {
 	return yaml.Unmarshal(data, &timeline)
 }
 
-func streamTimelineUpdates(ctx context.Context, client *busboyClient.Client) {
+func streamTimelineUpdates(ctx context.Context, client *wotanClient.Client) {
 	ch, err := client.StreamMessages(ctx, "timeline.updates")
 	if err != nil {
 		log.Error().Err(err).Msg("failed to stream timeline updates")

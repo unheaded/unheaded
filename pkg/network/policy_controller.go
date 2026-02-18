@@ -703,10 +703,10 @@ const (
 )
 
 // ============================================================================
-// BUSBOY EVENT EMITTER INTERFACE
+// WOTAN EVENT EMITTER INTERFACE
 // ============================================================================
 
-// EventEmitter interface for Busboy integration
+// EventEmitter interface for Wotan integration
 type EventEmitter interface {
 	Publish(ctx context.Context, topic string, payload []byte) error
 }
@@ -751,7 +751,7 @@ type PolicyController struct {
 	// resolver resolves container information
 	resolver ContainerResolver
 
-	// emitter emits events to Busboy
+	// emitter emits events to Wotan
 	emitter EventEmitter
 
 	// logger is the zerolog logger
@@ -788,7 +788,7 @@ type PolicyControllerConfig struct {
 	// Resolver resolves container information
 	Resolver ContainerResolver
 
-	// Emitter emits events to Busboy
+	// Emitter emits events to Wotan
 	Emitter EventEmitter
 
 	// Logger is the zerolog logger
@@ -1815,7 +1815,7 @@ func (pc *PolicyController) auditLog(operation, policy, result string, details m
 // EVENT EMISSION
 // ============================================================================
 
-// emitPolicyEvent emits a policy event to Busboy
+// emitPolicyEvent emits a policy event to Wotan
 func (pc *PolicyController) emitPolicyEvent(ctx context.Context, eventType string, policy *NetworkPolicy) {
 	if pc.emitter == nil {
 		return

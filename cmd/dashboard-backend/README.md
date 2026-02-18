@@ -6,7 +6,7 @@
 
 The dashboard-backend is the nerve center of the Unheaded monitoring system. It:
 
-- **Aggregates metrics** from all services via Busboy message bus
+- **Aggregates metrics** from all services via Wotan message bus
 - **Streams real-time data** to frontend clients via WebSocket
 - **Generates mock packet flows** simulating eBPF trace data for visualization
 - **Stores time-series data** with configurable retention periods
@@ -15,8 +15,8 @@ The dashboard-backend is the nerve center of the Unheaded monitoring system. It:
 
 ```
 ┌─────────────┐         ┌──────────┐         ┌────────────┐
-│  Services   │────────>│  Busboy  │────────>│ Dashboard  │
-│ (via Busboy)│         │ (metrics.*)        │  Backend   │
+│  Services   │────────>│  Wotan  │────────>│ Dashboard  │
+│ (via Wotan)│         │ (metrics.*)        │  Backend   │
 └─────────────┘         └──────────┘         └──────┬─────┘
                                                      │
                                                      │ WebSocket
@@ -51,14 +51,14 @@ The dashboard-backend is the nerve center of the Unheaded monitoring system. It:
    - REST API for metrics queries
    - Health and readiness endpoints
    - Prometheus metrics export
-   - Busboy integration
+   - Wotan integration
 
 ## Building
 
 ### Prerequisites
 
 - Go 1.21 or later
-- Access to Busboy message bus
+- Access to Wotan message bus
 
 ### Build
 
@@ -81,16 +81,16 @@ make test-coverage
 ### Local Development
 
 ```bash
-# Run with defaults (connects to localhost:9090 Busboy)
+# Run with defaults (connects to localhost:9090 Wotan)
 make run
 
-# Run with custom Busboy address
-./bin/dashboard-backend -busboy busboy.example.com:9090 -debug
+# Run with custom Wotan address
+./bin/dashboard-backend -wotan wotan.example.com:9090 -debug
 
 # Run with all options
 ./bin/dashboard-backend \
   -listen :8080 \
-  -busboy localhost:9090 \
+  -wotan localhost:9090 \
   -debug
 ```
 
@@ -99,7 +99,7 @@ make run
 Command-line flags:
 
 - `-listen` - HTTP listen address (default: `:8080`)
-- `-busboy` - Busboy server address (default: `localhost:9090`)
+- `-wotan` - Wotan server address (default: `localhost:9090`)
 - `-debug` - Enable debug logging (default: `false`)
 
 ### Environment Variables
@@ -264,7 +264,7 @@ docker build -t unheaded/dashboard-backend:latest .
 # Run container
 docker run -p 8080:8080 \
   unheaded/dashboard-backend:latest \
-  -busboy busboy:9090
+  -wotan wotan:9090
 ```
 
 ### NixOS Container
@@ -304,7 +304,7 @@ spec:
       - name: dashboard-backend
         image: unheaded/dashboard-backend:latest
         args:
-          - "-busboy=busboy:9090"
+          - "-wotan=wotan:9090"
         ports:
         - containerPort: 8080
         livenessProbe:
@@ -337,7 +337,7 @@ spec:
 
 - WebSocket broadcast channel bounded (drops messages if full)
 - Packet flow generation rate limited
-- Busboy client has built-in rate limiting
+- Wotan client has built-in rate limiting
 
 ### Error Handling
 
@@ -390,13 +390,13 @@ Structured JSON logging via `zerolog`:
 
 ## Troubleshooting
 
-### Busboy Connection Failed
+### Wotan Connection Failed
 
 ```
-Error: connect to busboy: dial tcp: connection refused
+Error: connect to wotan: dial tcp: connection refused
 ```
 
-**Solution:** Ensure Busboy is running and accessible at the specified address.
+**Solution:** Ensure Wotan is running and accessible at the specified address.
 
 ### WebSocket Connection Limit Reached
 
@@ -465,7 +465,7 @@ cmd/dashboard-backend/
 ## References
 
 - [CLAUDE.md](/unheaded/CLAUDE.md) - Development standards
-- [Busboy](https://github.com/unheaded/busboy) - Message bus
+- [Wotan](https://github.com/unheaded/wotan) - Message bus
 - [Timeline](/unheaded/references/timeline.md) - Project roadmap
 - [Architecture](/unheaded/docs/ARCHITECTURE.md) - System design
 

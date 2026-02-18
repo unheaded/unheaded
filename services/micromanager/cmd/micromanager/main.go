@@ -14,14 +14,14 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/lifecycle"
 	"unheaded/services/micromanager"
 )
 
 var (
 	port            = flag.String("port", "8003", "HTTP port to listen on")
-	busboyAddr      = flag.String("busboy", "", "Busboy address (host:port)")
+	wotanAddr      = flag.String("wotan", "", "Wotan address (host:port)")
 	logLevel        = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	readTimeout     = flag.Duration("read-timeout", 15*time.Second, "HTTP read timeout")
 	writeTimeout    = flag.Duration("write-timeout", 15*time.Second, "HTTP write timeout")
@@ -80,25 +80,25 @@ func main() {
 	log.Info().
 		Str("version", "1.0.0").
 		Str("port", *port).
-		Str("busboy", *busboyAddr).
+		Str("wotan", *wotanAddr).
 		Msg("starting micromanager service")
 
 	// Create store
 	store := micromanager.NewStore()
 
-	// Create Busboy client (if configured)
-	var busboy *busboyClient.Client
-	if *busboyAddr != "" {
+	// Create Wotan client (if configured)
+	var wotan *wotanClient.Client
+	if *wotanAddr != "" {
 		var err error
-		busboy, err = busboyClient.NewClient(*busboyAddr)
+		wotan, err = wotanClient.NewClient(*wotanAddr)
 		if err != nil {
-			log.Error().Err(err).Str("addr", *busboyAddr).Msg("failed to create busboy client")
-			// Continue anyway, just without busboy integration
+			log.Error().Err(err).Str("addr", *wotanAddr).Msg("failed to create wotan client")
+			// Continue anyway, just without wotan integration
 		}
 	}
 
 	// Create service
-	service := micromanager.NewService(store, busboy)
+	service := micromanager.NewService(store, wotan)
 
 	// Start service
 	ctx := context.Background()

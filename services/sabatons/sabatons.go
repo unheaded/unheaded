@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -127,7 +127,7 @@ type BMCCredentials struct {
 // Service is the main Sabatons bare metal service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu          sync.RWMutex
@@ -142,7 +142,7 @@ type Config struct {
 	TFTPRoot         string        `json:"tftp_root"`
 	DiscoveryInterval time.Duration `json:"discovery_interval"`
 	HeartbeatTimeout time.Duration `json:"heartbeat_timeout"`
-	BusboyTopic      string        `json:"busboy_topic"`
+	WotanTopic      string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -152,19 +152,19 @@ func DefaultConfig() *Config {
 		TFTPRoot:         "/var/lib/tftpboot",
 		DiscoveryInterval: 30 * time.Second,
 		HeartbeatTimeout:  60 * time.Second,
-		BusboyTopic:       "sabatons.hardware",
+		WotanTopic:       "sabatons.hardware",
 	}
 }
 
 // NewService creates a new Sabatons bare metal service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:         log,
-		busboy:      busboy,
+		wotan:      wotan,
 		config:      cfg,
 		machines:    make(map[string]*Machine),
 		bootConfigs: make(map[string]*BootConfig),

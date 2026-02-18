@@ -337,7 +337,7 @@ fi
 if [[ $LOADED -gt 0 ]]; then
     log_info "Next steps:"
     echo "  1. Start trace-collector: cd ${PROJECT_ROOT}/cmd/trace-collector && cargo run --release -- run"
-    echo "  2. Start Busboy:          cd ${PROJECT_ROOT} && go run ./cmd/busboy/"
+    echo "  2. Start Wotan:          cd ${PROJECT_ROOT} && go run ./cmd/wotan/"
     echo "  3. Verify events:         cargo run --release -- dump --max-events 10"
     echo ""
 fi

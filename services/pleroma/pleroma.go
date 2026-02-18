@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -128,7 +128,7 @@ const (
 // Service is the main Pleroma service for configuration truth management.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu              sync.RWMutex
@@ -153,7 +153,7 @@ type Config struct {
 	ReconcileInterval   time.Duration `json:"reconcile_interval"`
 	RetentionVersions   int           `json:"retention_versions"`
 	EnableValidation    bool          `json:"enable_validation"`
-	BusboyTopic         string        `json:"busboy_topic"`
+	WotanTopic         string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -164,12 +164,12 @@ func DefaultConfig() *Config {
 		ReconcileInterval:  30 * time.Second,
 		RetentionVersions:  10,
 		EnableValidation:   true,
-		BusboyTopic:        "pleroma.configurations",
+		WotanTopic:        "pleroma.configurations",
 	}
 }
 
 // NewService creates a new Pleroma service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
@@ -180,7 +180,7 @@ func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *S
 
 	return &Service{
 		log:             log,
-		busboy:          busboy,
+		wotan:          wotan,
 		config:          cfg,
 		configurations:  make(map[string]*Configuration),
 		reconciliations: make(map[string]*Reconciliation),
@@ -202,7 +202,7 @@ func (s *Service) Start(ctx context.Context) error {
 	go s.reconciliationLoop(ctx)
 
 	// Subscribe to configuration events
-	if s.busboy != nil {
+	if s.wotan != nil {
 		go s.subscribeToEvents(ctx)
 	}
 
@@ -586,11 +586,11 @@ func (s *Service) checkConfigurations(ctx context.Context) {
 
 // subscribeToEvents listens for configuration events.
 func (s *Service) subscribeToEvents(ctx context.Context) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
-	_, err := s.busboy.Subscribe(ctx, "config.apply", "pleroma-service")
+	_, err := s.wotan.Subscribe(ctx, "config.apply", "pleroma-service")
 	if err != nil {
 		s.log.Warn().Err(err).Msg("Failed to subscribe to config events")
 		return
@@ -599,9 +599,9 @@ func (s *Service) subscribeToEvents(ctx context.Context) {
 	s.log.Info().Msg("Subscribed to configuration events")
 }
 
-// publishEvent sends an event to Busboy.
+// publishEvent sends an event to Wotan.
 func (s *Service) publishEvent(ctx context.Context, eventType string, data map[string]interface{}) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
@@ -617,7 +617,7 @@ func (s *Service) publishEvent(ctx context.Context, eventType string, data map[s
 		return
 	}
 
-	if err := s.busboy.Publish(ctx, s.config.BusboyTopic, payload); err != nil {
+	if err := s.wotan.Publish(ctx, s.config.WotanTopic, payload); err != nil {
 		s.log.Warn().Err(err).Msg("Failed to publish event")
 	}
 }

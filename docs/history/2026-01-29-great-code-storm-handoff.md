@@ -95,7 +95,7 @@ The original implementations built this session ARE the production path - not fa
 | `pkg/metrics/metrics.go` | 1,168 | **FROM SCRATCH** Prometheus-compatible metrics |
 | `pkg/logger/logger.go` | 1,533 | **FROM SCRATCH** structured logger |
 | `pkg/lxd/real_client.go` | 1,648 | Real LXD REST API client |
-| `pkg/busboy-client/grpc_client.go` | 1,853 | gRPC streaming (replaces HTTP polling) |
+| `pkg/wotan-client/grpc_client.go` | 1,853 | gRPC streaming (replaces HTTP polling) |
 | `pkg/state/reconciler.go` | 1,850 | State reconciliation engine |
 | `pkg/nix/builder.go` | 1,709 | NixOS container builder |
 | `pkg/health/aggregator.go` | 1,601 | Health check aggregator |
@@ -248,7 +248,7 @@ cat main.go  # See embedded static files
 **Tasks:**
 - [ ] Complete board UI (columns, cards)
 - [ ] Wire to Timeguru for task data
-- [ ] Real-time updates via WebSocket/Busboy
+- [ ] Real-time updates via WebSocket/Wotan
 - [ ] Deploy on Kingdom infrastructure
 
 ### 🔴 P0: Linux/eBPF Dev Environment (BLOCKER)
@@ -286,7 +286,7 @@ Backend exists, frontend scaffold exists. Wire together.
 ```
 ~/tmp/
 ├── timeline.md                    # ← CANONICAL TIMELINE (ROOT)
-├── busboy/                        # Phase 0 complete (13,504 LOC)
+├── wotan/                        # Phase 0 complete (13,504 LOC)
 ├── unheaded/
 │   ├── cmd/
 │   │   ├── unheaded-daemon/       # Cuirass control plane
@@ -306,7 +306,7 @@ Backend exists, frontend scaffold exists. Wire together.
 │   │   ├── metrics/               # Original metrics (NEW)
 │   │   ├── logger/                # Original logger (NEW)
 │   │   ├── lxd/                   # LXD client
-│   │   ├── busboy-client/         # gRPC + HTTP clients
+│   │   ├── wotan-client/         # gRPC + HTTP clients
 │   │   ├── state/                 # Reconciler (NEW)
 │   │   ├── nix/                   # Builder (NEW)
 │   │   ├── health/                # Aggregator (NEW)
@@ -358,7 +358,7 @@ docker compose up -d
 # Run individual services
 make run-daemon       # Cuirass
 make run-timeguru     # Timeguru
-make run-busboy       # Busboy (in separate terminal)
+make run-wotan       # Wotan (in separate terminal)
 make run-gateway      # THE SHIELD
 
 # Run tests
@@ -389,7 +389,7 @@ go test ./pkg/...     # All new packages
 |--------|--------|-------------------|
 | eBPF | Whispering Void | `pkg/ebpf/`, `ebpf/` (Rust) |
 | Control Plane | Cuirass | `cmd/unheaded-daemon/` |
-| Message Bus | Fae Chamber | Busboy (external), `pkg/busboy-client/` |
+| Message Bus | Fae Chamber | Wotan (external), `pkg/wotan-client/` |
 | Secrets | Crystal Grotto | `pkg/secrets/` |
 | Storage | TASSETS | `pkg/storage/` |
 | Bare Metal | SABATONS | `pkg/baremetal/` |
@@ -400,7 +400,7 @@ go test ./pkg/...     # All new packages
 ### Skill Alignment
 All 7 Unheaded skills verified aligned (per Timeguru session):
 - ✅ Captain, Architect, Micromanager, Developer
-- ✅ Busboy (Coordinator), Kingdom, Calendar, Timeguru
+- ✅ Wotan (Coordinator), Kingdom, Calendar, Timeguru
 
 ---
 

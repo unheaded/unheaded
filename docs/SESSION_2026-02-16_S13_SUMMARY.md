@@ -11,7 +11,7 @@
 
 Session 12 built the SQLite Store and the 48-card Kanban inventory. Session 13 wired the Store into the living nervous system and made it race-proof.
 
-The session opened with the Store already written but dangling — `NewTaskManager` still took 2 arguments, the CRUD methods wrote to memory but not disk, and Busboy publishes blocked the caller. The first commit (`557a374`) changed all of that: 3-arg constructor, synchronous SQLite writes before async Busboy publishes, WaitGroup-tracked goroutines, and a Wait/Drain shutdown that gives inflight publishes 5 seconds to land.
+The session opened with the Store already written but dangling — `NewTaskManager` still took 2 arguments, the CRUD methods wrote to memory but not disk, and Wotan publishes blocked the caller. The first commit (`557a374`) changed all of that: 3-arg constructor, synchronous SQLite writes before async Wotan publishes, WaitGroup-tracked goroutines, and a Wait/Drain shutdown that gives inflight publishes 5 seconds to land.
 
 Then came `go test -v -race -count=1` — the moment of truth. Four failures. Two data races caught by `-race`, two expectation mismatches from the Store migration, one test isolation failure from shared SQLite files.
 
@@ -32,15 +32,15 @@ The session closed with the Taoist Wu Shu taxonomy — a rich source text mappin
 - `cmd/kanban-app/store_test.go` (351 lines) — Comprehensive Store test suite
 
 ### Modified Files (13)
-- `cmd/kanban-app/busboy.go` — Task snapshot pattern, async goroutines with WaitGroup, inbound SQLite persistence, Wait/Drain shutdown
-- `cmd/kanban-app/busboy_test.go` — 3-arg constructor, inflight.Wait() drain calls
+- `cmd/kanban-app/wotan.go` — Task snapshot pattern, async goroutines with WaitGroup, inbound SQLite persistence, Wait/Drain shutdown
+- `cmd/kanban-app/wotan_test.go` — 3-arg constructor, inflight.Wait() drain calls
 - `cmd/kanban-app/handlers_test.go` — t.TempDir() isolation, inflight drain between ops
 - `cmd/kanban-app/main.go` — 6 mythology cards (Session 12 carryover) + 3 Taoist Wu Shu cards, total 64
 - `cmd/kanban-app/main_test.go` — t.TempDir(), Store-aware assertions, bare server for empty test
 - `cmd/kanban-app/static/css/main.css` — UI enhancements (neon delete, scroll header)
 - `cmd/kanban-app/static/index.html` — Header link, layout tweaks
 - `cmd/kanban-app/static/js/board.js` — Sort/filter additions
-- `pkg/busboy-client/mock/mock.go` — Lock gap fix in StreamMessages
+- `pkg/wotan-client/mock/mock.go` — Lock gap fix in StreamMessages
 - `references/timeline.{json,md,toml,yaml}` — Minor date corrections
 
 ### Total: +1,221 / -123 lines across 15 files
@@ -112,20 +112,20 @@ Lock ordering is implicit: `mu` before `subMu`, never nested with `sseMu`. Store
 
 ```
 Write Path:
-  Handler → mutex lock → SQLite L1 (sync) → SSE broadcast → unlock → Busboy L2 (async)
+  Handler → mutex lock → SQLite L1 (sync) → SSE broadcast → unlock → Wotan L2 (async)
 
 Read Path:
   Handler → Store.GetAllTasks() (SQLite L1) → JSON response
 
 Inbound Sync:
-  Busboy stream → handleMessage() → mutex lock → memory update + SQLite L1 → SSE broadcast → unlock
+  Wotan stream → handleMessage() → mutex lock → memory update + SQLite L1 → SSE broadcast → unlock
 
 Recovery:
   Startup → Store.SeedIfEmpty() → load from SQLite L1
-  If Busboy reconnects → stream replay catches up L2 state
+  If Wotan reconnects → stream replay catches up L2 state
 ```
 
-SQLite L1 is the source of truth. Busboy L2 is the replication layer. The app survives Busboy outages with full local state.
+SQLite L1 is the source of truth. Wotan L2 is the replication layer. The app survives Wotan outages with full local state.
 
 ---
 
@@ -148,9 +148,9 @@ SQLite L1 is the source of truth. Busboy L2 is the replication layer. The app su
 
 ## What's Next
 
-The nervous system is sealed. The next major phase is **TopicStream gRPC** — replacing the 500ms HTTP polling loop with real-time server-side streaming and wildcard topic matching. This is the foundation for Busboy mesh (multiple Busboys peering via BGP anycast) and makes the eBPF packet tracing story clean (gRPC streams are long-lived connections we can tag).
+The nervous system is sealed. The next major phase is **TopicStream gRPC** — replacing the 500ms HTTP polling loop with real-time server-side streaming and wildcard topic matching. This is the foundation for Wotan mesh (multiple Wotans peering via BGP anycast) and makes the eBPF packet tracing story clean (gRPC streams are long-lived connections we can tag).
 
-Implementation order: `pattern.go` (pure logic) → `topic.proto` (service def) → `topic_service.go` (streaming server) → `grpc_client.go` (BusboyClient impl) → wire into main.go → full `-race` test suite.
+Implementation order: `pattern.go` (pure logic) → `topic.proto` (service def) → `topic_service.go` (streaming server) → `grpc_client.go` (WotanClient impl) → wire into main.go → full `-race` test suite.
 
 ---
 

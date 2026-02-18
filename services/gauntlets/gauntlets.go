@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -69,7 +69,7 @@ type APIRoute struct {
 // Service is the main Gauntlets CLI/API service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu       sync.RWMutex
@@ -82,7 +82,7 @@ type Service struct {
 type Config struct {
 	APIPrefix   string `json:"api_prefix"`
 	Version     string `json:"version"`
-	BusboyTopic string `json:"busboy_topic"`
+	WotanTopic string `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -90,19 +90,19 @@ func DefaultConfig() *Config {
 	return &Config{
 		APIPrefix:   "/api/v1",
 		Version:     "1.0.0",
-		BusboyTopic: "gauntlets.commands",
+		WotanTopic: "gauntlets.commands",
 	}
 }
 
 // NewService creates a new Gauntlets CLI/API service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:      log,
-		busboy:   busboy,
+		wotan:   wotan,
 		config:   cfg,
 		commands: make(map[string]*Command),
 		routes:   make(map[string]*APIRoute),
@@ -454,7 +454,7 @@ func (s *Service) registerBuiltinCommands() {
 }
 
 func (s *Service) publishEvent(ctx context.Context, eventType string, data map[string]interface{}) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
@@ -469,7 +469,7 @@ func (s *Service) publishEvent(ctx context.Context, eventType string, data map[s
 		return
 	}
 
-	s.busboy.Publish(ctx, s.config.BusboyTopic, payload)
+	s.wotan.Publish(ctx, s.config.WotanTopic, payload)
 }
 
 // Stats returns service statistics.

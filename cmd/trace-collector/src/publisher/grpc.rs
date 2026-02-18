@@ -1,10 +1,10 @@
-//! gRPC client for Busboy integration.
+//! gRPC client for Wotan integration.
 //!
-//! THE WHISPERING VOID speaks to Busboy, the realm's message courier,
+//! THE WHISPERING VOID speaks to Wotan, the realm's message courier,
 //! delivering kernel whispers to eager listeners.
 //!
 //! This module provides the low-level gRPC client for communicating
-//! with the Busboy message bus service.
+//! with the Wotan message bus service.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -73,8 +73,8 @@ impl ClientStats {
     }
 }
 
-/// gRPC client for Busboy
-pub struct BusboyClient {
+/// gRPC client for Wotan
+pub struct WotanClient {
     /// Endpoint URL
     endpoint: String,
     /// gRPC channel
@@ -87,8 +87,8 @@ pub struct BusboyClient {
     sequence: AtomicU64,
 }
 
-impl BusboyClient {
-    /// Create a new Busboy client
+impl WotanClient {
+    /// Create a new Wotan client
     pub async fn new(endpoint: &str) -> Result<Self> {
         let client = Self {
             endpoint: endpoint.to_string(),
@@ -104,11 +104,11 @@ impl BusboyClient {
         Ok(client)
     }
 
-    /// Connect to Busboy
+    /// Connect to Wotan
     pub async fn connect(&self) -> Result<()> {
         *self.state.write() = ClientState::Connecting;
 
-        info!(endpoint = self.endpoint, "Connecting to Busboy");
+        info!(endpoint = self.endpoint, "Connecting to Wotan");
 
         let endpoint = Endpoint::from_shared(self.endpoint.clone())
             .context("Invalid endpoint URL")?
@@ -122,7 +122,7 @@ impl BusboyClient {
                 *self.channel.write() = Some(channel);
                 *self.state.write() = ClientState::Connected;
                 metrics::set_connection_state(&self.endpoint, true);
-                info!("Connected to Busboy");
+                info!("Connected to Wotan");
                 Ok(())
             }
             Ok(Err(e)) => {
@@ -148,7 +148,7 @@ impl BusboyClient {
             warn!(
                 attempt = attempts,
                 backoff_ms = backoff.as_millis(),
-                "Attempting to reconnect to Busboy"
+                "Attempting to reconnect to Wotan"
             );
 
             tokio::time::sleep(backoff).await;
@@ -231,7 +231,7 @@ impl BusboyClient {
             batch_size = batch_size,
             bytes = bytes_sent,
             sequence = batch.sequence,
-            "Sending batch to Busboy"
+            "Sending batch to Wotan"
         );
 
         // Make the gRPC call (simulated for now)
@@ -288,7 +288,7 @@ impl BusboyClient {
         })
     }
 
-    /// Check health of Busboy
+    /// Check health of Wotan
     pub async fn health_check(&self) -> Result<HealthResponse> {
         let channel = {
             let guard = self.channel.read();
@@ -333,7 +333,7 @@ fn rand_jitter(max_ms: u64) -> u64 {
 /// gRPC streaming client for high-throughput scenarios
 pub struct StreamingClient {
     /// Inner client
-    client: Arc<BusboyClient>,
+    client: Arc<WotanClient>,
     /// Streaming state
     streaming: AtomicBool,
 }
@@ -341,7 +341,7 @@ pub struct StreamingClient {
 impl StreamingClient {
     /// Create a new streaming client
     pub async fn new(endpoint: &str) -> Result<Self> {
-        let client = BusboyClient::new(endpoint).await?;
+        let client = WotanClient::new(endpoint).await?;
         Ok(Self {
             client: Arc::new(client),
             streaming: AtomicBool::new(false),
@@ -395,9 +395,9 @@ mod tests {
     #[test]
     fn test_is_connection_error() {
         let err = anyhow::anyhow!("connection refused");
-        assert!(BusboyClient::is_connection_error(&err));
+        assert!(WotanClient::is_connection_error(&err));
 
         let err = anyhow::anyhow!("parse error");
-        assert!(!BusboyClient::is_connection_error(&err));
+        assert!(!WotanClient::is_connection_error(&err));
     }
 }

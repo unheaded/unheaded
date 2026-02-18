@@ -33,7 +33,7 @@
 │  │    • Reads eBPF ring buffer                                       │ │
 │  │    • Orchestrates LXD containers                                  │ │
 │  │    • Enforces immutable state                                     │ │
-│  │    • Reports to Busboy                                            │ │
+│  │    • Reports to Wotan                                            │ │
 │  └────────────────────────────────────────────────────────────────────┘ │
 │                                                                          │
 │  ┌────────────────────────────────────────────────────────────────────┐ │
@@ -57,7 +57,7 @@
 │  │    /kanban     ─→ kanban-app (10.10.10.200)                      │  │
 │  │    /api/*      ─→ services (timeguru, captain, etc)              │  │
 │  │    /ws         ─→ dashboard-backend (WebSocket)                  │  │
-│  │    /grpc       ─→ busboy (gRPC-Web)                              │  │
+│  │    /grpc       ─→ wotan (gRPC-Web)                              │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                          │                                              │
 │                          ↓                                              │
@@ -65,12 +65,12 @@
 │  │                    CORE INFRASTRUCTURE                           │   │
 │  │                                                                  │   │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │   │
-│  │  │   busboy     │  │trace-collect │  │  dashboard-  │          │   │
+│  │  │   wotan     │  │trace-collect │  │  dashboard-  │          │   │
 │  │  │ 10.10.10.10  │  │ 10.10.10.11  │  │   backend    │          │   │
 │  │  │              │  │              │  │ 10.10.10.30  │          │   │
 │  │  │ :8080 HTTP   │  │ • Reads eBPF │  │              │          │   │
 │  │  │ :9090 gRPC   │  │ • Publishes  │  │ :8082 HTTP   │          │   │
-│  │  │              │  │   to Busboy  │  │ :8083 WS     │          │   │
+│  │  │              │  │   to Wotan  │  │ :8083 WS     │          │   │
 │  │  │ Message Bus  │  │              │  │              │          │   │
 │  │  │ • Pub/sub    │  │ (Rust)       │  │ • Subscribe  │          │   │
 │  │  │ • Topics     │  │              │  │   all topics │          │   │
@@ -202,7 +202,7 @@ User clicks "Kanban" in browser
     ↓
 9. Kanban board renders with TODO/IN PROGRESS/DONE columns
     ↓
-10. trace-collector publishes eBPF events to Busboy topic "network.traces"
+10. trace-collector publishes eBPF events to Wotan topic "network.traces"
     ↓
 11. dashboard-backend receives events via subscription
     ↓
@@ -214,11 +214,11 @@ User clicks "Kanban" in browser
 
 **Every step traced, correlated, and visualized in real-time!**
 
-## Message Flow Through Busboy
+## Message Flow Through Wotan
 
 ```
                          ┌──────────────┐
-                         │    BUSBOY    │
+                         │    WOTAN    │
                          │ (Message Bus)│
                          └───────┬──────┘
                                  │
@@ -272,11 +272,11 @@ User clicks "Kanban" in browser
 │   • dashboard-backend, kanban-app              │
 │   • Network policies: ALLOW within zone        │
 └────────────────┬───────────────────────────────┘
-                 │ Via Busboy
+                 │ Via Wotan
                  ↓
 ┌────────────────────────────────────────────────┐
 │ INFRASTRUCTURE ZONE (core services)            │
-│   • busboy, trace-collector                    │
+│   • wotan, trace-collector                    │
 │   • Network policies: restricted access        │
 └────────────────────────────────────────────────┘
 
@@ -293,18 +293,18 @@ User clicks "Kanban" in browser
 ```
 unheaded-daemon
     │
-    ├─→ Starts: busboy (first, must be ready before others)
+    ├─→ Starts: wotan (first, must be ready before others)
     │
     ├─→ Starts: trace-collector (needs eBPF loaded)
-    │       └─→ Publishes to: busboy
+    │       └─→ Publishes to: wotan
     │
     ├─→ Starts: gateway (needs to route traffic)
     │
     ├─→ Starts: timeguru, captain, micromanager, architect (parallel)
-    │       └─→ All subscribe to: busboy
+    │       └─→ All subscribe to: wotan
     │
     ├─→ Starts: dashboard-backend
-    │       └─→ Subscribes to: all Busboy topics
+    │       └─→ Subscribes to: all Wotan topics
     │
     ├─→ Starts: kanban-app
     │       └─→ Reads from: timeguru
@@ -354,8 +354,8 @@ Container (timeguru):
 | Container | IP | Ports | Purpose |
 |-----------|----|----|---------|
 | gateway | 10.10.10.100 | 443 (HTTPS/HTTP3), 80 (redirect) | Entry point |
-| busboy | 10.10.10.10 | 8080 (HTTP), 9090 (gRPC) | Message bus |
-| trace-collector | 10.10.10.11 | 8081 (metrics) | eBPF → Busboy |
+| wotan | 10.10.10.10 | 8080 (HTTP), 9090 (gRPC) | Message bus |
+| trace-collector | 10.10.10.11 | 8081 (metrics) | eBPF → Wotan |
 | timeguru | 10.10.10.20 | 8000 (HTTP) | Timeline API |
 | captain | 10.10.10.21 | 8000 (HTTP) | Strategy API |
 | micromanager | 10.10.10.22 | 8000 (HTTP) | Tasks API |
@@ -372,7 +372,7 @@ Container (timeguru):
 | Services | Go 1.21+ |
 | Containers | NixOS (declarative) |
 | Orchestration | LXD |
-| Message Bus | Busboy (gRPC + HTTP) |
+| Message Bus | Wotan (gRPC + HTTP) |
 | Gateway | nginx (HTTP/3) |
 | Frontend | Vanilla JS |
 | Observability | Prometheus, custom |

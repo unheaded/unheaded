@@ -25,8 +25,8 @@ func newTestLogger() *logger.Logger {
 	return logger.New(io.Discard)
 }
 
-// newTestService creates a Service with a discard logger and no busboy client.
-// busboy == nil is explicitly handled in publishEvent, so this is safe.
+// newTestService creates a Service with a discard logger and no wotan client.
+// wotan == nil is explicitly handled in publishEvent, so this is safe.
 func newTestService(cfg *Config) *Service {
 	return NewService(newTestLogger(), nil, cfg)
 }
@@ -75,8 +75,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Version != "1.0.0" {
 		t.Errorf("Version = %q; want %q", cfg.Version, "1.0.0")
 	}
-	if cfg.BusboyTopic != "gauntlets.commands" {
-		t.Errorf("BusboyTopic = %q; want %q", cfg.BusboyTopic, "gauntlets.commands")
+	if cfg.WotanTopic != "gauntlets.commands" {
+		t.Errorf("WotanTopic = %q; want %q", cfg.WotanTopic, "gauntlets.commands")
 	}
 }
 
@@ -109,7 +109,7 @@ func TestNewService(t *testing.T) {
 		cfg := &Config{
 			APIPrefix:   "/custom/v2",
 			Version:     "2.0.0",
-			BusboyTopic: "custom.topic",
+			WotanTopic: "custom.topic",
 		}
 		svc := newTestService(cfg)
 		if svc.config.APIPrefix != "/custom/v2" {
@@ -878,7 +878,7 @@ func TestBuiltinCommands(t *testing.T) {
 	svc := newTestServiceStarted(t, &Config{
 		APIPrefix:   "/api/v1",
 		Version:     "42.0.0",
-		BusboyTopic: "test.topic",
+		WotanTopic: "test.topic",
 	})
 
 	t.Run("health", func(t *testing.T) {
@@ -1009,7 +1009,7 @@ func TestGenerateOpenAPI(t *testing.T) {
 	svc := newTestServiceStarted(t, &Config{
 		APIPrefix:   "/api/v1",
 		Version:     "3.0.1",
-		BusboyTopic: "test",
+		WotanTopic: "test",
 	})
 
 	spec := svc.GenerateOpenAPI()
@@ -1086,7 +1086,7 @@ func TestStats(t *testing.T) {
 	svc := newTestServiceStarted(t, &Config{
 		APIPrefix:   "/api/v1",
 		Version:     "9.8.7",
-		BusboyTopic: "test",
+		WotanTopic: "test",
 	})
 
 	stats := svc.Stats()
@@ -1121,13 +1121,13 @@ func TestStats(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// publishEvent — nil busboy should not panic
+// publishEvent — nil wotan should not panic
 // ---------------------------------------------------------------------------
 
-func TestPublishEvent_NilBusboy(t *testing.T) {
+func TestPublishEvent_NilWotan(t *testing.T) {
 	t.Parallel()
 
-	svc := newTestService(nil) // busboy is nil
+	svc := newTestService(nil) // wotan is nil
 	_ = svc.RegisterCommand(&Command{
 		Name:    "publish-test",
 		Handler: echoHandler,
@@ -1849,7 +1849,7 @@ func TestGenerateOpenAPI_WithCustomCommands(t *testing.T) {
 	svc := newTestService(&Config{
 		APIPrefix:   "/api/v2",
 		Version:     "2.0.0",
-		BusboyTopic: "test",
+		WotanTopic: "test",
 	})
 	_ = svc.RegisterCommand(&Command{
 		Name:      "custom",
@@ -1902,7 +1902,7 @@ func TestConfig_JSONSerialization(t *testing.T) {
 	cfg := Config{
 		APIPrefix:   "/api/v1",
 		Version:     "1.0.0",
-		BusboyTopic: "gauntlets.commands",
+		WotanTopic: "gauntlets.commands",
 	}
 
 	b, err := json.Marshal(cfg)
@@ -2132,7 +2132,7 @@ func TestCustomAPIPrefix(t *testing.T) {
 	svc := newTestService(&Config{
 		APIPrefix:   "/custom/api/v3",
 		Version:     "3.0.0",
-		BusboyTopic: "test",
+		WotanTopic: "test",
 	})
 	_ = svc.RegisterCommand(&Command{
 		Name:    "test",
@@ -2154,7 +2154,7 @@ func TestBuiltinCommands_CustomPrefix(t *testing.T) {
 	svc := newTestServiceStarted(t, &Config{
 		APIPrefix:   "/v2",
 		Version:     "2.0.0",
-		BusboyTopic: "test",
+		WotanTopic: "test",
 	})
 
 	handler := svc.HTTPHandler()

@@ -23,7 +23,7 @@ require (
 )
 
 replace (
-	unheaded/pkg/busboy-client => ./pkg/busboy-client
+	unheaded/pkg/wotan-client => ./pkg/wotan-client
 	unheaded/pkg/telemetry => ./pkg/telemetry
 )
 

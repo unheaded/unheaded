@@ -4,7 +4,7 @@
 //! for efficiency in the realm of messages.
 //!
 //! This module provides batching logic to efficiently group events
-//! before publishing them to Busboy.
+//! before publishing them to Wotan.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};

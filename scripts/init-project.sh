@@ -51,7 +51,7 @@ mkdir -p cmd/dashboard-backend
 mkdir -p cmd/kanban-app
 
 # Microservices
-mkdir -p services/busboy
+mkdir -p services/wotan
 mkdir -p services/timeguru
 mkdir -p services/captain
 mkdir -p services/micromanager
@@ -81,7 +81,7 @@ mkdir -p kanban/assets/fonts
 mkdir -p pkg/lxd
 mkdir -p pkg/state
 mkdir -p pkg/telemetry
-mkdir -p pkg/busboy-client
+mkdir -p pkg/wotan-client
 
 # Documentation
 mkdir -p docs
@@ -136,7 +136,7 @@ import (
 
 func main() {
 	fmt.Println("dashboard-backend starting...")
-	// TODO: Connect to Busboy
+	// TODO: Connect to Wotan
 	// TODO: WebSocket server
 	// TODO: Metrics aggregation
 	os.Exit(0)
@@ -243,12 +243,12 @@ mkdir -p cmd/trace-collector/src
 
 cat > cmd/trace-collector/src/main.rs <<'EOF'
 // trace-collector
-// Reads eBPF ring buffer and publishes to Busboy
+// Reads eBPF ring buffer and publishes to Wotan
 
 fn main() {
     println!("trace-collector starting...");
     // TODO: Read eBPF ring buffer
-    // TODO: Connect to Busboy
+    // TODO: Connect to Wotan
     // TODO: Publish to network.traces topic
 }
 EOF
@@ -269,9 +269,9 @@ cat > nix/flake.nix <<'EOF'
   outputs = { self, nixpkgs }: {
     # Container definitions
     nixosConfigurations = {
-      busboy = nixpkgs.lib.nixosSystem {
+      wotan = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        modules = [ ./containers/busboy.nix ];
+        modules = [ ./containers/wotan.nix ];
       };
 
       timeguru = nixpkgs.lib.nixosSystem {
@@ -286,11 +286,11 @@ cat > nix/flake.nix <<'EOF'
 EOF
 
 # Container placeholder
-cat > nix/containers/busboy.nix <<'EOF'
+cat > nix/containers/wotan.nix <<'EOF'
 { config, pkgs, ... }:
 
 {
-  # TODO: Import Busboy service definition
+  # TODO: Import Wotan service definition
   # TODO: Apply hardening module
   # TODO: Configure networking
 }
@@ -458,17 +458,17 @@ log_success "Kanban UI created"
 # Create shared Go packages
 log_info "Creating shared Go packages..."
 
-cat > pkg/busboy-client/client.go <<'EOF'
-package busboyClient
+cat > pkg/wotan-client/client.go <<'EOF'
+package wotanClient
 
-// Client for connecting to Busboy message bus
+// Client for connecting to Wotan message bus
 type Client struct {
 	// TODO: gRPC connection
 }
 
-// NewClient creates a new Busboy client
+// NewClient creates a new Wotan client
 func NewClient(addr string) (*Client, error) {
-	// TODO: Connect to Busboy
+	// TODO: Connect to Wotan
 	return &Client{}, nil
 }
 EOF
@@ -517,7 +517,7 @@ cat > docs/MICROSERVICES.md <<'EOF'
 
 ## Communication Pattern
 
-All services communicate via Busboy (message bus).
+All services communicate via Wotan (message bus).
 
 TODO: Add detailed service specifications
 EOF

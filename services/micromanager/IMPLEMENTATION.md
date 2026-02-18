@@ -11,7 +11,7 @@ The Micromanager service is the execution and task-tracking layer for Unheaded A
 - Sprint backlog management
 - Task lifecycle (pending → in_progress → completed/blocked)
 - REST API for task CRUD operations
-- Busboy integration for event publishing
+- Wotan integration for event publishing
 - Production-grade security and observability
 
 ## Implementation Details
@@ -101,18 +101,18 @@ Response format: JSON with consistent structure
 ### 4. Service Layer (service.go)
 **Lines**: 170 | **Tests**: 11 | **Coverage**: 85%
 
-Business logic and Busboy integration:
+Business logic and Wotan integration:
 
 **ID Generation**
 - Unique IDs using Unix timestamp + atomic counter
 - Format: `task-<timestamp>-<counter>`
 - Thread-safe with sync/atomic
 
-**Busboy Publishing**
+**Wotan Publishing**
 - PublishTaskCreated: fires when task created
 - PublishTaskUpdated: fires on any modification
 - PublishTaskCompleted: fires when status = completed
-- Graceful degradation: works fine without Busboy configured
+- Graceful degradation: works fine without Wotan configured
 - Async publishing (doesn't block responses)
 
 **Alert Listening**
@@ -121,10 +121,10 @@ Business logic and Busboy integration:
 - Handles alert payloads (extensible for routing)
 
 **Health Status**
-- Returns service health, task count, Busboy connection status
+- Returns service health, task count, Wotan connection status
 - Used by readiness probes and monitoring
 
-Key design: Service is request-agnostic, doesn't assume Busboy is available. Core functionality works standalone.
+Key design: Service is request-agnostic, doesn't assume Wotan is available. Core functionality works standalone.
 
 ### 5. Main Entry Point (cmd/main.go)
 **Lines**: 150
@@ -133,7 +133,7 @@ Production-grade service initialization:
 
 **Flags**:
 - `-port`: HTTP listen port (default 8003)
-- `-busboy`: Busboy address (optional, format: host:port)
+- `-wotan`: Wotan address (optional, format: host:port)
 - `-log-level`: Logging level (debug, info, warn, error)
 - `-read-timeout`, `-write-timeout`, `-idle-timeout`: HTTP timeouts
 - `-shutdown-timeout`: Graceful shutdown window
@@ -232,7 +232,7 @@ NixOS systemd service with hardening:
 ✅ 11 tests covering:
 - Unique ID generation
 - Service initialization
-- Busboy integration (graceful degradation)
+- Wotan integration (graceful degradation)
 - Health status reporting
 - Graceful shutdown
 
@@ -251,7 +251,7 @@ NixOS systemd service with hardening:
 ### Performance
 - ✅ O(1) Get/Update/Delete (hashmap)
 - ✅ O(n) List operations (acceptable for backlog size)
-- ✅ No blocking on Busboy publish (async)
+- ✅ No blocking on Wotan publish (async)
 - ✅ Concurrent reads/writes safe (RWMutex)
 
 ### Maintainability
@@ -300,7 +300,7 @@ NixOS systemd service with hardening:
 }
 ```
 
-### Busboy Events
+### Wotan Events
 
 **tasks.created**
 ```json
@@ -344,7 +344,7 @@ NixOS systemd service with hardening:
 1. **No Persistence**: Tasks lost on restart (Phase 2: WAL)
 2. **No Blocking**: Can't mark tasks as blocked due to dependencies (Phase 2: relations)
 3. **No Filtering API**: ListAll doesn't support query parameters (Phase 2: advanced search)
-4. **No Webhooks**: Can't subscribe to task changes directly (Phase 2: would use Busboy)
+4. **No Webhooks**: Can't subscribe to task changes directly (Phase 2: would use Wotan)
 5. **No Rate Limiting**: No per-IP rate limiting (Phase 2: rate limiter middleware)
 
 ## Files Created
@@ -373,10 +373,10 @@ Total: ~2,250 lines (code + tests + docs)
 
 ## Integration Points
 
-### Busboy Message Bus
+### Wotan Message Bus
 - Publishes: tasks.created, tasks.updated, tasks.completed
 - Subscribes: alerts.critical
-- Handles graceful degradation if Busboy unavailable
+- Handles graceful degradation if Wotan unavailable
 
 ### Prometheus
 - Exposes metrics at /metrics
@@ -406,12 +406,12 @@ Total: ~2,250 lines (code + tests + docs)
 - List backlog (100 tasks): 2-3ms
 - List backlog (1000 tasks): 5-10ms
 - Sprint status: <1ms
-- Busboy publish: 3-5ms (async)
+- Wotan publish: 3-5ms (async)
 
 **Throughput**:
-- ~500 creates/sec (limited by Busboy in production)
+- ~500 creates/sec (limited by Wotan in production)
 - ~2000 reads/sec (in-memory store)
-- ~1000 updates/sec (limited by Busboy)
+- ~1000 updates/sec (limited by Wotan)
 
 **Concurrency**:
 - Tested with 100 concurrent goroutines (no races)
@@ -459,7 +459,7 @@ make bench
 
 - **CLAUDE.md**: Development standards and patterns
 - **timeline.md**: Project roadmap and milestones
-- **Busboy**: github.com/unheaded/busboy (message bus)
+- **Wotan**: github.com/unheaded/wotan (message bus)
 - **Go Best Practices**: https://go.dev/doc/effective_go
 
 ## Author Notes
@@ -473,7 +473,7 @@ This implementation follows:
 
 The service is ready for:
 - ✅ Local development (make test, make build)
-- ✅ Integration testing with Busboy
+- ✅ Integration testing with Wotan
 - ✅ Container deployment via NixOS
 - ✅ Monitoring via Prometheus
 - ✅ Production operation (with WAL in Phase 2)

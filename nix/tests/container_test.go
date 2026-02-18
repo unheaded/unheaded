@@ -19,7 +19,7 @@ import (
 // Tests verify:
 // - Container startup and health
 // - Network isolation and connectivity
-// - Service dependencies (busboy first)
+// - Service dependencies (wotan first)
 // - Security hardening (seccomp, capabilities)
 // - Resource limits
 // - Graceful shutdown
@@ -36,16 +36,16 @@ type TestContainer struct {
 }
 
 var testContainers = []TestContainer{
-	{Name: "busboy", IP: "10.10.10.10", Port: 8080, DependsOn: []string{}},
-	{Name: "timeguru", IP: "10.10.10.20", Port: 8000, DependsOn: []string{"busboy"}},
-	{Name: "captain", IP: "10.10.10.21", Port: 8001, DependsOn: []string{"busboy"}},
-	{Name: "micromanager", IP: "10.10.10.22", Port: 8002, DependsOn: []string{"busboy"}},
-	{Name: "architect", IP: "10.10.10.23", Port: 8003, DependsOn: []string{"busboy"}},
-	{Name: "developer", IP: "10.10.10.24", Port: 8004, DependsOn: []string{"busboy"}},
-	{Name: "monad", IP: "10.10.10.25", Port: 8004, DependsOn: []string{"busboy"}},
-	{Name: "sophia", IP: "10.10.10.26", Port: 8005, DependsOn: []string{"busboy"}},
+	{Name: "wotan", IP: "10.10.10.10", Port: 8080, DependsOn: []string{}},
+	{Name: "timeguru", IP: "10.10.10.20", Port: 8000, DependsOn: []string{"wotan"}},
+	{Name: "captain", IP: "10.10.10.21", Port: 8001, DependsOn: []string{"wotan"}},
+	{Name: "micromanager", IP: "10.10.10.22", Port: 8002, DependsOn: []string{"wotan"}},
+	{Name: "architect", IP: "10.10.10.23", Port: 8003, DependsOn: []string{"wotan"}},
+	{Name: "developer", IP: "10.10.10.24", Port: 8004, DependsOn: []string{"wotan"}},
+	{Name: "monad", IP: "10.10.10.25", Port: 8004, DependsOn: []string{"wotan"}},
+	{Name: "sophia", IP: "10.10.10.26", Port: 8005, DependsOn: []string{"wotan"}},
 	{Name: "kanban", IP: "10.10.10.200", Port: 8080, DependsOn: []string{"timeguru"}},
-	{Name: "dashboard", IP: "10.10.10.201", Port: 8081, DependsOn: []string{"busboy"}},
+	{Name: "dashboard", IP: "10.10.10.201", Port: 8081, DependsOn: []string{"wotan"}},
 }
 
 // ==============================================================================
@@ -302,22 +302,22 @@ func TestSecurity_NoPrivilegeEscalation(t *testing.T) {
 // NETWORK TESTS - Isolation and Connectivity
 // ==============================================================================
 
-func TestNetwork_ContainerCanReachBusboy(t *testing.T) {
+func TestNetwork_ContainerCanReachWotan(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	busboyURL := "http://10.10.10.10:8080/health"
+	wotanURL := "http://10.10.10.10:8080/health"
 
 	for _, c := range testContainers {
-		if c.Name == "busboy" {
+		if c.Name == "wotan" {
 			continue
 		}
 
 		t.Run(c.Name, func(t *testing.T) {
-			// From container, check connectivity to busboy
-			// Real: lxc exec unheaded-{c.Name} -- curl -f {busboyURL}
-			t.Logf("%s checking connectivity to busboy at %s", c.Name, busboyURL)
+			// From container, check connectivity to wotan
+			// Real: lxc exec unheaded-{c.Name} -- curl -f {wotanURL}
+			t.Logf("%s checking connectivity to wotan at %s", c.Name, wotanURL)
 		})
 	}
 }
@@ -418,7 +418,7 @@ func TestPerformance_MemoryLimits(t *testing.T) {
 	}
 
 	limits := map[string]string{
-		"busboy":       "1G",
+		"wotan":       "1G",
 		"timeguru":     "256M",
 		"captain":      "256M",
 		"micromanager": "256M",

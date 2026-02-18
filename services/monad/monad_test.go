@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -612,8 +612,8 @@ func TestDefaultConfig(t *testing.T) {
 	if !config.EnableTracing {
 		t.Error("Expected EnableTracing to be true")
 	}
-	if config.BusboyTopic != "monad.operations" {
-		t.Errorf("Expected BusboyTopic 'monad.operations', got %s", config.BusboyTopic)
+	if config.WotanTopic != "monad.operations" {
+		t.Errorf("Expected WotanTopic 'monad.operations', got %s", config.WotanTopic)
 	}
 }
 
@@ -664,33 +664,33 @@ func BenchmarkConcurrentQueries(b *testing.B) {
 }
 
 // ============================================================================
-// MOCK BUSBOY CLIENT
+// MOCK WOTAN CLIENT
 // ============================================================================
 
-// mockBusboyClient implements a mock Busboy client for testing
-type mockBusboyClient struct {
+// mockWotanClient implements a mock Wotan client for testing
+type mockWotanClient struct {
 	mu                sync.RWMutex
-	subscriptions     map[string]*busboyClient.Subscriber
+	subscriptions     map[string]*wotanClient.Subscriber
 	publishedMessages map[string][][]byte
 	publishErr        error
 	subscribeErr      error
 	streamErr         error
-	messageCh         chan *busboyClient.Message
+	messageCh         chan *wotanClient.Message
 }
 
-func newMockBusboyClient() *mockBusboyClient {
-	return &mockBusboyClient{
-		subscriptions:     make(map[string]*busboyClient.Subscriber),
+func newMockWotanClient() *mockWotanClient {
+	return &mockWotanClient{
+		subscriptions:     make(map[string]*wotanClient.Subscriber),
 		publishedMessages: make(map[string][][]byte),
-		messageCh:         make(chan *busboyClient.Message, 100),
+		messageCh:         make(chan *wotanClient.Message, 100),
 	}
 }
 
-func (m *mockBusboyClient) Subscribe(ctx context.Context, topic, displayName string) (*busboyClient.Subscriber, error) {
+func (m *mockWotanClient) Subscribe(ctx context.Context, topic, displayName string) (*wotanClient.Subscriber, error) {
 	if m.subscribeErr != nil {
 		return nil, m.subscribeErr
 	}
-	sub := &busboyClient.Subscriber{
+	sub := &wotanClient.Subscriber{
 		SubscriberID: "mock-sub-" + topic,
 		Topic:        topic,
 		DisplayName:  displayName,
@@ -702,7 +702,7 @@ func (m *mockBusboyClient) Subscribe(ctx context.Context, topic, displayName str
 	return sub, nil
 }
 
-func (m *mockBusboyClient) Publish(ctx context.Context, topic string, payload []byte) error {
+func (m *mockWotanClient) Publish(ctx context.Context, topic string, payload []byte) error {
 	if m.publishErr != nil {
 		return m.publishErr
 	}
@@ -712,24 +712,24 @@ func (m *mockBusboyClient) Publish(ctx context.Context, topic string, payload []
 	return nil
 }
 
-func (m *mockBusboyClient) StreamMessages(ctx context.Context, topic string) (<-chan *busboyClient.Message, error) {
+func (m *mockWotanClient) StreamMessages(ctx context.Context, topic string) (<-chan *wotanClient.Message, error) {
 	if m.streamErr != nil {
 		return nil, m.streamErr
 	}
 	return m.messageCh, nil
 }
 
-func (m *mockBusboyClient) getPublished(topic string) [][]byte {
+func (m *mockWotanClient) getPublished(topic string) [][]byte {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.publishedMessages[topic]
 }
 
-func (m *mockBusboyClient) sendMessage(msg *busboyClient.Message) {
+func (m *mockWotanClient) sendMessage(msg *wotanClient.Message) {
 	m.messageCh <- msg
 }
 
-func (m *mockBusboyClient) closeCh() {
+func (m *mockWotanClient) closeCh() {
 	close(m.messageCh)
 }
 
@@ -738,22 +738,22 @@ func (m *mockBusboyClient) closeCh() {
 // ============================================================================
 
 func TestServiceStart(t *testing.T) {
-	t.Run("Start without Busboy succeeds", func(t *testing.T) {
+	t.Run("Start without Wotan succeeds", func(t *testing.T) {
 		svc := newTestService()
 		ctx := context.Background()
 
 		err := svc.Start(ctx)
 		if err != nil {
-			t.Errorf("Start without Busboy should succeed, got: %v", err)
+			t.Errorf("Start without Wotan should succeed, got: %v", err)
 		}
 	})
 
-	t.Run("Start with Busboy subscribes to topics", func(t *testing.T) {
+	t.Run("Start with Wotan subscribes to topics", func(t *testing.T) {
 		log := logger.New(os.Stderr)
-		_ = newMockBusboyClient() // Mock created for future use when interface-based injection is added
-		svc := NewService(log, (*busboyClient.Client)(nil))
+		_ = newMockWotanClient() // Mock created for future use when interface-based injection is added
+		svc := NewService(log, (*wotanClient.Client)(nil))
 
-		// Test the nil busboy path
+		// Test the nil wotan path
 		ctx := context.Background()
 		err := svc.Start(ctx)
 		if err != nil {
@@ -2105,11 +2105,11 @@ func TestNilInputHandling(t *testing.T) {
 }
 
 // ============================================================================
-// BUSBOY INTEGRATION TESTS WITH MOCK SERVER
+// WOTAN INTEGRATION TESTS WITH MOCK SERVER
 // ============================================================================
 
-// createMockBusboyServer creates a test HTTP server that simulates the Busboy API
-func createMockBusboyServer() *httptest.Server {
+// createMockWotanServer creates a test HTTP server that simulates the Wotan API
+func createMockWotanServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Handle subscription requests
 		if strings.Contains(r.URL.Path, "/subscribe") {
@@ -2147,30 +2147,30 @@ func createMockBusboyServer() *httptest.Server {
 	}))
 }
 
-func newTestServiceWithBusboy(server *httptest.Server) *Service {
+func newTestServiceWithWotan(server *httptest.Server) *Service {
 	log := logger.New(os.Stderr)
 
 	// Extract host:port from server URL (remove http:// prefix)
 	addr := strings.TrimPrefix(server.URL, "http://")
-	busboy, err := busboyClient.NewClient(addr)
+	wotan, err := wotanClient.NewClient(addr)
 	if err != nil {
 		panic(err)
 	}
 
-	return NewService(log, busboy)
+	return NewService(log, wotan)
 }
 
-func TestBusboyIntegrationStart(t *testing.T) {
-	t.Run("Start with Busboy subscribes to topics", func(t *testing.T) {
-		server := createMockBusboyServer()
+func TestWotanIntegrationStart(t *testing.T) {
+	t.Run("Start with Wotan subscribes to topics", func(t *testing.T) {
+		server := createMockWotanServer()
 		defer server.Close()
 
-		svc := newTestServiceWithBusboy(server)
+		svc := newTestServiceWithWotan(server)
 		ctx := context.Background()
 
 		err := svc.Start(ctx)
 		if err != nil {
-			t.Errorf("Start should succeed with mock Busboy: %v", err)
+			t.Errorf("Start should succeed with mock Wotan: %v", err)
 		}
 	})
 
@@ -2181,7 +2181,7 @@ func TestBusboyIntegrationStart(t *testing.T) {
 		}))
 		defer failServer.Close()
 
-		svc := newTestServiceWithBusboy(failServer)
+		svc := newTestServiceWithWotan(failServer)
 		ctx := context.Background()
 
 		// Should not error even if subscriptions fail (they're optional)
@@ -2192,8 +2192,8 @@ func TestBusboyIntegrationStart(t *testing.T) {
 	})
 }
 
-func TestBusboyIntegrationMutatePublish(t *testing.T) {
-	t.Run("Mutate publishes operation event to Busboy", func(t *testing.T) {
+func TestWotanIntegrationMutatePublish(t *testing.T) {
+	t.Run("Mutate publishes operation event to Wotan", func(t *testing.T) {
 		published := make(chan bool, 1)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(r.URL.Path, "/subscribe") {
@@ -2222,7 +2222,7 @@ func TestBusboyIntegrationMutatePublish(t *testing.T) {
 		}))
 		defer server.Close()
 
-		svc := newTestServiceWithBusboy(server)
+		svc := newTestServiceWithWotan(server)
 		ctx := context.Background()
 
 		// Subscribe first (required for publish)
@@ -2267,7 +2267,7 @@ func TestBusboyIntegrationMutatePublish(t *testing.T) {
 		}))
 		defer server.Close()
 
-		svc := newTestServiceWithBusboy(server)
+		svc := newTestServiceWithWotan(server)
 		ctx := context.Background()
 
 		_ = svc.Start(ctx)
@@ -2284,7 +2284,7 @@ func TestBusboyIntegrationMutatePublish(t *testing.T) {
 	})
 }
 
-func TestBusboyIntegrationWithTraceID(t *testing.T) {
+func TestWotanIntegrationWithTraceID(t *testing.T) {
 	t.Run("Operations use trace_id from context", func(t *testing.T) {
 		receivedPayload := make(chan []byte, 1)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2315,7 +2315,7 @@ func TestBusboyIntegrationWithTraceID(t *testing.T) {
 		}))
 		defer server.Close()
 
-		svc := newTestServiceWithBusboy(server)
+		svc := newTestServiceWithWotan(server)
 
 		// Create context with trace_id
 		ctx := context.WithValue(context.Background(), "trace_id", "test-trace-123")
@@ -2351,7 +2351,7 @@ func TestHandleCriticalAlert(t *testing.T) {
 		svc := newTestService()
 		ctx := context.Background()
 
-		msg := &busboyClient.Message{
+		msg := &wotanClient.Message{
 			MessageID: "alert-123",
 			Topic:     "alerts.critical",
 			Payload:   `{"level": "critical", "message": "test alert"}`,
@@ -2362,8 +2362,8 @@ func TestHandleCriticalAlert(t *testing.T) {
 	})
 }
 
-func TestListenForAlertsNilBusboy(t *testing.T) {
-	t.Run("listenForAlerts returns immediately when busboy is nil", func(t *testing.T) {
+func TestListenForAlertsNilWotan(t *testing.T) {
+	t.Run("listenForAlerts returns immediately when wotan is nil", func(t *testing.T) {
 		svc := newTestService()
 		ctx := context.Background()
 
@@ -2377,13 +2377,13 @@ func TestListenForAlertsNilBusboy(t *testing.T) {
 		case <-done:
 			// Good - returned immediately
 		case <-time.After(100 * time.Millisecond):
-			t.Error("listenForAlerts should return immediately when busboy is nil")
+			t.Error("listenForAlerts should return immediately when wotan is nil")
 		}
 	})
 }
 
-func TestPublishOperationEventNilBusboy(t *testing.T) {
-	t.Run("publishOperationEvent returns immediately when busboy is nil", func(t *testing.T) {
+func TestPublishOperationEventNilWotan(t *testing.T) {
+	t.Run("publishOperationEvent returns immediately when wotan is nil", func(t *testing.T) {
 		svc := newTestService()
 		ctx := context.Background()
 		op := &Operation{
@@ -2398,8 +2398,8 @@ func TestPublishOperationEventNilBusboy(t *testing.T) {
 	})
 }
 
-func TestPublishStateChangeNilBusboy(t *testing.T) {
-	t.Run("publishStateChange returns immediately when busboy is nil", func(t *testing.T) {
+func TestPublishStateChangeNilWotan(t *testing.T) {
+	t.Run("publishStateChange returns immediately when wotan is nil", func(t *testing.T) {
 		svc := newTestService()
 		ctx := context.Background()
 		changes := []StateChange{

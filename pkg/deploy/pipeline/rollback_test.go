@@ -1103,7 +1103,7 @@ func TestRollbackHooks(t *testing.T) {
 			{Name: "post-hook-1", Type: HookTypeWebhook},
 		},
 		OnFailure: []*Hook{
-			{Name: "failure-hook-1", Type: HookTypeBusboy},
+			{Name: "failure-hook-1", Type: HookTypeWotan},
 		},
 	}
 

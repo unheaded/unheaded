@@ -1,6 +1,6 @@
 // Package health provides a health check aggregator for the Unheaded Kingdom infrastructure.
 // It supports multiple check types (HTTP, TCP, gRPC, exec), concurrent execution,
-// circuit breakers, and integrates with Busboy for event emission.
+// circuit breakers, and integrates with Wotan for event emission.
 package health
 
 import (
@@ -113,7 +113,7 @@ const (
 	CheckTypeTCP    CheckType = "tcp"
 	CheckTypeGRPC   CheckType = "grpc"
 	CheckTypeExec   CheckType = "exec"
-	CheckTypeBusboy CheckType = "busboy"
+	CheckTypeWotan CheckType = "wotan"
 )
 
 // HealthCheck defines a health check configuration
@@ -121,7 +121,7 @@ type HealthCheck struct {
 	// Name is a unique identifier for the check
 	Name string `json:"name"`
 
-	// Type specifies the check type (http, tcp, grpc, exec, busboy)
+	// Type specifies the check type (http, tcp, grpc, exec, wotan)
 	Type CheckType `json:"type"`
 
 	// Target is the endpoint or command to check
@@ -129,7 +129,7 @@ type HealthCheck struct {
 	// For TCP: address (e.g., "localhost:5432")
 	// For gRPC: address (e.g., "localhost:9090")
 	// For exec: command (e.g., "/usr/bin/check-service.sh")
-	// For busboy: address (e.g., "localhost:9090")
+	// For wotan: address (e.g., "localhost:9090")
 	Target string `json:"target"`
 
 	// Timeout for the check (default: 5s)
@@ -430,8 +430,8 @@ type HealthEvent struct {
 	Message string `json:"message,omitempty"`
 }
 
-// BusboyPublisher interface for publishing events to Busboy
-type BusboyPublisher interface {
+// WotanPublisher interface for publishing events to Wotan
+type WotanPublisher interface {
 	Publish(ctx context.Context, topic string, payload []byte) error
 }
 
@@ -455,8 +455,8 @@ type AggregatorConfig struct {
 	// CircuitBreakerResetTimeout is time before circuit tries again
 	CircuitBreakerResetTimeout time.Duration
 
-	// BusboyTopic is the topic for health events
-	BusboyTopic string
+	// WotanTopic is the topic for health events
+	WotanTopic string
 
 	// ServiceName is the name of this aggregator service
 	ServiceName string
@@ -471,7 +471,7 @@ func DefaultConfig() *AggregatorConfig {
 		CircuitBreakerFailures:    3,
 		CircuitBreakerSuccesses:   2,
 		CircuitBreakerResetTimeout: 30 * time.Second,
-		BusboyTopic:               "health.events",
+		WotanTopic:               "health.events",
 		ServiceName:               "health-aggregator",
 	}
 }
@@ -539,8 +539,8 @@ type Aggregator struct {
 	circuitBreakers map[string]*CircuitBreaker
 	cbMu sync.RWMutex
 
-	// busboy for publishing events
-	busboy BusboyPublisher
+	// wotan for publishing events
+	wotan WotanPublisher
 
 	// httpClient for HTTP checks
 	httpClient *http.Client
@@ -557,7 +557,7 @@ type Aggregator struct {
 }
 
 // NewAggregator creates a new health check aggregator
-func NewAggregator(config *AggregatorConfig, busboy BusboyPublisher) *Aggregator {
+func NewAggregator(config *AggregatorConfig, wotan WotanPublisher) *Aggregator {
 	if config == nil {
 		config = DefaultConfig()
 	}
@@ -568,7 +568,7 @@ func NewAggregator(config *AggregatorConfig, busboy BusboyPublisher) *Aggregator
 		results:         make(map[string]*HealthResult),
 		history:         make(map[string]*HealthHistory),
 		circuitBreakers: make(map[string]*CircuitBreaker),
-		busboy:          busboy,
+		wotan:          wotan,
 		httpClient: &http.Client{
 			Timeout: config.DefaultTimeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -768,8 +768,8 @@ func (a *Aggregator) runSingleCheck(ctx context.Context, check *HealthCheck) *He
 		result = a.runGRPCCheck(checkCtx, check)
 	case CheckTypeExec:
 		result = a.runExecCheck(checkCtx, check)
-	case CheckTypeBusboy:
-		result = a.runBusboyCheck(checkCtx, check)
+	case CheckTypeWotan:
+		result = a.runWotanCheck(checkCtx, check)
 	default:
 		result = &HealthResult{
 			Name:      check.Name,
@@ -1066,8 +1066,8 @@ func (a *Aggregator) runExecCheck(ctx context.Context, check *HealthCheck) *Heal
 	}
 }
 
-// runBusboyCheck performs a Busboy connectivity check
-func (a *Aggregator) runBusboyCheck(ctx context.Context, check *HealthCheck) *HealthResult {
+// runWotanCheck performs a Wotan connectivity check
+func (a *Aggregator) runWotanCheck(ctx context.Context, check *HealthCheck) *HealthResult {
 	// First, check TCP connectivity
 	dialer := net.Dialer{
 		Timeout: check.Timeout,
@@ -1078,7 +1078,7 @@ func (a *Aggregator) runBusboyCheck(ctx context.Context, check *HealthCheck) *He
 		return &HealthResult{
 			Name:    check.Name,
 			Status:  StatusUnhealthy,
-			Message: "Busboy TCP connection failed",
+			Message: "Wotan TCP connection failed",
 			Error:   err.Error(),
 		}
 	}
@@ -1092,7 +1092,7 @@ func (a *Aggregator) runBusboyCheck(ctx context.Context, check *HealthCheck) *He
 		return &HealthResult{
 			Name:    check.Name,
 			Status:  StatusDegraded,
-			Message: "Busboy TCP OK, but health check unavailable",
+			Message: "Wotan TCP OK, but health check unavailable",
 		}
 	}
 
@@ -1101,7 +1101,7 @@ func (a *Aggregator) runBusboyCheck(ctx context.Context, check *HealthCheck) *He
 		return &HealthResult{
 			Name:    check.Name,
 			Status:  StatusDegraded,
-			Message: "Busboy TCP OK, HTTP health check failed",
+			Message: "Wotan TCP OK, HTTP health check failed",
 			Error:   err.Error(),
 		}
 	}
@@ -1111,7 +1111,7 @@ func (a *Aggregator) runBusboyCheck(ctx context.Context, check *HealthCheck) *He
 		return &HealthResult{
 			Name:    check.Name,
 			Status:  StatusDegraded,
-			Message: fmt.Sprintf("Busboy health returned status %d", resp.StatusCode),
+			Message: fmt.Sprintf("Wotan health returned status %d", resp.StatusCode),
 			Metadata: map[string]interface{}{
 				"status_code": resp.StatusCode,
 			},
@@ -1121,7 +1121,7 @@ func (a *Aggregator) runBusboyCheck(ctx context.Context, check *HealthCheck) *He
 	return &HealthResult{
 		Name:    check.Name,
 		Status:  StatusHealthy,
-		Message: "Busboy is healthy",
+		Message: "Wotan is healthy",
 	}
 }
 
@@ -1243,7 +1243,7 @@ func (a *Aggregator) updateCircuitBreakerMetrics(name string, cb *CircuitBreaker
 	circuitBreakerState.WithLabelValues(name).Set(stateValue)
 }
 
-// emitEvent emits a health event to listeners and Busboy
+// emitEvent emits a health event to listeners and Wotan
 func (a *Aggregator) emitEvent(event HealthEvent) {
 	// Notify local listeners
 	a.listenersMu.RLock()
@@ -1255,12 +1255,12 @@ func (a *Aggregator) emitEvent(event HealthEvent) {
 		go listener(event)
 	}
 
-	// Publish to Busboy if configured
-	if a.busboy != nil {
+	// Publish to Wotan if configured
+	if a.wotan != nil {
 		payload, err := json.Marshal(event)
 		if err == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = a.busboy.Publish(ctx, a.config.BusboyTopic, payload)
+			_ = a.wotan.Publish(ctx, a.config.WotanTopic, payload)
 			cancel()
 		}
 	}

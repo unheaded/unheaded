@@ -7,7 +7,7 @@
 ## Prerequisites
 
 - Go 1.21+ installed
-- Busboy running (default: `localhost:9090`)
+- Wotan running (default: `localhost:9090`)
 
 ---
 
@@ -26,7 +26,7 @@ make test-race
 # Build
 make build
 
-# Run (connects to localhost:9090 Busboy)
+# Run (connects to localhost:9090 Wotan)
 ./bin/dashboard-backend -debug
 ```
 
@@ -90,7 +90,7 @@ curl -X POST http://localhost:8080/api/v1/metrics/query \
 ```bash
 ./bin/dashboard-backend \
   -listen :8080 \           # HTTP listen address
-  -busboy localhost:9090 \  # Busboy server address
+  -wotan localhost:9090 \  # Wotan server address
   -debug                    # Enable debug logging
 ```
 
@@ -180,20 +180,20 @@ sudo tar -C /usr/local -xzf go1.21.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 ```
 
-### "connect to busboy: connection refused"
+### "connect to wotan: connection refused"
 
-**Solution:** Ensure Busboy is running
+**Solution:** Ensure Wotan is running
 
 ```bash
-# Start Busboy (from busboy repo)
-cd /path/to/busboy
-./bin/busboy
+# Start Wotan (from wotan repo)
+cd /path/to/wotan
+./bin/wotan
 ```
 
 Or point to different address:
 
 ```bash
-./bin/dashboard-backend -busboy remote-host:9090
+./bin/dashboard-backend -wotan remote-host:9090
 ```
 
 ### "max connections reached"
@@ -236,7 +236,7 @@ ENTRYPOINT ["dashboard-backend"]
 
 ```bash
 docker build -t dashboard-backend .
-docker run -p 8080:8080 dashboard-backend -busboy busboy:9090
+docker run -p 8080:8080 dashboard-backend -wotan wotan:9090
 ```
 
 ### Kubernetes
@@ -253,7 +253,7 @@ spec:
       containers:
       - name: dashboard-backend
         image: dashboard-backend:latest
-        args: ["-busboy=busboy:9090"]
+        args: ["-wotan=wotan:9090"]
         ports:
         - containerPort: 8080
         livenessProbe:

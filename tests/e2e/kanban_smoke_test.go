@@ -5,7 +5,7 @@
 // - Start kanban-app (mock for unit testing)
 // - Create/move/complete tasks via API
 // - Verify persistence
-// - Verify Busboy events are published
+// - Verify Wotan events are published
 package e2e
 
 import (
@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"unheaded/pkg/busboy-client/mock"
+	"unheaded/pkg/wotan-client/mock"
 )
 
 // ============================================================================
@@ -43,8 +43,8 @@ type KanbanTask struct {
 type KanbanTestHarness struct {
 	t *testing.T
 
-	// Mock Busboy client for event verification
-	MockBusboy *mock.MockClient
+	// Mock Wotan client for event verification
+	MockWotan *mock.MockClient
 
 	// Event tracking
 	mu              sync.RWMutex
@@ -58,7 +58,7 @@ type KanbanTestHarness struct {
 	server *httptest.Server
 }
 
-// PublishedEvent tracks events published to Busboy
+// PublishedEvent tracks events published to Wotan
 type PublishedEvent struct {
 	Topic     string
 	Payload   []byte
@@ -71,7 +71,7 @@ func NewKanbanTestHarness(t *testing.T) *KanbanTestHarness {
 
 	h := &KanbanTestHarness{
 		t:               t,
-		MockBusboy:      mock.NewMockClient(mock.WithAutoApprove()),
+		MockWotan:      mock.NewMockClient(mock.WithAutoApprove()),
 		publishedEvents: make([]PublishedEvent, 0),
 		tasks:           make(map[string]*KanbanTask),
 	}
@@ -99,7 +99,7 @@ func (h *KanbanTestHarness) BaseURL() string {
 	return h.server.URL
 }
 
-// GetPublishedEvents returns all events published to Busboy
+// GetPublishedEvents returns all events published to Wotan
 func (h *KanbanTestHarness) GetPublishedEvents() []PublishedEvent {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -174,7 +174,7 @@ func (h *KanbanTestHarness) handleCreateTask(w http.ResponseWriter, r *http.Requ
 	h.tasks[task.ID] = &task
 	h.tasksMu.Unlock()
 
-	// Publish to Busboy
+	// Publish to Wotan
 	h.publishEvent("tasks.created", &task)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -251,7 +251,7 @@ func (h *KanbanTestHarness) handleUpdateTaskByID(w http.ResponseWriter, r *http.
 		eventTopic = "tasks.completed"
 	}
 
-	// Publish to Busboy
+	// Publish to Wotan
 	h.publishEvent(eventTopic, &task)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -269,7 +269,7 @@ func (h *KanbanTestHarness) handleDeleteTaskByID(w http.ResponseWriter, taskID s
 	delete(h.tasks, taskID)
 	h.tasksMu.Unlock()
 
-	// Publish to Busboy
+	// Publish to Wotan
 	h.publishEvent("tasks.deleted", task)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -284,7 +284,7 @@ func (h *KanbanTestHarness) handleHealth(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// publishEvent records an event and publishes to mock Busboy
+// publishEvent records an event and publishes to mock Wotan
 func (h *KanbanTestHarness) publishEvent(topic string, data interface{}) {
 	payload, _ := json.Marshal(data)
 
@@ -296,11 +296,11 @@ func (h *KanbanTestHarness) publishEvent(topic string, data interface{}) {
 	})
 	h.mu.Unlock()
 
-	// Also publish to mock Busboy
+	// Also publish to mock Wotan
 	ctx := context.Background()
-	h.MockBusboy.Subscribe(ctx, topic, "test")
-	h.MockBusboy.ApproveSubscription(topic)
-	h.MockBusboy.Publish(ctx, topic, payload)
+	h.MockWotan.Subscribe(ctx, topic, "test")
+	h.MockWotan.ApproveSubscription(topic)
+	h.MockWotan.Publish(ctx, topic, payload)
 }
 
 // ============================================================================
@@ -369,7 +369,7 @@ func TestKanbanE2E_SmokeTest(t *testing.T) {
 
 	t.Logf("Task created: %s", task.ID)
 
-	// Verify Busboy event was published
+	// Verify Wotan event was published
 	createdEvents := harness.GetEventsByTopic("tasks.created")
 	if len(createdEvents) == 0 {
 		t.Error("Expected tasks.created event to be published")
@@ -398,7 +398,7 @@ func TestKanbanE2E_SmokeTest(t *testing.T) {
 
 	t.Logf("Task moved to in-progress")
 
-	// Verify Busboy update event
+	// Verify Wotan update event
 	updatedEvents := harness.GetEventsByTopic("tasks.updated")
 	if len(updatedEvents) == 0 {
 		t.Error("Expected tasks.updated event to be published")
@@ -426,7 +426,7 @@ func TestKanbanE2E_SmokeTest(t *testing.T) {
 
 	t.Logf("Task completed")
 
-	// Verify Busboy completed event
+	// Verify Wotan completed event
 	completedEvents := harness.GetEventsByTopic("tasks.completed")
 	if len(completedEvents) == 0 {
 		t.Error("Expected tasks.completed event to be published")
@@ -457,8 +457,8 @@ func TestKanbanE2E_SmokeTest(t *testing.T) {
 
 	t.Logf("Persistence verified: status=%s, progress=%d", persistedTask.Status, persistedTask.Progress)
 
-	// ===== STEP 6: Verify All Busboy Events =====
-	t.Log("Step 6: Verify all Busboy events...")
+	// ===== STEP 6: Verify All Wotan Events =====
+	t.Log("Step 6: Verify all Wotan events...")
 
 	allEvents := harness.GetPublishedEvents()
 	t.Logf("Total events published: %d", len(allEvents))
@@ -677,8 +677,8 @@ func TestKanbanE2E_ConcurrentOperations(t *testing.T) {
 	t.Logf("Concurrent operations test PASSED: %d tasks created", count)
 }
 
-// TestKanbanE2E_BusboyEventPayload tests that Busboy events have correct payload
-func TestKanbanE2E_BusboyEventPayload(t *testing.T) {
+// TestKanbanE2E_WotanEventPayload tests that Wotan events have correct payload
+func TestKanbanE2E_WotanEventPayload(t *testing.T) {
 	harness := NewKanbanTestHarness(t)
 	defer harness.Cleanup()
 
@@ -733,7 +733,7 @@ func TestKanbanE2E_BusboyEventPayload(t *testing.T) {
 		t.Error("Event payload UpdatedAt should not be zero")
 	}
 
-	t.Log("Busboy event payload test PASSED")
+	t.Log("Wotan event payload test PASSED")
 }
 
 // TestKanbanE2E_ErrorHandling tests error cases
@@ -843,11 +843,11 @@ func TestKanbanE2E_TimelinePersistence(t *testing.T) {
 }
 
 // ============================================================================
-// BUSBOY INTEGRATION TESTS
+// WOTAN INTEGRATION TESTS
 // ============================================================================
 
-// TestKanbanE2E_BusboyPublishCount verifies publish counts
-func TestKanbanE2E_BusboyPublishCount(t *testing.T) {
+// TestKanbanE2E_WotanPublishCount verifies publish counts
+func TestKanbanE2E_WotanPublishCount(t *testing.T) {
 	harness := NewKanbanTestHarness(t)
 	defer harness.Cleanup()
 
@@ -910,20 +910,20 @@ func TestKanbanE2E_BusboyPublishCount(t *testing.T) {
 		t.Errorf("Total events: expected %d, got %d", expectedTotal, len(total))
 	}
 
-	// Verify mock Busboy also recorded publishes
-	if harness.MockBusboy.GetPublishCount() == 0 {
-		t.Error("Expected MockBusboy to record publishes")
+	// Verify mock Wotan also recorded publishes
+	if harness.MockWotan.GetPublishCount() == 0 {
+		t.Error("Expected MockWotan to record publishes")
 	}
 
-	t.Logf("Busboy publish count test PASSED: %d total events", len(total))
+	t.Logf("Wotan publish count test PASSED: %d total events", len(total))
 }
 
 // ============================================================================
-// MOCK BUSBOY CLIENT VERIFICATION
+// MOCK WOTAN CLIENT VERIFICATION
 // ============================================================================
 
-// TestKanbanE2E_MockBusboyIntegration verifies the mock Busboy client works correctly
-func TestKanbanE2E_MockBusboyIntegration(t *testing.T) {
+// TestKanbanE2E_MockWotanIntegration verifies the mock Wotan client works correctly
+func TestKanbanE2E_MockWotanIntegration(t *testing.T) {
 	mockClient := mock.NewMockClient(mock.WithAutoApprove())
 
 	ctx := context.Background()
@@ -977,5 +977,5 @@ func TestKanbanE2E_MockBusboyIntegration(t *testing.T) {
 		t.Error("Timeout waiting for streamed message")
 	}
 
-	t.Log("Mock Busboy integration test PASSED")
+	t.Log("Mock Wotan integration test PASSED")
 }

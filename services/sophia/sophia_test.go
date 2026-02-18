@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -74,8 +74,8 @@ func TestDefaultConfig(t *testing.T) {
 	if !config.EnableInference {
 		t.Error("Expected EnableInference to be true")
 	}
-	if config.BusboyTopic != "sophia.wisdom" {
-		t.Errorf("Expected BusboyTopic 'sophia.wisdom', got %s", config.BusboyTopic)
+	if config.WotanTopic != "sophia.wisdom" {
+		t.Errorf("Expected WotanTopic 'sophia.wisdom', got %s", config.WotanTopic)
 	}
 }
 
@@ -1057,7 +1057,7 @@ func TestHandleCriticalAlert(t *testing.T) {
 	})
 
 	t.Run("Generates insight from alert", func(t *testing.T) {
-		msg := &busboyClient.Message{
+		msg := &wotanClient.Message{
 			MessageID: "alert-123",
 			Topic:     "alerts.critical",
 			Payload:   "Critical system failure detected",
@@ -1336,7 +1336,7 @@ func TestServiceStartStop(t *testing.T) {
 	config := &Config{
 		EnableInference:   false,
 		InferenceInterval: time.Hour,
-		BusboyTopic:       "sophia.test",
+		WotanTopic:       "sophia.test",
 	}
 	svc := NewService(log, nil, config)
 
@@ -1362,11 +1362,11 @@ func TestServiceStartStop(t *testing.T) {
 	cancel()
 }
 
-func TestPublishEventNilBusboy(t *testing.T) {
+func TestPublishEventNilWotan(t *testing.T) {
 	svc := newTestService()
 	ctx := context.Background()
 
-	// Should not panic with nil busboy
+	// Should not panic with nil wotan
 	svc.publishEvent(ctx, "test.event", map[string]interface{}{"key": "value"})
 }
 
@@ -1378,7 +1378,7 @@ func TestPublishEventWithTraceID(t *testing.T) {
 	svc.publishEvent(ctx, "test.event", map[string]interface{}{"key": "value"})
 }
 
-func TestListenForAlertsNilBusboy(t *testing.T) {
+func TestListenForAlertsNilWotan(t *testing.T) {
 	svc := newTestService()
 	ctx := context.Background()
 
@@ -1386,7 +1386,7 @@ func TestListenForAlertsNilBusboy(t *testing.T) {
 	svc.listenForAlerts(ctx)
 }
 
-func TestSubscribeToEventsNilBusboy(t *testing.T) {
+func TestSubscribeToEventsNilWotan(t *testing.T) {
 	svc := newTestService()
 	ctx := context.Background()
 
@@ -1520,7 +1520,7 @@ func TestInferenceLoopWithContext(t *testing.T) {
 	config := &Config{
 		EnableInference:   true,
 		InferenceInterval: 10 * time.Millisecond, // Very short for testing
-		BusboyTopic:       "sophia.test",
+		WotanTopic:       "sophia.test",
 	}
 	svc := NewService(log, nil, config)
 	svc.registerDefaultRules()
@@ -1588,7 +1588,7 @@ func TestStartWithInferenceDisabled(t *testing.T) {
 	config := &Config{
 		EnableInference:   false,
 		InferenceInterval: time.Hour,
-		BusboyTopic:       "sophia.test",
+		WotanTopic:       "sophia.test",
 	}
 	svc := NewService(log, nil, config)
 

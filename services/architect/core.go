@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Common errors
@@ -124,8 +124,8 @@ type NetworkTopology struct {
 type ArchitectService struct {
 	infra        *InfrastructureState
 	network      *NetworkTopology
-	busboy       *busboyClient.Client
-	alertChannel chan *busboyClient.Message
+	wotan       *wotanClient.Client
+	alertChannel chan *wotanClient.Message
 	mu           sync.RWMutex
 }
 
@@ -139,12 +139,12 @@ func New() *ArchitectService {
 		network: &NetworkTopology{
 			Nodes: make(map[string]*NetworkNode),
 		},
-		alertChannel: make(chan *busboyClient.Message, 100),
+		alertChannel: make(chan *wotanClient.Message, 100),
 	}
 }
 
-// NewWithBusboy creates a new ArchitectService with Busboy integration
-func NewWithBusboy(busboy *busboyClient.Client) *ArchitectService {
+// NewWithWotan creates a new ArchitectService with Wotan integration
+func NewWithWotan(wotan *wotanClient.Client) *ArchitectService {
 	return &ArchitectService{
 		infra: &InfrastructureState{
 			Services:  make(map[string]*Service),
@@ -153,31 +153,31 @@ func NewWithBusboy(busboy *busboyClient.Client) *ArchitectService {
 		network: &NetworkTopology{
 			Nodes: make(map[string]*NetworkNode),
 		},
-		busboy:       busboy,
-		alertChannel: make(chan *busboyClient.Message, 100),
+		wotan:       wotan,
+		alertChannel: make(chan *wotanClient.Message, 100),
 	}
 }
 
-// SetBusboy sets the Busboy client for the service
-func (s *ArchitectService) SetBusboy(busboy *busboyClient.Client) {
+// SetWotan sets the Wotan client for the service
+func (s *ArchitectService) SetWotan(wotan *wotanClient.Client) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.busboy = busboy
+	s.wotan = wotan
 }
 
-// Start initializes Busboy subscriptions and starts listening for alerts
+// Start initializes Wotan subscriptions and starts listening for alerts
 func (s *ArchitectService) Start(ctx context.Context) error {
-	if s.busboy == nil {
-		return nil // Busboy not configured, skip
+	if s.wotan == nil {
+		return nil // Wotan not configured, skip
 	}
 
 	// Subscribe to alerts.critical (required by CLAUDE.md)
-	if _, err := s.busboy.Subscribe(ctx, "alerts.critical", "architect-service"); err != nil {
+	if _, err := s.wotan.Subscribe(ctx, "alerts.critical", "architect-service"); err != nil {
 		return fmt.Errorf("subscribe to alerts.critical: %w", err)
 	}
 
 	// Subscribe to architecture.updates for own topic
-	if _, err := s.busboy.Subscribe(ctx, "architecture.updates", "architect-service"); err != nil {
+	if _, err := s.wotan.Subscribe(ctx, "architecture.updates", "architect-service"); err != nil {
 		return fmt.Errorf("subscribe to architecture.updates: %w", err)
 	}
 
@@ -187,13 +187,13 @@ func (s *ArchitectService) Start(ctx context.Context) error {
 	return nil
 }
 
-// listenForAlerts listens for critical alerts from Busboy
+// listenForAlerts listens for critical alerts from Wotan
 func (s *ArchitectService) listenForAlerts(ctx context.Context) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
-	msgCh, err := s.busboy.StreamMessages(ctx, "alerts.critical")
+	msgCh, err := s.wotan.StreamMessages(ctx, "alerts.critical")
 	if err != nil {
 		return
 	}
@@ -213,7 +213,7 @@ func (s *ArchitectService) listenForAlerts(ctx context.Context) {
 }
 
 // handleCriticalAlert processes critical alerts
-func (s *ArchitectService) handleCriticalAlert(ctx context.Context, msg *busboyClient.Message) {
+func (s *ArchitectService) handleCriticalAlert(ctx context.Context, msg *wotanClient.Message) {
 	if msg == nil {
 		return
 	}
@@ -222,9 +222,9 @@ func (s *ArchitectService) handleCriticalAlert(ctx context.Context, msg *busboyC
 	_ = ctx
 }
 
-// publishStateChange publishes a state change event to Busboy
+// publishStateChange publishes a state change event to Wotan
 func (s *ArchitectService) publishStateChange(ctx context.Context, eventType string, data interface{}) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
@@ -254,7 +254,7 @@ func (s *ArchitectService) publishStateChange(ctx context.Context, eventType str
 	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_ = s.busboy.Publish(pubCtx, "architecture.updates", payload)
+	_ = s.wotan.Publish(pubCtx, "architecture.updates", payload)
 }
 
 // ============================================================================
@@ -281,7 +281,7 @@ func (s *ArchitectService) AddService(ctx context.Context, service *Service) err
 	service.UpdatedAt = time.Now()
 	s.infra.Services[service.ServiceID] = service
 
-	// Publish state change to Busboy
+	// Publish state change to Wotan
 	go s.publishStateChange(ctx, "service.added", map[string]interface{}{
 		"service_id": service.ServiceID,
 		"name":       service.Name,
@@ -388,7 +388,7 @@ func (s *ArchitectService) AddNetworkNode(ctx context.Context, node *NetworkNode
 	node.UpdatedAt = time.Now()
 	s.network.Nodes[node.NodeID] = node
 
-	// Publish state change to Busboy
+	// Publish state change to Wotan
 	go s.publishStateChange(ctx, "network.node_added", map[string]interface{}{
 		"node_id": node.NodeID,
 		"name":    node.Name,
@@ -493,7 +493,7 @@ func (s *ArchitectService) LogDecision(ctx context.Context, decision *Architectu
 	decision.UpdatedAt = time.Now()
 	s.infra.Decisions = append(s.infra.Decisions, *decision)
 
-	// Publish state change to Busboy
+	// Publish state change to Wotan
 	go s.publishStateChange(ctx, "decision.logged", map[string]interface{}{
 		"decision_id": decision.DecisionID,
 		"title":       decision.Title,

@@ -13,7 +13,7 @@ func TestBasicLogging(t *testing.T) {
 	buf := &bytes.Buffer{}
 	log := New(buf)
 
-	log.Info().Str("service", "busboy").Int("port", 8080).Msg("starting server")
+	log.Info().Str("service", "wotan").Int("port", 8080).Msg("starting server")
 
 	var entry map[string]interface{}
 	if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
@@ -23,8 +23,8 @@ func TestBasicLogging(t *testing.T) {
 	if entry["level"] != "info" {
 		t.Errorf("expected level 'info', got '%v'", entry["level"])
 	}
-	if entry["service"] != "busboy" {
-		t.Errorf("expected service 'busboy', got '%v'", entry["service"])
+	if entry["service"] != "wotan" {
+		t.Errorf("expected service 'wotan', got '%v'", entry["service"])
 	}
 	if entry["port"] != float64(8080) {
 		t.Errorf("expected port 8080, got '%v'", entry["port"])

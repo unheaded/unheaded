@@ -189,8 +189,8 @@ func (m *mockLXDClient) DeleteNetwork(_ context.Context, _ string) error {
 	return m.deleteNetworkErr
 }
 
-// mockBusboyClient tracks published events.
-type mockBusboyClient struct {
+// mockWotanClient tracks published events.
+type mockWotanClient struct {
 	mu       sync.Mutex
 	events   [][]byte
 	topics   []string
@@ -198,14 +198,14 @@ type mockBusboyClient struct {
 	callCount int64
 }
 
-func newMockBusboy() *mockBusboyClient {
-	return &mockBusboyClient{
+func newMockWotan() *mockWotanClient {
+	return &mockWotanClient{
 		events: make([][]byte, 0),
 		topics: make([]string, 0),
 	}
 }
 
-func (m *mockBusboyClient) Publish(_ context.Context, topic string, payload []byte) error {
+func (m *mockWotanClient) Publish(_ context.Context, topic string, payload []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	atomic.AddInt64(&m.callCount, 1)
@@ -217,13 +217,13 @@ func (m *mockBusboyClient) Publish(_ context.Context, topic string, payload []by
 	return nil
 }
 
-func (m *mockBusboyClient) eventCount() int {
+func (m *mockWotanClient) eventCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.events)
 }
 
-func (m *mockBusboyClient) lastEvent() *ReconciliationEvent {
+func (m *mockWotanClient) lastEvent() *ReconciliationEvent {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if len(m.events) == 0 {
@@ -258,10 +258,10 @@ func testConfig() ReconcilerConfig {
 	return cfg
 }
 
-func newTestReconciler(t *testing.T) (*Reconciler, *mockLXDClient, *mockBusboyClient) {
+func newTestReconciler(t *testing.T) (*Reconciler, *mockLXDClient, *mockWotanClient) {
 	t.Helper()
 	lxd := newMockLXD()
-	bus := newMockBusboy()
+	bus := newMockWotan()
 	r, err := NewReconciler(testConfig(), lxd, bus, &silentLogger{})
 	if err != nil {
 		t.Fatalf("NewReconciler: %v", err)
@@ -330,35 +330,35 @@ func TestNewReconciler(t *testing.T) {
 	tests := []struct {
 		name      string
 		lxd       LXDClient
-		busboy    BusboyClient
+		wotan    WotanClient
 		logger    Logger
 		wantErr   error
 	}{
 		{
 			name:    "nil LXD client returns error",
 			lxd:     nil,
-			busboy:  newMockBusboy(),
+			wotan:  newMockWotan(),
 			logger:  &silentLogger{},
 			wantErr: ErrLXDClientNil,
 		},
 		{
-			name:    "nil busboy is allowed",
+			name:    "nil wotan is allowed",
 			lxd:     newMockLXD(),
-			busboy:  nil,
+			wotan:  nil,
 			logger:  &silentLogger{},
 			wantErr: nil,
 		},
 		{
 			name:    "nil logger uses default",
 			lxd:     newMockLXD(),
-			busboy:  newMockBusboy(),
+			wotan:  newMockWotan(),
 			logger:  nil,
 			wantErr: nil,
 		},
 		{
 			name:    "all provided",
 			lxd:     newMockLXD(),
-			busboy:  newMockBusboy(),
+			wotan:  newMockWotan(),
 			logger:  &silentLogger{},
 			wantErr: nil,
 		},
@@ -366,7 +366,7 @@ func TestNewReconciler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := NewReconciler(testConfig(), tt.lxd, tt.busboy, tt.logger)
+			r, err := NewReconciler(testConfig(), tt.lxd, tt.wotan, tt.logger)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Errorf("expected error %v, got %v", tt.wantErr, err)
@@ -1638,7 +1638,7 @@ func TestRateLimiter_Concurrent(t *testing.T) {
 // ============================================================================
 
 func TestEventEmission(t *testing.T) {
-	t.Run("nil busboy client does not panic", func(t *testing.T) {
+	t.Run("nil wotan client does not panic", func(t *testing.T) {
 		lxd := newMockLXD()
 		r, err := NewReconciler(testConfig(), lxd, nil, &silentLogger{})
 		if err != nil {
@@ -1651,7 +1651,7 @@ func TestEventEmission(t *testing.T) {
 		})
 	})
 
-	t.Run("busboy error is logged but does not fail", func(t *testing.T) {
+	t.Run("wotan error is logged but does not fail", func(t *testing.T) {
 		r, _, bus := newTestReconciler(t)
 		bus.err = errors.New("publish failed")
 		// Should not panic or return error
@@ -1891,7 +1891,7 @@ func TestHistory(t *testing.T) {
 		cfg := testConfig()
 		cfg.MaxHistorySize = 3
 		lxd := newMockLXD()
-		bus := newMockBusboy()
+		bus := newMockWotan()
 		r, err := NewReconciler(cfg, lxd, bus, &silentLogger{})
 		if err != nil {
 			t.Fatal(err)

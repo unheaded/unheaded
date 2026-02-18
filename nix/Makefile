@@ -10,7 +10,7 @@ help:
 	@echo ""
 	@echo "Build Commands:"
 	@echo "  make build          - Build all containers"
-	@echo "  make build-busboy   - Build busboy container"
+	@echo "  make build-wotan   - Build wotan container"
 	@echo "  make build-services - Build all agent services"
 	@echo "  make build-apps     - Build kanban + dashboard apps"
 	@echo ""
@@ -40,12 +40,12 @@ help:
 # BUILD TARGETS
 # ==============================================================================
 
-build: build-busboy build-services build-apps
+build: build-wotan build-services build-apps
 	@echo "All containers built successfully!"
 
-build-busboy:
-	@echo "Building busboy..."
-	nix build .#nixosConfigurations.busboy.config.system.build.toplevel
+build-wotan:
+	@echo "Building wotan..."
+	nix build .#nixosConfigurations.wotan.config.system.build.toplevel
 
 build-services: build-timeguru build-captain build-micromanager build-architect build-developer
 	@echo "All services built!"
@@ -156,21 +156,21 @@ clean:
 # MONITORING TARGETS
 # ==============================================================================
 
-logs-busboy:
-	lxc exec unheaded-busboy -- journalctl -u busboy -f
+logs-wotan:
+	lxc exec unheaded-wotan -- journalctl -u wotan -f
 
 logs-timeguru:
 	lxc exec unheaded-timeguru -- journalctl -u timeguru -f
 
 logs-all:
-	@for c in busboy timeguru captain micromanager architect developer kanban dashboard; do \
+	@for c in wotan timeguru captain micromanager architect developer kanban dashboard; do \
 		echo "=== $$c ===" ; \
 		lxc exec unheaded-$$c -- journalctl -u $$c -n 20 ; \
 	done
 
 health-check:
 	@echo "Checking health endpoints..."
-	@curl -sf http://10.10.10.10:8080/health && echo "busboy: OK" || echo "busboy: FAIL"
+	@curl -sf http://10.10.10.10:8080/health && echo "wotan: OK" || echo "wotan: FAIL"
 	@curl -sf http://10.10.10.20:8000/health && echo "timeguru: OK" || echo "timeguru: FAIL"
 	@curl -sf http://10.10.10.21:8001/health && echo "captain: OK" || echo "captain: FAIL"
 	@curl -sf http://10.10.10.22:8002/health && echo "micromanager: OK" || echo "micromanager: FAIL"
@@ -181,7 +181,7 @@ health-check:
 
 metrics:
 	@echo "Fetching metrics from all containers..."
-	@for c in busboy timeguru captain micromanager architect developer kanban dashboard; do \
+	@for c in wotan timeguru captain micromanager architect developer kanban dashboard; do \
 		echo "=== $$c metrics ===" ; \
 		curl -s http://10.10.10.10:9100/metrics | head -20 ; \
 	done
@@ -192,7 +192,7 @@ metrics:
 
 security-audit:
 	@echo "Running security audit..."
-	@for c in busboy timeguru captain micromanager architect developer kanban dashboard; do \
+	@for c in wotan timeguru captain micromanager architect developer kanban dashboard; do \
 		echo "=== Auditing $$c ===" ; \
 		lxc exec unheaded-$$c -- grep Seccomp /proc/1/status ; \
 		lxc exec unheaded-$$c -- grep NoNewPrivs /proc/1/status ; \

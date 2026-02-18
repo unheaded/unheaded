@@ -1,6 +1,6 @@
 //! Integration tests for the trace-collector pipeline.
 //!
-//! These tests verify the eBPF -> trace-collector -> Busboy pipeline
+//! These tests verify the eBPF -> trace-collector -> Wotan pipeline
 //! using mock eBPF events instead of real kernel ring buffers.
 //!
 //! Test coverage:
@@ -632,7 +632,7 @@ fn batch_payload_compression_ratio() {
 fn event_serialization_roundtrip_packet() {
     let event = mock_packet_event(
         42,
-        "busboy",
+        "wotan",
         Ipv4Addr::new(10, 10, 10, 10),
         Ipv4Addr::new(10, 10, 10, 20),
         50051,
@@ -645,7 +645,7 @@ fn event_serialization_roundtrip_packet() {
 
     assert_eq!(deserialized.event_type, EventType::Packet);
     assert_eq!(deserialized.pid, 42);
-    assert_eq!(deserialized.comm, "busboy");
+    assert_eq!(deserialized.comm, "wotan");
     assert_eq!(deserialized.timestamp_ns, 999_999_999);
 
     if let EventData::Packet(pkt) = &deserialized.data {

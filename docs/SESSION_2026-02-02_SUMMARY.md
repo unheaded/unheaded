@@ -14,7 +14,7 @@ A comprehensive code quality and feature completion session addressing all four 
 1. **Test Failures Fixed** - Reduced from ~25 failing packages to 3 timeout-related tests
 2. **Services Completed** - Created HTTP APIs for Monad and Sophia services
 3. **Frontend Built** - Implemented dashboard packet-flow visualization, metrics display, comprehensive CSS
-4. **Control Plane Enhanced** - Added Busboy integration and reconciliation actions to unheaded-daemon
+4. **Control Plane Enhanced** - Added Wotan integration and reconciliation actions to unheaded-daemon
 
 **Result:** Build succeeds, services have HTTP APIs, frontend is functional, control plane orchestrates containers.
 
@@ -62,7 +62,7 @@ TIMEOUT ONLY: websocket, worker, nix/tests (infrastructure tests)
 - `GET /api/v1/stats` - Service statistics
 
 **Features:**
-- Busboy integration with auto-reconnect
+- Wotan integration with auto-reconnect
 - Graceful shutdown (30s timeout)
 - Default operation handlers (echo, ping, transform, log)
 - Request logging middleware
@@ -86,7 +86,7 @@ TIMEOUT ONLY: websocket, worker, nix/tests (infrastructure tests)
 - Semantic similarity search
 - Inference engine with rules
 - Decision support with scoring
-- Busboy event publishing
+- Wotan event publishing
 
 ### Service Enhancements
 
@@ -126,7 +126,7 @@ Updated default routes to serve all Alpha services:
 
 **Service Topology:**
 ```
-Gateway → Busboy (hub) → [timeguru, captain, architect, micromanager, monad, sophia]
+Gateway → Wotan (hub) → [timeguru, captain, architect, micromanager, monad, sophia]
 ```
 
 #### metrics.js - System Metrics Display (~300 lines)
@@ -176,13 +176,13 @@ Already 95% complete from previous sessions:
 
 ### unheaded-daemon Improvements
 
-#### Busboy Integration Added
+#### Wotan Integration Added
 
 ```go
 // New fields in Daemon struct
-busboy       *busboyClient.Client
-busboyReady  bool
-busboyMu     sync.RWMutex
+wotan       *wotanClient.Client
+wotanReady  bool
+wotanMu     sync.RWMutex
 
 // Topics published to
 TopicCuirassDrift   = "cuirass.drift"
@@ -190,8 +190,8 @@ TopicCuirassMetrics = "cuirass.metrics"
 ```
 
 **Features:**
-- Connect on startup (configurable via `--busboy` or `BUSBOY_ADDR`)
-- Graceful degradation if Busboy unavailable
+- Connect on startup (configurable via `--wotan` or `WOTAN_ADDR`)
+- Graceful degradation if Wotan unavailable
 - Publish drift events when detected
 - Publish reconcile action events
 - Auto-reconnect on connection loss
@@ -294,7 +294,7 @@ All packages compile without errors.
 2. **Test Status:** MOSTLY GREEN - Only timeout tests fail
 3. **Service Status:** All 8 services have HTTP APIs
 4. **Frontend Status:** Dashboard 95%, Kanban 95%
-5. **Control Plane Status:** Busboy integrated, reconciliation works
+5. **Control Plane Status:** Wotan integrated, reconciliation works
 
 ### Environment Requirements
 

@@ -2,7 +2,7 @@
 
 **Created:** 2026-01-28 (late night)
 **Purpose:** Summary for overnight autonomous Claude session
-**Repos Available:** `~/tmp/unheaded` and `~/tmp/busboy`
+**Repos Available:** `~/tmp/unheaded` and `~/tmp/wotan`
 
 ---
 
@@ -11,7 +11,7 @@
 ### 1. Circular Workflow Formalized
 
 ```
-MUCK + TIMEGURU <---> CAPTAIN + MICROMANAGER <---> BUSBOY <---> ARCHITECT + DEVELOPER
+MUCK + TIMEGURU <---> CAPTAIN + MICROMANAGER <---> WOTAN <---> ARCHITECT + DEVELOPER
       │                        │                      │                    │
       └────────────────────────┴──────────────────────┴────────────────────┘
                               ALL UPDATE TIMELINE.MD
@@ -66,7 +66,7 @@ unheaded-calendar/
 - [ ] Wrap existing RingBuffer as `MemoryStore`
 - [ ] Add store selection config
 
-**Scaffolding Audit (busboy repo)**
+**Scaffolding Audit (wotan repo)**
 - [ ] Makefile completeness (lint, test, bench, build, cover)
 - [ ] Go project structure review (cmd/, internal/, pkg/)
 - [ ] godoc comments audit and additions
@@ -91,7 +91,7 @@ unheaded-calendar/
 
 ```
 ~/tmp/unheaded    # Main unheaded repo (skills, timeline, etc.)
-~/tmp/busboy      # Message bus implementation (Go)
+~/tmp/wotan      # Message bus implementation (Go)
 ```
 
 **Claude has full access to audit, modify, and improve these repos.**
@@ -132,7 +132,7 @@ unheaded-calendar/
 | **Developer** | CODE - TDD, secure coding | During implementation |
 | **Micromanager** | WHAT/WHEN - task breakdown | For prioritization |
 | **Captain** | WHY/WHERE - strategy | For scope questions |
-| **Busboy** | GLUE - coordination | When things get tangled |
+| **Wotan** | GLUE - coordination | When things get tangled |
 | **Timeguru** | TIMELINE - tracking | Always (timeline.md) |
 | **Calendar** | DATES - scheduling | Read for context |
 
@@ -147,7 +147,7 @@ caffeinate -dims &
 # Claude's first actions:
 1. Read ~/tmp/unheaded/unheaded-timeguru/references/timeline.md
 2. Read ~/tmp/unheaded/unheaded-calendar/references/2026/01/28/day.md
-3. List ~/tmp/busboy structure
+3. List ~/tmp/wotan structure
 4. Begin scaffolding audit
 5. Start shipping
 ```

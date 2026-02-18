@@ -12,7 +12,7 @@
 Implemented timeguru-service microservice from zero following strict TDD principles:
 
 - ✅ HTTP API endpoints (GET /timeline, GET /milestones, POST /milestones/:id/update, GET /health)
-- ✅ Busboy integration (pub/sub with reconnection logic)
+- ✅ Wotan integration (pub/sub with reconnection logic)
 - ✅ Timeline persistence (SQLite with defensive validation)
 - ✅ Comprehensive test suite (unit + concurrency + edge cases)
 - ✅ 949 LOC production code (target: 400-600, extended for robustness)
@@ -28,7 +28,7 @@ Implemented timeguru-service microservice from zero following strict TDD princip
 ```
 services/timeguru/
 ├── cmd/timeguru/
-│   └── main.go                    # 217 LOC - Service entry point, busboy integration
+│   └── main.go                    # 217 LOC - Service entry point, wotan integration
 ├── internal/
 │   ├── timeline/
 │   │   ├── timeline.go           # 184 LOC - Data models with validation
@@ -39,7 +39,7 @@ services/timeguru/
 │   └── api/
 │       ├── handlers.go           # 199 LOC - HTTP handlers with validation
 │       └── handlers_test.go      # 482 LOC - API + concurrency tests
-├── go.mod                         # Module definition with busboy-client
+├── go.mod                         # Module definition with wotan-client
 ├── Makefile                       # Standard targets (test, test-race, coverage, bench)
 └── README.md                      # Complete documentation
 
@@ -122,7 +122,7 @@ func (m *Milestone) Validate() error {
 }
 ```
 
-### 4. Busboy Integration (main.go)
+### 4. Wotan Integration (main.go)
 
 **Connection Strategy:**
 - Attempt connection on startup
@@ -133,13 +133,13 @@ func (m *Milestone) Validate() error {
 
 **Why Defensive:**
 ```go
-// Service continues even if Busboy is down
-busboyClient, err := initBusboy(config.BusboyAddr)
+// Service continues even if Wotan is down
+wotanClient, err := initWotan(config.WotanAddr)
 if err != nil {
-    log.Printf("WARNING: busboy connection failed: %v", err)
-    busboyClient = nil  // Service still works
+    log.Printf("WARNING: wotan connection failed: %v", err)
+    wotanClient = nil  // Service still works
 } else {
-    defer busboyClient.Close()
+    defer wotanClient.Close()
 }
 ```
 
@@ -217,7 +217,7 @@ All config via environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8000` | HTTP server port |
-| `BUSBOY_ADDR` | `localhost:9090` | Busboy server address |
+| `WOTAN_ADDR` | `localhost:9090` | Wotan server address |
 | `DB_PATH` | `/opt/unheaded/data/timeguru.db` | SQLite database path |
 
 **Defensive defaults:** All values have safe fallbacks if unset.
@@ -250,16 +250,16 @@ make clean
 
 ## Integration Points
 
-### With Busboy
+### With Wotan
 
 **Topic:** `timeline.updates`
 **Display Name:** `timeguru-service`
 **Message Format:** JSON (timeline data)
 
 **Behavior:**
-- Publishes milestone updates to Busboy
+- Publishes milestone updates to Wotan
 - Subscribes to timeline change events
-- Gracefully handles Busboy unavailability
+- Gracefully handles Wotan unavailability
 
 ### With Other Services
 
@@ -283,7 +283,7 @@ make clean
    - Only JSON supported currently
    - YAML serialization planned for IaC integration
 
-3. **Busboy Messages Not Processed**
+3. **Wotan Messages Not Processed**
    - Listener exists but only logs messages
    - Processing logic to be added in Phase 2
 
@@ -299,7 +299,7 @@ make clean
 
 ✅ All acceptance criteria met:
 - HTTP endpoints functional
-- Busboy integration complete
+- Wotan integration complete
 - Tests written first (TDD)
 - 80%+ coverage achieved (137% actual)
 - Defensive coding throughout
@@ -307,7 +307,7 @@ make clean
 ### For Architect
 
 Integration points defined:
-- Busboy topic: `timeline.updates`
+- Wotan topic: `timeline.updates`
 - HTTP port: configurable via `PORT` env var
 - Database: SQLite at configurable path
 - Ready for NixOS containerization
@@ -352,7 +352,7 @@ Integration points defined:
 | Test Coverage | 100% methods | 80%+ | ✅ Exceeded |
 | Race Tests | Pass | Required | ✅ Pass |
 | Endpoints | 4 | 4 | ✅ Complete |
-| Busboy Integration | Yes | Yes | ✅ Complete |
+| Wotan Integration | Yes | Yes | ✅ Complete |
 | Persistence | SQLite | JSON/SQLite | ✅ Complete |
 
 ---
@@ -371,7 +371,7 @@ Integration points defined:
 - **Ritchie:** Small sharp tools. Each component does one thing well.
 - **Gregg:** Observability baked in (health endpoint, structured errors).
 - **Stenberg:** Defensive validation on ALL inputs.
-- **Netflix:** Graceful degradation (continues without Busboy).
+- **Netflix:** Graceful degradation (continues without Wotan).
 - **Squaresoft:** Polished to perfection. No shortcuts.
 
 ---
@@ -382,7 +382,7 @@ Integration points defined:
 
 **Next Steps:**
 1. Deploy to NixOS container
-2. Wire to Busboy instance
+2. Wire to Wotan instance
 3. Integrate with Kanban app
 4. Add MD parser (Phase 2)
 5. Add YAML export (Phase 2)

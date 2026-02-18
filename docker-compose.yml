@@ -5,12 +5,12 @@
 #
 # USAGE:
 #   docker-compose up -d              # Start all services
-#   docker-compose up -d busboy       # Start just Busboy (Fae Chamber)
+#   docker-compose up -d wotan       # Start just Wotan (Fae Chamber)
 #   docker-compose logs -f timeguru   # Follow Timeguru logs
 #   docker-compose ps                 # Service status
 #
 # THE ARMORY STATUS:
-#   🧚 Busboy (Fae Chamber)    - Message bus, event orchestration
+#   🧚 Wotan (Fae Chamber)    - Message bus, event orchestration
 #   ⌛ Timeguru (Oracle)        - Timeline tracking, prophecy
 #   👑 Captain (Commander)      - Vision & strategy API
 #   🏗️ Architect (Sage)         - Technical design, ADRs
@@ -33,8 +33,8 @@ networks:
 # VOLUMES - THE CRYSTAL GROTTO (Persistent Storage)
 # ============================================================================
 volumes:
-  busboy-data:
-    name: unheaded_busboy_data
+  wotan-data:
+    name: unheaded_wotan_data
   timeguru-data:
     name: unheaded_timeguru_data
   captain-data:
@@ -55,22 +55,22 @@ volumes:
 # ============================================================================
 services:
   # ==========================================================================
-  # BUSBOY - THE FAE CHAMBER
+  # WOTAN - THE FAE CHAMBER
   # Message Bus - Where fairies (messages) dance
   # ==========================================================================
-  busboy:
+  wotan:
     build:
       context: .
-      target: busboy
+      target: wotan
       args:
         VERSION: ${VERSION:-0.1.0-alpha}
         GIT_COMMIT: ${GIT_COMMIT:-dev}
         BUILD_TIME: ${BUILD_TIME:-unknown}
-    image: unheaded/busboy:${VERSION:-latest}
-    container_name: unheaded-busboy
-    hostname: busboy
+    image: unheaded/wotan:${VERSION:-latest}
+    container_name: unheaded-wotan
+    hostname: wotan
     restart: unless-stopped
-    command: ["--http-port", "8081", "--grpc-port", "5555", "--buffer-size", "${BUSBOY_BUFFER_SIZE:-10000}"]
+    command: ["--http-port", "8081", "--grpc-port", "5555", "--buffer-size", "${WOTAN_BUFFER_SIZE:-10000}"]
     networks:
       kingdom:
         ipv4_address: 172.28.1.1
@@ -80,7 +80,7 @@ services:
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      - busboy-data:/data
+      - wotan-data:/data
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
       interval: 30s
@@ -88,7 +88,7 @@ services:
       retries: 3
       start_period: 10s
     labels:
-      - "kingdom.component=busboy"
+      - "kingdom.component=wotan"
       - "kingdom.hollow=fae_chamber"
       - "kingdom.role=message_bus"
       - "kingdom.tier=infrastructure"
@@ -110,7 +110,7 @@ services:
     hostname: timeguru
     restart: unless-stopped
     depends_on:
-      busboy:
+      wotan:
         condition: service_healthy
     networks:
       kingdom:
@@ -119,7 +119,7 @@ services:
       - "8082:8082"
     environment:
       - PORT=8082
-      - BUSBOY_ADDR=busboy:8081
+      - WOTAN_ADDR=wotan:8081
       - DB_PATH=/data/timeguru.db
       - TIMELINE_PATH=/data/timeline.md
       - LOG_LEVEL=${LOG_LEVEL:-info}
@@ -155,7 +155,7 @@ services:
     hostname: captain
     restart: unless-stopped
     depends_on:
-      busboy:
+      wotan:
         condition: service_healthy
     networks:
       kingdom:
@@ -164,7 +164,7 @@ services:
       - "8083:8083"
     environment:
       - HTTP_ADDR=0.0.0.0:8083
-      - BUSBOY_ADDR=busboy:8081
+      - WOTAN_ADDR=wotan:8081
       - TIMEGURU_ADDR=timeguru:8082
       - DATA_PATH=/data
       - LOG_LEVEL=${LOG_LEVEL:-info}
@@ -198,9 +198,9 @@ services:
     container_name: unheaded-architect
     hostname: architect
     restart: unless-stopped
-    command: ["-addr", ":8084", "-busboy", "busboy:8081"]
+    command: ["-addr", ":8084", "-wotan", "wotan:8081"]
     depends_on:
-      busboy:
+      wotan:
         condition: service_healthy
     networks:
       kingdom:
@@ -242,9 +242,9 @@ services:
     container_name: unheaded-micromanager
     hostname: micromanager
     restart: unless-stopped
-    command: ["-port", "8085", "-busboy", "busboy:8081"]
+    command: ["-port", "8085", "-wotan", "wotan:8081"]
     depends_on:
-      busboy:
+      wotan:
         condition: service_healthy
       timeguru:
         condition: service_healthy
@@ -289,7 +289,7 @@ services:
     hostname: monad
     restart: unless-stopped
     depends_on:
-      busboy:
+      wotan:
         condition: service_healthy
     networks:
       kingdom:
@@ -298,7 +298,7 @@ services:
       - "8086:8086"
     environment:
       - MONAD_PORT=8086
-      - BUSBOY_ADDR=busboy:8081
+      - WOTAN_ADDR=wotan:8081
       - DB_PATH=/data/monad.db
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
@@ -332,7 +332,7 @@ services:
     hostname: sophia
     restart: unless-stopped
     depends_on:
-      busboy:
+      wotan:
         condition: service_healthy
     networks:
       kingdom:
@@ -341,7 +341,7 @@ services:
       - "8087:8087"
     environment:
       - SOPHIA_LISTEN_ADDR=:8087
-      - BUSBOY_ADDR=busboy:8081
+      - WOTAN_ADDR=wotan:8081
       - DB_PATH=/data/sophia.db
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
@@ -375,7 +375,7 @@ services:
     hostname: cuirass
     restart: unless-stopped
     depends_on:
-      busboy:
+      wotan:
         condition: service_healthy
     networks:
       kingdom:
@@ -387,7 +387,7 @@ services:
     environment:
       - HTTP_ADDR=:8080
       - GRPC_ADDR=:9090
-      - BUSBOY_ADDR=busboy:8081
+      - WOTAN_ADDR=wotan:8081
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - UNHEADED_NODE_ID=${NODE_ID:-cuirass-alpha}
       - UNHEADED_NODE_NAME=cuirass

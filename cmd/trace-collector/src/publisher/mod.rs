@@ -1,6 +1,6 @@
-//! Busboy Publisher - gRPC client for publishing events to the message bus.
+//! Wotan Publisher - gRPC client for publishing events to the message bus.
 //!
-//! THE WHISPERING VOID speaks through Busboy, delivering kernel whispers
+//! THE WHISPERING VOID speaks through Wotan, delivering kernel whispers
 //! to the realm of userspace services.
 //!
 //! Features:
@@ -25,7 +25,7 @@ pub use batch::{
 };
 
 // Re-export gRPC types
-pub use grpc::{BusboyClient, ClientState, ClientStats, StreamingClient};
+pub use grpc::{WotanClient, ClientState, ClientStats, StreamingClient};
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -64,12 +64,12 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// Request timeout
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Busboy gRPC service client
+/// Wotan gRPC service client
 ///
 /// This is a simplified representation. In production, you'd generate
 /// this from protobuf definitions using tonic-build.
-pub mod busboy_proto {
-    /// Trace event message for Busboy
+pub mod wotan_proto {
+    /// Trace event message for Wotan
     #[derive(Clone, PartialEq, prost::Message)]
     pub struct TraceEvent {
         /// Event type
@@ -215,8 +215,8 @@ impl PublisherStats {
     }
 }
 
-/// Busboy publisher for trace events
-pub struct BusboyPublisher {
+/// Wotan publisher for trace events
+pub struct WotanPublisher {
     /// gRPC endpoint URL
     endpoint: String,
     /// Collector identifier
@@ -237,8 +237,8 @@ pub struct BusboyPublisher {
     stats: Arc<PublisherStats>,
 }
 
-impl BusboyPublisher {
-    /// Create a new Busboy publisher
+impl WotanPublisher {
+    /// Create a new Wotan publisher
     pub async fn new(
         endpoint: &str,
         batch_size: usize,
@@ -255,7 +255,7 @@ impl BusboyPublisher {
             endpoint = endpoint,
             collector_id = collector_id,
             batch_size = batch_size,
-            "Creating Busboy publisher"
+            "Creating Wotan publisher"
         );
 
         let publisher = Self {
@@ -276,11 +276,11 @@ impl BusboyPublisher {
         Ok(publisher)
     }
 
-    /// Connect to Busboy
+    /// Connect to Wotan
     async fn connect(&self) -> Result<()> {
         *self.state.write() = PublisherState::Connecting;
 
-        info!(endpoint = self.endpoint, "Connecting to Busboy");
+        info!(endpoint = self.endpoint, "Connecting to Wotan");
 
         let endpoint = Endpoint::from_shared(self.endpoint.clone())
             .context("Invalid endpoint URL")?
@@ -293,7 +293,7 @@ impl BusboyPublisher {
                 *self.channel.write() = Some(channel);
                 *self.state.write() = PublisherState::Connected;
                 metrics::set_connection_state(&self.endpoint, true);
-                info!("Connected to Busboy");
+                info!("Connected to Wotan");
                 Ok(())
             }
             Ok(Err(e)) => {
@@ -319,7 +319,7 @@ impl BusboyPublisher {
             warn!(
                 attempt = attempts,
                 backoff_ms = backoff.as_millis(),
-                "Attempting to reconnect to Busboy"
+                "Attempting to reconnect to Wotan"
             );
 
             tokio::time::sleep(backoff).await;
@@ -361,15 +361,15 @@ impl BusboyPublisher {
     }
 
     /// Convert Event to protobuf TraceEvent
-    fn event_to_proto(event: &Event) -> busboy_proto::TraceEvent {
+    fn event_to_proto(event: &Event) -> wotan_proto::TraceEvent {
         let event_type = match event.event_type {
-            EventType::Packet => busboy_proto::EventType::Packet,
-            EventType::Syscall => busboy_proto::EventType::Syscall,
-            EventType::Latency => busboy_proto::EventType::Latency,
-            EventType::Process => busboy_proto::EventType::Process,
-            EventType::FileSystem => busboy_proto::EventType::FileSystem,
-            EventType::Memory => busboy_proto::EventType::Memory,
-            EventType::Custom => busboy_proto::EventType::Custom,
+            EventType::Packet => wotan_proto::EventType::Packet,
+            EventType::Syscall => wotan_proto::EventType::Syscall,
+            EventType::Latency => wotan_proto::EventType::Latency,
+            EventType::Process => wotan_proto::EventType::Process,
+            EventType::FileSystem => wotan_proto::EventType::FileSystem,
+            EventType::Memory => wotan_proto::EventType::Memory,
+            EventType::Custom => wotan_proto::EventType::Custom,
         };
 
         // Serialize event data to JSON for flexibility
@@ -381,7 +381,7 @@ impl BusboyPublisher {
             .map(|b| b.to_vec())
             .unwrap_or_default();
 
-        busboy_proto::TraceEvent {
+        wotan_proto::TraceEvent {
             event_type: event_type as i32,
             timestamp_ns: event.timestamp_ns,
             cpu: event.cpu as u32,
@@ -403,12 +403,12 @@ impl BusboyPublisher {
         let batch_len = batch.len();
 
         // Convert events to protobuf
-        let events: Vec<busboy_proto::TraceEvent> =
+        let events: Vec<wotan_proto::TraceEvent> =
             batch.events.iter().map(Self::event_to_proto).collect();
 
         let sequence = self.sequence.fetch_add(1, Ordering::SeqCst);
 
-        let proto_batch = busboy_proto::TraceEventBatch {
+        let proto_batch = wotan_proto::TraceEventBatch {
             collector_id: self.collector_id.clone(),
             sequence,
             events,
@@ -498,7 +498,7 @@ impl BusboyPublisher {
                     e.downcast_ref::<tonic::Status>(),
                     Some(s) if s.code() == tonic::Code::Unavailable
                 ) {
-                    warn!("Busboy unavailable, scheduling reconnection");
+                    warn!("Wotan unavailable, scheduling reconnection");
                     *self.state.write() = PublisherState::Disconnected;
                     *self.channel.write() = None;
                     metrics::set_connection_state(&self.endpoint, false);
@@ -523,7 +523,7 @@ impl BusboyPublisher {
         tokio::time::sleep(Duration::from_micros(100)).await;
 
         // Decode to get event count (in real impl, server returns this)
-        let batch = busboy_proto::TraceEventBatch::decode(&payload[..])
+        let batch = wotan_proto::TraceEventBatch::decode(&payload[..])
             .context("Failed to decode batch")?;
 
         Ok(batch.events.len() as u64)
@@ -668,17 +668,17 @@ pub enum FlowEventType {
 }
 
 /// Async publisher that uses tokio channels
-pub struct AsyncBusboyPublisher {
+pub struct AsyncWotanPublisher {
     /// Inner publisher
-    inner: Arc<BusboyPublisher>,
+    inner: Arc<WotanPublisher>,
     /// Event sender
     event_tx: mpsc::UnboundedSender<Event>,
 }
 
-impl AsyncBusboyPublisher {
+impl AsyncWotanPublisher {
     /// Create a new async publisher
     pub async fn new(endpoint: &str, batch_size: usize, batch_timeout: Duration) -> Result<Self> {
-        let inner = BusboyPublisher::new(endpoint, batch_size, batch_timeout).await?;
+        let inner = WotanPublisher::new(endpoint, batch_size, batch_timeout).await?;
         let (event_tx, mut event_rx) = mpsc::unbounded_channel::<Event>();
 
         let publisher = Arc::new(inner);
@@ -777,8 +777,8 @@ mod tests {
             EventData::Raw(vec![1, 2, 3]),
         );
 
-        let proto = BusboyPublisher::event_to_proto(&event);
-        assert_eq!(proto.event_type, busboy_proto::EventType::Packet as i32);
+        let proto = WotanPublisher::event_to_proto(&event);
+        assert_eq!(proto.event_type, wotan_proto::EventType::Packet as i32);
         assert_eq!(proto.pid, 1234);
         assert_eq!(proto.comm, "test");
     }

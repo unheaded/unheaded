@@ -22,8 +22,8 @@ func newTestLogger() *logger.Logger {
 	return logger.New(io.Discard)
 }
 
-// newTestService creates a Service wired up with a silent logger and no busboy
-// client. Suitable for the majority of unit tests that do not exercise busboy.
+// newTestService creates a Service wired up with a silent logger and no wotan
+// client. Suitable for the majority of unit tests that do not exercise wotan.
 func newTestService(cfg *Config) *Service {
 	return NewService(newTestLogger(), nil, cfg)
 }
@@ -63,8 +63,8 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.EnableThreatLogging {
 		t.Error("EnableThreatLogging should default to true")
 	}
-	if cfg.BusboyTopic != "shield.events" {
-		t.Errorf("BusboyTopic = %q, want %q", cfg.BusboyTopic, "shield.events")
+	if cfg.WotanTopic != "shield.events" {
+		t.Errorf("WotanTopic = %q, want %q", cfg.WotanTopic, "shield.events")
 	}
 }
 

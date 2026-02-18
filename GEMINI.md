@@ -16,7 +16,7 @@ Unheaded is a configuration management automation platform delivering complete i
 - ✅ eBPF-based observability (L2-L7 tracing)
 - ✅ Immutable NixOS infrastructure
 - ✅ Zero customer data access (architectural isolation)
-- ✅ Service mesh built on Busboy message bus
+- ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
 - ✅ Self-hosting proof (The Meta Moment)
 
@@ -29,7 +29,7 @@ Unheaded is a configuration management automation platform delivering complete i
 ```
 Layer 5: User Interface (Dashboard, Kanban)
 Layer 4: Application Services (timeguru, captain, micromanager, architect)
-Layer 3: Infrastructure Services (busboy, trace-collector, gateway)
+Layer 3: Infrastructure Services (wotan, trace-collector, gateway)
 Layer 2: Control Plane (unheaded-daemon)
 Layer 1: Data Plane (eBPF programs)
 Layer 0: Infrastructure (LXD, host OS)
@@ -42,7 +42,7 @@ Layer 0: Infrastructure (LXD, host OS)
 | eBPF programs | **Rust** (Aya framework) | Memory safety + performance for kernel |
 | Services | **Go 1.21+** | Simplicity, concurrency, tooling |
 | Containers | **NixOS** | Declarative, immutable, reproducible |
-| Message Bus | **Busboy** (Go + gRPC) | Proven in Phase 1, custom |
+| Message Bus | **Wotan** (Go + gRPC) | Proven in Phase 1, custom |
 | Gateway | **nginx** | Battle-tested, HTTP/3 support |
 | Frontend | **Vanilla JS** | No framework overhead, full control |
 | Orchestration | **LXD** | Lightweight system containers |
@@ -51,7 +51,7 @@ Layer 0: Infrastructure (LXD, host OS)
 
 - **Bridge:** lxdbr0 (10.10.10.0/24)
 - **Gateway:** 10.10.10.100 (TLS termination, HTTP/3)
-- **Busboy:** 10.10.10.10 (message hub)
+- **Wotan:** 10.10.10.10 (message hub)
 - **Services:** 10.10.10.20-30 (agent services)
 - **Apps:** 10.10.10.200+ (kanban, demo)
 
@@ -79,7 +79,7 @@ Layer 0: Infrastructure (LXD, host OS)
 **Every component must:**
 - Publish metrics to Prometheus
 - Log structured JSON (zerolog)
-- Report to Busboy message bus
+- Report to Wotan message bus
 - Support distributed tracing
 - Expose /health and /ready endpoints
 
@@ -124,7 +124,7 @@ Layer 0: Infrastructure (LXD, host OS)
 **Quality gates:**
 - Unit tests: 80%+ coverage
 - Integration tests: all services communicating
-- E2E tests: browser → gateway → services → Busboy
+- E2E tests: browser → gateway → services → Wotan
 - Load tests: 1000 req/s sustained
 - Security audit: automated + manual
 
@@ -136,12 +136,12 @@ Layer 0: Infrastructure (LXD, host OS)
 unheaded/
 ├── cmd/                    # Service binaries
 │   ├── unheaded-daemon/   # Control plane (Go)
-│   ├── trace-collector/   # eBPF → Busboy bridge (Rust)
+│   ├── trace-collector/   # eBPF → Wotan bridge (Rust)
 │   ├── dashboard-backend/ # Metrics + WebSocket (Go)
 │   └── kanban-app/        # Meta moment (Go + JS)
 │
 ├── services/              # Microservice integration
-│   ├── busboy/           # github.com/unheaded/busboy (existing)
+│   ├── wotan/           # github.com/unheaded/wotan (existing)
 │   ├── timeguru/         # Timeline tracking (Go)
 │   ├── captain/          # Strategy service (Go)
 │   ├── micromanager/     # Execution service (Go)
@@ -177,15 +177,15 @@ unheaded/
 package main
 
 import (
-    "github.com/unheaded/unheaded/pkg/busboy-client"
+    "github.com/unheaded/unheaded/pkg/wotan-client"
     "github.com/unheaded/unheaded/pkg/telemetry"
 )
 
 func main() {
     // 1. Load config
-    // 2. Connect to Busboy
+    // 2. Connect to Wotan
     // 3. Start HTTP server (REST API)
-    // 4. Subscribe to relevant Busboy topics
+    // 4. Subscribe to relevant Wotan topics
     // 5. Publish service metrics
     // 6. Handle graceful shutdown
 }
@@ -197,7 +197,7 @@ func main() {
 - `GET /metrics` - Prometheus metrics
 - `GET /api/v1/*` - Service-specific REST API
 
-**Busboy integration:**
+**Wotan integration:**
 - Connect on startup
 - Subscribe to relevant topics
 - Publish state changes
@@ -246,8 +246,8 @@ func (s *Service) UpdateTimeline(md string) error {
     os.WriteFile("timeline.json", json, 0644)
     os.WriteFile("timeline.yaml", yaml, 0644)
 
-    // 5. Publish to Busboy
-    s.busboy.Publish("timeline.updates", json)
+    // 5. Publish to Wotan
+    s.wotan.Publish("timeline.updates", json)
 
     return nil
 }
@@ -392,10 +392,10 @@ var (
         []string{"service", "method", "path"},
     )
 
-    busboyMessagesPublished = promauto.NewCounterVec(
+    wotanMessagesPublished = promauto.NewCounterVec(
         prometheus.CounterOpts{
-            Name: "unheaded_busboy_messages_published_total",
-            Help: "Messages published to Busboy",
+            Name: "unheaded_wotan_messages_published_total",
+            Help: "Messages published to Wotan",
         },
         []string{"service", "topic"},
     )
@@ -425,7 +425,7 @@ log.Info().
 - `ERROR`: Errors that need attention
 - `FATAL`: Service cannot continue
 
-### Busboy Topics
+### Wotan Topics
 
 **Required subscriptions:**
 - `alerts.critical` - All services must subscribe for critical alerts
@@ -479,7 +479,7 @@ func TestTimelineAPI(t *testing.T) {
 
 ### E2E Tests
 
-**Browser → Gateway → Services → Busboy:**
+**Browser → Gateway → Services → Wotan:**
 
 ```bash
 # Start all containers
@@ -491,7 +491,7 @@ go test ./tests/e2e/... -tags=e2e
 # Tests should verify:
 # - HTTP/3 connection
 # - Trace propagation
-# - Busboy message delivery
+# - Wotan message delivery
 # - WebSocket updates
 ```
 
@@ -538,7 +538,7 @@ make test-all
 make dev
 
 # This starts:
-# - Busboy (docker)
+# - Wotan (docker)
 # - PostgreSQL (docker)
 # - Services (locally)
 # - Dashboard (http://localhost:8080)
@@ -607,7 +607,7 @@ Co-Authored-By: Gemini <noreply@google.com>
 6. Integration + polish - Day 6
 
 **Success Criteria:**
-- [ ] All services communicating via Busboy
+- [ ] All services communicating via Wotan
 - [ ] Kanban app displays timeline from timeguru
 - [ ] eBPF traces end-to-end packet flow
 - [ ] Dashboard visualizes traces in real-time
@@ -647,7 +647,7 @@ Context:
 Requirements:
 - Go 1.21+
 - REST API with /health, /ready, /metrics
-- Busboy integration
+- Wotan integration
 - Triple format (MD/JSON/YAML)
 - Unit tests (80%+ coverage)
 - NixOS container definition with hardening
@@ -668,7 +668,7 @@ Deliverables:
 4. Integration test after merge
 
 **Communication:**
-- All agents use Busboy (no direct service-to-service)
+- All agents use Wotan (no direct service-to-service)
 - Shared types in `pkg/`
 - Conflicts resolved by final integration test
 
@@ -683,7 +683,7 @@ Deliverables:
 - [timeline.md](references/timeline.md) - Living roadmap
 
 **External:**
-- [Busboy](https://github.com/unheaded/busboy) - Message bus (Phase 1)
+- [Wotan](https://github.com/unheaded/wotan) - Message bus (Phase 1)
 - [Aya](https://aya-rs.dev/) - eBPF framework for Rust
 - [NixOS Manual](https://nixos.org/manual/) - Container definitions
 
@@ -751,8 +751,8 @@ We're building in the open because we have nothing to hide.
 
 **WRONG:**
 ```go
-// demo-app reading from Busboy topics
-busboy.Subscribe("network.traces")  // NO! Customer can see infrastructure
+// demo-app reading from Wotan topics
+wotan.Subscribe("network.traces")  // NO! Customer can see infrastructure
 ```
 
 **RIGHT:**
@@ -765,14 +765,14 @@ http.Get("http://gateway/api/mydata")
 
 **WRONG:**
 ```go
-const busboyAddr = "10.10.10.10:9090"
+const wotanAddr = "10.10.10.10:9090"
 ```
 
 **RIGHT:**
 ```go
-busboyAddr := os.Getenv("BUSBOY_ADDR")
-if busboyAddr == "" {
-    busboyAddr = config.Get("busboy.address")
+wotanAddr := os.Getenv("WOTAN_ADDR")
+if wotanAddr == "" {
+    wotanAddr = config.Get("wotan.address")
 }
 ```
 

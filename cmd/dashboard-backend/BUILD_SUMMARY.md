@@ -62,7 +62,7 @@
 - Realistic latency values (50μs - 20ms per hop)
 - JSON format for frontend consumption
 - Configurable generation rate
-- Components: XDP → Gateway → Busboy → Service → trace-collector
+- Components: XDP → Gateway → Wotan → Service → trace-collector
 
 **Files:**
 - `generator.go` (218 LOC)
@@ -76,14 +76,14 @@
 - Component naming accuracy
 - Concurrent consumer handling
 
-### 4. HTTP Server + Busboy Integration ✅
+### 4. HTTP Server + Wotan Integration ✅
 **Location:** `internal/server/`
 
 **Features:**
 - REST API for metrics queries
 - Health and readiness endpoints
 - Prometheus metrics export
-- Busboy subscription management
+- Wotan subscription management
 - WebSocket endpoint routing
 - Graceful shutdown coordination
 
@@ -248,7 +248,7 @@ go tool cover -func=coverage.out
 **Rationale:** Prevents memory exhaustion attacks
 **Result:** Predictable memory usage (~73MB max)
 
-### 4. Busboy Integration
+### 4. Wotan Integration
 **Decision:** Subscribe to `metrics.*` topic, publish to WebSocket
 **Rationale:** Architectural consistency, message bus pattern
 **Result:** Clean separation, easy to add new metrics sources
@@ -283,7 +283,7 @@ go tool cover -func=coverage.out
 
 ## Integration Points 🔌
 
-### Busboy Message Bus
+### Wotan Message Bus
 
 **Topics:**
 - Subscribe: `metrics.*` (all infrastructure metrics)
@@ -385,7 +385,7 @@ curl -X POST http://localhost:8080/api/v1/metrics/query \
 
 1. [ ] Wire to frontend dashboard
 2. [ ] Deploy to LXD container
-3. [ ] Integration test with real Busboy
+3. [ ] Integration test with real Wotan
 4. [ ] Load test with 100 connections
 
 ### Short-term (Beta)
@@ -408,7 +408,7 @@ curl -X POST http://localhost:8080/api/v1/metrics/query \
 
 **Architect** - For designing the clean component interfaces
 **Micromanager** - For the detailed requirements and acceptance criteria
-**Busboy Team** - For the battle-tested message bus
+**Wotan Team** - For the battle-tested message bus
 **Timeguru** - For keeping us on track for Day 7-10 milestone
 
 ---

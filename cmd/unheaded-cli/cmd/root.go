@@ -66,7 +66,7 @@ type Config struct {
 type Cluster struct {
 	Name       string `yaml:"name"`
 	Endpoint   string `yaml:"endpoint"`
-	BusboyAddr string `yaml:"busboy_addr"`
+	WotanAddr string `yaml:"wotan_addr"`
 	TLSCert    string `yaml:"tls_cert"`
 	TLSKey     string `yaml:"tls_key"`
 	TLSCA      string `yaml:"tls_ca"`
@@ -390,7 +390,7 @@ func DefaultConfig() *Config {
 			"local": {
 				Name:       "local",
 				Endpoint:   "http://localhost:8080",
-				BusboyAddr: "localhost:9090",
+				WotanAddr: "localhost:9090",
 			},
 		},
 		Defaults: Defaults{

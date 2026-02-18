@@ -29,7 +29,7 @@ import (
 	"syscall"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 	"unheaded/services/monad"
 )
@@ -43,7 +43,7 @@ var (
 
 var (
 	listenAddr = flag.String("listen", ":8004", "HTTP listen address")
-	busboyAddr = flag.String("busboy", "localhost:9090", "Busboy server address")
+	wotanAddr = flag.String("wotan", "localhost:9090", "Wotan server address")
 	debug      = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs   = flag.Bool("json", false, "Output logs in JSON format")
 )
@@ -58,8 +58,8 @@ func main() {
 	if addr := os.Getenv("MONAD_LISTEN_ADDR"); addr != "" {
 		*listenAddr = addr
 	}
-	if addr := os.Getenv("BUSBOY_ADDR"); addr != "" {
-		*busboyAddr = addr
+	if addr := os.Getenv("WOTAN_ADDR"); addr != "" {
+		*wotanAddr = addr
 	}
 
 	// Setup logging using Kingdom's native logger
@@ -84,34 +84,34 @@ func main() {
 		Str("git_commit", GitCommit).
 		Msg("starting Monad service - The Supreme Orchestrator")
 
-	// Connect to Busboy
-	busboy, err := busboyClient.NewClient(*busboyAddr)
+	// Connect to Wotan
+	wotan, err := wotanClient.NewClient(*wotanAddr)
 	if err != nil {
 		log.Warn().
 			Err(err).
-			Str("busboy_addr", *busboyAddr).
-			Msg("failed to create Busboy client, continuing without message bus")
-		busboy = nil
+			Str("wotan_addr", *wotanAddr).
+			Msg("failed to create Wotan client, continuing without message bus")
+		wotan = nil
 	} else {
 		log.Info().
-			Str("busboy_addr", *busboyAddr).
-			Msg("Busboy client created")
+			Str("wotan_addr", *wotanAddr).
+			Msg("Wotan client created")
 
 		// Subscribe to monad operations topic
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_, subscribeErr := busboy.Subscribe(ctx, "monad.operations", "monad-service")
+		_, subscribeErr := wotan.Subscribe(ctx, "monad.operations", "monad-service")
 		cancel()
 		if subscribeErr != nil {
 			log.Warn().
 				Err(subscribeErr).
-				Msg("failed to subscribe to Busboy topic, continuing without subscription")
+				Msg("failed to subscribe to Wotan topic, continuing without subscription")
 		} else {
 			log.Info().Msg("subscribed to monad.operations topic")
 		}
 	}
 
 	// Create Monad service
-	monadService := monad.NewService(log, busboy)
+	monadService := monad.NewService(log, wotan)
 
 	// Register default handlers for demonstration
 	registerDefaultHandlers(monadService, log)
@@ -129,7 +129,7 @@ func main() {
 
 	log.Info().
 		Str("addr", *listenAddr).
-		Str("busboy", *busboyAddr).
+		Str("wotan", *wotanAddr).
 		Msg("Monad service running - The One from which all emanates")
 
 	// Wait for interrupt signal
@@ -150,10 +150,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Close Busboy client
-	if busboy != nil {
-		if err := busboy.Close(); err != nil {
-			log.Warn().Err(err).Msg("error closing Busboy client")
+	// Close Wotan client
+	if wotan != nil {
+		if err := wotan.Close(); err != nil {
+			log.Warn().Err(err).Msg("error closing Wotan client")
 		}
 	}
 

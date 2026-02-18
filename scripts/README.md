@@ -25,7 +25,7 @@ Automation scripts for Unheaded development and deployment.
   - kanban-app (Go)
 
 - ✅ **services/** - 5 microservices (Go)
-  - busboy (link to github.com/unheaded/busboy)
+  - wotan (link to github.com/unheaded/wotan)
   - timeguru
   - captain
   - micromanager
@@ -54,7 +54,7 @@ Automation scripts for Unheaded development and deployment.
   - lxd/ (LXD client)
   - state/ (State management)
   - telemetry/ (Common telemetry)
-  - busboy-client/ (Busboy Go client)
+  - wotan-client/ (Wotan Go client)
 
 - ✅ **docs/** - Documentation
   - MICROSERVICES.md

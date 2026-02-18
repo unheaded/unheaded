@@ -2,7 +2,7 @@
 //!
 //! This is the heart of the trace collection infrastructure for the Unheaded Kingdom.
 //! It reads events from eBPF ring buffers and perf event arrays with zero-copy semantics,
-//! parses kernel events, and publishes them to the Busboy message bus.
+//! parses kernel events, and publishes them to the Wotan message bus.
 //!
 //! Design principles:
 //! - Sub-microsecond latency where possible
@@ -30,8 +30,8 @@
 //!  │               └──────┬──────┘                                  │
 //!  │                      │                                         │
 //!  │               ┌──────▼──────┐                                  │
-//!  │               │   Busboy    │                                  │
-//!  │               │  Publisher  │─────────────► Busboy Message Bus │
+//!  │               │   Wotan    │                                  │
+//!  │               │  Publisher  │─────────────► Wotan Message Bus │
 //!  │               │  (batched)  │                                  │
 //!  │               └─────────────┘                                  │
 //!  │                                                                 │
@@ -73,7 +73,7 @@ use metrics::MetricsServer;
 
 /// THE WHISPERING VOID - eBPF event collector for the Unheaded Kingdom
 ///
-/// Reads kernel events from eBPF programs and publishes them to Busboy.
+/// Reads kernel events from eBPF programs and publishes them to Wotan.
 /// Part of the Unheaded infrastructure for end-to-end observability.
 #[derive(Parser, Debug)]
 #[command(name = "trace-collector")]
@@ -98,9 +98,9 @@ struct Cli {
     #[arg(long, default_value = "0.0.0.0:9090", env = "TRACE_COLLECTOR_METRICS_ADDR")]
     metrics_addr: String,
 
-    /// Busboy gRPC endpoint for event publishing
-    #[arg(long, default_value = "http://localhost:50051", env = "BUSBOY_ENDPOINT")]
-    busboy_endpoint: String,
+    /// Wotan gRPC endpoint for event publishing
+    #[arg(long, default_value = "http://localhost:50051", env = "WOTAN_ENDPOINT")]
+    wotan_endpoint: String,
 
     /// Output format for CLI commands
     #[arg(long, default_value = "text", env = "TRACE_COLLECTOR_OUTPUT_FORMAT")]
@@ -257,7 +257,7 @@ async fn main() -> Result<()> {
         }) => {
             run_daemon(RunConfig {
                 config,
-                busboy_endpoint: cli.busboy_endpoint,
+                wotan_endpoint: cli.wotan_endpoint,
                 metrics_addr: cli.metrics_addr,
                 bpf_prog,
                 ringbuf_path,
@@ -290,7 +290,7 @@ async fn main() -> Result<()> {
             // Default: run daemon with defaults
             run_daemon(RunConfig {
                 config,
-                busboy_endpoint: cli.busboy_endpoint,
+                wotan_endpoint: cli.wotan_endpoint,
                 metrics_addr: cli.metrics_addr,
                 bpf_prog: None,
                 ringbuf_path: PathBuf::from("/sys/fs/bpf/unheaded/trace_events"),
@@ -369,7 +369,7 @@ fn init_logging(level: &str, json: bool) -> Result<()> {
 /// Configuration for the daemon runner
 struct RunConfig {
     config: Config,
-    busboy_endpoint: String,
+    wotan_endpoint: String,
     metrics_addr: String,
     bpf_prog: Option<PathBuf>,
     ringbuf_path: PathBuf,
@@ -520,13 +520,13 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
         None
     } else {
         Some(
-            publisher::BusboyPublisher::new(
-                &run_config.busboy_endpoint,
+            publisher::WotanPublisher::new(
+                &run_config.wotan_endpoint,
                 run_config.batch_size,
                 Duration::from_millis(run_config.batch_timeout_ms),
             )
             .await
-            .context("Failed to create Busboy publisher")?,
+            .context("Failed to create Wotan publisher")?,
         )
     };
 
@@ -769,7 +769,7 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     );
     info!("  - Metrics: http://{}/metrics", run_config.metrics_addr);
     info!("  - WebSocket: ws://0.0.0.0:9091");
-    info!("  - Busboy: {}", run_config.busboy_endpoint);
+    info!("  - Wotan: {}", run_config.wotan_endpoint);
 
     // Wait for shutdown signal
     tokio::select! {

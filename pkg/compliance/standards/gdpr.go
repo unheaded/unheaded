@@ -463,7 +463,7 @@ func (s *GDPRStandard) addPIIContainmentControls() {
 		"UH-PII-4",
 		"GDPR",
 		"PII Exposure Breach Alert",
-		"Accidental PII exposure triggers immediate emergency incident via Busboy "+
+		"Accidental PII exposure triggers immediate emergency incident via Wotan "+
 			"alerts.critical topic. Satisfies Art.33 72-hour notification window "+
 			"by detecting breaches in real time",
 	).WithCategory(controls.CategoryIncidentResponse).WithSeverity(controls.SeverityCritical))

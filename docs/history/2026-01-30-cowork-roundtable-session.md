@@ -3,7 +3,7 @@
 **Date:** January 30, 2026 (Evening)
 **Mode:** Cowork (Claude Desktop) - Timeguru-led Round Table
 **Primary Skill:** unheaded-timeguru
-**All Skills Consulted:** Captain, Architect, Micromanager, Developer, Busboy, Kingdom, Calendar
+**All Skills Consulted:** Captain, Architect, Micromanager, Developer, Wotan, Kingdom, Calendar
 
 ---
 
@@ -36,7 +36,7 @@ Key findings from Developer's sprint:
 | 🏗️ **Architect** | ORIGINAL IMPLEMENTATIONS | "Zero external deps in hot path." |
 | 📋 **Micromanager** | BUILD GREEN, SECURITY FLAGGED | "3 CRITICAL vulns documented for remediation." |
 | 💻 **Developer** | STORM COMPLETE | "50K LOC forged. All original." |
-| 🍽️ **Busboy** | CIRCLE UNBROKEN | "All handoffs clean. No conflicts." |
+| 🍽️ **Wotan** | CIRCLE UNBROKEN | "All handoffs clean. No conflicts." |
 | ⌛ **Timeguru** | RECORDING | "120K → 160K in 24 hours." |
 
 ---

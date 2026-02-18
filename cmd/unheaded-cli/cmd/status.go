@@ -149,7 +149,7 @@ func gatherSystemStatus(ctx *Context) *SystemStatus {
 			{Name: "captain", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.21:8001"},
 			{Name: "micromanager", Status: "Running", Replicas: "2/2", Healthy: true, Endpoint: "http://10.10.10.22:8002"},
 			{Name: "architect", Status: "Pending", Replicas: "0/1", Healthy: false, Endpoint: "http://10.10.10.23:8003"},
-			{Name: "busboy", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.10:9090"},
+			{Name: "wotan", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.10:9090"},
 			{Name: "gateway", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "https://10.10.10.100:443"},
 		},
 		Containers: []ContainerStats{

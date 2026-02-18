@@ -3,7 +3,7 @@
 
 **Version:** 1.0.0
 **Last Updated:** January 29, 2026
-**Domain:** The Fae Chamber (Busboy Message Bus)
+**Domain:** The Fae Chamber (Wotan Message Bus)
 
 ---
 
@@ -173,10 +173,10 @@ metrics.anomaly     # Anomaly detected
   "severity": "critical",
   "source": "vambraces",
   "title": "Container health check failed",
-  "description": "busboy-1 unhealthy for 3 checks",
-  "affected_service": "busboy",
+  "description": "wotan-1 unhealthy for 3 checks",
+  "affected_service": "wotan",
   "metadata": {
-    "container_id": "busboy-1",
+    "container_id": "wotan-1",
     "last_healthy": "2026-01-29T11:55:00Z"
   }
 }
@@ -265,8 +265,8 @@ Tasks cascade through normal flow
 ### Service Bootstrap Pattern
 ```go
 // Standard service initialization
-func initBusboy(addr string, serviceName string, topics []string) (*busboyClient.Client, error) {
-    client, err := busboyClient.NewClient(addr)
+func initWotan(addr string, serviceName string, topics []string) (*wotanClient.Client, error) {
+    client, err := wotanClient.NewClient(addr)
     if err != nil {
         return nil, fmt.Errorf("create client: %w", err)
     }
@@ -327,12 +327,12 @@ func initBusboy(addr string, serviceName string, topics []string) (*busboyClient
 
 ## Metrics
 
-Each service MUST export these Busboy metrics:
+Each service MUST export these Wotan metrics:
 ```
-busboy_messages_published_total{service, topic}
-busboy_messages_received_total{service, topic}
-busboy_publish_duration_seconds{service, topic}
-busboy_subscription_status{service, topic, status}
+wotan_messages_published_total{service, topic}
+wotan_messages_received_total{service, topic}
+wotan_publish_duration_seconds{service, topic}
+wotan_subscription_status{service, topic, status}
 ```
 
 ---

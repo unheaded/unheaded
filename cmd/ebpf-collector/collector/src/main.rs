@@ -2,7 +2,7 @@
 //!
 //! Loads compiled eBPF programs (XDP packet counter, kprobe TCP latency),
 //! reads events from ring buffers, converts to JSON matching the dashboard
-//! backend's types.go schema, and publishes to Busboy via gRPC (primary)
+//! backend's types.go schema, and publishes to Wotan via gRPC (primary)
 //! or HTTP (fallback).
 
 use std::net::Ipv4Addr;
@@ -24,12 +24,12 @@ use ebpf_common::{
     NAT_DNAT, NAT_MASQUERADE, NAT_SNAT, OP_TCP_CONNECT, OP_TCP_RECV, OP_TCP_SEND,
 };
 
-pub mod busboy_proto {
+pub mod wotan_proto {
     tonic::include_proto!("chat");
 }
 
-use busboy_proto::topic_stream_client::TopicStreamClient;
-use busboy_proto::TopicPublishRequest;
+use wotan_proto::topic_stream_client::TopicStreamClient;
+use wotan_proto::TopicPublishRequest;
 
 // ---------------------------------------------------------------------------
 // CLI
@@ -42,13 +42,13 @@ struct Args {
     #[arg(long, default_value = "")]
     iface: String,
 
-    /// Busboy HTTP address for fallback publishing
+    /// Wotan HTTP address for fallback publishing
     #[arg(long, default_value = "http://localhost:9080")]
-    busboy_http: String,
+    wotan_http: String,
 
-    /// Busboy gRPC address for primary publishing
+    /// Wotan gRPC address for primary publishing
     #[arg(long, default_value = "http://localhost:9090")]
-    busboy_grpc: String,
+    wotan_grpc: String,
 
     /// Path to compiled XDP program ELF
     #[arg(long, default_value = "../ebpf-programs/target/bpfel-unknown-none/release/packet-counter")]
@@ -152,17 +152,17 @@ impl EventBuffer {
 }
 
 // ---------------------------------------------------------------------------
-// Busboy Publisher (gRPC primary, HTTP fallback)
+// Wotan Publisher (gRPC primary, HTTP fallback)
 // ---------------------------------------------------------------------------
 
-struct BusboyPublisher {
+struct WotanPublisher {
     grpc_addr: String,
     http_addr: String,
     grpc_client: tokio::sync::Mutex<Option<TopicStreamClient<tonic::transport::Channel>>>,
     buffer: EventBuffer,
 }
 
-impl BusboyPublisher {
+impl WotanPublisher {
     fn new(grpc_addr: String, http_addr: String) -> Self {
         Self {
             grpc_addr,
@@ -179,7 +179,7 @@ impl BusboyPublisher {
         }
         match TopicStreamClient::connect(self.grpc_addr.clone()).await {
             Ok(c) => {
-                info!("connected to Busboy gRPC at {}", self.grpc_addr);
+                info!("connected to Wotan gRPC at {}", self.grpc_addr);
                 *client = Some(c);
                 true
             }
@@ -535,9 +535,9 @@ async fn main() -> anyhow::Result<()> {
     info!("kprobe programs attached to tcp_sendmsg and tcp_recvmsg");
 
     // Setup publisher
-    let publisher = Arc::new(BusboyPublisher::new(
-        args.busboy_grpc.clone(),
-        args.busboy_http.clone(),
+    let publisher = Arc::new(WotanPublisher::new(
+        args.wotan_grpc.clone(),
+        args.wotan_http.clone(),
     ));
     publisher.connect_grpc().await;
 
@@ -627,7 +627,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn read_packet_events(
     mut ring: RingBuf<aya::maps::MapData>,
-    publisher: Arc<BusboyPublisher>,
+    publisher: Arc<WotanPublisher>,
     limiter: Arc<RateLimiter>,
     shutdown: Arc<Notify>,
 ) {
@@ -658,7 +658,7 @@ async fn read_packet_events(
 
 async fn read_latency_events(
     mut ring: RingBuf<aya::maps::MapData>,
-    publisher: Arc<BusboyPublisher>,
+    publisher: Arc<WotanPublisher>,
     limiter: Arc<RateLimiter>,
     shutdown: Arc<Notify>,
 ) {
@@ -947,7 +947,7 @@ mod tests {
     }
 
     #[test]
-    fn test_busboy_buffer_eviction() {
+    fn test_wotan_buffer_eviction() {
         let buffer = EventBuffer::new(3);
         buffer.push(vec![1]);
         buffer.push(vec![2]);

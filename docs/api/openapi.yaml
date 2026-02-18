@@ -6,7 +6,7 @@ info:
 
     The Unheaded platform provides production-ready infrastructure automation
     with eBPF-based observability, immutable NixOS infrastructure, and a
-    service mesh built on the Busboy message bus.
+    service mesh built on the Wotan message bus.
 
     Each service runs on its own port and exposes the common endpoints
     (/health, /ready, /metrics) plus service-specific REST API endpoints.
@@ -1487,7 +1487,7 @@ paths:
                     type: integer
     post:
       summary: Create a task
-      description: Creates a new kanban task via the Busboy-integrated TaskManager.
+      description: Creates a new kanban task via the Wotan-integrated TaskManager.
       tags:
         - kanban-app
       requestBody:
@@ -1642,7 +1642,7 @@ paths:
       summary: Get kanban timeline
       description: |
         Returns the current timeline data from Timeguru via the
-        Busboy-integrated TaskManager.
+        Wotan-integrated TaskManager.
       tags:
         - kanban-app
       responses:
@@ -1656,7 +1656,7 @@ paths:
                   timeline:
                     $ref: "#/components/schemas/Timeline"
         "503":
-          description: Timeline not available (Busboy not connected)
+          description: Timeline not available (Wotan not connected)
 
   /api/v1/timeline/cards:
     get:

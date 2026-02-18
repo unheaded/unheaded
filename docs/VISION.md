@@ -22,7 +22,7 @@ in a mock infrastructure environment.
 
 - eBPF-based observability with packet-level tracing from L2 to L7.
 - Immutable infrastructure using either Kubernetes, Docker Swarm, or NixOS containers on LXD.
-- Dual-layered service mesh built on the Busboy ephemeral ring buffer and BGP.
+- Dual-layered service mesh built on the Wotan ephemeral ring buffer and BGP.
 - Control plane with declarative config and drift detection.
 - Security baseline aligned to FEDRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, and GDPR.
 - Zero application data access via architectural isolation.
@@ -32,8 +32,8 @@ in a mock infrastructure environment.
 ## How It Works
 
 - Host/VM runs the unheaded-daemon control plane plus eBPF programs for packet tracing.
-- Docker/LXD/K8s/NixOS hosts containers for Busboy, trace-collector, timeguru, captain, micromanager, architect, dashboard-backend, kanban-app, and gateway.
-- Trace-collector bridges eBPF events into Busboy; services communicate over the bus and UIs are served by the dashboard and Kanban apps... more to come.
+- Docker/LXD/K8s/NixOS hosts containers for Wotan, trace-collector, timeguru, captain, micromanager, architect, dashboard-backend, kanban-app, and gateway.
+- Trace-collector bridges eBPF events into Wotan; services communicate over the bus and UIs are served by the dashboard and Kanban apps... more to come.
 - Logs pipe to integrated SIEM.
 - Ring buffer and BGP perform application and container health checks, alarm/playbook state changes depending on percentage of apps reporting.
 - Minimum of 2 unheaded suits running in parallel utilizing CLOS, BFD, ECMP, EVPN/MP-BGP, eBGP, iBGP with route reflectors for VXLAN creating RFC 7938 full mesh capable of scaling infinitely.

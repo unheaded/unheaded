@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -188,7 +188,7 @@ type StateChange struct {
 // Service is the main Monad service that orchestrates functional composition.
 type Service struct {
 	log           *logger.Logger
-	busboy        *busboyClient.Client
+	wotan        *wotanClient.Client
 
 	mu            sync.RWMutex
 	operations    map[string]*Operation
@@ -204,7 +204,7 @@ type Service struct {
 	effectHandlers   map[string]EffectHandler
 
 	// Alert handling
-	alertsCh chan *busboyClient.Message
+	alertsCh chan *wotanClient.Message
 }
 
 // QueryHandler processes read-only queries.
@@ -222,7 +222,7 @@ type Config struct {
 	OperationTimeout   time.Duration `json:"operation_timeout"`
 	TransactionTimeout time.Duration `json:"transaction_timeout"`
 	EnableTracing      bool          `json:"enable_tracing"`
-	BusboyTopic        string        `json:"busboy_topic"`
+	WotanTopic        string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -232,41 +232,41 @@ func DefaultConfig() *Config {
 		OperationTimeout:   30 * time.Second,
 		TransactionTimeout: 60 * time.Second,
 		EnableTracing:      true,
-		BusboyTopic:        "monad.operations",
+		WotanTopic:        "monad.operations",
 	}
 }
 
 // NewService creates a new Monad service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client) *Service {
 	return &Service{
 		log:              log,
-		busboy:           busboy,
+		wotan:           wotan,
 		operations:       make(map[string]*Operation),
 		transactions:     make(map[string]*Transaction),
 		stateChanges:     make([]StateChange, 0),
 		queryHandlers:    make(map[string]QueryHandler),
 		mutationHandlers: make(map[string]MutationHandler),
 		effectHandlers:   make(map[string]EffectHandler),
-		alertsCh:         make(chan *busboyClient.Message, 100),
+		alertsCh:         make(chan *wotanClient.Message, 100),
 	}
 }
 
-// Start initializes Busboy subscriptions and starts listening for alerts
+// Start initializes Wotan subscriptions and starts listening for alerts
 func (s *Service) Start(ctx context.Context) error {
-	if s.busboy == nil {
-		s.log.Info().Msg("Busboy not configured, skipping subscriptions")
+	if s.wotan == nil {
+		s.log.Info().Msg("Wotan not configured, skipping subscriptions")
 		return nil
 	}
 
 	// Subscribe to alerts.critical (required by CLAUDE.md)
-	if _, err := s.busboy.Subscribe(ctx, "alerts.critical", "monad-service"); err != nil {
+	if _, err := s.wotan.Subscribe(ctx, "alerts.critical", "monad-service"); err != nil {
 		s.log.Warn().Err(err).Msg("failed to subscribe to alerts.critical")
 	} else {
 		s.log.Info().Msg("subscribed to alerts.critical")
 	}
 
 	// Subscribe to monad.operations for own topic
-	if _, err := s.busboy.Subscribe(ctx, "monad.operations", "monad-service"); err != nil {
+	if _, err := s.wotan.Subscribe(ctx, "monad.operations", "monad-service"); err != nil {
 		s.log.Warn().Err(err).Msg("failed to subscribe to monad.operations")
 	} else {
 		s.log.Info().Msg("subscribed to monad.operations")
@@ -285,13 +285,13 @@ func (s *Service) Stop() error {
 	return nil
 }
 
-// listenForAlerts listens for critical alerts from Busboy
+// listenForAlerts listens for critical alerts from Wotan
 func (s *Service) listenForAlerts(ctx context.Context) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
-	msgCh, err := s.busboy.StreamMessages(ctx, "alerts.critical")
+	msgCh, err := s.wotan.StreamMessages(ctx, "alerts.critical")
 	if err != nil {
 		s.log.Warn().Err(err).Msg("failed to stream alerts.critical")
 		return
@@ -311,7 +311,7 @@ func (s *Service) listenForAlerts(ctx context.Context) {
 }
 
 // handleCriticalAlert processes critical alerts
-func (s *Service) handleCriticalAlert(ctx context.Context, msg *busboyClient.Message) {
+func (s *Service) handleCriticalAlert(ctx context.Context, msg *wotanClient.Message) {
 	if msg == nil {
 		return
 	}
@@ -402,7 +402,7 @@ func (s *Service) Mutate(ctx context.Context, name string, input interface{}) Re
 	op.Output = result
 	op.Status = OpStatusCompleted
 
-	// Publish operation event to Busboy
+	// Publish operation event to Wotan
 	s.publishOperationEvent(ctx, op)
 
 	// Publish state changes if any
@@ -580,9 +580,9 @@ func (s *Service) completeOperation(op *Operation) {
 		Msg("Operation completed")
 }
 
-// publishOperationEvent sends an operation event to Busboy.
+// publishOperationEvent sends an operation event to Wotan.
 func (s *Service) publishOperationEvent(ctx context.Context, op *Operation) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
@@ -617,14 +617,14 @@ func (s *Service) publishOperationEvent(ctx context.Context, op *Operation) {
 	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := s.busboy.Publish(pubCtx, "monad.operations", payload); err != nil {
+	if err := s.wotan.Publish(pubCtx, "monad.operations", payload); err != nil {
 		s.log.Warn().Err(err).Msg("Failed to publish operation event")
 	}
 }
 
-// publishStateChange publishes state changes to Busboy with trace_id
+// publishStateChange publishes state changes to Wotan with trace_id
 func (s *Service) publishStateChange(ctx context.Context, eventType string, changes []StateChange) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
@@ -654,7 +654,7 @@ func (s *Service) publishStateChange(ctx context.Context, eventType string, chan
 	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := s.busboy.Publish(pubCtx, "monad.operations", payload); err != nil {
+	if err := s.wotan.Publish(pubCtx, "monad.operations", payload); err != nil {
 		s.log.Warn().Err(err).Msg("Failed to publish state change event")
 	}
 }

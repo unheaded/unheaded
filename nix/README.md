@@ -6,7 +6,7 @@ Production-ready, security-hardened NixOS container definitions for the Unheaded
 
 This directory contains the complete container orchestration layer:
 - **3 shared modules**: common, hardening, networking
-- **8 container definitions**: 5 agent services + 2 apps + busboy message hub
+- **8 container definitions**: 5 agent services + 2 apps + wotan message hub
 - **Security**: Defense-in-depth with seccomp, capabilities, filesystem isolation
 - **Network**: Isolated mesh with explicit allow-only firewall rules
 - **Observability**: Prometheus metrics + structured JSON logging
@@ -22,17 +22,17 @@ nix/
 │   ├── hardening.nix           # Security baseline (ALL containers)
 │   └── networking.nix          # Network isolation + firewall rules
 ├── containers/
-│   ├── busboy.nix              # Message hub (10.10.10.10)
+│   ├── wotan.nix              # Message hub (10.10.10.10)
 │   ├── timeguru-service.nix    # Timeline service (10.10.10.20)
 │   ├── captain-service.nix     # Strategy service (10.10.10.21)
 │   ├── micromanager-service.nix # Execution service (10.10.10.22)
 │   ├── architect-service.nix   # Design service (10.10.10.23)
 │   ├── developer-service.nix   # Dev service (10.10.10.24)
-│   ├── busboy-service.nix      # Legacy compatibility (10.10.10.25)
+│   ├── wotan-service.nix      # Legacy compatibility (10.10.10.25)
 │   ├── kanban-app.nix          # Kanban board (10.10.10.200)
 │   └── dashboard-app.nix       # Dashboard (10.10.10.201)
 ├── packages/
-│   ├── busboy.nix              # Go build for busboy
+│   ├── wotan.nix              # Go build for wotan
 │   ├── timeguru.nix            # Go build for timeguru
 │   └── ...                     # Other service builds
 ├── tests/
@@ -48,7 +48,7 @@ nix/
 ### Build All Containers
 ```bash
 nix build \
-  .#nixosConfigurations.busboy.config.system.build.toplevel \
+  .#nixosConfigurations.wotan.config.system.build.toplevel \
   .#nixosConfigurations.timeguru.config.system.build.toplevel \
   .#nixosConfigurations.captain.config.system.build.toplevel \
   .#nixosConfigurations.micromanager.config.system.build.toplevel \
@@ -77,12 +77,12 @@ nix run .#deploy
 
 ## Container Details
 
-### Busboy (Message Hub)
+### Wotan (Message Hub)
 - **IP**: 10.10.10.10
 - **Ports**: 9090 (gRPC), 8080 (REST), 9100 (metrics)
 - **Role**: Central message bus - all services communicate through this
 - **Dependencies**: None (starts first)
-- **Critical**: All other services depend on busboy
+- **Critical**: All other services depend on wotan
 
 ### Agent Services
 | Service | IP | Port | Role |
@@ -94,9 +94,9 @@ nix run .#deploy
 | developer | 10.10.10.24 | 8004 | Development tasks |
 
 All services:
-- Depend on busboy
+- Depend on wotan
 - Expose REST API + metrics
-- Connect to busboy on startup
+- Connect to wotan on startup
 - Auto-restart on failure
 
 ### Applications
@@ -167,16 +167,16 @@ TasksMax = 512;                   # Max threads
         │                    │                    │
         ▼                    ▼                    ▼
    ┌─────────┐         ┌─────────┐         ┌─────────┐
-   │ Busboy  │◄────────┤Services │         │  Apps   │
+   │ Wotan  │◄────────┤Services │         │  Apps   │
    │10.10.10.│         │10.10.10.│         │10.10.10.│
    │   .10   │────────►│ 20-24   │────────►│ 200-201 │
    └─────────┘         └─────────┘         └─────────┘
    gRPC + REST         REST APIs           HTTP + WS
 
 Isolation:
-- Services → Busboy: ALLOW
+- Services → Wotan: ALLOW
 - Apps → Services: ALLOW (via gateway)
-- Apps → Busboy: BLOCK (no direct access)
+- Apps → Wotan: BLOCK (no direct access)
 - External → Apps: ALLOW (via gateway)
 - Everything else: DROP
 ```
@@ -290,14 +290,14 @@ Automated builds for:
 
 ### Startup Times
 Expected startup times (cold start):
-- Busboy: <5s
-- Services: <3s (after busboy ready)
+- Wotan: <5s
+- Services: <3s (after wotan ready)
 - Apps: <5s (after dependencies ready)
 
 ### Resource Usage (Baseline)
 | Container | Memory | CPU |
 |-----------|--------|-----|
-| busboy | ~100MB | ~2% |
+| wotan | ~100MB | ~2% |
 | timeguru | ~50MB | ~1% |
 | captain | ~50MB | ~1% |
 | micromanager | ~50MB | ~1% |
@@ -310,7 +310,7 @@ Expected startup times (cold start):
 Target performance (p99 latency):
 - Health checks: <50ms
 - REST API: <100ms
-- Busboy pub/sub: <10ms
+- Wotan pub/sub: <10ms
 - WebSocket messages: <50ms
 
 ## Troubleshooting
@@ -321,7 +321,7 @@ Target performance (p99 latency):
 nix flake check
 
 # Build with verbose output
-nix build --show-trace .#nixosConfigurations.busboy.config.system.build.toplevel
+nix build --show-trace .#nixosConfigurations.wotan.config.system.build.toplevel
 ```
 
 ### Container Won't Start
@@ -330,19 +330,19 @@ nix build --show-trace .#nixosConfigurations.busboy.config.system.build.toplevel
 lxc list
 
 # Check logs
-lxc exec unheaded-busboy -- journalctl -u busboy
+lxc exec unheaded-wotan -- journalctl -u wotan
 
 # Check network
-lxc exec unheaded-busboy -- ip addr
+lxc exec unheaded-wotan -- ip addr
 ```
 
 ### Network Connectivity Issues
 ```bash
-# Ping busboy from service
+# Ping wotan from service
 lxc exec unheaded-timeguru -- ping 10.10.10.10
 
 # Check firewall
-lxc exec unheaded-busboy -- iptables -L -v -n
+lxc exec unheaded-wotan -- iptables -L -v -n
 
 # Test health endpoint
 curl http://10.10.10.10:8080/health
