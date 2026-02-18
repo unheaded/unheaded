@@ -78,7 +78,8 @@ func NewHTTPServer(service *Service, addr string) (*HTTPServer, error) {
 		Handler:      http.MaxBytesHandler(mux, 10*1024*1024), // 10MB max
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	return hs, nil

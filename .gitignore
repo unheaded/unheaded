@@ -145,6 +145,10 @@ data/*.db
 # Keep CLAUDE.md tracked
 .claude-cache/
 
+# ─── Dev artifacts ───
+churn_analysis.awk
+PROJECT_TREE.txt
+
 # ─── Session artifacts ───
 # Session handoffs are tracked intentionally
 # *.jsonl

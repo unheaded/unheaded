@@ -63,14 +63,19 @@ type Server struct {
 	sseMu           sync.RWMutex
 	taskManager     *TaskManager     // Busboy-integrated task management
 	timelineManager *TimelineManager // Standalone Timeguru HTTP polling fallback
+	ctx             context.Context    // server lifecycle context
+	cancel          context.CancelFunc // cancels ctx on shutdown
 }
 
 // NewServer creates a new kanban server with standalone timeline polling.
 // Initializes SQLite store for persistence. Falls back to in-memory if store fails.
 func NewServer(cfg Config) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		config:     cfg,
 		sseClients: make(map[chan []byte]bool),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 
 	// Initialize SQLite L1 persistence
@@ -102,11 +107,14 @@ func NewServer(cfg Config) *Server {
 
 // NewServerWithTaskManager creates a server with Busboy integration and shared Store.
 func NewServerWithTaskManager(cfg Config, tm *TaskManager, store *Store) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		config:      cfg,
 		store:       store,
 		sseClients:  make(map[chan []byte]bool),
 		taskManager: tm,
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 	return s
 }
@@ -258,7 +266,7 @@ func (s *Server) Start() error {
 
 	// Rate limiting (configurable)
 	if getEnv("RATE_LIMIT_ENABLED", "true") == "true" {
-		rateLimiter := NewRateLimiter(120, 30) // 120 req/min, burst 30 (page load is ~15 resources)
+		rateLimiter := NewRateLimiter(s.ctx, 120, 30) // 120 req/min, burst 30 (page load is ~15 resources)
 		handler = rateLimitMiddleware(rateLimiter)(handler)
 		log.Info().Msg("Rate limiting enabled: 120 req/min, burst 30")
 	}
@@ -284,6 +292,9 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
+	// Cancel server-scoped context (stops rate limiter cleanup, etc.)
+	s.cancel()
+
 	// Close all SSE connections
 	s.sseMu.Lock()
 	for ch := range s.sseClients {

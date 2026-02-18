@@ -1690,7 +1690,8 @@ func (c *Collector) serveHTTP() {
 		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	if err := c.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

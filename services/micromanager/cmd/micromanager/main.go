@@ -140,7 +140,8 @@ func main() {
 		Handler:      mux,
 		ReadTimeout:  *readTimeout,
 		WriteTimeout: *writeTimeout,
-		IdleTimeout:  *idleTimeout,
+		IdleTimeout:    *idleTimeout,
+		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
 	// Start server in goroutine

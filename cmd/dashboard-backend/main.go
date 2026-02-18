@@ -71,6 +71,9 @@ var (
 	flowInterval = flag.Duration("flow-interval", 100*time.Millisecond, "Packet flow generation interval")
 	maxFlows     = flag.Int("max-flows", 50, "Maximum concurrent flows")
 
+	// WebSocket allowed origins for LAN access
+	wsAllowedOrigins = flag.String("ws-allowed-origins", "", "Comma-separated WebSocket allowed origins (empty=localhost only)")
+
 	// Service endpoint overrides
 	// TODO: Default to 127.0.0.1 endpoints instead of LXD IPs. --services-file
 	// should remain as an override option, but defaults should be localhost.
@@ -130,6 +133,7 @@ func main() {
 			PingInterval:   30 * time.Second,
 			BufferSize:     256,
 			MaxMessageSize: 65536,
+			AllowedOrigins: parseAllowedOrigins(*wsAllowedOrigins),
 		},
 
 		ScraperConfig: &scraper.Config{
@@ -231,6 +235,27 @@ func main() {
 	}
 
 	log.Info().Msg("dashboard backend stopped")
+}
+
+// parseAllowedOrigins splits a comma-separated origins string.
+// Returns nil (not empty slice) when input is empty — this preserves
+// the deny-by-default behavior in websocket.Server.isOriginAllowed().
+func parseAllowedOrigins(origins string) []string {
+	if origins == "" {
+		return nil
+	}
+	parts := strings.Split(origins, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // getEventTopics returns the list of Busboy topics to subscribe to
