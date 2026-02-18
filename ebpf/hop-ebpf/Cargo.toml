@@ -1,0 +1,15 @@
+[package]
+name        = "hop-ebpf"
+description = "Unheaded Protocol per-hop XDP processor — verify, mutate, re-sign the Monad"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name              = "hop-ebpf"
+path              = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true

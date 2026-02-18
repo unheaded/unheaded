@@ -1,0 +1,15 @@
+[package]
+name        = "monad-mbc"
+version     = "0.1.0"
+edition     = "2021"
+description = "MBC ISA assembler, disassembler, and RV32I translator for the Doom-over-IPv6 PoC"
+license     = "MIT"
+
+[dependencies]
+# Shared ISA types — MbcInsn, mbc_opcodes, mbc_flags, mbc_mmap, MbcCpuState
+monad-common = { path = "../../ebpf/monad-common" }
+thiserror    = "1"
+
+[dev-dependencies]
+# Integration tests
+monad-common = { path = "../../ebpf/monad-common" }

@@ -1,0 +1,15 @@
+[package]
+name        = "monad-common"
+description = "Shared types for the Unheaded Protocol Foundation (RFC draft-bellis-unheaded-protocol-foundation-01)"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+repository.workspace = true
+authors.workspace    = true
+
+# This crate must compile for:
+#   - bpfel-unknown-none  (kernel-space eBPF programs — no_std, no alloc)
+#   - any host target     (userspace tests, trace-collector, wotan bridge)
+#
+# The #![cfg_attr(not(test), no_std)] dance allows host-side unit tests
+# without pulling in std for the BPF target.

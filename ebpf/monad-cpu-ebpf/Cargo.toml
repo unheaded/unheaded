@@ -1,0 +1,15 @@
+[package]
+name        = "monad-cpu-ebpf"
+description = "Unheaded Protocol — MBC fetch-decode-execute CPU for Doom-over-IPv6 PoC"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "monad-cpu-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true
