@@ -63,7 +63,7 @@ func newTestRegistry() *prometheus.Registry {
 }
 
 // newTestCollector creates a Collector suitable for tests. It uses a random
-// HTTP port, a local prometheus registry, and no busboy publisher.
+// HTTP port, a local prometheus registry, and no wotan publisher.
 func newTestCollector(t *testing.T) *Collector {
 	t.Helper()
 	reg := newTestRegistry()
@@ -88,8 +88,8 @@ func newTestCollector(t *testing.T) *Collector {
 	return c
 }
 
-// stubBusboyPublisher implements BusboyPublisher for testing.
-type stubBusboyPublisher struct {
+// stubWotanPublisher implements WotanPublisher for testing.
+type stubWotanPublisher struct {
 	mu       sync.Mutex
 	messages []stubMsg
 	failNext bool
@@ -101,25 +101,25 @@ type stubMsg struct {
 	payload []byte
 }
 
-func (s *stubBusboyPublisher) Publish(_ context.Context, topic string, payload []byte) error {
+func (s *stubWotanPublisher) Publish(_ context.Context, topic string, payload []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.failNext {
 		s.failNext = false
-		return ErrBusboyUnavailable
+		return ErrWotanUnavailable
 	}
 	s.messages = append(s.messages, stubMsg{topic: topic, payload: payload})
 	return nil
 }
 
-func (s *stubBusboyPublisher) Close() error {
+func (s *stubWotanPublisher) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closed = true
 	return nil
 }
 
-func (s *stubBusboyPublisher) count() int {
+func (s *stubWotanPublisher) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.messages)
@@ -1639,15 +1639,15 @@ func TestCollectorClose(t *testing.T) {
 	})
 }
 
-func TestCollectorWithBusboyPublisher(t *testing.T) {
-	t.Run("publishes to busboy on correlation", func(t *testing.T) {
+func TestCollectorWithWotanPublisher(t *testing.T) {
+	t.Run("publishes to wotan on correlation", func(t *testing.T) {
 		reg := newTestRegistry()
-		pub := &stubBusboyPublisher{}
+		pub := &stubWotanPublisher{}
 		c, err := NewCollector(CollectorConfig{
 			HTTPAddr: "127.0.0.1:0",
 			Storage:  StorageConfig{MaxTraces: 100},
 			Sampling: SamplerConfig{SampleRate: 1.0},
-			Busboy: BusboyConfig{
+			Wotan: WotanConfig{
 				TraceTopic:     "traces.test",
 				PublishTimeout: time.Second,
 			},
@@ -1665,18 +1665,18 @@ func TestCollectorWithBusboyPublisher(t *testing.T) {
 		c.CorrelateTraces()
 
 		if pub.count() != 1 {
-			t.Errorf("expected 1 busboy message, got %d", pub.count())
+			t.Errorf("expected 1 wotan message, got %d", pub.count())
 		}
 	})
 
-	t.Run("handles busboy publish error gracefully", func(t *testing.T) {
+	t.Run("handles wotan publish error gracefully", func(t *testing.T) {
 		reg := newTestRegistry()
-		pub := &stubBusboyPublisher{failNext: true}
+		pub := &stubWotanPublisher{failNext: true}
 		c, err := NewCollector(CollectorConfig{
 			HTTPAddr: "127.0.0.1:0",
 			Storage:  StorageConfig{MaxTraces: 100},
 			Sampling: SamplerConfig{SampleRate: 1.0},
-			Busboy: BusboyConfig{
+			Wotan: WotanConfig{
 				TraceTopic:     "traces.test",
 				PublishTimeout: time.Second,
 			},

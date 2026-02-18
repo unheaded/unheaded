@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // === Type Parsing Tests ===
@@ -332,38 +332,38 @@ func TestEventRing_RecentMoreThanSize(t *testing.T) {
 
 // === Ingestor Tests ===
 
-// mockBusboyClient implements BusboySubscriber for testing.
-type mockBusboyClient struct {
-	channels map[string]chan *busboyClient.Message
+// mockWotanClient implements WotanSubscriber for testing.
+type mockWotanClient struct {
+	channels map[string]chan *wotanClient.Message
 	mu       sync.Mutex
 }
 
-func newMockBusboyClient() *mockBusboyClient {
-	return &mockBusboyClient{
-		channels: make(map[string]chan *busboyClient.Message),
+func newMockWotanClient() *mockWotanClient {
+	return &mockWotanClient{
+		channels: make(map[string]chan *wotanClient.Message),
 	}
 }
 
-func (m *mockBusboyClient) Subscribe(_ context.Context, topic, _ string) (*busboyClient.Subscriber, error) {
-	return &busboyClient.Subscriber{SubscriberID: "test", Status: "active"}, nil
+func (m *mockWotanClient) Subscribe(_ context.Context, topic, _ string) (*wotanClient.Subscriber, error) {
+	return &wotanClient.Subscriber{SubscriberID: "test", Status: "active"}, nil
 }
 
-func (m *mockBusboyClient) StreamMessages(_ context.Context, topic string) (<-chan *busboyClient.Message, error) {
+func (m *mockWotanClient) StreamMessages(_ context.Context, topic string) (<-chan *wotanClient.Message, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	ch := make(chan *busboyClient.Message, 100)
+	ch := make(chan *wotanClient.Message, 100)
 	m.channels[topic] = ch
 	return ch, nil
 }
 
-func (m *mockBusboyClient) Close() error { return nil }
+func (m *mockWotanClient) Close() error { return nil }
 
-func (m *mockBusboyClient) send(topic string, payload string) {
+func (m *mockWotanClient) send(topic string, payload string) {
 	m.mu.Lock()
 	ch, ok := m.channels[topic]
 	m.mu.Unlock()
 	if ok {
-		ch <- &busboyClient.Message{
+		ch <- &wotanClient.Message{
 			Topic:   topic,
 			Payload: payload,
 		}
@@ -371,7 +371,7 @@ func (m *mockBusboyClient) send(topic string, payload string) {
 }
 
 func TestIngestor_PacketIngestion(t *testing.T) {
-	mock := newMockBusboyClient()
+	mock := newMockWotanClient()
 	config := DefaultIngestorConfig()
 	config.ExpireInterval = time.Hour // Don't expire during test
 	ing := NewIngestor(config, mock, nil)
@@ -426,7 +426,7 @@ func TestIngestor_PacketIngestion(t *testing.T) {
 }
 
 func TestIngestor_LatencyIngestion(t *testing.T) {
-	mock := newMockBusboyClient()
+	mock := newMockWotanClient()
 	config := DefaultIngestorConfig()
 	config.ExpireInterval = time.Hour
 	ing := NewIngestor(config, mock, nil)
@@ -464,7 +464,7 @@ func TestIngestor_LatencyIngestion(t *testing.T) {
 }
 
 func TestIngestor_FlowIngestion(t *testing.T) {
-	mock := newMockBusboyClient()
+	mock := newMockWotanClient()
 	config := DefaultIngestorConfig()
 	config.ExpireInterval = time.Hour
 	ing := NewIngestor(config, mock, nil)
@@ -497,7 +497,7 @@ func TestIngestor_FlowIngestion(t *testing.T) {
 }
 
 func TestIngestor_ParseErrors(t *testing.T) {
-	mock := newMockBusboyClient()
+	mock := newMockWotanClient()
 	config := DefaultIngestorConfig()
 	config.ExpireInterval = time.Hour
 	ing := NewIngestor(config, mock, nil)
@@ -520,7 +520,7 @@ func TestIngestor_ParseErrors(t *testing.T) {
 }
 
 func TestIngestor_RecentEvents(t *testing.T) {
-	mock := newMockBusboyClient()
+	mock := newMockWotanClient()
 	config := DefaultIngestorConfig()
 	config.EventBufferSize = 5
 	config.ExpireInterval = time.Hour

@@ -83,7 +83,7 @@ func TestDefaultConfig(t *testing.T) {
 		{"TemplateDir", cfg.TemplateDir, "./templates"},
 		{"StaticDir", cfg.StaticDir, "./static"},
 		{"BroadcastBuffer", cfg.BroadcastBuffer, 1000},
-		{"BusboyTopic", cfg.BusboyTopic, "cloak.dashboard"},
+		{"WotanTopic", cfg.WotanTopic, "cloak.dashboard"},
 	}
 
 	for _, tt := range tests {
@@ -132,7 +132,7 @@ func TestNewService(t *testing.T) {
 			DefaultTheme:     "light",
 			DefaultLayout:    LayoutFreeform,
 			BroadcastBuffer:  50,
-			BusboyTopic:      "custom.topic",
+			WotanTopic:      "custom.topic",
 		}
 		svc := newTestServiceWithConfig(cfg)
 
@@ -150,11 +150,11 @@ func TestNewService(t *testing.T) {
 		}
 	})
 
-	t.Run("creates service with nil busboy client", func(t *testing.T) {
+	t.Run("creates service with nil wotan client", func(t *testing.T) {
 		log := logger.New(io.Discard)
 		svc := NewService(log, nil, nil)
-		if svc.busboy != nil {
-			t.Error("expected nil busboy client")
+		if svc.wotan != nil {
+			t.Error("expected nil wotan client")
 		}
 	})
 }

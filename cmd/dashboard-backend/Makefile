@@ -50,9 +50,9 @@ build:
 run: build
 	./$(BIN) -debug
 
-## run-busboy: Run with custom Busboy address
-run-busboy: build
-	./$(BIN) -busboy $(BUSBOY_ADDR) -debug
+## run-wotan: Run with custom Wotan address
+run-wotan: build
+	./$(BIN) -wotan $(WOTAN_ADDR) -debug
 
 ## lint: Run golangci-lint
 lint:

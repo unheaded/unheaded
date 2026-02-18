@@ -70,7 +70,7 @@ limitations under the License.
 **License:** Apache License 2.0
 **URL:** https://github.com/grpc/grpc-go
 
-Used for gRPC streaming in Busboy client and trace collection.
+Used for gRPC streaming in Wotan client and trace collection.
 
 ```
 Copyright 2014-2024 The gRPC Authors
@@ -415,7 +415,7 @@ Async runtime for the trace-collector.
 **License:** MIT
 **URL:** https://github.com/hyperium/tonic
 
-gRPC framework for trace-collector → Busboy communication.
+gRPC framework for trace-collector → Wotan communication.
 
 ---
 
@@ -519,7 +519,7 @@ This software includes code from the following projects:
 - **zerolog** - Zero allocation JSON logger
 - **Aya** - eBPF framework for Rust (kernel programs)
 - **Tokio** - Async runtime for Rust (trace-collector)
-- **Tonic** - gRPC for Rust (trace-collector → Busboy)
+- **Tonic** - gRPC for Rust (trace-collector → Wotan)
 - **modernc.org/sqlite** - Pure Go SQLite (Kanban persistence)
 
 We thank the maintainers and contributors of these projects for their work.

@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -121,7 +121,7 @@ type Panel struct {
 // Service is the main Vambraces observability service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu         sync.RWMutex
@@ -140,7 +140,7 @@ type Config struct {
 	TraceRetention   time.Duration `json:"trace_retention"`
 	ScrapeInterval   time.Duration `json:"scrape_interval"`
 	EvaluationInterval time.Duration `json:"evaluation_interval"`
-	BusboyTopic      string        `json:"busboy_topic"`
+	WotanTopic      string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -150,19 +150,19 @@ func DefaultConfig() *Config {
 		TraceRetention:     24 * time.Hour,
 		ScrapeInterval:     15 * time.Second,
 		EvaluationInterval: 1 * time.Minute,
-		BusboyTopic:        "vambraces.observability",
+		WotanTopic:        "vambraces.observability",
 	}
 }
 
 // NewService creates a new Vambraces observability service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:        log,
-		busboy:     busboy,
+		wotan:     wotan,
 		config:     cfg,
 		metrics:    make(map[string][]*Metric),
 		traces:     make(map[string][]*Span),

@@ -1609,8 +1609,8 @@ func TestDefaultBuilderConfig(t *testing.T) {
 	if cfg.WatchInterval != 5*time.Second {
 		t.Errorf("WatchInterval = %v, want 5s", cfg.WatchInterval)
 	}
-	if cfg.BusboyTopic != "nix.builds" {
-		t.Errorf("BusboyTopic = %q, want nix.builds", cfg.BusboyTopic)
+	if cfg.WotanTopic != "nix.builds" {
+		t.Errorf("WotanTopic = %q, want nix.builds", cfg.WotanTopic)
 	}
 }
 
@@ -2347,7 +2347,7 @@ func TestCacheEntry_JSON(t *testing.T) {
 // BUILDER PUBLISH EVENT TESTS
 // ============================================================================
 
-func TestBuilder_PublishBuildEvent_NilBusboy(t *testing.T) {
+func TestBuilder_PublishBuildEvent_NilWotan(t *testing.T) {
 	dir := t.TempDir()
 	cfg := BuilderConfig{
 		NixBinary:      "nix",
@@ -2361,12 +2361,12 @@ func TestBuilder_PublishBuildEvent_NilBusboy(t *testing.T) {
 		WatchInterval:  time.Second,
 	}
 
-	builder, err := NewBuilder(cfg, nil) // nil busboy
+	builder, err := NewBuilder(cfg, nil) // nil wotan
 	if err != nil {
 		t.Fatalf("NewBuilder: %v", err)
 	}
 
-	// Should not panic with nil busboy
+	// Should not panic with nil wotan
 	result := &BuildResult{
 		Spec:   BuildSpec{ID: "test", ContainerName: "test"},
 		Status: BuildStatusSuccess,
@@ -3476,15 +3476,15 @@ func TestBuilder_PublishBuildEvent_WithError(t *testing.T) {
 		MaxConcurrent:  1,
 		DefaultTimeout: 5 * time.Minute,
 		WatchInterval:  time.Second,
-		BusboyTopic:    "test.builds",
+		WotanTopic:    "test.builds",
 	}
 
-	builder, err := NewBuilder(cfg, nil) // nil busboy
+	builder, err := NewBuilder(cfg, nil) // nil wotan
 	if err != nil {
 		t.Fatalf("NewBuilder: %v", err)
 	}
 
-	// Test that publishBuildEvent does not panic with nil busboy
+	// Test that publishBuildEvent does not panic with nil wotan
 	// when result has error and image path set
 	result := &BuildResult{
 		Spec:      BuildSpec{ID: "err-build", ContainerName: "failing-service"},
@@ -3492,7 +3492,7 @@ func TestBuilder_PublishBuildEvent_WithError(t *testing.T) {
 		Error:     "build compilation failed",
 		ImagePath: "",
 	}
-	builder.publishBuildEvent(result) // should return immediately (nil busboy)
+	builder.publishBuildEvent(result) // should return immediately (nil wotan)
 }
 
 func TestBuilder_PublishBuildEvent_WithImagePath(t *testing.T) {
@@ -3507,10 +3507,10 @@ func TestBuilder_PublishBuildEvent_WithImagePath(t *testing.T) {
 		MaxConcurrent:  1,
 		DefaultTimeout: 5 * time.Minute,
 		WatchInterval:  time.Second,
-		BusboyTopic:    "test.builds",
+		WotanTopic:    "test.builds",
 	}
 
-	builder, err := NewBuilder(cfg, nil) // nil busboy
+	builder, err := NewBuilder(cfg, nil) // nil wotan
 	if err != nil {
 		t.Fatalf("NewBuilder: %v", err)
 	}
@@ -3521,7 +3521,7 @@ func TestBuilder_PublishBuildEvent_WithImagePath(t *testing.T) {
 		ImagePath: "/nix/store/abc123/image.tar.xz",
 		Duration:  2 * time.Minute,
 	}
-	builder.publishBuildEvent(result) // should return immediately (nil busboy)
+	builder.publishBuildEvent(result) // should return immediately (nil wotan)
 }
 
 // ============================================================================

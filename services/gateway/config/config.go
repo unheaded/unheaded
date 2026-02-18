@@ -16,7 +16,7 @@ type Config struct {
 	Auth          AuthConfig          `json:"auth"`
 	CORS          CORSConfig          `json:"cors"`
 	Circuit       CircuitConfig       `json:"circuit"`
-	Busboy        BusboyConfig        `json:"busboy"`
+	Wotan        WotanConfig        `json:"wotan"`
 	Metrics       MetricsConfig       `json:"metrics"`
 	AlphaServices AlphaServicesConfig `json:"alpha_services"`
 }
@@ -97,8 +97,8 @@ type CircuitConfig struct {
 	HalfOpenRequests int           `json:"half_open_requests"`
 }
 
-// BusboyConfig holds event bus client settings.
-type BusboyConfig struct {
+// WotanConfig holds event bus client settings.
+type WotanConfig struct {
 	Enabled     bool   `json:"enabled"`
 	URL         string `json:"url"`
 	Topic       string `json:"topic"`
@@ -150,7 +150,7 @@ func DefaultConfig() *Config {
 			Timeout:          30 * time.Second,
 			HalfOpenRequests: 3,
 		},
-		Busboy: BusboyConfig{
+		Wotan: WotanConfig{
 			Enabled:     true,
 			URL:         "http://localhost:8081",
 			Topic:       "gateway.requests",
@@ -202,8 +202,8 @@ func LoadFromEnv() *Config {
 		cfg.Auth.Enabled = true
 	}
 
-	if busboyURL := os.Getenv("BUSBOY_URL"); busboyURL != "" {
-		cfg.Busboy.URL = busboyURL
+	if wotanURL := os.Getenv("WOTAN_URL"); wotanURL != "" {
+		cfg.Wotan.URL = wotanURL
 	}
 
 	if tlsCert := os.Getenv("GATEWAY_TLS_CERT"); tlsCert != "" {
@@ -225,7 +225,7 @@ func LoadFromEnv() *Config {
 
 	// Tracing service name
 	if serviceName := os.Getenv("GATEWAY_SERVICE_NAME"); serviceName != "" {
-		cfg.Busboy.ServiceName = serviceName
+		cfg.Wotan.ServiceName = serviceName
 	}
 
 	// Alpha Services host configuration

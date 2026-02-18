@@ -25,7 +25,7 @@ The Unheaded Kingdom currently operates as a **monorepo** for rapid Alpha develo
 │                                                                  │
 │   go.mod:                                                        │
 │   require (                                                      │
-│       github.com/unheaded/busboy v1.x.x                         │
+│       github.com/unheaded/wotan v1.x.x                         │
 │       github.com/unheaded/timeguru v1.x.x                       │
 │       github.com/unheaded/captain v1.x.x                        │
 │       github.com/unheaded/architect v1.x.x                      │
@@ -41,13 +41,13 @@ The Unheaded Kingdom currently operates as a **monorepo** for rapid Alpha develo
 ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
 │ github.com/   │   │ github.com/   │   │ github.com/   │
 │ unheaded/     │   │ unheaded/     │   │ unheaded/     │
-│ busboy        │   │ timeguru      │   │ captain       │
+│ wotan        │   │ timeguru      │   │ captain       │
 │               │   │               │   │               │
 │ go.mod:       │   │ go.mod:       │   │ go.mod:       │
 │ module        │   │ module        │   │ require       │
 │ github.com/   │   │ github.com/   │   │ github.com/   │
 │ unheaded/     │   │ unheaded/     │   │ unheaded/     │
-│ busboy        │   │ timeguru      │   │ busboy        │
+│ wotan        │   │ timeguru      │   │ wotan        │
 └───────────────┘   └───────────────┘   └───────────────┘
 ```
 
@@ -59,21 +59,21 @@ The Unheaded Kingdom currently operates as a **monorepo** for rapid Alpha develo
 
 | Service | Repo | Description |
 |---------|------|-------------|
-| **Busboy** | `github.com/unheaded/busboy` | Message bus - Fae Chamber |
+| **Wotan** | `github.com/unheaded/wotan` | Message bus - Fae Chamber |
 | **Gateway** | `github.com/unheaded/gateway` | API Gateway - The Shield |
 
 These have **zero internal dependencies** and can be extracted first.
 
-### Tier 2: Application Services (Depend on Busboy)
+### Tier 2: Application Services (Depend on Wotan)
 
 | Service | Repo | Dependencies |
 |---------|------|--------------|
-| **Timeguru** | `github.com/unheaded/timeguru` | busboy |
-| **Captain** | `github.com/unheaded/captain` | busboy |
-| **Architect** | `github.com/unheaded/architect` | busboy |
-| **Micromanager** | `github.com/unheaded/micromanager` | busboy, timeguru |
-| **Monad** | `github.com/unheaded/monad` | busboy |
-| **Sophia** | `github.com/unheaded/sophia` | busboy |
+| **Timeguru** | `github.com/unheaded/timeguru` | wotan |
+| **Captain** | `github.com/unheaded/captain` | wotan |
+| **Architect** | `github.com/unheaded/architect` | wotan |
+| **Micromanager** | `github.com/unheaded/micromanager` | wotan, timeguru |
+| **Monad** | `github.com/unheaded/monad` | wotan |
+| **Sophia** | `github.com/unheaded/sophia` | wotan |
 
 ### Tier 3: Orchestration (Depends on All)
 
@@ -107,8 +107,8 @@ import "github.com/unheaded/pkg/events"
 Each service defines its own interfaces, contracts exchanged via protobuf/gRPC:
 
 ```protobuf
-// busboy.proto
-service BusboyService {
+// wotan.proto
+service WotanService {
     rpc Publish(PublishRequest) returns (PublishResponse);
     rpc Subscribe(SubscribeRequest) returns (stream Message);
 }
@@ -121,7 +121,7 @@ Services generate clients from proto, no Go imports needed.
 **Hybrid approach:**
 - `github.com/unheaded/pkg` for shared Go types (events, configs)
 - Protobuf for service-to-service contracts
-- Each service can run standalone with just Busboy connection
+- Each service can run standalone with just Wotan connection
 
 ---
 
@@ -134,14 +134,14 @@ Services generate clients from proto, no Go imports needed.
 3. Update monorepo to import from shared package
 4. Verify build passes
 
-### Phase 2: Extract Busboy (Week 2)
+### Phase 2: Extract Wotan (Week 2)
 
-1. Create `github.com/unheaded/busboy` repository
-2. Copy `services/busboy/` content
+1. Create `github.com/unheaded/wotan` repository
+2. Copy `services/wotan/` content
 3. Set up independent CI/CD
 4. Tag v1.0.0
-5. Update monorepo to import `github.com/unheaded/busboy`
-6. Remove `services/busboy/` from monorepo
+5. Update monorepo to import `github.com/unheaded/wotan`
+6. Remove `services/wotan/` from monorepo
 
 ### Phase 3: Extract Tier 2 Services (Weeks 3-4)
 
@@ -150,7 +150,7 @@ For each service (timeguru, captain, architect, micromanager, monad, sophia):
 1. Create `github.com/unheaded/{service}` repository
 2. Copy `services/{service}/` content
 3. Update go.mod to import:
-   - `github.com/unheaded/busboy`
+   - `github.com/unheaded/wotan`
    - `github.com/unheaded/pkg`
 4. Set up CI/CD
 5. Tag v1.0.0
@@ -192,7 +192,7 @@ All services follow semver: `vMAJOR.MINOR.PATCH`
 Maintain `COMPATIBILITY.md` in main repo:
 
 ```markdown
-| unheaded | busboy | timeguru | captain |
+| unheaded | wotan | timeguru | captain |
 |----------|--------|----------|---------|
 | v1.0.0   | v1.0.x | v1.0.x   | v1.0.x  |
 | v1.1.0   | v1.0.x | v1.1.x   | v1.0.x  |
@@ -213,9 +213,9 @@ Maintain `COMPATIBILITY.md` in main repo:
 
 **Requirement:** Each microservice MUST health check all other microservices it depends on.
 
-When a service detects another service is down, it reports to a dedicated Busboy room for distributed outage detection. Alert severity is determined by consensus - multiple services reporting the same outage increases confidence.
+When a service detects another service is down, it reports to a dedicated Wotan room for distributed outage detection. Alert severity is determined by consensus - multiple services reporting the same outage increases confidence.
 
-### Busboy Outage Room
+### Wotan Outage Room
 
 ```
 Topic: system.outage.reports
@@ -282,7 +282,7 @@ func (s *Service) healthCheckLoop(ctx context.Context) {
         case <-ticker.C:
             for _, dep := range s.dependencies {
                 if err := s.checkHealth(dep); err != nil {
-                    s.busboy.Publish(ctx, "system.outage.reports", OutageReport{
+                    s.wotan.Publish(ctx, "system.outage.reports", OutageReport{
                         Reporter:  s.name,
                         Target:    dep.Name,
                         Status:    "unreachable",
@@ -365,12 +365,12 @@ func (a *OutageAggregator) GetColor(target string) string {
 
 | Service | Health Checks |
 |---------|---------------|
-| **Timeguru** | busboy |
-| **Captain** | busboy, timeguru |
-| **Architect** | busboy |
-| **Micromanager** | busboy, timeguru, captain |
-| **Monad** | busboy |
-| **Sophia** | busboy, monad |
+| **Timeguru** | wotan |
+| **Captain** | wotan, timeguru |
+| **Architect** | wotan |
+| **Micromanager** | wotan, timeguru, captain |
+| **Monad** | wotan |
+| **Sophia** | wotan, monad |
 | **Gateway** | all services |
 | **Cuirass** | all services (aggregator) |
 
@@ -467,7 +467,7 @@ If extraction causes issues:
 
 ```go
 // Temporary rollback in go.mod
-replace github.com/unheaded/busboy => ./services/busboy
+replace github.com/unheaded/wotan => ./services/wotan
 ```
 
 ---
@@ -493,7 +493,7 @@ Breakout is complete when:
 |-------|----------|-------------|
 | Alpha Stable | - | Feb 8, 2026 |
 | Phase 1: Shared Package | 1 week | Feb 15, 2026 |
-| Phase 2: Extract Busboy | 1 week | Feb 22, 2026 |
+| Phase 2: Extract Wotan | 1 week | Feb 22, 2026 |
 | Phase 3: Extract Services | 2 weeks | Mar 8, 2026 |
 | Phase 4: Restructure Main | 1 week | Mar 15, 2026 |
 | **Breakout Complete** | - | **Mar 15, 2026** |

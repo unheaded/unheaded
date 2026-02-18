@@ -8,40 +8,40 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"github.com/rs/zerolog/log"
 )
 
-// Service manages micromanager business logic and Busboy integration
+// Service manages micromanager business logic and Wotan integration
 type Service struct {
 	store          *Store
-	busboy         *busboyClient.Client
+	wotan         *wotanClient.Client
 	taskIDCounter  int64
 	subscriptions  map[string]bool
 	subMu          sync.RWMutex
-	alertListener  chan *busboyClient.Message
+	alertListener  chan *wotanClient.Message
 }
 
 // NewService creates a new micromanager service
-func NewService(store *Store, busboy *busboyClient.Client) *Service {
+func NewService(store *Store, wotan *wotanClient.Client) *Service {
 	return &Service{
 		store:         store,
-		busboy:        busboy,
+		wotan:        wotan,
 		taskIDCounter: 0,
 		subscriptions: make(map[string]bool),
-		alertListener: make(chan *busboyClient.Message, 100),
+		alertListener: make(chan *wotanClient.Message, 100),
 	}
 }
 
-// Start initializes the service (connects to Busboy, subscribes to topics)
+// Start initializes the service (connects to Wotan, subscribes to topics)
 func (s *Service) Start(ctx context.Context) error {
-	if s.busboy == nil {
-		log.Info().Msg("busboy client not configured, skipping integration")
+	if s.wotan == nil {
+		log.Info().Msg("wotan client not configured, skipping integration")
 		return nil
 	}
 
 	// Subscribe to alerts
-	sub, err := s.busboy.Subscribe(ctx, "alerts.critical", "micromanager-service")
+	sub, err := s.wotan.Subscribe(ctx, "alerts.critical", "micromanager-service")
 	if err != nil {
 		log.Warn().Err(err).Msg("failed to subscribe to alerts.critical, continuing without subscription")
 		return nil
@@ -64,9 +64,9 @@ func (s *Service) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the service
 func (s *Service) Stop(ctx context.Context) error {
-	if s.busboy != nil {
-		if err := s.busboy.Close(); err != nil {
-			log.Error().Err(err).Msg("failed to close busboy client")
+	if s.wotan != nil {
+		if err := s.wotan.Close(); err != nil {
+			log.Error().Err(err).Msg("failed to close wotan client")
 			return err
 		}
 	}
@@ -80,14 +80,14 @@ func (s *Service) GenerateTaskID() string {
 	return fmt.Sprintf("task-%d-%d", time.Now().Unix(), counter)
 }
 
-// PublishTaskCreated publishes a task.created event to Busboy
+// PublishTaskCreated publishes a task.created event to Wotan
 func (s *Service) PublishTaskCreated(taskID string, task *Task) error {
-	if s.busboy == nil {
-		log.Debug().Str("task_id", taskID).Msg("busboy client not configured, skipping publish")
+	if s.wotan == nil {
+		log.Debug().Str("task_id", taskID).Msg("wotan client not configured, skipping publish")
 		return nil
 	}
 
-	if !s.busboy.IsApproved("tasks.created") {
+	if !s.wotan.IsApproved("tasks.created") {
 		log.Warn().Msg("not approved to publish to tasks.created, skipping event")
 		return nil
 	}
@@ -110,7 +110,7 @@ func (s *Service) PublishTaskCreated(taskID string, task *Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := s.busboy.Publish(ctx, "tasks.created", payload); err != nil {
+	if err := s.wotan.Publish(ctx, "tasks.created", payload); err != nil {
 		log.Error().Err(err).Str("task_id", taskID).Msg("failed to publish task.created")
 		return err
 	}
@@ -119,14 +119,14 @@ func (s *Service) PublishTaskCreated(taskID string, task *Task) error {
 	return nil
 }
 
-// PublishTaskUpdated publishes a task.updated event to Busboy
+// PublishTaskUpdated publishes a task.updated event to Wotan
 func (s *Service) PublishTaskUpdated(taskID string, task *Task) error {
-	if s.busboy == nil {
-		log.Debug().Str("task_id", taskID).Msg("busboy client not configured, skipping publish")
+	if s.wotan == nil {
+		log.Debug().Str("task_id", taskID).Msg("wotan client not configured, skipping publish")
 		return nil
 	}
 
-	if !s.busboy.IsApproved("tasks.updated") {
+	if !s.wotan.IsApproved("tasks.updated") {
 		log.Warn().Msg("not approved to publish to tasks.updated, skipping event")
 		return nil
 	}
@@ -149,7 +149,7 @@ func (s *Service) PublishTaskUpdated(taskID string, task *Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := s.busboy.Publish(ctx, "tasks.updated", payload); err != nil {
+	if err := s.wotan.Publish(ctx, "tasks.updated", payload); err != nil {
 		log.Error().Err(err).Str("task_id", taskID).Msg("failed to publish task.updated")
 		return err
 	}
@@ -160,12 +160,12 @@ func (s *Service) PublishTaskUpdated(taskID string, task *Task) error {
 
 // PublishTaskCompleted publishes a task.completed event
 func (s *Service) PublishTaskCompleted(taskID string, task *Task) error {
-	if s.busboy == nil {
-		log.Debug().Str("task_id", taskID).Msg("busboy client not configured, skipping publish")
+	if s.wotan == nil {
+		log.Debug().Str("task_id", taskID).Msg("wotan client not configured, skipping publish")
 		return nil
 	}
 
-	if !s.busboy.IsApproved("tasks.completed") {
+	if !s.wotan.IsApproved("tasks.completed") {
 		log.Warn().Msg("not approved to publish to tasks.completed, skipping event")
 		return nil
 	}
@@ -186,7 +186,7 @@ func (s *Service) PublishTaskCompleted(taskID string, task *Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := s.busboy.Publish(ctx, "tasks.completed", payload); err != nil {
+	if err := s.wotan.Publish(ctx, "tasks.completed", payload); err != nil {
 		log.Error().Err(err).Str("task_id", taskID).Msg("failed to publish task.completed")
 		return err
 	}
@@ -197,11 +197,11 @@ func (s *Service) PublishTaskCompleted(taskID string, task *Task) error {
 
 // listenForAlerts subscribes to critical alerts
 func (s *Service) listenForAlerts(ctx context.Context) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
-	msgCh, err := s.busboy.StreamMessages(ctx, "alerts.critical")
+	msgCh, err := s.wotan.StreamMessages(ctx, "alerts.critical")
 	if err != nil {
 		log.Error().Err(err).Msg("failed to stream alerts")
 		return
@@ -252,13 +252,13 @@ func (s *Service) HealthStatus() map[string]interface{} {
 		"timestamp":    time.Now().Unix(),
 	}
 
-	if s.busboy != nil {
-		status["busboy_connected"] = true
+	if s.wotan != nil {
+		status["wotan_connected"] = true
 		s.subMu.RLock()
 		status["subscriptions"] = len(s.subscriptions)
 		s.subMu.RUnlock()
 	} else {
-		status["busboy_connected"] = false
+		status["wotan_connected"] = false
 	}
 
 	return status

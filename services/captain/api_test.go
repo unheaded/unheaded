@@ -14,11 +14,11 @@ import (
 
 func createTestServer(t *testing.T) (*Service, *HTTPServer) {
 	storage := NewMemoryStorage()
-	busboy := newMockBusboy()
+	wotan := newMockWotan()
 
 	svc, err := NewService(Config{
 		Storage: storage,
-		Busboy:  busboy,
+		Wotan:  wotan,
 	})
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)

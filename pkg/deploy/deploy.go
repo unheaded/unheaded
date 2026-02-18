@@ -202,7 +202,7 @@ type HookSpec struct {
 // HookAction defines a single hook action.
 type HookAction struct {
 	Name    string            `json:"name"`
-	Type    string            `json:"type"` // exec, http, busboy
+	Type    string            `json:"type"` // exec, http, wotan
 	Command string            `json:"command,omitempty"`
 	URL     string            `json:"url,omitempty"`
 	Topic   string            `json:"topic,omitempty"`
@@ -345,8 +345,8 @@ type Deployer interface {
 	Promote(ctx context.Context, deploymentID string) error
 }
 
-// BusboyPublisher interface for publishing deployment events.
-type BusboyPublisher interface {
+// WotanPublisher interface for publishing deployment events.
+type WotanPublisher interface {
 	Publish(ctx context.Context, topic string, payload []byte) error
 }
 
@@ -388,8 +388,8 @@ type Engine struct {
 	// runtime is the container runtime
 	runtime container.Runtime
 
-	// busboy for event publishing
-	busboy BusboyPublisher
+	// wotan for event publishing
+	wotan WotanPublisher
 
 	// logger for logging
 	log *logger.Logger
@@ -443,7 +443,7 @@ func DefaultEngineConfig() *EngineConfig {
 }
 
 // NewEngine creates a new deployment engine.
-func NewEngine(runtime container.Runtime, busboy BusboyPublisher, config *EngineConfig) *Engine {
+func NewEngine(runtime container.Runtime, wotan WotanPublisher, config *EngineConfig) *Engine {
 	if config == nil {
 		config = DefaultEngineConfig()
 	}
@@ -452,7 +452,7 @@ func NewEngine(runtime container.Runtime, busboy BusboyPublisher, config *Engine
 
 	return &Engine{
 		runtime:     runtime,
-		busboy:      busboy,
+		wotan:      wotan,
 		log:         log,
 		deployments: make(map[string]*Deployment),
 		history:     make(map[string][]*Deployment),
@@ -1090,11 +1090,11 @@ func (e *Engine) runHook(ctx context.Context, hook HookAction) error {
 	case "http":
 		// Execute HTTP hook
 		return nil
-	case "busboy":
-		// Publish to Busboy topic
-		if e.busboy != nil {
+	case "wotan":
+		// Publish to Wotan topic
+		if e.wotan != nil {
 			payload, _ := json.Marshal(hook.Payload)
-			return e.busboy.Publish(ctx, hook.Topic, payload)
+			return e.wotan.Publish(ctx, hook.Topic, payload)
 		}
 		return nil
 	default:
@@ -1198,7 +1198,7 @@ func (e *Engine) buildConditions(deployment *Deployment) []Condition {
 
 // emitEvent emits a deployment event.
 func (e *Engine) emitEvent(ctx context.Context, topic string, data map[string]interface{}) {
-	if e.busboy == nil {
+	if e.wotan == nil {
 		return
 	}
 
@@ -1208,7 +1208,7 @@ func (e *Engine) emitEvent(ctx context.Context, topic string, data map[string]in
 		return
 	}
 
-	if err := e.busboy.Publish(ctx, topic, payload); err != nil {
+	if err := e.wotan.Publish(ctx, topic, payload); err != nil {
 		e.log.Error().Err(err).Str("topic", topic).Msg("failed to publish event")
 	}
 }

@@ -44,7 +44,7 @@ Complete containerization setup for the entire Kingdom.
 | `docker-compose.yml` | ~350 | Full orchestration with networking |
 
 **Docker Targets:**
-- `busboy` - Fae Chamber (Message Bus)
+- `wotan` - Fae Chamber (Message Bus)
 - `timeguru` - Oracle's Antre (Timeline)
 - `captain` - Commander's Quarters (Vision)
 - `architect` - Sage's Lair (ADRs)
@@ -66,7 +66,7 @@ Added new build targets and Docker commands:
 
 ```makefile
 # New service builds
-make build-busboy      # Fae Chamber
+make build-wotan      # Fae Chamber
 make build-timeguru    # Oracle's Antre
 make build-captain     # Commander's Quarters
 make build-architect   # Sage's Lair
@@ -208,7 +208,7 @@ make run-timeguru
 ### Service Endpoints (when running)
 | Service | Port | Health |
 |---------|------|--------|
-| Busboy | 5555, 8081 | http://localhost:8081/health |
+| Wotan | 5555, 8081 | http://localhost:8081/health |
 | Timeguru | 8082 | http://localhost:8082/health |
 | Captain | 8083 | http://localhost:8083/health |
 | Architect | 8084 | http://localhost:8084/health |
@@ -219,7 +219,7 @@ make run-timeguru
 
 ## Next Steps (Recommended)
 
-1. **Wire Services to Busboy** - Connect all services to message bus
+1. **Wire Services to Wotan** - Connect all services to message bus
 2. **Real LXD Integration** - Replace mock with actual LXD client
 3. **eBPF Programs** - Forge the Whispering Void (Rust + Aya)
 4. **NixOS Containers** - Build immutable citadels
@@ -232,7 +232,7 @@ make run-timeguru
 | Domain | Hollow | Technical Mapping |
 |--------|--------|-------------------|
 | Control Plane | Crystal Grotto | unheaded-daemon, state management |
-| Message Bus | Fae Chamber | Busboy, pub/sub |
+| Message Bus | Fae Chamber | Wotan, pub/sub |
 | eBPF | Whispering Void | packet_marker, flow_tracker |
 | Timeline | Oracle's Antre | Timeguru service |
 | ADRs | Sage's Lair | Architect service |

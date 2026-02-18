@@ -1,5 +1,5 @@
 // Package ebpf provides eBPF event ingestion for the dashboard backend.
-// It parses events published by trace-collector via Busboy and maintains
+// It parses events published by trace-collector via Wotan and maintains
 // real-time flow graphs, latency histograms, and event streams.
 package ebpf
 

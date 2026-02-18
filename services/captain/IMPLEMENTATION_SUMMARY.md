@@ -10,14 +10,14 @@
 
 ## Overview
 
-The captain-service is a leadership and strategy microservice for the Unheaded infrastructure platform. It tracks executive decisions, manages project vision and strategy, and publishes updates via the Busboy message bus.
+The captain-service is a leadership and strategy microservice for the Unheaded infrastructure platform. It tracks executive decisions, manages project vision and strategy, and publishes updates via the Wotan message bus.
 
 ### Core Responsibilities
 
 1. **Vision Management** - Return project vision and strategic goals
 2. **Strategy Tracking** - Serve the execution roadmap
 3. **Decision Logging** - Persist and track executive decisions
-4. **Alert Integration** - Subscribe to critical system alerts via Busboy
+4. **Alert Integration** - Subscribe to critical system alerts via Wotan
 5. **Metrics Export** - Expose operational metrics in Prometheus format
 
 ---
@@ -36,7 +36,7 @@ The captain-service is a leadership and strategy microservice for the Unheaded i
 │  - FileStorage (storage.go)             │    atomic writes, permission checks
 │  - MemoryStorage (testing)              │
 ├─────────────────────────────────────────┤
-│        Busboy Client Integration        │  ← Security: TLS support, error handling
+│        Wotan Client Integration        │  ← Security: TLS support, error handling
 ├─────────────────────────────────────────┤
 │           Main Entry Point (main.go)    │  ← Security: Signal handling, graceful shutdown
 └─────────────────────────────────────────┘
@@ -267,9 +267,9 @@ func TestService_Concurrent(t *testing.T) {
 
 ### 4. Network Security
 
-- **TLS 1.3 support**: Via Busboy client
+- **TLS 1.3 support**: Via Wotan client
 - **Timeout protection**: 15s read/write, 5s shutdown
-- **Rate limiting**: Implicit through Busboy
+- **Rate limiting**: Implicit through Wotan
 
 ### 5. Container Hardening
 
@@ -373,7 +373,7 @@ All responses follow standard format:
 
 ## Integration Points
 
-### Busboy Message Bus
+### Wotan Message Bus
 
 **Publishes to:**
 ```
@@ -470,7 +470,7 @@ nix build ./nix/containers/captain.nix
 
 ```bash
 # Configure environment
-export BUSBOY_ADDR=busboy:9090
+export WOTAN_ADDR=wotan:9090
 export HTTP_ADDR=0.0.0.0:8000
 export DATA_PATH=/var/lib/unheaded/captain
 

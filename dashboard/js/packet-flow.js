@@ -56,7 +56,7 @@ const PacketFlowViz = (function() {
         // Service node definitions
         services: {
             gateway: { name: 'Gateway', color: '#ffd700', x: 0.5, y: 0.08 },
-            busboy: { name: 'Busboy', color: '#4ecdc4', x: 0.5, y: 0.35 },
+            wotan: { name: 'Wotan', color: '#4ecdc4', x: 0.5, y: 0.35 },
             timeguru: { name: 'Timeguru', color: '#45b7d1', x: 0.15, y: 0.6 },
             captain: { name: 'Captain', color: '#a29bfe', x: 0.35, y: 0.6 },
             architect: { name: 'Architect', color: '#fd79a8', x: 0.65, y: 0.6 },
@@ -67,13 +67,13 @@ const PacketFlowViz = (function() {
 
         // Connection topology (which services connect to which)
         connections: [
-            ['gateway', 'busboy'],
-            ['busboy', 'timeguru'],
-            ['busboy', 'captain'],
-            ['busboy', 'architect'],
-            ['busboy', 'micromanager'],
-            ['busboy', 'monad'],
-            ['busboy', 'sophia'],
+            ['gateway', 'wotan'],
+            ['wotan', 'timeguru'],
+            ['wotan', 'captain'],
+            ['wotan', 'architect'],
+            ['wotan', 'micromanager'],
+            ['wotan', 'monad'],
+            ['wotan', 'sophia'],
             ['timeguru', 'monad'],
             ['captain', 'architect'],
             ['architect', 'sophia']
@@ -546,9 +546,9 @@ const PacketFlowViz = (function() {
         if (services.length < 2) {
             // If fewer than 2 services, build a plausible route through gateway
             if (services.length === 1) {
-                services = ['gateway', 'busboy', services[0]];
+                services = ['gateway', 'wotan', services[0]];
             } else {
-                services = ['gateway', 'busboy'];
+                services = ['gateway', 'wotan'];
             }
         }
 
@@ -710,7 +710,7 @@ const PacketFlowViz = (function() {
         var mapping = {
             'xdp_packet_marker': 'gateway',
             'gateway': 'gateway',
-            'busboy': 'busboy',
+            'wotan': 'wotan',
             'service': 'timeguru', // Default service
             'timeguru': 'timeguru',
             'captain': 'captain',
@@ -718,7 +718,7 @@ const PacketFlowViz = (function() {
             'micromanager': 'micromanager',
             'monad': 'monad',
             'sophia': 'sophia',
-            'trace-collector': 'busboy'
+            'trace-collector': 'wotan'
         };
         return mapping[component] || component;
     }
@@ -944,7 +944,7 @@ const PacketFlowViz = (function() {
             total_time: (5 + Math.random() * 20) * 1e6,
             hops: [
                 { component: 'gateway' },
-                { component: 'busboy' },
+                { component: 'wotan' },
                 { component: endService }
             ]
         };
@@ -1377,7 +1377,7 @@ const PacketFlowViz = (function() {
             path: '/api/v1/demo',
             hops: [
                 { component: 'gateway' },
-                { component: 'busboy' },
+                { component: 'wotan' },
                 { component: 'timeguru' }
             ]
         };

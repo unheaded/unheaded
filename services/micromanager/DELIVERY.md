@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The micromanager service is complete, fully tested, and production-ready. It implements the execution layer for Unheaded Alpha, handling task lifecycle management, progress tracking, and Busboy integration.
+The micromanager service is complete, fully tested, and production-ready. It implements the execution layer for Unheaded Alpha, handling task lifecycle management, progress tracking, and Wotan integration.
 
 **Metrics**:
 - 99 unit tests (all passing)
@@ -46,11 +46,11 @@ The micromanager service is complete, fully tested, and production-ready. It imp
    - Error handling (400, 404, 405, 500)
    - 90% test coverage (20 tests)
 
-4. **service.go** (170 LOC) - Business logic & Busboy
+4. **service.go** (170 LOC) - Business logic & Wotan
    - ID generation (unique, thread-safe)
    - Publishes: tasks.created, tasks.updated, tasks.completed
    - Subscribes: alerts.critical
-   - Graceful degradation without Busboy
+   - Graceful degradation without Wotan
    - 85% test coverage (11 tests)
 
 5. **cmd/main.go** (150 LOC) - Service entrypoint
@@ -82,7 +82,7 @@ The micromanager service is complete, fully tested, and production-ready. It imp
 
 - **service_test.go** (107 LOC): 11 tests
   - ID generation uniqueness
-  - Busboy integration
+  - Wotan integration
   - Health status
 
 **Test Quality**:
@@ -98,7 +98,7 @@ The micromanager service is complete, fully tested, and production-ready. It imp
 - Feature overview
 - API endpoint documentation
 - Example requests/responses
-- Busboy integration details
+- Wotan integration details
 - Testing instructions
 - Troubleshooting guide
 
@@ -152,7 +152,7 @@ The micromanager service is complete, fully tested, and production-ready. It imp
 ✅ Data Isolation
 - No customer data access
 - Internal task tracking only
-- Busboy events contain no PII
+- Wotan events contain no PII
 - Audit trail via message bus
 
 ### Performance (Production Ready)
@@ -241,7 +241,7 @@ POST /api/v1/tasks
 
 ---
 
-## Busboy Integration
+## Wotan Integration
 
 ### Published Topics
 
@@ -343,15 +343,15 @@ TOTAL: ~2,450 LOC (code + tests + docs)
 ### Local Development
 
 ```bash
-# Start Busboy (from services/busboy)
-go run ./cmd/busboy/main.go
+# Start Wotan (from services/wotan)
+go run ./cmd/wotan/main.go
 
 # Build micromanager
 cd services/micromanager
 make build
 
 # Run service
-./bin/micromanager -port 8003 -busboy localhost:9090 -log-level debug
+./bin/micromanager -port 8003 -wotan localhost:9090 -log-level debug
 
 # Test
 make test-race
@@ -445,7 +445,7 @@ journalctl -u micromanager -f
 - Publishes: design decisions (creates tasks)
 - Listens: tasks.completed (validates implementation)
 
-### Busboy (Message Bus)
+### Wotan (Message Bus)
 - Publishes: tasks.created, tasks.updated, tasks.completed
 - Subscribes: alerts.critical (platform monitoring)
 
@@ -457,7 +457,7 @@ journalctl -u micromanager -f
 |-----------|--------|--------|--------|
 | LOC (code + tests) | 500-700 | 1,550 | ✅ |
 | HTTP API | 5 endpoints | 7 endpoints | ✅ |
-| Busboy integration | Yes | Yes | ✅ |
+| Wotan integration | Yes | Yes | ✅ |
 | Test coverage | 80%+ | 92% | ✅ |
 | Task persistence | Yes | In-memory | ✅ |
 | Container def | Yes | Yes | ✅ |
@@ -470,7 +470,7 @@ journalctl -u micromanager -f
 
 ### Immediate (After Delivery)
 1. Integration testing with Timeguru
-2. Integration testing with Busboy (if not already running)
+2. Integration testing with Wotan (if not already running)
 3. Load testing (1000 tasks, 100 concurrent requests)
 4. Security audit
 
@@ -502,6 +502,6 @@ The micromanager service is **complete, tested, and ready for deployment**. It i
 - **Well Documented**: README, IMPLEMENTATION, API docs
 - **Clean Code**: TDD discipline, zero technical debt
 
-The service integrates seamlessly with the Busboy message bus and is ready for parallel testing with other Alpha services (Timeguru, Captain, Architect).
+The service integrates seamlessly with the Wotan message bus and is ready for parallel testing with other Alpha services (Timeguru, Captain, Architect).
 
 **Status**: Ready for Milestone 1.3 completion and Milestone 1.6 integration testing.

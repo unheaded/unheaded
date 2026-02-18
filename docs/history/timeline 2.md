@@ -31,7 +31,7 @@
          ║  📋 MICROMANAGER - Execution/QA       (WHAT & WHEN)    ║
          ║  ⌛ TIMEGURU    - Living Timeline     (WHEN/WAS/WILL)  ║
          ║  💻 DEVELOPER   - Code/TDD/Security   (BUILD)          ║
-         ║  🍽️ BUSBOY      - Coordination        (GLUE)           ║
+         ║  🍽️ WOTAN      - Coordination        (GLUE)           ║
          ║  📅 CALENDAR    - Time Capture        (SCHEDULE)       ║
          ╚════════════════════════════╦═══════════════════════════╝
                                       ║
@@ -58,7 +58,7 @@
          ║  🕯️ ELDER HOLLOW      - Legacy protocols (ancient ways)║
          ║  🔮 ORACLE'S ANTRE    - Timeguru's chamber (prophecy)  ║
          ║  ⚫ PRIMORDIAL PIT    - Bare metal core (deepest layer)║
-         ║  🧚 FAE CHAMBER       - Busboy's dance (message magic) ║
+         ║  🧚 FAE CHAMBER       - Wotan's dance (message magic) ║
          ║  ☠️ CURSED PIT        - Quarantine zone (breach vault) ║
          ║  📚 SAGE'S LAIR       - Architect's wisdom (ADR vault) ║
          ║  🌀 MYTHIC ABYSS      - Deep telemetry (kernel traces) ║
@@ -96,10 +96,10 @@ The Unheaded Kingdom delivers the complete **Suit of Armor** for modern SaaS app
 ## The Ages of Development
 
 ### Age 0: The Foundation Stone (COMPLETE ✓)
-**The Forging of Busboy - The Fae Chamber Awakens**
+**The Forging of Wotan - The Fae Chamber Awakens**
 *December 2025 - January 2026*
 
-In the beginning, there was chaos - messages scattered like leaves in wind. Then came Busboy, the first forging: 11,669 lines of Go, hardened in the fires of production.
+In the beginning, there was chaos - messages scattered like leaves in wind. Then came Wotan, the first forging: 11,669 lines of Go, hardened in the fires of production.
 
 #### The Relics Forged:
 - [x] **Ring of Holding** - Ring buffer implementation (1,233 LOC)
@@ -112,7 +112,7 @@ In the beginning, there was chaos - messages scattered like leaves in wind. Then
 - [x] **The CLI Gauntlet** - Terminal client (complete)
 - [x] **The Scrolls** - Documentation (complete)
 
-**Outcome:** The Fae Chamber awakened. Busboy dances. The message magic flows.
+**Outcome:** The Fae Chamber awakened. Wotan dances. The message magic flows.
 
 ---
 
@@ -139,7 +139,7 @@ The deepest magic. Programs that attach to the kernel itself, seeing every packe
 - [ ] `trace-collector` - Rust bridge from kernel to Fae Chamber
 - [ ] Kernel verifier trials (the ancient tests)
 - [ ] Bare metal communion (live testing)
-- [ ] Fae Chamber integration (Busboy connection)
+- [ ] Fae Chamber integration (Wotan connection)
 
 **Dependencies:** None - can run parallel with other epochs
 **Risk:** Medium - the kernel verifier is a harsh judge
@@ -186,7 +186,7 @@ Each persona of the Royal Court takes physical form as a running service. Four a
 - [x] Strategy REST API - vision endpoints
 - [x] Health monitoring
 - [x] Scaffold complete with Kingdom branding
-- [ ] Alert subscription - Busboy connection (wiring)
+- [ ] Alert subscription - Wotan connection (wiring)
 
 **The Micromanager Service:** ✅
 - [x] Task execution API - WHAT & WHEN
@@ -201,7 +201,7 @@ Each persona of the Royal Court takes physical form as a running service. Four a
 - [ ] Wisdom storage connection (future)
 
 **Dependencies:** None - all four forge in parallel
-**Risk:** Low - patterns established from Busboy
+**Risk:** Low - patterns established from Wotan
 **Owner:** Four Cavalry agents (Micromanager coordinates)
 
 ---
@@ -383,7 +383,7 @@ The Timeguru conducted honest assessment. Previous estimates revealed as optimis
 
 ### Velocity Projections
 - **Previous:** 615 LOC/day (serial forging)
-- **With Busboy:** 3,075 LOC/week (parallel possible)
+- **With Wotan:** 3,075 LOC/week (parallel possible)
 - **Target:** 6-8 agents × 500 LOC/day = 3,000-4,000 LOC in 5-6 days
 - **Verdict:** Achievable with parallel execution
 
@@ -393,7 +393,7 @@ The Timeguru conducted honest assessment. Previous estimates revealed as optimis
 |------|--------|-----------|--------|------------|-------|
 | Kernel verifier rejection | Whispering Void | Medium | High | Start early, Rust safety | Agent 5 |
 | LXD networking misconfig | Cuirass | Medium | High | Pre-test bridge + firewall | Agent 7 |
-| Service integration failure | Fae Chamber | Low | High | Busboy as hub | All |
+| Service integration failure | Fae Chamber | Low | High | Wotan as hub | All |
 | Container build failure | Citadels | Low | Medium | NixOS templates | Architect |
 | Dashboard UI delays | Cape/Cloak | Low | Medium | Kanban head start | Agent 8 |
 | **Timeline slip** | All | **Medium** | **High** | **Parallel forging only** | Timeguru |
@@ -414,7 +414,7 @@ Cuirass (1.2) ────↗
 
 ### January 2026 - The Age of Awakening
 
-- ✅ **Busboy Phase 1 SHIPPED!** - 11,669 lines of battle-tested Go
+- ✅ **Wotan Phase 1 SHIPPED!** - 11,669 lines of battle-tested Go
   - The Fae Chamber awakened
   - Message magic flows
 
@@ -448,7 +448,7 @@ Cuirass (1.2) ────↗
   - Sacred Hierarchy documented
 
 ### December 2025 - The Stirring
-- ✅ Busboy prototype validated
+- ✅ Wotan prototype validated
 - ✅ gRPC streaming proven
 - ✅ Message bus pattern established
 
@@ -505,25 +505,25 @@ Purpose: Pre-computed backup paths, sub-50ms switchover
 ### Core Formats (Foundation - System Source of Truth)
 | Format | Target | Incantation |
 |--------|--------|-------------|
-| `.deb` | Debian, Ubuntu | `apt-get install unheaded-busboy` |
-| `.rpm` | RHEL, Fedora, Rocky | `dnf install unheaded-busboy` |
+| `.deb` | Debian, Ubuntu | `apt-get install unheaded-wotan` |
+| `.rpm` | RHEL, Fedora, Rocky | `dnf install unheaded-wotan` |
 | `.tar.gz` | Any Linux | Manual installation |
-| NixOS | NixOS | `nix-env -iA unheaded.busboy` |
+| NixOS | NixOS | `nix-env -iA unheaded.wotan` |
 
 ### Container / Universal (Checkbox Options)
 | Format | Target | Incantation |
 |--------|--------|-------------|
-| Docker | Containers | `docker pull ghcr.io/unheaded/busboy` |
-| Snap | Ubuntu/Universal | `snap install unheaded-busboy` |
-| Helm | Kubernetes | `helm install unheaded/busboy` |
-| Flatpak | Desktop Linux | `flatpak install unheaded.busboy` |
+| Docker | Containers | `docker pull ghcr.io/unheaded/wotan` |
+| Snap | Ubuntu/Universal | `snap install unheaded-wotan` |
+| Helm | Kubernetes | `helm install unheaded/wotan` |
+| Flatpak | Desktop Linux | `flatpak install unheaded.wotan` |
 
 ### Arch-Based / Other (Checkbox Options)
 | Format | Target | Incantation |
 |--------|--------|-------------|
-| AUR | Arch Linux | `yay -S unheaded-busboy` |
-| Pacman | Arch | `pacman -S unheaded-busboy` |
-| Portage | Gentoo | `emerge unheaded-busboy` |
+| AUR | Arch Linux | `yay -S unheaded-wotan` |
+| Pacman | Arch | `pacman -S unheaded-wotan` |
+| Portage | Gentoo | `emerge unheaded-wotan` |
 
 ---
 
@@ -537,7 +537,7 @@ Purpose: Pre-computed backup paths, sub-50ms switchover
 | **The Elder Hollow** | Legacy protocol integration | RIP, EIGRP, legacy bridges |
 | **The Oracle's Antre** | Timeguru's chamber - prophecy | Timeline processing, predictions |
 | **The Primordial Pit** | Bare metal foundation | PXE, hardware provisioning |
-| **The Fae Chamber** | Message Bus magic - Busboy's domain | Pub/sub, event orchestration |
+| **The Fae Chamber** | Message Bus magic - Wotan's domain | Pub/sub, event orchestration |
 | **The Cursed Pit** | Quarantine / breach containment | Incident response, isolation |
 | **The Sage's Lair** | Architect's wisdom vault | ADRs, design decisions |
 | **The Mythic Abyss** | Deep telemetry to kernel | Vambraces deep traces |
@@ -553,7 +553,7 @@ Purpose: Pre-computed backup paths, sub-50ms switchover
 - **Micromanager** - WHAT & WHEN - Execution, roadmap, QA (CTO + VP Eng + TPM + PM)
 - **Timeguru** - THE TIMELINE - Milestones, progress, living roadmap
 - **Developer** - BUILD - TDD, Go + Rust, security-first coding
-- **Busboy** - THE GLUE - Coordination, clarity, vibes
+- **Wotan** - THE GLUE - Coordination, clarity, vibes
 
 ### AI Augmentation
 - Claude (Sonnet 4.5 / Opus 4.5) - Pair forging, design
@@ -567,7 +567,7 @@ Rhetoric. Archaeology. History. Love. **King Gizzard and the Lizard Wizard.** Do
 ## The Portals
 
 - **GitHub Kingdom:** https://github.com/unheaded/unheaded
-- **The Busboy Repository:** https://github.com/unheaded/busboy
+- **The Wotan Repository:** https://github.com/unheaded/wotan
 - **The Kingdom's Gate:** https://unheaded.com (coming soon)
 - **Ravens:** hello@unheaded.com
 
@@ -675,7 +675,7 @@ This timeline is a **living grimoire**. Updated continuously as we forge.
 - [x] BGP + BFD mandatory on all components
 - [x] PIC for sub-50ms failover
 - [x] Optional protocol overlays via FRR
-- [x] Busboy parallel network/application alerting
+- [x] Wotan parallel network/application alerting
 
 **Kingdom Lore Integration (COMPLETE)**
 - [x] The Arcane Hollows named and mapped
@@ -702,11 +702,11 @@ This timeline is a **living grimoire**. Updated continuously as we forge.
 
 **Mode:** Service Integration & Event Contracts
 **Duration:** Focused session
-**Focus:** Wire all services to Busboy, define message contracts, create event routing
+**Focus:** Wire all services to Wotan, define message contracts, create event routing
 
 #### DISCOVERY: Services Already Wired! ✅
 
-Upon inspection, all Royal Court services were ALREADY connected to Busboy:
+Upon inspection, all Royal Court services were ALREADY connected to Wotan:
 
 | Service | Status | Topics |
 |---------|--------|--------|
@@ -836,7 +836,7 @@ Build the NixOS flake structure for immutable, reproducible container definition
 - [ ] Create `nix/containers/` directory structure
 - [ ] Define base container module with hardening defaults
 - [ ] Per-service container definitions:
-  - `busboy.nix` - Message bus container
+  - `wotan.nix` - Message bus container
   - `timeguru.nix` - Timeline service container
   - `captain.nix` - Strategy service container
   - `architect.nix` - ADR service container
@@ -848,8 +848,8 @@ Build the NixOS flake structure for immutable, reproducible container definition
 
 **Success Criteria:**
 ```bash
-nix build .#busboy-container  # Builds immutable image
-lxc import result/tarball/nixos-system-*.tar.xz busboy-test
+nix build .#wotan-container  # Builds immutable image
+lxc import result/tarball/nixos-system-*.tar.xz wotan-test
 ```
 
 ---

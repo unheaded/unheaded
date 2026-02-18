@@ -31,7 +31,7 @@
 | 4 | WebSocket `CheckOrigin: return true` — cross-origin hijacking | ✅ FIXED | `server.go:339-346` — origin validated against whitelist, 403 on mismatch. `isOriginAllowed()` deny-by-default when config empty (falls back to DefaultAllowedOrigins) |
 | 5 | Timeguru path traversal via `filepath.Base/Dir` on URL paths | ✅ FIXED | `main.go:322-329` — uses `strings.TrimPrefix` + `strings.SplitN`, comment explains traversal risk |
 | 6 | Micromanager concurrent map race on `subscriptions` | ✅ FIXED | `service.go:21` — `subMu sync.RWMutex` added, all map access guarded (write: L55-57, read: L257-259) |
-| 7 | busboy-client send-on-closed-channel panic | ✅ FIXED | `client.go:58-94` — `safeChannel` with `done` signal, `sync.Once` close, `send()` selects on `done` before sending |
+| 7 | wotan-client send-on-closed-channel panic | ✅ FIXED | `client.go:58-94` — `safeChannel` with `done` signal, `sync.Once` close, `send()` selects on `done` before sending |
 | 8 | HTTP servers missing `IdleTimeout` | ✅ FIXED | `main.go:144` — `IdleTimeout: 60 * time.Second` on timeguru server |
 
 ### REMAINING P0s
@@ -39,7 +39,7 @@
 | # | Finding | File(s) | Impact |
 |---|---------|---------|--------|
 | 9 | 🔴 eBPF programs are userspace stubs — won't compile to BPF target | `ebpf/packet-marker/`, `ebpf/flow-tracker/`, `ebpf/latency-probe/` | Core product feature non-functional. Aya programs need real kernel-target compilation. ⏸️ Blocked on Linux env (B1) |
-| 10 | 🔴 Nix cross-container `requires=busboy.service` — circular dep risk | `nix/containers/*.nix` | All services fail to start if Busboy container isn't up first. Need proper systemd dependency ordering + health gate |
+| 10 | 🔴 Nix cross-container `requires=wotan.service` — circular dep risk | `nix/containers/*.nix` | All services fail to start if Wotan container isn't up first. Need proper systemd dependency ordering + health gate |
 | 11 | 🔴 `gosec@master` unpinned in CI | `Makefile` / CI config | Supply chain attack vector — pin to specific tagged release |
 | 12 | 🔴 gosec `-no-fail` flag in CI | `Makefile` / CI config | Security findings silently ignored — remove flag |
 | 13 | 🔴 No release signing or SBOM generation | CI/CD pipeline | No supply chain verification for distributed binaries |
@@ -54,8 +54,8 @@
 |---|---------|---------|--------|
 | 16 | 🟠 No authentication on ANY endpoint | All services | Every API is open. Need at minimum mTLS between services + API key for external |
 | 17 | 🟠 Rate limiter uses X-Forwarded-For (spoofable) | `middleware.go:211-219` | Attacker bypasses rate limiting by spoofing XFF header. Use `RemoteAddr` only when not behind trusted proxy |
-| 18 | 🟠 No reconnection backoff in busboy-client HTTP polling | `client.go:510-528` | 500ms fixed poll interval — no exponential backoff on errors, hammers server during outage |
-| 19 | 🟠 Silent busboy failures across all services | All services | `busboy = nil` path logs warning but provides no fallback behavior — silent message loss |
+| 18 | 🟠 No reconnection backoff in wotan-client HTTP polling | `client.go:510-528` | 500ms fixed poll interval — no exponential backoff on errors, hammers server during outage |
+| 19 | 🟠 Silent wotan failures across all services | All services | `wotan = nil` path logs warning but provides no fallback behavior — silent message loss |
 | 20 | 🟠 Nix network layer missing TLS/VXLAN/gateway config | `nix/containers/`, `nix/modules/` | No encryption in transit between containers, no VXLAN overlay, no gateway routing |
 | 21 | 🟠 `style-src 'unsafe-inline'` still in CSP | `middleware.go:257` | Lower risk than script-src but should migrate to nonce-based or hashed styles |
 | 22 | 🟠 No input validation on WebSocket message content | `server.go` | Raw message passed to `onMessage` callback without sanitization |
@@ -177,7 +177,7 @@ The detailed task list (`TASK_LIST.md`) contains 92 tasks across 9 phases. This 
 1. **Pin gosec version** — Change `gosec@master` → `gosec@v2.21.0` + remove `-no-fail`
 2. **Add `MaxHeaderBytes: 1 << 20`** to all `http.Server{}` instances
 3. **Add context to rate limiter cleanup** — pass `context.Context`, select on `ctx.Done()`
-4. **Add exponential backoff** to `pollMessages` error path in busboy-client
+4. **Add exponential backoff** to `pollMessages` error path in wotan-client
 5. **Replace `UnixNano()` IDs** with atomic counter + timestamp combo (already done in micromanager, replicate pattern)
 6. **Add X-Request-ID middleware** — generate UUID, propagate in context, log with every request
 7. **Remove dead `BroadcastJSON` method** from websocket server
@@ -197,7 +197,7 @@ This TODO was synthesized from 10 parallel review agents covering:
 | 2 | WebSocket server | `cmd/dashboard-backend/internal/websocket/server.go` |
 | 3 | Timeguru service | `services/timeguru/cmd/timeguru/main.go` |
 | 4 | Micromanager service | `services/micromanager/service.go` |
-| 5 | busboy-client pkg | `pkg/busboy-client/client.go` |
+| 5 | wotan-client pkg | `pkg/wotan-client/client.go` |
 | 6 | Captain service | `services/captain/` |
 | 7 | Architect service | `services/architect/` |
 | 8 | Nix containers | `nix/containers/*.nix` |

@@ -38,7 +38,7 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -51,8 +51,8 @@ var (
 
 var (
 	listenAddr     = flag.String("listen", ":8080", "HTTP listen address")
-	busboyAddr     = flag.String("busboy", "localhost:9090", "Busboy server address")
-	busboyGRPCAddr = flag.String("busboy-grpc-addr", "", "Busboy gRPC address for TopicStream (enables real eBPF events)")
+	wotanAddr     = flag.String("wotan", "localhost:9090", "Wotan server address")
+	wotanGRPCAddr = flag.String("wotan-grpc-addr", "", "Wotan gRPC address for TopicStream (enables real eBPF events)")
 	debug          = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs       = flag.Bool("json", false, "Output logs in JSON format")
 
@@ -121,7 +121,7 @@ func main() {
 	// Create server config
 	config := &server.Config{
 		ListenAddr:   *listenAddr,
-		BusboyAddr:   *busboyAddr,
+		WotanAddr:   *wotanAddr,
 		ServiceName:  "dashboard-backend",
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -153,7 +153,7 @@ func main() {
 		},
 
 		EventsConfig: &events.Config{
-			BusboyAddr:        *busboyAddr,
+			WotanAddr:        *wotanAddr,
 			ServiceName:       "dashboard-backend",
 			Topics:            getEventTopics(),
 			BufferSize:        1000,
@@ -170,17 +170,17 @@ func main() {
 		ServiceEndpoints: serviceEndpoints,
 	}
 
-	// Create eBPF ingestor if gRPC address is provided (or from BUSBOY_GRPC_ADDR env)
-	grpcAddr := *busboyGRPCAddr
+	// Create eBPF ingestor if gRPC address is provided (or from WOTAN_GRPC_ADDR env)
+	grpcAddr := *wotanGRPCAddr
 	if grpcAddr == "" {
-		grpcAddr = os.Getenv("BUSBOY_GRPC_ADDR")
+		grpcAddr = os.Getenv("WOTAN_GRPC_ADDR")
 	}
 	if grpcAddr != "" {
 		log.Info().Str("grpc_addr", grpcAddr).Msg("creating TopicStreamClient for eBPF event ingestion")
 
-		httpFallback, _ := busboyClient.NewClient(*busboyAddr)
-		tsc, err := busboyClient.NewTopicStreamClient(grpcAddr,
-			busboyClient.WithHTTPFallback(httpFallback),
+		httpFallback, _ := wotanClient.NewClient(*wotanAddr)
+		tsc, err := wotanClient.NewTopicStreamClient(grpcAddr,
+			wotanClient.WithHTTPFallback(httpFallback),
 		)
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to create TopicStreamClient, eBPF events disabled")
@@ -207,7 +207,7 @@ func main() {
 
 	log.Info().
 		Str("addr", *listenAddr).
-		Str("busboy", *busboyAddr).
+		Str("wotan", *wotanAddr).
 		Int("max_connections", *maxConnections).
 		Dur("scrape_interval", *scrapeInterval).
 		Dur("health_interval", *healthInterval).
@@ -258,7 +258,7 @@ func parseAllowedOrigins(origins string) []string {
 	return result
 }
 
-// getEventTopics returns the list of Busboy topics to subscribe to
+// getEventTopics returns the list of Wotan topics to subscribe to
 func getEventTopics() []string {
 	return []string{
 		"metrics.*",

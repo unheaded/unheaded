@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // mockStorage implements Storage for testing
@@ -80,20 +80,20 @@ func (m *mockStorage) DeleteDecision(ctx context.Context, id string) error {
 	return nil
 }
 
-// mockBusboy implements BusboyCommunicator for testing
-type mockBusboy struct {
+// mockWotan implements WotanCommunicator for testing
+type mockWotan struct {
 	publishedMessages map[string][][]byte
 	mu                sync.RWMutex
 	publishErr        error
 }
 
-func newMockBusboy() *mockBusboy {
-	return &mockBusboy{
+func newMockWotan() *mockWotan {
+	return &mockWotan{
 		publishedMessages: make(map[string][][]byte),
 	}
 }
 
-func (m *mockBusboy) Publish(ctx context.Context, topic string, payload []byte) error {
+func (m *mockWotan) Publish(ctx context.Context, topic string, payload []byte) error {
 	if m.publishErr != nil {
 		return m.publishErr
 	}
@@ -104,8 +104,8 @@ func (m *mockBusboy) Publish(ctx context.Context, topic string, payload []byte) 
 	return nil
 }
 
-func (m *mockBusboy) Subscribe(ctx context.Context, topic, displayName string) (*busboyClient.Subscriber, error) {
-	return &busboyClient.Subscriber{
+func (m *mockWotan) Subscribe(ctx context.Context, topic, displayName string) (*wotanClient.Subscriber, error) {
+	return &wotanClient.Subscriber{
 		SubscriberID: "mock-subscriber",
 		Topic:        topic,
 		DisplayName:  displayName,
@@ -113,13 +113,13 @@ func (m *mockBusboy) Subscribe(ctx context.Context, topic, displayName string) (
 	}, nil
 }
 
-func (m *mockBusboy) StreamMessages(ctx context.Context, topic string) (<-chan *busboyClient.Message, error) {
-	ch := make(chan *busboyClient.Message)
+func (m *mockWotan) StreamMessages(ctx context.Context, topic string) (<-chan *wotanClient.Message, error) {
+	ch := make(chan *wotanClient.Message)
 	close(ch)
 	return ch, nil
 }
 
-func (m *mockBusboy) getPublishedMessages(topic string) [][]byte {
+func (m *mockWotan) getPublishedMessages(topic string) [][]byte {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.publishedMessages[topic]
@@ -137,19 +137,19 @@ func TestNewService(t *testing.T) {
 	}{
 		{
 			name:    "nil storage",
-			cfg:     Config{Storage: nil, Busboy: newMockBusboy()},
+			cfg:     Config{Storage: nil, Wotan: newMockWotan()},
 			wantErr: ErrNilStorage,
 		},
 		{
-			name:    "nil busboy",
-			cfg:     Config{Storage: newMockStorage(), Busboy: nil},
-			wantErr: ErrNilBusboy,
+			name:    "nil wotan",
+			cfg:     Config{Storage: newMockStorage(), Wotan: nil},
+			wantErr: ErrNilWotan,
 		},
 		{
 			name: "valid config",
 			cfg: Config{
 				Storage: newMockStorage(),
-				Busboy:  newMockBusboy(),
+				Wotan:  newMockWotan(),
 			},
 			wantErr: nil,
 		},
@@ -173,7 +173,7 @@ func TestNewService(t *testing.T) {
 func TestService_GetVision(t *testing.T) {
 	svc, err := NewService(Config{
 		Storage: newMockStorage(),
-		Busboy:  newMockBusboy(),
+		Wotan:  newMockWotan(),
 	})
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -216,7 +216,7 @@ func TestService_GetVision(t *testing.T) {
 func TestService_GetStrategy(t *testing.T) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Busboy:  newMockBusboy(),
+		Wotan:  newMockWotan(),
 	})
 
 	ctx := context.Background()
@@ -257,8 +257,8 @@ func TestService_GetStrategy(t *testing.T) {
 
 func TestService_LogDecision(t *testing.T) {
 	storage := newMockStorage()
-	busboy := newMockBusboy()
-	svc, _ := NewService(Config{Storage: storage, Busboy: busboy})
+	wotan := newMockWotan()
+	svc, _ := NewService(Config{Storage: storage, Wotan: wotan})
 	ctx := context.Background()
 
 	tests := []struct {
@@ -375,8 +375,8 @@ func TestService_LogDecision(t *testing.T) {
 
 func TestService_LogDecision_Persistence(t *testing.T) {
 	storage := newMockStorage()
-	busboy := newMockBusboy()
-	svc, _ := NewService(Config{Storage: storage, Busboy: busboy})
+	wotan := newMockWotan()
+	svc, _ := NewService(Config{Storage: storage, Wotan: wotan})
 	ctx := context.Background()
 
 	decision := &Decision{
@@ -409,10 +409,10 @@ func TestService_LogDecision_Persistence(t *testing.T) {
 	}
 }
 
-func TestService_LogDecision_BusboySend(t *testing.T) {
+func TestService_LogDecision_WotanSend(t *testing.T) {
 	storage := newMockStorage()
-	busboy := newMockBusboy()
-	svc, _ := NewService(Config{Storage: storage, Busboy: busboy})
+	wotan := newMockWotan()
+	svc, _ := NewService(Config{Storage: storage, Wotan: wotan})
 	ctx := context.Background()
 
 	decision := &Decision{
@@ -427,7 +427,7 @@ func TestService_LogDecision_BusboySend(t *testing.T) {
 	}
 
 	// Verify published
-	messages := busboy.getPublishedMessages("decisions.created")
+	messages := wotan.getPublishedMessages("decisions.created")
 	if len(messages) != 1 {
 		t.Errorf("expected 1 message published, got %d", len(messages))
 	}
@@ -435,7 +435,7 @@ func TestService_LogDecision_BusboySend(t *testing.T) {
 
 func TestService_GetDecision(t *testing.T) {
 	storage := newMockStorage()
-	svc, _ := NewService(Config{Storage: storage, Busboy: newMockBusboy()})
+	svc, _ := NewService(Config{Storage: storage, Wotan: newMockWotan()})
 	ctx := context.Background()
 
 	// Save a decision first
@@ -487,7 +487,7 @@ func TestService_GetDecision(t *testing.T) {
 
 func TestService_ListDecisions(t *testing.T) {
 	storage := newMockStorage()
-	svc, _ := NewService(Config{Storage: storage, Busboy: newMockBusboy()})
+	svc, _ := NewService(Config{Storage: storage, Wotan: newMockWotan()})
 	ctx := context.Background()
 
 	// Add test decisions
@@ -570,7 +570,7 @@ func TestService_ListDecisions(t *testing.T) {
 
 func TestService_UpdateDecisionStatus(t *testing.T) {
 	storage := newMockStorage()
-	svc, _ := NewService(Config{Storage: storage, Busboy: newMockBusboy()})
+	svc, _ := NewService(Config{Storage: storage, Wotan: newMockWotan()})
 	ctx := context.Background()
 
 	// Create a decision
@@ -636,7 +636,7 @@ func TestService_UpdateDecisionStatus(t *testing.T) {
 func TestService_Close(t *testing.T) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Busboy:  newMockBusboy(),
+		Wotan:  newMockWotan(),
 	})
 
 	if svc.IsClosed() {
@@ -659,8 +659,8 @@ func TestService_Close(t *testing.T) {
 
 func TestService_Concurrent(t *testing.T) {
 	storage := newMockStorage()
-	busboy := newMockBusboy()
-	svc, _ := NewService(Config{Storage: storage, Busboy: busboy})
+	wotan := newMockWotan()
+	svc, _ := NewService(Config{Storage: storage, Wotan: wotan})
 	ctx := context.Background()
 
 	var wg sync.WaitGroup
@@ -720,7 +720,7 @@ func TestService_Concurrent(t *testing.T) {
 func BenchmarkService_LogDecision(b *testing.B) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Busboy:  newMockBusboy(),
+		Wotan:  newMockWotan(),
 	})
 	ctx := context.Background()
 
@@ -741,7 +741,7 @@ func BenchmarkService_LogDecision(b *testing.B) {
 func BenchmarkService_GetVision(b *testing.B) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Busboy:  newMockBusboy(),
+		Wotan:  newMockWotan(),
 	})
 	ctx := context.Background()
 
@@ -754,7 +754,7 @@ func BenchmarkService_GetVision(b *testing.B) {
 func BenchmarkService_GetStrategy(b *testing.B) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Busboy:  newMockBusboy(),
+		Wotan:  newMockWotan(),
 	})
 	ctx := context.Background()
 

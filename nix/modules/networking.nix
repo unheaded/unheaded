@@ -9,13 +9,13 @@
   # Network Design:
   #   Bridge: lxdbr0 (10.10.10.0/24)
   #   Gateway: 10.10.10.100
-  #   Busboy: 10.10.10.10
+  #   Wotan: 10.10.10.10
   #   Services: 10.10.10.20-30
   #   Apps: 10.10.10.200+
   #
   # Isolation Policy:
   #   - Default: DENY ALL
-  #   - Explicit allow: Service → Busboy
+  #   - Explicit allow: Service → Wotan
   #   - Explicit allow: Gateway → Services
   #   - NO direct app → service communication
   # =============================================================================
@@ -34,10 +34,10 @@
         description = "Primary service port (HTTP API)";
       };
 
-      busboyAddress = lib.mkOption {
+      wotanAddress = lib.mkOption {
         type = lib.types.str;
         default = "10.10.10.10:9090";
-        description = "Busboy message bus address";
+        description = "Wotan message bus address";
       };
 
       allowDirectAccess = lib.mkOption {
@@ -144,7 +144,7 @@
           iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
           iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
 
-          # Allow Busboy connection
+          # Allow Wotan connection
           iptables -A OUTPUT -d 10.10.10.10 -p tcp --dport 9090 -j ACCEPT
 
           # Allow internal container network
@@ -203,7 +203,7 @@
       UNHEADED_SERVICE_NAME = config.unheaded.hardening.serviceName;
       UNHEADED_SERVICE_IP = config.unheaded.networking.serviceIP;
       UNHEADED_SERVICE_PORT = toString config.unheaded.networking.servicePort;
-      UNHEADED_BUSBOY_ADDR = config.unheaded.networking.busboyAddress;
+      UNHEADED_WOTAN_ADDR = config.unheaded.networking.wotanAddress;
     };
 
     # =========================================================================

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -105,7 +105,7 @@ type EventHandler func(ctx context.Context, event *Event) error
 // Service is the main Anamnesis service for event sourcing and history.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu           sync.RWMutex
@@ -131,7 +131,7 @@ type Config struct {
 	RetentionPeriod    time.Duration `json:"retention_period"`
 	CompactionInterval time.Duration `json:"compaction_interval"`
 	EnableSnapshots    bool          `json:"enable_snapshots"`
-	BusboyTopic        string        `json:"busboy_topic"`
+	WotanTopic        string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -142,12 +142,12 @@ func DefaultConfig() *Config {
 		RetentionPeriod:    30 * 24 * time.Hour, // 30 days
 		CompactionInterval: 1 * time.Hour,
 		EnableSnapshots:    true,
-		BusboyTopic:        "anamnesis.events",
+		WotanTopic:        "anamnesis.events",
 	}
 }
 
 // NewService creates a new Anamnesis service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
@@ -158,7 +158,7 @@ func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *S
 
 	return &Service{
 		log:                log,
-		busboy:             busboy,
+		wotan:             wotan,
 		config:             cfg,
 		events:             make([]*Event, 0),
 		eventIndex:         make(map[string]*Event),
@@ -178,7 +178,7 @@ func (s *Service) Start(ctx context.Context) error {
 	go s.compactionLoop(ctx)
 
 	// Subscribe to events
-	if s.busboy != nil {
+	if s.wotan != nil {
 		go s.subscribeToEvents(ctx)
 	}
 
@@ -262,7 +262,7 @@ func (s *Service) Append(ctx context.Context, aggregateID, aggregateType string,
 		go s.createSnapshot(ctx, aggregateID, aggregateType, version)
 	}
 
-	// Publish to Busboy
+	// Publish to Wotan
 	s.publishEvent(ctx, "anamnesis.event.appended", map[string]interface{}{
 		"event_id":       event.ID,
 		"aggregate_id":   aggregateID,
@@ -673,11 +673,11 @@ func (s *Service) runCompaction(ctx context.Context) {
 
 // subscribeToEvents listens for external events.
 func (s *Service) subscribeToEvents(ctx context.Context) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
-	_, err := s.busboy.Subscribe(ctx, "state.changed", "anamnesis-service")
+	_, err := s.wotan.Subscribe(ctx, "state.changed", "anamnesis-service")
 	if err != nil {
 		s.log.Warn().Err(err).Msg("Failed to subscribe to state events")
 		return
@@ -686,9 +686,9 @@ func (s *Service) subscribeToEvents(ctx context.Context) {
 	s.log.Info().Msg("Subscribed to state events")
 }
 
-// publishEvent sends an event to Busboy.
+// publishEvent sends an event to Wotan.
 func (s *Service) publishEvent(ctx context.Context, eventType string, data map[string]interface{}) {
-	if s.busboy == nil {
+	if s.wotan == nil {
 		return
 	}
 
@@ -704,7 +704,7 @@ func (s *Service) publishEvent(ctx context.Context, eventType string, data map[s
 		return
 	}
 
-	if err := s.busboy.Publish(ctx, s.config.BusboyTopic, payload); err != nil {
+	if err := s.wotan.Publish(ctx, s.config.WotanTopic, payload); err != nil {
 		s.log.Warn().Err(err).Msg("Failed to publish event")
 	}
 }

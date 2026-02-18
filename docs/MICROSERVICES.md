@@ -8,7 +8,7 @@ The Kingdom evolves from monolithic to microservice architecture:
 - Each component is isolated, independently deployable, independently restartable
 - Circuit breakers at every boundary (Hauberk)
 - Bulkheads between services - one service's failure stays contained
-- Busboy (Fae Chamber) as the message backbone prevents tight coupling
+- Wotan (Fae Chamber) as the message backbone prevents tight coupling
 - gRPC for internal communication, REST for external APIs
 - Each service owns its own data store (no shared databases)
 
@@ -126,7 +126,7 @@ func main() {
 - Security-first implementation
 - **Hollow**: The Forge
 
-### busboy
+### wotan
 - **Domain**: Coordination
 - **Question**: GLUE
 - Message bus and cross-service communication
@@ -136,7 +136,7 @@ func main() {
 
 ## Communication Pattern
 
-All services communicate via Busboy (message bus) using the Fae Chamber protocols.
+All services communicate via Wotan (message bus) using the Fae Chamber protocols.
 
 ### Topic Naming Convention
 ```
@@ -164,7 +164,7 @@ See `FAE_CHAMBER_CONTRACTS.md` for full protocol specification.
 - The canonical source of truth (115K+ LOC)
 
 **Related Artifacts in `~/tmp/`:**
-- `busboy/` - Phase 0 message bus (13.5K LOC)
+- `wotan/` - Phase 0 message bus (13.5K LOC)
 - UI pattern references: `weather-daemon-main/`, `www-main/`, `rss-daemon-main/`
 
 ---

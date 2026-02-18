@@ -2,14 +2,14 @@
 
 **Task Execution & Tracking for Unheaded**
 
-Micromanager is the execution layer of Unheaded, handling task lifecycle management, progress tracking, and milestone execution. It integrates with Busboy message bus for event publication and coordinates with other services (Timeguru, Captain, Architect) via message-driven architecture.
+Micromanager is the execution layer of Unheaded, handling task lifecycle management, progress tracking, and milestone execution. It integrates with Wotan message bus for event publication and coordinates with other services (Timeguru, Captain, Architect) via message-driven architecture.
 
 ## Features
 
 - **REST API** for task CRUD operations
 - **Sprint backlog** management with status tracking
 - **Task persistence** (in-memory with concurrent access)
-- **Busboy integration** for event publishing
+- **Wotan integration** for event publishing
 - **Prometheus metrics** for monitoring
 - **Structured logging** with zerolog
 - **Security hardened** container definition
@@ -129,9 +129,9 @@ Response:
 }
 ```
 
-## Busboy Integration
+## Wotan Integration
 
-Micromanager publishes task events to Busboy topics:
+Micromanager publishes task events to Wotan topics:
 
 ### Published Topics
 
@@ -162,13 +162,13 @@ Micromanager publishes task events to Busboy topics:
 ### Local Development
 
 ```bash
-# Start Busboy on localhost:9090 (from busboy service)
-cd ../busboy && go run ./cmd/busboy/main.go
+# Start Wotan on localhost:9090 (from wotan service)
+cd ../wotan && go run ./cmd/wotan/main.go
 
 # Start micromanager
 go run ./cmd/main.go \
   -port 8003 \
-  -busboy localhost:9090 \
+  -wotan localhost:9090 \
   -log-level debug
 ```
 
@@ -210,7 +210,7 @@ Current coverage by component:
 - **Task model**: 100% (validation, status transitions)
 - **Store**: 95% (CRUD, concurrent access, filtering)
 - **API**: 90% (handlers, error cases, validations)
-- **Service**: 85% (Busboy integration, health status)
+- **Service**: 85% (Wotan integration, health status)
 - **Overall**: 92% (target: 80%+)
 
 ### Key Test Scenarios
@@ -230,9 +230,9 @@ Current coverage by component:
    - Missing fields flagged
    - Status codes correct (200, 201, 400, 404, 500)
 
-4. **Busboy Integration**
+4. **Wotan Integration**
    - Events published when configured
-   - Graceful degradation without Busboy
+   - Graceful degradation without Wotan
    - Alerts listened and processed
 
 ## Metrics
@@ -256,7 +256,7 @@ Typical latencies (measured locally):
 - Task create: 1-2ms
 - Task update: 1-2ms
 - List backlog (1000 tasks): 5-10ms
-- Busboy publish: 3-5ms (async, doesn't block response)
+- Wotan publish: 3-5ms (async, doesn't block response)
 
 ## Security
 
@@ -273,7 +273,7 @@ All inputs validated before processing:
 - No customer data access
 - Tasks belong to internal teams only
 - No customer PII in events
-- All audit-logged to Busboy
+- All audit-logged to Wotan
 
 ### Container Hardening
 
@@ -294,7 +294,7 @@ See `nix/containers/micromanager.nix`:
 │  - Health, Backlog, Tasks, Status   │
 ├─────────────────────────────────────┤
 │   Service Layer (service.go)        │
-│  - Business logic, Busboy publish   │
+│  - Business logic, Wotan publish   │
 ├─────────────────────────────────────┤
 │    Store Layer (store.go)           │
 │  - In-memory persistence, thread-safe│
@@ -303,7 +303,7 @@ See `nix/containers/micromanager.nix`:
 │  - Validation, status transitions   │
 └─────────────────────────────────────┘
         │
-        ├─→ Busboy (events)
+        ├─→ Wotan (events)
         └─→ Prometheus (metrics)
 ```
 
@@ -321,7 +321,7 @@ services/micromanager/
 ├── store_test.go         # Store tests (95% coverage)
 ├── api.go                # HTTP handlers
 ├── api_test.go           # Handler tests (90% coverage)
-├── service.go            # Business logic + Busboy
+├── service.go            # Business logic + Wotan
 ├── service_test.go       # Service tests (85% coverage)
 ├── README.md             # This file
 └── Makefile              # Build/test targets
@@ -352,18 +352,18 @@ Tests are comprehensive:
 
 ## Troubleshooting
 
-### Service won't connect to Busboy
+### Service won't connect to Wotan
 
 ```bash
-# Check Busboy is running on expected address
-curl http://busboy:9090/health
+# Check Wotan is running on expected address
+curl http://wotan:9090/health
 
 # View logs
 journalctl -u micromanager -f
 
 # Increase log level
 systemctl stop micromanager
-micromanager -log-level debug -busboy busboy:9090
+micromanager -log-level debug -wotan wotan:9090
 ```
 
 ### Tasks not appearing in backlog
@@ -397,5 +397,5 @@ MemoryLimit = "512M";  # Adjust if needed
 ## References
 
 - [Unheaded CLAUDE.md](../../CLAUDE.md) - Development standards
-- [Busboy](https://github.com/unheaded/busboy) - Message bus
+- [Wotan](https://github.com/unheaded/wotan) - Message bus
 - [Timeline](../../references/timeline.md) - Project roadmap

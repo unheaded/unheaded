@@ -93,7 +93,7 @@ This session established the **Arcane Hollows** - a mystical layer representing 
 | 🕯️ The Elder Hollow | Legacy protocols | Hauberk |
 | 🔮 The Oracle's Antre | Timeguru processing | Timeguru |
 | ⚫ The Primordial Pit | Bare metal | Sabatons |
-| 🧚 The Fae Chamber | Message bus (Busboy) | All services |
+| 🧚 The Fae Chamber | Message bus (Wotan) | All services |
 | ☠️ The Cursed Pit | Quarantine | Shield |
 | 📚 The Sage's Lair | ADR vault | Architect |
 | 🌀 The Mythic Abyss | Deep telemetry | Vambraces |

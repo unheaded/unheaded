@@ -2,14 +2,14 @@
 
 **Timeline tracking microservice for Unheaded**
 
-The timeguru service provides a REST API for managing project timelines, milestones, and progress tracking. It integrates with the Busboy message bus to publish timeline updates and subscribe to milestone change events.
+The timeguru service provides a REST API for managing project timelines, milestones, and progress tracking. It integrates with the Wotan message bus to publish timeline updates and subscribe to milestone change events.
 
 ---
 
 ## Features
 
 - **REST API** for timeline and milestone management
-- **Busboy integration** for real-time updates
+- **Wotan integration** for real-time updates
 - **SQLite persistence** for timeline data
 - **Defensive coding** with comprehensive input validation
 - **Graceful shutdown** with configurable timeout
@@ -100,7 +100,7 @@ Configuration is loaded from environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8000` | HTTP server port |
-| `BUSBOY_ADDR` | `localhost:9090` | Busboy server address |
+| `WOTAN_ADDR` | `localhost:9090` | Wotan server address |
 | `DB_PATH` | `/opt/unheaded/data/timeguru.db` | SQLite database path |
 
 ---
@@ -136,7 +136,7 @@ make clean
 make run
 
 # Run with custom config
-PORT=8001 BUSBOY_ADDR=busboy:9090 ./bin/timeguru
+PORT=8001 WOTAN_ADDR=wotan:9090 ./bin/timeguru
 ```
 
 ---
@@ -196,14 +196,14 @@ The service implements defensive coding practices:
 
 ---
 
-## Busboy Integration
+## Wotan Integration
 
-The service connects to Busboy on startup and:
+The service connects to Wotan on startup and:
 
 - **Subscribes** to `timeline.updates` topic
 - **Publishes** milestone change events
 - **Gracefully handles** connection failures
-- **Continues operation** if Busboy is unavailable
+- **Continues operation** if Wotan is unavailable
 
 ---
 

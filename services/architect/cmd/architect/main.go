@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/lifecycle"
 	"unheaded/services/architect"
 )
@@ -37,10 +37,10 @@ var (
 		[]string{"service", "method", "path"},
 	)
 
-	busboyMessagesPublished = prometheus.NewCounterVec(
+	wotanMessagesPublished = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "unheaded_busboy_messages_published_total",
-			Help: "Messages published to Busboy",
+			Name: "unheaded_wotan_messages_published_total",
+			Help: "Messages published to Wotan",
 		},
 		[]string{"service", "topic"},
 	)
@@ -49,15 +49,15 @@ var (
 func init() {
 	prometheus.MustRegister(httpRequestsTotal)
 	prometheus.MustRegister(httpRequestDuration)
-	prometheus.MustRegister(busboyMessagesPublished)
+	prometheus.MustRegister(wotanMessagesPublished)
 }
 
 func main() {
 	// Flags
 	addr := flag.String("addr", ":8001", "HTTP listen address")
-	busboyAddr := flag.String("busboy", "localhost:8081", "Busboy HTTP address")
+	wotanAddr := flag.String("wotan", "localhost:8081", "Wotan HTTP address")
 	logLevel := flag.String("log", "info", "Log level (debug, info, warn, error)")
-	useMock := flag.Bool("mock-busboy", false, "Use mock Busboy client for testing")
+	useMock := flag.Bool("mock-wotan", false, "Use mock Wotan client for testing")
 	flag.Parse()
 
 	// Setup logging
@@ -66,31 +66,31 @@ func main() {
 
 	log.Info().
 		Str("addr", *addr).
-		Str("busboy", *busboyAddr).
+		Str("wotan", *wotanAddr).
 		Str("log_level", *logLevel).
-		Bool("mock_busboy", *useMock).
+		Bool("mock_wotan", *useMock).
 		Msg("architect service starting")
 
-	// Connect to Busboy
-	var busboyConn *busboyClient.Client
+	// Connect to Wotan
+	var wotanConn *wotanClient.Client
 
 	if *useMock {
-		log.Info().Msg("using mock Busboy client - no actual Busboy integration")
+		log.Info().Msg("using mock Wotan client - no actual Wotan integration")
 		// Mock client doesn't support full interface, create nil client
-		busboyConn = nil
+		wotanConn = nil
 	} else {
 		var err error
-		busboyConn, err = busboyClient.NewClient(*busboyAddr)
+		wotanConn, err = wotanClient.NewClient(*wotanAddr)
 		if err != nil {
-			log.Fatal().Err(err).Msg("failed to create Busboy client")
+			log.Fatal().Err(err).Msg("failed to create Wotan client")
 		}
-		defer busboyConn.Close()
+		defer wotanConn.Close()
 	}
 
-	// Create service with Busboy integration
+	// Create service with Wotan integration
 	var svc *architect.ArchitectService
-	if busboyConn != nil {
-		svc = architect.NewWithBusboy(busboyConn)
+	if wotanConn != nil {
+		svc = architect.NewWithWotan(wotanConn)
 	} else {
 		svc = architect.New()
 	}
@@ -98,7 +98,7 @@ func main() {
 	// Start service (subscribes to alerts.critical and architecture.updates)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := svc.Start(ctx); err != nil {
-		log.Warn().Err(err).Msg("failed to start Busboy integration")
+		log.Warn().Err(err).Msg("failed to start Wotan integration")
 	}
 	cancel()
 

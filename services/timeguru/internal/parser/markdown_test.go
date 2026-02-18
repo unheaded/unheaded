@@ -316,7 +316,7 @@ func TestMarkdownParser_ParseContent_FullTimeline(t *testing.T) {
 ---
 
 ### Age 0: The Foundation Stone (COMPLETE ✓)
-**The Forging of Busboy**
+**The Forging of Wotan**
 *December 2025 - January 2026*
 
 - [x] Ring buffer implementation

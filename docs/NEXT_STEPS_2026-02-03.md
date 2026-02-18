@@ -219,7 +219,7 @@ grep -A2 "monad\|sophia" services/gateway/cmd/main.go
 
 **When unblocked:**
 - Test eBPF programs on bare metal
-- Wire trace-collector to Busboy
+- Wire trace-collector to Wotan
 - Enable packet marking in dashboard
 
 ---

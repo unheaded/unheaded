@@ -44,7 +44,7 @@ coverage.html
 
 # ─── Compiled service binaries ───
 /kanban-app
-/busboy
+/wotan
 /captain
 /main
 /timeguru

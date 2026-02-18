@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -81,7 +81,7 @@ type NodeCapacity struct {
 // Service is the main Cuirass control plane service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu       sync.RWMutex
@@ -98,7 +98,7 @@ type Config struct {
 	HealthCheckInterval time.Duration `json:"health_check_interval"`
 	ServiceTTL          time.Duration `json:"service_ttl"`
 	DeregisterAfter     time.Duration `json:"deregister_after"`
-	BusboyTopic         string        `json:"busboy_topic"`
+	WotanTopic         string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -107,19 +107,19 @@ func DefaultConfig() *Config {
 		HealthCheckInterval: 10 * time.Second,
 		ServiceTTL:          30 * time.Second,
 		DeregisterAfter:     60 * time.Second,
-		BusboyTopic:         "cuirass.control",
+		WotanTopic:         "cuirass.control",
 	}
 }
 
 // NewService creates a new Cuirass control plane service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:      log,
-		busboy:   busboy,
+		wotan:   wotan,
 		config:   cfg,
 		services: make(map[string]*ServiceRegistration),
 		clusters: make(map[string]*Cluster),

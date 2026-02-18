@@ -37,7 +37,7 @@ cd unheaded
 ```bash
 # Build container images
 nix build \
-  .#nixosConfigurations.busboy.config.system.build.toplevel \
+  .#nixosConfigurations.wotan.config.system.build.toplevel \
   .#nixosConfigurations.timeguru.config.system.build.toplevel \
   .#nixosConfigurations.captain.config.system.build.toplevel \
   .#nixosConfigurations.micromanager.config.system.build.toplevel \
@@ -59,7 +59,7 @@ nix run .#deploy
 lxc list
 
 # Check health endpoints
-curl http://10.10.10.10:8080/health  # busboy
+curl http://10.10.10.10:8080/health  # wotan
 curl http://10.10.10.20:8000/health  # timeguru
 curl http://10.10.10.200:8080/health # kanban
 ```
@@ -80,7 +80,7 @@ sudo sysctl -w net.ipv4.ip_forward=1
 ### Step 2: Build Container Images
 ```bash
 # Build each container
-for container in busboy timeguru captain micromanager architect developer kanban dashboard; do
+for container in wotan timeguru captain micromanager architect developer kanban dashboard; do
   echo "Building $container..."
   nix build .#nixosConfigurations.$container.config.system.build.toplevel
 done
@@ -104,16 +104,16 @@ lxc profile set unheaded \
 
 ### Step 4: Launch Containers (Dependency Order)
 ```bash
-# 1. Busboy (no dependencies)
-lxc launch unheaded-busboy busboy \
+# 1. Wotan (no dependencies)
+lxc launch unheaded-wotan wotan \
   --profile=unheaded \
   --config=boot.autostart=true
 
-# Wait for busboy
+# Wait for wotan
 sleep 10
 curl http://10.10.10.10:8080/health
 
-# 2. Services (depend on busboy)
+# 2. Services (depend on wotan)
 for service in timeguru captain micromanager architect developer; do
   lxc launch unheaded-$service $service --profile=unheaded
 done
@@ -140,24 +140,24 @@ lxc start --all
 lxc stop --all
 
 # Restart specific container
-lxc restart unheaded-busboy
+lxc restart unheaded-wotan
 
 # Stop in dependency-safe order
 lxc stop kanban dashboard
 lxc stop timeguru captain micromanager architect developer
-lxc stop busboy
+lxc stop wotan
 ```
 
 ### Logs
 ```bash
 # View container logs
-lxc exec unheaded-busboy -- journalctl -u busboy -f
+lxc exec unheaded-wotan -- journalctl -u wotan -f
 
 # View all logs
-lxc exec unheaded-busboy -- tail -f /var/log/unheaded/busboy.json
+lxc exec unheaded-wotan -- tail -f /var/log/unheaded/wotan.json
 
 # Aggregate logs from all containers
-for c in busboy timeguru captain micromanager architect developer kanban dashboard; do
+for c in wotan timeguru captain micromanager architect developer kanban dashboard; do
   echo "=== $c ==="
   lxc exec unheaded-$c -- tail -n 20 /var/log/unheaded/$c.json
 done
@@ -166,20 +166,20 @@ done
 ### Shell Access
 ```bash
 # Interactive shell
-lxc exec unheaded-busboy -- bash
+lxc exec unheaded-wotan -- bash
 
 # Run command
 lxc exec unheaded-timeguru -- curl http://10.10.10.10:8080/health
 
 # Copy files
-lxc file push local.txt unheaded-busboy/tmp/
-lxc file pull unheaded-busboy/var/log/busboy.log ./
+lxc file push local.txt unheaded-wotan/tmp/
+lxc file pull unheaded-wotan/var/log/wotan.log ./
 ```
 
 ### Resource Monitoring
 ```bash
 # CPU/Memory usage
-lxc info unheaded-busboy
+lxc info unheaded-wotan
 
 # Real-time stats
 lxc monitor --type=logging
@@ -193,7 +193,7 @@ curl http://10.10.10.10:9100/metrics
 ### Container IP Allocation
 | Container | IP | Port(s) | Access |
 |-----------|-----|---------|--------|
-| busboy | 10.10.10.10 | 9090, 8080, 9100 | Internal + Gateway |
+| wotan | 10.10.10.10 | 9090, 8080, 9100 | Internal + Gateway |
 | timeguru | 10.10.10.20 | 8000, 9100 | Internal + Gateway |
 | captain | 10.10.10.21 | 8001, 9100 | Internal + Gateway |
 | micromanager | 10.10.10.22 | 8002, 9100 | Internal + Gateway |
@@ -211,10 +211,10 @@ All containers have default DENY with explicit allows:
 
 ### Testing Connectivity
 ```bash
-# From host to busboy
+# From host to wotan
 curl http://10.10.10.10:8080/health
 
-# From timeguru to busboy
+# From timeguru to wotan
 lxc exec unheaded-timeguru -- curl http://10.10.10.10:8080/health
 
 # From kanban to timeguru
@@ -226,16 +226,16 @@ lxc exec unheaded-kanban -- curl http://10.10.10.20:8000/api/v1/timeline
 ### Hardening Verification
 ```bash
 # Check seccomp
-lxc exec unheaded-busboy -- grep Seccomp /proc/1/status
+lxc exec unheaded-wotan -- grep Seccomp /proc/1/status
 
 # Check capabilities
-lxc exec unheaded-busboy -- getpcaps 1
+lxc exec unheaded-wotan -- getpcaps 1
 
 # Check filesystem
-lxc exec unheaded-busboy -- mount | grep "on / "
+lxc exec unheaded-wotan -- mount | grep "on / "
 
 # Check NoNewPrivileges
-lxc exec unheaded-busboy -- grep NoNewPrivs /proc/1/status
+lxc exec unheaded-wotan -- grep NoNewPrivs /proc/1/status
 ```
 
 ### Security Audit
@@ -244,7 +244,7 @@ lxc exec unheaded-busboy -- grep NoNewPrivs /proc/1/status
 nix run .#checks.${system}.security-audit
 
 # Manual audit
-for c in busboy timeguru captain micromanager architect developer kanban dashboard; do
+for c in wotan timeguru captain micromanager architect developer kanban dashboard; do
   echo "=== Auditing $c ==="
   lxc exec unheaded-$c -- /etc/unheaded/security-audit.sh
 done
@@ -255,10 +255,10 @@ done
 ### Container Won't Start
 ```bash
 # Check systemd status
-lxc exec unheaded-busboy -- systemctl status busboy
+lxc exec unheaded-wotan -- systemctl status wotan
 
 # Check logs
-lxc exec unheaded-busboy -- journalctl -u busboy -n 100
+lxc exec unheaded-wotan -- journalctl -u wotan -n 100
 
 # Check dependencies
 lxc exec unheaded-timeguru -- curl -v http://10.10.10.10:8080/health
@@ -270,23 +270,23 @@ lxc exec unheaded-timeguru -- curl -v http://10.10.10.10:8080/health
 ip addr show lxdbr0
 
 # Check container networking
-lxc exec unheaded-busboy -- ip addr
-lxc exec unheaded-busboy -- ip route
+lxc exec unheaded-wotan -- ip addr
+lxc exec unheaded-wotan -- ip route
 
 # Check firewall
-lxc exec unheaded-busboy -- iptables -L -v -n
+lxc exec unheaded-wotan -- iptables -L -v -n
 ```
 
 ### Performance Issues
 ```bash
 # Check resource limits
-systemctl show unheaded-busboy | grep -E '(Memory|CPU)'
+systemctl show unheaded-wotan | grep -E '(Memory|CPU)'
 
 # Check system load
-lxc exec unheaded-busboy -- top
+lxc exec unheaded-wotan -- top
 
 # Check disk I/O
-lxc exec unheaded-busboy -- iostat -x 1
+lxc exec unheaded-wotan -- iostat -x 1
 ```
 
 ### Health Check Failures
@@ -295,10 +295,10 @@ lxc exec unheaded-busboy -- iostat -x 1
 curl -v http://10.10.10.10:8080/health
 
 # Check service status
-lxc exec unheaded-busboy -- systemctl status busboy
+lxc exec unheaded-wotan -- systemctl status wotan
 
 # Check ports
-lxc exec unheaded-busboy -- netstat -tlnp
+lxc exec unheaded-wotan -- netstat -tlnp
 ```
 
 ## Backup and Recovery
@@ -306,21 +306,21 @@ lxc exec unheaded-busboy -- netstat -tlnp
 ### Backup
 ```bash
 # Snapshot all containers
-for c in busboy timeguru captain micromanager architect developer kanban dashboard; do
+for c in wotan timeguru captain micromanager architect developer kanban dashboard; do
   lxc snapshot unheaded-$c backup-$(date +%Y%m%d-%H%M%S)
 done
 
 # Export snapshots
-lxc export unheaded-busboy/backup-20260127-120000 busboy-backup.tar.gz
+lxc export unheaded-wotan/backup-20260127-120000 wotan-backup.tar.gz
 ```
 
 ### Restore
 ```bash
 # Restore from snapshot
-lxc restore unheaded-busboy backup-20260127-120000
+lxc restore unheaded-wotan backup-20260127-120000
 
 # Import backup
-lxc import busboy-backup.tar.gz
+lxc import wotan-backup.tar.gz
 ```
 
 ## Updates and Maintenance
@@ -328,7 +328,7 @@ lxc import busboy-backup.tar.gz
 ### Update Container Images
 ```bash
 # Rebuild containers
-nix build .#nixosConfigurations.busboy.config.system.build.toplevel
+nix build .#nixosConfigurations.wotan.config.system.build.toplevel
 
 # Rolling update (zero downtime)
 for c in timeguru captain micromanager architect developer; do
@@ -344,13 +344,13 @@ done
 ### Rotate Logs
 ```bash
 # Logs auto-rotate via journald, but manual cleanup:
-lxc exec unheaded-busboy -- journalctl --vacuum-size=500M
+lxc exec unheaded-wotan -- journalctl --vacuum-size=500M
 ```
 
 ### Clean Up
 ```bash
 # Remove old snapshots
-lxc delete unheaded-busboy/backup-20260101-000000
+lxc delete unheaded-wotan/backup-20260101-000000
 
 # Remove stopped containers
 lxc delete --force $(lxc list -c n --format csv status=stopped)

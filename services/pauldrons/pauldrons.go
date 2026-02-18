@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	busboyClient "unheaded/pkg/busboy-client"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
 
@@ -116,7 +116,7 @@ type RuleMatch struct {
 // Service is the main Pauldrons load balancer service.
 type Service struct {
 	log    *logger.Logger
-	busboy *busboyClient.Client
+	wotan *wotanClient.Client
 	config *Config
 
 	mu             sync.RWMutex
@@ -132,7 +132,7 @@ type Config struct {
 	HealthCheckInterval time.Duration `json:"health_check_interval"`
 	SessionTTL          time.Duration `json:"session_ttl"`
 	MaglevTableSize     int           `json:"maglev_table_size"`
-	BusboyTopic         string        `json:"busboy_topic"`
+	WotanTopic         string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -142,19 +142,19 @@ func DefaultConfig() *Config {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     65537, // Prime number for better distribution
-		BusboyTopic:         "pauldrons.lb",
+		WotanTopic:         "pauldrons.lb",
 	}
 }
 
 // NewService creates a new Pauldrons load balancer service.
-func NewService(log *logger.Logger, busboy *busboyClient.Client, cfg *Config) *Service {
+func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	return &Service{
 		log:            log,
-		busboy:         busboy,
+		wotan:         wotan,
 		config:         cfg,
 		pools:          make(map[string]*Pool),
 		virtualServers: make(map[string]*VirtualServer),

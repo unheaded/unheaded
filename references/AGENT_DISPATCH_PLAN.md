@@ -11,7 +11,7 @@
 
 **Model:** 7-8 independent Claude agents working simultaneously on non-blocking components
 
-**Synchronization:** Busboy message bus as single source of truth for inter-service communication
+**Synchronization:** Wotan message bus as single source of truth for inter-service communication
 
 ---
 
@@ -32,12 +32,12 @@
 - Read `references/timeline.md` from disk
 - Serve via REST API: `/api/v1/timeline` (GET/POST/PUT)
 - Return JSON + YAML formats
-- Publish state changes to Busboy topic: `timeline.updates`
+- Publish state changes to Wotan topic: `timeline.updates`
 - Health checks: `/health`, `/ready`
 - Metrics: Prometheus scrape endpoint `/metrics`
 
-**Busboy Integration:**
-- Connect to Busboy on startup
+**Wotan Integration:**
+- Connect to Wotan on startup
 - Subscribe to `timeline.updates` (listen for other changes)
 - Publish to `timeline.updates` when modified
 - Graceful shutdown on SIGTERM
@@ -55,7 +55,7 @@ type Timeline struct {
 **Success Criteria:**
 - [ ] Service starts and responds to requests
 - [ ] Unit tests pass (80%+ coverage)
-- [ ] Busboy connection working
+- [ ] Wotan connection working
 - [ ] Container definition builds in NixOS
 - [ ] API returns valid JSON/YAML
 
@@ -73,7 +73,7 @@ type Timeline struct {
 
 **Scope:**
 - REST API stub (`/api/v1/strategy`)
-- Subscription to `timeline.updates` from Busboy
+- Subscription to `timeline.updates` from Wotan
 - Publish strategic decisions to `strategy.decisions` topic
 - Health + metrics endpoints
 - Simple in-memory state (no persistence needed for alpha)
@@ -81,7 +81,7 @@ type Timeline struct {
 **Success Criteria:**
 - [ ] Service starts and responds
 - [ ] Listens to timeline updates
-- [ ] Can publish decisions to Busboy
+- [ ] Can publish decisions to Wotan
 - [ ] Unit tests passing
 
 ---
@@ -98,7 +98,7 @@ type Timeline struct {
 
 **Scope:**
 - Task execution API
-- Subscription to `strategy.decisions` from Busboy
+- Subscription to `strategy.decisions` from Wotan
 - Publish task progress to `execution.progress` topic
 - Health + metrics endpoints
 
@@ -122,7 +122,7 @@ type Timeline struct {
 
 **Scope:**
 - Design review API
-- Subscription to `execution.progress` from Busboy
+- Subscription to `execution.progress` from Wotan
 - Publish design updates to `design.updates` topic
 - Health + metrics endpoints
 
@@ -195,7 +195,7 @@ type Timeline struct {
 - Load eBPF programs at startup
 - Read from ring buffer
 - Parse trace data
-- Publish to Busboy topic: `traces.raw`
+- Publish to Wotan topic: `traces.raw`
 - Handle backpressure
 
 **Interface:**
@@ -211,7 +211,7 @@ pub struct Trace {
 **Success Criteria:**
 - [ ] Loads eBPF programs
 - [ ] Reads from ring buffer
-- [ ] Publishes to Busboy
+- [ ] Publishes to Wotan
 - [ ] Handles disconnects gracefully
 
 ---
@@ -243,10 +243,10 @@ pub struct Trace {
 3. **eBPF Loader**
    - Load eBPF programs into kernel
    - Track loaded programs
-   - Report to Busboy: `system.ebpf.loaded`
+   - Report to Wotan: `system.ebpf.loaded`
 
 4. **Telemetry**
-   - Publish container health to Busboy
+   - Publish container health to Wotan
    - Report startup times
    - Track resource usage
 
@@ -254,7 +254,7 @@ pub struct Trace {
 - [ ] Starts containers
 - [ ] Detects drift
 - [ ] Loads eBPF programs
-- [ ] Reports health via Busboy
+- [ ] Reports health via Wotan
 - [ ] Unit tests passing
 
 ---
@@ -277,7 +277,7 @@ pub struct Trace {
 
 **Scope - Backend:**
 - Aggregate metrics from all services
-- Subscribe to Busboy topics (metrics, traces, alerts)
+- Subscribe to Wotan topics (metrics, traces, alerts)
 - WebSocket endpoint for live updates
 - Correlation engine (match requests to traces)
 - `/api/v1/dashboard` REST API
@@ -348,7 +348,7 @@ Agent 9: Kanban app existing code reviewed
 **Goal:** Services responding, eBPF compiling, dashboard framework
 
 ```
-Agent 1: timeguru API responding (might fail on Busboy integration)
+Agent 1: timeguru API responding (might fail on Wotan integration)
 Agent 2-4: captain/micromanager/architect scaffolds responding
 Agent 5: packet_marker.rs compiles, verifier testing
 Agent 7: LXD client started, state skeleton
@@ -359,11 +359,11 @@ Agent 9: Kanban app wired to timeguru (partial)
 **Blocker Watch:** eBPF kernel version issues?
 
 ### Day 3: Jan 29
-**Goal:** Services talking via Busboy, eBPF passing verifier
+**Goal:** Services talking via Wotan, eBPF passing verifier
 
 ```
-Agent 1: timeguru → Busboy publishing/subscribing
-Agent 2-4: All services → Busboy working
+Agent 1: timeguru → Wotan publishing/subscribing
+Agent 2-4: All services → Wotan working
 Agent 5: All 3 eBPF programs compiling + verifying
 Agent 7: LXD orchestration working
 Agent 8: Dashboard subscribing to metrics
@@ -383,12 +383,12 @@ Architect: NixOS container definitions created
 ```
 
 ### Day 5: Jan 31
-**Goal:** All components in containers, talking via Busboy
+**Goal:** All components in containers, talking via Wotan
 
 ```
 All agents: Build containers + verify
 Network integration: Gateway → services working
-E2E test: Browser → gateway → services → Busboy
+E2E test: Browser → gateway → services → Wotan
 ```
 
 ### Day 6: Feb 1
@@ -439,7 +439,7 @@ eBPF traces running
 ### Integration Testing
 **Timing:** Continuous from Day 2
 - Unit tests: Each agent responsible
-- Integration tests: Timeguru ensures Busboy contracts
+- Integration tests: Timeguru ensures Wotan contracts
 - E2E tests: Captain runs full flow nightly
 
 ### Code Review
@@ -451,10 +451,10 @@ eBPF traces running
 
 ---
 
-## Busboy Message Contracts
+## Wotan Message Contracts
 
 ### Required Topics (Pre-defined)
-All agents must use these Busboy topics for coordination:
+All agents must use these Wotan topics for coordination:
 
 ```
 timeline.updates          → timeguru publishes, others subscribe
@@ -490,7 +490,7 @@ system.errors.critical    → all services publish critical errors
 - [ ] LXD 5.0+ (for daemon testing)
 - [ ] NixOS with flakes enabled (or Nix 2.4+)
 - [ ] Git repository ready
-- [ ] Busboy running and accessible
+- [ ] Wotan running and accessible
 - [ ] CI/CD pipeline set up (GitHub Actions)
 
 ### Per Agent
@@ -507,11 +507,11 @@ system.errors.critical    → all services publish critical errors
 
 ### Technical
 - [ ] All services running in containers
-- [ ] Services communicating via Busboy
+- [ ] Services communicating via Wotan
 - [ ] eBPF programs loading + collecting traces
 - [ ] Dashboard showing live metrics + traces
 - [ ] Kanban app reading timeline from timeguru
-- [ ] E2E test: Click → Request → Busboy → Dashboard → Visible
+- [ ] E2E test: Click → Request → Wotan → Dashboard → Visible
 
 ### Quality
 - [ ] 80%+ unit test coverage (all components)
@@ -551,13 +551,13 @@ system.errors.critical    → all services publish critical errors
 
 **Timeline impact:** +1 day (Feb 9 instead of Feb 8)
 
-### If Busboy Integration Stalls
+### If Wotan Integration Stalls
 **Risk:** Service-to-service communication breaks
 
 **Plan B:** Direct HTTP between services
-- No Busboy messaging
+- No Wotan messaging
 - Still proves platform works
-- Add Busboy in Phase 2
+- Add Wotan in Phase 2
 
 **Timeline impact:** Minimal (rework only)
 
@@ -589,7 +589,7 @@ system.errors.critical    → all services publish critical errors
 - [ ] Unit tests pass (80%+ coverage)
 - [ ] Documentation complete (README + code comments)
 - [ ] Container definition working
-- [ ] Busboy integration tested
+- [ ] Wotan integration tested
 - [ ] Code review approved
 
 ### Phase Completion
@@ -610,7 +610,7 @@ Because on Feb 8, Unheaded will self-host its own development dashboard.
 Users will see:
 - Kanban board showing project timeline
 - Real-time traces from eBPF
-- Services communicating via Busboy
+- Services communicating via Wotan
 - All traced end-to-end from packet zero
 
 **That's not just a demo. That's a promise.**

@@ -16,24 +16,24 @@
 
 ## CAMPAIGN 1: TopicStream gRPC Sprint (The Fae Chamber)
 
-**Goal:** Replace 500ms HTTP polling with real-time server-side gRPC streaming + wildcard topic matching in the Kanban app. This is the foundation for Busboy mesh AND clean eBPF stream tagging.
+**Goal:** Replace 500ms HTTP polling with real-time server-side gRPC streaming + wildcard topic matching in the Kanban app. This is the foundation for Wotan mesh AND clean eBPF stream tagging.
 
-**Precondition:** `topic.proto` already exists in `services/busboy/proto/topic.proto` with `TopicStream` service defined. Generated Go stubs exist (`topic_grpc.pb.go`). The gRPC server-side implementation exists in `services/busboy/internal/grpc/`. What's missing is the **client-side integration** in the Kanban app.
+**Precondition:** `topic.proto` already exists in `services/wotan/proto/topic.proto` with `TopicStream` service defined. Generated Go stubs exist (`topic_grpc.pb.go`). The gRPC server-side implementation exists in `services/wotan/internal/grpc/`. What's missing is the **client-side integration** in the Kanban app.
 
-### 1.1 Pattern Matcher — `pkg/busboy-client/pattern.go`
+### 1.1 Pattern Matcher — `pkg/wotan-client/pattern.go`
 - [ ] Implement `MatchTopic(pattern, topic string) bool`
 - [ ] Support exact match: `tasks.created` matches `tasks.created`
 - [ ] Support single-level wildcard: `tasks.*` matches `tasks.created`, `tasks.updated`, `tasks.deleted`
 - [ ] Support multi-level wildcard: `tasks.#` matches `tasks.created` AND `tasks.created.bulk`
 - [ ] Support global wildcard: `*` matches everything
 - [ ] Pure function, zero allocations on hot path, no regex
-- [ ] **Tests:** `pkg/busboy-client/pattern_test.go`
+- [ ] **Tests:** `pkg/wotan-client/pattern_test.go`
   - [ ] Table-driven tests: exact, single-wildcard, multi-wildcard, global, negative cases
   - [ ] Edge cases: empty pattern, empty topic, trailing dots, double dots
   - [ ] Benchmark: confirm zero allocs via `testing.B` with `ReportAllocs()`
 
-### 1.2 TopicStream Client — `pkg/busboy-client/topic_client.go`
-- [ ] Implement `TopicStreamClient` struct satisfying `BusboyClient` interface
+### 1.2 TopicStream Client — `pkg/wotan-client/topic_client.go`
+- [ ] Implement `TopicStreamClient` struct satisfying `WotanClient` interface
 - [ ] Constructor: `NewTopicStreamClient(grpcAddr string, opts ...TopicStreamOption) (*TopicStreamClient, error)`
 - [ ] Options: WithTLS, WithRetryPolicy, WithBufferSize, WithMetadata
 - [ ] `Subscribe(ctx, topicPattern, displayName)` → calls `StreamTopics` RPC with pattern + `since_seq`
@@ -45,7 +45,7 @@
   - [ ] Circuit breaker: after N consecutive failures, fall back to HTTP polling
 - [ ] `Close()` → cancel all stream contexts, drain inflight, close gRPC conn
 - [ ] `Ping()` → calls `TopicPing` RPC for health check
-- [ ] **Tests:** `pkg/busboy-client/topic_client_test.go`
+- [ ] **Tests:** `pkg/wotan-client/topic_client_test.go`
   - [ ] Mock gRPC server via `bufconn` (in-process, no real network)
   - [ ] Test subscribe → receive → ack flow
   - [ ] Test reconnect on stream error (simulate server restart)
@@ -53,7 +53,7 @@
   - [ ] Test `since_seq` resume after disconnect
   - [ ] Full `-race` pass
 
-### 1.3 Wire into Kanban App — `cmd/kanban-app/busboy.go`
+### 1.3 Wire into Kanban App — `cmd/kanban-app/wotan.go`
 - [ ] Update `NewTaskManager` to accept `TopicStreamClient` instead of/alongside HTTP client
 - [ ] Replace `pollMessages()` loop (500ms ticker) with `StreamMessages()` channel receive
 - [ ] Keep HTTP fallback path (circuit breaker activates it)
@@ -61,32 +61,32 @@
 - [ ] Outbound publishes use `TopicStreamClient.Publish()` (async goroutine + snapshot pattern preserved)
 - [ ] Startup: probe gRPC → if healthy, use TopicStream; else fall back to HTTP polling
 - [ ] Log transport selection at startup: `"transport=grpc-stream"` or `"transport=http-poll"`
-- [ ] **Tests:** Update `cmd/kanban-app/busboy_test.go`
+- [ ] **Tests:** Update `cmd/kanban-app/wotan_test.go`
   - [ ] Mock TopicStreamClient in tests (nil store path stays working)
   - [ ] Test transport switchover mid-operation
   - [ ] Full `-race -count=1` pass — the standard we hold
 
 ### 1.4 Wire into main.go
-- [ ] Shared sequence counter across Busboy services
+- [ ] Shared sequence counter across Wotan services
 - [ ] Register TopicStreamServer on gRPC listener alongside existing services
-- [ ] Config: `--busboy-grpc-addr` flag for TopicStream endpoint
-- [ ] Graceful shutdown: drain TopicStream connections before Busboy close
+- [ ] Config: `--wotan-grpc-addr` flag for TopicStream endpoint
+- [ ] Graceful shutdown: drain TopicStream connections before Wotan close
 
 ### 1.5 Full Test Suite
-- [ ] `go test -v -race -count=1 ./pkg/busboy-client/...` — PASS
+- [ ] `go test -v -race -count=1 ./pkg/wotan-client/...` — PASS
 - [ ] `go test -v -race -count=1 ./cmd/kanban-app/...` — PASS
 - [ ] `go test -v -race -count=1 ./...` — PASS (full repo)
-- [ ] Benchmark: `go test -bench=. -benchmem ./pkg/busboy-client/...`
+- [ ] Benchmark: `go test -bench=. -benchmem ./pkg/wotan-client/...`
 
-**Definition of Done:** Kanban app connects to Busboy via gRPC streaming. Tasks appear in browser within <50ms of creation on another node. HTTP polling loop is gone (but fallback works). Zero race conditions.
+**Definition of Done:** Kanban app connects to Wotan via gRPC streaming. Tasks appear in browser within <50ms of creation on another node. HTTP polling loop is gone (but fallback works). Zero race conditions.
 
 ---
 
 ## CAMPAIGN 2: eBPF PoC Working Dashboard (The Whispering Void)
 
-**Goal:** End-to-end flow: eBPF kernel programs → trace-collector (Rust) → Busboy pub/sub → dashboard-backend → browser visualization. The in-house observability dashboard that proves the Kingdom drinks its own champagne.
+**Goal:** End-to-end flow: eBPF kernel programs → trace-collector (Rust) → Wotan pub/sub → dashboard-backend → browser visualization. The in-house observability dashboard that proves the Kingdom drinks its own champagne.
 
-**Precondition:** All 4 eBPF programs compiled and loadable on Linux. ebpf-loader CLI works. Dashboard-backend has REST + WebSocket skeleton. Busboy TopicStream will be wired (Campaign 1).
+**Precondition:** All 4 eBPF programs compiled and loadable on Linux. ebpf-loader CLI works. Dashboard-backend has REST + WebSocket skeleton. Wotan TopicStream will be wired (Campaign 1).
 
 ### 2.1 Trace Collector — `cmd/trace-collector/` (NEW — Rust)
 - [ ] Create new Rust binary crate in `cmd/trace-collector/`
@@ -98,21 +98,21 @@
 - [ ] Use `aya::maps::RingBuf` for zero-copy ring buffer reads
 - [ ] Batch events (configurable: 100 events or 100ms, whichever first)
 - [ ] Serialize batches to protobuf or JSON
-- [ ] Publish to Busboy via gRPC (`TopicStream.PublishTopic`)
+- [ ] Publish to Wotan via gRPC (`TopicStream.PublishTopic`)
   - [ ] `ebpf.packet.events` topic
   - [ ] `ebpf.flow.events` topic
   - [ ] `ebpf.latency.events` topic
   - [ ] `ebpf.syscall.events` topic
 - [ ] Health endpoint: simple HTTP `/health` on configurable port
 - [ ] Graceful shutdown: drain ring buffers before exit
-- [ ] CLI args: `--busboy-addr`, `--bpf-pin-path`, `--batch-size`, `--batch-timeout`, `--health-port`
+- [ ] CLI args: `--wotan-addr`, `--bpf-pin-path`, `--batch-size`, `--batch-timeout`, `--health-port`
 - [ ] **Fail fast:** If ring buffer read fails 3x, log error + skip (don't crash)
 - [ ] **Metrics:** Count events read, events published, events dropped, latency per batch
 
 ### 2.2 Dashboard Backend Wiring — `cmd/dashboard-backend/`
 - [ ] Subscribe to `ebpf.*` topics via TopicStreamClient (Campaign 1)
 - [ ] `internal/packetflow/` → replace synthetic data with REAL PacketEvent stream
-  - [ ] Parse PacketEvent from Busboy message payload
+  - [ ] Parse PacketEvent from Wotan message payload
   - [ ] Build flow graph: src_ip:port → dst_ip:port with packet counts, byte counts
   - [ ] Track active flows with TTL (30s expiry matching kernel FLOW_TIMEOUT_NS)
 - [ ] `internal/events/` → ingest FlowEvent for connection state visualization
@@ -156,7 +156,7 @@
 - [ ] Header nav: Flow Graph | Latency | Events | Overview
 
 ### 2.4 Integration Test
-- [ ] On Linux box: load eBPF programs → start trace-collector → start Busboy → start dashboard-backend
+- [ ] On Linux box: load eBPF programs → start trace-collector → start Wotan → start dashboard-backend
 - [ ] Generate traffic (curl to services, TCP connections)
 - [ ] Verify: events appear in browser within <200ms of kernel capture
 - [ ] Verify: flow graph shows correct topology
@@ -173,9 +173,9 @@
 ### 3.1 Authentication & Authorization (Critical)
 - [ ] Implement API key middleware for all services
   - [ ] `pkg/auth/apikey.go` — middleware that reads `X-API-Key` header or `?api_key=` param
-  - [ ] API keys stored in env vars (not config files): `BUSBOY_API_KEY`, `TIMEGURU_API_KEY`, etc.
+  - [ ] API keys stored in env vars (not config files): `WOTAN_API_KEY`, `TIMEGURU_API_KEY`, etc.
   - [ ] Constant-time comparison (`crypto/subtle.ConstantTimeCompare`)
-- [ ] Wire middleware into: Busboy, Timeguru, Captain, Kanban, Dashboard-backend
+- [ ] Wire middleware into: Wotan, Timeguru, Captain, Kanban, Dashboard-backend
 - [ ] Admin endpoints behind separate `ADMIN_API_KEY` with elevated privileges
 - [ ] Return 401 Unauthorized (not 403) when key missing, 403 when key invalid
 - [ ] **Tests:** Verify unauthenticated requests rejected, valid key accepted
@@ -191,13 +191,13 @@
 ### 3.3 CORS Lockdown
 - [ ] Replace `*` origin with explicit allowed origins list
 - [ ] `--cors-origins` flag: default `http://localhost:8081,http://localhost:8080`
-- [ ] Busboy + Timeguru: restrict to known dashboard/kanban origins
+- [ ] Wotan + Timeguru: restrict to known dashboard/kanban origins
 - [ ] Preflight caching: `Access-Control-Max-Age: 86400`
 
 ### 3.4 Input Validation
 - [ ] Timeguru: validate path params (ID format, length bounds)
 - [ ] Captain: validate path params (same)
-- [ ] Busboy: validate topic names (alphanumeric + dots + wildcards only)
+- [ ] Wotan: validate topic names (alphanumeric + dots + wildcards only)
 - [ ] Payload size limits: `--max-payload-size` flag (default 1MB)
 - [ ] Content-Type enforcement on POST/PUT endpoints
 
@@ -228,7 +228,7 @@
 
 ### 4.1 Code Cleanup
 - [ ] Deprecate `Server.tasks` slice — remove in-memory fallback, route ALL reads through Store
-- [ ] Fix Docker Compose port alignment (busboy 8080/9090 everywhere)
+- [ ] Fix Docker Compose port alignment (wotan 8080/9090 everywhere)
 - [ ] Fix Phase 3 name duplication in timeline.json ("The MVP Era (PLANNED) (PLANNED)...")
 - [ ] Hydrate timeline.json milestones from 64-card Kanban inventory
 - [ ] Clean up git lock file workaround (document in CONTRIBUTING.md)
@@ -275,7 +275,7 @@ Campaign 3 (Security) ◄──────── Campaign 4 (Punch List)
     └──────────────────────────────────┘
 ```
 
-**Critical Path:** Campaign 1 must complete first — Campaign 2 depends on TopicStreamClient for the trace-collector → Busboy → dashboard pipeline. Campaign 3 can partially overlap with Campaign 2 (auth middleware is independent). Campaign 4 runs last as the cleanup sweep.
+**Critical Path:** Campaign 1 must complete first — Campaign 2 depends on TopicStreamClient for the trace-collector → Wotan → dashboard pipeline. Campaign 3 can partially overlap with Campaign 2 (auth middleware is independent). Campaign 4 runs last as the cleanup sweep.
 
 ---
 
@@ -287,12 +287,12 @@ The Linux box is where the real action happens for Campaigns 1 and 2. Here's wha
 - All 4 eBPF programs compile (`ebpf/target/bpfel-unknown-none/release/`)
 - `ebpf-loader` loads and attaches all 4 programs
 - Ring buffers are pinned at `/sys/fs/bpf/unheaded/`
-- Go toolchain available for Busboy/dashboard work
+- Go toolchain available for Wotan/dashboard work
 
 **To start Campaign 1 on Linux:**
 ```bash
 cd ~/unheaded   # or wherever the repo lives
-go test -v -race -count=1 ./pkg/busboy-client/...  # baseline
+go test -v -race -count=1 ./pkg/wotan-client/...  # baseline
 # Start with pattern.go — pure logic, no dependencies
 ```
 

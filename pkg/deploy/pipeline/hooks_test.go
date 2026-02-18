@@ -32,7 +32,7 @@ func TestHookTypeConstants(t *testing.T) {
 	}{
 		{HookTypeExec, "exec"},
 		{HookTypeHTTP, "http"},
-		{HookTypeBusboy, "busboy"},
+		{HookTypeWotan, "wotan"},
 		{HookTypeWebhook, "webhook"},
 		{HookTypeScript, "script"},
 	}
@@ -127,13 +127,13 @@ func TestHookBuilderWithURL(t *testing.T) {
 	}
 }
 
-// TestHookBuilderWithTopic tests Busboy hook building.
+// TestHookBuilderWithTopic tests Wotan hook building.
 func TestHookBuilderWithTopic(t *testing.T) {
 	payload := map[string]interface{}{
 		"key": "value",
 	}
 
-	hook := NewHookBuilder("busboy-hook", HookTypeBusboy).
+	hook := NewHookBuilder("wotan-hook", HookTypeWotan).
 		WithTopic("deployment.events").
 		WithPayload(payload).
 		Build()
@@ -214,16 +214,16 @@ func TestWebhookHookConstructor(t *testing.T) {
 	}
 }
 
-// TestBusboyHookConstructor tests BusboyHook constructor.
-func TestBusboyHookConstructor(t *testing.T) {
+// TestWotanHookConstructor tests WotanHook constructor.
+func TestWotanHookConstructor(t *testing.T) {
 	payload := map[string]interface{}{"test": "value"}
-	hook := BusboyHook("test", "test.topic", payload)
+	hook := WotanHook("test", "test.topic", payload)
 
 	if hook.Name != "test" {
 		t.Errorf("expected name 'test', got %s", hook.Name)
 	}
-	if hook.Type != HookTypeBusboy {
-		t.Errorf("expected type %s, got %s", HookTypeBusboy, hook.Type)
+	if hook.Type != HookTypeWotan {
+		t.Errorf("expected type %s, got %s", HookTypeWotan, hook.Type)
 	}
 	if hook.Config.Topic != "test.topic" {
 		t.Errorf("expected topic 'test.topic', got %s", hook.Config.Topic)
@@ -245,20 +245,20 @@ func TestScriptHookConstructor(t *testing.T) {
 	}
 }
 
-// TestHookExecutorSetBusboyPublisher tests setting Busboy publisher.
-func TestHookExecutorSetBusboyPublisher(t *testing.T) {
+// TestHookExecutorSetWotanPublisher tests setting Wotan publisher.
+func TestHookExecutorSetWotanPublisher(t *testing.T) {
 	executor := NewHookExecutor()
 
-	mockPublisher := &MockBusboyPublisher{}
-	executor.SetBusboyPublisher(mockPublisher)
+	mockPublisher := &MockWotanPublisher{}
+	executor.SetWotanPublisher(mockPublisher)
 
-	if executor.busboyPublisher == nil {
-		t.Error("Busboy publisher should be set")
+	if executor.wotanPublisher == nil {
+		t.Error("Wotan publisher should be set")
 	}
 }
 
-// MockBusboyPublisher implements BusboyPublisher for testing.
-type MockBusboyPublisher struct {
+// MockWotanPublisher implements WotanPublisher for testing.
+type MockWotanPublisher struct {
 	PublishedMessages []struct {
 		Topic   string
 		Payload []byte
@@ -266,7 +266,7 @@ type MockBusboyPublisher struct {
 	Err error
 }
 
-func (m *MockBusboyPublisher) Publish(ctx context.Context, topic string, payload []byte) error {
+func (m *MockWotanPublisher) Publish(ctx context.Context, topic string, payload []byte) error {
 	if m.Err != nil {
 		return m.Err
 	}
@@ -419,16 +419,16 @@ func TestHTTPHookWithCustomBody(t *testing.T) {
 	}
 }
 
-// TestBusboyHookExecution tests Busboy hook execution.
-func TestBusboyHookExecution(t *testing.T) {
+// TestWotanHookExecution tests Wotan hook execution.
+func TestWotanHookExecution(t *testing.T) {
 	executor := NewHookExecutor()
 
-	mockPublisher := &MockBusboyPublisher{}
-	executor.SetBusboyPublisher(mockPublisher)
+	mockPublisher := &MockWotanPublisher{}
+	executor.SetWotanPublisher(mockPublisher)
 
 	hook := &Hook{
-		Name:    "busboy-test",
-		Type:    HookTypeBusboy,
+		Name:    "wotan-test",
+		Type:    HookTypeWotan,
 		Timeout: 10 * time.Second,
 		Config: &HookConfig{
 			Topic: "test.events",
@@ -456,13 +456,13 @@ func TestBusboyHookExecution(t *testing.T) {
 	}
 }
 
-// TestBusboyHookWithoutPublisher tests Busboy hook without publisher.
-func TestBusboyHookWithoutPublisher(t *testing.T) {
+// TestWotanHookWithoutPublisher tests Wotan hook without publisher.
+func TestWotanHookWithoutPublisher(t *testing.T) {
 	executor := NewHookExecutor()
 
 	hook := &Hook{
-		Name:    "busboy-no-publisher",
-		Type:    HookTypeBusboy,
+		Name:    "wotan-no-publisher",
+		Type:    HookTypeWotan,
 		Timeout: 10 * time.Second,
 		Config: &HookConfig{
 			Topic: "test.events",
@@ -475,21 +475,21 @@ func TestBusboyHookWithoutPublisher(t *testing.T) {
 	if result.Success {
 		t.Error("hook should fail without publisher")
 	}
-	if !strings.Contains(result.Error, "Busboy publisher not configured") {
+	if !strings.Contains(result.Error, "Wotan publisher not configured") {
 		t.Errorf("expected error about publisher, got %s", result.Error)
 	}
 }
 
-// TestBusboyHookWithoutTopic tests Busboy hook without topic.
-func TestBusboyHookWithoutTopic(t *testing.T) {
+// TestWotanHookWithoutTopic tests Wotan hook without topic.
+func TestWotanHookWithoutTopic(t *testing.T) {
 	executor := NewHookExecutor()
 
-	mockPublisher := &MockBusboyPublisher{}
-	executor.SetBusboyPublisher(mockPublisher)
+	mockPublisher := &MockWotanPublisher{}
+	executor.SetWotanPublisher(mockPublisher)
 
 	hook := &Hook{
-		Name:    "busboy-no-topic",
-		Type:    HookTypeBusboy,
+		Name:    "wotan-no-topic",
+		Type:    HookTypeWotan,
 		Timeout: 10 * time.Second,
 		Config:  &HookConfig{},
 	}
@@ -940,18 +940,18 @@ func TestScriptFileExtensions(t *testing.T) {
 	}
 }
 
-// TestBusboyHookPublishError tests Busboy hook with publish error.
-func TestBusboyHookPublishError(t *testing.T) {
+// TestWotanHookPublishError tests Wotan hook with publish error.
+func TestWotanHookPublishError(t *testing.T) {
 	executor := NewHookExecutor()
 
-	mockPublisher := &MockBusboyPublisher{
+	mockPublisher := &MockWotanPublisher{
 		Err: errors.New("publish failed"),
 	}
-	executor.SetBusboyPublisher(mockPublisher)
+	executor.SetWotanPublisher(mockPublisher)
 
 	hook := &Hook{
-		Name:    "busboy-error",
-		Type:    HookTypeBusboy,
+		Name:    "wotan-error",
+		Type:    HookTypeWotan,
 		Timeout: 10 * time.Second,
 		Config: &HookConfig{
 			Topic: "test.events",
@@ -995,15 +995,15 @@ func BenchmarkHTTPHookExecution(b *testing.B) {
 	}
 }
 
-// BenchmarkBusboyHookExecution benchmarks Busboy hook execution.
-func BenchmarkBusboyHookExecution(b *testing.B) {
+// BenchmarkWotanHookExecution benchmarks Wotan hook execution.
+func BenchmarkWotanHookExecution(b *testing.B) {
 	executor := NewHookExecutor()
-	mockPublisher := &MockBusboyPublisher{}
-	executor.SetBusboyPublisher(mockPublisher)
+	mockPublisher := &MockWotanPublisher{}
+	executor.SetWotanPublisher(mockPublisher)
 
 	hook := &Hook{
 		Name:    "bench-hook",
-		Type:    HookTypeBusboy,
+		Type:    HookTypeWotan,
 		Timeout: 10 * time.Second,
 		Config: &HookConfig{
 			Topic: "test.events",

@@ -62,7 +62,7 @@ pkgs.nixosTest {
 
     # Import container images (built from flake)
     # TODO: Import actual built images
-    # testHost.succeed("lxc image import /nix/store/.../busboy.tar.gz --alias unheaded-busboy")
+    # testHost.succeed("lxc image import /nix/store/.../wotan.tar.gz --alias unheaded-wotan")
 
     # Run Go test suite
     print("Running container orchestration tests...")
