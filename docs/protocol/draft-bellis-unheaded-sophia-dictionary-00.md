@@ -197,7 +197,7 @@ sophia_entry = {
 The ? prefix indicates optional fields.  Required fields: type, sub_dict_id.
 
 Type is a text string describing the semantic category.  Examples:
-"service_identity", "flow_action", "qos_class", "deployment_ring",
+"service_identity", "flow_action", "qos_class", "deploy_ring",
 "circuit_state", "mesh_flags".
 
 ## Root Entry Schema
@@ -263,7 +263,7 @@ Exponent-encoding rules are stored as root dictionary metadata:
 
 ~~~~~
 exponent_rule = {
-  "field": tstr,             ; Field name (e.g., "latency_hint_us")
+  "field": tstr,             ; Field name (e.g., "latency_hint")
   "byte_position": uint,     ; Offset in Monad (0-19)
   "base": uint,              ; Exponent base (typically 2 or 10)
   "multiplier": uint,        ; Scaling factor (typically 1)
@@ -273,12 +273,12 @@ exponent_rule = {
 }
 ~~~~~
 
-Example: latency_hint_us field:
+Example: latency_hint field:
 
 ~~~~~
 {
-  "field": "latency_hint_us",
-  "byte_position": 12,
+  "field": "latency_hint",
+  "byte_position": 8,
   "base": 2,
   "multiplier": 1,
   "unit": "microseconds",
@@ -491,11 +491,10 @@ dictionary entries.
 0x01  service_identity (REQUIRED)
 0x02  flow_action (REQUIRED)
 0x03  qos_class (REQUIRED)
-0x04  deployment_ring (RECOMMENDED)
+0x04  deploy_ring (RECOMMENDED)
 0x05  circuit_state (RECOMMENDED)
 0x06  mesh_flags (OPTIONAL)
-0x07-0x0E  RESERVED for future standardization
-0x0F  RESERVED for future standardization
+0x07-0x0F  RESERVED for future standardization
 ~~~~~
 
 ## Standard Service Identity Entries
@@ -560,7 +559,7 @@ each update.  Version numbers are 8-bit unsigned integers (0-255) that wrap.
 
 - Maintained in sophia_version BPF map (key 0, value = current version)
 - Incremented monotonically (mod 256) on each update
-- Stamped into Extended Register Space by Shield (if Kingdom Mode is active)
+- Stamped into Extended Register Space by Shield (if CUSTOM Kingdom mode is active)
 - Allows per-hop verification that the packet was stamped with the current
   dictionary version
 
@@ -668,7 +667,7 @@ Initial entries:
   0x01: service_identity
   0x02: flow_action
   0x03: qos_class
-  0x04: deployment_ring
+  0x04: deploy_ring
   0x05: circuit_state
   0x06: mesh_flags
   0x07-0x0F: RESERVED
