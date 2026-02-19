@@ -155,9 +155,9 @@ fn main() {
         .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect();
 
-    // Translate.
-    match Translator::translate_program(&rv32i_words) {
-        Ok(mbc_words) => {
+    // Translate (with RV-to-MBC address map for indirect jumps).
+    match Translator::translate_program_with_map(&rv32i_words) {
+        Ok((mbc_words, rv2mbc_map)) => {
             eprintln!(
                 "Translation successful: {} RV32I → {} MBC instructions (expansion ratio: {:.1}x)",
                 rv32i_words.len(),
@@ -171,6 +171,10 @@ fn main() {
                     mbc_words.len() as f64 / 65536.0 * 100.0,
                 );
                 eprintln!("  ROM size: {} bytes", mbc_words.len() * 4);
+                eprintln!("  RV2MBC map: {} entries ({} bytes)",
+                    rv2mbc_map.len(),
+                    rv2mbc_map.len() * 4,
+                );
             }
 
             if show_disasm {
@@ -191,6 +195,27 @@ fn main() {
                     process::exit(1);
                 }
                 eprintln!("Wrote {} bytes to {path}", mbc_bytes.len());
+
+                // Write RV2MBC address translation map alongside the MBC output.
+                // e.g., "doom.mbc" → "doom.rv2mbc"
+                let rv2mbc_path = if path.ends_with(".mbc") {
+                    path.replace(".mbc", ".rv2mbc")
+                } else {
+                    format!("{path}.rv2mbc")
+                };
+                let rv2mbc_bytes: Vec<u8> = rv2mbc_map
+                    .iter()
+                    .flat_map(|w| w.to_le_bytes())
+                    .collect();
+                if let Err(e) = fs::write(&rv2mbc_path, &rv2mbc_bytes) {
+                    eprintln!("Error writing rv2mbc map: {e}");
+                    process::exit(1);
+                }
+                eprintln!(
+                    "Wrote {} entries ({} bytes) to {rv2mbc_path}",
+                    rv2mbc_map.len(),
+                    rv2mbc_bytes.len(),
+                );
             } else {
                 let stdout = io::stdout();
                 let mut handle = stdout.lock();
@@ -198,6 +223,8 @@ fn main() {
                     eprintln!("Error writing to stdout: {e}");
                     process::exit(1);
                 }
+                // When writing to stdout, rv2mbc map is not written (no file path).
+                eprintln!("Note: rv2mbc map not written (use -o to specify output file)");
             }
         }
         Err(errors) => {
