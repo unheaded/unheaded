@@ -1376,6 +1376,3 @@ the fire.
 
 Erik Baar, for a copy of the Chronicles and many
 garage beers.
-
-Leon Torres, for taking a chance on a freshly CCNA-
-certified network admin eight years ago.

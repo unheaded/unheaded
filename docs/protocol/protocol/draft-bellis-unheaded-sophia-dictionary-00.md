@@ -46,8 +46,8 @@ the BPF map representation for in-kernel storage, the atomic update protocol
 for cluster-wide distribution via the Wotan memory bus, and the minimum
 required dictionary entries for any conformant Unheaded deployment.
 
-Sophia dictionaries are hot-swappable: updates propagate to all nodes in
-under 10 milliseconds without packet loss or restart.
+Sophia dictionaries support atomic replacement: updates propagate to all
+nodes in under 10 milliseconds without packet loss or service interruption.
 
 --- middle
 
@@ -63,8 +63,9 @@ each byte position come from?
 
 The answer is Sophia: a distributed, versioned dictionary system that maps
 byte values to meanings.  Sophia is the semantic layer.  Without it, the
-Monad is just bytes.  With it, a simple 0x03 byte becomes "architect" or
-"realtime" or "forward" or "open" depending on context.
+Monad fields carry no application semantics.  With it, a 0x03 byte value
+resolves to "architect" or "realtime" or "forward" or "open" depending on
+the field position and active dictionary version.
 
 This memo specifies:
 

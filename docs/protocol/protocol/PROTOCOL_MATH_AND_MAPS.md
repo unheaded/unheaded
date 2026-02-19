@@ -12,7 +12,7 @@ The Monad is a 20-byte fixed structure carried as an IPv6 Hop-by-Hop Option (RFC
 
 ```
           THE MONAD — 20 bytes (0x14) carried in IPv6 Hop-by-Hop Option
-          Born at Shield ingress. Dies at Shield egress. Shadow never sees.
+          Stamped at ingress Shield, stripped at egress Shield.
 
           ┌───────────────────────────────────────────┐
           │  IPv6 Hop-by-Hop Extension Header         │
@@ -81,7 +81,7 @@ Bit 7 (MSB)                                              Bit 0 (LSB)
 │  0x80   │  0x40   │  0x20   │  0x10   │  0x08   │  0x04   │  0x02   │  0x01   │
 └─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
 
-  C (CHAOS,  bit 7, 0x80): Yaldabaoth touched this packet. Visible downstream.
+  C (CHAOS,  bit 7, 0x80): Chaos injection marker. Visible downstream.
   Y (CANARY, bit 6, 0x40): Packet belongs to canary deployment path.
   T (TRACED, bit 5, 0x20): Full trace active — every hop emits to Anamnesis.
   E (ENCRYPT,bit 4, 0x10): Payload is encrypted (intra-Kingdom TLS).
@@ -155,7 +155,7 @@ The Monad is carried in an IPv6 Hop-by-Hop Options extension header per RFC 8200
 ## 3. Packet Lifecycle: ASCII Flow
 
 ```
-                    THE LIFECYCLE OF A KINGDOM PACKET
+                    PACKET LIFECYCLE (LIMITED DOMAIN)
 
   SHADOW (outside)           THE KINGDOM                      SHADOW (outside)
   (clean IPv6 or v4)    (IPv6 + HBH Monad + Wotan)         (clean IPv6 or v4)
@@ -187,7 +187,7 @@ The Monad is carried in an IPv6 Hop-by-Hop Options extension header per RFC 8200
   Shield stamps         Each Shim:                Shield strips
   Monad ON              1. Parse HBH option       Monad OFF
   Birth event           2. Extract Monad           Death event
-  to Anamnesis          3. Execute eBPF program   to Anamnesis
+  to Anamnesis          3. Execute BPF program    to Anamnesis
   Wotan memory         4. Read/write Wotan mem  (final snapshot)
   pre-allocated         5. Update Monad in-place  Wotan memory
                         6. Verify checksum        deallocated
@@ -304,7 +304,7 @@ The key insight: **the same bytes carry different semantics depending on context
     vs OTel span:     24:400 = ~17x more compact
     vs Envoy log:     24:500 = ~21x more compact
 
-  And critically: Monad operates at wire speed (nanoseconds).
+  And critically: Monad operates at kernel datapath speed (~320 ns per hop).
                   HTTP/OTel/Envoy operate at application speed (milliseconds).
 ```
 
@@ -393,9 +393,9 @@ The key insight: **the same bytes carry different semantics depending on context
     Recomputation: ~50ns for 20 bytes on modern x86
     (can use BPF helper or inline CRC table)
 
-  Yaldabaoth single-bit-flip:
+  Chaos injection (single-bit-flip):
     Guaranteed detection by next hop's checksum verification.
-    The chaos is always caught.
+    All injected perturbations are detectable.
 ```
 
 ---
@@ -484,8 +484,8 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
     8. Deallocate Wotan memory (after grace period)
     9. Forward clean IPv6 packet to Shadow
 
-  The packet exits the Kingdom as standard IPv6.
-  Shadow never sees the Monad. Shadow never knows.
+  The packet exits the Limited Domain as standard IPv6.
+  External nodes never observe the Monad or Hop-by-Hop header.
 ```
 
 ---
@@ -505,7 +505,7 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
   │            circuit_state, flags, latency_budget_us,          │
   │            deployment_ring, mesh_flags, reserved, checksum   │
   │     Size: 20 bytes (fixed)                                   │
-  │     Latency: wire speed (nanoseconds)                        │
+  │     Latency: per-hop (~320 ns including CRC)                  │
   │     Location: IN the packet (Hop-by-Hop option)              │
   │     Analogy: CPU registers                                   │
   ├──────────────────────────────────────────────────────────────┤
@@ -598,10 +598,10 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
 ```
   PRIMITIVE          MONAD/WOTAN PROVIDES                  HOW
   ────────────────   ───────────────────────────────         ──────────────────────
-  1. Registers       Monad fields (20 bytes)                 In-packet, wire speed
-                     + eBPF r0-r10 (per-hop scratch)        Per RFC 9669
+  1. Registers       Monad fields (20 bytes)                 In-packet, per-hop
+                     + BPF r0-r10 (per-hop scratch)         Per RFC 9669
 
-  2. ALU             eBPF instruction set (RFC 9669)        64-bit arithmetic,
+  2. ALU             BPF instruction set (RFC 9669)         64-bit arithmetic,
                      ADD, SUB, MUL, DIV, AND, OR, XOR,      logic, shifts, jumps
                      LSH, RSH, NEG, MOD, JEQ, JGT, JGE...  at every hop
 
@@ -637,7 +637,7 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
   2. STATE: Monad circuit_state field = current state q in Q
             Monad latency_budget_us or reserved field = head position
 
-  3. TRANSITION: Shim eBPF program implements delta:
+  3. TRANSITION: Shim BPF program implements delta:
 
      current_symbol = wotan_read(head_pos);      // Read tape at head
      action = lookup_transition(circuit_state, current_symbol); // Sophia
@@ -653,7 +653,7 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
 
   THEREFORE: Unheaded + Wotan is Turing-complete.  QED.
 
-  PRACTICAL NOTE: eBPF verifier bounds each individual Shim execution
+  PRACTICAL NOTE: BPF verifier bounds each individual Shim execution
   (no infinite loops per hop), but the packet circulation loop provides
   unbounded iteration. The bound is resource (ring buffer size, packet
   lifetime), not computational.
@@ -665,7 +665,7 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
   Can it actually run programs at useful speed?
 
   Single Shim execution:
-    eBPF overhead:           ~100 ns (XDP fast path)
+    BPF overhead:            ~100 ns (XDP fast path)
     Monad read:              ~10 ns (packet memory access)
     BPF map lookup (L1):     ~100 ns
     Checksum verification:   ~50 ns
@@ -730,7 +730,7 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
                          └── byte_1 = ... (256 entries)
 
   256 branches x 256 leaves = 65,536 total meanings
-  And each meaning is HOT-SWAPPABLE by updating the leaf's BPF map entry.
+  Each meaning is atomically replaceable by updating the leaf's BPF map entry.
 
   SCALING LAW:
   ─────────────
@@ -802,9 +802,9 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
   Monad : OTel span       = 24 : 400  = ~17x more compact
   Monad : Envoy log       = 24 : 500  = ~21x more compact
 
-  AND: Monad operates at wire speed (nanoseconds).
+  AND: Monad operates at kernel datapath speed (~320 ns per hop).
        HTTP/OTel/Envoy operate at application speed (milliseconds).
-       That's a 10^6 speed difference on top of the 12-21x size difference.
+       That is a ~10^6 speed difference on top of the 12-21x size difference.
 
   MTU overhead:
     Monad wire size: 24 bytes / 1500 MTU = 1.6% overhead
@@ -845,17 +845,17 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
     Ring buffer is bounded. If Wotan falls behind:
       Option A: Drop oldest events (ring overwrites)
       Option B: Drop new events (ring returns -ENOSPC)
-      Option C: Backpressure via BPF map flag → eBPF reduces emission rate
+      Option C: Backpressure via BPF map flag → BPF reduces emission rate
 
-    Kingdom policy (Pleroma declares): Option A for most traffic.
-    Exception: CHAOS events (Yaldabaoth) → Option B (never lose chaos audit).
+    Recommended policy: Option A for most traffic.
+    Exception: CHAOS events → Option B (never lose chaos audit trail).
 ```
 
 ---
 
 ## 12. Heritage Table: The Lineage
 
-The Unheaded Protocol did not emerge from nothing. It is the latest inscription of a Pattern that has existed since the first bus carried the first bit with metadata attached.
+The Unheaded Protocol builds on decades of prior art in bus-based metadata transport.
 
 ```
   TECHNOLOGY          YEAR  PATTERN ELEMENT           RFC/STANDARD
@@ -900,10 +900,9 @@ The Unheaded Protocol did not emerge from nothing. It is the latest inscription 
                             Wotan memory hierarchy,
                             computational completeness
 
-  PATTERN: metadata riding with data. The bus as the computer.
-           The wire as the processor. Hop-by-hop accumulation.
-           The same design, drawn over and over, in cars and planes
-           and routers and kernels. Different Shadows, same Pattern.
+  PATTERN: metadata co-located with data, hop-by-hop accumulation,
+           bus-as-compute. A recurring architectural pattern across
+           aerospace, automotive, and networking domains.
 ```
 
 ---
@@ -918,7 +917,7 @@ The Unheaded Protocol did not emerge from nothing. It is the latest inscription 
 |  TRANSPORT:   IPv6 Hop-by-Hop Options (RFC 8200, RFC 9673)       |
 |  MONAD SIZE:  20 bytes (14 fields)                               |
 |  OPTION SIZE: 24 bytes (HBH + TLV + Monad)                       |
-|  COMPUTE:     eBPF per RFC 9669 (BPF ISA)                        |
+|  COMPUTE:     BPF per RFC 9669 (BPF ISA)                         |
 |                                                                   |
 |  EXPONENT FIELDS: 8 (Sophia lookup)                              |
 |    src_service_id, dst_service_id, qos_class, flow_action,       |
@@ -951,7 +950,7 @@ The Unheaded Protocol did not emerge from nothing. It is the latest inscription 
 |                                                                   |
 |  COMPLETENESS: Turing-complete (Monad + Wotan)                   |
 |  EFFECTIVE:    ~2.7 MHz single-instruction, ~11-21 MHz batched   |
-|  DOOM:         Yes. (after the dashboard)                         |
+|  DOOM:         Feasible (~2.7 MHz vs ~2-3.5 MHz required)         |
 |                                                                   |
 |  NORMATIVE RFCs:                                                  |
 |    RFC 8200 — IPv6 Specification                                  |
@@ -972,4 +971,4 @@ The Unheaded Protocol did not emerge from nothing. It is the latest inscription 
 
 ---
 
-*The math doesn't lie. 20 bytes of fields. Wotan for memory. eBPF for compute. IPv6 Hop-by-Hop for transport. All standards-compliant. The Pattern is real.*
+*20 bytes of fields. Wotan for memory. BPF for compute. IPv6 Hop-by-Hop for transport. All standards-compliant.*

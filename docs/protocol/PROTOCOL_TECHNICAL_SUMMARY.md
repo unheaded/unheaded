@@ -8,11 +8,11 @@
 
 ## 1. Protocol Overview
 
-Every packet inside the Kingdom carries 20 bytes of proprietary metadata. Shield stamps them on at ingress, strips them off at egress. eBPF programs at each hop read, compute on, and stamp these bytes. Wotan bridges wire-speed (kernel) and human-speed (userspace). Ring buffers (Anamnesis) record every packet event.
+Every packet inside the Limited Domain carries 20 bytes of protocol metadata. Shield stamps them on at ingress, strips them off at egress. BPF programs at each hop read, compute on, and stamp these bytes. Wotan bridges kernel datapath (nanoseconds) and userspace (milliseconds). Ring buffers (Anamnesis) record every packet event.
 
 **Transport:** IPv4 internal. 20-byte metadata shim per packet.
 **Boundary:** Shield (XDP). Stamps on ingress. Strips on egress. n+1 host sees clean IPv4.
-**Compute:** eBPF programs at XDP (ingress), TC (egress/mesh), kprobe (TCP lifecycle).
+**Compute:** BPF programs at XDP (ingress), TC (egress/mesh), kprobe (TCP lifecycle).
 **Decode:** Wotan reads ring buffers, decodes through Sophia dictionaries, publishes structured events.
 **Memory:** Anamnesis ring buffers — per-CPU, raw exponent keys + nanosecond timestamps.
 
@@ -28,7 +28,7 @@ Offset  Size  Field               Type        Description
 0x00    1     version             raw uint8   Protocol version (current: 0x01)
 0x01    1     src_service_id      exponent    Source service (Sophia lookup)
 0x02    1     dst_service_id      exponent    Destination service (Sophia lookup)
-0x03    1     hop_count           raw uint8   Incremented at each eBPF hop
+0x03    1     hop_count           raw uint8   Incremented at each BPF hop
 0x04    4     trace_hash          raw uint32  Flow trace correlation hash
 0x08    1     qos_class           exponent    QoS classification
 0x09    1     flow_action         exponent    Action directive (trace/sample/mirror/drop)
@@ -43,7 +43,7 @@ Offset  Size  Field               Type        Description
 Total: 20 bytes (0x14)
 ```
 
-**Exponent fields** (8 of 14 fields): Meaning defined by Sophia dictionary lookup. One byte = 256 possible meanings. Hot-swappable at runtime via BPF map update.
+**Exponent fields** (8 of 14 fields): Meaning defined by Sophia dictionary lookup. One byte = 256 possible meanings. Atomically replaceable at runtime via BPF map update.
 
 **Raw fields** (6 of 14 fields): Fixed interpretation. `version`, `hop_count`, `trace_hash`, `flags`, `latency_hint_us`, `checksum`.
 
@@ -165,9 +165,9 @@ static __always_inline struct meaning *sophia_lookup(u8 key0, u8 key1) {
 
 ---
 
-## 5. Per-Hop eBPF Processing (The Void)
+## 5. Per-Hop BPF Processing (The Void)
 
-At each internal hop, eBPF programs read and modify the Protocol header:
+At each internal hop, BPF programs read and modify the Protocol header:
 
 ```
 1. Parse Protocol header (fixed offset after IP header)
@@ -195,17 +195,16 @@ At each internal hop, eBPF programs read and modify the Protocol header:
 
 ```c
 struct anamnesis_event {
-    u64 timestamp_ns;       // bpf_ktime_get_ns()
-    u8  event_type;         // BIRTH=1, HOP=2, DEATH=3, ANOMALY=4, CHAOS=5
-    u8  hop_id;             // Which hop emitted this
-    u8  protocol_snapshot[20]; // Full 20-byte Protocol header at time of event
-    u32 src_ip;             // Packet source IP
-    u32 dst_ip;             // Packet destination IP
-    u16 src_port;           // Transport source port
-    u16 dst_port;           // Transport destination port
-    u8  ip_proto;           // TCP=6, UDP=17, etc
-    u8  _pad[3];            // Alignment
-} __attribute__((packed));  // Total: 40 bytes per event
+    u64 timestamp_ns;        // bpf_ktime_get_ns()
+    u8  event_type;          // BIRTH=0, COMPUTED=1, DEATH=6, ANOMALY=8, CHAOS=4
+    u8  hop_index;           // Which hop emitted this
+    u16 reserved;            // Alignment padding
+    u32 input_monad[5];      // 20 bytes: Monad BEFORE this hop
+    u32 output_monad[5];     // 20 bytes: Monad AFTER this hop
+    u32 trace_id;            // Copied from Monad for fast correlation
+    u32 wotan_addr;          // Wotan memory address (if accessed)
+    u32 wotan_value;         // Value read/written (if applicable)
+};  // Total: 64 bytes per event
 ```
 
 ### Ring Buffer Sizing
@@ -213,11 +212,11 @@ struct anamnesis_event {
 ```
 Target: 10Gbps line rate, 1500-byte average packets
 Packet rate: ~833,333 pps
-Event size: 40 bytes
+Event size: 64 bytes (per draft-03 struct)
 Events/sec: ~833,333 (if every packet emits)
-Buffer size needed: 833,333 × 40 = ~33MB/sec
-Per-CPU ring buffer: 64MB (covers ~2 seconds at max rate)
-Total (16 CPUs): 1GB ring buffer memory
+Buffer size needed: 833,333 × 64 = ~53.3 MB/sec
+Per-CPU ring buffer: 102 MB (covers ~2 seconds at max rate)
+Total (16 CPUs): ~1.6 GB ring buffer memory
 ```
 
 ### Wotan Ring Buffer Reader
@@ -270,7 +269,7 @@ Drift detection:
 
 ## 8. Pleroma: Desired State
 
-Pleroma is the set of Sophia dictionary entries + eBPF programs + policies that SHOULD be active.
+Pleroma is the set of Sophia dictionary entries + BPF programs + policies that SHOULD be active.
 
 ```yaml
 # Example Pleroma declaration
@@ -332,11 +331,11 @@ Chaos modes (selected by BPF map configuration):
 
   MODE_CHAOS_MARKER (0x05):
     - Set flags bit 7 (0x80 = chaos bit)
-    - All downstream hops can see this packet was touched by Yaldabaoth
+    - All downstream hops can see this packet has chaos injection active
     - Useful for controlled chaos testing vs blind chaos
 
-ALL modes emit to Anamnesis: event_type=CHAOS, full snapshot before and after modification.
-Yaldabaoth never hides. Anamnesis always knows what the Demiurge did.
+ALL modes MUST emit to Anamnesis: event_type=CHAOS, full snapshot before and after modification.
+All perturbations MUST be recorded. Chaos injection is always auditable.
 ```
 
 ---
@@ -349,7 +348,7 @@ Yaldabaoth never hides. Anamnesis always knows what the Demiurge did.
 | **2** | IPv6, metadata in `[::ffff:x.x.x.x]` prefix | 20 bytes (free) | Zero overhead — metadata IS the address space. Flow Label (20 bits) for trace hash. |
 | **3** | IPv6 + Hop-by-Hop extension headers | Up to 64KB | Full expansion. Option type `0x1E` (RFC 4727). Arbitrary depth Sophia trees. |
 
-The exponent encoding, Sophia dictionaries, and eBPF programs are **transport-agnostic**. They work on any byte sequence at any offset. The 20-byte shim is Age 1. The architecture is permanent.
+The exponent encoding, Sophia dictionaries, and BPF programs are **transport-agnostic**. They work on any byte sequence at any offset. The 20-byte shim is Age 1. The architecture is transport-independent.
 
 ---
 
@@ -357,14 +356,14 @@ The exponent encoding, Sophia dictionaries, and eBPF programs are **transport-ag
 
 | Metric | Target | Justification |
 |--------|--------|---------------|
-| Per-packet Protocol overhead | 20 bytes | ~1.3% on 1500B frames |
+| Per-packet Protocol overhead | 24 bytes (HbH+TLV+Monad) | ~1.6% on 1500B frames |
 | Sophia lookup latency | <100ns per lookup | BPF hash map O(1) |
-| Ring buffer event size | 40 bytes | Fits in single cache line |
-| Anamnesis retention (hot) | 2 seconds at line rate | 64MB per-CPU ring buffer |
+| Ring buffer event size | 64 bytes | Input + output Monad snapshots |
+| Anamnesis retention (hot) | 2 seconds at line rate | 102 MB per-CPU ring buffer |
 | Shield ingress latency | <1µs added | XDP before sk_buff allocation |
 | Checksum verification | <50ns | CRC-16 over 18 bytes |
 | Dictionary update propagation | <10ms cluster-wide | BPF map atomic update via Wotan |
 
 ---
 
-*The protocol is the Pattern. The Void computes. Anamnesis remembers. Wotan translates. The Kingdom lives.*
+*BPF computes. Anamnesis records. Wotan translates. Sophia decodes.*

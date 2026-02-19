@@ -65,7 +65,7 @@ Many use cases require state beyond the 20-byte Monad: buffering input, accumula
 
 Wotan provides this state via a hierarchical memory model:
 
-- L0: Monad (20 bytes, in packet, wire speed)
+- L0: Monad (20 bytes, in packet, per-hop latency ~320 ns)
 - L1: Per-hop BPF map cache (64-byte cache lines, ~100-200 ns latency)
 - L2: Per-flow ring buffer RAM (configurable size, ~1-10 µs latency)
 - L3: Write-Ahead Log (persistent storage, ~100 µs-1 ms latency)
@@ -100,7 +100,7 @@ Memory-Mapped I/O:
 
 Wotan bridges Monad computation to memory and I/O:
 
-- Shim programs (eBPF) running at each hop read/write Wotan memory via BPF helpers (bpf_wotan_read, bpf_wotan_write, bpf_wotan_cas).
+- Shim programs (BPF) running at each hop read/write Wotan memory via BPF helpers (bpf_wotan_read, bpf_wotan_write, bpf_wotan_cas).
 - Wotan maintains per-flow state keyed by IPv6 Flow Label.
 - Wotan interfaces with userspace via ring buffer events and pub/sub topics.
 - Wotan implements cache miss handling, prefetching, and Write-Ahead Log management.
@@ -247,7 +247,7 @@ long bpf_wotan_cas(u32 flow_label, u32 addr, u32 expected, u32 desired);
    b. If current == expected: write desired, set dirty bit, return 0
    c. If current != expected: return -EAGAIN
 
-The CAS operation MUST use atomic compare-and-swap semantics (via BPF_XADD or equivalent) to prevent races between concurrent Shims on different CPUs or cores.
+The CAS operation MUST use atomic compare-and-swap semantics (via BPF_XADD or architecture-specific atomic instructions as defined in [RFC9669] Section 4.3) to prevent races between concurrent Shims on different CPUs or cores.
 
 ## 4.4. Error Handling
 
@@ -275,7 +275,7 @@ bool is_authorized(program_id, flow_label):
   return (entry.allowed_labels & BIT(flow_label)) != 0
 ~~~~~
 
-Access control rules are defined per deployment and distributed via Sophia. Default: all programs authorized for all flows (wildcard). Operators MAY restrict access to enforce least-privilege per BPF program.
+Access control rules are defined per deployment and distributed via Sophia. Default: all programs authorized for all flows (wildcard). Operators SHOULD restrict access to enforce least-privilege per BPF program.
 
 # 5. Memory Address Space
 
@@ -922,9 +922,9 @@ Example entries:
 
 # Acknowledgments
 
-The Linux kernel BPF community (Alexei Starovoitov, Daniel Borkmann, Song Liu) for the infrastructure enabling per-packet computation at wire speed.
+The Linux kernel BPF community (Alexei Starovoitov, Daniel Borkmann, Song Liu) for the infrastructure enabling per-packet computation in the kernel datapath.
 
-The authors of RFC 9669 (eBPF ISA), RFC 8799 (Limited Domains), and RFC 9673 (Hop-by-Hop Processing Rehabilitation) for the foundational protocols that make this design possible.
+The authors of RFC 9669 (BPF ISA), RFC 8799 (Limited Domains), and RFC 9673 (Hop-by-Hop Processing Rehabilitation) for the foundational protocols that make this design possible.
 
 ---
 
