@@ -14,6 +14,31 @@ type BPFMap struct {
 	name string
 }
 
+// bpfObjGet opens a pinned BPF object (map/program) by its path using
+// the raw BPF_OBJ_GET syscall (command 7).
+func bpfObjGet(pinPath string) (int, error) {
+	pathBytes, err := unix.BytePtrFromString(pinPath)
+	if err != nil {
+		return -1, fmt.Errorf("invalid path: %w", err)
+	}
+
+	// BPF_OBJ_GET attr: { pathname (u64), bpf_fd (u32), file_flags (u32) }
+	attr := struct {
+		pathname  uint64
+		bpfFd     uint32
+		fileFlags uint32
+	}{
+		pathname: uint64(uintptr(unsafe.Pointer(pathBytes))),
+	}
+
+	const BPF_OBJ_GET = 7
+	fd, _, errno := unix.Syscall(unix.SYS_BPF, BPF_OBJ_GET, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
+	if errno != 0 {
+		return -1, errno
+	}
+	return int(fd), nil
+}
+
 // openBPFMap opens a BPF map by trying multiple methods:
 // 1. First try to open as a pinned map at the given path
 // 2. If not pinned, return an error indicating the map couldn't be accessed
@@ -21,7 +46,7 @@ type BPFMap struct {
 // On non-Linux systems, this gracefully returns an error.
 func openBPFMap(pinPath string) (*BPFMap, error) {
 	// Try to open the pinned map file
-	fd, err := unix.BpfObjGet(pinPath)
+	fd, err := bpfObjGet(pinPath)
 	if err != nil {
 		// Map not pinned or not accessible
 		return nil, fmt.Errorf("failed to get pinned BPF map at %s: %v", pinPath, err)

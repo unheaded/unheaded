@@ -1,6 +1,6 @@
 //! Unheaded eBPF Loader
 //!
-//! Loads and attaches the 4 eBPF programs compiled with aya-ebpf using
+//! Loads and attaches eBPF programs compiled with aya-ebpf using
 //! the aya userspace library. This bypasses the libbpf legacy-maps
 //! incompatibility (libbpf v1.0+ rejects the `maps` ELF section that
 //! aya-ebpf 0.1.x emits).
@@ -10,6 +10,7 @@
 //!   - flow-tracker:   TC classifier (ingress + egress) for connection tracking
 //!   - latency-probe:  kprobe/kretprobe on TCP functions for latency measurement
 //!   - syscall-tracer: raw tracepoints on sys_enter/sys_exit
+//!   - monad-cpu:      XDP Monad CPU for Doom-over-IPv6 (MBC execution engine)
 
 use std::path::PathBuf;
 
@@ -17,7 +18,7 @@ use anyhow::{Context, Result};
 use aya::programs::{
     KProbe, RawTracePoint, SchedClassifier, TcAttachType, Xdp, XdpFlags,
 };
-use aya::{programs::tc, Ebpf};
+use aya::{programs::tc, Ebpf, EbpfLoader};
 use clap::Parser;
 use log::{info, warn};
 
@@ -55,6 +56,20 @@ struct Cli {
     /// Dry run — validate ELF objects without loading into kernel
     #[arg(long)]
     dry_run: bool,
+
+    /// Pin path for shared BPF maps (used by monad-cpu for doom-ring).
+    /// When set, maps are pinned on first load and reused on subsequent loads.
+    #[arg(long)]
+    map_pin_path: Option<PathBuf>,
+
+    /// Use SKB (generic) mode for XDP attachment (required for veth devices)
+    #[arg(long)]
+    xdp_skb_mode: bool,
+
+    /// Write PID to this file (for daemon management by doom-ring.sh).
+    /// The loader stays alive holding BPF link FDs; kill it to detach XDP.
+    #[arg(long)]
+    pid_file: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -69,7 +84,8 @@ fn main() -> Result<()> {
 
     // Validate all objects exist before loading any
     for name in &programs {
-        let path = cli.obj_dir.join(name);
+        let elf_name = elf_filename(name);
+        let path = cli.obj_dir.join(elf_name);
         if !path.exists() {
             anyhow::bail!(
                 "eBPF object not found: {} (build with: cd ebpf && cargo +nightly build \
@@ -92,6 +108,7 @@ fn main() -> Result<()> {
             "flow-tracker" => load_flow_tracker(&cli),
             "latency-probe" => load_latency_probe(&cli),
             "syscall-tracer" => load_syscall_tracer(&cli),
+            "monad-cpu" => load_monad_cpu(&cli),
             other => {
                 warn!("Unknown program: {}, skipping", other);
                 continue;
@@ -108,10 +125,17 @@ fn main() -> Result<()> {
     }
 
     info!(
-        "{}/{} programs loaded and attached. Press Ctrl+C to detach.",
+        "{}/{} programs loaded and attached. Waiting for signal to detach.",
         handles.len(),
         programs.len()
     );
+
+    // Write PID file if requested (for daemon management)
+    if let Some(ref pid_path) = cli.pid_file {
+        std::fs::write(pid_path, format!("{}", std::process::id()))
+            .with_context(|| format!("Failed to write PID file {}", pid_path.display()))?;
+        info!("PID {} written to {}", std::process::id(), pid_path.display());
+    }
 
     // Wait for signal
     let (tx, rx) = std::sync::mpsc::channel::<()>();
@@ -123,16 +147,30 @@ fn main() -> Result<()> {
 
     info!("Detaching all programs...");
     drop(handles);
+
+    // Clean up PID file
+    if let Some(ref pid_path) = cli.pid_file {
+        let _ = std::fs::remove_file(pid_path);
+    }
+
     info!("Done.");
 
     Ok(())
+}
+
+/// Map program name to ELF filename (most match 1:1 except monad-cpu → monad-cpu-ebpf).
+fn elf_filename(name: &str) -> &str {
+    match name {
+        "monad-cpu" => "monad-cpu-ebpf",
+        other => other,
+    }
 }
 
 fn dry_run(cli: &Cli, programs: &[&str]) -> Result<()> {
     info!("[dry-run] Validating eBPF objects (no kernel loading)");
 
     for name in programs {
-        let path = cli.obj_dir.join(name);
+        let path = cli.obj_dir.join(elf_filename(name));
         let metadata = std::fs::metadata(&path)
             .with_context(|| format!("Cannot stat {}", path.display()))?;
         info!(
@@ -277,6 +315,68 @@ fn load_syscall_tracer(_cli: &Cli) -> Result<Ebpf> {
         info!("  {} attached (raw_tracepoint)", tp);
     }
 
+    Ok(ebpf)
+}
+
+// ---------------------------------------------------------------------------
+// monad-cpu: XDP Monad CPU for Doom-over-IPv6
+// ---------------------------------------------------------------------------
+
+fn load_monad_cpu(cli: &Cli) -> Result<Ebpf> {
+    let path = cli.obj_dir.join("monad-cpu-ebpf");
+    info!("Loading monad-cpu from {}", path.display());
+
+    let mut ebpf = if let Some(ref pin_path) = cli.map_pin_path {
+        // Shared map pinning: first loader pins maps, subsequent loaders reuse them.
+        // This is critical for doom-ring where 6 namespaces share ROM/CPU/RAM/SCREEN maps.
+        std::fs::create_dir_all(pin_path)
+            .with_context(|| format!("Failed to create map pin dir {}", pin_path.display()))?;
+        info!("  using shared map pin path: {}", pin_path.display());
+        EbpfLoader::new()
+            .map_pin_path(pin_path)
+            .load_file(&path)
+            .context("Failed to parse monad-cpu-ebpf ELF with map pinning")?
+    } else {
+        Ebpf::load_file(&path).context("Failed to parse monad-cpu-ebpf ELF")?
+    };
+
+    // Explicitly pin maps to bpffs for sharing across loaders.
+    // EbpfLoader::map_pin_path should do this, but legacy maps may not auto-pin.
+    if let Some(ref pin_path) = cli.map_pin_path {
+        for (map_name, map) in ebpf.maps_mut() {
+            let pin = pin_path.join(&map_name);
+            if pin.exists() {
+                info!("  map {} already pinned at {}", map_name, pin.display());
+            } else {
+                match map.pin(&pin) {
+                    Ok(()) => info!("  pinned map {} → {}", map_name, pin.display()),
+                    Err(e) => warn!("  failed to pin map {}: {} (may already exist)", map_name, e),
+                }
+            }
+        }
+    }
+
+    let prog: &mut Xdp = ebpf
+        .program_mut("monad_cpu")
+        .context("program 'monad_cpu' not found in ELF")?
+        .try_into()?;
+
+    prog.load().context("Failed to load monad_cpu into kernel")?;
+
+    let flags = if cli.xdp_skb_mode {
+        XdpFlags::SKB_MODE
+    } else {
+        XdpFlags::default()
+    };
+
+    prog.attach(&cli.interface, flags)
+        .with_context(|| format!("Failed to attach monad_cpu XDP to {}", cli.interface))?;
+
+    let mode = if cli.xdp_skb_mode { "SKB/generic" } else { "native" };
+    info!(
+        "  monad_cpu attached to {} (XDP, mode={})",
+        cli.interface, mode
+    );
     Ok(ebpf)
 }
 

@@ -51,10 +51,8 @@ x_loop:
     CMP r2, r3
     JN y_loop
 
-    ; draw frame: SYS_DRAW_FRAME (r0=1, r1=fb_ptr)
-    MOVI r0, 1
-    MOVI r1, 0xC000
-    SYSCALL
+    ; draw frame
+    DRAW_FRAME
     HALT
 "#;
 
@@ -124,9 +122,7 @@ x_loop:
     JN y_loop
 
     ; draw frame
-    MOVI r0, 1
-    MOVI r1, 0xC000
-    SYSCALL
+    DRAW_FRAME
     HALT
 "#;
 
@@ -141,7 +137,7 @@ fn test_assemble_gradient() {
     println!("=== Gradient Listing ===\n{}", listing);
     assert!(listing.contains("MOVI"), "listing should contain MOVI");
     assert!(listing.contains("STB"), "listing should contain STB");
-    assert!(listing.contains("SYSCALL"), "listing should contain SYSCALL");
+    assert!(listing.contains("DRAW_FRAME"), "listing should contain DRAW_FRAME");
     assert!(listing.contains("HALT"), "listing should contain HALT");
 }
 

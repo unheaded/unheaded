@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# doom-ring.sh — Set up the 6-namespace packet circulation ring for Doom-over-IPv6
+# doom-ring.sh — 6-namespace packet circulation ring for Doom-over-IPv6
 #
 # Creates a directed ring of 6 network namespaces connected by veth pairs.
 # Each hop runs monad_cpu at XDP, executing 1 MBC instruction per packet.
-# ns0 has Shield (entry/exit point) for packet injection and collection.
+# ALL hops share the same BPF maps (ROM, CPU, RAM, etc.) via pinned maps.
 #
 # Topology:
 #
@@ -12,32 +12,36 @@
 #    |                                v
 #   ns5 <--veth54-- ns4 <--veth43-- ns3
 #
-# 6 hops per circuit = 6 instructions per round-trip
-# Target: ~2-3 MHz effective clock (~300k-500k circuits/sec)
+# 6 hops per circuit = 6 instructions per round-trip.
+# The wire is the processor. Wotan is the RAM.
 #
 # Usage:
 #   sudo ./scripts/doom-ring.sh setup     # Create ring + load BPF
 #   sudo ./scripts/doom-ring.sh teardown  # Destroy ring
 #   sudo ./scripts/doom-ring.sh status    # Show ring status
-#   sudo ./scripts/doom-ring.sh inject    # Inject a single test packet
+#   sudo ./scripts/doom-ring.sh inject [flow-label]  # Inject one packet
 #
 # Prerequisites:
 #   - Linux kernel >= 5.15 with eBPF + XDP support
-#   - monad-cpu-ebpf built: cd ebpf && cargo +nightly build --target bpfel-unknown-none -Z build-std=core --release -p monad-cpu-ebpf
-#   - shield-ebpf built:    cd ebpf && cargo +nightly build --target bpfel-unknown-none -Z build-std=core --release -p shield-ebpf
-#   - bpftool, ip (iproute2)
+#   - monad-cpu-ebpf built (release):
+#     cargo +nightly build -p monad-cpu-ebpf --target bpfel-unknown-none \
+#       -Z build-std=core --release --manifest-path ebpf/Cargo.toml
+#   - ebpf-loader built: cargo build --manifest-path cmd/ebpf-loader/Cargo.toml --release
+#   - ip (iproute2), python3
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 EBPF_BIN_DIR="${PROJECT_ROOT}/ebpf/target/bpfel-unknown-none/release"
+LOADER_BIN="${PROJECT_ROOT}/cmd/ebpf-loader/target/release/ebpf-loader"
 BPFFS_ROOT="/sys/fs/bpf/unheaded/doom-ring"
+MAP_PIN_DIR="${BPFFS_ROOT}/maps"
 
 # Ring configuration
 NUM_HOPS=6
-NS_PREFIX="monad"           # namespace names: monad0..monad5
-IPV6_PREFIX="fd00:monad"    # fd00:monad::N/128 per namespace
+NS_PREFIX="monad"
+IPV6_PREFIX="fd00:3f:75"   # Kingdom ULA prefix (per draft-bellis-02 §7)
 MTU=1500
 
 # Colors
@@ -53,34 +57,43 @@ log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 log_step()  { echo -e "${BLUE}[STEP]${NC}  $*"; }
 
+require_root() {
+    if [[ $EUID -ne 0 ]]; then
+        log_error "Must be root (sudo)"
+        exit 1
+    fi
+}
+
 # ============================================================================
 # SETUP
 # ============================================================================
 
 do_setup() {
     log_step "Setting up Doom packet circulation ring (${NUM_HOPS} hops)..."
+    require_root
 
-    # Preflight
-    if [[ $EUID -ne 0 ]]; then
-        log_error "Must be root (sudo)"
-        exit 1
-    fi
-
-    # Check for required tools
-    for tool in ip bpftool; do
+    for tool in ip python3 nsenter; do
         if ! command -v "$tool" &>/dev/null; then
             log_error "Required tool not found: $tool"
             exit 1
         fi
     done
 
+    # Check ebpf-loader binary
+    if [[ ! -f "$LOADER_BIN" ]]; then
+        log_error "ebpf-loader not found at ${LOADER_BIN}"
+        log_error "Build it first: cargo build --manifest-path cmd/ebpf-loader/Cargo.toml --release"
+        exit 1
+    fi
+
     # Mount bpffs if needed
     if ! mount | grep -q "type bpf"; then
         mount -t bpf bpf /sys/fs/bpf
+        log_info "Mounted bpffs at /sys/fs/bpf"
     fi
-    mkdir -p "${BPFFS_ROOT}"
+    mkdir -p "${BPFFS_ROOT}" "${MAP_PIN_DIR}"
 
-    # Create namespaces
+    # ── Create namespaces ─────────────────────────────────────────────────
     log_step "Creating ${NUM_HOPS} network namespaces..."
     for i in $(seq 0 $((NUM_HOPS - 1))); do
         ns="${NS_PREFIX}${i}"
@@ -90,14 +103,10 @@ do_setup() {
             ip netns add "$ns"
             log_info "Created namespace: $ns"
         fi
-
-        # Enable loopback in each namespace
         ip netns exec "$ns" ip link set lo up
     done
 
-    # Create veth pairs forming a directed ring.
-    # For each hop i, create vethXY connecting nsX → nsY
-    # where Y = (X + 1) % NUM_HOPS
+    # ── Create veth pairs ─────────────────────────────────────────────────
     log_step "Creating veth pairs (directed ring)..."
     for i in $(seq 0 $((NUM_HOPS - 1))); do
         j=$(( (i + 1) % NUM_HOPS ))
@@ -111,54 +120,66 @@ do_setup() {
             continue
         fi
 
-        # Create veth pair in the default namespace, then move ends
         ip link add "$veth_src" type veth peer name "$veth_dst"
         ip link set "$veth_src" netns "$ns_src"
         ip link set "$veth_dst" netns "$ns_dst"
 
-        # Configure IPv6 addresses
-        #   Source side: fd00:monad::i:1/64
-        #   Dest side:   fd00:monad::i:2/64
-        ip netns exec "$ns_src" ip -6 addr add "${IPV6_PREFIX}::${i}:1/64" dev "$veth_src"
-        ip netns exec "$ns_dst" ip -6 addr add "${IPV6_PREFIX}::${i}:2/64" dev "$veth_dst"
+        # IPv6 addresses
+        ip netns exec "$ns_src" ip -6 addr add "${IPV6_PREFIX}:${i}::1/64" dev "$veth_src"
+        ip netns exec "$ns_dst" ip -6 addr add "${IPV6_PREFIX}:${i}::2/64" dev "$veth_dst"
 
-        # Set MTU and bring up
+        # MTU + up
         ip netns exec "$ns_src" ip link set "$veth_src" mtu "$MTU" up
         ip netns exec "$ns_dst" ip link set "$veth_dst" mtu "$MTU" up
 
-        # Disable IPv6 duplicate address detection (speeds up startup)
+        # Disable DAD (speeds up startup)
         ip netns exec "$ns_src" sysctl -qw "net.ipv6.conf.${veth_src}.accept_dad=0"
         ip netns exec "$ns_dst" sysctl -qw "net.ipv6.conf.${veth_dst}.accept_dad=0"
 
         log_info "veth: ${ns_src}/${veth_src} <-> ${ns_dst}/${veth_dst}"
     done
 
-    # Add static routes to create the directed ring.
-    # Each namespace routes "next hop" traffic to the outgoing veth.
-    log_step "Configuring static IPv6 routes for circulation..."
+    # ── Static routes for circulation ─────────────────────────────────────
+    log_step "Configuring static IPv6 routes..."
     for i in $(seq 0 $((NUM_HOPS - 1))); do
         j=$(( (i + 1) % NUM_HOPS ))
         ns="${NS_PREFIX}${i}"
         veth_out="veth${i}${j}"
 
-        # Default route in each namespace points to the next hop.
-        # The peer address on the outgoing veth is fd00:monad::i:2
         ip netns exec "$ns" ip -6 route replace default \
-            via "${IPV6_PREFIX}::${i}:2" dev "$veth_out" 2>/dev/null || \
+            via "${IPV6_PREFIX}:${i}::2" dev "$veth_out" 2>/dev/null || \
         ip netns exec "$ns" ip -6 route add default \
-            via "${IPV6_PREFIX}::${i}:2" dev "$veth_out" 2>/dev/null || true
+            via "${IPV6_PREFIX}:${i}::2" dev "$veth_out" 2>/dev/null || true
 
         log_info "Route: ${ns} -> ${NS_PREFIX}${j} via ${veth_out}"
     done
 
-    # Enable IPv6 forwarding in all namespaces
+    # ── Enable IPv6 forwarding ────────────────────────────────────────────
     log_step "Enabling IPv6 forwarding..."
     for i in $(seq 0 $((NUM_HOPS - 1))); do
         ns="${NS_PREFIX}${i}"
         ip netns exec "$ns" sysctl -qw net.ipv6.conf.all.forwarding=1
     done
 
-    # Load BPF programs
+    # ── Add static neighbor entries for reliable forwarding ───────────────
+    log_step "Adding static neighbor entries..."
+    for i in $(seq 0 $((NUM_HOPS - 1))); do
+        j=$(( (i + 1) % NUM_HOPS ))
+        ns_src="${NS_PREFIX}${i}"
+        ns_dst="${NS_PREFIX}${j}"
+        veth_src="veth${i}${j}"
+        veth_dst="veth${i}${j}p"
+
+        # Get MAC address of the peer interface
+        peer_mac=$(ip netns exec "$ns_dst" ip link show "$veth_dst" 2>/dev/null | \
+            awk '/ether/ {print $2}')
+        if [[ -n "$peer_mac" ]]; then
+            ip netns exec "$ns_src" ip -6 neigh replace "${IPV6_PREFIX}:${i}::2" \
+                lladdr "$peer_mac" dev "$veth_src" nud permanent 2>/dev/null || true
+        fi
+    done
+
+    # ── Load BPF programs (shared maps) ───────────────────────────────────
     log_step "Loading BPF programs..."
     load_bpf_programs
 
@@ -168,65 +189,113 @@ do_setup() {
 }
 
 # ============================================================================
-# LOAD BPF PROGRAMS
+# LOAD BPF PROGRAMS — shared maps between all hops
 # ============================================================================
 
 load_bpf_programs() {
     local monad_cpu_bin="${EBPF_BIN_DIR}/monad-cpu-ebpf"
-    local shield_bin="${EBPF_BIN_DIR}/shield-ebpf"
 
-    # Check binaries exist
     if [[ ! -f "$monad_cpu_bin" ]]; then
         log_warn "monad-cpu-ebpf binary not found at ${monad_cpu_bin}"
-        log_warn "Build with: cd ${PROJECT_ROOT}/ebpf && cargo +nightly build --target bpfel-unknown-none -Z build-std=core --release -p monad-cpu-ebpf"
-        log_warn "Skipping BPF loading (ring topology is still configured)"
+        log_warn "Build: cargo +nightly build -p monad-cpu-ebpf --target bpfel-unknown-none -Z build-std=core --release --manifest-path ebpf/Cargo.toml"
+        log_warn "Skipping BPF loading"
         return 0
     fi
 
-    # Load monad_cpu on each hop's incoming veth interface
-    for i in $(seq 0 $((NUM_HOPS - 1))); do
-        prev=$(( (i - 1 + NUM_HOPS) % NUM_HOPS ))
-        ns="${NS_PREFIX}${i}"
-        # Incoming interface is the peer end of the previous hop's veth
-        veth_in="veth${prev}${i}p"
+    if [[ ! -x "$LOADER_BIN" ]]; then
+        log_error "ebpf-loader not found at ${LOADER_BIN}"
+        log_error "Build: cargo build --manifest-path cmd/ebpf-loader/Cargo.toml --release"
+        return 1
+    fi
 
-        mkdir -p "${BPFFS_ROOT}/hop${i}"
+    if ! command -v bpftool &>/dev/null; then
+        log_error "bpftool not found — required for shared-program XDP attachment"
+        return 1
+    fi
 
-        if bpftool prog load "$monad_cpu_bin" \
-            "${BPFFS_ROOT}/hop${i}/monad_cpu" \
-            pinmaps "${BPFFS_ROOT}/hop${i}" 2>/dev/null; then
+    mkdir -p "${MAP_PIN_DIR}" "/run/doom-ring"
 
-            # Attach to XDP on the incoming interface
-            ip netns exec "$ns" bpftool net attach xdp \
-                pinned "${BPFFS_ROOT}/hop${i}/monad_cpu" \
-                dev "$veth_in" 2>/dev/null && \
-                log_info "Hop ${i}: monad_cpu loaded on ${ns}/${veth_in}" || \
-                log_warn "Hop ${i}: loaded but XDP attach failed on ${veth_in}"
+    # ── Strategy: load ONCE, attach EVERYWHERE ───────────────────────────
+    #
+    # aya-ebpf 0.1.x emits legacy "maps" ELF section.  EbpfLoader::map_pin_path()
+    # does NOT reuse pinned legacy maps — each load creates independent maps.
+    # To guarantee all 6 hops share the SAME maps (ROM/CPU/RAM/SCREEN/etc.),
+    # we load the program exactly once (hop 0), pin the maps, then attach the
+    # SAME program instance to the other 5 interfaces via bpftool.
+    #
+    # Hop 0: aya loader → creates program + maps, pins maps, holds link FD
+    #        (background process, link-based XDP ownership)
+    #
+    # Hops 1-5: bpftool net attach xdpgeneric id <prog_id> dev <iface>
+    #           (legacy netlink attachment, persists without FD holder)
+    #
+    # Result: 1 program, 1 set of maps, 6 XDP attachment points.
+
+    # ── Hop 0: primary loader (creates program + maps) ───────────────────
+    local ns0="${NS_PREFIX}0"
+    local veth0="veth$((NUM_HOPS - 1))0p"  # veth50p
+    local pid_file="/run/doom-ring/hop0.pid"
+
+    log_info "Hop 0 (primary): loading monad_cpu on ${ns0}/${veth0}..."
+
+    nsenter --net="/var/run/netns/${ns0}" \
+        "$LOADER_BIN" \
+        --only monad-cpu \
+        --obj-dir "${EBPF_BIN_DIR}" \
+        --interface "$veth0" \
+        --map-pin-path "${MAP_PIN_DIR}" \
+        --xdp-skb-mode \
+        --pid-file "$pid_file" \
+        2>&1 | while IFS= read -r line; do echo "  [hop0] $line"; done &
+
+    # Wait for loader to start, create maps, attach XDP
+    sleep 0.5
+
+    if [[ -f "$pid_file" ]]; then
+        local pid0
+        pid0=$(cat "$pid_file")
+        if kill -0 "$pid0" 2>/dev/null; then
+            log_info "Hop 0: monad_cpu attached on ${ns0}/${veth0} (PID ${pid0})"
         else
-            log_warn "Hop ${i}: bpftool load failed for monad_cpu"
-        fi
-    done
-
-    # Load Shield on ns0's outgoing interface (entry/exit point)
-    if [[ -f "$shield_bin" ]]; then
-        local ns0_veth_out="veth01"
-        mkdir -p "${BPFFS_ROOT}/shield"
-
-        if bpftool prog load "$shield_bin" \
-            "${BPFFS_ROOT}/shield/prog" \
-            pinmaps "${BPFFS_ROOT}/shield" 2>/dev/null; then
-
-            ip netns exec "${NS_PREFIX}0" bpftool net attach xdp \
-                pinned "${BPFFS_ROOT}/shield/prog" \
-                dev "$ns0_veth_out" 2>/dev/null && \
-                log_info "Shield loaded on ${NS_PREFIX}0/${ns0_veth_out}" || \
-                log_warn "Shield loaded but XDP attach failed"
-        else
-            log_warn "Shield bpftool load failed"
+            log_error "Hop 0: loader exited prematurely"
+            return 1
         fi
     else
-        log_warn "shield-ebpf binary not found, skipping Shield"
+        sleep 0.5
+        if [[ -f "$pid_file" ]]; then
+            log_info "Hop 0: monad_cpu attached on ${ns0}/${veth0} (PID $(cat "$pid_file"))"
+        else
+            log_error "Hop 0: loader failed to start (no PID file)"
+            return 1
+        fi
     fi
+
+    # ── Get the program ID for the loaded monad_cpu ──────────────────────
+    local prog_id
+    prog_id=$(bpftool prog list 2>/dev/null | grep "name monad_cpu" | head -1 | awk '{print $1}' | tr -d ':')
+    if [[ -z "$prog_id" ]]; then
+        log_error "Could not find monad_cpu program ID via bpftool"
+        return 1
+    fi
+    log_info "monad_cpu program id=${prog_id} — attaching to hops 1-$((NUM_HOPS - 1))"
+
+    # ── Hops 1-5: attach same program via bpftool (legacy netlink) ───────
+    for i in $(seq 1 $((NUM_HOPS - 1))); do
+        local prev=$(( (i - 1 + NUM_HOPS) % NUM_HOPS ))
+        local ns="${NS_PREFIX}${i}"
+        local veth_in="veth${prev}${i}p"
+
+        log_info "Hop ${i}: attaching prog ${prog_id} to ${ns}/${veth_in}..."
+
+        if ! nsenter --net="/var/run/netns/${ns}" \
+            bpftool net attach xdpgeneric id "$prog_id" dev "$veth_in" 2>&1; then
+            log_error "Hop ${i}: bpftool attach failed"
+            return 1
+        fi
+        log_info "Hop ${i}: monad_cpu attached on ${ns}/${veth_in} (shared prog ${prog_id})"
+    done
+
+    log_info "All ${NUM_HOPS} hops loaded with shared maps at ${MAP_PIN_DIR}"
 }
 
 # ============================================================================
@@ -235,11 +304,34 @@ load_bpf_programs() {
 
 do_teardown() {
     log_step "Tearing down Doom packet circulation ring..."
+    require_root
 
-    if [[ $EUID -ne 0 ]]; then
-        log_error "Must be root (sudo)"
-        exit 1
+    # Kill hop0 loader (releases link-based XDP on hop0)
+    if [[ -d "/run/doom-ring" ]]; then
+        for pid_file in /run/doom-ring/hop*.pid; do
+            if [[ -f "$pid_file" ]]; then
+                local pid
+                pid=$(cat "$pid_file")
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill "$pid" 2>/dev/null || true
+                    log_info "Killed loader PID $pid ($(basename "$pid_file" .pid))"
+                fi
+                rm -f "$pid_file"
+            fi
+        done
+        sleep 0.5
     fi
+
+    # Detach XDP from all hops (hops 1-5 use netlink attachment, must be explicit)
+    for i in $(seq 0 $((NUM_HOPS - 1))); do
+        prev=$(( (i - 1 + NUM_HOPS) % NUM_HOPS ))
+        ns="${NS_PREFIX}${i}"
+        veth_in="veth${prev}${i}p"
+        if [[ -f "/var/run/netns/${ns}" ]]; then
+            nsenter --net="/var/run/netns/${ns}" \
+                ip link set "$veth_in" xdp off 2>/dev/null || true
+        fi
+    done
 
     # Remove BPF pins
     if [[ -d "${BPFFS_ROOT}" ]]; then
@@ -247,7 +339,7 @@ do_teardown() {
         log_info "Removed BPF pins: ${BPFFS_ROOT}"
     fi
 
-    # Delete namespaces (this also removes all veth pairs)
+    # Delete namespaces (also removes veth pairs)
     for i in $(seq 0 $((NUM_HOPS - 1))); do
         ns="${NS_PREFIX}${i}"
         if ip netns list | grep -qw "$ns"; then
@@ -255,6 +347,9 @@ do_teardown() {
             log_info "Deleted namespace: $ns"
         fi
     done
+
+    # Clean up runtime dir
+    rm -rf /run/doom-ring
 
     log_info "Teardown complete"
 }
@@ -267,14 +362,13 @@ do_status() {
     echo -e "${CYAN}=== Doom Ring Status ===${NC}"
     echo ""
 
-    # Check namespaces
     echo -e "${BLUE}Namespaces:${NC}"
     local ns_count=0
     for i in $(seq 0 $((NUM_HOPS - 1))); do
         ns="${NS_PREFIX}${i}"
         if ip netns list 2>/dev/null | grep -qw "$ns"; then
             echo -e "  ${GREEN}[UP]${NC}   $ns"
-            ((ns_count++))
+            ((ns_count++)) || true
         else
             echo -e "  ${RED}[DOWN]${NC} $ns"
         fi
@@ -286,7 +380,6 @@ do_status() {
         return
     fi
 
-    # Check veth connectivity
     echo -e "${BLUE}Veth Links:${NC}"
     for i in $(seq 0 $((NUM_HOPS - 1))); do
         j=$(( (i + 1) % NUM_HOPS ))
@@ -301,27 +394,40 @@ do_status() {
     done
     echo ""
 
-    # Check BPF programs
-    echo -e "${BLUE}BPF Programs:${NC}"
-    if [[ -d "${BPFFS_ROOT}" ]]; then
-        for i in $(seq 0 $((NUM_HOPS - 1))); do
-            if [[ -f "${BPFFS_ROOT}/hop${i}/monad_cpu" ]]; then
-                echo -e "  ${GREEN}[LOADED]${NC} hop${i}/monad_cpu"
+    echo -e "${BLUE}BPF Programs (shared maps):${NC}"
+    if [[ -d "${MAP_PIN_DIR}" ]]; then
+        echo -e "  Map pin dir: ${MAP_PIN_DIR}"
+        for mname in ROM_MAP CPU_MAP RAM_MAP SCREEN_MAP KBD_MAP STATS L1_CACHE COMPUTE_EVENTS; do
+            if [[ -f "${MAP_PIN_DIR}/${mname}" ]]; then
+                echo -e "  ${GREEN}[PINNED]${NC} ${mname}"
             else
-                echo -e "  ${YELLOW}[NONE]${NC}   hop${i}"
+                echo -e "  ${YELLOW}[NONE]${NC}   ${mname}"
             fi
         done
-        if [[ -f "${BPFFS_ROOT}/shield/prog" ]]; then
-            echo -e "  ${GREEN}[LOADED]${NC} shield (ns0 entry)"
-        else
-            echo -e "  ${YELLOW}[NONE]${NC}   shield"
-        fi
     else
         echo "  No BPF programs loaded"
     fi
     echo ""
 
-    # Show ring topology diagram
+    echo -e "${BLUE}XDP attachments:${NC}"
+    for i in $(seq 0 $((NUM_HOPS - 1))); do
+        prev=$(( (i - 1 + NUM_HOPS) % NUM_HOPS ))
+        ns="${NS_PREFIX}${i}"
+        veth_in="veth${prev}${i}p"
+        if [[ -f "/var/run/netns/${ns}" ]]; then
+            xdp_info=$(nsenter --net="/var/run/netns/${ns}" \
+                ip link show "$veth_in" 2>/dev/null | grep -o "xdp[^ ]*" || true)
+            if [[ -n "$xdp_info" ]]; then
+                echo -e "  ${GREEN}[XDP]${NC}  hop${i}: ${ns}/${veth_in}"
+            else
+                echo -e "  ${YELLOW}[NONE]${NC} hop${i}: ${ns}/${veth_in}"
+            fi
+        else
+            echo -e "  ${RED}[NS?]${NC}  hop${i}: namespace ${ns} missing"
+        fi
+    done
+    echo ""
+
     echo -e "${BLUE}Ring Topology:${NC}"
     echo ""
     echo "  ${NS_PREFIX}0 --veth01--> ${NS_PREFIX}1 --veth12--> ${NS_PREFIX}2"
@@ -329,52 +435,131 @@ do_status() {
     echo "   |                                   v"
     echo "  ${NS_PREFIX}5 <--veth54-- ${NS_PREFIX}4 <--veth43-- ${NS_PREFIX}3"
     echo ""
-    echo "  6 instructions per circuit (1 per hop)"
+    echo "  1 instruction per hop, 6 per circuit"
+    echo "  Maps shared: all hops see same ROM/CPU/RAM state"
     echo ""
 }
 
 # ============================================================================
-# INJECT TEST PACKET
+# INJECT — craft and inject IPv6 + HBH + Monad packet
 # ============================================================================
 
 do_inject() {
-    log_step "Injecting test packet into the ring..."
+    local flow_label="${2:-0xDE}"
+    log_step "Injecting Monad CPU tick packet (flow_label=${flow_label})..."
+    require_root
 
-    if [[ $EUID -ne 0 ]]; then
-        log_error "Must be root (sudo)"
-        exit 1
-    fi
-
-    # Verify ns0 exists
     if ! ip netns list | grep -qw "${NS_PREFIX}0"; then
         log_error "Ring not set up. Run: sudo $0 setup"
         exit 1
     fi
 
-    # Send an IPv6 UDP packet from ns0 that will circulate the ring.
-    # The destination is ns0's own address via the ring path.
-    # Shield on ns0 adds the Monad Hop-by-Hop header.
-    ip netns exec "${NS_PREFIX}0" \
-        python3 -c "
+    # Get the MAC address of veth01p (peer in ns1) and veth01 (in ns0)
+    local src_mac
+    src_mac=$(ip netns exec "${NS_PREFIX}0" ip link show veth01 2>/dev/null | \
+        awk '/ether/ {print $2}')
+    local dst_mac
+    dst_mac=$(ip netns exec "${NS_PREFIX}1" ip link show veth01p 2>/dev/null | \
+        awk '/ether/ {print $2}')
+
+    if [[ -z "$src_mac" || -z "$dst_mac" ]]; then
+        log_error "Could not determine MAC addresses for veth01/veth01p"
+        exit 1
+    fi
+
+    # Inject raw IPv6 + HBH + Monad packet via AF_PACKET
+    ip netns exec "${NS_PREFIX}0" python3 - "$flow_label" "$src_mac" "$dst_mac" <<'PYEOF'
 import socket
 import struct
+import sys
 
-# Create IPv6 UDP socket
-sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+flow_label = int(sys.argv[1], 0)
+src_mac_str = sys.argv[2]
+dst_mac_str = sys.argv[3]
 
-# Send to next hop (ns1) — the ring will circulate it back
-# The packet content is a simple 'TICK' marker
-dst = '${IPV6_PREFIX}::0:2'
-port = 31337  # Doom ring control port
+def mac_bytes(mac_str):
+    return bytes(int(b, 16) for b in mac_str.split(':'))
 
-# Build a minimal payload with circuit metadata
-# [magic:4][tick_count:4][circuit_id:4]
-payload = struct.pack('!III', 0x4D4F4E41, 0, 1)  # 'MONA', tick 0, circuit 1
+src_mac = mac_bytes(src_mac_str)
+dst_mac = mac_bytes(dst_mac_str)
 
-sock.sendto(payload, (dst, port))
-print(f'Sent MONAD tick packet to [{dst}]:{port}')
+# ── Ethernet header (14 bytes) ───────────────────────────────────────────
+eth = dst_mac + src_mac + struct.pack('!H', 0x86DD)
+
+# ── IPv6 header (40 bytes) ───────────────────────────────────────────────
+version_tc_fl = (6 << 28) | (0 << 20) | (flow_label & 0xFFFFF)
+payload_len = 24  # HBH extension header = 24 bytes
+next_header = 0   # Hop-by-Hop Options
+hop_limit = 64
+
+# Source: fd00:3f:75::0:1
+src_addr = bytes([0xfd, 0x00, 0x00, 0x3f, 0x00, 0x75, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01])
+# Destination: fd00:3f:75::ff:ff (not local to any ns — causes forwarding)
+dst_addr = bytes([0xfd, 0x00, 0x00, 0x3f, 0x00, 0x75, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff])
+
+ipv6 = struct.pack('!IHBB', version_tc_fl, payload_len, next_header, hop_limit)
+ipv6 += src_addr + dst_addr
+
+# ── Hop-by-Hop Options header (24 bytes) ─────────────────────────────────
+# next_header=59 (No Next Header), hdr_ext_len=2 (=24 total bytes)
+# opt_type=0x3E (MONAD_OPT_TYPE), opt_data_len=20
+hbh_prefix = struct.pack('BBBB', 59, 2, 0x3E, 20)
+
+# ── Monad (20 bytes) ─────────────────────────────────────────────────────
+# version=0x01, src_svc=0, dst_svc=0, hop_count=0,
+# qos=0, flow_action=0, circuit_state=0, flags=0x02 (CUSTOM),
+# latency_hint=0, deploy_ring=0, mesh_flags=0, src_prefix=0, dst_prefix=0,
+# scratch=[0,0,0,0], checksum=[0,0]
+monad = struct.pack('BBBBBBBB', 0x01, 0, 0, 0, 0, 0, 0, 0x02)  # 8 bytes
+monad += struct.pack('!H', 0)  # latency_hint (2 bytes)
+monad += struct.pack('BBBB', 0, 0, 0, 0)  # deploy_ring, mesh_flags, src_prefix, dst_prefix
+monad += struct.pack('BBBB', 0, 0, 0, 0)  # scratch[0..3]
+monad += struct.pack('BB', 0, 0)           # checksum[0..1]
+
+assert len(monad) == 20, f"Monad size mismatch: {len(monad)}"
+
+packet = eth + ipv6 + hbh_prefix + monad
+
+# Send via AF_PACKET raw socket on veth01
+sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x86DD))
+sock.bind(('veth01', 0))
+sock.send(packet)
 sock.close()
-" 2>/dev/null && log_info "Test packet injected" || log_error "Injection failed"
+
+print(f'Injected {len(packet)} byte Monad CPU tick packet (flow_label=0x{flow_label:05X})')
+PYEOF
+
+    log_info "Packet injected into ${NS_PREFIX}0/veth01"
+}
+
+# ============================================================================
+# DUMP — dump BPF map state for debugging
+# ============================================================================
+
+do_dump() {
+    require_root
+
+    if [[ ! -d "${MAP_PIN_DIR}" ]]; then
+        log_error "Maps not pinned. Run: sudo $0 setup"
+        exit 1
+    fi
+
+    echo -e "${CYAN}=== BPF Map Dump ===${NC}"
+    echo ""
+
+    echo -e "${BLUE}CPU_MAP:${NC}"
+    bpftool map dump pinned "${MAP_PIN_DIR}/CPU_MAP" 2>&1 || echo "  (empty or error)"
+    echo ""
+
+    echo -e "${BLUE}STATS:${NC}"
+    bpftool map dump pinned "${MAP_PIN_DIR}/STATS" 2>&1 || echo "  (empty or error)"
+    echo ""
+
+    echo -e "${BLUE}ROM_MAP (first 10 entries):${NC}"
+    bpftool map dump pinned "${MAP_PIN_DIR}/ROM_MAP" 2>&1 | head -60 || echo "  (empty or error)"
+    echo ""
 }
 
 # ============================================================================
@@ -392,20 +577,24 @@ case "${1:-help}" in
         do_status
         ;;
     inject)
-        do_inject
+        do_inject "$@"
+        ;;
+    dump)
+        do_dump
         ;;
     help|--help|-h)
-        echo "Usage: sudo $0 {setup|teardown|status|inject}"
+        echo "Usage: sudo $0 {setup|teardown|status|inject|dump}"
         echo ""
         echo "Commands:"
-        echo "  setup      Create 6-namespace ring and load BPF programs"
-        echo "  teardown   Destroy ring and remove BPF pins"
-        echo "  status     Show ring status"
-        echo "  inject     Inject a test packet into the ring"
+        echo "  setup                Create 6-namespace ring + load BPF (shared maps)"
+        echo "  teardown             Destroy ring and remove BPF pins"
+        echo "  status               Show ring status"
+        echo "  inject [flow-label]  Inject a Monad CPU tick packet (default: 0xDE)"
+        echo "  dump                 Dump BPF map state"
         ;;
     *)
         log_error "Unknown command: $1"
-        echo "Usage: sudo $0 {setup|teardown|status|inject}"
+        echo "Usage: sudo $0 {setup|teardown|status|inject|dump}"
         exit 1
         ;;
 esac

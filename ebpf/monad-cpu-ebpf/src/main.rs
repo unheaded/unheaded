@@ -105,7 +105,7 @@ static L1_CACHE: LruHashMap<u32, [u8; 64]> = LruHashMap::with_max_entries(256, 0
 
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
 #[map]
-static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_capacity(262_144, 0);
+static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
 
 // ── Stat keys ─────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL:   u32 = 0;
@@ -122,10 +122,15 @@ const STAT_CACHE_MISSES:    u32 = 10;
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
-/// Maximum MBC instructions to execute per tick packet.
-/// At 35 Hz, this is the sustained instruction throughput per instance.
-/// 512 instructions/tick × 35 ticks/s = ~17 920 instructions/s.
-const MAX_INSN_PER_TICK: usize = 512;
+/// Maximum MBC instructions to execute per XDP invocation.
+///
+/// Circulation mode (1): each hop executes 1 instruction, then XDP_PASS.
+/// The packet circulates the ring; 6 hops = 6 instructions per lap.
+/// At wire speed (~100µs/lap) this yields ~60K instructions/sec per circuit.
+///
+/// Timer mode (512): a userspace timer injects ticks at 35 Hz.
+/// Each tick runs 512 instructions then XDP_DROP.  Set > 1 for this mode.
+const MAX_INSN_PER_TICK: usize = 1;
 
 // ── Wire-format helpers ───────────────────────────────────────────────────────
 
@@ -212,7 +217,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_CPU_TICKS);
 
     // ── Extract instance_id from Flow Label ───────────────────────────────────
-    let vtf        = u32::from_be(unsafe { core::ptr::read_volatile(&ip.vtf) });
+    let vtf        = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
     let flow_label = vtf & 0x000F_FFFF;
     let instance   = flow_label & 0xFF; // low 8 bits → 256 possible instances
 
@@ -520,7 +525,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         increment_stat(STAT_INSNS_EXECUTED);
     }
 
-    Ok(xdp_action::XDP_DROP) // tick packet consumed — do not forward
+    Ok(xdp_action::XDP_PASS) // circulation mode: packet continues to next hop
 }
 
 // ── L1 Cache helpers ──────────────────────────────────────────────────────────
@@ -849,34 +854,21 @@ fn mem_write_half(byte_addr: u32, value: u16) {
 
 // ── Framebuffer copy ──────────────────────────────────────────────────────────
 
-/// Copy 64 000 bytes from RAM (starting at byte address `fb_ptr`) to SCREEN_MAP.
+/// Copy framebuffer from RAM to SCREEN_MAP.
 ///
-/// This implements `DG_DrawFrame`: doomgeneric calls it with a pointer to the
-/// current frame in RAM.  We iterate over the 64 000 pixels and copy each byte.
+/// STUB: The 16K-iteration loop (64 000 bytes) exceeded the BPF verifier's
+/// 8192-jump complexity limit.  Framebuffer copy is deferred to userspace:
+/// the emit_screen_write() event signals the dashboard to read SCREEN_MAP
+/// directly.  mem_write_word() already projects screen-region writes into
+/// SCREEN_MAP, so individual pixel writes during rendering are still visible.
 ///
-/// Bounded loop: exactly 64 000 iterations.  Safe for the BPF verifier.
+/// When full Doom rendering is needed, this can be implemented via:
+///   (a) BPF tail call to a dedicated copy program, or
+///   (b) Userspace poller that bulk-copies RAM_MAP → SCREEN_MAP on event.
 #[inline(always)]
-fn copy_fb_to_screen(fb_ptr: u32) {
-    // Copy 16 000 words (64 000 bytes).
-    for w in 0u32..16_000u32 {
-        let src_addr = fb_ptr.wrapping_add(w * 4);
-        let word_addr = src_addr >> 2;
-        let word = match unsafe { RAM_MAP.get(&word_addr) } {
-            Some(v) => *v,
-            None    => 0,
-        };
-        // Write 4 pixels.
-        let px_base = w * 4;
-        let bytes = word.to_le_bytes();
-        for k in 0u32..4u32 {
-            let px = px_base + k;
-            if px < mmap::SCREEN_SIZE {
-                if let Some(p) = SCREEN_MAP.get_ptr_mut(px) {
-                    unsafe { *p = bytes[k as usize]; }
-                }
-            }
-        }
-    }
+fn copy_fb_to_screen(_fb_ptr: u32) {
+    // No-op: verifier cannot handle 16K iterations.
+    // Screen writes via mem_write_word/mem_write_byte still work individually.
 }
 
 // ── Monad XDP read ────────────────────────────────────────────────────────────
