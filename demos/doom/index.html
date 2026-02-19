@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOOM over IPv6 - Unheaded</title>
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #000;
+    color: #aaa;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+#header {
+    text-align: center;
+    padding: 12px 0 8px 0;
+}
+
+#header h1 {
+    color: #c00;
+    font-size: 20px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px #600;
+}
+
+#header .sub {
+    color: #666;
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+#game-container {
+    position: relative;
+    border: 2px solid #333;
+    box-shadow: 0 0 20px rgba(200, 0, 0, 0.3);
+}
+
+#doom-canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    cursor: crosshair;
+}
+
+#overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+#overlay.connected {
+    opacity: 0;
+}
+
+#overlay .message {
+    color: #c00;
+    font-size: 18px;
+    text-align: center;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1.0; }
+    50% { opacity: 0.4; }
+}
+
+#stats-bar {
+    width: 960px;
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: #111;
+    border: 1px solid #333;
+    border-top: none;
+    font-size: 11px;
+}
+
+#stats-bar .stat {
+    color: #888;
+}
+
+#stats-bar .stat .val {
+    color: #0c0;
+    font-weight: bold;
+}
+
+#stats-bar .stat.warn .val {
+    color: #cc0;
+}
+
+#stats-bar .stat.error .val {
+    color: #c00;
+}
+
+#registers {
+    width: 960px;
+    padding: 6px 12px;
+    background: #0a0a0a;
+    border: 1px solid #222;
+    border-top: none;
+    font-size: 10px;
+    color: #555;
+    display: none;
+}
+
+#registers.visible {
+    display: block;
+}
+
+#registers .reg {
+    display: inline-block;
+    width: 112px;
+    margin: 1px 0;
+}
+
+#registers .reg .name {
+    color: #666;
+}
+
+#registers .reg .val {
+    color: #0a0;
+}
+
+#controls {
+    width: 960px;
+    padding: 8px 12px;
+    font-size: 10px;
+    color: #444;
+    text-align: center;
+}
+
+#controls kbd {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: #888;
+    font-family: inherit;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+    <h1>DOOM over IPv6</h1>
+    <div class="sub">BPF compute engine &mdash; Unheaded</div>
+</div>
+
+<div id="game-container">
+    <canvas id="doom-canvas" width="960" height="600"></canvas>
+    <div id="overlay">
+        <div class="message" id="overlay-text">CONNECTING...</div>
+    </div>
+</div>
+
+<div id="stats-bar">
+    <span class="stat">FPS: <span class="val" id="stat-fps">0</span></span>
+    <span class="stat">Packets: <span class="val" id="stat-packets">0</span></span>
+    <span class="stat">CPU Ticks: <span class="val" id="stat-ticks">0</span></span>
+    <span class="stat">Insns: <span class="val" id="stat-insns">0</span></span>
+    <span class="stat">PC: <span class="val" id="stat-pc">0x0000</span></span>
+    <span class="stat" id="stat-halted-container">Halted: <span class="val" id="stat-halted">NO</span></span>
+    <span class="stat">Clients: <span class="val" id="stat-clients">1</span></span>
+</div>
+
+<div id="registers">
+    <!-- Populated by JS -->
+</div>
+
+<div id="controls">
+    Movement: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or Arrow Keys &nbsp;|&nbsp;
+    Fire: <kbd>Ctrl</kbd> &nbsp;|&nbsp;
+    Use: <kbd>Space</kbd> &nbsp;|&nbsp;
+    Run: <kbd>Shift</kbd> &nbsp;|&nbsp;
+    Weapons: <kbd>1</kbd>-<kbd>9</kbd> &nbsp;|&nbsp;
+    Menu: <kbd>Esc</kbd> &nbsp;|&nbsp;
+    <kbd>R</kbd> Toggle registers &nbsp;|&nbsp;
+    <kbd>Tab</kbd> Map
+</div>
+
+<script>
+// ============================================================================
+// DOOM-over-IPv6 WebSocket Viewer
+// Renders 320x200 8-bit framebuffer from BPF SCREEN_MAP via doom-bridge.
+// ============================================================================
+
+(function() {
+    'use strict';
+
+    // --- Constants ---
+    const SCREEN_W = 320;
+    const SCREEN_H = 200;
+    const SCALE = 3;
+    const TAG_SCREEN = 0x01;
+    const TAG_KBD = 0x02;
+    const SCREEN_SIZE = SCREEN_W * SCREEN_H; // 64000
+
+    // --- Standard VGA/Doom 256-color palette ---
+    // This is the classic VGA palette used by Doom. Each entry is [R, G, B].
+    const VGA_PALETTE = buildDoomPalette();
+
+    function buildDoomPalette() {
+        const pal = new Uint8Array(256 * 3);
+        // The Doom palette (PLAYPAL lump, first palette).
+        // Encoded as a compact hex string for space efficiency.
+        const hex =
+            '000000' + '1f1713' + '170f0b' + '131313' + '0b0b0b' + '070707' +
+            '1b1b1b' + '232323' + '2b2b2b' + '333333' + '3b3b3b' + '434343' +
+            '4b4b4b' + '535353' + '5b5b5b' + '636363' + '6b6b6b' + '737373' +
+            '7b7b7b' + '838383' + '8b8b8b' + '939393' + '9b9b9b' + 'a3a3a3' +
+            'ababab' + 'b3b3b3' + 'bbbbbb' + 'c3c3c3' + 'cbcbcb' + 'd3d3d3' +
+            'dbdbdb' + 'e3e3e3' + 'ebefeb' + 'dfe3df' + 'd3d7d3' + 'cbcfcb' +
+            'c3c7c3' + 'b7bbb7' + 'afb3af' + 'a7aba7' + '9fa39f' + '979b97' +
+            '8f938f' + '878b87' + '7f877f' + '777f77' + '6f776f' + '6b6f6b' +
+            'ff0000' + 'eb0000' + 'd70000' + 'c30000' + 'b30000' + 'a30000' +
+            '930000' + '830000' + '730000' + '630000' + '570000' + '470000' +
+            '3b0000' + '2b0000' + '1f0000' + '130000' + 'ff0000' + 'df1f07' +
+            'bf3b0f' + '9f5717' + '7f731f' + '5f8f27' + '3fab2f' + '1fc737' +
+            '00e33f' + '00ff47' + '00e347' + '00c74b' + '00ab4f' + '008f53' +
+            '007357' + '005b5b' + 'ff7b7b' + 'f36b6b' + 'eb5f5f' + 'e35353' +
+            'db4747' + 'd33f3f' + 'cb3333' + 'c32b2b' + 'bb2323' + 'b31b1b' +
+            'ab1313' + 'a30f0f' + '9b0b0b' + '930707' + '8b0000' + '830000' +
+            'ff9f43' + 'ff8f33' + 'ff7b23' + 'ff6b13' + 'ff5b03' + 'ef4f00' +
+            'df4300' + 'cf3b00' + 'bf3300' + 'af2b00' + '9f2300' + '8f1b00' +
+            '7f1700' + '6f0f00' + '5f0b00' + '4f0700' + '776353' + '6b5747' +
+            '5f4f3f' + '574337' + '4b3b2f' + '3f3327' + '372b1f' + '2b2317' +
+            '231b13' + '17130b' + '0f0b07' + '00ff00' + '00e300' + '00cb00' +
+            '00b300' + '009b00' + '008300' + '006b00' + '005700' + '003f00' +
+            '002b00' + '001b00' + '000f00' + '005f3f' + '00533b' + '004b33' +
+            '00432f' + '003b2b' + '003323' + '002b1f' + '00231b' + '001b13' +
+            '00130f' + '000f0b' + '000707' + 'ff7fff' + 'ef6fef' + 'e363e3' +
+            'd357d3' + 'c74bc7' + 'bb43bb' + 'af37af' + '9f2f9f' + '933393' +
+            '832b83' + '772777' + '672367' + '571f57' + '4b174b' + '3f133f' +
+            '331333' + 'e7e7ff' + 'c7c7ff' + 'ababff' + '8f8fff' + '7373ff' +
+            '5757ff' + '3b3bff' + '1f1fff' + '0000ff' + '0000e3' + '0000cb' +
+            '0000b3' + '00009b' + '000083' + '00006b' + '000057' + 'ffe7bb' +
+            'ffd7ab' + 'ffcb9b' + 'ffbb8b' + 'ffaf7b' + 'ffa36b' + 'ff975f' +
+            'ff8b4f' + 'ff7f43' + 'ff7337' + 'ff672b' + 'ff5b1f' + 'ff5313' +
+            'ff470b' + 'ff3f03' + 'f73700' + 'e72f00' + 'db2b00' + 'cf2300' +
+            'c31f00' + 'b71b00' + 'ab1700' + '9f1300' + '930f00' + '870b00' +
+            '7b0b00' + '6f0700' + '630700' + '570300' + '4b0300' + '3f0000' +
+            'ff0000' + 'e70000' + 'cf0000' + 'b70700' + '9f0f00' + '871700' +
+            '6f1f00' + '572300' + '3f2300' + '271f07' + '170f00' + 'ef7f4f' +
+            'bf6333' + '934b1b' + '6b370b' + 'ff7fff' + 'cf67af' + '9b4f87' +
+            '6f3b63' + 'a74b3f' + '7b3b2f' + '533127' + '37231b' + 'f7d3ab' +
+            'f7c78f' + 'f3bb77' + 'efaf5f' + 'eba34b' + 'e39b3b' + 'db932b' +
+            'cf871f' + 'c77b13' + 'bb730b' + 'b36b07' + 'a76303' + '9b5b00' +
+            '8f5300' + '834b00' + '774300' + 'ffffe7' + 'ffffd3' + 'ffffbf' +
+            'ffffab' + 'ffff97' + 'ffff83' + 'ffff6f' + 'ffff5b' + 'ffeb4f' +
+            'ffd747' + 'ffc33f' + 'ffb337' + 'ff9f2f' + 'ff8f27' + 'ff7f1f' +
+            'ff6f17' + 'ff5f0f' + 'ff4f0b' + 'e74707' + 'cf3f07' + 'b73707' +
+            '9f2f07' + '872707' + '6f2307' + '571b07' + '3f1307' + '2b0b03' +
+            '170700' + '070300';
+
+        // Parse hex palette. If the string is incomplete, fill remaining with
+        // a simple gradient so we always have 256 usable colors.
+        let idx = 0;
+        for (let i = 0; i < 256; i++) {
+            if (idx + 6 <= hex.length) {
+                pal[i * 3 + 0] = parseInt(hex.substr(idx, 2), 16);
+                pal[i * 3 + 1] = parseInt(hex.substr(idx + 2, 2), 16);
+                pal[i * 3 + 2] = parseInt(hex.substr(idx + 4, 2), 16);
+                idx += 6;
+            } else {
+                // Fallback: grayscale ramp
+                const v = i;
+                pal[i * 3 + 0] = v;
+                pal[i * 3 + 1] = v;
+                pal[i * 3 + 2] = v;
+            }
+        }
+        return pal;
+    }
+
+    // --- Doom PC keyboard scancodes ---
+    const KEY_MAP = {
+        'ArrowUp':    0x48,
+        'ArrowDown':  0x50,
+        'ArrowLeft':  0x4B,
+        'ArrowRight': 0x4D,
+        'Enter':      0x1C,
+        'Escape':     0x01,
+        ' ':          0x39,
+        'Control':    0x1D,
+        'Alt':        0x38,
+        'Shift':      0x2A,
+        'Tab':        0x0F,
+        'Backspace':  0x0E,
+
+        // WASD
+        'w': 0x11, 'W': 0x11,
+        'a': 0x1E, 'A': 0x1E,
+        's': 0x1F, 'S': 0x1F,
+        'd': 0x20, 'D': 0x20,
+
+        // Number keys (weapons)
+        '1': 0x02, '2': 0x03, '3': 0x04, '4': 0x05, '5': 0x06,
+        '6': 0x07, '7': 0x08, '8': 0x09, '9': 0x0A, '0': 0x0B,
+
+        // Function keys
+        'F1': 0x3B, 'F2': 0x3C, 'F3': 0x3D, 'F4': 0x3E,
+        'F5': 0x3F, 'F6': 0x40, 'F7': 0x41, 'F8': 0x42,
+        'F9': 0x43, 'F10': 0x44, 'F11': 0x57, 'F12': 0x58,
+
+        // Additional
+        'y': 0x15, 'Y': 0x15,
+        'n': 0x31, 'N': 0x31,
+
+        // Minus and equals (screen size in Doom)
+        '-': 0x0C, '=': 0x0D,
+    };
+
+    // --- State ---
+    let ws = null;
+    let canvas, ctx, imageData, pixelBuf;
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+    let fpsFrameCount = 0;
+    let currentFps = 0;
+    let showRegisters = false;
+    let reconnectTimer = null;
+    let keysDown = new Set();
+
+    // --- DOM elements ---
+    const elOverlay = document.getElementById('overlay');
+    const elOverlayText = document.getElementById('overlay-text');
+    const elStatFps = document.getElementById('stat-fps');
+    const elStatPackets = document.getElementById('stat-packets');
+    const elStatTicks = document.getElementById('stat-ticks');
+    const elStatInsns = document.getElementById('stat-insns');
+    const elStatPc = document.getElementById('stat-pc');
+    const elStatHalted = document.getElementById('stat-halted');
+    const elStatHaltedC = document.getElementById('stat-halted-container');
+    const elRegisters = document.getElementById('registers');
+
+    // --- Initialize ---
+    function init() {
+        canvas = document.getElementById('doom-canvas');
+        ctx = canvas.getContext('2d');
+
+        // We draw at native resolution then the canvas CSS scales
+        // Actually, canvas is 960x600 and we scale each pixel 3x
+        imageData = ctx.createImageData(SCREEN_W, SCREEN_H);
+        pixelBuf = imageData.data; // Uint8ClampedArray RGBA
+
+        // Pre-fill with black
+        for (let i = 0; i < pixelBuf.length; i += 4) {
+            pixelBuf[i + 0] = 0;
+            pixelBuf[i + 1] = 0;
+            pixelBuf[i + 2] = 0;
+            pixelBuf[i + 3] = 255;
+        }
+
+        // Build register display
+        let regHtml = '';
+        for (let i = 0; i < 16; i++) {
+            const name = i === 15 ? 'SP' : i === 14 ? 'LR' : 'r' + i;
+            regHtml += '<span class="reg"><span class="name">' + name +
+                       ':</span> <span class="val" id="reg-' + i + '">00000000</span></span> ';
+        }
+        elRegisters.innerHTML = regHtml;
+
+        connectWebSocket();
+        setupKeyboard();
+    }
+
+    // --- WebSocket ---
+    function connectWebSocket() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = protocol + '//' + location.host + '/ws';
+
+        elOverlayText.textContent = 'CONNECTING...';
+        elOverlay.classList.remove('connected');
+
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = function() {
+            elOverlay.classList.add('connected');
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+        };
+
+        ws.onmessage = function(evt) {
+            if (typeof evt.data === 'string') {
+                handleTextMessage(evt.data);
+            } else {
+                handleBinaryMessage(new Uint8Array(evt.data));
+            }
+        };
+
+        ws.onclose = function() {
+            elOverlayText.textContent = 'DISCONNECTED - RECONNECTING...';
+            elOverlay.classList.remove('connected');
+            scheduleReconnect();
+        };
+
+        ws.onerror = function() {
+            // onclose will fire after this
+        };
+    }
+
+    function scheduleReconnect() {
+        if (reconnectTimer) return;
+        reconnectTimer = setTimeout(function() {
+            reconnectTimer = null;
+            connectWebSocket();
+        }, 2000);
+    }
+
+    // --- Message handlers ---
+    function handleBinaryMessage(data) {
+        if (data.length < 1) return;
+
+        const tag = data[0];
+        if (tag === TAG_SCREEN && data.length >= 1 + SCREEN_SIZE) {
+            renderScreen(data);
+        }
+    }
+
+    function handleTextMessage(text) {
+        try {
+            const msg = JSON.parse(text);
+            if (msg.type === 'stats') {
+                updateStats(msg);
+            }
+        } catch (e) {
+            // Ignore malformed JSON
+        }
+    }
+
+    // --- Screen rendering ---
+    function renderScreen(data) {
+        // data[0] = TAG_SCREEN, data[1..64001] = pixel indices
+        for (let i = 0; i < SCREEN_SIZE; i++) {
+            const palIdx = data[1 + i];
+            const pi = i * 4;       // RGBA pixel offset
+            const ci = palIdx * 3;  // Palette color offset
+
+            pixelBuf[pi + 0] = VGA_PALETTE[ci + 0]; // R
+            pixelBuf[pi + 1] = VGA_PALETTE[ci + 1]; // G
+            pixelBuf[pi + 2] = VGA_PALETTE[ci + 2]; // B
+            // Alpha stays 255
+        }
+
+        // Draw at native resolution, let canvas scaling handle the rest
+        // We need to draw to a temp canvas at 320x200, then scale up
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = SCREEN_W;
+        tmpCanvas.height = SCREEN_H;
+        const tmpCtx = tmpCanvas.getContext('2d');
+        tmpCtx.putImageData(imageData, 0, 0);
+
+        // Scale up to 960x600
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tmpCanvas, 0, 0, 960, 600);
+
+        // Update FPS counter
+        fpsFrameCount++;
+        frameCount++;
+        const now = performance.now();
+        if (now - lastFpsTime >= 1000) {
+            currentFps = fpsFrameCount;
+            fpsFrameCount = 0;
+            lastFpsTime = now;
+            elStatFps.textContent = currentFps;
+        }
+    }
+
+    // --- Stats display ---
+    function updateStats(msg) {
+        elStatPackets.textContent = formatNumber(msg.packets);
+        elStatTicks.textContent = formatNumber(msg.ticks);
+        elStatInsns.textContent = formatNumber(msg.insns);
+        elStatPc.textContent = '0x' + (msg.pc >>> 0).toString(16).toUpperCase().padStart(4, '0');
+
+        if (msg.halted > 0) {
+            elStatHalted.textContent = 'YES';
+            elStatHaltedC.className = 'stat error';
+        } else {
+            elStatHalted.textContent = 'NO';
+            elStatHaltedC.className = 'stat';
+        }
+
+        // Update registers if visible
+        if (showRegisters && msg.regs) {
+            for (let i = 0; i < 16 && i < msg.regs.length; i++) {
+                const el = document.getElementById('reg-' + i);
+                if (el) {
+                    el.textContent = (msg.regs[i] >>> 0).toString(16).toUpperCase().padStart(8, '0');
+                }
+            }
+        }
+    }
+
+    function formatNumber(n) {
+        if (n === undefined || n === null) return '0';
+        if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+        return String(n);
+    }
+
+    // --- Keyboard handling ---
+    function setupKeyboard() {
+        document.addEventListener('keydown', function(e) {
+            // Toggle register display with 'R' (without sending to BPF)
+            if (e.key === 'r' || e.key === 'R') {
+                if (!e.ctrlKey && !e.altKey) {
+                    showRegisters = !showRegisters;
+                    elRegisters.classList.toggle('visible', showRegisters);
+                }
+            }
+
+            // Prevent default for game keys
+            const scancode = KEY_MAP[e.key];
+            if (scancode !== undefined) {
+                e.preventDefault();
+
+                // Avoid key repeat
+                if (keysDown.has(scancode)) return;
+                keysDown.add(scancode);
+
+                sendKeyEvent(scancode, true);
+            }
+        });
+
+        document.addEventListener('keyup', function(e) {
+            const scancode = KEY_MAP[e.key];
+            if (scancode !== undefined) {
+                e.preventDefault();
+                keysDown.delete(scancode);
+                sendKeyEvent(scancode, false);
+            }
+        });
+
+        // Clear keys on blur (when window loses focus)
+        window.addEventListener('blur', function() {
+            keysDown.forEach(function(scancode) {
+                sendKeyEvent(scancode, false);
+            });
+            keysDown.clear();
+        });
+    }
+
+    function sendKeyEvent(scancode, pressed) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+        // Binary format: [TAG_KBD, scancode_lo, scancode_hi, pressed]
+        const buf = new ArrayBuffer(4);
+        const view = new DataView(buf);
+        view.setUint8(0, TAG_KBD);
+        view.setUint16(1, scancode, true); // little-endian
+        view.setUint8(3, pressed ? 1 : 0);
+
+        ws.send(buf);
+    }
+
+    // --- Start ---
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+})();
+</script>
+</body>
+</html>
