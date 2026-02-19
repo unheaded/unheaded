@@ -1,102 +1,94 @@
 # Protocol Math & ASCII Maps
 
-**Companion to:** `draft-bellis-unheaded-protocol-foundation-01.md`
-**Date:** February 18, 2026 (updated)
+**Companion to:** `draft-bellis-unheaded-protocol-foundation-03.md`
+**Date:** February 19, 2026
 **Purpose:** Byte-level visual maps, mathematical proofs, encoding reference, and heritage lineage
 
 ---
 
-## 1. The 20-Byte Monad: Register File Map
+## 1. The 20-Byte Monad: Field Layout
 
-The Monad is a 20-byte register file carried as an IPv6 Hop-by-Hop Option (RFC 8200 §4.3, RFC 9673).  It is organized as five 32-bit words:
+The Monad is a 20-byte fixed structure carried as an IPv6 Hop-by-Hop Option (RFC 8200 §4.3, RFC 9673). It contains 14 fields organized by offset, with 8 fields using exponent encoding (Sophia lookup) and 6 raw fields.
 
 ```
           THE MONAD — 20 bytes (0x14) carried in IPv6 Hop-by-Hop Option
-          Born at Shield ingress. Dies at Shield egress. Shadow never sees.
+          Stamped at ingress Shield, stripped at egress Shield.
 
           ┌───────────────────────────────────────────┐
           │  IPv6 Hop-by-Hop Extension Header         │
-          │  Next Header = 0, Hdr Ext Len = 5         │
+          │  Next Header = 0, Hdr Ext Len = 2         │
           │  ┌─────────────────────────────────────┐   │
           │  │  Option TLV                         │   │
           │  │  Type = TBD (IANA), Len = 20        │   │
           │  │  ┌─────────────────────────────────┐│   │
-          │  │  │  THE MONAD (Register File)      ││   │
+          │  │  │  THE MONAD (20 bytes)           ││   │
           │  │  │                                  ││   │
 Offset    │  │  │  0x00  0x01  0x02  0x03         ││   │
           │  │  │ ┌──────┬──────┬──────┬──────┐   ││   │
-   0x00   │  │  │ │            R0 (u32)        │   ││   │
-          │  │  │ │       Accumulator           │   ││   │
-          │  │  │ ├──────┼──────┼──────┼──────┤   ││   │
-   0x04   │  │  │ │            R1 (u32)        │   ││   │
-          │  │  │ │       Argument              │   ││   │
-          │  │  │ ├──────┼──────┼──────┼──────┤   ││   │
-   0x08   │  │  │ │            R2 (u32)        │   ││   │
-          │  │  │ │       Result                │   ││   │
-          │  │  │ ├──────┼──────┼──────┼──────┤   ││   │
-   0x0C   │  │  │ │            R3 (u32)        │   ││   │
-          │  │  │ │       Counter               │   ││   │
-          │  │  │ ├──────┼──────┼──────┼──────┤   ││   │
-   0x10   │  │  │ │            R4 (u32)        │   ││   │
-          │  │  │ │       Caller / Error        │   ││   │
-          │  │  │ └──────┴──────┴──────┴──────┘   ││   │
+   0x00   │  │  │ │ vers │ src  │ dst  │ hop  │   ││   │
+   0x04   │  │  │ ├──────┼──────┼──────┼──────┤   ││   │
+          │  │  │ │        trace_id (u32)      │   ││   │
+   0x08   │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
+   0x0C   │  │  │ │ qos  │ act  │ state│ flags│   ││   │
+          │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
+   0x10   │  │  │ │   latency_us (u16)  │ ring │   ││   │
+          │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
+   0x14   │  │  │ │  mesh_flags  │   reserved   │   ││   │
+          │  │  │ ├──────────────────────────┤   ││   │
+   0x18   │  │  │ │       checksum (u16)      │   ││   │
+          │  │  │ └──────────────────────────┘   ││   │
           │  │  └─────────────────────────────────┘│   │
           │  └─────────────────────────────────────┘   │
           └───────────────────────────────────────────┘
 
   All fields network byte order (big-endian).
-  Semantics are program-defined — the protocol does not prescribe use.
+  8 exponent-encoded fields (Sophia lookup): src_service_id, dst_service_id,
+  qos_class, flow_action, circuit_state, deployment_ring, mesh_flags
+  6 raw fields: version, hop_count, trace_id, flags, latency_budget_us, reserved
   The Monad is the ONLY state that travels with the packet.
   All other memory lives in Wotan (see Memory Hierarchy below).
 ```
 
-### Register Reference
+### Field Reference
 
 ```
-OFFSET  SIZE  NAME   TYPE   PURPOSE
-──────  ────  ─────  ─────  ─────────────────────────────────
-0x00    4B    R0     u32    General-purpose accumulator
-0x04    4B    R1     u32    Argument or secondary value
-0x08    4B    R2     u32    Result or output register
-0x0C    4B    R3     u32    Counter or loop variable
-0x10    4B    R4     u32    Caller ID or error code
-──────  ────  ─────  ─────  ─────────────────────────────────
-TOTAL   20B                 5 registers × 32 bits = 160 bits
+OFFSET  SIZE  FIELD               TYPE        DESCRIPTION
+──────  ────  ─────────────────   ───────────  ───────────────────────────
+0x00    1B    version             raw u8      Protocol version (current: 0x01)
+0x01    1B    src_service_id      exponent    Source service (Sophia lookup)
+0x02    1B    dst_service_id      exponent    Destination service (Sophia)
+0x03    1B    hop_count           raw u8      Incremented at each hop
+0x04    4B    trace_id            raw u32     Flow trace correlation
+0x08    1B    qos_class           exponent    QoS classification
+0x09    1B    flow_action         exponent    Action directive
+0x0A    1B    circuit_state       exponent    Circuit breaker state
+0x0B    1B    flags               raw u8      Bitfield (C,Y,T,E,S,M,K1,K0)
+0x0C    2B    latency_budget_us   raw u16     Latency budget in microseconds
+0x0E    1B    deployment_ring     exponent    Deployment ring
+0x0F    1B    mesh_flags          exponent    Mesh-level flags
+0x10    2B    reserved            raw u16     Reserved (MUST be zero)
+0x12    2B    checksum            raw u16     CRC-16/CCITT over bytes 0x00-0x11
+──────  ────  ─────────────────   ───────────  ───────────────────────────
+TOTAL   20B                                    14 fields, 8 exponent + 6 raw
 ```
 
-### Optional Metadata Fields (following the Monad)
-
-Following the 20-byte Monad, additional metadata fields may be packed using exponent encoding within the same Hop-by-Hop option (up to 255 bytes total):
-
-```
-FIELD           SIZE    ENCODING         DESCRIPTION
-──────────────  ────    ───────────────  ─────────────────────
-hop_count       1B      raw u8           Hops since Shield birth
-latency_hint    2B      exp (base=2)     2^exp ns upstream latency
-loss_rate       1B      exp (base=2)     2^-exp / 256 loss fraction
-queue_depth     2B      exp (base=2)     2^exp packets
-flags           1B      bitfield         See FLAGS below
-trace_hash      4B      raw u32          Flow trace correlation
-checksum        2B      CRC-16/CCITT     Over Monad + metadata
-```
-
-### FLAGS Bitfield
+### FLAGS Bitfield (0x0B)
 
 ```
 Bit 7 (MSB)                                              Bit 0 (LSB)
 ┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
-│  CHAOS  │ CANARY  │ TRACED  │ ENCRYPT │ SAMPLED │ MIRRORED│  RSVD   │  RSVD   │
+│    C    │    Y    │    T    │    E    │    S    │    M    │   K1    │   K0    │
 │  0x80   │  0x40   │  0x20   │  0x10   │  0x08   │  0x04   │  0x02   │  0x01   │
 └─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
 
-  CHAOS    (bit 7): Yaldabaoth touched this packet. Visible to all downstream hops.
-  CANARY   (bit 6): Packet belongs to canary deployment path.
-  TRACED   (bit 5): Full trace active — every hop emits to Anamnesis.
-  ENCRYPT  (bit 4): Payload is encrypted (intra-Kingdom TLS).
-  SAMPLED  (bit 3): Packet selected for statistical sampling.
-  MIRRORED (bit 2): This is a mirror copy (not the original).
-  RSVD     (bit 1): Reserved.
-  RSVD     (bit 0): Reserved.
+  C (CHAOS,  bit 7, 0x80): Chaos injection marker. Visible downstream.
+  Y (CANARY, bit 6, 0x40): Packet belongs to canary deployment path.
+  T (TRACED, bit 5, 0x20): Full trace active — every hop emits to Anamnesis.
+  E (ENCRYPT,bit 4, 0x10): Payload is encrypted (intra-Kingdom TLS).
+  S (SAMPLED,bit 3, 0x08): Packet selected for statistical sampling.
+  M (MIRROR, bit 2, 0x04): This is a mirror copy (not the original).
+  K1 (bit 1, 0x02): Exponent lookup key position 1.
+  K0 (bit 0, 0x01): Exponent lookup key position 0.
 ```
 
 ---
@@ -116,36 +108,43 @@ The Monad is carried in an IPv6 Hop-by-Hop Options extension header per RFC 8200
   │ Source Address (128 bits)                                │
   │ Destination Address (128 bits)                           │
   └─────────────────────────────────────────────────────────┘
-                    │
-                    │  Next Header = 0 (Hop-by-Hop)
-                    ▼
+                   │
+                   │  Next Header = 0 (Hop-by-Hop)
+                   ▼
   Hop-by-Hop Extension Header:
   ┌─────────────────────────────────────────────────────────┐
   │ Next Header (1B) │ Hdr Ext Len (1B) │                   │
-  │                  │ = 5 (48 bytes)    │                   │
+  │                  │ = 2 (24 bytes)    │                   │
   │                  │                   │                   │
   │  Unheaded Option TLV:                                   │
   │  ┌──────────┬──────────┬──────────────────────────────┐ │
-  │  │ Type=TBD │ Len=20+  │    Monad (20 bytes)          │ │
-  │  │ (1B)     │ (1B)     │    R0, R1, R2, R3, R4        │ │
-  │  │ 00T00000 │          │    + optional metadata        │ │
+  │  │ Type=TBD │ Len=20   │    Monad (20 bytes)          │ │
+  │  │ (1B)     │ (1B)     │    14 fields                 │ │
+  │  │ 001xxxxx │          │    (no additional metadata)  │ │
   │  └──────────┴──────────┴──────────────────────────────┘ │
   │                                                         │
   │  Padding to 8-byte alignment (PadN if needed)           │
   └─────────────────────────────────────────────────────────┘
-                    │
-                    │  Next Header → Transport (TCP/UDP/etc.)
-                    ▼
+                   │
+                   │  Next Header → Transport (TCP/UDP/etc.)
+                   ▼
   ┌─────────────────────────────────────────────────────────┐
   │                  Transport Header + Payload              │
   └─────────────────────────────────────────────────────────┘
 
+  Hop-by-Hop Header Structure:
+    Total size: (HEL+1) x 8 = (2+1) x 8 = 24 bytes
+    HEL (Hdr Ext Len) = 2: represents 24 bytes total
+    Formula: HEL = (total_size / 8) - 1
+    Note: HEL increases if optional metadata fields are added
+
   Option Type byte:
     Bits 7-6 = 00: skip if unrecognized (backward compatible)
-    Bit 5    = 0:  unchanged in transit (compliant routers leave it)
+    Bit 5    = 1:  option data MAY change en-route
     Bits 4-0 = TBD: IANA-assigned option type
 
   This ensures:
+    - Option can be modified at each hop (per RFC 8200)
     - Unaware IPv6 routers skip the option harmlessly
     - No IHL hacks, no IP checksum recomputation
     - Standards-compliant per RFC 8200 and RFC 9673
@@ -156,18 +155,19 @@ The Monad is carried in an IPv6 Hop-by-Hop Options extension header per RFC 8200
 ## 3. Packet Lifecycle: ASCII Flow
 
 ```
-                    THE LIFECYCLE OF A KINGDOM PACKET
+                    PACKET LIFECYCLE (LIMITED DOMAIN)
 
   SHADOW (outside)           THE KINGDOM                      SHADOW (outside)
   (clean IPv6 or v4)    (IPv6 + HBH Monad + Wotan)         (clean IPv6 or v4)
 
     ┌──────┐           ┌────────────────────────────┐          ┌──────┐
-    │ IPv6 │──ingress─▶│IPv6 │ HBH: Monad [R0..R4] │─egress──▶│ IPv6 │
-    │      │           │     │ + metadata + flags    │          │      │
-    │ PL   │           │ PL  │ + checksum            │          │ PL   │
-    └──────┘           └────────────────────────────┘          └──────┘
-  no Monad              ▲    ▲    ▲    ▲    ▲                no Monad
-                        │    │    │    │    │
+    │ IPv6 │──ingress─▶│IPv6 │ HBH: 20-byte Monad  │─egress──▶│ IPv6 │
+    │      │           │     │ version, service ids │          │      │
+    │ PL   │           │ PL  │ trace_id, qos, etc   │          │ PL   │
+    └──────┘           │     │ + checksum            │          └──────┘
+  no Monad              │     │ (fields 0x00-0x13)   │        no Monad
+                        └────────────────────────────┘
+                        ▲    ▲    ▲    ▲    ▲
                      Shield  S1   S2   S3  Shield
                      (birth) Shim Shim Shim (death)
                               │    │    │
@@ -187,11 +187,12 @@ The Monad is carried in an IPv6 Hop-by-Hop Options extension header per RFC 8200
   Shield stamps         Each Shim:                Shield strips
   Monad ON              1. Parse HBH option       Monad OFF
   Birth event           2. Extract Monad           Death event
-  to Anamnesis          3. Execute eBPF program   to Anamnesis
+  to Anamnesis          3. Execute BPF program    to Anamnesis
   Wotan memory         4. Read/write Wotan mem  (final snapshot)
   pre-allocated         5. Update Monad in-place  Wotan memory
-                        6. Log to Anamnesis        deallocated
-                        7. Forward packet          (after grace)
+                        6. Verify checksum        deallocated
+                        7. Log to Anamnesis        (after grace)
+                        8. Forward packet
 ```
 
 ---
@@ -243,7 +244,12 @@ The Monad is carried in an IPv6 Hop-by-Hop Options extension header per RFC 8200
 ### Definitions
 
 ```
-Let K = number of exponent key positions in the metadata
+Let K = number of exponent key positions in the Monad
+  K = 8 (exponent-encoded fields: src_service_id, dst_service_id,
+         qos_class, flow_action, circuit_state, deployment_ring, mesh_flags)
+  Note: K=14 counts ALL fields including raw ones, but only K=8 participate
+        in Sophia exponent lookup. Raw fields have fixed semantics.
+
 Let D = 256 (possible values per byte, since u8)
 Let S(k) = the Sophia sub-dictionary selected by key byte k
 Let |S(k)| = number of entries in sub-dictionary S(k), where |S(k)| <= D = 256
@@ -251,7 +257,7 @@ Let |S(k)| = number of entries in sub-dictionary S(k), where |S(k)| <= D = 256
 
 ### Theorem 1: Expressible Meanings (Flat)
 
-With K independent exponent key positions, each selecting from D possible meanings:
+With K=8 independent exponent key positions, each selecting from D possible meanings:
 
 ```
   M_flat = D^K = 256^K
@@ -259,11 +265,10 @@ With K independent exponent key positions, each selecting from D possible meanin
   K=1:  M = 256                    (8 bits)
   K=2:  M = 65,536                 (16 bits)
   K=3:  M = 16,777,216             (24 bits)
-  K=8:  M = 1.844 x 10^19         (64 bits)
-  K=14: M = 5.192 x 10^33          (112 bits)  <- all 14 fields
+  K=8:  M = 1.844 x 10^19         (64 bits)  <- exponent fields only
 ```
 
-With 8 exponent fields (K=8), we can express 1.844 x 10^19 unique meanings — more than every grain of sand on Earth multiplied by a thousand.
+With 8 exponent fields (K=8), we can express 1.844 x 10^19 unique meanings — approximately 2.5 times the estimated number of grains of sand on Earth (~7.5 × 10^18).
 
 ### Theorem 2: Expressible Meanings (Composed)
 
@@ -283,17 +288,24 @@ The key insight: **the same bytes carry different semantics depending on context
 ```
   Information per exponent byte = log2(D) = log2(256) = 8 bits
 
-  Information per Monad + metadata:
-    Monad registers:  5 x 32 bits = 160 bits (program state)
-    Metadata fields:  variable, exponent-encoded
-    Total (20B min):  160 bits of register state
-    Total (with metadata): up to 2040 bits (255B option payload)
+  Wire format for equivalent metadata:
+    Hop-by-Hop header (HBH):  2 bytes (Next Header + Hdr Ext Len)
+    Option TLV:               2 bytes (Type + Length)
+    Monad:                   20 bytes (14 fields, all inline)
+    Total:                   24 bytes on the wire
 
-  For comparison:
-    HTTP/2 HEADERS frame: ~50-200 bytes for similar metadata (with HPACK)
-    OpenTelemetry span:   ~200-500 bytes serialized
-    Envoy access log:     ~500-2000 bytes
-    Our Monad:            20 bytes. At wire speed. At every hop.
+  Comparison to other metadata formats:
+    HTTP/2 HEADERS frame:     ~280 bytes for similar metadata (with HPACK)
+    OpenTelemetry span:       ~400 bytes serialized
+    Envoy access log:         ~500 bytes
+
+  Density ratios:
+    vs HTTP headers:  24:280 = ~12x more compact
+    vs OTel span:     24:400 = ~17x more compact
+    vs Envoy log:     24:500 = ~21x more compact
+
+  And critically: Monad operates at kernel datapath speed (~320 ns per hop).
+                  HTTP/OTel/Envoy operate at application speed (milliseconds).
 ```
 
 ### Theorem 4: Dictionary Update Propagation
@@ -322,7 +334,7 @@ The key insight: **the same bytes carry different semantics depending on context
 
 ```
   Let R = packet rate (packets/second)
-  Let E = event size (bytes) = 56 bytes (see draft §Anamnesis)
+  Let E = event size (bytes) = 64 bytes (timestamp, type, hop, monad, wotan, trace)
   Let S = sampling rate (fraction of packets emitting events)
   Let T = retention time (seconds)
 
@@ -334,32 +346,39 @@ The key insight: **the same bytes carry different semantics depending on context
   Example at 10 Gbps with 1500B average packets:
     R = 10 x 10^9 / (1500 x 8) = 833,333 pps
     S = 1.0 (every packet, worst case)
-    E = 56 bytes
+    E = 64 bytes
     T_hot = 2 seconds
 
-    M_ring = 833,333 x 1.0 x 56 x 2 = 93,333,296 bytes ~ 89 MB
+    M_ring = 833,333 x 1.0 x 64 x 2 = 106,666,624 bytes ~ 101.7 MB
 
   Per-CPU ring buffers (16 CPUs):
-    M_total = 89 MB x 16 = 1,424 MB ~ 1.4 GB
+    M_total = 101.7 MB x 16 = 1,627 MB ~ 1.6 GB
 
   Long-term Anamnesis storage (Wotan WAL):
-    Events per day at 10 Gbps full trace:
-      833,333 x 56 x 86,400 = 4.03 TB/day (raw)
+    Events per day at various speeds, full trace (S=1.0):
+      1 Gbps:   ~83K pps × 64B = 5.3 MB/s = 461 GB/day
+      10 Gbps:  ~833K pps × 64B = 53.3 MB/s = 4.6 TB/day
+      100 Gbps: ~8.3M pps × 64B = 533 MB/s = 46 TB/day
 
     With sampling at S = 0.01 (1%):
-      40.3 GB/day (manageable)
+      1 Gbps:   4.6 GB/day
+      10 Gbps:  46 GB/day
+      100 Gbps: 461 GB/day
 
     With compression (LZ4, ~4:1 on structured binary):
-      10.1 GB/day
+      Divide results above by 4
 ```
 
 ### Theorem 6: Checksum Error Detection
 
 ```
-  CRC-16/CCITT over Monad + metadata bytes:
+  CRC-16/CCITT-FALSE over Monad bytes 0x00-0x11:
 
   Polynomial: x^16 + x^12 + x^5 + 1  (0x1021)
   Initial value: 0xFFFF
+  Reflection (input): false
+  Reflection (output): false
+  XOR output: 0x0000
 
   Detection capability:
     - All single-bit errors: 100%
@@ -369,12 +388,14 @@ The key insight: **the same bytes carry different semantics depending on context
     - Burst errors of 17 bits: 99.997%
     - Random errors (>=3 bits): 99.998%
 
-  Computation cost: ~50ns for 20 bytes on modern x86
-  (can use BPF helper or inline CRC table)
+  Computation cost:
+    Verification: ~50ns for 20 bytes on modern x86
+    Recomputation: ~50ns for 20 bytes on modern x86
+    (can use BPF helper or inline CRC table)
 
-  Yaldabaoth single-bit-flip:
+  Chaos injection (single-bit-flip):
     Guaranteed detection by next hop's checksum verification.
-    The chaos is always caught.
+    All injected perturbations are detectable.
 ```
 
 ---
@@ -406,21 +427,28 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
   │  (* NH changed to 0 = Hop-by-Hop, Payload Len updated)  │
   ├─────────────────────────────────────────────────────────┤
   │  Hop-by-Hop Extension Header                             │
-  │  ┌─────────────────────────────────────────────────┐     │
-  │  │ Next Header (orig NH) │ Hdr Ext Len = 5        │     │
-  │  │ Option Type = TBD     │ Option Len = 20+       │     │
-  │  │                                                 │     │
-  │  │  THE MONAD — 20 bytes (Register File)           │     │
-  │  │  R0: Accumulator                                │     │
-  │  │  R1: Argument                                   │     │
-  │  │  R2: Result                                     │     │
-  │  │  R3: Counter                                    │     │
-  │  │  R4: Caller / Error                             │     │
-  │  │                                                 │     │
-  │  │  Optional metadata (exponent-encoded fields)    │     │
-  │  │  Checksum (CRC-16/CCITT)                        │     │
-  │  │  PadN alignment                                 │     │
-  │  └─────────────────────────────────────────────────┘     │
+  │  ┌─────────────────────────────────────────────┐         │
+  │  │ Next Header (orig NH) │ Hdr Ext Len = 2    │         │
+  │  │ (Total size: 24 bytes)                      │         │
+  │  │                                             │         │
+  │  │  THE MONAD — 20 bytes (14 fields)           │         │
+  │  │  version (u8)                               │         │
+  │  │  src_service_id (exponent)                  │         │
+  │  │  dst_service_id (exponent)                  │         │
+  │  │  hop_count (u8)                             │         │
+  │  │  trace_id (u32)                             │         │
+  │  │  qos_class (exponent)                       │         │
+  │  │  flow_action (exponent)                     │         │
+  │  │  circuit_state (exponent)                   │         │
+  │  │  flags (u8)                                 │         │
+  │  │  latency_budget_us (u16)                    │         │
+  │  │  deployment_ring (exponent)                 │         │
+  │  │  mesh_flags (exponent)                      │         │
+  │  │  reserved (u16)                             │         │
+  │  │  checksum (u16, CRC-16/CCITT over 0x00-11) │         │
+  │  │                                             │         │
+  │  │  PadN alignment to 8-byte boundary          │         │
+  │  └─────────────────────────────────────────────┘         │
   ├─────────────────────────────────────────────────────────┤
   │                       Payload ...                        │
   └─────────────────────────────────────────────────────────┘
@@ -428,9 +456,9 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
   Shield ingress XDP/TC operation:
     1. Allocate Wotan memory for this flow (keyed by Flow Label)
     2. Construct Hop-by-Hop extension header with Monad
-    3. Initialize Monad registers (R0-R4) per program
-    4. Set metadata: hop_count=0, trace_hash, flags
-    5. Compute checksum over Monad + metadata
+    3. Initialize Monad fields (version, service IDs, trace_id, etc.) per program
+    4. Set metadata: hop_count=0, flags, circuit_state
+    5. Compute CRC-16/CCITT checksum over Monad bytes 0x00-0x11
     6. Update IPv6 Next Header = 0 (Hop-by-Hop)
     7. Update IPv6 Payload Length += HBH header size
     8. Emit BIRTH event to Anamnesis ring buffer
@@ -447,8 +475,8 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
 ```
   Shield egress TC operation (reverse of ingress):
     1. Parse Hop-by-Hop extension header
-    2. Extract final Monad state
-    3. Verify checksum — discard if failed
+    2. Extract final Monad state (all 20 bytes)
+    3. Verify CRC-16/CCITT checksum — discard if failed
     4. Emit DEATH event to Anamnesis (full Monad snapshot)
     5. Strip Hop-by-Hop extension header from packet
     6. Restore original IPv6 Next Header
@@ -456,8 +484,8 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
     8. Deallocate Wotan memory (after grace period)
     9. Forward clean IPv6 packet to Shadow
 
-  The packet exits the Kingdom as standard IPv6.
-  Shadow never sees the Monad. Shadow never knows.
+  The packet exits the Limited Domain as standard IPv6.
+  External nodes never observe the Monad or Hop-by-Hop header.
 ```
 
 ---
@@ -467,13 +495,17 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
 ```
   THE MEMORY HIERARCHY — Wotan as the Memory Model
 
-  The Monad carries ONLY registers (20 bytes, pure compute bus).
+  The Monad carries ONLY fields (20 bytes, pure compute bus).
   All memory lives in Wotan, accessed by Flow Label.
 
   ┌──────────────────────────────────────────────────────────────┐
-  │ L0: Monad Registers (R0-R4)                                 │
+  │ L0: Monad Fields (20 bytes)                                  │
+  │     Fields: version, src_service_id, dst_service_id,         │
+  │            hop_count, trace_id, qos_class, flow_action,      │
+  │            circuit_state, flags, latency_budget_us,          │
+  │            deployment_ring, mesh_flags, reserved, checksum   │
   │     Size: 20 bytes (fixed)                                   │
-  │     Latency: wire speed (nanoseconds)                        │
+  │     Latency: per-hop (~320 ns including CRC)                  │
   │     Location: IN the packet (Hop-by-Hop option)              │
   │     Analogy: CPU registers                                   │
   ├──────────────────────────────────────────────────────────────┤
@@ -521,7 +553,7 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
   ─────────────────────────────────────────
   Doom requires ~4 MB RAM (128KB screen + heap + stack + WAD index)
 
-  L0: 20 bytes     (5 registers)
+  L0: 20 bytes     (14 fields in Monad)
   L1: 64 KB        (16 pages x 4 KB, hot working set)
   L2: 4 MB         (--ring-size=4194304, full Doom RAM)
   L3: 12 MB        (WAD data, cold pages, on disk)
@@ -566,10 +598,10 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
 ```
   PRIMITIVE          MONAD/WOTAN PROVIDES                  HOW
   ────────────────   ───────────────────────────────         ──────────────────────
-  1. Registers       Monad R0-R4 (20 bytes)                 In-packet, wire speed
-                     + eBPF r0-r10 (per-hop scratch)        Per RFC 9669
+  1. Registers       Monad fields (20 bytes)                 In-packet, per-hop
+                     + BPF r0-r10 (per-hop scratch)         Per RFC 9669
 
-  2. ALU             eBPF instruction set (RFC 9669)        64-bit arithmetic,
+  2. ALU             BPF instruction set (RFC 9669)         64-bit arithmetic,
                      ADD, SUB, MUL, DIV, AND, OR, XOR,      logic, shifts, jumps
                      LSH, RSH, NEG, MOD, JEQ, JGT, JGE...  at every hop
 
@@ -602,26 +634,26 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
             Address i holds symbol at tape position i
             --ring-size bounds physical tape (resource limit, not fundamental)
 
-  2. STATE: Monad R3 = current state q in Q
-            Monad R4 = head position (tape offset)
+  2. STATE: Monad circuit_state field = current state q in Q
+            Monad latency_budget_us or reserved field = head position
 
-  3. TRANSITION: Shim eBPF program implements delta:
+  3. TRANSITION: Shim BPF program implements delta:
 
-     current_symbol = wotan_read(R4);         // Read tape at head
-     action = lookup_transition(R3, current_symbol);  // Sophia table
-     wotan_write(R4, action.write_symbol);    // Write tape
-     R3 = action.next_state;                   // Update state
-     R4 = R4 + action.head_move;               // Move head
+     current_symbol = wotan_read(head_pos);      // Read tape at head
+     action = lookup_transition(circuit_state, current_symbol); // Sophia
+     wotan_write(head_pos, action.write_symbol); // Write tape
+     circuit_state = action.next_state;          // Update state
+     head_pos = head_pos + action.head_move;     // Move head
 
   4. ITERATION: Packet circulation via BPF_REDIRECT
                 Each circulation = one Turing machine step
                 Flow Label identifies the computation
 
-  5. HALTING: if (R3 == qf) → stop circulating, emit result
+  5. HALTING: if (circuit_state == qf) → stop circulating, emit result
 
   THEREFORE: Unheaded + Wotan is Turing-complete.  QED.
 
-  PRACTICAL NOTE: eBPF verifier bounds each individual Shim execution
+  PRACTICAL NOTE: BPF verifier bounds each individual Shim execution
   (no infinite loops per hop), but the packet circulation loop provides
   unbounded iteration. The bound is resource (ring buffer size, packet
   lifetime), not computational.
@@ -633,30 +665,28 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
   Can it actually run programs at useful speed?
 
   Single Shim execution:
-    eBPF overhead:           ~100 ns (XDP fast path)
+    BPF overhead:            ~100 ns (XDP fast path)
     Monad read:              ~10 ns (packet memory access)
     BPF map lookup (L1):     ~100 ns
+    Checksum verification:   ~50 ns
     Monad write:             ~10 ns
-    Total per-hop:           ~220 ns
+    Checksum recomputation:  ~50 ns
+    Total per-hop:           ~320 ns
 
-  Effective clock speed:
-    1 hop = 1 instruction = ~220 ns
-    Effective MHz = 1 / 220e-9 = ~4.5 MHz
-
-  With BPF_REDIRECT circulation (same host):
+  With redirect (same-host circulation):
     Redirect overhead:       ~50 ns
-    Total per cycle:         ~270 ns
-    Effective MHz:           ~3.7 MHz
+    Total per cycle:         ~370 ns
+    Effective MHz:           ~2.7 MHz
 
   For comparison:
     Original Doom (1993):    ~2-3.5 M instructions/second needed
-    Monad effective rate:    ~3.7 M instructions/second
-    Headroom:                ~1.06-1.85x (tight but feasible)
+    Monad effective rate:    ~2.7 M instructions/second
+    Headroom:                ~0.77-1.35x (tight, feasible with batching)
 
   Multi-instruction per hop (batch execution):
     If Shim executes 4-8 instructions per hop:
-    Effective rate:          ~15-30 MHz
-    Headroom:                ~4-15x (comfortable)
+    Effective rate:          ~11-21 MHz
+    Headroom:                ~3-7x (comfortable)
 ```
 
 ---
@@ -700,7 +730,7 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
                          └── byte_1 = ... (256 entries)
 
   256 branches x 256 leaves = 65,536 total meanings
-  And each meaning is HOT-SWAPPABLE by updating the leaf's BPF map entry.
+  Each meaning is atomically replaceable by updating the leaf's BPF map entry.
 
   SCALING LAW:
   ─────────────
@@ -723,13 +753,19 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
   BYTES NEEDED TO EXPRESS "packet from timeguru to captain, QoS realtime,
   traced, canary deployment, circuit closed, no chaos":
 
-  MONAD + METADATA (The Pattern):
+  MONAD + OPTION (The Pattern):
   ┌──────────────────────────────────────────────────┐
-  │ R0=program_state  R1=args  R2=result  R3=ctr    │ = 20 bytes (Monad)
-  │ R4=caller                                        │
-  │ + hop=0 trace=A3F1B2C4 qos=03 act=01 flags=60   │ + ~13 bytes metadata
-  └──────────────────────────────────────────────────┘ = ~35 bytes total
-                                                         (in HBH option)
+  │ Hop-by-Hop header (2B): Next Header, Hdr Ext Len│
+  │ Option TLV (2B): Type, Length                    │
+  │ Monad (20B): version, src_service_id,            │
+  │              dst_service_id, hop_count,          │
+  │              trace_id, qos_class, flow_action,   │
+  │              circuit_state, flags,               │
+  │              latency_budget_us, deployment_ring, │
+  │              mesh_flags, reserved, checksum      │
+  └──────────────────────────────────────────────────┘
+                                                      = 24 bytes total
+                                                        (on the wire)
 
   HTTP HEADERS (equivalent info):
   ┌────────────────────────────────────────────────┐
@@ -757,15 +793,23 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
   │ }                                              │
   └────────────────────────────────────────────────┘ ~ 400+ bytes
 
+  ENVOY ACCESS LOG (equivalent info):
+                                                     ~ 500 bytes
+
   RATIO:
   ──────
-  Monad+meta : HTTP headers  = 35 : 280  = 8x more compact
-  Monad+meta : OTel span     = 35 : 400  = 11x more compact
-  Monad+meta : Envoy log     = 35 : 500  = 14x more compact
+  Monad : HTTP headers    = 24 : 280  = ~12x more compact
+  Monad : OTel span       = 24 : 400  = ~17x more compact
+  Monad : Envoy log       = 24 : 500  = ~21x more compact
 
-  AND: Monad operates at wire speed (nanoseconds).
+  AND: Monad operates at kernel datapath speed (~320 ns per hop).
        HTTP/OTel/Envoy operate at application speed (milliseconds).
-       That's a 10^6 speed difference on top of the 8-14x size difference.
+       That is a ~10^6 speed difference on top of the 12-21x size difference.
+
+  MTU overhead:
+    Monad wire size: 24 bytes / 1500 MTU = 1.6% overhead
+    (Previous measurement of 1.3% counted only the 20-byte Monad,
+     not the 4-byte HBH+TLV headers)
 ```
 
 ---
@@ -774,17 +818,17 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
 
 ```
   FULL TRACE (S=1.0, every packet):
-    At 1 Gbps:   ~83K pps x 56B = 4.7 MB/s = 400 GB/day
-    At 10 Gbps:  ~833K pps x 56B = 47 MB/s = 4.0 TB/day
-    At 100 Gbps: ~8.3M pps x 56B = 466 MB/s = 40 TB/day
+    At 1 Gbps:   ~83K pps × 64B = 5.3 MB/s = 461 GB/day
+    At 10 Gbps:  ~833K pps × 64B = 53.3 MB/s = 4.6 TB/day
+    At 100 Gbps: ~8.3M pps × 64B = 533 MB/s = 46 TB/day
 
   1% SAMPLE (S=0.01):
-    At 1 Gbps:   4.0 GB/day    <- easily fits on local SSD
-    At 10 Gbps:  40 GB/day     <- manageable with compression
-    At 100 Gbps: 400 GB/day    <- needs dedicated storage tier
+    At 1 Gbps:   4.6 GB/day    <- easily fits on local SSD
+    At 10 Gbps:  46 GB/day     <- manageable with compression
+    At 100 Gbps: 461 GB/day    <- needs dedicated storage tier
 
-  HEAD-BASED SAMPLING (sample by trace_hash):
-    if (trace_hash % 100 < sample_rate) → emit event
+  HEAD-BASED SAMPLING (sample by trace_id):
+    if (trace_id % 100 < sample_rate) → emit event
     Guarantees all events for a given flow are either ALL sampled or NONE.
     No partial traces. No orphan spans.
 
@@ -801,17 +845,17 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
     Ring buffer is bounded. If Wotan falls behind:
       Option A: Drop oldest events (ring overwrites)
       Option B: Drop new events (ring returns -ENOSPC)
-      Option C: Backpressure via BPF map flag → eBPF reduces emission rate
+      Option C: Backpressure via BPF map flag → BPF reduces emission rate
 
-    Kingdom policy (Pleroma declares): Option A for most traffic.
-    Exception: CHAOS events (Yaldabaoth) → Option B (never lose chaos audit).
+    Recommended policy: Option A for most traffic.
+    Exception: CHAOS events → Option B (never lose chaos audit trail).
 ```
 
 ---
 
 ## 12. Heritage Table: The Lineage
 
-The Unheaded Protocol did not emerge from nothing. It is the latest inscription of a Pattern that has existed since the first bus carried the first bit with metadata attached.
+The Unheaded Protocol builds on decades of prior art in bus-based metadata transport.
 
 ```
   TECHNOLOGY          YEAR  PATTERN ELEMENT           RFC/STANDARD
@@ -856,10 +900,9 @@ The Unheaded Protocol did not emerge from nothing. It is the latest inscription 
                             Wotan memory hierarchy,
                             computational completeness
 
-  PATTERN: metadata riding with data. The bus as the computer.
-           The wire as the processor. Hop-by-hop accumulation.
-           The same design, drawn over and over, in cars and planes
-           and routers and kernels. Different Shadows, same Pattern.
+  PATTERN: metadata co-located with data, hop-by-hop accumulation,
+           bus-as-compute. A recurring architectural pattern across
+           aerospace, automotive, and networking domains.
 ```
 
 ---
@@ -872,12 +915,21 @@ The Unheaded Protocol did not emerge from nothing. It is the latest inscription 
 +==================================================================+
 |                                                                   |
 |  TRANSPORT:   IPv6 Hop-by-Hop Options (RFC 8200, RFC 9673)       |
-|  MONAD SIZE:  20 bytes (5 x u32 registers)                       |
-|  OPTION MAX:  255 bytes (Monad + metadata + checksum)             |
-|  COMPUTE:     eBPF per RFC 9669 (BPF ISA)                        |
+|  MONAD SIZE:  20 bytes (14 fields)                               |
+|  OPTION SIZE: 24 bytes (HBH + TLV + Monad)                       |
+|  COMPUTE:     BPF per RFC 9669 (BPF ISA)                         |
 |                                                                   |
-|  REGISTERS:   R0 (accum), R1 (arg), R2 (result),                 |
-|               R3 (counter), R4 (caller/error)                     |
+|  EXPONENT FIELDS: 8 (Sophia lookup)                              |
+|    src_service_id, dst_service_id, qos_class, flow_action,       |
+|    circuit_state, deployment_ring, mesh_flags                    |
+|                                                                   |
+|  RAW FIELDS: 6 (fixed semantics)                                 |
+|    version, hop_count, trace_id, flags,                          |
+|    latency_budget_us, reserved                                   |
+|                                                                   |
+|  CHECKSUM: CRC-16/CCITT-FALSE (polynomial 0x1021,                |
+|            init 0xFFFF, no reflection)                           |
+|                                                                   |
 |  MEMORY:      Wotan ring buffers (L1-L3), per-flow              |
 |  I/O:         Wotan topics (screen, keyboard, sensors)           |
 |  CLOCK:       Per-hop processing (each hop = 1 tick)              |
@@ -892,22 +944,22 @@ The Unheaded Protocol did not emerge from nothing. It is the latest inscription 
 |  UPDATE:      ~1us (BPF map atomic update via Wotan)             |
 |  PROPAGATE:   <10ms cluster-wide                                  |
 |                                                                   |
-|  ANAMNESIS:   56 bytes/event, per-CPU ring buffer                 |
+|  ANAMNESIS:   64 bytes/event, per-CPU ring buffer                |
 |  RETENTION:   2s hot (ring), unlimited cold (Wotan WAL)          |
 |  REPLAY:      Through any Sophia dictionary version               |
 |                                                                   |
 |  COMPLETENESS: Turing-complete (Monad + Wotan)                   |
-|  EFFECTIVE:    ~3.7 MHz single-instruction, ~30 MHz batched       |
-|  DOOM:         Yes. (after the dashboard)                         |
+|  EFFECTIVE:    ~2.7 MHz single-instruction, ~11-21 MHz batched   |
+|  DOOM:         Feasible (~2.7 MHz vs ~2-3.5 MHz required)         |
 |                                                                   |
 |  NORMATIVE RFCs:                                                  |
 |    RFC 8200 — IPv6 Specification                                  |
 |    RFC 9673 — IPv6 Hop-by-Hop Options Processing                  |
+|    RFC 9669 — BPF Instruction Set Architecture                    |
 |    RFC 2119 — Key words for RFCs                                  |
 |    RFC 8174 — Ambiguity of Uppercase in RFC 2119                  |
 |                                                                   |
 |  INFORMATIVE RFCs:                                                |
-|    RFC 9669 — BPF Instruction Set Architecture                    |
 |    RFC 8799 — Limited Domains and Internet Protocols              |
 |    RFC 1105 — BGP (original)                                      |
 |    RFC 1883 — IPv6 (original)                                     |
@@ -919,4 +971,4 @@ The Unheaded Protocol did not emerge from nothing. It is the latest inscription 
 
 ---
 
-*The math doesn't lie. 20 bytes of registers. Wotan for memory. eBPF for compute. IPv6 Hop-by-Hop for transport. All standards-compliant. The Pattern is real.*
+*20 bytes of fields. Wotan for memory. BPF for compute. IPv6 Hop-by-Hop for transport. All standards-compliant.*
