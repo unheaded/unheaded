@@ -582,3 +582,298 @@ func TestMemoryBPFMap_WritePage(t *testing.T) {
 		}
 	}
 }
+
+// ── D-006 Cache Miss Handler tests ────────────────────────────────────────────
+
+func TestHandleCacheMissD006_StagesLine(t *testing.T) {
+	bpf := NewMemoryBPFMap(0)
+	cfg := Config{
+		RingSize:      2048,
+		PageSize:      256,
+		CacheLineSize: 64,
+		PrefetchN:     0,
+		L1MaxPages:    16,
+	}
+	ms := NewMemoryService(cfg, bpf)
+
+	// Load test data into L2.
+	data := make([]byte, 128)
+	for i := range data {
+		data[i] = byte(i % 256)
+	}
+	if err := ms.LoadData(0, data); err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+
+	// Trigger a cache miss for lineAddr 0x40 (64-byte aligned).
+	if err := ms.HandleCacheMissD006(1, 0x40); err != nil {
+		t.Fatalf("HandleCacheMissD006: %v", err)
+	}
+
+	// Verify the line was staged into BPF map.
+	// Word address = 0x40 >> 2 = 0x10 (16).
+	word16, _ := bpf.ReadWord(16)
+	expected := binary.LittleEndian.Uint32([]byte{0x40, 0x41, 0x42, 0x43})
+	if word16 != expected {
+		t.Errorf("BPF word[16] = 0x%08X, want 0x%08X", word16, expected)
+	}
+
+	// Check another word in the line (e.g., word 18 = byte offset 0x48).
+	word18, _ := bpf.ReadWord(18)
+	expected18 := binary.LittleEndian.Uint32([]byte{0x48, 0x49, 0x4A, 0x4B})
+	if word18 != expected18 {
+		t.Errorf("BPF word[18] = 0x%08X, want 0x%08X", word18, expected18)
+	}
+}
+
+func TestHandleCacheMissD006_Prefetch(t *testing.T) {
+	bpf := NewMemoryBPFMap(0)
+	cfg := Config{
+		RingSize:      512,
+		PageSize:      256,
+		CacheLineSize: 64,
+		PrefetchN:     3, // prefetch 3 additional lines
+		L1MaxPages:    16,
+	}
+	ms := NewMemoryService(cfg, bpf)
+
+	// Load test data (2 cache lines = 128 bytes).
+	data := make([]byte, 256)
+	for i := range data {
+		data[i] = byte(i)
+	}
+	if err := ms.LoadData(0, data); err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+
+	// Miss at line 0 should prefetch lines 1, 2, 3.
+	if err := ms.HandleCacheMissD006(1, 0); err != nil {
+		t.Fatalf("HandleCacheMissD006: %v", err)
+	}
+
+	// Verify line 2 was prefetched (byte offset 128 = 0x80).
+	// Word address = 0x80 >> 2 = 32.
+	word32, _ := bpf.ReadWord(32)
+	expected := binary.LittleEndian.Uint32([]byte{0x80, 0x81, 0x82, 0x83})
+	if word32 != expected {
+		t.Errorf("BPF word[32] (line 2) = 0x%08X, want 0x%08X", word32, expected)
+	}
+}
+
+func TestHandleCacheMissD006_AlignmentCorrection(t *testing.T) {
+	bpf := NewMemoryBPFMap(0)
+	cfg := Config{
+		RingSize:      2048,
+		PageSize:      256,
+		CacheLineSize: 64,
+		PrefetchN:     0,
+		L1MaxPages:    16,
+	}
+	ms := NewMemoryService(cfg, bpf)
+
+	data := make([]byte, 256)
+	for i := range data {
+		data[i] = byte(i)
+	}
+	ms.LoadData(0, data)
+
+	// Pass misaligned address; handler should align to 64-byte boundary.
+	if err := ms.HandleCacheMissD006(1, 0x52); err != nil {
+		t.Fatalf("HandleCacheMissD006: %v", err)
+	}
+
+	// Should be aligned to 0x40 (0x52 & ^0x3F = 0x40).
+	word16, _ := bpf.ReadWord(16)
+	expected := binary.LittleEndian.Uint32([]byte{0x40, 0x41, 0x42, 0x43})
+	if word16 != expected {
+		t.Errorf("misaligned address should be corrected to 0x40")
+	}
+}
+
+// ── D-007 Dirty Writeback Handler tests ──────────────────────────────────────
+
+func TestDirtyBitmap_MarkDirty(t *testing.T) {
+	bpf := NewMemoryBPFMap(0)
+	cfg := DefaultConfig()
+	cfg.CacheLineSize = 64
+	ms := NewMemoryService(cfg, bpf)
+
+	// Load initial data.
+	data := make([]byte, 128)
+	for i := range data {
+		data[i] = byte(i)
+	}
+	ms.LoadData(0, data)
+
+	db := NewDirtyBitmap(ms, cfg)
+
+	// Mark a 4-byte write at offset 16 within line 0.
+	if err := db.MarkDirty(1, 0, 16, 4, 0xDEADBEEF); err != nil {
+		t.Fatalf("MarkDirty: %v", err)
+	}
+
+	// Verify the dirty line contains the patched bytes.
+	dirty := db.FlushAll()
+	if len(dirty) != 1 || len(dirty[1]) != 1 {
+		t.Fatalf("expected 1 dirty flow with 1 line, got %+v", dirty)
+	}
+
+	line := dirty[1][0]
+	got := binary.LittleEndian.Uint32(line[16:20])
+	if got != 0xDEADBEEF {
+		t.Errorf("dirty line[16:20] = 0x%08X, want 0xDEADBEEF", got)
+	}
+
+	// Verify unmodified bytes are still there.
+	got0 := binary.LittleEndian.Uint32(line[0:4])
+	expected0 := binary.LittleEndian.Uint32([]byte{0x00, 0x01, 0x02, 0x03})
+	if got0 != expected0 {
+		t.Errorf("dirty line[0:4] = 0x%08X, want 0x%08X", got0, expected0)
+	}
+}
+
+func TestDirtyBitmap_RaceCondition(t *testing.T) {
+	bpf := NewMemoryBPFMap(0)
+	cfg := DefaultConfig()
+	cfg.CacheLineSize = 64
+	ms := NewMemoryService(cfg, bpf)
+
+	data := make([]byte, 256)
+	ms.LoadData(0, data)
+
+	db := NewDirtyBitmap(ms, cfg)
+
+	// Launch 10 goroutines writing to the same dirty bitmap.
+	done := make(chan error, 10)
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			for j := 0; j < 10; j++ {
+				err := db.MarkDirty(
+					uint32(id),
+					uint32(j*64),
+					(j*4) % 60, // offset within 64-byte line
+					4,
+					uint32(0xDEAD0000|uint32(id*100+j)),
+				)
+				done <- err
+			}
+		}(i)
+	}
+
+	// Collect all errors.
+	for i := 0; i < 100; i++ {
+		if err := <-done; err != nil {
+			t.Fatalf("MarkDirty error: %v", err)
+		}
+	}
+
+	// Verify dirty bitmap is consistent (no panics, no data races with -race).
+	dirty := db.FlushAll()
+	if len(dirty) != 10 {
+		t.Errorf("expected 10 flows, got %d", len(dirty))
+	}
+}
+
+func TestDirtyWritebackHandler_Flush(t *testing.T) {
+	bpf := NewMemoryBPFMap(0)
+	cfg := Config{
+		RingSize:        2048,
+		PageSize:        256,
+		CacheLineSize:   64,
+		WritebackPeriod: 100 * time.Millisecond,
+		L1MaxPages:      16,
+	}
+	ms := NewMemoryService(cfg, bpf)
+
+	// Initialize L2 memory.
+	data := make([]byte, 256)
+	ms.LoadData(0, data)
+
+	dwh := NewDirtyWritebackHandler(ms, cfg, nil)
+
+	// Accumulate 3 writes to the same cache line.
+	if err := dwh.HandleCacheWriteD007(1, 0x10, 4, 0xDEADBEEF); err != nil {
+		t.Fatalf("HandleCacheWriteD007: %v", err)
+	}
+	if err := dwh.HandleCacheWriteD007(1, 0x20, 4, 0xCAFEBABE); err != nil {
+		t.Fatalf("HandleCacheWriteD007: %v", err)
+	}
+	if err := dwh.HandleCacheWriteD007(1, 0x30, 4, 0x12345678); err != nil {
+		t.Fatalf("HandleCacheWriteD007: %v", err)
+	}
+
+	// Flush dirty pages.
+	event, err := dwh.FlushDirtyPages()
+	if err != nil {
+		t.Fatalf("FlushDirtyPages: %v", err)
+	}
+
+	if event.PageCount != 1 {
+		t.Errorf("PageCount = %d, want 1", event.PageCount)
+	}
+
+	// Verify L2 was updated with dirty data.
+	got := ms.ReadWord(0x10)
+	if got != 0xDEADBEEF {
+		t.Errorf("L2 word at 0x10 = 0x%08X, want 0xDEADBEEF", got)
+	}
+
+	got = ms.ReadWord(0x20)
+	if got != 0xCAFEBABE {
+		t.Errorf("L2 word at 0x20 = 0x%08X, want 0xCAFEBABE", got)
+	}
+
+	got = ms.ReadWord(0x30)
+	if got != 0x12345678 {
+		t.Errorf("L2 word at 0x30 = 0x%08X, want 0x12345678", got)
+	}
+}
+
+func TestDirtyWritebackHandler_MultiFlow(t *testing.T) {
+	bpf := NewMemoryBPFMap(0)
+	cfg := Config{
+		RingSize:        2048,
+		PageSize:        256,
+		CacheLineSize:   64,
+		WritebackPeriod: 100 * time.Millisecond,
+		L1MaxPages:      16,
+	}
+	ms := NewMemoryService(cfg, bpf)
+
+	data := make([]byte, 512)
+	ms.LoadData(0, data)
+
+	dwh := NewDirtyWritebackHandler(ms, cfg, nil)
+
+	// Write from flow 1, line 0.
+	dwh.HandleCacheWriteD007(1, 0x10, 4, 0xAAAAAAAA)
+
+	// Write from flow 2, line 64.
+	dwh.HandleCacheWriteD007(2, 0x40+0x20, 4, 0xBBBBBBBB)
+
+	// Write from flow 3, line 128.
+	dwh.HandleCacheWriteD007(3, 0x80+0x30, 4, 0xCCCCCCCC)
+
+	event, _ := dwh.FlushDirtyPages()
+
+	// Should have 3 dirty lines across 3 flows.
+	if event.PageCount != 3 {
+		t.Errorf("PageCount = %d, want 3", event.PageCount)
+	}
+
+	// Verify each flow's write was persisted.
+	got1 := ms.ReadWord(0x10)
+	if got1 != 0xAAAAAAAA {
+		t.Errorf("flow 1, L2 = 0x%08X, want 0xAAAAAAAA", got1)
+	}
+
+	got2 := ms.ReadWord(0x40 + 0x20)
+	if got2 != 0xBBBBBBBB {
+		t.Errorf("flow 2, L2 = 0x%08X, want 0xBBBBBBBB", got2)
+	}
+
+	got3 := ms.ReadWord(0x80 + 0x30)
+	if got3 != 0xCCCCCCCC {
+		t.Errorf("flow 3, L2 = 0x%08X, want 0xCCCCCCCC", got3)
+	}
+}

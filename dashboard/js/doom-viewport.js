@@ -10,9 +10,25 @@
  *
  * The viewport also shows an overlay with CPU trace info:
  *   PC, register values, IPS (instructions per second), cache hit rate, FPS.
+ *
+ * CPU Trace Overlay (D-013):
+ *   - Toggleable with F3 key (separate from game keyboard input)
+ *   - Shows live CPU state: PC, registers, flags, IPS, cache hit rate, stall count
+ *   - Highlights changed registers in gold, flags in green (set) or gray (clear)
+ *   - Semi-transparent dark panel in top-left corner
  */
 (function () {
     'use strict';
+
+    // Event type constants (from Anamnesis)
+    var EventComputeHop   = 0x10;
+    var EventCacheMiss    = 0x11;
+    var EventMemWrite     = 0x12;
+    var EventMemStaged    = 0x13;
+    var EventScreenWrite  = 0x14;
+    var EventKeyRead      = 0x15;
+    var EventComputeHalt  = 0x16;
+    var EventComputeStall = 0x17;
 
     // Screen dimensions (MBC framebuffer)
     var SCREEN_W = 320;
@@ -47,6 +63,7 @@
     var reconnectTimer = null;
     var animFrameId = null;
     var statusCallbacks = [];
+    var cpuTrace = null; // CPU trace overlay (D-013)
 
     // ── Initialization ──────────────────────────────────────────────────────
 
@@ -94,14 +111,22 @@
         ].join('');
         container.appendChild(overlay);
 
+        // Initialize CPU trace overlay (D-013)
+        cpuTrace = new CpuTraceOverlay(canvas);
+
         // Keyboard capture (forward to Wotan compute.input topic).
+        // NOTE: F3 is reserved for CPU trace overlay toggle and won't be sent to game
         canvas.addEventListener('keydown', function (e) {
-            sendKeyEvent(e.keyCode, true);
-            e.preventDefault();
+            if (e.code !== 'F3') {  // Don't send F3 to game
+                sendKeyEvent(e.keyCode, true);
+                e.preventDefault();
+            }
         });
         canvas.addEventListener('keyup', function (e) {
-            sendKeyEvent(e.keyCode, false);
-            e.preventDefault();
+            if (e.code !== 'F3') {  // Don't send F3 to game
+                sendKeyEvent(e.keyCode, false);
+                e.preventDefault();
+            }
         });
 
         // Connect WebSocket (reuse existing dashboard WS or create new).
@@ -122,6 +147,211 @@
         ctx = null;
     }
 
+    // ── CPU Trace Overlay (D-013) ────────────────────────────────────────────
+
+    /**
+     * CpuTraceOverlay: Semi-transparent CPU debugger overlay showing:
+     *   - PC (program counter) with decoded instruction
+     *   - Registers r0-r15 (hex, highlight changes in gold)
+     *   - Flags: Z/N/C (green when set, gray when clear)
+     *   - Instructions/sec (rolling 1-second window)
+     *   - Cache hit rate % (hits / (hits+misses) over last 1 second)
+     *   - Stall count (per second)
+     *   - Hop ID of last instruction
+     *
+     * Toggle with F3 key (separate from game input).
+     */
+    function CpuTraceOverlay(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.visible = false;
+        this.lastEvent = null;
+        this.prevRegs = new Array(16).fill(0);
+
+        // Rolling stats window (1-second = 1e9 nanoseconds)
+        this.recentEvents = [];  // { ts: timestamp_ns, hit: cache_hit, stall: boolean }
+        this.statsWindowNs = 1000000000; // 1 second in nanoseconds
+
+        // F3 toggle (separate from game keyboard to avoid conflicts)
+        var self = this;
+        document.addEventListener('keydown', function (e) {
+            if (e.code === 'F3') {
+                e.preventDefault();
+                self.toggle();
+            }
+        });
+    }
+
+    CpuTraceOverlay.prototype.toggle = function () {
+        this.visible = !this.visible;
+    };
+
+    CpuTraceOverlay.prototype.onComputeEvent = function (evt) {
+        if (evt.event_type !== EventComputeHop) return;
+
+        // Track register changes
+        this.prevRegs = this.lastEvent ? this.lastEvent.regs.slice() : new Array(16).fill(0);
+        this.lastEvent = evt;
+
+        // Add to rolling window
+        var isStall = evt.event_type === EventComputeStall;
+        this.recentEvents.push({
+            ts: evt.timestamp_ns,
+            hit: evt.cache_hit ? 1 : 0,
+            stall: isStall
+        });
+
+        // Prune events older than 1 second
+        var cutoffTs = evt.timestamp_ns - this.statsWindowNs;
+        this.recentEvents = this.recentEvents.filter(function (e) {
+            return e.ts >= cutoffTs;
+        });
+    };
+
+    CpuTraceOverlay.prototype.getStats = function () {
+        var n = this.recentEvents.length;
+        if (n === 0) return { ips: 0, hitRate: 0, stallCount: 0 };
+
+        var hits = 0;
+        var stalls = 0;
+        for (var i = 0; i < this.recentEvents.length; i++) {
+            hits += this.recentEvents[i].hit;
+            if (this.recentEvents[i].stall) stalls++;
+        }
+
+        // IPS: events per second based on window duration
+        var ips = 0;
+        if (n > 1) {
+            var oldest = this.recentEvents[0].ts;
+            var newest = this.recentEvents[n - 1].ts;
+            var durationS = (newest - oldest) / 1000000000; // nanoseconds to seconds
+            ips = durationS > 0 ? Math.round(n / durationS) : 0;
+        }
+
+        var hitRate = Math.round((hits / n) * 100);
+        return { ips: ips, hitRate: hitRate, stallCount: stalls };
+    };
+
+    CpuTraceOverlay.prototype.decodeOpcode = function (insn) {
+        var opcode = (insn >>> 24) & 0xFF;
+        var opcodeNames = {
+            0x01: 'ADD', 0x02: 'SUB', 0x03: 'MUL', 0x04: 'DIV', 0x05: 'MOD', 0x06: 'NEG',
+            0x07: 'AND', 0x08: 'OR', 0x09: 'XOR', 0x0A: 'NOT', 0x0B: 'SHL', 0x0C: 'SHR',
+            0x0D: 'SAR', 0x0E: 'CMP',
+            0x20: 'JMP', 0x21: 'JZ', 0x22: 'JNZ', 0x23: 'JN', 0x24: 'JP', 0x25: 'JC',
+            0x26: 'JNC', 0x27: 'CALL', 0x28: 'RET', 0x29: 'MOV', 0x2A: 'MOVI',
+            0x30: 'LD', 0x31: 'ST', 0x32: 'LDB', 0x33: 'STB', 0x34: 'LDH', 0x35: 'STH',
+            0x40: 'SYSCALL', 0xFF: 'HALT'
+        };
+
+        var name = opcodeNames[opcode] || ('0x' + opcode.toString(16).toUpperCase());
+
+        // Special handling for SYSCALL
+        if (opcode === 0x40) {
+            var imm = insn & 0xFFFF;
+            var syscallNames = { 1: 'DRAW_FRAME', 2: 'GET_KEY', 3: 'GET_TICKS', 4: 'SLEEP', 0xFF: 'HALT' };
+            var scName = syscallNames[imm] || ('0x' + imm.toString(16).toUpperCase());
+            return 'SYSCALL ' + scName;
+        }
+
+        return name;
+    };
+
+    CpuTraceOverlay.prototype.render = function () {
+        // Guard: no-op if hidden or no event yet
+        if (!this.visible || !this.lastEvent) return;
+
+        var evt = this.lastEvent;
+        var ctx = this.ctx;
+        var stats = this.getStats();
+
+        // Overlay panel dimensions
+        var x = 8, y = 8;
+        var w = 300;
+        var lineH = 13;
+        var headerLines = 3;  // Title, PC+insn, FLAGS
+        var regLines = 4;     // 4 rows of 4 registers each
+        var statsLines = 1;   // IPS + cache + stall + hop
+        var footerLines = 1;  // F3 hint
+        var totalLines = headerLines + regLines + statsLines + footerLines;
+        var h = totalLines * lineH + 16;
+
+        // Save canvas state
+        ctx.save();
+
+        // Semi-transparent dark panel background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(x, y, w, h);
+
+        // Green border
+        ctx.strokeStyle = 'rgba(0, 200, 0, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, w, h);
+
+        // Font setup
+        ctx.font = '11px monospace';
+        ctx.textBaseline = 'top';
+        var ly = y + 10;
+
+        // Title
+        ctx.fillStyle = '#00FF00';
+        ctx.fillText('MONAD CPU TRACE', x + 4, ly);
+        ly += lineH;
+
+        // PC + opcode name
+        ctx.fillStyle = '#FFFF00';
+        var pcHex = evt.pc.toString(16).padStart(6, '0').toUpperCase();
+        var opname = this.decodeOpcode(evt.instruction);
+        ctx.fillText('PC: 0x' + pcHex + '  ' + opname, x + 4, ly);
+        ly += lineH;
+
+        // Flags: Z, N, C
+        var flags = evt.flags || 0;
+        var Z = (flags & 1) ? '#00FF00' : '#444444';
+        var N = (flags & 2) ? '#00FF00' : '#444444';
+        var C = (flags & 4) ? '#00FF00' : '#444444';
+
+        ctx.fillStyle = '#CCCCCC';
+        ctx.fillText('FLAGS:', x + 4, ly);
+        ctx.fillStyle = Z;
+        ctx.fillText('Z', x + 52, ly);
+        ctx.fillStyle = N;
+        ctx.fillText('N', x + 64, ly);
+        ctx.fillStyle = C;
+        ctx.fillText('C', x + 76, ly);
+        ly += lineH;
+
+        // Registers r0-r15 in 4 columns x 4 rows
+        for (var row = 0; row < 4; row++) {
+            var tx = x + 4;
+            for (var col = 0; col < 4; col++) {
+                var ri = row * 4 + col;
+                var val = evt.regs[ri];
+                var changed = val !== this.prevRegs[ri];
+
+                // Changed registers in gold, unchanged in gray
+                ctx.fillStyle = changed ? '#FFD700' : '#AAAAAA';
+                var regHex = val.toString(16).padStart(8, '0').toUpperCase();
+                ctx.fillText('r' + ri.toString().padStart(2, '0') + ':' + regHex, tx, ly);
+                tx += 75;
+            }
+            ly += lineH;
+        }
+
+        // Stats line: IPS, cache hit rate, stall count, hop ID
+        ctx.fillStyle = '#00FFFF';
+        var statsText = 'IPS: ' + stats.ips.toLocaleString() + '  HIT: ' + stats.hitRate + '%  ' +
+                        'STALL: ' + stats.stallCount + '  HOP: ' + evt.hop_id;
+        ctx.fillText(statsText, x + 4, ly);
+        ly += lineH;
+
+        // Footer hint
+        ctx.fillStyle = '#FF6600';
+        ctx.fillText('[F3] Toggle', x + 4, ly);
+
+        ctx.restore();
+    };
+
     // ── WebSocket ───────────────────────────────────────────────────────────
 
     function connectWebSocket() {
@@ -141,10 +371,10 @@
         ws.onopen = function () {
             console.log('[DoomViewport] WebSocket connected');
             notifyStatus('connected');
-            // Subscribe to compute screen updates
+            // Subscribe to compute screen updates and CPU trace events (D-013)
             ws.send(JSON.stringify({
                 type: 'subscribe',
-                channels: ['compute_screen', 'compute_stats']
+                channels: ['compute_screen', 'compute_stats', 'compute_hop']
             }));
         };
 
@@ -209,6 +439,13 @@
                 if (msg.cache_hit_rate !== undefined) stats.cacheHitRate = msg.cache_hit_rate;
                 break;
 
+            case 'compute_hop':
+                // D-013: CPU trace event with ComputeHopEvent structure
+                if (msg.data && cpuTrace) {
+                    cpuTrace.onComputeEvent(msg.data);
+                }
+                break;
+
             case 'pong':
                 break;
         }
@@ -229,6 +466,10 @@
     function renderLoop() {
         renderFrame();
         updateOverlay();
+        // D-013: Render CPU trace overlay on top of frame (only if visible, no-op otherwise)
+        if (cpuTrace) {
+            cpuTrace.render();
+        }
         animFrameId = requestAnimationFrame(renderLoop);
     }
 
@@ -434,7 +675,14 @@
             var el = document.getElementById('doom-overlay');
             if (el) el.style.display = overlayEnabled ? '' : 'none';
         },
-        getScreenBuffer: function () { return new Uint8Array(screenBuffer); }
+        getScreenBuffer: function () { return new Uint8Array(screenBuffer); },
+        // D-013: CPU trace overlay control
+        toggleCpuTrace: function () {
+            if (cpuTrace) cpuTrace.toggle();
+        },
+        getCpuTraceVisible: function () {
+            return cpuTrace ? cpuTrace.visible : false;
+        }
     };
 
     // Auto-init when DOM is ready.

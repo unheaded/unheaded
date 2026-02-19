@@ -47,15 +47,16 @@ use aya_ebpf::{
     bindings::xdp_action,
     helpers::{bpf_ktime_get_ns, bpf_get_prandom_u32},
     macros::{map, xdp},
-    maps::{Array, HashMap},
+    maps::{Array, HashMap, RingBuf, LruHashMap},
     programs::XdpContext,
 };
 use monad_common::{
     Monad,
-    MbcCpuState, MbcInsn,
+    MbcCpuState, MbcInsn, ComputeHopEvent,
     mbc_opcodes as op, mbc_flags as mf, mbc_syscalls as sys, mbc_mmap as mmap,
     IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_TYPE, MONAD_OPT_DATA_LEN, MONAD_SIZE,
     flags, MBC_REG_COUNT,
+    EVENT_CACHE_MISS, EVENT_SCREEN_WRITE, EVENT_COMPUTE_HALT,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -95,6 +96,17 @@ static CPU_MAP: HashMap<u32, MbcCpuState> = HashMap::with_max_entries(256, 0);
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 
+/// L1 cache: BPF_MAP_TYPE_LRU_HASH for cache line storage.
+/// Key = cache line address (byte_addr & !63, 64-byte alignment).
+/// Value = 64-byte cache line buffer.
+/// Max entries = 256 cache lines (16 KiB total L1 cache).
+#[map]
+static L1_CACHE: LruHashMap<u32, [u8; 64]> = LruHashMap::with_max_entries(256, 0);
+
+/// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
+#[map]
+static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_capacity(262_144, 0);
+
 // ── Stat keys ─────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL:   u32 = 0;
 const STAT_CPU_TICKS:       u32 = 1;
@@ -105,6 +117,8 @@ const STAT_NO_STATE:        u32 = 5;
 const STAT_MEM_FAULTS:      u32 = 6;
 const STAT_SYSCALLS:        u32 = 7;
 const STAT_ROM_FAULT:       u32 = 8;
+const STAT_CACHE_HITS:      u32 = 9;
+const STAT_CACHE_MISSES:    u32 = 10;
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -211,6 +225,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         }
     };
     let cpu = unsafe { &mut *cpu_ptr };
+
+    // Extract hop_id from the Monad for event emission
+    let hop_id = monad.hop_count;
 
     // ── Halted check ──────────────────────────────────────────────────────────
     if cpu.halted != 0 {
@@ -384,31 +401,79 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
         // ── Memory ────────────────────────────────────────────────────────────
         } else if opc == op::LD {
-            // dst = ram_map[src + imm16]  (32-bit load)
-            let ea = cpu.regs[s].wrapping_add(imm);
-            cpu.regs[d] = mem_read_word(ea >> 2);
+            // dst = l1_cache[src + imm16]  (32-bit load via L1)
+            let addr = cpu.regs[s].wrapping_add(imm);
+            match l1_load_u32(addr) {
+                Ok(val) => {
+                    cpu.regs[d] = val;
+                    cpu.cache_hits += 1;
+                    increment_stat(STAT_CACHE_HITS);
+                }
+                Err(_miss_addr) => {
+                    // Cache miss — emit event and stall
+                    cpu.cache_misses += 1;
+                    increment_stat(STAT_CACHE_MISSES);
+                    cpu.stalled = 1;
+                    emit_cache_miss(flow_label, addr, hop_id);
+                    // DO NOT increment PC — retry next circulation
+                    return Ok(xdp_action::XDP_PASS);
+                }
+            }
         } else if opc == op::ST {
-            // ram_map[dst + imm16] = src  (32-bit store)
-            let ea = cpu.regs[d].wrapping_add(imm);
-            mem_write_word(ea >> 2, cpu.regs[s]);
+            // l1_cache[dst + imm16] = src  (32-bit store via L1)
+            let addr = cpu.regs[d].wrapping_add(imm);
+            let val = cpu.regs[s];
+            l1_store_u32(addr, val);
+            cpu.cache_hits += 1;
+            increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDB {
-            // dst = zero_extend(ram_map[src + imm16])  (byte load)
-            let ea    = cpu.regs[s].wrapping_add(imm);
-            let byte  = mem_read_byte(ea);
-            cpu.regs[d] = byte as u32;
+            // dst = zero_extend(l1_cache[src + imm16])  (byte load via L1)
+            let addr = cpu.regs[s].wrapping_add(imm);
+            match l1_load_u8(addr) {
+                Ok(byte) => {
+                    cpu.regs[d] = byte as u32;
+                    cpu.cache_hits += 1;
+                    increment_stat(STAT_CACHE_HITS);
+                }
+                Err(_miss_addr) => {
+                    cpu.cache_misses += 1;
+                    increment_stat(STAT_CACHE_MISSES);
+                    cpu.stalled = 1;
+                    emit_cache_miss(flow_label, addr, hop_id);
+                    return Ok(xdp_action::XDP_PASS);
+                }
+            }
         } else if opc == op::STB {
-            // ram_map[dst + imm16] = src & 0xFF  (byte store)
-            let ea = cpu.regs[d].wrapping_add(imm);
-            mem_write_byte(ea, (cpu.regs[s] & 0xFF) as u8);
+            // l1_cache[dst + imm16] = src & 0xFF  (byte store via L1)
+            let addr = cpu.regs[d].wrapping_add(imm);
+            let val = (cpu.regs[s] & 0xFF) as u8;
+            l1_store_u8(addr, val);
+            cpu.cache_hits += 1;
+            increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDH {
-            // dst = zero_extend(halfword at [src + imm16])
-            let ea = cpu.regs[s].wrapping_add(imm);
-            let hw = mem_read_half(ea);
-            cpu.regs[d] = hw as u32;
+            // dst = zero_extend(l1_cache[src + imm16])  (16-bit load via L1)
+            let addr = cpu.regs[s].wrapping_add(imm);
+            match l1_load_u16(addr) {
+                Ok(hw) => {
+                    cpu.regs[d] = hw as u32;
+                    cpu.cache_hits += 1;
+                    increment_stat(STAT_CACHE_HITS);
+                }
+                Err(_miss_addr) => {
+                    cpu.cache_misses += 1;
+                    increment_stat(STAT_CACHE_MISSES);
+                    cpu.stalled = 1;
+                    emit_cache_miss(flow_label, addr, hop_id);
+                    return Ok(xdp_action::XDP_PASS);
+                }
+            }
         } else if opc == op::STH {
-            // [dst + imm16] = src & 0xFFFF
-            let ea = cpu.regs[d].wrapping_add(imm);
-            mem_write_half(ea, (cpu.regs[s] & 0xFFFF) as u16);
+            // l1_cache[dst + imm16] = src & 0xFFFF  (16-bit store via L1)
+            let addr = cpu.regs[d].wrapping_add(imm);
+            let val = (cpu.regs[s] & 0xFFFF) as u16;
+            l1_store_u16(addr, val);
+            cpu.cache_hits += 1;
+            increment_stat(STAT_CACHE_HITS);
 
         // ── System ────────────────────────────────────────────────────────────
         } else if opc == op::SYSCALL {
@@ -416,9 +481,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let syscall_nr = cpu.regs[0];
             if syscall_nr == sys::SYS_DRAW_FRAME {
                 // DG_DrawFrame: r1 = pixel buffer pointer in RAM.
-                // We copy 64000 bytes from RAM (starting at r1) to SCREEN_MAP.
-                // Bounded loop: exactly 64000 byte writes.
+                // Emit SCREEN_WRITE event so Wotan can push to dashboard.
                 let fb_ptr = cpu.regs[1];
+                emit_screen_write(flow_label, fb_ptr, hop_id);
                 copy_fb_to_screen(fb_ptr);
             } else if syscall_nr == sys::SYS_GET_KEY {
                 // DG_GetKey: r0 = scancode, r1 = pressed.
@@ -445,15 +510,220 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::HALT {
             cpu.halted = 1;
             increment_stat(STAT_HALTED);
+            emit_compute_halt(flow_label, cpu.insn_count, hop_id);
             break;
         }
         // Unknown opcode: treat as NOP (fail-open for forward compat).
 
         i += 1;
+        cpu.insn_count += 1;
         increment_stat(STAT_INSNS_EXECUTED);
     }
 
     Ok(xdp_action::XDP_DROP) // tick packet consumed — do not forward
+}
+
+// ── L1 Cache helpers ──────────────────────────────────────────────────────────
+
+/// Load a u32 from L1 cache. Returns Ok(val) on hit, Err(addr) on miss.
+/// Cache line key = addr & !63 (64-byte alignment).
+/// Offset within line = addr & 63.
+#[inline(always)]
+fn l1_load_u32(addr: u32) -> Result<u32, u32> {
+    let line_key = addr & !63u32;
+    let offset = (addr & 63) as usize;
+
+    // Bounds check: offset + 3 must be < 64
+    if offset + 3 >= 64 {
+        return Err(addr);
+    }
+
+    match unsafe { L1_CACHE.get(&line_key) } {
+        Some(line) => {
+            let val = u32::from_le_bytes([
+                line[offset],
+                line[offset + 1],
+                line[offset + 2],
+                line[offset + 3],
+            ]);
+            Ok(val)
+        }
+        None => Err(addr),
+    }
+}
+
+/// Store a u32 to L1 cache. Creates or updates the cache line.
+#[inline(always)]
+fn l1_store_u32(addr: u32, val: u32) {
+    let line_key = addr & !63u32;
+    let offset = (addr & 63) as usize;
+
+    if offset + 3 >= 64 {
+        return;
+    }
+
+    let mut line = match unsafe { L1_CACHE.get(&line_key) } {
+        Some(existing) => *existing,
+        None => [0u8; 64],
+    };
+
+    let bytes = val.to_le_bytes();
+    line[offset] = bytes[0];
+    line[offset + 1] = bytes[1];
+    line[offset + 2] = bytes[2];
+    line[offset + 3] = bytes[3];
+
+    let _ = unsafe { L1_CACHE.insert(&line_key, &line, 0) };
+}
+
+/// Load a u8 from L1 cache.
+#[inline(always)]
+fn l1_load_u8(addr: u32) -> Result<u8, u32> {
+    let line_key = addr & !63u32;
+    let offset = (addr & 63) as usize;
+
+    if offset >= 64 {
+        return Err(addr);
+    }
+
+    match unsafe { L1_CACHE.get(&line_key) } {
+        Some(line) => Ok(line[offset]),
+        None => Err(addr),
+    }
+}
+
+/// Store a u8 to L1 cache.
+#[inline(always)]
+fn l1_store_u8(addr: u32, val: u8) {
+    let line_key = addr & !63u32;
+    let offset = (addr & 63) as usize;
+
+    if offset >= 64 {
+        return;
+    }
+
+    let mut line = match unsafe { L1_CACHE.get(&line_key) } {
+        Some(existing) => *existing,
+        None => [0u8; 64],
+    };
+
+    line[offset] = val;
+    let _ = unsafe { L1_CACHE.insert(&line_key, &line, 0) };
+}
+
+/// Load a u16 from L1 cache.
+#[inline(always)]
+fn l1_load_u16(addr: u32) -> Result<u16, u32> {
+    let line_key = addr & !63u32;
+    let offset = (addr & 63) as usize;
+
+    if offset + 1 >= 64 {
+        return Err(addr);
+    }
+
+    match unsafe { L1_CACHE.get(&line_key) } {
+        Some(line) => {
+            let val = u16::from_le_bytes([line[offset], line[offset + 1]]);
+            Ok(val)
+        }
+        None => Err(addr),
+    }
+}
+
+/// Store a u16 to L1 cache.
+#[inline(always)]
+fn l1_store_u16(addr: u32, val: u16) {
+    let line_key = addr & !63u32;
+    let offset = (addr & 63) as usize;
+
+    if offset + 1 >= 64 {
+        return;
+    }
+
+    let mut line = match unsafe { L1_CACHE.get(&line_key) } {
+        Some(existing) => *existing,
+        None => [0u8; 64],
+    };
+
+    let bytes = val.to_le_bytes();
+    line[offset] = bytes[0];
+    line[offset + 1] = bytes[1];
+
+    let _ = unsafe { L1_CACHE.insert(&line_key, &line, 0) };
+}
+
+// ── Event emission helpers ─────────────────────────────────────────────────────
+
+/// Emit a CACHE_MISS event to the ring buffer.
+#[inline(always)]
+fn emit_cache_miss(flow_label: u32, miss_addr: u32, hop_id: u8) {
+    if let Some(mut entry) = unsafe { COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) } {
+        let event = ComputeHopEvent {
+            timestamp_ns: unsafe { bpf_ktime_get_ns() },
+            event_type: EVENT_CACHE_MISS,
+            hop_id,
+            _pad: [0; 2],
+            flow_label,
+            pc: 0,
+            instruction: 0,
+            regs: [0; 16],
+            flags: 0,
+            cache_hit: 0,
+            miss_addr,
+        };
+        unsafe {
+            core::ptr::write(entry.as_mut_ptr(), event);
+            entry.submit(0);
+        }
+    }
+}
+
+/// Emit a SCREEN_WRITE event to the ring buffer.
+#[inline(always)]
+fn emit_screen_write(flow_label: u32, fb_addr: u32, hop_id: u8) {
+    if let Some(mut entry) = unsafe { COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) } {
+        let event = ComputeHopEvent {
+            timestamp_ns: unsafe { bpf_ktime_get_ns() },
+            event_type: EVENT_SCREEN_WRITE,
+            hop_id,
+            _pad: [0; 2],
+            flow_label,
+            pc: fb_addr,  // Reuse pc field for framebuffer address
+            instruction: 0,
+            regs: [0; 16],
+            flags: 0,
+            cache_hit: 0,
+            miss_addr: 0,
+        };
+        unsafe {
+            core::ptr::write(entry.as_mut_ptr(), event);
+            entry.submit(0);
+        }
+    }
+}
+
+/// Emit a COMPUTE_HALT event to the ring buffer.
+#[inline(always)]
+fn emit_compute_halt(flow_label: u32, insn_count: u64, hop_id: u8) {
+    if let Some(mut entry) = unsafe { COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) } {
+        let event = ComputeHopEvent {
+            timestamp_ns: unsafe { bpf_ktime_get_ns() },
+            event_type: EVENT_COMPUTE_HALT,
+            hop_id,
+            _pad: [0; 2],
+            flow_label,
+            pc: 0,
+            instruction: (insn_count & 0xFFFF_FFFF) as u32,
+            regs: [0; 16],
+            flags: 0,
+            cache_hit: 0,
+            miss_addr: 0,
+        };
+        unsafe {
+            core::ptr::write(entry.as_mut_ptr(), event);
+            entry.submit(0);
+        }
+    }
 }
 
 // ── MBC CPU flag helper ───────────────────────────────────────────────────────
