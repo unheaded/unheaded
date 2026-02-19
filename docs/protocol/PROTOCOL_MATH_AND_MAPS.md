@@ -26,16 +26,16 @@ The Monad is a 20-byte fixed structure carried as an IPv6 Hop-by-Hop Option (RFC
 Offset    │  │  │  0x00  0x01  0x02  0x03         ││   │
           │  │  │ ┌──────┬──────┬──────┬──────┐   ││   │
    0x00   │  │  │ │ vers │ src  │ dst  │ hop  │   ││   │
-   0x04   │  │  │ ├──────┼──────┼──────┼──────┤   ││   │
-          │  │  │ │        trace_id (u32)      │   ││   │
+   0x04   │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
+          │  │  │ │ qos  │ act  │ state│ flags│   ││   │
    0x08   │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
-   0x0C   │  │  │ │ qos  │ act  │ state│ flags│   ││   │
-          │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
-   0x10   │  │  │ │   latency_us (u16)  │ ring │   ││   │
-          │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
-   0x14   │  │  │ │  mesh_flags  │   reserved   │   ││   │
-          │  │  │ ├──────────────────────────┤   ││   │
-   0x18   │  │  │ │       checksum (u16)      │   ││   │
+          │  │  │ │  latency_hint (u16)  │ ring │   ││   │
+   0x0C   │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
+          │  │  │ │mesh_fl│src_px│dst_px│scratch[0]  ││   │
+   0x0E   │  │  │ ├──────┬──────┬──────┬──────┤   ││   │
+          │  │  │ │  scratch[1-3]  │  checksum  │   ││   │
+   0x12   │  │  │ ├──────────────────────────┤   ││   │
+          │  │  │ │                          │   ││   │
           │  │  │ └──────────────────────────┘   ││   │
           │  │  └─────────────────────────────────┘│   │
           │  └─────────────────────────────────────┘   │
@@ -43,8 +43,9 @@ Offset    │  │  │  0x00  0x01  0x02  0x03         ││   │
 
   All fields network byte order (big-endian).
   8 exponent-encoded fields (Sophia lookup): src_service_id, dst_service_id,
-  qos_class, flow_action, circuit_state, deployment_ring, mesh_flags
-  6 raw fields: version, hop_count, trace_id, flags, latency_budget_us, reserved
+  qos_class, flow_action, circuit_state, deploy_ring, mesh_flags
+  6 raw fields: version, hop_count, flags, latency_hint, src_prefix_lo, dst_prefix_lo
+  4 scratch bytes and 2-byte checksum (raw, but may be exponent-encoded when CUSTOM flag is set)
   The Monad is the ONLY state that travels with the packet.
   All other memory lives in Wotan (see Memory Hierarchy below).
 ```
@@ -58,37 +59,38 @@ OFFSET  SIZE  FIELD               TYPE        DESCRIPTION
 0x01    1B    src_service_id      exponent    Source service (Sophia lookup)
 0x02    1B    dst_service_id      exponent    Destination service (Sophia)
 0x03    1B    hop_count           raw u8      Incremented at each hop
-0x04    4B    trace_id            raw u32     Flow trace correlation
-0x08    1B    qos_class           exponent    QoS classification
-0x09    1B    flow_action         exponent    Action directive
-0x0A    1B    circuit_state       exponent    Circuit breaker state
-0x0B    1B    flags               raw u8      Bitfield (C,Y,T,E,S,M,K1,K0)
-0x0C    2B    latency_budget_us   raw u16     Latency budget in microseconds
-0x0E    1B    deployment_ring     exponent    Deployment ring
-0x0F    1B    mesh_flags          exponent    Mesh-level flags
-0x10    2B    reserved            raw u16     Reserved (MUST be zero)
+0x04    1B    qos_class           exponent    QoS classification
+0x05    1B    flow_action         exponent    Action directive
+0x06    1B    circuit_state       exponent    Circuit breaker state
+0x07    1B    flags               raw u8      Bitfield (C,Y,T,E,S,M,CUSTOM,RSVD)
+0x08    2B    latency_hint        raw u16     Latency hint in microseconds
+0x0A    1B    deploy_ring         exponent    Deployment ring
+0x0B    1B    mesh_flags          exponent    Mesh-level flags
+0x0C    1B    src_prefix_lo       raw u8      Source routing prefix low octet
+0x0D    1B    dst_prefix_lo       raw u8      Destination routing prefix low octet
+0x0E    4B    scratch[0-3]        raw u8      Scratch registers (4 bytes)
 0x12    2B    checksum            raw u16     CRC-16/CCITT over bytes 0x00-0x11
 ──────  ────  ─────────────────   ───────────  ───────────────────────────
 TOTAL   20B                                    14 fields, 8 exponent + 6 raw
 ```
 
-### FLAGS Bitfield (0x0B)
+### FLAGS Bitfield (0x07)
 
 ```
 Bit 7 (MSB)                                              Bit 0 (LSB)
 ┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
-│    C    │    Y    │    T    │    E    │    S    │    M    │   K1    │   K0    │
+│    C    │    Y    │    T    │    E    │    S    │    M    │  CUST   │  RSVD   │
 │  0x80   │  0x40   │  0x20   │  0x10   │  0x08   │  0x04   │  0x02   │  0x01   │
 └─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
 
-  C (CHAOS,  bit 7, 0x80): Chaos injection marker. Visible downstream.
-  Y (CANARY, bit 6, 0x40): Packet belongs to canary deployment path.
-  T (TRACED, bit 5, 0x20): Full trace active — every hop emits to Anamnesis.
-  E (ENCRYPT,bit 4, 0x10): Payload is encrypted (intra-Kingdom TLS).
-  S (SAMPLED,bit 3, 0x08): Packet selected for statistical sampling.
-  M (MIRROR, bit 2, 0x04): This is a mirror copy (not the original).
-  K1 (bit 1, 0x02): Exponent lookup key position 1.
-  K0 (bit 0, 0x01): Exponent lookup key position 0.
+  C (CHAOS,   bit 7, 0x80): Chaos injection marker. Visible downstream.
+  Y (CANARY,  bit 6, 0x40): Packet belongs to canary deployment path.
+  T (TRACED,  bit 5, 0x20): Full trace active — every hop emits to Anamnesis.
+  E (ENCRYPT, bit 4, 0x10): Payload is encrypted (intra-Kingdom TLS).
+  S (SAMPLED, bit 3, 0x08): Packet selected for statistical sampling.
+  M (MIRROR,  bit 2, 0x04): This is a mirror copy (not the original).
+  CUST (CUSTOM, bit 1, 0x02): Scratch & checksum carry exponent-encoded values.
+  RSVD (bit 0, 0x01): Reserved. MUST be zero.
 ```
 
 ---
@@ -246,7 +248,7 @@ The Monad is carried in an IPv6 Hop-by-Hop Options extension header per RFC 8200
 ```
 Let K = number of exponent key positions in the Monad
   K = 8 (exponent-encoded fields: src_service_id, dst_service_id,
-         qos_class, flow_action, circuit_state, deployment_ring, mesh_flags)
+         qos_class, flow_action, circuit_state, deploy_ring, mesh_flags)
   Note: K=14 counts ALL fields including raw ones, but only K=8 participate
         in Sophia exponent lookup. Raw fields have fixed semantics.
 
@@ -436,15 +438,16 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
   │  │  src_service_id (exponent)                  │         │
   │  │  dst_service_id (exponent)                  │         │
   │  │  hop_count (u8)                             │         │
-  │  │  trace_id (u32)                             │         │
   │  │  qos_class (exponent)                       │         │
   │  │  flow_action (exponent)                     │         │
   │  │  circuit_state (exponent)                   │         │
   │  │  flags (u8)                                 │         │
-  │  │  latency_budget_us (u16)                    │         │
-  │  │  deployment_ring (exponent)                 │         │
+  │  │  latency_hint (u16)                         │         │
+  │  │  deploy_ring (exponent)                     │         │
   │  │  mesh_flags (exponent)                      │         │
-  │  │  reserved (u16)                             │         │
+  │  │  src_prefix_lo (u8)                         │         │
+  │  │  dst_prefix_lo (u8)                         │         │
+  │  │  scratch[0-3] (4 bytes)                     │         │
   │  │  checksum (u16, CRC-16/CCITT over 0x00-11) │         │
   │  │                                             │         │
   │  │  PadN alignment to 8-byte boundary          │         │
@@ -456,7 +459,7 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
   Shield ingress XDP/TC operation:
     1. Allocate Wotan memory for this flow (keyed by Flow Label)
     2. Construct Hop-by-Hop extension header with Monad
-    3. Initialize Monad fields (version, service IDs, trace_id, etc.) per program
+    3. Initialize Monad fields (version, service IDs, qos, flags, etc.) per program
     4. Set metadata: hop_count=0, flags, circuit_state
     5. Compute CRC-16/CCITT checksum over Monad bytes 0x00-0x11
     6. Update IPv6 Next Header = 0 (Hop-by-Hop)
@@ -501,9 +504,10 @@ AFTER (Kingdom packet — IPv6 + Hop-by-Hop + Monad + payload):
   ┌──────────────────────────────────────────────────────────────┐
   │ L0: Monad Fields (20 bytes)                                  │
   │     Fields: version, src_service_id, dst_service_id,         │
-  │            hop_count, trace_id, qos_class, flow_action,      │
-  │            circuit_state, flags, latency_budget_us,          │
-  │            deployment_ring, mesh_flags, reserved, checksum   │
+  │            hop_count, qos_class, flow_action,                │
+  │            circuit_state, flags, latency_hint,               │
+  │            deploy_ring, mesh_flags, src_prefix_lo,           │
+  │            dst_prefix_lo, scratch[0-3], checksum             │
   │     Size: 20 bytes (fixed)                                   │
   │     Latency: per-hop (~320 ns including CRC)                  │
   │     Location: IN the packet (Hop-by-Hop option)              │
@@ -635,7 +639,7 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
             --ring-size bounds physical tape (resource limit, not fundamental)
 
   2. STATE: Monad circuit_state field = current state q in Q
-            Monad latency_budget_us or reserved field = head position
+            Monad latency_hint or scratch field = head position
 
   3. TRANSITION: Shim BPF program implements delta:
 
@@ -759,10 +763,12 @@ Any general-purpose computer requires exactly five things. The Monad + Wotan pro
   │ Option TLV (2B): Type, Length                    │
   │ Monad (20B): version, src_service_id,            │
   │              dst_service_id, hop_count,          │
-  │              trace_id, qos_class, flow_action,   │
+  │              qos_class, flow_action,             │
   │              circuit_state, flags,               │
-  │              latency_budget_us, deployment_ring, │
-  │              mesh_flags, reserved, checksum      │
+  │              latency_hint, deploy_ring,          │
+  │              mesh_flags, src_prefix_lo,          │
+  │              dst_prefix_lo, scratch[0-3],        │
+  │              checksum                            │
   └──────────────────────────────────────────────────┘
                                                       = 24 bytes total
                                                         (on the wire)
@@ -921,11 +927,11 @@ The Unheaded Protocol builds on decades of prior art in bus-based metadata trans
 |                                                                   |
 |  EXPONENT FIELDS: 8 (Sophia lookup)                              |
 |    src_service_id, dst_service_id, qos_class, flow_action,       |
-|    circuit_state, deployment_ring, mesh_flags                    |
+|    circuit_state, deploy_ring, mesh_flags                        |
 |                                                                   |
 |  RAW FIELDS: 6 (fixed semantics)                                 |
-|    version, hop_count, trace_id, flags,                          |
-|    latency_budget_us, reserved                                   |
+|    version, hop_count, flags, latency_hint,                      |
+|    src_prefix_lo, dst_prefix_lo, scratch[0-3], checksum          |
 |                                                                   |
 |  CHECKSUM: CRC-16/CCITT-FALSE (polynomial 0x1021,                |
 |            init 0xFFFF, no reflection)                           |
