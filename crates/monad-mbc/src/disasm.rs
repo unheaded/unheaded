@@ -79,7 +79,17 @@ pub fn disasm_insn(word: u32, addr: u32) -> String {
         op::LDH => format!("LDH  r{}, [r{}+{}]", dst, src, imm),
         op::STH => format!("STH  [r{}+{}], r{}", dst, imm, src),
 
-        op::SYSCALL => "SYSCALL".to_string(),
+        op::SYSCALL => {
+            // Show named aliases for common syscall numbers
+            match imm_u {
+                0x01 => "DRAW_FRAME".to_string(),
+                0x02 => "GET_KEY".to_string(),
+                0x03 => "GET_TICKS".to_string(),
+                0x04 => "SLEEP".to_string(),
+                0xFF => "HALT_SYSCALL".to_string(),
+                _ => format!("SYSCALL 0x{:x}", imm_u),
+            }
+        }
         op::HALT => "HALT".to_string(),
 
         _ => format!("UNKNOWN 0x{:02x}", opcode),

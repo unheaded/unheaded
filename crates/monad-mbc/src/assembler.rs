@@ -204,11 +204,60 @@ fn parse_instruction(
     }
 
     if mnemonic == "SYSCALL" {
+        // SYSCALL takes an immediate syscall number
+        require_tokens!(1);
+        let imm = parse_immediate(tokens[1].trim_end_matches(','))
+            .map_err(|_| AssembleError::Line {
+                line: line_num,
+                message: format!("Invalid syscall number: '{}'", tokens[1]),
+            })?;
+
         return Ok(Some(AsmInsn {
             opcode: op::SYSCALL,
             dst: 0,
             src: 0,
-            imm: 0,
+            imm,
+            label_ref: None,
+        }));
+    }
+
+    // SYSCALL named aliases (sugar for SYSCALL with specific imm16 values)
+    if mnemonic == "DRAW_FRAME" {
+        return Ok(Some(AsmInsn {
+            opcode: op::SYSCALL,
+            dst: 0,
+            src: 0,
+            imm: 0x01,
+            label_ref: None,
+        }));
+    }
+
+    if mnemonic == "GET_KEY" {
+        return Ok(Some(AsmInsn {
+            opcode: op::SYSCALL,
+            dst: 0,
+            src: 0,
+            imm: 0x02,
+            label_ref: None,
+        }));
+    }
+
+    if mnemonic == "GET_TICKS" {
+        return Ok(Some(AsmInsn {
+            opcode: op::SYSCALL,
+            dst: 0,
+            src: 0,
+            imm: 0x03,
+            label_ref: None,
+        }));
+    }
+
+    if mnemonic == "SLEEP" {
+        return Ok(Some(AsmInsn {
+            opcode: op::SYSCALL,
+            dst: 0,
+            src: 0,
+            imm: 0x04,
             label_ref: None,
         }));
     }
@@ -566,5 +615,83 @@ mod tests {
         "#;
         let result = assemble(code).expect("assembly should succeed");
         assert!(result.len() > 0);
+    }
+
+    #[test]
+    fn test_syscall_encoding() {
+        let code = "SYSCALL 0x01\nHALT";
+        let result = assemble(code).expect("assembly should succeed");
+        assert_eq!(result.len(), 2);
+
+        // SYSCALL 0x01 should encode as opcode 0x40 with imm 0x01
+        let insn = MbcInsn(result[0]);
+        assert_eq!(insn.opcode(), op::SYSCALL);
+        assert_eq!(insn.imm16(), 0x01);
+    }
+
+    #[test]
+    fn test_draw_frame_alias() {
+        let code = "DRAW_FRAME\nHALT";
+        let result = assemble(code).expect("assembly should succeed");
+        assert_eq!(result.len(), 2);
+
+        let insn = MbcInsn(result[0]);
+        assert_eq!(insn.opcode(), op::SYSCALL);
+        assert_eq!(insn.imm16(), 0x01);
+    }
+
+    #[test]
+    fn test_get_key_alias() {
+        let code = "GET_KEY\nHALT";
+        let result = assemble(code).expect("assembly should succeed");
+        assert_eq!(result.len(), 2);
+
+        let insn = MbcInsn(result[0]);
+        assert_eq!(insn.opcode(), op::SYSCALL);
+        assert_eq!(insn.imm16(), 0x02);
+    }
+
+    #[test]
+    fn test_get_ticks_alias() {
+        let code = "GET_TICKS\nHALT";
+        let result = assemble(code).expect("assembly should succeed");
+        assert_eq!(result.len(), 2);
+
+        let insn = MbcInsn(result[0]);
+        assert_eq!(insn.opcode(), op::SYSCALL);
+        assert_eq!(insn.imm16(), 0x03);
+    }
+
+    #[test]
+    fn test_sleep_alias() {
+        let code = "SLEEP\nHALT";
+        let result = assemble(code).expect("assembly should succeed");
+        assert_eq!(result.len(), 2);
+
+        let insn = MbcInsn(result[0]);
+        assert_eq!(insn.opcode(), op::SYSCALL);
+        assert_eq!(insn.imm16(), 0x04);
+    }
+
+    #[test]
+    fn test_syscall_hex_immediate() {
+        let code = "SYSCALL 0xFF\nHALT";
+        let result = assemble(code).expect("assembly should succeed");
+        assert_eq!(result.len(), 2);
+
+        let insn = MbcInsn(result[0]);
+        assert_eq!(insn.opcode(), op::SYSCALL);
+        assert_eq!(insn.imm16(), 0xFF);
+    }
+
+    #[test]
+    fn test_syscall_decimal_immediate() {
+        let code = "SYSCALL 42\nHALT";
+        let result = assemble(code).expect("assembly should succeed");
+        assert_eq!(result.len(), 2);
+
+        let insn = MbcInsn(result[0]);
+        assert_eq!(insn.opcode(), op::SYSCALL);
+        assert_eq!(insn.imm16(), 42);
     }
 }
