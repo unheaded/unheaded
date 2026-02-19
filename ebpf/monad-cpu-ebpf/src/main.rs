@@ -63,16 +63,16 @@ use monad_common::{
 
 /// ROM: MBC program instructions, u32 per slot.
 /// Index = PC value.  Loaded by Wotan trace-collector from .mbc binary.
-/// 65 536 entries = 256 KiB of instructions.
+/// 262 144 entries = 1 MiB of instructions.
 #[map]
-static ROM_MAP: Array<u32> = Array::with_max_entries(65_536, 0);
+static ROM_MAP: Array<u32> = Array::with_max_entries(262_144, 0);
 
 /// RAM: sparse word-addressable memory.
 /// Key = word address (byte_addr >> 2).  Value = 32-bit word.
-/// Covers [0x0000_0000 .. 0x0041_0000) word-addressed (1M word entries).
+/// Covers full 8 MiB address space word-addressed (2M word entries = 8 MiB).
 /// Zero-initialized: missing key → value 0.
 #[map]
-static RAM_MAP: HashMap<u32, u32> = HashMap::with_max_entries(262_144, 0);
+static RAM_MAP: HashMap<u32, u32> = HashMap::with_max_entries(2_097_152, 0);
 
 /// Screen framebuffer: 320×200 = 64 000 bytes, 8-bit palette indices.
 /// Pixel (x, y) → SCREEN_MAP[y * 320 + x].
@@ -103,6 +103,14 @@ static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 #[map]
 static L1_CACHE: LruHashMap<u32, [u8; 64]> = LruHashMap::with_max_entries(256, 0);
 
+/// RV32I-to-MBC address translation map.
+/// Index = RV32I word index (byte_addr >> 2), Value = MBC PC index.
+/// Used by JMPR/CALLR to translate function pointers stored as RISC-V
+/// byte addresses into the correct MBC ROM index.
+/// 65,536 entries covers up to 262,144 bytes of .text (46,132 RV insns for Doom).
+#[map]
+static RV2MBC_MAP: Array<u32> = Array::with_max_entries(65_536, 0);
+
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
 #[map]
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
@@ -124,13 +132,10 @@ const STAT_CACHE_MISSES:    u32 = 10;
 
 /// Maximum MBC instructions to execute per XDP invocation.
 ///
-/// Circulation mode (1): each hop executes 1 instruction, then XDP_PASS.
-/// The packet circulates the ring; 6 hops = 6 instructions per lap.
-/// At wire speed (~100µs/lap) this yields ~60K instructions/sec per circuit.
-///
-/// Timer mode (512): a userspace timer injects ticks at 35 Hz.
-/// Each tick runs 512 instructions then XDP_DROP.  Set > 1 for this mode.
-const MAX_INSN_PER_TICK: usize = 1;
+/// Circulation mode: each hop executes N instructions, then XDP_PASS.
+/// The packet circulates the ring; 6 hops × N insns × hop_limit laps.
+/// With N=16 and hop_limit=255: 16 × 255 = 4,080 insns per packet.
+const MAX_INSN_PER_TICK: usize = 16;
 
 // ── Wire-format helpers ───────────────────────────────────────────────────────
 
@@ -277,6 +282,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         // Advance PC before execution (branches will overwrite if taken).
         cpu.pc = cpu.pc.wrapping_add(1);
 
+        // For branch instructions: 24-bit signed offset (bits 23:0, sign-extended from bit 23).
+        // Matches CALL's 24-bit addressing for large programs.
+        let branch_raw = insn_word & 0x00FF_FFFF;
+        let branch_offset = if branch_raw & 0x0080_0000 != 0 {
+            (branch_raw | 0xFF00_0000) as i32
+        } else {
+            branch_raw as i32
+        };
+
         // ── Arithmetic ────────────────────────────────────────────────────────
         if opc == op::ADD {
             let (r, c) = cpu.regs[d].overflowing_add(cpu.regs[s]);
@@ -343,6 +357,27 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let r = ((cpu.regs[d] as i32) >> shift) as u32;
             cpu.regs[d] = r;
             set_flags(cpu, r, false);
+        } else if opc == op::SHLR {
+            let shift = cpu.regs[s] & 0x1F;
+            let r = cpu.regs[d] << shift;
+            cpu.regs[d] = r;
+            set_flags(cpu, r, false);
+        } else if opc == op::SHRR {
+            let shift = cpu.regs[s] & 0x1F;
+            let r = cpu.regs[d] >> shift;
+            cpu.regs[d] = r;
+            set_flags(cpu, r, false);
+        } else if opc == op::SARR {
+            let shift = cpu.regs[s] & 0x1F;
+            let r = ((cpu.regs[d] as i32) >> shift) as u32;
+            cpu.regs[d] = r;
+            set_flags(cpu, r, false);
+        } else if opc == op::MULH {
+            let a = cpu.regs[d] as i32 as i64;
+            let b = cpu.regs[s] as i32 as i64;
+            let r = ((a * b) >> 32) as u32;
+            cpu.regs[d] = r;
+            set_flags(cpu, r, false);
 
         // ── Register moves ────────────────────────────────────────────────────
         } else if opc == op::MOV {
@@ -363,32 +398,31 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
         // ── Branches ─────────────────────────────────────────────────────────
         } else if opc == op::JMP {
-            // Unconditional relative branch.  PC already incremented; simm
-            // is relative to the instruction after the branch.
-            cpu.pc = cpu.pc.wrapping_add(simm as u32);
+            // Unconditional relative branch (24-bit offset).
+            cpu.pc = cpu.pc.wrapping_add(branch_offset as u32);
         } else if opc == op::JZ {
             if cpu.flags & mf::Z != 0 {
-                cpu.pc = cpu.pc.wrapping_add(simm as u32);
+                cpu.pc = cpu.pc.wrapping_add(branch_offset as u32);
             }
         } else if opc == op::JNZ {
             if cpu.flags & mf::Z == 0 {
-                cpu.pc = cpu.pc.wrapping_add(simm as u32);
+                cpu.pc = cpu.pc.wrapping_add(branch_offset as u32);
             }
         } else if opc == op::JN {
             if cpu.flags & mf::N != 0 {
-                cpu.pc = cpu.pc.wrapping_add(simm as u32);
+                cpu.pc = cpu.pc.wrapping_add(branch_offset as u32);
             }
         } else if opc == op::JP {
             if cpu.flags & mf::N == 0 {
-                cpu.pc = cpu.pc.wrapping_add(simm as u32);
+                cpu.pc = cpu.pc.wrapping_add(branch_offset as u32);
             }
         } else if opc == op::JC {
             if cpu.flags & mf::C != 0 {
-                cpu.pc = cpu.pc.wrapping_add(simm as u32);
+                cpu.pc = cpu.pc.wrapping_add(branch_offset as u32);
             }
         } else if opc == op::JNC {
             if cpu.flags & mf::C == 0 {
-                cpu.pc = cpu.pc.wrapping_add(simm as u32);
+                cpu.pc = cpu.pc.wrapping_add(branch_offset as u32);
             }
         } else if opc == op::CALL {
             // Push PC (already incremented = return address) to stack.
@@ -396,8 +430,41 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.regs[15] = cpu.regs[15].wrapping_sub(1);
             let sp = cpu.regs[15];
             mem_write_word(sp, cpu.pc);
-            // Jump to absolute address in imm16.
-            cpu.pc = imm;
+            // Extended addressing: use all 24 bits below opcode for target.
+            let target = insn_word & 0x00FF_FFFF;
+            cpu.pc = target;
+        } else if opc == op::JMPR {
+            // Indirect jump with RV32I→MBC address translation.
+            // regs[dst] holds a RISC-V byte address (e.g. function pointer from .data).
+            // Convert to RV word index, look up the MBC PC in RV2MBC_MAP.
+            let rv_addr = cpu.regs[d];
+            let rv_word = rv_addr >> 2;
+            cpu.pc = match RV2MBC_MAP.get(rv_word) {
+                Some(mbc_idx) => *mbc_idx,
+                None => {
+                    // Unmapped address — halt to prevent runaway execution.
+                    cpu.halted = 1;
+                    increment_stat(STAT_ROM_FAULT);
+                    break;
+                }
+            };
+        } else if opc == op::CALLR {
+            // Indirect call with RV32I→MBC address translation.
+            // Push return address, then translate regs[dst] from RISC-V byte
+            // address to MBC PC via RV2MBC_MAP.
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(1);
+            let sp = cpu.regs[15];
+            mem_write_word(sp, cpu.pc);
+            let rv_addr = cpu.regs[d];
+            let rv_word = rv_addr >> 2;
+            cpu.pc = match RV2MBC_MAP.get(rv_word) {
+                Some(mbc_idx) => *mbc_idx,
+                None => {
+                    cpu.halted = 1;
+                    increment_stat(STAT_ROM_FAULT);
+                    break;
+                }
+            };
         } else if opc == op::RET {
             let sp  = cpu.regs[15];
             let ret = mem_read_word(sp);
@@ -406,8 +473,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
         // ── Memory ────────────────────────────────────────────────────────────
         } else if opc == op::LD {
-            // dst = l1_cache[src + imm16]  (32-bit load via L1)
-            let addr = cpu.regs[s].wrapping_add(imm);
+            // dst = l1_cache[src + simm16]  (32-bit load via L1)
+            let addr = cpu.regs[s].wrapping_add(simm as u32);
             match l1_load_u32(addr) {
                 Ok(val) => {
                     cpu.regs[d] = val;
@@ -415,25 +482,27 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     increment_stat(STAT_CACHE_HITS);
                 }
                 Err(_miss_addr) => {
-                    // Cache miss — emit event and stall
+                    // L1 miss — fall through to RAM_MAP
                     cpu.cache_misses += 1;
                     increment_stat(STAT_CACHE_MISSES);
-                    cpu.stalled = 1;
-                    emit_cache_miss(flow_label, addr, hop_id);
-                    // DO NOT increment PC — retry next circulation
-                    return Ok(xdp_action::XDP_PASS);
+                    let word_addr = addr >> 2;
+                    let val = match unsafe { RAM_MAP.get(&word_addr) } {
+                        Some(v) => *v,
+                        None => 0,
+                    };
+                    cpu.regs[d] = val;
                 }
             }
         } else if opc == op::ST {
-            // l1_cache[dst + imm16] = src  (32-bit store via L1)
-            let addr = cpu.regs[d].wrapping_add(imm);
+            // l1_cache[dst + simm16] = src  (32-bit store via L1)
+            let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = cpu.regs[s];
             l1_store_u32(addr, val);
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDB {
-            // dst = zero_extend(l1_cache[src + imm16])  (byte load via L1)
-            let addr = cpu.regs[s].wrapping_add(imm);
+            // dst = zero_extend(l1_cache[src + simm16])  (byte load via L1)
+            let addr = cpu.regs[s].wrapping_add(simm as u32);
             match l1_load_u8(addr) {
                 Ok(byte) => {
                     cpu.regs[d] = byte as u32;
@@ -443,21 +512,25 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 Err(_miss_addr) => {
                     cpu.cache_misses += 1;
                     increment_stat(STAT_CACHE_MISSES);
-                    cpu.stalled = 1;
-                    emit_cache_miss(flow_label, addr, hop_id);
-                    return Ok(xdp_action::XDP_PASS);
+                    let word_addr = addr >> 2;
+                    let byte_shift = (addr & 3) * 8;
+                    let word = match unsafe { RAM_MAP.get(&word_addr) } {
+                        Some(v) => *v,
+                        None => 0,
+                    };
+                    cpu.regs[d] = (word >> byte_shift) & 0xFF;
                 }
             }
         } else if opc == op::STB {
-            // l1_cache[dst + imm16] = src & 0xFF  (byte store via L1)
-            let addr = cpu.regs[d].wrapping_add(imm);
+            // l1_cache[dst + simm16] = src & 0xFF  (byte store via L1)
+            let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = (cpu.regs[s] & 0xFF) as u8;
             l1_store_u8(addr, val);
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDH {
-            // dst = zero_extend(l1_cache[src + imm16])  (16-bit load via L1)
-            let addr = cpu.regs[s].wrapping_add(imm);
+            // dst = zero_extend(l1_cache[src + simm16])  (16-bit load via L1)
+            let addr = cpu.regs[s].wrapping_add(simm as u32);
             match l1_load_u16(addr) {
                 Ok(hw) => {
                     cpu.regs[d] = hw as u32;
@@ -467,14 +540,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 Err(_miss_addr) => {
                     cpu.cache_misses += 1;
                     increment_stat(STAT_CACHE_MISSES);
-                    cpu.stalled = 1;
-                    emit_cache_miss(flow_label, addr, hop_id);
-                    return Ok(xdp_action::XDP_PASS);
+                    let word_addr = addr >> 2;
+                    let half_shift = (addr & 2) * 8;
+                    let word = match unsafe { RAM_MAP.get(&word_addr) } {
+                        Some(v) => *v,
+                        None => 0,
+                    };
+                    cpu.regs[d] = (word >> half_shift) & 0xFFFF;
                 }
             }
         } else if opc == op::STH {
-            // l1_cache[dst + imm16] = src & 0xFFFF  (16-bit store via L1)
-            let addr = cpu.regs[d].wrapping_add(imm);
+            // l1_cache[dst + simm16] = src & 0xFFFF  (16-bit store via L1)
+            let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = (cpu.regs[s] & 0xFFFF) as u16;
             l1_store_u16(addr, val);
             cpu.cache_hits += 1;

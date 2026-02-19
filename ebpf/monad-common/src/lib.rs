@@ -1044,6 +1044,16 @@ pub mod mbc_opcodes {
     /// `dst = dst >> imm16`  (arithmetic, sign-extending)
     pub const SAR:  u8 = 0x0D;
 
+    // ── Register-based shifts ──────────────────────────────────
+    /// `dst = dst << (src & 31)` (shift left by register)
+    pub const SHLR: u8 = 0x36;
+    /// `dst = dst >> (src & 31)` (logical shift right by register)
+    pub const SHRR: u8 = 0x37;
+    /// `dst = dst >> (src & 31)` (arithmetic shift right by register, sign-extending)
+    pub const SARR: u8 = 0x38;
+    /// `dst = (int64(dst) * int64(src)) >> 32` (upper 32 bits of signed multiply)
+    pub const MULH: u8 = 0x39;
+
     // ── Register operations ────────────────────────────────────
     /// `dst = src`
     pub const MOV:  u8 = 0x0E;
@@ -1073,6 +1083,10 @@ pub mod mbc_opcodes {
     pub const CALL: u8 = 0x27;
     /// Pop PC from stack
     pub const RET:  u8 = 0x28;
+    /// `pc = regs[dst]` (indirect jump — jump to register)
+    pub const JMPR: u8 = 0x29;
+    /// `push(PC+1); pc = regs[dst]` (indirect call — call register)
+    pub const CALLR: u8 = 0x2A;
 
     // ── Memory ─────────────────────────────────────────────────
     /// `dst = ram_map[src + imm16]`  (32-bit load)

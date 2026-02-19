@@ -32,45 +32,44 @@ pub fn disasm_insn(word: u32, addr: u32) -> String {
         op::SHL => format!("SHL  r{}, {}", dst, imm_u),
         op::SHR => format!("SHR  r{}, {}", dst, imm_u),
         op::SAR => format!("SAR  r{}, {}", dst, imm_u),
+        op::SHLR => format!("SHLR r{}, r{}", dst, src),
+        op::SHRR => format!("SHRR r{}, r{}", dst, src),
+        op::SARR => format!("SARR r{}, r{}", dst, src),
+        op::MULH => format!("MULH r{}, r{}", dst, src),
         op::MOV => format!("MOV  r{}, r{}", dst, src),
         op::MOVI => format!("MOVI r{}, {}", dst, imm),
         op::CMP => format!("CMP  r{}, r{}", dst, src),
 
-        // Jump instructions with absolute target calculation
-        op::JMP => {
-            let target = ((addr as i32 + 1) + (imm as i32)) as u32;
-            format!("JMP  0x{:x}", target)
-        }
-        op::JZ => {
-            let target = ((addr as i32 + 1) + (imm as i32)) as u32;
-            format!("JZ   0x{:x}", target)
-        }
-        op::JNZ => {
-            let target = ((addr as i32 + 1) + (imm as i32)) as u32;
-            format!("JNZ  0x{:x}", target)
-        }
-        op::JN => {
-            let target = ((addr as i32 + 1) + (imm as i32)) as u32;
-            format!("JN   0x{:x}", target)
-        }
-        op::JP => {
-            let target = ((addr as i32 + 1) + (imm as i32)) as u32;
-            format!("JP   0x{:x}", target)
-        }
-        op::JC => {
-            let target = ((addr as i32 + 1) + (imm as i32)) as u32;
-            format!("JC   0x{:x}", target)
-        }
-        op::JNC => {
-            let target = ((addr as i32 + 1) + (imm as i32)) as u32;
-            format!("JNC  0x{:x}", target)
+        // Jump instructions with 24-bit signed offset target calculation
+        op::JMP | op::JZ | op::JNZ | op::JN | op::JP | op::JC | op::JNC => {
+            let raw24 = word & 0x00FF_FFFF;
+            let offset = if raw24 & 0x0080_0000 != 0 {
+                (raw24 | 0xFF00_0000) as i32
+            } else {
+                raw24 as i32
+            };
+            let target = ((addr as i32 + 1) + offset) as u32;
+            let mnemonic = match opcode {
+                op::JMP => "JMP ",
+                op::JZ  => "JZ  ",
+                op::JNZ => "JNZ ",
+                op::JN  => "JN  ",
+                op::JP  => "JP  ",
+                op::JC  => "JC  ",
+                op::JNC => "JNC ",
+                _ => unreachable!(),
+            };
+            format!("{} 0x{:x}", mnemonic, target)
         }
 
         op::CALL => {
-            let target = ((addr as i32 + 1) + (imm as i32)) as u32;
+            // Extended 24-bit absolute addressing
+            let target = MbcInsn(word).0 & 0x00FF_FFFF;
             format!("CALL 0x{:x}", target)
         }
         op::RET => "RET".to_string(),
+        op::JMPR => format!("JMPR r{}", dst),
+        op::CALLR => format!("CALLR r{}", dst),
 
         op::LD => format!("LD   r{}, [r{}+{}]", dst, src, imm),
         op::ST => format!("ST   [r{}+{}], r{}", dst, imm, src),
