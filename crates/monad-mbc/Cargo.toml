@@ -18,3 +18,7 @@ monad-common = { path = "../../ebpf/monad-common" }
 [[bin]]
 name = "rv32i-to-mbc"
 path = "src/bin/rv32i_to_mbc.rs"
+
+[[bin]]
+name = "mbc-asm"
+path = "src/bin/mbc_asm.rs"

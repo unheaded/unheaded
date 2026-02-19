@@ -45,6 +45,8 @@ coverage.html
 # ─── Compiled service binaries ───
 /kanban-app
 /wotan
+/wotan-ctl
+/doom-bridge
 /captain
 /main
 /timeguru
@@ -53,6 +55,8 @@ cmd/*/kanban-app
 cmd/*/dashboard-backend
 cmd/*/trace-collector
 cmd/*/ebpf-loader
+cmd/*/wotan-ctl
+cmd/*/doom-bridge
 # Runtime data directories (SQLite DBs, temp files)
 cmd/*/data/
 
@@ -125,6 +129,8 @@ nixos-*.img
 
 # ─── eBPF ───
 *.bpf.o
+# Cross-compiled ELF intermediates
+demos/mbc/*.elf
 vmlinux.h
 *.skel.h
 
