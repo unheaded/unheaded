@@ -294,15 +294,16 @@ Offset  Size  Field               Type        Description
 0x01    1     src_service_id      exponent    Source service (Sophia lookup)
 0x02    1     dst_service_id      exponent    Destination service (Sophia)
 0x03    1     hop_count           raw uint8   Incremented at each hop
-0x04    4     trace_id            raw uint32  Flow trace correlation
-0x08    1     qos_class           exponent    QoS classification
-0x09    1     flow_action         exponent    Action directive
-0x0A    1     circuit_state       exponent    Circuit breaker state
-0x0B    1     flags               raw uint8   Bitfield (see Flags section)
-0x0C    2     latency_budget_us   raw uint16  Latency budget in microseconds
-0x0E    1     deployment_ring     exponent    Deployment ring
-0x0F    1     mesh_flags          exponent    Mesh-level flags
-0x10    2     reserved            raw uint16  Reserved (MUST be zero)
+0x04    1     qos_class           exponent    QoS classification
+0x05    1     flow_action         exponent    Action directive
+0x06    1     circuit_state       exponent    Circuit breaker state
+0x07    1     flags               raw uint8   Bitfield (see Flags section)
+0x08    2     latency_hint        raw uint16  Latency hint in microseconds
+0x0A    1     deploy_ring         exponent    Deployment ring
+0x0B    1     mesh_flags          exponent    Mesh-level flags
+0x0C    1     src_prefix_lo       raw uint8   Source routing prefix low octet
+0x0D    1     dst_prefix_lo       raw uint8   Destination routing prefix low octet
+0x0E    4     scratch[0-3]        raw uint8   Scratch registers (4 bytes)
 0x12    2     checksum            raw uint16  CRC-16/CCITT over bytes 0x00-0x11
 ------  ----  ------------------  ----------  ---------------------------------
 Total: 20 bytes (0x14)
@@ -330,10 +331,9 @@ hop_count:
   event MUST be emitted.
 
 trace_id:
-: A 32-bit unsigned integer set by Shield at packet birth. This value
-  MUST remain unchanged throughout the packet's traversal. The trace_id
-  is used to correlate events in Anamnesis across all hops. It MUST NOT
-  be modified by Shim programs.
+: Flow trace correlation is derived from the IPv6 Flow Label (RFC 6437).
+  The 20-bit Flow Label set by Shield at ingress serves as the trace
+  correlation identifier.  Shim programs MUST NOT modify the Flow Label.
 
 qos_class:
 : An exponent-encoded field specifying the Quality of Service class.
@@ -351,13 +351,11 @@ circuit_state:
 flags:
 : An 8-bit bitfield controlling protocol behavior. See Section 5.2.
 
-latency_budget_us:
-: A 16-bit unsigned integer specifying the remaining latency budget in
-  microseconds. Shims MAY read this field to enforce per-hop latency
-  constraints. The field is not automatically decremented; semantics are
-  program-defined.
+latency_hint:
+: A 16-bit hint encoding the per-hop latency target, in network byte order.
+  Interpretation is deployment-defined.
 
-deployment_ring:
+deploy_ring:
 : An exponent-encoded field specifying the deployment ring (canary,
   staging, production). Semantics are defined by Sophia.
 
@@ -365,10 +363,22 @@ mesh_flags:
 : An exponent-encoded field specifying mesh-level flags (NAT type,
   direction, encryption). Semantics are defined by Sophia.
 
-reserved:
-: Reserved for future expansion. MUST be set to zero on transmission.
-  Receivers MUST accept any value in this field for backward
-  compatibility.
+src_prefix_lo:
+: The low-order octet of the source routing prefix, used by Shim programs
+  for routing optimization.  Set by Shield at ingress from Sophia policy.
+
+dst_prefix_lo:
+: The low-order octet of the destination routing prefix, used by Shim
+  programs for routing optimization.  Set by Shield at ingress from Sophia
+  policy.
+
+scratch:
+: Four bytes of per-hop scratch storage (scratch[0]-scratch[3]).
+  Used by Shim programs for temporary computation.  Scratch bytes form
+  two 16-bit registers: scratch_r0 (bytes 0x0E-0x0F) and scratch_r1
+  (bytes 0x10-0x11).  When CUSTOM flag is set, scratch_r0 and scratch_r1
+  carry exponent-encoded values whose semantics are deployment-defined.
+  Shield MUST zero scratch bytes at ingress unless CUSTOM is set.
 
 checksum:
 : A 16-bit CRC-16/CCITT checksum computed over the first 18 bytes
@@ -382,30 +392,30 @@ behavior:
 ~~~~
  7   6   5   4   3   2   1   0
 +---+---+---+---+---+---+---+---+
-| C | Y | T | E | S | M | K1| K0|
+| C | Y | T | E | S | M |CUST| R |
 +---+---+---+---+---+---+---+---+
 
-C (0x80):  Chaos injection active (Yaldabaoth)
-Y (0x40):  Canary deployment path
-T (0x20):  Full trace active (all hops emit to Anamnesis)
-E (0x10):  Payload encrypted (intra-Kingdom TLS)
-S (0x08):  Statistically sampled
-M (0x04):  Mirror copy (not original)
-K1 (0x02): Kingdom Mode selector (high bit)
-K0 (0x01): Kingdom Mode selector (low bit)
-
-Kingdom Mode selector (K1:K0):
-  00 = Default IPv6 (no address reclamation)
-  01 = /8 mode  (10.0.0.0/8 equivalent, 24-bit host)
-  10 = /12 mode (172.16.0.0/12 equivalent, 20-bit host)
-  11 = /16 mode (192.168.0.0/16 equivalent, 16-bit host)
+C (0x80):  CHAOS — Chaos injection active (Yaldabaoth)
+Y (0x40):  CANARY — Canary deployment path
+T (0x20):  TRACED — Full trace active (all hops emit to Anamnesis)
+E (0x10):  ENCRYPT — Payload encrypted (intra-Kingdom TLS)
+S (0x08):  SAMPLED — Statistically sampled
+M (0x04):  MIRROR — Mirror copy (not original)
+CUSTOM (0x02): Scratch and checksum fields carry exponent-encoded values
+RSVD (0x01): Reserved, MUST be zero
 ~~~~
 
 Each bit MUST be set or cleared by Shim programs as needed. Shield
 MUST ensure that the C, Y, T, E, and S bits are set to consistent
-values at ingress based on policy. The K1:K0 bits determine whether
-Kingdom Mode address reclamation is active; they MUST NOT change during
-a packet's traversal.
+values at ingress based on policy.
+
+CUSTOM (0x02): When set, the scratch fields (0x0E-0x11) and the checksum
+field (0x12-0x13) carry exponent-encoded values whose interpretation is
+defined by the active Sophia dictionary.  Shield MUST NOT set CUSTOM
+unless configured by policy.
+
+RSVD (0x01): Reserved.  Senders MUST set to zero.  Receivers MUST
+ignore.
 
 ## Checksum Field
 
@@ -619,7 +629,7 @@ Root entries (1 byte key):
   0x01 = service_identity    (sub_dict_1)
   0x02 = flow_action         (sub_dict_2)
   0x03 = qos_class           (sub_dict_3)
-  0x04 = deployment_ring     (sub_dict_4)
+  0x04 = deploy_ring         (sub_dict_4)
   0x05 = circuit_state       (sub_dict_5)
   0x06 = mesh_flags          (sub_dict_6)
 
@@ -640,7 +650,7 @@ qos_class (sub_dict_3):
   0x01 = INTERACTIVE  (medium priority, <100ms latency)
   0x02 = REALTIME     (high priority, <10ms latency)
 
-deployment_ring (sub_dict_4):
+deploy_ring (sub_dict_4):
   0x00 = CANARY       (test deployment)
   0x01 = STAGING      (pre-production)
   0x02 = PRODUCTION   (customer-facing)
@@ -685,15 +695,16 @@ At packet ingress, Shield MUST perform the following operations:
       - src_service_id = Sophia.ingress_classify(source_ip)
       - dst_service_id = Sophia.ingress_classify(destination_ip)
       - hop_count = 0
-      - trace_id = pseudorandom 32-bit value (bpf_get_prandom_u32())
       - qos_class = Sophia.policy_lookup(src_ip, dst_port)
       - flow_action = 0x00 (FORWARD)
       - circuit_state = Sophia.lookup("circuit_state", 0x00)
-      - flags = 0x00 (no chaos, no kingdom mode initially)
-      - latency_budget_us = Sophia.lookup("latency_policy", dst_service_id)
-      - deployment_ring = Sophia.ring_lookup(dst_service_id)
+      - flags = 0x00 (no chaos, no custom encoding initially)
+      - latency_hint = Sophia.lookup("latency_policy", dst_service_id)
+      - deploy_ring = Sophia.ring_lookup(dst_service_id)
+      - src_prefix_lo = extracted from source address or Sophia
+      - dst_prefix_lo = extracted from destination address or Sophia
+      - scratch[0-3] = 0x00 (zero unless CUSTOM flag set)
       - mesh_flags = 0x00
-      - reserved = 0x0000
    d. Compute CRC-16 checksum over bytes 0x00-0x11, store at offset 0x12.
    e. Update IPv6 Next Header field to 0 (Hop-by-Hop).
    f. Emit BIRTH event to Anamnesis ring buffer with full Monad snapshot.
@@ -714,12 +725,8 @@ At packet egress, Shield MUST perform the following operations:
       and emit an anomaly event.
    b. If checksum is valid, proceed.
 
-4. If Kingdom Mode is active (K1:K0 non-zero in flags field):
-
-   a. Extract Extended Register Space from source and destination IPv6
-      addresses (see Section 8.3).
-   b. Restore standard ULA formatting by zero-filling the Extended
-      Register bits.
+4. Verify that flags & RSVD == 0. If the RSVD bit is set, emit an anomaly
+   event and either drop the packet or set an anomaly flag per policy.
 
 5. Emit DEATH event to Anamnesis with the final Monad snapshot and exit
    timestamp.
@@ -756,11 +763,8 @@ performed in order:
    emit an anomaly event and drop the packet (MUST NOT forward with
    unknown version).
 
-4. If Kingdom Mode (K1:K0 non-zero in flags field):
-
-   a. Extract Extended Register Space from source and destination
-      addresses (see Section 8.3).
-   b. Optionally verify PQC fingerprints against Sophia (see Section 9).
+4. If CUSTOM flag (bit 1) is set, interpret scratch fields and checksum
+   as exponent-encoded values per Sophia. Otherwise, treat as raw fields.
 
 5. Look up the Shim program via Sophia, keyed by program name or default.
 
@@ -805,7 +809,7 @@ struct anamnesis_event {
   u16 reserved;
   u32 input_monad[5];      // 20 bytes: Monad before this operation
   u32 output_monad[5];     // 20 bytes: Monad after this operation
-  u32 trace_id;            // Copied from Monad for fast correlation
+  u32 flow_label;          // Copied from IPv6 Flow Label for fast correlation
   u32 wotan_addr;          // Wotan memory address (if accessed)
   u32 wotan_value;         // Value read/written (if applicable)
 };
@@ -956,157 +960,16 @@ write helpers MUST be used within per-packet BPF programs only.
 
 # Kingdom Mode: Address Reclamation
 
-Kingdom Mode is an optional operational mode that reclaims deterministic
-IPv6 address prefix bits as extended computational and cryptographic
-register space.
+Kingdom Mode address reclamation using IPv6 host bits is reserved for a
+future version of this specification.  Implementations MUST set RSVD to
+zero.  The CUSTOM bit provides a single-bit extension point for
+deployment-specific scratch field encoding.
 
-## Applicability
-
-Kingdom Mode is OPTIONAL and MUST be explicitly enabled via the K1:K0
-bits in the flags field. Deployments that do not require extended
-register space operate in standard IPv6 mode (K1:K0 = 00).
-
-## Address Space Analysis
-
-An IPv6 packet carries two 128-bit addresses (source and destination)
-for a total of 256 address bits. Within a Limited Domain operating on
-an L2 overlay (such as EVPN-VXLAN), the inner IPv6 addresses are not
-used for Layer 3 routing — the outer encapsulation handles forwarding.
-The inner addresses serve only as node identifiers.
-
-When the operator knows the ULA prefix a priori and all Kingdom nodes
-use the same prefix, every bit beyond the required host identifier is
-deterministic and carries zero information. These bits can be safely
-reclaimed as Extended Register Space without affecting forwarding.
-
-The reclamation formula for L2 overlay mode is:
-
-~~~~
-Reclaimed bits = 2 * (128 - host_bits)
-~~~~
-
-Where host_bits is the number of bits required to uniquely identify each
-node in the fleet. The factor of 2 accounts for both source and
-destination addresses.
-
-The following table shows reclaimed space by fleet size:
-
-~~~~
-Fleet Size    Host Bits    Free Bits     Reclaimed     Reclaimed
-(hosts)       (per addr)   (per addr)    (both addrs)  Bytes
-----------    ----------   ----------    -----------   ---------
-256           8            120           240           30 bytes
-4,096         12           116           232           29 bytes
-65,536        16           112           224           28 bytes
-1,048,576     20           108           216           27 bytes
-16,777,216    24           104           208           26 bytes
-~~~~
-
-The minimum case (256 hosts, 8-bit addressing) yields 240 reclaimed bits
-(30 bytes) — more than doubling the Monad's effective register budget
-from 20 bytes to 50 bytes, with zero additional wire overhead.
-
-## Kingdom Mode Selector
-
-Bits 1-0 (K1:K0) of the flags field select the Kingdom Mode:
-
-~~~~
-K1:K0  Mode     Host Bits  Equivalent          Reclaimed
-                (per addr) RFC 1918 Block       (both addrs)
------  -------  ---------  -----------------   -----------
-  00   Default  N/A        (standard IPv6)     0 bits
-  01   /8       24         10.0.0.0/8          208 bits
-  10   /12      20         172.16.0.0/12       216 bits
-  11   /16      16         192.168.0.0/16      224 bits
-~~~~
-
-When K1:K0 is non-zero, the following requirements apply:
-
-1. The source and destination IPv6 addresses MUST use the Kingdom's
-   configured ULA prefix.
-
-2. The Shim at each hop MAY interpret all bits beyond the host
-   identifier in the source and destination addresses as Extended
-   Register Space (ERS).
-
-3. Shield at ingress MUST populate the ERS bits according to the
-   Kingdom Mode layout defined in the active Sophia dictionary.
-
-4. Shield at egress MUST restore standard ULA formatting by zero-filling
-   all ERS bits before any packet exits the Limited Domain.
-
-## Extended Register Space Layout
-
-When Kingdom Mode is active on an L2 overlay, the entire IPv6 address
-beyond the host identifier is available as Extended Register Space.
-
-~~~~
-Source Address (128 bits):
-  Bits [127..H]   = Extended Source Registers (reclaimed)
-  Bits [H-1..0]   = Source Host ID (actual addressing)
-
-Destination Address (128 bits):
-  Bits [127..H]   = Extended Destination Registers (reclaimed)
-  Bits [H-1..0]   = Destination Host ID (actual addressing)
-
-Where H = host_bits per the Kingdom Mode selector:
-  /8 mode:  H = 24  ->  104 ERS bits per address
-  /12 mode: H = 20  ->  108 ERS bits per address
-  /16 mode: H = 16  ->  112 ERS bits per address
-~~~~
-
-Recommended allocations for /16 mode (224 total ERS bits, 112 per
-address):
-
-~~~~
-Field                       Bits  Src/Dst Location      Purpose
----------------------------  ----  --------------------  -----
-PQC Key Epoch               8     src[127..120]         Rotation counter
-PQC Fingerprint             32    src[119..88]          SHA3-256 prefix
-Flow Sequence Number        16    src[87..72]           Counter
-Sophia Dict Version         8     src[71..64]           Dictionary version
-Extended QoS                8     src[63..56]           Fine-grained QoS
-Source Reserved             40    src[55..16]           Future (Age 2+)
-
-PQC Key Epoch               8     dst[127..120]         Rotation counter
-PQC Fingerprint             32    dst[119..88]          SHA3-256 prefix
-Deterministic Latency       16    dst[87..72]           Budget (microseconds)
-Extended Flow Action        8     dst[71..64]           Flow directives
-Destination Reserved        48    dst[63..16]           Future (Age 2+)
-
-TOTAL:                      224 bits (all available in /16 mode)
-~~~~
-
-Implementations MAY define alternative layouts via Sophia dictionary
-entries. The allocation above is RECOMMENDED for general-purpose /16
-mode deployments.
-
-## Security Considerations for Kingdom Mode
-
-If a Kingdom Mode packet escapes the Limited Domain without Shield
-processing:
-
-  (a) The packet will carry invalid IPv6 addresses that do not correspond
-      to any real host.
-
-  (b) External routers will either drop the packet (no route to invalid
-      address) or misroute it.
-
-  (c) The Extended Register data encoded in the address bits will be
-      exposed to external observers.
-
-Deployments using Kingdom Mode MUST implement defense in depth at the
-domain boundary:
-
-  1. Shield at every egress point (primary).
-
-  2. ACLs on border routers blocking the Kingdom ULA prefix (secondary).
-
-  3. BPF programs on border interfaces that detect and drop packets with
-     the K flags set (tertiary).
-
-The risk of Kingdom Mode address leakage MUST be evaluated as part of
-the deployment's security assessment.
+The Kingdom Mode technical content (address space analysis, extended
+register layout, and Kingdom Mode selector) is reserved for future use
+and is described in [draft-bellis-unheaded-protocol-foundation-04] or
+later versions. Current implementations MUST set RSVD (bit 0 of flags)
+to zero.
 
 # Post-Quantum Cryptographic Identity Binding
 
@@ -1288,7 +1151,7 @@ A proof sketch:
    symbol at position i).
 
 2. State: The Monad circuit_state field holds the current state q. The
-   latency_budget_us or reserved field holds the head position.
+   latency_hint or scratch fields hold the head position.
 
 3. Transition: Shim implements the Turing machine transition function
    delta via Sophia lookup table.
