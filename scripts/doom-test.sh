@@ -371,6 +371,28 @@ print_trace() {
     echo ""
 }
 
+# ── Hex extraction helpers ──────────────────────────────────────────────────
+
+# Extract u32 LE from hex string at byte offset
+extract_u32_le() {
+    local hex_str="$1"
+    local byte_offset="$2"
+    local char_offset=$((byte_offset * 2))
+    local b0="${hex_str:$((char_offset)):2}"
+    local b1="${hex_str:$((char_offset + 2)):2}"
+    local b2="${hex_str:$((char_offset + 4)):2}"
+    local b3="${hex_str:$((char_offset + 6)):2}"
+    printf '%d' "0x${b3}${b2}${b1}${b0}" 2>/dev/null || echo "-1"
+}
+
+extract_u8() {
+    local hex_str="$1"
+    local byte_offset="$2"
+    local char_offset=$((byte_offset * 2))
+    local b0="${hex_str:$((char_offset)):2}"
+    printf '%d' "0x${b0}" 2>/dev/null || echo "-1"
+}
+
 # ── Step 7: Verdict ─────────────────────────────────────────────────────────
 #
 # Attempt to read CPU_MAP and compare register values against expected.
@@ -434,28 +456,6 @@ check_verdict() {
     # Extract r0 (bytes 0-3, LE), r1 (bytes 4-7), r2 (bytes 8-11), PC (bytes 64-67), halted (byte 69)
     # Each hex byte = 2 chars in the hex string
     local verdict_pass=1
-
-    # Helper: extract u32 LE from hex string at byte offset
-    extract_u32_le() {
-        local hex_str="$1"
-        local byte_offset="$2"
-        local char_offset=$((byte_offset * 2))
-        # Read 4 bytes (8 hex chars) in LE order
-        local b0="${hex_str:$((char_offset)):2}"
-        local b1="${hex_str:$((char_offset + 2)):2}"
-        local b2="${hex_str:$((char_offset + 4)):2}"
-        local b3="${hex_str:$((char_offset + 6)):2}"
-        printf '%d' "0x${b3}${b2}${b1}${b0}" 2>/dev/null || echo "-1"
-    }
-
-    extract_u8() {
-        local hex_str="$1"
-        local byte_offset="$2"
-        local char_offset=$((byte_offset * 2))
-        local b0="${hex_str:$((char_offset)):2}"
-        printf '%d' "0x${b0}" 2>/dev/null || echo "-1"
-    }
-
     local r0 r1 r2 pc halted insn_count
 
     r0=$(extract_u32_le "${value_hex}" 0)
@@ -512,13 +512,136 @@ check_verdict() {
     echo ""
 }
 
-# ── Gradient mode (placeholder) ─────────────────────────────────────────────
+# ── Demo mode: load a pre-assembled .bin file ────────────────────────────────
 
-run_gradient() {
-    log_error "Gradient mode requires demos/mbc/gradient.mbc (not yet implemented)"
-    log_info "Build the gradient demo with the MBC assembler first:"
-    echo "  mbc-as demos/mbc/gradient.s -o demos/mbc/gradient.mbc"
-    exit 1
+load_demo_program() {
+    local name="$1"
+    local bin_path="${PROJECT_ROOT}/demos/mbc/${name}.bin"
+
+    if [[ ! -f "${bin_path}" ]]; then
+        # Try assembling from source
+        local src_path="${PROJECT_ROOT}/demos/mbc/${name}.mbc"
+        local asm_tool="${PROJECT_ROOT}/crates/monad-mbc/target/release/mbc-asm"
+
+        if [[ ! -x "${asm_tool}" ]]; then
+            log_step "Building mbc-asm assembler..."
+            (cd "${PROJECT_ROOT}/crates/monad-mbc" && cargo build --release --bin mbc-asm 2>/dev/null)
+        fi
+
+        if [[ -f "${src_path}" && -x "${asm_tool}" ]]; then
+            log_step "Assembling ${name}.mbc -> ${name}.bin..."
+            "${asm_tool}" "${src_path}" -o "${bin_path}" --stats 2>&1
+        else
+            log_error "Neither ${bin_path} nor ${src_path} found"
+            exit 1
+        fi
+    fi
+
+    cp "${bin_path}" "${MBC_FILE}"
+
+    local size
+    size=$(stat -c%s "${MBC_FILE}" 2>/dev/null || stat -f%z "${MBC_FILE}" 2>/dev/null)
+    local num_insns=$((size / 4))
+    log_info "${name}: ${num_insns} MBC instructions (${size} bytes)"
+}
+
+check_demo_verdict() {
+    local name="$1"
+    echo -e "${CYAN}${BOLD}── Verdict (${name}) ─────────────────────────────────────────────${NC}"
+    echo ""
+
+    if [[ ! -e "${MAP_PIN}/CPU_MAP" ]]; then
+        log_warn "CPU_MAP not available — cannot verify"
+        echo -e "  ${YELLOW}${BOLD}SKIP${NC} — BPF maps not accessible"
+        echo ""
+        return 0
+    fi
+
+    local cpu_dump
+    cpu_dump=$(sudo bpftool map lookup pinned "${MAP_PIN}/CPU_MAP" \
+        key hex de 00 00 00 2>/dev/null) || true
+
+    if [[ -z "${cpu_dump}" ]]; then
+        log_warn "No CPU state for flow_label=0xDE"
+        echo -e "  ${YELLOW}${BOLD}SKIP${NC} — CPU state not populated"
+        echo ""
+        return 0
+    fi
+
+    local value_hex
+    value_hex=$(echo "${cpu_dump}" | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
+
+    if [[ -z "${value_hex}" ]]; then
+        log_warn "Could not parse CPU state"
+        echo -e "  ${YELLOW}${BOLD}SKIP${NC} — unable to parse bpftool output"
+        echo ""
+        return 0
+    fi
+
+    # Extract key fields
+    local pc halted insn_count
+    pc=$(extract_u32_le "${value_hex}" 64)
+    halted=$(extract_u8 "${value_hex}" 69)
+    insn_count=$(extract_u32_le "${value_hex}" 80)
+
+    echo -e "  ${BOLD}CPU state after ${name}:${NC}"
+    echo -e "    PC      = ${pc}"
+    echo -e "    halted  = ${halted}"
+    echo -e "    insns   = ${insn_count}"
+    echo ""
+
+    local verdict_pass=1
+
+    # For gradient (23 insns) and checkerboard (31 insns), verify:
+    # - halted == 1 (program ended with HALT)
+    # - insns > 0 (instructions were executed)
+    if [[ "${halted}" != "1" ]]; then
+        echo -e "    ${RED}FAIL${NC} halted = ${halted} (expected 1)"
+        verdict_pass=0
+    else
+        echo -e "    ${GREEN}OK${NC}  halted = 1"
+    fi
+
+    if [[ "${insn_count}" -gt 0 ]]; then
+        echo -e "    ${GREEN}OK${NC}  insns = ${insn_count} (> 0)"
+    else
+        echo -e "    ${RED}FAIL${NC} insns = 0 (expected > 0)"
+        verdict_pass=0
+    fi
+
+    # Check screen memory has been written (gradient/checkerboard write to SCREEN_MAP)
+    if [[ -e "${MAP_PIN}/SCREEN_MAP" ]]; then
+        # Read a few pixels to verify screen has non-zero data
+        local pixel_0 pixel_100 pixel_32000
+        pixel_0=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
+            key hex 00 00 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
+        pixel_100=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
+            key hex 64 00 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
+        pixel_32000=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
+            key hex 00 7d 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
+
+        echo -e "    ${DIM}SCREEN_MAP samples: [0]=${pixel_0:-??} [100]=${pixel_100:-??} [32000]=${pixel_32000:-??}${NC}"
+
+        # For gradient, pixel 100 = (100 + 0) & 0xFF = 100 (0x64)
+        # For checkerboard, values alternate between 1 and 15
+        if [[ -n "${pixel_100}" && "${pixel_100}" != "00" ]]; then
+            echo -e "    ${GREEN}OK${NC}  SCREEN_MAP has non-zero pixels"
+        else
+            echo -e "    ${YELLOW}WARN${NC} SCREEN_MAP pixel[100] = ${pixel_100:-??} (may be zero)"
+        fi
+    fi
+
+    echo ""
+
+    if [[ $verdict_pass -eq 1 ]]; then
+        log_pass "${name} completed successfully"
+        echo -e "  ${GREEN}${BOLD}PASS${NC} — ${name} executed and halted (${insn_count} instructions)"
+    else
+        log_fail "${name} did not complete as expected"
+        echo -e "  ${RED}${BOLD}FAIL${NC} — see above for details"
+        return 1
+    fi
+    echo ""
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -529,23 +652,38 @@ main() {
     local mode="${1:-test}"
 
     case "${mode}" in
-        gradient)
-            run_gradient
+        gradient|checkerboard)
+            # Demo mode: load pre-assembled .bin
+            ;;
+        --file)
+            # Custom file mode
+            if [[ -z "${2:-}" ]]; then
+                log_error "--file requires a path argument"
+                exit 1
+            fi
+            custom_file="$2"
+            if [[ ! -f "${custom_file}" ]]; then
+                log_error "File not found: ${custom_file}"
+                exit 1
+            fi
             ;;
         test|"")
+            mode="test"
             ;;
         -h|--help|help)
-            echo "Usage: sudo $0 [test|gradient]"
+            echo "Usage: sudo $0 [test|gradient|checkerboard|--file <path>]"
             echo ""
             echo "Modes:"
-            echo "  test       Run the 6-instruction arithmetic test (default)"
-            echo "  gradient   Load demos/mbc/gradient.mbc (requires assembler, NYI)"
+            echo "  test           Run the 6-instruction arithmetic test (default)"
+            echo "  gradient       Load demos/mbc/gradient.bin (320×200 color gradient)"
+            echo "  checkerboard   Load demos/mbc/checkerboard.bin (8×8 checkerboard)"
+            echo "  --file <path>  Load any .bin/.mbc binary file"
             echo ""
             exit 0
             ;;
         *)
             log_error "Unknown mode: ${mode}"
-            echo "Usage: sudo $0 [test|gradient]"
+            echo "Usage: sudo $0 [test|gradient|checkerboard|--file <path>]"
             exit 1
             ;;
     esac
@@ -557,9 +695,22 @@ main() {
     echo ""
     setup_ring
 
-    # 2. Create test program
+    # 2. Create/load test program
     echo ""
-    create_test_program
+    case "${mode}" in
+        gradient|checkerboard)
+            load_demo_program "${mode}"
+            ;;
+        --file)
+            cp "${custom_file}" "${MBC_FILE}"
+            local fsize
+            fsize=$(stat -c%s "${MBC_FILE}" 2>/dev/null || stat -f%z "${MBC_FILE}" 2>/dev/null)
+            log_info "Custom file: $((fsize / 4)) MBC instructions (${fsize} bytes)"
+            ;;
+        test)
+            create_test_program
+            ;;
+    esac
 
     # 3. Load into BPF maps
     echo ""
@@ -573,11 +724,24 @@ main() {
     echo ""
     read_maps
 
-    # 6. Print instruction trace
-    print_trace
-
-    # 7. Verdict
-    check_verdict
+    # 6. Print trace and verdict
+    case "${mode}" in
+        gradient|checkerboard)
+            # Wait longer for screen-writing programs (they loop 64000 times)
+            log_step "Waiting for program to complete (2s for screen fill)..."
+            sleep 2
+            check_demo_verdict "${mode}"
+            ;;
+        --file)
+            log_step "Waiting for program to complete (2s)..."
+            sleep 2
+            check_demo_verdict "custom"
+            ;;
+        test)
+            print_trace
+            check_verdict
+            ;;
+    esac
 }
 
 main "$@"
