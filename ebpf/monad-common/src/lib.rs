@@ -825,7 +825,9 @@ pub mod cpu_flags {
 
 /// Register aliases for CpuState.
 pub const REG_SP: usize = 15;
+/// Default program counter value (start of ROM).
 pub const REG_PC_DEFAULT: u32 = 0;
+/// Default stack pointer value (top of RAM).
 pub const REG_SP_DEFAULT: u32 = 0xFFFF_0000;
 
 // ── Compute engine Anamnesis event types ────────────────────────────────────
