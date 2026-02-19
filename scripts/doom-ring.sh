@@ -490,14 +490,14 @@ eth = dst_mac + src_mac + struct.pack('!H', 0x86DD)
 version_tc_fl = (6 << 28) | (0 << 20) | (flow_label & 0xFFFFF)
 payload_len = 24  # HBH extension header = 24 bytes
 next_header = 0   # Hop-by-Hop Options
-hop_limit = 64
+hop_limit = 255
 
-# Source: fd00:3f:75::0:1
+# Source: fd00:3f:75:0::1 (monad0 address)
 src_addr = bytes([0xfd, 0x00, 0x00, 0x3f, 0x00, 0x75, 0x00, 0x00,
                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01])
-# Destination: fd00:3f:75::ff:ff (not local to any ns — causes forwarding)
-dst_addr = bytes([0xfd, 0x00, 0x00, 0x3f, 0x00, 0x75, 0x00, 0x00,
-                  0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff])
+# Destination: fd00:dead::1 (outside all connected /64 prefixes — forces default-route forwarding)
+dst_addr = bytes([0xfd, 0x00, 0xde, 0xad, 0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01])
 
 ipv6 = struct.pack('!IHBB', version_tc_fl, payload_len, next_header, hop_limit)
 ipv6 += src_addr + dst_addr
