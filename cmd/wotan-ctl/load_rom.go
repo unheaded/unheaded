@@ -93,7 +93,7 @@ func loadRom(ctx *Context, flowLabel uint64, filePath string, mapPinPath string,
 	ctx.Logger.Debug().Int("count", len(instructions)).Str("file", filePath).Msg("Loaded MBC instructions")
 
 	// 2. Open/pin rom_map via BPF syscall
-	romMap, err := openBPFMap(mapPinPath + "/rom_map")
+	romMap, err := openBPFMap(mapPinPath + "/ROM_MAP")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: Could not open BPF map at %s/rom_map: %v\n", mapPinPath, err)
 		fmt.Fprintf(os.Stderr, "Running in dry-run mode (no BPF available)\n")
@@ -117,7 +117,7 @@ func loadRom(ctx *Context, flowLabel uint64, filePath string, mapPinPath string,
 	if romMap != nil || true {
 		// Even in dry-run, show what would happen
 		if romMap != nil {
-			cpuMap, err := openBPFMap(mapPinPath + "/cpu_map")
+			cpuMap, err := openBPFMap(mapPinPath + "/CPU_MAP")
 			if err == nil && cpuMap != nil {
 				cpu := defaultCpuState(flowLabel)
 				if reset || true {
@@ -166,12 +166,13 @@ func disassembleMBC(insn uint32) string {
 	src := uint8((insn >> 16) & 0xF)
 	imm := uint16(insn & 0xFFFF)
 
+	// Opcodes must match ebpf/monad-common/src/lib.rs op:: constants.
 	opNames := map[uint8]string{
 		0x01: "ADD", 0x02: "SUB", 0x03: "MUL", 0x04: "DIV", 0x05: "MOD", 0x06: "NEG",
 		0x07: "AND", 0x08: "OR", 0x09: "XOR", 0x0A: "NOT", 0x0B: "SHL", 0x0C: "SHR",
-		0x0D: "SAR", 0x0E: "CMP",
+		0x0D: "SAR", 0x0E: "MOV", 0x0F: "MOVI", 0x10: "CMP",
 		0x20: "JMP", 0x21: "JZ", 0x22: "JNZ", 0x23: "JN", 0x24: "JP", 0x25: "JC",
-		0x26: "JNC", 0x27: "CALL", 0x28: "RET", 0x29: "MOV", 0x2A: "MOVI",
+		0x26: "JNC", 0x27: "CALL", 0x28: "RET",
 		0x30: "LD", 0x31: "ST", 0x32: "LDB", 0x33: "STB", 0x34: "LDH", 0x35: "STH",
 		0x40: "SYSCALL", 0xFF: "HALT",
 	}
@@ -187,9 +188,9 @@ func disassembleMBC(insn uint32) string {
 		return fmt.Sprintf("%-8s 0x%04X", name, imm)
 	case 0x28: // RET
 		return "RET"
-	case 0x29: // MOV
+	case 0x0E: // MOV
 		return fmt.Sprintf("%-8s r%d, r%d", name, dst, src)
-	case 0x2A: // MOVI
+	case 0x0F: // MOVI
 		return fmt.Sprintf("%-8s r%d, %d", name, dst, int16(imm))
 	case 0x40: // SYSCALL
 		syscallNames := map[uint16]string{
@@ -205,12 +206,13 @@ func disassembleMBC(insn uint32) string {
 }
 
 // CpuState represents the CPU state stored in BPF cpu_map.
+// Field order must match MbcCpuState in ebpf/monad-common/src/lib.rs:922.
 type CpuState struct {
 	Regs        [16]uint32
 	PC          uint32
 	Flags       uint8
-	Stalled     uint8
 	Halted      uint8
+	Stalled     uint8
 	Pad         uint8
 	SleepUntil  uint64
 	InsnCount   uint64

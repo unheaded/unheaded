@@ -84,31 +84,41 @@ func (c *Command) Execute(args []string) error {
 }
 
 func (c *Command) executeInternal(ctx *Context, args []string) error {
-	// Parse global flags
-	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
+	// Help flag
+	if len(args) > 0 && (args[0] == "-h" || args[0] == "--help") {
 		c.printHelp()
 		return nil
 	}
 
-	// Check for version
-	if args[0] == "version" {
+	// Check for version at root level
+	if len(args) > 0 && args[0] == "version" && c.RunFunc == nil {
 		fmt.Printf("wotan-ctl %s (commit: %s, built: %s)\n", Version, Commit, BuildTime)
 		return nil
 	}
 
 	// Check for subcommand
-	if subCmd, ok := c.SubCommands[args[0]]; ok {
-		return subCmd.executeInternal(ctx, args[1:])
+	if len(args) > 0 {
+		if subCmd, ok := c.SubCommands[args[0]]; ok {
+			return subCmd.executeInternal(ctx, args[1:])
+		}
 	}
 
-	// Check if it's a flag for the root command
+	// If this command has a RunFunc, invoke it with remaining args
+	if c.RunFunc != nil {
+		return c.RunFunc(ctx, args)
+	}
+
+	// No RunFunc and no matching subcommand
+	if len(args) == 0 {
+		c.printHelp()
+		return nil
+	}
+
 	if strings.HasPrefix(args[0], "-") {
 		fmt.Fprintf(os.Stderr, "Error: unknown flag %s\n", args[0])
-		os.Exit(1)
+	} else {
+		fmt.Fprintf(os.Stderr, "Error: unknown command %s\n", args[0])
 	}
-
-	// Unknown command
-	fmt.Fprintf(os.Stderr, "Error: unknown command %s\n", args[0])
 	c.printHelp()
 	os.Exit(1)
 	return nil
