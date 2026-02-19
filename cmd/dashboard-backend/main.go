@@ -273,6 +273,9 @@ func getEventTopics() []string {
 		"ebpf.flow.events",
 		"ebpf.latency.events",
 		"ebpf.syscall.events",
+		// TODO D-013: subscribe to compute.* Anamnesis events (compute.hop, compute.miss, etc.)
+		// and forward them to WebSocket clients. Implementation should route EventComputeHop
+		// events to connected dashboard clients for CPU trace overlay visualization.
 	}
 }
 

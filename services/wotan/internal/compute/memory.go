@@ -27,29 +27,42 @@ import (
 
 // Default configuration values.
 const (
-	DefaultRingSize  = 4 * 1024 * 1024 // 4 MiB (covers 48 KiB RAM + 4 MiB WAD)
-	DefaultPageSize  = 4096            // 4 KiB pages (1024 words)
-	DefaultPrefetchN = 2              // prefetch 2 adjacent pages on miss
-	DefaultL1MaxPages = 256           // max pages in L1 before eviction
+	DefaultRingSize       = 4 * 1024 * 1024 // 4 MiB (covers 48 KiB RAM + 4 MiB WAD)
+	DefaultPageSize       = 4096            // 4 KiB pages (1024 words)
+	DefaultPrefetchN      = 2              // prefetch 2 adjacent pages on miss
+	DefaultL1MaxPages     = 256           // max pages in L1 before eviction
+	DefaultCacheLineSize  = 64            // 64-byte cache lines for L1
+	DefaultWritebackPeriod = 1 * time.Millisecond // flush dirty pages every 1ms
+)
+
+// Event type constants matching ebpf package.
+const (
+	EventCacheMiss  = uint8(0x11) // BPF had L1 miss, needs Wotan to stage page
+	EventMemWrite   = uint8(0x12) // BPF wrote to L1, Wotan must flush to L2
+	EventMemStaged  = uint8(0x13) // Wotan has staged the page (informational)
 )
 
 // Config holds memory service configuration.
 type Config struct {
-	RingSize   int    `yaml:"ring_size"`   // L2 store size in bytes
-	PageSize   int    `yaml:"page_size"`   // page size in bytes (must be multiple of 4)
-	PrefetchN  int    `yaml:"prefetch_n"`  // pages to prefetch around access
-	L1MaxPages int    `yaml:"l1_max_pages"` // max pages cached in L1 before LRU eviction
-	WALEnabled bool   `yaml:"wal_enabled"` // persist writes to disk
-	WALPath    string `yaml:"wal_path"`    // WAL file location
+	RingSize        int           `yaml:"ring_size"`        // L2 store size in bytes
+	PageSize        int           `yaml:"page_size"`        // page size in bytes (must be multiple of 4)
+	PrefetchN       int           `yaml:"prefetch_n"`       // pages to prefetch around access
+	L1MaxPages      int           `yaml:"l1_max_pages"`     // max pages cached in L1 before LRU eviction
+	WALEnabled      bool          `yaml:"wal_enabled"`      // persist writes to disk
+	WALPath         string        `yaml:"wal_path"`         // WAL file location
+	CacheLineSize   int           `yaml:"cache_line_size"`  // cache line size (for D-006/D-007)
+	WritebackPeriod time.Duration `yaml:"writeback_period"` // dirty writeback flush period
 }
 
 // DefaultConfig returns sensible defaults for the memory service.
 func DefaultConfig() Config {
 	return Config{
-		RingSize:   DefaultRingSize,
-		PageSize:   DefaultPageSize,
-		PrefetchN:  DefaultPrefetchN,
-		L1MaxPages: DefaultL1MaxPages,
+		RingSize:        DefaultRingSize,
+		PageSize:        DefaultPageSize,
+		PrefetchN:       DefaultPrefetchN,
+		L1MaxPages:      DefaultL1MaxPages,
+		CacheLineSize:   DefaultCacheLineSize,
+		WritebackPeriod: DefaultWritebackPeriod,
 	}
 }
 
@@ -110,6 +123,161 @@ type MemoryService struct {
 	stats Stats
 }
 
+// DirtyBitmap tracks dirty cache lines for lazy writeback (D-007).
+// Outer key: flow_label
+// Inner key: cache line address (aligned to CacheLineSize)
+// Value: [CacheLineSize]byte with dirty bytes
+type DirtyBitmap struct {
+	mu     sync.RWMutex
+	dirty  map[uint32]map[uint32][64]byte // flow -> lineAddr -> 64-byte line
+	ms     *MemoryService                   // reference to L2 store for reads
+	config Config
+}
+
+// NewDirtyBitmap creates a new dirty bitmap tracking structure.
+func NewDirtyBitmap(ms *MemoryService, cfg Config) *DirtyBitmap {
+	return &DirtyBitmap{
+		dirty:  make(map[uint32]map[uint32][64]byte),
+		ms:     ms,
+		config: cfg,
+	}
+}
+
+// MarkDirty patches a dirty write into a cache line. If the line doesn't exist,
+// it's loaded from L2 first.
+func (db *DirtyBitmap) MarkDirty(flow uint32, lineAddr uint32, offset int, size int, value uint32) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Ensure flow map exists.
+	if db.dirty[flow] == nil {
+		db.dirty[flow] = make(map[uint32][64]byte)
+	}
+
+	// Load or create the line.
+	line, exists := db.dirty[flow][lineAddr]
+	if !exists {
+		// Load from L2.
+		data := db.ms.ReadData(lineAddr, 64)
+		if len(data) < 64 {
+			data = append(data, make([]byte, 64-len(data))...)
+		}
+		copy(line[:], data[:64])
+	}
+
+	// Patch the dirty bytes.
+	switch size {
+	case 1:
+		if offset < 64 {
+			line[offset] = byte(value)
+		}
+	case 2:
+		if offset+1 < 64 {
+			binary.LittleEndian.PutUint16(line[offset:], uint16(value))
+		}
+	case 4:
+		if offset+3 < 64 {
+			binary.LittleEndian.PutUint32(line[offset:], value)
+		}
+	}
+
+	db.dirty[flow][lineAddr] = line
+	return nil
+}
+
+// FlushAll returns all dirty lines and clears the bitmap.
+func (db *DirtyBitmap) FlushAll() map[uint32]map[uint32][64]byte {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	result := db.dirty
+	db.dirty = make(map[uint32]map[uint32][64]byte)
+	return result
+}
+
+// CacheMissHandler handles CACHE_MISS events from BPF (D-006).
+// It stages cache lines from L2 into the BPF L1 LRU map.
+type CacheMissHandler struct {
+	ms              *MemoryService
+	config          Config
+	eventCh         <-chan *CacheMissEvent
+	stagedEventCh   chan<- *MemStagedEvent
+	prefetchCounter uint64
+}
+
+// NewCacheMissHandler creates a cache miss handler.
+func NewCacheMissHandler(
+	ms *MemoryService,
+	cfg Config,
+	eventCh <-chan *CacheMissEvent,
+) *CacheMissHandler {
+	return &CacheMissHandler{
+		ms:      ms,
+		config:  cfg,
+		eventCh: eventCh,
+	}
+}
+
+// MemStagedEvent is emitted after a cache line is staged into L1.
+type MemStagedEvent struct {
+	FlowLabel     uint32
+	LineAddr      uint32
+	PrefetchCount int
+	Timestamp     time.Time
+}
+
+// DirtyWritebackHandler batches dirty writes and flushes them periodically (D-007).
+type DirtyWritebackHandler struct {
+	ms              *MemoryService
+	dirtyBitmap     *DirtyBitmap
+	config          Config
+	writeCh         <-chan *CacheWriteEvent
+	flushedEventCh  chan<- *MemFlushedEvent
+	flushTicker     *time.Ticker
+	lastFlush       time.Time
+	writeCounter    uint64
+	flushCounter    uint64
+}
+
+// NewDirtyWritebackHandler creates a dirty writeback handler.
+func NewDirtyWritebackHandler(
+	ms *MemoryService,
+	cfg Config,
+	writeCh <-chan *CacheWriteEvent,
+) *DirtyWritebackHandler {
+	return &DirtyWritebackHandler{
+		ms:              ms,
+		dirtyBitmap:     NewDirtyBitmap(ms, cfg),
+		config:          cfg,
+		writeCh:         writeCh,
+		flushTicker:     time.NewTicker(cfg.WritebackPeriod),
+		lastFlush:       time.Now(),
+	}
+}
+
+// MemFlushedEvent is emitted after dirty pages are flushed to L2.
+type MemFlushedEvent struct {
+	PageCount     int
+	FlushLatency  time.Duration
+	Timestamp     time.Time
+}
+
+// CacheMissEvent for D-006 (can be populated from Anamnesis ring buffer).
+type CacheMissEventD006 struct {
+	FlowLabel uint32
+	LineAddr  uint32
+	Timestamp int64
+}
+
+// CacheWriteEventD007 for D-007 (can be populated from Anamnesis ring buffer).
+type CacheWriteEventD007 struct {
+	FlowLabel uint32
+	Addr      uint32
+	Size      int    // 1, 2, or 4 bytes
+	Value     uint32
+	Timestamp int64
+}
+
 // NewMemoryService creates a new memory service with the given config and
 // BPF map cache. The L2 store is zero-initialized.
 func NewMemoryService(cfg Config, bpfCache BPFMapCache) *MemoryService {
@@ -124,6 +292,12 @@ func NewMemoryService(cfg Config, bpfCache BPFMapCache) *MemoryService {
 	}
 	if cfg.L1MaxPages <= 0 {
 		cfg.L1MaxPages = DefaultL1MaxPages
+	}
+	if cfg.CacheLineSize <= 0 {
+		cfg.CacheLineSize = DefaultCacheLineSize
+	}
+	if cfg.WritebackPeriod <= 0 {
+		cfg.WritebackPeriod = DefaultWritebackPeriod
 	}
 
 	return &MemoryService{
@@ -230,7 +404,11 @@ func (ms *MemoryService) LoadData(addr uint32, data []byte) error {
 func (ms *MemoryService) ReadData(addr uint32, length int) []byte {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
+	return ms.ReadDataUnsafe(addr, length)
+}
 
+// ReadDataUnsafe reads raw bytes from L2 without locking (caller must hold ms.mu).
+func (ms *MemoryService) ReadDataUnsafe(addr uint32, length int) []byte {
 	end := int(addr) + length
 	if end > len(ms.data) {
 		end = len(ms.data)
@@ -293,6 +471,91 @@ func (ms *MemoryService) StageAllToL1(hopID uint8) (int, error) {
 		staged++
 	}
 	return staged, nil
+}
+
+// HandleCacheMissD006 processes a cache miss event from the new D-006 handler.
+// It stages a 64-byte cache line from L2 into the BPF L1 map, plus prefetch lines.
+func (ms *MemoryService) HandleCacheMissD006(flow uint32, lineAddr uint32) error {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	// Align lineAddr to 64-byte boundary (should already be aligned by caller).
+	lineAddr = lineAddr & ^uint32(ms.config.CacheLineSize - 1)
+
+	// Load the requested cache line.
+	for i := 0; i < 1+ms.config.PrefetchN; i++ {
+		addr := lineAddr + uint32(i*ms.config.CacheLineSize)
+		if int(addr)+ms.config.CacheLineSize > ms.config.RingSize {
+			break
+		}
+
+		// Read 64 bytes from L2.
+		data := ms.ReadDataUnsafe(addr, ms.config.CacheLineSize)
+
+		// Stage into BPF L1 map as a "virtual page" (word address = line_addr >> 2).
+		wordAddr := addr >> 2
+		words := make([]uint32, ms.config.CacheLineSize/4)
+		for j := 0; j < len(words) && j*4 < len(data); j++ {
+			if j*4+4 <= len(data) {
+				words[j] = binary.LittleEndian.Uint32(data[j*4:])
+			}
+		}
+		if err := ms.bpfCache.WritePage(wordAddr, words); err != nil {
+			if i == 0 {
+				return err // fail if primary line fails
+			}
+			log.Warn().Err(err).Uint32("addr", addr).Msg("prefetch_line_stage_failed")
+		}
+	}
+
+	return nil
+}
+
+// HandleCacheWriteD007 processes a memory write event from the new D-007 handler.
+// It accumulates the write in the DirtyBitmap for later flush.
+func (dwh *DirtyWritebackHandler) HandleCacheWriteD007(flow uint32, addr uint32, size int, value uint32) error {
+	// Compute cache line address (64-byte aligned).
+	lineAddr := addr & ^uint32(dwh.config.CacheLineSize - 1)
+	offset := int(addr & uint32(dwh.config.CacheLineSize-1))
+
+	dwh.writeCounter++
+	return dwh.dirtyBitmap.MarkDirty(flow, lineAddr, offset, size, value)
+}
+
+// FlushDirtyPages writes accumulated dirty cache lines back to L2.
+// Called periodically (every WritebackPeriod) or on demand.
+func (dwh *DirtyWritebackHandler) FlushDirtyPages() (*MemFlushedEvent, error) {
+	startTime := time.Now()
+	dirty := dwh.dirtyBitmap.FlushAll()
+
+	pageCount := 0
+	dwh.ms.mu.Lock()
+	defer dwh.ms.mu.Unlock()
+
+	for flow, lines := range dirty {
+		_ = flow // unused (for future per-flow accounting)
+		for lineAddr, lineData := range lines {
+			// Write the 64 bytes back to L2.
+			if int(lineAddr)+64 <= len(dwh.ms.data) {
+				copy(dwh.ms.data[lineAddr:lineAddr+64], lineData[:])
+				pageCount++
+			}
+
+			// TODO: If WAL enabled, append to WAL file.
+		}
+	}
+
+	latency := time.Since(startTime)
+	dwh.flushCounter++
+	dwh.lastFlush = time.Now()
+
+	event := &MemFlushedEvent{
+		PageCount:    pageCount,
+		FlushLatency: latency,
+		Timestamp:    startTime,
+	}
+
+	return event, nil
 }
 
 // Run starts the memory service event loop. It subscribes to compute.mem.*

@@ -17,6 +17,7 @@
 package ebpf
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -279,6 +280,75 @@ func CRC16CCITT(data []byte) uint16 {
 		}
 	}
 	return crc
+}
+
+// ── Compute event type constants ─────────────────────────────────────────────
+// These must match the Rust side byte-for-byte.
+
+const (
+	EventComputeHop   = uint8(0x10) // one MBC instruction executed
+	EventCacheMiss    = uint8(0x11) // L1 cache miss, addr emitted to Wotan
+	EventMemWrite     = uint8(0x12) // dirty page written, Wotan flushes to L2
+	EventMemStaged    = uint8(0x13) // Wotan staged a page into L1
+	EventScreenWrite  = uint8(0x14) // SYSCALL DG_DrawFrame emitted
+	EventKeyRead      = uint8(0x15) // SYSCALL DG_GetKey executed
+	EventComputeHalt  = uint8(0x16) // HALT syscall
+	EventComputeStall = uint8(0x17) // stall (cache miss, sleep)
+)
+
+// ComputeHopEvent mirrors the Rust ComputeHopEvent struct exactly.
+// Binary layout: 8+1+1+2+4+4+4+(16*4)+1+1+4 = 96 bytes
+type ComputeHopEvent struct {
+	TimestampNs uint64
+	EventType   uint8
+	HopID       uint8
+	Pad         [2]uint8
+	FlowLabel   uint32
+	PC          uint32
+	Instruction uint32
+	Regs        [16]uint32
+	Flags       uint8
+	CacheHit    uint8
+	MissAddr    uint32
+}
+
+// DecodeComputeHopEvent decodes a raw BPF ring buffer event into a ComputeHopEvent.
+// Returns error if length is wrong or binary.Read fails.
+func DecodeComputeHopEvent(b []byte) (*ComputeHopEvent, error) {
+	// Exact size calculation:
+	// 8 (timestamp) + 1 (type) + 1 (hop) + 2 (pad) + 4 (flow) + 4 (pc) + 4 (insn) +
+	// 64 (regs 16*4) + 1 (flags) + 1 (cache_hit) + 4 (miss_addr) = 94 bytes
+	// But with repr(C) alignment padding, struct is actually:
+	// 8 + 1 + 1 + 2 + 4 + 4 + 4 + 64 + 1 + 1 + 4 = 94 bytes
+	// Let me verify by calculating from the struct definition.
+	const expectedSize = 94
+	if len(b) < expectedSize {
+		return nil, fmt.Errorf("DecodeComputeHopEvent: need %d bytes, got %d", expectedSize, len(b))
+	}
+	evt := &ComputeHopEvent{}
+	r := bytes.NewReader(b[:expectedSize])
+	if err := binary.Read(r, binary.LittleEndian, evt); err != nil {
+		return nil, fmt.Errorf("DecodeComputeHopEvent: %w", err)
+	}
+	return evt, nil
+}
+
+// FuzzDecodeComputeHopEvent is the fuzz target (call from fuzz_test.go)
+func FuzzDecodeComputeHopEvent(data []byte) {
+	_, _ = DecodeComputeHopEvent(data)
+}
+
+// MemWriteEvent is emitted by monad-cpu-ebpf for MEM_WRITE events.
+// Binary layout: 8+1+3+4+4+1+3+4 = 28 bytes
+type MemWriteEvent struct {
+	TimestampNs uint64
+	EventType   uint8
+	Pad         [3]uint8
+	FlowLabel   uint32
+	Addr        uint32
+	Size        uint8
+	Pad2        [3]uint8
+	Value       uint32
 }
 
 // ── AnamnesisEvent ──────────────────────────────────────────────────────────

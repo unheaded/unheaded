@@ -770,6 +770,135 @@ const _: () = {
     let _ = [(); core::mem::size_of::<SophiaEntry>() - 32];
 };
 
+// ── CPU State & Compute Events (Doom-over-IPv6 PoC) ───────────────────────
+
+/// CPU state for a single MBC compute flow, keyed by IPv6 flow label.
+/// Stored in BPF cpu_map (BPF_MAP_TYPE_HASH, max=256 flows).
+/// Persists across packet hops — this IS the CPU register file.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct CpuState {
+    /// General purpose registers r0–r15 (32-bit each).  r15 = SP.
+    pub regs: [u32; 16],
+    /// Program counter (index into rom_map).
+    pub pc: u32,
+    /// Status flags: bit 0=Z, bit 1=N, bit 2=C.
+    pub flags: u8,
+    /// 1 if waiting for cache miss to be serviced.
+    pub stalled: u8,
+    /// 1 if HALT syscall executed.
+    pub halted: u8,
+    /// Padding byte for alignment.
+    pub _pad: u8,
+    /// bpf_ktime_get_ns() value, sleep if < now.
+    pub sleep_until: u64,
+    /// Total instructions executed (for IPS stats).
+    pub insn_count: u64,
+    /// L1 cache hits.
+    pub cache_hits: u64,
+    /// L1 cache misses.
+    pub cache_misses: u64,
+}
+
+/// Keyboard state written by Wotan, read by BPF SYSCALL 0x02.
+/// Stored in kbd_map (BPF_MAP_TYPE_ARRAY, index 0).
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct KeyboardState {
+    /// Keycode.
+    pub key: u32,
+    /// 1=pressed, 0=released.
+    pub pressed: u32,
+    /// Monotonically increasing, BPF checks if changed.
+    pub sequence: u64,
+}
+
+/// CPU state flag bit positions.
+pub mod cpu_flags {
+    /// Zero flag (Z): set when the result of the last ALU op was zero.
+    pub const ZERO: u8 = 0b001;
+    /// Negative flag (N): set when the MSB of the last result is 1.
+    pub const NEGATIVE: u8 = 0b010;
+    /// Carry flag (C): set on unsigned overflow/borrow.
+    pub const CARRY: u8 = 0b100;
+}
+
+/// Register aliases for CpuState.
+pub const REG_SP: usize = 15;
+pub const REG_PC_DEFAULT: u32 = 0;
+pub const REG_SP_DEFAULT: u32 = 0xFFFF_0000;
+
+// ── Compute engine Anamnesis event types ────────────────────────────────────
+
+/// Compute engine event type: one MBC instruction executed.
+pub const EVENT_COMPUTE_HOP: u8 = 0x10;
+/// Compute engine event type: L1 cache miss, addr emitted to Wotan.
+pub const EVENT_CACHE_MISS: u8 = 0x11;
+/// Compute engine event type: dirty page written, Wotan flushes to L2.
+pub const EVENT_MEM_WRITE: u8 = 0x12;
+/// Compute engine event type: Wotan staged a page into L1.
+pub const EVENT_MEM_STAGED: u8 = 0x13;
+/// Compute engine event type: SYSCALL DG_DrawFrame emitted.
+pub const EVENT_SCREEN_WRITE: u8 = 0x14;
+/// Compute engine event type: SYSCALL DG_GetKey executed.
+pub const EVENT_KEY_READ: u8 = 0x15;
+/// Compute engine event type: HALT syscall.
+pub const EVENT_COMPUTE_HALT: u8 = 0x16;
+/// Compute engine event type: stall (cache miss, sleep).
+pub const EVENT_COMPUTE_STALL: u8 = 0x17;
+
+/// Emitted by monad-cpu-ebpf via BPF ring buffer on every instruction executed.
+/// Also used for CACHE_MISS events (with instruction=0).
+/// Total size: 8+1+1+2+4+4+4+(16*4)+1+1+4 = 96 bytes
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct ComputeHopEvent {
+    /// Kernel timestamp at time of event (bpf_ktime_get_ns, nanoseconds).
+    pub timestamp_ns: u64,
+    /// Event type (EVENT_COMPUTE_HOP, EVENT_CACHE_MISS, etc.).
+    pub event_type: u8,
+    /// Which namespace/hop (0-5 for 6-hop ring).
+    pub hop_id: u8,
+    /// Padding for alignment.
+    pub _pad: [u8; 2],
+    /// IPv6 flow label.
+    pub flow_label: u32,
+    /// Program counter.
+    pub pc: u32,
+    /// Raw MBC instruction word (0 for CACHE_MISS).
+    pub instruction: u32,
+    /// Full register snapshot at time of event.
+    pub regs: [u32; 16],
+    /// CPU flags.
+    pub flags: u8,
+    /// 1=L1 hit, 0=miss (for stats).
+    pub cache_hit: u8,
+    /// For CACHE_MISS events: the address that missed.
+    pub miss_addr: u32,
+}
+
+/// Emitted by monad-cpu-ebpf for MEM_WRITE events (dirty writeback to Wotan L2).
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct MemWriteEvent {
+    /// Kernel timestamp at time of event (bpf_ktime_get_ns, nanoseconds).
+    pub timestamp_ns: u64,
+    /// Event type (EVENT_MEM_WRITE).
+    pub event_type: u8,
+    /// Padding for alignment.
+    pub _pad: [u8; 3],
+    /// IPv6 flow label.
+    pub flow_label: u32,
+    /// Memory address being written.
+    pub addr: u32,
+    /// 1=byte, 2=halfword, 4=word.
+    pub size: u8,
+    /// Padding for alignment.
+    pub _pad2: [u8; 3],
+    /// Value being written.
+    pub value: u32,
+}
+
 // ── MBC CPU state (Doom-over-IPv6 PoC) ───────────────────────────────────────
 
 /// General-purpose registers for the MBC ISA VM.
@@ -784,7 +913,8 @@ pub const MBC_REG_COUNT: usize = 16;
 /// Stored in `cpu_map: BPF_MAP_TYPE_HASH<u32 (flow_label), MbcCpuState>`.
 /// Each Kingdom hop reads this state, executes one instruction, and writes it back.
 ///
-/// See doom-over-ipv6-plan.md Phase D1 for the full execution model.
+/// Includes L1 cache statistics for memory hierarchy visibility.
+/// See doom-over-ipv6-plan.md Phase D3/D4 for the full execution model.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MbcCpuState {
@@ -796,11 +926,19 @@ pub struct MbcCpuState {
     pub flags: u8,
     /// `1` when the CPU has executed a HALT instruction.
     pub halted: u8,
-    /// Reserved for future use (sleep timer, etc.).
-    pub _pad: [u8; 2],
+    /// `1` when waiting for cache miss to be serviced by Wotan (D-003).
+    pub stalled: u8,
+    /// Padding byte for alignment.
+    pub _pad: u8,
     /// "Sleep until" timestamp (bpf_ktime_get_ns, nanoseconds).
     /// When non-zero, the CPU skips execution until this time is reached.
     pub sleep_until_ns: u64,
+    /// Total instructions executed (for IPS stats).
+    pub insn_count: u64,
+    /// L1 cache hits.
+    pub cache_hits: u64,
+    /// L1 cache misses.
+    pub cache_misses: u64,
 }
 
 /// MBC CPU flags — stored in `MbcCpuState.flags`.
@@ -949,8 +1087,8 @@ pub mod mbc_opcodes {
     pub const STH:  u8 = 0x35;
 
     // ── System ─────────────────────────────────────────────────
-    /// Invoke I/O callback.  `r0` = syscall number (see `mbc_syscalls`).
-    pub const SYSCALL: u8 = 0xFE;
+    /// Invoke I/O callback.  `imm16` = syscall number (see `mbc_syscalls`).
+    pub const SYSCALL: u8 = 0x40;
     /// Halt execution.  Sets `MbcCpuState.halted = 1`.
     pub const HALT:    u8 = 0xFF;
 }
@@ -1580,5 +1718,84 @@ mod tests {
     #[test]
     fn monad_new_version_matches_protocol_version() {
         assert_eq!(Monad::new().version, MONAD_VERSION);
+    }
+
+    // ── CPU State and Compute Events ───────────────────────────────────────
+
+    #[test]
+    fn cpu_state_size() {
+        // CpuState is 16*4 + 4 + 1 + 1 + 1 + 1 + 8 + 8 + 8 + 8 = 80 bytes
+        assert_eq!(core::mem::size_of::<CpuState>(), 80);
+    }
+
+    #[test]
+    fn cpu_state_default() {
+        let cpu = CpuState::default();
+        assert_eq!(cpu.pc, 0);
+        assert_eq!(cpu.flags, 0);
+        assert_eq!(cpu.halted, 0);
+        assert_eq!(cpu.stalled, 0);
+    }
+
+    #[test]
+    fn keyboard_state_size() {
+        // KeyboardState is 4 + 4 + 8 = 16 bytes
+        assert_eq!(core::mem::size_of::<KeyboardState>(), 16);
+    }
+
+    #[test]
+    fn compute_hop_event_size() {
+        // 8+1+1+2+4+4+4+64+1+1+4 = 94... recalc: 8+1+1+2+4+4+4+64+1+1+4 = 94
+        // With repr(C): 8+1+1+[2 pad]+4+4+4+[64]+1+1+[2 pad]+4 = 96
+        assert_eq!(core::mem::size_of::<ComputeHopEvent>(), 96);
+    }
+
+    #[test]
+    fn compute_hop_event_default() {
+        let ev = ComputeHopEvent::default();
+        assert_eq!(ev.timestamp_ns, 0);
+        assert_eq!(ev.event_type, 0);
+        assert_eq!(ev.instruction, 0);
+    }
+
+    #[test]
+    fn mem_write_event_size() {
+        // 8+1+[3 pad]+4+4+1+[3 pad]+4 = 28 bytes
+        assert_eq!(core::mem::size_of::<MemWriteEvent>(), 28);
+    }
+
+    #[test]
+    fn event_type_constants_are_distinct() {
+        let events = [
+            EVENT_COMPUTE_HOP,
+            EVENT_CACHE_MISS,
+            EVENT_MEM_WRITE,
+            EVENT_MEM_STAGED,
+            EVENT_SCREEN_WRITE,
+            EVENT_KEY_READ,
+            EVENT_COMPUTE_HALT,
+            EVENT_COMPUTE_STALL,
+        ];
+        for i in 0..events.len() {
+            for j in (i + 1)..events.len() {
+                assert_ne!(events[i], events[j], "Event types must be distinct");
+            }
+        }
+    }
+
+    #[test]
+    fn cpu_flag_bits_do_not_overlap() {
+        assert_eq!(cpu_flags::ZERO, 0b001);
+        assert_eq!(cpu_flags::NEGATIVE, 0b010);
+        assert_eq!(cpu_flags::CARRY, 0b100);
+        // Verify no overlap
+        assert_eq!(cpu_flags::ZERO & cpu_flags::NEGATIVE, 0);
+        assert_eq!(cpu_flags::ZERO & cpu_flags::CARRY, 0);
+        assert_eq!(cpu_flags::NEGATIVE & cpu_flags::CARRY, 0);
+    }
+
+    #[test]
+    fn reg_sp_alias_is_15() {
+        assert_eq!(REG_SP, 15);
     }
 }

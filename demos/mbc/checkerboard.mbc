@@ -70,9 +70,9 @@ x_loop:
     CMP r2, r3
     JN y_loop
 
-    ; draw frame
-    MOVI r0, 1
-    MOVI r1, 0xC000
-    SYSCALL
+    ; Draw the frame to the dashboard: DRAW_FRAME
+    ; r1 is already set to 0xC000 (framebuffer base)
+    DRAW_FRAME
 
+    ; Halt execution
     HALT
