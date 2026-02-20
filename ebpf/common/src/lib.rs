@@ -171,6 +171,7 @@ pub enum FlowEventType {
     StateChange = 1,
     Expired = 2,
     Update = 3,
+    Anomaly = 4,
 }
 
 /// Latency measurement event from kprobes.
@@ -428,6 +429,7 @@ mod tests {
         assert_eq!(FlowEventType::StateChange as u8, 1);
         assert_eq!(FlowEventType::Expired as u8, 2);
         assert_eq!(FlowEventType::Update as u8, 3);
+        assert_eq!(FlowEventType::Anomaly as u8, 4);
     }
 
     #[test]
