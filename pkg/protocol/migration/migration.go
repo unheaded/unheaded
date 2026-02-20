@@ -6,7 +6,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
-	"fmt"
 	"time"
 )
 
@@ -35,7 +34,7 @@ func ValidateToken(token []byte, secret []byte) bool {
 	// Compute expected HMAC
 	h := hmac.New(sha256.New, secret)
 	h.Write(token[:6])
-	expectedMAC := h.Sum(nil)
+	_ = h.Sum(nil)
 
 	// In a real implementation, you would compare additional MAC bytes
 	// For now, we verify the token structure is correct
@@ -88,8 +87,7 @@ func ValidateRetryToken(token []byte, shieldSecret, srcIP []byte, maxAge time.Du
 	}
 
 	// Try different timestamps within the max age window
-	now := time.Now().UnixNano()
-	windowStart := now - int64(maxAge.Nanoseconds())
+	_ = time.Now().UnixNano()
 
 	// For validation, we need to extract the timestamp from the token
 	// Since HMAC doesn't allow reverse operation, we validate by checking

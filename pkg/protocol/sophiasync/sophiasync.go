@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"unheaded/pkg/logger"
-	"unheaded/pkg/wotan-client"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // TableVersion represents the version of the Sophia state table.
@@ -57,9 +57,9 @@ type HopAckState struct {
 // EncoderStream distributes delta updates to hops via Wotan control topic.
 type EncoderStream struct {
 	mu             sync.RWMutex
-	wotanClient    *wotanclient.Client
+	wotanClient    *wotanClient.Client
 	controlTopic   string
-	logger         logger.Logger
+	logger         *logger.Logger
 	pendingAcks    map[string]TableVersion
 	ackMutex       sync.Mutex
 }
@@ -69,7 +69,7 @@ type DecoderStream struct {
 	mu      sync.RWMutex
 	hopID   string
 	version TableVersion
-	logger  logger.Logger
+	logger  *logger.Logger
 }
 
 // SyncManager tracks table version per endpoint and validates state changes.
@@ -81,13 +81,13 @@ type SyncManager struct {
 	gracePeriod       time.Duration
 	expiredVersions   map[TableVersion]time.Time
 	currentVersion    TableVersion
-	logger            logger.Logger
-	wotanClient       *wotanclient.Client
+	logger            *logger.Logger
+	wotanClient       *wotanClient.Client
 }
 
 // NewEncoderStream creates a new encoder stream.
-func NewEncoderStream(wotanClient *wotanclient.Client, controlTopic string, log logger.Logger) (*EncoderStream, error) {
-	if wotanClient == nil {
+func NewEncoderStream(client *wotanClient.Client, controlTopic string, log *logger.Logger) (*EncoderStream, error) {
+	if client == nil {
 		return nil, fmt.Errorf("wotan client cannot be nil")
 	}
 	if controlTopic == "" {
@@ -98,7 +98,7 @@ func NewEncoderStream(wotanClient *wotanclient.Client, controlTopic string, log 
 	}
 
 	return &EncoderStream{
-		wotanClient:  wotanClient,
+		wotanClient:  client,
 		controlTopic: controlTopic,
 		logger:       log,
 		pendingAcks:  make(map[string]TableVersion),
@@ -119,10 +119,10 @@ func (es *EncoderStream) DistributeDelta(ctx context.Context, delta *DictionaryD
 		return fmt.Errorf("failed to encode delta: %w", err)
 	}
 
-	es.logger.Infof("Distributing delta version %d with %d additions and %d removals",
+	es.logger.Info().Msgf("Distributing delta version %d with %d additions and %d removals",
 		delta.Version, len(delta.Additions), len(delta.Removals))
 
-	if err := es.wotanClient.PublishControl(ctx, es.controlTopic, payload); err != nil {
+	if err := es.wotanClient.Publish(ctx, es.controlTopic, payload); err != nil {
 		return fmt.Errorf("failed to publish delta to control topic: %w", err)
 	}
 
@@ -151,7 +151,7 @@ func (es *EncoderStream) PendingAcksCount() int {
 }
 
 // NewDecoderStream creates a new decoder stream.
-func NewDecoderStream(hopID string, log logger.Logger) (*DecoderStream, error) {
+func NewDecoderStream(hopID string, log *logger.Logger) (*DecoderStream, error) {
 	if hopID == "" {
 		return nil, fmt.Errorf("hop ID cannot be empty")
 	}
@@ -176,7 +176,7 @@ func (ds *DecoderStream) UpdateState(version TableVersion) error {
 	defer ds.mu.Unlock()
 
 	ds.version = version
-	ds.logger.Infof("Updated hop %s to table version %d", ds.hopID, version)
+	ds.logger.Info().Msgf("Updated hop %s to table version %d", ds.hopID, version)
 	return nil
 }
 
@@ -188,8 +188,8 @@ func (ds *DecoderStream) GetState() (hopID string, version TableVersion) {
 }
 
 // NewSyncManager creates a new sync manager.
-func NewSyncManager(wotanClient *wotanclient.Client, controlTopic string, log logger.Logger) (*SyncManager, error) {
-	if wotanClient == nil {
+func NewSyncManager(client *wotanClient.Client, controlTopic string, log *logger.Logger) (*SyncManager, error) {
+	if client == nil {
 		return nil, fmt.Errorf("wotan client cannot be nil")
 	}
 	if controlTopic == "" {
@@ -199,7 +199,7 @@ func NewSyncManager(wotanClient *wotanclient.Client, controlTopic string, log lo
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
 
-	encoder, err := NewEncoderStream(wotanClient, controlTopic, log)
+	encoder, err := NewEncoderStream(client, controlTopic, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create encoder stream: %w", err)
 	}
@@ -209,9 +209,9 @@ func NewSyncManager(wotanClient *wotanclient.Client, controlTopic string, log lo
 		encoder:          encoder,
 		gracePeriod:      60 * time.Second,
 		expiredVersions:  make(map[TableVersion]time.Time),
-		currentVersion:   1,
+		currentVersion:   0,
 		logger:           log,
-		wotanClient:      wotanClient,
+		wotanClient:      client,
 	}, nil
 }
 
@@ -225,7 +225,7 @@ func (sm *SyncManager) SetGracePeriod(period time.Duration) error {
 	defer sm.mu.Unlock()
 
 	sm.gracePeriod = period
-	sm.logger.Infof("Grace period set to %v", period)
+	sm.logger.Info().Msgf("Grace period set to %v", period)
 	return nil
 }
 
@@ -257,7 +257,7 @@ func (sm *SyncManager) ApplyDelta(delta *DictionaryDelta) error {
 	// Record old version as expired
 	sm.expiredVersions[delta.Version-1] = time.Now()
 
-	sm.logger.Infof("Applied delta version %d (additions: %d, removals: %d)",
+	sm.logger.Info().Msgf("Applied delta version %d (additions: %d, removals: %d)",
 		delta.Version, len(delta.Additions), len(delta.Removals))
 
 	return nil
@@ -282,7 +282,7 @@ func (sm *SyncManager) WaitForAcks(ctx context.Context, timeout time.Duration) e
 			return fmt.Errorf("timeout waiting for acknowledgments, %d hops still pending", pending)
 		case <-ticker.C:
 			if sm.encoder.PendingAcksCount() == 0 {
-				sm.logger.Infof("All hops acknowledged table version %d", sm.currentVersion)
+				sm.logger.Info().Msgf("All hops acknowledged table version %d", sm.currentVersion)
 				return nil
 			}
 
@@ -308,7 +308,7 @@ func (sm *SyncManager) RegisterEndpoint(endpointID string) error {
 	}
 
 	sm.endpointVersions[endpointID] = 0
-	sm.logger.Infof("Registered endpoint %s", endpointID)
+	sm.logger.Info().Msgf("Registered endpoint %s", endpointID)
 	return nil
 }
 
@@ -326,7 +326,7 @@ func (sm *SyncManager) UpdateEndpointVersion(endpointID string, version TableVer
 	}
 
 	sm.endpointVersions[endpointID] = version
-	sm.logger.Debugf("Updated endpoint %s to version %d", endpointID, version)
+	sm.logger.Debug().Msgf("Updated endpoint %s to version %d", endpointID, version)
 	return nil
 }
 
@@ -363,7 +363,7 @@ func (sm *SyncManager) CleanupExpiredVersions() error {
 	}
 
 	if removed > 0 {
-		sm.logger.Debugf("Cleaned up %d expired versions", removed)
+		sm.logger.Debug().Msgf("Cleaned up %d expired versions", removed)
 	}
 
 	return nil

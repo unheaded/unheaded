@@ -3,14 +3,13 @@
 package lifecycle
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"sync"
 	"time"
 
 	"unheaded/pkg/logger"
-	"unheaded/pkg/wotan-client"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // GoawayFrame represents a GOAWAY frame.
@@ -61,7 +60,7 @@ func (gt *GoawayTracker) ValidateAndUpdate(frame *GoawayFrame) error {
 	gt.lastFlowID = frame.LastFlowID
 	gt.initialized = true
 
-	logger.Debugf("GOAWAY validated and updated: LastFlowID=%d ErrorCode=%d", frame.LastFlowID, frame.ErrorCode)
+	logger.Debug().Msgf("GOAWAY validated and updated: LastFlowID=%d ErrorCode=%d", frame.LastFlowID, frame.ErrorCode)
 
 	return nil
 }
@@ -91,7 +90,7 @@ func EncodeGoawayFrame(frame *GoawayFrame) ([]byte, error) {
 	binary.BigEndian.PutUint32(buf[0:4], frame.LastFlowID)
 	binary.BigEndian.PutUint16(buf[4:6], frame.ErrorCode)
 
-	logger.Debugf("encoded GOAWAY: LastFlowID=%d ErrorCode=%d", frame.LastFlowID, frame.ErrorCode)
+	logger.Debug().Msgf("encoded GOAWAY: LastFlowID=%d ErrorCode=%d", frame.LastFlowID, frame.ErrorCode)
 
 	return buf, nil
 }
@@ -111,7 +110,7 @@ func DecodeGoawayFrame(data []byte) (*GoawayFrame, error) {
 		ErrorCode:  binary.BigEndian.Uint16(data[4:6]),
 	}
 
-	logger.Debugf("decoded GOAWAY: LastFlowID=%d ErrorCode=%d", frame.LastFlowID, frame.ErrorCode)
+	logger.Debug().Msgf("decoded GOAWAY: LastFlowID=%d ErrorCode=%d", frame.LastFlowID, frame.ErrorCode)
 
 	return frame, nil
 }
@@ -127,7 +126,7 @@ func EncodeCancelFlowFrame(frame *CancelFlowFrame) ([]byte, error) {
 	binary.BigEndian.PutUint32(buf[0:4], frame.FlowLabel)
 	binary.BigEndian.PutUint16(buf[4:6], frame.ErrorCode)
 
-	logger.Debugf("encoded CANCEL_FLOW: FlowLabel=%d ErrorCode=%d", frame.FlowLabel, frame.ErrorCode)
+	logger.Debug().Msgf("encoded CANCEL_FLOW: FlowLabel=%d ErrorCode=%d", frame.FlowLabel, frame.ErrorCode)
 
 	return buf, nil
 }
@@ -147,7 +146,7 @@ func DecodeCancelFlowFrame(data []byte) (*CancelFlowFrame, error) {
 		ErrorCode: binary.BigEndian.Uint16(data[4:6]),
 	}
 
-	logger.Debugf("decoded CANCEL_FLOW: FlowLabel=%d ErrorCode=%d", frame.FlowLabel, frame.ErrorCode)
+	logger.Debug().Msgf("decoded CANCEL_FLOW: FlowLabel=%d ErrorCode=%d", frame.FlowLabel, frame.ErrorCode)
 
 	return frame, nil
 }
@@ -157,11 +156,11 @@ func DecodeCancelFlowFrame(data []byte) (*CancelFlowFrame, error) {
 type ShutdownSequence struct {
 	tracker      *GoawayTracker
 	drainTimeout time.Duration
-	client       wotanclient.Client
+	client       *wotanClient.Client
 }
 
 // NewShutdownSequence creates a new shutdown sequence handler.
-func NewShutdownSequence(drainTimeout time.Duration, client wotanclient.Client) *ShutdownSequence {
+func NewShutdownSequence(drainTimeout time.Duration, client *wotanClient.Client) *ShutdownSequence {
 	return &ShutdownSequence{
 		tracker:      NewGoawayTracker(),
 		drainTimeout: drainTimeout,
@@ -196,7 +195,7 @@ func (ss *ShutdownSequence) Execute(lastFlowID uint32, errorCode uint16) error {
 
 	// Note: In a real implementation, this would send to the connection
 	// For now, we log that we would send it
-	logger.Infof("shutdown sequence initiated: LastFlowID=%d ErrorCode=%d drainTimeout=%v",
+	logger.Info().Msgf("shutdown sequence initiated: LastFlowID=%d ErrorCode=%d drainTimeout=%v",
 		lastFlowID, errorCode, ss.drainTimeout)
 
 	// Wait for drain timeout before closing
@@ -204,7 +203,7 @@ func (ss *ShutdownSequence) Execute(lastFlowID uint32, errorCode uint16) error {
 		time.Sleep(ss.drainTimeout)
 	}
 
-	logger.Infof("shutdown sequence completed: sent GOAWAY frame (%d bytes)", len(encoded))
+	logger.Info().Msgf("shutdown sequence completed: sent GOAWAY frame (%d bytes)", len(encoded))
 
 	return nil
 }
