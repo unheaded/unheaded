@@ -172,7 +172,7 @@ func disassembleMBC(insn uint32) string {
 		0x07: "AND", 0x08: "OR", 0x09: "XOR", 0x0A: "NOT", 0x0B: "SHL", 0x0C: "SHR",
 		0x0D: "SAR", 0x0E: "MOV", 0x0F: "MOVI", 0x10: "CMP",
 		0x20: "JMP", 0x21: "JZ", 0x22: "JNZ", 0x23: "JN", 0x24: "JP", 0x25: "JC",
-		0x26: "JNC", 0x27: "CALL", 0x28: "RET",
+		0x26: "JNC", 0x27: "CALL", 0x28: "RET", 0x29: "JMPR", 0x2A: "CALLR",
 		0x30: "LD", 0x31: "ST", 0x32: "LDB", 0x33: "STB", 0x34: "LDH", 0x35: "STH",
 		0x40: "SYSCALL", 0xFF: "HALT",
 	}
@@ -188,6 +188,10 @@ func disassembleMBC(insn uint32) string {
 		return fmt.Sprintf("%-8s 0x%04X", name, imm)
 	case 0x28: // RET
 		return "RET"
+	case 0x29: // JMPR (indirect jump via register)
+		return fmt.Sprintf("%-8s r%d", name, dst)
+	case 0x2A: // CALLR (indirect call via register)
+		return fmt.Sprintf("%-8s r%d", name, dst)
 	case 0x0E: // MOV
 		return fmt.Sprintf("%-8s r%d, r%d", name, dst, src)
 	case 0x0F: // MOVI

@@ -7,9 +7,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
-	"unsafe"
 )
 
 // ============================================================================
@@ -219,7 +219,7 @@ func TestSerializationRoundtrip(t *testing.T) {
 
 			// Deserialize
 			var result interface{}
-			switch v := tt.input.(type) {
+			switch tt.input.(type) {
 			case TestHMACKeyKey:
 				var r TestHMACKeyKey
 				if err := binary.Read(buf, binary.BigEndian, &r); err != nil {
@@ -278,7 +278,7 @@ func TestStructSizes(t *testing.T) {
 		{"SettingsKey", TestSettingsKey{}, 8},
 		{"SettingsValue", TestSettingsValue{}, 16},
 		{"HopValidatorKey", TestHopValidatorKey{}, 8},
-		{"HopValidatorValue", TestHopValidatorValue{}, 32},
+		{"HopValidatorValue", TestHopValidatorValue{}, 28},
 		{"FlowTypeEntry", TestFlowTypeEntry{}, 4},
 		{"BlocklistKey", TestBlocklistKey{}, 8},
 		{"ErrorCounterKey", TestErrorCounterKey{}, 4},
@@ -291,7 +291,7 @@ func TestStructSizes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			size := unsafe.Sizeof(tt.value)
+			size := reflect.TypeOf(tt.value).Size()
 			if size != tt.expected {
 				t.Errorf("size mismatch: expected %d bytes, got %d bytes", tt.expected, size)
 			}

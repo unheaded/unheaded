@@ -1,6 +1,7 @@
 package ebpf
 
 import (
+	"bytes"
 	"encoding/binary"
 	"testing"
 )
@@ -15,7 +16,10 @@ func TestComputeHopEvent_SizeAndAlignment(t *testing.T) {
 	evt := ComputeHopEvent{}
 	// Encode via binary to verify round-trip
 	var buf [94]byte
+	wrBuf := new(bytes.Buffer)
 	if err := binary.Write(
+		wrBuf,
+		binary.LittleEndian,
 		&struct {
 			TimestampNs uint64
 			EventType   uint8
@@ -39,11 +43,10 @@ func TestComputeHopEvent_SizeAndAlignment(t *testing.T) {
 			CacheHit:    1,
 			MissAddr:    0xDEADBEEF,
 		},
-		binary.LittleEndian,
-		buf[:],
 	); err != nil {
 		t.Fatalf("binary.Write failed: %v", err)
 	}
+	copy(buf[:], wrBuf.Bytes())
 
 	// Now decode and verify
 	decoded, err := DecodeComputeHopEvent(buf[:])

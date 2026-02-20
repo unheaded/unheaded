@@ -546,7 +546,15 @@ func TestFullHTTPFlow_CreateUpdateDelete(t *testing.T) {
 // ============================================================================
 
 func TestHandleGetTasks_FallbackMode_NoTaskManager(t *testing.T) {
-	server := NewServer(Config{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	server := &Server{
+		config:     Config{},
+		sseClients: make(map[chan []byte]bool),
+		tasks:      getInitialTasks(),
+		ctx:        ctx,
+		cancel:     cancel,
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline/tasks", nil)
 	w := httptest.NewRecorder()

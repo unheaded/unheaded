@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"unheaded/pkg/logger"
 )
 
 // TestDisassembleMBC tests the MBC instruction disassembler.
@@ -22,7 +24,7 @@ func TestDisassembleMBC(t *testing.T) {
 		},
 		{
 			name:     "MOVI instruction",
-			insn:     0x2A_5_0_0100, // opcode=0x2A, dst=5, src=0, imm=0x0100
+			insn:     0x0F_5_0_0100, // opcode=0x0F, dst=5, src=0, imm=0x0100
 			contains: "MOVI",
 		},
 		{
@@ -42,7 +44,7 @@ func TestDisassembleMBC(t *testing.T) {
 		},
 		{
 			name:     "MOV instruction",
-			insn:     0x29_3_7_0000, // opcode=0x29, dst=3, src=7
+			insn:     0x0E_3_7_0000, // opcode=0x0E, dst=3, src=7
 			contains: "MOV",
 		},
 	}
@@ -82,7 +84,7 @@ func TestLoadRomDryRun(t *testing.T) {
 
 	// Write 3 little-endian u32 instructions
 	instructions := []uint32{
-		0x2A_1_0_0000, // MOVI r1, 0
+		0x0F_1_0_0000, // MOVI r1, 0
 		0x01_1_2_0005, // ADD r1, r2, 5
 		0x28_0_0_0000, // RET
 	}
@@ -99,6 +101,7 @@ func TestLoadRomDryRun(t *testing.T) {
 	// Create test context
 	ctx := &Context{
 		MapPinDir: "/nonexistent", // Non-existent BPF pin directory
+		Logger:    logger.New(os.Stderr),
 	}
 
 	// Run load-rom in dry-run mode (should succeed)
