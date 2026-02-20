@@ -293,7 +293,7 @@ Offset  Size  Field               Type        Description
 0x00    1     version             raw uint8   Protocol version (current: 0x01)
 0x01    1     src_service_id      exponent    Source service (Sophia lookup)
 0x02    1     dst_service_id      exponent    Destination service (Sophia)
-0x03    1     hop_count           raw uint8   Incremented at each hop
+0x03    1     hop_count           raw uint8   Decremented at each hop (TTL-like)
 0x04    1     qos_class           exponent    QoS classification
 0x05    1     flow_action         exponent    Action directive
 0x06    1     circuit_state       exponent    Circuit breaker state
@@ -325,10 +325,11 @@ dst_service_id:
   Semantics are defined by Sophia dictionary lookup.
 
 hop_count:
-: An unsigned 8-bit counter, initially set to 0 at Shield ingress.
-  Each hop MUST increment this field by 1 before forwarding. If
-  hop_count reaches 255, the packet MUST be dropped or an anomaly
-  event MUST be emitted.
+: An unsigned 8-bit counter, initially set to a deployment-defined
+  hop limit (default 64) at Shield ingress. Each hop MUST check
+  whether hop_count equals 0; if so, the packet MUST be dropped and
+  an EVENT_ANOMALY MUST be emitted. Otherwise, the hop MUST
+  decrement hop_count by 1 before forwarding.
 
 trace_id:
 : Flow trace correlation is derived from the IPv6 Flow Label (RFC 6437).
@@ -774,8 +775,8 @@ performed in order:
 
 7. Write the updated Monad back to the packet.
 
-8. Increment hop_count field by 1. If hop_count exceeds 255 after
-   increment, drop the packet and emit an anomaly event.
+8. Check whether hop_count equals 0; if so, drop the packet and emit
+   an EVENT_ANOMALY. Otherwise, decrement hop_count by 1.
 
 9. Recompute the CRC-16 checksum over bytes 0x00-0x11 and store at
    offset 0x12.
@@ -1034,6 +1035,8 @@ flow_action    Meaning
 0x12           KEY_REVOKE     (emergency revocation)
 0x13           KEM_ENCAPS     (ML-KEM encapsulation)
 0x14           KEM_DECAPS     (ML-KEM decapsulation)
+0x15           KEY_ACK        (key acknowledgment)
+0x16           KEY_REJECT     (key rejection)
 ~~~~
 
 When flow_action is KEY_ANNOUNCE, KEY_ROTATE, or KEY_REVOKE, the packet
@@ -1588,7 +1591,7 @@ feedback:
     Performance, Manageability, Security, IANA, Appendices.
 
 13. **Flags bitfield from draft-02**: Committed to the superior flags
-    bitfield structure with C, Y, T, E, S, M, K1, K0 bits.
+    bitfield structure with C, Y, T, E, S, M, CUSTOM, RSVD bits.
 
 14. **Wotan helper interface**: Added detailed BPF helper function
     specifications (bpf_wotan_read, bpf_wotan_write) with error codes
