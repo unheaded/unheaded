@@ -279,7 +279,7 @@ fn process_tcp(
             // Flow is cancelled — emit ANOMALY event and drop
             send_flow_event(&flow_key, &flow_state, FlowEventType::Anomaly);
             increment_stat(STAT_CANCELLED);
-            return Ok(TC_ACT_PIPE);
+            return Ok(());
         }
     }
 
@@ -381,7 +381,7 @@ fn process_udp(
             // Flow is cancelled — emit ANOMALY event and drop
             send_flow_event(&flow_key, &flow_state, FlowEventType::Anomaly);
             increment_stat(STAT_CANCELLED);
-            return Ok(TC_ACT_PIPE);
+            return Ok(());
         }
     }
 

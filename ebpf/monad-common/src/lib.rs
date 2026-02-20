@@ -730,7 +730,7 @@ impl AnamnesisEvent {
         if divisor == 0 {
             return false;
         }
-        self.flow_label_u16() % divisor == 0
+        self.flow_label_u16().is_multiple_of(divisor)
     }
 }
 
