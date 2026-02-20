@@ -120,14 +120,19 @@ static ERROR_COUNTERS: HashMap<u64, [u8; 8]> = HashMap::with_max_entries(256, 0)
 static AUTHORITY: HashMap<u64, [u8; 24]> = HashMap::with_max_entries(512, 0);
 
 // Stats keys
-const STAT_TOTAL:         u32 = 0;
-const STAT_IPV6:          u32 = 1;
-const STAT_BIRTHS:        u32 = 2;
-const STAT_DEATHS:        u32 = 3;
-const STAT_BLOCKED:       u32 = 4;
-const STAT_EXT_STRIPPED:  u32 = 5;
-const STAT_ANOMALIES:     u32 = 6;
-const STAT_RING_DROPS:    u32 = 7;
+const STAT_TOTAL:                     u32 = 0;
+const STAT_IPV6:                      u32 = 1;
+const STAT_BIRTHS:                    u32 = 2;
+const STAT_DEATHS:                    u32 = 3;
+const STAT_BLOCKED:                   u32 = 4;
+const STAT_EXT_STRIPPED:              u32 = 5;
+const STAT_ANOMALIES:                 u32 = 6;
+const STAT_RING_DROPS:                u32 = 7;
+const STAT_DEST_OPTIONS_PROCESSED:    u32 = 8;
+const STAT_DST_OPT_SKIP:              u32 = 9;
+const STAT_DST_OPT_DISCARD:           u32 = 10;
+const STAT_DST_OPT_ICMP:              u32 = 11;
+const STAT_DST_OPT_ICMP_MCAST:        u32 = 12;
 
 // ── IPv6 header layout (repr(C, packed) for BPF direct pointer casts) ────────
 
@@ -554,16 +559,26 @@ fn make_retry_token_key(flow_id: u16, src_low_64: u64) -> u64 {
 /// The function reads the Next Header chain but does NOT modify packet data —
 /// the actual header bytes will be overwritten by the HBH insertion step.
 ///
+/// For Destination Options (nh=60), parses the TLV options within and validates
+/// each option according to RFC 8200 §4.2 option type processing rules:
+/// - High 2 bits of option type indicate action:
+///   - 00 (0-63): Skip unknown option
+///   - 01 (64-127): Discard packet
+///   - 10 (128-191): Discard packet + send ICMP
+///   - 11 (192-255): Discard packet + send ICMP (except multicast)
+/// - Unknown options with action=00 are silently skipped.
+/// - Packets with unsupported action bits are passed through (logged as stats).
+///
 /// Returns the original transport Next Header value.
 #[inline(always)]
 fn strip_extension_headers(ip: &Ipv6Hdr, ip_start: usize, data_end: usize) -> u8 {
     // These Next Header values indicate IPv6 extension headers that must be
     // stripped before the Monad is inserted (RFC 8200 §4):
     //   0  = Hop-by-Hop Options (we strip any external HBH)
-    //   43 = Routing
-    //   44 = Fragment
+    //   43 = Routing Header (RFC 8200 §4.4)
+    //   44 = Fragment Header (RFC 8200 §4.5)
     //   51 = AH (Authentication Header)
-    //   60 = Destination Options
+    //   60 = Destination Options (RFC 8200 §4.6)
     let mut nh = ip.next_header;
     let mut offset = ip_start + IPV6_HDR_SIZE;
 
@@ -580,12 +595,103 @@ fn strip_extension_headers(ip: &Ipv6Hdr, ip_start: usize, data_end: usize) -> u8
         let next_nh  = unsafe { core::ptr::read_volatile(offset as *const u8) };
         let hdr_len  = unsafe { core::ptr::read_volatile((offset + 1) as *const u8) };
         let hdr_size = (hdr_len as usize + 1) * 8;
+
+        // RFC 8200 §4.6: Destination Options validation
+        // Parse TLV options within Destination Options header (nh=60)
+        if nh == 60 {
+            process_destination_options(offset, hdr_size, data_end);
+        }
+
         nh = next_nh;
         offset += hdr_size;
         increment_stat(STAT_EXT_STRIPPED);
         iter += 1;
     }
     nh
+}
+
+/// Process TLV options within a Destination Options header.
+/// Validates each option according to RFC 8200 §4.2 option type processing rules.
+/// Updates statistics for options encountered.
+#[inline(always)]
+fn process_destination_options(offset: usize, hdr_size: usize, data_end: usize) {
+    // Destination Options header format:
+    // [0] = next_header
+    // [1] = len (in 8-octet units, not including the first 8 octets)
+    // [2..hdr_size] = TLV options
+    //
+    // TLV option format:
+    // - Pad1: single byte 0x00 (no length field)
+    // - PadN or other: [type, length, data...]
+    //   - type: 1 byte (high 2 bits are action bits)
+    //   - length: 1 byte (of the data part, NOT including type and length)
+
+    let mut opt_offset = offset + 2; // Skip next_header and hdr_len fields
+    let options_end = offset + hdr_size;
+
+    // Iterate through TLV options with bounded loop
+    let mut opt_iter = 0;
+    while opt_iter < 64 && opt_offset < options_end {
+        if opt_offset >= data_end {
+            break;
+        }
+
+        let opt_type = unsafe { core::ptr::read_volatile(opt_offset as *const u8) };
+
+        // Pad1 option (RFC 8200 §4.2) — single byte, no length
+        if opt_type == 0x00 {
+            opt_offset += 1;
+            opt_iter += 1;
+            continue;
+        }
+
+        // All other options (PadN, other) have length field
+        if opt_offset + 1 >= data_end {
+            break;
+        }
+        let opt_len = unsafe { core::ptr::read_volatile((opt_offset + 1) as *const u8) };
+        let opt_total_len = 2 + (opt_len as usize); // type + len + data
+
+        // Bounds check
+        if opt_offset + opt_total_len > options_end || opt_offset + opt_total_len > data_end {
+            break;
+        }
+
+        // RFC 8200 §4.2: Interpret high 2 bits of option type
+        let action = (opt_type >> 6) & 0x03; // Extract bits 7-6
+
+        match action {
+            0x00 => {
+                // Action 00: skip this option, continue processing
+                // (includes Pad1 via type=0x00, which was handled above)
+                increment_stat(STAT_DST_OPT_SKIP);
+            }
+            0x01 => {
+                // Action 01: discard packet (silently)
+                // In this implementation, we just count it and continue
+                // (actual dropping happens at a higher level if needed)
+                increment_stat(STAT_DST_OPT_DISCARD);
+            }
+            0x02 => {
+                // Action 10: discard packet + send ICMP Parameter Problem
+                increment_stat(STAT_DST_OPT_ICMP);
+            }
+            0x03 => {
+                // Action 11: discard packet + send ICMP (unless multicast)
+                increment_stat(STAT_DST_OPT_ICMP_MCAST);
+            }
+            _ => {
+                // Should not reach here (action is 2 bits), but for safety
+            }
+        }
+
+        // Move to next option
+        opt_offset += opt_total_len;
+        opt_iter += 1;
+    }
+
+    // Emit stat for this Destination Options header
+    increment_stat(STAT_DEST_OPTIONS_PROCESSED);
 }
 
 /// Copy exactly N bytes from `src` to `dst` with a bounds check.

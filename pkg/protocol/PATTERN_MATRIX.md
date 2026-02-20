@@ -24,30 +24,30 @@ that expose them to the eBPF data plane.
 
 ## Pattern Matrix
 
-| ID  | RFC Source | Section | Go Package | BPF Map Name | Map Type | Description |
-|-----|-----------|---------|------------|--------------|----------|-------------|
-| Q1  | RFC 9000  | §8.1    | integrity  | `unhd_hmac_keys` | HASH | Per-flow HMAC-SHA256 keys for replay protection |
-| Q2  | RFC 9000  | §5.1.1  | sequence   | `unhd_seq_counters` | PERCPU_HASH | Per-namespace monotonic sequence counters |
-| Q4  | RFC 9000  | §21.3   | amplification | `unhd_ring_path` | HASH | Ring path counters, 3× amplification limit |
-| Q5  | RFC 9000  | §9      | migration  | `unhd_migration_tokens` | LRU_HASH | Flow migration validation tokens |
-| Q6  | RFC 9000  | §8.1.2  | migration  | `unhd_retry_tokens` | LRU_HASH | Shield retry tokens (HMAC-signed) |
-| Q8  | RFC 9000  | §10.2   | lifecycle  | `unhd_goaway_state` | HASH | Stateless reset / GOAWAY tracking |
-| Q9  | RFC 9000  | §16     | encoding   | (shared) | — | Variable-length integer encoding |
-| H1  | RFC 9114  | §4.1    | sophiasync | `unhd_sophia_sync` | HASH | Encoder/decoder ACK for dictionary sync |
-| H2  | RFC 9114  | §8      | errors     | `unhd_error_counters` | PERCPU_ARRAY | Error code counters per type |
-| H3  | RFC 9114  | §9      | tlv        | `unhd_tlv_registry` | ARRAY | TLV type → handler dispatch |
-| H4  | RFC 9114  | §7.2.4  | settings   | `unhd_settings` | HASH | Per-connection capability negotiation |
-| H5  | RFC 9114  | §10     | dos        | `unhd_dos_state` | PERCPU_HASH | Drop rate / backpressure tracking |
-| H6  | RFC 9114  | §6      | flowtype   | `unhd_flow_types` | ARRAY | Flow type classification (control/data/prefetch) |
-| H7  | RFC 9114  | §7.2.6  | lifecycle  | `unhd_goaway_state` | HASH | GOAWAY monotonicity enforcement |
-| H8  | RFC 9114  | §4.1.1  | lifecycle  | `unhd_cancel_flows` | LRU_HASH | Per-flow cancellation state |
-| H9  | RFC 7240  | §2      | prefetch   | `unhd_prefetch_hints` | LRU_HASH | Explicit prefetch hint tracking |
-| H10 | RFC 8200  | §4      | intermediary | `unhd_hop_validators` | HASH | Per-hop packet validation |
-| H11 | RFC 8200  | §4.2    | intermediary | `unhd_authority` | HASH | Dictionary authority enforcement |
-| H12 | RFC 9114  | §7.2.4  | settings   | `unhd_settings` | HASH | Sophia compression negotiation |
-| B1  | RFC 9669  | §3      | encoding   | (ISA) | — | BPF instruction encoding baseline |
-| B2  | RFC 9669  | §5.4    | (all maps) | (schema) | — | BPF map type selection per pattern |
-| B3  | RFC 9669  | §7      | registry   | (IANA) | — | Conformance group registration model |
+| ID  | RFC Source | Section | Go Package | BPF Map Name | Map Type | Status | Description |
+|-----|-----------|---------|------------|--------------|----------|--------|-------------|
+| Q1  | RFC 9000  | §8.1    | integrity  | `unhd_hmac_keys` | HASH | Pending | Per-flow HMAC-SHA256 keys for replay protection |
+| Q2  | RFC 9000  | §5.1.1  | sequence   | `unhd_seq_counters` | PERCPU_HASH | ✅ WIRED | Per-namespace monotonic sequence counters |
+| Q4  | RFC 9000  | §21.3   | amplification | `unhd_ring_path` | HASH | Pending | Ring path counters, 3× amplification limit |
+| Q5  | RFC 9000  | §9      | migration  | `unhd_migration_tokens` | LRU_HASH | ✅ WIRED (Flow Tracker) | Flow migration validation tokens |
+| Q6  | RFC 9000  | §8.1.2  | migration  | `unhd_retry_tokens` | LRU_HASH | Pending | Shield retry tokens (HMAC-signed) |
+| Q8  | RFC 9000  | §10.2   | lifecycle  | `unhd_goaway_state` | HASH | Pending | Stateless reset / GOAWAY tracking |
+| Q9  | RFC 9000  | §16     | encoding   | (shared) | — | — | Variable-length integer encoding |
+| H1  | RFC 9114  | §4.1    | sophiasync | `unhd_sophia_sync` | HASH | Pending | Encoder/decoder ACK for dictionary sync |
+| H2  | RFC 9114  | §8      | errors     | `unhd_error_counters` | PERCPU_ARRAY | Pending | Error code counters per type |
+| H3  | RFC 9114  | §9      | tlv        | `unhd_tlv_registry` | ARRAY | Pending | TLV type → handler dispatch |
+| H4  | RFC 9114  | §7.2.4  | settings   | `unhd_settings` | HASH | ✅ WIRED | Per-connection capability negotiation |
+| H5  | RFC 9114  | §10     | dos        | `unhd_dos_state` | PERCPU_HASH | ✅ WIRED | Drop rate / backpressure tracking |
+| H6  | RFC 9114  | §6      | flowtype   | `unhd_flow_types` | ARRAY | ✅ WIRED | Flow type classification (control/data/prefetch) |
+| H7  | RFC 9114  | §7.2.6  | lifecycle  | `unhd_goaway_state` | HASH | Pending | GOAWAY monotonicity enforcement |
+| H8  | RFC 9114  | §4.1.1  | lifecycle  | `unhd_cancel_flows` | LRU_HASH | ✅ WIRED (Flow Tracker) | Per-flow cancellation state |
+| H9  | RFC 7240  | §2      | prefetch   | `unhd_prefetch_hints` | LRU_HASH | Pending | Explicit prefetch hint tracking |
+| H10 | RFC 8200  | §4      | intermediary | `unhd_hop_validators` | HASH | Pending | Per-hop packet validation |
+| H11 | RFC 8200  | §4.2    | intermediary | `unhd_authority` | HASH | Pending | Dictionary authority enforcement |
+| H12 | RFC 9114  | §7.2.4  | settings   | `unhd_settings` | HASH | ✅ WIRED | Sophia compression negotiation |
+| B1  | RFC 9669  | §3      | encoding   | (ISA) | — | — | BPF instruction encoding baseline |
+| B2  | RFC 9669  | §5.4    | (all maps) | (schema) | — | — | BPF map type selection per pattern |
+| B3  | RFC 9669  | §7      | registry   | (IANA) | — | — | Conformance group registration model |
 
 ---
 

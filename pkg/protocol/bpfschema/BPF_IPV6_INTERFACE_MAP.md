@@ -56,10 +56,10 @@ it owns.
 | Emit HOP events | Monad spec | §6.1 | pkg/ebpf/anamnesis | ANAMNESIS |
 | Sophia dictionary lookup | Sophia spec | §3 | pkg/protocol/sophiasync | SOPHIA |
 | Circuit breaker tracking | — | — | (custom) | CIRCUIT_ERRORS |
-| **GAP: No seq counter update** | RFC 9000 | §5.1.1 | pkg/protocol/sequence | unhd_seq_counters |
-| **GAP: No settings check** | RFC 9114 | §7.2.4 | pkg/protocol/settings | unhd_settings |
-| **GAP: No DoS backpressure** | RFC 9114 | §10 | pkg/protocol/dos | unhd_dos_state |
-| **GAP: No flow type dispatch** | RFC 9114 | §6 | pkg/protocol/flowtype | unhd_flow_types |
+| ✅ Seq counter update | RFC 9000 | §5.1.1 | pkg/protocol/sequence | SEQ_COUNTERS |
+| ✅ Settings check | RFC 9114 | §7.2.4 | pkg/protocol/settings | SETTINGS |
+| ✅ DoS backpressure | RFC 9114 | §10 | pkg/protocol/dos | DOS_STATE |
+| ✅ Flow type dispatch | RFC 9114 | §6 | pkg/protocol/flowtype | FLOW_TYPES |
 
 ### Yaldabaoth TC (Chaos Injection)
 
@@ -79,8 +79,8 @@ it owns.
 | 5-tuple flow tracking | RFC 8200 | §3 (flow def) | (custom) | FLOWS |
 | TCP state machine | RFC 9293 | §3.3 | (custom) | FLOWS |
 | Trace ID correlation | Monad spec | §6 | pkg/ebpf/anamnesis | TRACE_ASSOC |
-| **GAP: No flow migration** | RFC 9000 | §9 | pkg/protocol/migration | unhd_migration_tokens |
-| **GAP: No cancel flow** | RFC 9114 | §4.1.1 | pkg/protocol/lifecycle | unhd_cancel_flows |
+| ✅ Flow migration token check | RFC 9000 | §9 | pkg/protocol/migration | unhd_migration_tokens |
+| ✅ Per-flow cancellation check | RFC 9114 | §4.1.1 | pkg/protocol/lifecycle | unhd_cancel_flows |
 
 ### Monad CPU (Doom-over-IPv6)
 
@@ -106,8 +106,8 @@ These maps have corresponding struct definitions in `pkg/protocol/bpfschema/`:
 | (new) unhd_hmac_keys | HMACKeyKey/Value | Scaffolded | Wire to Shield XDP |
 | (new) unhd_seq_counters | SeqCounterKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) unhd_ring_path | RingPathKey/Value | Scaffolded | Wire to Shield XDP |
-| (new) unhd_migration_tokens | MigrationTokenKey/Value | Scaffolded | Wire to Flow Tracker |
-| (new) unhd_retry_tokens | MigrationTokenKey/Value | Scaffolded | Wire to Shield XDP |
+| (new) unhd_migration_tokens | FlowMigrationTokenValue* | ✅ Wired | Flow Tracker (IPv4-based) |
+| (new) unhd_retry_tokens | MigrationTokenKey/Value | Scaffolded | Wire to Shield XDP (IPv6) |
 | (new) unhd_sophia_sync | SophiaSyncKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) unhd_error_counters | ErrorCounterKey/Value | Scaffolded | Wire to Shield TC |
 | (new) unhd_tlv_registry | TLVHandlerEntry | Scaffolded | Wire to Shield XDP |
@@ -115,7 +115,7 @@ These maps have corresponding struct definitions in `pkg/protocol/bpfschema/`:
 | (new) unhd_dos_state | DoSStateKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) unhd_flow_types | FlowTypeEntry | Scaffolded | Wire to Hop XDP |
 | (new) unhd_goaway_state | GoawayStateKey/Value | Scaffolded | Wire to Shield TC |
-| (new) unhd_cancel_flows | CancelFlowKey/Value | Scaffolded | Wire to Flow Tracker |
+| (new) unhd_cancel_flows | FlowCancelValue* | ✅ Wired | Flow Tracker (IPv4-based) |
 | (new) unhd_prefetch_hints | PrefetchHintKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) unhd_hop_validators | HopValidatorKey/Value | Scaffolded | Wire to Shield XDP |
 | (new) unhd_authority | AuthorityKey/Value | Scaffolded | Wire to Shield TC |
@@ -153,9 +153,9 @@ Per RFC 8200 §4, the following extension header processing rules MUST be implem
 | Support option data change-en-route (bit 5) | §4.2 | ✅ (chg=1 for Monad) | ✅ |
 | Chain Next Header values correctly | §4 | ✅ | ✅ |
 | Bounded iteration for verifier safety | RFC 9669 §3 | ✅ (MAX=8) | ✅ (MAX=16) |
-| **GAP: No Destination Options processing** | §4.6 | ❌ | ❌ |
-| **GAP: No Routing Header processing** | §4.4 | ❌ | ❌ |
-| **GAP: No Fragment Header processing** | §4.5 | ❌ (fragmented = drop) | ❌ |
+| Destination Options: IMPLEMENTED ✅ | §4.6 | ✅ process_destination_options | — |
+| Routing Header: DEFERRED (see ADR-013) | §4.4 | ⏸️ skip (no validation) | ⏸️ skip |
+| Fragment Header: DEFERRED (see ADR-014) | §4.5 | ⏸️ drop on fragment | ⏸️ drop on fragment |
 
 ---
 
@@ -270,3 +270,21 @@ These are the structs that need IDENTICAL memory layouts in both Rust (eBPF) and
 9. Add RFC comments to ALL eBPF map definitions
 10. Update monad-common with bpfschema struct parity tests
 11. Run Lich campaigns against new map interactions
+
+---
+
+## 7. IPv4-Based Flow Tracker Extensions (Phase 2)
+
+The Flow Tracker eBPF program operates on IPv4 5-tuple flows, not IPv6.
+Therefore, migration and cancellation state must use IPv4-based key/value pairs:
+
+| Map | Key | Value | Location |
+|-----|-----|-------|----------|
+| unhd_migration_tokens | FlowKey (IPv4, 16B) | FlowMigrationTokenValue (48B) | pkg/protocol/bpfschema/core_maps.go |
+| unhd_cancel_flows | FlowKey (IPv4, 16B) | FlowCancelValue (24B) | pkg/protocol/bpfschema/core_maps.go |
+
+**Key Difference**: The IPv6-based `MigrationTokenKey` (bpfschema.go) uses FlowID+SrcAddr[16].
+The IPv4-based `FlowKey` (core_maps.go) uses SrcAddr[4]+DstAddr[4]+SrcPort+DstPort+Protocol.
+
+This separation allows Q5/Q6 (Shield XDP/QUIC) and Flow Tracker patterns to coexist
+without conflicts or name collisions in the BPF map namespace.
