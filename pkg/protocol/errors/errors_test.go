@@ -209,20 +209,16 @@ func TestRegisterCustomCode(t *testing.T) {
 		Retryable:         true,
 	}
 
+	// Registry is frozen after init, so registration should fail
 	err := Register(customCode, customInfo)
-	if err != nil {
-		t.Fatalf("failed to register custom code: %v", err)
+	if err == nil {
+		t.Fatalf("expected error due to frozen registry")
 	}
 
-	info, err := Lookup(customCode)
-	if err != nil {
-		t.Fatalf("failed to lookup registered code: %v", err)
-	}
-	if info.Code != customCode {
-		t.Errorf("expected code 0x%04x, got 0x%04x", customCode, info.Code)
-	}
-	if info.Description != "Custom error" {
-		t.Errorf("expected custom description")
+	// The code should not be in the registry
+	_, lookupErr := Lookup(customCode)
+	if lookupErr == nil {
+		t.Fatalf("expected lookup error for unregistered code")
 	}
 }
 
@@ -247,7 +243,7 @@ func TestRegisterOutOfRange(t *testing.T) {
 }
 
 func TestRegisterCannotOverrideStandards(t *testing.T) {
-	// Try to register over a standards code
+	// Try to register over a standards code (frozen, so should fail)
 	info := &ErrorInfo{
 		Code:        UNHD_PROTOCOL_ERROR,
 		Level:       SystemLevel,
@@ -255,7 +251,7 @@ func TestRegisterCannotOverrideStandards(t *testing.T) {
 	}
 	err := Register(UNHD_PROTOCOL_ERROR, info)
 	if err == nil {
-		t.Fatal("expected error when overriding standards code")
+		t.Fatal("expected error when trying to override standards code (frozen registry)")
 	}
 }
 
@@ -266,6 +262,93 @@ func TestLookupZeroReturnsNoError(t *testing.T) {
 	}
 	if info.Code != UNHD_NO_ERROR {
 		t.Errorf("expected UNHD_NO_ERROR, got 0x%04x", info.Code)
+	}
+}
+
+// TestRegistryFreeze verifies that the registry is frozen after init,
+// preventing post-initialization registrations per RFC 9669 §7.3.
+func TestRegistryFreeze(t *testing.T) {
+	t.Run("RegistryIsFrozen", func(t *testing.T) {
+		if !codeRegistry.IsFrozen() {
+			t.Fatal("expected registry to be frozen after init")
+		}
+	})
+
+	t.Run("CannotRegisterAfterFreeze", func(t *testing.T) {
+		newCode := ErrorCode(0x0050)
+		info := &ErrorInfo{
+			Code:              newCode,
+			Level:             FlowLevel,
+			Description:       "Should fail",
+			RecommendedAction: "None",
+			Retryable:         false,
+		}
+
+		// Try to register after freeze - should fail
+		err := Register(newCode, info)
+		if err == nil {
+			t.Fatal("expected error when registering after freeze")
+		}
+
+		// Verify the error mentions the frozen registry
+		if !contains(err.Error(), "frozen") {
+			t.Errorf("error should mention 'frozen', got: %v", err)
+		}
+	})
+}
+
+// TestMustRegisterDuplicatePanics verifies that MustRegister panics when
+// attempting to register a duplicate key during initialization.
+func TestMustRegisterDuplicatePanics(t *testing.T) {
+	t.Run("MustRegisterDuplicateErrorMessage", func(t *testing.T) {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("expected panic, but none occurred")
+			}
+
+			panicMsg, ok := r.(string)
+			if !ok {
+				t.Fatalf("expected string panic message, got %T", r)
+			}
+
+			if !contains(panicMsg, "MustRegister") {
+				t.Errorf("panic message should contain 'MustRegister', got: %s", panicMsg)
+			}
+
+			if !contains(panicMsg, "frozen") {
+				t.Errorf("panic message should contain 'frozen', got: %s", panicMsg)
+			}
+		}()
+
+		// This should panic because the registry is frozen
+		codeRegistry.MustRegister(ErrorCode(0x0099), &ErrorInfo{
+			Code:        ErrorCode(0x0099),
+			Level:       SystemLevel,
+			Description: "This should panic",
+		})
+	})
+}
+
+// TestRegistryFreezePreventsAllRegistrations verifies the comprehensive
+// freeze behavior, ensuring no mutations are allowed post-freeze.
+func TestRegistryFreezePreventsAllRegistrations(t *testing.T) {
+	// Verify all attempts to register fail consistently
+	testCodes := []ErrorCode{0x0100, 0x0101, 0x0102}
+
+	for _, code := range testCodes {
+		info := &ErrorInfo{
+			Code:              code,
+			Level:             SystemLevel,
+			Description:       "Test",
+			RecommendedAction: "None",
+			Retryable:         false,
+		}
+
+		err := Register(code, info)
+		if err == nil {
+			t.Errorf("expected error for code 0x%04x, got nil", code)
+		}
 	}
 }
 

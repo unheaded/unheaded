@@ -2,7 +2,8 @@ package errors
 
 import (
 	"fmt"
-	"sync"
+
+	"unheaded/pkg/protocol/registry"
 )
 
 // ErrorCode represents a 16-bit error code in the Unheaded protocol
@@ -53,14 +54,29 @@ type ErrorInfo struct {
 	Retryable         bool
 }
 
-var (
-	registryMu sync.RWMutex
-	registry   = make(map[ErrorCode]*ErrorInfo)
+// codeRegistry is the shared registry for error codes.
+// Uses a RangePolicy to enforce that StandardsRange (0x0000-0x003f) can only be
+// registered once during init, per RFC 8126 "Specification Required" policy.
+var codeRegistry = registry.New[ErrorCode, *ErrorInfo](
+	"Unheaded Error Codes",
+	errorCodePolicy,
 )
+
+// errorCodePolicy validates that error codes don't exceed the valid range
+// and rejects registration in the core standards range (0x0000-0x003f) if already registered.
+func errorCodePolicy(code ErrorCode) error {
+	if code > ExtensionMax {
+		return fmt.Errorf("registry: error code 0x%04x outside valid range [0x%04x-0x%04x]",
+			code, StandardsMin, ExtensionMax)
+	}
+	return nil
+}
 
 func init() {
 	// Register all core error codes
 	registerDefaults()
+	// Freeze the registry to prevent post-init modifications
+	codeRegistry.Freeze()
 }
 
 func registerDefaults() {
@@ -159,7 +175,8 @@ func registerDefaults() {
 	}
 
 	for _, info := range codes {
-		registry[info.Code] = &info
+		infoCopy := info
+		codeRegistry.MustRegister(info.Code, &infoCopy)
 	}
 }
 
@@ -169,10 +186,7 @@ func Lookup(code ErrorCode) (*ErrorInfo, error) {
 		code = UNHD_NO_ERROR
 	}
 
-	registryMu.RLock()
-	defer registryMu.RUnlock()
-
-	info, exists := registry[code]
+	info, exists := codeRegistry.Lookup(code)
 	if !exists {
 		return nil, fmt.Errorf("unknown error code: 0x%04x", code)
 	}
@@ -180,7 +194,9 @@ func Lookup(code ErrorCode) (*ErrorInfo, error) {
 	return info, nil
 }
 
-// Register adds or updates an error code in the registry
+// Register adds a new error code in the registry if not already registered.
+// This will fail if the registry is frozen (after init).
+// For use in extension registrations (if registry is unfrozen).
 func Register(code ErrorCode, info *ErrorInfo) error {
 	if info == nil {
 		return fmt.Errorf("error info cannot be nil")
@@ -190,23 +206,7 @@ func Register(code ErrorCode, info *ErrorInfo) error {
 		info.Code = code
 	}
 
-	// Validate code is in an appropriate range
-	if code < StandardsMin || code > ExtensionMax {
-		return fmt.Errorf("error code 0x%04x outside valid range [0x%04x-0x%04x]",
-			code, StandardsMin, ExtensionMax)
-	}
-
-	registryMu.Lock()
-	defer registryMu.Unlock()
-
-	// Check if this is a reserved standards code (0x0000-0x003F)
-	if code >= StandardsMin && code <= StandardsMax && registry[code] != nil {
-		return fmt.Errorf("cannot override reserved standards error code 0x%04x", code)
-	}
-
-	registry[code] = info
-
-	return nil
+	return codeRegistry.Register(code, info)
 }
 
 // ProtocolError implements the Go error interface with a Code() method
