@@ -317,6 +317,104 @@ func TestMbcCpuStateFieldOffsets(t *testing.T) {
 	}
 }
 
+// TestFlowMigrationTokenValueSize verifies FlowMigrationTokenValue is exactly 48 bytes.
+//
+// Rust source: ebpf/flow-tracker/src/main.rs MigrationTokenValue
+// Rust layout: #[repr(C, packed)] struct MigrationTokenValue (48 bytes)
+// Per RFC 9000 §9 — Flow migration validation tokens.
+//
+// Migration token value stores the 128-bit token, expiry timestamp, and new 5-tuple
+// for validating flow migration to a new address/port pair.
+func TestFlowMigrationTokenValueSize(t *testing.T) {
+	const expected = 48
+	actual := unsafe.Sizeof(FlowMigrationTokenValue{})
+	if actual != expected {
+		t.Fatalf("FlowMigrationTokenValue size mismatch: expected %d bytes, got %d bytes", expected, actual)
+	}
+}
+
+// TestFlowMigrationTokenValueFieldOffsets verifies each field is at the correct byte offset.
+//
+// Rust offsets (from MigrationTokenValue in ebpf/flow-tracker/src/main.rs):
+//   0x00: token ([u8; 16], 16 bytes)
+//   0x10: expiry_ns (u64, 8 bytes)
+//   0x18: new_src_addr (u32, 4 bytes)
+//   0x1C: new_dst_addr (u32, 4 bytes)
+//   0x20: new_src_port (u16, 2 bytes)
+//   0x22: new_dst_port (u16, 2 bytes)
+//   0x24: flags (u32, 4 bytes)
+//   0x28: _pad ([u8; 4], 4 bytes)
+func TestFlowMigrationTokenValueFieldOffsets(t *testing.T) {
+	m := FlowMigrationTokenValue{}
+	base := uintptr(unsafe.Pointer(&m))
+
+	tests := []struct {
+		name     string
+		offset   uintptr
+		expected uintptr
+	}{
+		{"Token", uintptr(unsafe.Pointer(&m.Token)) - base, 0x00},
+		{"ExpiryNs", uintptr(unsafe.Pointer(&m.ExpiryNs)) - base, 0x10},
+		{"NewSrcAddr", uintptr(unsafe.Pointer(&m.NewSrcAddr)) - base, 0x18},
+		{"NewDstAddr", uintptr(unsafe.Pointer(&m.NewDstAddr)) - base, 0x1C},
+		{"NewSrcPort", uintptr(unsafe.Pointer(&m.NewSrcPort)) - base, 0x20},
+		{"NewDstPort", uintptr(unsafe.Pointer(&m.NewDstPort)) - base, 0x22},
+		{"Flags", uintptr(unsafe.Pointer(&m.Flags)) - base, 0x24},
+	}
+
+	for _, tt := range tests {
+		if tt.offset != tt.expected {
+			t.Errorf("FlowMigrationTokenValue.%s offset mismatch: expected 0x%02X, got 0x%02X",
+				tt.name, tt.expected, tt.offset)
+		}
+	}
+}
+
+// TestFlowCancelValueSize verifies FlowCancelValue is exactly 24 bytes.
+//
+// Rust source: ebpf/flow-tracker/src/main.rs CancelFlowValue
+// Rust layout: #[repr(C, packed)] struct CancelFlowValue (24 bytes)
+// Per RFC 9114 §4.1.1 — Per-flow cancellation state.
+//
+// Cancel flow value stores the cancellation reason, timestamp, and state flags
+// for marking flows as cancelled (with optional RST flag).
+func TestFlowCancelValueSize(t *testing.T) {
+	const expected = 24
+	actual := unsafe.Sizeof(FlowCancelValue{})
+	if actual != expected {
+		t.Fatalf("FlowCancelValue size mismatch: expected %d bytes, got %d bytes", expected, actual)
+	}
+}
+
+// TestFlowCancelValueFieldOffsets verifies each field is at the correct byte offset.
+//
+// Rust offsets (from CancelFlowValue in ebpf/flow-tracker/src/main.rs):
+//   0x00: reason (u32, 4 bytes)
+//   0x04: timestamp_ns (u64, 8 bytes)
+//   0x0C: flags (u32, 4 bytes)
+//   0x10: _pad ([u8; 4], 4 bytes)
+func TestFlowCancelValueFieldOffsets(t *testing.T) {
+	c := FlowCancelValue{}
+	base := uintptr(unsafe.Pointer(&c))
+
+	tests := []struct {
+		name     string
+		offset   uintptr
+		expected uintptr
+	}{
+		{"Reason", uintptr(unsafe.Pointer(&c.Reason)) - base, 0x00},
+		{"TimestampNs", uintptr(unsafe.Pointer(&c.TimestampNs)) - base, 0x04},
+		{"Flags", uintptr(unsafe.Pointer(&c.Flags)) - base, 0x0C},
+	}
+
+	for _, tt := range tests {
+		if tt.offset != tt.expected {
+			t.Errorf("FlowCancelValue.%s offset mismatch: expected 0x%02X, got 0x%02X",
+				tt.name, tt.expected, tt.offset)
+		}
+	}
+}
+
 // === Parity Summary ===
 //
 // VERIFIED STRUCTS (byte-for-byte match):
@@ -325,6 +423,8 @@ func TestMbcCpuStateFieldOffsets(t *testing.T) {
 //   ✅ FlowKey (16 bytes) — ebpf/common/src/lib.rs:61-85
 //   ✅ FlowState (56 bytes) — ebpf/common/src/lib.rs:106-118
 //   ✅ MbcCpuState (80 bytes) — ebpf/monad-common/src/lib.rs:913-944
+//   ✅ FlowMigrationTokenValue (48 bytes) — ebpf/flow-tracker/src/main.rs
+//   ✅ FlowCancelValue (24 bytes) — ebpf/flow-tracker/src/main.rs
 //
 // CRITICAL NOTES:
 //
@@ -341,5 +441,11 @@ func TestMbcCpuStateFieldOffsets(t *testing.T) {
 //      (missing from the old Go version). These are required for the
 //      Monad CPU VM state persistence in the Doom-over-IPv6 PoC.
 //
-//   5. All multi-byte fields in MonadRegister and AnamnesisEvent are
+//   5. FlowMigrationTokenValue (RFC 9000 §9) stores per-flow migration tokens
+//      with new address/port for validating flow migration events.
+//
+//   6. FlowCancelValue (RFC 9114 §4.1.1) stores per-flow cancellation state
+//      with reason code and optional RST flag.
+//
+//   7. All multi-byte fields in MonadRegister and AnamnesisEvent are
 //      big-endian (network byte order) per RFC 8200.

@@ -46,6 +46,18 @@ static FLOW_EVENTS: RingBuf = RingBuf::with_byte_size(RING_BUFFER_SIZE, 0);
 #[map]
 static FLOW_STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 
+/// Migration tokens for flow migration (RFC 9000 §9).
+/// Key: 5-tuple identifying the original flow (16 bytes).
+/// Value: migration token + new 5-tuple + expiry (48 bytes).
+#[map]
+static MIGRATION_TOKENS: HashMap<FlowKey, MigrationTokenValue> = HashMap::with_max_entries(4096, 0);
+
+/// Cancellation flags for per-flow teardown (RFC 9114 §4.1.1).
+/// Key: 5-tuple identifying the flow to cancel (16 bytes).
+/// Value: reason + timestamp + flags (24 bytes).
+#[map]
+static CANCEL_FLOWS: HashMap<FlowKey, CancelFlowValue> = HashMap::with_max_entries(4096, 0);
+
 // Stats keys
 const STAT_PACKETS_INGRESS: u32 = 0;
 const STAT_PACKETS_EGRESS: u32 = 1;
@@ -56,6 +68,9 @@ const STAT_TCP_FINS: u32 = 5;
 const STAT_TCP_RSTS: u32 = 6;
 const STAT_EVENTS_SENT: u32 = 7;
 const STAT_EVENTS_DROPPED: u32 = 8;
+const STAT_MIGRATIONS: u32 = 10;
+const STAT_MIGRATION_EXPIRED: u32 = 11;
+const STAT_CANCELLED: u32 = 12;
 
 /// Ethernet header structure.
 #[repr(C, packed)]
@@ -100,6 +115,32 @@ struct UdpHdr {
     dest: u16,
     len: u16,
     check: u16,
+}
+
+/// Migration token value for flow migration (RFC 9000 §9).
+/// Stores the 128-bit token and new 5-tuple for migrated flows.
+/// Size: 48 bytes.
+#[repr(C, packed)]
+struct MigrationTokenValue {
+    token: [u8; 16],           // 128-bit migration token
+    expiry_ns: u64,            // Expiry timestamp (bpf_ktime_get_ns)
+    new_src_addr: u32,         // New source address after migration
+    new_dst_addr: u32,         // New destination address after migration
+    new_src_port: u16,         // New source port
+    new_dst_port: u16,         // New destination port
+    flags: u32,                // Migration flags (bit 0: active)
+    _pad: [u8; 4],             // Alignment padding to 48 bytes
+}
+
+/// Cancel flow value for per-flow teardown (RFC 9114 §4.1.1).
+/// Stores cancellation reason and state.
+/// Size: 24 bytes.
+#[repr(C, packed)]
+struct CancelFlowValue {
+    reason: u32,               // Cancellation reason code
+    timestamp_ns: u64,         // When cancellation was requested
+    flags: u32,                // Bit 0: active, Bit 1: send-rst
+    _pad: [u8; 4],             // Alignment padding to 24 bytes
 }
 
 /// TC classifier for ingress traffic.
@@ -231,6 +272,29 @@ fn process_tcp(
         send_flow_event(&flow_key, &flow_state, FlowEventType::New);
     }
 
+    // RFC 9114 §4.1.1 — Per-flow cancellation check
+    if let Some(cancel) = unsafe { CANCEL_FLOWS.get(&flow_key) } {
+        let flags = cancel.flags;
+        if flags & 1 != 0 {
+            // Flow is cancelled — emit ANOMALY event and drop
+            send_flow_event(&flow_key, &flow_state, FlowEventType::Anomaly);
+            increment_stat(STAT_CANCELLED);
+            return Ok(TC_ACT_PIPE);
+        }
+    }
+
+    // RFC 9000 §9 — Flow migration token check
+    if let Some(token) = unsafe { MIGRATION_TOKENS.get(&flow_key) } {
+        let expiry = token.expiry_ns;
+        if now < expiry {
+            // Token valid — allow flow migration to new 5-tuple
+            increment_stat(STAT_MIGRATIONS);
+        } else {
+            // Token expired — reject migration
+            increment_stat(STAT_MIGRATION_EXPIRED);
+        }
+    }
+
     // Update flow state
     if let Some(state) = FLOWS.get_ptr_mut(&flow_key) {
         let state = unsafe { &mut *state };
@@ -308,6 +372,29 @@ fn process_udp(
     if is_new {
         increment_stat(STAT_FLOWS_NEW);
         send_flow_event(&flow_key, &flow_state, FlowEventType::New);
+    }
+
+    // RFC 9114 §4.1.1 — Per-flow cancellation check
+    if let Some(cancel) = unsafe { CANCEL_FLOWS.get(&flow_key) } {
+        let flags = cancel.flags;
+        if flags & 1 != 0 {
+            // Flow is cancelled — emit ANOMALY event and drop
+            send_flow_event(&flow_key, &flow_state, FlowEventType::Anomaly);
+            increment_stat(STAT_CANCELLED);
+            return Ok(TC_ACT_PIPE);
+        }
+    }
+
+    // RFC 9000 §9 — Flow migration token check
+    if let Some(token) = unsafe { MIGRATION_TOKENS.get(&flow_key) } {
+        let expiry = token.expiry_ns;
+        if now < expiry {
+            // Token valid — allow flow migration to new 5-tuple
+            increment_stat(STAT_MIGRATIONS);
+        } else {
+            // Token expired — reject migration
+            increment_stat(STAT_MIGRATION_EXPIRED);
+        }
     }
 
     // Update flow state
