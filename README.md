@@ -10,9 +10,14 @@ a 20-byte register file executing eBPF programs at wire speed.
 
 ## Status
 
-Alpha.  Core protocol specified in
-[draft-bellis-unheaded-protocol-foundation-02](docs/protocol/draft-bellis-unheaded-protocol-foundation-02.md)
-(Internet-Draft format, targeting IETF Experimental).
+Alpha (~99%).  465,000+ LOC (433K code + 32K docs).  25 services, 37 packages,
+8 eBPF programs (23,991 LOC Rust), 13 protocol packages (Go).
+
+Core protocol specified in three Internet-Drafts (IETF Experimental track):
+
+- [draft-bellis-unheaded-protocol-foundation-03](docs/protocol/draft-bellis-unheaded-protocol-foundation-03.md) — Monad wire format
+- [draft-bellis-unheaded-sophia-dictionary-00](docs/protocol/draft-bellis-unheaded-sophia-dictionary-00.md) — Sophia BPF dictionaries
+- [draft-bellis-unheaded-wotan-memory-00](docs/protocol/draft-bellis-unheaded-wotan-memory-00.md) — Wotan memory model
 
 ## The Protocol
 
@@ -110,8 +115,25 @@ the protocol is runtime-agnostic.  Only requirement: Linux kernel
     │   ├── yaldabaoth-ebpf/     chaos fault injection
     │   └── syscall-tracer/      syscall auditing
     │
-    ├── pkg/                     shared Go packages (34 packages)
-    │   ├── ebpf/                BPF loader, map management
+    ├── pkg/                     shared Go packages (37+ packages)
+    │   ├── ebpf/                BPF loader, map management, anamnesis
+    │   ├── protocol/            RFC cross-pollination packages (16)
+    │   │   ├── encoding/        varint (RFC 9000), exponent, CRC, TLV
+    │   │   ├── registry/        generic IANA-style Registry[K,V]
+    │   │   ├── bpfschema/       BPF map key/value structs (all 16 maps)
+    │   │   ├── errors/          error codes (RFC 9114 §8 pattern)
+    │   │   ├── sequence/        namespace sequence counters (RFC 9000)
+    │   │   ├── amplification/   3× ring path limiter (RFC 9000)
+    │   │   ├── migration/       flow migration tokens (RFC 9000 §9)
+    │   │   ├── integrity/       HMAC-SHA256 per-flow auth
+    │   │   ├── settings/        capability negotiation (RFC 9114)
+    │   │   ├── tlv/             TLV encoding with greasing
+    │   │   ├── flowtype/        flow type classification
+    │   │   ├── lifecycle/       GOAWAY + cancel flow
+    │   │   ├── prefetch/        explicit prefetch hints
+    │   │   ├── intermediary/    hop validation + authority
+    │   │   ├── dos/             backpressure management
+    │   │   └── sophiasync/      dictionary synchronization
     │   ├── wotan-client/        message bus client
     │   ├── waf/                 firewall rules
     │   ├── network/             VXLAN, BGP, netlink
@@ -130,9 +152,15 @@ the protocol is runtime-agnostic.  Only requirement: Linux kernel
     │   └── packages/            custom packages
     │
     ├── docs/                    documentation
-    │   ├── protocol/            Internet-Draft, protocol specs
-    │   ├── adr/                 architecture decision records
-    │   └── ...                  architecture, security, handoffs
+    │   ├── protocol/            Internet-Drafts, patches, error registry
+    │   │   ├── references/      RFC crossref, IANA guide, wire patterns
+    │   │   │   └── rfcs/        19 raw RFC texts (9000, 9114, 8200, etc.)
+    │   │   └── patches/         draft-04/01/01 patch specifications
+    │   ├── security/            Dark Grimoire addendum, LICH campaigns
+    │   ├── sessions/            all session handoffs + battleplans (25)
+    │   ├── adr/                 architecture decision records (12)
+    │   ├── archive/             historical docs, old skill updates
+    │   └── ...                  architecture, security, API specs
     │
     ├── scripts/                 deployment automation
     ├── references/              timeline (md, json, yaml triple-format)
@@ -177,19 +205,28 @@ root or sudo for eBPF loading.
 
 ## Protocol Documents
 
-    docs/protocol/draft-bellis-unheaded-protocol-foundation-02.md   Internet-Draft (current)
-    docs/protocol/PROTOCOL_FOUNDATION.md                            Vision and design rationale
-    docs/protocol/PROTOCOL_MATH_AND_MAPS.md                        Byte maps, proofs, heritage
-    docs/protocol/PROTOCOL_TECHNICAL_SUMMARY.md                     Extracted technical spec
-    docs/protocol/the_first_packet.md                               The first packet walks the Pattern
+    docs/protocol/draft-bellis-unheaded-protocol-foundation-03.md   Monad wire format (current)
+    docs/protocol/draft-bellis-unheaded-sophia-dictionary-00.md     Sophia BPF dictionaries
+    docs/protocol/draft-bellis-unheaded-wotan-memory-00.md          Wotan memory model
+    docs/protocol/patches/                                          Next-draft patch specs
+    docs/protocol/references/                                       RFC crossref, IANA guide
+    docs/protocol/error-registry.md                                 Protocol error codes
+    docs/security/dark-grimoire-addendum.md                         Attack surface taxonomy
+    docs/security/lich-campaigns.md                                 Fuzzing campaign specs
+    pkg/protocol/PATTERN_MATRIX.md                                  RFC→Package→BPF map matrix
+    pkg/protocol/bpfschema/BPF_IPV6_INTERFACE_MAP.md                Top-down BPF/IPv6 mapping
 
 ## References
 
-    RFC 8200    IPv6 Specification
+    RFC 8200    IPv6 Specification (Monad HbH container)
     RFC 9673    IPv6 Hop-by-Hop Options Processing
+    RFC 9669    BPF Instruction Set Architecture (Sophia/Shim)
+    RFC 9000    QUIC Transport (varint, amplification, migration patterns)
+    RFC 9114    HTTP/3 (error codes, settings, GOAWAY, stream types)
+    RFC 8949    CBOR (Sophia dictionary serialization)
+    RFC 8126    IANA Considerations (registry management)
     RFC 8799    Limited Domains and Internet Protocols
     RFC 9197    IOAM Data Fields
-    RFC 1918    Address Allocation for Private Internets
     FIPS 203    ML-KEM (Kyber) Key Encapsulation
     FIPS 204    ML-DSA (Dilithium) Digital Signatures
 
