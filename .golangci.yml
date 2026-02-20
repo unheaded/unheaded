@@ -1,0 +1,301 @@
+
+# Unheaded Production Linting Configuration
+# =====================================================
+# Phase 7: Production hardening - comprehensive linting rules
+# Go version: 1.24
+
+run:
+  # Timeout for golangci-lint to complete its analysis
+  timeout: 10m
+
+  # Number of parallel workers for linting
+  concurrency: 4
+
+  # Modules to analyze
+  modules-download-mode: readonly
+
+  # Build tags
+  build-tags: []
+
+  # Paths to skip during analysis
+  skip-dirs:
+    - vendor
+    - .git
+    - .nix
+    - nix
+    - target
+    - ebpf/target
+
+  # Files to skip
+  skip-files: []
+
+linters:
+  # Default linters
+  enable-all: true
+
+  # Disable noisy/experimental linters that may generate false positives
+  disable:
+    - execinquery        # Experimental
+    - depguard           # We manage dependencies via go.mod
+    - godox              # Too noisy for production
+    - gomoddirectives    # Not applicable for our structure
+    - wrapcheck          # Too strict for internal code
+    - testpackage        # We use test.go convention
+    - ireturn            # Conflicts with interface usage patterns
+    - exhaustruct        # Too strict for initialization patterns
+    - nlreturn           # Style preference
+    - tagliatelle        # Style preference
+    - wsl                # Whitespace linting - style preference
+    - paralleltest       # Not always applicable
+    - cyclop             # Too strict for complex logic
+    - funlen             # Code organization preference
+    - gocognit           # Cognitive complexity - handled by other linters
+
+linters-settings:
+  # Go version configuration
+  goversion:
+    min-const-chars: 2
+    min-unconditional-len: 0
+
+  # Error checking
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    exclude-functions:
+      - fmt.Print*
+      - io.WriteString
+
+  # Static analysis
+  staticcheck:
+    checks: ["all"]
+
+  # Variable shadowing
+  govet:
+    enable-all: true
+    disable:
+      - shadow   # Handled separately
+    settings:
+      shadow:
+        strict: true
+
+  # Unused code and variables
+  unused:
+    check-exported: true
+
+  # Code simplification suggestions
+  gosimple:
+    go: "1.24"
+
+  # Inefficient code detection
+  ineffassign:
+    # This detector will report assignments to variables that are never used afterward
+    # Very useful for catching dead code
+
+  # Custom rule: Forbid fmt.Println in production code
+  # (enforced via golangci-lint with custom linter configuration)
+  # NOTE: This is configured via the linter below - see forbidprintln section
+
+  # Forbid specific patterns
+  forbidprintln:
+    enabled: true
+    # Exclude test files from this rule
+    exclude-test: true
+
+  # Enforce error wrapping with %w format
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+
+  # Nil checks
+  nilnil:
+    checked-types:
+      - ptr
+      - iface
+
+  # Context usage
+  contextcheck:
+    enable: true
+
+  # Copy detector
+  copyloopvar:
+    check-aliases: true
+
+  # Formatting
+  gofmt:
+    simplify: true
+    reformat-docs: true
+
+  # Import organization
+  goimports:
+    local-prefixes: unheaded
+
+  # Naming conventions
+  revive:
+    # Minimum confidence for warnings
+    confidence: 0.8
+    # Custom rules can be added here if needed
+    rules:
+      - name: blank-imports
+        disabled: false
+      - name: context-as-argument
+        disabled: false
+      - name: context-keys-type
+        disabled: false
+      - name: empty-block
+        disabled: false
+      - name: error-naming
+        disabled: false
+      - name: error-strings
+        disabled: false
+      - name: errorf
+        disabled: false
+      - name: import-shadowing
+        disabled: false
+      - name: increment-decrement
+        disabled: false
+      - name: indent-error-flow
+        disabled: false
+      - name: package-comments
+        disabled: false
+      - name: range
+        disabled: false
+      - name: receiver-naming
+        disabled: false
+      - name: time-naming
+        disabled: false
+      - name: unexported-naming
+        disabled: false
+      - name: unused-parameter
+        disabled: false
+      - name: var-declaration
+        disabled: false
+      - name: var-naming
+        disabled: false
+
+  # Vet configuration
+  govet:
+    enable:
+      - asmdecl
+      - assign
+      - atomic
+      - bools
+      - buildssa
+      - cgocall
+      - composite
+      - copylock
+      - ctrlflow
+      - deepequalerrors
+      - errorsas
+      - fieldalignment
+      - findcall
+      - framepointer
+      - httpresponse
+      - ifaceassert
+      - infertypeargs
+      - inspect
+      - loopclosure
+      - lostcancel
+      - nilfunc
+      - nilness
+      - printf
+      - shift
+      - sigchanypassign
+      - slog
+      - sortslice
+      - stdmethods
+      - stringintconv
+      - structtag
+      - testinggoroutine
+      - tests
+      - unmarshal
+      - unreachable
+      - unsafeptr
+      - unusedresult
+
+  # Complexity
+  dupl:
+    # Tokens count to trigger duplication detection
+    threshold: 150
+
+  # Security
+  gosec:
+    excludes:
+      - G101    # Gosec false positives on variable names
+      - G104    # Error on defer
+    exclude-generated: false
+    severity: medium
+    confidence: high
+
+  # Race condition detection
+  gorace:
+    # Use only if explicitly running with -race flag
+
+  # Declaration order
+  decorder:
+    disable: false
+
+issues:
+  # Exclude linting issues in test files
+  exclude-rules:
+    # Allow fmt.Println in test files and cmd main files
+    - path: "_test.go$"
+      linters:
+        - forbidprintln
+        - gosec
+
+    - path: "cmd/.*/main.go$"
+      linters:
+        - forbidprintln
+        - gochecknoinits
+
+    # Allow package documentation in main packages
+    - path: "cmd/.*/main.go$"
+      text: "package comment"
+      linters:
+        - revive
+
+    # Allow blank imports in main files
+    - path: "cmd/.*/main.go$"
+      text: "blank imports"
+      linters:
+        - revive
+
+  # Maximum issues to report (0 = unlimited)
+  max-issues-per-linter: 0
+  max-same-issues: 10
+
+  # Fix issues if possible
+  fix: false
+
+output:
+  # Format options: colored-line-number, line-number, json, tab, checkstyle, code-climate, junit-xml, github-actions, sarif
+  format: colored-line-number
+
+  # Print file names and issue positions relative to the current working directory
+  sort-results: true
+
+  # Print the summary with the total count of issues
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  path-prefix: ""
+
+# Severity configuration
+severity:
+  # The default value is empty
+  default-severity: error
+
+  # The list of case-sensitive rules names to override severity.
+  rules:
+    - linters:
+        - forbidprintln
+      severity: warning
+    - linters:
+        - gosimple
+        - ineffassign
+      severity: warning
+    - linters:
+        - govet
+        - errcheck
+      severity: error
