@@ -78,7 +78,7 @@ func (ft FlowType) Priority() int {
 // Flow type is encoded in the lowest 2 bits of the flags byte.
 func FlowTypeFromFlags(flags uint8) FlowType {
 	ft := FlowType(flags & FlowTypeMask)
-	logger.Debugf("extracted flow type from flags: flags=0x%02X type=%v", flags, ft)
+	logger.Debug().Msgf("extracted flow type from flags: flags=0x%02X type=%v", flags, ft)
 	return ft
 }
 
@@ -91,9 +91,9 @@ func FlowTypeToFlags(ft FlowType, existing uint8) (uint8, error) {
 	}
 
 	// Clear the flow type bits and set the new value
-	result := (existing & ^FlowTypeMask) | (uint8(ft) & FlowTypeMask)
+	result := (existing & ^uint8(FlowTypeMask)) | (uint8(ft) & FlowTypeMask)
 
-	logger.Debugf("set flow type in flags: type=%v existing=0x%02X result=0x%02X", ft, existing, result)
+	logger.Debug().Msgf("set flow type in flags: type=%v existing=0x%02X result=0x%02X", ft, existing, result)
 
 	return result, nil
 }

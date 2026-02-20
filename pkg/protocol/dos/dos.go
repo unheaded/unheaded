@@ -32,7 +32,7 @@ type RingBufferMonitor struct {
 	mu              sync.RWMutex
 	tracker         *DropRateTracker
 	backpressureMap map[string]BackpressureLevel
-	logger          logger.Logger
+	logger          *logger.Logger
 	dropThreshold   float64
 }
 
@@ -51,7 +51,7 @@ type MapUsageTracker struct {
 type BPFMapLimits struct {
 	mu         sync.RWMutex
 	mapTrackers map[string]*MapUsageTracker
-	logger      logger.Logger
+	logger      *logger.Logger
 	defaultMax  uint64
 }
 
@@ -62,7 +62,7 @@ type SizeLimitEnforcer struct {
 	globalLimit     uint64
 	perFlowUsage    map[string]uint64
 	globalUsage     uint64
-	logger          logger.Logger
+	logger          *logger.Logger
 }
 
 // CompressFlag indicates whether a Sophia entry should be compressed.
@@ -79,7 +79,7 @@ type CompressionGuard struct {
 	compressFlags    map[string]CompressFlag
 	trustedContext   bool
 	untrustedContext bool
-	logger           logger.Logger
+	logger           *logger.Logger
 }
 
 // ExtensionLimits enforces limits on Monad extensions.
@@ -87,7 +87,7 @@ type ExtensionLimits struct {
 	mu           sync.RWMutex
 	maxTLVs      int
 	unknownSkips int
-	logger       logger.Logger
+	logger       *logger.Logger
 }
 
 // NewDropRateTracker creates a new drop rate tracker with sliding window.
@@ -141,7 +141,7 @@ func (dt *DropRateTracker) GetDropRate() float64 {
 }
 
 // NewRingBufferMonitor creates a new ring buffer monitor.
-func NewRingBufferMonitor(log logger.Logger) (*RingBufferMonitor, error) {
+func NewRingBufferMonitor(log *logger.Logger) (*RingBufferMonitor, error) {
 	if log == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
@@ -171,7 +171,7 @@ func (rbm *RingBufferMonitor) RecordDrop() error {
 	level := BackpressureNone
 	if dropRate > rbm.dropThreshold {
 		level = BackpressureHigh
-		rbm.logger.Warnf("High drop rate detected: %.4f drops/sec", dropRate)
+		rbm.logger.Warn().Msgf("High drop rate detected: %.4f drops/sec", dropRate)
 	}
 
 	rbm.backpressureMap["global"] = level
@@ -200,7 +200,7 @@ func (rbm *RingBufferMonitor) DropWithQoSAwareness(qosClass int) bool {
 
 	// Drop QoS classes 4-5 first under high backpressure
 	if level >= BackpressureHigh && qosClass >= 4 {
-		rbm.logger.Debugf("Dropping packet with QoS class %d due to backpressure", qosClass)
+		rbm.logger.Debug().Msgf("Dropping packet with QoS class %d due to backpressure", qosClass)
 		return true
 	}
 
@@ -265,7 +265,7 @@ func (mut *MapUsageTracker) UpdateUsage(usage uint64) (alert80, alert90, alert95
 }
 
 // NewBPFMapLimits creates a new BPF map limits enforcer.
-func NewBPFMapLimits(log logger.Logger, defaultMax uint64) (*BPFMapLimits, error) {
+func NewBPFMapLimits(log *logger.Logger, defaultMax uint64) (*BPFMapLimits, error) {
 	if log == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
@@ -304,7 +304,7 @@ func (bml *BPFMapLimits) RegisterMap(name string, maxEntries uint64) error {
 	}
 
 	bml.mapTrackers[name] = tracker
-	bml.logger.Infof("Registered map %s with max entries %d", name, max)
+	bml.logger.Info().Msgf("Registered map %s with max entries %d", name, max)
 	return nil
 }
 
@@ -328,11 +328,11 @@ func (bml *BPFMapLimits) UpdateMapUsage(name string, usage uint64) error {
 	}
 
 	if alert95 {
-		bml.logger.Errorf("CRITICAL: Map %s at 95%% capacity", name)
+		bml.logger.Error().Msgf("CRITICAL: Map %s at 95%% capacity", name)
 	} else if alert90 {
-		bml.logger.Warnf("WARNING: Map %s at 90%% capacity", name)
+		bml.logger.Warn().Msgf("WARNING: Map %s at 90%% capacity", name)
 	} else if alert80 {
-		bml.logger.Infof("INFO: Map %s at 80%% capacity", name)
+		bml.logger.Info().Msgf("INFO: Map %s at 80%% capacity", name)
 	}
 
 	return nil
@@ -363,12 +363,12 @@ func (bml *BPFMapLimits) EvictLowestQoS(mapName string, count uint64) error {
 	tracker.currentUsage -= count
 	tracker.mu.Unlock()
 
-	bml.logger.Infof("Evicted %d entries with lowest QoS from map %s", count, mapName)
+	bml.logger.Info().Msgf("Evicted %d entries with lowest QoS from map %s", count, mapName)
 	return nil
 }
 
 // NewSizeLimitEnforcer creates a new size limit enforcer.
-func NewSizeLimitEnforcer(log logger.Logger, perFlowLimit, globalLimit uint64) (*SizeLimitEnforcer, error) {
+func NewSizeLimitEnforcer(log *logger.Logger, perFlowLimit, globalLimit uint64) (*SizeLimitEnforcer, error) {
 	if log == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
@@ -399,14 +399,14 @@ func (sle *SizeLimitEnforcer) CheckAndRecordSize(flowID string, size uint64) err
 	// Check per-flow limit
 	currentFlow := sle.perFlowUsage[flowID]
 	if currentFlow+size > sle.perFlowLimit {
-		sle.logger.Warnf("Flow %s would exceed per-flow limit: %d + %d > %d",
+		sle.logger.Warn().Msgf("Flow %s would exceed per-flow limit: %d + %d > %d",
 			flowID, currentFlow, size, sle.perFlowLimit)
 		return fmt.Errorf("per-flow limit exceeded")
 	}
 
 	// Check global limit
 	if sle.globalUsage+size > sle.globalLimit {
-		sle.logger.Warnf("Global usage would exceed limit: %d + %d > %d",
+		sle.logger.Warn().Msgf("Global usage would exceed limit: %d + %d > %d",
 			sle.globalUsage, size, sle.globalLimit)
 		return fmt.Errorf("global limit exceeded")
 	}
@@ -458,7 +458,7 @@ func (sle *SizeLimitEnforcer) ResetFlowUsage(flowID string) error {
 }
 
 // NewCompressionGuard creates a new compression guard.
-func NewCompressionGuard(log logger.Logger) (*CompressionGuard, error) {
+func NewCompressionGuard(log *logger.Logger) (*CompressionGuard, error) {
 	if log == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
@@ -483,7 +483,7 @@ func (cg *CompressionGuard) SetCompressionFlag(entryID string, flag CompressFlag
 	cg.compressFlags[entryID] = flag
 
 	if flag == CompressDisabled {
-		cg.logger.Debugf("Compression disabled for entry %s (sensitive data)", entryID)
+		cg.logger.Debug().Msgf("Compression disabled for entry %s (sensitive data)", entryID)
 	}
 
 	return nil
@@ -512,7 +512,7 @@ func (cg *CompressionGuard) SetTrustedContext(trusted bool) {
 	defer cg.mu.Unlock()
 
 	cg.trustedContext = trusted
-	cg.logger.Debugf("Trusted context set to %v", trusted)
+	cg.logger.Debug().Msgf("Trusted context set to %v", trusted)
 }
 
 // SetUntrustedContext sets whether we're in an untrusted flow context.
@@ -521,11 +521,11 @@ func (cg *CompressionGuard) SetUntrustedContext(untrusted bool) {
 	defer cg.mu.Unlock()
 
 	cg.untrustedContext = untrusted
-	cg.logger.Debugf("Untrusted context set to %v", untrusted)
+	cg.logger.Debug().Msgf("Untrusted context set to %v", untrusted)
 }
 
 // NewExtensionLimits creates a new extension limits enforcer.
-func NewExtensionLimits(log logger.Logger, maxTLVs int) (*ExtensionLimits, error) {
+func NewExtensionLimits(log *logger.Logger, maxTLVs int) (*ExtensionLimits, error) {
 	if log == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
@@ -547,7 +547,7 @@ func (el *ExtensionLimits) ValidateTLVCount(count int) error {
 	}
 
 	if count > el.maxTLVs {
-		el.logger.Warnf("TLV count %d exceeds maximum %d", count, el.maxTLVs)
+		el.logger.Warn().Msgf("TLV count %d exceeds maximum %d", count, el.maxTLVs)
 		return fmt.Errorf("TLV count %d exceeds maximum %d", count, el.maxTLVs)
 	}
 
@@ -564,7 +564,7 @@ func (el *ExtensionLimits) ProcessUnknownTLV(typeID int) error {
 	defer el.mu.Unlock()
 
 	el.unknownSkips++
-	el.logger.Debugf("Skipped unknown TLV type %d (total skips: %d)", typeID, el.unknownSkips)
+	el.logger.Debug().Msgf("Skipped unknown TLV type %d (total skips: %d)", typeID, el.unknownSkips)
 
 	return nil
 }
