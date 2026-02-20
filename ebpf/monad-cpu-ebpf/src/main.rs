@@ -494,10 +494,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             }
         } else if opc == op::ST {
-            // l1_cache[dst + simm16] = src  (32-bit store via L1)
+            // l1_cache[dst + simm16] = src  (32-bit store via L1, write-through to RAM)
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = cpu.regs[s];
             l1_store_u32(addr, val);
+            // Write-through: persist to RAM_MAP so data survives L1 eviction
+            let word_addr = addr >> 2;
+            let _ = unsafe { RAM_MAP.insert(&word_addr, &val, 0) };
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDB {
@@ -522,10 +525,20 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             }
         } else if opc == op::STB {
-            // l1_cache[dst + simm16] = src & 0xFF  (byte store via L1)
+            // l1_cache[dst + simm16] = src & 0xFF  (byte store, write-through)
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = (cpu.regs[s] & 0xFF) as u8;
             l1_store_u8(addr, val);
+            // Write-through: read-modify-write the word in RAM_MAP
+            let word_addr = addr >> 2;
+            let byte_shift = (addr & 3) * 8;
+            let old_word = match unsafe { RAM_MAP.get(&word_addr) } {
+                Some(v) => *v,
+                None => 0,
+            };
+            let mask = !(0xFFu32 << byte_shift);
+            let new_word = (old_word & mask) | ((val as u32) << byte_shift);
+            let _ = unsafe { RAM_MAP.insert(&word_addr, &new_word, 0) };
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDH {
@@ -550,10 +563,20 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             }
         } else if opc == op::STH {
-            // l1_cache[dst + simm16] = src & 0xFFFF  (16-bit store via L1)
+            // l1_cache[dst + simm16] = src & 0xFFFF  (16-bit store, write-through)
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = (cpu.regs[s] & 0xFFFF) as u16;
             l1_store_u16(addr, val);
+            // Write-through: read-modify-write the word in RAM_MAP
+            let word_addr = addr >> 2;
+            let half_shift = (addr & 2) * 8;
+            let old_word = match unsafe { RAM_MAP.get(&word_addr) } {
+                Some(v) => *v,
+                None => 0,
+            };
+            let mask = !(0xFFFFu32 << half_shift);
+            let new_word = (old_word & mask) | ((val as u32) << half_shift);
+            let _ = unsafe { RAM_MAP.insert(&word_addr, &new_word, 0) };
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
 
