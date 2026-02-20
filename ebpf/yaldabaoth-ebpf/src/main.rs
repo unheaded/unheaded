@@ -128,15 +128,15 @@ const MONAD_FLIP_LAST_BYTE: usize = MONAD_SIZE - 3; // = 17
 // ── TC entry point ────────────────────────────────────────────────────────────
 
 #[classifier]
-pub fn yaldabaoth_tc(ctx: TcContext) -> i32 {
-    match try_yaldabaoth(&ctx) {
+pub fn yaldabaoth_tc(mut ctx: TcContext) -> i32 {
+    match try_yaldabaoth(&mut ctx) {
         Ok(action) => action,
         Err(_)     => TC_ACT_OK as i32,
     }
 }
 
 #[inline(always)]
-fn try_yaldabaoth(ctx: &TcContext) -> Result<i32, ()> {
+fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
     increment_stat(STAT_PACKETS_TOTAL);
 
     // ── Check EtherType ───────────────────────────────────────────────────────
@@ -197,7 +197,7 @@ fn try_yaldabaoth(ctx: &TcContext) -> Result<i32, ()> {
 
 #[inline(always)]
 fn apply_chaos(
-    ctx:        &TcContext,
+    ctx:        &mut TcContext,
     monad:      &mut Monad,
     mode:       u8,
     param:      u32,
@@ -231,7 +231,7 @@ fn apply_chaos(
 /// BIT_FLIP: XOR a random byte in Monad[1..=17] with a random non-zero mask.
 /// Checksum is NOT recomputed — the verifier (hop-ebpf) must detect the error.
 #[inline(always)]
-fn apply_bit_flip(ctx: &TcContext, monad: &mut Monad) -> Result<(), ()> {
+fn apply_bit_flip(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
     let rand     = unsafe { bpf_get_prandom_u32() };
     let mask     = (rand & 0xFF) as u8;
     let mask     = if mask == 0 { 0x55 } else { mask }; // ensure non-zero flip
@@ -243,13 +243,13 @@ fn apply_bit_flip(ctx: &TcContext, monad: &mut Monad) -> Result<(), ()> {
 
     let pkt_off = MONAD_PKT_OFFSET + target;
     let byte: u8 = ctx.load(pkt_off).map_err(|_| ())?;
-    ctx.store(pkt_off, byte ^ mask, 0).map_err(|_| ())?;
+    ctx.store(pkt_off, &(byte ^ mask), 0).map_err(|_| ())?;
 
     // Set CHAOS flag so downstream hops know this packet is under test.
     // We write CHAOS flag directly to packet — byte 7 of Monad (flags field).
     let flags_off = MONAD_PKT_OFFSET + 7; // OFF_FLAGS = 0x07
     let cur_flags: u8 = ctx.load(flags_off).map_err(|_| ())?;
-    ctx.store(flags_off, cur_flags | flags::CHAOS, 0).map_err(|_| ())?;
+    ctx.store(flags_off, &(cur_flags | flags::CHAOS), 0).map_err(|_| ())?;
 
     // Update our in-memory Monad copy for the event (reflects chaos state).
     let mut bytes = monad.to_bytes();
@@ -265,7 +265,7 @@ fn apply_bit_flip(ctx: &TcContext, monad: &mut Monad) -> Result<(), ()> {
 /// Actual delay is applied by a netem qdisc that this TC classifier feeds into.
 /// The trace-collector reads the delay_us from the CHAOS event's Monad.scratch.
 #[inline(always)]
-fn apply_delay(ctx: &TcContext, monad: &mut Monad, delay_us: u32) -> Result<(), ()> {
+fn apply_delay(ctx: &mut TcContext, monad: &mut Monad, delay_us: u32) -> Result<(), ()> {
     // Store delay_us in scratch_r0 (bytes 14-15 of Monad) for userspace read.
     monad.set_scratch_r0(delay_us.min(0xFFFF) as u16);
     monad.set_flag(flags::CHAOS);
@@ -276,7 +276,7 @@ fn apply_delay(ctx: &TcContext, monad: &mut Monad, delay_us: u32) -> Result<(), 
 /// DUPLICATE: Clone the packet to the configured egress ifindex.
 /// If CFG_EGRESS_IFINDEX is 0 (not configured), falls back to CHAOS_MARKER.
 #[inline(always)]
-fn apply_duplicate(ctx: &TcContext, monad: &mut Monad) -> Result<(), ()> {
+fn apply_duplicate(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
     let ifindex = cfg(CFG_EGRESS_IFINDEX) as u32;
     if ifindex > 0 {
         // bpf_clone_redirect: send a copy of the packet to `ifindex`.
@@ -296,18 +296,18 @@ fn apply_duplicate(ctx: &TcContext, monad: &mut Monad) -> Result<(), ()> {
 /// TRUNCATE: Zero Monad bytes 0x08–0x13 (Latency Hint through Checksum).
 /// The next hop's CRC check will detect the truncation.
 #[inline(always)]
-fn apply_truncate(ctx: &TcContext, monad: &mut Monad) -> Result<(), ()> {
+fn apply_truncate(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
     // Zero bytes 8 through 19 of the Monad (latency_hint through checksum).
     // Offset in packet: MONAD_PKT_OFFSET + 8 through MONAD_PKT_OFFSET + 19.
     for i in 8..MONAD_SIZE {
         let off = MONAD_PKT_OFFSET + i;
-        ctx.store(off, 0u8, 0).map_err(|_| ())?;
+        ctx.store(off, &0u8, 0).map_err(|_| ())?;
     }
 
     // Set CHAOS flag (byte 7 of Monad) — but we've already zeroed 8+, so set it.
     let flags_off = MONAD_PKT_OFFSET + 7;
     let cur_flags: u8 = ctx.load(flags_off).map_err(|_| ())?;
-    ctx.store(flags_off, cur_flags | flags::CHAOS, 0).map_err(|_| ())?;
+    ctx.store(flags_off, &(cur_flags | flags::CHAOS), 0).map_err(|_| ())?;
 
     // Update in-memory copy for event.
     let mut bytes = monad.to_bytes();
@@ -323,7 +323,7 @@ fn apply_truncate(ctx: &TcContext, monad: &mut Monad) -> Result<(), ()> {
 /// CHAOS_MARKER: Set CHAOS flag, recompute CRC.  No data corruption.
 /// Used to tag a packet for "chaos observation" without breaking it.
 #[inline(always)]
-fn apply_marker(ctx: &TcContext, monad: &mut Monad) -> Result<(), ()> {
+fn apply_marker(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
     monad.set_flag(flags::CHAOS);
     monad.recompute_checksum();
     write_monad_tc(ctx, MONAD_PKT_OFFSET, monad)
@@ -344,10 +344,10 @@ fn load_monad_tc(ctx: &TcContext, pkt_offset: usize) -> Result<Monad, ()> {
 
 /// Write 20 Monad bytes to a TC context at `pkt_offset`.
 #[inline(always)]
-fn write_monad_tc(ctx: &TcContext, pkt_offset: usize, m: &Monad) -> Result<(), ()> {
+fn write_monad_tc(ctx: &mut TcContext, pkt_offset: usize, m: &Monad) -> Result<(), ()> {
     let bytes = m.to_bytes();
     for i in 0..20usize {
-        ctx.store(pkt_offset + i, bytes[i], 0).map_err(|_| ())?;
+        ctx.store(pkt_offset + i, &bytes[i], 0).map_err(|_| ())?;
     }
     Ok(())
 }

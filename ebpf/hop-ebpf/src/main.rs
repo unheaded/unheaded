@@ -201,7 +201,7 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_PACKETS_HBH);
 
     // Extract Flow Label from the packed vtf field (low 20 bits).
-    let vtf        = u32::from_be(unsafe { core::ptr::read_volatile(&ip.vtf) });
+    let vtf        = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
     let flow_label = vtf & 0x000F_FFFF;
 
     // ── Hop-by-Hop Header ─────────────────────────────────────────────────────
@@ -303,7 +303,7 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // RFC 9000 §5.1.1 — Per-namespace sequence integrity
     let namespace: u32 = (flow_label >> 8) as u32;
     let seq_key = make_namespace_key(namespace);
-    if let Some(seq_entry) = unsafe { SEQ_COUNTERS.get_ptr_mut(&seq_key) } {
+    if let Some(seq_entry) = SEQ_COUNTERS.get_ptr_mut(&seq_key) {
         let entry = seq_entry as *mut u8;
         // current (bytes 0-3), highest (bytes 4-7), gaps (bytes 8-11), reordered (bytes 12-15)
         let current = unsafe { core::ptr::read_volatile(entry as *const u32) };
@@ -345,7 +345,7 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // ── DoS backpressure check (RFC 9114 §10) ──────────────────────────────────
     // RFC 9114 §10 — Congestion control / DoS backpressure
     let dos_key = make_namespace_key(namespace);
-    if let Some(dos_entry) = unsafe { DOS_STATE.get_ptr_mut(&dos_key) } {
+    if let Some(dos_entry) = DOS_STATE.get_ptr_mut(&dos_key) {
         let entry = dos_entry as *mut u8;
         // drop_count (bytes 0-3), total_count (bytes 4-7), backpressure_lvl (byte 8), window_start (bytes 9-12)
 
@@ -372,9 +372,6 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
                 unsafe { core::ptr::write_volatile(entry as *mut u32, drop_count.saturating_add(1)); }
                 increment_stat(STAT_DOS_DROPPED);
                 return Ok(xdp_action::XDP_DROP);
-            }
-            _ => {
-                // Unknown level — treat as NORMAL
             }
         }
     }
@@ -459,7 +456,7 @@ fn apply_flow_action(m: &mut Monad, flow_label: u32) -> bool {
     } else if m.flow_action == fa::SAMPLE {
         // SAMPLE: mark packet as selected for statistical sampling.
         let divisor = cfg(CFG_SAMPLE_DIVISOR) as u32;
-        if divisor == 0 || (flow_label % divisor) == 0 {
+        if divisor == 0 || flow_label.is_multiple_of(divisor) {
             m.set_flag(flags::SAMPLED);
         }
         increment_stat(STAT_ACTION_SAMPLE);
@@ -557,6 +554,7 @@ fn read_monad_from_pkt(start: usize, data_end: usize) -> Result<Monad, ()> {
     }
     let mut bytes = [0u8; 20];
     // Exactly 20 iterations — verifier trivially proves termination.
+    #[allow(clippy::needless_range_loop)]
     for i in 0..20usize {
         bytes[i] = unsafe { core::ptr::read_volatile((start + i) as *const u8) };
     }
@@ -572,6 +570,7 @@ fn write_monad_to_pkt(start: usize, data_end: usize, m: &Monad) -> Result<(), ()
         return Err(());
     }
     let bytes = m.to_bytes();
+    #[allow(clippy::needless_range_loop)]
     for i in 0..20usize {
         unsafe { core::ptr::write_volatile((start + i) as *mut u8, bytes[i]) };
     }

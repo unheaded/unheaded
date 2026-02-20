@@ -31,13 +31,14 @@
 #![no_main]
 
 use aya_ebpf::{
-    bindings::{TC_ACT_OK, TC_ACT_SHOT, xdp_action},
+    bindings::{TC_ACT_OK, xdp_action},
     macros::{classifier, map, xdp},
     maps::{HashMap, RingBuf},
     programs::{TcContext, XdpContext},
+    EbpfContext,
 };
 use monad_common::{
-    AnamnesisEvent, EventType, HopByHopHeader, Monad, MbcCpuState,
+    AnamnesisEvent, EventType, HopByHopHeader, Monad,
     MONAD_OPT_TYPE, MONAD_OPT_DATA_LEN, MONAD_SIZE, HBH_TOTAL_LEN,
     IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
     circuit_state, deploy_ring, flags, flow_action,
@@ -45,6 +46,7 @@ use monad_common::{
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 const ETH_HLEN:    usize = 14;
 const ETH_P_IPV6:  u16   = 0x86DD;
 
@@ -306,7 +308,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     //   new [54..78]: write HBH header (24 bytes)   (new HBH in freed space)
     //   new [78..]:   Transport payload (unchanged)
     let adjust_result = unsafe {
-        aya_ebpf::helpers::bpf_xdp_adjust_head(ctx.as_ptr(), -24i32)
+        aya_ebpf::helpers::bpf_xdp_adjust_head(ctx.as_ptr() as *mut _, -24i32)
     };
     if adjust_result != 0 {
         // bpf_xdp_adjust_head failed (e.g., no headroom)
@@ -395,26 +397,26 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 /// 7. Decrement Payload Length by 24.
 /// 8. TC_ACT_OK — packet exits as clean standard IPv6.
 #[classifier]
-pub fn shield_tc(ctx: TcContext) -> i32 {
-    match try_shield_tc(&ctx) {
+pub fn shield_tc(mut ctx: TcContext) -> i32 {
+    match try_shield_tc(&mut ctx) {
         Ok(action) => action,
-        Err(_)     => TC_ACT_OK as i32,
+        Err(_)     => TC_ACT_OK,
     }
 }
 
 #[inline(always)]
-fn try_shield_tc(ctx: &TcContext) -> Result<i32, ()> {
+fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
     // Load EtherType to check for IPv6.
     let eth_proto: u16 = ctx.load(12).map_err(|_| ())?;
     if u16::from_be(eth_proto) != ETH_P_IPV6 {
-        return Ok(TC_ACT_OK as i32);
+        return Ok(TC_ACT_OK);
     }
 
     // Load IPv6 Next Header field (offset 14 + 6 = 20).
     let next_header: u8 = ctx.load(ETH_HDR_SIZE + 6).map_err(|_| ())?;
     if next_header != IPV6_NEXTHDR_HBH {
         // Not a Kingdom packet (no HBH) — pass through.
-        return Ok(TC_ACT_OK as i32);
+        return Ok(TC_ACT_OK);
     }
 
     // ── Read the HBH Options header ────────────────────────────────────────────
@@ -425,13 +427,13 @@ fn try_shield_tc(ctx: &TcContext) -> Result<i32, ()> {
     if opt_type != MONAD_OPT_TYPE {
         // Not our option — let it pass.  Should not happen in a well-configured
         // Kingdom, but we must not corrupt packets we don't own.
-        return Ok(TC_ACT_OK as i32);
+        return Ok(TC_ACT_OK);
     }
     let opt_data_len: u8 = ctx.load(hbh_offset + 3).map_err(|_| ())?;
     if opt_data_len != MONAD_OPT_DATA_LEN {
         // Malformed — emit anomaly and pass.
         increment_stat(STAT_ANOMALIES);
-        return Ok(TC_ACT_OK as i32);
+        return Ok(TC_ACT_OK);
     }
 
     // ── Load the full Monad from the HBH option data (offset hbh + 4) ─────────
@@ -456,7 +458,7 @@ fn try_shield_tc(ctx: &TcContext) -> Result<i32, ()> {
     // ── GOAWAY monotonicity check (RFC 9114 §7.2.6) ────────────────────────────
     // Extract connection ID from Monad scratch registers or flow label
     let conn_id = flow_label >> 8; // Simplified: use high bits of flow label
-    let goaway_key = make_goaway_key(conn_id as u32);
+    let goaway_key = make_goaway_key(conn_id);
     if let Some(_goaway_state) = unsafe { GOAWAY_STATE.get(&goaway_key) } {
         // Check if we've already sent a GOAWAY on this connection
         // Enforce that no more flows should be created
@@ -469,7 +471,7 @@ fn try_shield_tc(ctx: &TcContext) -> Result<i32, ()> {
         // Extract error code from Monad (simplified: use hop_count as proxy)
         let error_code = monad.hop_count as u16;
         let error_key = make_error_key(error_code);
-        if let Some(counter) = unsafe { ERROR_COUNTERS.get_ptr_mut(&error_key) } {
+        if let Some(counter) = ERROR_COUNTERS.get_ptr_mut(&error_key) {
             // Increment count in the first 4 bytes
             let count_ptr = counter as *mut u32;
             unsafe {
@@ -483,7 +485,7 @@ fn try_shield_tc(ctx: &TcContext) -> Result<i32, ()> {
     // Verify dictionary authority before allowing Sophia field writes
     let dict_id = monad.qos_class; // Simplified: use qos_class as dict_id
     let namespace: u16 = 0; // Default namespace
-    let auth_key = make_authority_key(dict_id, namespace);
+    let auth_key = make_authority_key(dict_id as u16, namespace);
     let _ = unsafe { AUTHORITY.get(&auth_key) }; // Lookup for authority validation
     // Future: check fingerprint and expiry timestamp
 
@@ -513,19 +515,19 @@ fn try_shield_tc(ctx: &TcContext) -> Result<i32, ()> {
     if adjust_result != 0 {
         // Adjustment failed — emit anomaly but let the packet through.
         increment_stat(STAT_ANOMALIES);
-        return Ok(TC_ACT_OK as i32);
+        return Ok(TC_ACT_OK);
     }
 
     // ── Fixup IPv6 header fields after header removal ──────────────────────────
     // Restore original Next Header.
-    ctx.store(ETH_HDR_SIZE + 6, original_nh, 0).map_err(|_| ())?;
+    ctx.store(ETH_HDR_SIZE + 6, &original_nh, 0).map_err(|_| ())?;
 
     // Decrement Payload Length by 24.
     let plen: u16 = ctx.load(ETH_HDR_SIZE + 4).map_err(|_| ())?;
     let new_plen = u16::from_be(plen).saturating_sub(HBH_TOTAL_LEN as u16);
-    ctx.store(ETH_HDR_SIZE + 4, new_plen.to_be(), 0).map_err(|_| ())?;
+    ctx.store(ETH_HDR_SIZE + 4, &new_plen.to_be(), 0).map_err(|_| ())?;
 
-    Ok(TC_ACT_OK as i32)
+    Ok(TC_ACT_OK)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
