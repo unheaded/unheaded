@@ -235,7 +235,9 @@ const FlowKeySize = 16 // 4+4+2+2+1+3
 // Matches ebpf/common/src/lib.rs FlowState:108-118
 // Rust source: ebpf/common/src/lib.rs:108-118
 //
-// Wire layout (56 bytes):
+// Wire layout (72 bytes):
+// Note: 72 bytes, not 56. The original comment had incorrect arithmetic.
+// 16 (TraceID) + 6*8 (six uint64) + 1 (State) + 7 (_pad) = 72.
 //
 //	Offset  Field           Size    Description
 //	0x00    TraceID         16B     128-bit trace identifier (high:8B, low:8B)
@@ -260,7 +262,8 @@ type FlowState struct {
 }
 
 // FlowStateSize is the exact wire size.
-const FlowStateSize = 56 // 16+8+8+8+8+8+8+1+7
+// 16 (TraceID) + 6*8 (six uint64) + 1 (State) + 7 (_pad) = 72.
+const FlowStateSize = 72
 
 // TraceAssocKey maps a trace to a flow.
 type TraceAssocKey struct {
@@ -299,15 +302,17 @@ const (
 
 // === MONAD CPU MAPS (Doom-over-IPv6) ===
 
-// MbcCpuState is the 80-byte CPU state for the MBC virtual machine.
+// MbcCpuState is the 104-byte CPU state for the MBC virtual machine.
 // Matches monad-cpu-ebpf/src/main.rs MbcCpuState.
 // Per Monad spec §12 (computational completeness PoC).
 // Rust source: ebpf/monad-cpu-ebpf/src/main.rs (monad_common::MbcCpuState)
 //
-// Wire layout (80 bytes):
+// Wire layout (104 bytes):
+// Note: 104 bytes, not 80. The original comment had incorrect arithmetic.
+// 64 ([16]uint32) + 4 (PC) + 4 (Flags+Halted+Stalled+_pad) + 4*8 (four uint64) = 104.
 //
 //	Offset  Field           Size    Description
-//	0x00    Registers       64B     [32]u32 (r0-r15)
+//	0x00    Registers       64B     [16]u32 (r0-r15)
 //	0x40    PC              4B      Program counter
 //	0x44    Flags           1B      CPU flags (Z, N, C bits)
 //	0x45    Halted          1B      1 if HALT executed
@@ -331,7 +336,8 @@ type MbcCpuState struct {
 }
 
 // MbcCpuStateSize is the exact wire size. Tests verify this.
-const MbcCpuStateSize = 80
+// 64 ([16]uint32) + 4 (PC) + 4 (Flags+Halted+Stalled+_pad) + 4*8 (four uint64) = 104.
+const MbcCpuStateSize = 104
 
 // CacheLineKey for Monad CPU L1_CACHE map.
 type CacheLineKey struct {
@@ -384,12 +390,18 @@ const FlowMigrationTokenValueSize = 48 // 16+8+4+4+2+2+4+4
 // Per RFC 9114 §4.1.1 — Per-flow cancellation state.
 //
 // Wire layout (24 bytes):
+// Go alignment: uint64 field requires 8-byte alignment, so 4 bytes of
+// implicit padding are inserted after Reason (uint32). Rust #[repr(C, packed)]
+// has no such padding, placing TimestampNs at offset 0x04. The Go offsets are:
 //
 //	Offset  Field           Size    Description
 //	0x00    Reason          4B      Cancellation reason code
-//	0x04    TimestampNs     8B      When cancellation was requested
-//	0x0C    Flags           4B      Bit 0: active, Bit 1: send-rst
-//	0x10    _pad            4B      Alignment padding
+//	0x04    (padding)       4B      Go alignment for uint64
+//	0x08    TimestampNs     8B      When cancellation was requested
+//	0x10    Flags           4B      Bit 0: active, Bit 1: send-rst
+//	0x14    _pad            4B      Explicit padding
+//
+// Total: 4 + 4(implicit) + 8 + 4 + 4 = 24 bytes.
 type FlowCancelValue struct {
 	Reason      uint32 // Cancellation reason code
 	TimestampNs uint64 // When cancellation was requested
@@ -398,7 +410,8 @@ type FlowCancelValue struct {
 }
 
 // FlowCancelValueSize is the exact wire size.
-const FlowCancelValueSize = 24 // 4+8+4+4
+// 4 (Reason) + 4 (Go alignment padding) + 8 (TimestampNs) + 4 (Flags) + 4 (_pad) = 24.
+const FlowCancelValueSize = 24
 
 // === MAP CONFIGURATION CONSTANTS ===
 

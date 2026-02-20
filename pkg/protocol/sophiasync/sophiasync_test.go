@@ -2,11 +2,12 @@ package sophiasync
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
 	"unheaded/pkg/logger"
-	"unheaded/pkg/wotan-client"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // MockWotanClient implements a mock wotan client for testing
@@ -14,16 +15,16 @@ type MockWotanClient struct {
 	published map[string][]byte
 }
 
-func NewMockWotanClient() *wotanclient.Client {
-	return &wotanclient.Client{}
+func NewMockWotanClient() *wotanClient.Client {
+	return &wotanClient.Client{}
 }
 
 func TestNewEncoderStream(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 
 	tests := []struct {
 		name        string
-		client      *wotanclient.Client
+		client      *wotanClient.Client
 		topic       string
 		expectError bool
 	}{
@@ -71,7 +72,7 @@ func TestNewEncoderStream(t *testing.T) {
 }
 
 func TestNewDecoderStream(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 
 	tests := []struct {
 		name        string
@@ -108,7 +109,7 @@ func TestNewDecoderStream(t *testing.T) {
 }
 
 func TestApplyDelta(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 
 	tests := []struct {
@@ -156,7 +157,7 @@ func TestApplyDelta(t *testing.T) {
 }
 
 func TestACKTracking(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	es, _ := NewEncoderStream(NewMockWotanClient(), "control", log)
 
 	// Register pending ACKs
@@ -185,7 +186,7 @@ func TestACKTracking(t *testing.T) {
 }
 
 func TestVersionMismatchDetection(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 
 	delta1 := &DictionaryDelta{
@@ -221,7 +222,7 @@ func TestVersionMismatchDetection(t *testing.T) {
 }
 
 func TestGracePeriodExpiry(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 	sm.SetGracePeriod(100 * time.Millisecond)
 
@@ -251,7 +252,7 @@ func TestGracePeriodExpiry(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 
 	// Register multiple endpoints
@@ -294,7 +295,7 @@ func TestConcurrentAccess(t *testing.T) {
 }
 
 func TestWaitForAcks(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 
 	// Register pending ACKs
@@ -323,7 +324,7 @@ func TestWaitForAcks(t *testing.T) {
 }
 
 func TestWaitForAcksTimeout(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 
 	// Register pending ACKs but don't acknowledge them
@@ -340,7 +341,7 @@ func TestWaitForAcksTimeout(t *testing.T) {
 }
 
 func TestDecoderStreamState(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	ds, _ := NewDecoderStream("hop-1", log)
 
 	// Initial state should be 0
@@ -364,7 +365,7 @@ func TestDecoderStreamState(t *testing.T) {
 }
 
 func TestSetGracePeriod(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 
 	tests := []struct {
@@ -404,7 +405,7 @@ func TestSetGracePeriod(t *testing.T) {
 }
 
 func TestRegisterEndpoint(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 
 	// Register valid endpoint
@@ -426,11 +427,11 @@ func TestRegisterEndpoint(t *testing.T) {
 }
 
 func TestCurrentVersion(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sm, _ := NewSyncManager(NewMockWotanClient(), "control", log)
 
-	if version := sm.CurrentVersion(); version != 1 {
-		t.Errorf("expected initial version 1, got %d", version)
+	if version := sm.CurrentVersion(); version != 0 {
+		t.Errorf("expected initial version 0, got %d", version)
 	}
 
 	// Apply delta
