@@ -45,9 +45,7 @@ informative:
     date: 2024-08
     target: https://csrc.nist.gov/pubs/fips/203/final
 
----
-
-abstract
+--- abstract
 
 Wotan is the memory and I/O bus for the Unheaded Protocol, providing addressable per-flow storage for BPF programs executing within the Limited Domain [RFC8799].
 
@@ -57,7 +55,7 @@ This memo defines the memory model, helper functions, address space, cache miss 
 
 ---
 
-# 1. Introduction
+# Introduction
 
 The Unheaded Protocol Foundation [UNHEADED-FOUNDATION] specifies a 20-byte register file (the Monad) that travels with every packet through a Limited Domain. BPF programs at each hop read and write the Monad, performing stateless per-packet computation.
 
@@ -73,7 +71,7 @@ Wotan provides this state via a hierarchical memory model:
 
 This memo defines the Wotan memory protocol: the BPF helper interface, address space layout, cache coherency model, and userspace I/O interaction.
 
-# 2. Terminology and Language
+# Terminology and Language
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here.
 
@@ -94,9 +92,9 @@ Write-Back:
 Memory-Mapped I/O:
 : Designated address ranges that publish to or read from Wotan topics (e.g., write to address 0x0000C000 publishes to compute.screen).
 
-# 3. Architecture Overview
+# Architecture Overview
 
-## 3.1. Role in the Unheaded Protocol
+## Role in the Unheaded Protocol
 
 Wotan bridges Monad computation to memory and I/O:
 
@@ -105,7 +103,7 @@ Wotan bridges Monad computation to memory and I/O:
 - Wotan interfaces with userspace via ring buffer events and pub/sub topics.
 - Wotan implements cache miss handling, prefetching, and Write-Ahead Log management.
 
-## 3.2. Memory Hierarchy
+## Memory Hierarchy
 
 ~~~~~
 Level   Name                Size           Latency      Backing
@@ -119,7 +117,7 @@ L4      Sophia dictionaries BPF maps       ~100-200ns   instruction decode
 
 Wotan implements transparent L1→L2 promotion on cache miss, L2→L3 flush on overflow, and L3→L2 recovery on process restart.
 
-## 3.3. Separation of Compute and Memory
+## Separation of Compute and Memory
 
 The Monad is transient compute state (stateless by design). Wotan is persistent state machine storage. This separation allows:
 
@@ -128,11 +126,11 @@ The Monad is transient compute state (stateless by design). Wotan is persistent 
 - Cache miss latency to be handled without blocking per-hop logic.
 - Memory updates to be tracked in Anamnesis for observability.
 
-# 4. BPF Helper Interface
+# BPF Helper Interface
 
 BPF Shim programs access Wotan memory via three helper functions. All helpers operate on a 32-bit address space keyed by IPv6 Flow Label.
 
-## 4.1. bpf_wotan_read
+## bpf_wotan_read
 
 Read from Wotan memory.
 
@@ -175,7 +173,7 @@ The helper performs the following steps:
 
 The helper MUST NOT block; on miss, it returns immediately.
 
-## 4.2. bpf_wotan_write
+## bpf_wotan_write
 
 Write to Wotan memory.
 
@@ -213,7 +211,7 @@ long bpf_wotan_write(u32 flow_label, u32 addr, const void *buf, u32 len);
 
 Writes go only to L1 cache; they are marked dirty for later write-back to L2 by userspace handler or on overflow.
 
-## 4.3. bpf_wotan_cas
+## bpf_wotan_cas
 
 Atomic compare-and-swap on Wotan memory.
 
@@ -247,9 +245,50 @@ long bpf_wotan_cas(u32 flow_label, u32 addr, u32 expected, u32 desired);
    b. If current == expected: write desired, set dirty bit, return 0
    c. If current != expected: return -EAGAIN
 
-The CAS operation MUST use atomic compare-and-swap semantics (via BPF_XADD or architecture-specific atomic instructions as defined in [RFC9669] Section 4.3) to prevent races between concurrent Shims on different CPUs or cores.
+The CAS operation MUST use atomic compare-and-swap semantics (via BPF_XADD or
+architecture-specific atomic instructions as defined in [RFC9669] Section 4.3)
+to prevent races between concurrent Shims on different CPUs or cores.
 
-## 4.4. Error Handling
+The address MUST be 4-byte aligned. Implementations MUST perform runtime
+alignment verification:
+
+```c
+// In Wotan helper before CAS:
+if (addr & 0x3) {  // Check if not 4-byte aligned
+    return -EFAULT;  // Return alignment error
+}
+```
+
+### CAS Atomicity Limitations
+
+CAS operation atomicity is ONLY guaranteed for a single 32-bit word at the
+specified address. Important limitations:
+
+1. **Single Address Only**: CAS atomically compares and swaps one u32 at one
+   address. It does NOT provide transactional semantics across multiple addresses.
+
+2. **Per-Address Atomicity**: If Shim needs to update multiple related fields,
+   CAS only guarantees atomicity for one of them. Concurrent accesses from other
+   Shims may see intermediate states.
+
+3. **Non-Blocking**: CAS is non-blocking—it returns immediately with success or
+   -EAGAIN. It does NOT stall.
+
+4. **Concurrent Flows**: CAS operations on different flows (different keys) do
+   not interfere; each flow's CAS is independent.
+
+5. **Alignment Requirement**: Address MUST be 4-byte aligned. The helper MUST
+   check this at runtime and return -EFAULT if misaligned. The BPF verifier
+   may not catch all alignment violations.
+
+**Recommended Use Pattern**:
+- Use CAS for per-flow state counters (e.g., packet count)
+- Do NOT use CAS for multi-field updates expecting atomic visibility
+- For complex transactions, use a per-flow spinlock implemented via CAS on a
+  separate "lock" field
+- Always ensure addresses are 4-byte aligned before calling bpf_wotan_cas()
+
+## Error Handling
 
 Implementations MUST handle all specified error codes. RECOMMENDED error handling:
 
@@ -261,7 +300,7 @@ Implementations MUST handle all specified error codes. RECOMMENDED error handlin
 
 Programs MUST NOT crash on negative returns; they MUST check return values and branch accordingly.
 
-## 4.5. Access Control
+## Access Control
 
 Wotan enforces per-program, per-flow-label authorization. Each BPF program (identified by its file descriptor or program ID) is associated with a set of allowed flow_labels via Sophia dictionary configuration.
 
@@ -277,9 +316,9 @@ bool is_authorized(program_id, flow_label):
 
 Access control rules are defined per deployment and distributed via Sophia. Default: all programs authorized for all flows (wildcard). Operators SHOULD restrict access to enforce least-privilege per BPF program.
 
-# 5. Memory Address Space
+# Memory Address Space
 
-## 5.1. Address Layout
+## Address Layout
 
 Each flow's per-flow address space is 0x00000000 to 0x00FFFFFF (16 MB):
 
@@ -299,7 +338,7 @@ Each flow's per-flow address space is 0x00000000 to 0x00FFFFFF (16 MB):
 0x00FFFFFF +------------------+
 ~~~~~
 
-## 5.2. Data Memory Region (0x00000000-0x0000BFFF)
+## Data Memory Region (0x00000000-0x0000BFFF)
 
 Per-flow RAM, allocated from Wotan ring buffer. Size configurable via --ring-size (default: 16 KB).
 
@@ -311,7 +350,7 @@ Used for:
 
 Addressing: Linear, byte-addressed. Shims MAY use conventional stack/heap management or flat address space, at operator's discretion.
 
-## 5.3. I/O Memory Region (0x0000C000-0x0000FFFE)
+## I/O Memory Region (0x0000C000-0x0000FFFE)
 
 Memory-mapped I/O. Writes to this region are non-blocking publishes to Wotan topics. Reads from this region fetch from Wotan topics (blocking if no data available, or non-blocking with a timeout).
 
@@ -328,16 +367,30 @@ Write to 0x0000C000-0x0000DFFF: data is published to compute.screen.{flow_label}
 
 Implementation: Writes to MMIO addresses trigger an event publication (non-blocking ringbuf_output).
 
-## 5.4. Input Region (0x0000FFFF)
+## Input Region (0x0000FFFF)
 
-Single 4-byte memory-mapped I/O location. Reads consume one event from compute.input.{flow_label} topic.
+Single 4-byte memory-mapped I/O location. Reads consume one event from
+compute.input.{flow_label} topic.
 
-Semantics:
+### Read Semantics
+
 - Read returns 4-byte event data if available
-- If no event: return 0x00000000 (or optionally -EAGAIN)
+- If no event: return 0x00000000 (default), or -EAGAIN if non-blocking mode enabled
 - Multiple reads in succession fetch successive events (FIFO)
 
-## 5.5. Extended Memory (0x00010000-0x00FFFFFF)
+### Write Behavior
+
+Writes to address 0x0000FFFF are not permitted and MUST be rejected:
+
+- Shim issues bpf_wotan_write() to 0x0000FFFF
+- Helper returns -EACCES error code
+- Shim MUST handle this error gracefully
+- No data is written; operation is silently rejected
+
+This enforces the read-only nature of the input region and prevents Shim
+programs from accidentally modifying the input queue.
+
+## Extended Memory (0x00010000-0x00FFFFFF)
 
 Optional: dictionary/WAD (Write-Anywhere Data) region backed by userspace. Used for:
 - Read-only program code (ROM)
@@ -346,22 +399,40 @@ Optional: dictionary/WAD (Write-Anywhere Data) region backed by userspace. Used 
 
 Allocation: per-flow, configured at startup. Misses backed by WAL recovery on restart.
 
-## 5.6. Per-Flow Addressing via Flow Label
+## Per-Flow Addressing via Composite Key
 
-Each IPv6 packet carries a 20-bit Flow Label. Wotan uses this as the primary key for per-flow ring buffer allocation:
+Each IPv6 packet carries a 20-bit Flow Label, source and destination addresses,
+and a transport protocol identifier. Wotan uses a composite key for per-flow
+ring buffer allocation to prevent collisions:
 
 ~~~~~
 Wotan ring buffer map key:
   struct wotan_rb_key {
-    u32 flow_label;  // 20-bit Flow Label (zero-extended)
+    u32 flow_label;       // 20-bit Flow Label from IPv6 header (zero-extended)
+    u64 src_ip;           // First 64 bits of source IPv6 address
+    u64 dst_ip;           // First 64 bits of destination IPv6 address
+    u8  protocol;         // IPv6 Next Header (transport protocol)
+    u8  reserved[3];      // Alignment padding
   };
+  hash = BLAKE3(wotan_rb_key)  // 256-bit hash used as primary key
 ~~~~~
 
-On first access to a new flow_label, Wotan MUST allocate a new ring buffer and associated L1 cache map. Ring buffer is freed on flow timeout (configurable, typically 30-300 seconds).
+This composite key prevents Flow Label collisions. RFC 6437 explicitly states
+that Flow Labels are not guaranteed to be unique, and multiple flows can
+share the same Flow Label. Using only the Flow Label would cause different
+flows to share memory, violating data isolation.
 
-# 6. L1 Cache: Per-Hop BPF Maps
+**Rationale**: Two packets with identical Flow Label but different source,
+destination, or protocol represent different flows and MUST have separate
+ring buffers.
 
-## 6.1. Cache Line Structure
+On first access to a new flow (identified by composite key), Wotan MUST
+allocate a new ring buffer and associated L1 cache map. Ring buffer is
+freed on flow timeout (configurable, typically 30-300 seconds).
+
+# L1 Cache: Per-Hop BPF Maps
+
+## Cache Line Structure
 
 L1 cache is a per-hop BPF hash map (BPF_MAP_TYPE_HASH):
 
@@ -380,9 +451,33 @@ struct l1_cache_line {
 };
 ~~~~~
 
-Cache lines are 64 bytes (one L3 cache line on x86-64), matching CPU hardware cache for optimal performance.
+Cache lines default to 64 bytes (one L3 cache line on x86-64), matching CPU
+hardware cache line size for optimal performance on modern systems.
 
-## 6.2. Prefetch Model
+### Cache Line Size Configuration
+
+While 64 bytes is the default, implementations MAY configure cache line size
+to match their target hardware:
+
+| Architecture | Typical Cache Line | Default for Wotan |
+|--------------|-------------------|------------------|
+| x86-64 (Intel/AMD) | 64 bytes | 64 bytes |
+| ARM64 (Graviton, Neoverse) | 64 bytes | 64 bytes |
+| ARM64 (older designs) | 32 bytes | 64 bytes (compatible) |
+| PowerPC | 128 bytes | 64 bytes (compatible, suboptimal) |
+| RISC-V | 64 bytes | 64 bytes |
+
+Implementations SHOULD allow operators to override cache line size via
+configuration:
+```
+wotan:
+  cache_line_size_bytes: 64  # Default
+```
+
+Using the correct cache line size for target hardware can improve L1 cache
+hit rate and reduce memory bandwidth usage.
+
+## Prefetch Model
 
 Prefetch is explicit, not automatic. A Shim MAY call bpf_wotan_read on a nearby address to trigger prefetch of that cache line into L1:
 
@@ -396,7 +491,7 @@ if (ret == -ENOMEM) {
 
 Userspace prefetch handler monitors compute.mem.miss topic and proactively reads from L2 ring buffer, populating L1 before Shim retry.
 
-## 6.3. Cache Miss Handling
+## Cache Miss Handling
 
 On L1 cache miss (step 5 of bpf_wotan_read):
 
@@ -422,7 +517,7 @@ struct wotan_cache_miss_event {
 // Emitted to: compute.mem.miss ring buffer
 ~~~~~
 
-## 6.4. Write-Back Policy
+## Write-Back Policy
 
 Dirty cache lines are written back to L2 ring buffer via userspace handler:
 
@@ -433,7 +528,7 @@ Dirty cache lines are written back to L2 ring buffer via userspace handler:
 
 Write-back frequency: RECOMMENDED flush every 100 ms or on L1 map occupancy >80%, whichever comes first. This balances latency (L1 hits) with memory efficiency (L2 persistence).
 
-## 6.5. Eviction (LRU)
+## Eviction (LRU)
 
 When L1 map reaches capacity (configurable max_entries, default 1024 lines = 64 KB):
 
@@ -442,11 +537,37 @@ When L1 map reaches capacity (configurable max_entries, default 1024 lines = 64 
 3. Evict from L1 map
 4. Allocate new line from freed space
 
-LRU counter incremented on every cache hit. Userspace MAY periodically reset counters (divide by 2 to prevent overflow, or periodic scan).
+LRU counter incremented on every cache hit.
 
-# 7. L2 Ring Buffer: Per-Flow RAM
+### LRU Counter Overflow Handling
 
-## 7.1. Ring Buffer Structure
+The lru_counter field is u16 (16 bits), range 0-65535. After 65536 hits,
+counter overflows to 0. To prevent incorrect LRU ordering after overflow:
+
+**Option A (Recommended): Periodic Counter Reset**
+
+Userspace daemon periodically (every 1 second or 1000 hits, whichever first):
+1. Scan L1 cache map
+2. Divide all lru_counters by 2 (shift right):
+   ```
+   for each cache line: line.lru_counter >>= 1;
+   ```
+3. This prevents overflow while maintaining relative ordering
+
+**Option B: Timestamp-Based LRU**
+
+Replace lru_counter with timestamp-based LRU:
+- Use bpf_ktime_get_ns() instead of counter
+- Userspace still needs to divide by 2 periodically
+- Provides better temporal accuracy
+
+**Implementation Note**: Without overflow handling, oldest cache lines could
+become newest (0 < 65535), causing incorrect eviction order. Operators MUST
+implement one of these strategies.
+
+# L2 Ring Buffer: Per-Flow RAM
+
+## Ring Buffer Structure
 
 Per-flow RAM is a BPF ring buffer (BPF_MAP_TYPE_RINGBUF):
 
@@ -466,7 +587,39 @@ Accessed by:
 - Shim: via bpf_wotan_{read,write,cas} helpers (L2 is backing for L1 miss)
 - Userspace: via ringbuf_consume() for write-back drain and recovery
 
-## 7.2. Allocation (per Flow Label)
+### Ring Buffer Entry Size vs Cache Line Alignment
+
+The 80-byte entry size does NOT align with the 64-byte cache line:
+- Cache line (L1): 64 bytes
+- Ring buffer entry: 80 bytes
+- Per entry overhead: 16 bytes (2×64-bit fields + validity flag)
+
+This asymmetry is intentional:
+1. **L1 Cache Lines**: Data payloads are exactly 64 bytes (CPU cache size)
+2. **L2 Ring Buffer**: Entries include metadata (timestamp, flow_label, addr, valid)
+   Resulting in 80-byte entries that span 1.25 cache lines
+
+**Memory Efficiency Trade-off**:
+- Pro: 16-byte metadata enables recovery and ordering
+- Con: entries don't pack perfectly into cache lines (12.5% overhead per entry)
+
+For high-performance deployments, consider using exactly 64-byte entries:
+```c
+struct wotan_rb_entry_compact {
+    u64 timestamp_ns;
+    u32 flow_label;
+    u32 addr;
+    u8  data[60];        // Reduced to fit in 64 bytes total
+    u8  valid;
+    u8  _pad[3];
+};
+// Total: 64 bytes per entry (perfect cache alignment)
+```
+
+This requires padding data to 60 bytes, losing 4 bytes of capacity. Operator
+configuration determines the trade-off.
+
+## Allocation (per Flow Label)
 
 On first access to a new flow_label:
 
@@ -480,7 +633,7 @@ Wotan allocates:
 
 Allocation is lazy (on first Shim access) or eager (pre-allocated for known flows).
 
-## 7.3. Sizing (--ring-size)
+## Sizing (--ring-size)
 
 Ring buffer size in bytes, configurable at Wotan startup. Default: 16 KB per flow.
 
@@ -495,20 +648,45 @@ Recommended sizing:
 
 Total Wotan memory per hop: (number of active flows) × (--ring-size + L1 cache overhead).
 
-## 7.4. Overflow Policy
+## Overflow Policy
 
-When ring buffer is full and Shim attempts write:
+Ring buffer overflow handling is critical for data durability. Implementations
+MUST follow this policy:
+
+### Proactive Drain (Primary)
+
+When ring buffer occupancy exceeds 75%, userspace MUST initiate drain to L3
+WAL. This is not a recommendation; it is a requirement to prevent packet loss.
+
+Userspace monitor MUST:
+1. Continuously poll Wotan L2 ring buffer occupancy
+2. When occupancy > 75%: Initiate drain to L3
+3. Drain speed: At least 10,000 events/sec (1 MB/sec)
+4. Repeat drain until occupancy < 50%
+
+### Overflow Response
+
+If ring buffer becomes completely full before drain completes:
 
 - Helper returns -ENOMEM (overflow)
-- Event dropped silently, counter incremented (STAT_L2_OVERFLOW)
-- Wotan userspace drains ring buffer to L3 WAL (see Section 9)
-- Next write retry after drain completes
+- Shim receives error code
+- Shim MUST implement stall/retry via BPF_TAIL_CALL
+- Shim MUST NOT proceed without memory access
 
-RECOMMENDED: drain L2→L3 when occupancy >75%, before Shim-visible overflow.
+Event MUST NOT be dropped silently. Transparency is required.
 
-# 8. L3 Write-Ahead Log: Persistent Storage
+### Capacity Planning
 
-## 8.1. WAL Format
+If userspace drain can't keep up with packet rate:
+1. Admin must increase L2 ring buffer size, OR
+2. Admin must reduce packet rate, OR
+3. Admin must increase WAL storage speed
+
+This guarantee ensures Wotan memory is never lost.
+
+# L3 Write-Ahead Log: Persistent Storage
+
+## WAL Format
 
 Per-flow persistent log on local storage (SQLite, RocksDB, or simple file):
 
@@ -526,7 +704,7 @@ struct wal_entry {
 
 One WAL file per flow, or single WAL with flow_label demultiplexing (implementation choice).
 
-## 8.2. Flush Policy (TTL-based)
+## Flush Policy (TTL-based)
 
 Userspace daemon periodically:
 
@@ -536,7 +714,7 @@ Userspace daemon periodically:
 
 Flush frequency: RECOMMENDED every 100-1000 ms or on --wal-size-threshold bytes, whichever comes first. This trades write latency (disk fsync) against data durability (loss window on crash).
 
-## 8.3. Recovery on Restart
+## Recovery on Restart
 
 On Wotan startup or hop restart:
 
@@ -549,9 +727,10 @@ On Wotan startup or hop restart:
 
 Recovery preserves per-flow state across restarts. Data durability: RPO (Recovery Point Objective) = flush interval (100-1000 ms).
 
-## 8.4. Compaction
+## Compaction
 
-Periodic WAL compaction (background task):
+Periodic WAL compaction (background task) is MANDATORY for operational
+efficiency:
 
 1. Read entire WAL file
 2. Group entries by address (collapse multiple writes to same address)
@@ -559,11 +738,27 @@ Periodic WAL compaction (background task):
 4. Write compacted WAL
 5. Swap atomically (rename)
 
-Compaction reduces WAL file size and improves recovery speed. RECOMMENDED: trigger on file size >--wal-max-size (default 100 MB) or age >24 hours.
+Compaction reduces WAL file size and improves recovery speed.
 
-# 9. Topic-Based I/O
+### Compaction Policy (MANDATORY)
 
-## 9.1. Topic Naming Convention
+Wotan daemon MUST compact WAL files when:
+- File size exceeds 100 MB (--wal-max-size), OR
+- File age exceeds 24 hours
+
+Operator SHOULD monitor compaction frequency via metrics:
+- wotan_wal_compaction_events_total (counter)
+- wotan_wal_file_size_bytes (gauge)
+- wotan_wal_compaction_duration_seconds (histogram)
+
+Failing to compact WAL files can lead to:
+- Unbounded disk growth (WAL becomes full)
+- Slow recovery on restart (processing many duplicate entries)
+- L3 flush performance degradation
+
+# Topic-Based I/O
+
+## Topic Naming Convention
 
 Wotan topics follow a hierarchical naming scheme:
 
@@ -588,7 +783,7 @@ Examples:
 
 Topic implementation: BPF ring buffers (kernel) + pub/sub delivery (Wotan daemon).
 
-## 9.2. Memory-Mapped I/O Addresses
+## Memory-Mapped I/O Addresses
 
 Writing to address ranges triggers topic publication:
 
@@ -601,7 +796,7 @@ Address      Topic Published              Semantics
 0x0000FFFF   compute.input.{label}       Input event consumption (read-only)
 ~~~~~
 
-## 9.3. Screen Topic (compute.screen.{flow_label})
+## Screen Topic (compute.screen.{flow_label})
 
 Writes to address 0x0000C000 publish to compute.screen topic:
 
@@ -615,7 +810,22 @@ struct screen_event {
 
 Userspace subscribers (dashboard, user interface) consume and display data.
 
-## 9.4. Input Topic (compute.input.{flow_label})
+### MMIO Write-Fail Behavior
+
+Writes to MMIO addresses (0x0000C000-0x0000DFFF) are non-blocking and
+unconditionally successful from the Shim perspective:
+
+1. Shim issues bpf_wotan_write() to MMIO address
+2. Helper enqueues event to ring buffer immediately
+3. Helper returns success (len) to Shim
+4. If no subscriber is listening: Event is dropped silently with counter increment
+5. If ring buffer is full: Event may be dropped; no error returned to Shim
+
+**Semantics**: MMIO writes are "fire-and-forget" publish operations. The Shim
+does not receive confirmation that the event was successfully consumed by a
+subscriber.
+
+## Input Topic (compute.input.{flow_label})
 
 Reads from address 0x0000FFFF fetch from compute.input topic:
 
@@ -628,7 +838,7 @@ struct input_event {
 
 Userspace input providers (keyboard, mouse, network) publish to compute.input. Shim programs consume via bpf_wotan_read(flow_label, 0x0000FFFF, ...).
 
-## 9.5. Dictionary Topic (sophia.dictionary.v{N})
+## Dictionary Topic (sophia.dictionary.v{N})
 
 Sophia dictionary updates distributed via topic:
 
@@ -646,7 +856,7 @@ Payload: serialized Sophia dictionary entry
 
 Wotan daemon subscribes, writes updates to BPF maps on all hops.
 
-## 9.6. Anamnesis Topics (anamnesis.{event_type})
+## Anamnesis Topics (anamnesis.{event_type})
 
 Per [UNHEADED-FOUNDATION], Anamnesis ring buffers emit events:
 
@@ -660,9 +870,9 @@ Topic: anamnesis.anomaly
 
 Wotan subscribes to all anamnesis.* topics and forwards to userspace observability systems (Prometheus, Grafana, ELK).
 
-# 10. Cache Miss Protocol
+# Cache Miss Protocol
 
-## 10.1. Miss Event Structure
+## Miss Event Structure
 
 When L1 cache miss occurs:
 
@@ -677,7 +887,7 @@ struct wotan_cache_miss_event {
 // Emitted to: compute.mem.miss ring buffer
 ~~~~~
 
-## 10.2. Userspace Handler
+## Userspace Handler
 
 Userspace Wotan daemon:
 
@@ -692,7 +902,7 @@ Userspace Wotan daemon:
 
 Handler MUST be non-blocking; misses are served in <10 µs on average (in-memory operations).
 
-## 10.3. Stall Mechanism
+## Stall Mechanism
 
 When Shim receives -ENOMEM (cache miss):
 
@@ -726,7 +936,7 @@ if (bpf_wotan_read(...) == -ENOMEM) {
 
 Choice of stall mechanism is operator policy, configured per Shim program.
 
-## 10.4. Prefetch Hinting
+## Prefetch Hinting
 
 Shim program MAY prefetch likely-to-be-needed addresses:
 
@@ -738,17 +948,17 @@ bpf_wotan_read(flow_label, sp - 128, &dummy, 1);
 
 Userspace handler serves prefetch requests before Shim retry, reducing average miss latency from ~10 µs (on-demand) to ~5 µs (prefetch).
 
-# 11. Computational Memory Model
+# Computational Memory Model
 
-## 11.1. Program Memory (ROM via Sophia BPF Array)
+## Program Memory (ROM via Sophia BPF Array)
 
 Read-only program code and constant data are stored in Sophia dictionaries or in extended memory (0x00010000+). These are shared across flows and hops (L4 cache).
 
-## 11.2. Data Memory (RAM via Wotan Ring Buffer)
+## Data Memory (RAM via Wotan Ring Buffer)
 
 Per-flow writeable state (stack, heap, scratch) is in L2 ring buffer (0x00000000-0x0000BFFF).
 
-## 11.3. Stack (top-of-RAM, grows downward)
+## Stack (top-of-RAM, grows downward)
 
 Shim programs allocate stack frames in per-flow RAM. Convention:
 
@@ -765,7 +975,7 @@ sp += frame_size
 
 Stack overflow detection: if sp < heap_top, return error. Heap overflow detection: if heap_top > stack_base, return error.
 
-## 11.4. Heap (configurable region)
+## Heap (configurable region)
 
 Configurable via Sophia: heap_base and heap_top pointers per flow. Shim programs use simple malloc-like allocation:
 
@@ -779,16 +989,16 @@ if (heap_top > stack_sp) return -ENOMEM  // collision
 // Many Shims use linear allocation (no free) for simplicity
 ~~~~~
 
-## 11.5. Memory-Mapped I/O (designated address ranges)
+## Memory-Mapped I/O (designated address ranges)
 
 Addresses 0x0000C000-0x0000FFFF trigger topic I/O:
 - Writes publish data
 - Reads consume events
 - Non-blocking (returns immediately)
 
-# 12. Performance Characteristics
+# Performance Characteristics
 
-## 12.1. L1 Hit Latency
+## L1 Hit Latency
 
 Approximately 100-200 ns per bpf_wotan_read/write on L1 cache hit (BPF hash map lookup + memcpy of 1-4 bytes).
 
@@ -799,22 +1009,43 @@ Measured on:
 
 Includes: BPF verifier overhead (~0 ns, amortized), hash table lookup (O(1), ~100 ns), memory access (~50 ns), return (~10 ns).
 
-## 12.2. L2 Access Latency
+## L2 Access Latency
 
 Approximately 1-10 µs for cache miss + userspace handler + L1 refill.
 
-Measured on: same platform, ring buffer in userspace, handler latency measured end-to-end.
+Measured on: Intel Skylake or newer / AMD EPYC processors, ring buffer in
+userspace, handler latency measured end-to-end.
 
-Breakdown:
-- Emit miss event to ring buffer: ~100 ns
-- Userspace poll + event dequeue: ~1-2 µs
-- L2 ring buffer lookup: ~1-2 µs
-- L1 BPF map update: ~1 µs
-- Shim retry: ~100 ns
+### Cache Miss Latency Breakdown
 
-Total: ~4-5 µs average (9x slower than L1 hit).
+The 1-10 µs range assumes the following component latencies:
 
-## 12.3. L3 Access Latency
+| Component | Latency | Conditions |
+|-----------|---------|-----------|
+| Emit miss event to ring buffer | ~100 ns | Ring buffer has space, CPU cache warm |
+| Userspace poll wake-up | ~1-2 µs | High-priority thread, pinned to core |
+| L2 ring buffer lookup | ~1-2 µs | Entry in memory, NUMA local |
+| L1 BPF map update | ~1 µs | Hash bucket not contested |
+| Shim retry BPF_TAIL_CALL | ~100 ns | JIT compiled, kernel cache warm |
+| **Total (ideal case)** | **~4-5 µs** | **All conditions met** |
+
+In high-contention scenarios (multiple cores missing same flow):
+- Userspace poll latency may increase to 10-100 µs
+- L2 ring buffer contention may cause serialization
+- L1 cache line eviction may require prefetch retry
+- Actual latency observed: 10-100 µs (100x slower)
+
+### Deployment Guidance
+
+Deployments SHOULD:
+1. Pin Wotan userspace handler to dedicated cores
+2. Configure RT scheduling priority for miss handler
+3. Monitor miss rate via /sys/kernel/debug/bpf/
+4. Plan capacity for <1% miss rate under expected workload
+
+Total: ~4-5 µs average (ideal case, 9x slower than L1 hit).
+
+## L3 Access Latency
 
 Approximately 100 µs to 1 ms for WAL disk I/O.
 
@@ -826,7 +1057,7 @@ Depends on:
 
 L3 is only accessed on Wotan restart (recovery) or explicit flushing; not on critical path for per-packet operations.
 
-## 12.4. Cache Hit Rate Targets
+## Cache Hit Rate Targets
 
 For well-tuned deployments: >90% L1 cache hit rate.
 
@@ -837,9 +1068,9 @@ Assumptions:
 
 If hit rate <80%: increase L1 cache size (BPF map max_entries) or reduce L2 ring buffer size to promote prefetching.
 
-# 13. Security Considerations
+# Security Considerations
 
-## 13.1. Per-Program Access Control
+## Per-Program Access Control
 
 Each Shim program (BPF program ID) is associated with a set of allowed flow_labels via Sophia. Wotan helper functions check authorization before allowing memory access.
 
@@ -855,7 +1086,7 @@ struct wotan_authz_entry {
 
 Enforcement: mandatory on every bpf_wotan_read/write/cas call. Violation → return -EACCES, log to Anamnesis.
 
-## 13.2. Flow Isolation
+## Flow Isolation
 
 Per-flow ring buffers are isolated by BPF map (one map per flow_label). No Shim can read another flow's data via bpf_wotan_read unless explicitly authorized.
 
@@ -864,7 +1095,7 @@ Isolation mechanism:
 - Access control check in helper (§4.5)
 - Sophia-configured whitelist per program
 
-## 13.3. Ring Buffer Overflow DoS
+## Ring Buffer Overflow DoS
 
 Ring buffer overflow returns -ENOMEM to Shim. A malicious or buggy Shim could trigger repeated overflows to cause performance degradation.
 
@@ -874,7 +1105,7 @@ Mitigations:
 - OPTIONAL: drop oldest entries on overflow (loose consistency)
 - OPTIONAL: quotas per program (STAT_RB_QUOTA enforcement)
 
-## 13.4. WAL Encryption
+## WAL Encryption
 
 Persistent storage (L3 WAL) may contain sensitive flow state. Recommendation:
 
@@ -884,7 +1115,7 @@ Persistent storage (L3 WAL) may contain sensitive flow state. Recommendation:
 
 No standard wire format for encrypted WAL defined in this memo; operators SHOULD implement per deployment requirements.
 
-# 14. IANA Considerations
+# IANA Considerations
 
 This memo does not request IANA registration of option types or protocol numbers; those are handled by [UNHEADED-FOUNDATION].
 
@@ -902,22 +1133,6 @@ Example entries:
 - sophia.dictionary.*, Sophia, Dictionary updates
 - anamnesis.*, Anamnesis, Observability events
 
-# 15. References
-
-[RFC2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC 2119, March 1997.
-
-[RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words", BCP 14, RFC 8174, May 2020.
-
-[RFC8799] Lindem, A., Ed., and D. Eastlake 3rd, Ed., "Limited Domains and Internet Protocols", RFC 8799, July 2020.
-
-[RFC9669] Kirtley, O., Ed., "The eBPF Instruction Set", RFC 9669, December 2024.
-
-[UNHEADED-FOUNDATION] Bellis, S., "The Unheaded Protocol Foundation", Internet-Draft draft-bellis-unheaded-protocol-foundation-03, February 2026.
-
-[UNHEADED-SOPHIA] Bellis, S., "Sophia Dictionary Format for the Unheaded Protocol", Internet-Draft draft-bellis-unheaded-sophia-dictionary-00, February 2026.
-
-[FIPS203] National Institute of Standards and Technology, "Module-Lattice-Based Key-Encapsulation Mechanism Standard", FIPS 203, August 2024.
-
 ---
 
 # Acknowledgments
@@ -926,6 +1141,12 @@ The Linux kernel BPF community (Alexei Starovoitov, Daniel Borkmann, Song Liu) f
 
 The authors of RFC 9669 (BPF ISA), RFC 8799 (Limited Domains), and RFC 9673 (Hop-by-Hop Processing Rehabilitation) for the foundational protocols that make this design possible.
 
+This document was co-authored with assistance from Claude (Anthropic).
+
 ---
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+# Author's Address
+
+Steven Bellis
+Unheaded
+Email: stevenrbellis@gmail.com
