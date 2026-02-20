@@ -1,13 +1,14 @@
 // Package settings provides capability negotiation for the Unheaded protocol.
 // It implements H4 finding: Settings negotiation using varint key-value pairs.
+// Uses RFC 9000 variable-length integers via pkg/protocol/encoding.
 package settings
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	"unheaded/pkg/logger"
+	"unheaded/pkg/protocol/encoding"
 )
 
 // SettingID represents a unique setting identifier.
@@ -96,21 +97,26 @@ func (s *Settings) All() map[SettingID]uint64 {
 	return result
 }
 
-// encodeVarint encodes a uint64 as a varint.
+// encodeVarint encodes a uint64 as a QUIC variable-length integer using pkg/protocol/encoding.
 func encodeVarint(v uint64) []byte {
-	buf := make([]byte, binary.MaxVarintLen64)
-	n := binary.PutUvarint(buf, v)
-	return buf[:n]
+	encoded, err := encoding.EncodeVarint(v)
+	if err != nil {
+		// For backward compatibility with existing code, fallback gracefully
+		// (should never happen unless value exceeds MaxVarint)
+		return []byte{}
+	}
+	return encoded
 }
 
-// decodeVarint decodes a varint from a buffer and returns the value and bytes consumed.
+// decodeVarint decodes a QUIC variable-length integer from a buffer and returns the value and bytes consumed.
+// Uses pkg/protocol/encoding.DecodeVarint per RFC 9000 §16.
 func decodeVarint(buf []byte) (uint64, int, error) {
 	if len(buf) == 0 {
 		return 0, 0, fmt.Errorf("settings: empty buffer for varint decode")
 	}
-	v, n := binary.Uvarint(buf)
-	if n <= 0 {
-		return 0, 0, fmt.Errorf("settings: invalid varint encoding")
+	v, n, err := encoding.DecodeVarint(buf)
+	if err != nil {
+		return 0, 0, fmt.Errorf("settings: invalid varint encoding: %w", err)
 	}
 	return v, n, nil
 }

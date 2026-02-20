@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 // HMACTagSize is the size of the HMAC tag (8 bytes = 64 bits)
@@ -79,40 +81,21 @@ func (hc *HMACComputer) Verify(monadHeader [18]byte, tag [8]byte) bool {
 	return hmac.Equal(computed[:], tag[:])
 }
 
-// CRC16CCITT computes CRC-16-CCITT polynomial x^16 + x^12 + x^5 + 1
-// Kept for backward compatibility
+// CRC16CCITT computes CRC-16/CCITT-FALSE over the given data.
+// Uses pkg/protocol/encoding.CRC16CCITT per Monad wire format spec (polynomial 0x1021, init 0xFFFF).
 func CRC16CCITT(data []byte) uint16 {
-	if data == nil {
-		return 0
-	}
-
-	crc := uint16(0xffff)
-
-	for _, b := range data {
-		crc ^= uint16(b) << 8
-
-		for i := 0; i < 8; i++ {
-			crc <<= 1
-			if (crc & 0x10000) != 0 {
-				crc ^= 0x1021
-				crc &= 0xffff
-			}
-		}
-	}
-
-	return crc ^ 0xffff
+	return encoding.CRC16CCITT(data)
 }
 
-// ComputeCRC16CCITT is a convenience function for backward compatibility
+// ComputeCRC16CCITT is a convenience function that delegates to pkg/protocol/encoding.CRC16CCITT
 func ComputeCRC16CCITT(data []byte) uint16 {
-	return CRC16CCITT(data)
+	return encoding.CRC16CCITT(data)
 }
 
-// VerifyCRC16CCITT verifies a CRC-16-CCITT checksum
-// Kept for backward compatibility
+// VerifyCRC16CCITT verifies a CRC-16/CCITT-FALSE checksum using pkg/protocol/encoding.CRC16CCITT
 func VerifyCRC16CCITT(data []byte, expectedCRC uint16) bool {
 	if data == nil {
-		return expectedCRC == 0
+		return expectedCRC == 0xFFFF
 	}
-	return CRC16CCITT(data) == expectedCRC
+	return encoding.CRC16CCITT(data) == expectedCRC
 }
