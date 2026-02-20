@@ -247,7 +247,7 @@ func Negotiate(local, remote *Settings) (*Settings, error) {
 		}
 	}
 
-	logger.Debugf("negotiated settings: local=%v remote=%v result=%v",
+	logger.Debug().Msgf("negotiated settings: local=%v remote=%v result=%v",
 		local.All(), remote.All(), result.All())
 
 	return result, nil

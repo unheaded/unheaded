@@ -88,7 +88,7 @@ func (st *SequenceTracker) ValidateMonotonicity(namespace string, received uint3
 	expectedSeq := st.expected[namespace]
 	st.mu.RUnlock()
 
-	lost, reordered := counter.DetectGap(expectedSeq, received)
+	lost, reordered = counter.DetectGap(expectedSeq, received)
 
 	// Update expected to next expected sequence
 	st.mu.Lock()

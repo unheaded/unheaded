@@ -20,7 +20,7 @@ type RingPathCounter uint16
 // Increment increments the ring path counter and returns the new value.
 // Returns an error if the counter would exceed the maximum allowed value.
 func (rpc RingPathCounter) Increment() (RingPathCounter, error) {
-	if rpc >= uint16(DefaultMaxHopCount) {
+	if rpc >= RingPathCounter(DefaultMaxHopCount) {
 		return 0, fmt.Errorf("ring path counter %d exceeds maximum hop count %d", rpc, DefaultMaxHopCount)
 	}
 	return rpc + 1, nil
