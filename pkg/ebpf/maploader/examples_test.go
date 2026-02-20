@@ -8,7 +8,7 @@ import (
 )
 
 // ExampleNewMapLoader demonstrates creating a MapLoader instance
-func ExampleNewMapLoader(t *testing.T) {
+func TestExampleNewMapLoader(t *testing.T) {
 	// In production, mapFD comes from ebpf.NativeLoader.GetMap()
 	// For this example, we'll use -1 (which would fail in real syscalls)
 	mapFD := -1
@@ -29,7 +29,7 @@ func ExampleNewMapLoader(t *testing.T) {
 }
 
 // ExampleLoadMap demonstrates loading a single key-value pair
-func ExampleLoadMap(t *testing.T) {
+func TestExampleLoadMap(t *testing.T) {
 	// Minimal example - in production, mapFD would be a valid FD
 	loader := NewMapLoader(-1, "test_map")
 
@@ -54,7 +54,7 @@ func ExampleLoadMap(t *testing.T) {
 }
 
 // ExampleLoadMapBatch demonstrates loading multiple entries
-func ExampleLoadMapBatch(t *testing.T) {
+func TestExampleLoadMapBatch(t *testing.T) {
 	loader := NewMapLoader(-1, "test_map")
 
 	type SimpleKey struct {
@@ -78,7 +78,7 @@ func ExampleLoadMapBatch(t *testing.T) {
 }
 
 // ExampleLoadMapArray demonstrates loading entries into an ARRAY-type map
-func ExampleLoadMapArray(t *testing.T) {
+func TestExampleLoadMapArray(t *testing.T) {
 	loader := NewMapLoader(-1, "unhd_flow_types")
 
 	type FlowTypeEntry struct {
@@ -100,7 +100,7 @@ func ExampleLoadMapArray(t *testing.T) {
 }
 
 // ExampleLoadErrorCounters demonstrates initializing error counters
-func ExampleLoadErrorCounters(t *testing.T) {
+func TestExampleLoadErrorCounters(t *testing.T) {
 	loader := NewMapLoader(-1, "unhd_error_counters")
 
 	// LoadErrorCounters initializes error codes 0-255 with zero counters
@@ -112,7 +112,7 @@ func ExampleLoadErrorCounters(t *testing.T) {
 }
 
 // ExampleDocumentation shows the typical workflow for populating maps
-func ExampleDocumentation(t *testing.T) {
+func TestExampleDocumentation(t *testing.T) {
 	// Step 1: Get the BPF loader
 	// loader, err := ebpf.NewNativeLoader(config)
 	// if err != nil { /* handle error */ }

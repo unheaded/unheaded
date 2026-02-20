@@ -1317,7 +1317,7 @@ func TestRegisterKingdomServices(t *testing.T) {
 	s.RegisterKingdomServices(nil)
 
 	targets := s.GetTargets()
-	expectedNames := []string{"architect", "wotan", "captain", "gateway", "micromanager", "timeguru"}
+	expectedNames := []string{"architect", "captain", "gateway", "micromanager", "timeguru", "wotan"}
 
 	if len(targets) != len(expectedNames) {
 		t.Fatalf("expected %d targets, got %d", len(expectedNames), len(targets))
