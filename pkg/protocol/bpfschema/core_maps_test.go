@@ -5,34 +5,34 @@ import (
 	"unsafe"
 )
 
-// TestMonadRegisterSize verifies the Monad register is exactly 20 bytes.
+// TestMonadRegisterSize_CoreMaps verifies the Monad register is exactly 20 bytes.
 // This MUST match monad-common::Monad in Rust. Mismatch = data corruption.
-func TestMonadRegisterSize(t *testing.T) {
+func TestMonadRegisterSize_CoreMaps(t *testing.T) {
 	got := unsafe.Sizeof(MonadRegister{})
 	if got != MonadRegisterSize {
 		t.Fatalf("MonadRegister size = %d, want %d (must match Rust monad-common::Monad)", got, MonadRegisterSize)
 	}
 }
 
-// TestAnamnesisEventSize verifies the event is exactly 32 bytes.
+// TestAnamnesisEventSize_CoreMaps verifies the event is exactly 32 bytes.
 // This MUST match the ring buffer record size in all eBPF programs.
-func TestAnamnesisEventSize(t *testing.T) {
+func TestAnamnesisEventSize_CoreMaps(t *testing.T) {
 	got := unsafe.Sizeof(AnamnesisEvent{})
 	if got != AnamnesisEventSize {
 		t.Fatalf("AnamnesisEvent size = %d, want %d", got, AnamnesisEventSize)
 	}
 }
 
-// TestMbcCpuStateSize verifies the CPU state is exactly 80 bytes.
-func TestMbcCpuStateSize(t *testing.T) {
+// TestMbcCpuStateSize_CoreMaps verifies the CPU state is exactly 104 bytes.
+func TestMbcCpuStateSize_CoreMaps(t *testing.T) {
 	got := unsafe.Sizeof(MbcCpuState{})
 	if got != MbcCpuStateSize {
 		t.Fatalf("MbcCpuState size = %d, want %d", got, MbcCpuStateSize)
 	}
 }
 
-// TestFlowKeySize verifies the 5-tuple key is exactly 40 bytes.
-func TestFlowKeySize(t *testing.T) {
+// TestFlowKeySize_CoreMaps verifies the 5-tuple key is exactly 16 bytes.
+func TestFlowKeySize_CoreMaps(t *testing.T) {
 	got := unsafe.Sizeof(FlowKey{})
 	if got != FlowKeySize {
 		t.Fatalf("FlowKey size = %d, want %d", got, FlowKeySize)
@@ -56,7 +56,7 @@ func TestCoreMapStructSizes(t *testing.T) {
 		{"SophiaMapValue", unsafe.Sizeof(SophiaMapValue{}), 32},
 		{"CircuitErrorKey", unsafe.Sizeof(CircuitErrorKey{}), 8},
 		{"CircuitErrorValue", unsafe.Sizeof(CircuitErrorValue{}), 8},
-		{"FlowState", unsafe.Sizeof(FlowState{}), 40},
+		{"FlowState", unsafe.Sizeof(FlowState{}), FlowStateSize},
 		{"TraceAssocKey", unsafe.Sizeof(TraceAssocKey{}), 8},
 		{"TraceAssocValue", unsafe.Sizeof(TraceAssocValue{}), 16},
 		{"ChaosTargetKey", unsafe.Sizeof(ChaosTargetKey{}), 8},

@@ -1,6 +1,7 @@
 package dos
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -63,11 +64,11 @@ func TestDropRateCalculation(t *testing.T) {
 }
 
 func TestRingBufferMonitorCreation(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 
 	tests := []struct {
 		name        string
-		log         logger.Logger
+		log         *logger.Logger
 		expectError bool
 	}{
 		{
@@ -100,7 +101,7 @@ func TestRingBufferMonitorCreation(t *testing.T) {
 }
 
 func TestBackpressureThresholds(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	rbm, _ := NewRingBufferMonitor(log)
 
 	// Record many drops to trigger backpressure
@@ -115,7 +116,7 @@ func TestBackpressureThresholds(t *testing.T) {
 }
 
 func TestQoSAwarePriority(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	rbm, _ := NewRingBufferMonitor(log)
 
 	// Trigger backpressure
@@ -217,7 +218,7 @@ func TestMapUsageAlerts(t *testing.T) {
 }
 
 func TestBPFMapLimits(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	bml, _ := NewBPFMapLimits(log, 1000000)
 
 	// Register a map
@@ -243,7 +244,7 @@ func TestBPFMapLimits(t *testing.T) {
 }
 
 func TestMapEviction(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	bml, _ := NewBPFMapLimits(log, 1000000)
 	bml.RegisterMap("test_map", 1000)
 
@@ -263,7 +264,7 @@ func TestMapEviction(t *testing.T) {
 }
 
 func TestSizeLimitEnforcer(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sle, _ := NewSizeLimitEnforcer(log, 1024*1024, 100*1024*1024)
 
 	tests := []struct {
@@ -301,8 +302,9 @@ func TestSizeLimitEnforcer(t *testing.T) {
 }
 
 func TestSizeLimitGlobalLimit(t *testing.T) {
-	log := logger.New()
-	sle, _ := NewSizeLimitEnforcer(log, 10*1024*1024, 20*1024*1024)
+	log := logger.New(os.Stdout)
+	// per-flow limit of 16MB so individual 15MB allocations fit within it
+	sle, _ := NewSizeLimitEnforcer(log, 16*1024*1024, 20*1024*1024)
 
 	// Add flow1 with 15MB
 	sle.CheckAndRecordSize("flow1", 15*1024*1024)
@@ -321,7 +323,7 @@ func TestSizeLimitGlobalLimit(t *testing.T) {
 }
 
 func TestFlowUsageTracking(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sle, _ := NewSizeLimitEnforcer(log, 1024*1024, 100*1024*1024)
 
 	sle.CheckAndRecordSize("flow1", 512*1024)
@@ -338,7 +340,7 @@ func TestFlowUsageTracking(t *testing.T) {
 }
 
 func TestFlowUsageReset(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sle, _ := NewSizeLimitEnforcer(log, 1024*1024, 100*1024*1024)
 
 	sle.CheckAndRecordSize("flow1", 512*1024)
@@ -351,7 +353,7 @@ func TestFlowUsageReset(t *testing.T) {
 }
 
 func TestCompressionGuard(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	cg, _ := NewCompressionGuard(log)
 
 	// Set compression flag for sensitive entry
@@ -373,7 +375,7 @@ func TestCompressionGuard(t *testing.T) {
 }
 
 func TestCompressionContexts(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	cg, _ := NewCompressionGuard(log)
 
 	cg.SetTrustedContext(true)
@@ -389,7 +391,7 @@ func TestCompressionContexts(t *testing.T) {
 }
 
 func TestExtensionLimits(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	el, _ := NewExtensionLimits(log, 4)
 
 	tests := []struct {
@@ -434,7 +436,7 @@ func TestExtensionLimits(t *testing.T) {
 }
 
 func TestUnknownTLVProcessing(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	el, _ := NewExtensionLimits(log, 4)
 
 	// Process unknown TLVs
@@ -451,7 +453,7 @@ func TestUnknownTLVProcessing(t *testing.T) {
 }
 
 func TestConcurrentMapUpdates(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	bml, _ := NewBPFMapLimits(log, 1000000)
 	bml.RegisterMap("concurrent_map", 10000)
 
@@ -474,7 +476,7 @@ func TestConcurrentMapUpdates(t *testing.T) {
 }
 
 func TestConcurrentFlowTracking(t *testing.T) {
-	log := logger.New()
+	log := logger.New(os.Stdout)
 	sle, _ := NewSizeLimitEnforcer(log, 10*1024*1024, 100*1024*1024)
 
 	done := make(chan bool, 10)

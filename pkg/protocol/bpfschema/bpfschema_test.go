@@ -32,7 +32,8 @@ func TestStructSizes(t *testing.T) {
 
 		// Q5/Q6: Migration tokens.
 		{"MigrationTokenKey", unsafe.Sizeof(MigrationTokenKey{}), 20},
-		{"MigrationTokenValue", unsafe.Sizeof(MigrationTokenValue{}), 48},
+		// MigrationTokenValue: 32 (Token) + 4 (IssuedAt) + 4 (ExpiresAt) + 16 (NewAddr) = 56 bytes.
+		{"MigrationTokenValue", unsafe.Sizeof(MigrationTokenValue{}), 56},
 
 		// H1: Sophia sync.
 		{"SophiaSyncKey", unsafe.Sizeof(SophiaSyncKey{}), 8},
@@ -66,11 +67,13 @@ func TestStructSizes(t *testing.T) {
 
 		// H9: Prefetch hints.
 		{"PrefetchHintKey", unsafe.Sizeof(PrefetchHintKey{}), 8},
-		{"PrefetchHintValue", unsafe.Sizeof(PrefetchHintValue{}), 24},
+		// PrefetchHintValue: 2+2+1+1+2+4+4+4 = 20 bytes (no inter-field padding needed).
+		{"PrefetchHintValue", unsafe.Sizeof(PrefetchHintValue{}), 20},
 
 		// H10: Hop validators.
 		{"HopValidatorKey", unsafe.Sizeof(HopValidatorKey{}), 8},
-		{"HopValidatorValue", unsafe.Sizeof(HopValidatorValue{}), 32},
+		// HopValidatorValue: 1+1+1+1+16+1+3+4 = 28 bytes (no inter-field padding needed).
+		{"HopValidatorValue", unsafe.Sizeof(HopValidatorValue{}), 28},
 
 		// H11: Authority.
 		{"AuthorityKey", unsafe.Sizeof(AuthorityKey{}), 8},
