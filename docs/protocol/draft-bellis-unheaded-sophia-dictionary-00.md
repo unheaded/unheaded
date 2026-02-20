@@ -30,6 +30,7 @@ normative:
       Internet-Draft: draft-bellis-unheaded-protocol-foundation-03
 
 informative:
+  RFC8610:
   RFC8799:
   RFC9197:
 
@@ -75,12 +76,14 @@ This memo specifies:
 4. The minimum dictionary entries that all implementations MUST support
 5. Version negotiation and backward-compatibility rules
 
-## Terminology
+# Requirements Language
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
 "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
 document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174]
 when, and only when, they appear in all capitals, as shown here.
+
+# Terminology
 
 Root Dictionary:
 : The top-level BPF map (type BPF_MAP_TYPE_HASH) keyed by root entry ID
@@ -152,6 +155,20 @@ Root entries occupy the following key ranges:
 - 0x10-0xFE: Available for operator assignment
 - 0xFF: Reserved (Yaldabaoth chaos injection)
 
+## Initialization Guarantee
+
+The root dictionary MUST be fully initialized before any Monad packets are
+processed by Shim programs. Wotan or system initialization logic MUST:
+
+1. Load all root entries from persistent storage
+2. Verify that each standard root key (0x01-0x06) has a corresponding entry
+3. Initialize default values for any missing entries using base=2, multiplier=1
+4. Signal readiness to shield/shim components only after this initialization
+   is complete
+
+Any attempt to process a packet before Sophia is initialized is a fatal
+configuration error and MUST be logged.
+
 ## Sub-Dictionaries
 
 Each root entry points to a sub-dictionary (a separate BPF map).  Sub-
@@ -219,11 +236,14 @@ Example encoding (CBOR):
   "sub_dict_id": 2
 }
 
-CBOR hex: A2 64747970652A666C6F775F616374696F6E 0B 6C7375625F646963745F6964 02
-         (A2 = map with 2 pairs)
-         (647479706520 = "type")
-         (6A666C6F775F616374696F6E = "flow_action")
-         (0B = integer 11, not used here - replace with actual mapping)
+CBOR hex: A2                          -- map(2)
+          64                          -- text(4)
+            74797065                  -- "type"
+          6B                          -- text(11)
+            666C6F775F616374696F6E    -- "flow_action"
+          6B                          -- text(11)
+            7375625F646963745F6964    -- "sub_dict_id"
+          02                          -- unsigned(2)
 ~~~~~
 
 ## Sub-Dictionary Entry Schema
@@ -256,6 +276,72 @@ Example: service_identity entry for "captain":
   "key_expires": "2026-03-19T00:00:00Z"
 }
 ~~~~~
+
+## Wire-Format and In-Memory Mapping
+
+Sophia entries exist in three forms:
+
+1. **Wire Format (CBOR)** - for distribution over Wotan topics
+2. **Kernel Representation (BPF struct)** - for high-performance lookups
+3. **Userspace Representation** - for configuration and management
+
+### Mapping: CBOR → BPF Struct
+
+The following table defines how CBOR fields map to BPF struct fields:
+
+| CBOR Field | BPF Field | Type | Notes |
+|------------|-----------|------|-------|
+| name | name[32] | char array | Null-terminated, truncated to 31 chars |
+| endpoint | endpoint_ip | u32 | IPv6 last 32 bits only (see note below) |
+| port | endpoint_port | u16 | TCP/UDP port for service endpoint |
+| pqc_algorithm | pqc_algo | u8 | Algorithm ID per Sophia registry |
+| pqc_fingerprint | fingerprint[32] | u8[32] | SHA3-256 truncation |
+| key_epoch | key_epoch | u8 | Rotation counter (0-255) |
+
+**Important Note**: IPv6 endpoint addresses are truncated to 32 bits (last octet +
+3 middle octets) for compact storage in BPF maps. The full address must be
+reconstructed from domain context (e.g., fd00:3f:75::xxxx implies the first
+48 bits). This is a deployment-specific configuration.
+
+### CBOR Serialization Example
+
+For a service_identity entry:
+
+```json
+{
+  "name": "captain",
+  "endpoint": "fd00:3f:75::1007:8080",
+  "pqc_algorithm": 1,
+  "pqc_pubkey": h'1184bytes...',
+  "pqc_fingerprint": h'3257A8...',
+  "key_epoch": 7,
+  "key_expires": "2026-03-19T00:00:00Z"
+}
+```
+
+Maps to BPF struct:
+
+```c
+sophia_sub_entry = {
+  name = "captain",
+  endpoint_ip = 0x1007,  // Last 32 bits
+  endpoint_port = 8080,
+  pqc_algo = 1,
+  key_epoch = 7,
+  fingerprint = [0x32, 0x57, 0xA8, ...],
+}
+```
+
+### Userspace Management
+
+Userspace tooling (Pleroma, Wotan daemon) maintains the full entries including:
+- Complete IPv6 addresses
+- Full PQC public keys (not just fingerprints)
+- Signature keys for verification
+
+These are serialized to CBOR for distribution and truncated to BPF struct
+form for kernel-space storage. The userspace tooling is responsible for
+maintaining the mapping.
 
 ## Exponent Rule Entry Schema
 
@@ -332,6 +418,20 @@ struct {
 } sophia_root SEC(".maps");
 ~~~~~
 
+### Root Dictionary Size Limits
+
+The root dictionary is limited to a maximum of 256 entries, keyed by 8-bit
+values (0x00-0xFF). This is a hard limit imposed by the Monad wire format,
+which uses single-byte keys for root dictionary lookups.
+
+If an operator requires more than 256 root categories:
+
+1. Use hierarchical dictionaries: create a sub-dictionary within another
+   sub-dictionary (two-level indirection instead of three)
+
+2. Or utilize the 0x10-0xFE range for organization-specific entries and
+   subdivide that space per Deployment Namespace Planning guidelines
+
 ## Sub-Dictionary Maps (BPF_MAP_TYPE_ARRAY_OF_MAPS)
 
 Each sub-dictionary is itself a BPF hash map.  An array-of-maps indirection
@@ -386,8 +486,8 @@ struct {
 
 ## Map Pinning Paths
 
-BPF maps are pinned to the filesystem for persistence across reboots and
-for communication between userspace and kernel:
+BPF maps are pinned to the filesystem for persistence and for communication
+between userspace and kernel:
 
 ~~~~~
 /sys/fs/bpf/unheaded/sophia_root
@@ -401,6 +501,33 @@ for communication between userspace and kernel:
 
 The sophia_version map contains a single entry (key 0) with the current
 dictionary version counter (0-255).
+
+### BPF Map Persistence Across Reboots
+
+Maps are pinned to /sys/fs/bpf but persistence behavior depends on the
+filesystem and kernel configuration:
+
+1. **BPF File System (BPF FS)**: By default, /sys/fs/bpf is a tmpfs or
+   bpffs, which does NOT survive reboot.
+
+2. **Persistence Requirement**: Userspace daemon (Wotan/Pleroma) MUST:
+   - On startup: Check if pinned maps exist in /sys/fs/bpf
+   - If NOT present: Reinitialize Sophia maps from persistent storage
+   - Load dictionary entries from disk (e.g., /etc/unheaded/sophia.json
+     or Pleroma configuration)
+   - Restore sophia_version counter from audit log
+
+3. **Recommended Approach**: Pin maps to a persistent location via
+   symlink or implement userspace state reconstruction:
+   ```bash
+   # On system startup:
+   if [ ! -f /sys/fs/bpf/unheaded/sophia_root ]; then
+     wotan-daemon --restore-from=/etc/unheaded/sophia.json
+   fi
+   ```
+
+4. **No Automatic Recovery**: The kernel does NOT automatically restore
+   pinned BPF maps after reboot. This is an operator responsibility.
 
 # Dictionary Distribution
 
@@ -481,10 +608,13 @@ the new map.
 
 # Minimum Required Dictionary
 
-A conformant Unheaded implementation MUST support at least the following
-dictionary entries.
+A conformant Unheaded implementation MUST support the following
+minimum dictionary entries. Implementations MAY extend these
+dictionaries with additional entries.
 
-## Reserved Root Keys (0x00-0x0F)
+## REQUIRED Entries (MUST implement)
+
+### Reserved Root Keys (0x00-0x0F)
 
 ~~~~~
 0x00  RESERVED (MUST NOT be used)
@@ -497,9 +627,9 @@ dictionary entries.
 0x07-0x0F  RESERVED for future standardization
 ~~~~~
 
-## Standard Service Identity Entries
+### Standard Service Identity Entries (Sub-Dictionary #1)
 
-Sub-dictionary #1 (service_identity) MUST define at least:
+Sub-dictionary #1 (service_identity) MUST include:
 
 ~~~~~
 0x00  RESERVED (catch-all for unknown service)
@@ -513,55 +643,166 @@ Sub-dictionary #1 (service_identity) MUST define at least:
 0x08-0xFF  Available for operator assignment
 ~~~~~
 
-Each entry MUST include at minimum: name (string), endpoint (string or
-IPv6 address).  MAY include PQC key material if PQC identity binding
-is enabled.
+**Entry Format**: Each entry MUST define {name, endpoint} fields:
+- name: tstr (text string, required)
+- endpoint: tstr (IPv6 address or service DNS name, required)
 
-## Standard Flow Action Entries
+**Optional Fields**: MAY include PQC key material if PQC identity binding
+is enabled:
+- pqc_algorithm: uint (Algorithm ID)
+- pqc_pubkey: bstr (Public key bytes)
+- pqc_fingerprint: bstr (SHA3-256 truncation)
 
-Sub-dictionary #2 (flow_action) MUST define:
+### Standard Flow Action Entries (Sub-Dictionary #2)
+
+Sub-dictionary #2 (flow_action) MUST include:
 
 ~~~~~
-0x00  forward (REQUIRED; default action)
-0x01  trace (REQUIRED; full packet trace to Anamnesis)
-0x02  sample (REQUIRED; probabilistic trace)
-0x03  mirror (REQUIRED; packet clone to mirror port)
-0x04  rate_limit (OPTIONAL; token bucket enforcement)
-0x05  drop (RECOMMENDED; explicit packet drop)
+0x00  FORWARD (REQUIRED; normal forwarding)
+0x01  TRACE (REQUIRED; emit full Anamnesis event)
+0x02  SAMPLE (REQUIRED; emit sampled Anamnesis event)
+0x03  DROP (REQUIRED; discard packet)
+
+0x04  MIRROR (OPTIONAL; clone packet to monitoring interface)
+0x05  RATE_LIMIT (OPTIONAL; apply rate limiting)
+
 0x06-0x0F  RESERVED for future standardization
 
-0x10  key_announce (PQC key lifecycle)
-0x11  key_rotate (epoch increment)
-0x12  key_revoke (emergency key revocation)
-0x13  kem_encaps (ML-KEM encapsulation request)
-0x14  kem_decaps (ML-KEM decapsulation request)
+0x10  KEY_ANNOUNCE (PQC key lifecycle)
+0x11  KEY_ROTATE (epoch increment)
+0x12  KEY_REVOKE (emergency key revocation)
+0x13  KEM_ENCAPS (ML-KEM encapsulation request)
+0x14  KEM_DECAPS (ML-KEM decapsulation request)
+
 0x15-0xFF  Available for operator assignment
 ~~~~~
 
-## Standard QoS Class Entries
+**Implementations MUST handle these REQUIRED actions**:
+- FORWARD (0x00): normal packet processing
+- TRACE (0x01): emit Anamnesis event for every hop
+- SAMPLE (0x02): emit Anamnesis event with sampling probability per QoS class
+- DROP (0x03): discard packet immediately, emit anomaly event
 
-Sub-dictionary #3 (qos_class) MUST define:
+### Standard QoS Class Entries (Sub-Dictionary #3)
+
+Sub-dictionary #3 (qos_class) MUST include:
 
 ~~~~~
-0x00  default (REQUIRED)
-0x01  realtime (REQUIRED; lowest latency, no sampling)
-0x02  interactive (REQUIRED; medium priority)
-0x03  bulk (REQUIRED; background traffic)
+0x00  DEFAULT (REQUIRED)
+0x01  REALTIME (REQUIRED; lowest latency, no sampling)
+0x02  INTERACTIVE (REQUIRED; medium priority)
+0x03  BULK (REQUIRED; background traffic)
 0x04-0xFF  Available for operator assignment
 ~~~~~
+
+**Implementations MUST define sampling probability for each class**:
+- DEFAULT: sample at 1.0 (all packets)
+- REALTIME: sample at 1.0 (all packets, never drop)
+- INTERACTIVE: sample at 0.1 (10% of packets)
+- BULK: sample at 0.01 (1% of packets)
+
+## Unrecognized Entry Handling
+
+If Shim program, Wotan access, or bpf_wotan_read encounters an entry
+that is not defined in the current Sophia dictionary:
+
+**For REQUIRED entries** (0x01-0x03 in sub-dictionaries):
+- This is a FATAL ERROR
+- Emit EVENT_ANOMALY to Anamnesis
+- Drop the packet
+- Log error with component ID
+
+**For OPTIONAL entries** (0x04-0x05 in flow_action, etc.): Use default behavior:
+- Default for flow_action: use 0x00 (FORWARD)
+- Default for qos_class: use 0x00 (DEFAULT)
+- Default for deploy_ring: use 0x02 (PRODUCTION)
+
+**Policy**: No forward error correction; do not guess or retry. Immediately
+apply default or drop per the rules above.
+
+## Deployment Namespace Planning
+
+Organizations deploying Unheaded MUST establish a Sophia namespace allocation
+policy before assigning custom root keys. Recommended:
+
+1. **Reserve Keys**: Decide which keys (0x10-0xFE) are reserved for your
+   organization's use
+
+2. **Publish Registry**: Document your namespace usage internally:
+   ```
+   Organization: ACME Corp
+   Root Keys:
+     0x10: acme_service_policy
+     0x11: acme_rate_limits
+     0x12: acme_customer_tiers
+     0x13-0x7F: Reserved for ACME use
+     0x80-0xFE: Available for future standardization
+   ```
+
+3. **Multi-Organization**: For deployments with multiple organizations:
+   - Agree on key partitioning in advance
+   - Example: Keys 0x10-0x3F for Org A, 0x40-0x6F for Org B, 0x70+ reserved
+
+4. **Standards Track**: If planning to submit custom dictionaries to IANA,
+   follow the Expert Review process to ensure no conflicts with other organizations
+
+This is a DEPLOYMENT DECISION, not enforced by the protocol. But poor planning
+can cause silent semantic mismatches between domains.
 
 # Dictionary Versioning
 
 Sophia dictionaries have an explicit version number that increments with
-each update.  Version numbers are 8-bit unsigned integers (0-255) that wrap.
+each update.  Version numbers are 8-bit unsigned integers (0-255) that
+wrap-around using modular arithmetic.
+
+**CRITICAL**: All version comparisons MUST use modular arithmetic, not
+simple numerical comparison. Version 0 is considered GREATER than version
+255 in the version numbering scheme.
+
+## Version Comparison Rules
+
+When comparing version numbers, implementations MUST use modular
+arithmetic: version N2 is considered greater than N1 if
+((N2 - N1) mod 256) is in the range 1-127 (inclusive).  This
+window-based comparison correctly handles wrap-around from 255 to 0.
+
+### Handling the Boundary 127→128
+
+For version comparisons where the difference is exactly 128 or larger:
+- If (N2 - N1) mod 256 is in the range [128-255], then N2 is considered
+  LESS THAN or EQUAL to N1
+- Example: version 200 compared to version 100: (200-100) mod 256 = 100,
+  which is in [1-127], so 200 > 100 ✓
+- Example: version 50 compared to version 200: (50-200) mod 256 = 106,
+  which is in [1-127], so 50 > 200 ✓ (this is correct for wrapped versions)
+- Example: version 100 compared to version 228: (100-228) mod 256 = 128,
+  which is NOT in [1-127], so 100 is NOT greater than 228 (or they are
+  ambiguous); the implementation MUST treat this as "no version update"
+
+### Rollback Prevention
+
+Implementations MUST NOT accept a version update if:
+((new_version - current_version) mod 256) is in range [128-255]
+AND current_version >= 1
+
+Exception: Allow rollback during initialization (current = 0).
 
 ## Version Counter
 
 - Maintained in sophia_version BPF map (key 0, value = current version)
-- Incremented monotonically (mod 256) on each update
+- Incremented monotonically using modular 256 arithmetic
+  - After version 255, next version is 0, then 1, etc.
+  - This ensures wrap-around is handled correctly
 - Stamped into Extended Register Space by Shield (if CUSTOM Kingdom mode is active)
 - Allows per-hop verification that the packet was stamped with the current
-  dictionary version
+  dictionary version using **modular comparison** (see above)
+
+**Implementation Detail**: The increment operation is simple addition:
+```
+new_version = (old_version + 1) % 256
+```
+
+But all comparisons MUST use the modular window defined above.
 
 ## Backward Compatibility Rules
 
@@ -589,6 +830,21 @@ retained for a configurable grace_period (default: 60 seconds).
 - Shield SHOULD stamp new packets with version N+1 immediately
 - After grace_period, version N maps are deleted
 
+### Grace Period with Version Boundaries
+
+When version N+1 arrives while version N is in grace period:
+- Retain version N for remainder of 60-second window
+- Drop any packets with version < (N-1)
+- Packets with version N are processed against version N maps
+- Packets with version N+1 are processed against version N+1 maps
+
+### Collision Handling During Rapid Updates
+
+If multiple versions are published rapidly, implementations MUST:
+1. Retain the current version (max) and at most one prior version
+2. Packets with version < (max - 1) MUST be dropped with EVENT_ANOMALY
+3. Do NOT retain more than 2 concurrent dictionary versions in memory
+
 Grace period is configurable per deployment via Pleroma:
 
 ~~~~~
@@ -596,6 +852,29 @@ versioning:
   grace_period_seconds: 60    # Default
   max_concurrent_versions: 2  # Always support current + previous
 ~~~~~
+
+## Rollback Mechanism for Version Conflicts
+
+In the event of dictionary corruption or version conflicts that require
+reverting to a previous version:
+
+1. Operator initiates rollback via control plane command with explicit
+   acknowledgment (e.g., `wotan rollback --version=N-1 --force-flush`)
+
+2. Wotan daemon:
+   a. Emits audit event: EVENT_ANOMALY with reason "version_rollback"
+   b. Flushes all in-flight packets using version N (send-then-close)
+   c. Removes version N maps from memory
+   d. Activates version N-1 maps
+   e. Logs rollback timestamp and initiator
+
+3. Shield immediately stops stamping new packets with version N
+
+4. After grace_period, version N maps are deleted
+
+**Note**: Rollback via operator command is allowed only during initialization
+or after explicit confirmation. Automatic rollback is NOT permitted per the
+version monotonicity check rules in Section 8.1.
 
 # Security Considerations
 
@@ -612,7 +891,7 @@ mechanisms:
    be signed with ML-DSA-65 [FIPS204] by the provisioning node.
 
 3. Version monotonicity: Implementations MUST reject dictionary updates where
-   the version number decreases (version wrap at 255->0 is allowed).
+   the version number appears to decrease per the modular comparison defined in Section 8 (a version is considered decreasing if ((N_old - N_new) mod 256) is in the range 1-127).
 
 4. Source authentication: Only authenticated provisioning nodes SHOULD be
    able to publish dictionary updates.
@@ -700,6 +979,7 @@ Initial entries for flow_action (root 0x02):
   0x03: mirror
   0x04: rate_limit
   0x05: drop
+  0x06-0x0F: Reserved for future standard flow actions
   0x10: key_announce
   0x11: key_rotate
   0x12: key_revoke
@@ -805,6 +1085,8 @@ provisioning to deployment.
 
 ---
 
-*This memo specifies the Sophia Dictionary Format as a companion to
-draft-bellis-unheaded-protocol-foundation-03.  Sophia is the semantic
-layer that transforms raw exponent bytes into meaningful metadata.*
+# Author's Address
+
+Steven Bellis
+Unheaded
+Email: stevenrbellis@gmail.com
