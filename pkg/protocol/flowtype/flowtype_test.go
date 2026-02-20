@@ -1,6 +1,7 @@
 package flowtype
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -139,7 +140,7 @@ func TestFlowTypeToFlags(t *testing.T) {
 		{Reserved, 0x00, 0x03, false},
 		{Control, 0xFC, 0xFC, false},   // Preserve upper bits
 		{Data, 0xFC, 0xFD, false},      // 0xFC | 0x01 with mask
-		{Data, 0xFF, 0xFF, false},      // All bits set, DATA encoded
+		{Data, 0xFF, 0xFD, false},      // 0xFF & 0xFC | 0x01 = 0xFD
 		{Prefetch, 0xAA, 0xAA, false},  // 0xAA = 0b10101010, set Prefetch (0x02 = 0b10)
 	}
 
@@ -235,4 +236,3 @@ func TestFlowTypeValidate(t *testing.T) {
 	}
 }
 
-import "fmt"
