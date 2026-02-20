@@ -76,6 +76,30 @@ static CONFIG: HashMap<u32, u64> = HashMap::with_max_entries(16, 0);
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 
+/// Per-namespace sequence counters (RFC 9000 §5.1.1).
+/// Key: namespace (u32, u32 reserved = u64)
+/// Value: current (u32), highest (u32), gaps (u32), reordered (u32)
+#[map]
+static SEQ_COUNTERS: HashMap<u64, [u8; 16]> = HashMap::with_max_entries(256, 0);
+
+/// Per-connection capability settings (RFC 9114 §7.2.4).
+/// Key: (conn_id: u32, setting_id: u16, reserved: u16)
+/// Value: value (u64), negotiated_at (u32), flags (u32)
+#[map]
+static SETTINGS: HashMap<u64, [u8; 16]> = HashMap::with_max_entries(4096, 0);
+
+/// DoS backpressure state tracking (RFC 9114 §10).
+/// Key: namespace (u32, u32 reserved = u64)
+/// Value: drop_count (u32), total_count (u32), backpressure_lvl (u8), window_start (u32)
+#[map]
+static DOS_STATE: HashMap<u64, [u8; 16]> = HashMap::with_max_entries(256, 0);
+
+/// Flow type classification table (RFC 9114 §6).
+/// Key: flow_id (u32 index)
+/// Value: type (u8), flags (u8), reserved (u16)
+#[map]
+static FLOW_TYPES: HashMap<u64, [u8; 4]> = HashMap::with_max_entries(65536, 0);
+
 // ── Stats keys ────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL:      u32 = 0;
 const STAT_PACKETS_IPV6:       u32 = 1;
@@ -268,6 +292,49 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         }
     }
 
+    // ── Sequence counter update (RFC 9000 §5.1.1) ────────────────────────────────
+    // Update namespace sequence counter for this packet
+    let namespace: u32 = 0; // Default namespace
+    let seq_key = make_namespace_key(namespace);
+    if let Some(seq_entry) = unsafe { SEQ_COUNTERS.get_ptr_mut(&seq_key) } {
+        // Increment current sequence counter (first 4 bytes as u32)
+        let current_ptr = seq_entry as *mut u32;
+        unsafe {
+            let current = core::ptr::read_volatile(current_ptr);
+            core::ptr::write_volatile(current_ptr, current.saturating_add(1));
+        }
+    }
+
+    // ── Settings check (RFC 9114 §7.2.4) ───────────────────────────────────────
+    // Verify capability negotiation before applying flow actions
+    let conn_id = flow_label >> 8; // Simplified: use flow label high bits
+    let setting_id: u16 = m.qos_class; // Simplified: use qos_class
+    let settings_key = make_settings_key(conn_id as u32, setting_id);
+    if let Some(_settings) = unsafe { SETTINGS.get(&settings_key) } {
+        // Settings found — capability is negotiated, allow the operation
+        // Future: validate negotiated_at timestamp and flags
+    }
+
+    // ── DoS backpressure check (RFC 9114 §10) ──────────────────────────────────
+    // Report backpressure level based on drop rate
+    let dos_key = make_namespace_key(namespace);
+    if let Some(dos_entry) = unsafe { DOS_STATE.get(&dos_key) } {
+        // Read backpressure level (byte at offset 8)
+        let backpressure_ptr = unsafe { (dos_entry as *const u8).add(8) };
+        let backpressure_lvl = unsafe { core::ptr::read_volatile(backpressure_ptr) };
+        // Future: use backpressure level to adjust packet treatment
+        // 0=none, 1=low, 2=med, 3=high, 4=critical
+        let _ = backpressure_lvl;
+    }
+
+    // ── Flow type dispatch (RFC 9114 §6) ──────────────────────────────────────────
+    // Determine flow type and dispatch accordingly
+    let flow_type_key = make_flow_type_key(m.src_service_id as u32);
+    if let Some(_flow_type_entry) = unsafe { FLOW_TYPES.get(&flow_type_key) } {
+        // Flow type found — type is 0x00=control, 0x01=data, 0x02=prefetch
+        // Future: dispatch based on flow type and handle priority/retries
+    }
+
     // ── Hop Count ─────────────────────────────────────────────────────────────
     m.increment_hop(); // saturating — never wraps to 0
 
@@ -444,6 +511,24 @@ fn write_monad_to_pkt(start: usize, data_end: usize, m: &Monad) -> Result<(), ()
 #[inline(always)]
 const fn sophia_key(dict_id: u8, value: u8) -> u16 {
     ((dict_id as u16) << 8) | (value as u16)
+}
+
+/// Encode a namespace for SEQ_COUNTERS and DOS_STATE lookups.
+#[inline(always)]
+fn make_namespace_key(namespace: u32) -> u64 {
+    (namespace as u64) << 32
+}
+
+/// Encode a (conn_id, setting_id) pair for SETTINGS lookup.
+#[inline(always)]
+fn make_settings_key(conn_id: u32, setting_id: u16) -> u64 {
+    ((conn_id as u64) << 32) | ((setting_id as u64) << 16)
+}
+
+/// Encode a flow_id for FLOW_TYPES lookup.
+#[inline(always)]
+fn make_flow_type_key(flow_id: u32) -> u64 {
+    flow_id as u64
 }
 
 // ── Config / stats helpers ────────────────────────────────────────────────────

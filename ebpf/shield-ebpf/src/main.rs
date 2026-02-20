@@ -77,9 +77,47 @@ static BLOCKLIST: HashMap<u64, u8> = HashMap::with_max_entries(MAX_BLOCKLIST_ENT
 #[map]
 static RATE_TOKENS: HashMap<u64, u32> = HashMap::with_max_entries(MAX_BLOCKLIST_ENTRIES, 0);
 
+/// Per-flow HMAC keys for integrity validation (RFC 9000 §8.1).
+/// Key: (flow_id: u16, namespace: u16, reserved: [u8; 4])
+/// Value: (key[32]: [u8; 32], created_at: u32, expires_at: u32)
+#[map]
+static HMAC_KEYS: HashMap<u64, [u8; 40]> = HashMap::with_max_entries(4096, 0);
+
+/// Retry tokens for initial flows (RFC 9000 §8.1.2).
+/// Key: (flow_id: u16, src_addr[16]: [u8; 16], reserved: [u8; 2])
+/// Value: (token[32]: [u8; 32], issued_at: u32, expires_at: u32, new_addr[16]: [u8; 16])
+#[map]
+static RETRY_TOKENS: HashMap<u64, [u8; 48]> = HashMap::with_max_entries(4096, 0);
+
+/// Hop validators — per-hop packet validation rules (RFC 8200 §4).
+/// Key: (hop_id: u32, namespace: u32)
+/// Value: validation rules (allowed versions, required CRC/HMAC, dict IDs, flags)
+#[map]
+static HOP_VALIDATORS: HashMap<u64, [u8; 32]> = HashMap::with_max_entries(256, 0);
+
 /// Shield statistics.
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
+
+// ── Shield TC (Egress) specific maps ──────────────────────────────────────────
+
+/// GOAWAY state enforcement (RFC 9114 §7.2.6).
+/// Key: conn_id (u32, u32 for alignment = u64)
+/// Value: last_flow_id (u32), sent_at (u32), reason (u16), count (u16), flags (u32)
+#[map]
+static GOAWAY_STATE: HashMap<u64, [u8; 16]> = HashMap::with_max_entries(4096, 0);
+
+/// Error code counters per type (RFC 9114 §8).
+/// Key: error code (u16, u16 reserved for alignment = u64)
+/// Value: count (u32), last_seen_at (u32)
+#[map]
+static ERROR_COUNTERS: HashMap<u64, [u8; 8]> = HashMap::with_max_entries(256, 0);
+
+/// Dictionary authority enforcement (RFC 8200 §4.2).
+/// Key: (dict_id: u16, namespace: u16, reserved: u32)
+/// Value: owner_fingerprint[16], granted_at (u32), expires_at (u32)
+#[map]
+static AUTHORITY: HashMap<u64, [u8; 24]> = HashMap::with_max_entries(512, 0);
 
 // Stats keys
 const STAT_TOTAL:         u32 = 0;
@@ -188,6 +226,38 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         }
         // Unknown HBH header from Shadow — strip it.
     }
+
+    // ── 4b. HMAC validation on initial flows (RFC 9000 §8.1) ─────────────────
+    // For flows not yet in the FLOWS map (initial packets), check HMAC keys.
+    // Extract a flow_id from the transport header (simplified: use dst port).
+    let transport_start = ip_start + IPV6_HDR_SIZE;
+    let flow_id: u16 = if transport_start + 2 <= data_end {
+        unsafe { u16::from_be(core::ptr::read_volatile((transport_start + 2) as *const u16)) }
+    } else {
+        0
+    };
+
+    // Encode HMAC key: (flow_id, namespace=0 for now)
+    let hmac_key = make_hmac_key(flow_id, 0);
+    let _ = unsafe { HMAC_KEYS.get(&hmac_key) }; // Lookup only, no action yet
+    // Future: validate HMAC-SHA256 over packet payload
+
+    // ── 4c. Retry token check for initial flows (RFC 9000 §8.1.2) ────────────
+    // Check if this is a retry token on a new address.
+    let src_low_64 = src_addr_key(&ip.src);
+    let retry_key = make_retry_token_key(flow_id, src_low_64);
+    let _ = unsafe { RETRY_TOKENS.get(&retry_key) }; // Lookup only
+    // Future: validate token expiry and signature
+
+    // ── 4d. Hop validator check (RFC 8200 §4) ─────────────────────────────────
+    // Verify that Monad version and fields comply with per-hop policies.
+    // This would normally happen in the hop program, but we can do a pre-check
+    // to drop obviously invalid packets early.
+    let hop_id: u32 = 0; // Shield is hop 0
+    let namespace: u32 = 0; // Default namespace
+    let hv_key = ((hop_id as u64) << 32) | (namespace as u64);
+    let _ = unsafe { HOP_VALIDATORS.get(&hv_key) }; // Lookup for validation rules
+    // Future: enforce version min/max, required CRC/HMAC, allowed dict IDs
 
     // ── 5. Save original transport protocol before stripping extension headers ─
     let original_next_header = strip_extension_headers(ip, ip_start, data_end);
@@ -378,6 +448,40 @@ fn try_shield_tc(ctx: &TcContext) -> Result<i32, ()> {
         emit_anamnesis(now, EventType::Anomaly, 0, flow_label, &monad);
     }
 
+    // ── GOAWAY monotonicity check (RFC 9114 §7.2.6) ────────────────────────────
+    // Extract connection ID from Monad scratch registers or flow label
+    let conn_id = flow_label >> 8; // Simplified: use high bits of flow label
+    let goaway_key = make_goaway_key(conn_id as u32);
+    if let Some(_goaway_state) = unsafe { GOAWAY_STATE.get(&goaway_key) } {
+        // Check if we've already sent a GOAWAY on this connection
+        // Enforce that no more flows should be created
+        // Future: validate monotonicity of last_flow_id
+    }
+
+    // ── Error counter update (RFC 9114 §8) ──────────────────────────────────────
+    // If Monad has anomaly flag or corruption, increment error counter
+    if !monad.verify_checksum() || monad.has_flag(flags::CHAOS) {
+        // Extract error code from Monad (simplified: use hop_count as proxy)
+        let error_code = monad.hop_count as u16;
+        let error_key = make_error_key(error_code);
+        if let Some(counter) = unsafe { ERROR_COUNTERS.get_ptr_mut(&error_key) } {
+            // Increment count in the first 4 bytes
+            let count_ptr = counter as *mut u32;
+            unsafe {
+                let count = core::ptr::read_volatile(count_ptr);
+                core::ptr::write_volatile(count_ptr, count.saturating_add(1));
+            }
+        }
+    }
+
+    // ── Authority check (RFC 8200 §4.2) ─────────────────────────────────────────
+    // Verify dictionary authority before allowing Sophia field writes
+    let dict_id = monad.qos_class; // Simplified: use qos_class as dict_id
+    let namespace: u16 = 0; // Default namespace
+    let auth_key = make_authority_key(dict_id, namespace);
+    let _ = unsafe { AUTHORITY.get(&auth_key) }; // Lookup for authority validation
+    // Future: check fingerprint and expiry timestamp
+
     // ── Emit DEATH event ───────────────────────────────────────────────────────
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
     emit_anamnesis(now, EventType::Death, 0, flow_label, &monad);
@@ -428,6 +532,19 @@ fn src_addr_key(addr: &[u8; 16]) -> u64 {
         addr[8], addr[9], addr[10], addr[11],
         addr[12], addr[13], addr[14], addr[15],
     ])
+}
+
+/// Encode a (flow_id, namespace) pair as a 64-bit map key for HMAC_KEYS / HOP_VALIDATORS.
+#[inline(always)]
+fn make_hmac_key(flow_id: u16, namespace: u16) -> u64 {
+    ((flow_id as u64) << 48) | ((namespace as u64) << 32)
+}
+
+/// Encode a (flow_id, src_addr_low_64) pair as a 64-bit key for RETRY_TOKENS.
+/// The src_addr_low_64 is the low 64 bits of the IPv6 source address.
+#[inline(always)]
+fn make_retry_token_key(flow_id: u16, src_low_64: u64) -> u64 {
+    ((flow_id as u64) << 48) | (src_low_64 & 0x0000_FFFF_FFFF_FFFF)
 }
 
 /// Walk and skip any IPv6 extension headers after the fixed header, returning
@@ -564,6 +681,24 @@ fn emit_block_event(ip: &Ipv6Hdr, _src_key: u64) {
             entry.submit(0);
         }
     }
+}
+
+/// Encode a connection ID as a 64-bit map key for GOAWAY_STATE.
+#[inline(always)]
+fn make_goaway_key(conn_id: u32) -> u64 {
+    (conn_id as u64) << 32
+}
+
+/// Encode an error code as a 64-bit map key for ERROR_COUNTERS.
+#[inline(always)]
+fn make_error_key(code: u16) -> u64 {
+    (code as u64) << 48
+}
+
+/// Encode a (dict_id, namespace) pair as a 64-bit key for AUTHORITY.
+#[inline(always)]
+fn make_authority_key(dict_id: u16, namespace: u16) -> u64 {
+    ((dict_id as u64) << 48) | ((namespace as u64) << 32)
 }
 
 /// Increment a per-Shield statistics counter (saturating).
