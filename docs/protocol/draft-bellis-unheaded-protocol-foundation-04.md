@@ -1,0 +1,1747 @@
+---
+title: "The Unheaded Protocol Foundation: A Mapped Data Bus over IPv6 Hop-by-Hop Options"
+abbrev: "Unheaded Protocol Foundation"
+docname: draft-bellis-unheaded-protocol-foundation-04
+category: exp
+ipr: trust200902
+area: Internet
+workgroup: Independent Submission
+date: 2026-02-20
+stand_alone: yes
+
+keyword:
+  - bpf
+  - bpf-isa
+  - ipv6
+  - hop-by-hop
+  - mapped-data-bus
+  - metadata
+  - packet-tagging
+  - observability
+  - exponent-encoding
+  - limited-domain
+  - computational-completeness
+  - post-quantum-cryptography
+  - address-reclamation
+
+author:
+  - ins: S. Bellis
+    name: Steven Bellis
+    org: Unheaded
+    email: stevenrbellis@gmail.com
+    country: US
+
+pi:
+  toc: yes
+  symrefs: yes
+  sortrefs: yes
+  compact: yes
+  subcompact: no
+
+normative:
+  RFC2119:
+  RFC8174:
+  RFC8200:
+  RFC9669:
+  RFC9673:
+
+informative:
+  RFC1918:
+  RFC4193:
+  RFC8300:
+  RFC8754:
+  RFC8799:
+  RFC9098:
+  RFC9180:
+  RFC9197:
+  RFC9288:
+  RFC9370:
+  RFC9486:
+  RFC9631:
+  FIPS203:
+    title: "Module-Lattice-Based Key-Encapsulation Mechanism Standard"
+    author:
+      org: National Institute of Standards and Technology
+    date: 2024-08
+    target: https://csrc.nist.gov/pubs/fips/203/final
+  FIPS204:
+    title: "Module-Lattice-Based Digital Signature Standard"
+    author:
+      org: National Institute of Standards and Technology
+    date: 2024-08
+    target: https://csrc.nist.gov/pubs/fips/204/final
+  FIPS205:
+    title: "Stateless Hash-Based Digital Signature Standard"
+    author:
+      org: National Institute of Standards and Technology
+    date: 2024-08
+    target: https://csrc.nist.gov/pubs/fips/205/final
+
+--- abstract
+
+The Unheaded Protocol Foundation defines a mapped data bus model that
+transforms IPv6 packets into addressable memory by encoding a small
+register file directly in the IPv6 Hop-by-Hop Options extension header.
+
+We introduce a 20-byte Monad (register file) that carries program state
+through the network. At each hop, a BPF program (the Shim) performs
+computation on the Monad. The packet itself becomes the working memory,
+using exponent-encoded fields to pack rich metadata into the IPv6
+option while remaining fully backward-compatible with existing networks.
+
+To support programs larger than what fits in a single Monad, we
+introduce Wotan, a memory and I/O bus that bridges Monad computation
+to per-flow ring-buffer storage and external topics. This decouples
+the Monad (pure, 20-byte compute) from memory (Wotan's configurable
+data planes).
+
+This memo extends the packet format with two additional capabilities:
+(1) Kingdom Mode Address Reclamation, which recovers up to 224 bits of
+deterministic address space from IPv6 addresses within a controlled L2
+fabric for use as extended computational and cryptographic registers;
+and (2) Post-Quantum Cryptographic Identity Binding, which cryptographically
+binds each service identifier in the Monad to a post-quantum keypair via
+the Sophia dictionary system, providing quantum-resistant authentication
+of per-packet metadata without increasing wire overhead.
+
+This memo defines the normative packet format, exponent-encoding scheme,
+per-hop processing semantics, address reclamation model, post-quantum
+identity binding, optional chaos injection for resilience testing, and
+the complete computational model (Turing-complete with memory paging).
+
+--- middle
+
+# Introduction
+
+## Problem Statement
+
+Classical networking separates computation from data. Computation
+happens in applications. Data flows through the network as opaque byte
+streams. This creates an expensive impedance mismatch of serialization,
+deserialization, protocol translation, middleware, sidecars, and proxies.
+
+The Unheaded Protocol Foundation inverts this model: the packet carries
+computational state. A 20-byte register file (the Monad) is read and
+written by BPF programs at each hop. The packet functions as working
+storage of a distributed computation that executes at each
+operator-controlled node in the path.
+
+Within a Limited Domain [RFC8799] — a single AS, corporation, or
+container fleet where every hop is operator-controlled — the protocol
+provides:
+
+-  Inline state: Application state is carried in the packet without
+   intermediate serialization.
+
+-  Per-hop compute: Each hop reads the Monad state directly from the
+   packet without requiring separate queries or network round-trips.
+
+-  Causal ordering: Anamnesis events are ordered by packet arrival at
+   each hop, enabling causal reconstruction independent of wall-clock
+   synchronization.
+
+-  Quantum-resistant identity: Service identifiers are cryptographically
+   bound to post-quantum keypairs.
+
+-  Address reclamation: Deterministic address prefix bits within the
+   Limited Domain are reclaimed as extended computational registers.
+
+## Scope and Applicability
+
+This specification defines the complete protocol for deploying a
+mapped data bus over IPv6 Hop-by-Hop Options. The protocol is
+applicable to Limited Domains (RFC 8799) where all intermediate nodes
+are operator-controlled and IPv6 Hop-by-Hop option processing is
+enabled.
+
+The protocol is NOT applicable to the public Internet, where
+intermediate routers may drop Hop-by-Hop options (RFC 9098, RFC 9673),
+nor to paths containing routers that do not process such options.
+
+# Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+document are to be interpreted as described in BCP 14 [RFC2119]
+[RFC8174] when, and only when, they appear in all capitals, as shown
+here.
+
+# Terminology
+
+This document uses the following terms:
+
+Monad:
+: The 20-byte register file embedded in the IPv6 Hop-by-Hop option
+  header. It travels with the packet and is read and modified at each hop.
+
+Shim:
+: A BPF program that executes at each hop, reading the Monad from the
+  packet, performing computation, and writing back to the packet.
+
+Shield:
+: The packet boundary logic at ingress (first hop) that stamps the
+  packet into existence by adding the Hop-by-Hop option, and at egress
+  (last hop) that strips the option and commits the packet to the
+  external network.
+
+Wotan:
+: The memory and I/O bus that provides per-flow ring buffers,
+  persistent storage (WAL), and bridging to external topics.
+
+Anamnesis:
+: The non-blocking event log implemented as a BPF ring buffer,
+  recording packet events for observability and historical replay.
+
+Sophia:
+: The exponent dictionary system. BPF hash maps in kernel space,
+  structured tables in userspace. Hot-swappable vocabulary that
+  assigns meaning to exponent-encoded field values.
+
+Exponent Encoding:
+: A compositional scheme for packing metadata: each field stores a
+  signed exponent, and the actual value is reconstructed as
+  base^exponent * multiplier, where base and multiplier are defined
+  per-field in Sophia.
+
+Limited Domain:
+: A network boundary (typically a single AS, corporation, or container
+  fleet) where the Unheaded Protocol is deployed end-to-end. All hops
+  within the domain are operator-controlled. Defined in [RFC8799].
+
+Kingdom Mode:
+: An operational mode within a Limited Domain where the IPv6 ULA
+  prefix is known a priori, enabling deterministic address prefix bits
+  to be reclaimed as extended computational space.
+
+# Protocol Overview
+
+The Unheaded Protocol adds an IPv6 Hop-by-Hop Options extension header
+to packets at the Limited Domain ingress. The option contains a 20-byte
+register file (Monad) that carries computational state. At each
+operator-controlled hop within the domain, a BPF program (Shim) reads
+the Monad, performs computation, and writes the updated Monad back to
+the packet before forwarding it to the next hop. At egress, Shield
+removes the option and forwards a clean IPv6 packet to the external
+network.
+
+The Monad's fields are exponent-encoded, allowing rich metadata to be
+packed into 8-bit signed values. Field semantics are defined by Sophia,
+a dictionary system stored as BPF hash maps. Ring buffers (Anamnesis)
+record packet events at each hop for observability.
+
+# Packet Format
+
+## IPv6 Hop-by-Hop Extension Header
+
+The Monad is carried in a single IPv6 Hop-by-Hop Options extension
+header option, formatted per RFC 8200 Section 4.
+
+~~~~
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|  Next Header  |  Hdr Ext Len  |                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               |
+|                     Option TLV(s)                             |
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~~
+
+The Hop-by-Hop extension header MUST precede all other extension
+headers. It MUST be processed at each hop per RFC 8200 Section 4.3
+and RFC 9673.
+
+## Option Type
+
+The Monad is encoded as a single option TLV within the Hop-by-Hop
+extension header:
+
+~~~~
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|  Type = TBD   |   Len = 20+   |                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               |
+|                     Monad (20 bytes)                          |
+|                                                               |
+|                                                               |
+|                                                               |
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|   Optional: Metadata, Kingdom Flags, Chaos payload            |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~~
+
+Type:
+: To be assigned by IANA. The high-order two bits MUST be 00 (skip on
+  unrecognized). The third bit MUST be 1 (option data may change
+  en-route), as the Monad is modified by per-hop processing. The
+  resulting format is 001xxxxx. Suggested value: 0x3E.
+
+Len:
+: The length of the option payload in octets (not including the Type
+  and Len octets). Minimum value is 20 (Monad only); maximum is 255.
+
+## Monad Register File
+
+The Monad is a 20-byte register file with the following layout. All
+multi-byte fields MUST be encoded in network byte order (big-endian).
+
+~~~~
+Offset  Size  Field               Type        Description
+------  ----  ------------------  ----------  ---------------------------------
+0x00    1     version             raw uint8   Protocol version (current: 0x01)
+0x01    1     src_service_id      exponent    Source service (Sophia lookup)
+0x02    1     dst_service_id      exponent    Destination service (Sophia)
+0x03    1     hop_count           raw uint8   Decremented at each hop (TTL-like)
+0x04    1     qos_class           exponent    QoS classification
+0x05    1     flow_action         exponent    Action directive
+0x06    1     circuit_state       exponent    Circuit breaker state
+0x07    1     flags               raw uint8   Bitfield (see Flags section)
+0x08    2     latency_hint        raw uint16  Latency hint in microseconds
+0x0A    1     deploy_ring         exponent    Deployment ring
+0x0B    1     mesh_flags          exponent    Mesh-level flags
+0x0C    1     src_prefix_lo       raw uint8   Source routing prefix low octet
+0x0D    1     dst_prefix_lo       raw uint8   Destination routing prefix low octet
+0x0E    4     scratch[0-3]        raw uint8   Scratch registers (4 bytes)
+0x12    2     checksum            raw uint16  CRC-16/CCITT over bytes 0x00-0x11
+------  ----  ------------------  ----------  ---------------------------------
+Total: 20 bytes (0x14)
+~~~~
+
+version:
+: The protocol version, an unsigned 8-bit integer. This document
+  specifies version 0x01. Receivers processing packets with unknown
+  versions MUST handle version mismatch errors as specified in per-hop
+  processing rules.
+
+src_service_id:
+: An exponent-encoded field identifying the source service. Semantics
+  are defined by Sophia dictionary lookup. Implementations MUST NOT
+  assume fixed semantics; the meaning is program-defined per service.
+
+dst_service_id:
+: An exponent-encoded field identifying the destination service.
+  Semantics are defined by Sophia dictionary lookup.
+
+hop_count:
+: An unsigned 8-bit counter, initially set to a deployment-defined
+  hop limit (default 64) at Shield ingress. Each hop MUST check
+  whether hop_count equals 0; if so, the packet MUST be dropped and
+  an EVENT_ANOMALY MUST be emitted. Otherwise, the hop MUST
+  decrement hop_count by 1 before forwarding.
+
+trace_id:
+: Flow trace correlation is derived from the IPv6 Flow Label (RFC 6437).
+  The 20-bit Flow Label set by Shield at ingress serves as the trace
+  correlation identifier.  Shim programs MUST NOT modify the Flow Label.
+
+qos_class:
+: An exponent-encoded field specifying the Quality of Service class.
+  Semantics are defined by Sophia.
+
+flow_action:
+: An exponent-encoded field specifying the action directive for this
+  packet. Examples include trace, sample, mirror, rate-limit, or drop.
+  Semantics are defined by Sophia.
+
+circuit_state:
+: An exponent-encoded field specifying the circuit breaker state (open,
+  closed, half-open). Semantics are defined by Sophia.
+
+flags:
+: An 8-bit bitfield controlling protocol behavior. See Section 5.2.
+
+latency_hint:
+: A 16-bit hint encoding the per-hop latency target, in network byte order.
+  Interpretation is deployment-defined.
+
+deploy_ring:
+: An exponent-encoded field specifying the deployment ring (canary,
+  staging, production). Semantics are defined by Sophia.
+
+mesh_flags:
+: An exponent-encoded field specifying mesh-level flags (NAT type,
+  direction, encryption). Semantics are defined by Sophia.
+
+src_prefix_lo:
+: The low-order octet of the source routing prefix, used by Shim programs
+  for routing optimization.  Set by Shield at ingress from Sophia policy.
+
+dst_prefix_lo:
+: The low-order octet of the destination routing prefix, used by Shim
+  programs for routing optimization.  Set by Shield at ingress from Sophia
+  policy.
+
+scratch:
+: Four bytes of per-hop scratch storage (scratch[0]-scratch[3]).
+  Used by Shim programs for temporary computation.  Scratch bytes form
+  two 16-bit registers: scratch_r0 (bytes 0x0E-0x0F) and scratch_r1
+  (bytes 0x10-0x11).  When CUSTOM flag is set, scratch_r0 and scratch_r1
+  carry exponent-encoded values whose semantics are deployment-defined.
+  Shield MUST zero scratch bytes at ingress unless CUSTOM is set.
+
+checksum:
+: A 16-bit CRC-16/CCITT checksum computed over the first 18 bytes
+  (0x00-0x11) of the Monad. See Section 5.4.
+
+## Flags Bitfield
+
+The flags field (offset 0x0B) is an 8-bit field controlling per-packet
+behavior:
+
+~~~~
+ 7   6   5   4   3   2   1   0
++---+---+---+---+---+---+---+---+
+| C | Y | T | E | S | M |CUST| R |
++---+---+---+---+---+---+---+---+
+
+C (0x80):  CHAOS — Chaos injection active (Yaldabaoth)
+Y (0x40):  CANARY — Canary deployment path
+T (0x20):  TRACED — Full trace active (all hops emit to Anamnesis)
+E (0x10):  ENCRYPT — Payload encrypted (intra-Kingdom TLS)
+S (0x08):  SAMPLED — Statistically sampled
+M (0x04):  MIRROR — Mirror copy (not original)
+CUSTOM (0x02): Scratch and checksum fields carry exponent-encoded values
+RSVD (0x01): Reserved, MUST be zero
+~~~~
+
+Each bit MUST be set or cleared by Shim programs as needed. Shield
+MUST ensure that the C, Y, T, E, and S bits are set to consistent
+values at ingress based on policy.
+
+CUSTOM (0x02): When set, the scratch fields (0x0E-0x11) and the checksum
+field (0x12-0x13) carry exponent-encoded values whose interpretation is
+defined by the active Sophia dictionary.  Shield MUST NOT set CUSTOM
+unless configured by policy.
+
+RSVD (0x01): Reserved.  Senders MUST set to zero.  Receivers MUST
+ignore.
+
+## Checksum Field
+
+The checksum field (offset 0x12) holds a 16-bit CRC-16/CCITT value
+computed over all 20 bytes of the Monad header (offsets 0x00-0x13,
+inclusive), with the checksum field itself (offsets 0x12-0x13) zeroed
+during computation.
+
+CRC-16/CCITT-FALSE Parameters:
+
+Polynomial:
+: x^16 + x^12 + x^5 + 1 (0x1021)
+
+Initial Value:
+: 0xFFFF
+
+Input Reflection:
+: false
+
+Output Reflection:
+: false
+
+Final XOR:
+: 0x0000
+
+Computation Procedure:
+
+The checksum is computed as follows:
+
+1. Create a working copy of the 20-byte Monad header.
+2. Set bytes 0x12-0x13 (the checksum field) to 0x0000.
+3. Compute CRC-16/CCITT over all 20 bytes of this modified header.
+4. Store the resulting 16-bit value at offset 0x12.
+
+This ensures integrity protection over all Monad fields, including
+version, flags, flow_label, latency_hint, and reserved fields.
+
+Shield MUST compute the checksum when creating a packet at ingress.
+Each hop MUST verify the checksum before processing. Each hop MUST
+recompute the checksum after modifying any field in offsets 0x00-0x11.
+The checksum field itself (offset 0x12-0x13) MUST NOT be included in
+the checksum computation (set to zero during computation).
+
+If a hop detects a checksum failure, the implementation MUST:
+
+  (a) Increment a per-interface error counter.
+
+  (b) Emit an EVENT_ANOMALY event to Anamnesis if tracing is enabled.
+
+  (c) Either drop the packet (RECOMMENDED) or forward it with an
+      anomaly flag set, depending on deployment policy.
+
+The CRC-16 checksum provides error detection against accidental bit
+corruption only. It does NOT provide integrity protection against
+malicious modification. See Security Considerations for guidance on
+integrity protection mechanisms.
+
+# Exponent Encoding
+
+## Overview
+
+Exponent encoding is a compositional scheme for representing rich
+metadata in compact form. An exponent-encoded field is a single octet
+interpreted as a signed 8-bit integer (two's complement, range -128 to
++127).
+
+The decoded value is computed as:
+
+~~~~
+decoded = base ^ exponent
+~~~~
+
+Where:
+
+-  base is the base value defined by the Sophia dictionary entry for
+   this field position. If no Sophia entry exists, the default base is 2.
+
+-  exponent is the signed 8-bit value stored in the field.
+
+-  The result is an unsigned integer value.
+
+An optional multiplier (unit scaling factor) may be applied:
+
+~~~~
+decoded = (base ^ exponent) * multiplier
+~~~~
+
+The multiplier is also defined per-field in the Sophia dictionary. If
+no entry exists, the multiplier is 1.
+
+Encoders MUST NOT produce exponent values that would cause the decoded
+value to exceed 2^64 - 1. Decoders that encounter such values MUST
+treat them as errors and emit an anomaly event.
+
+## Sophia Dictionary System
+
+Sophia dictionaries are hierarchical structures stored as BPF hash maps
+in kernel space and as structured tables in userspace. Each exponent
+field in the Monad has a corresponding Sophia entry that defines:
+
+-  Field name and purpose.
+
+-  Base value (typically 2, but may be 10 or other values).
+
+-  Multiplier for unit scaling.
+
+-  Semantic interpretation (lookup table from exponent to meaning).
+
+### Concrete Example
+
+For src_service_id (offset 0x01):
+
+~~~~
+Sophia Entry (service_identity):
+  exponent = 0x03  (signed byte, value 3)
+  base = 2
+  multiplier = 1
+  decoded = 2^3 * 1 = 8
+
+Lookup: service ID 8 -> "architect" (service name)
+        service ID 8 -> "fd00::8" (endpoint address)
+        service ID 8 -> 0x0A03 (algorithm ID: ML-KEM-768)
+~~~~
+
+For qos_class (offset 0x08):
+
+~~~~
+Sophia Entry (qos_class):
+  exponent = 0x02  (signed byte, value 2)
+  base = 2
+  multiplier = 8  (microseconds per hop)
+  decoded = 2^2 * 8 = 32 microseconds
+
+Interpretation: QoS class with 32-microsecond target latency.
+~~~~
+
+### Sophia Wire Format and Distribution
+
+Sophia dictionaries MUST be distributed to all Kingdom nodes via Wotan
+topics. Each dictionary entry MUST be serialized in CBOR format (RFC
+9152) and identified by a (service_id, field_type) tuple.
+
+A minimal Sophia dictionary that all implementations MUST support
+includes:
+
+~~~~
+Root Dictionary:
+  0x01 -> service_identity (sub_dict_1)
+  0x02 -> flow_action (sub_dict_2)
+  0x03 -> qos_class (sub_dict_3)
+
+Sub-Dictionary: service_identity (min 16 entries)
+  0x01 -> "shield" (ingress gateway)
+  0x02 -> "shim" (internal hop)
+  0x03 -> "architect" (application)
+  ... (implementation-specific services)
+
+Sub-Dictionary: flow_action (min 8 entries)
+  0x00 -> forward (normal)
+  0x01 -> trace (full event logging)
+  0x02 -> sample (probabilistic logging)
+  0x03 -> drop (discard packet)
+
+Sub-Dictionary: qos_class (min 4 entries)
+  0x00 -> best-effort
+  0x01 -> interactive
+  0x02 -> realtime
+  0x03 -> bulk
+~~~~
+
+Implementations MAY extend these dictionaries with additional entries.
+Dictionary version negotiation is performed through the Monad's
+reserved field and Anamnesis event correlation.
+
+# Sophia Dictionary System (Extended)
+
+The Sophia dictionary system is the semantic layer that transforms raw
+exponent bytes into meaningful values. It operates at multiple levels:
+
+## Dictionary Architecture
+
+Sophia dictionaries are trees, not flat tables. Each byte narrows the
+context for the next:
+
+~~~~
+byte_0 = 0x01 -> sophia_root -> dict_id = 1 (service_identity)
+byte_1 = 0x03 -> dict_1      -> "architect"
+
+The SAME byte_1 value in DIFFERENT contexts:
+[0x01, 0x03] -> service = "architect"
+[0x02, 0x03] -> action  = "sample"
+[0x03, 0x03] -> qos     = "realtime"
+~~~~
+
+With K key positions, the expressible meaning space is:
+
+~~~~
+M = 256^K
+
+K=1:  256 meanings           (8 bits)
+K=2:  65,536 meanings        (16 bits)
+K=3:  16,777,216 meanings    (24 bits)
+K=8:  1.844 x 10^19 meanings (64 bits)
+~~~~
+
+## BPF Map Implementation
+
+Sophia dictionaries are stored as BPF hash maps in kernel space per
+RFC 9669. Each lookup is O(1) complexity. A two-level lookup (root map
+to sub-dictionary) costs two hash table hits — still under 100
+nanoseconds on modern hardware.
+
+Dictionary updates propagate cluster-wide in under 10 milliseconds via
+atomic BPF map replacement through Wotan. This allows hot-swapping of
+service identifiers, QoS policies, and Shim behavior without restarting
+any kernel components.
+
+## Minimum Required Dictionary
+
+All implementations MUST support the following minimum Sophia dictionary:
+
+~~~~
+Root entries (1 byte key):
+  0x01 = service_identity    (sub_dict_1)
+  0x02 = flow_action         (sub_dict_2)
+  0x03 = qos_class           (sub_dict_3)
+  0x04 = deploy_ring         (sub_dict_4)
+  0x05 = circuit_state       (sub_dict_5)
+  0x06 = mesh_flags          (sub_dict_6)
+
+service_identity (sub_dict_1):
+  Must include entries for all active service IDs in the Kingdom.
+  Each entry maps to (service_name, endpoint_address, metadata).
+
+flow_action (sub_dict_2):
+  0x00 = FORWARD      (default: pass packet to next hop)
+  0x01 = TRACE        (emit full event to Anamnesis)
+  0x02 = SAMPLE       (emit with probabilistic probability)
+  0x03 = DROP         (discard packet)
+  0x04 = MIRROR       (clone to monitoring interface)
+  (0x10-0x14 reserved for PQC key lifecycle events)
+
+qos_class (sub_dict_3):
+  0x00 = BULK         (low priority, best effort)
+  0x01 = INTERACTIVE  (medium priority, <100ms latency)
+  0x02 = REALTIME     (high priority, <10ms latency)
+
+deploy_ring (sub_dict_4):
+  0x00 = CANARY       (test deployment)
+  0x01 = STAGING      (pre-production)
+  0x02 = PRODUCTION   (customer-facing)
+
+circuit_state (sub_dict_5):
+  0x00 = CLOSED       (normal operation)
+  0x01 = OPEN         (circuit breaker triggered)
+  0x02 = HALF_OPEN    (recovery attempt)
+
+mesh_flags (sub_dict_6):
+  0x00 = DEFAULT      (standard routing)
+  0x01 = NAT_INGRESS  (behind NAT)
+  0x02 = NAT_EGRESS   (acting as NAT)
+  (implementation-specific flags beyond 0x02)
+~~~~
+
+# Shield Processing
+
+Shield is the packet boundary logic that adds and removes the Monad
+option at the Limited Domain ingress and egress.
+
+## Ingress Processing
+
+At packet ingress, Shield MUST perform the following operations:
+
+1. Receive packet from outside the Limited Domain.
+
+2. Apply admission control checks:
+
+   a. Consult the blocklist BPF map keyed by source IP address.
+   b. Check rate-limit token bucket for the source IP.
+   c. If configured, perform geo-IP filtering.
+   d. If any check fails, drop the packet and emit a Shield block event
+      to Anamnesis.
+
+3. If packet is admitted:
+
+   a. Insert an IPv6 Hop-by-Hop extension header.
+   b. Allocate a new Monad option with Type = 0x3E (TBD).
+   c. Initialize all Monad fields:
+      - version = 0x01
+      - src_service_id = Sophia.ingress_classify(source_ip)
+      - dst_service_id = Sophia.ingress_classify(destination_ip)
+      - hop_count = 0
+      - qos_class = Sophia.policy_lookup(src_ip, dst_port)
+      - flow_action = 0x00 (FORWARD)
+      - circuit_state = Sophia.lookup("circuit_state", 0x00)
+      - flags = 0x00 (no chaos, no custom encoding initially)
+      - latency_hint = Sophia.lookup("latency_policy", dst_service_id)
+      - deploy_ring = Sophia.ring_lookup(dst_service_id)
+      - src_prefix_lo = extracted from source address or Sophia
+      - dst_prefix_lo = extracted from destination address or Sophia
+      - scratch[0-3] = 0x00 (zero unless CUSTOM flag set)
+      - mesh_flags = 0x00
+   d. Compute CRC-16 checksum over bytes 0x00-0x11, store at offset 0x12.
+   e. Update IPv6 Next Header field to 0 (Hop-by-Hop).
+   f. Emit BIRTH event to Anamnesis ring buffer with full Monad snapshot.
+
+4. Forward the packet into the Limited Domain.
+
+## Egress Processing
+
+At packet egress, Shield MUST perform the following operations:
+
+1. Receive packet destined to exit the Limited Domain.
+
+2. Parse the IPv6 Hop-by-Hop extension header.
+
+3. Extract the Monad option and verify CRC-16 checksum over bytes 0x00-0x11:
+
+   a. If checksum verification fails, discard the packet, log an error,
+      and emit an anomaly event.
+   b. If checksum is valid, proceed.
+
+4. Verify that flags & RSVD == 0. If the RSVD bit is set, emit an anomaly
+   event and either drop the packet or set an anomaly flag per policy.
+
+5. Emit DEATH event to Anamnesis with the final Monad snapshot and exit
+   timestamp.
+
+6. Remove the IPv6 Hop-by-Hop extension header.
+
+7. Restore the original IPv6 Next Header value.
+
+8. Forward the clean IPv6 packet out of the Limited Domain.
+
+## Lifecycle
+
+~~~~
+[Shield ingress] -> [Shim hop 1] -> [Shim hop 2] -> ... -> [Shield egress]
+       |                |              |                         |
+     BIRTH           COMPUTED        COMPUTED                  DEATH
+     event           event           event                     event
+~~~~
+
+# Per-Hop Processing
+
+At each hop within the Limited Domain, the following operations MUST be
+performed in order:
+
+1. Parse the IPv6 Hop-by-Hop option and extract the Monad.
+
+2. Verify the CRC-16 checksum over bytes 0x00-0x11.
+
+   a. If checksum verification fails, emit an EVENT_ANOMALY to Anamnesis,
+      increment the per-interface error counter, and either drop the
+      packet (RECOMMENDED) or set an anomaly flag.
+
+3. Verify that the version field equals 0x01. If version is unknown,
+   emit an anomaly event and drop the packet (MUST NOT forward with
+   unknown version).
+
+4. If CUSTOM flag (bit 1) is set, interpret scratch fields and checksum
+   as exponent-encoded values per Sophia. Otherwise, treat as raw fields.
+
+5. Look up the Shim program via Sophia, keyed by program name or default.
+
+6. Execute the Shim BPF program with the current Monad as input. The Shim
+   MUST NOT modify fields outside offsets 0x00-0x11. The Shim MAY read
+   and write Wotan memory via BPF helper functions (see Section 11).
+
+7. Write the updated Monad back to the packet.
+
+8. Check whether hop_count equals 0; if so, drop the packet and emit
+   an EVENT_ANOMALY. Otherwise, decrement hop_count by 1.
+
+9. Recompute the CRC-16 checksum over bytes 0x00-0x11 and store at
+   offset 0x12.
+
+10. Emit a COMPUTED event to Anamnesis (non-blocking ring buffer write)
+    containing the input Monad, output Monad, and metadata (hop ID,
+    timestamp).
+
+11. Forward the packet to the next hop.
+
+All per-hop processing MUST be stateless with respect to the Monad. The
+protocol guarantees that the output Monad depends only on the input
+Monad, the Sophia dictionary, and the Shim program logic. External state
+(counters, per-flow memory) is accessed only through Wotan.
+
+# Anamnesis Event System
+
+Anamnesis is the non-blocking observability system implemented as a BPF
+ring buffer. Events are written at each hop and consumed by Wotan for
+decoding and external distribution.
+
+## Event Structure
+
+Each event is a fixed-size structure:
+
+~~~~
+struct anamnesis_event {
+  u64 timestamp_ns;        // bpf_ktime_get_ns()
+  u8  event_type;          // BIRTH, COMPUTED, DEATH, etc.
+  u8  hop_index;           // Which hop emitted this (optional)
+  u16 reserved;
+  u32 input_monad[5];      // 20 bytes: Monad before this operation
+  u32 output_monad[5];     // 20 bytes: Monad after this operation
+  u32 flow_label;          // Copied from IPv6 Flow Label for fast correlation
+  u32 wotan_addr;          // Wotan memory address (if accessed)
+  u32 wotan_value;         // Value read/written (if applicable)
+};
+// Total: 64 bytes per event
+~~~~
+
+## Event Types
+
+The event_type field (offset 1 byte) specifies the event:
+
+~~~~
+Code   Name            Description
+----   --------------  ---------------------------------
+0x00   EVENT_BORN      Packet created at Shield (birth)
+0x01   EVENT_COMPUTED  Shim executed, Monad updated
+0x02   EVENT_WOTAN_RD  Wotan ring-buffer read
+0x03   EVENT_WOTAN_WR  Wotan ring-buffer write
+0x04   EVENT_CHAOS     Chaos mode applied
+0x05   EVENT_ROLLBACK  Monad rolled back (error recovery)
+0x06   EVENT_DIED      Packet reached Shield (death)
+0x07   EVENT_KEY_OP    PQC key lifecycle event
+0x08   EVENT_ANOMALY   Checksum failure, version mismatch, or
+                       integrity error
+~~~~
+
+## Ring Buffer Writing
+
+Anamnesis events MUST be written non-blocking. If the ring buffer is
+full, the event MUST be dropped silently and a dropped-event counter
+MUST be incremented. This ensures that packet processing is never
+blocked by observability.
+
+The ring buffer size MUST be configured to handle the expected packet
+rate. For a 10 Gbps line rate with 1500-byte average packets (~833,333
+pps) with 64-byte events, a 102 MB per-CPU ring buffer covers
+approximately 2 seconds at full rate with every packet emitting events.
+
+## Event Sampling
+
+The T flag (trace) and S flag (sample) in the flags field control
+whether events are emitted:
+
+- If T=1 (trace), emit events for all hops.
+- If S=1 (sample) and T=0, emit events according to sampling probability
+  defined by qos_class in Sophia.
+- If both T=0 and S=0, emit only anomaly and birth/death events.
+
+Sampling probabilities are defined per qos_class:
+
+~~~~
+qos_class = realtime    -> always emit (S = 1.0)
+qos_class = interactive -> emit 10% (S = 0.1)
+qos_class = bulk        -> emit 1% (S = 0.01)
+~~~~
+
+Additionally, packets with the C flag set (chaos) MUST always emit
+events, and packets with the Y flag set (canary) SHOULD always emit
+events.
+
+# Wotan Memory Model
+
+Wotan is the memory and I/O bus that bridges Monad computation to
+per-flow storage and external topics.
+
+## Memory Hierarchy
+
+~~~~
+Level   Name                 Size           Access Latency
+-----   --------------------  -----------    ----------
+L0      Monad Registers       20 bytes       Wire speed (~ns)
+        (in the packet)       (fixed)
+
+L1      Per-hop BPF map       Variable       ~100-200 ns
+        (kernel hash map)
+
+L2      Wotan ring buffer     Configurable   ~1-10 us
+        (per-flow RAM)        (per-flow)
+
+L3      Wotan WAL             Disk-bounded   ~100 us - 1 ms
+        (persistent storage)
+
+L4      Sophia dictionaries   BPF maps       ~100-200 ns
+        (instruction decode)  (read-only)
+~~~~
+
+## Address Space Layout
+
+Wotan provides a 32-bit addressable memory space partitioned as follows:
+
+~~~~
+0x00000000 +------------------+
+           |  Data Memory     |  <- Ring buffer storage
+           |  (general RAM)   |     Per-flow, keyed by
+0x0000BFFF +------------------+     trace_id/flow_label
+0x0000C000 |  I/O Topic Region|  <- External topic subscriptions
+           |                  |
+0x0000FFFD +------------------+
+0x0000FFFE |  Input Register  |  <- One 32-bit word
+0x0000FFFF +------------------+
+~~~~
+
+## BPF Helper Functions
+
+Shim programs access Wotan memory through BPF helper functions. These
+helpers are defined per RFC 9669:
+
+~~~~
+long bpf_wotan_read(u32 flow_label, u32 addr, void *buf, u32 len);
+
+  Arguments:
+    flow_label: Trace ID or flow identifier (from Monad)
+    addr: Wotan memory address (0x00000000 - 0x0000FFFF)
+    buf: Kernel-space buffer to receive data
+    len: Number of bytes to read (max 512)
+
+  Returns:
+    Number of bytes read (>= 0), or negative error code
+
+  Error codes:
+    -ENOENT: flow_label not found in Wotan
+    -EFAULT: addr out of bounds for this flow
+    -ENOMEM: Insufficient memory available
+    -EBUSY: Memory region locked (contention)
+
+long bpf_wotan_write(u32 flow_label, u32 addr, const void *buf,
+                      u32 len);
+
+  Arguments:
+    flow_label: Trace ID or flow identifier (from Monad)
+    addr: Wotan memory address (0x00000000 - 0x0000FFFF)
+    buf: Kernel-space buffer with data to write
+    len: Number of bytes to write (max 512)
+
+  Returns:
+    Number of bytes written (>= 0), or negative error code
+
+  Error codes:
+    -ENOENT: flow_label not found in Wotan
+    -EFAULT: addr out of bounds for this flow
+    -ENOMEM: Insufficient memory available
+    -EBUSY: Memory region locked (contention)
+    -EACCES: Write access denied (read-only region)
+~~~~
+
+Access to Wotan memory is synchronized via spin-lock per flow. Writers
+MUST NOT hold locks across packet processing boundaries. The read and
+write helpers MUST be used within per-packet BPF programs only.
+
+# Kingdom Mode: Address Reclamation
+
+Kingdom Mode address reclamation using IPv6 host bits is reserved for a
+future version of this specification.  Implementations MUST set RSVD to
+zero.  The CUSTOM bit provides a single-bit extension point for
+deployment-specific scratch field encoding.
+
+The Kingdom Mode technical content (address space analysis, extended
+register layout, and Kingdom Mode selector) is reserved for future use
+and is described in [draft-bellis-unheaded-protocol-foundation-04] or
+later versions. Current implementations MUST set RSVD (bit 0 of flags)
+to zero.
+
+# Post-Quantum Cryptographic Identity Binding
+
+Post-Quantum Cryptographic (PQC) Identity Binding cryptographically
+associates each service identifier in the Monad to a post-quantum
+keypair, providing quantum-resistant authentication of service metadata
+without increasing wire overhead.
+
+## Motivation
+
+Service identifiers (src_service_id, dst_service_id) are Sophia-encoded
+fields that name services. In a standard deployment, these are opaque
+integers. PQC binding ensures that every packet carrying service_id = 0x42
+implicitly asserts: "This packet was stamped by Shield on behalf of the
+service holding the private key for service 0x42."
+
+This provides:
+
+-  Quantum-resistant authentication without HMAC overhead.
+
+-  Defense against "harvest now, decrypt later" attacks on intra-domain
+   metadata.
+
+-  Cryptographic non-repudiation of service identity at every hop.
+
+## Sophia Key Store
+
+The Sophia dictionary is extended with cryptographic key material for
+each service_id. Each entry includes:
+
+~~~~
+Sophia Entry for service_id 0x42:
+
+  service_name:       "kanban-app"
+  endpoint:           "fd00:3f:75::1007:8080"
+  pqc_algorithm:      ML-KEM-768       (FIPS 203)
+  pqc_pubkey:         <1184 bytes>     (ML-KEM-768 public key)
+  pqc_fingerprint:    <32 bytes>       (SHA3-256 of pubkey)
+  classical_pubkey:   <32 bytes>       (X25519, for hybrid mode)
+  hybrid_mode:        CONCATENATE      (PQ/T hybrid per RFC 9370)
+  key_epoch:          7                (rotation counter)
+  key_issued:         2026-02-18T...   (timestamp)
+  key_expires:        2026-03-18T...   (timestamp)
+  signature_algo:     ML-DSA-65        (FIPS 204)
+  signature_pubkey:   <1952 bytes>     (ML-DSA-65 public key)
+~~~~
+
+The public keys are stored in Sophia's userspace tables and, where space
+permits, cached in BPF maps as fingerprints (32-byte SHA3-256
+truncations).
+
+## Key Distribution
+
+Key distribution uses the flow_action field to signal key lifecycle events.
+The minimum required key actions are:
+
+~~~~
+flow_action    Meaning
+-----------    ------------------------------------
+0x10           KEY_ANNOUNCE   (new service pubkey)
+0x11           KEY_ROTATE     (epoch increment)
+0x12           KEY_REVOKE     (emergency revocation)
+0x13           KEM_ENCAPS     (ML-KEM encapsulation)
+0x14           KEM_DECAPS     (ML-KEM decapsulation)
+0x15           KEY_ACK        (key acknowledgment)
+0x16           KEY_REJECT     (key rejection)
+~~~~
+
+When flow_action is KEY_ANNOUNCE, KEY_ROTATE, or KEY_REVOKE, the packet
+payload carries the relevant key material. The Monad registers carry
+control metadata (key epoch, fingerprint, etc.). Shield MUST enforce
+that KEY_ANNOUNCE packets originate only from authorized provisioning
+nodes.
+
+Wotan handles the key exchange:
+
+1. Provisioning node generates ML-KEM-768 keypair (1184-byte public key).
+
+2. Provisioning node sends KEY_ANNOUNCE packet through Shield with the
+   public key as payload.
+
+3. Shield stamps the packet with the new service_id and KEY_ANNOUNCE
+   flow_action.
+
+4. Wotan receives the Anamnesis ring buffer event, updates Sophia
+   userspace tables, and pushes fingerprints to BPF maps on all Kingdom
+   nodes.
+
+5. Subsequent packets carrying that service_id are now cryptographically
+   bound to the announced keypair.
+
+## Per-Hop Fingerprint Verification
+
+When Kingdom Mode is active and Extended Register Space carries PQC
+fingerprints (32-bit SHA3-256 truncations), each hop MAY verify the
+fingerprint:
+
+1. Extract the PQC Fingerprint fields from Extended Registers.
+
+2. Look up the full fingerprint for src_service_id in the local Sophia
+   BPF map.
+
+3. Compare the 32-bit truncation.
+
+4. If mismatch: emit EVENT_ANOMALY to Anamnesis, optionally set
+   flow_action = DROP (configurable).
+
+This provides per-hop authentication at O(1) cost per packet. The full
+cryptographic verification (ML-DSA-65 signature check) is performed
+only at Shield boundaries.
+
+## PQ/T Hybrid Mode
+
+During transition before Cryptographically Relevant Quantum Computers
+(CRQCs) are available, Sophia supports Post-Quantum/Traditional (PQ/T)
+hybrid mode per RFC 9370:
+
+~~~~
+hybrid_mode = CONCATENATE
+  Both classical and PQC key exchanges must succeed.
+
+hybrid_mode = PQC_ONLY
+  PQC key exchange only (transition phase complete).
+
+hybrid_mode = CLASSICAL_ONLY
+  Classical key exchange only (for backward compatibility).
+~~~~
+
+Transitioning from CONCATENATE to PQC_ONLY is a Sophia dictionary
+update — a single BPF map write propagated cluster-wide in under 10 ms.
+Zero packet format changes. Zero downtime.
+
+## Security Considerations for PQC Binding
+
+Key material in Sophia userspace tables MUST be protected by operating
+system access controls. BPF maps containing fingerprints are in kernel
+space and MUST NOT be directly accessible by user-space applications.
+
+Key rotation MUST occur before key_expires. If a key epoch mismatch is
+detected (packet carries epoch N, Sophia has epoch N+1), the Shim
+SHOULD log a warning but MUST NOT drop the packet during a grace period
+(configurable, default 60 seconds).
+
+Private keys MUST NOT be stored in Sophia or any BPF map. Private keys
+reside only on the provisioning node in a secure enclave or HSM.
+
+BPF map lookups for fingerprint comparison MUST use constant-time
+comparison functions to prevent timing attacks.
+
+# Chaos Injection (Yaldabaoth)
+
+When the C bit (0x80) of the flags field is set, the Shim applies
+deterministic perturbations to Monad or Wotan state for resilience
+testing.
+
+Chaos modes are selected via Sophia and applied conditionally:
+
+~~~~
+Mode     Name              Action
+------   ---------------   ----------------------------
+0x01     BIT_FLIP          Flip random bit in Monad field
+0x02     VALUE_MUTATE      Increment target field mod 2^32
+0x03     MEMORY_FAULT      Wotan read returns error
+0x04     LATENCY_INFLATE   Increase hop latency 10x
+0x05     PACKET_LOSS       Drop subsequent packets (10%)
+0x06     CHAOS_MARKER      Set chaos bit visible downstream
+~~~~
+
+All chaos events MUST be recorded in Anamnesis with EVENT_CHAOS type.
+The chaos system MUST be completely auditable. All perturbations MUST
+be recorded in Anamnesis with before and after Monad snapshots.
+
+# Computational Completeness
+
+The Monad (14 fields, 20 bytes) paired with Wotan (unbounded
+addressable memory via ring buffers) forms a Turing-complete system.
+
+A proof sketch:
+
+1. Tape: Wotan ring buffer provides addressable storage (address i holds
+   symbol at position i).
+
+2. State: The Monad circuit_state field holds the current state q. The
+   latency_hint or scratch fields hold the head position.
+
+3. Transition: Shim implements the Turing machine transition function
+   delta via Sophia lookup table.
+
+4. Iteration: Each circulation of a packet via BPF_REDIRECT represents
+   one Turing machine step.
+
+5. Halting: When circuit_state == halt_state, stop circulating.
+
+With unlimited packet circulation and unbounded Wotan memory, this model
+computes any computable function. Practical clock speed is limited by
+BPF program execution time and BPF_REDIRECT overhead: approximately 2.7
+MHz single-instruction (one Shim execution per ~370 ns including
+checksum verification and recomputation), or 11-21 MHz with batched
+multi-instruction Shim execution per hop.
+
+Kingdom Mode Extended Registers provide additional 208-224 bits of
+register state per packet (depending on fleet size), further increasing
+the computational bandwidth of each hop without consuming additional
+Wotan memory.
+
+# Applicability Statement
+
+The Unheaded Protocol is applicable to Limited Domains (RFC 8799)
+where:
+
+  (a) All intermediate nodes are operator-controlled.
+
+  (b) IPv6 Hop-by-Hop option processing is enabled on all nodes.
+
+  (c) BPF program loading infrastructure is available.
+
+  (d) A Sophia dictionary distribution mechanism is deployed.
+
+The protocol is NOT applicable to:
+
+  (a) The public Internet, where intermediate routers may drop Hop-by-Hop
+      options (RFC 9098, RFC 9673).
+
+  (b) Paths containing routers that do not process IPv6 Hop-by-Hop
+      options.
+
+  (c) Environments where BPF program loading is restricted by security
+      policy.
+
+  (d) Networks that require backward compatibility with routers that
+      slow-path or drop Hop-by-Hop extension headers.
+
+While RFC 8200 specifies that routers should skip unrecognized Hop-by-Hop
+options, operational experience (RFC 9098, RFC 9673) shows that some
+router implementations in practice drop or slow-path packets containing
+Hop-by-Hop extension headers. Deployments MUST ensure all intermediate
+routers are explicitly configured to process (or at minimum forward)
+packets containing the Unheaded Monad option.
+
+# Performance Considerations
+
+The Unheaded Protocol adds the following per-hop computational overhead:
+
+-  Checksum verification: approximately 50 nanoseconds for CRC-16 over
+   18 bytes.
+
+-  Monad field extraction: negligible (memory reads).
+
+-  Sophia dictionary lookup: O(1) hash map access, approximately 100-200
+   nanoseconds per field.
+
+-  BPF Shim execution: 1-10 microseconds depending on Shim complexity.
+
+-  Checksum recomputation: approximately 50 nanoseconds.
+
+-  Ring buffer event write: approximately 100-500 nanoseconds (non-blocking).
+
+Total per-hop processing time: approximately 2-12 microseconds on modern
+hardware, dominated by Shim execution. For a typical Shim program with
+<100 BPF instructions, the overhead is <1 microsecond per packet.
+
+The Monad adds a minimum of 24 octets (2-byte HbH header + 2-byte option
+TLV + 20-byte Monad, already 8-octet aligned) to each packet. On a
+standard 1500-byte MTU path, this reduces the usable payload to
+approximately 1476 octets (1.6% overhead). With optional metadata and
+Kingdom Mode Extended Registers, overhead may reach 40-56 octets
+(approximately 2.7-3.7% overhead).
+
+Within the Limited Domain, the operator SHOULD configure the MTU to
+accommodate the maximum expected overhead, including optional Chaos
+payloads and Kingdom Mode Extended Registers. Jumbo frames (9000-byte
+MTU) are RECOMMENDED for deployments using Kingdom Mode.
+
+Shield (ingress processing) adds approximately <1 microsecond per packet
+via XDP, before sk_buff allocation. Shield (egress processing) adds
+approximately <1 microsecond per packet via TC egress hook.
+
+Dictionary update propagation via Wotan: <10 milliseconds cluster-wide
+via atomic BPF map replacement.
+
+Anamnesis ring buffer: 102 MB per-CPU buffer at standard 1500-byte
+packet rate (~833,333 pps) with 64-byte events covers approximately 2
+seconds at full rate with every packet emitting events.
+
+# Manageability Considerations
+
+## Observability
+
+Anamnesis ring buffers provide complete per-packet observability through
+non-blocking event emission. Wotan aggregates events from all hops and
+decodes them through Sophia dictionaries. Operators can reconstruct the
+complete packet path, inspect Monad mutations at each hop, and audit
+checksum errors and chaos events.
+
+## Configuration
+
+Sophia dictionaries are the primary configuration mechanism. Dictionary
+entries define:
+
+-  Service identifiers and their meanings.
+
+-  Flow action policies (trace, sample, drop, mirror).
+
+-  QoS class definitions and sampling probabilities.
+
+-  Deployment ring classifications.
+
+-  Circuit breaker policies and recovery timers.
+
+-  PQC key material and key rotation schedules.
+
+-  Shim program selection and parameters.
+
+Sophia updates propagate in under 10 milliseconds via BPF map replacement.
+No packet forwarding is interrupted.
+
+## Monitoring
+
+Operators SHOULD monitor the following metrics:
+
+-  Checksum failure rate per interface (indicates link corruption).
+
+-  Anamnesis ring buffer overflow rate (indicates observability loss).
+
+-  Wotan memory allocation and contention (indicates per-flow state
+   pressure).
+
+-  PQC key rotation status and epoch synchronization (indicates key
+   management health).
+
+-  BPF Shim program error counts (indicates Shim failures).
+
+-  Kingdom Mode egress address restoration verification (indicates
+   Shield correctness).
+
+## Logging
+
+Shield ingress MUST log:
+
+-  Dropped packets (rate-limit, blocklist, WAF).
+
+-  Service classification decisions.
+
+-  Trace ID allocation.
+
+Shield egress MUST log:
+
+-  Checksum verification failures.
+
+-  Kingdom Mode address restoration (log restored bits for audit).
+
+-  Packets forwarded with anomaly flags.
+
+Per-hop processing SHOULD log:
+
+-  Checksum verification failures.
+
+-  BPF Shim program errors.
+
+-  Anomaly events (version mismatch, PQC fingerprint mismatch).
+
+-  Wotan access errors (ENOENT, EFAULT).
+
+# Security Considerations
+
+## Extension Header Sanitization
+
+Packets entering the Limited Domain from external sources MUST have any
+existing Hop-by-Hop options replaced or removed. External packets MUST
+NOT carry Unheaded Monad options. Packets exiting the Limited Domain
+MUST have their Hop-by-Hop options stripped before reaching the external
+network.
+
+These requirements apply to both standard Monad fields and Kingdom Mode
+Extended Registers.
+
+Shield ingress MUST validate that ingress packets do not already carry
+the Unheaded Monad option type. If found, the packet MUST be dropped and
+an anomaly event MUST be logged.
+
+Shield egress MUST validate that the ULA prefix in any Kingdom Mode
+packet matches the configured Kingdom prefix. If mismatch is detected,
+the packet MUST be dropped.
+
+## BPF Containment
+
+Shim programs are verified by the kernel BPF verifier per RFC 9669, which
+ensures:
+
+-  No out-of-bounds memory access.
+
+-  Bounded loop execution (no infinite loops).
+
+-  No unauthorized kernel function calls.
+
+-  Stack safety and register constraints.
+
+Shim program loading REQUIRES CAP_BPF and CAP_NET_ADMIN capabilities (or
+equivalent). Implementations MUST use Linux kernel version 5.17 or later.
+
+Kernel 5.17 (released March 2022) introduced critical BPF features required
+for secure Unheaded deployments:
+
+-  Full memory barrier semantics (wmb, rmb, mb) in BPF programs
+
+-  CAS (Compare-And-Swap) atomic operations (__sync_compare_and_swap)
+
+-  Ringbuf exclusive reservation mode (bpf_ringbuf_reserve with BPF_RB_EXCLUSIVE_RING flag)
+
+-  Enhanced BPF verifier with stack bounds checking
+
+-  Support for 64-bit atomic operations on all platforms
+
+Kernel 5.15 or earlier MUST NOT be used for production deployments, as older
+kernels lack these features and are vulnerable to data races, memory corruption,
+and privilege escalation attacks (see Dark Grimoire Section 5).
+
+Operators SHOULD:
+
+-  Pin BPF programs to prevent runtime modification.
+
+-  Use BPF token-based delegation (kernel 6.9+) where available.
+
+-  Monitor /sys/kernel/debug/tracing/trace_pipe for verifier warnings.
+
+-  Apply kernel security updates promptly, as the BPF verifier is a
+   security-critical component.
+
+## Integrity
+
+The CRC-16 checksum detects accidental bit corruption only. It does NOT
+provide integrity protection against malicious modification.
+
+Deployments requiring integrity protection against compromised
+intermediate nodes MUST use one of:
+
+  (a) IPsec ESP (RFC 4303) to protect the entire packet including
+      extension headers.
+
+  (b) The optional HMAC field (not defined in this document) appended
+      to the Monad, using a pre-shared key distributed via Sophia.
+
+  (c) ML-DSA-65 (FIPS 204) signatures at Shield boundaries for
+      post-quantum integrity.
+
+The choice of integrity mechanism is a deployment decision outside the
+scope of this specification.
+
+## Trust Boundary
+
+The trust boundary is the Limited Domain boundary. Within the domain, all
+Shim programs and Wotan instances are operator-controlled. Cross-domain
+routing is NOT supported. Inter-domain traffic MUST be encapsulated
+(IP-in-IP or VPN tunnel) with the Hop-by-Hop option stripped at the
+egress boundary and reconstructed at the ingress boundary of the next
+domain.
+
+## Post-Quantum Threat Model
+
+PQC identity binding (Section 9) protects against:
+
+-  Harvest-now-decrypt-later attacks on metadata correlation.
+
+-  Service identity spoofing by a quantum-capable adversary within the
+   Limited Domain.
+
+-  Key compromise via classical cryptanalysis of traditional key
+   agreement algorithms.
+
+The hybrid PQ/T mode (RFC 9370) ensures security during transition while
+CRQCs are not yet available.
+
+## Kingdom Mode Threat Model
+
+Kingdom Mode Extended Registers (Section 8) are only valid within the
+Limited Domain. An external attacker who can inject packets with forged
+ULA prefixes and K flags set could:
+
+-  Forge PQC fingerprints to bypass per-hop verification.
+
+-  Inject false Extended Register values to manipulate Shim program
+   behavior.
+
+Shield ingress MUST validate ULA prefix provenance and MUST reject Kingdom
+Mode packets from outside the domain.
+
+## MTU and Fragmentation
+
+Implementations MUST NOT add the Hop-by-Hop extension header if doing so
+would cause the packet to exceed the path MTU. The Monad adds a minimum
+of 24 octets to each packet (8-octet HbH header + 2-octet option TLV +
+20-octet Monad, padded to 8-octet boundary). With optional metadata and
+Kingdom Mode, the overhead may reach 40-56 octets.
+
+If the packet cannot accommodate the minimum 24-octet overhead, Shield
+ingress MUST either:
+
+  (a) Forward the packet without the Monad (bypass mode), or
+
+  (b) Fragment the inner packet before adding the Monad (NOT RECOMMENDED
+      due to performance impact).
+
+Within the Limited Domain, the operator SHOULD configure the MTU to
+accommodate the maximum expected overhead. For standard Ethernet (1500-byte
+MTU), the effective payload is reduced to approximately 1436-1460 octets.
+Jumbo frames (9000-byte MTU) are RECOMMENDED for Limited Domain deployments
+using Kingdom Mode.
+
+# IANA Considerations
+
+## IPv6 Hop-by-Hop Option Type
+
+A new IPv6 Hop-by-Hop option type is requested:
+
+~~~~
+Type:               TBD (suggested: 0x3E)
+Name:               Unheaded Monad Option
+Change Controller:  IESG
+Reference:          This document
+~~~~
+
+The high-order two bits MUST be 00 (skip on unrecognized) and the third
+bit MUST be 1 (option data may change en-route). This yields the format
+001xxxxx.
+
+## Sophia Dictionary Namespace Registry
+
+IANA should create a new registry:
+
+~~~~
+Registry Name:  Unheaded Sophia Dictionary Namespace
+Template:       Dictionary Name, Program Name, Version,
+                Organization, Contact Email
+Policy:         First Come First Served
+~~~~
+
+## Anamnesis Event Type Registry
+
+~~~~
+Registry Name:  Unheaded Anamnesis Event Types
+Template:       Event Name, Code (u8), Description,
+                Reference
+Policy:         Specification Required
+
+Initial entries:
+  EVENT_BORN (0x00)      Packet created at Shield (birth)
+  EVENT_COMPUTED (0x01)  Shim executed, Monad updated
+  EVENT_WOTAN_RD (0x02)  Wotan memory read
+  EVENT_WOTAN_WR (0x03)  Wotan memory write
+  EVENT_CHAOS (0x04)     Chaos mode applied
+  EVENT_ROLLBACK (0x05)  Monad rolled back
+  EVENT_DIED (0x06)      Packet reached Shield (death)
+  EVENT_KEY_OP (0x07)    PQC key lifecycle event
+  EVENT_ANOMALY (0x08)   Integrity or version error
+~~~~
+
+## PQC Algorithm Registry
+
+~~~~
+Registry Name:  Unheaded PQC Algorithm Identifiers
+Template:       Algorithm Name, Code (u8), Key Size (bytes),
+                FIPS Reference
+Policy:         Specification Required
+
+Initial entries:
+  ML-KEM-768 (0x01, 1184, FIPS 203)
+  ML-KEM-1024 (0x02, 1568, FIPS 203)
+  ML-DSA-65 (0x03, 1952, FIPS 204)
+  ML-DSA-87 (0x04, 2592, FIPS 204)
+  SLH-DSA-SHA2-128s (0x05, 32, FIPS 205)
+~~~~
+
+--- back
+
+# Changes from draft-bellis-unheaded-protocol-foundation-02
+
+The following changes are made in draft-03 to address technical review
+feedback:
+
+1. **Fixed Option Type chg bit**: Changed the third bit (chg) from 0 to 1,
+   as the Monad IS modified at every hop. The format is now 001xxxxx
+   (act=00, chg=1). Suggested value changed from 0x42 to 0x3E.
+
+2. **Added version field to Monad**: The Monad layout now includes a
+   version field at offset 0x00 (1 byte, unsigned). This enables future
+   protocol evolution and version negotiation. The layout is ported from
+   PROTOCOL_TECHNICAL_SUMMARY.md to ensure interoperability.
+
+3. **Clarified CRC-16 vs integrity separation**: Explicitly stated that
+   CRC-16 provides error detection only, not integrity protection. Added
+   guidance on HMAC/IPsec/ML-DSA for integrity-protected deployments.
+
+4. **Reconciled IPv4 shim vs IPv6 HbH**: The RFC now specifies IPv6 HbH
+   as the normative transport. An informative note acknowledges that
+   deployments MAY use an IPv4 shim (prepending 20 bytes) as an interim
+   mechanism during migration. The field layout is identical regardless
+   of transport.
+
+5. **Defined Sophia wire format**: Added a section specifying Sophia
+   dictionary entries as CBOR-encoded structures with a minimum required
+   dictionary. Defined distribution via Wotan topics.
+
+6. **Concrete exponent encoding binary format**: Specified that an
+   exponent-encoded field is a single octet, signed 8-bit two's
+   complement. Decoded value = base^exponent. Base is defined by Sophia,
+   default base = 2.
+
+7. **MTU and fragmentation discussion**: Added comprehensive guidance on
+   minimum overhead (24 octets), path MTU considerations, and
+   recommendations for jumbo frames in Kingdom Mode deployments.
+
+8. **Applicability Statement (NEW)**: Added Section 14 explicitly defining
+   where the protocol applies (Limited Domains with operator-controlled
+   hops) and where it does NOT (public Internet, routers that drop HbH).
+
+9. **Performance Considerations (NEW)**: Added Section 15 with measured
+   per-hop latencies, packet overhead calculations, dictionary update
+   propagation times, and Anamnesis buffer sizing.
+
+10. **Manageability Considerations (NEW)**: Added Section 16 covering
+    observability via Anamnesis, Sophia-based configuration, monitoring
+    metrics, and logging guidance.
+
+11. **HbH option drop reality acknowledgment**: Added references to RFC
+    9098 and RFC 9673 findings that some routers may drop Hop-by-Hop
+    options, with explicit statement that this protocol is for Limited
+    Domains only.
+
+12. **Restructured to standard RFC ordering**: Reordered sections to match
+    IETF RFC structure: Introduction, Requirements Language, Terminology,
+    Protocol Overview, Packet Format (with all wire diagrams), Exponent
+    Encoding, Sophia, Shield, Per-Hop Processing, Anamnesis, Wotan,
+    Kingdom Mode, PQC, Chaos, Computational Completeness, Applicability,
+    Performance, Manageability, Security, IANA, Appendices.
+
+13. **Flags bitfield from draft-02**: Committed to the superior flags
+    bitfield structure with C, Y, T, E, S, M, CUSTOM, RSVD bits.
+
+14. **Wotan helper interface**: Added detailed BPF helper function
+    specifications (bpf_wotan_read, bpf_wotan_write) with error codes
+    per RFC 9669.
+
+15. **RFC 9669 reference added**: Added to normative references and
+    referenced in Sophia BPF map implementation, Wotan helper interface,
+    and BPF containment sections.
+
+16. **Removed all marketing language**: Every sentence is either a
+    normative requirement (MUST/SHOULD/MAY) or a factual technical
+    statement. Removed poetic descriptions like "Speed: light", "The
+    Rosetta Stone", "The nervous system", and "The atom. The wire itself."
+
+17. **Terminology section reformatted**: Uses standard RFC definition list
+    format (term followed by colon-indented definition).
+
+# Heritage and Prior Art
+
+The Unheaded Protocol builds on a lineage of metadata-riding-with-data designs:
+
+~~~~
+Year  Technology         Pattern Element
+----  -----------------  ---------------------------
+1977  ARINC 429          Self-contained 32-bit words,
+                         every bit meaningful
+1982  I2C                Two-wire bus, address in
+                         first byte
+1986  CAN Bus            Identifier = address +
+                         priority, bus as backplane
+1989  BGP (RFC 1105)     Path attributes riding with
+                         routes, hop-by-hop
+                         accumulation
+1992  BPF                Packet filter in kernel,
+                         evolved to BPF per RFC 9669
+1995  IPv6 (RFC 1883)    Extension headers, typed,
+                         extensible computation
+                         space
+2001  uIP (Dunkels)      Full TCP/IP in 5KB, minimal
+                         protocol on constrained
+                         hardware
+2024  RFC 9673           Hop-by-Hop processing
+                         rehabilitated
+2024  FIPS 203/204/205   Post-quantum cryptographic
+                         standards (ML-KEM, ML-DSA,
+                         SLH-DSA)
+2026  Unheaded Protocol  Mapped data bus, packet as
+                         memory, 20-byte register
+                         file, PQC identity binding,
+                         address reclamation
+~~~~
+
+## IOAM (RFC 9197, RFC 9486)
+
+In-situ OAM defines data fields for recording operational telemetry in
+IPv6 Hop-by-Hop options. IOAM is observation-only: it records what
+happened. The Unheaded Protocol is intent-driven: it declares what
+SHOULD happen. IOAM traces grow with each hop (variable length). The
+Monad is fixed at 20 bytes. IOAM supports multiple parallel data
+collection schemes. The Monad is a single unified register file.
+
+## APN (Application-Aware Networking)
+
+APN carries application identity in IPv6 headers. APN is a framework
+defining what COULD be carried, with TLV-based variable encoding. The
+Monad is a fixed-size computational atom with dictionary-based semantic
+compression (Sophia).
+
+## MPLS MNA (Network Actions)
+
+MNA carries per-packet action directives in MPLS label stacks. MNA
+operates in MPLS networks; the Unheaded Protocol is IPv6-native and
+applicable to Limited Domains.
+
+## NSH (RFC 8300)
+
+The Network Service Header provides metadata for Service Function Chaining.
+NSH uses a separate encapsulation; the Unheaded Protocol uses the
+standard IPv6 Hop-by-Hop extension header mechanism.
+
+## Key Differentiators
+
+The Unheaded Protocol is distinguished by the combination of:
+
+1. Fixed 20-byte register file (vs. variable-length formats in IOAM, APN,
+   NSH).
+
+2. Sophia exponent dictionary for semantic compression (unique to Unheaded).
+
+3. BPF-native processing model designed from the start for programmable
+   dataplanes (per RFC 9669).
+
+4. Intent-driven computation, not observation-only (unique vs. IOAM).
+
+5. Post-quantum cryptographic identity binding of service identifiers
+   (unique).
+
+6. Kingdom Mode address reclamation of deterministic prefix bits (unique).
+
+7. Computational completeness (Turing-complete with Wotan memory, unique).
+
+
+# Changes from draft-bellis-unheaded-protocol-foundation-03
+
+The following changes are made in draft-04 to address S21 assessment findings:
+
+1. **Patch M1: Extended CRC Coverage**: The CRC-16 checksum now covers all 20 bytes of the Monad header (offsets 0x00-0x13), with the checksum field itself zeroed during computation. This provides integrity protection for all header fields, including version, flags, and flow label.
+
+2. **Patch M3: Mandatory Kernel 5.17+**: Updated system requirements from Linux kernel 5.15+ to 5.17+. Kernel 5.17 (March 2022) introduced critical BPF features: full memory barrier semantics, CAS atomic operations, ringbuf exclusive reservation mode, enhanced verifier bounds checking, and 64-bit atomic operations.
+
+3. **Patch M5: Strict Version Checking (No Fallback)**: Clarified version field semantics - implementations MUST drop packets with unknown versions immediately, with no version negotiation or fallback. This eliminates parser divergence attacks (X4 finding).
+
+4. **Known Cross-Reference Issue (Rust Code Discrepancy)**: The Rust implementation in ebpf/monad-common/src/lib.rs defines a different wire format than draft-03. This has been noted but NOT changed in this draft pending RFC author clarification. See Security Considerations section for details.
+
+---
+# Acknowledgments
+
+The Linux kernel BPF community (Alexei Starovoitov, Daniel Borkmann) for
+creating the infrastructure that made this design possible.
+
+Adam Dunkels for demonstrating with uIP and Contiki that full protocol
+stacks operate in impossibly constrained spaces — demonstrating that
+resource constraints can drive effective architectural choices.
+
