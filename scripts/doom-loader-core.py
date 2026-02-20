@@ -221,7 +221,7 @@ def load_cpu(cpu_pin):
     #   Total: 104 bytes
 
     regs = [0] * 16
-    regs[15] = 0x710000  # SP = stack top (byte address from linker script)
+    regs[15] = 0x1000000  # SP = stack top (16MB, from linker script/crt0)
     pc = 0               # Start at beginning of ROM
     flags = 0
     halted = 0
