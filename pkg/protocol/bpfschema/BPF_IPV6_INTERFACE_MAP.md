@@ -222,17 +222,33 @@ unhd_cancel_flows     → Check cancellation state
 
 These are the structs that need IDENTICAL memory layouts in both Rust (eBPF) and Go (userspace):
 
-| Rust Struct (monad-common) | Go Struct (bpfschema) | Size | Verified |
-|---------------------------|----------------------|------|----------|
-| Monad | (to add) MonadRegister | 20B | ❌ |
-| AnamnesisEvent | (to add) AnamnesisEvent | 32B | ❌ |
-| SophiaEntry | (to add) SophiaMapValue | 32B | ❌ |
-| FlowKey | (to add) FlowKey | ~40B | ❌ |
-| FlowState | (to add) FlowState | ~48B | ❌ |
-| MbcCpuState | (to add) CpuState | 80B | ❌ |
-| HMACKeyKey/Value | HMACKeyKey/Value | 8B/40B | ✅ (new) |
-| SeqCounterKey/Value | SeqCounterKey/Value | 8B/16B | ✅ (new) |
-| ... (all bpfschema structs) | ... | ... | ✅ (new) |
+### Phase 3 Verification Status
+
+| Rust Struct (source) | Go Struct (bpfschema) | Size | Verified | Test File |
+|-----|-----------|------|----------|-----------|
+| Monad (monad-common:301) | MonadRegister | 20B | ✅ | parity_test.go |
+| AnamnesisEvent (monad-common:657) | AnamnesisEvent | 32B | ✅ | parity_test.go |
+| FlowKey (common:61) | FlowKey | **16B** | ✅ | parity_test.go |
+| FlowState (common:106) | FlowState | **56B** | ✅ | parity_test.go |
+| MbcCpuState (monad-common:913) | MbcCpuState | 80B | ✅ | parity_test.go |
+| SophiaEntry (monad-common) | SophiaMapValue | 32B | ⏳ | (pending) |
+
+### Breaking Changes (Fixed in Phase 3)
+
+**FlowKey**: Rust uses **IPv4** (u32 src_addr, u32 dst_addr), **NOT IPv6**.
+- Old Go definition: [16]byte src/dst (40 bytes total) — **WRONG**
+- New Go definition: uint32 src/dst (16 bytes total) — **CORRECT**
+- Impact: Flow Tracker TC program uses IPv4 5-tuple tracking.
+
+**FlowState**: Added 16-byte TraceID field for distributed trace correlation.
+- Old Go definition: Missing TraceID — **INCOMPLETE**
+- New Go definition: TraceID [16]byte at offset 0x00 — **CORRECT**
+- Impact: Trace context propagation now tracked per-flow.
+
+**MbcCpuState**: Added halted, stalled, insn_count, cache_hits, cache_misses fields.
+- Old Go definition: Missing all cache/halt state — **INCOMPLETE**
+- New Go definition: Full 80-byte layout with cache statistics — **CORRECT**
+- Impact: Doom-over-IPv6 PoC CPU state persistence now works.
 
 ---
 
