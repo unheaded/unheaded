@@ -116,7 +116,7 @@ func TestSettingsEncodeDecodeRoundtrip(t *testing.T) {
 		{
 			name: "large values",
 			values: map[SettingID]uint64{
-				SettingsMaxDictionarySize: 0xFFFFFFFFFFFFFFFF,
+				SettingsMaxDictionarySize: 0x3FFFFFFFFFFFFFFF, // MaxVarint (2^62-1)
 				SettingsMaxFlowCount:      0x0000000000000001,
 			},
 		},
@@ -179,13 +179,13 @@ func TestSettingsDecodeErrors(t *testing.T) {
 		},
 		{
 			name:    "unknown setting not ignored",
-			data:    []byte{0xFF, 0x01}, // ID=0xFF, Value=1
+			data:    []byte{0x20, 0x01}, // ID=0x20 (32, unknown), Value=1
 			ignored: false,
 			wantErr: true,
 		},
 		{
 			name:    "unknown setting ignored",
-			data:    []byte{0xFF, 0x01}, // ID=0xFF, Value=1
+			data:    []byte{0x20, 0x01}, // ID=0x20 (32, unknown), Value=1
 			ignored: true,
 			wantErr: false,
 		},

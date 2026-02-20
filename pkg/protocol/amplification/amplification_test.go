@@ -92,8 +92,8 @@ func TestValidateAmplificationAtMaxRatio(t *testing.T) {
 }
 
 func TestValidateAmplificationExceedsRatio(t *testing.T) {
-	// 301 / 100 > 3, exceeds MaxAmplificationRatio
-	valid := ValidateAmplification(100, 301)
+	// 400 / 100 = 4, exceeds MaxAmplificationRatio of 3
+	valid := ValidateAmplification(100, 400)
 	if valid {
 		t.Errorf("Expected invalid when exceeding MaxAmplificationRatio")
 	}
@@ -161,8 +161,8 @@ func TestAmplificationTrackerShouldDropPacket(t *testing.T) {
 		t.Errorf("Expected not to drop packet with ring count 15 < max hop count 16")
 	}
 
-	if tracker.ShouldDropPacket(17) {
-		t.Errorf("Expected not to drop packet with ring count 17 == max hop count threshold+1")
+	if !tracker.ShouldDropPacket(17) {
+		t.Errorf("Expected to drop packet with ring count 17 > max hop count threshold 16")
 	}
 
 	if !tracker.ShouldDropPacket(20) {

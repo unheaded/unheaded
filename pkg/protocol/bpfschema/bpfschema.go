@@ -136,7 +136,7 @@ type MigrationTokenKey struct {
 }
 
 // MigrationTokenValue stores the HMAC-signed token.
-// Size: 48 bytes.
+// Size: 56 bytes (32 Token + 4 IssuedAt + 4 ExpiresAt + 16 NewAddr).
 type MigrationTokenValue struct {
 	Token     [32]byte // HMAC-SHA256 token.
 	IssuedAt  uint32   // Unix timestamp.
@@ -260,18 +260,20 @@ type GoawayStateValue struct {
 
 // CancelFlowKey identifies a cancelled flow.
 // Size: 8 bytes. Map type: LRU_HASH.
+// Field order: largest-first to avoid Go alignment padding.
 type CancelFlowKey struct {
-	FlowID uint16 // Flow identifier.
 	ConnID uint32 // Connection identifier.
+	FlowID uint16 // Flow identifier.
 	_      [2]byte
 }
 
 // CancelFlowValue stores cancellation metadata.
 // Size: 8 bytes.
+// Field order: largest-first to avoid Go alignment padding.
 type CancelFlowValue struct {
-	ErrorCode  uint16 // Error code for cancellation reason.
 	CancelledAt uint32 // Unix timestamp.
-	_          [2]byte
+	ErrorCode   uint16 // Error code for cancellation reason.
+	_           [2]byte
 }
 
 // === H9: Prefetch Hints (prefetch package) ===
@@ -285,7 +287,7 @@ type PrefetchHintKey struct {
 }
 
 // PrefetchHintValue stores hint metadata.
-// Size: 24 bytes.
+// Size: 20 bytes (2+2+1+1+2+4+4+4).
 type PrefetchHintValue struct {
 	DictID    uint16   // Dictionary to prefetch.
 	FieldID   uint16   // Field within dictionary.
@@ -307,7 +309,7 @@ type HopValidatorKey struct {
 }
 
 // HopValidatorValue defines validation rules for a hop.
-// Size: 32 bytes.
+// Size: 28 bytes (1+1+1+1+16+1+3+4).
 type HopValidatorValue struct {
 	AllowedVersionMin uint8  // Minimum accepted Monad version.
 	AllowedVersionMax uint8  // Maximum accepted Monad version.

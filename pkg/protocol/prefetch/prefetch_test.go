@@ -233,7 +233,7 @@ func TestPrefetchManagerOutstandingCount(t *testing.T) {
 func TestPrefetchManagerSetMaxOutstanding(t *testing.T) {
 	pm := NewPrefetchManager()
 
-	originalMax := pm.GetMaxOutstanding()
+	_ = pm.GetMaxOutstanding()
 	newMax := uint16(32)
 
 	pm.SetMaxOutstanding(newMax)

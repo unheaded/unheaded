@@ -313,8 +313,8 @@ func TestCRC16CCITT(t *testing.T) {
 
 	t.Run("NilData", func(t *testing.T) {
 		crc := CRC16CCITT(nil)
-		if crc != 0 {
-			t.Errorf("CRC of nil should be 0, got 0x%04x", crc)
+		if crc != 0xFFFF {
+			t.Errorf("CRC of nil should be 0xFFFF (initial value), got 0x%04x", crc)
 		}
 	})
 
@@ -360,17 +360,17 @@ func TestVerifyCRC16CCITT(t *testing.T) {
 		}
 	})
 
-	t.Run("NilDataWithZero", func(t *testing.T) {
-		verified := VerifyCRC16CCITT(nil, 0)
+	t.Run("NilDataWithFFFF", func(t *testing.T) {
+		verified := VerifyCRC16CCITT(nil, 0xFFFF)
 		if !verified {
-			t.Errorf("nil data with CRC 0 should verify")
+			t.Errorf("nil data with CRC 0xFFFF should verify")
 		}
 	})
 
-	t.Run("NilDataWithNonZero", func(t *testing.T) {
+	t.Run("NilDataWithNonFFFF", func(t *testing.T) {
 		verified := VerifyCRC16CCITT(nil, 0x1234)
 		if verified {
-			t.Errorf("nil data with non-zero CRC should not verify")
+			t.Errorf("nil data with non-0xFFFF CRC should not verify")
 		}
 	})
 }

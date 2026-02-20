@@ -1,7 +1,6 @@
 package lifecycle
 
 import (
-	"bytes"
 	"encoding/binary"
 	"testing"
 	"time"

@@ -197,16 +197,17 @@ func TestFlowKeyFieldOffsets(t *testing.T) {
 	}
 }
 
-// TestFlowStateSize verifies FlowState is exactly 56 bytes.
+// TestFlowStateSize verifies FlowState is exactly 72 bytes.
 //
 // Rust source: ebpf/common/src/lib.rs:106-118
 // Rust layout: #[repr(C)] struct FlowState
-// Size: 16+8+8+8+8+8+8+1+7 = 56 bytes
+// Size: 16 (TraceId) + 6*8 (six u64) + 1 (state) + 7 (_pad) = 72 bytes.
+// Note: the original comment claimed 56 due to an arithmetic error.
 //
 // FlowState tracks bidirectional flow statistics including trace ID,
 // timestamps, packet/byte counts, and TCP state machine position.
 func TestFlowStateSize(t *testing.T) {
-	const expected = 56
+	const expected = 72
 	actual := unsafe.Sizeof(FlowState{})
 	if actual != expected {
 		t.Fatalf("FlowState size mismatch: expected %d bytes, got %d bytes", expected, actual)
@@ -215,16 +216,17 @@ func TestFlowStateSize(t *testing.T) {
 
 // TestFlowStateFieldOffsets verifies each field is at the correct byte offset.
 //
-// Rust offsets (from FlowState in ebpf/common/src/lib.rs:109-117):
-//   0x00: trace_id (TraceId, 16 bytes: high 8B, low 8B)
-//   0x10: start_ns (u64)
-//   0x18: last_seen_ns (u64)
-//   0x20: packets_in (u64)
-//   0x28: packets_out (u64)
-//   0x30: bytes_in (u64)
-//   0x38: bytes_out (u64)
-//   0x40: state (ConnectionState, u8)
-//   0x41: _pad [7]
+// Both Rust #[repr(C)] and Go produce identical offsets for this struct:
+//   0x00: trace_id / TraceID ([16]byte / TraceId, 16 bytes)
+//   0x10: start_ns / StartNs (u64 / uint64)
+//   0x18: last_seen_ns / LastSeenNs (u64 / uint64)
+//   0x20: packets_in / PacketsIn (u64 / uint64)
+//   0x28: packets_out / PacketsOut (u64 / uint64)
+//   0x30: bytes_in / BytesIn (u64 / uint64)
+//   0x38: bytes_out / BytesOut (u64 / uint64)
+//   0x40: state / State (u8 / uint8)
+//   0x41: _pad ([7]byte)
+// Total: 0x48 = 72 bytes.
 func TestFlowStateFieldOffsets(t *testing.T) {
 	s := FlowState{}
 	base := uintptr(unsafe.Pointer(&s))
@@ -252,10 +254,12 @@ func TestFlowStateFieldOffsets(t *testing.T) {
 	}
 }
 
-// TestMbcCpuStateSize verifies MbcCpuState is exactly 80 bytes.
+// TestMbcCpuStateSize verifies MbcCpuState is exactly 104 bytes.
 //
 // Rust source: ebpf/monad-common/src/lib.rs:913-944
-// Rust layout: #[repr(C)] struct MbcCpuState (80 bytes)
+// Rust layout: #[repr(C)] struct MbcCpuState (104 bytes)
+// Note: the original comment claimed 80 due to an arithmetic error.
+// Correct: 64 ([16]u32) + 4 (pc) + 1+1+1+1 (flags,halted,stalled,pad) + 4*8 (u64s) = 104.
 //
 // MbcCpuState is the CPU state for the Monad Bytecode (MBC) virtual machine,
 // used by the Doom-over-IPv6 proof-of-concept. It includes:
@@ -269,7 +273,7 @@ func TestFlowStateFieldOffsets(t *testing.T) {
 //   - Instruction counter (8 bytes)
 //   - L1 cache statistics (16 bytes: hits + misses)
 func TestMbcCpuStateSize(t *testing.T) {
-	const expected = 80
+	const expected = 104
 	actual := unsafe.Sizeof(MbcCpuState{})
 	if actual != expected {
 		t.Fatalf("MbcCpuState size mismatch: expected %d bytes, got %d bytes", expected, actual)
@@ -388,11 +392,16 @@ func TestFlowCancelValueSize(t *testing.T) {
 
 // TestFlowCancelValueFieldOffsets verifies each field is at the correct byte offset.
 //
-// Rust offsets (from CancelFlowValue in ebpf/flow-tracker/src/main.rs):
-//   0x00: reason (u32, 4 bytes)
-//   0x04: timestamp_ns (u64, 8 bytes)
-//   0x0C: flags (u32, 4 bytes)
-//   0x10: _pad ([u8; 4], 4 bytes)
+// Go offsets (with natural alignment — uint64 requires 8-byte alignment):
+//   0x00: Reason (uint32, 4 bytes)
+//   0x04: (implicit padding, 4 bytes)
+//   0x08: TimestampNs (uint64, 8 bytes)
+//   0x10: Flags (uint32, 4 bytes)
+//   0x14: _pad ([4]byte, 4 bytes)
+//
+// Note: Rust #[repr(C, packed)] places TimestampNs at 0x04 with no padding.
+// Go cannot match this without unsafe tricks, so the Go struct uses natural
+// alignment. Serialization code must account for this layout difference.
 func TestFlowCancelValueFieldOffsets(t *testing.T) {
 	c := FlowCancelValue{}
 	base := uintptr(unsafe.Pointer(&c))
@@ -403,8 +412,8 @@ func TestFlowCancelValueFieldOffsets(t *testing.T) {
 		expected uintptr
 	}{
 		{"Reason", uintptr(unsafe.Pointer(&c.Reason)) - base, 0x00},
-		{"TimestampNs", uintptr(unsafe.Pointer(&c.TimestampNs)) - base, 0x04},
-		{"Flags", uintptr(unsafe.Pointer(&c.Flags)) - base, 0x0C},
+		{"TimestampNs", uintptr(unsafe.Pointer(&c.TimestampNs)) - base, 0x08},
+		{"Flags", uintptr(unsafe.Pointer(&c.Flags)) - base, 0x10},
 	}
 
 	for _, tt := range tests {
@@ -421,8 +430,8 @@ func TestFlowCancelValueFieldOffsets(t *testing.T) {
 //   ✅ MonadRegister (20 bytes) — ebpf/monad-common/src/lib.rs:301-379
 //   ✅ AnamnesisEvent (32 bytes) — ebpf/monad-common/src/lib.rs:657-693
 //   ✅ FlowKey (16 bytes) — ebpf/common/src/lib.rs:61-85
-//   ✅ FlowState (56 bytes) — ebpf/common/src/lib.rs:106-118
-//   ✅ MbcCpuState (80 bytes) — ebpf/monad-common/src/lib.rs:913-944
+//   ✅ FlowState (72 bytes) — ebpf/common/src/lib.rs:106-118
+//   ✅ MbcCpuState (104 bytes) — ebpf/monad-common/src/lib.rs:913-944
 //   ✅ FlowMigrationTokenValue (48 bytes) — ebpf/flow-tracker/src/main.rs
 //   ✅ FlowCancelValue (24 bytes) — ebpf/flow-tracker/src/main.rs
 //

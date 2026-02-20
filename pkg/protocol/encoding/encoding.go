@@ -156,6 +156,12 @@ func EncodeExponent(value uint32) uint16 {
 // Returns ErrExponentOverflow if the decoded value would exceed uint64.
 // This is a security-critical check: crafted exponent values can overflow.
 //
+// The mantissa captures the top 4 significant bits of the original value,
+// and the exponent records the bit-width. Reconstruction is:
+//
+//	if exp >= 4: value = mantissa << (exp - 4)
+//	if exp <  4: value = mantissa >> (4 - exp)
+//
 // See: Black Mage Dark Grimoire — Monad Value field attack vectors.
 func DecodeExponent(encoded uint16) (uint64, error) {
 	exp := uint8(encoded >> 8)
@@ -165,22 +171,25 @@ func DecodeExponent(encoded uint16) (uint64, error) {
 		return 0, nil
 	}
 
-	// Overflow check: mantissa × 2^(exp-1) must fit in uint64.
-	// Maximum safe: exp-1 <= 63 (since 2^63 fits in uint64 with mantissa=1).
-	// With mantissa up to 15: exp-1 + 4 <= 63, so exp <= 60.
-	if exp > 60 {
-		shift := uint(exp - 1)
-		if shift >= 64 {
-			return 0, ErrExponentOverflow
-		}
-		// Check if mantissa << shift would overflow.
+	if exp < 4 {
+		// Small values: right-shift mantissa to recover original magnitude.
+		return uint64(mantissa) >> (4 - exp), nil
+	}
+
+	shift := uint(exp - 4)
+
+	// Overflow check: mantissa << shift must fit in uint64.
+	if shift >= 64 {
+		return 0, ErrExponentOverflow
+	}
+	if shift > 0 {
 		maxMantissa := uint64(^uint64(0)) >> shift
 		if uint64(mantissa) > maxMantissa {
 			return 0, ErrExponentOverflow
 		}
 	}
 
-	return uint64(mantissa) << (exp - 1), nil
+	return uint64(mantissa) << shift, nil
 }
 
 // CRC16CCITT computes CRC-16/CCITT-FALSE over the given data.

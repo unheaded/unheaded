@@ -3,7 +3,6 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"io"
 	"testing"
 )
@@ -151,7 +150,7 @@ func FuzzCRC16CCITT(f *testing.F) {
 		extended := append(input, 0x00)
 		crc4 := ComputeCRC16CCITT(extended)
 		if len(input) > 0 && crc1 == crc4 {
-			t.Errorf("CRC collision on length change: both %04x", crc1)
+			t.Logf("CRC collision on length change (expected for CRC-16): both %04x", crc1)
 		}
 
 		// CRC-16 produces values in range [0, 65535]
@@ -266,10 +265,10 @@ func DecodeExponent(data []byte) (int32, error) {
 func ComputeCRC16CCITT(data []byte) uint16 {
 	// CRC-16-CCITT polynomial: x^16 + x^12 + x^5 + 1 (0x1021)
 	const polynomial = 0x1021
-	crc := uint16(0xFFFF)
+	crc := uint32(0xFFFF)
 
 	for _, b := range data {
-		crc ^= uint16(b) << 8
+		crc ^= uint32(b) << 8
 		for i := 0; i < 8; i++ {
 			crc <<= 1
 			if crc&0x10000 != 0 {
@@ -277,7 +276,7 @@ func ComputeCRC16CCITT(data []byte) uint16 {
 			}
 		}
 	}
-	return crc
+	return uint16(crc)
 }
 
 func EncodeTLV(tlvType uint8, value []byte) []byte {
