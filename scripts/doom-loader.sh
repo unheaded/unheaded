@@ -97,8 +97,16 @@ load_data() {
     data_size=$(stat -c%s "$DOOM_DATA")
     log_info "Data sections: ${data_size} bytes"
 
-    # Data starts at byte address 0x0002d0d0 (first section: .rodata)
-    local data_start_addr=0x2d0d0
+    # Data starts at .rodata VMA (first extracted section). Compute from ELF
+    # to avoid stale hardcoded values when .text size changes across builds.
+    local data_start_addr
+    data_start_addr=$(riscv64-unknown-elf-objdump -h "$DOOM_ELF" \
+        | awk '/\.rodata[[:space:]]/{print "0x"$4}')
+    if [[ -z "$data_start_addr" ]]; then
+        log_error "Could not determine .rodata VMA from ${DOOM_ELF}"
+        exit 1
+    fi
+    log_info "Data start address: ${data_start_addr} (.rodata VMA)"
 
     python3 "${SCRIPT_DIR}/doom-loader-core.py" ram "$ram_pin" "$DOOM_DATA" "$data_start_addr"
 
@@ -180,7 +188,7 @@ load_cpu() {
 
     python3 "${SCRIPT_DIR}/doom-loader-core.py" cpu "$cpu_pin"
 
-    log_info "CPU state initialized: PC=0, SP=0x710000"
+    log_info "CPU state initialized: PC=0, SP=0x1000000"
 }
 
 # ============================================================================
