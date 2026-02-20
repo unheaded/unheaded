@@ -344,6 +344,62 @@ type CacheLineValue struct {
 	Data [64]byte
 }
 
+// === FLOW TRACKER EXTENSION MAPS (IPv4-based) ===
+
+// FlowMigrationTokenValue holds migration token state for Flow Tracker.
+// Key: FlowKey (same 5-tuple as FLOWS map, 16 bytes).
+// Value: migration token state (48 bytes).
+// Map type: HashMap (LRU behavior via userspace TTL).
+// Per RFC 9000 §9 — Flow migration validation tokens.
+//
+// Wire layout (48 bytes):
+//
+//	Offset  Field           Size    Description
+//	0x00    Token           16B     128-bit migration token
+//	0x10    ExpiryNs        8B      Expiry timestamp (bpf_ktime_get_ns)
+//	0x18    NewSrcAddr      4B      New source address after migration
+//	0x1C    NewDstAddr      4B      New destination address after migration
+//	0x20    NewSrcPort      2B      New source port
+//	0x22    NewDstPort      2B      New destination port
+//	0x24    Flags           4B      Migration flags (bit 0: active)
+//	0x28    _pad            4B      Alignment padding
+type FlowMigrationTokenValue struct {
+	Token      [16]byte // 128-bit migration token
+	ExpiryNs   uint64   // Expiry timestamp (bpf_ktime_get_ns)
+	NewSrcAddr uint32   // New source address after migration
+	NewDstAddr uint32   // New destination address after migration
+	NewSrcPort uint16   // New source port
+	NewDstPort uint16   // New destination port
+	Flags      uint32   // Migration flags (bit 0: active)
+	_          [4]byte  // Alignment padding to 48 bytes
+}
+
+// FlowMigrationTokenValueSize is the exact wire size.
+const FlowMigrationTokenValueSize = 48 // 16+8+4+4+2+2+4+4
+
+// FlowCancelValue holds cancellation state for Flow Tracker.
+// Key: FlowKey (same 5-tuple as FLOWS map, 16 bytes).
+// Value: cancellation state (24 bytes).
+// Map type: HashMap (LRU behavior via userspace TTL).
+// Per RFC 9114 §4.1.1 — Per-flow cancellation state.
+//
+// Wire layout (24 bytes):
+//
+//	Offset  Field           Size    Description
+//	0x00    Reason          4B      Cancellation reason code
+//	0x04    TimestampNs     8B      When cancellation was requested
+//	0x0C    Flags           4B      Bit 0: active, Bit 1: send-rst
+//	0x10    _pad            4B      Alignment padding
+type FlowCancelValue struct {
+	Reason      uint32 // Cancellation reason code
+	TimestampNs uint64 // When cancellation was requested
+	Flags       uint32 // Bit 0: active, Bit 1: send-rst
+	_           [4]byte // Alignment padding to 24 bytes
+}
+
+// FlowCancelValueSize is the exact wire size.
+const FlowCancelValueSize = 24 // 4+8+4+4
+
 // === MAP CONFIGURATION CONSTANTS ===
 
 // Standard map sizes matching eBPF program definitions.
@@ -355,17 +411,19 @@ const (
 	SyscallEventsRingSize = 256 * 1024        // 256 KiB.
 	ComputeEventsRingSize = 256 * 1024        // 256 KiB.
 
-	BlocklistMaxEntries      = 4096
-	RateTokensMaxEntries     = 4096
-	SophiaMaxEntries         = 65536
-	CircuitErrorsMaxEntries  = 65536
-	FlowsMaxEntries          = 16384
-	ChaosTargetsMaxEntries   = 4096
-	ROMMapMaxEntries         = 262144   // 1 MiB of instructions.
-	RAMMapMaxEntries         = 2097152  // 8 MiB word-addressed.
-	ScreenMapMaxEntries      = 64000    // 320×200 framebuffer.
-	CPUMapMaxEntries         = 256      // Per-flow CPU instances.
-	L1CacheMaxEntries        = 256      // 256 cache lines × 64 bytes.
-	StatsMaxEntries          = 32
-	ConfigMaxEntries         = 16
+	BlocklistMaxEntries           = 4096
+	RateTokensMaxEntries          = 4096
+	SophiaMaxEntries              = 65536
+	CircuitErrorsMaxEntries       = 65536
+	FlowsMaxEntries               = 16384
+	FlowMigrationTokensMaxEntries = 4096
+	FlowCancelFlowsMaxEntries      = 4096
+	ChaosTargetsMaxEntries        = 4096
+	ROMMapMaxEntries              = 262144   // 1 MiB of instructions.
+	RAMMapMaxEntries              = 2097152  // 8 MiB word-addressed.
+	ScreenMapMaxEntries           = 64000    // 320×200 framebuffer.
+	CPUMapMaxEntries              = 256      // Per-flow CPU instances.
+	L1CacheMaxEntries             = 256      // 256 cache lines × 64 bytes.
+	StatsMaxEntries               = 32
+	ConfigMaxEntries              = 16
 )
