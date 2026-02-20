@@ -21,28 +21,30 @@ package bpfschema
 
 // MonadRegister is the 20-byte Monad metadata register.
 // This is the CANONICAL Go representation matching monad-common::Monad.
+// Rust source: ebpf/monad-common/src/lib.rs:301-379
+// Per draft-bellis-unheaded-protocol-foundation-01 §3.3
 //
-// Wire layout:
+// Wire layout (20 bytes):
 //
 //	Offset  Field           Size    Encoding
-//	0x00    Version         1B      Raw u8
-//	0x01    SrcServiceID    1B      Exponent (Sophia dict 0x03)
-//	0x02    DstServiceID    1B      Exponent (Sophia dict 0x03)
-//	0x03    HopCount        1B      Raw u8 (decremented per hop)
-//	0x04    QoSClass        1B      Exponent (Sophia dict 0x01)
-//	0x05    FlowAction      1B      Exponent {FORWARD=1,TRACE=2,SAMPLE=3,MIRROR=4,DROP=5}
-//	0x06    CircuitState    1B      Exponent {CLOSED=1,OPEN=2,HALF_OPEN=3}
-//	0x07    Flags           1B      Bitfield: CHAOS|CANARY|TRACED|ENCRYPT|SAMPLED|MIRROR|K1|K0
-//	0x08    LatencyHint     2B      Raw u16 BE (microseconds)
-//	0x0A    DeployRing      1B      Exponent {PROD=1,CANARY=2,STAGING=3,DEV=4}
-//	0x0B    MeshFlags       1B      Exponent
-//	0x0C    SrcPrefixLo     1B      Raw (Kingdom ULA source subnet low byte)
-//	0x0D    DstPrefixLo     1B      Raw (Kingdom ULA dest subnet low byte)
-//	0x0E    Scratch0        1B      Exponent (GP register 0 high)
-//	0x0F    Scratch1        1B      Exponent (GP register 0 low)
-//	0x10    Scratch2        1B      Exponent (GP register 1 high)
-//	0x11    Scratch3        1B      Exponent (GP register 1 low)
-//	0x12    Checksum        2B      CRC-16/CCITT over 0x00-0x11
+//	0x00    Version         1B      Raw u8, MUST be 0x01
+//	0x01    SrcServiceID    1B      Exponent-encoded (Sophia dict 0x03)
+//	0x02    DstServiceID    1B      Exponent-encoded (Sophia dict 0x03)
+//	0x03    HopCount        1B      Raw u8, incremented per hop, saturates at 255
+//	0x04    QoSClass        1B      Exponent-encoded (Sophia dict 0x01)
+//	0x05    FlowAction      1B      Exponent: 1=FORWARD, 2=TRACE, 3=SAMPLE, 4=MIRROR, 5=DROP
+//	0x06    CircuitState    1B      Exponent: 1=CLOSED, 2=OPEN, 3=HALF_OPEN
+//	0x07    Flags           1B      Bitfield (bit 7=CHAOS, 6=CANARY, 5=TRACED, 4=ENCRYPT, 3=SAMPLED, 2=MIRROR, 1=CUSTOM, 0=RSVD)
+//	0x08    LatencyHint     2B      Big-endian u16 (upstream latency in microseconds)
+//	0x0A    DeployRing      1B      Exponent: 1=PRODUCTION, 2=CANARY, 3=STAGING, 4=DEVELOPMENT
+//	0x0B    MeshFlags       1B      Exponent-encoded
+//	0x0C    SrcPrefixLo     1B      Raw (low octet of Kingdom ULA source subnet)
+//	0x0D    DstPrefixLo     1B      Raw (low octet of Kingdom ULA destination subnet)
+//	0x0E    Scratch[0]      1B      Exponent (accumulator high byte for MBC)
+//	0x0F    Scratch[1]      1B      Exponent (accumulator low byte for MBC)
+//	0x10    Scratch[2]      1B      Exponent (address register high byte for MBC)
+//	0x11    Scratch[3]      1B      Exponent (address register low byte for MBC)
+//	0x12    Checksum        2B      Big-endian CRC-16/CCITT over octets 0x00-0x11, 18 bytes protected
 type MonadRegister struct {
 	Version      uint8
 	SrcServiceID uint8
@@ -107,15 +109,17 @@ const (
 
 // AnamnesisEvent is the 32-byte event emitted by all eBPF programs
 // to the ANAMNESIS ring buffer.
+// Rust source: ebpf/monad-common/src/lib.rs:657-693
+// Per draft-bellis-unheaded-protocol-foundation-01 §6.1
 //
-// Wire layout:
+// Wire layout (32 bytes):
 //
 //	Offset  Field           Size    Description
-//	0x00    TimestampNs     8B      Kernel monotonic nanoseconds (bpf_ktime_get_ns)
-//	0x08    EventType       1B      Event type enum
-//	0x09    HopID           1B      Hop identifier (from CONFIG map)
-//	0x0A    FlowLabelLo     2B      Low 16 bits of IPv6 Flow Label
-//	0x0C    Monad           20B     Complete Monad snapshot at event time
+//	0x00    TimestampNs     8B      Kernel monotonic timestamp (bpf_ktime_get_ns, nanoseconds)
+//	0x08    EventType       1B      Event type: 0x01=Birth, 0x02=Hop, 0x03=Death, 0x04=Anomaly, 0x05=Chaos
+//	0x09    HopID           1B      Sophia-assigned hop identifier (from CONFIG[0] map)
+//	0x0A    FlowLabelLo     2B      Low 16 bits of IPv6 Flow Label (big-endian, trace correlation key)
+//	0x0C    Monad           20B     Complete 20-byte Monad snapshot at time of event
 type AnamnesisEvent struct {
 	TimestampNs uint64         // bpf_ktime_get_ns().
 	EventType   uint8          // See EventType constants.
@@ -203,29 +207,60 @@ type CircuitErrorValue struct {
 // === FLOW TRACKER MAPS ===
 
 // FlowKey is the 5-tuple flow identifier.
-// Matches flow-tracker/src/main.rs FlowKey.
+// Matches ebpf/common/src/lib.rs FlowKey (IPv4-based, not IPv6).
+// Rust source: ebpf/common/src/lib.rs:64-71
+//
+// Wire layout (16 bytes):
+//
+//	Offset  Field           Size    Description
+//	0x00    SrcAddr         4B      IPv4 source address (network byte order)
+//	0x04    DstAddr         4B      IPv4 destination address (network byte order)
+//	0x08    SrcPort         2B      Source port (network byte order)
+//	0x0A    DstPort         2B      Destination port (network byte order)
+//	0x0C    Protocol        1B      IP protocol (6=TCP, 17=UDP)
+//	0x0D    _pad            3B      Alignment
 type FlowKey struct {
-	SrcAddr  [16]byte // IPv6 source.
-	DstAddr  [16]byte // IPv6 destination.
-	SrcPort  uint16
-	DstPort  uint16
-	Protocol uint8
-	_        [3]byte
+	SrcAddr  uint32  // IPv4 source address (network byte order).
+	DstAddr  uint32  // IPv4 destination address (network byte order).
+	SrcPort  uint16  // Source port (network byte order).
+	DstPort  uint16  // Destination port (network byte order).
+	Protocol uint8   // IP protocol (IPPROTO_TCP=6, IPPROTO_UDP=17).
+	_        [3]byte // Alignment padding.
 }
 
 // FlowKeySize is the exact wire size.
-const FlowKeySize = 40 // 16+16+2+2+1+3
+const FlowKeySize = 16 // 4+4+2+2+1+3
 
 // FlowState tracks bidirectional flow state.
+// Matches ebpf/common/src/lib.rs FlowState:108-118
+// Rust source: ebpf/common/src/lib.rs:108-118
+//
+// Wire layout (56 bytes):
+//
+//	Offset  Field           Size    Description
+//	0x00    TraceID         16B     128-bit trace identifier (high:8B, low:8B)
+//	0x10    StartNs         8B      Connection start timestamp (nanoseconds)
+//	0x18    LastSeenNs      8B      Last packet timestamp
+//	0x20    PacketsIn       8B      Inbound packet count
+//	0x28    PacketsOut      8B      Outbound packet count
+//	0x30    BytesIn         8B      Inbound bytes
+//	0x38    BytesOut        8B      Outbound bytes
+//	0x40    State           1B      Connection state enum
+//	0x41    _pad            7B      Alignment
 type FlowState struct {
-	PacketsIn  uint64
-	PacketsOut uint64
-	BytesIn    uint64
-	BytesOut   uint64
-	TCPState   uint8  // TCP state machine position.
-	Direction  uint8  // 0=unknown, 1=client→server, 2=server→client.
-	_          [6]byte
+	TraceID     [16]byte // 128-bit trace ID (high 8B, low 8B big-endian).
+	StartNs     uint64   // Connection start timestamp (bpf_ktime_get_ns).
+	LastSeenNs  uint64   // Last packet timestamp.
+	PacketsIn   uint64   // Inbound packet count.
+	PacketsOut  uint64   // Outbound packet count.
+	BytesIn     uint64   // Inbound bytes.
+	BytesOut    uint64   // Outbound bytes.
+	State       uint8    // Connection state (ConnectionState enum).
+	_           [7]byte  // Alignment padding.
 }
+
+// FlowStateSize is the exact wire size.
+const FlowStateSize = 56 // 16+8+8+8+8+8+8+1+7
 
 // TraceAssocKey maps a trace to a flow.
 type TraceAssocKey struct {
@@ -267,11 +302,32 @@ const (
 // MbcCpuState is the 80-byte CPU state for the MBC virtual machine.
 // Matches monad-cpu-ebpf/src/main.rs MbcCpuState.
 // Per Monad spec §12 (computational completeness PoC).
+// Rust source: ebpf/monad-cpu-ebpf/src/main.rs (monad_common::MbcCpuState)
+//
+// Wire layout (80 bytes):
+//
+//	Offset  Field           Size    Description
+//	0x00    Registers       64B     [32]u32 (r0-r15)
+//	0x40    PC              4B      Program counter
+//	0x44    Flags           1B      CPU flags (Z, N, C bits)
+//	0x45    Halted          1B      1 if HALT executed
+//	0x46    Stalled         1B      1 if waiting for cache miss
+//	0x47    _pad            1B      Alignment
+//	0x48    SleepUntilNs    8B      bpf_ktime_get_ns target
+//	0x50    InsnCount       8B      Total instructions executed
+//	0x58    CacheHits       8B      L1 cache hit count
+//	0x60    CacheMisses     8B      L1 cache miss count
 type MbcCpuState struct {
-	Registers  [16]uint32 // r0-r15 general purpose registers.
-	PC         uint32     // Program counter.
-	Flags      uint32     // CPU flags (zero, carry, overflow, etc).
-	SleepUntil uint64     // bpf_ktime_get_ns target for sleep.
+	Registers     [16]uint32 // r0-r15 general purpose registers (64 bytes).
+	PC            uint32     // Program counter.
+	Flags         uint8      // CPU flags: bit 0=Z, bit 1=N, bit 2=C.
+	Halted        uint8      // 1 if HALT instruction executed.
+	Stalled       uint8      // 1 if waiting for cache miss (D-003).
+	_pad          uint8      // Alignment padding.
+	SleepUntilNs  uint64     // bpf_ktime_get_ns() sleep target.
+	InsnCount     uint64     // Total instructions executed (for IPS stats).
+	CacheHits     uint64     // L1 cache hits.
+	CacheMisses   uint64     // L1 cache misses.
 }
 
 // MbcCpuStateSize is the exact wire size. Tests verify this.
