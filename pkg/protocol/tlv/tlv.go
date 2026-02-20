@@ -1,7 +1,11 @@
+// Package tlv provides Type-Length-Value encoding for Monad extensions.
+// Uses pkg/protocol/encoding for TLV wire format per RFC 9114 §7 and RFC 8200 §4.
 package tlv
 
 import (
 	"fmt"
+
+	"unheaded/pkg/protocol/encoding"
 )
 
 // TLVType represents the type identifier for a TLV element
@@ -71,7 +75,8 @@ func (t TLVType) IsGreasing() bool {
 	return false
 }
 
-// Parse parses a byte slice into a TLVBlock with validation
+// Parse parses a byte slice into a TLVBlock with validation.
+// Uses pkg/protocol/encoding.DecodeTLV for wire format decoding.
 func Parse(data []byte) (TLVBlock, error) {
 	if len(data) == 0 {
 		return TLVBlock{}, nil
@@ -81,70 +86,54 @@ func Parse(data []byte) (TLVBlock, error) {
 	offset := 0
 
 	for offset < len(data) {
-		// Check if we have room for at least Type and Length bytes
-		if offset+2 > len(data) {
-			return nil, fmt.Errorf("truncated TLV header at offset %d: need 2 bytes, have %d",
-				offset, len(data)-offset)
-		}
-
 		// Check max TLVs per Monad limit
 		if len(block) >= MaxTLVsPerMonad {
 			return nil, fmt.Errorf("maximum %d TLVs per Monad exceeded", MaxTLVsPerMonad)
 		}
 
-		tlvType := TLVType(data[offset])
-		tlvLen := uint8(data[offset+1])
-
-		// Check if we have the complete value
-		if offset+2+int(tlvLen) > len(data) {
-			return nil, fmt.Errorf("truncated TLV value at offset %d: type=0x%02x, length=%d, remaining=%d",
-				offset, tlvType, tlvLen, len(data)-(offset+2))
+		// Decode TLV using pkg/protocol/encoding.DecodeTLV
+		encTLV, n, err := encoding.DecodeTLV(data[offset:])
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode TLV at offset %d: %w", offset, err)
 		}
 
-		// Extract value
-		value := make([]byte, tlvLen)
-		copy(value, data[offset+2:offset+2+int(tlvLen)])
-
+		// Convert encoding.TLV to our local TLV type
 		block = append(block, TLV{
-			Type:   tlvType,
-			Length: tlvLen,
-			Value:  value,
+			Type:   TLVType(encTLV.Type),
+			Length: encTLV.Length,
+			Value:  encTLV.Value,
 		})
 
-		offset += 2 + int(tlvLen)
+		offset += n
 	}
 
 	return block, nil
 }
 
-// Serialize converts a TLVBlock to bytes with validation
+// Serialize converts a TLVBlock to bytes with validation.
+// Uses pkg/protocol/encoding.EncodeTLV for wire format encoding.
 func Serialize(block TLVBlock) ([]byte, error) {
 	if len(block) > MaxTLVsPerMonad {
 		return nil, fmt.Errorf("cannot serialize %d TLVs: maximum is %d per Monad",
 			len(block), MaxTLVsPerMonad)
 	}
 
-	// Calculate total size
-	totalSize := 0
+	// Validate and encode each TLV
+	var result []byte
+
 	for _, tlv := range block {
 		if len(tlv.Value) != int(tlv.Length) {
 			return nil, fmt.Errorf("TLV type 0x%02x: length mismatch (declared %d, actual %d)",
 				tlv.Type, tlv.Length, len(tlv.Value))
 		}
-		if tlv.Length > 255 {
-			return nil, fmt.Errorf("TLV value too long: %d bytes (max 255)", len(tlv.Value))
+
+		// Use pkg/protocol/encoding.EncodeTLV for wire format
+		encoded, err := encoding.EncodeTLV(uint8(tlv.Type), tlv.Value)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode TLV type 0x%02x: %w", tlv.Type, err)
 		}
-		totalSize += 2 + int(tlv.Length)
-	}
 
-	// Allocate buffer
-	result := make([]byte, 0, totalSize)
-
-	// Serialize each TLV
-	for _, tlv := range block {
-		result = append(result, byte(tlv.Type))
-		result = append(result, tlv.Length)
-		result = append(result, tlv.Value...)
+		result = append(result, encoded...)
 	}
 
 	return result, nil
