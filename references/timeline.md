@@ -12,7 +12,7 @@
 
 ```
                     ╔══════════════════════════════════════╗
-                    ║    👑 THE MATRIARCH/PATRIARCH 👑     ║
+                    ║       👑 MAD-MARIA 👑               ║
                     ║         (Muck - Creator/God)          ║
                     ║   "From chaos, order. From will, code."║
                     ╚══════════════════╦═══════════════════╝
@@ -1630,7 +1630,7 @@ Velocity: ~50K LOC/day (unprecedented)
 
 ## 🔱 ARCHITECTURAL PROCLAMATIONS - February 1, 2026
 
-### THE MATRIARCH/PATRIARCH HAS SPOKEN
+### MAD-MARIA HAS SPOKEN
 
 The sands shift. New decrees from the throne reshape the Kingdom's foundation.
 
