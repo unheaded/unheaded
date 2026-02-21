@@ -158,3 +158,6 @@ PROJECT_TREE.txt
 # ─── Session artifacts ───
 # Session handoffs are tracked intentionally
 # *.jsonl
+docs/archive/nist-reference/
+docs/archive/scratch/old-docs-toplevel/
+docs/archive/scratch/old-sessions/
