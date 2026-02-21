@@ -19,6 +19,7 @@ pub fn disasm_insn(word: u32, addr: u32) -> String {
     let imm_u = insn.imm16();
 
     match opcode {
+        op::NOP => "NOP".to_string(),
         op::ADD => format!("ADD  r{}, r{}", dst, src),
         op::SUB => format!("SUB  r{}, r{}", dst, src),
         op::MUL => format!("MUL  r{}, r{}", dst, src),
@@ -36,6 +37,10 @@ pub fn disasm_insn(word: u32, addr: u32) -> String {
         op::SHRR => format!("SHRR r{}, r{}", dst, src),
         op::SARR => format!("SARR r{}, r{}", dst, src),
         op::MULH => format!("MULH r{}, r{}", dst, src),
+        op::PUSH => format!("PUSH r{}", dst),
+        op::POP => format!("POP  r{}", dst),
+        op::LOAD_IMM32 => format!("LOAD_IMM32 r{}, 0x{:x}", dst, imm_u),
+        op::ADDI => format!("ADDI r{}, {}", dst, imm),
         op::MOV => format!("MOV  r{}, r{}", dst, src),
         op::MOVI => format!("MOVI r{}, {}", dst, imm),
         op::CMP => format!("CMP  r{}, r{}", dst, src),
@@ -205,6 +210,48 @@ mod tests {
         let text = disasm_insn(insn.0, 0);
         assert!(text.contains("r5"));
         assert!(text.contains("-50") || text.contains("65486")); // Either representation
+    }
+
+    #[test]
+    fn test_disasm_nop() {
+        let insn = MbcInsn::encode(op::NOP, 0, 0, 0);
+        let text = disasm_insn(insn.0, 0);
+        assert_eq!(text, "NOP");
+    }
+
+    #[test]
+    fn test_disasm_push() {
+        let insn = MbcInsn::encode(op::PUSH, 3, 0, 0);
+        let text = disasm_insn(insn.0, 0);
+        assert_eq!(text, "PUSH r3");
+    }
+
+    #[test]
+    fn test_disasm_pop() {
+        let insn = MbcInsn::encode(op::POP, 5, 0, 0);
+        let text = disasm_insn(insn.0, 0);
+        assert_eq!(text, "POP  r5");
+    }
+
+    #[test]
+    fn test_disasm_addi() {
+        let insn = MbcInsn::encode(op::ADDI, 1, 0, 42);
+        let text = disasm_insn(insn.0, 0);
+        assert_eq!(text, "ADDI r1, 42");
+    }
+
+    #[test]
+    fn test_disasm_addi_negative() {
+        let insn = MbcInsn::encode(op::ADDI, 2, 0, (-10_i16) as u16);
+        let text = disasm_insn(insn.0, 0);
+        assert_eq!(text, "ADDI r2, -10");
+    }
+
+    #[test]
+    fn test_disasm_load_imm32() {
+        let insn = MbcInsn::encode(op::LOAD_IMM32, 4, 0, 0x1234);
+        let text = disasm_insn(insn.0, 0);
+        assert_eq!(text, "LOAD_IMM32 r4, 0x1234");
     }
 
     #[test]
