@@ -5,7 +5,7 @@
 **Branch**: `main`
 **Last Commit**: `76d34e1` docs(readme): update README for draft-03, protocol packages, docs reorg
 **Agent**: Claude Opus 4.6 (Cowork)
-**Partner**: Muck (Steven Bellis)
+**Partner**: Muck (Stevie Bellis)
 
 ---
 
@@ -435,5 +435,5 @@ The Kingdom stands. The protocol flows. The packets carry computation.
 ---
 
 *S22 Session — RFC Editor × Developer × Architect Triforce*
-*Partner: Muck (Steven Bellis)*
+*Partner: Muck (Stevie Bellis)*
 *Agent: Claude Opus 4.6*

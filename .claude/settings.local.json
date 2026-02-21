@@ -94,7 +94,12 @@
       "Bash(govulncheck:*)",
       "Bash(cargo clippy:*)",
       "Bash(docker compose:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(cargo:*)",
+      "Bash(bpf-linker:*)",
+      "Bash(rustup +nightly:*)",
+      "Bash(sudo:*)",
+      "Bash(git:*)"
     ]
   }
 }
