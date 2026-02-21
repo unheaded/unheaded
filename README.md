@@ -236,6 +236,6 @@ Pending license audit of all dependencies.  See [LICENSES/](LICENSES/).
 
 ## Contact
 
-    Steven Bellis <stevenrbellis@gmail.com>
+    Stevie Bellis <stevie@bellis.tech>
     https://unheaded.org
     https://github.com/unheaded

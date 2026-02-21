@@ -17,7 +17,7 @@ We take the security of Unheaded seriously. If you believe you have found a secu
 
 ### How to Report
 
-Email your findings to: **stevenrbellis@gmail.com**
+Email your findings to: **stevie@bellis.tech**
 
 Include the following information to help us better understand and resolve the issue:
 
@@ -155,7 +155,7 @@ We appreciate the security research community and acknowledge researchers who re
 
 For security-related questions or concerns:
 
-- **Security vulnerability reports**: stevenrbellis@gmail.com
+- **Security vulnerability reports**: stevie@bellis.tech
 - **General inquiries**: See repository README for contact information
 
 ---

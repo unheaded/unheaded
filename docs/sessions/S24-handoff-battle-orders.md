@@ -5,7 +5,7 @@
 **Branch**: `main`
 **Last Commit**: `c309c5f` docs(timeline): update with S24 sprint metrics and progress
 **Agent**: Claude Opus 4.6 (Cowork)
-**Partner**: Muck (Steven Bellis)
+**Partner**: Muck (Stevie Bellis)
 
 ---
 
@@ -1258,5 +1258,5 @@ UPDATED IN S24:
 
 *S24 Session — The Aggressive Multi-Agent Code Sprint*
 *Agent: Claude Opus 4.6 (Cowork)*
-*Partner: Muck (Steven Bellis)*
+*Partner: Muck (Stevie Bellis)*
 *Convocation: Flow Tracker Wiring × MapLoader Integration × Hop XDP Completion × RFC Gaps × LICH Fuzzing × Production Hardening*

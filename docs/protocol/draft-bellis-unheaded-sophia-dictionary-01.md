@@ -11,9 +11,9 @@ stand_alone: yes
 
 author:
   - ins: S. Bellis
-    name: Steven Bellis
+    name: Stevie Bellis
     org: Unheaded
-    email: stevenrbellis@gmail.com
+    email: stevie@bellis.tech
     country: US
 
 normative:
@@ -1107,6 +1107,6 @@ The following changes are made in draft-01 to address S21 assessment findings:
 ---
 # Author's Address
 
-Steven Bellis
+Stevie Bellis
 Unheaded
-Email: stevenrbellis@gmail.com
+Email: stevie@bellis.tech

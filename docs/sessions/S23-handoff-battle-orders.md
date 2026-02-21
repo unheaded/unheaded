@@ -5,7 +5,7 @@
 **Branch**: `main`
 **Last Commit**: `b5f476f` docs(session): add S22 handoff — 130-instruction battle orders for next agent
 **Agent**: Claude Opus 4.6 (Cowork)
-**Partner**: Muck (Steven Bellis)
+**Partner**: Muck (Stevie Bellis)
 
 ---
 
@@ -1172,5 +1172,5 @@ The data plane flows. The control plane commands. The fuzzing begins.
 
 *S23 Session — The Great Integration Sprint — Multi-Agent Swarm*
 *Agent: Claude Opus 4.6*
-*Partner: Muck (Steven Bellis)*
+*Partner: Muck (Stevie Bellis)*
 *Convocation: Protocol Unity × Map Wiring × MapLoader × RFC Drafts × Fuzzing Setup*
