@@ -273,12 +273,13 @@ impl Default for Cpu {
 mod tests {
     use super::*;
 
-    // Compile-time assertion that MbcCpuState is exactly 80 bytes
-    const _: [u8; 80] = [0u8; std::mem::size_of::<MbcCpuState>()];
+    // Compile-time assertion: MbcCpuState = 16×u32 regs + u32 pc + u8×4 (flags/halted/stalled/pad)
+    //   + u64 sleep_until_ns + u64 insn_count + u64 cache_hits + u64 cache_misses = 104 bytes
+    const _: [u8; 104] = [0u8; std::mem::size_of::<MbcCpuState>()];
 
     #[test]
     fn test_mbccpustate_size() {
-        assert_eq!(std::mem::size_of::<MbcCpuState>(), 80);
+        assert_eq!(std::mem::size_of::<MbcCpuState>(), 104);
     }
 
     #[test]
