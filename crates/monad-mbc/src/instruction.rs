@@ -32,10 +32,16 @@ impl std::error::Error for DecodeError {}
 pub fn is_valid_opcode(opcode: u8) -> bool {
     matches!(
         opcode,
+        // No-op
+        op::NOP |
         // Arithmetic operations
         op::ADD | op::SUB | op::MUL | op::DIV | op::MOD | op::NEG |
         // Bitwise operations
         op::AND | op::OR | op::XOR | op::NOT | op::SHL | op::SHR | op::SAR |
+        // Stack operations
+        op::PUSH | op::POP |
+        // Extended immediate
+        op::LOAD_IMM32 | op::ADDI |
         // Register bitwise shifts
         op::SHLR | op::SHRR | op::SARR |
         // Multiplication variants
@@ -78,8 +84,11 @@ pub fn is_valid_opcode(opcode: u8) -> bool {
 /// let insn = MbcInsn::encode(op::ADD, 0, 1, 0x1234);
 /// assert!(decode_checked(insn.0).is_ok());
 ///
-/// // Invalid instruction: opcode 0x00
-/// assert!(decode_checked(0x00000000).is_err());
+/// // NOP (opcode 0x00) is a valid opcode
+/// assert!(decode_checked(0x00000000).is_ok());
+///
+/// // Invalid instruction: opcode 0x11
+/// assert!(decode_checked(0x11000000).is_err());
 /// ```
 pub fn decode_checked(insn_word: u32) -> Result<MbcInsn, DecodeError> {
     let insn = MbcInsn(insn_word);
@@ -402,15 +411,15 @@ mod tests {
     // ========== Invalid Opcodes ==========
 
     #[test]
-    fn test_invalid_opcode_0x00() {
+    fn test_valid_opcode_nop_0x00() {
         let result = decode_checked(0x00000000);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), DecodeError::InvalidOpcode(0x00));
+        assert!(result.is_ok(), "NOP (0x00) should be valid");
+        assert_eq!(result.unwrap().opcode(), op::NOP);
     }
 
     #[test]
     fn test_invalid_opcode_0x11() {
-        // 0x11 is in the reserved range 0x11-0x1F
+        // 0x11 is in the reserved range 0x11-0x19
         let insn = MbcInsn::encode(0x11, 0, 0, 0);
         let result = decode_checked(insn.0);
         assert!(result.is_err());
@@ -419,11 +428,45 @@ mod tests {
 
     #[test]
     fn test_invalid_opcode_0x1F() {
-        // 0x1F is the last invalid opcode in range 0x11-0x1F
+        // 0x1F is in the reserved range 0x1E-0x1F
         let insn = MbcInsn::encode(0x1F, 0, 0, 0);
         let result = decode_checked(insn.0);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), DecodeError::InvalidOpcode(0x1F));
+    }
+
+    #[test]
+    fn test_valid_opcode_push() {
+        let insn = MbcInsn::encode(op::PUSH, 3, 0, 0);
+        let decoded = decode_checked(insn.0).expect("PUSH should be valid");
+        assert_eq!(decoded.opcode(), op::PUSH);
+        assert_eq!(decoded.dst(), 3);
+    }
+
+    #[test]
+    fn test_valid_opcode_pop() {
+        let insn = MbcInsn::encode(op::POP, 5, 0, 0);
+        let decoded = decode_checked(insn.0).expect("POP should be valid");
+        assert_eq!(decoded.opcode(), op::POP);
+        assert_eq!(decoded.dst(), 5);
+    }
+
+    #[test]
+    fn test_valid_opcode_load_imm32() {
+        let insn = MbcInsn::encode(op::LOAD_IMM32, 2, 0, 0xABCD);
+        let decoded = decode_checked(insn.0).expect("LOAD_IMM32 should be valid");
+        assert_eq!(decoded.opcode(), op::LOAD_IMM32);
+        assert_eq!(decoded.dst(), 2);
+        assert_eq!(decoded.imm16(), 0xABCD);
+    }
+
+    #[test]
+    fn test_valid_opcode_addi() {
+        let insn = MbcInsn::encode(op::ADDI, 1, 0, 42);
+        let decoded = decode_checked(insn.0).expect("ADDI should be valid");
+        assert_eq!(decoded.opcode(), op::ADDI);
+        assert_eq!(decoded.dst(), 1);
+        assert_eq!(decoded.imm16(), 42);
     }
 
     #[test]
@@ -565,8 +608,10 @@ mod tests {
     #[test]
     fn test_is_valid_opcode_all_valid() {
         let valid_opcodes = vec![
+            op::NOP,
             op::ADD, op::SUB, op::MUL, op::DIV, op::MOD, op::NEG,
             op::AND, op::OR, op::XOR, op::NOT, op::SHL, op::SHR, op::SAR,
+            op::PUSH, op::POP, op::LOAD_IMM32, op::ADDI,
             op::SHLR, op::SHRR, op::SARR, op::MULH,
             op::MOV, op::MOVI, op::CMP,
             op::JMP, op::JZ, op::JNZ, op::JN, op::JP, op::JC, op::JNC,
@@ -583,7 +628,7 @@ mod tests {
     #[test]
     fn test_is_valid_opcode_all_invalid() {
         let invalid_opcodes: Vec<u8> = vec![
-            0x00, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1E, 0x1F,
             0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
             0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
             0x41, 0x42, 0x50, 0xFE,

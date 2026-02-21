@@ -54,6 +54,7 @@ func NewRootCommand() *Command {
 Load MBC bytecode and binary data into the Wotan BPF compute engine:
   - load-rom: Load MBC bytecode into BPF rom_map (instruction memory)
   - load-mem: Load binary data into L2 ring buffer (RAM)
+  - doom:     Doom-over-IPv6 management (load, status, input, reset)
 
 Use "wotan-ctl <command> --help" for more information about a command.`,
 		Usage:       "wotan-ctl [command] [flags]",
@@ -63,6 +64,7 @@ Use "wotan-ctl <command> --help" for more information about a command.`,
 	// Add subcommands
 	root.SubCommands["load-rom"] = newLoadRomCmd()
 	root.SubCommands["load-mem"] = newLoadMemCmd()
+	root.SubCommands["doom"] = newDoomCmd()
 
 	return root
 }

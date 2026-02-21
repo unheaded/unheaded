@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doom-over-IPv6 Viewer | Unheaded</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #ff5c00;
+            margin-bottom: 10px;
+            font-size: 1.4em;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 0.85em;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 1200px;
+        }
+
+        .panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .panel h2 {
+            color: #fdda61;
+            font-size: 1em;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+
+        /* Screen canvas */
+        #screen-panel {
+            text-align: center;
+        }
+
+        #doom-canvas {
+            border: 2px solid #ff5c00;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            cursor: crosshair;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .screen-controls {
+            margin-top: 8px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.8em;
+        }
+
+        .screen-controls label {
+            color: #aaa;
+        }
+
+        .screen-controls select, .screen-controls button {
+            background: #222;
+            color: #e0e0e0;
+            border: 1px solid #444;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9em;
+        }
+
+        .screen-controls button:hover {
+            background: #333;
+        }
+
+        .screen-controls button.active {
+            background: #ff5c00;
+            color: #000;
+            border-color: #ff5c00;
+        }
+
+        /* CPU status panel */
+        #status-panel {
+            min-width: 300px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 4px 12px;
+            font-size: 0.85em;
+        }
+
+        .status-label {
+            color: #888;
+        }
+
+        .status-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .status-value.halted {
+            color: #ff0000;
+        }
+
+        .status-value.stalled {
+            color: #fdda61;
+        }
+
+        /* Registers */
+        .registers {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2px 8px;
+            font-size: 0.75em;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+        }
+
+        .reg-entry {
+            display: flex;
+            gap: 4px;
+        }
+
+        .reg-name {
+            color: #888;
+            min-width: 28px;
+        }
+
+        .reg-val {
+            color: #88ccff;
+        }
+
+        /* FPS counter */
+        .fps-display {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: #00ff88;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+        }
+
+        /* Key hints */
+        .key-hints {
+            margin-top: 10px;
+            font-size: 0.75em;
+            color: #666;
+            text-align: center;
+        }
+
+        .key-hints kbd {
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 3px;
+            padding: 1px 4px;
+            font-size: 0.9em;
+        }
+
+        /* Connection status */
+        .connection-status {
+            margin-top: 10px;
+            font-size: 0.8em;
+            text-align: center;
+        }
+
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 4px;
+        }
+
+        .dot.connected { background: #00ff88; }
+        .dot.disconnected { background: #ff0000; }
+        .dot.error { background: #fdda61; }
+    </style>
+</head>
+<body>
+    <h1>Doom-over-IPv6</h1>
+    <p class="subtitle">MBC CPU framebuffer &mdash; Packet-as-clock-tick compute engine</p>
+
+    <div class="container">
+        <!-- Screen Panel -->
+        <div class="panel" id="screen-panel">
+            <h2>Framebuffer (320x200)</h2>
+            <canvas id="doom-canvas" width="640" height="400"></canvas>
+            <div class="screen-controls">
+                <label>Scale:</label>
+                <select id="scale-select">
+                    <option value="1">1x (320x200)</option>
+                    <option value="2" selected>2x (640x400)</option>
+                    <option value="3">3x (960x600)</option>
+                </select>
+                <button id="btn-pause" title="Pause/resume screen refresh">Pause</button>
+                <button id="btn-screenshot" title="Save current frame as PNG">Screenshot</button>
+            </div>
+            <div class="key-hints">
+                <kbd>Arrow keys</kbd> move | <kbd>Ctrl</kbd> fire | <kbd>Space</kbd> use |
+                <kbd>Shift</kbd> run | <kbd>1-9</kbd> weapons
+            </div>
+        </div>
+
+        <!-- Status Panel -->
+        <div class="panel" id="status-panel">
+            <h2>CPU Status</h2>
+            <div class="status-grid">
+                <span class="status-label">Status:</span>
+                <span class="status-value" id="cpu-status">--</span>
+
+                <span class="status-label">PC:</span>
+                <span class="status-value" id="cpu-pc">--</span>
+
+                <span class="status-label">Flags:</span>
+                <span class="status-value" id="cpu-flags">--</span>
+
+                <span class="status-label">Instructions:</span>
+                <span class="status-value" id="cpu-insns">--</span>
+
+                <span class="status-label">Cache Hits:</span>
+                <span class="status-value" id="cpu-cache-hits">--</span>
+
+                <span class="status-label">Cache Misses:</span>
+                <span class="status-value" id="cpu-cache-misses">--</span>
+
+                <span class="status-label">Hit Rate:</span>
+                <span class="status-value" id="cpu-hit-rate">--</span>
+
+                <span class="status-label">IPS:</span>
+                <span class="status-value" id="cpu-ips">--</span>
+            </div>
+
+            <div class="registers" id="registers">
+                <!-- Filled by JS -->
+            </div>
+
+            <div class="connection-status" id="connection-status">
+                <span class="dot disconnected"></span> Connecting...
+            </div>
+        </div>
+    </div>
+
+    <div class="fps-display" id="fps-display">-- FPS</div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // --- Configuration ---
+        const SCREEN_W = 320;
+        const SCREEN_H = 200;
+        const STATUS_INTERVAL_MS = 200;
+        const SCREEN_INTERVAL_MS = 33; // ~30 FPS target
+
+        // --- State ---
+        let paused = false;
+        let lastInsnCount = 0;
+        let lastInsnTime = Date.now();
+        let frameCount = 0;
+        let lastFpsTime = Date.now();
+        let screenTimer = null;
+        let statusTimer = null;
+
+        // --- DOM Elements ---
+        const canvas = document.getElementById('doom-canvas');
+        const ctx = canvas.getContext('2d');
+        const scaleSelect = document.getElementById('scale-select');
+        const btnPause = document.getElementById('btn-pause');
+        const btnScreenshot = document.getElementById('btn-screenshot');
+        const fpsDisplay = document.getElementById('fps-display');
+        const connectionStatus = document.getElementById('connection-status');
+
+        // --- Canvas setup ---
+        function updateCanvasScale() {
+            const scale = parseInt(scaleSelect.value, 10);
+            canvas.width = SCREEN_W * scale;
+            canvas.height = SCREEN_H * scale;
+            ctx.imageSmoothingEnabled = false;
+        }
+
+        scaleSelect.addEventListener('change', updateCanvasScale);
+        updateCanvasScale();
+
+        // --- Screen fetching ---
+        async function fetchScreen() {
+            if (paused) return;
+            try {
+                const resp = await fetch('/doom/screen');
+                if (!resp.ok) {
+                    setConnectionStatus('error', 'Screen: ' + resp.status);
+                    return;
+                }
+
+                const buffer = await resp.arrayBuffer();
+                const pixels = new Uint8Array(buffer);
+
+                if (pixels.length < SCREEN_W * SCREEN_H) return;
+
+                // Create ImageData at native resolution
+                const imageData = ctx.createImageData(SCREEN_W, SCREEN_H);
+                const data = imageData.data;
+
+                // Convert 8-bit indexed color to RGBA
+                // Doom uses a 256-color VGA palette. For now, use grayscale mapping.
+                // A proper palette can be loaded from the WAD file later.
+                for (let i = 0; i < SCREEN_W * SCREEN_H; i++) {
+                    const val = pixels[i];
+                    const idx = i * 4;
+                    // Simple grayscale mapping
+                    data[idx] = val;     // R
+                    data[idx+1] = val;   // G
+                    data[idx+2] = val;   // B
+                    data[idx+3] = 255;   // A
+                }
+
+                // Draw at native res then let canvas scale
+                const scale = parseInt(scaleSelect.value, 10);
+                if (scale === 1) {
+                    ctx.putImageData(imageData, 0, 0);
+                } else {
+                    // Create offscreen canvas at native res, then draw scaled
+                    const offscreen = new OffscreenCanvas(SCREEN_W, SCREEN_H);
+                    const offCtx = offscreen.getContext('2d');
+                    offCtx.putImageData(imageData, 0, 0);
+                    ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
+                }
+
+                frameCount++;
+                setConnectionStatus('connected', 'Screen streaming');
+            } catch (err) {
+                setConnectionStatus('error', 'Fetch failed: ' + err.message);
+            }
+        }
+
+        // --- Status fetching ---
+        async function fetchStatus() {
+            try {
+                const resp = await fetch('/doom/status');
+                if (!resp.ok) return;
+
+                const status = await resp.json();
+
+                // Update status fields
+                const statusEl = document.getElementById('cpu-status');
+                statusEl.textContent = status.status;
+                statusEl.className = 'status-value' + (status.halted ? ' halted' : '') + (status.stalled ? ' stalled' : '');
+
+                document.getElementById('cpu-pc').textContent = '0x' + status.pc.toString(16).toUpperCase().padStart(8, '0');
+                document.getElementById('cpu-flags').textContent = status.flag_str + ' (0x' + status.flags.toString(16).toUpperCase().padStart(2, '0') + ')';
+                document.getElementById('cpu-insns').textContent = status.insn_count.toLocaleString();
+                document.getElementById('cpu-cache-hits').textContent = status.cache_hits.toLocaleString();
+                document.getElementById('cpu-cache-misses').textContent = status.cache_misses.toLocaleString();
+
+                const total = status.cache_hits + status.cache_misses;
+                const hitRate = total > 0 ? ((status.cache_hits / total) * 100).toFixed(1) + '%' : '--';
+                document.getElementById('cpu-hit-rate').textContent = hitRate;
+
+                // IPS calculation
+                const now = Date.now();
+                const elapsed = (now - lastInsnTime) / 1000;
+                if (elapsed > 0) {
+                    const ips = (status.insn_count - lastInsnCount) / elapsed;
+                    document.getElementById('cpu-ips').textContent = formatIPS(ips);
+                }
+                lastInsnCount = status.insn_count;
+                lastInsnTime = now;
+
+                // Update registers
+                updateRegisters(status.registers);
+            } catch (err) {
+                // Silently ignore status fetch errors
+            }
+        }
+
+        function formatIPS(ips) {
+            if (ips >= 1e9) return (ips / 1e9).toFixed(1) + ' G';
+            if (ips >= 1e6) return (ips / 1e6).toFixed(1) + ' M';
+            if (ips >= 1e3) return (ips / 1e3).toFixed(1) + ' K';
+            return Math.round(ips).toString();
+        }
+
+        function updateRegisters(regs) {
+            if (!regs || regs.length < 16) return;
+            const container = document.getElementById('registers');
+            container.innerHTML = '';
+            for (let i = 0; i < 16; i++) {
+                const name = i === 15 ? 'SP' : 'r' + i;
+                const val = '0x' + regs[i].toString(16).toUpperCase().padStart(8, '0');
+                const entry = document.createElement('div');
+                entry.className = 'reg-entry';
+                entry.innerHTML = '<span class="reg-name">' + name + '</span><span class="reg-val">' + val + '</span>';
+                container.appendChild(entry);
+            }
+        }
+
+        // --- FPS counter ---
+        function updateFPS() {
+            const now = Date.now();
+            const elapsed = (now - lastFpsTime) / 1000;
+            if (elapsed >= 1) {
+                const fps = frameCount / elapsed;
+                fpsDisplay.textContent = fps.toFixed(0) + ' FPS';
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+        }
+
+        // --- Keyboard input ---
+        // Map browser key codes to Doom scancodes
+        const KEY_MAP = {
+            'ArrowUp':    0x48,  // UPARROW
+            'ArrowDown':  0x50,  // DOWNARROW
+            'ArrowLeft':  0x4B,  // LEFTARROW
+            'ArrowRight': 0x4D,  // RIGHTARROW
+            'Control':    0x1D,  // FIRE
+            'Space':      0x39,  // USE
+            'Shift':      0x36,  // RSHIFT (run)
+            'Enter':      0x1C,  // ENTER
+            'Escape':     0x01,  // ESCAPE
+            'Tab':        0x0F,  // TAB (map)
+            'Digit1':     0x02,
+            'Digit2':     0x03,
+            'Digit3':     0x04,
+            'Digit4':     0x05,
+            'Digit5':     0x06,
+            'Digit6':     0x07,
+            'Digit7':     0x08,
+            'Digit8':     0x09,
+            'Digit9':     0x0A,
+            'KeyW':       0x48,  // Alternative: W = up
+            'KeyS':       0x50,  // S = down
+            'KeyA':       0x4B,  // A = left
+            'KeyD':       0x4D,  // D = right
+        };
+
+        async function sendKey(scancode, pressed) {
+            try {
+                await fetch('/doom/input', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: scancode, pressed: pressed })
+                });
+            } catch (err) {
+                // Silently ignore send errors
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            const scancode = KEY_MAP[e.code] || KEY_MAP[e.key];
+            if (scancode !== undefined) {
+                e.preventDefault();
+                sendKey(scancode, true);
+            }
+        });
+
+        document.addEventListener('keyup', function(e) {
+            const scancode = KEY_MAP[e.code] || KEY_MAP[e.key];
+            if (scancode !== undefined) {
+                e.preventDefault();
+                sendKey(scancode, false);
+            }
+        });
+
+        // --- Controls ---
+        btnPause.addEventListener('click', function() {
+            paused = !paused;
+            btnPause.textContent = paused ? 'Resume' : 'Pause';
+            btnPause.classList.toggle('active', paused);
+        });
+
+        btnScreenshot.addEventListener('click', function() {
+            const link = document.createElement('a');
+            link.download = 'doom-frame-' + Date.now() + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
+        // --- Connection status ---
+        function setConnectionStatus(state, text) {
+            const dotClass = state === 'connected' ? 'connected' : state === 'error' ? 'error' : 'disconnected';
+            connectionStatus.innerHTML = '<span class="dot ' + dotClass + '"></span> ' + text;
+        }
+
+        // --- Main loops ---
+        function startScreenLoop() {
+            if (screenTimer) clearInterval(screenTimer);
+            screenTimer = setInterval(function() {
+                fetchScreen();
+                updateFPS();
+            }, SCREEN_INTERVAL_MS);
+        }
+
+        function startStatusLoop() {
+            if (statusTimer) clearInterval(statusTimer);
+            statusTimer = setInterval(fetchStatus, STATUS_INTERVAL_MS);
+        }
+
+        // --- Initialize ---
+        setConnectionStatus('disconnected', 'Starting...');
+        startScreenLoop();
+        startStatusLoop();
+        fetchStatus();
+
+        // Draw initial "waiting" message
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff5c00';
+        ctx.font = '20px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('Waiting for Doom framebuffer...', canvas.width/2, canvas.height/2);
+        ctx.font = '14px Courier New';
+        ctx.fillStyle = '#888';
+        ctx.fillText('Ensure BPF maps are loaded and CPU is running', canvas.width/2, canvas.height/2 + 30);
+    })();
+    </script>
+</body>
+</html>

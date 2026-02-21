@@ -291,8 +291,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             branch_raw as i32
         };
 
+        // ── No-op ─────────────────────────────────────────────────────────────
+        if opc == op::NOP {
+            // No operation — just advance PC (already done above).
+
         // ── Arithmetic ────────────────────────────────────────────────────────
-        if opc == op::ADD {
+        } else if opc == op::ADD {
             let (r, c) = cpu.regs[d].overflowing_add(cpu.regs[s]);
             cpu.regs[d] = r;
             set_flags(cpu, r, c);
@@ -378,6 +382,27 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let r = ((a * b) >> 32) as u32;
             cpu.regs[d] = r;
             set_flags(cpu, r, false);
+
+        // ── Stack operations ─────────────────────────────────────────────────
+        } else if opc == op::PUSH {
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(1);
+            let sp = cpu.regs[15];
+            mem_write_word(sp, cpu.regs[d]);
+        } else if opc == op::POP {
+            let sp = cpu.regs[15];
+            cpu.regs[d] = mem_read_word(sp);
+            cpu.regs[15] = sp.wrapping_add(1);
+
+        // ── Extended immediate ───────────────────────────────────────────────
+        } else if opc == op::LOAD_IMM32 {
+            // regs[d][31:16] = imm16, preserve lower 16 bits.
+            cpu.regs[d] = (imm << 16) | (cpu.regs[d] & 0xFFFF);
+        } else if opc == op::ADDI {
+            // dst = dst + sign_extend(imm16)
+            let sext = imm as u16 as i16 as i32 as u32;
+            let (r, c) = cpu.regs[d].overflowing_add(sext);
+            cpu.regs[d] = r;
+            set_flags(cpu, r, c);
 
         // ── Register moves ────────────────────────────────────────────────────
         } else if opc == op::MOV {
