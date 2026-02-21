@@ -589,19 +589,15 @@ impl Translator {
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
 
                         if imm12 != 0 {
-                            if imm12 >= 0 && imm12 <= 0xFFFF {
-                                self.emit(op::MOVI, 0, 0, imm12 as u16);
-                                self.emit(op::ADD, mbc_rd, 0, 0);
-                            } else if imm12 < 0 && imm12 >= -65535 {
-                                let abs = (-imm12) as u16;
-                                self.emit(op::MOVI, 0, 0, abs);
-                                self.emit(op::SUB, mbc_rd, 0, 0);
+                            // Use MBC ADDI when imm fits in signed 16-bit range
+                            if imm12 >= -32768 && imm12 <= 32767 {
+                                self.emit(op::ADDI, mbc_rd, 0, imm12 as u16);
                             } else {
                                 // Large immediate: use 32-bit load into r0.
                                 self.emit_load32(0, imm12 as u32);
                                 self.emit(op::ADD, mbc_rd, 0, 0);
+                                self.emit(op::MOVI, 0, 0, 0); // restore r0
                             }
-                            self.emit(op::MOVI, 0, 0, 0); // restore r0
                         }
                         self.guard_zero_dst(rd);
                     }

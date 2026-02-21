@@ -1014,6 +1014,10 @@ impl MbcInsn {
 
 /// MBC opcode values.
 pub mod mbc_opcodes {
+    // ── No-op ─────────────────────────────────────────────────
+    /// No operation.  CPU advances PC, no other side effects.
+    pub const NOP:  u8 = 0x00;
+
     // ── Arithmetic ────────────────────────────────────────────
     /// `dst = dst + src`
     pub const ADD:  u8 = 0x01;
@@ -1043,6 +1047,18 @@ pub mod mbc_opcodes {
     pub const SHR:  u8 = 0x0C;
     /// `dst = dst >> imm16`  (arithmetic, sign-extending)
     pub const SAR:  u8 = 0x0D;
+
+    // ── Stack operations ───────────────────────────────────────
+    /// `SP -= 1; ram[SP] = regs[dst]` (push register to stack)
+    pub const PUSH: u8 = 0x1A;
+    /// `regs[dst] = ram[SP]; SP += 1` (pop stack to register)
+    pub const POP:  u8 = 0x1B;
+
+    // ── Extended immediate ────────────────────────────────────
+    /// `regs[dst][31:16] = imm16` (load upper 16 bits, preserving lower 16)
+    pub const LOAD_IMM32: u8 = 0x1C;
+    /// `dst = dst + sign_extend(imm16)` (add immediate)
+    pub const ADDI: u8 = 0x1D;
 
     // ── Register-based shifts ──────────────────────────────────
     /// `dst = dst << (src & 31)` (shift left by register)
