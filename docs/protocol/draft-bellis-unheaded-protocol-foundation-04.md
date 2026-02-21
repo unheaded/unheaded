@@ -26,9 +26,9 @@ keyword:
 
 author:
   - ins: S. Bellis
-    name: Steven Bellis
+    name: Stevie Bellis
     org: Unheaded
-    email: stevenrbellis@gmail.com
+    email: stevie@bellis.tech
     country: US
 
 pi:
@@ -58,6 +58,16 @@ informative:
   RFC9370:
   RFC9486:
   RFC9631:
+  MONAD-EXT-REG:
+    title: "Monad Extended Register Option for the Unheaded Protocol"
+    author:
+      - ins: S. Bellis
+        name: Stevie Bellis
+    date: 2026-02
+    seriesinfo:
+      Internet-Draft: draft-bellis-unheaded-monad-extended-register-00
+    target: draft-bellis-unheaded-monad-extended-register-00
+  RFC0950:
   FIPS203:
     title: "Module-Lattice-Based Key-Encapsulation Mechanism Standard"
     author:
@@ -384,6 +394,22 @@ scratch:
 checksum:
 : A 16-bit CRC-16/CCITT checksum computed over the first 18 bytes
   (0x00-0x11) of the Monad. See Section 5.4.
+
+### Extended Register Option
+
+The 20-byte primary register file defined above MAY be complemented by
+an optional Extended Register Option carried as a second IPv6 HbH option
+within the same extension header.  The extended option provides
+additional registers (r16-r31) using the complement space principle:
+the bitwise inverse of the primary register map identifies available
+compute capacity, formalized as a separate option with its own type
+code.  This approach derives from the inverted subnet mask (wildcard
+mask) formalism established in {{RFC0950}}.
+
+The Extended Register Option is defined in {{MONAD-EXT-REG}}.  Nodes
+that do not recognize the extended option MUST skip it per {{RFC8200}}
+option type processing rules (act=00).  The primary Monad option format
+is unchanged; the extended option is purely additive.
 
 ## Flags Bitfield
 
@@ -1734,6 +1760,8 @@ The following changes are made in draft-04 to address S21 assessment findings:
 3. **Patch M5: Strict Version Checking (No Fallback)**: Clarified version field semantics - implementations MUST drop packets with unknown versions immediately, with no version negotiation or fallback. This eliminates parser divergence attacks (X4 finding).
 
 4. **Known Cross-Reference Issue (Rust Code Discrepancy)**: The Rust implementation in ebpf/monad-common/src/lib.rs defines a different wire format than draft-03. This has been noted but NOT changed in this draft pending RFC author clarification. See Security Considerations section for details.
+
+5. **Forward Reference: Extended Register Option**: Added informative reference to {{MONAD-EXT-REG}} and a new subsection under Monad Register File describing the optional Extended Register Option.  The extension doubles MBC compute capacity by claiming the complement space of the primary register map as a second HbH option, inspired by the wildcard mask formalism of {{RFC0950}}.
 
 ---
 # Acknowledgments

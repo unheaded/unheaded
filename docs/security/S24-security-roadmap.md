@@ -28,7 +28,7 @@ The following critical security items from S22 have been resolved:
 - **Implementation**: `SECURITY.md` at repository root
 - **Details**:
   - Supported versions table (current: 1.0.x)
-  - Security contact: stevenrbellis@gmail.com
+  - Security contact: stevie@bellis.tech
   - 90-day disclosure timeline
   - Clear reporting format requirements
   - Distinction between in-scope (platform) and out-of-scope (customer apps)
