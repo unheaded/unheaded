@@ -12,7 +12,7 @@
 
 ```
                     ╔══════════════════════════════════════╗
-                    ║    👑 THE MATRIARCH/PATRIARCH 👑     ║
+                    ║       👑 MAD-MARIA 👑               ║
                     ║         (Muck - Creator/God)          ║
                     ║   "From chaos, order. From will, code."║
                     ╚══════════════════╦═══════════════════╝

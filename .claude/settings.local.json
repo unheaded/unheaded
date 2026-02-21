@@ -83,7 +83,18 @@
       "Bash(sudo kill:*)",
       "Bash(sudo bpftool net:*)",
       "Bash(sudo bpftool map update:*)",
-      "Bash(sudo bpftool:*)"
+      "Bash(sudo bpftool:*)",
+      "Bash(go vet:*)",
+      "Bash(CARGO_TARGET_DIR=/tmp/common-test-target cargo test:*)",
+      "Bash(tee:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(go mod verify:*)",
+      "Bash(go install:*)",
+      "Bash(golangci-lint run:*)",
+      "Bash(govulncheck:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker-compose:*)"
     ]
   }
 }

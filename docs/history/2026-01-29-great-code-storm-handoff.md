@@ -14,7 +14,7 @@
 
 ## Critical Philosophy Shift
 
-**THE MATRIARCH/PATRIARCH HAS SPOKEN:**
+**MAD-MARIA HAS SPOKEN:**
 
 1. **eBPF MUST be Rust** - Go is too slow for packet-path processing
 2. **External dependencies are OPTIONAL integrations** - not requirements
