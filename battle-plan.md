@@ -72,7 +72,9 @@ But the spectacle has accumulated technical debt. Development tooling lives in `
 
 ### The Blueprint Reveals (Architect — Infrastructure & Design)
 
-**Architecture Health**: 23 services in `services/`. All 8 core services have HTTP APIs with health/ready/metrics. Monad (port 8004) and Sophia (port 8005) operational. Gateway routing complete. Docker Compose and NixOS container definitions for all services. The Doom PoC added 4 new components: monad-cpu-ebpf (Rust/eBPF), rv32i-to-mbc translator (Rust), doom-loader pipeline (Python/bash), bulk_inject (Python).
+**Architecture Health**: 23 services in `services/`. All 8 core services have HTTP APIs with health/ready/metrics. Monad (port 8004) and Sophia (port 8005) operational. Gateway routing complete. Container definitions for all services across interchangeable runtimes (LXD, containerd, NixOS, Docker). The Doom PoC added 4 new components: monad-cpu-ebpf (Rust/eBPF), rv32i-to-mbc translator (Rust), doom-loader pipeline (Python/bash), bulk_inject (Python).
+
+**Container Architecture**: Runtime-agnostic. Unheaded treats the container runtime as a deployment-time choice, not an architectural decision. The control plane abstracts LXD, containerd, NixOS, and Docker behind a common interface. Same hardening baseline (seccomp, capabilities, read-only FS, default-deny networking) applies uniformly regardless of runtime. NixOS definitions in `nix/containers/` serve as reference implementations; other runtimes map to equivalent security postures.
 
 **Protocol Status**:
 - **Monad**: 20-byte wire format SPECIFIED. Section 12 (computational completeness) PROVEN via Doom. CRC-16/CCITT verified. Exponent encoding operational.
@@ -469,7 +471,7 @@ From TODO.md — prioritized for WS5 integration:
 - **6 BUGS KILLED IN ONE SESSION** — strncpy off-by-one, I_Error, G_DoPlayDemo NULL, Z_Malloc infinite loop, V_DrawPatch NULL, stale doom_data.bin. Adversarial debugging at its finest.
 - **LICH-007: 1B+ EXECUTIONS, ZERO CRASHES** — The MBC bytecode interpreter is fuzzer-hardened.
 - **33 DAYS FROM FIRST COMMIT TO DOOM IN eBPF** — Jan 20 "Initial commit" → Feb 22 "D_DoomLoop running." One engineer. One AI. One Kingdom.
-- **255K+ LINES OF CODE** — 23 services, 611 Go files, 14 Rust crates, eBPF programs, NixOS configs, dashboard, kanban. An entire platform.
+- **255K+ LINES OF CODE** — 23 services, 611 Go files, 14 Rust crates, eBPF programs, container definitions (LXD/containerd/NixOS/Docker), dashboard, kanban. An entire platform.
 - **unheaded.org REGISTERED** — The domain. The name. The Kingdom has an address.
 
 ---

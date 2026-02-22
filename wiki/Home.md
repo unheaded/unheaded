@@ -84,7 +84,7 @@
 
 ## Infrastructure
 
-- [[NixOS Containers|NixOS-Containers]] — Immutable container definitions
+- [[Containers|Containers]] — Immutable container definitions. LXD, containerd, NixOS, Docker
 - [[eBPF Programs|eBPF-Programs]] — Rust/Aya packet tracing
 - [[Fae Chamber Contracts|Fae-Chamber-Contracts]] — Service interface contracts
 - [[Service Breakout Strategy|Service-Breakout-Strategy]] — Post-alpha repo separation
