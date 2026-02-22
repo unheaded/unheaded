@@ -86,7 +86,7 @@ The Unheaded Kingdom delivers the complete **Suit of Armor** for modern SaaS app
 
 **The Sacred Pillars:**
 - 🌑 **The Whispering Void** - eBPF-based observability (L2-L7) - we see ALL
-- ❄️ **Immutable Citadels** - NixOS containers - reproducible, rollback-ready
+- ❄️ **Immutable Citadels** - Interchangeable container runtimes (LXD, containerd, NixOS, Docker) - reproducible, rollback-ready
 - 🔒 **The Sacred Law** - Zero customer data access - architectural, not policy
 - 📜 **Compliance Scrolls** - FEDRAMP, SOC2, NIST, PCI-DSS, HIPAA, ITAR, GDPR
 - ⚡ **Drop-In Deployment** - One command, full kingdom
@@ -210,19 +210,26 @@ Each persona of the Royal Court takes physical form as a running service. Four a
 **Container Stack - The Fortresses**
 *ETA: Feb 5-6, 2026 | STATUS: 75% COMPLETE ✓ (Container runtime forged, NixOS 35%)*
 
-NixOS containers - immutable, reproducible citadels. Each service gets its own hardened fortress.
+Immutable, reproducible citadels. Each service gets its own hardened fortress. Runtime-agnostic: LXD, containerd, NixOS, and Docker are interchangeable drop-in runtimes. The control plane abstracts the runtime behind a common interface. Same hardening baseline applies uniformly regardless of runtime choice.
+
+**Supported Runtimes:**
+- **LXD** — System containers, NixOS guests, full OS isolation (primary for alpha)
+- **containerd** — OCI-native, Kubernetes-ready, lightweight
+- **NixOS** — Declarative, immutable, reproducible definitions
+- **Docker** — Development, CI/CD, Docker Compose stacks
 
 **Artifacts to Forge:**
-- [ ] NixOS flake structure - the master blueprint
-- [ ] Container definition templates (per service citadel)
-- [ ] Hardening modules (seccomp, capabilities, read-only FS)
+- [ ] NixOS flake structure - the master blueprint (reference implementation)
+- [ ] Container definition templates (per service citadel, runtime-agnostic)
+- [ ] Hardening modules (seccomp, capabilities, read-only FS — all runtimes)
 - [ ] Network policies (default deny - The Closed Gate)
 - [ ] Gateway configuration (nginx HTTP/3 - The Main Gate)
-- [ ] Container build pipeline testing
+- [ ] Container build pipeline testing (all runtimes)
+- [ ] Runtime abstraction layer in unheaded-daemon
 
 **Dependencies:** Services (1.3) must define their API contracts
-**Risk:** Low - declarative work, NixOS is predictable
-**Owner:** The Architect (NixOS focus)
+**Risk:** Low - declarative work, NixOS reference is predictable, other runtimes map 1:1
+**Owner:** The Architect
 
 ---
 
@@ -1328,32 +1335,35 @@ All 7 Unheaded skills checked and aligned:
 
 ### IMMEDIATE PRIORITIES (Next 3 Sessions)
 
-#### 1. 🛡️ Real LXD Integration - The Cuirass Awakens
+#### 1. 🛡️ Container Runtime Integration - The Cuirass Awakens
 *Priority: HIGH | Owner: Architect + Developer*
 
-Replace mock implementations with actual LXD client in the Cuirass control plane.
+Replace mock implementations with real container runtime clients in the Cuirass control plane. Runtime-agnostic: LXD, containerd, NixOS, and Docker are interchangeable drop-in backends.
 
 **Tasks:**
-- [ ] Install and configure LXD on development environment
-- [ ] Implement real `LXDClient` using `github.com/lxc/lxd/client`
-- [ ] Container lifecycle operations (create/start/stop/delete)
+- [ ] Define `RuntimeClient` interface (create/start/stop/delete/snapshot/health)
+- [ ] Implement `LXDClient` using `github.com/lxc/lxd/client`
+- [ ] Implement `ContainerdClient` using `containerd` Go client
+- [ ] Implement `DockerClient` using Docker Engine API
+- [ ] Container lifecycle operations (create/start/stop/delete) — all runtimes
 - [ ] Snapshot management for immutable rollbacks
 - [ ] Network namespace integration for VXLAN/BGP prep
-- [ ] Integration tests with real containers
+- [ ] Integration tests with real containers (per runtime)
 - [ ] Health check probes against live containers
+- [ ] Runtime selection via config: `runtime: lxd | containerd | docker | nixos`
 
 **Success Criteria:**
 ```bash
-make run-daemon  # Cuirass starts
-curl localhost:8080/api/v1/containers  # Shows real LXD containers
+make run-daemon  # Cuirass starts with configured runtime
+curl localhost:8080/api/v1/containers  # Shows containers (any runtime)
 ```
 
 ---
 
-#### 2. ❄️ NixOS Citadels - The Fortresses Rise
+#### 2. ❄️ Container Definitions - The Fortresses Rise
 *Priority: HIGH | Owner: Architect*
 
-Build the NixOS flake structure for immutable, reproducible container definitions.
+Build container definitions for immutable, reproducible citadels. NixOS flake as reference implementation; equivalent definitions for containerd, Docker.
 
 **Tasks:**
 - [ ] Initialize flake.nix with proper inputs (nixpkgs, flake-utils)

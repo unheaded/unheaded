@@ -41,7 +41,7 @@
 - [[Kanban|Service-Kanban-App]]
 
 **Infrastructure**
-- [[NixOS Containers|NixOS-Containers]]
+- [[Containers]]
 - [[eBPF Programs|eBPF-Programs]]
 - [[Service Breakout|Service-Breakout-Strategy]]
 
