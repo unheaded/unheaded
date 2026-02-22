@@ -41,11 +41,11 @@ Layer 0: Infrastructure (LXD, host OS)
 |-----------|-----------|-----------|
 | eBPF programs | **Rust** (Aya framework) | Memory safety + performance for kernel |
 | Services | **Go 1.21+** | Simplicity, concurrency, tooling |
-| Containers | **NixOS** | Declarative, immutable, reproducible |
-| Message Bus | **Wotan** (Go + gRPC) | Proven in Phase 1, custom |
+| Containers | **LXD / containerd / NixOS / Docker** | Interchangeable drop-in runtimes, same hardening baseline |
+| Message Bus | **Wotan** (Go + gRPC) | Triple-role: ring buffer + event bus + protocol RAM |
 | Gateway | **nginx** | Battle-tested, HTTP/3 support |
 | Frontend | **Vanilla JS** | No framework overhead, full control |
-| Orchestration | **LXD** | Lightweight system containers |
+| Orchestration | **LXD** (primary), containerd, Docker | Runtime-agnostic control plane |
 
 ### Network Design
 
