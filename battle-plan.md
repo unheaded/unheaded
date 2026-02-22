@@ -76,6 +76,16 @@ But the spectacle has accumulated technical debt. Development tooling lives in `
 
 **Container Architecture**: Runtime-agnostic. Unheaded treats the container runtime as a deployment-time choice, not an architectural decision. The control plane abstracts LXD, containerd, NixOS, and Docker behind a common interface. Same hardening baseline (seccomp, capabilities, read-only FS, default-deny networking) applies uniformly regardless of runtime. NixOS definitions in `nix/containers/` serve as reference implementations; other runtimes map to equivalent security postures.
 
+**IaC Output Architecture**: Backend-agnostic. Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers:
+- **Ansible** — Playbooks, roles, inventory (agentless push-based)
+- **Terraform** — HCL modules, providers, state (cloud provisioning)
+- **Puppet** — Manifests, Hiera data, modules (agent-based declarative)
+- **Kubernetes** — Manifests, Helm charts, operators (container orchestration at scale)
+- **Chef** — Cookbooks, recipes, data bags (Ruby-based config)
+- **Salt** — States, pillars, grains (event-driven, high-speed)
+
+The IaC layer consumes the same core packages (`pkg/`) and generates output in the customer's dialect. Adding a new backend is an output renderer — the control plane and eBPF layer don't change.
+
 **Protocol Status**:
 - **Monad**: 20-byte wire format SPECIFIED. Section 12 (computational completeness) PROVEN via Doom. CRC-16/CCITT verified. Exponent encoding operational.
 - **Sophia**: Dictionary tree structure defined. BPF map layout specified. Root dictionary + 6 sub-dictionaries.
@@ -267,7 +277,7 @@ Week 3+ (Mar 8 onwards): WS5 — Return to Core
 | Framework | Status | Gap | WS5 Impact |
 |-----------|--------|-----|-----------|
 | SOC2 Type I | NOT STARTED | No access controls, no audit logging, no change management evidence | Must begin in WS5 |
-| NIST 800-53 | PARTIAL | AC-* (access control) family entirely missing. AU-* (audit) partial via git. CM-* (config management) strong via NixOS. | NixOS + IaC is a strength |
+| NIST 800-53 | PARTIAL | AC-* (access control) family entirely missing. AU-* (audit) partial via git. CM-* (config management) strong via declarative IaC (Ansible/Terraform/Puppet/K8s/Chef/Salt). | IaC backends + immutable containers is a strength |
 | CIS Benchmarks | NOT TESTED | NixOS container hardening defined but not validated | Run CIS-CAT against containers in WS5 |
 | SBOM | MISSING | No syft/cyclonedx integration. P0 #13 in TODO.md | Add to CI in WS4 or WS5 |
 | Supply Chain | WEAK | gosec@master unpinned (P0 #11), no dependency pinning for Python scripts | Quick fix in hardening sprint |
