@@ -21,7 +21,8 @@ in a mock infrastructure environment.
 ## What It Does
 
 - eBPF-based observability with packet-level tracing from L2 to L7.
-- Immutable infrastructure using either Kubernetes, Docker Swarm, or NixOS containers on LXD.
+- Immutable infrastructure via interchangeable container runtimes (LXD, containerd, NixOS, Docker).
+- Interchangeable IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt) — your tools, our state model.
 - Dual-layered service mesh built on the Wotan ephemeral ring buffer and BGP.
 - Control plane with declarative config and drift detection.
 - Security baseline aligned to FEDRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, and GDPR.

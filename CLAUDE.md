@@ -14,7 +14,8 @@ Unheaded is a configuration management automation platform delivering complete i
 
 **Core Capabilities:**
 - ✅ eBPF-based observability (L2-L7 tracing)
-- ✅ Immutable NixOS infrastructure
+- ✅ Immutable infrastructure (LXD, containerd, NixOS, Docker)
+- ✅ Interchangeable IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt)
 - ✅ Zero customer data access (architectural isolation)
 - ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
@@ -46,6 +47,7 @@ Layer 0: Infrastructure (LXD, host OS)
 | Gateway | **nginx** | Battle-tested, HTTP/3 support |
 | Frontend | **Vanilla JS** | No framework overhead, full control |
 | Orchestration | **LXD** (primary), containerd, Docker | Runtime-agnostic control plane |
+| Config Management | **Ansible / Terraform / Puppet / Kubernetes / Chef / Salt** | Interchangeable IaC backends, same desired-state model |
 
 ### Network Design
 
@@ -92,14 +94,27 @@ Layer 0: Infrastructure (LXD, host OS)
 ### 3. Declarative Everything
 
 **All config in version control:**
-- NixOS container definitions (nix/containers/*.nix)
+- Container definitions (NixOS reference, plus Docker/containerd/LXD equivalents)
+- IaC output modules (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt)
 - Service configs (YAML/TOML)
 - Network policies
 - Security baselines
 - Timeline and strategy (MD/JSON/YAML)
 
+**IaC Output Strategy:**
+Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers:
+
+| Backend | Output | Use Case |
+|---------|--------|----------|
+| **Ansible** | Playbooks, roles, inventory | Agentless push-based config |
+| **Terraform** | HCL modules, providers, state | Cloud infrastructure provisioning |
+| **Puppet** | Manifests, Hiera data, modules | Agent-based declarative config |
+| **Kubernetes** | Manifests, Helm charts, operators | Container orchestration at scale |
+| **Chef** | Cookbooks, recipes, data bags | Ruby-based config management |
+| **Salt** | States, pillars, grains | Event-driven, high-speed config |
+
 **State management:**
-- Desired state: Git (Nix configs)
+- Desired state: Git (declarative configs, IaC modules)
 - Actual state: /var/lib/unheaded/state/*.json
 - Drift detection: unheaded-daemon polls every 30s
 - Auto-remediation: restart with correct config

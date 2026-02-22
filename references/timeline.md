@@ -87,6 +87,7 @@ The Unheaded Kingdom delivers the complete **Suit of Armor** for modern SaaS app
 **The Sacred Pillars:**
 - 🌑 **The Whispering Void** - eBPF-based observability (L2-L7) - we see ALL
 - ❄️ **Immutable Citadels** - Interchangeable container runtimes (LXD, containerd, NixOS, Docker) - reproducible, rollback-ready
+- 🔧 **The Forge of Many Tongues** - Interchangeable IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt) - your tools, our state model
 - 🔒 **The Sacred Law** - Zero customer data access - architectural, not policy
 - 📜 **Compliance Scrolls** - FEDRAMP, SOC2, NIST, PCI-DSS, HIPAA, ITAR, GDPR
 - ⚡ **Drop-In Deployment** - One command, full kingdom
@@ -230,6 +231,40 @@ Immutable, reproducible citadels. Each service gets its own hardened fortress. R
 **Dependencies:** Services (1.3) must define their API contracts
 **Risk:** Low - declarative work, NixOS reference is predictable, other runtimes map 1:1
 **Owner:** The Architect
+
+---
+
+#### Epoch 1.4b: The Forge of Many Tongues
+**IaC Output Backends - Speak the Customer's Language**
+*ETA: Age 2 (Beta) | STATUS: SCAFFOLDED (output renderer interface defined)*
+
+Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers.
+
+**Supported Backends:**
+
+| Backend | Output Format | Use Case |
+|---------|--------------|----------|
+| **Ansible** | Playbooks, roles, inventory | Agentless push-based config |
+| **Terraform** | HCL modules, providers, state | Cloud infrastructure provisioning |
+| **Puppet** | Manifests, Hiera data, modules | Agent-based declarative config |
+| **Kubernetes** | Manifests, Helm charts, operators | Container orchestration at scale |
+| **Chef** | Cookbooks, recipes, data bags | Ruby-based config management |
+| **Salt** | States, pillars, grains | Event-driven, high-speed config |
+
+**Artifacts to Forge:**
+- [ ] `IaCRenderer` interface in `pkg/iac/` — common output contract
+- [ ] Ansible renderer — playbook + role generation from desired state
+- [ ] Terraform renderer — HCL module generation from desired state
+- [ ] Puppet renderer — manifest generation from desired state
+- [ ] Kubernetes renderer — manifest + Helm chart generation
+- [ ] Chef renderer — cookbook generation from desired state
+- [ ] Salt renderer — state file generation from desired state
+- [ ] Integration tests — each renderer produces valid, lintable output
+- [ ] `unheaded generate --backend=ansible|terraform|puppet|k8s|chef|salt`
+
+**Dependencies:** Core packages (pkg/) must define desired-state schema
+**Risk:** Low — output renderers are pure functions consuming a shared model
+**Owner:** The Developer + The Architect
 
 ---
 
