@@ -186,9 +186,10 @@ load_cpu() {
         exit 1
     fi
 
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" cpu "$cpu_pin"
+    # Instance 0xDE matches the default flow_label in bulk_inject.py
+    python3 "${SCRIPT_DIR}/doom-loader-core.py" cpu "$cpu_pin" 0xDE
 
-    log_info "CPU state initialized: PC=0, SP=0x1000000"
+    log_info "CPU state initialized: instance=0xDE, PC=0, SP=0x3F00000"
 }
 
 # ============================================================================
