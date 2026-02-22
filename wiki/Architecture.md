@@ -30,6 +30,13 @@ Layer 0: Infrastructure (LXD, host OS)
 | Gateway | nginx | Battle-tested, HTTP/3 support |
 | Frontend | Vanilla JS | No framework overhead, full control |
 | Orchestration | LXD (primary), containerd, Docker | Runtime-agnostic control plane |
+| Config Management | Ansible / Terraform / Puppet / K8s / Chef / Salt | Interchangeable IaC output backends |
+
+## IaC Output Strategy
+
+Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers. Adding a new backend is an output renderer — the control plane and eBPF layer don't change.
+
+See [[IaC Backends|IaC-Backends]] for details on each supported backend.
 
 ---
 

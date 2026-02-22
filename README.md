@@ -8,6 +8,10 @@ else: packet-level observability, service mesh, control plane,
 security baseline, and a protocol that turns every packet into
 a 20-byte register file executing eBPF programs at wire speed.
 
+Interchangeable container runtimes (LXD, containerd, NixOS, Docker)
+and IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt).
+Your tools, our state model.
+
 ## Status
 
 Alpha (~99%).  465,000+ LOC (433K code + 32K docs).  25 services, 37 packages,
