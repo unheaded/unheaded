@@ -67,12 +67,15 @@ use monad_common::{
 #[map]
 static ROM_MAP: Array<u32> = Array::with_max_entries(262_144, 0);
 
-/// RAM: sparse word-addressable memory.
-/// Key = word address (byte_addr >> 2).  Value = 32-bit word.
-/// Covers full 8 MiB address space word-addressed (2M word entries = 8 MiB).
-/// Zero-initialized: missing key → value 0.
+/// RAM: word-addressable memory backed by a BPF Array.
+/// Index = word address (byte_addr >> 2 for LD/ST, direct for CALL/RET stack).
+/// 16M entries (64 MiB kernel memory) covers Doom's full address space:
+///   - LD/ST: byte_addr >> 2, max ~4M (stack at 0x1000000 → word 0x400000)
+///   - CALL/RET: SP used as word addr directly, max ~0x1000000 (16M)
+/// Array never fills up (unlike HashMap) — in-range indices always succeed.
+/// Zero-initialized by default (all entries start at 0).
 #[map]
-static RAM_MAP: HashMap<u32, u32> = HashMap::with_max_entries(2_097_152, 0);
+static RAM_MAP: Array<u32> = Array::with_max_entries(16_777_216, 0);
 
 /// Screen framebuffer: 320×200 = 64 000 bytes, 8-bit palette indices.
 /// Pixel (x, y) → SCREEN_MAP[y * 320 + x].
@@ -511,7 +514,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.cache_misses += 1;
                     increment_stat(STAT_CACHE_MISSES);
                     let word_addr = addr >> 2;
-                    let val = match unsafe { RAM_MAP.get(&word_addr) } {
+                    let val = match RAM_MAP.get(word_addr) {
                         Some(v) => *v,
                         None => 0,
                     };
@@ -525,7 +528,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             l1_store_u32(addr, val);
             // Write-through: persist to RAM_MAP so data survives L1 eviction
             let word_addr = addr >> 2;
-            let _ = unsafe { RAM_MAP.insert(&word_addr, &val, 0) };
+            if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
+                unsafe { *ptr = val; }
+            }
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDB {
@@ -542,7 +547,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     increment_stat(STAT_CACHE_MISSES);
                     let word_addr = addr >> 2;
                     let byte_shift = (addr & 3) * 8;
-                    let word = match unsafe { RAM_MAP.get(&word_addr) } {
+                    let word = match RAM_MAP.get(word_addr) {
                         Some(v) => *v,
                         None => 0,
                     };
@@ -557,13 +562,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // Write-through: read-modify-write the word in RAM_MAP
             let word_addr = addr >> 2;
             let byte_shift = (addr & 3) * 8;
-            let old_word = match unsafe { RAM_MAP.get(&word_addr) } {
+            let old_word = match RAM_MAP.get(word_addr) {
                 Some(v) => *v,
                 None => 0,
             };
             let mask = !(0xFFu32 << byte_shift);
             let new_word = (old_word & mask) | ((val as u32) << byte_shift);
-            let _ = unsafe { RAM_MAP.insert(&word_addr, &new_word, 0) };
+            if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
+                unsafe { *ptr = new_word; }
+            }
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDH {
@@ -580,7 +587,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     increment_stat(STAT_CACHE_MISSES);
                     let word_addr = addr >> 2;
                     let half_shift = (addr & 2) * 8;
-                    let word = match unsafe { RAM_MAP.get(&word_addr) } {
+                    let word = match RAM_MAP.get(word_addr) {
                         Some(v) => *v,
                         None => 0,
                     };
@@ -595,13 +602,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // Write-through: read-modify-write the word in RAM_MAP
             let word_addr = addr >> 2;
             let half_shift = (addr & 2) * 8;
-            let old_word = match unsafe { RAM_MAP.get(&word_addr) } {
+            let old_word = match RAM_MAP.get(word_addr) {
                 Some(v) => *v,
                 None => 0,
             };
             let mask = !(0xFFFFu32 << half_shift);
             let new_word = (old_word & mask) | ((val as u32) << half_shift);
-            let _ = unsafe { RAM_MAP.insert(&word_addr, &new_word, 0) };
+            if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
+                unsafe { *ptr = new_word; }
+            }
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
 
@@ -890,7 +899,7 @@ fn mem_read_word(word_addr: u32) -> u32 {
             None    => 0,
         };
     }
-    match unsafe { RAM_MAP.get(&word_addr) } {
+    match RAM_MAP.get(word_addr) {
         Some(v) => *v,
         None    => 0,
     }
@@ -919,7 +928,9 @@ fn mem_write_word(word_addr: u32, value: u32) {
     }
 
     // Always write to RAM_MAP (SCREEN_MAP is a projection of RAM_MAP).
-    let _ = unsafe { RAM_MAP.insert(&word_addr, &value, 0) };
+    if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
+        unsafe { *ptr = value; }
+    }
 }
 
 /// Read a single byte from the MBC address space.
@@ -955,7 +966,9 @@ fn mem_write_byte(byte_addr: u32, value: u8) {
     let byte_shift = (byte_addr & 3) * 8;
     let old_word = mem_read_word(word_addr);
     let new_word = (old_word & !(0xFF << byte_shift)) | ((value as u32) << byte_shift);
-    let _ = unsafe { RAM_MAP.insert(&word_addr, &new_word, 0) };
+    if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
+        unsafe { *ptr = new_word; }
+    }
 }
 
 /// Read a 16-bit halfword from the MBC address space (little-endian).
