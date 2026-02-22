@@ -99,7 +99,15 @@
       "Bash(bpf-linker:*)",
       "Bash(rustup +nightly:*)",
       "Bash(sudo:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(rustc:*)",
+      "Bash(sysctl:*)",
+      "Bash(pkill:*)",
+      "Bash(sort:*)",
+      "Bash(sudo ip:*)",
+      "Bash(echo === $map ===:*)",
+      "Bash(go run:*)",
+      "Bash(find:*)"
     ]
   }
 }
