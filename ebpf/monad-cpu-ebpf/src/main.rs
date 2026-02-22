@@ -135,10 +135,10 @@ const STAT_CACHE_MISSES:    u32 = 10;
 
 /// Maximum MBC instructions to execute per XDP invocation.
 ///
-/// Circulation mode: each hop executes N instructions, then XDP_PASS.
-/// The packet circulates the ring; 6 hops × N insns × hop_limit laps.
-/// With N=16 and hop_limit=255: 16 × 255 = 4,080 insns per packet.
-const MAX_INSN_PER_TICK: usize = 16;
+/// Each XDP invocation executes up to N MBC instructions.
+/// BPF verifier limits: 8192 jump complexity, 1M processed insns.
+/// Verifier state-explores each opcode branch per iteration.
+const MAX_INSN_PER_TICK: usize = 128;
 
 // ── Wire-format helpers ───────────────────────────────────────────────────────
 
@@ -387,14 +387,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             set_flags(cpu, r, false);
 
         // ── Stack operations ─────────────────────────────────────────────────
+        // SP is a byte address (consistent with LD/ST). Each entry is 4 bytes.
         } else if opc == op::PUSH {
-            cpu.regs[15] = cpu.regs[15].wrapping_sub(1);
-            let sp = cpu.regs[15];
-            mem_write_word(sp, cpu.regs[d]);
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+            let word_addr = cpu.regs[15] >> 2;
+            mem_write_word(word_addr, cpu.regs[d]);
         } else if opc == op::POP {
-            let sp = cpu.regs[15];
-            cpu.regs[d] = mem_read_word(sp);
-            cpu.regs[15] = sp.wrapping_add(1);
+            let word_addr = cpu.regs[15] >> 2;
+            cpu.regs[d] = mem_read_word(word_addr);
+            cpu.regs[15] = cpu.regs[15].wrapping_add(4);
 
         // ── Extended immediate ───────────────────────────────────────────────
         } else if opc == op::LOAD_IMM32 {
@@ -454,49 +455,109 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
         } else if opc == op::CALL {
             // Push PC (already incremented = return address) to stack.
-            // r15 = SP, full-descending stack: SP-- then [SP] = return addr.
-            cpu.regs[15] = cpu.regs[15].wrapping_sub(1);
-            let sp = cpu.regs[15];
-            mem_write_word(sp, cpu.pc);
+            // SP is byte address; each stack entry is 4 bytes.
+            let old_pc = cpu.pc.wrapping_sub(1); // PC of this CALL instruction
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+            let word_addr = cpu.regs[15] >> 2;
+            mem_write_word(word_addr, cpu.pc);
             // Extended addressing: use all 24 bits below opcode for target.
             let target = insn_word & 0x00FF_FFFF;
             cpu.pc = target;
+            // Restart trap: catch direct call to PC 0 (translator bug)
+            if cpu.pc == 0 {
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001);   // sentinel
+                mem_write_word(0xE0004 >> 2, 0x27);          // CALL opcode
+                mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC of CALL insn
+                mem_write_word(0xE000C >> 2, target);        // target was 0
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
+                cpu.halted = 1;
+                increment_stat(STAT_ROM_FAULT);
+                break;
+            }
         } else if opc == op::JMPR {
             // Indirect jump with RV32I→MBC address translation.
             // regs[dst] holds a RISC-V byte address (e.g. function pointer from .data).
             // Convert to RV word index, look up the MBC PC in RV2MBC_MAP.
+            let old_pc = cpu.pc.wrapping_sub(1); // PC of this JMPR instruction
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
                 Some(mbc_idx) => *mbc_idx,
                 None => {
-                    // Unmapped address — halt to prevent runaway execution.
+                    // Unmapped address — halt + write diagnostics.
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0002);   // sentinel (unmapped)
+                    mem_write_word(0xE0004 >> 2, opc as u32);    // 0x29 = JMPR
+                    mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC of JMPR insn
+                    mem_write_word(0xE000C >> 2, rv_addr);       // RV byte addr
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
+                    mem_write_word(0xE0014 >> 2, rv_word);       // RV word index
                     cpu.halted = 1;
                     increment_stat(STAT_ROM_FAULT);
                     break;
                 }
             };
+            // Restart trap: catch jump to PC 0 (_start) — indicates restart bug
+            if cpu.pc == 0 {
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001);   // sentinel
+                mem_write_word(0xE0004 >> 2, opc as u32);    // 0x29 = JMPR
+                mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC before jump
+                mem_write_word(0xE000C >> 2, rv_addr);       // RV addr that mapped to 0
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
+                cpu.halted = 1;
+                increment_stat(STAT_ROM_FAULT);
+                break;
+            }
         } else if opc == op::CALLR {
             // Indirect call with RV32I→MBC address translation.
-            // Push return address, then translate regs[dst] from RISC-V byte
-            // address to MBC PC via RV2MBC_MAP.
-            cpu.regs[15] = cpu.regs[15].wrapping_sub(1);
-            let sp = cpu.regs[15];
-            mem_write_word(sp, cpu.pc);
+            // SP is byte address; each stack entry is 4 bytes.
+            let old_pc = cpu.pc.wrapping_sub(1); // PC of this CALLR instruction
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+            let word_addr = cpu.regs[15] >> 2;
+            mem_write_word(word_addr, cpu.pc);
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
                 Some(mbc_idx) => *mbc_idx,
                 None => {
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0003);   // sentinel (unmapped CALLR)
+                    mem_write_word(0xE0004 >> 2, opc as u32);    // 0x2A = CALLR
+                    mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC of CALLR insn
+                    mem_write_word(0xE000C >> 2, rv_addr);       // RV byte addr
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
+                    mem_write_word(0xE0014 >> 2, rv_word);       // RV word index
                     cpu.halted = 1;
                     increment_stat(STAT_ROM_FAULT);
                     break;
                 }
             };
+            // Restart trap: catch indirect call to PC 0
+            if cpu.pc == 0 {
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001);   // sentinel
+                mem_write_word(0xE0004 >> 2, opc as u32);    // 0x2A = CALLR
+                mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC before call
+                mem_write_word(0xE000C >> 2, rv_addr);       // RV addr that mapped to 0
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
+                cpu.halted = 1;
+                increment_stat(STAT_ROM_FAULT);
+                break;
+            }
         } else if opc == op::RET {
-            let sp  = cpu.regs[15];
-            let ret = mem_read_word(sp);
-            cpu.regs[15] = sp.wrapping_add(1);
+            // SP is byte address; each stack entry is 4 bytes.
+            let word_addr = cpu.regs[15] >> 2;
+            let ret = mem_read_word(word_addr);
+            cpu.regs[15] = cpu.regs[15].wrapping_add(4);
+            // Restart trap: catch RET popping 0 (stack corruption)
+            if ret == 0 {
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001);   // sentinel
+                mem_write_word(0xE0004 >> 2, 0x28);          // RET opcode
+                mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1)); // PC of RET insn
+                mem_write_word(0xE000C >> 2, ret);           // popped value (0)
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP after pop
+                mem_write_word(0xE0014 >> 2, word_addr);     // stack word addr that was read
+                cpu.halted = 1;
+                increment_stat(STAT_ROM_FAULT);
+                break;
+            }
             cpu.pc = ret;
 
         // ── Memory ────────────────────────────────────────────────────────────
@@ -617,28 +678,30 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         // ── System ────────────────────────────────────────────────────────────
         } else if opc == op::SYSCALL {
             increment_stat(STAT_SYSCALLS);
-            let syscall_nr = cpu.regs[0];
+            // RV32I ecall convention: a7 (x17 → r1 via spill) = syscall number,
+            // a0 (x10 → r8) = first arg / return value,
+            // a1 (x11 → r9) = second arg / return value.
+            let syscall_nr = cpu.regs[1];
             if syscall_nr == sys::SYS_DRAW_FRAME {
-                // DG_DrawFrame: r1 = pixel buffer pointer in RAM.
-                // Emit SCREEN_WRITE event so Wotan can push to dashboard.
-                let fb_ptr = cpu.regs[1];
+                // DG_DrawFrame: framebuffer at SCREEN_BASE (0x100000).
+                let fb_ptr = 0x100000u32;
                 emit_screen_write(flow_label, fb_ptr, hop_id);
                 copy_fb_to_screen(fb_ptr);
             } else if syscall_nr == sys::SYS_GET_KEY {
-                // DG_GetKey: r0 = scancode, r1 = pressed.
+                // DG_GetKey: r8 (a0) = scancode, r9 (a1) = pressed.
                 if let Some(kv) = KBD_MAP.get(0) {
-                    cpu.regs[0] = (*kv >> 1) & 0x7FFF_FFFF; // scancode
-                    cpu.regs[1] = *kv & 1;                   // pressed flag
+                    cpu.regs[8] = (*kv >> 1) & 0x7FFF_FFFF; // scancode
+                    cpu.regs[9] = *kv & 1;                   // pressed flag
                 } else {
-                    cpu.regs[0] = 0;
-                    cpu.regs[1] = 0;
+                    cpu.regs[8] = 0;
+                    cpu.regs[9] = 0;
                 }
             } else if syscall_nr == sys::SYS_GET_TICKS {
-                // DG_GetTicksMs: r0 = milliseconds since boot.
-                cpu.regs[0] = (now / 1_000_000) as u32;
+                // DG_GetTicksMs: r8 (a0) = milliseconds since boot.
+                cpu.regs[8] = (now / 1_000_000) as u32;
             } else if syscall_nr == sys::SYS_SLEEP {
-                // DG_SleepMs: sleep for r1 milliseconds.
-                let ms = cpu.regs[1] as u64;
+                // DG_SleepMs: sleep for r8 (a0) milliseconds.
+                let ms = cpu.regs[8] as u64;
                 cpu.sleep_until_ns = now + ms * 1_000_000;
                 // Break the execute loop — we're asleep.
                 increment_stat(STAT_SLEEPING);
@@ -659,136 +722,57 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         increment_stat(STAT_INSNS_EXECUTED);
     }
 
-    Ok(xdp_action::XDP_PASS) // circulation mode: packet continues to next hop
+    // Turbo mode: bounce packet on same interface (XDP_TX) for cache-warm execution.
+    // Manual hop counter since XDP_TX bypasses kernel IP stack (no hop_limit decrement).
+    let hop_count_ptr = (monad_start + 3) as *mut u8;
+    let current_hop = unsafe { core::ptr::read_volatile(hop_count_ptr) };
+    if current_hop >= 255 {
+        return Ok(xdp_action::XDP_DROP); // exhausted — drop, inject fresh packet
+    }
+    unsafe { core::ptr::write_volatile(hop_count_ptr, current_hop.wrapping_add(1)) };
+
+    Ok(xdp_action::XDP_TX) // turbo mode: packet bounces on same interface (cache-warm)
 }
 
 // ── L1 Cache helpers ──────────────────────────────────────────────────────────
 
 /// Load a u32 from L1 cache. Returns Ok(val) on hit, Err(addr) on miss.
-/// Cache line key = addr & !63 (64-byte alignment).
-/// Offset within line = addr & 63.
+/// Cache DISABLED: concurrent XDP hops cause non-atomic read-modify-write
+/// on cache lines, leading to silent data corruption. All loads now go
+/// directly through RAM_MAP.
 #[inline(always)]
 fn l1_load_u32(addr: u32) -> Result<u32, u32> {
-    let line_key = addr & !63u32;
-    let offset = (addr & 63) as usize;
-
-    // Bounds check: offset + 3 must be < 64
-    if offset + 3 >= 64 {
-        return Err(addr);
-    }
-
-    match unsafe { L1_CACHE.get(&line_key) } {
-        Some(line) => {
-            let val = u32::from_le_bytes([
-                line[offset],
-                line[offset + 1],
-                line[offset + 2],
-                line[offset + 3],
-            ]);
-            Ok(val)
-        }
-        None => Err(addr),
-    }
+    Err(addr) // cache disabled — force RAM_MAP fallback
 }
 
 /// Store a u32 to L1 cache. Creates or updates the cache line.
+/// Cache DISABLED: stores are no-ops (RAM_MAP write-through in ST handler
+/// ensures persistence).
 #[inline(always)]
-fn l1_store_u32(addr: u32, val: u32) {
-    let line_key = addr & !63u32;
-    let offset = (addr & 63) as usize;
-
-    if offset + 3 >= 64 {
-        return;
-    }
-
-    let mut line = match unsafe { L1_CACHE.get(&line_key) } {
-        Some(existing) => *existing,
-        None => [0u8; 64],
-    };
-
-    let bytes = val.to_le_bytes();
-    line[offset] = bytes[0];
-    line[offset + 1] = bytes[1];
-    line[offset + 2] = bytes[2];
-    line[offset + 3] = bytes[3];
-
-    let _ = unsafe { L1_CACHE.insert(&line_key, &line, 0) };
+fn l1_store_u32(_addr: u32, _val: u32) {
+    // cache disabled — ST handler writes directly to RAM_MAP
 }
 
-/// Load a u8 from L1 cache.
+/// Load a u8 from L1 cache. DISABLED — see l1_load_u32.
 #[inline(always)]
 fn l1_load_u8(addr: u32) -> Result<u8, u32> {
-    let line_key = addr & !63u32;
-    let offset = (addr & 63) as usize;
-
-    if offset >= 64 {
-        return Err(addr);
-    }
-
-    match unsafe { L1_CACHE.get(&line_key) } {
-        Some(line) => Ok(line[offset]),
-        None => Err(addr),
-    }
+    Err(addr)
 }
 
-/// Store a u8 to L1 cache.
+/// Store a u8 to L1 cache. DISABLED — see l1_store_u32.
 #[inline(always)]
-fn l1_store_u8(addr: u32, val: u8) {
-    let line_key = addr & !63u32;
-    let offset = (addr & 63) as usize;
-
-    if offset >= 64 {
-        return;
-    }
-
-    let mut line = match unsafe { L1_CACHE.get(&line_key) } {
-        Some(existing) => *existing,
-        None => [0u8; 64],
-    };
-
-    line[offset] = val;
-    let _ = unsafe { L1_CACHE.insert(&line_key, &line, 0) };
+fn l1_store_u8(_addr: u32, _val: u8) {
 }
 
-/// Load a u16 from L1 cache.
+/// Load a u16 from L1 cache. DISABLED — see l1_load_u32.
 #[inline(always)]
 fn l1_load_u16(addr: u32) -> Result<u16, u32> {
-    let line_key = addr & !63u32;
-    let offset = (addr & 63) as usize;
-
-    if offset + 1 >= 64 {
-        return Err(addr);
-    }
-
-    match unsafe { L1_CACHE.get(&line_key) } {
-        Some(line) => {
-            let val = u16::from_le_bytes([line[offset], line[offset + 1]]);
-            Ok(val)
-        }
-        None => Err(addr),
-    }
+    Err(addr)
 }
 
-/// Store a u16 to L1 cache.
+/// Store a u16 to L1 cache. DISABLED — see l1_store_u32.
 #[inline(always)]
-fn l1_store_u16(addr: u32, val: u16) {
-    let line_key = addr & !63u32;
-    let offset = (addr & 63) as usize;
-
-    if offset + 1 >= 64 {
-        return;
-    }
-
-    let mut line = match unsafe { L1_CACHE.get(&line_key) } {
-        Some(existing) => *existing,
-        None => [0u8; 64],
-    };
-
-    let bytes = val.to_le_bytes();
-    line[offset] = bytes[0];
-    line[offset + 1] = bytes[1];
-
-    let _ = unsafe { L1_CACHE.insert(&line_key, &line, 0) };
+fn l1_store_u16(_addr: u32, _val: u16) {
 }
 
 // ── Event emission helpers ─────────────────────────────────────────────────────
