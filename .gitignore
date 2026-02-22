@@ -151,6 +151,12 @@ data/*.db
 # Keep CLAUDE.md tracked
 .claude-cache/
 
+# ─── Doom WAD binaries (copyrighted, owned locally) ───
+doom/*.wad
+
+# ─── Fuzz coverage artifacts ───
+crates/*/fuzz/coverage/
+
 # ─── Dev artifacts ───
 churn_analysis.awk
 PROJECT_TREE.txt
