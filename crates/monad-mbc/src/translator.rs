@@ -300,7 +300,12 @@ impl Translator {
     }
 
     /// Emit a sequence to load a full 32-bit value into a register.
-    /// Uses r0 as scratch (restores to 0 after).
+    ///
+    /// Uses MOVI (lower 16 bits) + LOAD_IMM32 (upper 16 bits) for values
+    /// that don't fit in 16 bits and have a non-zero lower half. This is
+    /// 2 instructions instead of the old 5-instruction SHL+OR approach,
+    /// and crucially works correctly when dst=r0 (the old approach used r0
+    /// as scratch, silently clobbering the destination when dst=0).
     fn emit_load32(&mut self, dst: u8, value: u32) {
         let hi = ((value >> 16) & 0xFFFF) as u16;
         let lo = (value & 0xFFFF) as u16;
@@ -309,22 +314,15 @@ impl Translator {
             // Fits in a single MOVI.
             self.emit(op::MOVI, dst, 0, lo);
         } else if lo == 0 {
-            // Upper half only.
+            // Upper half only: MOVI hi + SHL 16.
             self.emit(op::MOVI, dst, 0, hi);
             self.emit(op::SHL, dst, 0, 16);
         } else {
-            // Full 32-bit: load high, shift, OR with low.
-            self.emit(op::MOVI, dst, 0, hi);
-            self.emit(op::SHL, dst, 0, 16);
-            if dst == 0 {
-                // Can't use r0 as both dst and scratch; use a temp approach.
-                // This case is rare (loading 32-bit into x0 which is discarded).
-                // Just emit MOVI r0, 0 at the end.
-            } else {
-                self.emit(op::MOVI, 0, 0, lo);
-                self.emit(op::OR, dst, 0, 0);
-                self.emit(op::MOVI, 0, 0, 0); // restore r0
-            }
+            // Full 32-bit: MOVI lo + LOAD_IMM32 hi.
+            // MOVI sets dst to lo (lower 16 bits).
+            // LOAD_IMM32 sets dst[31:16] = hi, preserving dst[15:0].
+            self.emit(op::MOVI, dst, 0, lo);
+            self.emit(op::LOAD_IMM32, dst, 0, hi);
         }
     }
 
@@ -339,6 +337,33 @@ impl Translator {
     fn guard_zero_dst(&mut self, rd: u8) {
         if rd == 0 {
             self.emit(op::MOVI, 0, 0, 0);
+        }
+    }
+
+    /// Emit a two-operand MBC operation for a three-operand R-type RV32I instruction.
+    ///
+    /// The naive `MOV rd, rs1; OP rd, rs2` sequence clobbers rs2 when mbc_rd == mbc_rs2
+    /// (and mbc_rd != mbc_rs1), because the MOV overwrites the register that still holds
+    /// rs2's value before the OP can read it.
+    ///
+    /// Fix: for commutative ops, emit `OP rd, rs1` directly (rd already holds rs2).
+    /// For non-commutative ops, use r0 as scratch: `MOV r0, rs1; OP r0, rd; MOV rd, r0; MOVI r0, 0`.
+    fn emit_r_type_op(&mut self, mbc_op: u8, mbc_rd: u8, mbc_rs1: u8, mbc_rs2: u8, commutative: bool) {
+        if mbc_rd == mbc_rs2 && mbc_rd != mbc_rs1 {
+            if commutative {
+                // rd already holds rs2; OP rd, rs1 computes rs2 OP rs1 = rs1 OP rs2
+                self.emit(mbc_op, mbc_rd, mbc_rs1, 0);
+            } else {
+                // Non-commutative: use r0 as scratch to avoid clobbering rs2
+                self.emit(op::MOV, 0, mbc_rs1, 0);   // r0 = rs1
+                self.emit(mbc_op, 0, mbc_rd, 0);      // r0 = rs1 OP rs2
+                self.emit(op::MOV, mbc_rd, 0, 0);     // rd = result
+                self.emit(op::MOVI, 0, 0, 0);         // restore r0 = 0
+            }
+        } else {
+            // Default path: rd != rs2 (or rd == rs1 == rs2), MOV+OP is safe
+            self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
+            self.emit(mbc_op, mbc_rd, mbc_rs2, 0);
         }
     }
 
@@ -420,48 +445,42 @@ impl Translator {
                         // ADD rd, rs1, rs2
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::ADD, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::ADD, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     (0, 0x20) => {
                         // SUB rd, rs1, rs2
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::SUB, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::SUB, mbc_rd, mbc_rs1, mbc_rs2, false);
                         self.guard_zero_dst(rd);
                     }
                     (7, 0x00) => {
                         // AND rd, rs1, rs2
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::AND, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::AND, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     (6, 0x00) => {
                         // OR rd, rs1, rs2
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::OR, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::OR, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     (4, 0x00) => {
                         // XOR rd, rs1, rs2
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::XOR, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::XOR, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     (0, 0x01) => {
                         // MUL rd, rs1, rs2 (RV32M extension)
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::MUL, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::MUL, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     (4, 0x01) => {
@@ -469,74 +488,71 @@ impl Translator {
                         // For now, treat as unsigned division (approximate).
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::DIV, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::DIV, mbc_rd, mbc_rs1, mbc_rs2, false);
                         self.guard_zero_dst(rd);
                     }
                     (5, 0x01) => {
                         // DIVU rd, rs1, rs2 (RV32M — unsigned)
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::DIV, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::DIV, mbc_rd, mbc_rs1, mbc_rs2, false);
                         self.guard_zero_dst(rd);
                     }
                     (6, 0x01) => {
                         // REM rd, rs1, rs2 (RV32M — signed remainder, approx as unsigned)
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::MOD, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::MOD, mbc_rd, mbc_rs1, mbc_rs2, false);
                         self.guard_zero_dst(rd);
                     }
                     (7, 0x01) => {
                         // REMU rd, rs1, rs2 (RV32M — unsigned remainder)
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::MOD, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::MOD, mbc_rd, mbc_rs1, mbc_rs2, false);
                         self.guard_zero_dst(rd);
                     }
                     (1, 0x00) => {
                         // SLL rd, rs1, rs2 — shift left by register
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::SHLR, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::SHLR, mbc_rd, mbc_rs1, mbc_rs2, false);
                         self.guard_zero_dst(rd);
                     }
                     (5, 0x00) => {
                         // SRL rd, rs1, rs2 — logical shift right by register
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::SHRR, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::SHRR, mbc_rd, mbc_rs1, mbc_rs2, false);
                         self.guard_zero_dst(rd);
                     }
                     (5, 0x20) => {
                         // SRA rd, rs1, rs2 — arithmetic shift right by register
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::SARR, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::SARR, mbc_rd, mbc_rs1, mbc_rs2, false);
                         self.guard_zero_dst(rd);
                     }
                     (2, 0x00) => {
                         // SLT rd, rs1, rs2 — set if rs1 < rs2 (signed)
+                        // CMP must happen before MOVI rd,0 to avoid clobbering
+                        // rs1/rs2 when rd==rs1 or rd==rs2.
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOVI, mbc_rd, 0, 0); // rd = 0 (false)
                         self.emit(op::CMP, mbc_rs1, mbc_rs2, 0); // flags = rs1 - rs2
+                        self.emit(op::MOVI, mbc_rd, 0, 0); // rd = 0 (false)
                         self.emit(op::JP, 0, 0, 1); // if NOT negative (rs1 >= rs2), skip
                         self.emit(op::MOVI, mbc_rd, 0, 1); // rd = 1 (true, rs1 < rs2)
                         self.guard_zero_dst(rd);
                     }
                     (3, 0x00) => {
                         // SLTU rd, rs1, rs2 — set if rs1 < rs2 (unsigned)
+                        // CMP must happen before MOVI rd,0 to avoid clobbering
+                        // rs1/rs2 when rd==rs1 or rd==rs2.
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOVI, mbc_rd, 0, 0); // rd = 0 (false)
                         self.emit(op::CMP, mbc_rs1, mbc_rs2, 0); // flags = rs1 - rs2
+                        self.emit(op::MOVI, mbc_rd, 0, 0); // rd = 0 (false)
                         self.emit(op::JNC, 0, 0, 1); // if no carry (rs1 >= rs2 unsigned), skip
                         self.emit(op::MOVI, mbc_rd, 0, 1); // rd = 1 (true)
                         self.guard_zero_dst(rd);
@@ -545,24 +561,21 @@ impl Translator {
                         // MULH rd, rs1, rs2 — upper 32 bits of signed multiply.
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::MULH, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::MULH, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     (2, 0x01) => {
                         // MULHSU — approximate as signed MULH (close enough for Doom).
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::MULH, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::MULH, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     (3, 0x01) => {
                         // MULHU — approximate as signed MULH (close enough for Doom).
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        self.emit(op::MULH, mbc_rd, mbc_rs2, 0);
+                        self.emit_r_type_op(op::MULH, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     _ => {
@@ -665,22 +678,26 @@ impl Translator {
                     }
                     2 => {
                         // SLTI rd, rs1, imm12 — set if rs1 < imm (signed)
+                        // CMP must happen before MOVI rd,0 to avoid clobbering
+                        // rs1 when rd==rs1 (e.g. seqz a0,a0 = sltiu a0,a0,1).
                         self.guard_zero_src(rs1, mbc_rs1);
-                        self.emit(op::MOVI, mbc_rd, 0, 0); // rd = 0
                         self.emit_load32(0, imm12 as u32); // r0 = imm
                         self.emit(op::CMP, mbc_rs1, 0, 0); // flags = rs1 - imm
                         self.emit(op::MOVI, 0, 0, 0); // restore r0
+                        self.emit(op::MOVI, mbc_rd, 0, 0); // rd = 0 (default)
                         self.emit(op::JP, 0, 0, 1); // if NOT negative, skip
                         self.emit(op::MOVI, mbc_rd, 0, 1); // rd = 1
                         self.guard_zero_dst(rd);
                     }
                     3 => {
                         // SLTIU rd, rs1, imm12 — set if rs1 < imm (unsigned)
+                        // CMP must happen before MOVI rd,0 to avoid clobbering
+                        // rs1 when rd==rs1 (e.g. seqz a0,a0 = sltiu a0,a0,1).
                         self.guard_zero_src(rs1, mbc_rs1);
-                        self.emit(op::MOVI, mbc_rd, 0, 0); // rd = 0
                         self.emit_load32(0, imm12 as u32); // r0 = imm
                         self.emit(op::CMP, mbc_rs1, 0, 0); // flags = rs1 - imm
                         self.emit(op::MOVI, 0, 0, 0); // restore r0
+                        self.emit(op::MOVI, mbc_rd, 0, 0); // rd = 0 (default)
                         self.emit(op::JNC, 0, 0, 1); // if no carry (rs1 >= imm unsigned), skip
                         self.emit(op::MOVI, mbc_rd, 0, 1); // rd = 1
                         self.guard_zero_dst(rd);
@@ -1345,8 +1362,8 @@ mod tests {
 
         let mbc = result.unwrap();
         // 0x12345000: high16=0x1234, low16=0x5000
-        // Needs MOVI+SHL+MOVI+OR+MOVI = 5 instructions
-        assert!(mbc.len() >= 3, "LUI 0x12345 should need multiple MBC insns, got {}", mbc.len());
+        // MOVI lo + LOAD_IMM32 hi = 2 instructions
+        assert!(mbc.len() >= 2, "LUI 0x12345 should need multiple MBC insns, got {}", mbc.len());
     }
 
     #[test]
@@ -1442,6 +1459,83 @@ mod tests {
         ];
         let result = Translator::translate_program(&program);
         assert!(result.is_ok(), "Multi-insn: {:?}", result.err());
+    }
+
+    // ── R-type rd==rs2 clobber regression tests ─────────────────────────────
+
+    #[test]
+    fn test_add_rd_eq_rs2_commutative() {
+        // ADD x12, x10, x12 — rd==rs2 (both map to r10), rs1 maps to r8.
+        // Bug: naive MOV r10,r8; ADD r10,r10 computes 2*a0 instead of a0+a2.
+        // Fix: commutative, so emit ADD r10,r8 directly (r10 already holds a2).
+        let insn = rv32i_r_type(0, 12, 10, 0, 12, 0x33); // ADD x12, x10, x12
+        let result = Translator::translate_program(&[insn]);
+        assert!(result.is_ok(), "ADD rd==rs2: {:?}", result.err());
+        let mbc = result.unwrap();
+
+        // Should emit exactly 1 instruction: ADD r10, r8 (no MOV needed)
+        assert_eq!(mbc.len(), 1, "Commutative rd==rs2 should emit 1 insn, got {}: {:?}",
+            mbc.len(), mbc.iter().map(|w| format!("{:08X}", w)).collect::<Vec<_>>());
+        let insn0 = MbcInsn(mbc[0]);
+        assert_eq!(insn0.opcode(), op::ADD, "Should be ADD");
+        assert_eq!(insn0.dst(), 10, "dst should be r10 (a2)");
+        assert_eq!(insn0.src(), 8, "src should be r8 (a0)");
+    }
+
+    #[test]
+    fn test_sub_rd_eq_rs2_non_commutative() {
+        // SUB x12, x10, x12 — rd==rs2, non-commutative.
+        // Need: r10 = r8 - r10 (a0 - a2), can't just swap operands.
+        // Fix: MOV r0,r8; SUB r0,r10; MOV r10,r0; MOVI r0,0
+        let insn = rv32i_r_type(0x20, 12, 10, 0, 12, 0x33); // SUB x12, x10, x12
+        let result = Translator::translate_program(&[insn]);
+        assert!(result.is_ok(), "SUB rd==rs2: {:?}", result.err());
+        let mbc = result.unwrap();
+
+        // Should emit 4 instructions: MOV r0,r8; SUB r0,r10; MOV r10,r0; MOVI r0,0
+        assert_eq!(mbc.len(), 4, "Non-commutative rd==rs2 should emit 4 insns, got {}: {:?}",
+            mbc.len(), mbc.iter().map(|w| format!("{:08X}", w)).collect::<Vec<_>>());
+
+        // Verify sequence
+        assert_eq!(MbcInsn(mbc[0]).opcode(), op::MOV, "insn 0: MOV r0, r8");
+        assert_eq!(MbcInsn(mbc[0]).dst(), 0);
+        assert_eq!(MbcInsn(mbc[0]).src(), 8);
+
+        assert_eq!(MbcInsn(mbc[1]).opcode(), op::SUB, "insn 1: SUB r0, r10");
+        assert_eq!(MbcInsn(mbc[1]).dst(), 0);
+        assert_eq!(MbcInsn(mbc[1]).src(), 10);
+
+        assert_eq!(MbcInsn(mbc[2]).opcode(), op::MOV, "insn 2: MOV r10, r0");
+        assert_eq!(MbcInsn(mbc[2]).dst(), 10);
+        assert_eq!(MbcInsn(mbc[2]).src(), 0);
+
+        assert_eq!(MbcInsn(mbc[3]).opcode(), op::MOVI, "insn 3: MOVI r0, 0");
+    }
+
+    #[test]
+    fn test_add_rd_eq_rs1_no_clobber() {
+        // ADD x10, x10, x12 — rd==rs1 (both r8), rs2=r10. No clobber: default path.
+        // MOV r8,r8 (nop); ADD r8,r10 → r8 = a0 + a2. Correct.
+        let insn = rv32i_r_type(0, 12, 10, 0, 10, 0x33); // ADD x10, x10, x12
+        let result = Translator::translate_program(&[insn]);
+        assert!(result.is_ok(), "ADD rd==rs1: {:?}", result.err());
+        let mbc = result.unwrap();
+
+        // Default path: MOV + ADD = 2 instructions
+        assert_eq!(mbc.len(), 2, "rd==rs1 should use default 2-insn path, got {}", mbc.len());
+        assert_eq!(MbcInsn(mbc[0]).opcode(), op::MOV);
+        assert_eq!(MbcInsn(mbc[1]).opcode(), op::ADD);
+    }
+
+    #[test]
+    fn test_add_all_same_register() {
+        // ADD x10, x10, x10 — rd==rs1==rs2 (all r8). Should compute a0 + a0 = 2*a0.
+        // Default path: MOV r8,r8 (nop); ADD r8,r8 → 2*r8. Correct.
+        let insn = rv32i_r_type(0, 10, 10, 0, 10, 0x33); // ADD x10, x10, x10
+        let result = Translator::translate_program(&[insn]);
+        assert!(result.is_ok(), "ADD all same: {:?}", result.err());
+        let mbc = result.unwrap();
+        assert_eq!(mbc.len(), 2, "all-same should use default 2-insn path");
     }
 
     // ── Call/return roundtrip ────────────────────────────────────────────────

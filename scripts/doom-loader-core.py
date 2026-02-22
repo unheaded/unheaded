@@ -9,7 +9,7 @@ direct syscalls take seconds.
 Usage:
   python3 doom-loader-core.py rom <rom_pin_path> <mbc_file>
   python3 doom-loader-core.py ram <ram_pin_path> <data_file> <start_byte_addr_hex>
-  python3 doom-loader-core.py cpu <cpu_pin_path>
+  python3 doom-loader-core.py cpu <cpu_pin_path> [instance_id_hex]
 """
 
 import sys
@@ -149,10 +149,8 @@ def load_ram(ram_pin, data_file, start_byte_addr):
         for j in range(i, end):
             word_addr = start_word_addr + j
             val = data[j * 4:(j + 1) * 4]
-            # Skip zero words (HashMap returns 0 for missing keys)
-            if val == b'\x00\x00\x00\x00':
-                skipped += 1
-                continue
+            # Always write, even zeros — Array map may have stale data
+            # from previous runs (old HashMap optimization skipped zeros).
             key = struct.pack('<I', word_addr)
             bpf_map_update_elem(fd, key, val)
             written += 1
@@ -200,9 +198,9 @@ def load_rv2mbc(rv2mbc_pin, rv2mbc_file):
     os.close(fd)
 
 
-def load_cpu(cpu_pin):
-    """Initialize CPU_MAP with starting state for instance 0."""
-    print("[CPU] Initializing CPU state...")
+def load_cpu(cpu_pin, instance_id=0):
+    """Initialize CPU_MAP with starting state for given instance."""
+    print(f"[CPU] Initializing CPU state (instance {instance_id} / 0x{instance_id:x})...")
 
     fd = bpf_obj_get(cpu_pin)
     print(f"[CPU] Map FD: {fd}")
@@ -221,7 +219,7 @@ def load_cpu(cpu_pin):
     #   Total: 104 bytes
 
     regs = [0] * 16
-    regs[15] = 0x1000000  # SP = stack top (16MB, from linker script/crt0)
+    regs[15] = 0x3F00000  # SP = stack top (63MB, from crt0_monad.S)
     pc = 0               # Start at beginning of ROM
     flags = 0
     halted = 0
@@ -246,7 +244,6 @@ def load_cpu(cpu_pin):
     print(f"[CPU] State size: {len(cpu_state)} bytes")
 
     # Key = instance_id (u32), Value = MbcCpuState
-    instance_id = 0
     key = struct.pack('<I', instance_id)
     bpf_map_update_elem(fd, key, cpu_state)
 
@@ -285,10 +282,11 @@ def main():
         load_rv2mbc(sys.argv[2], sys.argv[3])
 
     elif cmd == 'cpu':
-        if len(sys.argv) != 3:
-            print("Usage: python3 doom-loader-core.py cpu <cpu_pin>")
+        if len(sys.argv) < 3 or len(sys.argv) > 4:
+            print("Usage: python3 doom-loader-core.py cpu <cpu_pin> [instance_id_hex]")
             sys.exit(1)
-        load_cpu(sys.argv[2])
+        instance_id = int(sys.argv[3], 0) if len(sys.argv) == 4 else 0
+        load_cpu(sys.argv[2], instance_id)
 
     else:
         print(f"Unknown command: {cmd}")

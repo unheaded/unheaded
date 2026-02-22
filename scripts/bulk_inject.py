@@ -7,7 +7,7 @@ flow_label = int(sys.argv[1], 0) if len(sys.argv) > 1 else 0xDE
 count = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
 src_mac_str = sys.argv[3] if len(sys.argv) > 3 else None
 dst_mac_str = sys.argv[4] if len(sys.argv) > 4 else None
-delay_us = int(sys.argv[5]) if len(sys.argv) > 5 else 100
+delay_us = int(sys.argv[5]) if len(sys.argv) > 5 else 3000
 
 def mac_bytes(mac_str):
     return bytes(int(b, 16) for b in mac_str.split(":"))
