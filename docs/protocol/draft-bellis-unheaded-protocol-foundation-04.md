@@ -1,6 +1,6 @@
 ---
-title: "The Unheaded Protocol Foundation: A Mapped Data Bus over IPv6 Hop-by-Hop Options"
-abbrev: "Unheaded Protocol Foundation"
+title: "Unheaded: Protocol Foundation — A Mapped Data Bus over IPv6 Hop-by-Hop Options"
+abbrev: "Unheaded Protocol"
 docname: draft-bellis-unheaded-protocol-foundation-04
 category: exp
 ipr: trust200902
@@ -89,7 +89,7 @@ informative:
 
 --- abstract
 
-The Unheaded Protocol Foundation defines a mapped data bus model that
+The Unheaded Protocol defines a mapped data bus model that
 transforms IPv6 packets into addressable memory by encoding a small
 register file directly in the IPv6 Hop-by-Hop Options extension header.
 
@@ -130,7 +130,7 @@ happens in applications. Data flows through the network as opaque byte
 streams. This creates an expensive impedance mismatch of serialization,
 deserialization, protocol translation, middleware, sidecars, and proxies.
 
-The Unheaded Protocol Foundation inverts this model: the packet carries
+The Unheaded Protocol inverts this model: the packet carries
 computational state. A 20-byte register file (the Monad) is read and
 written by BPF programs at each hop. The packet functions as working
 storage of a distributed computation that executes at each
