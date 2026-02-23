@@ -515,9 +515,21 @@ func (ws *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // isWebSocketUpgrade checks if the request is a WebSocket upgrade.
+// Uses case-insensitive comparison per RFC 6455.
 func isWebSocketUpgrade(r *http.Request) bool {
-	return strings.ToLower(r.Header.Get("Upgrade")) == "websocket" &&
-		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket") &&
+		headerContainsTokenCI(r.Header.Get("Connection"), "upgrade")
+}
+
+// headerContainsTokenCI checks if a comma-separated header value contains
+// a token, using case-insensitive comparison per RFC 6455 / RFC 7230.
+func headerContainsTokenCI(headerValue, token string) bool {
+	for _, part := range strings.Split(headerValue, ",") {
+		if strings.EqualFold(strings.TrimSpace(part), token) {
+			return true
+		}
+	}
+	return false
 }
 
 // GRPCProxy handles gRPC connections.

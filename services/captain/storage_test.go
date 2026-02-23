@@ -8,6 +8,11 @@ import (
 )
 
 func TestNewFileStorage(t *testing.T) {
+	// Set CAPTAIN_DATA_DIR so that the empty-path test case uses a writable
+	// temp directory instead of the production default /var/lib/unheaded/captain.
+	envDir := t.TempDir()
+	t.Setenv("CAPTAIN_DATA_DIR", envDir)
+
 	tests := []struct {
 		name    string
 		path    string
@@ -16,7 +21,7 @@ func TestNewFileStorage(t *testing.T) {
 		{
 			name:    "empty path",
 			path:    "",
-			wantErr: false, // Uses default
+			wantErr: false, // Uses CAPTAIN_DATA_DIR env
 		},
 		{
 			name:    "path too long",
