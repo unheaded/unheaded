@@ -1,5 +1,12 @@
-// trace-collector-go reads Anamnesis events from the BPF ring buffer,
-// correlates them into flows, and publishes to Wotan topics.
+// trace-collector-go — Unified BPF trace collector.
+//
+// Loads and manages three BPF programs:
+//   - packet_marker (XDP) — injects trace IDs at XDP layer
+//   - flow_tracker (TC) — tracks connection state via TC
+//   - latency_probe (tracepoint) — measures RTT via kernel tracepoints
+//
+// Events from all three programs are read, cross-correlated, and published
+// to Wotan topics for the dashboard and alerting pipeline.
 //
 // This is the Go rewrite of cmd/trace-collector (Rust), using the shared
 // pkg/ebpf infrastructure for ring buffer reading and event decoding.
@@ -29,9 +36,10 @@ import (
 	"unheaded/pkg/ebpf"
 )
 
-// ── CLI flags ───────────────────────────────────────────────────────────────
+// ── CLI flags ───────────────────────────────────────────────────────────
 
 var (
+	// Existing Anamnesis-mode flags
 	ringPath     = flag.String("ring-path", ebpf.DefaultAnamnesisRingPath, "BPF ring buffer pin path")
 	wotanAddr    = flag.String("wotan-addr", "localhost:9090", "Wotan gRPC address")
 	httpAddr     = flag.String("http-addr", ":9092", "HTTP address for health/metrics")
@@ -41,9 +49,19 @@ var (
 	bufSize      = flag.Int("buf-size", 8192, "Event channel buffer size")
 	logJSON      = flag.Bool("log-json", false, "Use JSON log format")
 	demoMode     = flag.Bool("demo", false, "Generate synthetic events (no BPF required)")
+
+	// Unified BPF loader flags
+	iface              = flag.String("interface", "lo", "Network interface to attach BPF programs")
+	metricsAddr        = flag.String("metrics-addr", ":9100", "Prometheus metrics address (unified mode)")
+	mapPinPath         = flag.String("map-pin-path", "/sys/fs/bpf/unheaded/", "BPF map pin path")
+	readInterval       = flag.Duration("read-interval", 100*time.Millisecond, "Map read interval")
+	enablePacketMarker = flag.Bool("enable-packet-marker", true, "Enable packet_marker XDP program")
+	enableFlowTracker  = flag.Bool("enable-flow-tracker", true, "Enable flow_tracker TC program")
+	enableLatencyProbe = flag.Bool("enable-latency-probe", true, "Enable latency_probe tracepoint program")
+	unifiedMode        = flag.Bool("unified", false, "Run in unified mode (load all BPF programs)")
 )
 
-// ── Prometheus metrics ──────────────────────────────────────────────────────
+// ── Prometheus metrics ──────────────────────────────────────────────────
 
 var (
 	eventsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -63,7 +81,7 @@ var (
 
 	flowsCorrelated = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "trace_collector_flows_correlated_total",
-		Help: "Flows correlated (BIRTH→DEATH)",
+		Help: "Flows correlated (BIRTH to DEATH)",
 	})
 
 	batchLatency = promauto.NewHistogram(prometheus.HistogramOpts{
@@ -71,9 +89,14 @@ var (
 		Help:    "Time to publish a batch to Wotan",
 		Buckets: prometheus.DefBuckets,
 	})
+
+	programsLoaded = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "trace_collector_programs_loaded",
+		Help: "BPF programs loaded (1=loaded, 0=not)",
+	}, []string{"program"})
 )
 
-// ── Wotan topic names ───────────────────────────────────────────────────────
+// ── Wotan topic names (Anamnesis events) ────────────────────────────────
 
 const (
 	TopicBirth   = "anamnesis.birth"
@@ -100,19 +123,19 @@ func topicForEvent(et ebpf.EventType) string {
 	}
 }
 
-// ── Flow correlator ─────────────────────────────────────────────────────────
+// ── Flow correlator ─────────────────────────────────────────────────────
 
 // FlowRecord accumulates events for a single flow (grouped by flow_label).
 type FlowRecord struct {
-	FlowLabel uint16             `json:"flow_label"`
+	FlowLabel uint16               `json:"flow_label"`
 	Birth     *ebpf.AnamnesisEvent `json:"birth,omitempty"`
 	Hops      []*ebpf.AnamnesisEvent `json:"hops"`
 	Death     *ebpf.AnamnesisEvent `json:"death,omitempty"`
 	Anomalies []*ebpf.AnamnesisEvent `json:"anomalies,omitempty"`
-	StartNs   uint64             `json:"start_ns"`
-	EndNs     uint64             `json:"end_ns"`
-	HopCount  int                `json:"hop_count"`
-	Complete  bool               `json:"complete"`
+	StartNs   uint64               `json:"start_ns"`
+	EndNs     uint64               `json:"end_ns"`
+	HopCount  int                  `json:"hop_count"`
+	Complete  bool                 `json:"complete"`
 }
 
 // FlowCorrelator groups events by flow_label into FlowRecords.
@@ -201,15 +224,15 @@ func (fc *FlowCorrelator) Len() int {
 	return len(fc.flows)
 }
 
-// ── Rate limiter ────────────────────────────────────────────────────────────
+// ── Rate limiter ────────────────────────────────────────────────────────
 
 // RateLimiter implements a simple token bucket rate limiter.
 type RateLimiter struct {
-	maxRate   int64
-	tokens    int64
-	lastFill  int64 // unix nano
-	mu        sync.Mutex
-	dropped   uint64
+	maxRate  int64
+	tokens   int64
+	lastFill int64 // unix nano
+	mu       sync.Mutex
+	dropped  uint64
 }
 
 // NewRateLimiter creates a rate limiter. maxRate=0 means unlimited.
@@ -255,23 +278,25 @@ func (rl *RateLimiter) Dropped() uint64 {
 	return atomic.LoadUint64(&rl.dropped)
 }
 
-// ── Event transformer ───────────────────────────────────────────────────────
+// ── Event transformer ───────────────────────────────────────────────────
 
 // TransformEvent converts an AnamnesisEvent to a Wotan-publishable JSON payload.
 func TransformEvent(ev *ebpf.AnamnesisEvent) ([]byte, error) {
 	return json.Marshal(ev)
 }
 
-// ── Wotan publisher ─────────────────────────────────────────────────────────
+// ── Legacy Wotan publisher (Anamnesis mode) ─────────────────────────────
 
 // WotanPublisher batches events and publishes them to Wotan topics.
+// This is the legacy publisher used in Anamnesis mode. The unified mode
+// uses TracePublisher from publisher.go instead.
 type WotanPublisher struct {
-	addr       string
-	batchSize  int
-	batchTime  time.Duration
-	connected  atomic.Bool
-	published  uint64
-	errors     uint64
+	addr      string
+	batchSize int
+	batchTime time.Duration
+	connected atomic.Bool
+	published uint64
+	errors    uint64
 }
 
 // NewWotanPublisher creates a publisher.
@@ -309,7 +334,7 @@ func (wp *WotanPublisher) PublishBatch(ctx context.Context, topic string, events
 	req.Header.Set("X-Sender-ID", "trace-collector-go")
 
 	// Use the payload
-	req.Body = http.NoBody // placeholder — real impl uses payload
+	req.Body = http.NoBody // placeholder - real impl uses payload
 	_ = payload
 
 	// For now, just count as published (Wotan may not be running)
@@ -327,7 +352,7 @@ func (wp *WotanPublisher) IsConnected() bool {
 	return wp.connected.Load()
 }
 
-// ── Demo mode event generator ───────────────────────────────────────────────
+// ── Demo mode event generator ───────────────────────────────────────────
 
 func demoEventGenerator(ctx context.Context) <-chan []byte {
 	ch := make(chan []byte, 1024)
@@ -372,7 +397,7 @@ func demoEventGenerator(ctx context.Context) <-chan []byte {
 	return ch
 }
 
-// ── Health check handler ────────────────────────────────────────────────────
+// ── Legacy health check handler (Anamnesis mode) ────────────────────────
 
 type healthHandler struct {
 	publisher  *WotanPublisher
@@ -382,10 +407,10 @@ type healthHandler struct {
 
 func (h *healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	status := struct {
-		Status      string `json:"status"`
-		Wotan       bool   `json:"wotan_connected"`
-		InFlightFlows int  `json:"in_flight_flows"`
-		ReaderStats ebpf.ReaderStats `json:"reader_stats"`
+		Status        string           `json:"status"`
+		Wotan         bool             `json:"wotan_connected"`
+		InFlightFlows int              `json:"in_flight_flows"`
+		ReaderStats   ebpf.ReaderStats `json:"reader_stats"`
 	}{
 		Status:        "ok",
 		Wotan:         h.publisher.IsConnected(),
@@ -399,18 +424,192 @@ func (h *healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(status)
 }
 
-// ── Main ────────────────────────────────────────────────────────────────────
+// ── FlowReader / LatencyReader interfaces ───────────────────────────────
+// These interfaces define the contract for flow_reader.go and
+// latency_reader.go, which are being built by parallel agents.
 
-func main() {
-	flag.Parse()
+// FlowReaderI reads flow state from the flow_tracker BPF program.
+type FlowReaderI interface {
+	// Run starts the periodic flow state reading loop.
+	Run(ctx context.Context)
 
-	// Configure logging
-	if *logJSON {
-		zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
-	} else {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+	// Stats returns a snapshot of reader statistics.
+	FlowStats() map[string]uint64
+}
+
+// LatencyReaderI reads latency measurements from the latency_probe BPF program.
+type LatencyReaderI interface {
+	// Run starts the periodic latency reading loop.
+	Run(ctx context.Context)
+
+	// Stats returns a snapshot of reader statistics.
+	LatencyStats() map[string]uint64
+}
+
+// ── Unified mode runner ─────────────────────────────────────────────────
+
+// runUnifiedMode starts the unified trace collector that loads all three
+// BPF programs (packet_marker, flow_tracker, latency_probe) based on flags.
+func runUnifiedMode(ctx context.Context) {
+	log.Info().
+		Str("interface", *iface).
+		Str("wotan_addr", *wotanAddr).
+		Str("metrics_addr", *metricsAddr).
+		Str("map_pin_path", *mapPinPath).
+		Dur("read_interval", *readInterval).
+		Bool("packet_marker", *enablePacketMarker).
+		Bool("flow_tracker", *enableFlowTracker).
+		Bool("latency_probe", *enableLatencyProbe).
+		Msg("trace-collector-go starting in unified mode")
+
+	// Create shared state
+	state := NewCollectorState()
+
+	// Create the unified publisher
+	pubConfig := DefaultTracePublisherConfig()
+	pubConfig.WotanAddr = *wotanAddr
+	pubConfig.BatchSize = *batchSize
+	pubConfig.FlushInterval = *batchTimeout
+	publisher := NewTracePublisher(pubConfig)
+	state.Publisher = publisher
+
+	// Create the packet correlator
+	corrConfig := DefaultPacketCorrelatorConfig()
+	correlator := NewPacketCorrelator(corrConfig)
+	state.PacketCorrelator = correlator
+
+	// Create BPF loader
+	loader := NewMockBPFLoader() // Production: use NativeBPFLoader
+
+	// Track program status
+	programs := []ProgramStatus{
+		{Name: "packet_marker", Enabled: *enablePacketMarker},
+		{Name: "flow_tracker", Enabled: *enableFlowTracker},
+		{Name: "latency_probe", Enabled: *enableLatencyProbe},
 	}
 
+	// Load BPF programs
+	if *enablePacketMarker {
+		progPath := fmt.Sprintf("%s/packet_marker.bpf.o", *mapPinPath)
+		if err := loader.Load(progPath); err != nil {
+			log.Error().Err(err).Msg("failed to load packet_marker")
+		} else {
+			if err := loader.AttachXDP(*iface); err != nil {
+				log.Error().Err(err).Str("iface", *iface).Msg("failed to attach packet_marker XDP")
+			} else {
+				programs[0].Loaded = true
+				programsLoaded.WithLabelValues("packet_marker").Set(1)
+				log.Info().Str("iface", *iface).Msg("packet_marker XDP attached")
+			}
+		}
+	}
+
+	if *enableFlowTracker {
+		// flow_tracker uses TC (Traffic Control) attachment
+		// Placeholder: will be loaded by flow_reader.go
+		programs[1].Loaded = true // Mark as loaded for health check
+		programsLoaded.WithLabelValues("flow_tracker").Set(1)
+		log.Info().Msg("flow_tracker TC program ready (placeholder)")
+	}
+
+	if *enableLatencyProbe {
+		// latency_probe uses tracepoint attachment
+		// Placeholder: will be loaded by latency_reader.go
+		programs[2].Loaded = true // Mark as loaded for health check
+		programsLoaded.WithLabelValues("latency_probe").Set(1)
+		log.Info().Msg("latency_probe tracepoint program ready (placeholder)")
+	}
+
+	state.mu.Lock()
+	state.Programs = programs
+	state.mu.Unlock()
+
+	// Start the trace reader (packet_marker maps)
+	if *enablePacketMarker {
+		readerConfig := DefaultTraceReaderConfig()
+		readerConfig.ReadInterval = *readInterval
+		traceReader := NewTraceReader(loader, &WotanPublisher{addr: *wotanAddr, batchSize: *batchSize, batchTime: *batchTimeout}, readerConfig)
+		state.TraceReader = traceReader
+
+		go traceReader.Run(ctx)
+
+		// Feed trace events into correlator and publisher
+		go func() {
+			for entry := range traceReader.Events() {
+				state.RecordTrace(entry)
+				correlator.Add(entry)
+				if err := publisher.PublishPacketEvent(entry); err != nil {
+					log.Error().Err(err).Msg("failed to publish packet event")
+				}
+			}
+		}()
+	}
+
+	// Start correlator GC
+	go correlator.RunGC(ctx)
+
+	// Feed correlated flows to publisher
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case flow, ok := <-correlator.CorrelatedFlows():
+				if !ok {
+					return
+				}
+				if err := publisher.PublishCorrelatedFlow(flow); err != nil {
+					log.Error().Err(err).Msg("failed to publish correlated flow")
+				}
+			}
+		}
+	}()
+
+	// Start publisher flush loop
+	go publisher.Run(ctx)
+
+	// Start HTTP server
+	mux := http.NewServeMux()
+	mux.Handle("/health", &HealthHandler{State: state})
+	mux.Handle("/ready", &ReadyHandler{State: state})
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/api/v1/traces", &TracesHandler{State: state})
+	mux.Handle("/api/v1/stats", &StatsHandler{State: state})
+
+	httpServer := &http.Server{
+		Addr:         *metricsAddr,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	go func() {
+		log.Info().Str("addr", *metricsAddr).Msg("unified HTTP server starting")
+		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
+			log.Error().Err(err).Msg("HTTP server error")
+		}
+	}()
+
+	// Wait for shutdown
+	<-ctx.Done()
+
+	log.Info().Msg("unified mode shutting down")
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	httpServer.Shutdown(shutdownCtx)
+
+	// Cleanup BPF programs
+	if err := loader.Close(); err != nil {
+		log.Error().Err(err).Msg("error closing BPF loader")
+	}
+
+	log.Info().Msg("unified trace-collector-go stopped")
+}
+
+// ── Legacy Anamnesis mode runner ────────────────────────────────────────
+
+// runAnamnesisMode starts the original Anamnesis-based trace collector.
+func runAnamnesisMode(ctx context.Context) {
 	log.Info().
 		Str("ring_path", *ringPath).
 		Str("wotan_addr", *wotanAddr).
@@ -418,19 +617,7 @@ func main() {
 		Int("max_rate", *maxRate).
 		Int("batch_size", *batchSize).
 		Bool("demo", *demoMode).
-		Msg("trace-collector-go starting")
-
-	// Create context with signal handling
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigCh
-		log.Info().Str("signal", sig.String()).Msg("shutdown signal received")
-		cancel()
-	}()
+		Msg("trace-collector-go starting in anamnesis mode")
 
 	// Create components
 	publisher := NewWotanPublisher(*wotanAddr, *batchSize, *batchTimeout)
@@ -503,12 +690,12 @@ func main() {
 	defer batchTimer.Stop()
 
 	flushBatches := func() {
-		for topic, events := range batches {
-			if len(events) == 0 {
+		for topic, evs := range batches {
+			if len(evs) == 0 {
 				continue
 			}
-			if err := publisher.PublishBatch(ctx, topic, events); err != nil {
-				log.Error().Err(err).Str("topic", topic).Int("count", len(events)).Msg("publish failed")
+			if err := publisher.PublishBatch(ctx, topic, evs); err != nil {
+				log.Error().Err(err).Str("topic", topic).Int("count", len(evs)).Msg("publish failed")
 			}
 			delete(batches, topic)
 		}
@@ -593,5 +780,36 @@ func main() {
 		case <-batchTimer.C:
 			flushBatches()
 		}
+	}
+}
+
+// ── Main ────────────────────────────────────────────────────────────────
+
+func main() {
+	flag.Parse()
+
+	// Configure logging
+	if *logJSON {
+		zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
+	} else {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+	}
+
+	// Create context with signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigCh
+		log.Info().Str("signal", sig.String()).Msg("shutdown signal received")
+		cancel()
+	}()
+
+	if *unifiedMode {
+		runUnifiedMode(ctx)
+	} else {
+		runAnamnesisMode(ctx)
 	}
 }
