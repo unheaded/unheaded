@@ -7,15 +7,15 @@
     documentation = [ "https://github.com/unheaded/unheaded" ];
 
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
+    after = [ "network-online.target" "wotan.service" ];
+    wants = [ "network-online.target" "wotan.service" ];
 
     # Service configuration
     serviceConfig = {
       # Execute
       Type = "simple";
       ExecStart = "${pkgs.micromanager}/bin/micromanager -port 8003 -wotan wotan:9090 -log-level info";
-      Restart = "on-failure";
+      Restart = "always";
       RestartSec = "5s";
       StartLimitInterval = "60s";
       StartLimitBurst = 3;
