@@ -1,6 +1,6 @@
 # Running Doom Over IPv6 Hop-by-Hop Options: Implementation Plan
 
-**Project:** Unheaded Protocol Foundation -- Computational Completeness PoC
+**Project:** Unheaded: Protocol Foundation -- Computational Completeness PoC
 **Date:** February 18, 2026
 **Owner:** Architect + Developer
 **Priority:** P1 (after Alpha ships)
@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-The Unheaded Protocol Foundation Internet-Draft proves the Monad architecture
+The Unheaded Protocol Internet-Draft proves the Monad architecture
 provides the five primitives any assembler requires: registers, ALU, addressable
 memory, I/O, and a clock. This plan turns that proof into a running demo: Doom
 executing on a Kingdom network where packets are the CPU and Wotan is the RAM.
