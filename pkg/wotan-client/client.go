@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -26,6 +27,19 @@ const (
 	controlPlaneTimeout = 5 * time.Second  // Subscribe, Publish
 	streamingTimeout    = 30 * time.Second // GetMessages, polling
 )
+
+// Fallback queue constants.
+const (
+	// maxFallbackQueue is the maximum number of messages buffered locally
+	// when Wotan is unreachable. Oldest messages are dropped when full.
+	maxFallbackQueue = 1000
+)
+
+// pendingMessage is a message waiting in the fallback queue for retry.
+type pendingMessage struct {
+	topic   string
+	payload []byte
+}
 
 // drainBody fully reads and discards any remaining bytes in the response body.
 // This is CRITICAL for HTTP keep-alive: the transport cannot reuse a connection
@@ -156,6 +170,12 @@ type Client struct {
 	// Message channels for subscriptions
 	channels map[string]*safeChannel
 	chanMu   sync.RWMutex
+
+	// Fallback queue — buffers messages when Wotan is unreachable.
+	// Protected by fallbackMu. Max size: maxFallbackQueue.
+	fallbackQueue []pendingMessage
+	fallbackMu    sync.Mutex
+	fallbackDrops int64 // atomic counter: messages dropped because queue was full
 }
 
 // Transport returns the currently active streaming transport.
@@ -342,7 +362,10 @@ func (c *Client) Subscribe(ctx context.Context, topic, displayName string) (*Sub
 	return result.Subscriber, nil
 }
 
-// Publish sends a message to a topic
+// Publish sends a message to a topic.
+// On network failure the message is buffered in a local fallback queue
+// (up to maxFallbackQueue entries). Call FlushFallbackQueue after
+// connectivity is restored to retry buffered messages.
 func (c *Client) Publish(ctx context.Context, topic string, payload []byte) error {
 	if topic == "" {
 		return errors.New("topic cannot be empty")
@@ -362,34 +385,138 @@ func (c *Client) Publish(ctx context.Context, topic string, payload []byte) erro
 		return ErrSubscriptionPending
 	}
 
+	networkErr, appErr := c.doPublish(ctx, topic, sub.SubscriberID, payload)
+	if appErr != nil {
+		// Application-level error (403, 404, etc.) — return directly, don't buffer.
+		return appErr
+	}
+	if networkErr != nil {
+		// Network/transport error — buffer for retry on reconnect.
+		c.enqueueFallback(topic, payload)
+		return fmt.Errorf("publish request (buffered for retry): %w", networkErr)
+	}
+
+	return nil
+}
+
+// doPublish performs the actual HTTP POST to Wotan.
+// Returns (networkErr, appErr). Only one will be non-nil at a time.
+// networkErr: transport/connectivity failures (safe to retry).
+// appErr: server-side rejections (403, 404, etc.) that should not be retried.
+func (c *Client) doPublish(ctx context.Context, topic, subscriberID string, payload []byte) (networkErr, appErr error) {
 	body := map[string]string{
-		"subscriber_id": sub.SubscriberID,
+		"subscriber_id": subscriberID,
 		"payload":       string(payload),
 	}
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
+		return fmt.Errorf("marshal request: %w", err), nil
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST",
 		fmt.Sprintf("%s/topics/%s/publish", c.baseURL, topic),
 		bytes.NewReader(jsonBody))
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return fmt.Errorf("create request: %w", err), nil
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.controlClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("publish request: %w", err)
+		return fmt.Errorf("publish request: %w", err), nil
 	}
 	defer drainBody(resp)
 
 	if resp.StatusCode != http.StatusCreated {
-		return c.parseError(resp)
+		return nil, c.parseError(resp)
 	}
 
-	return nil
+	return nil, nil
+}
+
+// enqueueFallback adds a message to the local fallback queue.
+// If the queue is full (maxFallbackQueue), the oldest message is dropped
+// and fallbackDrops is incremented.
+func (c *Client) enqueueFallback(topic string, payload []byte) {
+	c.fallbackMu.Lock()
+	defer c.fallbackMu.Unlock()
+
+	if len(c.fallbackQueue) >= maxFallbackQueue {
+		// Drop the oldest message to make room.
+		c.fallbackQueue = c.fallbackQueue[1:]
+		atomic.AddInt64(&c.fallbackDrops, 1)
+	}
+
+	// Copy payload to avoid caller mutation.
+	buf := make([]byte, len(payload))
+	copy(buf, payload)
+	c.fallbackQueue = append(c.fallbackQueue, pendingMessage{
+		topic:   topic,
+		payload: buf,
+	})
+}
+
+// FlushFallbackQueue attempts to re-publish all buffered messages.
+// Successfully published messages are removed from the queue.
+// Returns the number of messages flushed and any error from the last failure.
+func (c *Client) FlushFallbackQueue(ctx context.Context) (flushed int, err error) {
+	c.fallbackMu.Lock()
+	queue := c.fallbackQueue
+	c.fallbackQueue = nil
+	c.fallbackMu.Unlock()
+
+	var remaining []pendingMessage
+	for _, msg := range queue {
+		c.mu.RLock()
+		sub, ok := c.subscribers[msg.topic]
+		c.mu.RUnlock()
+
+		if !ok {
+			// Topic no longer subscribed — drop the message.
+			continue
+		}
+
+		netErr, appErr := c.doPublish(ctx, msg.topic, sub.SubscriberID, msg.payload)
+		if netErr != nil {
+			// Network error — keep in queue for later retry.
+			err = netErr
+			remaining = append(remaining, msg)
+			continue
+		}
+		if appErr != nil {
+			// Application error — drop the message, it won't succeed on retry.
+			err = appErr
+			continue
+		}
+		flushed++
+	}
+
+	// Re-enqueue any that failed.
+	if len(remaining) > 0 {
+		c.fallbackMu.Lock()
+		c.fallbackQueue = append(remaining, c.fallbackQueue...)
+		if len(c.fallbackQueue) > maxFallbackQueue {
+			dropped := len(c.fallbackQueue) - maxFallbackQueue
+			c.fallbackQueue = c.fallbackQueue[dropped:]
+			atomic.AddInt64(&c.fallbackDrops, int64(dropped))
+		}
+		c.fallbackMu.Unlock()
+	}
+
+	return flushed, err
+}
+
+// FallbackQueueLen returns the current number of messages in the fallback queue.
+func (c *Client) FallbackQueueLen() int {
+	c.fallbackMu.Lock()
+	defer c.fallbackMu.Unlock()
+	return len(c.fallbackQueue)
+}
+
+// FallbackDrops returns the total number of messages dropped from the
+// fallback queue because it was full.
+func (c *Client) FallbackDrops() int64 {
+	return atomic.LoadInt64(&c.fallbackDrops)
 }
 
 // GetMessages retrieves messages from a topic
