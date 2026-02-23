@@ -9,7 +9,8 @@
     documentation = [ "https://github.com/unheaded/unheaded" ];
 
     wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" "wotan.service" ];
+    after = [ "network-online.target" "wotan.service" ];
+    wants = [ "network-online.target" "wotan.service" ];
 
     # Service configuration
     serviceConfig = {
