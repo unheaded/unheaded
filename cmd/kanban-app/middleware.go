@@ -262,8 +262,9 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 		// Referrer policy
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
-		// Content Security Policy — unsafe-inline removed from script-src
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:")
+		// Content Security Policy — no unsafe-inline for either script-src or style-src.
+		// Inline styles were replaced with CSSOM assignments (element.style) which CSP permits.
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:")
 
 		// Force HTTPS (when behind TLS termination)
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")

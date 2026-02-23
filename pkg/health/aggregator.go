@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os/exec"
@@ -1260,7 +1261,9 @@ func (a *Aggregator) emitEvent(event HealthEvent) {
 		payload, err := json.Marshal(event)
 		if err == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = a.wotan.Publish(ctx, a.config.WotanTopic, payload)
+			if pubErr := a.wotan.Publish(ctx, a.config.WotanTopic, payload); pubErr != nil {
+				log.Printf("health: wotan publish to %s failed: %v", a.config.WotanTopic, pubErr)
+			}
 			cancel()
 		}
 	}
