@@ -5,13 +5,15 @@ Doom-over-IPv6 execution driver.
 Runs the inject→halt→clear→inject loop continuously, driving
 D_DoomLoop through the title screen, demo cycle, and beyond.
 
-The CPU halts on SYSCALL instructions (DG_DrawFrame, DG_GetTicksMs, etc.).
-This script clears the halt and continues execution.
+The CPU halts on SYSCALL instructions (DG_DrawFrame, DG_GetTicksMs, etc.)
+and on ROM faults (out-of-bounds PC, stack corruption). This script
+distinguishes between the two: syscall halts are resumed, fault halts
+trigger a CPU reset and restart.
 
 Usage:
-  sudo ip netns exec monad0 python3 scripts/doom/run.py
-  sudo ip netns exec monad0 python3 scripts/doom/run.py --frames 100
-  sudo ip netns exec monad0 python3 scripts/doom/run.py --batch 500 --forever
+  sudo python3 scripts/doom/run.py
+  sudo python3 scripts/doom/run.py --frames 100
+  sudo python3 scripts/doom/run.py --batch 500 --forever
 """
 import argparse
 import ctypes
@@ -32,6 +34,24 @@ BPF_OBJ_GET = 7
 ARCH_SYSCALL = {"aarch64": 280, "x86_64": 321, "AMD64": 321}
 CPU_STATE_SIZE = 104
 DEFAULT_MAP_DIR = "/sys/fs/bpf/unheaded/doom-ring/maps"
+
+# ROM bounds (from translation output)
+ROM_MAX_PC = 76128
+
+# Diagnostic sentinel addresses (word addresses in RAM_MAP)
+DIAG_SENTINEL_WORD = 0xE0000 >> 2   # 0x38000
+DIAG_OPCODE_WORD   = 0xE0004 >> 2   # 0x38001
+DIAG_PC_WORD       = 0xE0008 >> 2   # 0x38002
+DIAG_VALUE_WORD    = 0xE000C >> 2   # 0x38003
+DIAG_SP_WORD       = 0xE0010 >> 2   # 0x38004
+DIAG_EXTRA_WORD    = 0xE0014 >> 2   # 0x38005
+
+# Sentinel values
+DEAD_RESTART  = 0xDEAD0001
+DEAD_UNMAPPED = 0xDEAD0002
+DEAD_CALLR    = 0xDEAD0003
+
+INITIAL_SP = 0x3F00000
 
 _shutdown = False
 
@@ -111,6 +131,50 @@ def build_packet():
     return eth + ipv6 + hbh + monad
 
 
+def is_rom_fault(pc):
+    """Check if PC is outside valid ROM bounds."""
+    return pc >= ROM_MAX_PC
+
+
+def read_diagnostics(bpf, ram_fd):
+    """Read the diagnostic area at 0xE0000 from RAM_MAP."""
+    diag = {}
+    for name, word_addr in [
+        ("sentinel", DIAG_SENTINEL_WORD),
+        ("opcode", DIAG_OPCODE_WORD),
+        ("pc", DIAG_PC_WORD),
+        ("value", DIAG_VALUE_WORD),
+        ("sp", DIAG_SP_WORD),
+        ("extra", DIAG_EXTRA_WORD),
+    ]:
+        key = struct.pack("<I", word_addr)
+        try:
+            raw = bpf.lookup(ram_fd, key, 4)
+            diag[name] = struct.unpack("<I", raw)[0]
+        except OSError:
+            diag[name] = 0
+    return diag
+
+
+def clear_diagnostics(bpf, ram_fd):
+    """Clear the diagnostic area."""
+    for word_addr in [DIAG_SENTINEL_WORD, DIAG_OPCODE_WORD, DIAG_PC_WORD,
+                      DIAG_VALUE_WORD, DIAG_SP_WORD, DIAG_EXTRA_WORD]:
+        key = struct.pack("<I", word_addr)
+        bpf.update(ram_fd, key, struct.pack("<I", 0))
+
+
+def reset_cpu(bpf, cpu_fd, key):
+    """Reset CPU state to initial values (PC=0, SP=INITIAL_SP, halted=0)."""
+    state = bytearray(CPU_STATE_SIZE)
+    # regs[15] (SP) at offset 60 (15 * 4)
+    struct.pack_into("<I", state, 60, INITIAL_SP)
+    # PC at offset 64 = 0
+    # halted at offset 69 = 0
+    # insn_count at offset 80 = 0
+    bpf.update(cpu_fd, key, bytes(state))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Doom-over-IPv6 execution driver")
     parser.add_argument("--map-dir", default=DEFAULT_MAP_DIR, help="BPF map pin directory")
@@ -120,22 +184,24 @@ def main():
     parser.add_argument("--forever", action="store_true", help="Run until interrupted")
     parser.add_argument("--instance", type=lambda x: int(x, 0), default=0xDE, help="CPU instance")
     parser.add_argument("--namespace", default="monad0", help="Network namespace for injection")
+    parser.add_argument("--auto-restart", action="store_true", default=True,
+                        help="Auto-restart CPU on ROM fault (default: true)")
+    parser.add_argument("--no-auto-restart", dest="auto_restart", action="store_false",
+                        help="Stop on ROM fault instead of restarting")
     args = parser.parse_args()
 
     bpf = BPFHelper()
     cpu_fd = bpf.open_pinned(os.path.join(args.map_dir, "CPU_MAP"))
+    ram_fd = bpf.open_pinned(os.path.join(args.map_dir, "RAM_MAP"))
     key = struct.pack("<I", args.instance)
 
     # Open injection socket
-    # We may be running in root namespace and need to enter monad0 for injection.
-    # Try binding directly first, then fall back to creating socket in namespace.
     sock = None
     ns_fd = None
     try:
         sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x86DD))
         sock.bind((args.iface, 0))
     except OSError:
-        # Interface not in current namespace — try entering monad0
         if sock:
             sock.close()
         ns_path = f"/var/run/netns/{args.namespace}"
@@ -143,7 +209,6 @@ def main():
             print(f"ERROR: Cannot find namespace {args.namespace} and interface {args.iface}", file=sys.stderr)
             print("Run with: sudo python3 scripts/doom/run.py", file=sys.stderr)
             sys.exit(1)
-        # Enter the namespace using setns
         ns_fd = os.open(ns_path, os.O_RDONLY)
         libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
         CLONE_NEWNET = 0x40000000
@@ -159,11 +224,17 @@ def main():
     total_insns = 0
     total_pkts = 0
     halts = 0
+    faults = 0
+    restarts = 0
     start = time.time()
+    last_insn_count = 0
+    stall_count = 0
 
     print(f"=== Doom Execution Driver ===")
     print(f"  Batch: {args.batch} pkts, Instance: 0x{args.instance:X}")
     print(f"  Target frames: {'unlimited' if args.frames == 0 else args.frames}")
+    print(f"  ROM size: {ROM_MAX_PC} instructions")
+    print(f"  Auto-restart: {args.auto_restart}")
     print()
 
     max_frames = args.frames if args.frames > 0 else (999999999 if args.forever else 1000)
@@ -178,26 +249,80 @@ def main():
         raw = bpf.lookup(cpu_fd, key, CPU_STATE_SIZE)
         pc = struct.unpack_from("<I", raw, 64)[0]
         halted = raw[69]
+        sp = struct.unpack_from("<I", raw, 60)[0]
         insn_count = struct.unpack_from("<Q", raw, 80)[0]
 
         if halted:
-            halts += 1
-            frames += 1
-            total_insns = insn_count
+            # Check diagnostic sentinel to distinguish syscall halt from fault halt.
+            # ROM faults (RET-to-0, unmapped JMPR/CALLR, out-of-bounds PC) write
+            # a sentinel to 0xE0000 before halting. Syscall halts don't.
+            diag = read_diagnostics(bpf, ram_fd)
+            sentinel = diag.get("sentinel", 0)
+            is_fault = is_rom_fault(pc) or sentinel in (DEAD_RESTART, DEAD_UNMAPPED, DEAD_CALLR)
 
-            # Clear halt flag — write byte 69 back to 0
-            state = bytearray(raw)
-            state[69] = 0  # halted = 0
-            bpf.update(cpu_fd, key, bytes(state))
-
-            elapsed = time.time() - start
-            fps = frames / elapsed if elapsed > 0 else 0
-            if frames % 10 == 0 or frames <= 5:
+            if is_fault:
+                faults += 1
+                sentinel_names = {
+                    DEAD_RESTART: "RET-to-0/restart",
+                    DEAD_UNMAPPED: "unmapped JMPR",
+                    DEAD_CALLR: "unmapped CALLR",
+                }
+                fault_name = sentinel_names.get(sentinel, f"ROM out-of-bounds")
                 print(
-                    f"  Frame {frames}: PC=0x{pc:X}, insns={insn_count:,}, "
-                    f"pkts={total_pkts:,}, fps={fps:.1f}",
+                    f"\n  *** ROM FAULT #{faults}: {fault_name} ***\n"
+                    f"      PC=0x{pc:X}, SP=0x{sp:X}, insns={insn_count:,}\n"
+                    f"      diag: opc=0x{diag.get('opcode',0):02X}, "
+                    f"fault_pc=0x{diag.get('pc',0):X}, "
+                    f"val=0x{diag.get('value',0):X}, "
+                    f"sp=0x{diag.get('sp',0):X}, "
+                    f"extra=0x{diag.get('extra',0):X}",
                     flush=True,
                 )
+
+                if args.auto_restart:
+                    restarts += 1
+                    print(f"      -> Auto-restarting CPU (restart #{restarts})...", flush=True)
+                    reset_cpu(bpf, cpu_fd, key)
+                    clear_diagnostics(bpf, ram_fd)
+                    stall_count = 0
+                    last_insn_count = 0
+                    print(f"      -> CPU reset: PC=0, SP=0x{INITIAL_SP:X}\n", flush=True)
+                else:
+                    print("      -> Stopping (use --auto-restart to continue)", flush=True)
+                    break
+            else:
+                # Normal syscall halt — resume execution
+                halts += 1
+                frames += 1
+                total_insns = insn_count
+
+                # Clear halt flag
+                state = bytearray(raw)
+                state[69] = 0  # halted = 0
+                bpf.update(cpu_fd, key, bytes(state))
+
+                elapsed = time.time() - start
+                fps = frames / elapsed if elapsed > 0 else 0
+                if frames % 10 == 0 or frames <= 5:
+                    print(
+                        f"  Frame {frames}: PC=0x{pc:X}, insns={insn_count:,}, "
+                        f"pkts={total_pkts:,}, fps={fps:.1f}",
+                        flush=True,
+                    )
+
+                # Detect instruction stall (same insn count for many frames)
+                if insn_count == last_insn_count:
+                    stall_count += 1
+                    if stall_count >= 100:
+                        print(
+                            f"\n  *** STALL DETECTED: insn count stuck at {insn_count:,} "
+                            f"for {stall_count} frames, PC=0x{pc:X} ***",
+                            flush=True,
+                        )
+                        stall_count = 0  # Reset to avoid spam
+                else:
+                    stall_count = 0
+                last_insn_count = insn_count
         else:
             # CPU still running, inject more
             time.sleep(0.0001)  # Brief pause
@@ -206,12 +331,15 @@ def main():
     if ns_fd is not None:
         os.close(ns_fd)
     os.close(cpu_fd)
+    os.close(ram_fd)
 
     elapsed = time.time() - start
     fps = frames / elapsed if elapsed > 0 else 0
     print(f"\n=== SUMMARY ===")
     print(f"  Frames: {frames}")
     print(f"  Halts: {halts}")
+    print(f"  ROM faults: {faults}")
+    print(f"  Restarts: {restarts}")
     print(f"  Packets: {total_pkts:,}")
     print(f"  Instructions: {total_insns:,}")
     print(f"  Time: {elapsed:.1f}s")
