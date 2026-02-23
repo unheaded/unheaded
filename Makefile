@@ -279,6 +279,11 @@ lint: ## Lint all code
 	cd $(EBPF_DIR) && cargo clippy
 	cd cmd/trace-collector && cargo clippy
 
+security: ## Run Go security audit (gosec)
+	@echo "Running security audit..."
+	@which gosec > /dev/null || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@v2.21.0)
+	gosec ./...
+
 deps: ## Download dependencies
 	@echo "Downloading Go dependencies..."
 	go mod download

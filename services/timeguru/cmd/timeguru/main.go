@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +13,9 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/timeguru/internal/api"
@@ -47,37 +49,39 @@ type Config struct {
 }
 
 func main() {
-	log.Println("[timeguru] ═══════════════════════════════════════════════")
-	log.Println("[timeguru]     THE ORACLE'S ANTRE AWAKENS")
-	log.Println("[timeguru]     Timeguru Service v1.0.0")
-	log.Println("[timeguru] ═══════════════════════════════════════════════")
+	// Configure zerolog — structured JSON in prod, console for dev
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}).
+		With().Timestamp().Str("service", "timeguru").Logger()
+
+	log.Info().Msg("THE ORACLE'S ANTRE AWAKENS — Timeguru Service v1.0.0")
 
 	// Load config from environment with defensive defaults
 	config := loadConfig()
 
-	log.Printf("[timeguru] Configuration:")
-	log.Printf("[timeguru]   Port: %s", config.Port)
-	log.Printf("[timeguru]   Wotan HTTP: %s", config.WotanAddr)
-	log.Printf("[timeguru]   Wotan gRPC: %s", config.WotanGRPCAddr)
-	log.Printf("[timeguru]   Database: %s", config.DBPath)
-	log.Printf("[timeguru]   Timeline: %s", config.TimelinePath)
-	log.Printf("[timeguru]   SyncDir: %s", config.SyncDir)
+	log.Info().
+		Str("port", config.Port).
+		Str("wotan_http", config.WotanAddr).
+		Str("wotan_grpc", config.WotanGRPCAddr).
+		Str("db_path", config.DBPath).
+		Str("timeline_path", config.TimelinePath).
+		Str("sync_dir", config.SyncDir).
+		Msg("configuration loaded")
 
 	// Initialize storage
 	store, err := storage.NewStore(config.DBPath)
 	if err != nil {
-		log.Fatalf("[timeguru] failed to initialize storage: %v", err)
+		log.Fatal().Err(err).Msg("failed to initialize storage")
 	}
 	defer store.Close()
-	log.Println("[timeguru] Storage initialized (Crystal Grotto connected)")
+	log.Info().Msg("storage initialized (Crystal Grotto connected)")
 
 	// Try to load timeline from markdown file on startup
 	if config.TimelinePath != "" {
 		if err := loadTimelineFromFile(config.TimelinePath, store); err != nil {
-			log.Printf("[timeguru] WARNING: could not load timeline.md: %v", err)
-			log.Println("[timeguru] Service will start with empty timeline")
+			log.Warn().Err(err).Str("path", config.TimelinePath).Msg("could not load timeline.md, starting with empty timeline")
 		} else {
-			log.Println("[timeguru] Timeline loaded from markdown file")
+			log.Info().Msg("timeline loaded from markdown file")
 		}
 	}
 
@@ -85,12 +89,11 @@ func main() {
 	var wotan *wotanClient.Client
 	wotan, err = initWotan(config.WotanAddr, config.WotanGRPCAddr)
 	if err != nil {
-		log.Printf("[timeguru] WARNING: Fae Chamber connection failed: %v", err)
-		log.Println("[timeguru] Continuing without Wotan integration")
+		log.Warn().Err(err).Msg("Fae Chamber connection failed, continuing without Wotan integration")
 		wotan = nil
 	} else {
 		defer wotan.Close()
-		log.Println("[timeguru] Fae Chamber connected (Wotan online)")
+		log.Info().Msg("Fae Chamber connected (Wotan online)")
 	}
 
 	// Initialize HTTP handler
@@ -100,10 +103,10 @@ func main() {
 	if config.SyncDir != "" {
 		syncer, err := tsync.NewSyncer(config.SyncDir)
 		if err != nil {
-			log.Printf("[timeguru] WARNING: sync setup failed: %v", err)
+			log.Warn().Err(err).Msg("sync setup failed")
 		} else {
 			handler.SetSyncer(syncer)
-			log.Printf("[timeguru] File sync enabled → %s (JSON/TOML/YAML/MD)", config.SyncDir)
+			log.Info().Str("dir", config.SyncDir).Msg("file sync enabled (JSON/TOML/YAML/MD)")
 
 			// Initial sync from current timeline state
 			if tl, err := store.GetTimeline(context.Background()); err == nil {
@@ -155,19 +158,10 @@ func main() {
 
 	// Start HTTP server in goroutine
 	go func() {
-		log.Printf("[timeguru] HTTP server listening on :%s", config.Port)
-		log.Println("[timeguru] Endpoints available:")
-		log.Println("[timeguru]   GET  /health                   - Health check")
-		log.Println("[timeguru]   GET  /timeline?format=         - Timeline (json/yaml/toml/md)")
-		log.Println("[timeguru]   GET  /milestones               - All milestones")
-		log.Println("[timeguru]   POST /milestones/:id/update    - Update milestone")
-		log.Println("[timeguru]   POST /api/v1/timeline/sync     - Sync to JSON/TOML/YAML/MD files")
-		log.Println("[timeguru]   POST /api/v1/timeline/import   - Import from JSON/YAML/TOML")
-		log.Println("[timeguru]   GET  /api/v1/timeline/tasks    - Kanban tasks")
-		log.Println("[timeguru]   GET  /api/v1/timeline/stream   - SSE real-time updates")
-		log.Println("[timeguru] ═══════════════════════════════════════════════")
+		log.Info().Str("addr", ":"+config.Port).Msg("HTTP server listening")
+		log.Info().Msg("endpoints: /health, /timeline, /milestones, /api/v1/timeline/{sync,import,tasks,stream}")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("[timeguru] HTTP server failed: %v", err)
+			log.Fatal().Err(err).Msg("HTTP server failed")
 		}
 	}()
 
@@ -184,19 +178,17 @@ func main() {
 
 	// Wait for shutdown signal
 	<-ctx.Done()
-	log.Println("[timeguru] ═══════════════════════════════════════════════")
-	log.Println("[timeguru] Shutdown signal received")
+	log.Info().Msg("shutdown signal received")
 
 	// Graceful shutdown with timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("[timeguru] HTTP server shutdown error: %v", err)
+		log.Error().Err(err).Msg("HTTP server shutdown error")
 	}
 
-	log.Println("[timeguru] The Oracle's Antre sleeps...")
-	log.Println("[timeguru] ═══════════════════════════════════════════════")
+	log.Info().Msg("The Oracle's Antre sleeps")
 }
 
 // loadConfig loads configuration from environment variables with defensive defaults
@@ -256,8 +248,11 @@ func loadTimelineFromFile(filePath string, store *storage.Store) error {
 		return fmt.Errorf("save timeline: %w", err)
 	}
 
-	log.Printf("[timeguru] Loaded %d phases, %d milestones from %s",
-		len(tl.Phases), len(tl.Milestones), filePath)
+	log.Info().
+		Int("phases", len(tl.Phases)).
+		Int("milestones", len(tl.Milestones)).
+		Str("file", filePath).
+		Msg("loaded timeline from file")
 
 	return nil
 }
@@ -266,11 +261,11 @@ func loadTimelineFromFile(filePath string, store *storage.Store) error {
 func watchTimelineFile(ctx context.Context, filePath string, store *storage.Store, wotan *wotanClient.Client, handler *api.Handler) {
 	watcher, err := parser.NewFileWatcher(filePath)
 	if err != nil {
-		log.Printf("[timeguru] File watcher setup failed: %v", err)
+		log.Error().Err(err).Msg("file watcher setup failed")
 		return
 	}
 
-	log.Printf("[timeguru] Watching %s for changes (interval: %v)", filePath, fileWatchInterval)
+	log.Info().Str("file", filePath).Dur("interval", fileWatchInterval).Msg("watching for changes")
 
 	ticker := time.NewTicker(fileWatchInterval)
 	defer ticker.Stop()
@@ -278,34 +273,36 @@ func watchTimelineFile(ctx context.Context, filePath string, store *storage.Stor
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("[timeguru] File watcher stopped")
+			log.Info().Msg("file watcher stopped")
 			return
 		case <-ticker.C:
 			changed, err := watcher.HasChanged()
 			if err != nil {
-				log.Printf("[timeguru] File watch error: %v", err)
+				log.Error().Err(err).Msg("file watch error")
 				continue
 			}
 
 			if changed {
-				log.Println("[timeguru] Timeline file changed, reloading...")
+				log.Info().Msg("timeline file changed, reloading")
 
 				tl, err := watcher.Parse()
 				if err != nil {
-					log.Printf("[timeguru] Parse error on reload: %v", err)
+					log.Error().Err(err).Msg("parse error on reload")
 					continue
 				}
 
 				saveCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				if err := store.SaveTimeline(saveCtx, tl); err != nil {
-					log.Printf("[timeguru] Save error on reload: %v", err)
+					log.Error().Err(err).Msg("save error on reload")
 					cancel()
 					continue
 				}
 				cancel()
 
-				log.Printf("[timeguru] Timeline reloaded: %d phases, %d milestones",
-					len(tl.Phases), len(tl.Milestones))
+				log.Info().
+					Int("phases", len(tl.Phases)).
+					Int("milestones", len(tl.Milestones)).
+					Msg("timeline reloaded")
 
 				// Auto-sync to all format mirrors (JSON/TOML/YAML/MD)
 				handler.AutoSync(tl)
@@ -357,13 +354,13 @@ func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("create dual-transport client: %w", err)
 		}
-		log.Printf("[timeguru] Wotan client: HTTP=%s gRPC=%s (dual transport)", httpAddr, grpcAddr)
+		log.Info().Str("http", httpAddr).Str("grpc", grpcAddr).Msg("Wotan client created (dual transport)")
 	} else {
 		client, err = wotanClient.NewClient(httpAddr)
 		if err != nil {
 			return nil, fmt.Errorf("create HTTP client: %w", err)
 		}
-		log.Printf("[timeguru] Wotan client: HTTP=%s (HTTP-only)", httpAddr)
+		log.Info().Str("http", httpAddr).Msg("Wotan client created (HTTP-only)")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -372,9 +369,9 @@ func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
 	// Subscribe to alerts.critical (required by CLAUDE.md)
 	alertSub, err := client.Subscribe(ctx, "alerts.critical", wotanDisplayName)
 	if err != nil {
-		log.Printf("[timeguru] WARNING: failed to subscribe to alerts.critical: %v", err)
+		log.Warn().Err(err).Msg("failed to subscribe to alerts.critical")
 	} else {
-		log.Printf("[timeguru] Subscribed to alerts.critical (status: %s)", alertSub.Status)
+		log.Info().Str("status", alertSub.Status).Msg("subscribed to alerts.critical")
 	}
 
 	// Subscribe to timeline updates topic
@@ -384,7 +381,7 @@ func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
 		return nil, fmt.Errorf("subscribe to %s: %w", wotanTopic, err)
 	}
 
-	log.Printf("[timeguru] Subscribed to topic %q (status: %s)", wotanTopic, subscriber.Status)
+	log.Info().Str("topic", wotanTopic).Str("status", subscriber.Status).Msg("subscribed to topic")
 
 	return client, nil
 }
@@ -403,63 +400,69 @@ func publishTimelineUpdate(client *wotanClient.Client, eventType string) {
 
 	err := client.Publish(ctx, wotanTopic, []byte(payload))
 	if err != nil {
-		log.Printf("[timeguru] Failed to publish update event: %v", err)
+		log.Error().Err(err).Str("event", eventType).Msg("failed to publish update event")
 		return
 	}
 
-	log.Printf("[timeguru] Published event: %s (trace_id: %s)", eventType, traceID)
+	log.Info().Str("event", eventType).Str("trace_id", traceID).Msg("published event")
 }
 
 // listenForMessages listens for wotan messages
 func listenForMessages(ctx context.Context, client *wotanClient.Client) {
-	log.Printf("[timeguru] Listening for messages on topic %q", wotanTopic)
+	log.Info().Str("topic", wotanTopic).Msg("listening for messages")
 
 	// Stream messages
 	msgCh, err := client.StreamMessages(ctx, wotanTopic)
 	if err != nil {
-		log.Printf("[timeguru] Failed to stream messages: %v", err)
+		log.Error().Err(err).Msg("failed to stream messages")
 		return
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("[timeguru] Message listener stopped")
+			log.Info().Msg("message listener stopped")
 			return
 		case msg, ok := <-msgCh:
 			if !ok {
-				log.Println("[timeguru] Message channel closed")
+				log.Info().Msg("message channel closed")
 				return
 			}
-			log.Printf("[timeguru] Received message: id=%s seq=%d topic=%s sender=%s - processing deferred",
-				msg.MessageID, msg.Seq, msg.Topic, msg.SenderID)
+			log.Info().
+				Str("message_id", msg.MessageID).
+				Int64("seq", msg.Seq).
+				Str("topic", msg.Topic).
+				Str("sender", msg.SenderID).
+				Msg("received message (processing deferred)")
 		}
 	}
 }
 
 // listenForAlerts listens for critical alerts from Wotan
 func listenForAlerts(ctx context.Context, client *wotanClient.Client) {
-	log.Println("[timeguru] Listening for critical alerts")
+	log.Info().Msg("listening for critical alerts")
 
 	msgCh, err := client.StreamMessages(ctx, "alerts.critical")
 	if err != nil {
-		log.Printf("[timeguru] Failed to stream alerts: %v", err)
+		log.Error().Err(err).Msg("failed to stream alerts")
 		return
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("[timeguru] Alert listener stopped")
+			log.Info().Msg("alert listener stopped")
 			return
 		case msg, ok := <-msgCh:
 			if !ok {
-				log.Println("[timeguru] Alert channel closed")
+				log.Info().Msg("alert channel closed")
 				return
 			}
-			log.Printf("[timeguru] CRITICAL ALERT received: %s (seq=%d) - payload: %s",
-				msg.MessageID, msg.Seq, msg.Payload)
-			// Could update timeline status or create milestone markers for critical events
+			log.Warn().
+				Str("message_id", msg.MessageID).
+				Int64("seq", msg.Seq).
+				Str("payload", msg.Payload).
+				Msg("CRITICAL ALERT received")
 		}
 	}
 }

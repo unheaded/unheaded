@@ -259,7 +259,8 @@ func (s *Server) Start() error {
 
 	// Apply middleware stack (order matters!)
 	var handler http.Handler = mux
-	handler = s.loggingMiddleware(handler)                          // Logging (innermost)
+	handler = s.loggingMiddleware(handler)                          // Logging (innermost — sees request ID)
+	handler = requestIDMiddleware(handler)                           // X-Request-ID injection
 	handler = requestSizeLimitMiddleware(1024 * 1024)(handler)      // 1MB max request
 	handler = securityHeadersMiddleware(handler)                     // Security headers
 	handler = corsMiddleware(handler)                                // CORS
@@ -395,6 +396,7 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 			Str("path", r.URL.Path).
 			Int("status", wrapped.status).
 			Dur("duration", time.Since(start)).
+			Str("request_id", getRequestID(r.Context())).
 			Msg("HTTP request")
 	})
 }

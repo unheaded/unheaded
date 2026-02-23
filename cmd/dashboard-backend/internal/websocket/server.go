@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -351,13 +352,16 @@ func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.
 	}
 
 	upgrade := r.Header.Get("Upgrade")
-	if upgrade != "websocket" {
+	if !strings.EqualFold(upgrade, "websocket") {
 		http.Error(w, "not a websocket request", http.StatusBadRequest)
 		return nil, errors.New("not a websocket request")
 	}
 
+	// RFC 6455 requires the Connection header to contain "Upgrade" as a token.
+	// Browsers may send "Upgrade", "keep-alive, Upgrade", etc. — use
+	// case-insensitive token search instead of exact string comparison.
 	connection := r.Header.Get("Connection")
-	if connection != "Upgrade" && connection != "upgrade" && connection != "keep-alive, Upgrade" {
+	if !headerContainsToken(connection, "Upgrade") {
 		http.Error(w, "invalid connection header", http.StatusBadRequest)
 		return nil, errors.New("invalid connection header")
 	}
@@ -442,6 +446,14 @@ func (s *Server) clientReadPump(c *Client) {
 
 		switch opcode {
 		case opcodeText, opcodeBinary:
+			// Reject oversized client messages (1KB max for control messages)
+			if len(payload) > 1024 {
+				s.log.Warn().
+					Str("client_id", c.id).
+					Int("size", len(payload)).
+					Msg("rejected oversized WebSocket message")
+				continue
+			}
 			if s.onMessage != nil {
 				s.onMessage(c, payload)
 			}
@@ -716,6 +728,17 @@ func (s *Server) isOriginAllowed(origin string) bool {
 	}
 	for _, allowed := range origins {
 		if origin == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// headerContainsToken checks whether an HTTP header value contains the given
+// token as a comma-separated, case-insensitive entry per RFC 7230 section 3.2.6.
+func headerContainsToken(headerValue, token string) bool {
+	for _, part := range strings.Split(headerValue, ",") {
+		if strings.EqualFold(strings.TrimSpace(part), token) {
 			return true
 		}
 	}

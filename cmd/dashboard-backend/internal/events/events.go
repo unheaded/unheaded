@@ -9,11 +9,15 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
+
+// eventIDCounter generates collision-safe event IDs via atomic increment.
+var eventIDCounter int64
 
 var (
 	// ErrNilConfig indicates nil configuration
@@ -696,7 +700,7 @@ func (s *Streamer) EventCount() int {
 // PublishEvent publishes an internal event (for local events)
 func (s *Streamer) PublishEvent(event Event) {
 	if event.ID == "" {
-		event.ID = fmt.Sprintf("%d", time.Now().UnixNano())
+		event.ID = fmt.Sprintf("evt-%d-%d", time.Now().Unix(), atomic.AddInt64(&eventIDCounter, 1))
 	}
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now()
@@ -714,7 +718,7 @@ func (s *Streamer) PublishEvent(event Event) {
 // CreateEvent creates a new event
 func CreateEvent(eventType EventType, severity Severity, source, title, message string) Event {
 	return Event{
-		ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
+		ID:        fmt.Sprintf("evt-%d-%d", time.Now().Unix(), atomic.AddInt64(&eventIDCounter, 1)),
 		Type:      eventType,
 		Severity:  severity,
 		Source:    source,
@@ -894,7 +898,7 @@ func (s *Streamer) PublishToWotan(ctx context.Context, topic string, event Event
 
 	// Prepare event payload
 	if event.ID == "" {
-		event.ID = fmt.Sprintf("%d", time.Now().UnixNano())
+		event.ID = fmt.Sprintf("evt-%d-%d", time.Now().Unix(), atomic.AddInt64(&eventIDCounter, 1))
 	}
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now()
