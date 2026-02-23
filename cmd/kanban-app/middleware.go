@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 	// Using package-level log from main.go (Kingdom's native logger)
 )
 
@@ -268,6 +270,41 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// ============================================================================
+// REQUEST ID MIDDLEWARE
+// ============================================================================
+
+// requestIDMiddleware injects an X-Request-ID header into every request and
+// response. If the client already sent an X-Request-ID, it is preserved;
+// otherwise a new UUID is generated. The ID is logged in the request context.
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := r.Header.Get("X-Request-ID")
+		if requestID == "" {
+			requestID = uuid.New().String()
+		}
+		// Echo back on response for client correlation
+		w.Header().Set("X-Request-ID", requestID)
+
+		// Store in request context for downstream handlers and logging
+		ctx := context.WithValue(r.Context(), requestIDKey, requestID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// requestIDKeyType is an unexported type for the context key, preventing collisions.
+type requestIDKeyType struct{}
+
+var requestIDKey = requestIDKeyType{}
+
+// getRequestID extracts the X-Request-ID from a request context.
+func getRequestID(ctx context.Context) string {
+	if id, ok := ctx.Value(requestIDKey).(string); ok {
+		return id
+	}
+	return ""
 }
 
 // ============================================================================
