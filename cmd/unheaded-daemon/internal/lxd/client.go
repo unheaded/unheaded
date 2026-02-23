@@ -685,10 +685,11 @@ func (m *MockClient) DeleteSnapshot(ctx context.Context, container, snapshot str
 		return nil, ErrClientNotConnected
 	}
 
-	snaps, exists := m.snapshots[container]
-	if !exists {
+	if _, exists := m.containers[container]; !exists {
 		return nil, ErrContainerNotFound
 	}
+
+	snaps := m.snapshots[container]
 
 	found := false
 	newSnaps := make([]Snapshot, 0, len(snaps))
@@ -728,10 +729,11 @@ func (m *MockClient) RestoreSnapshot(ctx context.Context, container, snapshot st
 		return nil, ErrClientNotConnected
 	}
 
-	snaps, exists := m.snapshots[container]
-	if !exists {
+	if _, exists := m.containers[container]; !exists {
 		return nil, ErrContainerNotFound
 	}
+
+	snaps := m.snapshots[container]
 
 	found := false
 	for _, s := range snaps {
