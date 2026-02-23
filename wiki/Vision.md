@@ -9,6 +9,7 @@ Unheaded is a configuration management automation platform delivering a complete
 - eBPF-based observability with packet-level tracing from L2 to L7
 - Immutable infrastructure via interchangeable container runtimes (LXD, containerd, NixOS, Docker)
 - Interchangeable IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt) — your tools, our state model
+- Interchangeable observability backends (Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios + more) — your dashboards, our data
 - Dual-layered service mesh built on Wotan ring buffer and BGP
 - Control plane with declarative config and drift detection
 - Security baseline: FedRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, GDPR
