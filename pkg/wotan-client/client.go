@@ -176,6 +176,9 @@ type Client struct {
 	fallbackQueue []pendingMessage
 	fallbackMu    sync.Mutex
 	fallbackDrops int64 // atomic counter: messages dropped because queue was full
+
+	// Dead letter counter — total messages sent to dead letter topics.
+	deadLetterCount int64 // atomic counter
 }
 
 // Transport returns the currently active streaming transport.
@@ -439,7 +442,6 @@ func (c *Client) doPublish(ctx context.Context, topic, subscriberID string, payl
 // and fallbackDrops is incremented.
 func (c *Client) enqueueFallback(topic string, payload []byte) {
 	c.fallbackMu.Lock()
-	defer c.fallbackMu.Unlock()
 
 	if len(c.fallbackQueue) >= maxFallbackQueue {
 		// Drop the oldest message to make room.
@@ -454,6 +456,9 @@ func (c *Client) enqueueFallback(topic string, payload []byte) {
 		topic:   topic,
 		payload: buf,
 	})
+
+	c.fallbackMu.Unlock()
+	c.updateFallbackMetrics()
 }
 
 // FlushFallbackQueue attempts to re-publish all buffered messages.
@@ -503,6 +508,7 @@ func (c *Client) FlushFallbackQueue(ctx context.Context) (flushed int, err error
 		c.fallbackMu.Unlock()
 	}
 
+	c.updateFallbackMetrics()
 	return flushed, err
 }
 
