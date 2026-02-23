@@ -412,7 +412,25 @@
     }
 
     function handleBinaryFrame(data) {
-        if (data.length >= SCREEN_W * SCREEN_H) {
+        // Support two formats:
+        // 1. Tagged RGBA from doom-bridge: [0x01 tag] + [256000 bytes RGBA]
+        // 2. Raw palette data (legacy): 64000 bytes palette indices
+        if (data.length > 1 && data[0] === 0x01) {
+            // Tagged RGBA frame from doom-bridge
+            var rgba = data.subarray(1);
+            var expectedLen = SCREEN_W * SCREEN_H * 4;
+            if (rgba.length >= expectedLen && imageData) {
+                // Write RGBA directly to imageData (skip palette conversion)
+                imageData.data.set(rgba.subarray(0, expectedLen));
+                // We still need to update screenBuffer for demos/overlay compatibility
+                for (var i = 0; i < SCREEN_W * SCREEN_H; i++) {
+                    screenBuffer[i] = rgba[i * 4]; // Store R channel as rough index
+                }
+                stats.frameCount++;
+                updateFPS();
+            }
+        } else if (data.length >= SCREEN_W * SCREEN_H) {
+            // Legacy: raw 320x200 palette indices
             screenBuffer.set(data.subarray(0, SCREEN_W * SCREEN_H));
             stats.frameCount++;
             updateFPS();
@@ -431,6 +449,13 @@
                     stats.frameCount++;
                     updateFPS();
                 }
+                break;
+
+            case 'stats':
+                // Stats message from doom-bridge service
+                if (msg.pc !== undefined) stats.pc = msg.pc;
+                if (msg.insns !== undefined) stats.ips = msg.insns;
+                if (msg.packets !== undefined) stats.frameCount = msg.packets;
                 break;
 
             case 'compute_stats':
