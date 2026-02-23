@@ -46,8 +46,7 @@
     description = "Kanban App - The Meta Moment";
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" "timeguru.service" ];
-    wants = [ "network-online.target" ];
-    requires = [ "timeguru.service" ];
+    wants = [ "network-online.target" "timeguru.service" ];
 
     serviceConfig = {
       Type = "simple";

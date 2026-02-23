@@ -46,8 +46,7 @@
     description = "Micromanager Execution Service";
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" "wotan.service" ];
-    wants = [ "network-online.target" ];
-    requires = [ "wotan.service" ];
+    wants = [ "network-online.target" "wotan.service" ];
 
     serviceConfig = {
       Type = "simple";
