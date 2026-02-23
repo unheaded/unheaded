@@ -263,9 +263,9 @@
       # SSL/TLS Configuration
       sslCertificate = "/etc/unheaded/tls/gateway.pem";
       sslCertificateKey = "/etc/unheaded/tls/gateway-key.pem";
-      sslProtocols = "TLSv1.3 TLSv1.2";
-      sslCiphers = "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384";
-      sslEcdhCurve = "X25519:P-256:P-384:P-521";
+      sslProtocols = "TLSv1.3";
+      sslCiphers = "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256";
+      sslEcdhCurve = "X25519:P-256:P-384";
       sslPreferServerCiphers = false;   # TLS 1.3 ignores this anyway
       sslSessionCache = "shared:SSL:10m";
       sslSessionTimeout = "10m";

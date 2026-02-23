@@ -14,6 +14,7 @@ type Config struct {
 	Routes        []RouteConfig       `json:"routes"`
 	RateLimit     RateLimitConfig     `json:"rate_limit"`
 	Auth          AuthConfig          `json:"auth"`
+	TLS           TLSConfig           `json:"tls"`
 	CORS          CORSConfig          `json:"cors"`
 	Circuit       CircuitConfig       `json:"circuit"`
 	Wotan        WotanConfig        `json:"wotan"`
@@ -109,6 +110,23 @@ type WotanConfig struct {
 type MetricsConfig struct {
 	Enabled bool   `json:"enabled"`
 	Path    string `json:"path"`
+}
+
+// TLSConfig holds mTLS settings for inter-service communication.
+// When Enabled is true, the gateway terminates TLS and verifies client certs.
+type TLSConfig struct {
+	// Enabled activates mTLS for the gateway. Default: false.
+	Enabled bool `json:"enabled"`
+	// CACertFile is the path to the CA certificate for verifying client certs.
+	CACertFile string `json:"ca_cert_file"`
+	// CertFile is the path to the gateway's TLS certificate.
+	CertFile string `json:"cert_file"`
+	// KeyFile is the path to the gateway's TLS private key.
+	KeyFile string `json:"key_file"`
+	// RequireClientCert enforces mTLS (client must present a certificate).
+	RequireClientCert bool `json:"require_client_cert"`
+	// MinVersion is the minimum TLS version (default "1.3").
+	MinVersion string `json:"min_version"`
 }
 
 // DefaultConfig returns a configuration with sensible defaults.
@@ -212,6 +230,23 @@ func LoadFromEnv() *Config {
 
 	if tlsKey := os.Getenv("GATEWAY_TLS_KEY"); tlsKey != "" {
 		cfg.Server.TLSKeyFile = tlsKey
+	}
+
+	// mTLS configuration
+	if os.Getenv("UNHEADED_TLS_ENABLED") == "true" {
+		cfg.TLS.Enabled = true
+	}
+	if caCert := os.Getenv("UNHEADED_TLS_CA_CERT"); caCert != "" {
+		cfg.TLS.CACertFile = caCert
+	}
+	if cert := os.Getenv("UNHEADED_TLS_CERT"); cert != "" {
+		cfg.TLS.CertFile = cert
+	}
+	if key := os.Getenv("UNHEADED_TLS_KEY_FILE"); key != "" {
+		cfg.TLS.KeyFile = key
+	}
+	if os.Getenv("UNHEADED_TLS_MTLS_ENABLED") == "true" {
+		cfg.TLS.RequireClientCert = true
 	}
 
 	// CORS configuration
