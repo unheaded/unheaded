@@ -40,7 +40,7 @@ Layer 0: Infrastructure (LXD, host OS)
 
 | Component | Technology | Rationale |
 |-----------|-----------|-----------|
-| eBPF programs | **Rust** (Aya framework) | Memory safety + performance for kernel |
+| eBPF programs | **Rust** (Aya) + **Go** (cilium/ebpf) | Aya for kernel programs, cilium/ebpf for Go userspace |
 | Services | **Go 1.21+** | Simplicity, concurrency, tooling |
 | Containers | **LXD / containerd / NixOS / Docker** | Interchangeable drop-in runtimes, same hardening baseline |
 | Message Bus | **Wotan** (Go + gRPC) | Triple-role: ring buffer + event bus + protocol RAM |
