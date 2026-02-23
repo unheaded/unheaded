@@ -11,6 +11,7 @@ require (
 	github.com/prometheus/client_golang v1.18.0
 	github.com/rs/zerolog v1.31.0
 	github.com/sony/gobreaker v0.5.0
+	github.com/yuin/goldmark v1.7.16
 	golang.org/x/crypto v0.23.0
 	golang.org/x/sys v0.40.0
 	golang.org/x/text v0.15.0
