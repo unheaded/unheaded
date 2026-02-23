@@ -1,17 +1,17 @@
 # Unheaded - Vision: The Future Reality
 
-**Status: Pipe Dream Riffing - Not Set in Stone**
+**Status: Early-stage — architecture subject to change**
 **Date: February 10, 2026**
-**Author: Muck (The Matriarch/Patriarch)**
+**Author: Stevie Bellis**
 
 ---
 
 ## What It Is
 
-Unheaded is a configuration management automation platform that delivers a
-complete infrastructure "suit of armor" for web applications. You bring
-your application; it provides the control plane, observability, and supporting
-services.
+Unheaded is a configuration management automation platform that delivers
+production-ready infrastructure for web applications. You bring the
+application; Unheaded provides the control plane, observability, service mesh,
+and security baseline.
 
 ## Who It Is For
 
@@ -38,12 +38,12 @@ in a mock infrastructure environment.
 - Trace-collector bridges eBPF events into Wotan; services communicate over the bus and UIs are served by the dashboard and Kanban apps... more to come.
 - Logs pipe to integrated SIEM.
 - Ring buffer and BGP perform application and container health checks, alarm/playbook state changes depending on percentage of apps reporting.
-- Minimum of 2 unheaded suits running in parallel utilizing CLOS, BFD, ECMP, EVPN/MP-BGP, eBGP, iBGP with route reflectors for VXLAN creating RFC 7938 full mesh capable of scaling infinitely.
+- Minimum of 2 Unheaded instances running in parallel utilizing CLOS, BFD, ECMP, EVPN/MP-BGP, eBGP, iBGP with route reflectors for VXLAN creating RFC 7938 full mesh capable of scaling horizontally.
 
 ### Network Underlay Options
 
-> **NOTE**: For fun (and flexibility), we support IS-IS underlay as an alternative to
-> the default eBGP underlay. Talk to the Architect about it.
+> **NOTE**: IS-IS underlay is supported as an alternative to the default eBGP underlay.
+> See docs/ARCHITECTURE.md for configuration details.
 
 | Option | Underlay | Overlay | Notes |
 |--------|----------|---------|-------|
@@ -64,4 +64,4 @@ Both options support: CLOS topology, BFD sub-second failover, ECMP, MP-BGP for o
 
 ---
 
-*"You bring the head. We provide the armor. The Knight stands complete."*
+*You bring the application. Unheaded provides the infrastructure.*

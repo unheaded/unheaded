@@ -1,12 +1,8 @@
-# Unheaded Kingdom Wiki
+# Unheaded Wiki
 
-*"You bring the head. We provide the armor. The Knight stands complete."*
+**Unheaded** is a configuration management automation platform built around the Unheaded Protocol, a mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability from packet zero. You bring the application. Unheaded provides the control plane, service mesh, observability, and security baseline.
 
----
-
-**Unheaded** is a configuration management automation platform delivering production-ready infrastructure in hours, not months. A mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability from packet zero.
-
-**Status:** Alpha (~99%) · 465K+ LOC · 25 services · 8 eBPF programs · 3 Internet-Drafts
+**Status:** Alpha (~99%) · 465K+ LOC · 25 services · 8 eBPF programs · 3 Internet-Drafts (IETF Experimental)
 
 ---
 
@@ -20,7 +16,7 @@
 
 - [[Architecture Overview|Architecture]] — 6-layer architecture, design principles
 - [[System Diagram|System-Diagram]] — Visual component overview
-- [[Kingdom Architecture|Kingdom-Architecture]] — Full sacred hierarchy
+- [[Kingdom Architecture|Kingdom-Architecture]] — Component hierarchy and naming conventions
 - [[Project Structure|Project-Structure]] — Repository layout and conventions
 - [[Microservices|Microservices]] — Service catalog and responsibilities
 
@@ -30,7 +26,7 @@
 - [[Protocol Technical Summary|Protocol-Technical-Summary]] — Quick technical reference
 - [[Sophia Dictionaries|Sophia-Dictionaries]] — Exponent-encoded BPF maps
 - [[Wotan Memory Model|Wotan-Memory-Model]] — Ring buffer + event bus + protocol RAM
-- [[The First Packet|The-First-Packet]] — Origin story of the Kingdom
+- [[The First Packet|The-First-Packet]] — Protocol design origin and rationale
 - [[MBC ISA Reference|MBC-ISA-Reference]] — Monad Bytecode instruction set
 - [[Error Registry|Error-Registry]] — Protocol error codes
 
@@ -70,7 +66,7 @@
 - [[Security Audit|Security-Audit]] — Full audit findings
 - [[Security TODOs|Security-TODOs]] — Current security work items
 - [[LICH Fuzzing Campaigns|LICH-Campaigns]] — Automated adversary testing
-- [[Dark Grimoire|Dark-Grimoire]] — BlackMage offensive security notes
+- [[Dark Grimoire|Dark-Grimoire]] — Attack surface taxonomy and offensive security notes
 
 ## Services
 
@@ -91,11 +87,22 @@
 - [[Fae Chamber Contracts|Fae-Chamber-Contracts]] — Service interface contracts
 - [[Service Breakout Strategy|Service-Breakout-Strategy]] — Post-alpha repo separation
 
-## Kingdom Lore
+## Lore & Naming
 
-- [[The Phylactery|Phylactery]] — The living document of the Kingdom
+- [[Lore Index|Lore-Index]] — All lore documents and naming conventions
+- [[Naming Map|Naming-Map]] — Complete lore name → technical component reference
+- [[Gnostic Architecture|Gnostic-Architecture]] — Gnostic cosmology → state management mapping
+- [[Medieval Armory|Medieval-Armory]] — Armor pieces → infrastructure layers
+- [[Norse Mythology|Norse-Mythology]] — Norse/Wagnerian names → protocol and messaging
+- [[Sacred Hierarchy|Sacred-Hierarchy]] — Full component hierarchy
+- [[Protocol Heritage|Protocol-Heritage]] — Lineage from ARINC 429 to Unheaded
+- [[The Phylactery|Phylactery]] — Encrypted storage layer and state persistence
 - [[Kingdom Mode Math|Kingdom-Mode-Math]] — Extended register space verification
 - [[Doom over IPv6|Doom-over-IPv6]] — Computational completeness proof
+
+## Skills
+
+- [[Skills Index|Skills-Index]] — 16 AI agent specializations for development, ops, and docs
 
 ## Development
 
@@ -106,8 +113,8 @@
 
 ## Battle Plans & Timeline
 
-- [[Living Timeline|Timeline]] — The Timeguru's roadmap (references/timeline.md)
-- [[S33 Round Table Battle Plan|Battle-Plan]] — Current battle plan
+- [[Timeline|Timeline]] — Project roadmap (references/timeline.md)
+- [[Current Sprint Plan|Battle-Plan]] — Active sprint plan and deliverables
 - [[Upcoming Tasks|Upcoming-Tasks]] — Task backlog and blockers
 
 ## Session History
@@ -116,5 +123,4 @@ See [[Session Index|Session-Index]] for the complete session handoff archive.
 
 ---
 
-*Built with 🔥 by Muck and the Unheaded Kingdom crew*
 *Last updated: February 22, 2026*

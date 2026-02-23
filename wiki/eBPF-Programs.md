@@ -1,6 +1,6 @@
 # eBPF Programs
 
-The Whispering Void — eBPF-based observability from L2 to L7.
+eBPF-based packet-level observability from L2 to L7. XDP ingress, TC egress, kprobe/tracepoint instrumentation.
 
 ## Toolchain
 

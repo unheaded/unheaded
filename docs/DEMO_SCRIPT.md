@@ -2,7 +2,7 @@
 
 **Duration:** 4 minutes
 **Audience:** Technical founders, engineering leaders, DevOps/SRE teams
-**Tone:** Confident, precise, with Kingdom lore woven in naturally
+**Tone:** Confident, precise, technically grounded
 **Last Updated:** February 8, 2026
 
 ---
@@ -31,9 +31,9 @@
 
 > Unheaded is a configuration management automation platform. You bring your application -- the head. We provide everything else.
 >
-> That means a full suit of armor for your code: an API gateway with HTTP/3 and TLS termination. A service mesh with circuit breakers and mutual TLS. A load balancer with Maglev consistent hashing. A secrets manager with envelope encryption and automatic rotation. eBPF-based observability that traces every packet from the network interface to your application layer. Immutable NixOS containers with seccomp profiles, capability bounding, and read-only filesystems. A deployment pipeline with canary, blue-green, and rolling strategies. All of it declarative. All of it version-controlled. All of it hardened by default.
+> That means: an API gateway with HTTP/3 and TLS termination. A service mesh with circuit breakers and mutual TLS. A load balancer with Maglev consistent hashing. A secrets manager with envelope encryption and automatic rotation. eBPF-based observability that traces every packet from the network interface to your application layer. Immutable containers with seccomp profiles, capability bounding, and read-only filesystems. A deployment pipeline with canary, blue-green, and rolling strategies. All of it declarative. All of it version-controlled. All of it hardened by default.
 
-**[VISUAL: Each armor piece highlights as it is named -- Shield (WAF), Hauberk (mesh), Pauldrons (LB), Cuirass (control plane), Vambraces (observability), Sword (deployment) -- forming the full Knight silhouette.]**
+**[VISUAL: Each component highlights as it is named -- Shield (WAF), service mesh, load balancer, control plane, observability layer, deployment pipeline -- forming the full architecture diagram.]**
 
 > Six layers. Twenty-three services. One command to deploy. Your app goes from repository to production in hours.
 
@@ -81,13 +81,13 @@
 
 ---
 
-## ACT 4: eBPF TRACING -- THE WHISPERING VOID (2:30 - 3:15)
+## ACT 4: eBPF TRACING (2:30 - 3:15)
 
 **[VISUAL: Split screen. Left side shows a terminal with eBPF source code (Rust). Right side shows the packet flow visualization.]**
 
 **NARRATOR:**
 
-> Let me show you what is happening under the hood. Our eBPF layer -- we call it the Whispering Void -- runs three programs in kernel space, all written in Rust using the Aya framework for memory safety.
+> Let me show you what is happening under the hood. Our eBPF layer runs three programs in kernel space, all written in Rust using the Aya framework for memory safety.
 
 **[VISUAL: Highlight each program as named. Show snippets of the actual Rust code.]**
 
@@ -111,23 +111,23 @@
 
 **NARRATOR:**
 
-> At the heart of the Kingdom is Wotan, our custom message bus. Eleven thousand lines of Go. gRPC bidirectional streaming. Pub/sub with topic-based routing. A ring buffer for high-throughput message storage. Rate limiting. Circuit breakers. Backpressure handling.
+> At the center of the architecture is Wotan, our custom message bus. Eleven thousand lines of Go. gRPC bidirectional streaming. Pub/sub with topic-based routing. A ring buffer for high-throughput message storage. Rate limiting. Circuit breakers. Backpressure handling.
 
 **[VISUAL: Show the Fae Chamber Contracts topic list: tasks.created, timeline.updates, alerts.critical, state.drift.detected, and others scrolling by.]**
 
 > Every service in the mesh communicates through Wotan. Timeguru publishes timeline updates. Micromanager subscribes to task events. Captain monitors strategic alerts. Architect tracks design decisions. No direct service-to-service calls. Every message carries a trace ID. Every message is observable.
 >
-> The mesh layer adds service discovery, circuit breakers with configurable thresholds, and mutual TLS between containers. Default deny networking. Explicit allow only. The knight is never without armor.
+> The mesh layer adds service discovery, circuit breakers with configurable thresholds, and mutual TLS between containers. Default deny networking. Explicit allow only.
 
 ---
 
-## ACT 6: SECURITY -- THE SACRED LAW (3:45 - 4:10)
+## ACT 6: SECURITY — ZERO DATA ACCESS (3:45 - 4:10)
 
 **[VISUAL: The Moat security boundary diagram. Zero Trust zones highlighted. Container hardening callouts appear one by one.]**
 
 **NARRATOR:**
 
-> Security is not a feature we added. It is the foundation we built on. The Sacred Law of Unheaded: zero customer data access. Not by policy. By architecture.
+> Security is not a feature we added. It is the foundation we built on. The core invariant: zero customer data access. Not by policy. By architecture.
 >
 > Customer applications run in isolated NixOS containers with read-only filesystems, no privilege escalation, restricted system calls via seccomp, and minimal Linux capabilities. Network policies default to deny-all. Secrets are encrypted with age, envelope-encrypted with separate key encryption keys and data encryption keys, mounted as files -- never in environment variables, never in logs, never in code.
 
@@ -141,7 +141,7 @@
 
 ## CLOSING (4:10 - 4:30)
 
-**[VISUAL: Return to the dashboard. The packet flow visualization continues. Pull back to show the full Kingdom -- dashboard, Kanban, packet flow, metrics -- all running together.]**
+**[VISUAL: Return to the dashboard. The packet flow visualization continues. Pull back to show the full platform -- dashboard, Kanban, packet flow, metrics -- all running together.]**
 
 **NARRATOR:**
 
@@ -151,9 +151,9 @@
 
 **[VISUAL: The particle field expands outward. The Unheaded logo centers. Below it: unheaded.com and hello@unheaded.com.]**
 
-> You bring the head. We provide the armor.
+> You bring the application. We provide the infrastructure.
 >
-> Visit unheaded.com. The Kingdom awaits.
+> Visit unheaded.com.
 
 **[VISUAL: Fade to black. The particle field lingers for one beat, then dissolves.]**
 
@@ -174,7 +174,6 @@
 ### Visual Assets Needed
 
 - Unheaded logo (gold on dark, SVG)
-- Knight silhouette with armor piece labels
 - Architecture layer diagram (animated, Layer 0-5)
 - Moat security boundary diagram
 - Fae Chamber topic routing diagram
@@ -184,7 +183,7 @@
 | Section | Start | Duration | Key Visual |
 |---------|-------|----------|------------|
 | Cold Open | 0:00 | 25s | Particle field, logo |
-| What is Unheaded | 0:25 | 35s | Architecture layers, armor pieces |
+| What is Unheaded | 0:25 | 35s | Architecture layers, component diagram |
 | Dashboard | 1:00 | 50s | Packet flow, metrics grid |
 | Meta Moment | 1:50 | 40s | Kanban board, recursive proof |
 | eBPF Tracing | 2:30 | 45s | Rust code, kernel-to-canvas flow |
@@ -203,6 +202,5 @@
 
 ---
 
-**Written by:** The Royal Court
-**For:** Alpha Demo Day -- February 8, 2026
-**The Kingdom Rises.**
+**Written by:** Unheaded Team
+**For:** Alpha Demo Day — February 8, 2026

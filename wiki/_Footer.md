@@ -1,2 +1,2 @@
 ---
-[Unheaded](https://github.com/unheaded/unheaded) · Alpha · *"You bring the head. We provide the armor."* · [Report Issue](https://github.com/unheaded/unheaded/issues/new)
+[Unheaded](https://github.com/unheaded/unheaded) · Alpha · Configuration management automation over IPv6 Hop-by-Hop Options · [Report Issue](https://github.com/unheaded/unheaded/issues/new)
