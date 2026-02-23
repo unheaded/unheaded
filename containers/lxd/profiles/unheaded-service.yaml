@@ -1,0 +1,58 @@
+# =============================================================================
+# LXD Service Profile - Unheaded Service Overlay
+# =============================================================================
+# Applied on top of unheaded-base for Go microservices. Provides:
+#   - Network device on lxdbr0 bridge
+#   - Shared data mount for /opt/unheaded
+#   - Log directory mount
+#   - Common service environment
+#
+# Usage:
+#   lxc profile create unheaded-service
+#   lxc profile edit unheaded-service < profiles/unheaded-service.yaml
+#
+# Launch:
+#   lxc launch ubuntu:22.04 SERVICE \
+#     --profile default \
+#     --profile unheaded-base \
+#     --profile unheaded-service
+# =============================================================================
+
+config:
+  # =========================================================================
+  # ENVIRONMENT
+  # =========================================================================
+  environment.GOGC: "100"
+  environment.GOMAXPROCS: "2"
+  environment.LOG_LEVEL: info
+  environment.WOTAN_ADDR: "10.10.10.10:9090"
+  environment.WOTAN_HTTP_ADDR: "http://10.10.10.10:8080"
+
+description: Unheaded service overlay profile with networking and mounts
+
+devices:
+  # =========================================================================
+  # NETWORK
+  # =========================================================================
+  eth0:
+    type: nic
+    nictype: bridged
+    parent: lxdbr0
+    name: eth0
+
+  # =========================================================================
+  # SHARED DATA
+  # =========================================================================
+  # Mount host references directory (read-only by default)
+  references:
+    type: disk
+    source: /opt/unheaded/references
+    path: /opt/unheaded/references
+    readonly: "true"
+
+  # Mount host docs directory (read-only)
+  docs:
+    type: disk
+    source: /opt/unheaded/docs
+    path: /opt/unheaded/docs
+    readonly: "true"
