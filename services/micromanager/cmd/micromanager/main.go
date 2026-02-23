@@ -14,8 +14,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	wotanClient "unheaded/pkg/wotan-client"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/lifecycle"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/micromanager"
 )
 
@@ -134,10 +135,15 @@ func main() {
 	// Metrics endpoint
 	mux.Handle("/metrics", promhttp.Handler())
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("micromanager")
+	var httpHandler http.Handler = mux
+	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+
 	// Server configuration
 	srv := &http.Server{
 		Addr:         ":" + *port,
-		Handler:      mux,
+		Handler:      httpHandler,
 		ReadTimeout:  *readTimeout,
 		WriteTimeout: *writeTimeout,
 		IdleTimeout:    *idleTimeout,

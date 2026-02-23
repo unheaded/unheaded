@@ -13,8 +13,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	wotanClient "unheaded/pkg/wotan-client"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/lifecycle"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/architect"
 )
 
@@ -127,10 +128,15 @@ func main() {
 	mux.HandleFunc("/design", handleDesign(handler, "GET_DESIGN_DECISIONS"))
 	mux.Handle("/metrics", promhttp.Handler())
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("architect")
+	var httpHandler http.Handler = mux
+	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+
 	// HTTP server
 	server := &http.Server{
 		Addr:         *addr,
-		Handler:      mux,
+		Handler:      httpHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:    60 * time.Second,
