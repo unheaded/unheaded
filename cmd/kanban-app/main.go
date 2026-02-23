@@ -18,8 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Package-level logger instance
@@ -263,6 +264,11 @@ func (s *Server) Start() error {
 	handler = requestIDMiddleware(handler)                           // X-Request-ID injection
 	handler = requestSizeLimitMiddleware(1024 * 1024)(handler)      // 1MB max request
 	handler = securityHeadersMiddleware(handler)                     // Security headers
+
+	// Auth middleware (activated via AUTH_ENABLED=true, skips /health /ready /metrics)
+	authCfg := auth.LoadServiceAuthConfig("kanban-app")
+	handler = auth.WrapHandler(handler, auth.SetupMiddleware(authCfg))
+
 	handler = corsMiddleware(handler)                                // CORS
 
 	// Rate limiting (configurable)

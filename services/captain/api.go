@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/httputil"
 )
 
@@ -73,9 +74,14 @@ func NewHTTPServer(service *Service, addr string) (*HTTPServer, error) {
 	mux.HandleFunc("/api/v1/decisions", hs.decisionsHandler)
 	mux.HandleFunc("/api/v1/decisions/", hs.decisionDetailHandler)
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("captain")
+	var httpHandler http.Handler = mux
+	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+
 	hs.server = &http.Server{
 		Addr:         addr,
-		Handler:      http.MaxBytesHandler(mux, 10*1024*1024), // 10MB max
+		Handler:      http.MaxBytesHandler(httpHandler, 10*1024*1024), // 10MB max
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:    60 * time.Second,
