@@ -2,8 +2,8 @@
 
 ## A Living Grimoire of the Kingdom's Journey
 
-**STATUS:** ⚔️ BUILD SUCCESS - ALPHA 99% READY — THE PROTOCOL IS THE PATTERN ⚔️
-**LAST SCRIBED:** February 18, 2026 (Year of the Armored Knight) - THE PROTOCOL AWAKENING
+**STATUS:** ⚔️ BUILD SUCCESS - DOOM PROVEN — COMPUTATIONAL COMPLETENESS IN eBPF ⚔️
+**LAST SCRIBED:** February 23, 2026 (Year of the Armored Knight) - S33 HARDENING SPRINT COMPLETE
 **NEXT MILESTONE:** The Alpha Ascension (ACTUAL: ~99% complete - 465K+ LOC, 23/23 E2E, B1 RESOLVED)
 
 ---
@@ -951,6 +951,51 @@ All other services              PASS
 | B1 | Linux/eBPF dev environment | HIGH | Muck |
 
 **Handoff:** `/docs/handoff-2026-02-04-code-churn-session.md`
+
+---
+
+### February 19-22, 2026 — The Turing Forge: Doom Runs in eBPF
+
+**THE WHISPERING VOID RAN DOOM. THEREFORE THE VOID CAN TRACE ANYTHING.**
+
+**SHIPPED:**
+- [x] **Doom-over-IPv6 Computational Completeness Proof** — 559 frames rendered, 819M instructions executed, zero halts, zero ROM faults
+- [x] **MBC ISA hardened** — 43 opcodes, LICH-007 fuzz campaign: 1B+ executions, zero crashes
+- [x] **XDP_TX Turbo Mode** — 255-bounce packet cycling on same interface, cache-hot execution
+- [x] **42x Memory Reduction** — RAM_MAP HashMap→Array (671MB→128MB)
+- [x] **6 Critical Bugs Killed** — strncpy off-by-one, I_Error fatality, G_DoPlayDemo NULL, Z_Malloc infinite loop, V_DrawPatch NULL, stale doom_data.bin
+- [x] **Execution driver** — namespace-aware injection with fault detection
+- [x] **Keyboard input pipeline** — PC/AT→doomkeys.h encoding, clear-after-read in BPF
+- [x] **LH/LB sign-extension fix** — Doom was stuck at frame 565 (blockmap infinite loop), fixed with SHL+SAR in translator
+
+**Key Commits:**
+- `7682430` feat(doom): Phase 9 — turbo XDP mode, translator fixes, D_DoomLoop running
+- `8ac0bc2` feat(doom): add execution driver with namespace-aware injection
+- `f969c87` fix(mbc): add sign-extension for LH/LB instructions
+- `99d223f` fix(doom): improve execution driver fault detection
+- `30379cd` fix(doom): keyboard input pipeline
+- `3c97fb1` refactor(ebpf): remove dead L1 cache code
+- `58d4926` docs: add Doom-over-IPv6 session summary
+
+**Section 12 of the Monad spec is PROVEN.** Packets as CPU, BPF maps as RAM, XDP as execution engine. 33 days from first commit to Doom in eBPF. One engineer. One AI. One Kingdom.
+
+### February 22-23, 2026 — S33 Hardening Sprint + Round Table
+
+**SHIPPED:**
+- [x] **S33 Round Table** — All 15 skills convened, unified battle plan forged (battle-plan.md)
+- [x] **Script migration** — /tmp tooling → scripts/doom/ (3,281 lines of hardened Python)
+- [x] **gosec pinned** — v2.21.0 (was @master — supply chain fix, P0 #11)
+- [x] **gosec -no-fail removed** — security findings now block CI (P0 #12)
+- [x] **MaxHeaderBytes verified** — kanban-app has `1 << 20` (P0 #15)
+- [x] **Captain data dir verified** — uses CAPTAIN_DATA_DIR env, not /tmp (P0 #14)
+- [x] **Wotan architectural reframe** — triple-role: ring buffer + event bus + protocol RAM
+- [x] **Wotan HA model** — subscription mirroring, DNS hierarchy, n+1 availability (NOT consensus)
+
+**Strategic Decisions:**
+- Doom is proof. Packet tracing is product. Line drawn.
+- WS1+WS3 (Week 1) → WS2+WS4 (Week 2) → WS5 (Mar 8+, THE PRODUCT)
+- Alpha completion ETA: March 31 (high confidence)
+- Round Table reconvenes at WS5 kickoff (Mar 8)
 
 ---
 
