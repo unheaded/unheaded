@@ -261,42 +261,43 @@ body {
         return pal;
     }
 
-    // --- Doom PC keyboard scancodes ---
+    // --- Doom key codes (doomkeys.h) ---
+    // Maps browser key names directly to Doom's internal key codes.
     const KEY_MAP = {
-        'ArrowUp':    0x48,
-        'ArrowDown':  0x50,
-        'ArrowLeft':  0x4B,
-        'ArrowRight': 0x4D,
-        'Enter':      0x1C,
-        'Escape':     0x01,
-        ' ':          0x39,
-        'Control':    0x1D,
-        'Alt':        0x38,
-        'Shift':      0x2A,
-        'Tab':        0x0F,
-        'Backspace':  0x0E,
+        'ArrowUp':    0xAD,  // KEY_UPARROW
+        'ArrowDown':  0xAF,  // KEY_DOWNARROW
+        'ArrowLeft':  0xAC,  // KEY_LEFTARROW
+        'ArrowRight': 0xAE,  // KEY_RIGHTARROW
+        'Enter':      13,    // KEY_ENTER
+        'Escape':     27,    // KEY_ESCAPE
+        ' ':          0x20,  // space (KEY_USE default)
+        'Control':    0x9D,  // KEY_RCTRL (KEY_FIRE default)
+        'Alt':        0xB8,  // KEY_RALT (strafe modifier)
+        'Shift':      0xB6,  // KEY_RSHIFT (run)
+        'Tab':        9,     // KEY_TAB (automap)
+        'Backspace':  0x7F,  // KEY_BACKSPACE
 
-        // WASD
-        'w': 0x11, 'W': 0x11,
-        'a': 0x1E, 'A': 0x1E,
-        's': 0x1F, 'S': 0x1F,
-        'd': 0x20, 'D': 0x20,
+        // WASD — sent as ASCII lowercase
+        'w': 0x77, 'W': 0x77,
+        'a': 0x61, 'A': 0x61,
+        's': 0x73, 'S': 0x73,
+        'd': 0x64, 'D': 0x64,
 
-        // Number keys (weapons)
-        '1': 0x02, '2': 0x03, '3': 0x04, '4': 0x05, '5': 0x06,
-        '6': 0x07, '7': 0x08, '8': 0x09, '9': 0x0A, '0': 0x0B,
+        // Number keys (weapons) — ASCII digits
+        '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34, '5': 0x35,
+        '6': 0x36, '7': 0x37, '8': 0x38, '9': 0x39, '0': 0x30,
 
-        // Function keys
-        'F1': 0x3B, 'F2': 0x3C, 'F3': 0x3D, 'F4': 0x3E,
-        'F5': 0x3F, 'F6': 0x40, 'F7': 0x41, 'F8': 0x42,
-        'F9': 0x43, 'F10': 0x44, 'F11': 0x57, 'F12': 0x58,
+        // Function keys — KEY_Fn = 0x80 + PC/AT scancode
+        'F1': 0xBB, 'F2': 0xBC, 'F3': 0xBD, 'F4': 0xBE,
+        'F5': 0xBF, 'F6': 0xC0, 'F7': 0xC1, 'F8': 0xC2,
+        'F9': 0xC3, 'F10': 0xC4, 'F11': 0xD7, 'F12': 0xD8,
 
-        // Additional
-        'y': 0x15, 'Y': 0x15,
-        'n': 0x31, 'N': 0x31,
+        // Y/N (for confirmation prompts) — ASCII
+        'y': 0x79, 'Y': 0x79,
+        'n': 0x6E, 'N': 0x6E,
 
-        // Minus and equals (screen size in Doom)
-        '-': 0x0C, '=': 0x0D,
+        // Minus and equals (screen size) — ASCII
+        '-': 0x2D, '=': 0x3D,
     };
 
     // --- State ---
