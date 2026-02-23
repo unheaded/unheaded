@@ -238,10 +238,10 @@ func readStatsMap(statsMap *BPFMap) (packets, ticks, insns, halted uint64, err e
 	return
 }
 
-// readCpuMap reads the CPU state from CPU_MAP at key 0.
+// readCpuMap reads the CPU state from CPU_MAP at key 0xDE (instance ID).
 func readCpuMap(cpuMap *BPFMap) (*CpuState, error) {
 	keyBuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(keyBuf, 0)
+	binary.LittleEndian.PutUint32(keyBuf, 0xDE)
 
 	val, err := cpuMap.LookupElem(keyBuf, cpuStateSize)
 	if err != nil {

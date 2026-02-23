@@ -587,11 +587,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = cpu.regs[s];
             l1_store_u32(addr, val);
-            // Write-through: persist to RAM_MAP so data survives L1 eviction
-            let word_addr = addr >> 2;
-            if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
-                unsafe { *ptr = val; }
-            }
+            // Write-through: mem_write_word handles SCREEN_MAP projection + RAM_MAP
+            mem_write_word(addr >> 2, val);
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDB {
@@ -620,18 +617,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = (cpu.regs[s] & 0xFF) as u8;
             l1_store_u8(addr, val);
-            // Write-through: read-modify-write the word in RAM_MAP
-            let word_addr = addr >> 2;
-            let byte_shift = (addr & 3) * 8;
-            let old_word = match RAM_MAP.get(word_addr) {
-                Some(v) => *v,
-                None => 0,
-            };
-            let mask = !(0xFFu32 << byte_shift);
-            let new_word = (old_word & mask) | ((val as u32) << byte_shift);
-            if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
-                unsafe { *ptr = new_word; }
-            }
+            // Write-through: mem_write_byte handles SCREEN_MAP projection + RAM_MAP
+            mem_write_byte(addr, val);
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
         } else if opc == op::LDH {
@@ -660,18 +647,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = (cpu.regs[s] & 0xFFFF) as u16;
             l1_store_u16(addr, val);
-            // Write-through: read-modify-write the word in RAM_MAP
-            let word_addr = addr >> 2;
-            let half_shift = (addr & 2) * 8;
-            let old_word = match RAM_MAP.get(word_addr) {
-                Some(v) => *v,
-                None => 0,
-            };
-            let mask = !(0xFFFFu32 << half_shift);
-            let new_word = (old_word & mask) | ((val as u32) << half_shift);
-            if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
-                unsafe { *ptr = new_word; }
-            }
+            // Write-through: mem_write_half handles SCREEN_MAP projection + RAM_MAP
+            mem_write_half(addr, val);
             cpu.cache_hits += 1;
             increment_stat(STAT_CACHE_HITS);
 
@@ -683,10 +660,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // a1 (x11 → r9) = second arg / return value.
             let syscall_nr = cpu.regs[1];
             if syscall_nr == sys::SYS_DRAW_FRAME {
-                // DG_DrawFrame: framebuffer at SCREEN_BASE (0x100000).
-                let fb_ptr = 0x100000u32;
-                emit_screen_write(flow_label, fb_ptr, hop_id);
-                copy_fb_to_screen(fb_ptr);
+                // DG_DrawFrame: framebuffer at SCREEN_BASE.
+                emit_screen_write(flow_label, mmap::SCREEN_BASE, hop_id);
+                copy_fb_to_screen(mmap::SCREEN_BASE);
             } else if syscall_nr == sys::SYS_GET_KEY {
                 // DG_GetKey: r8 (a0) = scancode, r9 (a1) = pressed.
                 if let Some(kv) = KBD_MAP.get(0) {
