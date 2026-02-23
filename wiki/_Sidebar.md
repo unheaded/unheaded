@@ -43,6 +43,7 @@
 **Infrastructure**
 - [[Containers]]
 - [[IaC Backends|IaC-Backends]]
+- [[Observability|Observability-Backends]]
 - [[eBPF Programs|eBPF-Programs]]
 - [[Service Breakout|Service-Breakout-Strategy]]
 
