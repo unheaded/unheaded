@@ -277,6 +277,10 @@ func getEventTopics() []string {
 		"compute.miss",
 		"compute.halt",
 		"compute.syscall",
+		"traces.packet",
+		"traces.flow",
+		"traces.latency",
+		"traces.correlated",
 	}
 }
 

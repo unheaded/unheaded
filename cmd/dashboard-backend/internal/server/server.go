@@ -188,6 +188,9 @@ type Server struct {
 	healthAggregator  HealthAggregator  // Optional: set via SetHealthAggregator
 	ebpfIngestor      *ebpfPkg.Ingestor // Optional: set via config when trace-collector active
 
+	// Trace pipeline buffer (last 1000 events from traces.* topics)
+	traceBuffer *TraceBuffer
+
 	// Stream subscriptions for /api/v1/stream
 	streamSubs   map[chan *StreamMessage]StreamFilter
 	streamSubsMu sync.RWMutex
@@ -212,6 +215,70 @@ type StreamMessage struct {
 	Service   string      `json:"service,omitempty"`
 	Timestamp time.Time   `json:"timestamp"`
 	Data      interface{} `json:"data"`
+}
+
+// TraceEvent represents a unified trace event from the eBPF pipeline.
+// These are produced by the trace-collector and published to Wotan traces.* topics.
+type TraceEvent struct {
+	TraceID   string  `json:"trace_id"`
+	Timestamp int64   `json:"timestamp"` // Unix milliseconds
+	Src       string  `json:"src"`
+	Dst       string  `json:"dst"`
+	Protocol  string  `json:"protocol"`
+	RTTMs     float64 `json:"rtt_ms"`
+	FlowState string  `json:"flow_state"`
+	HopCount  int     `json:"hop_count"`
+	PacketLen int     `json:"packet_len"`
+	EventType string  `json:"event_type"` // "packet", "flow", "latency", "correlated"
+}
+
+// TraceBuffer is a bounded ring buffer storing recent TraceEvents.
+type TraceBuffer struct {
+	events []TraceEvent
+	size   int
+	mu     sync.RWMutex
+}
+
+// NewTraceBuffer creates a new trace buffer with the given capacity.
+func NewTraceBuffer(size int) *TraceBuffer {
+	return &TraceBuffer{
+		events: make([]TraceEvent, 0, size),
+		size:   size,
+	}
+}
+
+// Add appends a trace event, evicting the oldest if at capacity.
+func (tb *TraceBuffer) Add(e TraceEvent) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.events = append(tb.events, e)
+	if len(tb.events) > tb.size {
+		tb.events = tb.events[len(tb.events)-tb.size:]
+	}
+}
+
+// Recent returns up to n most recent events, newest first.
+func (tb *TraceBuffer) Recent(n int) []TraceEvent {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	if n > len(tb.events) {
+		n = len(tb.events)
+	}
+	if n == 0 {
+		return []TraceEvent{}
+	}
+	out := make([]TraceEvent, n)
+	for i := 0; i < n; i++ {
+		out[i] = tb.events[len(tb.events)-1-i]
+	}
+	return out
+}
+
+// Count returns the number of buffered events.
+func (tb *TraceBuffer) Count() int {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	return len(tb.events)
 }
 
 // StreamFilter defines filtering options for the stream
@@ -282,6 +349,7 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		flowGenerator:     flowGenerator,
 		metricsAggregator: metricsAggregator,
 		ebpfIngestor:      config.EBPFIngestor,
+		traceBuffer:       NewTraceBuffer(1000),
 		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
 		shutdown:          make(chan struct{}),
 	}
@@ -462,10 +530,11 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// Start broadcasters
-	s.wg.Add(3)
+	s.wg.Add(4)
 	go s.broadcastFlows(ctx, flowCh)
 	go s.broadcastHealthUpdates(ctx)
 	go s.broadcastEvents(ctx)
+	go s.broadcastTraceEvents(ctx)
 
 	// Start eBPF event broadcaster if ingestor is active
 	if s.ebpfIngestor != nil {
@@ -1098,12 +1167,20 @@ func (s *Server) handleTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fallback: return empty result with info about trace collector status
+	// Fallback: return buffered trace events from the traces.* pipeline
+	limit := 100
+	if query.Limit > 0 && query.Limit <= 1000 {
+		limit = query.Limit
+	}
+
+	traces := s.traceBuffer.Recent(limit)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"traces":  []interface{}{},
-		"total":   0,
-		"message": "Trace collector not initialized. Connect to trace-collector service for distributed tracing.",
+		"traces":  traces,
+		"total":   s.traceBuffer.Count(),
+		"has_more": s.traceBuffer.Count() > limit,
+		"source":  "pipeline_buffer",
 	})
 }
 
@@ -1335,6 +1412,168 @@ func (s *Server) broadcastEBPFEvents(ctx context.Context) {
 	})
 
 	<-ctx.Done()
+}
+
+// broadcastTraceEvents listens for events on traces.* topics and pushes them
+// to the trace buffer and all WebSocket clients with type "trace".
+func (s *Server) broadcastTraceEvents(ctx context.Context) {
+	defer s.wg.Done()
+
+	s.eventStreamer.AddListener(func(event events.Event) {
+		// Only handle traces.* topics
+		if len(event.Topic) < 7 || event.Topic[:7] != "traces." {
+			return
+		}
+
+		traceEvt := s.parseTraceTopicEvent(event)
+		s.traceBuffer.Add(traceEvt)
+
+		// Broadcast to main WebSocket as "trace" type
+		data, err := json.Marshal(map[string]interface{}{
+			"type": "trace",
+			"data": traceEvt,
+		})
+		if err != nil {
+			s.log.Error().Err(err).Msg("marshal trace event failed")
+			return
+		}
+		s.wsServer.Broadcast(data)
+
+		// Also broadcast to stream subscribers
+		streamMsg := &StreamMessage{
+			Type:      "trace",
+			Service:   "trace-collector",
+			Timestamp: time.Unix(0, traceEvt.Timestamp*int64(time.Millisecond)),
+			Data:      traceEvt,
+		}
+		s.broadcastToStream(streamMsg)
+	})
+
+	<-ctx.Done()
+}
+
+// parseTraceTopicEvent converts an events.Event from a traces.* topic into a TraceEvent.
+func (s *Server) parseTraceTopicEvent(event events.Event) TraceEvent {
+	te := TraceEvent{
+		Timestamp: event.Timestamp.UnixMilli(),
+	}
+
+	// Determine event type from topic
+	switch event.Topic {
+	case "traces.packet":
+		te.EventType = "packet"
+	case "traces.flow":
+		te.EventType = "flow"
+	case "traces.latency":
+		te.EventType = "latency"
+	case "traces.correlated":
+		te.EventType = "correlated"
+	default:
+		te.EventType = "unknown"
+	}
+
+	// Extract fields from event data
+	if event.Data != nil {
+		if v, ok := event.Data["trace_id"].(string); ok {
+			te.TraceID = v
+		}
+		if v, ok := event.Data["src_ip"].(string); ok {
+			te.Src = v
+		}
+		if v, ok := event.Data["src"].(string); ok && te.Src == "" {
+			te.Src = v
+		}
+		if v, ok := event.Data["dst_ip"].(string); ok {
+			te.Dst = v
+		}
+		if v, ok := event.Data["dst"].(string); ok && te.Dst == "" {
+			te.Dst = v
+		}
+		if v, ok := event.Data["protocol"].(string); ok {
+			te.Protocol = v
+		}
+		if v, ok := event.Data["rtt_ns"].(float64); ok {
+			te.RTTMs = v / 1e6
+		}
+		if v, ok := event.Data["rtt_ms"].(float64); ok {
+			te.RTTMs = v
+		}
+		if v, ok := event.Data["state"].(string); ok {
+			te.FlowState = v
+		}
+		if v, ok := event.Data["flow_state"].(string); ok && te.FlowState == "" {
+			te.FlowState = v
+		}
+		if v, ok := event.Data["hop_count"].(float64); ok {
+			te.HopCount = int(v)
+		}
+		if v, ok := event.Data["packet_len"].(float64); ok {
+			te.PacketLen = int(v)
+		}
+
+		// Build src/dst from flow key if present
+		if fk, ok := event.Data["flow_key"].(map[string]interface{}); ok {
+			if sa, ok := fk["src_addr"].(string); ok {
+				sp := ""
+				if sp2, ok2 := fk["src_port"].(float64); ok2 {
+					sp = fmt.Sprintf(":%d", int(sp2))
+				}
+				te.Src = sa + sp
+			}
+			if da, ok := fk["dst_addr"].(string); ok {
+				dp := ""
+				if dp2, ok2 := fk["dst_port"].(float64); ok2 {
+					dp = fmt.Sprintf(":%d", int(dp2))
+				}
+				te.Dst = da + dp
+			}
+			if p, ok := fk["protocol"].(float64); ok {
+				switch int(p) {
+				case 6:
+					te.Protocol = "TCP"
+				case 17:
+					te.Protocol = "UDP"
+				default:
+					te.Protocol = fmt.Sprintf("proto(%d)", int(p))
+				}
+			}
+		}
+	}
+
+	// Generate a trace ID if not found in data
+	if te.TraceID == "" {
+		te.TraceID = fmt.Sprintf("trace-%d", event.Timestamp.UnixNano())
+	}
+
+	return te
+}
+
+// IngestTraceEvent allows external code (e.g. tests) to inject a trace event
+// directly into the pipeline without going through Wotan.
+func (s *Server) IngestTraceEvent(te TraceEvent) {
+	s.traceBuffer.Add(te)
+
+	data, err := json.Marshal(map[string]interface{}{
+		"type": "trace",
+		"data": te,
+	})
+	if err != nil {
+		return
+	}
+	s.wsServer.Broadcast(data)
+
+	streamMsg := &StreamMessage{
+		Type:      "trace",
+		Service:   "trace-collector",
+		Timestamp: time.Unix(0, te.Timestamp*int64(time.Millisecond)),
+		Data:      te,
+	}
+	s.broadcastToStream(streamMsg)
+}
+
+// GetTraceBuffer returns the trace buffer for testing.
+func (s *Server) GetTraceBuffer() *TraceBuffer {
+	return s.traceBuffer
 }
 
 // resolveServiceName maps an IP address to a service name using config.ServiceEndpoints.

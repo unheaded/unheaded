@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"time"
 
@@ -80,7 +81,7 @@ func NewGenerator(config *Config) (*Generator, error) {
 
 	return &Generator{
 		config:  config,
-		log:     logger.New(nil),
+		log:     logger.New(io.Discard),
 		rand:    rand.New(rand.NewSource(time.Now().UnixNano())),
 		counter: 0,
 	}, nil
