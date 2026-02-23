@@ -1,12 +1,13 @@
 // Package auth provides authentication and authorization primitives for the
-// Unheaded Kingdom.  This is a **skeleton** -- real implementations will follow
-// in the Beta phase once the auth strategy is finalized.
+// Unheaded Kingdom.
 //
-// Two mechanisms are planned:
-//   - JWT validation for external API clients (dashboard, CLI, third-party)
-//   - mTLS certificate verification for inter-service communication
+// Three authentication mechanisms are implemented:
+//   - JWT validation (HMAC-SHA256) for external API clients
+//   - API key validation for programmatic access
+//   - Service-to-service tokens for inter-service communication
+//   - mTLS certificate verification (stub — planned for Beta)
 //
-// Both share the common Authenticator interface so callers don't need to know
+// All share the common Authenticator interface so callers don't need to know
 // which backend is active.
 package auth
 
@@ -14,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 )
 
 // Common errors returned by auth implementations.
@@ -22,6 +24,7 @@ var (
 	ErrForbidden       = errors.New("auth: forbidden")
 	ErrTokenExpired    = errors.New("auth: token expired")
 	ErrInvalidCert     = errors.New("auth: invalid client certificate")
+	ErrRateLimited     = errors.New("auth: rate limited")
 )
 
 // Identity represents a verified caller identity.
@@ -105,17 +108,66 @@ func (m *MTLSValidator) Authenticate(_ context.Context, r *http.Request) (*Ident
 
 // Middleware returns an HTTP middleware that authenticates requests using the
 // provided Authenticator. On success, the Identity is stored in the request
-// context. On failure, 401 Unauthorized is returned.
+// context. On failure, the appropriate HTTP status code is returned:
+//   - 401 for missing/invalid credentials or expired tokens
+//   - 403 for forbidden (wrong audience, insufficient role)
+//   - 429 for rate limited
 func Middleware(auth Authenticator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			identity, err := auth.Authenticate(r.Context(), r)
 			if err != nil {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				switch {
+				case errors.Is(err, ErrRateLimited):
+					http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				case errors.Is(err, ErrForbidden):
+					http.Error(w, "Forbidden", http.StatusForbidden)
+				default:
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				}
 				return
 			}
 			ctx := context.WithValue(r.Context(), identityKey, identity)
 			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// MultiAuthenticator tries multiple authenticators in order.
+// The first one that succeeds wins. If all fail, returns the last error.
+type MultiAuthenticator struct {
+	Authenticators []Authenticator
+}
+
+// Authenticate tries each authenticator in order.
+func (m *MultiAuthenticator) Authenticate(ctx context.Context, r *http.Request) (*Identity, error) {
+	var lastErr error
+	for _, a := range m.Authenticators {
+		identity, err := a.Authenticate(ctx, r)
+		if err == nil {
+			return identity, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, ErrUnauthenticated
+}
+
+// SkipAuthPaths returns a middleware that skips auth for the given path prefixes.
+// Used to keep /health, /ready, and /metrics unauthenticated for Prometheus scraping.
+func SkipAuthPaths(authMiddleware func(http.Handler) http.Handler, skipPrefixes ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		authed := authMiddleware(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for _, prefix := range skipPrefixes {
+				if r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/") {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			authed.ServeHTTP(w, r)
 		})
 	}
 }

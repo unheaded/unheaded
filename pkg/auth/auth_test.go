@@ -365,12 +365,140 @@ func TestMiddleware_Passthrough_ContextIsolation(t *testing.T) {
 
 func TestErrorSentinels(t *testing.T) {
 	// Verify that all error sentinels are distinct.
-	errs := []error{ErrUnauthenticated, ErrForbidden, ErrTokenExpired, ErrInvalidCert}
+	errs := []error{ErrUnauthenticated, ErrForbidden, ErrTokenExpired, ErrInvalidCert, ErrRateLimited}
 	for i, a := range errs {
 		for j, b := range errs {
 			if i != j && errors.Is(a, b) {
 				t.Errorf("error sentinels %d and %d should be distinct: %v == %v", i, j, a, b)
 			}
 		}
+	}
+}
+
+// --- MultiAuthenticator Tests ---
+
+func TestMultiAuthenticator_FirstWins(t *testing.T) {
+	multi := &MultiAuthenticator{
+		Authenticators: []Authenticator{
+			&mockAuthenticator{identity: &Identity{Subject: "jwt-user"}, err: nil},
+			&mockAuthenticator{identity: &Identity{Subject: "apikey-user"}, err: nil},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/test", nil)
+	identity, err := multi.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if identity.Subject != "jwt-user" {
+		t.Errorf("Subject = %q, want %q (first authenticator should win)", identity.Subject, "jwt-user")
+	}
+}
+
+func TestMultiAuthenticator_FallbackOnFailure(t *testing.T) {
+	multi := &MultiAuthenticator{
+		Authenticators: []Authenticator{
+			&mockAuthenticator{identity: nil, err: ErrUnauthenticated},
+			&mockAuthenticator{identity: &Identity{Subject: "apikey-user"}, err: nil},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/test", nil)
+	identity, err := multi.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if identity.Subject != "apikey-user" {
+		t.Errorf("Subject = %q, want %q (should fallback to second)", identity.Subject, "apikey-user")
+	}
+}
+
+func TestMultiAuthenticator_AllFail(t *testing.T) {
+	multi := &MultiAuthenticator{
+		Authenticators: []Authenticator{
+			&mockAuthenticator{identity: nil, err: ErrUnauthenticated},
+			&mockAuthenticator{identity: nil, err: ErrForbidden},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/test", nil)
+	_, err := multi.Authenticate(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when all authenticators fail")
+	}
+}
+
+// --- SkipAuthPaths Tests ---
+
+func TestSkipAuthPaths_HealthSkipped(t *testing.T) {
+	authMiddleware := Middleware(&mockAuthenticator{
+		identity: nil,
+		err:      ErrUnauthenticated,
+	})
+
+	var called bool
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := SkipAuthPaths(authMiddleware, "/health", "/ready", "/metrics")(inner)
+
+	// /health should bypass auth
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("/health: status = %d, want 200", rec.Code)
+	}
+	if !called {
+		t.Error("/health: handler was not called")
+	}
+
+	// /ready should bypass auth
+	called = false
+	req = httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("/ready: status = %d, want 200", rec.Code)
+	}
+
+	// /metrics should bypass auth
+	called = false
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("/metrics: status = %d, want 200", rec.Code)
+	}
+
+	// /api/v1/timeline should require auth -> 401
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("/api/v1/timeline: status = %d, want 401", rec.Code)
+	}
+}
+
+// --- Middleware Forbidden Status Test ---
+
+func TestMiddleware_Forbidden403(t *testing.T) {
+	forbiddenAuth := &mockAuthenticator{
+		identity: nil,
+		err:      ErrForbidden,
+	}
+
+	handler := Middleware(forbiddenAuth)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called for forbidden")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rec.Code)
 	}
 }

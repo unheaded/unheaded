@@ -29,8 +29,9 @@ import (
 	"syscall"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/monad"
 )
 
@@ -297,9 +298,15 @@ func NewHTTPServer(service *monad.Service, log *logger.Logger, addr string) (*HT
 	mux.HandleFunc("/api/v1/transactions", hs.transactionsHandler)
 	mux.HandleFunc("/api/v1/stats", hs.statsHandler)
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("monad")
+	var httpHandler http.Handler = mux
+	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+	httpHandler = http.MaxBytesHandler(hs.loggingMiddleware(httpHandler), 10*1024*1024)
+
 	hs.server = &http.Server{
 		Addr:         addr,
-		Handler:      http.MaxBytesHandler(hs.loggingMiddleware(mux), 10*1024*1024), // 10MB max
+		Handler:      httpHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:    60 * time.Second,

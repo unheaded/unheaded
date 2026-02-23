@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"unheaded/pkg/auth"
 	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
@@ -292,9 +293,19 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	s.mux = http.NewServeMux()
 	s.setupRoutes()
 
+	// Auth middleware (activated via AUTH_ENABLED=true, skips /health /ready /metrics /ws)
+	authCfg := auth.LoadServiceAuthConfig("dashboard-backend")
+	var httpHandler http.Handler = s.mux
+	if authMw := auth.SetupMiddleware(authCfg); authMw != nil {
+		// Also skip WebSocket endpoints from auth (upgrade needs special handling)
+		httpHandler = auth.SkipAuthPaths(auth.Middleware(
+			&auth.MultiAuthenticator{Authenticators: buildDashboardAuthenticators(authCfg)},
+		), "/health", "/ready", "/metrics", "/ws")(s.mux)
+	}
+
 	s.httpServer = &http.Server{
 		Addr:           config.ListenAddr,
-		Handler:        s.mux,
+		Handler:        httpHandler,
 		ReadTimeout:    config.ReadTimeout,
 		WriteTimeout:   config.WriteTimeout,
 		IdleTimeout:    5 * config.ReadTimeout,
@@ -1600,4 +1611,29 @@ func (s *Server) GetTraceCollector() TraceCollector {
 // GetHealthAggregator returns the health aggregator
 func (s *Server) GetHealthAggregator() HealthAggregator {
 	return s.healthAggregator
+}
+
+// buildDashboardAuthenticators constructs authenticators from the auth config.
+func buildDashboardAuthenticators(cfg auth.ServiceAuthConfig) []auth.Authenticator {
+	var authenticators []auth.Authenticator
+	if len(cfg.JWTSigningKey) > 0 {
+		authenticators = append(authenticators, auth.NewJWTAuthenticator(auth.JWTConfig{
+			SigningKey: cfg.JWTSigningKey,
+			Issuer:    cfg.Issuer,
+			Audience:  cfg.Audience,
+		}))
+		authenticators = append(authenticators, auth.NewJWTAuthenticator(auth.JWTConfig{
+			SigningKey:    cfg.JWTSigningKey,
+			Issuer:       auth.ServiceTokenIssuer,
+			Audience:     cfg.ServiceName,
+			AllowedRoles: []string{auth.RoleService},
+		}))
+	}
+	if len(cfg.APIKeys) > 0 || cfg.APIKeyFile != "" {
+		apikeyCfg := auth.APIKeyConfig{Keys: cfg.APIKeys, KeyFile: cfg.APIKeyFile}
+		if a, err := auth.NewAPIKeyAuthenticator(apikeyCfg); err == nil {
+			authenticators = append(authenticators, a)
+		}
+	}
+	return authenticators
 }

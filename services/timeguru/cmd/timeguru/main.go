@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"unheaded/pkg/auth"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/timeguru/internal/api"
 	"unheaded/services/timeguru/internal/parser"
@@ -142,10 +143,15 @@ func main() {
 	mux.HandleFunc("/milestones/", handleMilestoneRoutes(handler))
 	mux.HandleFunc("/api/v1/milestones/", handleMilestoneRoutes(handler))
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("timeguru")
+	var srvHandler http.Handler = mux
+	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
+
 	// HTTP server with defensive timeouts
 	srv := &http.Server{
 		Addr:         ":" + config.Port,
-		Handler:      mux,
+		Handler:      srvHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:    60 * time.Second,
