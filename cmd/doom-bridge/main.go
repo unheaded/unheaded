@@ -1,13 +1,21 @@
-// Package main implements doom-bridge: a BPF-to-WebSocket bridge for the
-// Doom-over-IPv6 project. It reads screen framebuffer and CPU stats from
-// pinned BPF maps and streams them to browser clients via WebSocket.
-// Keyboard input from clients is written back to the BPF keyboard map.
+// Package main implements doom-bridge: Fenrir's Eye service for Unheaded.
 //
-// Tasks: D-011 (screen output) and D-012 (keyboard input).
+// Fenrir's Eye reads screen framebuffer (SCREEN_MAP @ 320x200 palette) and CPU state
+// from pinned eBPF maps (via raw BPF syscalls). Applies Doom palette
+// (256 colors -> RGB), and pushes frames via WebSocket to browser clients.
+// Handles keyboard input (KBD_MAP writes) and metadata streaming (CPU stats).
+//
+// Design: Minimal. No Wotan dependency for WS1 (MVP). Direct BPF map reads.
 //
 // Usage:
 //
-//	doom-bridge [--port 6660] [--map-path /sys/fs/bpf/unheaded/doom-ring/maps] [--dry-run]
+//	doom-bridge [--port 6660] [--map-path /sys/fs/bpf/unheaded/doom-ring/maps] [--dry-run] [--static /path/to/dashboard]
+//
+// Protocol: WebSocket binary frames [0x01 tag] + [RGBA pixel data 256000 bytes] at ~30fps.
+//
+//	JSON stats frames with CPU state at ~2fps.
+//
+// Version: 0.1.0-alpha
 package main
 
 import (
@@ -15,7 +23,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"net/http"
@@ -23,11 +30,30 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+// Service metadata.
+const (
+	serviceVersion = "0.1.0-alpha"
+	serviceName    = "doom-bridge"
+)
+
+// logf logs a structured message to stderr with timestamp and level.
+func logf(level, msg string, kvPairs ...interface{}) {
+	timestamp := time.Now().Format(time.RFC3339)
+	fmt.Fprintf(os.Stderr, "[%s] %s: %s", timestamp, level, msg)
+	for i := 0; i < len(kvPairs); i += 2 {
+		if i+1 < len(kvPairs) {
+			fmt.Fprintf(os.Stderr, " %v=%v", kvPairs[i], kvPairs[i+1])
+		}
+	}
+	fmt.Fprintln(os.Stderr)
+}
 
 // Protocol tags for binary WebSocket frames.
 const (
@@ -81,6 +107,11 @@ type bridge struct {
 	clientsMu sync.RWMutex
 
 	upgrader websocket.Upgrader
+
+	// Metrics counters (atomic)
+	frameCount int64
+	byteCount  int64
+	errorCount int64
 }
 
 func main() {
@@ -117,7 +148,7 @@ func main() {
 		clients: make(map[*client]struct{}),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
-			WriteBufferSize: screenSize + 64, // enough for a screen frame
+			WriteBufferSize: screenSize*4 + 1024, // RGBA frame (256000) + tag + overhead
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
 			},
@@ -128,13 +159,15 @@ func main() {
 	if !b.dryRun {
 		b.openMaps()
 	} else {
-		log.Println("[dry-run] BPF maps disabled, serving synthetic data")
+		logf("INFO", "BPF maps disabled", "mode", "dry-run")
 	}
 
 	// Setup HTTP routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", b.handleWebSocket)
 	mux.HandleFunc("/health", b.handleHealth)
+	mux.HandleFunc("/ready", b.handleReady)
+	mux.HandleFunc("/metrics", b.handleMetrics)
 	mux.Handle("/", http.FileServer(http.Dir(b.static)))
 
 	server := &http.Server{
@@ -158,26 +191,29 @@ func main() {
 
 	go func() {
 		<-sigCh
-		log.Println("Shutting down...")
+		logf("INFO", "Shutting down...")
 		close(stop)
 		server.Close()
 	}()
 
-	log.Printf("doom-bridge listening on :%d (dry-run=%v)", b.port, b.dryRun)
-	log.Printf("  WebSocket: ws://localhost:%d/ws", b.port)
-	log.Printf("  Viewer:    http://localhost:%d/", b.port)
-	log.Printf("  Health:    http://localhost:%d/health", b.port)
+	logf("INFO", "doom-bridge listening", "port", b.port, "dry_run", b.dryRun, "version", serviceVersion)
+	logf("INFO", "endpoints", "ws", fmt.Sprintf("ws://localhost:%d/ws", b.port),
+		"viewer", fmt.Sprintf("http://localhost:%d/", b.port),
+		"health", fmt.Sprintf("http://localhost:%d/health", b.port),
+		"ready", fmt.Sprintf("http://localhost:%d/ready", b.port),
+		"metrics", fmt.Sprintf("http://localhost:%d/metrics", b.port))
 	if !b.dryRun {
-		log.Printf("  BPF maps:  %s", b.mapPath)
+		logf("INFO", "BPF maps", "path", b.mapPath)
 	}
 
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Fatalf("HTTP server error: %v", err)
+		logf("FATAL", "HTTP server error", "err", err)
+		os.Exit(1)
 	}
 
 	wg.Wait()
 	b.closeMaps()
-	log.Println("doom-bridge stopped")
+	logf("INFO", "doom-bridge stopped")
 }
 
 // openMaps opens all pinned BPF maps. Non-fatal if individual maps are missing.
@@ -186,22 +222,22 @@ func (b *bridge) openMaps() {
 
 	b.screenMap, err = openBPFMap(filepath.Join(b.mapPath, "SCREEN_MAP"))
 	if err != nil {
-		log.Printf("WARNING: SCREEN_MAP not available: %v", err)
+		logf("WARN", "SCREEN_MAP not available", "err", err)
 	}
 
 	b.kbdMap, err = openBPFMap(filepath.Join(b.mapPath, "KBD_MAP"))
 	if err != nil {
-		log.Printf("WARNING: KBD_MAP not available: %v", err)
+		logf("WARN", "KBD_MAP not available", "err", err)
 	}
 
 	b.statsMap, err = openBPFMap(filepath.Join(b.mapPath, "STATS"))
 	if err != nil {
-		log.Printf("WARNING: STATS map not available: %v", err)
+		logf("WARN", "STATS map not available", "err", err)
 	}
 
 	b.cpuMap, err = openBPFMap(filepath.Join(b.mapPath, "CPU_MAP"))
 	if err != nil {
-		log.Printf("WARNING: CPU_MAP not available: %v", err)
+		logf("WARN", "CPU_MAP not available", "err", err)
 	}
 
 	// Probe batch support by attempting a small batch read
@@ -209,9 +245,9 @@ func (b *bridge) openMaps() {
 		_, _, _, probeErr := b.screenMap.LookupBatch(1, 4, 1)
 		if probeErr == nil {
 			b.batchSupported = true
-			log.Println("BPF batch lookup supported (fast screen reads)")
+			logf("INFO", "BPF batch lookup supported (fast screen reads)")
 		} else {
-			log.Printf("BPF batch lookup not available, using individual reads: %v", probeErr)
+			logf("INFO", "BPF batch lookup not available, using individual reads", "err", probeErr)
 		}
 	}
 }
@@ -242,11 +278,57 @@ func (b *bridge) handleHealth(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"status":"ok","clients":%d,"dry_run":%v}`, numClients, b.dryRun)
 }
 
+// handleReady returns readiness status. Service is ready when BPF maps are open
+// (or in dry-run mode). Browser clients can poll /ready before connecting WebSocket.
+func (b *bridge) handleReady(w http.ResponseWriter, r *http.Request) {
+	var ready bool
+
+	if b.dryRun {
+		ready = true // Synthetic mode is always ready
+	} else {
+		ready = b.screenMap != nil // Only truly ready if we can read screen
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if ready {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"ready","service":"%s","version":"%s"}`, serviceName, serviceVersion)
+	} else {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprint(w, `{"status":"not_ready","reason":"BPF maps not accessible"}`)
+	}
+}
+
+// handleMetrics returns Prometheus-format metrics.
+func (b *bridge) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	b.clientsMu.RLock()
+	numClients := len(b.clients)
+	b.clientsMu.RUnlock()
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+
+	fmt.Fprintf(w, "# HELP unheaded_doom_bridge_clients Connected WebSocket clients\n")
+	fmt.Fprintf(w, "# TYPE unheaded_doom_bridge_clients gauge\n")
+	fmt.Fprintf(w, "unheaded_doom_bridge_clients %d\n\n", numClients)
+
+	fmt.Fprintf(w, "# HELP unheaded_doom_bridge_frames_total Total frames sent to all clients\n")
+	fmt.Fprintf(w, "# TYPE unheaded_doom_bridge_frames_total counter\n")
+	fmt.Fprintf(w, "unheaded_doom_bridge_frames_total %d\n\n", atomic.LoadInt64(&b.frameCount))
+
+	fmt.Fprintf(w, "# HELP unheaded_doom_bridge_bytes_sent_total Total bytes sent over WebSocket\n")
+	fmt.Fprintf(w, "# TYPE unheaded_doom_bridge_bytes_sent_total counter\n")
+	fmt.Fprintf(w, "unheaded_doom_bridge_bytes_sent_total %d\n\n", atomic.LoadInt64(&b.byteCount))
+
+	fmt.Fprintf(w, "# HELP unheaded_doom_bridge_errors_total Total errors encountered\n")
+	fmt.Fprintf(w, "# TYPE unheaded_doom_bridge_errors_total counter\n")
+	fmt.Fprintf(w, "unheaded_doom_bridge_errors_total %d\n", atomic.LoadInt64(&b.errorCount))
+}
+
 // handleWebSocket upgrades HTTP to WebSocket and manages the client lifecycle.
 func (b *bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := b.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		logf("ERROR", "WebSocket upgrade error", "err", err)
 		return
 	}
 
@@ -257,7 +339,7 @@ func (b *bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	numClients := len(b.clients)
 	b.clientsMu.Unlock()
 
-	log.Printf("Client connected (total: %d)", numClients)
+	logf("INFO", "Client connected", "total", numClients)
 
 	// Read loop for keyboard input from this client
 	go b.readLoop(c)
@@ -272,14 +354,14 @@ func (b *bridge) readLoop(c *client) {
 		b.clientsMu.Unlock()
 
 		c.conn.Close()
-		log.Printf("Client disconnected (total: %d)", numClients)
+		logf("INFO", "Client disconnected", "total", numClients)
 	}()
 
 	for {
 		msgType, data, err := c.conn.ReadMessage()
 		if err != nil {
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				log.Printf("WebSocket read error: %v", err)
+				logf("WARN", "WebSocket read error", "err", err)
 			}
 			return
 		}
@@ -294,7 +376,7 @@ func (b *bridge) readLoop(c *client) {
 
 		// Expected format: [0x02, scancode_lo, scancode_hi, pressed]
 		if len(data) < 4 {
-			log.Printf("Malformed keyboard message: %d bytes", len(data))
+			logf("WARN", "Malformed keyboard message", "bytes", len(data))
 			continue
 		}
 
@@ -303,7 +385,7 @@ func (b *bridge) readLoop(c *client) {
 
 		if b.kbdMap != nil {
 			if err := writeKbdMap(b.kbdMap, scancode, pressed); err != nil {
-				log.Printf("KBD_MAP write error: %v", err)
+				logf("ERROR", "KBD_MAP write error", "err", err)
 			}
 		}
 	}
@@ -316,7 +398,7 @@ func (b *bridge) screenLoop(stop chan struct{}, wg *sync.WaitGroup) {
 	ticker := time.NewTicker(time.Second / 30) // ~33ms per frame
 	defer ticker.Stop()
 
-	frameCount := uint64(0)
+	localFrameCount := uint64(0)
 
 	for {
 		select {
@@ -327,32 +409,39 @@ func (b *bridge) screenLoop(stop chan struct{}, wg *sync.WaitGroup) {
 			var err error
 
 			if b.dryRun || b.screenMap == nil {
-				pixels = generateDryRunScreen(frameCount)
+				pixels = generateDryRunScreen(localFrameCount)
 			} else if b.batchSupported {
 				pixels, err = readScreenBatch(b.screenMap)
 				if err != nil {
-					log.Printf("Screen batch read error (falling back): %v", err)
+					logf("WARN", "Screen batch read error", "err", err)
 					pixels, err = readScreenIndividual(b.screenMap)
 					if err != nil {
-						log.Printf("Screen individual read error: %v", err)
+						logf("ERROR", "Screen read failed", "err", err)
+						atomic.AddInt64(&b.errorCount, 1)
 						continue
 					}
 				}
 			} else {
 				pixels, err = readScreenIndividual(b.screenMap)
 				if err != nil {
-					log.Printf("Screen read error: %v", err)
+					logf("ERROR", "Screen read error", "err", err)
+					atomic.AddInt64(&b.errorCount, 1)
 					continue
 				}
 			}
 
-			// Build frame: [tag byte] + [64000 pixel bytes]
-			frame := make([]byte, 1+screenSize)
+			// Convert palette indices to RGBA (64000 bytes -> 256000 bytes)
+			rgba := screenBufferToRGBA(pixels)
+
+			// Build binary frame: [tag] + [RGBA data]
+			frame := make([]byte, 1+len(rgba))
 			frame[0] = tagScreen
-			copy(frame[1:], pixels)
+			copy(frame[1:], rgba)
 
 			b.broadcastBinary(frame)
-			frameCount++
+			localFrameCount++
+			atomic.AddInt64(&b.frameCount, 1)
+			atomic.AddInt64(&b.byteCount, int64(len(frame)))
 		}
 	}
 }
@@ -413,7 +502,7 @@ func (b *bridge) statsLoop(stop chan struct{}, wg *sync.WaitGroup) {
 
 			data, err := json.Marshal(msg)
 			if err != nil {
-				log.Printf("Stats marshal error: %v", err)
+				logf("ERROR", "Stats marshal error", "err", err)
 				continue
 			}
 
@@ -434,7 +523,8 @@ func (b *bridge) broadcastBinary(data []byte) {
 		c.mu.Unlock()
 		if err != nil {
 			// Client will be cleaned up by readLoop
-			log.Printf("Write error (client will be removed): %v", err)
+			logf("WARN", "Write error (client will be removed)", "err", err)
+			atomic.AddInt64(&b.errorCount, 1)
 		}
 	}
 }
@@ -449,7 +539,8 @@ func (b *bridge) broadcastText(data []byte) {
 		err := c.conn.WriteMessage(websocket.TextMessage, data)
 		c.mu.Unlock()
 		if err != nil {
-			log.Printf("Write error (client will be removed): %v", err)
+			logf("WARN", "Write error (client will be removed)", "err", err)
+			atomic.AddInt64(&b.errorCount, 1)
 		}
 	}
 }
