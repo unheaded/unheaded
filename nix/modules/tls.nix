@@ -148,6 +148,14 @@
     # =========================================================================
     # One-shot service to generate internal CA if not present.
     # In production, the CA is pre-provisioned; this is for bootstrapping.
+    #
+    # For development environments, you can also use the Go cert-gen tool:
+    #   go run ./cmd/cert-gen -out /etc/unheaded/tls
+    # Or the shell wrapper:
+    #   CERT_DIR=/etc/unheaded/tls ./scripts/gen-dev-certs.sh
+    #
+    # The Go tool produces ECDSA P-256 certs with the same SANs and hardening
+    # as this openssl-based NixOS service, ensuring dev-prod parity.
     # =========================================================================
     systemd.services."unheaded-ca-init" = {
       description = "Initialize Unheaded Internal CA";
