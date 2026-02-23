@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Doom-over-IPv6 Viewer - MBC CPU framebuffer via WebSocket">
+    <meta name="theme-color" content="#0a0a0a">
     <title>Doom-over-IPv6 Viewer | Unheaded</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -183,6 +185,49 @@
             font-size: 0.9em;
         }
 
+        /* Navigation bar */
+        .doom-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: rgba(10, 10, 10, 0.95);
+            border-bottom: 1px solid #333;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        .doom-nav a {
+            color: #e0e0e0;
+            text-decoration: none;
+            font-size: 0.85em;
+            padding: 4px 10px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .doom-nav a:hover {
+            color: #ff5c00;
+            background: rgba(255, 92, 0, 0.1);
+        }
+
+        .doom-nav-brand {
+            color: #ff5c00;
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+
+        .doom-nav-links {
+            display: flex;
+            gap: 8px;
+            list-style: none;
+        }
+
         /* Connection status */
         .connection-status {
             margin-top: 10px;
@@ -224,9 +269,93 @@
         #screen-panel {
             position: relative;
         }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            #doom-canvas {
+                max-width: 100%;
+                height: auto;
+            }
+
+            #status-panel {
+                min-width: unset;
+            }
+
+            .registers {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            h1 {
+                font-size: 1.1em;
+            }
+
+            .subtitle {
+                font-size: 0.75em;
+            }
+
+            .screen-controls {
+                flex-wrap: wrap;
+            }
+
+            .key-hints {
+                font-size: 0.65em;
+            }
+
+            .doom-nav-links {
+                gap: 4px;
+            }
+
+            .doom-nav a {
+                font-size: 0.75em;
+                padding: 3px 6px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .panel {
+                padding: 10px;
+            }
+
+            .registers {
+                grid-template-columns: repeat(2, 1fr);
+                font-size: 0.65em;
+            }
+
+            .doom-nav {
+                flex-direction: column;
+                gap: 8px;
+                padding: 8px 12px;
+            }
+        }
+
+        /* Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
     </style>
 </head>
 <body>
+    <nav class="doom-nav" role="navigation" aria-label="Doom viewer navigation">
+        <span class="doom-nav-brand">Fenrir's Eye</span>
+        <ul class="doom-nav-links">
+            <li><a href="/">Dashboard</a></li>
+            <li><a href="/kanban">Kanban</a></li>
+            <li><a href="/wiki/">Wiki</a></li>
+        </ul>
+    </nav>
+
     <h1>Doom-over-IPv6</h1>
     <p class="subtitle">Fenrir's Eye &mdash; MBC CPU framebuffer via WebSocket &mdash; Packet-as-clock-tick compute engine</p>
 
