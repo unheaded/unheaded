@@ -31,12 +31,19 @@ Layer 0: Infrastructure (LXD, host OS)
 | Frontend | Vanilla JS | No framework overhead, full control |
 | Orchestration | LXD (primary), containerd, Docker | Runtime-agnostic control plane |
 | Config Management | Ansible / Terraform / Puppet / K8s / Chef / Salt | Interchangeable IaC output backends |
+| Observability | Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios + more | Interchangeable backends; custom Wotan-native long-term |
 
 ## IaC Output Strategy
 
 Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers. Adding a new backend is an output renderer — the control plane and eBPF layer don't change.
 
 See [[IaC Backends|IaC-Backends]] for details on each supported backend.
+
+## Observability Backend Strategy
+
+Unheaded emits OpenTelemetry-compatible signals. Customers plug in their preferred observability stack via interchangeable adapters. Long-term: custom Wotan-native implementations leveraging the eBPF data plane for wire-speed observability with zero serialization overhead.
+
+See [[Observability Backends|Observability-Backends]] for supported tools and phased roadmap.
 
 ---
 

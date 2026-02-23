@@ -48,6 +48,7 @@ Layer 0: Infrastructure (LXD, host OS)
 | Frontend | **Vanilla JS** | No framework overhead, full control |
 | Orchestration | **LXD** (primary), containerd, Docker | Runtime-agnostic control plane |
 | Config Management | **Ansible / Terraform / Puppet / Kubernetes / Chef / Salt** | Interchangeable IaC backends, same desired-state model |
+| Observability | **Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios** + more | Interchangeable backends; custom Wotan-native defaults long-term |
 
 ### Network Design
 
@@ -79,10 +80,10 @@ Layer 0: Infrastructure (LXD, host OS)
 ### 2. Observable by Default
 
 **Every component must:**
-- Publish metrics to Prometheus
-- Log structured JSON (zerolog)
+- Publish metrics (Prometheus-native, exportable to any backend)
+- Log structured JSON (zerolog-native, shippable to any backend)
 - Report to Wotan message bus
-- Support distributed tracing
+- Support distributed tracing (OpenTelemetry-compatible)
 - Expose /health and /ready endpoints
 
 **eBPF traces everything:**
@@ -90,6 +91,20 @@ Layer 0: Infrastructure (LXD, host OS)
 - Connection tracking
 - Latency measurements
 - All correlated by trace_id
+
+**Observability Backend Strategy:**
+Unheaded's internal observability emits OpenTelemetry-compatible signals (metrics, logs, traces). Customers plug in their preferred backends — or use Unheaded's tailored defaults (long-term roadmap). Backends are interchangeable output adapters:
+
+| Category | Supported Backends | Unheaded Default (Future) |
+|----------|-------------------|--------------------------|
+| **Metrics** | Prometheus, Grafana, Datadog, InfluxDB, Nagios | Custom Wotan metrics store |
+| **Logging** | ELK (Elasticsearch/Logstash/Kibana), Fluentd/Fluent Bit, Flume, Splunk, Loki, Graylog | Custom Wotan log aggregator |
+| **Tracing** | Jaeger, Zipkin, Tempo, Datadog APM | Custom eBPF-native tracer |
+| **Alerting** | Grafana Alerting, PagerDuty, OpsGenie, Nagios, Prometheus Alertmanager | Custom Wotan alert engine |
+| **Dashboards** | Grafana, Kibana, Datadog, custom | Unheaded Dashboard (vanilla JS) |
+| **SIEM** | Elastic SIEM, Splunk Enterprise Security, Wazuh | Custom Wotan SIEM integration |
+
+Config mirrors in `observability/` provide drop-in adapter configs for each backend. Same pattern as containers and IaC — your tools, our data model.
 
 ### 3. Declarative Everything
 

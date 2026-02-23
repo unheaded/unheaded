@@ -86,6 +86,15 @@ But the spectacle has accumulated technical debt. Development tooling lives in `
 
 The IaC layer consumes the same core packages (`pkg/`) and generates output in the customer's dialect. Adding a new backend is an output renderer — the control plane and eBPF layer don't change.
 
+**Observability Backend Architecture**: Backend-agnostic. Unheaded emits OpenTelemetry-compatible signals (metrics, logs, traces). Customers plug in their preferred observability stack — same interchangeable pattern as containers and IaC:
+- **Metrics** — Prometheus, Grafana, Datadog, InfluxDB, Nagios
+- **Logging** — ELK (Elasticsearch/Logstash/Kibana), Fluentd/Fluent Bit, Flume, Splunk, Loki, Graylog
+- **Tracing** — Jaeger, Zipkin, Tempo, Datadog APM
+- **Alerting** — Grafana Alerting, PagerDuty, OpsGenie, Nagios, Prometheus Alertmanager
+- **SIEM** — Elastic SIEM, Splunk Enterprise Security, Wazuh
+
+Long-term: custom Wotan-native implementations for each category — purpose-built for the eBPF data plane. Short-term: adapter configs in `observability/` for drop-in hookup of popular tools.
+
 **Protocol Status**:
 - **Monad**: 20-byte wire format SPECIFIED. Section 12 (computational completeness) PROVEN via Doom. CRC-16/CCITT verified. Exponent encoding operational.
 - **Sophia**: Dictionary tree structure defined. BPF map layout specified. Root dictionary + 6 sub-dictionaries.

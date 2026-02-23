@@ -516,12 +516,17 @@ Prometheus metrics exposition for trace-collector.
 **Copyright:** Maraakate, ozkl, id Software (original Doom source)
 **License:** GNU General Public License v2.0
 **URL:** https://github.com/ozkl/doomgeneric
+**Fork:** https://github.com/unheaded-kingdom/doomgeneric (Unheaded modifications)
 
 Portable Doom source port used for the Doom-over-IPv6 computational completeness
 proof (Monad spec Section 12). The doomgeneric code lives in `doom/doomgeneric/`
 as a git submodule. It is compiled to MBC bytecode via the rv32i-to-mbc translator
 and executed inside eBPF BPF maps — it does NOT link against or modify the
 Unheaded codebase. The GPL-2.0 license applies only to the doomgeneric directory.
+
+Unheaded modifications to doomgeneric will be published to the
+`unheaded-kingdom/doomgeneric` fork once protocol drafts are submitted and
+all Unheaded repositories go public.
 
 **Note:** WAD files (doom.wad, doom2.wad) are copyrighted game data owned
 separately and excluded from the repository via .gitignore.
