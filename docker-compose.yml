@@ -311,6 +311,264 @@ services:
           memory: 64M
           cpus: "0.25"
 
+  # =========================================================================
+  # TIER 4: APPLICATION SERVICES (Kingdom Core)
+  # =========================================================================
+
+  # --- Wotan: Message Bus (Fae Chamber) ---
+  wotan:
+    build:
+      context: .
+      target: wotan
+    container_name: unheaded-wotan
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: info
+    ports:
+      - "9090:9090"     # gRPC streaming
+      - "8081:8080"     # HTTP REST API (mapped 8081 on host to avoid traefik conflict)
+    networks:
+      - control
+      - data
+    labels:
+      kingdom.armor: "fae-chamber"
+      kingdom.role: "message-bus"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # --- Timeguru: Timeline Service (Oracle's Antre) ---
+  timeguru:
+    build:
+      context: .
+      target: timeguru
+    container_name: unheaded-timeguru
+    restart: unless-stopped
+    environment:
+      PORT: "8000"
+      WOTAN_ADDR: "wotan:8080"
+    ports:
+      - "8000:8000"
+    networks:
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "oracle"
+      kingdom.role: "timeline"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Captain: Strategy Service (Commander's Quarters) ---
+  captain:
+    build:
+      context: .
+      target: captain
+    container_name: unheaded-captain
+    restart: unless-stopped
+    environment:
+      HTTP_ADDR: "0.0.0.0:8001"
+      WOTAN_ADDR: "wotan:9090"
+      DATA_PATH: "/data"
+    ports:
+      - "8001:8001"
+    networks:
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "commander"
+      kingdom.role: "strategy"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8001/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Architect: ADR Service (Sage's Lair) ---
+  architect:
+    build:
+      context: .
+      target: architect
+    container_name: unheaded-architect
+    restart: unless-stopped
+    environment:
+      WOTAN_ADDR: "wotan:8080"
+    command: ["/app/architect", "-addr", ":8002"]
+    ports:
+      - "8002:8002"
+    networks:
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "sage"
+      kingdom.role: "adr"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8002/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Micromanager: Task Execution (War Room) ---
+  micromanager:
+    build:
+      context: .
+      target: micromanager
+    container_name: unheaded-micromanager
+    restart: unless-stopped
+    command: ["/app/micromanager", "-port", "8003"]
+    ports:
+      - "8003:8003"
+    networks:
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "war-room"
+      kingdom.role: "execution"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8003/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Monad: Unified State Management ---
+  monad:
+    build:
+      context: .
+      target: monad
+    container_name: unheaded-monad
+    restart: unless-stopped
+    environment:
+      MONAD_PORT: "8004"
+      WOTAN_ADDR: "wotan:8080"
+    ports:
+      - "8004:8004"
+    networks:
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "monad"
+      kingdom.role: "state-management"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8004/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Sophia: Knowledge Graph ---
+  sophia:
+    build:
+      context: .
+      target: sophia
+    container_name: unheaded-sophia
+    restart: unless-stopped
+    environment:
+      SOPHIA_LISTEN_ADDR: ":8005"
+      WOTAN_ADDR: "wotan:8080"
+    ports:
+      - "8005:8005"
+    networks:
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "sophia"
+      kingdom.role: "knowledge-graph"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8005/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # --- Cuirass: Control Plane Daemon ---
+  cuirass:
+    build:
+      context: .
+      target: cuirass
+    container_name: unheaded-cuirass
+    restart: unless-stopped
+    environment:
+      HTTP_ADDR: ":8006"
+      WOTAN_ADDR: "wotan:8080"
+    ports:
+      - "8006:8006"
+    networks:
+      - control
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "cuirass"
+      kingdom.role: "control-plane"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8006/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
 # =============================================================================
 # LABELS LEGEND
 # =============================================================================
