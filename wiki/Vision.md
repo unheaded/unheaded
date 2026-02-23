@@ -1,8 +1,8 @@
 # Vision
 
-*Status: Pipe Dream Riffing — Not Set in Stone*
+*Status: Early-stage — architecture subject to change*
 
-Unheaded is a configuration management automation platform delivering a complete infrastructure "suit of armor" for web applications. You bring your application; it provides the control plane, observability, and supporting services.
+Unheaded is a configuration management automation platform delivering production-ready infrastructure for web applications. You bring the application; Unheaded provides the control plane, observability, service mesh, and security baseline.
 
 ## Core Capabilities
 
