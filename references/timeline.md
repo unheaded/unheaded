@@ -88,6 +88,7 @@ The Unheaded Kingdom delivers the complete **Suit of Armor** for modern SaaS app
 - 🌑 **The Whispering Void** - eBPF-based observability (L2-L7) - we see ALL
 - ❄️ **Immutable Citadels** - Interchangeable container runtimes (LXD, containerd, NixOS, Docker) - reproducible, rollback-ready
 - 🔧 **The Forge of Many Tongues** - Interchangeable IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt) - your tools, our state model
+- 👁️ **The All-Seeing Eye** - Interchangeable observability backends (Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios + more) - your dashboards, our data; custom Wotan-native long-term
 - 🔒 **The Sacred Law** - Zero customer data access - architectural, not policy
 - 📜 **Compliance Scrolls** - FEDRAMP, SOC2, NIST, PCI-DSS, HIPAA, ITAR, GDPR
 - ⚡ **Drop-In Deployment** - One command, full kingdom
@@ -265,6 +266,47 @@ Unheaded generates configuration artifacts for the customer's preferred toolchai
 **Dependencies:** Core packages (pkg/) must define desired-state schema
 **Risk:** Low — output renderers are pure functions consuming a shared model
 **Owner:** The Developer + The Architect
+
+---
+
+#### Epoch 1.4c: The All-Seeing Eye
+**Observability Backends - Your Dashboards, Our Data**
+*ETA: Age 2-3 (Beta/Release) | STATUS: ARCHITECTURE DEFINED, adapters pending*
+
+Unheaded emits OpenTelemetry-compatible signals (metrics, logs, traces). Customers plug in their preferred observability stack via interchangeable output adapters. Long-term: custom Wotan-native implementations purpose-built for the eBPF data plane.
+
+**Supported Backends:**
+
+| Category | Drop-In Backends | Unheaded Default (Future) |
+|----------|-----------------|--------------------------|
+| **Metrics** | Prometheus, Grafana, Datadog, InfluxDB, Nagios | Custom Wotan metrics store |
+| **Logging** | ELK (Elasticsearch/Logstash/Kibana), Fluentd/Fluent Bit, Flume, Splunk, Loki, Graylog | Custom Wotan log aggregator |
+| **Tracing** | Jaeger, Zipkin, Tempo, Datadog APM | Custom eBPF-native tracer |
+| **Alerting** | Grafana Alerting, PagerDuty, OpsGenie, Nagios, Prometheus Alertmanager | Custom Wotan alert engine |
+| **Dashboards** | Grafana, Kibana, Datadog, custom | Unheaded Dashboard (vanilla JS) |
+| **SIEM** | Elastic SIEM, Splunk Enterprise Security, Wazuh | Custom Wotan SIEM integration |
+
+**Artifacts to Forge:**
+- [ ] `ObservabilityAdapter` interface in `pkg/observability/` — common signal contract
+- [ ] `observability/prometheus/` — Prometheus scrape config + adapter
+- [ ] `observability/grafana/` — Grafana dashboard JSON + datasource provisioning
+- [ ] `observability/elk/` — Logstash pipeline + Kibana index patterns + ES templates
+- [ ] `observability/fluentd/` — Fluent Bit / Fluentd config for log forwarding
+- [ ] `observability/jaeger/` — Jaeger collector config + trace export adapter
+- [ ] `observability/nagios/` — Nagios check configs + NRPE integration
+- [ ] `observability/flume/` — Apache Flume agent + channel configs
+- [ ] `observability/loki/` — Loki + Promtail config for log aggregation
+- [ ] `observability/alertmanager/` — Alert rules + routing config
+- [ ] Integration tests — each adapter ships valid, working config
+- [ ] `unheaded observe --backend=prometheus|grafana|elk|jaeger|nagios|all`
+
+**Phase 1 (Alpha/Beta):** Adapter configs — drop-in config mirrors so customers hook in their own tools
+**Phase 2 (Release):** Wotan-native defaults — purpose-built replacements leveraging eBPF data plane
+**Phase 3 (Scale):** Full observability suite — Unheaded's own Grafana/ELK/Jaeger-class tools
+
+**Dependencies:** Wotan ring buffer stable, eBPF trace pipeline proven
+**Risk:** Low for adapters (config generation only), Medium for custom implementations
+**Owner:** The Architect + The Developer
 
 ---
 
