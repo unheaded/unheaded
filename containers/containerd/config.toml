@@ -1,0 +1,69 @@
+# =============================================================================
+# containerd daemon configuration for Unheaded
+# =============================================================================
+# Install to /etc/containerd/config.toml and restart containerd.
+#
+# Features:
+#   - OCI runtime (runc) with seccomp defaults
+#   - overlayfs snapshotter
+#   - CNI networking for bridge mode
+#   - Prometheus metrics on :9200
+#   - Registry mirror for ghcr.io
+# =============================================================================
+
+version = 2
+
+# Root and state directories
+root = "/var/lib/containerd"
+state = "/run/containerd"
+
+# gRPC socket
+[grpc]
+  address = "/run/containerd/containerd.sock"
+  uid = 0
+  gid = 0
+  max_recv_message_size = 16777216
+  max_send_message_size = 16777216
+
+# Metrics endpoint (Prometheus-compatible)
+[metrics]
+  address = "0.0.0.0:9200"
+  grpc_histogram = false
+
+# Plugins
+[plugins]
+
+  # OCI runtime configuration
+  [plugins."io.containerd.grpc.v1.cri"]
+    sandbox_image = "registry.k8s.io/pause:3.9"
+    max_container_log_line_size = 16384
+
+    # CNI networking
+    [plugins."io.containerd.grpc.v1.cri".cni]
+      bin_dir = "/opt/cni/bin"
+      conf_dir = "/etc/cni/net.d"
+      max_conf_num = 1
+
+    # Default runtime
+    [plugins."io.containerd.grpc.v1.cri".containerd]
+      default_runtime_name = "runc"
+      snapshotter = "overlayfs"
+
+      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+          runtime_type = "io.containerd.runc.v2"
+          privileged_without_host_devices = false
+
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+            SystemdCgroup = true
+            BinaryName = "/usr/bin/runc"
+
+    # Registry mirrors
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
+        [plugins."io.containerd.grpc.v1.cri".registry.mirrors."ghcr.io"]
+          endpoint = ["https://ghcr.io"]
+
+  # Snapshotter
+  [plugins."io.containerd.snapshotter.v1.overlayfs"]
+    root_path = "/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs"
