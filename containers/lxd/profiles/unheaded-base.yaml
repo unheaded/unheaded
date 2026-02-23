@@ -1,0 +1,103 @@
+# =============================================================================
+# LXD Base Profile - Unheaded Security Baseline
+# =============================================================================
+# Applied to ALL Unheaded service containers. Provides:
+#   - Unprivileged execution (no root mapping)
+#   - Nesting disabled (containers cannot spawn sub-containers)
+#   - Kernel hardening via sysctls
+#   - Resource limits baseline
+#   - AppArmor confinement
+#
+# Usage:
+#   lxc profile create unheaded-base
+#   lxc profile edit unheaded-base < profiles/unheaded-base.yaml
+# =============================================================================
+
+config:
+  # =========================================================================
+  # SECURITY
+  # =========================================================================
+  security.privileged: "false"
+  security.nesting: "false"
+  security.idmap.isolated: "true"
+
+  # =========================================================================
+  # KERNEL HARDENING (sysctls)
+  # =========================================================================
+  # Network security
+  linux.kernel_modules: ""
+  linux.sysctl.net.ipv4.conf.all.rp_filter: "1"
+  linux.sysctl.net.ipv4.conf.default.rp_filter: "1"
+  linux.sysctl.net.ipv4.conf.all.accept_source_route: "0"
+  linux.sysctl.net.ipv4.conf.default.accept_source_route: "0"
+  linux.sysctl.net.ipv4.icmp_echo_ignore_broadcasts: "1"
+  linux.sysctl.net.ipv4.tcp_syncookies: "1"
+  linux.sysctl.net.ipv4.tcp_max_syn_backlog: "4096"
+  linux.sysctl.net.ipv4.ip_forward: "0"
+  linux.sysctl.net.ipv6.conf.all.accept_source_route: "0"
+  linux.sysctl.net.ipv6.conf.all.forwarding: "0"
+
+  # =========================================================================
+  # RESOURCE LIMITS (defaults, overridden per-instance)
+  # =========================================================================
+  limits.memory: 256MB
+  limits.cpu: "1"
+  limits.processes: "512"
+
+  # =========================================================================
+  # BOOT
+  # =========================================================================
+  boot.autostart: "true"
+  boot.autostart.delay: "2"
+  boot.autostart.priority: "5"
+
+  # =========================================================================
+  # USER SETUP (cloud-init)
+  # =========================================================================
+  # Base cloud-init: create unheaded user, install dependencies
+  user.vendor-data: |
+    #cloud-config
+    users:
+      - name: unheaded
+        uid: "1000"
+        groups: []
+        shell: /bin/bash
+        lock_passwd: true
+        no_create_home: false
+        home: /var/lib/unheaded
+
+    # Disable unnecessary services
+    runcmd:
+      - systemctl disable snapd.service snapd.socket snapd.seeded.service 2>/dev/null || true
+      - systemctl disable multipathd.service 2>/dev/null || true
+      - systemctl disable ModemManager.service 2>/dev/null || true
+      - systemctl disable networkd-dispatcher.service 2>/dev/null || true
+
+    # Base directory structure
+    write_files:
+      - path: /etc/unheaded/base.conf
+        content: |
+          # Unheaded base configuration
+          UNHEADED_VERSION=alpha
+          UNHEADED_NETWORK=10.10.10.0/24
+          UNHEADED_WOTAN_ADDR=10.10.10.10:9090
+          UNHEADED_WOTAN_HTTP=http://10.10.10.10:8080
+        permissions: "0644"
+
+description: Unheaded base security profile for all service containers
+
+devices:
+  # =========================================================================
+  # ROOT DISK
+  # =========================================================================
+  root:
+    path: /
+    pool: default
+    type: disk
+    size: 2GB
+
+  # =========================================================================
+  # LIMITS
+  # =========================================================================
+  # Disk I/O priority (lower = less priority)
+  # Override per-instance for critical services
