@@ -1,6 +1,6 @@
 # Protocol Foundation — Monad Wire Format
 
-The Unheaded Protocol Foundation encodes a 20-byte Monad (5 × u32 register file) in the IPv6 Hop-by-Hop Options extension header. At each hop, an eBPF Shim reads and writes the Monad. The packet itself is the working memory of a distributed computation.
+The Unheaded Protocol encodes a 20-byte Monad (5 × u32 register file) in the IPv6 Hop-by-Hop Options extension header. At each hop, an eBPF Shim reads and writes the Monad. The packet itself is the working memory of a distributed computation.
 
 ## Key Properties
 

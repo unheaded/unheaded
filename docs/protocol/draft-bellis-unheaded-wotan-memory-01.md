@@ -21,7 +21,7 @@ normative:
   RFC8174:
   RFC9669:
   UNHEADED-FOUNDATION:
-    title: "The Unheaded Protocol Foundation"
+    title: "Unheaded: Protocol Foundation"
     author:
       - ins: S. Bellis
     date: 2026-02
@@ -57,7 +57,7 @@ This memo defines the memory model, helper functions, address space, cache miss 
 
 # Introduction
 
-The Unheaded Protocol Foundation [UNHEADED-FOUNDATION] specifies a 20-byte register file (the Monad) that travels with every packet through a Limited Domain. BPF programs at each hop read and write the Monad, performing stateless per-packet computation.
+The Unheaded Protocol [UNHEADED-FOUNDATION] specifies a 20-byte register file (the Monad) that travels with every packet through a Limited Domain. BPF programs at each hop read and write the Monad, performing stateless per-packet computation.
 
 Many use cases require state beyond the 20-byte Monad: buffering input, accumulating results, maintaining per-flow state machines, or storing scratch memory for complex algorithms.
 

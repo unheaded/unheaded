@@ -22,7 +22,7 @@ normative:
   RFC8949:
   RFC9669:
   UNHEADED-FOUNDATION:
-    title: "The Unheaded Protocol Foundation"
+    title: "Unheaded: Protocol Foundation"
     author:
       - ins: S. Bellis
     date: 2026-02
@@ -56,7 +56,7 @@ nodes in under 10 milliseconds without packet loss or service interruption.
 
 ## Problem Statement
 
-The Unheaded Protocol Foundation [UNHEADED-FOUNDATION] defines a 20-byte
+The Unheaded Protocol [UNHEADED-FOUNDATION] defines a 20-byte
 register file (the Monad) that travels with every packet.  Each byte in the
 Monad is exponent-encoded: the actual value is reconstructed as base^exponent
 * multiplier.  But where do the base, multiplier, and the semantic meaning of
