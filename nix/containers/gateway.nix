@@ -98,10 +98,11 @@
       { name = "kanban"; ip = "10.10.10.200"; port = 8080; path = "/health"; }
       { name = "dashboard"; ip = "10.10.10.201"; port = 8081; path = "/health"; }
       { name = "cuirass"; ip = "10.10.10.5"; port = 8005; path = "/health"; }
+      { name = "doom-bridge"; ip = "10.10.10.28"; port = 6660; path = "/health"; }
     ];
     checkInterval = "30s";
     checkTimeout = 5;
-    totalServices = 10;
+    totalServices = 11;
   };
 
   # ===========================================================================
@@ -225,6 +226,11 @@
 
       upstream cuirass_backend {
         server 10.10.10.5:8005;
+        keepalive 32;
+      }
+
+      upstream doom_bridge_backend {
+        server 10.10.10.28:6660;
         keepalive 32;
       }
 
@@ -448,6 +454,33 @@
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;
           limit_req zone=strict burst=50 nodelay;
+        '';
+      };
+
+      locations."/doom/" = {
+        extraConfig = ''
+          proxy_pass http://doom_bridge_backend/;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          limit_req zone=general burst=200 nodelay;
+        '';
+      };
+
+      locations."/ws/doom/" = {
+        extraConfig = ''
+          proxy_pass http://doom_bridge_backend/ws;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_buffering off;
+          proxy_read_timeout 86400;
         '';
       };
 
