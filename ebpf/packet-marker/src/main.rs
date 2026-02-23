@@ -13,6 +13,8 @@
 #![no_std]
 #![no_main]
 
+mod common;
+
 use aya_ebpf::{
     bindings::xdp_action,
     macros::{map, xdp},
