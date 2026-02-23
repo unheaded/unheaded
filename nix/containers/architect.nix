@@ -20,8 +20,8 @@
   systemd.services.architect = {
     description = "Architect - Infrastructure Design Service";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
+    after = [ "network-online.target" "wotan.service" ];
+    wants = [ "network-online.target" "wotan.service" ];
 
     serviceConfig = {
       # Execution
