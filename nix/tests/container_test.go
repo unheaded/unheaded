@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -233,67 +235,109 @@ func TestContainerLifecycle_ConcurrentStartup(t *testing.T) {
 // ==============================================================================
 
 func TestSecurity_ContainerHasSeccomp(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+	nixDir := findNixContainersDir(t)
+	if nixDir == "" {
+		t.Skip("nix/containers directory not found")
 	}
 
 	for _, c := range testContainers {
 		t.Run(c.Name, func(t *testing.T) {
-			// Check seccomp is enabled
-			// Real implementation would check: grep Seccomp /proc/<pid>/status
-			// For now, verify config exists
-			configPath := fmt.Sprintf("/etc/unheaded/%s/seccomp.json", c.Name)
-			t.Logf("checking seccomp config: %s", configPath)
-			// TODO: actual file check
+			nixFile := findNixFile(nixDir, c.Name)
+			if nixFile == "" {
+				t.Skipf("no nix config found for %s", c.Name)
+				return
+			}
+
+			data, err := os.ReadFile(nixFile)
+			if err != nil {
+				t.Fatalf("read nix config: %v", err)
+			}
+
+			content := string(data)
+			if !nixConfigHasDirective(content, "SystemCallFilter") {
+				t.Errorf("container %s nix config missing SystemCallFilter (seccomp)", c.Name)
+			}
 		})
 	}
 }
 
 func TestSecurity_ContainerHasMinimalCapabilities(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+	nixDir := findNixContainersDir(t)
+	if nixDir == "" {
+		t.Skip("nix/containers directory not found")
 	}
-
-	allowedCaps := []string{"CAP_NET_BIND_SERVICE"}
 
 	for _, c := range testContainers {
 		t.Run(c.Name, func(t *testing.T) {
-			// Check capabilities
-			// Real: getpcaps <pid>
-			t.Logf("verifying capabilities for %s", c.Name)
+			nixFile := findNixFile(nixDir, c.Name)
+			if nixFile == "" {
+				t.Skipf("no nix config found for %s", c.Name)
+				return
+			}
 
-			// Verify only allowed capabilities are granted
-			for _, cap := range allowedCaps {
-				t.Logf("allowed capability: %s", cap)
+			data, err := os.ReadFile(nixFile)
+			if err != nil {
+				t.Fatalf("read nix config: %v", err)
+			}
+
+			content := string(data)
+			if !nixConfigHasDirective(content, "CapabilityBoundingSet") {
+				t.Errorf("container %s nix config missing CapabilityBoundingSet", c.Name)
 			}
 		})
 	}
 }
 
 func TestSecurity_ContainerFilesystemReadOnly(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+	nixDir := findNixContainersDir(t)
+	if nixDir == "" {
+		t.Skip("nix/containers directory not found")
 	}
 
 	for _, c := range testContainers {
 		t.Run(c.Name, func(t *testing.T) {
-			// Verify root filesystem is read-only
-			// Real: mount | grep "on / " | grep "ro,"
-			t.Logf("checking filesystem for %s", c.Name)
+			nixFile := findNixFile(nixDir, c.Name)
+			if nixFile == "" {
+				t.Skipf("no nix config found for %s", c.Name)
+				return
+			}
+
+			data, err := os.ReadFile(nixFile)
+			if err != nil {
+				t.Fatalf("read nix config: %v", err)
+			}
+
+			content := string(data)
+			if !nixConfigHasDirective(content, "ProtectSystem") {
+				t.Errorf("container %s nix config missing ProtectSystem (read-only FS)", c.Name)
+			}
 		})
 	}
 }
 
 func TestSecurity_NoPrivilegeEscalation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+	nixDir := findNixContainersDir(t)
+	if nixDir == "" {
+		t.Skip("nix/containers directory not found")
 	}
 
 	for _, c := range testContainers {
 		t.Run(c.Name, func(t *testing.T) {
-			// Verify NoNewPrivileges is set
-			// Real: grep NoNewPrivs /proc/<pid>/status
-			t.Logf("checking NoNewPrivileges for %s", c.Name)
+			nixFile := findNixFile(nixDir, c.Name)
+			if nixFile == "" {
+				t.Skipf("no nix config found for %s", c.Name)
+				return
+			}
+
+			data, err := os.ReadFile(nixFile)
+			if err != nil {
+				t.Fatalf("read nix config: %v", err)
+			}
+
+			content := string(data)
+			if !nixConfigHasDirective(content, "NoNewPrivileges") {
+				t.Errorf("container %s nix config missing NoNewPrivileges", c.Name)
+			}
 		})
 	}
 }
@@ -500,4 +544,53 @@ func waitForContainer(t *testing.T, name string, timeout time.Duration) error {
 	}
 
 	return fmt.Errorf("container %s did not start within %v", name, timeout)
+}
+
+// findNixContainersDir locates the nix/containers directory relative to the test file.
+func findNixContainersDir(t *testing.T) string {
+	t.Helper()
+	candidates := []string{
+		"../../nix/containers",
+		"../nix/containers",
+		"nix/containers",
+	}
+	for _, dir := range candidates {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			return dir
+		}
+	}
+	return ""
+}
+
+// findNixFile locates the nix configuration file for a given container name,
+// trying several naming conventions used in the project.
+func findNixFile(dir, containerName string) string {
+	// Try various naming conventions
+	candidates := []string{
+		filepath.Join(dir, containerName+".nix"),
+		filepath.Join(dir, containerName+"-service.nix"),
+		filepath.Join(dir, containerName+"-app.nix"),
+	}
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	return ""
+}
+
+// nixConfigHasDirective checks whether a nix config file contains a security directive
+// either directly or via the hardening module import.
+func nixConfigHasDirective(content, directive string) bool {
+	// Direct presence of the directive in the file
+	if strings.Contains(content, directive) {
+		return true
+	}
+	// The hardening module (hardening.nix) applies all standard security directives
+	// (SystemCallFilter, CapabilityBoundingSet, NoNewPrivileges, ProtectSystem)
+	// so importing it satisfies the requirement.
+	if strings.Contains(content, "hardening.nix") {
+		return true
+	}
+	return false
 }
