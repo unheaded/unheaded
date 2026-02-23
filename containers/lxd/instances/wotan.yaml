@@ -1,0 +1,113 @@
+# =============================================================================
+# LXD Instance: Wotan Message Bus
+# =============================================================================
+# The heart of Unheaded - all services communicate through Wotan.
+#
+# IP:    10.10.10.10
+# Ports: 9090 (gRPC), 8080 (REST), 9100 (metrics)
+# Role:  Infrastructure (critical)
+# =============================================================================
+
+#cloud-config
+hostname: wotan
+
+# Network: static IP on lxdbr0
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 10.10.10.10/24
+      gateway4: 10.10.10.1
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+
+# Resource overrides (higher for message bus)
+# Apply via: lxc config set wotan limits.memory=1GB limits.cpu=2
+# These are documented here for reference; actual limits set at launch.
+
+packages:
+  - ca-certificates
+  - wget
+  - curl
+  - jq
+
+users:
+  - name: unheaded
+    uid: "1000"
+    shell: /bin/bash
+    lock_passwd: true
+    home: /var/lib/unheaded
+
+write_files:
+  - path: /etc/systemd/system/wotan.service
+    content: |
+      [Unit]
+      Description=Wotan Message Bus - gRPC and REST API
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=unheaded
+      Group=unheaded
+      ExecStart=/opt/unheaded/bin/wotan --grpc-addr=0.0.0.0:9090 --http-addr=0.0.0.0:8080 --metrics-addr=0.0.0.0:9100
+      WorkingDirectory=/var/lib/unheaded/wotan
+      Environment=SERVICE_NAME=wotan
+      Environment=WOTAN_DATA_DIR=/var/lib/unheaded/wotan
+      Environment=WOTAN_LOG_LEVEL=info
+      Environment=WOTAN_RING_BUFFER_SIZE=10000
+      Environment=WOTAN_MAX_SUBSCRIBERS=1000
+      Environment=LOG_LEVEL=info
+      Environment=GOGC=100
+      Environment=GOMAXPROCS=2
+      Restart=always
+      RestartSec=5s
+      StartLimitBurst=10
+      StartLimitIntervalSec=60
+      NoNewPrivileges=true
+      ProtectSystem=strict
+      ProtectHome=true
+      PrivateTmp=true
+      PrivateDevices=true
+      ProtectKernelTunables=true
+      ProtectControlGroups=true
+      RestrictRealtime=true
+      ReadWritePaths=/var/lib/unheaded/wotan /var/log/unheaded/wotan
+      MemoryMax=1G
+      CPUQuota=200%
+      TasksMax=1024
+      KillSignal=SIGTERM
+      TimeoutStopSec=30s
+
+      [Install]
+      WantedBy=multi-user.target
+    permissions: "0644"
+
+  - path: /etc/unheaded/health-check.sh
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:8080/health > /dev/null 2>&1
+    permissions: "0755"
+
+runcmd:
+  - mkdir -p /opt/unheaded/bin
+  - mkdir -p /var/lib/unheaded/wotan
+  - mkdir -p /var/log/unheaded/wotan
+  - chown -R unheaded:unheaded /var/lib/unheaded /var/log/unheaded
+  - |
+    # Configure firewall: default-deny, allow service ports from internal network
+    ufw --force reset
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow from 10.10.10.0/24 to any port 9090 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 8080 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 9100 proto tcp
+    ufw --force enable
+  - systemctl daemon-reload
+  - systemctl enable wotan.service
+  # NOTE: Service will fail until binary is deployed to /opt/unheaded/bin/wotan
+  - systemctl start wotan.service || true

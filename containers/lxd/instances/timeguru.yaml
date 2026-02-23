@@ -1,0 +1,105 @@
+# =============================================================================
+# LXD Instance: Timeguru Timeline Tracking Service
+# =============================================================================
+# Timeline tracking and milestone management.
+#
+# IP:    10.10.10.20
+# Ports: 8000 (HTTP), 9100 (metrics)
+# Role:  Application service
+# =============================================================================
+
+#cloud-config
+hostname: timeguru
+
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 10.10.10.20/24
+      gateway4: 10.10.10.1
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+
+packages:
+  - ca-certificates
+  - wget
+  - curl
+  - jq
+
+users:
+  - name: unheaded
+    uid: "1000"
+    shell: /bin/bash
+    lock_passwd: true
+    home: /var/lib/unheaded
+
+write_files:
+  - path: /etc/systemd/system/timeguru.service
+    content: |
+      [Unit]
+      Description=Timeguru Timeline Tracking Service
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=unheaded
+      Group=unheaded
+      ExecStart=/opt/unheaded/bin/timeguru
+      WorkingDirectory=/opt/unheaded/references
+      Environment=SERVICE_NAME=timeguru
+      Environment=TIMEGURU_ADDR=0.0.0.0:8000
+      Environment=TIMEGURU_TIMELINE_PATH=/opt/unheaded/references/timeline.md
+      Environment=TIMEGURU_AUTO_SYNC=true
+      Environment=WOTAN_ADDR=10.10.10.10:9090
+      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:8080
+      Environment=LOG_LEVEL=info
+      Environment=METRICS_ADDR=0.0.0.0:9100
+      Environment=GOGC=100
+      Environment=GOMAXPROCS=2
+      Restart=always
+      RestartSec=5s
+      NoNewPrivileges=true
+      ProtectSystem=strict
+      ProtectHome=true
+      PrivateTmp=true
+      PrivateDevices=true
+      ProtectKernelTunables=true
+      ProtectControlGroups=true
+      RestrictRealtime=true
+      ReadWritePaths=/var/lib/unheaded/timeguru /var/log/unheaded/timeguru /opt/unheaded/references
+      MemoryMax=256M
+      CPUQuota=100%
+      TasksMax=512
+      KillSignal=SIGTERM
+      TimeoutStopSec=10s
+
+      [Install]
+      WantedBy=multi-user.target
+    permissions: "0644"
+
+  - path: /etc/unheaded/health-check.sh
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:8000/health > /dev/null 2>&1
+    permissions: "0755"
+
+runcmd:
+  - mkdir -p /opt/unheaded/bin /opt/unheaded/references
+  - mkdir -p /var/lib/unheaded/timeguru
+  - mkdir -p /var/log/unheaded/timeguru
+  - chown -R unheaded:unheaded /var/lib/unheaded /var/log/unheaded /opt/unheaded
+  - |
+    ufw --force reset
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow from 10.10.10.0/24 to any port 8000 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 9100 proto tcp
+    ufw --force enable
+  - systemctl daemon-reload
+  - systemctl enable timeguru.service
+  - systemctl start timeguru.service || true
