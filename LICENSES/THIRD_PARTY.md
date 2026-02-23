@@ -509,15 +509,35 @@ Prometheus metrics exposition for trace-collector.
 
 ---
 
+## GPL Licensed Packages
+
+### doomgeneric
+
+**Copyright:** Maraakate, ozkl, id Software (original Doom source)
+**License:** GNU General Public License v2.0
+**URL:** https://github.com/ozkl/doomgeneric
+
+Portable Doom source port used for the Doom-over-IPv6 computational completeness
+proof (Monad spec Section 12). The doomgeneric code lives in `doom/doomgeneric/`
+as a git submodule. It is compiled to MBC bytecode via the rv32i-to-mbc translator
+and executed inside eBPF BPF maps — it does NOT link against or modify the
+Unheaded codebase. The GPL-2.0 license applies only to the doomgeneric directory.
+
+**Note:** WAD files (doom.wad, doom2.wad) are copyrighted game data owned
+separately and excluded from the repository via .gitignore.
+
+---
+
 ## Attribution Notice
 
 This software includes code from the following projects:
 
-- **Cilium eBPF** - A pure Go library for working with eBPF
+- **Cilium eBPF** - A pure Go library for working with eBPF (Go userspace)
+- **Aya / aya-ebpf** - eBPF framework for Rust (kernel programs + userspace loader)
+- **doomgeneric** - Portable Doom source port (GPL-2.0, computational completeness proof)
 - **Prometheus Go client** - Go client library for Prometheus
 - **gRPC-Go** - The Go implementation of gRPC
 - **zerolog** - Zero allocation JSON logger
-- **Aya** - eBPF framework for Rust (kernel programs)
 - **Tokio** - Async runtime for Rust (trace-collector)
 - **Tonic** - gRPC for Rust (trace-collector → Wotan)
 - **modernc.org/sqlite** - Pure Go SQLite (Kanban persistence)
