@@ -65,6 +65,69 @@ check_kernel() {
         log_error "Kernel version $(uname -r) is too old. Required: >= $REQUIRED_VERSION"
         exit 1
     fi
+
+    # Check kernel config for eBPF support
+    if [[ -f /proc/config.gz ]]; then
+        if zcat /proc/config.gz | grep -q "CONFIG_BPF=y"; then
+            log_success "Kernel BPF support: enabled"
+        else
+            log_warn "Kernel BPF support: not detected (eBPF features may not work)"
+        fi
+    elif [[ -f "/boot/config-$(uname -r)" ]]; then
+        if grep -q "CONFIG_BPF=y" "/boot/config-$(uname -r)"; then
+            log_success "Kernel BPF support: enabled"
+        else
+            log_warn "Kernel BPF support: not detected (eBPF features may not work)"
+        fi
+    else
+        log_warn "Cannot verify kernel BPF config (no /proc/config.gz or /boot/config-$(uname -r))"
+    fi
+}
+
+# Check for required tools
+check_prerequisites() {
+    log_info "Checking prerequisites..."
+
+    local missing=()
+
+    # Docker / Docker Compose (required for make deploy)
+    if command -v docker &> /dev/null; then
+        log_success "Docker: $(docker --version | head -1)"
+        if docker compose version &> /dev/null; then
+            log_success "Docker Compose: $(docker compose version --short 2>/dev/null || echo 'available')"
+        else
+            log_warn "Docker Compose plugin not found (required for 'make deploy')"
+        fi
+    else
+        log_warn "Docker not found (required for 'make deploy')"
+    fi
+
+    # bpftool (required for eBPF)
+    if command -v bpftool &> /dev/null; then
+        log_success "bpftool: $(bpftool version 2>/dev/null | head -1 || echo 'available')"
+    else
+        log_warn "bpftool not found (will be installed with dependencies)"
+    fi
+
+    # Go (required for building)
+    if command -v go &> /dev/null; then
+        log_success "Go: $(go version)"
+    elif [[ -x "/usr/local/go/bin/go" ]]; then
+        log_success "Go: $(/usr/local/go/bin/go version) [at /usr/local/go/bin/go]"
+    else
+        log_warn "Go not found (will be installed with dependencies)"
+    fi
+
+    # curl (required for health checks)
+    if command -v curl &> /dev/null; then
+        log_success "curl: available"
+    else
+        missing+=("curl")
+    fi
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_warn "Missing tools (will be installed): ${missing[*]}"
+    fi
 }
 
 # Install dependencies based on distro
@@ -403,6 +466,7 @@ main() {
     check_root
     detect_os
     check_kernel
+    check_prerequisites
     check_virt
 
     install_dependencies
