@@ -99,10 +99,11 @@ static CPU_MAP: HashMap<u32, MbcCpuState> = HashMap::with_max_entries(256, 0);
 #[map]
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 
-/// L1 cache: BPF_MAP_TYPE_LRU_HASH for cache line storage.
-/// Key = cache line address (byte_addr & !63, 64-byte alignment).
-/// Value = 64-byte cache line buffer.
-/// Max entries = 256 cache lines (16 KiB total L1 cache).
+/// L1 cache: reserved for future use.
+/// Currently disabled because RAM_MAP is a BPF Array (O(1) direct indexing),
+/// which is strictly faster than LruHashMap lookups (hash + LRU update).
+/// The cache concept applies when the backing store is a HashMap or has
+/// cross-CPU contention.  With a per-instance Array, every access is O(1).
 #[map]
 static L1_CACHE: LruHashMap<u32, [u8; 64]> = LruHashMap::with_max_entries(256, 0);
 
@@ -128,8 +129,8 @@ const STAT_NO_STATE:        u32 = 5;
 const STAT_MEM_FAULTS:      u32 = 6;
 const STAT_SYSCALLS:        u32 = 7;
 const STAT_ROM_FAULT:       u32 = 8;
-const STAT_CACHE_HITS:      u32 = 9;
-const STAT_CACHE_MISSES:    u32 = 10;
+const STAT_MEM_STORES:      u32 = 9;  // was CACHE_HITS (misleading — cache is disabled)
+const STAT_MEM_LOADS:       u32 = 10; // was CACHE_MISSES (all loads go direct to Array)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -561,96 +562,64 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = ret;
 
         // ── Memory ────────────────────────────────────────────────────────────
+        // All memory accesses go directly to RAM_MAP (BPF Array, O(1)).
+        // L1 cache is disabled — Array is faster than LruHashMap.
         } else if opc == op::LD {
-            // dst = l1_cache[src + simm16]  (32-bit load via L1)
+            // dst = RAM[src + simm16]  (32-bit word load)
             let addr = cpu.regs[s].wrapping_add(simm as u32);
-            match l1_load_u32(addr) {
-                Ok(val) => {
-                    cpu.regs[d] = val;
-                    cpu.cache_hits += 1;
-                    increment_stat(STAT_CACHE_HITS);
-                }
-                Err(_miss_addr) => {
-                    // L1 miss — fall through to RAM_MAP
-                    cpu.cache_misses += 1;
-                    increment_stat(STAT_CACHE_MISSES);
-                    let word_addr = addr >> 2;
-                    let val = match RAM_MAP.get(word_addr) {
-                        Some(v) => *v,
-                        None => 0,
-                    };
-                    cpu.regs[d] = val;
-                }
-            }
+            let word_addr = addr >> 2;
+            let val = match RAM_MAP.get(word_addr) {
+                Some(v) => *v,
+                None => 0,
+            };
+            cpu.regs[d] = val;
+            cpu.cache_misses += 1;  // mem_loads counter (legacy field name)
+            increment_stat(STAT_MEM_LOADS);
         } else if opc == op::ST {
-            // l1_cache[dst + simm16] = src  (32-bit store via L1, write-through to RAM)
+            // RAM[dst + simm16] = src  (32-bit word store)
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = cpu.regs[s];
-            l1_store_u32(addr, val);
-            // Write-through: mem_write_word handles SCREEN_MAP projection + RAM_MAP
             mem_write_word(addr >> 2, val);
-            cpu.cache_hits += 1;
-            increment_stat(STAT_CACHE_HITS);
+            cpu.cache_hits += 1;  // mem_stores counter (legacy field name)
+            increment_stat(STAT_MEM_STORES);
         } else if opc == op::LDB {
-            // dst = zero_extend(l1_cache[src + simm16])  (byte load via L1)
+            // dst = zero_extend(RAM[src + simm16])  (byte load)
             let addr = cpu.regs[s].wrapping_add(simm as u32);
-            match l1_load_u8(addr) {
-                Ok(byte) => {
-                    cpu.regs[d] = byte as u32;
-                    cpu.cache_hits += 1;
-                    increment_stat(STAT_CACHE_HITS);
-                }
-                Err(_miss_addr) => {
-                    cpu.cache_misses += 1;
-                    increment_stat(STAT_CACHE_MISSES);
-                    let word_addr = addr >> 2;
-                    let byte_shift = (addr & 3) * 8;
-                    let word = match RAM_MAP.get(word_addr) {
-                        Some(v) => *v,
-                        None => 0,
-                    };
-                    cpu.regs[d] = (word >> byte_shift) & 0xFF;
-                }
-            }
+            let word_addr = addr >> 2;
+            let byte_shift = (addr & 3) * 8;
+            let word = match RAM_MAP.get(word_addr) {
+                Some(v) => *v,
+                None => 0,
+            };
+            cpu.regs[d] = (word >> byte_shift) & 0xFF;
+            cpu.cache_misses += 1;
+            increment_stat(STAT_MEM_LOADS);
         } else if opc == op::STB {
-            // l1_cache[dst + simm16] = src & 0xFF  (byte store, write-through)
+            // RAM[dst + simm16] = src & 0xFF  (byte store)
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = (cpu.regs[s] & 0xFF) as u8;
-            l1_store_u8(addr, val);
-            // Write-through: mem_write_byte handles SCREEN_MAP projection + RAM_MAP
             mem_write_byte(addr, val);
             cpu.cache_hits += 1;
-            increment_stat(STAT_CACHE_HITS);
+            increment_stat(STAT_MEM_STORES);
         } else if opc == op::LDH {
-            // dst = zero_extend(l1_cache[src + simm16])  (16-bit load via L1)
+            // dst = zero_extend(RAM[src + simm16])  (16-bit halfword load)
             let addr = cpu.regs[s].wrapping_add(simm as u32);
-            match l1_load_u16(addr) {
-                Ok(hw) => {
-                    cpu.regs[d] = hw as u32;
-                    cpu.cache_hits += 1;
-                    increment_stat(STAT_CACHE_HITS);
-                }
-                Err(_miss_addr) => {
-                    cpu.cache_misses += 1;
-                    increment_stat(STAT_CACHE_MISSES);
-                    let word_addr = addr >> 2;
-                    let half_shift = (addr & 2) * 8;
-                    let word = match RAM_MAP.get(word_addr) {
-                        Some(v) => *v,
-                        None => 0,
-                    };
-                    cpu.regs[d] = (word >> half_shift) & 0xFFFF;
-                }
-            }
+            let word_addr = addr >> 2;
+            let half_shift = (addr & 2) * 8;
+            let word = match RAM_MAP.get(word_addr) {
+                Some(v) => *v,
+                None => 0,
+            };
+            cpu.regs[d] = (word >> half_shift) & 0xFFFF;
+            cpu.cache_misses += 1;
+            increment_stat(STAT_MEM_LOADS);
         } else if opc == op::STH {
-            // l1_cache[dst + simm16] = src & 0xFFFF  (16-bit store, write-through)
+            // RAM[dst + simm16] = src & 0xFFFF  (16-bit halfword store)
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = (cpu.regs[s] & 0xFFFF) as u16;
-            l1_store_u16(addr, val);
-            // Write-through: mem_write_half handles SCREEN_MAP projection + RAM_MAP
             mem_write_half(addr, val);
             cpu.cache_hits += 1;
-            increment_stat(STAT_CACHE_HITS);
+            increment_stat(STAT_MEM_STORES);
 
         // ── System ────────────────────────────────────────────────────────────
         } else if opc == op::SYSCALL {
@@ -717,39 +686,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 /// on cache lines, leading to silent data corruption. All loads now go
 /// directly through RAM_MAP.
 #[inline(always)]
-fn l1_load_u32(addr: u32) -> Result<u32, u32> {
-    Err(addr) // cache disabled — force RAM_MAP fallback
-}
-
-/// Store a u32 to L1 cache. Creates or updates the cache line.
-/// Cache DISABLED: stores are no-ops (RAM_MAP write-through in ST handler
-/// ensures persistence).
-#[inline(always)]
-fn l1_store_u32(_addr: u32, _val: u32) {
-    // cache disabled — ST handler writes directly to RAM_MAP
-}
-
-/// Load a u8 from L1 cache. DISABLED — see l1_load_u32.
-#[inline(always)]
-fn l1_load_u8(addr: u32) -> Result<u8, u32> {
-    Err(addr)
-}
-
-/// Store a u8 to L1 cache. DISABLED — see l1_store_u32.
-#[inline(always)]
-fn l1_store_u8(_addr: u32, _val: u8) {
-}
-
-/// Load a u16 from L1 cache. DISABLED — see l1_load_u32.
-#[inline(always)]
-fn l1_load_u16(addr: u32) -> Result<u16, u32> {
-    Err(addr)
-}
-
-/// Store a u16 to L1 cache. DISABLED — see l1_store_u32.
-#[inline(always)]
-fn l1_store_u16(_addr: u32, _val: u16) {
-}
+// L1 cache functions removed — RAM_MAP (BPF Array) provides O(1) direct
+// indexing which is faster than LruHashMap.  Memory operations now go
+// directly to RAM_MAP in the execute loop above.
 
 // ── Event emission helpers ─────────────────────────────────────────────────────
 
