@@ -13,7 +13,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # Paths
 BPFFS_ROOT="/sys/fs/bpf/unheaded/doom-ring"
@@ -67,7 +67,7 @@ load_rom() {
     log_info "ROM: ${num_words} words (${size} bytes)"
 
     # Use Python for bulk loading via bpftool batch
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" rom "$rom_pin" "$DOOM_MBC"
+    python3 "${SCRIPT_DIR}/loader_core.py" rom "$rom_pin" "$DOOM_MBC"
 
     log_info "ROM loaded: ${num_words} instructions"
 }
@@ -108,7 +108,7 @@ load_data() {
     fi
     log_info "Data start address: ${data_start_addr} (.rodata VMA)"
 
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" ram "$ram_pin" "$DOOM_DATA" "$data_start_addr"
+    python3 "${SCRIPT_DIR}/loader_core.py" ram "$ram_pin" "$DOOM_DATA" "$data_start_addr"
 
     log_info "Data sections loaded"
 }
@@ -138,7 +138,7 @@ load_wad() {
     # WAD starts at byte address 0x110000 (from linker script)
     local wad_start_addr=0x110000
 
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" ram "$ram_pin" "$DOOM_WAD" "$wad_start_addr"
+    python3 "${SCRIPT_DIR}/loader_core.py" ram "$ram_pin" "$DOOM_WAD" "$wad_start_addr"
 
     log_info "WAD loaded"
 }
@@ -168,7 +168,7 @@ load_rv2mbc() {
     local num_entries=$((size / 4))
     log_info "RV2MBC: ${num_entries} entries (${size} bytes)"
 
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" rv2mbc "$rv2mbc_pin" "$rv2mbc_file"
+    python3 "${SCRIPT_DIR}/loader_core.py" rv2mbc "$rv2mbc_pin" "$rv2mbc_file"
 
     log_info "RV2MBC map loaded: ${num_entries} entries"
 }
@@ -187,7 +187,7 @@ load_cpu() {
     fi
 
     # Instance 0xDE matches the default flow_label in bulk_inject.py
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" cpu "$cpu_pin" 0xDE
+    python3 "${SCRIPT_DIR}/loader_core.py" cpu "$cpu_pin" 0xDE
 
     log_info "CPU state initialized: instance=0xDE, PC=0, SP=0x3F00000"
 }
