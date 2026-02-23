@@ -86,7 +86,7 @@
 
 - [[Containers|Containers]] — Immutable container definitions. LXD, containerd, NixOS, Docker
 - [[IaC Backends|IaC-Backends]] — Interchangeable config management. Ansible, Terraform, Puppet, Kubernetes, Chef, Salt
-- [[eBPF Programs|eBPF-Programs]] — Rust/Aya packet tracing
+- [[eBPF Programs|eBPF-Programs]] — Rust/Aya + cilium/ebpf packet tracing (L2–L7)
 - [[Fae Chamber Contracts|Fae-Chamber-Contracts]] — Service interface contracts
 - [[Service Breakout Strategy|Service-Breakout-Strategy]] — Post-alpha repo separation
 
