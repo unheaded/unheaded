@@ -161,6 +161,11 @@ crates/*/fuzz/coverage/
 churn_analysis.awk
 PROJECT_TREE.txt
 
+# ─── Python cache ───
+__pycache__/
+*.pyc
+*.pyo
+
 # ─── Session artifacts ───
 # Session handoffs are tracked intentionally
 # *.jsonl
