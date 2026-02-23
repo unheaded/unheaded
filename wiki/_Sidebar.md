@@ -47,10 +47,20 @@
 - [[eBPF Programs|eBPF-Programs]]
 - [[Service Breakout|Service-Breakout-Strategy]]
 
-**Kingdom Lore**
+**Lore & Naming**
+- [[Lore Index|Lore-Index]]
+- [[Naming Map|Naming-Map]]
+- [[Gnostic Architecture|Gnostic-Architecture]]
+- [[Medieval Armory|Medieval-Armory]]
+- [[Norse Mythology|Norse-Mythology]]
+- [[Sacred Hierarchy|Sacred-Hierarchy]]
+- [[Protocol Heritage|Protocol-Heritage]]
 - [[Phylactery]]
 - [[Kingdom Mode Math|Kingdom-Mode-Math]]
 - [[Doom over IPv6|Doom-over-IPv6]]
+
+**Skills**
+- [[Skills Index|Skills-Index]]
 
 **Development**
 - [[Developer Guide|Developer-Guide]]

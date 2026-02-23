@@ -1,6 +1,6 @@
 # Wotan — Message Bus / Ring Buffer / Protocol RAM
 
-The backbone of the Kingdom. Wotan serves a triple role:
+Core inter-service communication layer. Wotan serves a triple role:
 
 1. **High-Speed Ring Buffer** — Lock-free eBPF perf_event pattern
 2. **Event Bus** — Pub/sub gRPC/HTTP with topic routing

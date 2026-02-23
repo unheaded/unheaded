@@ -3,10 +3,10 @@
 A mapped data bus over IPv6 Hop-by-Hop Options, with configuration
 management automation for immutable infrastructure.
 
-You bring the application ("the head").  Unheaded provides everything
-else: packet-level observability, service mesh, control plane,
-security baseline, and a protocol that turns every packet into
-a 20-byte register file executing eBPF programs at wire speed.
+You bring the application.  Unheaded provides everything else:
+packet-level observability, service mesh, control plane, security
+baseline, and a protocol that turns every packet into a 20-byte
+register file executing eBPF programs at wire speed.
 
 Interchangeable container runtimes (LXD, containerd, NixOS, Docker)
 and IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt).
@@ -47,7 +47,7 @@ IPv6 address bits are reclaimed as Extended Register Space:
 
     Formula:   reclaimed = 2 * (128 - host_bits)
 
-Combined with the Monad, a /16 Kingdom carries 48 bytes of
+Combined with the Monad, a /16 deployment carries 48 bytes of
 computational register state per packet with zero wire overhead.
 
 Post-quantum identity binding (ML-KEM-768, ML-DSA-65 per FIPS
@@ -71,7 +71,7 @@ Full protocol specification: [docs/protocol/](docs/protocol/)
         ├── kenoma / pleroma     outer/inner domain separation
         ├── trace-collector      eBPF → Wotan bridge (Rust)
         ├── dashboard-backend    metrics aggregator, WebSocket
-        ├── kanban-app           self-hosting proof (the meta moment)
+        ├── kanban-app           self-hosting proof
         ├── gateway              HTTP/3, QUIC, gRPC-Web, WebSocket
         └── yaldabaoth           chaos injection (controlled fault testing)
 
@@ -91,7 +91,7 @@ the protocol is runtime-agnostic.  Only requirement: Linux kernel
     │   ├── sophia/              dictionary management
     │   ├── trace-collector/     eBPF → Wotan bridge (Rust)
     │   ├── dashboard-backend/   metrics (Go)
-    │   ├── kanban-app/          self-hosting proof (Go + JS)
+    │   ├── kanban-app/          self-hosting demo (Go + JS)
     │   ├── waf/                 web application firewall
     │   ├── ebpf-loader/         BPF program lifecycle
     │   ├── ebpf-collector/      BPF map reader
