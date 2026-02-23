@@ -181,12 +181,14 @@ const Cards = (function() {
         card.tabIndex = 0;
 
         // Build progress bar HTML if progress is available
+        // Note: progress-fill width is set via CSSOM (element.style) after
+        // innerHTML assignment so that CSP style-src does not need 'unsafe-inline'.
         let progressHtml = '';
         if (task.progress !== undefined && task.progress > 0) {
             progressHtml = `
                 <div class="card-progress">
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${task.progress}%"></div>
+                        <div class="progress-fill" data-progress="${task.progress}"></div>
                     </div>
                     <span class="progress-text">${task.progress}%</span>
                 </div>
@@ -248,6 +250,12 @@ const Cards = (function() {
                 </div>
             ` : ''}
         `;
+
+        // Set progress bar width via CSSOM (CSP-safe, no inline style attribute)
+        const progressFill = card.querySelector('.progress-fill[data-progress]');
+        if (progressFill) {
+            progressFill.style.width = progressFill.dataset.progress + '%';
+        }
 
         // Attach event listeners
         attachCardListeners(card, task);

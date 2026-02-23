@@ -8,6 +8,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -452,6 +453,14 @@ func (s *Server) clientReadPump(c *Client) {
 					Str("client_id", c.id).
 					Int("size", len(payload)).
 					Msg("rejected oversized WebSocket message")
+				continue
+			}
+			// Validate JSON structure for text frames — reject malformed payloads
+			if opcode == opcodeText && len(payload) > 0 && !json.Valid(payload) {
+				s.log.Warn().
+					Str("client_id", c.id).
+					Int("size", len(payload)).
+					Msg("rejected malformed JSON WebSocket message")
 				continue
 			}
 			if s.onMessage != nil {
