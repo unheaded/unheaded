@@ -178,7 +178,7 @@ services:
     environment:
       CLICKHOUSE_DB: unheaded_logs
       CLICKHOUSE_USER: unheaded
-      CLICKHOUSE_PASSWORD: dev-only-change-in-prod
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-changeme}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
       - "8123:8123"  # HTTP interface
@@ -244,8 +244,8 @@ services:
     container_name: unheaded-grafana
     restart: unless-stopped
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: dev-only-change-in-prod
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_ROOT_URL: "http://localhost:3001"
     ports:

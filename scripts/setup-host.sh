@@ -156,7 +156,7 @@ setup_lxd() {
     cat <<EOF | lxd init --preseed
 config:
   core.https_address: '[::]:8443'
-  core.trust_password: unheaded-alpha
+  core.trust_password: ${LXD_TRUST_PASSWORD:-changeme}
 networks:
 - name: lxdbr0
   type: bridge
