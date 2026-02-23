@@ -27,7 +27,7 @@ import (
 
 const (
 	defaultPort         = "8000"
-	defaultWotanAddr   = "localhost:8080"  // HTTP control plane (not gRPC 9090)
+	defaultWotanAddr   = "localhost:9080"  // HTTP control plane (not gRPC 9090)
 	defaultDBPath       = "./data/timeguru.db"
 	defaultTimelinePath = "./references/timeline.md"
 	shutdownTimeout     = 30 * time.Second

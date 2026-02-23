@@ -247,7 +247,7 @@ func parseFlags() Config {
 
 	// Server flags
 	flag.IntVar(&config.BufferSize, "buffer-size", 10000, "Ring buffer size per room")
-	flag.IntVar(&config.HTTPPort, "http-port", 8080, "HTTP REST API port")
+	flag.IntVar(&config.HTTPPort, "http-port", 9080, "HTTP REST API port")
 	flag.IntVar(&config.GRPCPort, "grpc-port", 9090, "gRPC streaming port")
 	flag.BoolVar(&config.AdminEnabled, "admin", true, "Enable admin endpoints")
 

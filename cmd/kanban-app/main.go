@@ -1176,7 +1176,7 @@ func main() {
 	cfg := Config{
 		Port:            getEnv("PORT", "8081"),
 		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:8000"),
-		WotanAddr:      getEnv("WOTAN_ADDR", "localhost:8080"),
+		WotanAddr:      getEnv("WOTAN_ADDR", "localhost:9080"),
 		DataDir:         getEnv("DATA_DIR", "./data"),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,

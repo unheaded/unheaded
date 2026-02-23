@@ -1,5 +1,5 @@
 version: 1.0.0
-last_updated: 2026-02-16T08:45:57.148559-06:00
+last_updated: 2026-02-23T23:10:51.621788034Z
 status: alpha
 phases:
   - id: phase-0
@@ -8,18 +8,170 @@ phases:
     progress: 0
   - id: phase-1
     name: The Alpha Ascension
-    status: in_progress
-    progress: 25
+    status: completed
+    progress: 96
+    milestones:
+      - milestone-1.1
+      - milestone-1.2
+      - milestone-1.3
+      - milestone-1.4
+      - milestone-1.5
+      - milestone-1.6
   - id: phase-2
     name: The Beta Trials
-    status: completed
-    progress: 80
+    status: planned
+    progress: 0
   - id: phase-3
-    name: "The MVP Era (\U0001F4CB PLANNED) (\U0001F4CB PLANNED) (\U0001F4CB PLANNED) (\U0001F4CB PLANNED) (\U0001F4CB PLANNED) (\U0001F4CB PLANNED) (\U0001F4CB PLANNED)"
+    name: The MVP Era
     status: planned
     progress: 0
   - id: phase-4
     name: The Scaling Era
     status: completed
+    progress: 5
+milestones:
+  - id: milestone-1.1
+    name: The Whispering Void Awakens
+    status: completed
+    eta: 2026-02-03T00:00:00Z
+    progress: 55
+    owner: The Architect's rust-touched agents
+    risk: medium
+    tasks:
+      - '`packet_marker.bpf` - Trace ID injection at XDP layer (Rust + Aya)'
+      - '`flow_tracker.bpf` - Connection tracking via kprobes'
+      - '`latency_probe.bpf` - RTT measurement via tracepoints'
+      - '`trace-collector` - Rust bridge from kernel to Fae Chamber'
+      - Kernel verifier trials (the ancient tests)
+      - Bare metal communion (live testing)
+      - Fae Chamber integration (Wotan connection)
+  - id: milestone-1.2
+    name: The Cuirass Takes Form
+    status: completed
+    eta: 2026-02-04T00:00:00Z
+    progress: 75
+    owner: The Architect's Go-touched agents
+    risk: medium
+    tasks:
+      - '`unheaded-daemon` skeleton (Go) - COMPLETE (main.go + internal packages)'
+      - LXD orchestration client - communion with container spirits (mock ready)
+      - State machine (desired vs actual) - the truth detector (state.go)
+      - eBPF loader interface - awakening the Whispering Void (mock ready)
+      - Drift detection - polling every 30 heartbeats (reconciliation loop)
+      - Health monitoring endpoints - the vital signs (/health, /ready, /metrics)
+      - Real LXD integration - awaiting live testing
+      - Real eBPF integration - awaiting Whispering Void programs
+  - id: milestone-1.3
+    name: The Royal Court Assembles
+    status: completed
+    eta: 2026-02-04T00:00:00Z
+    progress: 85
+    owner: Four Cavalry agents (Micromanager coordinates)
+    risk: low
+    tasks:
+      - Timeline REST API - serves the living roadmap
+      - '`/api/v1/timeline` - JSON/YAML/Markdown mirrors'
+      - Markdown parser with regex extraction
+      - File watcher for auto-reload
+      - Prophecy engine connection (future)
+      - Strategy REST API - vision endpoints
+      - Health monitoring
+      - Scaffold complete with Kingdom branding
+      - Alert subscription - Wotan connection (wiring)
+      - Task execution API - WHAT & WHEN
+      - Progress tracking scaffold
+      - Health monitoring
+      - Event publishing - Fae Chamber dance (wiring)
+      - Design review API scaffold
+      - ADR management structure
+      - Health monitoring
+      - Wisdom storage connection (future)
+  - id: milestone-1.4
+    name: The Citadels Rise
+    status: completed
+    eta: 2026-02-05T00:00:00Z
+    progress: 75
+    owner: The Architect + The Developer
+    risk: low
+    tasks:
+      - NixOS flake structure - the master blueprint (reference implementation)
+      - Container definition templates (per service citadel, runtime-agnostic)
+      - Hardening modules (seccomp, capabilities, read-only FS — all runtimes)
+      - Network policies (default deny - The Closed Gate)
+      - Gateway configuration (nginx HTTP/3 - The Main Gate)
+      - Container build pipeline testing (all runtimes)
+      - Runtime abstraction layer in unheaded-daemon
+      - '`IaCRenderer` interface in `pkg/iac/` — common output contract'
+      - Ansible renderer — playbook + role generation from desired state
+      - Terraform renderer — HCL module generation from desired state
+      - Puppet renderer — manifest generation from desired state
+      - Kubernetes renderer — manifest + Helm chart generation
+      - Chef renderer — cookbook generation from desired state
+      - Salt renderer — state file generation from desired state
+      - Integration tests — each renderer produces valid, lintable output
+      - '`unheaded generate --backend=ansible|terraform|puppet|k8s|chef|salt`'
+      - '`ObservabilityAdapter` interface in `pkg/observability/` — common signal contract'
+      - '`observability/prometheus/` — Prometheus scrape config + adapter'
+      - '`observability/grafana/` — Grafana dashboard JSON + datasource provisioning'
+      - '`observability/elk/` — Logstash pipeline + Kibana index patterns + ES templates'
+      - '`observability/fluentd/` — Fluent Bit / Fluentd config for log forwarding'
+      - '`observability/jaeger/` — Jaeger collector config + trace export adapter'
+      - '`observability/nagios/` — Nagios check configs + NRPE integration'
+      - '`observability/flume/` — Apache Flume agent + channel configs'
+      - '`observability/loki/` — Loki + Promtail config for log aggregation'
+      - '`observability/alertmanager/` — Alert rules + routing config'
+      - Integration tests — each adapter ships valid, working config
+      - '`unheaded observe --backend=prometheus|grafana|elk|jaeger|nagios|all`'
+  - id: milestone-1.5
+    name: The Cape & Cloak Emerge
+    status: completed
+    eta: 2026-01-30T00:00:00Z
+    progress: 90
+    owner: Developer + Micromanager QA*
+    risk: low
+    tasks:
+      - '`dashboard-backend` (Go + WebSocket) - metrics aggregation'
+      - Dashboard UI - packet flow visualization
+      - '**Task:** Create Kanban column components'
+      - '**Task:** Create task card components'
+      - '**Task:** Implement card drag-and-drop'
+      - '**Task:** Wire frontend to Timeguru service'
+      - '**Task:** Implement task management'
+      - '**Task:** Establish real-time connection'
+      - '**Task:** Subscribe to task events via Wotan'
+      - '**Task:** Handle update conflicts'
+      - '**Task:** Apply Kingdom aesthetic'
+      - '**Task:** Ensure accessibility compliance'
+      - '**Task:** Embed frontend in Go binary'
+      - '**Task:** Verify full flow works'
+      - Code complete and compiles
+      - Unit tests pass (if applicable)
+      - Integration test pass (if applicable)
+      - 'Security review: **ZERO customer data access** ✓'
+      - No external dependencies (Kingdom code only)
+      - Documentation updated (if API change)
+      - Code reviewed (or self-reviewed with rationale)
+      - Merged to main
+      - Works in browser (Chrome, Firefox, Safari)
+      - All 5 features DONE
+      - E2E smoke test passes (manual verification pending)
+      - Kanban shows THIS timeline
+      - Real-time updates working
+      - Deployed on Kingdom infrastructure (pending)
+      - "**THE META MOMENT ACHIEVED** (pending final verification) \U0001F389"
+  - id: milestone-1.6
+    name: Alpha Demonstration
+    status: completed
+    eta: 2026-02-08T00:00:00Z
     progress: 0
-milestones: []
+    owner: Captain + Timeguru + the assembled Court
+    risk: low
+    tasks:
+      - Kanban Frontend COMPLETE (P0 Epic above)
+      - Integrate dashboard with metrics - 0.5 days
+      - E2E testing (browser → gateway → services → Fae Chamber) - 1 day
+      - Security validation (The Sacred Law verified) - 0.5 days
+      - Public accessibility (firewall rules, DNS, the Grand Opening) - 0.5 days
+      - Demo video & documentation (The Chronicle Recording) - 1 day
+metadata:
+  overall_progress: 63%

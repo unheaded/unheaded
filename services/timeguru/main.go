@@ -44,7 +44,7 @@ func main() {
 
 	wotanAddress := os.Getenv("WOTAN_ADDRESS")
 	if wotanAddress == "" {
-		wotanAddress = "localhost:8080"
+		wotanAddress = "localhost:9080"
 	}
 
 	timelinePath := os.Getenv("TIMELINE_PATH")
