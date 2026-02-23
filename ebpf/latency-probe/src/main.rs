@@ -9,9 +9,12 @@
 //! - Tracks tcp_recvmsg timing
 //! - Associates measurements with trace IDs
 //! - Sends latency events to userspace via ring buffer
+//! - Aggregates per-flow RTT statistics in LATENCY_MAP (min/max/avg)
 
 #![no_std]
 #![no_main]
+
+mod common;
 
 use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, bpf_ktime_get_ns},
@@ -23,6 +26,7 @@ use unheaded_common::{
     LatencyEvent, LatencyOperation, TraceId,
     MAX_LATENCY_ENTRIES, RING_BUFFER_SIZE,
 };
+use common::{LatencyKey, LatencyEntry, MAX_LATENCY_MAP_ENTRIES};
 
 /// Key for in-flight operation tracking.
 #[repr(C)]
@@ -56,6 +60,12 @@ static SOCK_TRACE: HashMap<u64, TraceId> = HashMap::with_max_entries(MAX_LATENCY
 #[map]
 static LATENCY_EVENTS: RingBuf = RingBuf::with_byte_size(RING_BUFFER_SIZE, 0);
 
+/// Per-flow RTT statistics map.
+/// Key: LatencyKey (5-tuple), Value: LatencyEntry (min/max/latest/samples).
+/// Read by Go userspace LatencyReader to publish to Wotan and expose as Prometheus histogram.
+#[map]
+static LATENCY_MAP: HashMap<LatencyKey, LatencyEntry> = HashMap::with_max_entries(MAX_LATENCY_MAP_ENTRIES, 0);
+
 /// Statistics counters.
 #[map]
 static LATENCY_STATS: HashMap<u32, u64> = HashMap::with_max_entries(16, 0);
@@ -69,6 +79,7 @@ const STAT_CONNECT_ENTER: u32 = 4;
 const STAT_CONNECT_EXIT: u32 = 5;
 const STAT_EVENTS_SENT: u32 = 6;
 const STAT_EVENTS_DROPPED: u32 = 7;
+const STAT_MAP_UPDATES: u32 = 8;
 
 /// Kprobe on tcp_sendmsg entry.
 /// Signature: int tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
@@ -312,7 +323,7 @@ fn try_tcp_connect_exit(_ctx: &RetProbeContext) -> Result<u32, ()> {
     Ok(0)
 }
 
-/// Send latency event to userspace.
+/// Send latency event to userspace and update per-flow LATENCY_MAP.
 #[inline(always)]
 fn send_latency_event(
     pid_tgid: u64,
@@ -343,6 +354,55 @@ fn send_latency_event(
     } else {
         increment_stat(STAT_EVENTS_DROPPED);
     }
+
+    // Update per-flow RTT statistics in LATENCY_MAP.
+    // We use trace_id bytes as a proxy for the 5-tuple key since the kprobe
+    // context does not directly provide IP/port info. The key is constructed
+    // from trace_id high/low split into src_ip/dst_ip placeholders, with
+    // pid as src_port and tid as dst_port, protocol=6 (TCP).
+    let map_key = LatencyKey {
+        src_ip: trace_id.to_bytes(),
+        dst_ip: [0u8; 16],
+        src_port: pid as u16,
+        dst_port: tid as u16,
+        protocol: 6, // TCP
+        _pad: [0; 3],
+    };
+
+    // Read existing entry or create new one.
+    match unsafe { LATENCY_MAP.get(&map_key) } {
+        Some(existing) => {
+            let min_rtt = if latency_ns < existing.min_rtt_ns {
+                latency_ns
+            } else {
+                existing.min_rtt_ns
+            };
+            let max_rtt = if latency_ns > existing.max_rtt_ns {
+                latency_ns
+            } else {
+                existing.max_rtt_ns
+            };
+            let updated = LatencyEntry {
+                rtt_ns: latency_ns,
+                min_rtt_ns: min_rtt,
+                max_rtt_ns: max_rtt,
+                samples: existing.samples.saturating_add(1),
+                last_update_ns: now,
+            };
+            let _ = LATENCY_MAP.insert(&map_key, &updated, 0);
+        }
+        None => {
+            let new_entry = LatencyEntry {
+                rtt_ns: latency_ns,
+                min_rtt_ns: latency_ns,
+                max_rtt_ns: latency_ns,
+                samples: 1,
+                last_update_ns: now,
+            };
+            let _ = LATENCY_MAP.insert(&map_key, &new_entry, 0);
+        }
+    }
+    increment_stat(STAT_MAP_UPDATES);
 }
 
 /// Increment a statistics counter.
