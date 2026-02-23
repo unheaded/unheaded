@@ -28,8 +28,12 @@
             <li><a href="/" class="active">Dashboard</a></li>
             <li><a href="/kanban">Kanban</a></li>
             <li><a href="/wiki/">Wiki</a></li>
+            <li><a href="/doom.html">Doom Viewer</a></li>
             <li><a href="/api/v1/health" target="_blank" class="nav-link-subtle">API Health</a></li>
         </ul>
+        <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle navigation menu" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
         <div class="nav-status" role="status" aria-label="Connection status">
             <span class="nav-status-dot" id="nav-connection-dot" aria-hidden="true"></span>
             <span class="nav-status-text" id="nav-connection-text">Connecting...</span>
@@ -158,6 +162,20 @@
                 if (globalStatus) globalStatus.className = 'connection-status ' + status;
             });
         }
+
+        // Mobile hamburger menu toggle
+        (function() {
+            const hamburger = document.getElementById('nav-hamburger');
+            const navLinks = document.querySelector('.nav-links');
+            if (hamburger && navLinks) {
+                hamburger.addEventListener('click', function() {
+                    const expanded = hamburger.getAttribute('aria-expanded') === 'true';
+                    hamburger.setAttribute('aria-expanded', String(!expanded));
+                    hamburger.classList.toggle('active');
+                    navLinks.classList.toggle('nav-open');
+                });
+            }
+        })();
 
         // Toast notification helper
         window.showToast = function(message, type) {
