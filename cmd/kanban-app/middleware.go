@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -214,33 +215,50 @@ func rateLimitMiddleware(limiter *RateLimiter) func(http.Handler) http.Handler {
 	}
 }
 
-// getClientIP extracts client IP from request
+// trustedProxies holds the set of proxy IPs whose X-Forwarded-For /
+// X-Real-IP headers are trusted.  Empty by default — meaning the rate
+// limiter always keys on RemoteAddr, which cannot be spoofed by the
+// client.  Populate this from configuration when running behind a
+// known load-balancer or reverse proxy (e.g. the Unheaded gateway at
+// 10.10.10.100).
+var trustedProxies = map[string]bool{}
+
+// getClientIP extracts the client IP from the request.
+//
+// It uses RemoteAddr (with port stripped) by default.  X-Forwarded-For
+// and X-Real-IP are only consulted when RemoteAddr belongs to a
+// trusted proxy — preventing spoofing by arbitrary clients.
 func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header (proxy/LB)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take first IP in list
-		for i, c := range xff {
-			if c == ',' {
-				return xff[:i]
+	remoteIP := stripPort(r.RemoteAddr)
+
+	// Only trust forwarded headers when the direct peer is a known proxy.
+	if trustedProxies[remoteIP] {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// Take the first (client-supplied) IP in the chain.
+			for i, c := range xff {
+				if c == ',' {
+					return strings.TrimSpace(xff[:i])
+				}
 			}
+			return strings.TrimSpace(xff)
 		}
-		return xff
-	}
-
-	// Check X-Real-IP header
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-
-	// Fallback to RemoteAddr
-	// Strip port if present
-	for i := len(r.RemoteAddr) - 1; i >= 0; i-- {
-		if r.RemoteAddr[i] == ':' {
-			return r.RemoteAddr[:i]
+		if xri := r.Header.Get("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
 		}
 	}
 
-	return r.RemoteAddr
+	return remoteIP
+}
+
+// stripPort removes the port suffix from an address string.
+// Handles both IPv4 ("1.2.3.4:8080") and IPv6 ("[::1]:8080") forms.
+func stripPort(addr string) string {
+	for i := len(addr) - 1; i >= 0; i-- {
+		if addr[i] == ':' {
+			return addr[:i]
+		}
+	}
+	return addr
 }
 
 // ============================================================================
