@@ -1,7 +1,8 @@
 .PHONY: all build test clean ebpf containers dev deploy docs help \
        ebpf-shield ebpf-hop ebpf-yaldabaoth ebpf-monad-cpu \
        build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
-       test-e2e-bpf
+       test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
+       deploy-restart
 
 # Build configuration
 BINARY_DIR := bin
@@ -218,9 +219,28 @@ docker-cuirass: ## Build only Cuirass image
 
 ##@ Deployment
 
-deploy: ## Deploy alpha to host
-	@echo "Deploying Unheaded alpha..."
+deploy: build test-go ## Deploy Unheaded Kingdom (build, test, compose up, health check)
+	@echo "Deploying Unheaded Kingdom..."
+	docker compose up -d --build
+	@echo "Waiting for services to become healthy..."
+	./scripts/wait-for-healthy.sh
+	@echo "Kingdom deployed."
+
+deploy-down: ## Stop Unheaded Kingdom (compose down)
+	docker compose down
+
+deploy-status: ## Show Unheaded Kingdom service status
+	docker compose ps
+
+deploy-lxd: ## Deploy alpha to LXD containers (production-style)
+	@echo "Deploying Unheaded alpha to LXD..."
 	sudo ./scripts/deploy-alpha.sh
+
+deploy-logs: ## Tail deployment logs
+	docker compose logs -f
+
+deploy-restart: ## Restart all deployed services
+	docker compose restart
 
 setup-host: ## Setup host environment (LXD, networking, etc)
 	@echo "Setting up host..."
