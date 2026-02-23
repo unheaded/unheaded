@@ -334,6 +334,14 @@ func (b *bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	c := &client{conn: conn}
 
+	// Configure connection deadlines to prevent goroutine leaks.
+	conn.SetReadLimit(1024) // Keyboard events are small (4 bytes)
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
 	b.clientsMu.Lock()
 	b.clients[c] = struct{}{}
 	numClients := len(b.clients)
@@ -343,6 +351,7 @@ func (b *bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Read loop for keyboard input from this client
 	go b.readLoop(c)
+	go b.pingLoop(c)
 }
 
 // readLoop reads messages from a client (keyboard events) until disconnect.
@@ -387,6 +396,22 @@ func (b *bridge) readLoop(c *client) {
 			if err := writeKbdMap(b.kbdMap, scancode, pressed); err != nil {
 				logf("ERROR", "KBD_MAP write error", "err", err)
 			}
+		}
+	}
+}
+
+// pingLoop sends WebSocket pings to detect dead clients.
+func (b *bridge) pingLoop(c *client) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		c.mu.Lock()
+		c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		err := c.conn.WriteMessage(websocket.PingMessage, nil)
+		c.mu.Unlock()
+		if err != nil {
+			return
 		}
 	}
 }
@@ -519,6 +544,7 @@ func (b *bridge) broadcastBinary(data []byte) {
 
 	for c := range b.clients {
 		c.mu.Lock()
+		c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		err := c.conn.WriteMessage(websocket.BinaryMessage, data)
 		c.mu.Unlock()
 		if err != nil {
@@ -536,6 +562,7 @@ func (b *bridge) broadcastText(data []byte) {
 
 	for c := range b.clients {
 		c.mu.Lock()
+		c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		err := c.conn.WriteMessage(websocket.TextMessage, data)
 		c.mu.Unlock()
 		if err != nil {
