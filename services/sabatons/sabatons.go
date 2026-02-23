@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 )
@@ -191,7 +192,7 @@ func (s *Service) RegisterMachine(machine *Machine) error {
 	defer s.mu.Unlock()
 
 	if machine.ID == "" {
-		machine.ID = fmt.Sprintf("machine-%d", time.Now().UnixNano())
+		machine.ID = fmt.Sprintf("machine-%s", uuid.New().String())
 	}
 
 	machine.Status = StatusAvailable

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -254,7 +255,9 @@ func (s *ArchitectService) publishStateChange(ctx context.Context, eventType str
 	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_ = s.wotan.Publish(pubCtx, "architecture.updates", payload)
+	if err := s.wotan.Publish(pubCtx, "architecture.updates", payload); err != nil {
+		log.Printf("architect: wotan publish to architecture.updates failed: %v", err)
+	}
 }
 
 // ============================================================================
