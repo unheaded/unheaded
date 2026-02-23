@@ -633,13 +633,20 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 emit_screen_write(flow_label, mmap::SCREEN_BASE, hop_id);
                 copy_fb_to_screen(mmap::SCREEN_BASE);
             } else if syscall_nr == sys::SYS_GET_KEY {
-                // DG_GetKey: r8 (a0) = scancode, r9 (a1) = pressed.
-                if let Some(kv) = KBD_MAP.get(0) {
-                    cpu.regs[8] = (*kv >> 1) & 0x7FFF_FFFF; // scancode
-                    cpu.regs[9] = *kv & 1;                   // pressed flag
-                } else {
-                    cpu.regs[8] = 0;
-                    cpu.regs[9] = 0;
+                // DG_GetKey: r8 (a0) = key code, r9 (a1) = pressed.
+                // Encoding in KBD_MAP[0]: (key_code << 1) | pressed_flag
+                // Clear after read so the same event isn't returned twice.
+                let kv = match KBD_MAP.get(0) {
+                    Some(v) => *v,
+                    None => 0,
+                };
+                cpu.regs[8] = (kv >> 1) & 0x7FFF_FFFF; // key code
+                cpu.regs[9] = kv & 1;                   // pressed flag
+                // Consume: clear the slot so next DG_GetKey returns 0
+                if kv != 0 {
+                    if let Some(p) = KBD_MAP.get_ptr_mut(0) {
+                        unsafe { *p = 0; }
+                    }
                 }
             } else if syscall_nr == sys::SYS_GET_TICKS {
                 // DG_GetTicksMs: r8 (a0) = milliseconds since boot.
