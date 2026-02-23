@@ -28,8 +28,9 @@ import (
 	"syscall"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/sophia"
 )
 
@@ -178,9 +179,14 @@ func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 
 // middlewareChain applies middleware to the handler.
 func (hs *HTTPServer) middlewareChain(handler http.Handler) http.Handler {
-	// Apply middleware in order: logging -> recovery -> max body -> cors
+	// Apply middleware in order: logging -> recovery -> auth -> max body -> cors
 	handler = hs.loggingMiddleware(handler)
 	handler = hs.recoveryMiddleware(handler)
+
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("sophia")
+	handler = auth.WrapHandler(handler, auth.SetupMiddleware(authCfg))
+
 	handler = http.MaxBytesHandler(handler, 10*1024*1024) // 10MB max
 	handler = hs.corsMiddleware(handler)
 	return handler
