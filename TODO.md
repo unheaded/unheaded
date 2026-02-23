@@ -206,6 +206,42 @@ This TODO was synthesized from 10 parallel review agents covering:
 
 ---
 
+---
+
+## DOOM-OVER-IPV6 — Session Summary (2026-02-23)
+
+### Completed
+- **LH/LB sign-extension fix** — Doom was stuck at frame 565 (blockmap infinite loop). Fixed with SHL+SAR in translator.
+- **Execution driver fault detection** — run.py now distinguishes syscall halts from ROM faults via diagnostic sentinels.
+- **Keyboard input pipeline** — Fixed key encoding (PC/AT → doomkeys.h), added clear-after-read in BPF SYS_GET_KEY.
+- **L1 cache cleanup** — Removed dead cache code; RAM_MAP is BPF Array (O(1)), cache was misleading.
+- **Doom is RUNNING** in eBPF MBC VM with live WebSocket frame streaming at 30 FPS.
+
+### Status: Playable but Slow
+- Internal game FPS: ~6 (choppy). WebSocket streams at 30 FPS (repeats frames).
+- Single-hop only (BPF on veth50p / hop 0). Full 6-namespace ring not yet utilized.
+- Auto-restart crash loop bug: resets CPU but doesn't reload .data sections.
+
+### Next — Performance Tuning (Priority Order)
+1. **Rewrite execution driver in Go or Rust** — Python `sock.send()` loop is the bottleneck.
+   Use batched sendmmsg(), AF_XDP, or spin-loop for 10-100x packet injection rate.
+2. **Increase burst rate** — Experiment with 1000-5000+ packets per burst (currently 500).
+3. **Fix auto-restart** — Must reload .data sections on CPU reset, not just zero PC/SP.
+4. **THEN add multi-hop ring** — 6 hops = 6x insns/packet (768 vs 128). Only after
+   single-hop is smooth and playable.
+
+### Unpushed Commits (6)
+```
+30379cd fix(doom): keyboard input pipeline
+3c97fb1 refactor(ebpf): remove dead L1 cache code
+99d223f fix(doom): execution driver fault detection
+f969c87 fix(mbc): LH/LB sign-extension
+8ac0bc2 feat(doom): execution driver
+a4305b9 feat(doom): S33 hardening sprint
+```
+
+---
+
 **THE KNIGHT IS NEVER WITHOUT ARMOR.**
 **THE KINGDOM RISES.**
 
