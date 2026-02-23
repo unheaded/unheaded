@@ -733,16 +733,17 @@ impl Translator {
                     }
                     1 => {
                         // LH rd, imm(rs1) — sign-extended halfword
-                        // MBC LDH zero-extends. Sign extension needs extra work.
                         self.emit(op::LDH, mbc_rd, mbc_rs1, offset_u16);
-                        // Sign-extend from bit 15: if bit 15 set, OR with 0xFFFF0000
-                        // This is complex to emit; for Doom, LH is rare. Skip sign ext.
+                        // Sign-extend from 16 bits: shift left 16, then arithmetic shift right 16
+                        self.emit(op::SHL, mbc_rd, 0, 16);
+                        self.emit(op::SAR, mbc_rd, 0, 16);
                     }
                     0 => {
                         // LB rd, imm(rs1) — sign-extended byte
-                        // MBC LDB zero-extends. Sign extension needs extra work.
                         self.emit(op::LDB, mbc_rd, mbc_rs1, offset_u16);
-                        // Skip sign extension for now (Doom mostly uses unsigned).
+                        // Sign-extend from 8 bits: shift left 24, then arithmetic shift right 24
+                        self.emit(op::SHL, mbc_rd, 0, 24);
+                        self.emit(op::SAR, mbc_rd, 0, 24);
                     }
                     5 => {
                         // LHU rd, imm(rs1) — unsigned halfword (zero-extended)

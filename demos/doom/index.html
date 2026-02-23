@@ -224,53 +224,22 @@ body {
         // The Doom palette (PLAYPAL lump, first palette).
         // Encoded as a compact hex string for space efficiency.
         const hex =
-            '000000' + '1f1713' + '170f0b' + '131313' + '0b0b0b' + '070707' +
-            '1b1b1b' + '232323' + '2b2b2b' + '333333' + '3b3b3b' + '434343' +
-            '4b4b4b' + '535353' + '5b5b5b' + '636363' + '6b6b6b' + '737373' +
-            '7b7b7b' + '838383' + '8b8b8b' + '939393' + '9b9b9b' + 'a3a3a3' +
-            'ababab' + 'b3b3b3' + 'bbbbbb' + 'c3c3c3' + 'cbcbcb' + 'd3d3d3' +
-            'dbdbdb' + 'e3e3e3' + 'ebefeb' + 'dfe3df' + 'd3d7d3' + 'cbcfcb' +
-            'c3c7c3' + 'b7bbb7' + 'afb3af' + 'a7aba7' + '9fa39f' + '979b97' +
-            '8f938f' + '878b87' + '7f877f' + '777f77' + '6f776f' + '6b6f6b' +
-            'ff0000' + 'eb0000' + 'd70000' + 'c30000' + 'b30000' + 'a30000' +
-            '930000' + '830000' + '730000' + '630000' + '570000' + '470000' +
-            '3b0000' + '2b0000' + '1f0000' + '130000' + 'ff0000' + 'df1f07' +
-            'bf3b0f' + '9f5717' + '7f731f' + '5f8f27' + '3fab2f' + '1fc737' +
-            '00e33f' + '00ff47' + '00e347' + '00c74b' + '00ab4f' + '008f53' +
-            '007357' + '005b5b' + 'ff7b7b' + 'f36b6b' + 'eb5f5f' + 'e35353' +
-            'db4747' + 'd33f3f' + 'cb3333' + 'c32b2b' + 'bb2323' + 'b31b1b' +
-            'ab1313' + 'a30f0f' + '9b0b0b' + '930707' + '8b0000' + '830000' +
-            'ff9f43' + 'ff8f33' + 'ff7b23' + 'ff6b13' + 'ff5b03' + 'ef4f00' +
-            'df4300' + 'cf3b00' + 'bf3300' + 'af2b00' + '9f2300' + '8f1b00' +
-            '7f1700' + '6f0f00' + '5f0b00' + '4f0700' + '776353' + '6b5747' +
-            '5f4f3f' + '574337' + '4b3b2f' + '3f3327' + '372b1f' + '2b2317' +
-            '231b13' + '17130b' + '0f0b07' + '00ff00' + '00e300' + '00cb00' +
-            '00b300' + '009b00' + '008300' + '006b00' + '005700' + '003f00' +
-            '002b00' + '001b00' + '000f00' + '005f3f' + '00533b' + '004b33' +
-            '00432f' + '003b2b' + '003323' + '002b1f' + '00231b' + '001b13' +
-            '00130f' + '000f0b' + '000707' + 'ff7fff' + 'ef6fef' + 'e363e3' +
-            'd357d3' + 'c74bc7' + 'bb43bb' + 'af37af' + '9f2f9f' + '933393' +
-            '832b83' + '772777' + '672367' + '571f57' + '4b174b' + '3f133f' +
-            '331333' + 'e7e7ff' + 'c7c7ff' + 'ababff' + '8f8fff' + '7373ff' +
-            '5757ff' + '3b3bff' + '1f1fff' + '0000ff' + '0000e3' + '0000cb' +
-            '0000b3' + '00009b' + '000083' + '00006b' + '000057' + 'ffe7bb' +
-            'ffd7ab' + 'ffcb9b' + 'ffbb8b' + 'ffaf7b' + 'ffa36b' + 'ff975f' +
-            'ff8b4f' + 'ff7f43' + 'ff7337' + 'ff672b' + 'ff5b1f' + 'ff5313' +
-            'ff470b' + 'ff3f03' + 'f73700' + 'e72f00' + 'db2b00' + 'cf2300' +
-            'c31f00' + 'b71b00' + 'ab1700' + '9f1300' + '930f00' + '870b00' +
-            '7b0b00' + '6f0700' + '630700' + '570300' + '4b0300' + '3f0000' +
-            'ff0000' + 'e70000' + 'cf0000' + 'b70700' + '9f0f00' + '871700' +
-            '6f1f00' + '572300' + '3f2300' + '271f07' + '170f00' + 'ef7f4f' +
-            'bf6333' + '934b1b' + '6b370b' + 'ff7fff' + 'cf67af' + '9b4f87' +
-            '6f3b63' + 'a74b3f' + '7b3b2f' + '533127' + '37231b' + 'f7d3ab' +
-            'f7c78f' + 'f3bb77' + 'efaf5f' + 'eba34b' + 'e39b3b' + 'db932b' +
-            'cf871f' + 'c77b13' + 'bb730b' + 'b36b07' + 'a76303' + '9b5b00' +
-            '8f5300' + '834b00' + '774300' + 'ffffe7' + 'ffffd3' + 'ffffbf' +
-            'ffffab' + 'ffff97' + 'ffff83' + 'ffff6f' + 'ffff5b' + 'ffeb4f' +
-            'ffd747' + 'ffc33f' + 'ffb337' + 'ff9f2f' + 'ff8f27' + 'ff7f1f' +
-            'ff6f17' + 'ff5f0f' + 'ff4f0b' + 'e74707' + 'cf3f07' + 'b73707' +
-            '9f2f07' + '872707' + '6f2307' + '571b07' + '3f1307' + '2b0b03' +
-            '170700' + '070300';
+            '0000001f170b170f074b4b4bffffff1b1b1b1313130b0b0b0707072f371f232b0f171f070f17004f3b2b4733233f2b1b' +
+            'ffb7b7f7ababf3a3a3eb9797e78f8fdf8787db7b7bd37373cb6b6bc76363bf5b5bbb5757b34f4faf4747a73f3fa33b3b' +
+            '9b3333972f2f8f2b2b8b2323831f1f7f1b1b7717177313136b0f0f670b0b5f07075b07075307074f0000470000430000' +
+            'ffebdfffe3d3ffdbc7ffd3bbffcfb3ffc7a7ffbf9bffbb93ffb383f7ab7befa373e79b6bdf9363d78b5bcf8353cb7f4f' +
+            'bf7b4bb37347ab6f43a36b3f9b633b8f5f378757337f532f774f2b6b47275f4323533f1f4b371b3f2f17332b132b230f' +
+            'efefefe7e7e7dfdfdfdbdbdbd3d3d3cbcbcbc7c7c7bfbfbfb7b7b7b3b3b3abababa7a7a79f9f9f9797979393938b8b8b' +
+            '8383837f7f7f7777776f6f6f6b6b6b6363635b5b5b5757574f4f4f4747474343433b3b3b3737372f2f2f272727232323' +
+            '77ff6f6fef6767df5f5fcf575bbf4f53af474b9f3f4393373f832f37732b2f632327531b1f431717330f13230b0b1707' +
+            'bfa78fb79f87af977fa78f779f876f9b7f6b937b638b735b836b577b634f775f4b6f574367533f5f4b37574333533f2f' +
+            '9f83638f7753836b4b775f3f6753335b472b4f3b2343331b7b7f636f7357676b4f5b634753573b474f333f472b373f27' +
+            'ffff73ebdb57d7bb43c39b2faf7b1f9b5b13874307732b00ffffffffdbdbffbbbbff9b9bff7b7bff5f5fff3f3fff1f1f' +
+            'ff0000ef0000e30000d70000cb0000bf0000b30000a700009b00008b00007f00007300006700005b00004f0000430000' +
+            'e7e7ffc7c7ffababff8f8fff7373ff5353ff3737ff1b1bff0000ff0000e30000cb0000b300009b00008300006b000053' +
+            'ffffffffebdbffd7bbffc79bffb37bffa35bff8f3bff7f1bf37317eb6f0fdf670fd75f0bcb5707c34f00b74700af4300' +
+            'ffffffffffd7ffffb3ffff8fffff6bffff47ffff23ffff00a73f009f3700932f008723004f3b27432f1b3723132f1b0b' +
+            '00005300004700003b00002f00002300001700000b000000ff9f43ffe74bff7bffff00ffcf00cf9f009b6f006ba76b6b';
 
         // Parse hex palette. If the string is incomplete, fill remaining with
         // a simple gradient so we always have 256 usable colors.
@@ -332,7 +301,7 @@ body {
 
     // --- State ---
     let ws = null;
-    let canvas, ctx, imageData, pixelBuf;
+    let canvas, ctx, imageData, pixelBuf, offCanvas, offCtx;
     let frameCount = 0;
     let lastFpsTime = performance.now();
     let fpsFrameCount = 0;
@@ -360,7 +329,11 @@ body {
 
         // We draw at native resolution then the canvas CSS scales
         // Actually, canvas is 960x600 and we scale each pixel 3x
-        imageData = ctx.createImageData(SCREEN_W, SCREEN_H);
+        offCanvas = document.createElement('canvas');
+        offCanvas.width = SCREEN_W;
+        offCanvas.height = SCREEN_H;
+        offCtx = offCanvas.getContext('2d');
+        imageData = offCtx.createImageData(SCREEN_W, SCREEN_H);
         pixelBuf = imageData.data; // Uint8ClampedArray RGBA
 
         // Pre-fill with black
@@ -465,17 +438,10 @@ body {
             // Alpha stays 255
         }
 
-        // Draw at native resolution, let canvas scaling handle the rest
-        // We need to draw to a temp canvas at 320x200, then scale up
-        const tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width = SCREEN_W;
-        tmpCanvas.height = SCREEN_H;
-        const tmpCtx = tmpCanvas.getContext('2d');
-        tmpCtx.putImageData(imageData, 0, 0);
-
-        // Scale up to 960x600
+        // Draw at native 320x200, then scale up to display canvas
+        offCtx.putImageData(imageData, 0, 0);
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(tmpCanvas, 0, 0, 960, 600);
+        ctx.drawImage(offCanvas, 0, 0, 960, 600);
 
         // Update FPS counter
         fpsFrameCount++;
