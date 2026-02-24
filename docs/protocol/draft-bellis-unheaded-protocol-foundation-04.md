@@ -46,6 +46,10 @@ normative:
   RFC9673:
 
 informative:
+  RFC0768:
+  RFC0791:
+  RFC0792:
+  RFC0793:
   RFC1918:
   RFC4193:
   RFC8300:
