@@ -152,9 +152,9 @@ func (n *NativeBPFLoader) AttachXDP(iface string) error {
 		// For XDP and TC programs, set the interface as the attach target
 		switch prog.progType {
 		case ebpf.TypeXDP, ebpf.TypeTC:
-			// Update the attach target to the interface
-			if info, err := n.loader.GetProgram(n.ctx, prog.specName); err == nil {
-				info.AttachTo = iface
+			if err := n.loader.SetAttachTarget(n.ctx, prog.specName, iface); err != nil {
+				log.Error().Err(err).Str("name", name).Msg("failed to set attach target")
+				continue
 			}
 		}
 

@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -887,9 +888,10 @@ type elfMap struct {
 
 // elfRelocation represents a relocation entry
 type elfRelocation struct {
-	Offset     uint64 // Offset in the instruction
-	SymbolName string // Symbol being referenced
-	Type       uint32 // Relocation type
+	Offset      uint64 // Offset in the instruction
+	SymbolName  string // Symbol being referenced
+	SymbolValue uint64 // Symbol's value (offset within its section)
+	Type        uint32 // Relocation type
 }
 
 // parsedELF holds the result of parsing a BPF ELF file
@@ -897,6 +899,7 @@ type parsedELF struct {
 	Programs    map[string]*elfProgram
 	Maps        map[string]*elfMap
 	Relocations map[string][]elfRelocation
+	FuncSizes   map[uint64]int // .text function byte offset → size in bytes
 	BTF         *btfData
 	License     string
 }
@@ -1123,7 +1126,10 @@ func bpfMapCreate(mapType, keySize, valueSize, maxEntries, flags uint32, name st
 		MapFlags:   flags,
 	}
 
-	// Copy name (max 15 chars + null)
+	// Copy name (max BPF_OBJ_NAME_LEN-1 = 15 chars + null terminator)
+	if len(name) > 15 {
+		name = name[:15]
+	}
 	copy(attr.MapName[:], name)
 
 	fd, err := bpfSyscall(BPF_MAP_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
@@ -1394,6 +1400,7 @@ func parseELF(path string) (*parsedELF, error) {
 		Programs:    make(map[string]*elfProgram),
 		Maps:        make(map[string]*elfMap),
 		Relocations: make(map[string][]elfRelocation),
+		FuncSizes:   make(map[uint64]int),
 	}
 
 	// First pass: collect all sections
@@ -1462,7 +1469,10 @@ func parseELF(path string) (*parsedELF, error) {
 			if err != nil {
 				continue
 			}
-			parseMapsSection(data, result)
+			defSize := parseMapsSection(data, result)
+			// Resolve generic map names (map_0, map_1) to actual symbol names
+			// by cross-referencing ELF symbols whose section index matches.
+			resolveMapNames(f, section, defSize, result)
 		}
 	}
 
@@ -1486,6 +1496,103 @@ func parseELF(path string) (*parsedELF, error) {
 
 		relocs := parseRelocations(data, f)
 		result.Relocations[targetName] = relocs
+	}
+
+	// Fourth pass: collect .text function sizes and split multi-function
+	// program sections into individual programs using symbol boundaries.
+	if symbols, err := f.Symbols(); err == nil {
+		// Collect function sizes for .text
+		for _, sym := range symbols {
+			if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
+				continue
+			}
+			if sym.Section == elf.SHN_UNDEF || int(sym.Section) >= len(f.Sections) {
+				continue
+			}
+			section := f.Sections[sym.Section]
+			if section.Name == ".text" {
+				result.FuncSizes[sym.Value] = int(sym.Size)
+			}
+		}
+
+		// Split multi-function program sections. When a section has
+		// multiple GLOBAL FUNC symbols, each becomes a separate program
+		// so the loader can select and load them individually.
+		type funcEntry struct {
+			name   string
+			offset int
+			size   int
+		}
+		sectionFuncs := make(map[string][]funcEntry) // section name → functions
+		for _, sym := range symbols {
+			if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
+				continue
+			}
+			if elf.ST_BIND(sym.Info) != elf.STB_GLOBAL {
+				continue
+			}
+			if sym.Section == elf.SHN_UNDEF || int(sym.Section) >= len(f.Sections) {
+				continue
+			}
+			section := f.Sections[sym.Section]
+			if section.Name == ".text" || strings.HasPrefix(section.Name, ".rodata") {
+				continue // Skip .text and .rodata
+			}
+			if _, ok := result.Programs[section.Name]; !ok {
+				continue // Only split recognized program sections
+			}
+			sectionFuncs[section.Name] = append(sectionFuncs[section.Name], funcEntry{
+				name:   sym.Name,
+				offset: int(sym.Value),
+				size:   int(sym.Size),
+			})
+		}
+
+		for secName, funcs := range sectionFuncs {
+			if len(funcs) <= 1 {
+				continue // Single-function section, no splitting needed
+			}
+
+			origProg := result.Programs[secName]
+			origRelocs := result.Relocations[secName]
+
+			// Sort by offset for deterministic ordering
+			sort.Slice(funcs, func(i, j int) bool {
+				return funcs[i].offset < funcs[j].offset
+			})
+
+			// Create individual programs for each function
+			for _, fn := range funcs {
+				if fn.offset+fn.size > len(origProg.Instructions) {
+					continue
+				}
+				subProg := &elfProgram{
+					Name:         fn.name,
+					Instructions: origProg.Instructions[fn.offset : fn.offset+fn.size],
+					License:      origProg.License,
+					Type:         origProg.Type,
+				}
+				result.Programs[fn.name] = subProg
+
+				// Filter relocations for this function's range
+				var subRelocs []elfRelocation
+				for _, r := range origRelocs {
+					if r.Offset >= uint64(fn.offset) && r.Offset < uint64(fn.offset+fn.size) {
+						// Adjust offset relative to function start
+						adjusted := r
+						adjusted.Offset -= uint64(fn.offset)
+						subRelocs = append(subRelocs, adjusted)
+					}
+				}
+				if len(subRelocs) > 0 {
+					result.Relocations[fn.name] = subRelocs
+				}
+			}
+
+			// Remove the original multi-function section
+			delete(result.Programs, secName)
+			delete(result.Relocations, secName)
+		}
 	}
 
 	return result, nil
@@ -1514,8 +1621,13 @@ func isProgramSection(name string) bool {
 		}
 	}
 
-	// Also check .text section
+	// Also check .text section (subprograms: memcpy, memset, etc.)
 	if name == ".text" {
+		return true
+	}
+
+	// Capture .rodata* sections (read-only data loaded as BPF maps)
+	if strings.HasPrefix(name, ".rodata") {
 		return true
 	}
 
@@ -1563,48 +1675,49 @@ func sectionNameToProgType(name string) uint32 {
 	}
 }
 
-// parseMapsSection parses the .maps section to extract map definitions
-func parseMapsSection(data []byte, result *parsedELF) {
-	// Map definitions in modern BPF are typically defined as:
+// parseMapsSection parses the .maps section to extract map definitions.
+// Supports both legacy 20-byte format and Aya/modern 28-byte format.
+func parseMapsSection(data []byte, result *parsedELF) int {
+	// Aya and modern BPF compilers use 28-byte map definitions:
 	// struct {
-	//     __uint(type, BPF_MAP_TYPE_HASH);
-	//     __uint(max_entries, 1024);
-	//     __type(key, __u32);
-	//     __type(value, __u64);
-	// } my_map SEC(".maps");
-	//
-	// The compiler generates BTF info for these. Without BTF parsing,
-	// we fall back to legacy map definition format or extract from symbols.
-
-	// For now, we handle legacy format: 20-byte map definitions
-	// struct bpf_map_def {
-	//     unsigned int type;
-	//     unsigned int key_size;
-	//     unsigned int value_size;
-	//     unsigned int max_entries;
-	//     unsigned int map_flags;
+	//     u32 type;
+	//     u32 key_size;
+	//     u32 value_size;
+	//     u32 max_entries;
+	//     u32 map_flags;
+	//     u32 _pad[2]; // or id, inner_map_fd, etc.
 	// };
+	//
+	// Legacy libbpf uses 20-byte definitions (no padding fields).
+	// We detect the format by checking if the section size is evenly
+	// divisible by 28 (Aya) or 20 (legacy), preferring 28.
 
+	const ayaMapDefSize = 28
 	const legacyMapDefSize = 20
 
-	if len(data) >= legacyMapDefSize {
-		for i := 0; i+legacyMapDefSize <= len(data); i += legacyMapDefSize {
-			mapDef := &elfMap{
-				Name:       fmt.Sprintf("map_%d", i/legacyMapDefSize),
-				Type:       binary.LittleEndian.Uint32(data[i:]),
-				KeySize:    binary.LittleEndian.Uint32(data[i+4:]),
-				ValueSize:  binary.LittleEndian.Uint32(data[i+8:]),
-				MaxEntries: binary.LittleEndian.Uint32(data[i+12:]),
-				Flags:      binary.LittleEndian.Uint32(data[i+16:]),
-			}
+	defSize := legacyMapDefSize
+	if len(data) >= ayaMapDefSize && len(data)%ayaMapDefSize == 0 {
+		defSize = ayaMapDefSize
+	}
 
-			// Validate map definition
-			if mapDef.Type > 0 && mapDef.Type < 100 &&
-				mapDef.KeySize > 0 && mapDef.ValueSize > 0 {
-				result.Maps[mapDef.Name] = mapDef
-			}
+	for i := 0; i+defSize <= len(data); i += defSize {
+		mapDef := &elfMap{
+			Name:       fmt.Sprintf("map_%d", i/defSize),
+			Type:       binary.LittleEndian.Uint32(data[i:]),
+			KeySize:    binary.LittleEndian.Uint32(data[i+4:]),
+			ValueSize:  binary.LittleEndian.Uint32(data[i+8:]),
+			MaxEntries: binary.LittleEndian.Uint32(data[i+12:]),
+			Flags:      binary.LittleEndian.Uint32(data[i+16:]),
+		}
+
+		// Validate map definition: type must be valid (1-100).
+		// Ring buffers (type 27) and other special maps have key_size=0, value_size=0.
+		if mapDef.Type > 0 && mapDef.Type < 100 && mapDef.MaxEntries > 0 {
+			result.Maps[mapDef.Name] = mapDef
 		}
 	}
+
+	return defSize
 }
 
 // parseRelocations parses relocation entries
@@ -1627,47 +1740,112 @@ func parseRelocations(data []byte, f *elf.File) []elfRelocation {
 		relType := uint32(info & 0xffffffff)
 
 		var symName string
-		if int(symIdx) < len(symbols) {
-			symName = symbols[symIdx].Name
+		var symValue uint64
+		// Go's elf.File.Symbols() omits the null symbol at index 0,
+		// so ELF symbol index N maps to Go array index N-1.
+		goIdx := int(symIdx) - 1
+		if goIdx >= 0 && goIdx < len(symbols) {
+			sym := symbols[goIdx]
+			symName = sym.Name
+			symValue = sym.Value
+			// SECTION symbols have empty names — resolve to section name
+			if symName == "" && elf.ST_TYPE(sym.Info) == elf.STT_SECTION {
+				if int(sym.Section) < len(f.Sections) && f.Sections[sym.Section] != nil {
+					symName = f.Sections[sym.Section].Name
+				}
+			}
 		}
 
 		relocs = append(relocs, elfRelocation{
-			Offset:     offset,
-			SymbolName: symName,
-			Type:       relType,
+			Offset:      offset,
+			SymbolName:  symName,
+			SymbolValue: symValue,
+			Type:        relType,
 		})
 	}
 
 	return relocs
 }
 
-// extractMapsFromSymbols extracts map definitions from ELF symbols
-// This is used when maps are defined as global variables
-func extractMapsFromSymbols(f *elf.File, result *parsedELF) {
+// resolveMapNames cross-references ELF symbols with parsed map definitions
+// to replace generic names (map_0, map_1) with actual symbol names (FLOW_STATE, etc.).
+// Only renames maps that were already parsed and validated from section data —
+// does not create new map entries from symbols alone (security: map parameters
+// must come from the validated section data, not from symbol metadata).
+func resolveMapNames(f *elf.File, mapSection *elf.Section, defSize int, result *parsedELF) {
+	if defSize <= 0 {
+		return
+	}
+
 	symbols, err := f.Symbols()
 	if err != nil {
 		return
 	}
 
-	for _, sym := range symbols {
-		// Maps are typically global objects in .maps section
-		if sym.Section == elf.SHN_UNDEF {
-			continue
-		}
-
-		section := f.Sections[sym.Section]
-		if section == nil || section.Name != ".maps" {
-			continue
-		}
-
-		// Check if this is a map (by naming convention or size)
-		if sym.Size >= 20 { // Minimum map def size
-			result.Maps[sym.Name] = &elfMap{
-				Name: sym.Name,
-				// Other fields would be filled from section data
-			}
+	// Find the section index of our maps section
+	var mapSectionIdx int = -1
+	for idx, s := range f.Sections {
+		if s == mapSection {
+			mapSectionIdx = idx
+			break
 		}
 	}
+	if mapSectionIdx < 0 {
+		return
+	}
+
+	for _, sym := range symbols {
+		// Only consider symbols in the maps section
+		if sym.Section == elf.SHN_UNDEF || int(sym.Section) != mapSectionIdx {
+			continue
+		}
+
+		// Only consider OBJECT symbols with the right size (map definitions)
+		if elf.ST_TYPE(sym.Info) != elf.STT_OBJECT || sym.Size != uint64(defSize) {
+			continue
+		}
+
+		// Symbol's Value is the byte offset within the section.
+		// Dividing by defSize gives the map index matching map_N naming.
+		mapIdx := int(sym.Value) / defSize
+		genericName := fmt.Sprintf("map_%d", mapIdx)
+
+		mapDef, ok := result.Maps[genericName]
+		if !ok {
+			continue
+		}
+
+		// Rename: remove generic entry, insert with real name
+		delete(result.Maps, genericName)
+		mapDef.Name = sym.Name
+		result.Maps[sym.Name] = mapDef
+	}
+}
+
+// findFuncSize finds the byte size of a function at the given offset within
+// the .text section, using the parsed ELF's program entries which store
+// function symbols with their sizes. Falls back to scanning for EXIT insn.
+func findFuncSize(parsed *parsedELF, funcOff uint64) int {
+	// Check if any known function matches this offset
+	// Function sizes are stored in the symbol table during parsing.
+	// We stored textProg as parsed.Programs[".text"], but the symbol info
+	// lives in the ELF directly. We use the FuncSizes map if available.
+	if sz, ok := parsed.FuncSizes[funcOff]; ok {
+		return sz
+	}
+
+	// Fallback: scan for EXIT instruction (opcode 0x95) at 8-byte boundaries
+	textProg, ok := parsed.Programs[".text"]
+	if !ok {
+		return 0
+	}
+	data := textProg.Instructions
+	for i := int(funcOff); i+8 <= len(data); i += 8 {
+		if data[i] == 0x95 { // BPF_EXIT
+			return i + 8 - int(funcOff)
+		}
+	}
+	return 0
 }
 
 // ============================================================================
@@ -1783,12 +1961,95 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		return fmt.Errorf("%w: no suitable program found", ErrNoInstructions)
 	}
 
-	// Apply relocations (replace map FD placeholders with actual FDs)
+	// Build instruction stream: main program + referenced .text subprograms.
+	// BPF programs with function calls (BPF_PSEUDO_CALL) require called
+	// subprogram code to be appended to the main program section.
+	// The verifier rejects unreachable instructions, so we only append
+	// functions that are actually referenced by R_BPF_64_32 relocations.
 	instructions := make([]byte, len(mainProg.Instructions))
 	copy(instructions, mainProg.Instructions)
 
+	// Collect referenced .text functions and append only those
+	textProg, _ := parsed.Programs[".text"]
+	// funcMap: symValue (offset in .text) → new instruction index in combined stream
+	funcMap := make(map[uint64]int)
+	if textProg != nil {
+		relocs, _ := parsed.Relocations[mainProg.Name]
+		// Collect unique function offsets referenced by R_BPF_64_32 relocations
+		seen := make(map[uint64]bool)
+		var funcOffsets []uint64
+		for _, r := range relocs {
+			if r.Type == 10 { // R_BPF_64_32
+				if !seen[r.SymbolValue] {
+					seen[r.SymbolValue] = true
+					funcOffsets = append(funcOffsets, r.SymbolValue)
+				}
+			}
+		}
+		// Sort for deterministic layout
+		sort.Slice(funcOffsets, func(i, j int) bool { return funcOffsets[i] < funcOffsets[j] })
+
+		// Append each referenced function
+		for _, funcOff := range funcOffsets {
+			funcMap[funcOff] = len(instructions) / 8
+			// Find function size from symbols
+			funcSize := findFuncSize(parsed, funcOff)
+			if funcSize == 0 || int(funcOff)+funcSize > len(textProg.Instructions) {
+				continue
+			}
+			instructions = append(instructions, textProg.Instructions[funcOff:int(funcOff)+funcSize]...)
+		}
+	}
+
+	// Create BPF array maps for read-only data sections (.rodata*)
+	for name, prog := range parsed.Programs {
+		if !strings.HasPrefix(name, ".rodata") {
+			continue
+		}
+		// .rodata sections become BPF_MAP_TYPE_ARRAY with BPF_F_RDONLY_PROG
+		dataLen := uint32(len(prog.Instructions))
+		if dataLen == 0 {
+			continue
+		}
+		rodataMapDef := &elfMap{
+			Name:       name,
+			Type:       BPF_MAP_TYPE_ARRAY,
+			KeySize:    4,
+			ValueSize:  dataLen,
+			MaxEntries: 1,
+			Flags:      0x80, // BPF_F_RDONLY_PROG
+		}
+		rodataFD, err := l.createMap(rodataMapDef, spec)
+		if err != nil {
+			for _, m := range loaded.maps {
+				unix.Close(m.fd)
+			}
+			return fmt.Errorf("create rodata map %s: %w", name, err)
+		}
+		// Populate the rodata map with the section data
+		key := uint32(0)
+		if err := bpfMapUpdateElem(rodataFD, unsafe.Pointer(&key),
+			unsafe.Pointer(&prog.Instructions[0]), 0); err != nil {
+			unix.Close(rodataFD)
+			for _, m := range loaded.maps {
+				unix.Close(m.fd)
+			}
+			return fmt.Errorf("populate rodata map %s: %w", name, err)
+		}
+		loaded.maps[name] = &loadedMap{
+			fd: rodataFD,
+			info: &MapInfo{
+				Name:       name,
+				Type:       MapTypeArray,
+				KeySize:    4,
+				ValueSize:  dataLen,
+				MaxEntries: 1,
+			},
+		}
+	}
+
 	if relocs, ok := parsed.Relocations[mainProg.Name]; ok {
-		if err := l.applyRelocations(instructions, relocs, loaded.maps, parsed); err != nil {
+		if err := l.applyRelocations(instructions, relocs, loaded.maps, parsed, funcMap); err != nil {
 			for _, m := range loaded.maps {
 				unix.Close(m.fd)
 			}
@@ -1885,56 +2146,84 @@ func (l *NativeLoader) createMap(def *elfMap, spec *ProgramSpec) (int, error) {
 	)
 }
 
-// applyRelocations applies relocation entries to BPF instructions
-// This replaces map placeholder instructions with actual map FD references
+// applyRelocations applies relocation entries to BPF instructions.
+// Handles two relocation types:
+//   - R_BPF_64_64 (type 1): 64-bit map FD reference (ld_imm64 instruction)
+//   - R_BPF_64_32 (type 10): 32-bit function call to .text subprogram
+//
+// funcMap maps .text function byte offsets to their instruction indices
+// in the combined instruction stream.
 func (l *NativeLoader) applyRelocations(insns []byte, relocs []elfRelocation,
-	maps map[string]*loadedMap, parsed *parsedELF) error {
+	maps map[string]*loadedMap, parsed *parsedELF, funcMap map[uint64]int) error {
 
-	// BPF instructions are 8 bytes each:
-	// struct bpf_insn {
-	//     __u8    code;        // opcode
-	//     __u8    dst_reg:4;   // dest register
-	//     __u8    src_reg:4;   // source register
-	//     __s16   off;         // signed offset
-	//     __s32   imm;         // signed immediate constant
-	// };
+	const (
+		R_BPF_64_64 = 1  // Map FD reference
+		R_BPF_64_32 = 10 // Function call (BPF-to-BPF)
+	)
 
 	for _, reloc := range relocs {
-		// Find the map being referenced
-		mapName := reloc.SymbolName
-
-		// Try to find the map
-		var mapFD int = -1
-		if m, ok := maps[mapName]; ok {
-			mapFD = m.fd
-		} else if m, ok := parsed.Maps[mapName]; ok {
-			// Map exists in ELF but wasn't created yet
-			_ = m // Should have been created
-		}
-
-		if mapFD < 0 {
-			// This relocation might be for something else (like a global variable)
-			continue
-		}
-
-		// Calculate instruction index
 		insnIdx := reloc.Offset / 8
 
 		if int(insnIdx*8+8) > len(insns) {
 			return fmt.Errorf("relocation offset %d out of bounds", reloc.Offset)
 		}
 
-		// The relocation modifies the immediate field (bytes 4-7) of the instruction
-		// For map references, we set:
-		// - src_reg = BPF_PSEUDO_MAP_FD (1) to indicate this is a map FD
-		// - imm = map FD
+		switch reloc.Type {
+		case R_BPF_64_32:
+			// Function call relocation: patch BPF_PSEUDO_CALL instruction
+			// to point to the target function appended after the main program.
+			// The symbol's value is the byte offset within .text.
+			targetInsn, ok := funcMap[reloc.SymbolValue]
+			if !ok {
+				continue
+			}
 
-		// Set src_reg to BPF_PSEUDO_MAP_FD (1)
-		// Byte 1 contains dst_reg (low nibble) and src_reg (high nibble)
-		insns[insnIdx*8+1] = (insns[insnIdx*8+1] & 0x0f) | 0x10
+			// Set src_reg = BPF_PSEUDO_CALL (1)
+			insns[insnIdx*8+1] = (insns[insnIdx*8+1] & 0x0f) | 0x10
 
-		// Set immediate to map FD
-		binary.LittleEndian.PutUint32(insns[insnIdx*8+4:], uint32(mapFD))
+			// Set imm = relative offset from NEXT instruction to target
+			relOffset := int32(targetInsn) - int32(insnIdx) - 1
+			binary.LittleEndian.PutUint32(insns[insnIdx*8+4:], uint32(relOffset))
+
+		case R_BPF_64_64:
+			// Map FD reference: patch ld_imm64 instruction
+			mapName := reloc.SymbolName
+
+			var mapFD int = -1
+			if m, ok := maps[mapName]; ok {
+				mapFD = m.fd
+			}
+
+			// Also try section name match (e.g., ".rodata.cst8" matches ".rodata.cst8")
+			if mapFD < 0 {
+				// Try matching by section symbol name
+				for mname, m := range maps {
+					if strings.HasPrefix(mname, ".rodata") && strings.HasPrefix(reloc.SymbolName, ".rodata") {
+						mapFD = m.fd
+						break
+					}
+				}
+			}
+
+			if mapFD < 0 {
+				continue
+			}
+
+			// Set src_reg to BPF_PSEUDO_MAP_FD (1) for regular maps,
+			// or BPF_PSEUDO_MAP_VALUE (2) for rodata (to reference the value directly)
+			pseudoType := byte(0x10) // BPF_PSEUDO_MAP_FD
+			if strings.HasPrefix(reloc.SymbolName, ".rodata") {
+				pseudoType = 0x20 // BPF_PSEUDO_MAP_VALUE
+			}
+			insns[insnIdx*8+1] = (insns[insnIdx*8+1] & 0x0f) | pseudoType
+
+			// Set immediate to map FD
+			binary.LittleEndian.PutUint32(insns[insnIdx*8+4:], uint32(mapFD))
+
+		default:
+			// Unknown relocation type — skip
+			continue
+		}
 	}
 
 	return nil
@@ -3106,6 +3395,26 @@ func (l *NativeLoader) GetProgram(ctx context.Context, name string) (*ProgramInf
 
 	info := *loaded.info
 	return &info, nil
+}
+
+// SetAttachTarget updates the attach target (e.g., network interface name)
+// for an already-loaded program. Must be called before Attach().
+func (l *NativeLoader) SetAttachTarget(ctx context.Context, name string, attachTo string) error {
+	if err := l.checkClosed(); err != nil {
+		return err
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	loaded, exists := l.programs[name]
+	if !exists {
+		return ErrProgramNotFound
+	}
+
+	loaded.spec.AttachTo = attachTo
+	loaded.info.AttachTo = attachTo
+	return nil
 }
 
 // ListPrograms returns all loaded programs
