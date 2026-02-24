@@ -9,7 +9,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"sync"
 )
@@ -33,6 +32,9 @@ type BPFLoader interface {
 
 	// GetFlowStateMap returns a reader for the FLOW_STATE map.
 	GetFlowStateMap() MapReader
+
+	// GetLatencyMap returns a reader for the LATENCY_MAP.
+	GetLatencyMap() MapReader
 
 	// Close detaches programs and closes all map file descriptors.
 	Close() error
@@ -66,15 +68,17 @@ type MockBPFLoader struct {
 	traceMap    *MockMapReader
 	statsMap    *MockMapReader
 	flowMap     *MockMapReader
+	latencyMap  *MockMapReader
 	closed      bool
 }
 
 // NewMockBPFLoader creates a new mock loader with empty maps.
 func NewMockBPFLoader() *MockBPFLoader {
 	return &MockBPFLoader{
-		traceMap: NewMockMapReader(),
-		statsMap: NewMockMapReader(),
-		flowMap:  NewMockMapReader(),
+		traceMap:   NewMockMapReader(),
+		statsMap:   NewMockMapReader(),
+		flowMap:    NewMockMapReader(),
+		latencyMap: NewMockMapReader(),
 	}
 }
 
@@ -113,6 +117,10 @@ func (m *MockBPFLoader) GetStatsMap() MapReader {
 
 func (m *MockBPFLoader) GetFlowStateMap() MapReader {
 	return m.flowMap
+}
+
+func (m *MockBPFLoader) GetLatencyMap() MapReader {
+	return m.latencyMap
 }
 
 func (m *MockBPFLoader) Close() error {
@@ -212,40 +220,5 @@ func (m *MockMapReader) Insert(key, value []byte) {
 	m.entries[string(key)] = v
 }
 
-// ── NativeBPFLoader ─────────────────────────────────────────────────────────
-
-// NativeBPFLoader wraps pkg/ebpf.Loader for production use.
-// It delegates all operations to the Kingdom's native BPF syscall loader.
-type NativeBPFLoader struct {
-	ctx         context.Context
-	programName string
-	loader      interface{} // pkg/ebpf.Loader (typed at runtime to avoid build tag issues)
-	traceMap    *NativeMapReader
-	statsMap    *NativeMapReader
-	flowMap     *NativeMapReader
-}
-
-// NativeMapReader wraps a real BPF map file descriptor for production reads.
-type NativeMapReader struct {
-	mapName string
-	mapFD   int
-}
-
-// These are placeholder implementations. In production on Linux, these
-// would use the actual pkg/ebpf loader with real BPF syscalls.
-
-func (n *NativeMapReader) Iterate(fn func(key, value []byte) error) error {
-	return fmt.Errorf("native map iteration requires Linux BPF support")
-}
-
-func (n *NativeMapReader) Lookup(key []byte) ([]byte, error) {
-	return nil, fmt.Errorf("native map lookup requires Linux BPF support")
-}
-
-func (n *NativeMapReader) Delete(key []byte) error {
-	return fmt.Errorf("native map delete requires Linux BPF support")
-}
-
-func (n *NativeMapReader) Len() int {
-	return 0
-}
+// NativeBPFLoader is implemented in loader_native.go (linux build tag).
+// It bridges BPFLoader to pkg/ebpf.NativeLoader for production BPF operations.
