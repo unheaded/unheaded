@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -188,6 +189,9 @@ func main() {
 	// Graceful shutdown setup
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Service discovery registration (best-effort, nil conn until transport.Connect)
+	discovery.SetupServiceDiscovery(ctx, nil, "timeguru", 19000)
 
 	// Start HTTP server in goroutine
 	go func() {
