@@ -23,8 +23,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -422,14 +420,19 @@ func (b *bridge) pingLoop(c *client) {
 	}
 }
 
-// screenLoop polls the SCREEN_MAP at ~30fps and broadcasts frames to all clients.
+// screenLoop polls the SCREEN_MAP at ~60fps and broadcasts frames to all clients.
 func (b *bridge) screenLoop(stop chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	ticker := time.NewTicker(time.Second / 30) // ~33ms per frame
+	ticker := time.NewTicker(time.Second / 60) // ~16ms per frame
 	defer ticker.Stop()
 
 	localFrameCount := uint64(0)
+
+	// Pre-allocate frame buffer to avoid per-frame allocations.
+	const screenSize = 320 * 200
+	frame := make([]byte, 1+screenSize)
+	frame[0] = tagScreen
 
 	for {
 		select {
@@ -461,18 +464,13 @@ func (b *bridge) screenLoop(stop chan struct{}, wg *sync.WaitGroup) {
 				}
 			}
 
-			// Convert palette indices to RGBA (64000 bytes -> 256000 bytes)
-			rgba := screenBufferToRGBA(pixels)
-
-			// Build binary frame: [tag] + [RGBA data]
-			frame := make([]byte, 1+len(rgba))
-			frame[0] = tagScreen
-			copy(frame[1:], rgba)
+			// Copy palette indices into pre-allocated frame.
+			copy(frame[1:], pixels)
 
 			b.broadcastBinary(frame)
 			localFrameCount++
 			atomic.AddInt64(&b.frameCount, 1)
-			atomic.AddInt64(&b.byteCount, int64(len(frame)))
+			atomic.AddInt64(&b.byteCount, int64(1+len(pixels)))
 		}
 	}
 }
@@ -578,35 +576,3 @@ func (b *bridge) broadcastText(data []byte) {
 	}
 }
 
-// generateDryRunScreen produces a synthetic screen for testing without BPF maps.
-// Creates an animated plasma/gradient pattern using the VGA palette.
-func generateDryRunScreen(frame uint64) []byte {
-	pixels := make([]byte, screenSize)
-	t := float64(frame) * 0.05
-
-	for y := 0; y < screenHeight; y++ {
-		for x := 0; x < screenWidth; x++ {
-			fx := float64(x) / float64(screenWidth)
-			fy := float64(y) / float64(screenHeight)
-
-			// Plasma effect using sin waves
-			v1 := math.Sin(fx*10.0 + t)
-			v2 := math.Sin(fy*8.0 + t*0.7)
-			v3 := math.Sin((fx+fy)*6.0 + t*1.3)
-			v4 := math.Sin(math.Sqrt(fx*fx+fy*fy)*12.0 + t*0.5)
-
-			// Map to palette index (0-255)
-			v := (v1 + v2 + v3 + v4 + 4.0) / 8.0 // normalize to 0..1
-			idx := uint8(v * 255.0)
-
-			// Add some Doom-ish flavor: fire effect at the bottom
-			if y > 160 {
-				fireIntensity := float64(y-160) / 40.0
-				idx = uint8(float64(idx)*(1.0-fireIntensity) + fireIntensity*float64(32+rand.Intn(16)))
-			}
-
-			pixels[y*screenWidth+x] = idx
-		}
-	}
-	return pixels
-}

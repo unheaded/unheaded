@@ -264,26 +264,29 @@ body {
     // --- Doom key codes (doomkeys.h) ---
     // Maps browser key names directly to Doom's internal key codes.
     const KEY_MAP = {
+        // Arrow keys — Doom action codes (already correct)
         'ArrowUp':    0xAD,  // KEY_UPARROW
         'ArrowDown':  0xAF,  // KEY_DOWNARROW
         'ArrowLeft':  0xAC,  // KEY_LEFTARROW
         'ArrowRight': 0xAE,  // KEY_RIGHTARROW
         'Enter':      13,    // KEY_ENTER
         'Escape':     27,    // KEY_ESCAPE
-        ' ':          0x20,  // space (KEY_USE default)
-        'Control':    0x9D,  // KEY_RCTRL (KEY_FIRE default)
-        'Alt':        0xB8,  // KEY_RALT (strafe modifier)
-        'Shift':      0xB6,  // KEY_RSHIFT (run)
         'Tab':        9,     // KEY_TAB (automap)
         'Backspace':  0x7F,  // KEY_BACKSPACE
 
-        // WASD — sent as ASCII lowercase
-        'w': 0x77, 'W': 0x77,
-        'a': 0x61, 'A': 0x61,
-        's': 0x73, 'S': 0x73,
-        'd': 0x64, 'D': 0x64,
+        // Action keys — must match Doom defaults from m_controls.c / doomkeys.h
+        ' ':          0xA2,  // KEY_USE (Doom's key_use = 0xA2, NOT ASCII 0x20)
+        'Control':    0xA3,  // KEY_FIRE (Doom's key_fire = 0xA3, NOT 0x9D KEY_RCTRL)
+        'Alt':        0xB8,  // KEY_RALT (strafe modifier)
+        'Shift':      0xB6,  // KEY_RSHIFT (run)
 
-        // Number keys (weapons) — ASCII digits
+        // WASD — map to Doom movement action codes
+        'w': 0xAD, 'W': 0xAD,  // KEY_UPARROW (forward)
+        'a': 0xA0, 'A': 0xA0,  // KEY_STRAFE_L
+        's': 0xAF, 'S': 0xAF,  // KEY_DOWNARROW (backward)
+        'd': 0xA1, 'D': 0xA1,  // KEY_STRAFE_R
+
+        // Number keys (weapons) — ASCII digits match key_weapon defaults
         '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34, '5': 0x35,
         '6': 0x36, '7': 0x37, '8': 0x38, '9': 0x39, '0': 0x30,
 

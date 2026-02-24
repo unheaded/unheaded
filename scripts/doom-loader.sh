@@ -24,6 +24,17 @@ DOOM_ELF="${DOOM_DIR}/doom.elf"
 DOOM_WAD="${PROJECT_ROOT}/doom/doom1.wad"
 DOOM_DATA="${DOOM_DIR}/doom_data.bin"
 
+# Go doom-loader binary (replaces Python doom-loader-core.py)
+DOOM_LOADER="${PROJECT_ROOT}/cmd/doom-loader/doom-loader"
+if [[ ! -x "$DOOM_LOADER" ]]; then
+    # Try go build on the fly
+    log_info "Building doom-loader..."
+    (cd "$PROJECT_ROOT" && go build -o cmd/doom-loader/doom-loader ./cmd/doom-loader/) || {
+        log_error "Failed to build doom-loader. Falling back to Python."
+        DOOM_LOADER=""
+    }
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -66,8 +77,7 @@ load_rom() {
     local num_words=$((size / 4))
     log_info "ROM: ${num_words} words (${size} bytes)"
 
-    # Use Python for bulk loading via bpftool batch
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" rom "$rom_pin" "$DOOM_MBC"
+    "$DOOM_LOADER" rom "$rom_pin" "$DOOM_MBC"
 
     log_info "ROM loaded: ${num_words} instructions"
 }
@@ -108,7 +118,7 @@ load_data() {
     fi
     log_info "Data start address: ${data_start_addr} (.rodata VMA)"
 
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" ram "$ram_pin" "$DOOM_DATA" "$data_start_addr"
+    "$DOOM_LOADER" ram "$ram_pin" "$DOOM_DATA" "$data_start_addr"
 
     log_info "Data sections loaded"
 }
@@ -138,7 +148,7 @@ load_wad() {
     # WAD starts at byte address 0x110000 (from linker script)
     local wad_start_addr=0x110000
 
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" ram "$ram_pin" "$DOOM_WAD" "$wad_start_addr"
+    "$DOOM_LOADER" ram "$ram_pin" "$DOOM_WAD" "$wad_start_addr"
 
     log_info "WAD loaded"
 }
@@ -168,7 +178,7 @@ load_rv2mbc() {
     local num_entries=$((size / 4))
     log_info "RV2MBC: ${num_entries} entries (${size} bytes)"
 
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" rv2mbc "$rv2mbc_pin" "$rv2mbc_file"
+    "$DOOM_LOADER" rv2mbc "$rv2mbc_pin" "$rv2mbc_file"
 
     log_info "RV2MBC map loaded: ${num_entries} entries"
 }
@@ -186,8 +196,8 @@ load_cpu() {
         exit 1
     fi
 
-    # Instance 0xDE matches the default flow_label in bulk_inject.py
-    python3 "${SCRIPT_DIR}/doom-loader-core.py" cpu "$cpu_pin" 0xDE
+    # Instance 0xDE matches the default flow_label in the injector
+    "$DOOM_LOADER" cpu "$cpu_pin" --instance 0xDE
 
     log_info "CPU state initialized: instance=0xDE, PC=0, SP=0x3F00000"
 }
