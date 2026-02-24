@@ -39,12 +39,12 @@ var (
 func main() {
 	listenAddress := os.Getenv("LISTEN_ADDRESS")
 	if listenAddress == "" {
-		listenAddress = ":8000"
+		listenAddress = ":19000"
 	}
 
 	wotanAddress := os.Getenv("WOTAN_ADDRESS")
 	if wotanAddress == "" {
-		wotanAddress = "localhost:9080"
+		wotanAddress = "localhost:18000"
 	}
 
 	timelinePath := os.Getenv("TIMELINE_PATH")

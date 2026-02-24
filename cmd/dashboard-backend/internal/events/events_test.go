@@ -52,8 +52,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("DefaultConfig returned nil")
 	}
-	if cfg.WotanAddr != "localhost:9090" {
-		t.Errorf("expected WotanAddr localhost:9090, got %s", cfg.WotanAddr)
+	if cfg.WotanAddr != "localhost:18001" {
+		t.Errorf("expected WotanAddr localhost:18001, got %s", cfg.WotanAddr)
 	}
 	if cfg.BufferSize != 1000 {
 		t.Errorf("expected BufferSize 1000, got %d", cfg.BufferSize)
@@ -91,7 +91,7 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "valid minimal config fills defaults",
 			cfg: &Config{
-				WotanAddr: "localhost:9090",
+				WotanAddr: "localhost:18001",
 			},
 			wantErr: false,
 			check: func(t *testing.T, cfg *Config) {
