@@ -431,7 +431,7 @@ Milestones Remaining: 1.1 (eBPF-blocked), 1.4 (Container-audit), 1.5 (Dashboard)
 Overall Progress: 80-85% COMPLETE
 Code Shipped: ~35,000+ LOC (including this session)
 Blockers: eBPF needs Linux env
-Security: Customer data isolation architectural
+Security: User data isolation architectural
 Next Ship: Finish Kanban wiring (< 1 day)
 ETA to Alpha: ~14 days (Feb 9-15)
 

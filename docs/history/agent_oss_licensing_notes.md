@@ -25,7 +25,7 @@ In Google’s general Terms, a **consumer** is usually an **individual using ser
 An open-source repo can be:
 
 - **Consumer/personal**: a hobby project, not tied to work/clients/revenue.
-- **Business/professional**: maintained as part of a job, for a company, for a product/service, or supporting customers.
+- **Business/professional**: maintained as part of a job, for a company, for a product/service, or supporting users.
 
 ### Special note: Gemini API / AI Studio “not for consumer use”
 If you mean **integrating Gemini via API / AI Studio**, Google’s **Gemini API Additional Terms** say the service is intended for **professional or business purposes**, **not consumer use**.

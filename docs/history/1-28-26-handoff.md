@@ -90,7 +90,7 @@ Unheaded components named after armor pieces, each with a clear metaphorical pur
 | **Sabatons** | Boots | Bare Metal Provisioning / Hardware Agent |
 | **Sword** | Weapon | Deployment Engine / Remediation / CI-CD |
 | **Cape** | Visible flow | Internal Web Framework |
-| **Cloak** | Outer wrap | Customer-Facing Dashboard |
+| **Cloak** | Outer wrap | User-Facing Dashboard |
 
 ### Persona Skills (5 Components)
 
@@ -214,7 +214,7 @@ Unheaded components named after armor pieces, each with a clear metaphorical pur
 2. Build vs integrate (existing tools) for each component?
 3. Priority order for implementation?
 4. Naming finalized or still iterating?
-5. Cape/Cloak timeline - when do we need customer UI?
+5. Cape/Cloak timeline - when do we need user UI?
 
 ---
 

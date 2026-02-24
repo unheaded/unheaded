@@ -70,7 +70,7 @@
          ╠════════════════════════════════════════════════════════╣
          ║  Zero Trust Architecture                                ║
          ║  mTLS Everywhere (short-lived sigils)                   ║
-         ║  ZERO Customer Data Access (The Sacred Law)             ║
+         ║  ZERO User Data Access (The Sacred Law)             ║
          ║  Seccomp/Capabilities (Binding Contracts)               ║
          ║  Network Policies (Default Deny - The Closed Gate)      ║
          ╚════════════════════════════════════════════════════════╝
@@ -87,7 +87,7 @@ The Unheaded Kingdom delivers the complete **Suit of Armor** for modern SaaS app
 **The Sacred Pillars:**
 - 🌑 **The Whispering Void** - eBPF-based observability (L2-L7) - we see ALL
 - ❄️ **Immutable Citadels** - NixOS containers - reproducible, rollback-ready
-- 🔒 **The Sacred Law** - Zero customer data access - architectural, not policy
+- 🔒 **The Sacred Law** - Zero user data access - architectural, not policy
 - 📜 **Compliance Scrolls** - FEDRAMP, SOC2, NIST, PCI-DSS, HIPAA, ITAR, GDPR
 - ⚡ **Drop-In Deployment** - One command, full kingdom
 
@@ -230,7 +230,7 @@ NixOS containers - immutable, reproducible citadels. Each service gets its own h
 **Dashboard & Kanban - The Visible Kingdom**
 *ETA: Feb 6-7, 2026 | STATUS: Kanban 95% COMPLETE ✓, Dashboard 70% COMPLETE*
 
-The customer-facing layer. The Cape (internal framework) powers the Cloak (customer dashboard).
+The user-facing layer. The Cape (internal framework) powers the Cloak (user dashboard).
 
 **Artifacts to Forge:**
 - [ ] `dashboard-backend` (Go + WebSocket) - metrics aggregation
@@ -271,7 +271,7 @@ The customer-facing layer. The Cape (internal framework) powers the Cloak (custo
   - [x] Subtask: Responsive layout (flexbox/grid)
   - [x] Subtask: Column collapse/expand toggle
   - [x] **QA:** Visual regression test
-  - [x] **Security:** No customer data in UI state ✓
+  - [x] **Security:** No user data in UI state ✓
 
 **Story 1.2: Card Components**
 - [x] **Task:** Create task card components
@@ -405,7 +405,7 @@ A checkbox is DONE when:
 - [x] Code complete and compiles
 - [x] Unit tests pass (if applicable)
 - [x] Integration test pass (if applicable)
-- [x] Security review: **ZERO customer data access** ✓
+- [x] Security review: **ZERO user data access** ✓
 - [x] No external dependencies (Kingdom code only)
 - [x] Documentation updated (if API change)
 - [x] Code reviewed (or self-reviewed with rationale)
@@ -450,7 +450,7 @@ The ultimate proof: Unheaded tracking its own development. The Kanban board show
 **Production Hardening**
 *February 16 - March 31, 2026*
 
-The armor is tested in battle. Edge cases reveal themselves. The first customers approach the gates.
+The armor is tested in battle. Edge cases reveal themselves. The first users approach the gates.
 
 **Milestones to Come:**
 - [ ] Comprehensive test coverage (unit, integration, load)
@@ -459,29 +459,29 @@ The armor is tested in battle. Edge cases reveal themselves. The first customers
 - [ ] Advanced monitoring (distributed tracing perfected)
 - [ ] Security audit (The Grand Inspection)
 - [ ] Performance benchmarking (Speed trials)
-- [ ] First customer pilot (The First Squire)
+- [ ] First user pilot (The First Squire)
 
 ---
 
 ### Age 3: The MVP Era (PLANNED)
-**Ready for Paying Customers**
+**Ready for Paying Users**
 *April 1 - June 30, 2026*
 
-The Kingdom opens for business. Customers bring their heads, we provide the armor.
+The Kingdom opens for business. Users bring their heads, we provide the armor.
 
 **Milestones to Come:**
 - [ ] Compliance Scrolls (SOC2, NIST)
 - [ ] Multi-cloud support (AWS, Azure, GCP - Allied Realms)
 - [ ] API gateway features (The Grand Portcullis)
 - [ ] Self-healing infrastructure (Auto-repair enchantments)
-- [ ] Customer dashboard (Personalized Cloak)
+- [ ] User dashboard (Personalized Cloak)
 - [ ] Billing integration (The Treasury)
 - [ ] Documentation overhaul (The Great Library)
 
 ---
 
 ### Age 4: The Scaling Era (PLANNED)
-**100 Customers, Full Compliance**
+**100 Users, Full Compliance**
 *July 1 - December 31, 2026*
 
 The Kingdom becomes an Empire.
@@ -1370,7 +1370,7 @@ Feb 8: 🎉 ALPHA LAUNCH - Self-Hosted Demo
 - ✅ All major packages compile
 - ⚠️ One minor type mismatch in `pkg/deploy/deploy.go` (~30 min fix)
 - ✅ Security audit documented with remediation plan
-- ✅ Customer data isolation: VERIFIED at every layer
+- ✅ User data isolation: VERIFIED at every layer
 
 **Security Findings (P0/P1):**
 | File | Issue | Priority |

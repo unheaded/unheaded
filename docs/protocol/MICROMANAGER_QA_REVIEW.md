@@ -2,7 +2,7 @@
 ## PhD-Level Technical Review and Conformance Analysis
 
 **Date**: 2026-02-20
-**Reviewer Role**: VP Engineering / CTO (Toxically Customer-Obsessed, Hyper Detail-Oriented)
+**Reviewer Role**: VP Engineering / CTO (Toxically User-Obsessed, Hyper Detail-Oriented)
 **Review Scope**: All 6 specification documents (6,509 lines total)
 **Classification**: CRITICAL FOR RELEASE READINESS
 
@@ -462,7 +462,7 @@ With 2^20 possible labels and N concurrent flows:
 - N = 10000: collision probability > 99%
 
 **Impact**:
-- Customer data isolation VIOLATED (critical for compliance)
+- User data isolation VIOLATED (critical for compliance)
 - Flow-level security disabled
 - PQC fingerprint verification defeated
 - Per-flow QoS policies corrupted
@@ -847,7 +847,7 @@ deploy_ring sub-dictionary (0x04):
   MUST include:
     0x00 = CANARY     (test deployment)
     0x01 = STAGING    (pre-production)
-    0x02 = PRODUCTION (customer-facing)
+    0x02 = PRODUCTION (user-facing)
 
   MAY include additional rings per operator policy.
 
@@ -886,7 +886,7 @@ that is not defined in the current Sophia dictionary:
 
 ## B10: Extended Register Space Stamp is Lost at Egress
 **Location**: Foundation §8 (Kingdom Mode), §6 (Shield Processing)
-**Severity**: CRITICAL - Customer data might not exit domain
+**Severity**: CRITICAL - User data might not exit domain
 **Description**:
 
 Foundation §6 (Shield egress, lines 729-753) states:
@@ -934,7 +934,7 @@ So:
 - Operator has no way to trace packets after egress
 
 **Impact**:
-- Customer data exits domain without cryptographic proof of origin
+- User data exits domain without cryptographic proof of origin
 - Violates "quantum-resistant identity binding" claim from intro
 - Extended Registers are effectively useless for anything that crosses domain boundaries
 
@@ -2170,9 +2170,9 @@ Web tool: input (packet_rate_pps, packet_size, hop_count) → output recommended
 
 ## Critical Finding: Flow Label Collision Breaks Data Isolation
 
-Per **BLOCKING ISSUE B6**, the protocol as currently specified **violates customer data isolation guarantees**:
+Per **BLOCKING ISSUE B6**, the protocol as currently specified **violates user data isolation guarantees**:
 
-- Two customers' flows with identical Flow Label can read/write each other's Wotan memory
+- Two users' flows with identical Flow Label can read/write each other's Wotan memory
 - Chaos injection from one flow can affect another flow's behavior
 - PQC fingerprint verification uses wrong keys, enabling spoofing
 - **Probability of collision in 10,000-flow network: >99%**

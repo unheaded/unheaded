@@ -1,6 +1,6 @@
-# Security Audit: Zero Customer Data Access Verification
+# Security Audit: Zero User Data Access Verification
 
-**Task:** TASK-061 -- Security Audit -- Zero Customer Data Access Verification
+**Task:** TASK-061 -- Security Audit -- Zero User Data Access Verification
 **Date:** February 6, 2026
 **Auditor:** Claude Opus 4.6 (automated)
 **Priority:** P0
@@ -11,11 +11,11 @@
 
 ## Executive Summary
 
-This audit verifies the architectural claim that **no code path allows platform engineers to access customer data**. The codebase was exhaustively searched for patterns that could leak customer data, shared credentials, PII in logs, and violations of the isolation boundary between the platform zone and the customer zone.
+This audit verifies the architectural claim that **no code path allows platform engineers to access user data**. The codebase was exhaustively searched for patterns that could leak user data, shared credentials, PII in logs, and violations of the isolation boundary between the platform zone and the user zone.
 
 **Overall Result: PASS with WARNINGS**
 
-The Unheaded platform fundamentally upholds the zero customer data access principle. The architecture is sound: eBPF observability captures packet metadata (IPs, ports, sizes, flags) not packet contents, services communicate through Wotan rather than direct connections, and container hardening enforces strict isolation. However, several warnings require attention before production deployment.
+The Unheaded platform fundamentally upholds the zero user data access principle. The architecture is sound: eBPF observability captures packet metadata (IPs, ports, sizes, flags) not packet contents, services communicate through Wotan rather than direct connections, and container hardening enforces strict isolation. However, several warnings require attention before production deployment.
 
 ---
 
@@ -23,11 +23,11 @@ The Unheaded platform fundamentally upholds the zero customer data access princi
 
 ### 1. Source Code Pattern Search
 - Searched all `.go`, `.rs`, `.nix`, `.toml`, `.yaml`, `.yml`, `.js` files
-- Pattern categories: `customer`, `user_data`, `personal`, `PII`, `email`, `password`, `token`, `secret`, `credential`
+- Pattern categories: `user`, `user_data`, `personal`, `PII`, `email`, `password`, `token`, `secret`, `credential`
 - Searched for log statements containing sensitive field names
 - Searched for `InsecureSkipVerify`, `skip_verify`, `insecure` patterns
 - Searched for request body logging patterns
-- Searched for shared credentials between platform and customer zones
+- Searched for shared credentials between platform and user zones
 
 ### 2. Architectural Review
 - Reviewed network segmentation in `nix/modules/networking.nix` and `nix/modules/hardening.nix`
@@ -44,20 +44,20 @@ The Unheaded platform fundamentally upholds the zero customer data access princi
 
 ### 4. Secrets Management Review
 - Reviewed `pkg/secrets/secrets.go` for data isolation enforcement
-- Reviewed `cmd/unheaded-daemon/internal/config/config.go` for separation of customer/operator namespaces
+- Reviewed `cmd/unheaded-daemon/internal/config/config.go` for separation of user/operator namespaces
 - Reviewed secret store implementations (memory, file, vault)
 
 ---
 
 ## Findings
 
-### CATEGORY 1: Customer Data Access Isolation
+### CATEGORY 1: User Data Access Isolation
 
-#### [PASS] F-001: No Service Reads Customer Application Data
+#### [PASS] F-001: No Service Reads User Application Data
 **Severity:** N/A
 **Files reviewed:** All files under `services/`, `cmd/`, `pkg/`
 
-No service in the codebase reads, processes, or stores customer application data. All services operate exclusively on platform-internal data: timeline entries, task assignments, strategy documents, architecture decisions, and system metrics. The `demo-app` (10.10.10.254) exists only as a customer simulation target and has no code in the repository that accesses Unheaded internals.
+No service in the codebase reads, processes, or stores user application data. All services operate exclusively on platform-internal data: timeline entries, task assignments, strategy documents, architecture decisions, and system metrics. The `demo-app` (10.10.10.254) exists only as a user simulation target and has no code in the repository that accesses Unheaded internals.
 
 #### [PASS] F-002: eBPF Traces Metadata, Not Content
 **Severity:** N/A
@@ -83,7 +83,7 @@ The scraper exclusively polls `/metrics` endpoints in Prometheus exposition form
 **File:** `cmd/unheaded-daemon/internal/config/config.go` (lines 142-160)
 
 The `DataIsolationConfig` struct enforces:
-- Separate namespaces: `CustomerDataNamespace` ("customer") vs `OperatorDataNamespace` ("operator")
+- Separate namespaces: `CustomerDataNamespace` ("user") vs `OperatorDataNamespace` ("operator")
 - Separate encryption keys: `CustomerKeyPath` vs `OperatorKeyPath`
 - Audit logging enabled by default for all data access
 
@@ -91,7 +91,7 @@ The `DataIsolationConfig` struct enforces:
 **Severity:** N/A
 **File:** `pkg/secrets/secrets.go` (line 4)
 
-Package documentation explicitly states: "The Sacred Law: ZERO customer data in secrets - only infrastructure credentials." The secrets system handles only SecretTypeStatic (API keys), SecretTypeDynamic, SecretTypeCertificate, SecretTypeSSHKey, and SecretTypeKEK. No customer data types exist.
+Package documentation explicitly states: "The Sacred Law: ZERO user data in secrets - only infrastructure credentials." The secrets system handles only SecretTypeStatic (API keys), SecretTypeDynamic, SecretTypeCertificate, SecretTypeSSHKey, and SecretTypeKEK. No user data types exist.
 
 ---
 
@@ -115,7 +115,7 @@ Both modules enforce default-deny firewall policies:
 The architecture mandates all inter-service communication through the Wotan message bus. Services connect to Wotan at 10.10.10.10:9090 (or 172.28.1.1:5555 in Docker Compose). Direct service-to-service HTTP calls exist only for:
 - Captain -> Timeguru (documented dependency for strategy/timeline coordination)
 - Micromanager -> Timeguru and Captain (documented dependency)
-These are intra-platform connections, not customer data paths.
+These are intra-platform connections, not user data paths.
 
 #### [PASS] F-008: Container Hardening Applied Uniformly
 **Severity:** N/A
@@ -182,10 +182,10 @@ s.log.Debug().Str("path", path).Msg("secret stored")
 s.log.Debug().Str("path", path).Msg("secret deleted")
 ```
 
-#### [PASS] F-013: No Shared Credentials Between Platform and Customer Zones
+#### [PASS] F-013: No Shared Credentials Between Platform and User Zones
 **Severity:** N/A
 
-Exhaustive search for patterns `shared.*secret`, `shared.*credential`, `common.*key`, `global.*key` found no instances of credentials shared between platform and customer zones. The only `shared secret` references are in the age encryption implementation (Curve25519 key agreement), which is correct cryptographic usage.
+Exhaustive search for patterns `shared.*secret`, `shared.*credential`, `common.*key`, `global.*key` found no instances of credentials shared between platform and user zones. The only `shared secret` references are in the age encryption implementation (Curve25519 key agreement), which is correct cryptographic usage.
 
 ---
 
@@ -263,7 +263,7 @@ Wotan pub/sub topics carry only:
 - `alerts.critical` -- System alerts
 - `logs.aggregated` -- Centralized operational logs
 
-No topic carries customer application data.
+No topic carries user application data.
 
 #### [PASS] F-020: WAF Inspects Outbound Responses for Data Leakage
 **Severity:** N/A
@@ -285,7 +285,7 @@ This is a defense-in-depth measure that would catch accidental data exposure.
 **Severity:** N/A
 **Files:** `pkg/compliance/standards/gdpr.go`, `pkg/compliance/standards/soc2.go`, `pkg/compliance/standards/pci.go`
 
-The compliance framework correctly models GDPR, SOC2, and PCI-DSS requirements around personal data handling. These are compliance check definitions (control descriptions), not actual data processing. The platform does not process personal data; these controls exist to validate that customers using the platform can meet their compliance obligations.
+The compliance framework correctly models GDPR, SOC2, and PCI-DSS requirements around personal data handling. These are compliance check definitions (control descriptions), not actual data processing. The platform does not process personal data; these controls exist to validate that users using the platform can meet their compliance obligations.
 
 #### [PASS] F-022: Audit System Logs Operations, Not Data
 **Severity:** N/A
@@ -310,7 +310,7 @@ The following P0/P1 vulnerabilities from the January 30 audit remain relevant:
 4. **Health check command execution** (`pkg/health/aggregator.go:948`) -- arbitrary command exec
 5. **Network policy command injection** (`pkg/network/policy_controller.go:1621,1653,1725`) -- shell metacharacters
 
-While these are not customer data access violations, they represent attack vectors that could potentially be used to escalate privileges and breach isolation boundaries.
+While these are not user data access violations, they represent attack vectors that could potentially be used to escalate privileges and breach isolation boundaries.
 
 **Recommendation:** Address P0 items before production deployment. These are preconditions for the isolation guarantee to hold under adversarial conditions.
 
@@ -320,7 +320,7 @@ While these are not customer data access violations, they represent attack vecto
 
 | ID | Finding | Category | Result | Severity |
 |----|---------|----------|--------|----------|
-| F-001 | No service reads customer app data | Isolation | PASS | -- |
+| F-001 | No service reads user app data | Isolation | PASS | -- |
 | F-002 | eBPF traces metadata, not content | Isolation | PASS | -- |
 | F-003 | Dashboard collects metrics only | Isolation | PASS | -- |
 | F-004 | Data isolation config enforces namespaces | Isolation | PASS | -- |
@@ -352,7 +352,7 @@ While these are not customer data access violations, they represent attack vecto
 
 ### Before Production (P0)
 
-1. **Fix injection vulnerabilities from January 30 audit** (F-023). While these are not direct customer data access paths, they could be exploited to bypass isolation under adversarial conditions. Specifically:
+1. **Fix injection vulnerabilities from January 30 audit** (F-023). While these are not direct user data access paths, they could be exploited to bypass isolation under adversarial conditions. Specifically:
    - Sandbox hook execution in deploy pipeline
    - Use `html/template` for WAF response pages
    - Allowlist health check commands
@@ -372,7 +372,7 @@ While these are not customer data access violations, they represent attack vecto
 
 ### Ongoing
 
-7. **Automate this audit** as a CI/CD gate. Grep-based checks for new patterns (customer data, PII, InsecureSkipVerify) should fail the build.
+7. **Automate this audit** as a CI/CD gate. Grep-based checks for new patterns (user data, PII, InsecureSkipVerify) should fail the build.
 
 8. **Regular rotation** of all credentials including Grafana admin, BGP peers, and TLS certificates.
 
@@ -380,11 +380,11 @@ While these are not customer data access violations, they represent attack vecto
 
 ## Conclusion
 
-The Unheaded platform's zero customer data access claim is **architecturally valid**. The eBPF layer captures packet metadata (IPs, ports, sizes, flags) without payload content. The Wotan message bus carries only operational data (metrics, traces, tasks, timeline). Container hardening with seccomp, capability restrictions, and network firewalls enforces isolation at the OS level. Secrets management separates customer and operator namespaces with audit logging.
+The Unheaded platform's zero user data access claim is **architecturally valid**. The eBPF layer captures packet metadata (IPs, ports, sizes, flags) without payload content. The Wotan message bus carries only operational data (metrics, traces, tasks, timeline). Container hardening with seccomp, capability restrictions, and network firewalls enforces isolation at the OS level. Secrets management separates user and operator namespaces with audit logging.
 
-The four warnings identified are configuration hygiene issues (default passwords, TLS skip options) and pre-existing injection vulnerabilities from the January 30 audit. None represent an active path for customer data access. However, the injection vulnerabilities (F-023) must be remediated before production because they could theoretically be leveraged by an attacker to escape the isolation boundary.
+The four warnings identified are configuration hygiene issues (default passwords, TLS skip options) and pre-existing injection vulnerabilities from the January 30 audit. None represent an active path for user data access. However, the injection vulnerabilities (F-023) must be remediated before production because they could theoretically be leveraged by an attacker to escape the isolation boundary.
 
-**Audit verdict: The Sacred Law holds. Zero customer data access is enforced by architecture, not just policy.**
+**Audit verdict: The Sacred Law holds. Zero user data access is enforced by architecture, not just policy.**
 
 ---
 

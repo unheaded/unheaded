@@ -172,7 +172,7 @@ cat cmd/dashboard-backend/main.go
 ## Context for Next Agent
 
 ### The Sacred Law
-**ZERO customer data access** - architectural isolation, not policy. Every component enforces this.
+**ZERO user data access** - architectural isolation, not policy. Every component enforces this.
 
 ### Technology Stack
 - **Go 1.21+** for services (Wotan, Cuirass, Royal Court)

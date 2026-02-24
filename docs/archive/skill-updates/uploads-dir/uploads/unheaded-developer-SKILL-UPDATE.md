@@ -398,7 +398,7 @@ clean:
 - [ ] Resource limits (memory, goroutines, connections)
 - [ ] Race detection passed
 - [ ] No unsafe operations without justification
-- [ ] Customer data isolation verified (see Micromanager)
+- [ ] User data isolation verified (see Micromanager)
 ```
 
 ## Quick Reference
@@ -444,7 +444,7 @@ cargo audit
 
 **Developer → Micromanager**: "Feature Y code complete. 100% test coverage. All security checkboxes ticked. Ready for QA sign-off."
 
-**Micromanager → Developer**: "Here's the next task. Priority is P1. Acceptance criteria: [list]. Remember: ZERO customer data access."
+**Micromanager → Developer**: "Here's the next task. Priority is P1. Acceptance criteria: [list]. Remember: ZERO user data access."
 
 ## Anti-Patterns (NEVER DO)
 

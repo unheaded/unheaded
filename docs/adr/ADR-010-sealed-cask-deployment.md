@@ -162,7 +162,7 @@ To update a Soul Vessel node — a **Reanimation**:
 6. Soul Chamber detaches from old Bone Shell, reattaches to new one
 7. Zero downtime.  Zero in-place mutation.  The old vessel returns to dust.
 
-This is the same blue-green / canary model Sword already supports — applied to the infrastructure itself, not just the customer's app.
+This is the same blue-green / canary model Sword already supports — applied to the infrastructure itself, not just the user's app.
 
 ### Anamnesis Events
 

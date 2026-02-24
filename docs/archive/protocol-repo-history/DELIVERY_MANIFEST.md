@@ -255,7 +255,7 @@ All agents have:
 ## 🔐 Security Verification
 
 ### CLAUDE.md Enforces:
-- [x] Zero customer data access (architectural isolation)
+- [x] Zero user data access (architectural isolation)
 - [x] Container hardening (seccomp, capabilities, read-only FS)
 - [x] Network policies (explicit allow, default deny)
 - [x] TLS 1.3 minimum

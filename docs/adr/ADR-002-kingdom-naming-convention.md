@@ -74,7 +74,7 @@ We adopt a **medieval armor / kingdom** naming metaphor where every component is
 ### Negative
 
 - **Onboarding cost**: New contributors must learn the mapping between Kingdom names and technical functions. The `docs/PROJECT_STRUCTURE.md` armor mapping table is essential reading.
-- **External communication**: When discussing the system with customers or partners, Kingdom names may confuse rather than clarify. External-facing documentation should prefer plain-English names.
+- **External communication**: When discussing the system with users or partners, Kingdom names may confuse rather than clarify. External-facing documentation should prefer plain-English names.
 - **Code vs. docs disconnect**: Package names use plain English (`pkg/mesh/`) while architecture docs use Kingdom names ("Hauberk"). This split is intentional but requires discipline to maintain consistently.
 - **Metaphor limitations**: Not every infrastructure concept maps cleanly to armor. The "Arcane Hollows" secondary metaphor (castle locations) was needed to cover non-armor components, adding a second layer of vocabulary.
 

@@ -82,7 +82,7 @@ Every packet that passed through the Void left a trace. Every eBPF program that 
 
 Anamnesis. Greek: ἀνάμνησις. Remembrance. In Plato, the soul's recollection of truths it knew before birth. In the Kingdom, the wire's recollection of every computation it had performed.
 
-Because the events carried Sophia's exponent keys — the raw bytes, not the decoded meanings — you could replay history through any version of Sophia's dictionary. The same ring buffer event, decoded through last week's dictionary, might say "health check from Timeguru." Decoded through today's dictionary — after a vocabulary update — it might say "health check from Timeguru, canary deployment, QoS realtime, customer tier enterprise." Same bytes. Richer reading. The memory didn't change. The wisdom to interpret it grew.
+Because the events carried Sophia's exponent keys — the raw bytes, not the decoded meanings — you could replay history through any version of Sophia's dictionary. The same ring buffer event, decoded through last week's dictionary, might say "health check from Timeguru." Decoded through today's dictionary — after a vocabulary update — it might say "health check from Timeguru, canary deployment, QoS realtime, user tier enterprise." Same bytes. Richer reading. The memory didn't change. The wisdom to interpret it grew.
 
 You could peel off and map nearly any key-value pair from those memories. Service identity. Trace correlation. QoS class. Feature flags. Deployment ring. A/B test cohort. Encryption tier. Any dimension Sophia could name, Anamnesis could remember. The network was not a dumb pipe that carried data between smart applications. The network was a library that wrote its own history, one packet at a time.
 

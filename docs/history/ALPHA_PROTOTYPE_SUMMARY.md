@@ -13,7 +13,7 @@ A complete **architectural foundation and project scaffold** for the Unheaded al
 2. **Microservices architecture** - Services mirror our AI-augmented dev workflow
 3. **Immutable infrastructure** - NixOS containers on LXD
 4. **The Meta Moment** - Unheaded hosting its own development (Kanban app)
-5. **Security-first design** - Hardening, isolation, zero customer data access
+5. **Security-first design** - Hardening, isolation, zero user data access
 
 ---
 
@@ -249,13 +249,13 @@ Every step traced by eBPF!
 **Target:** Mar 31, 2026
 - Production hardening
 - Comprehensive testing
-- First customer pilot
+- First user pilot
 
 ### Phase 3: MVP
 **Target:** Jun 30, 2026
 - Compliance templates
 - Multi-cloud support
-- Customer-ready
+- User-ready
 
 ---
 
@@ -321,9 +321,9 @@ cd services/timeguru && # create new Go module
 ## 🔐 Security Highlights
 
 ### Architectural Isolation
-- **demo-app** (customer simulation) has ZERO access to Unheaded internals
+- **demo-app** (user simulation) has ZERO access to Unheaded internals
 - Network policies enforce boundaries
-- All telemetry is infrastructure-level (no customer data)
+- All telemetry is infrastructure-level (no user data)
 
 ### eBPF Safety
 - Kernel verifier ensures programs can't crash or leak
@@ -397,7 +397,7 @@ We're building:
 - ✅ Drop-in infrastructure platform
 - ✅ eBPF observability (L2-L7)
 - ✅ Immutable NixOS containers
-- ✅ Zero customer data access
+- ✅ Zero user data access
 - ✅ Compliance templates (future)
 - ✅ Self-hosted proof (Kanban app)
 

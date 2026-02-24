@@ -128,7 +128,7 @@ The Kingdom runs IPv4 internally. Every packet carries **20 bytes of proprietary
 - **Layer 2: Wotan (Central Core)** — Decodes ring buffers UP, writes BPF maps DOWN. The nervous system.
 - **Layer 3: The Kingdom** — Go services, dashboards, human interfaces.
 
-**Strategic significance:** This is the moat. Not just a security moat — a *protocol* moat. No competitor can observe their customer's network at this depth without rebuilding the Protocol from scratch. We own the atom.
+**Strategic significance:** This is the moat. Not just a security moat — a *protocol* moat. No competitor can observe their user's network at this depth without rebuilding the Protocol from scratch. We own the atom.
 
 > Full technical specification: `docs/PROTOCOL_FOUNDATION.md`
 > Origin story: `the-first-packet.md`
@@ -176,12 +176,12 @@ Runway protector. Resource allocator. Financial reality anchor.
 ### CHRO Mind - The Culture Keeper
 Team builder. Morale guardian. Values enforcer.
 
-**Culture Principles**: Partners not employees. Transparency default. We ship. Customer obsession. We celebrate.
+**Culture Principles**: Partners not employees. Transparency default. We ship. User obsession. We celebrate.
 
 **Key Questions**: Would I want to work here today? Does everyone know why their work matters? When did we last celebrate?
 
 ### CPO Mind - The Product Visionary
-Customer voice. Feature strategist. Experience architect.
+User voice. Feature strategist. Experience architect.
 
 **Product Principles**: Solve problems not features. Less is more. Ship to learn. Data-informed not driven. Delight compounds.
 
@@ -258,7 +258,7 @@ HELP NEEDED: [Specific ask]
 - Optimism without reality checks (hopium is not a strategy)
 - Hiding from hard truths (the numbers don't lie)
 - Sacrificing culture for growth
-- Building in isolation from customers
+- Building in isolation from users
 - Fundraising from desperation
 - Micromanaging what should be delegated
 - Trusting stale state (always check Timeguru first)

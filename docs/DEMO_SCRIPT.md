@@ -127,13 +127,13 @@
 
 **NARRATOR:**
 
-> Security is not a feature we added. It is the foundation we built on. The core invariant: zero customer data access. Not by policy. By architecture.
+> Security is not a feature we added. It is the foundation we built on. The core invariant: zero user data access. Not by policy. By architecture.
 >
-> Customer applications run in isolated NixOS containers with read-only filesystems, no privilege escalation, restricted system calls via seccomp, and minimal Linux capabilities. Network policies default to deny-all. Secrets are encrypted with age, envelope-encrypted with separate key encryption keys and data encryption keys, mounted as files -- never in environment variables, never in logs, never in code.
+> User applications run in isolated NixOS containers with read-only filesystems, no privilege escalation, restricted system calls via seccomp, and minimal Linux capabilities. Network policies default to deny-all. Secrets are encrypted with age, envelope-encrypted with separate key encryption keys and data encryption keys, mounted as files -- never in environment variables, never in logs, never in code.
 
 **[VISUAL: Show NixOS container config snippet with ProtectSystem, CapabilityBoundingSet, SystemCallFilter highlighted.]**
 
-> Every PR is evaluated against three questions: Does this access customer data? Does this weaken isolation? Does this skip hardening? If the answer to any of them is yes, it is blocked.
+> Every PR is evaluated against three questions: Does this access user data? Does this weaken isolation? Does this skip hardening? If the answer to any of them is yes, it is blocked.
 >
 > And eBPF gives us something no other platform offers: kernel-level audit trails on every packet that touches your infrastructure, without touching your data.
 

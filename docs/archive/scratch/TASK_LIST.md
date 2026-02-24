@@ -510,18 +510,18 @@ These tasks harden the NixOS container definitions. Parallelizable.
 
 ---
 
-### TASK-061: Security Audit — Zero Customer Data Access Verification
+### TASK-061: Security Audit — Zero User Data Access Verification
 
 - **Priority:** P0
 - **Parallelizable:** Yes
 - **Dependencies:** None
 - **Scope:** All source code
 - **Acceptance Criteria:**
-  - Architectural review confirms no code path allows platform engineers to access customer data
-  - Customer data zones are network-segmented (separate VPC/VLAN config)
-  - No shared credentials between platform and customer zones
+  - Architectural review confirms no code path allows platform engineers to access user data
+  - User data zones are network-segmented (separate VPC/VLAN config)
+  - No shared credentials between platform and user zones
   - Observability sees METRICS not DATA (packet counts, not packet contents)
-  - Customer data never appears in logs (grep for PII patterns)
+  - User data never appears in logs (grep for PII patterns)
   - Document verification in `docs/SECURITY_AUDIT.md` with date stamp
 - **Estimated Effort:** M
 
