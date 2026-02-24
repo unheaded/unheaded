@@ -78,18 +78,27 @@ All Unheaded services use high ports to avoid conflicts with common dev tools.
 2. **Fallback:** HTTP/3 → HTTP/2 → HTTP/1.1
 3. **Health:** Both gRPC health check AND HTTP /health endpoint required
 
+**Implementation:** `pkg/transport/` implements the gRPC-first cascade with automatic HTTP fallback. All 10 services are wired to the transport package for unified connection management.
+
 ### Service Discovery
 
-Three-layer approach:
-1. **Convention:** /opt/unheaded/<service>/config.yaml
-2. **Port-scan:** Verify declared ports are listening
-3. **Wotan registration:** Services register/deregister via system.discovery.* topics
+Four-layer approach implemented in `pkg/discovery/`:
+1. **Wotan registration:** Services register/deregister via system.discovery topic (TTL-based with automatic reaping)
+2. **Port scan:** Verify expected ports are listening on the host
+3. **Convention scan:** /opt/unheaded/<service>/config.yaml discovery
+4. **Static fallback:** configs/services.yaml for known-good defaults
+
+All 10 services call `discovery.SetupServiceDiscovery()` on startup for automatic registration and peer discovery.
 
 ### Log Aggregation — "The Chronicler's Well"
 
-All services publish structured logs to Wotan topic `logs.<service>.<level>`.
-Test phase: 10,000 lines per service retained in ring buffer.
-Dashboard endpoint: GET /api/v1/logs, WebSocket /ws/logs for live tail.
+**Implementation:** `pkg/logagg/` package with ring buffer (10,000 entry default capacity).
+
+All services publish structured logs to Wotan topic `logs.<service>.<level>`. Log forwarding is handled by a `zerolog.Hook` that captures log events and pushes them to the aggregation ring buffer.
+
+**Dashboard endpoints:**
+- `GET /api/v1/logs` — query/filter aggregated logs
+- `SSE /ws/logs` — live tail via Server-Sent Events
 
 ---
 
@@ -657,15 +666,21 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
-## 🎯 Current Phase: Alpha (~99% Complete) | S34 Infrastructure Sprint
+## 🎯 Current Phase: Alpha (~99% Complete) | S36 Four Pillars Complete
 
 **Goal:** Demonstrate core platform capabilities
 
 **Timeline:** Jan 26 - Feb 3, 2026
 
-**Services:** 8 total (timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app)
+**Services:** 10 total (timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, wotan, unheaded-daemon)
 
 **Build:** `go build ./...` passes, all tests pass (0 failures)
+
+**S36 Four Pillars — COMPLETE:**
+- **Port Authority:** Doom Range migration (all services on 16666-26666)
+- **gRPC-First Transport:** `pkg/transport/` — gRPC cascade with HTTP fallback, all 10 services wired
+- **Log Aggregation:** `pkg/logagg/` — ring buffer, zerolog hook, dashboard live tail
+- **Service Discovery:** `pkg/discovery/` — four-layer discovery (Wotan/port-scan/convention/static)
 
 **Success Criteria:**
 - [x] All services communicating via Wotan
@@ -678,7 +693,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - [x] Zero customer data access (validated)
 
 **What's Done:**
-- All 8 services have HTTP APIs with health/ready/metrics endpoints
+- All 10 services have HTTP APIs with health/ready/metrics endpoints
 - Monad (port 19004) and Sophia (port 19005) services created
 - Kanban task detail modal with view/edit/delete
 - Dashboard packet-flow visualization + system metrics display
@@ -687,6 +702,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - Docker Compose configuration for full stack
 - Gateway routing for all services
 - All tests passing (0 failures, 0 timeouts)
+- S36 Four Pillars: Port Authority, gRPC-First Transport, Log Aggregation, Service Discovery
 
 **Remaining:**
 - eBPF programs (blocked on Linux dev environment)
@@ -944,5 +960,5 @@ See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
 ---
 
 **Last Updated:** February 24, 2026
-**Version:** Alpha (~99% Complete) | S34 Infrastructure Sprint
-**Status:** All services operational, all tests passing, four infrastructure pillars forged (S34)
+**Version:** Alpha (~99% Complete) | S36 Four Pillars Complete
+**Status:** All 10 services operational, all tests passing. S36 Four Pillars complete: Port Authority (Doom Range), gRPC-First Transport (pkg/transport/), Log Aggregation (pkg/logagg/), Service Discovery (pkg/discovery/).
