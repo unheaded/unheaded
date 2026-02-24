@@ -207,9 +207,30 @@ func (ing *Ingestor) streamTopic(ctx context.Context, topic string) {
 }
 
 // dispatch parses and routes an event based on the topic.
+// Payloads may be single JSON objects or batched arrays from the
+// trace-collector's batch publisher. Arrays are unwrapped and each
+// element is dispatched individually.
 func (ing *Ingestor) dispatch(topic string, payload string) {
-	data := []byte(payload)
+	data := []byte(strings.TrimSpace(payload))
 
+	// Detect JSON arrays (batched events) and unwrap them.
+	if len(data) > 0 && data[0] == '[' {
+		var batch []json.RawMessage
+		if err := json.Unmarshal(data, &batch); err != nil {
+			ing.parseErrors.Add(1)
+			return
+		}
+		for _, item := range batch {
+			ing.dispatchSingle(topic, item)
+		}
+		return
+	}
+
+	ing.dispatchSingle(topic, data)
+}
+
+// dispatchSingle parses and routes a single JSON event object.
+func (ing *Ingestor) dispatchSingle(topic string, data []byte) {
 	switch {
 	case strings.Contains(topic, "packet"):
 		e, err := ParsePacketEvent(data)

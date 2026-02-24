@@ -553,6 +553,111 @@ func TestIngestor_RecentEvents(t *testing.T) {
 	}
 }
 
+func TestIngestor_BatchedFlowArray(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Simulate trace-collector batch: JSON array of flow events
+	flows := []FlowEvent{
+		{
+			TimestampNs: uint64(time.Now().UnixNano()),
+			FlowKey:     FlowKey{SrcAddr: "10.0.0.1", DstAddr: "10.0.0.2", SrcPort: 80, DstPort: 443, Protocol: 6},
+			FlowState:   FlowState{State: StateEstablished, PacketsIn: 10, BytesIn: 1500},
+			EventType:   FlowNew,
+		},
+		{
+			TimestampNs: uint64(time.Now().UnixNano()),
+			FlowKey:     FlowKey{SrcAddr: "10.0.0.3", DstAddr: "10.0.0.4", SrcPort: 9090, DstPort: 80, Protocol: 6},
+			FlowState:   FlowState{State: StateEstablished, PacketsIn: 5, BytesIn: 800},
+			EventType:   FlowNew,
+		},
+		{
+			TimestampNs: uint64(time.Now().UnixNano()),
+			FlowKey:     FlowKey{SrcAddr: "10.0.0.5", DstAddr: "10.0.0.6", SrcPort: 22, DstPort: 22, Protocol: 6},
+			FlowState:   FlowState{State: "new", PacketsIn: 1, BytesIn: 64},
+			EventType:   FlowNew,
+		},
+	}
+	data, _ := json.Marshal(flows)
+	mock.send("ebpf.flow.events", string(data))
+	time.Sleep(100 * time.Millisecond)
+
+	stats := ing.Stats()
+	if stats.FlowsIngested != 3 {
+		t.Errorf("flows_ingested = %d, want 3", stats.FlowsIngested)
+	}
+	if ing.FlowGraph().ActiveFlowCount() != 3 {
+		t.Errorf("active flows = %d, want 3", ing.FlowGraph().ActiveFlowCount())
+	}
+}
+
+func TestIngestor_BatchedPacketArray(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// JSON array of packet events (as trace-collector sends them)
+	packets := []PacketEvent{
+		{TimestampNs: uint64(time.Now().UnixNano()), FlowKey: FlowKey{SrcAddr: "10.0.0.1", DstAddr: "10.0.0.2", SrcPort: 80, DstPort: 443, Protocol: 6}, PacketLen: 100, Direction: DirectionIngress},
+		{TimestampNs: uint64(time.Now().UnixNano()), FlowKey: FlowKey{SrcAddr: "10.0.0.3", DstAddr: "10.0.0.4", SrcPort: 22, DstPort: 22, Protocol: 6}, PacketLen: 64, Direction: DirectionEgress},
+	}
+	data, _ := json.Marshal(packets)
+	mock.send("ebpf.packet.events", string(data))
+	time.Sleep(100 * time.Millisecond)
+
+	stats := ing.Stats()
+	if stats.PacketsIngested != 2 {
+		t.Errorf("packets_ingested = %d, want 2", stats.PacketsIngested)
+	}
+}
+
+func TestIngestor_BatchedLatencyArray(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	latencies := []LatencyEvent{
+		{TimestampNs: uint64(time.Now().UnixNano()), LatencyNs: 1500000, Operation: OpTcpSend},
+		{TimestampNs: uint64(time.Now().UnixNano()), LatencyNs: 2500000, Operation: OpTcpRecv},
+	}
+	data, _ := json.Marshal(latencies)
+	mock.send("ebpf.latency.events", string(data))
+	time.Sleep(100 * time.Millisecond)
+
+	stats := ing.Stats()
+	if stats.LatencyIngested != 2 {
+		t.Errorf("latency_ingested = %d, want 2", stats.LatencyIngested)
+	}
+}
+
 // === Concurrency Tests ===
 
 func TestFlowGraph_Concurrent(t *testing.T) {
