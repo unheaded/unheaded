@@ -1,6 +1,6 @@
 # IaC Backends — The Forge of Many Tongues
 
-Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers.
+Unheaded generates configuration artifacts for the user's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers.
 
 ## Supported Backends
 
@@ -29,7 +29,7 @@ Desired State (Git)
        └── salt/         → states/, pillars/, grains/
 ```
 
-The IaC layer consumes the same core packages (`pkg/`) and generates output in the customer's dialect. Adding a new backend is writing an output renderer — the control plane, eBPF layer, and Wotan integration don't change.
+The IaC layer consumes the same core packages (`pkg/`) and generates output in the user's dialect. Adding a new backend is writing an output renderer — the control plane, eBPF layer, and Wotan integration don't change.
 
 ## CLI Usage
 

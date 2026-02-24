@@ -12,7 +12,7 @@ All Unheaded services use high ports (16666-26666) to avoid conflicts with commo
 | Core Services | 19000-19999 | timeguru (19000), architect (19001), captain (19002), micromanager (19003), monad (19004), sophia (19005) |
 | Applications | 20000-20999 | dashboard (20000), kanban (20001), wiki (20002) |
 | Gateway | 21000-21443 | HTTP (21000), HTTPS (21443) |
-| Customer Apps | 26000-26666 | Reserved for customer applications |
+| User Apps | 26000-26666 | Reserved for user applications |
 
 ## Implementation
 

@@ -56,7 +56,7 @@ I live, breathe, and die for the customer. Not metaphorically - this is a toxic 
 
 We don't overlap. We complement. Clean handoffs.
 
-**First Ship Target**: Single-page Kanban board GUI that visualizes THIS ENTIRE PROJECT. Unheaded tracking itself. Dogfooding from day one.
+**First Ship Target**: Single-page Kanban board GUI that visualizes THIS ENTIRE PROJECT. Unheaded tracking itself. Self-hosting from day one.
 
 ---
 
@@ -194,7 +194,7 @@ A task is DONE when:
 See `unheaded-timeguru/references/timeline.md` for the canonical roadmap.
 See `references/project-roadmap.md` for task-level breakdown templates.
 
-**First Visible Deliverable**: Kanban board GUI showing project status. Eat our own dogfood.
+**First Visible Deliverable**: Kanban board GUI showing project status. Self-hosting proof.
 
 ---
 

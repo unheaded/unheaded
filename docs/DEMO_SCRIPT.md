@@ -69,7 +69,7 @@
 
 **[VISUAL: Three columns are visible -- TODO, IN PROGRESS, DONE. Task cards populate with real data: "Wotan Phase 1" in DONE, "eBPF Foundation" in IN PROGRESS, items with priority badges and progress bars.]**
 
-> We call this The Meta Moment. Unheaded is tracking its own development, on its own infrastructure, traced by its own eBPF programs, managed by its own control plane. We drink our own champagne.
+> We call this The Meta Moment. Unheaded is tracking its own development, on its own infrastructure, traced by its own eBPF programs, managed by its own control plane. Self-hosting is proof, not marketing.
 
 **[VISUAL: Click a task card. The detail modal opens, showing title, description, status, priority, type, and owner. Edit and Delete buttons visible.]**
 

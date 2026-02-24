@@ -4,14 +4,14 @@
 
 Security is not optional. Every decision is evaluated through the security lens:
 
-- Does this access customer data? → **NO**
+- Does this access user data? → **NO**
 - Does this weaken isolation? → **NO**
 - Does this skip hardening? → **NO**
 
 ## Key Principles
 
 - eBPF traceability from packet zero
-- Zero customer data access — architectural isolation enforced
+- Zero user data access — architectural isolation enforced
 - Container hardening: seccomp, capabilities, read-only FS
 - Network policies: explicit allow, default deny
 - TLS 1.3 minimum for external traffic

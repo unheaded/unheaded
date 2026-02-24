@@ -84,7 +84,7 @@
 
 ## CAMPAIGN 2: eBPF PoC Working Dashboard (The Whispering Void)
 
-**Goal:** End-to-end flow: eBPF kernel programs → trace-collector (Rust) → Wotan pub/sub → dashboard-backend → browser visualization. The in-house observability dashboard that proves the Kingdom drinks its own champagne.
+**Goal:** End-to-end flow: eBPF kernel programs → trace-collector (Rust) → Wotan pub/sub → dashboard-backend → browser visualization. The in-house observability dashboard that proves the Kingdom can self-host.
 
 **Precondition:** All 4 eBPF programs compiled and loadable on Linux. ebpf-loader CLI works. Dashboard-backend has REST + WebSocket skeleton. Wotan TopicStream will be wired (Campaign 1).
 
@@ -162,7 +162,7 @@
 - [ ] Verify: flow graph shows correct topology
 - [ ] Verify: latency numbers are reasonable (microsecond range for localhost)
 
-**Definition of Done:** Open browser, see REAL kernel-captured packet flows rendered as a live graph. The Whispering Void speaks through the Fae Chamber to the Cloak. We drink our own champagne.
+**Definition of Done:** Open browser, see REAL kernel-captured packet flows rendered as a live graph. The Whispering Void speaks through the Fae Chamber to the Cloak. Self-hosting validated.
 
 ---
 

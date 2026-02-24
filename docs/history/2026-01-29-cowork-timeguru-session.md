@@ -133,7 +133,7 @@ All 7 Unheaded skills verified:
 ## Key Findings from Skill Reviews
 
 ### From Micromanager Skill:
-- **First Ship Target:** Kanban GUI (dogfooding) - currently 60-65%
+- **First Ship Target:** Kanban GUI (self-hosting) - currently 60-65%
 - **ZERO Customer Data Access:** Architectural principle, non-negotiable
 - **QA Philosophy:** Test EVERYTHING before ship
 - **Session Protocol:** Always read Timeguru first
@@ -144,7 +144,7 @@ All 7 Unheaded skills verified:
 - "Read timeline.md first" - enforced
 
 ### Discrepancy Identified:
-Micromanager emphasizes Kanban frontend as "First Visible Deliverable" for dogfooding.
+Micromanager emphasizes Kanban frontend as "First Visible Deliverable" for self-hosting.
 Timeline shows it at 60-65% (backend done, frontend WIP).
 **Action:** Kanban frontend should be P0 for "THE META MOMENT"
 
@@ -166,7 +166,7 @@ Feb 8-15:         Alpha Launch Window
 ## Next Actions (Prioritized)
 
 1. **P0**: Provision Linux dev environment for eBPF (Muck)
-2. **P0**: Kanban frontend (THE META MOMENT - dogfooding)
+2. **P0**: Kanban frontend (THE META MOMENT - self-hosting)
 3. **P1**: Real LXD integration in Cuirass
 4. **P1**: Initialize NixOS flake structure
 5. **P2**: Dashboard-backend metrics aggregation
@@ -180,7 +180,7 @@ Feb 8-15:         Alpha Launch Window
 - Total codebase is 119,838 LOC across 433 files
 - Project is 65-70% complete, not 30% or 55%
 - All skills are aligned as of this session
-- Kanban frontend is critical path for dogfooding
+- Kanban frontend is critical path for self-hosting
 
 **Your task (pending Muck's direction):**
 - Review your progress/workflow

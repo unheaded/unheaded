@@ -99,7 +99,7 @@ New file created specifically for AI agent coordination:
 8. **Development Workflow** - Build, test, deploy
 9. **Commit Guidelines** - Conventional commits
 10. **Working with Claude Agents** - When to spawn, coordination, templates
-11. **Design Philosophy** - "We drink our own champagne"
+11. **Design Philosophy** - Self-hosting validation
 12. **Common Pitfalls** - What NOT to do
 
 **Purpose:** Single source of truth for all AI agents building Unheaded
@@ -326,7 +326,7 @@ unheaded/
 
 ---
 
-## 🍾 "We Drink Our Own Champagne"
+## Self-Hosting Proof
 
 Everything in this package is designed to prove:
 

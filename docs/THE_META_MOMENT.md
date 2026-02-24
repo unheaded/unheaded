@@ -1,6 +1,6 @@
 # The Meta Moment
 
-**"We drink our own champagne."** 🍾
+**Self-hosting is proof, not marketing.**
 
 ## What is The Meta Moment?
 
@@ -13,7 +13,7 @@ Specifically, the Kanban app that displays our development progress is:
 4. Visualized in our custom dashboard
 5. Accessible from the public internet
 
-**If Unheaded can reliably manage its own development infrastructure, it proves the platform works for ANY customer workload.**
+**If Unheaded can reliably manage its own development infrastructure, it proves the platform works for ANY user workload.**
 
 ## The Recursion
 
@@ -33,16 +33,16 @@ This is recursion as proof:
 
 ## Why This Matters
 
-### For Customers
-If we can trust Unheaded to host our own mission-critical development dashboard, customers can trust it with their applications.
+### For Users
+If we can trust Unheaded to host our own mission-critical development dashboard, users can trust it with their applications.
 
 ### For Us (The Team)
-- **Dogfooding:** We experience every pain point our customers will
+- **Self-hosting:** We experience every pain point our users will
 - **Rapid iteration:** Breaking our own stuff = fast fixes
 - **Credibility:** "Built by Unheaded, running on Unheaded"
 - **Quality bar:** We demand perfection because we depend on it
 
-### For The Product
+### For The Application
 - **Integration testing:** Every feature tested in production (our own)
 - **Performance validation:** Real workload, not synthetic
 - **Security hardening:** Our data at stake = serious security
@@ -127,27 +127,27 @@ We don't depend on external platforms for our own infrastructure. If Unheaded go
 The Kanban app is public (optional auth). Anyone can see our progress, our velocity, our wins and struggles.
 
 ### 3. Quality
-We're not shipping to customers what we wouldn't use ourselves. Our standards are our customers' standards.
+We're not shipping to users what we wouldn't use ourselves. Our standards are our users' standards.
 
 ### 4. Innovation
 Building the platform to host itself surfaces edge cases and opportunities we'd never discover with synthetic tests.
 
 ## Historical Context
 
-### Why "Drink Your Own Champagne"?
+### Why Self-Host?
 
-The tech industry often says "eat your own dogfood" - use your own product. We prefer:
+The tech industry often talks about "using your own application." We agree:
 
-**"We drink our own champagne."** 🍾
+**Self-hosting is the ultimate validation.**
 
 Why?
-- **Celebration over punishment:** Building great tools is joyful
-- **Quality matters:** Champagne, not dog food
-- **Shared success:** Customers join our celebration
+- **Proof over promises:** Running on our own platform validates it
+- **Quality matters:** Real workloads surface real issues
+- **Shared success:** Users benefit from our internal validation
 
 ### Industry Examples
 
-- **AWS:** Amazon.com ran on AWS before external customers
+- **AWS:** Amazon.com ran on AWS before external users
 - **Google:** Google used their own infrastructure before GCP
 - **GitHub:** GitHub hosted on GitHub Pages
 - **Stripe:** Stripe used Stripe for their own billing
@@ -192,7 +192,7 @@ The Meta Moment is successful when:
 
 ### Phase 3: Multi-Project
 - Support multiple projects (not just Unheaded)
-- Customer dashboards showing their own apps
+- User dashboards showing their own apps
 - White-label options
 
 ### Phase 4: AI Integration
@@ -204,15 +204,15 @@ The Meta Moment is successful when:
 
 The Meta Moment is more than a demo. It's our philosophy, our proof, and our promise.
 
-When customers see Unheaded hosting Unheaded, they see:
+When users see Unheaded hosting Unheaded, they see:
 - **Confidence:** We trust our own platform
 - **Transparency:** Our progress is public
 - **Quality:** We hold ourselves to the same standard
 - **Innovation:** We push the boundaries of what's possible
 
-**"We drink our own champagne."** 🍾
+**Self-hosting is proof, not marketing.**
 
-And we invite our customers to join the celebration.
+And we invite our users to validate alongside us.
 
 ---
 

@@ -228,7 +228,7 @@ THE ARCANE HOLLOWS (Hidden Layer)
 - Support distributed tracing
 - Expose /health and /ready endpoints
 
-### 3. The Meta Moment - "We Drink Our Own Champagne"
+### 3. The Meta Moment - Self-Hosting Validation
 
 **Critical proof of concept:**
 - Kanban app shows Unheaded building Unheaded
@@ -393,7 +393,7 @@ THE SACRED LAW:
 
 ## 💡 Design Philosophy
 
-### 1. "We Drink Our Own Champagne, We Eat Our Own Dogfood"
+### 1. Self-Hosting Validation
 Self-hosting for development for speed and usability detection.
 
 ### 2. Security is Not Optional

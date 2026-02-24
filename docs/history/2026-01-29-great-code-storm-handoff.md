@@ -204,7 +204,7 @@ The evening Timeguru skill audit revealed:
 1. **Canonical timeline is `~/tmp/timeline.md`** (NOT `unheaded/references/`)
 2. **Total codebase: 119,838 LOC across 433 files**
 3. **Project is 65-70% complete** (not 30% or 55%)
-4. **Kanban frontend is P0 for dogfooding** (THE META MOMENT)
+4. **Kanban frontend is P0 for self-hosting** (THE META MOMENT)
 5. **All 7 skills are aligned**
 
 ### Discrepancy Resolution
@@ -235,7 +235,7 @@ This session did NOT touch Kanban frontend - it remains at ~65%.
 ## NEXT SESSION PRIORITIES
 
 ### 🔴 P0: Kanban Frontend (THE META MOMENT)
-The Kingdom dogfoods itself. This is the First Visible Deliverable.
+The Kingdom hosts itself. This is the First Visible Deliverable.
 
 **Current state:** Backend complete, frontend WIP at ~65%
 **Start here:**

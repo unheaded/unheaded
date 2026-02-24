@@ -1,6 +1,6 @@
 # Observability Backends — The All-Seeing Eye
 
-Unheaded emits OpenTelemetry-compatible signals (metrics, logs, traces). Customers plug in their preferred observability stack via interchangeable output adapters. Same pattern as [[Containers]] and [[IaC Backends|IaC-Backends]] — your tools, our data model.
+Unheaded emits OpenTelemetry-compatible signals (metrics, logs, traces). Users plug in their preferred observability stack via interchangeable output adapters. Same pattern as [[Containers]] and [[IaC Backends|IaC-Backends]] — your tools, our data model.
 
 ## Supported Backends
 
@@ -46,7 +46,7 @@ unheaded observe --backend=all --output=./observability/
 
 ## Phased Roadmap
 
-**Phase 1 — Adapter Configs (Alpha/Beta):** Drop-in config mirrors so customers hook in their own Grafana, ELK, Prometheus, etc. Pure config generation, no custom tooling.
+**Phase 1 — Adapter Configs (Alpha/Beta):** Drop-in config mirrors so users hook in their own Grafana, ELK, Prometheus, etc. Pure config generation, no custom tooling.
 
 **Phase 2 — Wotan-Native Defaults (Release):** Purpose-built replacements leveraging the eBPF data plane. Wotan's ring buffer feeds directly into custom metrics/log/trace stores — zero serialization overhead, wire-speed observability.
 
