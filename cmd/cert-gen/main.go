@@ -27,6 +27,9 @@ import (
 )
 
 // defaultServices is the set of Unheaded Alpha services.
+// IPs are LXD bridge addresses (lxdbr0 10.10.10.0/24) added as cert SANs so
+// certificates are valid when services are reached over the bridge network.
+// localhost / 127.0.0.1 / ::1 SANs are added automatically by pkg/tls.IssueCert.
 var defaultServices = []serviceSpec{
 	{Name: "timeguru", IP: "10.10.10.20"},
 	{Name: "captain", IP: "10.10.10.21"},
