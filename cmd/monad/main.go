@@ -31,6 +31,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/monad"
 )
@@ -63,6 +64,14 @@ func main() {
 		*wotanAddr = addr
 	}
 
+	// Transport config
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	transportCfg.WotanGRPCAddr = *wotanAddr
+
+	// Health server
+	healthSrv := transport.NewHealthServer("monad")
+
 	// Setup logging using Kingdom's native logger
 	logConfig := logger.DefaultConfig()
 	if *debug {
@@ -92,6 +101,7 @@ func main() {
 			Err(err).
 			Str("wotan_addr", *wotanAddr).
 			Msg("failed to create Wotan client, continuing without message bus")
+		healthSrv.SetGRPCStatus(false)
 		wotan = nil
 	} else {
 		log.Info().
