@@ -38,7 +38,7 @@ EDITS COMPLETED (5 Major Changes + 4 Supporting Updates)
    Changes:
    - Build status: ✅ SUCCESS | E2E Tests: 23/23 PASS (was 11/11)
    - Progress: ~98% (was ~96%)
-   - Kingdom Strength: 465,000+ LOC (433K code + 32K docs)
+   - Kingdom Strength: ~260K production (~464K w/ tests)
    - Go Files: 585 files across 25 services
    - Rust eBPF: 23,991 LOC (4/4 programs compiled)
    - Active Services: 25 (was 8)
@@ -70,7 +70,7 @@ EDITS COMPLETED (5 Major Changes + 4 Supporting Updates)
    Changes:
    - Date: February 18, 2026 (was February 2)
    - Phase: ~98% complete (was ~96%)
-   - New metrics: 465,000+ LOC, 25 services, 585 Go files, 23,991 LOC eBPF
+   - New metrics: ~260K production (~464K w/ tests), 25 services, 585 Go files, 23,991 LOC eBPF
    - Added Protocol Foundation Paradigm Shift section
    - Updated service descriptions with protocol layer mappings
    - B1 blocker marked RESOLVED
