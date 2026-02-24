@@ -1,0 +1,3 @@
+PRE-MIGRATION PORT AUDIT Tue Feb 24 02:41:43 UTC 2026
+Old ports in production .go: 21
+10.10.10 IPs in production .go: 57
