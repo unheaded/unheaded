@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
@@ -445,9 +446,13 @@ func (d *Daemon) Start() error {
 	mux := http.NewServeMux()
 	d.registerHandlers(mux)
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("unheaded-daemon")
+	var httpHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
+
 	d.httpServer = &http.Server{
 		Addr:         d.config.HTTPAddr,
-		Handler:      mux,
+		Handler:      httpHandler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:    60 * time.Second,
