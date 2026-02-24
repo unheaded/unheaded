@@ -14,11 +14,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +26,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/ebpf"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ── Wotan topic constants ─────────────────────────────────────────────────
@@ -44,6 +43,12 @@ const (
 
 	// TopicTracesCorrelated receives cross-correlated events.
 	TopicTracesCorrelated = "traces.correlated"
+
+	// Mirror topics for dashboard ingestor compatibility.
+	// The dashboard eBPF ingestor subscribes to ebpf.*.events topics.
+	TopicEBPFPacket  = "ebpf.packet.events"
+	TopicEBPFFlow    = "ebpf.flow.events"
+	TopicEBPFLatency = "ebpf.latency.events"
 )
 
 // ── Prometheus metrics for publisher ──────────────────────────────────────
@@ -75,8 +80,11 @@ var (
 
 // TracePublisherConfig holds configuration for the trace publisher.
 type TracePublisherConfig struct {
-	// WotanAddr is the Wotan gRPC/HTTP address.
+	// WotanAddr is the Wotan gRPC address (host:port).
 	WotanAddr string
+
+	// WotanHTTPAddr is the Wotan HTTP address for fallback (host:port).
+	WotanHTTPAddr string
 
 	// BatchSize is the maximum number of events per flush.
 	BatchSize int
@@ -88,7 +96,8 @@ type TracePublisherConfig struct {
 // DefaultTracePublisherConfig returns sensible defaults.
 func DefaultTracePublisherConfig() TracePublisherConfig {
 	return TracePublisherConfig{
-		WotanAddr:     "localhost:9090",
+		WotanAddr:     "localhost:18001",
+		WotanHTTPAddr: "localhost:18000",
 		BatchSize:     100,
 		FlushInterval: 50 * time.Millisecond,
 	}
@@ -111,7 +120,8 @@ type TracePublisherStats struct {
 // ── TracePublisher ────────────────────────────────────────────────────────
 
 // TracePublisher routes trace events to the correct Wotan topics with
-// batching and configurable flush intervals.
+// batching and configurable flush intervals. Uses gRPC-first transport
+// with HTTP fallback via TopicStreamClient.
 type TracePublisher struct {
 	config    TracePublisherConfig
 	stats     TracePublisherStats
@@ -119,6 +129,9 @@ type TracePublisher struct {
 
 	mu      sync.Mutex
 	batches map[string][]json.RawMessage
+
+	// gRPC client for Wotan topic publishing
+	tsc *wotanClient.TopicStreamClient
 }
 
 // NewTracePublisher creates a new publisher with the given configuration.
@@ -129,6 +142,46 @@ func NewTracePublisher(config TracePublisherConfig) *TracePublisher {
 	}
 }
 
+// Connect establishes the gRPC connection to Wotan and subscribes to
+// all trace topics. Must be called before Run().
+func (tp *TracePublisher) Connect(ctx context.Context) error {
+	// Create HTTP fallback client
+	var opts []wotanClient.TopicStreamOption
+	if tp.config.WotanHTTPAddr != "" {
+		httpClient, err := wotanClient.NewClient(tp.config.WotanHTTPAddr)
+		if err == nil {
+			opts = append(opts, wotanClient.WithHTTPFallback(httpClient))
+		}
+	}
+
+	tsc, err := wotanClient.NewTopicStreamClient(tp.config.WotanAddr, opts...)
+	if err != nil {
+		return fmt.Errorf("connect to Wotan gRPC at %s: %w", tp.config.WotanAddr, err)
+	}
+	tp.tsc = tsc
+
+	// Subscribe to all trace topics + mirror topics for dashboard ingestor
+	topics := []string{
+		TopicTracesPacket, TopicTracesFlow,
+		TopicTracesLatency, TopicTracesCorrelated,
+		TopicEBPFPacket, TopicEBPFFlow, TopicEBPFLatency,
+	}
+	for _, topic := range topics {
+		if _, err := tsc.Subscribe(ctx, topic, "trace-collector-go"); err != nil {
+			tsc.Close()
+			return fmt.Errorf("subscribe to %s: %w", topic, err)
+		}
+	}
+
+	tp.connected.Store(true)
+	log.Info().
+		Str("grpc_addr", tp.config.WotanAddr).
+		Str("http_addr", tp.config.WotanHTTPAddr).
+		Int("topics", len(topics)).
+		Msg("trace publisher connected to Wotan (gRPC-first)")
+	return nil
+}
+
 // PublishPacketEvent queues a packet marker event for publishing.
 func (tp *TracePublisher) PublishPacketEvent(entry *TraceEntry) error {
 	payload, err := marshalTraceEntry(entry)
@@ -136,6 +189,7 @@ func (tp *TracePublisher) PublishPacketEvent(entry *TraceEntry) error {
 		return fmt.Errorf("marshal packet event: %w", err)
 	}
 	tp.enqueue(TopicTracesPacket, payload)
+	tp.enqueue(TopicEBPFPacket, payload)
 	atomic.AddUint64(&tp.stats.PacketEvents, 1)
 	return nil
 }
@@ -156,12 +210,14 @@ func (tp *TracePublisher) PublishAnamnesisEvent(ev *ebpf.AnamnesisEvent) error {
 // PublishFlowEvent queues a flow tracker event for publishing.
 func (tp *TracePublisher) PublishFlowEvent(payload json.RawMessage) {
 	tp.enqueue(TopicTracesFlow, payload)
+	tp.enqueue(TopicEBPFFlow, payload)
 	atomic.AddUint64(&tp.stats.FlowEvents, 1)
 }
 
 // PublishLatencyEvent queues a latency probe event for publishing.
 func (tp *TracePublisher) PublishLatencyEvent(payload json.RawMessage) {
 	tp.enqueue(TopicTracesLatency, payload)
+	tp.enqueue(TopicEBPFLatency, payload)
 	atomic.AddUint64(&tp.stats.LatencyEvents, 1)
 }
 
@@ -221,6 +277,10 @@ func (tp *TracePublisher) Run(ctx context.Context) {
 		case <-ctx.Done():
 			// Final flush on shutdown
 			tp.Flush(context.Background())
+			// Close gRPC connection
+			if tp.tsc != nil {
+				tp.tsc.Close()
+			}
 			log.Info().Msg("trace publisher stopped")
 			return
 		case <-ticker.C:
@@ -263,8 +323,8 @@ func (tp *TracePublisher) enqueue(topic string, payload json.RawMessage) {
 	}
 }
 
-// sendBatch publishes a batch of JSON messages to a Wotan topic.
-// Uses HTTP REST API with retry and exponential backoff (100ms/200ms/400ms, 3 attempts).
+// sendBatch publishes a batch of JSON messages to a Wotan topic via gRPC.
+// TopicStreamClient handles retry, circuit breaking, and HTTP fallback.
 func (tp *TracePublisher) sendBatch(ctx context.Context, topic string, messages []json.RawMessage) error {
 	start := time.Now()
 	defer func() {
@@ -277,63 +337,19 @@ func (tp *TracePublisher) sendBatch(ctx context.Context, topic string, messages 
 		return fmt.Errorf("marshal batch: %w", err)
 	}
 
-	url := fmt.Sprintf("http://%s/api/v1/topics/%s/messages", tp.config.WotanAddr, topic)
-
-	// Retry with exponential backoff: 100ms, 200ms, 400ms
-	backoffs := []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond}
-	var lastErr error
-
-	for attempt := 0; attempt <= len(backoffs); attempt++ {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
-		if err != nil {
-			return fmt.Errorf("create request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Sender-ID", "trace-collector-go")
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			lastErr = err
-			tp.connected.Store(false)
-
-			if attempt < len(backoffs) {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(backoffs[attempt]):
-				}
-				continue
-			}
-			return fmt.Errorf("publish to %s after %d attempts: %w", topic, attempt+1, lastErr)
-		}
-		resp.Body.Close()
-
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			tp.connected.Store(true)
-			return nil
-		}
-
-		lastErr = fmt.Errorf("wotan returned %d", resp.StatusCode)
-		tp.connected.Store(false)
-
-		// Retry on 5xx server errors only
-		if resp.StatusCode >= 500 && attempt < len(backoffs) {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(backoffs[attempt]):
-			}
-			continue
-		}
-
-		return lastErr
+	// Use gRPC client if connected, fall back to no-op if not yet connected
+	if tp.tsc == nil {
+		log.Debug().Str("topic", topic).Msg("Wotan not connected, dropping batch")
+		return nil
 	}
 
-	return lastErr
+	if err := tp.tsc.Publish(ctx, topic, payload); err != nil {
+		tp.connected.Store(false)
+		return fmt.Errorf("publish to %s: %w", topic, err)
+	}
+
+	tp.connected.Store(true)
+	return nil
 }
 
 // marshalTraceEntry converts a TraceEntry to JSON.
