@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
@@ -1222,6 +1223,11 @@ func main() {
 
 	// Log aggregation publisher — forwards structured logs to Wotan
 	_ = logagg.NewPublisher("kanban-app", nil) // nil transport — publisher disabled until zerolog is adopted
+
+	// Service discovery — best-effort registration (nil conn until transport is wired)
+	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
+	defer discoveryCancel()
+	discovery.SetupServiceDiscovery(discoveryCtx, nil, "kanban-app", 20001)
 
 	// Initialize Wotan client
 	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)
