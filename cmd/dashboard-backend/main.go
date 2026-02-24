@@ -38,8 +38,9 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/transport"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 var (
@@ -105,6 +106,25 @@ func main() {
 		Str("build_time", BuildTime).
 		Str("git_commit", GitCommit).
 		Msg("starting dashboard backend")
+
+	// Initialize transport configuration
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	if *wotanAddr != "" {
+		transportCfg.WotanHTTPAddr = "http://" + *wotanAddr
+	}
+	if *wotanGRPCAddr != "" {
+		transportCfg.WotanGRPCAddr = *wotanGRPCAddr
+	}
+
+	// Create transport health server
+	healthSrv := transport.NewHealthServer("dashboard-backend")
+
+	log.Info().
+		Str("grpc_addr", transportCfg.WotanGRPCAddr).
+		Str("http_addr", transportCfg.WotanHTTPAddr).
+		Str("transport", string(transportCfg.Type)).
+		Msg("transport config initialized")
 
 	// Load service endpoint overrides
 	serviceEndpoints, err := loadServiceEndpoints(*servicesFile)
@@ -184,6 +204,7 @@ func main() {
 		)
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to create TopicStreamClient, eBPF events disabled")
+			healthSrv.SetGRPCStatus(false)
 		} else {
 			ingestorConfig := ebpfPkg.DefaultIngestorConfig()
 			config.EBPFIngestor = ebpfPkg.NewIngestor(ingestorConfig, tsc, log)
