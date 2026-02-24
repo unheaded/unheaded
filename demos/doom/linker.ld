@@ -11,8 +11,14 @@ ENTRY(_start)
 
 SECTIONS
 {
-    .text : { *(.text*) } > ROM
+    .text : { *(.text.startup) *(.text*) } > ROM
     .rodata : { *(.rodata*) } > ROM
     .data : { *(.data*) } > RAM
-    .bss : { *(.bss*) *(COMMON) } > RAM
+    .bss : {
+        __bss_start = .;
+        *(.bss*) *(COMMON)
+        __bss_end = .;
+    } > RAM
 }
+
+_stack_top = 0xFFFF0000;
