@@ -34,7 +34,7 @@
 
   # Networking
   networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [ 8000 ];
+  networking.firewall.allowedTCPPorts = [ 19000 ];
 
   # Environment
   environment.systemPackages = [ pkgs.timeguru ];

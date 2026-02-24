@@ -8,7 +8,7 @@
   #
   # App: Real-time packet flow visualization
   # IP: 10.10.10.201
-  # Ports: 8081 (HTTP + WebSocket), 9100 (metrics)
+  # Ports: 20000 (HTTP + WebSocket), 9100 (metrics)
   # Public: Yes (via gateway)
   # =============================================================================
 
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/dashboard-app"
       "/var/log/unheaded/dashboard-app"
     ];
-    allowedPorts = [ 8081 9100 ];
+    allowedPorts = [ 20000 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.201";
-    servicePort = 8081;
+    servicePort = 20000;
     allowDirectAccess = true;          # Gateway routes public traffic
   };
 
@@ -59,8 +59,8 @@
       WorkingDirectory = "/var/lib/unheaded/dashboard-app";
 
       Environment = [
-        "DASHBOARD_ADDR=0.0.0.0:8081"
-        "DASHBOARD_WOTAN_URL=http://10.10.10.10:8080"
+        "DASHBOARD_ADDR=0.0.0.0:20000"
+        "DASHBOARD_WOTAN_URL=http://10.10.10.10:18000"
         "DASHBOARD_WS_ENABLED=true"
       ];
 

@@ -8,7 +8,7 @@
   #
   # Service: Message bus (gRPC + REST)
   # IP: 10.10.10.10
-  # Ports: 9090 (gRPC), 8080 (REST), 9100 (metrics)
+  # Ports: 18001 (gRPC), 18000 (REST), 9100 (metrics)
   # Critical: All services depend on this
   # =============================================================================
 
@@ -29,7 +29,7 @@
       "/var/lib/unheaded/wotan"       # Ring buffer persistence
       "/var/log/unheaded/wotan"       # Logs
     ];
-    allowedPorts = [ 9090 8080 9100 ];
+    allowedPorts = [ 18001 18000 9100 ];
   };
 
   # ===========================================================================
@@ -38,7 +38,7 @@
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.10";
-    servicePort = 9090;                # gRPC primary
+    servicePort = 18001;                # gRPC primary
     allowDirectAccess = true;          # Gateway + all services need access
     allowedSources = [ "10.10.10.0/24" ];
   };
@@ -68,7 +68,7 @@
       Group = "unheaded";
 
       # ALPHA: Uses pre-built binary. Build from Go source (services/wotan/) planned for Age 2. See docs/SERVICE_BREAKOUT_STRATEGY.md
-      ExecStart = "${pkgs.wotan}/bin/wotan --grpc-addr=0.0.0.0:9090 --http-addr=0.0.0.0:8080 --metrics-addr=0.0.0.0:9100";
+      ExecStart = "${pkgs.wotan}/bin/wotan --grpc-addr=0.0.0.0:18001 --http-addr=0.0.0.0:18000 --metrics-addr=0.0.0.0:9100";
 
       # Working directory
       WorkingDirectory = "/var/lib/unheaded/wotan";
@@ -106,7 +106,7 @@
   # ===========================================================================
   # Wotan needs both gRPC and REST accessible
   # ===========================================================================
-  networking.firewall.allowedTCPPorts = [ 9090 8080 9100 ];
+  networking.firewall.allowedTCPPorts = [ 18001 18000 9100 ];
 
   # ===========================================================================
   # PACKAGE BUILD

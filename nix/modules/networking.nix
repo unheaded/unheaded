@@ -36,7 +36,7 @@
 
       wotanAddress = lib.mkOption {
         type = lib.types.str;
-        default = "10.10.10.10:9090";
+        default = "10.10.10.10:18001";
         description = "Wotan message bus address";
       };
 
@@ -145,7 +145,7 @@
           iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
 
           # Allow Wotan connection
-          iptables -A OUTPUT -d 10.10.10.10 -p tcp --dport 9090 -j ACCEPT
+          iptables -A OUTPUT -d 10.10.10.10 -p tcp --dport 18001 -j ACCEPT
 
           # Allow internal container network
           iptables -A OUTPUT -d 10.10.10.0/24 -j ACCEPT

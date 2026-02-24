@@ -80,8 +80,8 @@ config:
           # Unheaded base configuration
           UNHEADED_VERSION=alpha
           UNHEADED_NETWORK=10.10.10.0/24
-          UNHEADED_WOTAN_ADDR=10.10.10.10:9090
-          UNHEADED_WOTAN_HTTP=http://10.10.10.10:8080
+          UNHEADED_WOTAN_ADDR=10.10.10.10:18001
+          UNHEADED_WOTAN_HTTP=http://10.10.10.10:18000
         permissions: "0644"
 
 description: Unheaded base security profile for all service containers

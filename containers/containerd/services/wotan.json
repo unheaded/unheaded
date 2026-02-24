@@ -21,14 +21,14 @@
     },
     "args": [
       "/app/wotan",
-      "--grpc-addr=0.0.0.0:9090",
-      "--http-addr=0.0.0.0:8080",
+      "--grpc-addr=0.0.0.0:18001",
+      "--http-addr=0.0.0.0:18000",
       "--metrics-addr=0.0.0.0:9100"
     ],
     "env": [
       "SERVICE_NAME=wotan",
-      "WOTAN_ADDR=10.10.10.10:9090",
-      "WOTAN_HTTP_ADDR=http://10.10.10.10:8080",
+      "WOTAN_ADDR=10.10.10.10:18001",
+      "WOTAN_HTTP_ADDR=http://10.10.10.10:18000",
       "WOTAN_DATA_DIR=/data",
       "WOTAN_LOG_LEVEL=info",
       "WOTAN_RING_BUFFER_SIZE=10000",
@@ -144,11 +144,11 @@
     ]
   },
   "annotations": {
-    "io.unheaded.healthcheck.cmd": "wget -qO- http://localhost:8080/health || exit 1",
+    "io.unheaded.healthcheck.cmd": "wget -qO- http://localhost:18000/health || exit 1",
     "io.unheaded.healthcheck.interval": "30s",
     "io.unheaded.healthcheck.timeout": "5s",
     "io.unheaded.healthcheck.retries": "3",
-    "io.unheaded.ports": "9090/tcp,8080/tcp,9100/tcp",
+    "io.unheaded.ports": "18001/tcp,18000/tcp,9100/tcp",
     "io.unheaded.network.ip": "10.10.10.10",
     "io.unheaded.network.bridge": "br-unheaded",
     "io.unheaded.restart.policy": "always",

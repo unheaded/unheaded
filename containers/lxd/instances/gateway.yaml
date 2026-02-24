@@ -54,8 +54,8 @@ write_files:
       ExecReload=/usr/sbin/nginx -s reload
       PIDFile=/run/nginx.pid
       Environment=SERVICE_NAME=gateway
-      Environment=WOTAN_ADDR=10.10.10.10:9090
-      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:8080
+      Environment=WOTAN_ADDR=10.10.10.10:18001
+      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:18000
       Environment=LOG_LEVEL=info
       Restart=always
       RestartSec=5s
@@ -116,17 +116,17 @@ write_files:
           limit_req_zone $binary_remote_addr zone=api:10m rate=50r/s;
 
           # Upstreams
-          upstream wotan       { server 10.10.10.10:9090; keepalive 32; }
-          upstream timeguru    { server 10.10.10.20:8000; keepalive 32; }
-          upstream captain     { server 10.10.10.21:8001; keepalive 32; }
-          upstream micromanager { server 10.10.10.22:8002; keepalive 32; }
-          upstream architect   { server 10.10.10.23:8003; keepalive 32; }
-          upstream monad       { server 10.10.10.27:8004; keepalive 32; }
-          upstream sophia      { server 10.10.10.26:8005; keepalive 32; }
-          upstream kanban      { server 10.10.10.200:8080; keepalive 32; }
-          upstream dashboard   { server 10.10.10.201:8081; keepalive 32; }
-          upstream doom_bridge { server 10.10.10.28:6660; keepalive 32; }
-          upstream wiki_server { server 10.10.10.29:8007; keepalive 32; }
+          upstream wotan       { server 10.10.10.10:18001; keepalive 32; }
+          upstream timeguru    { server 10.10.10.20:19000; keepalive 32; }
+          upstream captain     { server 10.10.10.21:19002; keepalive 32; }
+          upstream micromanager { server 10.10.10.22:19003; keepalive 32; }
+          upstream architect   { server 10.10.10.23:19001; keepalive 32; }
+          upstream monad       { server 10.10.10.27:19004; keepalive 32; }
+          upstream sophia      { server 10.10.10.26:19005; keepalive 32; }
+          upstream kanban      { server 10.10.10.200:20001; keepalive 32; }
+          upstream dashboard   { server 10.10.10.201:20000; keepalive 32; }
+          upstream doom_bridge { server 10.10.10.28:16666; keepalive 32; }
+          upstream wiki_server { server 10.10.10.29:20002; keepalive 32; }
 
           server {
               listen 80 default_server;

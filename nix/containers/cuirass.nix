@@ -9,7 +9,7 @@
   #
   # Service: Control Plane API (REST + gRPC + Wotan)
   # IP: 10.10.10.5
-  # Ports: 8005 (HTTP API), 9005 (gRPC), 9100 (metrics)
+  # Ports: 19006 (HTTP API), 9005 (gRPC), 9100 (metrics)
   # Critical: Manages all other containers
   #
   # Responsibilities:
@@ -50,7 +50,7 @@
     # Network: Control plane needs broad access
     network = {
       ip = "10.10.10.5";
-      ports = [ 8005 9005 9100 ];
+      ports = [ 19006 9005 9100 ];
       allowedSources = [ "10.10.10.0/24" ];
       allowWotanAccess = true;
     };
@@ -58,7 +58,7 @@
     # Health check
     healthCheck = {
       enable = true;
-      port = 8005;
+      port = 19006;
       path = "/health";
     };
 
@@ -83,7 +83,7 @@
       "/var/lib/unheaded/state"
       "/var/log/unheaded/cuirass"
     ];
-    allowedPorts = [ 8005 9005 9100 ];
+    allowedPorts = [ 19006 9005 9100 ];
   };
 
   # ===========================================================================
@@ -92,7 +92,7 @@
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.5";
-    servicePort = 8005;
+    servicePort = 19006;
     allowDirectAccess = true;        # Gateway and all services need access
     allowedSources = [ "10.10.10.0/24" ];
   };
@@ -130,13 +130,13 @@
       # Environment configuration
       Environment = [
         # API endpoints
-        "CUIRASS_HTTP_ADDR=0.0.0.0:8005"
+        "CUIRASS_HTTP_ADDR=0.0.0.0:19006"
         "CUIRASS_GRPC_ADDR=0.0.0.0:9005"
         "CUIRASS_METRICS_ADDR=0.0.0.0:9100"
 
         # Wotan connection
-        "CUIRASS_WOTAN_ADDR=10.10.10.10:9090"
-        "CUIRASS_WOTAN_HTTP=http://10.10.10.10:8080"
+        "CUIRASS_WOTAN_ADDR=10.10.10.10:18001"
+        "CUIRASS_WOTAN_HTTP=http://10.10.10.10:18000"
 
         # State management
         "CUIRASS_STATE_DIR=/var/lib/unheaded/state"
@@ -226,17 +226,17 @@
       for container in $CONTAINERS; do
         # Get container IP (from known network layout)
         case "$container" in
-          wotan)        IP="10.10.10.10"; PORT="8080" ;;
-          timeguru)      IP="10.10.10.20"; PORT="8000" ;;
-          captain)       IP="10.10.10.21"; PORT="8001" ;;
-          micromanager)  IP="10.10.10.22"; PORT="8002" ;;
-          architect)     IP="10.10.10.23"; PORT="8003" ;;
-          developer)     IP="10.10.10.24"; PORT="8004" ;;
-          monad)         IP="10.10.10.27"; PORT="8006" ;;
-          sophia)        IP="10.10.10.26"; PORT="8007" ;;
+          wotan)        IP="10.10.10.10"; PORT="18000" ;;
+          timeguru)      IP="10.10.10.20"; PORT="19000" ;;
+          captain)       IP="10.10.10.21"; PORT="19002" ;;
+          micromanager)  IP="10.10.10.22"; PORT="19003" ;;
+          architect)     IP="10.10.10.23"; PORT="19001" ;;
+          developer)     IP="10.10.10.24"; PORT="19004" ;;
+          monad)         IP="10.10.10.27"; PORT="19004" ;;
+          sophia)        IP="10.10.10.26"; PORT="19005" ;;
           gateway)       IP="10.10.10.100"; PORT="443" ;;
-          kanban)        IP="10.10.10.200"; PORT="8080" ;;
-          dashboard)     IP="10.10.10.201"; PORT="8081" ;;
+          kanban)        IP="10.10.10.200"; PORT="20001" ;;
+          dashboard)     IP="10.10.10.201"; PORT="20000" ;;
           *)             continue ;;
         esac
 
@@ -260,7 +260,7 @@
       curl -sf -X POST \
         -H "Content-Type: application/json" \
         -d "$HEALTH_REPORT" \
-        "http://10.10.10.10:8080/api/v1/publish/health.aggregated" \
+        "http://10.10.10.10:18000/api/v1/publish/health.aggregated" \
         > /dev/null 2>&1 || true
 
       echo "Health aggregation complete"
@@ -320,13 +320,13 @@
       # ====================================
 
       server:
-        http_addr: "0.0.0.0:8005"
+        http_addr: "0.0.0.0:19006"
         grpc_addr: "0.0.0.0:9005"
         metrics_addr: "0.0.0.0:9100"
 
       wotan:
-        grpc_addr: "10.10.10.10:9090"
-        http_addr: "http://10.10.10.10:8080"
+        grpc_addr: "10.10.10.10:18001"
+        http_addr: "http://10.10.10.10:18000"
         topics:
           subscribe:
             - "health.updates"
@@ -351,42 +351,42 @@
         managed:
           - name: "wotan"
             ip: "10.10.10.10"
-            ports: [9090, 8080, 9100]
+            ports: [18001, 18000, 9100]
             critical: true
 
           - name: "timeguru"
             ip: "10.10.10.20"
-            ports: [8000, 9100]
+            ports: [19000, 9100]
             depends_on: ["wotan"]
 
           - name: "captain"
             ip: "10.10.10.21"
-            ports: [8001, 9100]
+            ports: [19002, 9100]
             depends_on: ["wotan"]
 
           - name: "micromanager"
             ip: "10.10.10.22"
-            ports: [8002, 9100]
+            ports: [19003, 9100]
             depends_on: ["wotan"]
 
           - name: "architect"
             ip: "10.10.10.23"
-            ports: [8003, 9100]
+            ports: [19001, 9100]
             depends_on: ["wotan"]
 
           - name: "developer"
             ip: "10.10.10.24"
-            ports: [8004, 9100]
+            ports: [19004, 9100]
             depends_on: ["wotan"]
 
           - name: "monad"
             ip: "10.10.10.27"
-            ports: [8006, 9100]
+            ports: [19004, 9100]
             depends_on: ["wotan"]
 
           - name: "sophia"
             ip: "10.10.10.26"
-            ports: [8007, 9100]
+            ports: [19005, 9100]
             depends_on: ["wotan"]
 
           - name: "gateway"
@@ -398,13 +398,13 @@
 
           - name: "kanban"
             ip: "10.10.10.200"
-            ports: [8080, 9100]
+            ports: [20001, 9100]
             depends_on: ["wotan", "timeguru"]
             public: true
 
           - name: "dashboard"
             ip: "10.10.10.201"
-            ports: [8081, 9100]
+            ports: [20000, 9100]
             depends_on: ["wotan"]
             public: true
 
@@ -425,7 +425,7 @@
   # ===========================================================================
   # Control plane needs both HTTP and gRPC accessible
   # ===========================================================================
-  networking.firewall.allowedTCPPorts = [ 8005 9005 9100 ];
+  networking.firewall.allowedTCPPorts = [ 19006 9005 9100 ];
 
   # ===========================================================================
   # STATE DIRECTORY STRUCTURE
