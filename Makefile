@@ -175,8 +175,8 @@ container-gateway: ## Build Gateway container
 dev: ## Run development environment (docker-compose)
 	@echo "Starting development environment..."
 	docker compose up -d
-	@echo "Dashboard: http://localhost:8080"
-	@echo "Kanban: http://localhost:8081"
+	@echo "Dashboard: http://localhost:20000"
+	@echo "Kanban: http://localhost:20001"
 
 dev-down: ## Stop development environment
 	docker compose down

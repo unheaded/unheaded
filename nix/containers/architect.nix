@@ -8,7 +8,7 @@
 
   # Networking
   networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [ 8001 9090 ];
+  networking.firewall.allowedTCPPorts = [ 19001 18001 ];
   networking.firewall.extraCommands = ''
     # Allow internal container network
     iptables -A INPUT -s 10.10.10.0/24 -j ACCEPT
@@ -26,7 +26,7 @@
     serviceConfig = {
       # Execution
       Type = "simple";
-      ExecStart = "${pkgs.architect}/bin/architect -addr :8001 -wotan 10.10.10.10:9090 -log info";
+      ExecStart = "${pkgs.architect}/bin/architect -addr :19001 -wotan 10.10.10.10:18001 -log info";
       Restart = "always";
       RestartSec = "5s";
 
@@ -121,7 +121,7 @@
     after = [ "architect.service" ];
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${pkgs.curl}/bin/curl -f http://localhost:8001/health || exit 1";
+      ExecStart = "${pkgs.curl}/bin/curl -f http://localhost:19001/health || exit 1";
     };
   };
 

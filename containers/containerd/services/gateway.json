@@ -27,8 +27,8 @@
     ],
     "env": [
       "SERVICE_NAME=gateway",
-      "WOTAN_ADDR=10.10.10.10:9090",
-      "WOTAN_HTTP_ADDR=http://10.10.10.10:8080",
+      "WOTAN_ADDR=10.10.10.10:18001",
+      "WOTAN_HTTP_ADDR=http://10.10.10.10:18000",
       "LOG_LEVEL=info"
     ],
     "cwd": "/",

@@ -8,7 +8,7 @@
   #
   # Service: Architecture API (REST + Wotan)
   # IP: 10.10.10.23
-  # Ports: 8003 (HTTP), 9100 (metrics)
+  # Ports: 19001 (HTTP), 9100 (metrics)
   # =============================================================================
 
   imports = [
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/architect"
       "/var/log/unheaded/architect"
     ];
-    allowedPorts = [ 8003 9100 ];
+    allowedPorts = [ 19001 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.23";
-    servicePort = 8003;
+    servicePort = 19001;
     allowDirectAccess = true;
   };
 
@@ -55,7 +55,7 @@
       ExecStart = "${pkgs.architect}/bin/architect";
       WorkingDirectory = "/opt/unheaded/references";
       Environment = [
-        "ARCHITECT_ADDR=0.0.0.0:8003"
+        "ARCHITECT_ADDR=0.0.0.0:19001"
       ];
       Restart = "always";
       RestartSec = "5s";

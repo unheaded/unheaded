@@ -8,7 +8,7 @@
   #
   # Service: Development API (REST + Wotan)
   # IP: 10.10.10.24
-  # Ports: 8004 (HTTP), 9100 (metrics)
+  # Ports: 19004 (HTTP), 9100 (metrics)
   # =============================================================================
 
   imports = [
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/developer"
       "/var/log/unheaded/developer"
     ];
-    allowedPorts = [ 8004 9100 ];
+    allowedPorts = [ 19004 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.24";
-    servicePort = 8004;
+    servicePort = 19004;
     allowDirectAccess = true;
   };
 
@@ -55,7 +55,7 @@
       ExecStart = "${pkgs.developer}/bin/developer";
       WorkingDirectory = "/opt/unheaded/references";
       Environment = [
-        "DEVELOPER_ADDR=0.0.0.0:8004"
+        "DEVELOPER_ADDR=0.0.0.0:19004"
       ];
       Restart = "always";
       RestartSec = "5s";

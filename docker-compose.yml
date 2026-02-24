@@ -124,7 +124,7 @@ services:
       - "443:443"     # HTTPS + HTTP/3 (QUIC)
       - "443:443/udp" # QUIC UDP
       - "50051:50051" # gRPC
-      - "8080:8080"   # Traefik dashboard (dev only)
+      - "21000:21000"   # Traefik dashboard (dev only)
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "traefik-certs:/certs"
@@ -325,8 +325,8 @@ services:
     environment:
       LOG_LEVEL: info
     ports:
-      - "9090:9090"     # gRPC streaming
-      - "8081:8080"     # HTTP REST API (mapped 8081 on host to avoid traefik conflict)
+      - "18001:18001"     # gRPC streaming
+      - "18000:18000"     # HTTP REST API
     networks:
       - control
       - data
@@ -334,7 +334,7 @@ services:
       kingdom.armor: "fae-chamber"
       kingdom.role: "message-bus"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health", "-O", "/dev/null"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:18000/health", "-O", "/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -353,10 +353,10 @@ services:
     container_name: unheaded-timeguru
     restart: unless-stopped
     environment:
-      PORT: "8000"
-      WOTAN_ADDR: "wotan:8080"
+      PORT: "19000"
+      WOTAN_ADDR: "wotan:18000"
     ports:
-      - "8000:8000"
+      - "19000:19000"
     networks:
       - data
     depends_on:
@@ -366,7 +366,7 @@ services:
       kingdom.armor: "oracle"
       kingdom.role: "timeline"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health", "-O", "/dev/null"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19000/health", "-O", "/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -385,11 +385,11 @@ services:
     container_name: unheaded-captain
     restart: unless-stopped
     environment:
-      HTTP_ADDR: "0.0.0.0:8001"
-      WOTAN_ADDR: "wotan:9090"
+      HTTP_ADDR: "0.0.0.0:19002"
+      WOTAN_ADDR: "wotan:18001"
       DATA_PATH: "/data"
     ports:
-      - "8001:8001"
+      - "19002:19002"
     networks:
       - data
     depends_on:
@@ -399,7 +399,7 @@ services:
       kingdom.armor: "commander"
       kingdom.role: "strategy"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8001/health", "-O", "/dev/null"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19002/health", "-O", "/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -418,10 +418,10 @@ services:
     container_name: unheaded-architect
     restart: unless-stopped
     environment:
-      WOTAN_ADDR: "wotan:8080"
-    command: ["/app/architect", "-addr", ":8002"]
+      WOTAN_ADDR: "wotan:18000"
+    command: ["/app/architect", "-addr", ":19001"]
     ports:
-      - "8002:8002"
+      - "19001:19001"
     networks:
       - data
     depends_on:
@@ -431,7 +431,7 @@ services:
       kingdom.armor: "sage"
       kingdom.role: "adr"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8002/health", "-O", "/dev/null"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19001/health", "-O", "/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -449,9 +449,9 @@ services:
       target: micromanager
     container_name: unheaded-micromanager
     restart: unless-stopped
-    command: ["/app/micromanager", "-port", "8003"]
+    command: ["/app/micromanager", "-port", "19003"]
     ports:
-      - "8003:8003"
+      - "19003:19003"
     networks:
       - data
     depends_on:
@@ -461,7 +461,7 @@ services:
       kingdom.armor: "war-room"
       kingdom.role: "execution"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8003/health", "-O", "/dev/null"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19003/health", "-O", "/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -480,10 +480,10 @@ services:
     container_name: unheaded-monad
     restart: unless-stopped
     environment:
-      MONAD_PORT: "8004"
-      WOTAN_ADDR: "wotan:8080"
+      MONAD_PORT: "19004"
+      WOTAN_ADDR: "wotan:18000"
     ports:
-      - "8004:8004"
+      - "19004:19004"
     networks:
       - data
     depends_on:
@@ -493,7 +493,7 @@ services:
       kingdom.armor: "monad"
       kingdom.role: "state-management"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8004/health", "-O", "/dev/null"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19004/health", "-O", "/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -512,10 +512,10 @@ services:
     container_name: unheaded-sophia
     restart: unless-stopped
     environment:
-      SOPHIA_LISTEN_ADDR: ":8005"
-      WOTAN_ADDR: "wotan:8080"
+      SOPHIA_LISTEN_ADDR: ":19005"
+      WOTAN_ADDR: "wotan:18000"
     ports:
-      - "8005:8005"
+      - "19005:19005"
     networks:
       - data
     depends_on:
@@ -525,7 +525,7 @@ services:
       kingdom.armor: "sophia"
       kingdom.role: "knowledge-graph"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8005/health", "-O", "/dev/null"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19005/health", "-O", "/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -544,10 +544,10 @@ services:
     container_name: unheaded-cuirass
     restart: unless-stopped
     environment:
-      HTTP_ADDR: ":8006"
-      WOTAN_ADDR: "wotan:8080"
+      HTTP_ADDR: ":19006"
+      WOTAN_ADDR: "wotan:18000"
     ports:
-      - "8006:8006"
+      - "19006:19006"
     networks:
       - control
       - data
@@ -558,7 +558,7 @@ services:
       kingdom.armor: "cuirass"
       kingdom.role: "control-plane"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8006/health", "-O", "/dev/null"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19006/health", "-O", "/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5

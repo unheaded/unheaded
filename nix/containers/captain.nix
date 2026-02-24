@@ -109,8 +109,8 @@
 
     # Environment variables
     environment = {
-      WOTAN_ADDR = "wotan:9090";
-      HTTP_ADDR = "0.0.0.0:8000";
+      WOTAN_ADDR = "wotan:18001";
+      HTTP_ADDR = "0.0.0.0:19002";
       DATA_PATH = "/var/lib/unheaded/captain";
       LOG_LEVEL = "info";
     };
@@ -150,19 +150,19 @@
     enable = true;
 
     # Explicit allow for service ports
-    allowedTCPPorts = [ 8000 ];
+    allowedTCPPorts = [ 19002 ];
 
     # Internal container network rules
     extraCommands = ''
       # Allow traffic from wotan on internal network
-      iptables -A INPUT -s 10.10.10.10/32 -d 10.10.10.20/32 -p tcp --dport 8000 -j ACCEPT
+      iptables -A INPUT -s 10.10.10.10/32 -d 10.10.10.20/32 -p tcp --dport 19002 -j ACCEPT
 
       # Allow localhost
       iptables -A INPUT -s 127.0.0.1/8 -j ACCEPT
       iptables -A INPUT -s ::1/128 -j ACCEPT
 
       # Allow from gateway
-      iptables -A INPUT -s 10.10.10.100/32 -p tcp --dport 8000 -j ACCEPT
+      iptables -A INPUT -s 10.10.10.100/32 -p tcp --dport 19002 -j ACCEPT
 
       # Drop all else
       iptables -A INPUT -j DROP

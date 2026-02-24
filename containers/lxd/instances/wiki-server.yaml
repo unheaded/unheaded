@@ -4,7 +4,7 @@
 # Documentation server for the Unheaded kingdom.
 #
 # IP:    10.10.10.29
-# Ports: 8007 (HTTP), 9100 (metrics)
+# Ports: 20002 (HTTP), 9100 (metrics)
 # Role:  Application service
 # =============================================================================
 
@@ -51,9 +51,9 @@ write_files:
       ExecStart=/opt/unheaded/bin/wiki-server
       WorkingDirectory=/var/lib/unheaded/wiki-server
       Environment=SERVICE_NAME=wiki-server
-      Environment=WIKI_ADDR=0.0.0.0:8007
-      Environment=WOTAN_ADDR=10.10.10.10:9090
-      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:8080
+      Environment=WIKI_ADDR=0.0.0.0:20002
+      Environment=WOTAN_ADDR=10.10.10.10:18001
+      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:18000
       Environment=LOG_LEVEL=info
       Environment=METRICS_ADDR=0.0.0.0:9100
       Environment=GOGC=100
@@ -83,7 +83,7 @@ write_files:
     content: |
       #!/bin/bash
       set -euo pipefail
-      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:8007/health > /dev/null 2>&1
+      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:20002/health > /dev/null 2>&1
     permissions: "0755"
 
 runcmd:
@@ -95,7 +95,7 @@ runcmd:
     ufw --force reset
     ufw default deny incoming
     ufw default allow outgoing
-    ufw allow from 10.10.10.0/24 to any port 8007 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 20002 proto tcp
     ufw allow from 10.10.10.0/24 to any port 9100 proto tcp
     ufw --force enable
   - systemctl daemon-reload

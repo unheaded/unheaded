@@ -107,7 +107,7 @@
 
         wotanPort = lib.mkOption {
           type = lib.types.int;
-          default = 9090;
+          default = 18001;
           description = "Wotan gRPC port";
         };
       };
@@ -124,7 +124,7 @@
 
         port = lib.mkOption {
           type = lib.types.int;
-          default = 8000;
+          default = 19000;
           description = "Port for health check endpoint";
         };
 
@@ -406,7 +406,7 @@
 
             # Allow Wotan HTTP connection (REST API)
             iptables -A OUTPUT -d ${config.unheaded.container.network.wotanAddress} \
-              -p tcp --dport 8080 -j ACCEPT
+              -p tcp --dport 18000 -j ACCEPT
           ''}
 
           # Allow internal container network

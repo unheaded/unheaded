@@ -8,7 +8,7 @@
   #
   # Service: Strategy API (REST + Wotan)
   # IP: 10.10.10.21
-  # Ports: 8001 (HTTP), 9100 (metrics)
+  # Ports: 19002 (HTTP), 9100 (metrics)
   # =============================================================================
 
   imports = [
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/captain"
       "/var/log/unheaded/captain"
     ];
-    allowedPorts = [ 8001 9100 ];
+    allowedPorts = [ 19002 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.21";
-    servicePort = 8001;
+    servicePort = 19002;
     allowDirectAccess = true;
   };
 
@@ -55,7 +55,7 @@
       ExecStart = "${pkgs.captain}/bin/captain";
       WorkingDirectory = "/opt/unheaded/references";
       Environment = [
-        "CAPTAIN_ADDR=0.0.0.0:8001"
+        "CAPTAIN_ADDR=0.0.0.0:19002"
       ];
       Restart = "always";
       RestartSec = "5s";

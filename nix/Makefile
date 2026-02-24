@@ -170,14 +170,14 @@ logs-all:
 
 health-check:
 	@echo "Checking health endpoints..."
-	@curl -sf http://10.10.10.10:8080/health && echo "wotan: OK" || echo "wotan: FAIL"
-	@curl -sf http://10.10.10.20:8000/health && echo "timeguru: OK" || echo "timeguru: FAIL"
-	@curl -sf http://10.10.10.21:8001/health && echo "captain: OK" || echo "captain: FAIL"
-	@curl -sf http://10.10.10.22:8002/health && echo "micromanager: OK" || echo "micromanager: FAIL"
-	@curl -sf http://10.10.10.23:8003/health && echo "architect: OK" || echo "architect: FAIL"
-	@curl -sf http://10.10.10.24:8004/health && echo "developer: OK" || echo "developer: FAIL"
-	@curl -sf http://10.10.10.200:8080/health && echo "kanban: OK" || echo "kanban: FAIL"
-	@curl -sf http://10.10.10.201:8081/health && echo "dashboard: OK" || echo "dashboard: FAIL"
+	@curl -sf http://10.10.10.10:18000/health && echo "wotan: OK" || echo "wotan: FAIL"
+	@curl -sf http://10.10.10.20:19000/health && echo "timeguru: OK" || echo "timeguru: FAIL"
+	@curl -sf http://10.10.10.21:19002/health && echo "captain: OK" || echo "captain: FAIL"
+	@curl -sf http://10.10.10.22:19003/health && echo "micromanager: OK" || echo "micromanager: FAIL"
+	@curl -sf http://10.10.10.23:19001/health && echo "architect: OK" || echo "architect: FAIL"
+	@curl -sf http://10.10.10.24:19004/health && echo "developer: OK" || echo "developer: FAIL"
+	@curl -sf http://10.10.10.200:20001/health && echo "kanban: OK" || echo "kanban: FAIL"
+	@curl -sf http://10.10.10.201:20000/health && echo "dashboard: OK" || echo "dashboard: FAIL"
 
 metrics:
 	@echo "Fetching metrics from all containers..."

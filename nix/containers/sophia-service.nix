@@ -9,7 +9,7 @@
   #
   # Service: Sophia API (REST + Wotan)
   # IP: 10.10.10.26
-  # Ports: 8007 (HTTP), 9100 (metrics)
+  # Ports: 19005 (HTTP), 9100 (metrics)
   # =============================================================================
 
   imports = [
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/sophia"
       "/var/log/unheaded/sophia"
     ];
-    allowedPorts = [ 8007 9100 ];
+    allowedPorts = [ 19005 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.26";
-    servicePort = 8007;
+    servicePort = 19005;
     allowDirectAccess = true;
   };
 
@@ -55,7 +55,7 @@
       ExecStart = "${pkgs.sophia}/bin/sophia";
       WorkingDirectory = "/var/lib/unheaded/sophia";
       Environment = [
-        "SOPHIA_ADDR=0.0.0.0:8007"
+        "SOPHIA_ADDR=0.0.0.0:19005"
       ];
       Restart = "always";
       RestartSec = "5s";

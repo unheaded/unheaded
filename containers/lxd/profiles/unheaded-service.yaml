@@ -25,8 +25,8 @@ config:
   environment.GOGC: "100"
   environment.GOMAXPROCS: "2"
   environment.LOG_LEVEL: info
-  environment.WOTAN_ADDR: "10.10.10.10:9090"
-  environment.WOTAN_HTTP_ADDR: "http://10.10.10.10:8080"
+  environment.WOTAN_ADDR: "10.10.10.10:18001"
+  environment.WOTAN_HTTP_ADDR: "http://10.10.10.10:18000"
 
 description: Unheaded service overlay profile with networking and mounts
 

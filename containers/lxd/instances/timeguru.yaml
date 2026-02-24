@@ -4,7 +4,7 @@
 # Timeline tracking and milestone management.
 #
 # IP:    10.10.10.20
-# Ports: 8000 (HTTP), 9100 (metrics)
+# Ports: 19000 (HTTP), 9100 (metrics)
 # Role:  Application service
 # =============================================================================
 
@@ -51,11 +51,11 @@ write_files:
       ExecStart=/opt/unheaded/bin/timeguru
       WorkingDirectory=/opt/unheaded/references
       Environment=SERVICE_NAME=timeguru
-      Environment=TIMEGURU_ADDR=0.0.0.0:8000
+      Environment=TIMEGURU_ADDR=0.0.0.0:19000
       Environment=TIMEGURU_TIMELINE_PATH=/opt/unheaded/references/timeline.md
       Environment=TIMEGURU_AUTO_SYNC=true
-      Environment=WOTAN_ADDR=10.10.10.10:9090
-      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:8080
+      Environment=WOTAN_ADDR=10.10.10.10:18001
+      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:18000
       Environment=LOG_LEVEL=info
       Environment=METRICS_ADDR=0.0.0.0:9100
       Environment=GOGC=100
@@ -85,7 +85,7 @@ write_files:
     content: |
       #!/bin/bash
       set -euo pipefail
-      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:8000/health > /dev/null 2>&1
+      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:19000/health > /dev/null 2>&1
     permissions: "0755"
 
 runcmd:
@@ -97,7 +97,7 @@ runcmd:
     ufw --force reset
     ufw default deny incoming
     ufw default allow outgoing
-    ufw allow from 10.10.10.0/24 to any port 8000 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 19000 proto tcp
     ufw allow from 10.10.10.0/24 to any port 9100 proto tcp
     ufw --force enable
   - systemctl daemon-reload

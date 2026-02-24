@@ -4,7 +4,7 @@
 # The heart of Unheaded - all services communicate through Wotan.
 #
 # IP:    10.10.10.10
-# Ports: 9090 (gRPC), 8080 (REST), 9100 (metrics)
+# Ports: 18001 (gRPC), 18000 (REST), 9100 (metrics)
 # Role:  Infrastructure (critical)
 # =============================================================================
 
@@ -53,7 +53,7 @@ write_files:
       Type=simple
       User=unheaded
       Group=unheaded
-      ExecStart=/opt/unheaded/bin/wotan --grpc-addr=0.0.0.0:9090 --http-addr=0.0.0.0:8080 --metrics-addr=0.0.0.0:9100
+      ExecStart=/opt/unheaded/bin/wotan --grpc-addr=0.0.0.0:18001 --http-addr=0.0.0.0:18000 --metrics-addr=0.0.0.0:9100
       WorkingDirectory=/var/lib/unheaded/wotan
       Environment=SERVICE_NAME=wotan
       Environment=WOTAN_DATA_DIR=/var/lib/unheaded/wotan
@@ -90,7 +90,7 @@ write_files:
     content: |
       #!/bin/bash
       set -euo pipefail
-      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:8080/health > /dev/null 2>&1
+      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:18000/health > /dev/null 2>&1
     permissions: "0755"
 
 runcmd:
@@ -103,8 +103,8 @@ runcmd:
     ufw --force reset
     ufw default deny incoming
     ufw default allow outgoing
-    ufw allow from 10.10.10.0/24 to any port 9090 proto tcp
-    ufw allow from 10.10.10.0/24 to any port 8080 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 18001 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 18000 proto tcp
     ufw allow from 10.10.10.0/24 to any port 9100 proto tcp
     ufw --force enable
   - systemctl daemon-reload
