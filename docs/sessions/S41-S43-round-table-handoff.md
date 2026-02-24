@@ -1,9 +1,9 @@
-# Round Table Handoff — S41 through S43
+# Round Table Handoff — S41 through S44
 
 **Date:** 2026-02-24
-**Sessions:** S41 (Kingdom Hardening) → S42 (Doom PoC) → S43 (Scaffolding)
-**Total Commits:** 20
-**Total New/Modified Files:** 80+
+**Sessions:** S41 (Kingdom Hardening) → S42 (Doom PoC) → S43 (Scaffolding) → S44 (Doom Input + Repo Housekeeping)
+**Total Commits:** 23
+**Total New/Modified Files:** 160+
 **Duration:** Single overnight autonomous session (user sleeping)
 **Status:** All three sprints COMPLETE. 158 Go packages pass, 0 failures.
 
@@ -223,6 +223,59 @@ ffc7b5f feat(dashboard): add Doom API endpoints — screen, cpu, input
 ccc2da2 feat(lore): add binary lore naming scheme with symlinks and config updates
 5c24a9f feat(dashboard): expand topic routing to all event types (compute, anamnesis, unknown)
 3afc8db feat(dashboard): add /viz/ routes, compute/anamnesis stats, nav links
+```
+
+---
+
+## S44 Addendum — Doom Input Fix + Repo Housekeeping (2026-02-24)
+
+**Commits:** 3 | **Files changed:** 83 | **Net:** +2,354 / −8,949
+
+This was a hands-on session with user present — fixing real Doom gameplay bugs, then cleaning the repo for copy-off.
+
+### feat(doom): fix keyboard input, multi-key support, Go loader + tunables — `4892b20`
+
+| Change | Detail |
+|--------|--------|
+| **KEY_MAP fix** (`demos/doom/index.html`) | Space/Ctrl/WASD were sending wrong codes. `TranslateKey()` is a passthrough — browser must send exact Doom action codes (KEY_USE=0xA2, KEY_FIRE=0xA3, WASD=movement codes) |
+| **Multi-key KBD_MAP** | 8-slot circular queue replaces single-slot. Go side: atomic round-robin writer. BPF side: sequential scan + clear-on-read. Simultaneous key presses now work |
+| **Shared BPF package** (`internal/bpf/bpf.go`) | Extracted from doom-bridge — shared by doom-bridge + doom-loader. Exports Map, CpuState, BPF syscall wrappers |
+| **Go doom-loader** (`cmd/doom-loader/main.go`) | Replaces Python `doom-loader-core.py`. Subcommands: rom, ram, rv2mbc, cpu, dump |
+| **Injector tunable** (`cmd/doom-go-injector/main.go`) | Added `--burst-sleep` flag (default 50µs) |
+| **doom-loader.sh** | Updated to build and use Go binary instead of Python |
+
+### docs: organize docs/ — `0bb57d7`
+
+32 loose root-level .md files reorganized into 5 + logical subdirectories:
+- `docs/architecture/` (7 files) — KINGDOM_ARCHITECTURE, SYSTEM_DIAGRAM, PROJECT_STRUCTURE, MICROSERVICES, SERVICE_BREAKOUT_STRATEGY, FAE_CHAMBER_CONTRACTS, RUST_COMPONENTS
+- `docs/planning/` (9 files) — TODO, UPCOMING_TASKS, NEXT_STEPS, SECURITY_TODOs, SCAFFOLDING_*, dashboard-gap-analysis, phase5-pipeline
+- `docs/sessions/` (+7 files) — sprint instructions, demo script, alpha release notes, S41 audit/validation
+- `docs/doom/` (+2 files) — DOOM_IMPLEMENTATION, DOOM_TASKS_20
+- `docs/security/` (+3 files) — SECURITY_AUDIT, PARITY_VERIFICATION, KINGDOM_MODE_MATH
+- `docs/lore/` (+1 file) — binary-lore-names
+- `docs/protocol/` (+openapi.yaml)
+- Deleted 5 duplicates/stubs (S32-TURBO dup, PHYLACTERY dup, empty skill file, SECURITY stub, deprecated/)
+- Wiki source links updated across 15 pages in unheaded-wiki
+
+### chore(skills): consolidate skill files — `7ee8f31`
+
+- Moved all `.skill` bundles + SKILL-UPDATE `.md` files from `docs/archive/skill-updates/` into `skills/`
+- Removed 5 duplicate `.skill` files (UUID-prefixed, dated copies)
+- Removed non-skill artifacts (PDFs, zips, session handoffs, timelines)
+- Removed stale `build/.gitkeep`
+- Updated `scripts/clean-artifacts.sh`: added subdir binary cleanup, `data/` dir, `*.db-shm`/`*.db-wal` patterns
+- Ran `clean-artifacts.sh --nuke` — reclaimed **826MB**
+
+### Final skills/ Inventory
+
+18 `.skill` bundles (all 16 agent personas + skill-creator + wotan), 13 SKILL-UPDATE `.md` supplements, 4 expanded skill directories with references.
+
+### Commit Log (S44)
+
+```
+7ee8f31 chore(skills): consolidate skill files into skills/, remove duplicates and non-skill artifacts
+0bb57d7 docs: organize docs/ — 32 root files down to 5
+4892b20 feat(doom): fix keyboard input, multi-key support, Go loader + tunables
 ```
 
 ---

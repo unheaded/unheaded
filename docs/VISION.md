@@ -65,3 +65,9 @@ Both options support: CLOS topology, BFD sub-second failover, ECMP, MP-BGP for o
 ---
 
 *You bring the application. Unheaded provides the infrastructure.*
+
+
+
+* edit 2-24-2026 - We are way past this and I don't even have an end goal vision yet.
+
+
