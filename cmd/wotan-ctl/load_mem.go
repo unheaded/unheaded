@@ -29,7 +29,7 @@ func newLoadMemCmd() *Command {
 	flags.StringVar(&file, "file", "", "Path to binary file (required)")
 	flags.BoolVar(&warm, "warm", false, "Pre-stage memory pages to L1 cache")
 	flags.BoolVar(&verify, "verify", false, "Verify memory after loading (checksum)")
-	flags.StringVar(&wotanAddr, "wotan-addr", "http://localhost:5555", "Wotan server address")
+	flags.StringVar(&wotanAddr, "wotan-addr", "http://localhost:18000", "Wotan server address")
 	flags.StringVar(&mapPinPath, "map-pin", "/sys/fs/bpf", "BPF map pin directory")
 	flags.BoolVar(&verbose, "verbose", false, "Enable verbose logging")
 
