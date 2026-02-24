@@ -20,6 +20,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -64,6 +65,7 @@ type Server struct {
 	sseMu           sync.RWMutex
 	taskManager     *TaskManager     // Wotan-integrated task management
 	timelineManager *TimelineManager // Standalone Timeguru HTTP polling fallback
+	healthSrv       *transport.HealthServer // Unified transport health
 	ctx             context.Context    // server lifecycle context
 	cancel          context.CancelFunc // cancels ctx on shutdown
 }
@@ -998,8 +1000,30 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleReady returns readiness status
+// handleReady returns readiness status.
+// Delegates to the transport HealthServer when available.
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	if s.healthSrv != nil {
+		status := s.healthSrv.Status()
+		w.Header().Set("Content-Type", "application/json")
+		if status == transport.StatusDown {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ready":   false,
+				"reason":  string(status),
+				"service": "kanban-app",
+			})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ready":   true,
+			"reason":  string(status),
+			"service": "kanban-app",
+		})
+		return
+	}
+
+	// Legacy fallback when healthSrv is not wired
 	w.Header().Set("Content-Type", "application/json")
 
 	ready := true
@@ -1183,6 +1207,18 @@ func main() {
 		ShutdownTimeout: 10 * time.Second,
 	}
 
+	// Transport config — unified env-based configuration
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+
+	// Override transport config with service-level WotanAddr if set
+	if cfg.WotanAddr != "" {
+		transportCfg.WotanHTTPAddr = "http://" + cfg.WotanAddr
+	}
+
+	// Health server — dual-protocol health tracking
+	healthSrv := transport.NewHealthServer("kanban-app")
+
 	// Initialize Wotan client
 	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)
 	// WOTAN_GRPC_ADDR = gRPC data plane (TopicStream) — primary transport for streaming
@@ -1195,6 +1231,9 @@ func main() {
 	var server *Server
 	wotanEnabled := getEnv("WOTAN_ENABLED", "true") == "true"
 	wotanGRPCAddr := getEnv("WOTAN_GRPC_ADDR", "localhost:18001")
+	if wotanGRPCAddr != "" {
+		transportCfg.WotanGRPCAddr = wotanGRPCAddr
+	}
 
 	if wotanEnabled {
 		log.Info().
@@ -1262,6 +1301,7 @@ func main() {
 			log.Error().
 				Err(err).
 				Msg("Failed to create Wotan client, falling back to standalone mode")
+			healthSrv.SetGRPCStatus(false)
 			server = NewServer(cfg)
 		} else {
 			// Initialize SQLite L1 store (shared between TaskManager and Server)
@@ -1288,6 +1328,7 @@ func main() {
 				log.Error().
 					Err(err).
 					Msg("Failed to create TaskManager, falling back to standalone mode")
+				healthSrv.SetGRPCStatus(false)
 				server = NewServer(cfg)
 			} else {
 				// Initialize TaskManager (loads tasks from Store + subscribes to Wotan)
@@ -1296,6 +1337,7 @@ func main() {
 					log.Error().
 						Err(err).
 						Msg("Failed to initialize TaskManager, falling back to standalone mode")
+					healthSrv.SetGRPCStatus(false)
 					cancel()
 					server = NewServer(cfg)
 				} else {
@@ -1311,6 +1353,9 @@ func main() {
 		log.Warn().Msg("Wotan disabled, running in standalone mode")
 		server = NewServer(cfg)
 	}
+
+	// Wire transport health server into the kanban server
+	server.healthSrv = healthSrv
 
 	// Start Timeguru HTTP polling ONLY in standalone mode.
 	// When Wotan integration is active, timeline updates arrive via
