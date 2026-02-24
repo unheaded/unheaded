@@ -1,0 +1,646 @@
+<!-- Infrastructure Tab Panel -->
+<!-- Displays infrastructure status including container runtime, IaC backends, and network information -->
+<div class="panel panel-infrastructure" id="panel-infrastructure">
+  <div class="panel-header">
+    <h2 class="panel-title">Infrastructure</h2>
+    <div class="panel-controls">
+      <button class="btn btn-secondary btn-sm" id="btn-refresh-infrastructure" title="Refresh infrastructure status">
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-body">
+    <!-- Empty State (shown when daemon unavailable) -->
+    <div class="empty-state" id="infrastructure-empty-state">
+      <div class="empty-state-icon">🔌</div>
+      <h3 class="empty-state-title">Infrastructure State Unavailable</h3>
+      <p class="empty-state-message">
+        Unable to connect to Unheaded infrastructure daemon. Start the daemon to view infrastructure status.
+      </p>
+      <p class="empty-state-hint text-secondary">
+        Run <code>unheaded daemon start</code> to begin monitoring container runtimes and IaC backends.
+      </p>
+    </div>
+
+    <!-- Infrastructure Content (shown when daemon is available) -->
+    <div class="infrastructure-content" id="infrastructure-content" style="display: none;">
+      <!-- Container Runtimes Section -->
+      <section class="infrastructure-section">
+        <h3 class="section-title">Container Runtimes</h3>
+        <div class="runtimes-grid" id="runtimes-grid">
+          <!-- Runtime status cards dynamically generated here -->
+        </div>
+      </section>
+
+      <!-- IaC Backends Section -->
+      <section class="infrastructure-section">
+        <h3 class="section-title">Infrastructure as Code Backends</h3>
+        <div class="iac-grid" id="iac-grid">
+          <!-- IaC backend cards dynamically generated here -->
+        </div>
+      </section>
+
+      <!-- Network Section -->
+      <section class="infrastructure-section">
+        <h3 class="section-title">Network</h3>
+        <div class="network-grid">
+          <!-- VXLAN/EVPN Status Card -->
+          <div class="status-card network-card">
+            <div class="card-header">
+              <h4 class="card-title">Overlay Network</h4>
+            </div>
+            <div class="card-body">
+              <div class="status-row">
+                <span class="label">Protocol:</span>
+                <span class="value" id="network-protocol">VXLAN</span>
+              </div>
+              <div class="status-row">
+                <span class="label">Status:</span>
+                <span class="value status-badge" id="network-status">operational</span>
+              </div>
+              <div class="status-row">
+                <span class="label">MTU:</span>
+                <span class="value" id="network-mtu">1450 bytes</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- BGP Peers Card -->
+          <div class="status-card network-card">
+            <div class="card-header">
+              <h4 class="card-title">BGP Routing</h4>
+            </div>
+            <div class="card-body">
+              <div class="status-row">
+                <span class="label">Peers Connected:</span>
+                <span class="value" id="bgp-peer-count">0</span>
+              </div>
+              <div class="status-row">
+                <span class="label">Routes Advertised:</span>
+                <span class="value" id="bgp-route-count">0</span>
+              </div>
+              <div class="status-row">
+                <span class="label">Uptime:</span>
+                <span class="value" id="bgp-uptime">--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cluster Network Card -->
+          <div class="status-card network-card">
+            <div class="card-header">
+              <h4 class="card-title">Cluster Network</h4>
+            </div>
+            <div class="card-body">
+              <div class="status-row">
+                <span class="label">Nodes:</span>
+                <span class="value" id="cluster-nodes">0</span>
+              </div>
+              <div class="status-row">
+                <span class="label">Pod Network CIDR:</span>
+                <span class="value mono" id="pod-cidr">--</span>
+              </div>
+              <div class="status-row">
+                <span class="label">Service Network CIDR:</span>
+                <span class="value mono" id="service-cidr">--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Container Runtime Card Template -->
+<template id="runtime-card-template">
+  <div class="status-card runtime-card">
+    <div class="card-header">
+      <h4 class="card-title runtime-name"></h4>
+    </div>
+    <div class="card-body">
+      <div class="status-row">
+        <span class="label">Version:</span>
+        <span class="value runtime-version">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Containers:</span>
+        <span class="value runtime-containers">0</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Images:</span>
+        <span class="value runtime-images">0</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Status:</span>
+        <span class="value status-badge runtime-status">unavailable</span>
+      </div>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-secondary btn-xs runtime-action" data-action="details">
+        View Details
+      </button>
+    </div>
+  </div>
+</template>
+
+<!-- IaC Backend Card Template -->
+<template id="iac-card-template">
+  <div class="status-card iac-card">
+    <div class="card-header">
+      <h4 class="card-title iac-name"></h4>
+    </div>
+    <div class="card-body">
+      <div class="status-row">
+        <span class="label">Type:</span>
+        <span class="value iac-type">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Status:</span>
+        <span class="value status-badge iac-status">unavailable</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Version:</span>
+        <span class="value iac-version">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Last Run:</span>
+        <span class="value iac-last-run">never</span>
+      </div>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-secondary btn-xs iac-action" data-action="generate">
+        Generate Config
+      </button>
+    </div>
+  </div>
+</template>
+
+<!-- Styles for Infrastructure Panel -->
+<style>
+  .panel-infrastructure {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+  }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+    padding-bottom: var(--spacing-md);
+  }
+
+  .panel-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+    color: var(--color-text-primary);
+  }
+
+  .panel-controls {
+    display: flex;
+    gap: var(--spacing-md);
+  }
+
+  .btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+  }
+
+  .btn:hover {
+    background: var(--color-bg-tertiary);
+    border-color: var(--color-border-default);
+  }
+
+  .btn-sm {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  .btn-secondary {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-subtle);
+  }
+
+  .empty-state {
+    padding: var(--spacing-xl) var(--spacing-lg);
+    text-align: center;
+    color: var(--color-text-secondary);
+    border: 2px dashed var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+  }
+
+  .empty-state-icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-md);
+    opacity: 0.5;
+  }
+
+  .empty-state-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--color-text-primary);
+  }
+
+  .empty-state-message {
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-sm);
+  }
+
+  .empty-state-hint {
+    margin: 0;
+    font-size: var(--font-size-xs);
+  }
+
+  code {
+    background: var(--color-bg-primary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+  }
+
+  .text-secondary {
+    color: var(--color-text-secondary);
+  }
+
+  .infrastructure-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+  }
+
+  .infrastructure-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .section-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    margin: 0;
+    padding-bottom: var(--spacing-md);
+    border-bottom: 2px solid var(--color-border-subtle);
+  }
+
+  .runtimes-grid,
+  .iac-grid,
+  .network-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--spacing-lg);
+  }
+
+  .status-card {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .status-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .card-header {
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-secondary);
+  }
+
+  .card-title {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .runtime-name,
+  .iac-name {
+    text-transform: capitalize;
+  }
+
+  .card-body {
+    padding: var(--spacing-md);
+    flex: 1;
+  }
+
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) 0;
+    font-size: var(--font-size-sm);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .status-row:last-child {
+    border-bottom: none;
+  }
+
+  .label {
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .value {
+    color: var(--color-text-primary);
+    text-align: right;
+    font-weight: var(--font-weight-medium);
+  }
+
+  .value.mono {
+    font-family: monospace;
+    font-size: 0.95em;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .status-badge.operational,
+  .status-badge.available {
+    background: var(--color-success-light);
+    color: var(--color-success-dark);
+  }
+
+  .status-badge.degraded,
+  .status-badge.warning {
+    background: var(--color-warning-light);
+    color: var(--color-warning-dark);
+  }
+
+  .status-badge.unavailable,
+  .status-badge.error {
+    background: var(--color-error-light);
+    color: var(--color-error-dark);
+  }
+
+  .card-footer {
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-secondary);
+    display: flex;
+    gap: var(--spacing-sm);
+  }
+
+  .btn-xs {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    flex: 1;
+  }
+
+  .network-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  .network-card .status-row {
+    padding: var(--spacing-sm) 0;
+    font-size: var(--font-size-xs);
+  }
+
+  .network-card .card-body {
+    padding: var(--spacing-md);
+  }
+
+  .network-card .value {
+    font-size: var(--font-size-sm);
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .runtimes-grid,
+    .iac-grid,
+    .network-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .status-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--spacing-xs);
+    }
+
+    .value {
+      text-align: left;
+    }
+
+    .card-footer {
+      flex-direction: column;
+    }
+
+    .btn-xs {
+      width: 100%;
+    }
+  }
+</style>
+
+<!-- JavaScript for Infrastructure Panel Functionality -->
+<script>
+  (function() {
+    const INFRASTRUCTURE_ENDPOINT = '/api/v1/infrastructure';
+    const REFRESH_INTERVAL = 30000; // 30 seconds
+
+    let refreshTimer = null;
+
+    // Initialize the infrastructure panel
+    function init() {
+      document.getElementById('btn-refresh-infrastructure')?.addEventListener('click', loadInfrastructure);
+
+      // Initial load
+      loadInfrastructure();
+
+      // Auto-refresh
+      refreshTimer = setInterval(loadInfrastructure, REFRESH_INTERVAL);
+    }
+
+    // Load infrastructure data from API
+    function loadInfrastructure() {
+      fetch(INFRASTRUCTURE_ENDPOINT)
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          showContent();
+          renderContainerRuntimes(data.runtimes || []);
+          renderIaCBackends(data.iac_backends || []);
+          renderNetworkStatus(data.network || {});
+        })
+        .catch(error => {
+          console.error('Failed to load infrastructure data:', error);
+          showEmptyState();
+        });
+    }
+
+    // Show content and hide empty state
+    function showContent() {
+      const emptyState = document.getElementById('infrastructure-empty-state');
+      const content = document.getElementById('infrastructure-content');
+
+      if (emptyState) emptyState.style.display = 'none';
+      if (content) content.style.display = 'block';
+    }
+
+    // Show empty state
+    function showEmptyState() {
+      const emptyState = document.getElementById('infrastructure-empty-state');
+      const content = document.getElementById('infrastructure-content');
+
+      if (emptyState) emptyState.style.display = 'block';
+      if (content) content.style.display = 'none';
+    }
+
+    // Render container runtime cards
+    function renderContainerRuntimes(runtimes) {
+      const grid = document.getElementById('runtimes-grid');
+      const template = document.getElementById('runtime-card-template');
+
+      if (!grid || !template) return;
+
+      grid.innerHTML = '';
+
+      const defaultRuntimes = ['docker', 'containerd', 'lxd', 'nixos'];
+      const runtimeMap = new Map(runtimes.map(r => [r.name.toLowerCase(), r]));
+
+      defaultRuntimes.forEach(name => {
+        const runtime = runtimeMap.get(name.toLowerCase());
+        const card = template.content.cloneNode(true);
+
+        card.querySelector('.runtime-name').textContent = name;
+        card.querySelector('.runtime-version').textContent = runtime?.version || 'Not installed';
+        card.querySelector('.runtime-containers').textContent = runtime?.containers || 0;
+        card.querySelector('.runtime-images').textContent = runtime?.images || 0;
+
+        const statusBadge = card.querySelector('.runtime-status');
+        if (runtime && runtime.available) {
+          statusBadge.textContent = 'available';
+          statusBadge.classList.add('available');
+        } else {
+          statusBadge.textContent = 'unavailable';
+          statusBadge.classList.add('unavailable');
+        }
+
+        const actionBtn = card.querySelector('.runtime-action');
+        actionBtn.addEventListener('click', () => handleRuntimeAction(name));
+
+        grid.appendChild(card);
+      });
+    }
+
+    // Render IaC backend cards
+    function renderIaCBackends(backends) {
+      const grid = document.getElementById('iac-grid');
+      const template = document.getElementById('iac-card-template');
+
+      if (!grid || !template) return;
+
+      grid.innerHTML = '';
+
+      const defaultBackends = ['ansible', 'terraform', 'pulumi', 'helm', 'nixos', 'packer'];
+      const backendMap = new Map(backends.map(b => [b.name.toLowerCase(), b]));
+
+      defaultBackends.forEach(name => {
+        const backend = backendMap.get(name.toLowerCase());
+        const card = template.content.cloneNode(true);
+
+        card.querySelector('.iac-name').textContent = name;
+        card.querySelector('.iac-type').textContent = name;
+        card.querySelector('.iac-version').textContent = backend?.version || 'Not installed';
+        card.querySelector('.iac-last-run').textContent = backend?.last_run || 'Never';
+
+        const statusBadge = card.querySelector('.iac-status');
+        if (backend && backend.available) {
+          statusBadge.textContent = backend.healthy ? 'healthy' : 'degraded';
+          statusBadge.classList.add(backend.healthy ? 'operational' : 'warning');
+        } else {
+          statusBadge.textContent = 'unavailable';
+          statusBadge.classList.add('unavailable');
+        }
+
+        const actionBtn = card.querySelector('.iac-action');
+        actionBtn.addEventListener('click', () => handleIaCAction(name));
+
+        grid.appendChild(card);
+      });
+    }
+
+    // Render network status
+    function renderNetworkStatus(network) {
+      document.getElementById('network-protocol').textContent = network.protocol || 'VXLAN';
+
+      const networkStatus = document.getElementById('network-status');
+      if (network.operational) {
+        networkStatus.textContent = 'operational';
+        networkStatus.classList.add('operational');
+      } else {
+        networkStatus.textContent = 'degraded';
+        networkStatus.classList.add('degraded');
+      }
+
+      document.getElementById('network-mtu').textContent = network.mtu ? `${network.mtu} bytes` : '1450 bytes';
+      document.getElementById('bgp-peer-count').textContent = network.bgp_peers || 0;
+      document.getElementById('bgp-route-count').textContent = network.bgp_routes || 0;
+      document.getElementById('bgp-uptime').textContent = network.bgp_uptime || '--';
+      document.getElementById('cluster-nodes').textContent = network.nodes || 0;
+      document.getElementById('pod-cidr').textContent = network.pod_cidr || '--';
+      document.getElementById('service-cidr').textContent = network.service_cidr || '--';
+    }
+
+    // Handle runtime card actions
+    function handleRuntimeAction(runtime) {
+      console.log(`Runtime action for ${runtime}`);
+      alert(`View details for ${runtime} container runtime - stub action`);
+    }
+
+    // Handle IaC backend card actions
+    function handleIaCAction(backend) {
+      console.log(`Generate config for ${backend}`);
+      if (confirm(`Generate IaC configuration for ${backend}?`)) {
+        alert(`Configuration generation initiated for ${backend} - stub action`);
+      }
+    }
+
+    // Cleanup on panel removal
+    function cleanup() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+      }
+    }
+
+    // Initialize on load
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
+  })();
+</script>

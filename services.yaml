@@ -1,0 +1,786 @@
+# Unheaded Services Manifest
+# This is the bundled fallback manifest containing all 25 Unheaded services.
+# Used when /opt/unheaded/ is not accessible (development mode, containers).
+# Format: list of ServiceConfig YAML objects as per SERVICE_CONFIG_SCHEMA.md
+
+services:
+  # Control Plane Services (tier: control, ports 17000-17999)
+
+  - service:
+      name: dashboard-backend
+      display_name: "Dashboard Backend"
+      description: "REST API serving Unheaded dashboard UI with service discovery and status monitoring"
+      version: "1.0.0"
+    network:
+      port: 17200
+      http_port: 17200
+      protocol: http
+      health_endpoint: /api/v1/health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: control
+      replicas: 1
+      restart_policy: always
+      depends_on: [service-discovery, log-aggregator]
+    runtime:
+      binary: dashboard-backend
+      args: ["--config=/opt/unheaded/dashboard-backend/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        DISCOVERY_DIR: "/opt/unheaded"
+        ENABLE_CORS: "true"
+    health:
+      check_interval: 5s
+      timeout: 3s
+      retries: 2
+    labels:
+      kingdom_tier: royal-court
+      armor_piece: dashboard-backend
+
+  - service:
+      name: metrics-server
+      display_name: "Metrics Server"
+      description: "Prometheus-compatible metrics aggregation and storage"
+      version: "0.8.0"
+    network:
+      port: 17300
+      http_port: 17300
+      protocol: http
+      health_endpoint: /-/healthy
+      metrics_endpoint: /metrics
+    deployment:
+      tier: control
+      replicas: 1
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: prometheus
+      args: ["--config.file=/opt/unheaded/metrics-server/prometheus.yml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: metrics
+
+  # Infrastructure Services (tier: infrastructure, ports 18000-18999)
+
+  - service:
+      name: wotan
+      display_name: "Wotan"
+      description: "Per-flow memory model and ephemeral ring buffer for stateful processing"
+      version: "0.2.1"
+    network:
+      port: 18001
+      http_port: 18101
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 2
+      restart_policy: always
+      depends_on: [service-discovery, log-aggregator]
+    runtime:
+      binary: wotan
+      args: ["--config=/opt/unheaded/wotan/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        WOTAN_RING_SIZE: "1024"
+        GOMAXPROCS: "4"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: wotan
+
+  - service:
+      name: captain
+      display_name: "Captain"
+      description: "Service mesh control plane and traffic orchestration"
+      version: "0.5.0"
+    network:
+      port: 18002
+      http_port: 18102
+      protocol: both
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: captain
+      args: ["--config=/opt/unheaded/captain/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        CAPTAIN_REPLICAS: "1"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: royal-court
+      armor_piece: captain
+
+  - service:
+      name: micromanager
+      display_name: "Micromanager"
+      description: "Orchestration engine for managing service lifecycle and deployments"
+      version: "0.3.0"
+    network:
+      port: 18003
+      http_port: 18103
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: [service-discovery, log-aggregator]
+    runtime:
+      binary: micromanager
+      args: ["--config=/opt/unheaded/micromanager/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 15s
+      timeout: 10s
+      retries: 3
+    labels:
+      kingdom_tier: royal-court
+      armor_piece: micromanager
+
+  - service:
+      name: architect
+      display_name: "Architect"
+      description: "Infrastructure planning and resource allocation engine"
+      version: "0.2.0"
+    network:
+      port: 18004
+      http_port: 18104
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: architect
+      args: ["--config=/opt/unheaded/architect/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 20s
+      timeout: 10s
+      retries: 2
+    labels:
+      kingdom_tier: royal-court
+      armor_piece: architect
+
+  - service:
+      name: developer
+      display_name: "Developer"
+      description: "SDK and development tools for building services on Unheaded"
+      version: "0.1.0"
+    network:
+      port: 18005
+      http_port: 18105
+      protocol: http
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: developer
+      args: ["--config=/opt/unheaded/developer/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: armory
+      armor_piece: developer
+
+  - service:
+      name: timeguru
+      display_name: "TimeGuru"
+      description: "Distributed time synchronization and scheduling service"
+      version: "0.1.0"
+    network:
+      port: 18006
+      http_port: 18106
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: timeguru
+      args: ["--config=/opt/unheaded/timeguru/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 5s
+      timeout: 2s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: timeguru
+
+  - service:
+      name: service-discovery
+      display_name: "Service Discovery"
+      description: "Distributed service registry and DNS resolution"
+      version: "1.0.0"
+    network:
+      port: 18008
+      http_port: 18108
+      protocol: both
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 3
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: service-discovery
+      args: ["--config=/opt/unheaded/service-discovery/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        DISCOVERY_REPLICAS: "3"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: service-discovery
+
+  - service:
+      name: log-aggregator
+      display_name: "Log Aggregator"
+      description: "Centralized logging, aggregation, and analysis platform"
+      version: "0.6.0"
+    network:
+      port: 18009
+      http_port: 18109
+      protocol: both
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 2
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: log-aggregator
+      args: ["--config=/opt/unheaded/log-aggregator/config.yaml"]
+      env:
+        LOG_LEVEL: warn
+        LOG_RETENTION: "30d"
+    health:
+      check_interval: 15s
+      timeout: 10s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: log-aggregator
+
+  - service:
+      name: hauberk
+      display_name: "Hauberk"
+      description: "Service mesh layer providing mTLS, traffic management, and observability"
+      version: "0.4.0"
+    network:
+      port: 18010
+      http_port: 18110
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 2
+      restart_policy: always
+      depends_on: [service-discovery, log-aggregator]
+    runtime:
+      binary: hauberk
+      args: ["--config=/opt/unheaded/hauberk/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        HAUBERK_MODE: "ambient"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: royal-court
+      armor_piece: hauberk
+
+  - service:
+      name: sword
+      display_name: "Sword"
+      description: "Deployment pipeline orchestration and GitOps integration"
+      version: "0.3.0"
+    network:
+      port: 18011
+      http_port: 18111
+      protocol: http
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: [service-discovery, log-aggregator]
+    runtime:
+      binary: sword
+      args: ["--config=/opt/unheaded/sword/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 20s
+      timeout: 15s
+      retries: 2
+    labels:
+      kingdom_tier: armory
+      armor_piece: sword
+
+  - service:
+      name: helm-runtime
+      display_name: "Helm Runtime"
+      description: "Container runtime integration for Docker, containerd, and OCI"
+      version: "0.5.0"
+    network:
+      port: 18012
+      http_port: 18112
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: helm-runtime
+      args: ["--config=/opt/unheaded/helm-runtime/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        CONTAINER_RUNTIME: "containerd"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: armory
+      armor_piece: helm
+
+  - service:
+      name: gauntlets
+      display_name: "Gauntlets"
+      description: "Workload scheduling and resource allocation across infrastructure"
+      version: "0.2.0"
+    network:
+      port: 18013
+      http_port: 18113
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: gauntlets
+      args: ["--config=/opt/unheaded/gauntlets/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 15s
+      timeout: 10s
+      retries: 3
+    labels:
+      kingdom_tier: royal-court
+      armor_piece: gauntlets
+
+  - service:
+      name: greaves
+      display_name: "Greaves"
+      description: "DNS and network name resolution service"
+      version: "0.1.0"
+    network:
+      port: 18014
+      http_port: 18114
+      protocol: both
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 3
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: greaves
+      args: ["--config=/opt/unheaded/greaves/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 5s
+      timeout: 2s
+      retries: 2
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: greaves
+
+  - service:
+      name: vambraces
+      display_name: "Vambraces"
+      description: "Configuration management and secret handling"
+      version: "0.3.0"
+    network:
+      port: 18015
+      http_port: 18115
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 2
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: vambraces
+      args: ["--config=/opt/unheaded/vambraces/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        VAMBRACES_ENCRYPTION: "enabled"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: vambraces
+
+  - service:
+      name: gorget
+      display_name: "Gorget"
+      description: "Secrets management and encryption service"
+      version: "0.2.0"
+    network:
+      port: 18016
+      http_port: 18116
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: gorget
+      args: ["--config=/opt/unheaded/gorget/config.yaml"]
+      env:
+        LOG_LEVEL: warn
+        GORGET_ENCRYPTION: "aes-256-gcm"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 2
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: gorget
+
+  - service:
+      name: sabatons
+      display_name: "Sabatons"
+      description: "Health checking, readiness probes, and liveness verification"
+      version: "0.1.0"
+    network:
+      port: 18017
+      http_port: 18117
+      protocol: http
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 2
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: sabatons
+      args: ["--config=/opt/unheaded/sabatons/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 5s
+      timeout: 3s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: sabatons
+
+  - service:
+      name: pleroma
+      display_name: "Pleroma"
+      description: "Desired state management and configuration reconciliation"
+      version: "0.1.0"
+    network:
+      port: 18018
+      http_port: 18118
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: pleroma
+      args: ["--config=/opt/unheaded/pleroma/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 15s
+      timeout: 10s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: pleroma
+
+  - service:
+      name: kenoma
+      display_name: "Kenoma"
+      description: "Actual state tracking and real-time cluster state synchronization"
+      version: "0.1.0"
+    network:
+      port: 18019
+      http_port: 18119
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 2
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: kenoma
+      args: ["--config=/opt/unheaded/kenoma/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        KENOMA_BUFFER_SIZE: "10000"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: kenoma
+
+  - service:
+      name: anamnesis
+      display_name: "Anamnesis"
+      description: "Event history and audit log storage for all platform events"
+      version: "0.2.0"
+    network:
+      port: 18020
+      http_port: 18120
+      protocol: grpc
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 2
+      restart_policy: always
+      depends_on: [log-aggregator]
+    runtime:
+      binary: anamnesis
+      args: ["--config=/opt/unheaded/anamnesis/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        ANAMNESIS_RETENTION: "90d"
+    health:
+      check_interval: 15s
+      timeout: 10s
+      retries: 3
+    labels:
+      kingdom_tier: gnostic
+      armor_piece: anamnesis
+
+  - service:
+      name: yaldabaoth
+      display_name: "Yaldabaoth"
+      description: "Chaos engineering and failure injection for resilience testing"
+      version: "0.1.0"
+    network:
+      port: 18021
+      http_port: 18121
+      protocol: http
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: infrastructure
+      replicas: 1
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: yaldabaoth
+      args: ["--config=/opt/unheaded/yaldabaoth/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        CHAOS_ENABLED: "true"
+    health:
+      check_interval: 30s
+      timeout: 15s
+      retries: 2
+    labels:
+      kingdom_tier: royal-court
+      armor_piece: yaldabaoth
+
+  # Presentation Layer Services (tier: presentation, ports 19000-19999)
+
+  - service:
+      name: shield-waf
+      display_name: "Shield WAF"
+      description: "Web Application Firewall protecting ingress traffic with ModSecurity"
+      version: "0.5.0"
+    network:
+      port: 19001
+      http_port: 19101
+      protocol: both
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: presentation
+      replicas: 3
+      restart_policy: always
+      depends_on: [service-discovery, log-aggregator]
+    runtime:
+      binary: shield-waf
+      args: ["--config=/opt/unheaded/shield-waf/config.yaml"]
+      env:
+        LOG_LEVEL: warn
+        SHIELD_BACKEND: "pauldrons:19100"
+        SHIELD_TIMEOUT: "30s"
+        GOMAXPROCS: "8"
+    health:
+      check_interval: 15s
+      timeout: 10s
+      retries: 3
+    labels:
+      kingdom_tier: presentation
+      armor_piece: shield
+
+  - service:
+      name: pauldrons
+      display_name: "Pauldrons"
+      description: "Load balancer and reverse proxy for ingress traffic distribution"
+      version: "0.4.0"
+    network:
+      port: 19100
+      http_port: 19100
+      protocol: http
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: presentation
+      replicas: 3
+      restart_policy: always
+      depends_on: [service-discovery]
+    runtime:
+      binary: pauldrons
+      args: ["--config=/opt/unheaded/pauldrons/config.yaml"]
+      env:
+        LOG_LEVEL: info
+        PAULDRONS_REPLICAS: "3"
+        GOMAXPROCS: "8"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: presentation
+      armor_piece: pauldrons
+
+  - service:
+      name: kanban-app
+      display_name: "Kanban App"
+      description: "Web UI dashboard for managing Unheaded services and deployments"
+      version: "1.0.0"
+    network:
+      port: 19200
+      http_port: 19200
+      protocol: http
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: presentation
+      replicas: 2
+      restart_policy: always
+      depends_on: [dashboard-backend]
+    runtime:
+      binary: kanban-app
+      args: ["--port=19200"]
+      env:
+        LOG_LEVEL: info
+        BACKEND_URL: "http://dashboard-backend:17200"
+        ENABLE_DEBUG: "false"
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: presentation
+      armor_piece: kanban-app
+
+  - service:
+      name: port-authority
+      display_name: "Port Authority"
+      description: "Port management and allocation tracking for all services"
+      version: "0.1.0"
+    network:
+      port: 19300
+      http_port: 19300
+      protocol: http
+      health_endpoint: /health
+      metrics_endpoint: /metrics
+    deployment:
+      tier: presentation
+      replicas: 1
+      restart_policy: always
+      depends_on: []
+    runtime:
+      binary: port-authority
+      args: ["--config=/opt/unheaded/port-authority/config.yaml"]
+      env:
+        LOG_LEVEL: info
+    health:
+      check_interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      kingdom_tier: presentation
+      armor_piece: port-authority

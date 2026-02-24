@@ -1,173 +1,640 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unheaded Alpha - Built by Unheaded</title>
-    <link rel="stylesheet" href="/css/kanban.css">
-    <meta name="description" content="Unheaded Alpha Kanban Dashboard - Tracking our own development with our own tools">
-    <meta name="theme-color" content="#1a1a2e">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unheaded Kanban - Task management for headless infrastructure">
+  <title>Unheaded Kanban</title>
+
+  <link rel="stylesheet" href="/dashboard/css/design-system.css">
+  <style>
+    main {
+      margin-top: 64px;
+      padding: var(--space-2xl);
+      min-height: 100vh;
+    }
+
+    .kanban-header {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .kanban-title {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--color-text-heading);
+      margin-bottom: var(--space-md);
+    }
+
+    .kanban-subtitle {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-dim);
+    }
+
+    .kanban-board {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: var(--space-lg);
+      margin-bottom: var(--space-2xl);
+    }
+
+    .kanban-column {
+      background-color: var(--color-bg-secondary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      display: flex;
+      flex-direction: column;
+      min-height: 600px;
+      overflow: hidden;
+    }
+
+    .column-header {
+      padding: var(--space-lg);
+      border-bottom: var(--border-width-thin) solid var(--color-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .column-title {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: var(--color-text-heading);
+    }
+
+    .column-count {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-dim);
+      font-family: var(--font-mono);
+    }
+
+    .column-body {
+      flex: 1;
+      padding: var(--space-md);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      min-height: 300px;
+    }
+
+    .column-body.drag-over {
+      background-color: var(--color-bg-tertiary);
+      border-radius: var(--border-radius-md);
+    }
+
+    .task-card {
+      background-color: var(--color-bg-tertiary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-md);
+      padding: var(--space-md);
+      cursor: move;
+      transition: all var(--transition-fast);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .task-card:hover {
+      background-color: var(--color-bg);
+      border-color: var(--color-border-light);
+      box-shadow: var(--shadow-md);
+    }
+
+    .task-card.dragging {
+      opacity: 0.5;
+    }
+
+    .task-drag-handle {
+      width: 4px;
+      height: 16px;
+      background-color: var(--color-text-dim);
+      border-radius: 2px;
+      margin-right: var(--space-sm);
+      flex-shrink: 0;
+    }
+
+    .task-header {
+      display: flex;
+      gap: var(--space-sm);
+      align-items: flex-start;
+    }
+
+    .task-title {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      color: var(--color-text-heading);
+      flex: 1;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .task-priority {
+      font-size: var(--font-size-xs);
+      padding: var(--space-xs) var(--space-sm);
+      background-color: var(--color-bg-secondary);
+      border-radius: var(--border-radius-sm);
+      color: var(--color-text-dim);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      text-transform: uppercase;
+    }
+
+    .task-description {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-dim);
+      line-height: 1.4;
+      max-height: 40px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .task-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+    }
+
+    .task-tag {
+      font-size: var(--font-size-xs);
+      padding: var(--space-xs) var(--space-sm);
+      background-color: var(--color-bg-secondary);
+      border-radius: var(--border-radius-sm);
+      color: var(--color-text-ghost);
+      font-family: var(--font-mono);
+      text-transform: lowercase;
+    }
+
+    .review-actions {
+      display: flex;
+      gap: var(--space-sm);
+      padding-top: var(--space-sm);
+      border-top: var(--border-width-thin) solid var(--color-border);
+      margin-top: var(--space-sm);
+    }
+
+    .review-btn {
+      flex: 1;
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      padding: var(--space-xs) var(--space-sm);
+      background: transparent;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .review-btn.approve {
+      color: var(--color-text-primary);
+    }
+
+    .review-btn.approve:hover {
+      background-color: var(--color-bg-secondary);
+      border-color: var(--color-text-primary);
+    }
+
+    .review-btn.reject {
+      color: var(--color-text-dim);
+    }
+
+    .review-btn.reject:hover {
+      color: var(--color-text-primary);
+      border-color: var(--color-text-primary);
+    }
+
+    .review-btn.changes {
+      color: var(--color-text-ghost);
+    }
+
+    .review-btn.changes:hover {
+      color: var(--color-text-primary);
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: var(--z-modal);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background-color: var(--color-bg-secondary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      padding: var(--space-2xl);
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-xl);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-lg);
+      padding-bottom: var(--space-lg);
+      border-bottom: var(--border-width-thin) solid var(--color-border);
+    }
+
+    .modal-title {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xl);
+      font-weight: 700;
+      color: var(--color-text-heading);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--color-text-ghost);
+      font-size: var(--font-size-lg);
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--border-radius-sm);
+      transition: all var(--transition-fast);
+    }
+
+    .modal-close:hover {
+      background-color: var(--color-bg-tertiary);
+      color: var(--color-text-primary);
+    }
+
+    .modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .modal-label {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .modal-value {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+      padding: var(--space-md);
+      background-color: var(--color-bg-tertiary);
+      border-radius: var(--border-radius-md);
+      border: var(--border-width-thin) solid var(--color-border);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+      padding-top: var(--space-lg);
+      border-top: var(--border-width-thin) solid var(--color-border);
+    }
+
+    .footer {
+      margin-top: var(--space-3xl);
+      padding: var(--space-2xl) 0;
+      border-top: var(--border-width-thin) solid var(--color-border);
+      text-align: center;
+      color: var(--color-text-ghost);
+      font-family: var(--font-body);
+      font-style: italic;
+    }
+
+    @media (max-width: 768px) {
+      main {
+        padding: var(--space-lg);
+      }
+
+      .kanban-board {
+        grid-template-columns: 1fr;
+      }
+
+      .modal-content {
+        width: 95%;
+        padding: var(--space-lg);
+      }
+    }
+  </style>
 </head>
 <body>
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="/" class="nav-logo">UNHEADED</a>
+    <ul class="nav-links">
+      <li><a href="/dashboard" class="nav-link">Dashboard</a></li>
+      <li><a href="/kanban" class="nav-link active">Kanban</a></li>
+      <li><a href="/docs" class="nav-link">Docs</a></li>
+      <li><a href="/status" class="nav-link">Status</a></li>
+    </ul>
+  </nav>
 
-    <div class="ws-reconnect-banner" id="ws-reconnect-banner" role="alert" aria-live="assertive" aria-atomic="true">
-        <span class="reconnect-spinner" aria-hidden="true"></span>
-        <span class="reconnect-text">Reconnecting to server...</span>
-        <button class="reconnect-retry-btn" id="reconnect-retry-btn" aria-label="Retry connection now">Retry</button>
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto">
+    <div class="kanban-header">
+      <h1 class="kanban-title">Task Board</h1>
+      <p class="kanban-subtitle">Drag tasks between columns to update status</p>
     </div>
 
-    <canvas id="particle-canvas" aria-hidden="true"></canvas>
-
-    <header role="banner">
-        <h1><span aria-hidden="true">🔄</span> Unheaded Alpha - Built by Unheaded</h1>
-        <div class="live-indicator" role="status" aria-label="Live connection status">
-            <span>Live</span>
+    <!-- Kanban Board -->
+    <div class="kanban-board">
+      <!-- TODO Column -->
+      <div class="kanban-column">
+        <div class="column-header">
+          <div>
+            <div class="column-title">TODO</div>
+          </div>
+          <div class="column-count" id="count-todo">0</div>
         </div>
-    </header>
-
-    <main id="main-content" role="main">
-        <div id="kanban-board" role="region" aria-label="Kanban task board">
-            <div class="column" id="todo" role="region" aria-label="Todo tasks">
-                <h2>TODO</h2>
-                <div class="cards" role="list" aria-label="Todo task cards"></div>
-            </div>
-            <div class="column" id="in-progress" role="region" aria-label="In progress tasks">
-                <h2>IN PROGRESS</h2>
-                <div class="cards" role="list" aria-label="In progress task cards"></div>
-            </div>
-            <div class="column" id="done" role="region" aria-label="Done tasks">
-                <h2>DONE</h2>
-                <div class="cards" role="list" aria-label="Done task cards"></div>
-            </div>
+        <div class="column-body" id="column-todo" data-status="todo" draggable="false">
         </div>
-    </main>
+      </div>
 
-    <footer role="contentinfo">
-        <p>The meta moment: tracking Unheaded's progress with Unheaded</p>
-        <p class="version">v0.1.0-alpha &bull; Phase 1</p>
+      <!-- IN PROGRESS Column -->
+      <div class="kanban-column">
+        <div class="column-header">
+          <div>
+            <div class="column-title">IN PROGRESS</div>
+          </div>
+          <div class="column-count" id="count-in-progress">0</div>
+        </div>
+        <div class="column-body" id="column-in-progress" data-status="in-progress" draggable="false">
+        </div>
+      </div>
+
+      <!-- REVIEW Column -->
+      <div class="kanban-column">
+        <div class="column-header">
+          <div>
+            <div class="column-title">REVIEW</div>
+          </div>
+          <div class="column-count" id="count-review">0</div>
+        </div>
+        <div class="column-body" id="column-review" data-status="review" draggable="false">
+        </div>
+      </div>
+
+      <!-- DONE Column -->
+      <div class="kanban-column">
+        <div class="column-header">
+          <div>
+            <div class="column-title">DONE</div>
+          </div>
+          <div class="column-count" id="count-done">0</div>
+        </div>
+        <div class="column-body" id="column-done" data-status="done" draggable="false">
+        </div>
+      </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div id="taskModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title" id="modalTitle">Task Details</h2>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label class="modal-label">Title</label>
+            <div class="modal-value" id="modalTaskTitle">--</div>
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">Description</label>
+            <div class="modal-value" id="modalTaskDescription">--</div>
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">Status</label>
+            <div class="modal-value" id="modalTaskStatus">--</div>
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">Priority</label>
+            <div class="modal-value" id="modalTaskPriority">--</div>
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">Tags</label>
+            <div class="modal-value" id="modalTaskTags">--</div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" id="modalEditBtn">Edit</button>
+          <button class="btn btn-danger" id="modalDeleteBtn">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      the kanban tracks itself
     </footer>
+  </main>
 
-    <!-- Task Detail Modal -->
-    <div id="task-modal-overlay" class="modal-overlay" aria-hidden="true">
-        <div class="modal-container" role="dialog" aria-labelledby="modal-title" aria-modal="true">
-            <div class="modal-header">
-                <h3 id="modal-title" class="modal-task-title">Task Title</h3>
-                <button class="modal-close-btn" id="modal-close-btn" aria-label="Close modal">&times;</button>
+  <script>
+    // Demo tasks
+    const demoTasks = [
+      { id: 1, title: 'Implement XDP filter', description: 'Add packet filtering at XDP hook', status: 'todo', priority: 'P0', tags: ['kernel', 'networking'] },
+      { id: 2, title: 'Fix latency regression', description: 'Investigate 40% increase in tail latency', status: 'todo', priority: 'P1', tags: ['performance', 'urgent'] },
+      { id: 3, title: 'Document BPF maps API', description: 'Write comprehensive documentation for BPF map operations', status: 'in-progress', priority: 'P2', tags: ['docs'] },
+      { id: 4, title: 'Add trace export to JSON', description: 'Export traces in JSON format for external analysis', status: 'in-progress', priority: 'P1', tags: ['feature', 'export'] },
+      { id: 5, title: 'Code review: kingdom mode refactor', description: 'Review PR #284 for kingdom mode state machine', status: 'review', priority: 'P0', tags: ['review', 'refactor'] },
+      { id: 6, title: 'Dashboard UI improvements', description: 'Redesign metrics visualization', status: 'review', priority: 'P2', tags: ['ui', 'frontend'] },
+      { id: 7, title: 'Setup CI/CD pipeline', description: 'Configure GitHub Actions for automated testing', status: 'done', priority: 'P1', tags: ['infrastructure', 'devops'] },
+      { id: 8, title: 'Kernel module versioning', description: 'Implement semantic versioning for kernel modules', status: 'done', priority: 'P0', tags: ['release'] }
+    ];
+
+    let tasks = [...demoTasks];
+    let draggedTask = null;
+
+    function renderBoard() {
+      const columns = ['todo', 'in-progress', 'review', 'done'];
+      columns.forEach(status => {
+        const column = document.getElementById(`column-${status}`);
+        const columnTasks = tasks.filter(t => t.status === status);
+        document.getElementById(`count-${status}`).textContent = columnTasks.length;
+
+        column.innerHTML = columnTasks.map(task => `
+          <div class="task-card" draggable="true" data-task-id="${task.id}">
+            <div class="task-header">
+              <div class="task-drag-handle"></div>
+              <div style="flex: 1;">
+                <div class="task-title">${escapeHtml(task.title)}</div>
+                <div class="task-description">${escapeHtml(task.description)}</div>
+              </div>
+              <div class="task-priority">${task.priority}</div>
             </div>
-
-            <div class="modal-body">
-                <!-- View Mode -->
-                <div id="modal-view-mode">
-                    <div class="modal-field">
-                        <label class="modal-label">Description</label>
-                        <p id="modal-description" class="modal-value">-</p>
-                    </div>
-                    <div class="modal-field-row">
-                        <div class="modal-field">
-                            <label class="modal-label">Status</label>
-                            <span id="modal-status" class="modal-badge">-</span>
-                        </div>
-                        <div class="modal-field">
-                            <label class="modal-label">Priority</label>
-                            <span id="modal-priority" class="modal-badge">-</span>
-                        </div>
-                    </div>
-                    <div class="modal-field-row">
-                        <div class="modal-field">
-                            <label class="modal-label">Type</label>
-                            <span id="modal-type" class="modal-badge">-</span>
-                        </div>
-                        <div class="modal-field">
-                            <label class="modal-label">Owner</label>
-                            <span id="modal-owner" class="modal-value">-</span>
-                        </div>
-                    </div>
-                    <div class="modal-field" id="modal-progress-field" style="display:none;">
-                        <label class="modal-label">Progress</label>
-                        <div class="modal-progress-bar">
-                            <div id="modal-progress-fill" class="modal-progress-fill"></div>
-                        </div>
-                        <span id="modal-progress-text" class="modal-value-small">0%</span>
-                    </div>
-                </div>
-
-                <!-- Edit Mode -->
-                <div id="modal-edit-mode" style="display:none;">
-                    <div class="modal-field">
-                        <label class="modal-label" for="edit-title">Title</label>
-                        <input type="text" id="edit-title" class="modal-input" placeholder="Task title">
-                    </div>
-                    <div class="modal-field">
-                        <label class="modal-label" for="edit-description">Description</label>
-                        <textarea id="edit-description" class="modal-textarea" rows="3" placeholder="Task description"></textarea>
-                    </div>
-                    <div class="modal-field-row">
-                        <div class="modal-field">
-                            <label class="modal-label" for="edit-status">Status</label>
-                            <select id="edit-status" class="modal-select">
-                                <option value="todo">TODO</option>
-                                <option value="in-progress">IN PROGRESS</option>
-                                <option value="done">DONE</option>
-                            </select>
-                        </div>
-                        <div class="modal-field">
-                            <label class="modal-label" for="edit-priority">Priority</label>
-                            <select id="edit-priority" class="modal-select">
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                                <option value="critical">Critical</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-field-row">
-                        <div class="modal-field">
-                            <label class="modal-label" for="edit-type">Type</label>
-                            <select id="edit-type" class="modal-select">
-                                <option value="task">Task</option>
-                                <option value="feature">Feature</option>
-                                <option value="milestone">Milestone</option>
-                                <option value="bug">Bug</option>
-                                <option value="debt">Debt</option>
-                            </select>
-                        </div>
-                        <div class="modal-field">
-                            <label class="modal-label" for="edit-owner">Owner</label>
-                            <input type="text" id="edit-owner" class="modal-input" placeholder="Owner name">
-                        </div>
-                    </div>
-                </div>
+            <div class="task-meta">
+              ${task.tags.map(tag => `<div class="task-tag">${escapeHtml(tag)}</div>`).join('')}
             </div>
+            ${status === 'review' ? `
+              <div class="review-actions">
+                <button class="review-btn approve" data-action="approve" data-task-id="${task.id}">Approve</button>
+                <button class="review-btn reject" data-action="reject" data-task-id="${task.id}">Reject</button>
+                <button class="review-btn changes" data-action="changes" data-task-id="${task.id}">Changes</button>
+              </div>
+            ` : ''}
+          </div>
+        `).join('');
 
-            <div class="modal-footer">
-                <!-- View mode buttons -->
-                <div id="modal-view-actions" class="modal-actions">
-                    <button id="modal-edit-btn" class="modal-btn modal-btn-primary">Edit</button>
-                    <button id="modal-delete-btn" class="modal-btn modal-btn-danger">Delete</button>
-                </div>
-                <!-- Edit mode buttons -->
-                <div id="modal-edit-actions" class="modal-actions" style="display:none;">
-                    <button id="modal-save-btn" class="modal-btn modal-btn-save">Save</button>
-                    <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel">Cancel</button>
-                </div>
-            </div>
+        // Add drag listeners
+        column.querySelectorAll('.task-card').forEach(card => {
+          card.addEventListener('dragstart', handleDragStart);
+          card.addEventListener('dragend', handleDragEnd);
+          card.addEventListener('click', openTaskModal);
+        });
 
-            <!-- Delete confirmation overlay -->
-            <div id="modal-delete-confirm" class="modal-delete-confirm" style="display:none;">
-                <p>Are you sure you want to delete this task?</p>
-                <p class="modal-delete-task-name"></p>
-                <div class="modal-actions">
-                    <button id="modal-confirm-delete-btn" class="modal-btn modal-btn-danger">Yes, Delete</button>
-                    <button id="modal-cancel-delete-btn" class="modal-btn modal-btn-cancel">Cancel</button>
-                </div>
-            </div>
-        </div>
-    </div>
+        // Add review action listeners
+        column.querySelectorAll('.review-btn').forEach(btn => {
+          btn.addEventListener('click', handleReviewAction);
+        });
+      });
 
-    <script src="/js/particles.js"></script>
-    <script src="/js/board-viz.js"></script>
-    <script src="/js/task-modal.js"></script>
-    <script src="/js/timeline-reader.js"></script>
+      // Add column drag listeners
+      columns.forEach(status => {
+        const column = document.getElementById(`column-${status}`);
+        column.addEventListener('dragover', handleDragOver);
+        column.addEventListener('drop', handleDrop);
+        column.addEventListener('dragleave', handleDragLeave);
+      });
+    }
+
+    function handleDragStart(e) {
+      draggedTask = this.getAttribute('data-task-id');
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedTask);
+    }
+
+    function handleDragEnd(e) {
+      this.classList.remove('dragging');
+      document.querySelectorAll('.column-body').forEach(col => col.classList.remove('drag-over'));
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      this.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+      if (e.target === this) {
+        this.classList.remove('drag-over');
+      }
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+
+      const taskId = parseInt(draggedTask);
+      const newStatus = this.getAttribute('data-status');
+      const task = tasks.find(t => t.id === taskId);
+
+      if (task && task.status !== newStatus) {
+        task.status = newStatus;
+        renderBoard();
+        console.log(`Task ${taskId} moved to ${newStatus}`);
+      }
+    }
+
+    function handleReviewAction(e) {
+      e.stopPropagation();
+      const taskId = parseInt(this.getAttribute('data-task-id'));
+      const action = this.getAttribute('data-action');
+      const task = tasks.find(t => t.id === taskId);
+
+      if (!task) return;
+
+      switch(action) {
+        case 'approve':
+          task.status = 'done';
+          break;
+        case 'reject':
+          task.status = 'in-progress';
+          break;
+        case 'changes':
+          task.status = 'in-progress';
+          break;
+      }
+
+      renderBoard();
+    }
+
+    function openTaskModal(e) {
+      const card = e.currentTarget;
+      const taskId = parseInt(card.getAttribute('data-task-id'));
+      const task = tasks.find(t => t.id === taskId);
+
+      if (!task) return;
+
+      document.getElementById('modalTitle').textContent = escapeHtml(task.title);
+      document.getElementById('modalTaskTitle').textContent = escapeHtml(task.title);
+      document.getElementById('modalTaskDescription').textContent = escapeHtml(task.description);
+      document.getElementById('modalTaskStatus').textContent = task.status.toUpperCase();
+      document.getElementById('modalTaskPriority').textContent = task.priority;
+      document.getElementById('modalTaskTags').textContent = task.tags.join(', ');
+
+      document.getElementById('modalDeleteBtn').onclick = () => {
+        tasks = tasks.filter(t => t.id !== taskId);
+        closeTaskModal();
+        renderBoard();
+      };
+
+      document.getElementById('taskModal').classList.add('active');
+    }
+
+    function closeTaskModal() {
+      document.getElementById('taskModal').classList.remove('active');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Event listeners
+    document.querySelector('.modal-close').addEventListener('click', closeTaskModal);
+    document.getElementById('taskModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('taskModal')) {
+        closeTaskModal();
+      }
+    });
+
+    // Initialize
+    renderBoard();
+  </script>
 </body>
 </html>

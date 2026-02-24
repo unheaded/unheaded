@@ -1,0 +1,406 @@
+version: '3.9'
+name: sophia-eye
+
+services:
+  vllm:
+    image: vllm/vllm-openai:latest-rocm
+    container_name: sophia-vllm-deepseek
+    hostname: vllm
+    restart: unless-stopped
+
+    volumes:
+      - /data/models:/models:ro
+      - vllm-cache:/root/.cache
+
+    environment:
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      HIP_VISIBLE_DEVICES: "0"
+      ROCR_VISIBLE_DEVICES: "0"
+      TORCH_ALLOW_TF32: "1"
+      VLLM_ATTENTION_BACKEND: flashinfer
+      TZ: UTC
+
+    ports:
+      - "20100:8000"
+
+    networks:
+      - sophia-eye
+      - unheaded-fabric
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: amdgpu
+              count: 1
+              capabilities: [gpu]
+        limits:
+          cpus: '4'
+          memory: 12G
+
+    command: >
+      --model /models/deepseek-r1-7b
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 32768
+      --gpu-memory-utilization 0.85
+      --max-num-seqs 256
+      --enable-prefix-caching
+      --trust-remote-code
+      --dtype float16
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  qwen-coder:
+    image: vllm/vllm-openai:latest-rocm
+    container_name: sophia-vllm-qwen
+    hostname: qwen-coder
+    restart: unless-stopped
+
+    volumes:
+      - /data/models:/models:ro
+      - qwen-cache:/root/.cache
+
+    environment:
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      HIP_VISIBLE_DEVICES: "0"
+      ROCR_VISIBLE_DEVICES: "0"
+      TORCH_ALLOW_TF32: "1"
+      VLLM_ATTENTION_BACKEND: flashinfer
+      TZ: UTC
+
+    ports:
+      - "20101:8000"
+
+    networks:
+      - sophia-eye
+      - unheaded-fabric
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: amdgpu
+              count: 1
+              capabilities: [gpu]
+        limits:
+          cpus: '2'
+          memory: 6G
+
+    command: >
+      --model /models/qwen2.5-coder-7b
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 16384
+      --gpu-memory-utilization 0.80
+      --max-num-seqs 128
+      --enable-prefix-caching
+      --trust-remote-code
+      --dtype float16
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+    depends_on:
+      vllm:
+        condition: service_healthy
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: sophia-qdrant
+    hostname: qdrant
+    restart: unless-stopped
+
+    volumes:
+      - /fast/qdrant:/qdrant/storage
+      - qdrant-snapshots:/qdrant/snapshots
+
+    environment:
+      QDRANT_API_KEY: "sophia-qdrant-key"
+      QDRANT_CORS_ALLOW_ORIGINS: "true"
+      QDRANT_LOG_LEVEL: "info"
+      TZ: UTC
+
+    ports:
+      - "20102:6333"
+      - "20103:6334"
+
+    networks:
+      - sophia-eye
+      - unheaded-fabric
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    command: >
+      --storage-path /qdrant/storage
+      --snapshot-path /qdrant/snapshots
+      --http-port 6333
+      --grpc-port 6334
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    container_name: sophia-embeddings
+    hostname: embeddings
+    restart: unless-stopped
+
+    volumes:
+      - /data/models/bge-m3:/data:ro
+
+    environment:
+      RUST_LOG: "info"
+      TZ: UTC
+
+    ports:
+      - "20104:80"
+
+    networks:
+      - sophia-eye
+      - unheaded-fabric
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+    command: >
+      --model-id /data
+      --port 80
+      --workers 4
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: sophia-webui
+    hostname: open-webui
+    restart: unless-stopped
+
+    volumes:
+      - webui-data:/app/backend/data
+      - webui-uploads:/app/backend/data/uploads
+
+    environment:
+      OPENAI_API_BASE_URL: "http://vllm:8000/v1"
+      OPENAI_API_KEY: "unheaded-local"
+      WEBUI_SECRET_KEY: "sophia-webui-secret"
+      WEBUI_HOSTNAME: "0.0.0.0"
+      WEBUI_PORT: "8080"
+      WEBUI_AUTH: "false"
+      RAG_EMBEDDING_ENGINE: "ollama"
+      RAG_EMBEDDING_MODEL: "bge-m3"
+      RAG_EMBEDDING_ENGINE_API_BASE_URL: "http://embeddings:80"
+      VECTOR_DB: "qdrant"
+      QDRANT_URL: "http://qdrant:6333"
+      TZ: UTC
+
+    ports:
+      - "20105:8080"
+
+    networks:
+      - sophia-eye
+      - unheaded-fabric
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+    depends_on:
+      vllm:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      embeddings:
+        condition: service_healthy
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  sophia-gateway:
+    build:
+      context: ./sophia-gateway
+      dockerfile: Dockerfile
+    container_name: sophia-gateway
+    hostname: sophia-gateway
+    restart: unless-stopped
+
+    environment:
+      UNHEADED_PROTOCOL_API: "http://bare-metal:17100"
+      WOTAN_ENDPOINT: "bare-metal:18001"
+      VLLM_ENDPOINT: "http://vllm:8000"
+      QWEN_ENDPOINT: "http://qwen-coder:8000"
+      QDRANT_ENDPOINT: "http://qdrant:6333"
+      EMBEDDINGS_ENDPOINT: "http://embeddings:80"
+      SOPHIA_SERVICE_NAME: "sophia-eye"
+      SOPHIA_GATEWAY_PORT: "20105"
+      LOG_LEVEL: "info"
+      METRICS_PORT: "9090"
+      TZ: UTC
+
+    ports:
+      - "20106:9090"
+      - "20107:20105"
+
+    networks:
+      - sophia-eye
+      - unheaded-fabric
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    depends_on:
+      vllm:
+        condition: service_healthy
+      qwen-coder:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      embeddings:
+        condition: service_healthy
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sophia-prometheus
+    hostname: prometheus
+    restart: unless-stopped
+
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+    environment:
+      TZ: UTC
+
+    ports:
+      - "20108:9090"
+
+    networks:
+      - sophia-eye
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libs'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+volumes:
+  vllm-cache:
+    driver: local
+  qwen-cache:
+    driver: local
+  qdrant-snapshots:
+    driver: local
+  webui-data:
+    driver: local
+  webui-uploads:
+    driver: local
+  prometheus-data:
+    driver: local
+
+networks:
+  sophia-eye:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+  unheaded-fabric:
+    external: true
+    name: unheaded-vxlan0
