@@ -221,7 +221,7 @@ The Kingdom runs IPv4 internally. Every packet carries 20 bytes of proprietary p
 
 ### Anamnesis = Ring Buffers
 
-Every packet that passes through the Void leaves a trace in a ring buffer. The network remembers everything. Because events carry raw Sophia exponent keys, you can peel off and map nearly any key-value pair from those memories — service identity, trace correlation, QoS class, feature flags, deployment ring, customer tier. Any dimension Sophia can name, Anamnesis can remember.
+Every packet that passes through the Void leaves a trace in a ring buffer. The network remembers everything. Because events carry raw Sophia exponent keys, you can peel off and map nearly any key-value pair from those memories — service identity, trace correlation, QoS class, feature flags, deployment ring, user tier. Any dimension Sophia can name, Anamnesis can remember.
 
 ### Shield: The Protocol Boundary
 

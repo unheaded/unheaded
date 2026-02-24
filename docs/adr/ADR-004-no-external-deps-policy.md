@@ -6,7 +6,7 @@
 
 ## Context
 
-Unheaded is an infrastructure platform that promises customers "production-ready infrastructure in hours, not months." The platform itself must embody the reliability and self-sufficiency it sells. A platform that depends on dozens of external libraries and services for its own operation cannot credibly claim to deliver independent, hardened infrastructure to customers.
+Unheaded is an infrastructure platform that promises users "production-ready infrastructure in hours, not months." The platform itself must embody the reliability and self-sufficiency it sells. A platform that depends on dozens of external libraries and services for its own operation cannot credibly claim to deliver independent, hardened infrastructure to users.
 
 During early development, the codebase accumulated several external Go dependencies:
 
@@ -19,7 +19,7 @@ During early development, the codebase accumulated several external Go dependenc
 Each dependency introduced:
 
 1. **Supply chain risk**: A compromised upstream can inject malicious code (cf. event-stream, ua-parser-js, colors.js incidents).
-2. **Version churn**: Upstream breaking changes force reactive maintenance unrelated to our product.
+2. **Version churn**: Upstream breaking changes force reactive maintenance unrelated to our application.
 3. **License exposure**: Transitive dependencies may introduce incompatible licenses.
 4. **Binary bloat**: Each dependency adds to the final binary size and attack surface.
 5. **Philosophical contradiction**: Selling self-hosted infrastructure while depending on dozens of third-party packages undermines the brand.

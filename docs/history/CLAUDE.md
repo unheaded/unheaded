@@ -11,12 +11,12 @@
 
 **"Production-ready infrastructure in hours, not months."**
 
-Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. Customer brings their app ("the head"), we provide everything else ("unheaded").
+Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. User brings their app ("the head"), we provide everything else ("unheaded").
 
 **Core Capabilities:**
 - ✅ eBPF-based observability (L2-L7 tracing)
 - ✅ Immutable NixOS infrastructure
-- ✅ Zero customer data access (architectural isolation)
+- ✅ Zero user data access (architectural isolation)
 - ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
 - ✅ Self-hosting proof (The Meta Moment)
@@ -181,7 +181,7 @@ THE ARCANE HOLLOWS (Hidden Layer)
 ┌─────────────────────────────────────────────────────────────────┐
 │                    CUSTOMER ZONE (UNTOUCHABLE)                   │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │
-│  │ Customer UI │ │ Customer DB │ │ Customer    │ │ Customer   │ │
+│  │ User UI │ │ User DB │ │ User    │ │ User   │ │
 │  │ /UX         │ │             │ │ Source/Bins │ │ CI/CD      │ │
 │  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘ │
 │                                                                  │
@@ -214,7 +214,7 @@ THE ARCANE HOLLOWS (Hidden Layer)
 ### 1. Security First, Always
 
 **Test every PR for:**
-- Does this access customer data? → BLOCK
+- Does this access user data? → BLOCK
 - Does this weaken isolation? → BLOCK
 - Does this skip hardening? → BLOCK
 - Does this add external deps? → BLOCK (or move to .dev)
@@ -359,7 +359,7 @@ Requirements:
 - Unit tests (80%+ coverage)
 
 THE SACRED LAW:
-- ZERO customer data access
+- ZERO user data access
 - NO external dependencies
 - Use pkg/* implementations only
 ```

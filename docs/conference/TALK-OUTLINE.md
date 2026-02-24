@@ -110,7 +110,7 @@ We ran Doom -- the 1993 id Software classic -- inside Linux eBPF. Not as a joke.
 
 ### Slide 18: The Real Product
 **Content:** Diagram of Unheaded's 6-layer architecture with eBPF at Layer 1.
-**Speaker notes:** "Unheaded is an infrastructure platform. eBPF-based observability from Layer 2 to Layer 7. Zero sidecar overhead. Sub-microsecond per-hop metadata. Doom was the proof. Packet tracing is the product."
+**Speaker notes:** "Unheaded is an infrastructure platform. eBPF-based observability from Layer 2 to Layer 7. Zero sidecar overhead. Sub-microsecond per-hop metadata. Doom was the proof. Packet tracing is the application."
 
 ### Slide 19: Performance Headroom
 **Content:** Netflix PPS comparison table. XDP at 10M pps vs. our 333 pps. 30,000x headroom.

@@ -16,7 +16,7 @@ A drop-in infrastructure platform providing:
 - **Service mesh** — Built on [Wotan](https://github.com/unheaded/wotan) message bus
 - **Control plane** — Declarative config with drift detection
 - **Security baseline** — FEDRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, GDPR
-- **Zero customer data access** — Architectural isolation at every layer
+- **Zero user data access** — Architectural isolation at every layer
 
 ---
 

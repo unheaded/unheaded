@@ -51,10 +51,10 @@ BINDING CIRCLE MAP — "The Lich's Zones of Power"
 
   10.4.0.0/16   → Circle: HAUBERK (Service mesh)
                    East-west traffic
-                   Customer app-to-app communication
+                   User app-to-app communication
 
   10.5.0.0/16   → Circle: GATEHOUSE (Ingress)
-                   Shield → Pauldrons → customer app
+                   Shield → Pauldrons → user app
                    North-south traffic only
 
   10.10.0.0/16  → Circle: ABYSS (Chaos)

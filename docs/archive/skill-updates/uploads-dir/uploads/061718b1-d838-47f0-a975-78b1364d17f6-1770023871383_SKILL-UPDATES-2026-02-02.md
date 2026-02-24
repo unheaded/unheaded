@@ -51,7 +51,7 @@ Append these sections to the respective SKILL.md files to bring them current.
 
 ### Security Verification
 
-- [x] Customer Data Isolation: ARCHITECTURAL ✅
+- [x] User Data Isolation: ARCHITECTURAL ✅
 - [x] XSS Protection: FIXED (`html.EscapeString`)
 - [x] Command Injection: FIXED (temp file + whitelisted interpreters)
 - [x] CORS Validation: ADDED (origin checking)
@@ -187,7 +187,7 @@ Current Phase: Age 1 - Alpha Ascension
 Phase Progress: ~96% complete
 Current Focus: Monad/Sophia test coverage, Kanban E2E
 Blockers: B1 - Linux/eBPF dev environment (HIGH, Owner: Muck)
-Security: Customer data isolation intact ✅
+Security: User data isolation intact ✅
 Next Ship: Kanban E2E smoke test verification
 ETA to Alpha: February 8, 2026
 

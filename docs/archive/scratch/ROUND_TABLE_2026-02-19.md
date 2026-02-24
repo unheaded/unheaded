@@ -15,7 +15,7 @@ Current Age:     Age 1 — Alpha Ascension → PROTOCOL AWAKENING (Age 1.5)
 Phase Progress:  ~99% (Alpha gate) / Protocol work ACTIVE
 Current Focus:   Doom-over-IPv6 proof of computational completeness
 Blockers:        NONE — B1 (Linux/eBPF) RESOLVED Feb 8
-Security:        Customer data isolation intact ✅
+Security:        User data isolation intact ✅
 LOC:             ~260K production (~464K w/ tests) + Protocol additions
 Last Commit:     48e8bad — feat(mbc): two-pass RV32I→MBC translator + ELF CLI
 Go Version:      1.24.0

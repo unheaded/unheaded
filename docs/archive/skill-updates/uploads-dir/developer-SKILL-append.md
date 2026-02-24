@@ -93,7 +93,7 @@ go test -bench=. -benchmem -run=^$ ./services/sophia/...
 
 ### Security Verification (Completed)
 
-- [x] Customer Data Isolation: ARCHITECTURAL ✅
+- [x] User Data Isolation: ARCHITECTURAL ✅
 - [x] XSS Protection: FIXED (`html.EscapeString`)
 - [x] Command Injection: FIXED (temp file + whitelisted interpreters)
 - [x] CORS Validation: ADDED (origin checking)

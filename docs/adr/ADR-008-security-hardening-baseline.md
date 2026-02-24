@@ -6,7 +6,7 @@
 
 ## Context
 
-The February 9 security audit identified several areas requiring hardening before the platform moves from alpha to beta. While the architecture enforces zero customer data access by design (ADR-007 covers container isolation), the service-to-service communication and external-facing endpoints lacked authentication, input validation, and secrets externalization.
+The February 9 security audit identified several areas requiring hardening before the platform moves from alpha to beta. While the architecture enforces zero user data access by design (ADR-007 covers container isolation), the service-to-service communication and external-facing endpoints lacked authentication, input validation, and secrets externalization.
 
 ### Threat Model
 
@@ -93,7 +93,7 @@ See ADR-007 for the full container hardening strategy. Key additions in this pas
 - `.env.example` with placeholder values; `.env` in `.gitignore`
 - Docker Compose services use `env_file: .env`
 
-**Sacred Law:** Zero customer data in secrets store. Infrastructure credentials only.
+**Sacred Law:** Zero user data in secrets store. Infrastructure credentials only.
 
 ## Consequences
 

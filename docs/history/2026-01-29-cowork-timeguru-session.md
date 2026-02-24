@@ -71,7 +71,7 @@ All 7 Unheaded skills verified:
 |-------|--------|-------------|
 | **Captain** | ✅ ALIGNED | Phase 1 → Phase 2 planning, Foundation stage |
 | **Architect** | ✅ ALIGNED | 4 pillars active, services wired |
-| **Micromanager** | ✅ ALIGNED | Execution engine, QA gates, ZERO customer data access |
+| **Micromanager** | ✅ ALIGNED | Execution engine, QA gates, ZERO user data access |
 | **Developer** | ✅ ALIGNED | TDD active, Go+Rust, security-first |
 | **Wotan (Coord)** | ✅ ALIGNED | Coordination operational, circular workflow |
 | **Kingdom** | ✅ ALIGNED | Lore documented, Sacred Hierarchy established |
@@ -134,7 +134,7 @@ All 7 Unheaded skills verified:
 
 ### From Micromanager Skill:
 - **First Ship Target:** Kanban GUI (self-hosting) - currently 60-65%
-- **ZERO Customer Data Access:** Architectural principle, non-negotiable
+- **ZERO User Data Access:** Architectural principle, non-negotiable
 - **QA Philosophy:** Test EVERYTHING before ship
 - **Session Protocol:** Always read Timeguru first
 

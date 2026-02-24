@@ -26,7 +26,7 @@ For QA checkpoints and Definition of Done:
 → See `unheaded-micromanager` for task completion criteria
 
 For security isolation verification:
-→ Micromanager owns the customer data isolation checklist
+→ Micromanager owns the user data isolation checklist
 
 ---
 

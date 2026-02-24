@@ -487,7 +487,7 @@ private address block.
 
 A single Unheaded Kingdom will never need more than
 16,777,216 addresses (equivalent to 10.0.0.0/8).  Many
-customer Kingdoms require far fewer — a /24 (256 hosts)
+user Kingdoms require far fewer — a /24 (256 hosts)
 or /16 (65,536 hosts).  The fewer hosts required, the
 more address bits become deterministic and reclaimable.
 

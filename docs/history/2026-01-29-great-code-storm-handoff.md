@@ -376,7 +376,7 @@ go test ./pkg/...     # All new packages
 ## Context for Next Agent
 
 ### The Sacred Law
-**ZERO customer data access** - architectural isolation, not policy.
+**ZERO user data access** - architectural isolation, not policy.
 
 ### Technology Stack
 - **Go 1.21+** for control plane (services, CLI, orchestration)

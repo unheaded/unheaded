@@ -26,7 +26,7 @@ A task is DONE when ALL of the following are verified:
 
 #### Security (Developer + Micromanager)
 - [ ] Security review passed
-- [ ] Customer data isolation verified (does this touch customer data? **NO.**)
+- [ ] User data isolation verified (does this touch user data? **NO.**)
 - [ ] No unsafe operations without justification
 - [ ] TLS/mTLS configured where required
 
@@ -66,7 +66,7 @@ Testing:
 
 Security:
 - [ ] Input validation on all public functions
-- [ ] No customer data access paths
+- [ ] No user data access paths
 - [ ] Secrets management verified
 
 Documentation:

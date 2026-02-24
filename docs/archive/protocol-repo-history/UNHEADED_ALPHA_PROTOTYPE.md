@@ -369,9 +369,9 @@ One script works everywhere: bare metal, AWS, Azure, GCP, Oracle, VMware, QEMU.
 ## 🔐 Security Design
 
 ### Architectural Isolation
-- **demo-app** (customer) has ZERO access to Unheaded internals
+- **demo-app** (user) has ZERO access to Unheaded internals
 - Network policies enforce boundaries
-- No customer data ever touched
+- No user data ever touched
 
 ### eBPF Safety
 - Kernel verifier prevents crashes
@@ -431,7 +431,7 @@ One script works everywhere: bare metal, AWS, Azure, GCP, Oracle, VMware, QEMU.
 Unheaded delivers:
 - eBPF observability (L2-L7)
 - Immutable NixOS containers
-- Zero customer data access
+- Zero user data access
 - Compliance templates (future)
 - **Proof: hosting itself**
 

@@ -31,7 +31,7 @@ The following critical security items from S22 have been resolved:
   - Security contact: stevie@bellis.tech
   - 90-day disclosure timeline
   - Clear reporting format requirements
-  - Distinction between in-scope (platform) and out-of-scope (customer apps)
+  - Distinction between in-scope (platform) and out-of-scope (user apps)
   - Security best practices for deployment and configuration
 
 ### 3. Build Script with Version Metadata

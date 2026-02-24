@@ -697,7 +697,7 @@ qos_class (sub_dict_3):
 deploy_ring (sub_dict_4):
   0x00 = CANARY       (test deployment)
   0x01 = STAGING      (pre-production)
-  0x02 = PRODUCTION   (customer-facing)
+  0x02 = PRODUCTION   (user-facing)
 
 circuit_state (sub_dict_5):
   0x00 = CLOSED       (normal operation)

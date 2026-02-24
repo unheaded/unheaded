@@ -48,7 +48,7 @@ desired/actual state). We just gave it better names.
 ## Pillar 2: Medieval Armory → Infrastructure Layers
 
 The "suit of armor" metaphor maps each infrastructure component to a piece
-of medieval armor. The customer's application is "the head" — Unheaded provides
+of medieval armor. The user's application is "the head" — Unheaded provides
 everything else the knight needs.
 
 | Armor Piece | Technical Component | Why It Fits |
@@ -66,7 +66,7 @@ everything else the knight needs.
 ### The Complete Knight
 
 ```
-    [APPLICATION]  ← "the head" — customer brings this
+    [APPLICATION]  ← "the head" — user brings this
     ─────────────
     [  CUIRASS  ]  ← control plane (unheaded-daemon)
     [ HAUBERK   ]  ← service mesh (circuit breakers, mTLS)
@@ -118,6 +118,6 @@ Wotan the service has ascended.
 Per the Lore skill's Sacred Laws:
 
 - Never name something after a deity that implies infallibility (our systems fail)
-- Never use names that imply customer data awareness (we never touch it)
+- Never use names that imply user data awareness (we never touch it)
 - Never reuse a name across architectural domains
 - Humor is encouraged but clarity comes first — if the name confuses the mapping, pick a different name

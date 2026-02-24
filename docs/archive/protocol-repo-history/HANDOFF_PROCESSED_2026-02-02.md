@@ -26,7 +26,7 @@
 - **XSS Protection:** FIXED (`html.EscapeString`)
 - **Command Injection:** FIXED (temp file + whitelisted interpreters)
 - **CORS Validation:** ADDED (origin checking)
-- **Customer Data Isolation:** ARCHITECTURAL (intact)
+- **User Data Isolation:** ARCHITECTURAL (intact)
 
 ---
 

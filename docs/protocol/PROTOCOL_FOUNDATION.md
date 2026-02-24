@@ -245,7 +245,7 @@ This means you can tag packets with *anything*:
 | Trace correlation | `0x03` | 4 bytes | trace hash (raw, no lookup) |
 | QoS class | `0x12` | 1 byte | `{1: "bulk", 2: "interactive", 3: "realtime"}` |
 | Feature flag | `0x20` | 1 byte | `{1: "canary", 2: "shadow", 3: "baseline"}` |
-| Customer tier | `0x21` | 1 byte | `{1: "free", 2: "pro", 3: "enterprise"}` |
+| User tier | `0x21` | 1 byte | `{1: "free", 2: "pro", 3: "enterprise"}` |
 | A/B test cohort | `0x22` | 1 byte | `{1: "control", 2: "treatment_a", 3: "treatment_b"}` |
 | Deployment ring | `0x23` | 1 byte | `{1: "canary", 2: "staging", 3: "production"}` |
 | Encryption tier | `0x24` | 1 byte | `{1: "none", 2: "aes128", 3: "aes256", 4: "chacha20"}` |
