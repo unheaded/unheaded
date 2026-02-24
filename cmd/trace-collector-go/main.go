@@ -33,6 +33,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
@@ -817,6 +818,9 @@ func main() {
 	// Create context with signal handling
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Service discovery — best-effort registration (nil conn until transport is wired)
+	discovery.SetupServiceDiscovery(ctx, nil, "trace-collector", 16670)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
