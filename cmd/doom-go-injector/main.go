@@ -259,8 +259,15 @@ func main() {
 	flowLabel := flag.Uint("flow-label", DefaultFlowLabel, "IPv6 flow label (identifies Doom instance)")
 	mode := flag.String("mode", "burst", "Injection mode: steady, burst, fast")
 	delayUS := flag.Int("delay", 3000, "Inter-packet delay in microseconds (steady mode only)")
+	rateHz := flag.Int("rate", 0, "Injection rate in Hz (overrides --delay, sets mode to steady)")
 
 	flag.Parse()
+
+	// --rate convenience: convert Hz to delay and force steady mode.
+	if *rateHz > 0 {
+		*delayUS = 1_000_000 / *rateHz
+		*mode = "steady"
+	}
 
 	// Parse MAC addresses.
 	srcMAC, err := parseMAC(*srcMACStr)
