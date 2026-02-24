@@ -35,7 +35,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		StoragePath:      "/var/lib/baremetal/images",
-		HTTPServeAddress: ":8080",
+		HTTPServeAddress: ":17000",
 		CachePath:        "/var/lib/baremetal/cache",
 		MaxCacheSize:     50 * 1024 * 1024 * 1024, // 50GB
 	}

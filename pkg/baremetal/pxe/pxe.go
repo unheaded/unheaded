@@ -41,10 +41,10 @@ func DefaultConfig() *Config {
 	return &Config{
 		TFTPAddress:         ":69",
 		TFTPRoot:            "/var/lib/tftpboot",
-		HTTPAddress:         ":8080",
+		HTTPAddress:         ":17000",
 		HTTPRoot:            "/var/lib/pxe",
 		DHCPInterface:       "eth0",
-		CallbackAddress:     "http://provisioner:8081",
+		CallbackAddress:     "http://provisioner:17000",
 		DefaultKernelParams: "console=ttyS0,115200n8",
 	}
 }

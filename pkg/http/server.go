@@ -47,7 +47,7 @@ type Server struct {
 
 // ServerConfig holds server configuration
 type ServerConfig struct {
-	// Addr is the address to listen on (default: ":8080")
+	// Addr is the address to listen on (default: ":20000")
 	Addr string
 
 	// ReadTimeout is the maximum duration for reading the entire request
@@ -78,7 +78,7 @@ type ServerConfig struct {
 // DefaultServerConfig returns a ServerConfig with sensible defaults
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
-		Addr:              ":8080",
+		Addr:              ":20000",
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -98,7 +98,7 @@ func NewServer(router *Router) *Server {
 func NewServerWithConfig(router *Router, config ServerConfig) *Server {
 	// Set defaults
 	if config.Addr == "" {
-		config.Addr = ":8080"
+		config.Addr = ":20000"
 	}
 	if config.ShutdownTimeout == 0 {
 		config.ShutdownTimeout = 30 * time.Second
@@ -280,7 +280,7 @@ func (r *Router) ListenAndServeTLS(addr, certFile, keyFile string) error {
 
 // Run starts the server (alias for ListenAndServe)
 func (r *Router) Run(addr ...string) error {
-	address := ":8080"
+	address := ":20000"
 	if len(addr) > 0 {
 		address = addr[0]
 	}
