@@ -14,13 +14,6 @@ import (
 	"time"
 )
 
-// Role constants for RBAC.
-const (
-	RoleAdmin    = "admin"
-	RoleService  = "service"
-	RoleReadonly = "readonly"
-)
-
 // JWTConfig configures the JWT validator.
 type JWTConfig struct {
 	// SigningKey is the HMAC-SHA256 shared secret.
