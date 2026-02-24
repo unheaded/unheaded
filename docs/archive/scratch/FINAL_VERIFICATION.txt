@@ -32,7 +32,7 @@ E2E Tests: ✅ Changed 11/11 → 23/23
 Progress: ✅ Changed ~96% → ~98%
 Date: ✅ Changed Feb 2, 2026 → Feb 18, 2026
 Kingdom Metrics: ✅ All 8 metrics updated
-Total LOC: ✅ 237K → 465K (433K code + 32K docs)
+Total LOC: ✅ 237K → ~260K production (~464K w/ tests)
 Go Files: ✅ 280+ → 585 files across 25 services
 Rust eBPF: ✅ 7,196 → 23,991 LOC
 Services: ✅ 8 → 25
@@ -71,7 +71,7 @@ Edit 6: Update "Session Startup" section
 Status: ✅ COMPLETE
 Date: ✅ February 18, 2026
 Phase: ✅ ~98% complete
-Metrics: ✅ 465K LOC, 25 services, 585 files, 23,991 eBPF LOC
+Metrics: ✅ ~260K production (~464K w/ tests), 25 services, 585 files, 23,991 eBPF LOC
 Protocol Shift: ✅ New paradigm shift section added
 Services: ✅ Updated with protocol mappings (20-byte registers, BPF maps, ring buffers)
 Blockers: ✅ Changed to "BLOCKERS RESOLVED"
@@ -134,7 +134,7 @@ All Requested Content Present:
    ✅ Anamnesis: "Ring buffers"
 
 3. Current Status Updates:
-   ✅ 465,000+ LOC
+   ✅ ~260K production (~464K w/ tests)
    ✅ 585 Go files, 25 services
    ✅ 23,991 LOC Rust eBPF
    ✅ 23/23 E2E tests
