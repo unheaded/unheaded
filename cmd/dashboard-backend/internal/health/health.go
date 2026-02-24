@@ -531,11 +531,16 @@ func (m *Monitor) pollTarget(ctx context.Context, target *ServiceTarget) {
 		}
 	}
 
-	// Determine status based on HTTP code
+	// Determine status based on HTTP code and response body status field
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		result.Status = StatusHealthy
 		result.Healthy = true
+		// Check if body reports DEGRADED (gRPC down but HTTP up)
+		if status, ok := healthResp["status"].(string); ok && status == "DEGRADED" {
+			result.Status = StatusDegraded
+			result.Healthy = false
+		}
 	case resp.StatusCode >= 500:
 		result.Status = StatusUnhealthy
 		result.Healthy = false
