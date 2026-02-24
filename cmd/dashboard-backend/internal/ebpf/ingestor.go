@@ -62,11 +62,14 @@ type Ingestor struct {
 	listMu    sync.RWMutex
 
 	// Counters
-	packetsIngested atomic.Int64
-	flowsIngested   atomic.Int64
-	latencyIngested atomic.Int64
-	syscallIngested atomic.Int64
-	parseErrors     atomic.Int64
+	packetsIngested   atomic.Int64
+	flowsIngested     atomic.Int64
+	latencyIngested   atomic.Int64
+	syscallIngested   atomic.Int64
+	computeIngested   atomic.Int64
+	anamnesisIngested atomic.Int64
+	unknownTopics     atomic.Int64
+	parseErrors       atomic.Int64
 }
 
 // EventEnvelope wraps a typed eBPF event for listener dispatch.
@@ -161,6 +164,15 @@ func (ing *Ingestor) Start(ctx context.Context) error {
 		"ebpf.flow.events",
 		"ebpf.latency.events",
 		"ebpf.syscall.events",
+		"compute.hop",
+		"compute.miss",
+		"compute.halt",
+		"compute.syscall",
+		"anamnesis.birth",
+		"anamnesis.hop",
+		"anamnesis.death",
+		"anamnesis.anomaly",
+		"anamnesis.chaos",
 	}
 
 	for _, topic := range topics {
@@ -290,6 +302,67 @@ func (ing *Ingestor) dispatchSingle(topic string, data []byte) {
 			Timestamp: e.Time(),
 			Data:      e,
 		})
+
+	case strings.HasPrefix(topic, "compute."):
+		// Compute events (hop, miss, halt, syscall) are generic JSON payloads
+		// from the Doom/Monad subsystem. Store as raw map for display.
+		var raw map[string]interface{}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			ing.parseErrors.Add(1)
+			return
+		}
+		ing.computeIngested.Add(1)
+		ing.emit(EventEnvelope{
+			Topic:     topic,
+			Type:      "compute",
+			Timestamp: time.Now(),
+			Data:      raw,
+		})
+
+	case strings.HasPrefix(topic, "anamnesis."):
+		// Anamnesis events are flow-lifecycle events (birth, hop, death, anomaly, chaos).
+		// Try to parse as FlowEvent first (trace-collector may bridge them).
+		e, err := ParseFlowEvent(data)
+		if err != nil {
+			// Fallback: store as raw JSON for display
+			var raw map[string]interface{}
+			if err2 := json.Unmarshal(data, &raw); err2 != nil {
+				ing.parseErrors.Add(1)
+				return
+			}
+			ing.anamnesisIngested.Add(1)
+			ing.emit(EventEnvelope{
+				Topic:     topic,
+				Type:      "anamnesis",
+				Timestamp: time.Now(),
+				Data:      raw,
+			})
+			return
+		}
+		ing.flows.IngestFlow(e)
+		ing.anamnesisIngested.Add(1)
+		ing.emit(EventEnvelope{
+			Topic:     topic,
+			Type:      "anamnesis",
+			Timestamp: e.Time(),
+			Data:      e,
+		})
+
+	default:
+		// Unknown topic — log and count, don't silently drop
+		var raw map[string]interface{}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			ing.parseErrors.Add(1)
+			return
+		}
+		ing.unknownTopics.Add(1)
+		ing.log.Warn().Str("topic", topic).Msg("unknown topic received")
+		ing.emit(EventEnvelope{
+			Topic:     topic,
+			Type:      "unknown",
+			Timestamp: time.Now(),
+			Data:      raw,
+		})
 	}
 }
 
@@ -344,27 +417,33 @@ func (ing *Ingestor) RecentEvents(n int) []EventEnvelope {
 // Stats returns ingestor statistics.
 func (ing *Ingestor) Stats() IngestorStats {
 	return IngestorStats{
-		PacketsIngested: ing.packetsIngested.Load(),
-		FlowsIngested:  ing.flowsIngested.Load(),
-		LatencyIngested: ing.latencyIngested.Load(),
-		SyscallIngested: ing.syscallIngested.Load(),
-		ParseErrors:     ing.parseErrors.Load(),
-		FlowStats:       ing.flows.Stats(),
-		LatencyStats:    ing.latency.Stats(),
-		EventsBuffered:  ing.events.Count(),
+		PacketsIngested:   ing.packetsIngested.Load(),
+		FlowsIngested:    ing.flowsIngested.Load(),
+		LatencyIngested:   ing.latencyIngested.Load(),
+		SyscallIngested:   ing.syscallIngested.Load(),
+		ComputeIngested:   ing.computeIngested.Load(),
+		AnamnesisIngested: ing.anamnesisIngested.Load(),
+		UnknownTopics:     ing.unknownTopics.Load(),
+		ParseErrors:       ing.parseErrors.Load(),
+		FlowStats:         ing.flows.Stats(),
+		LatencyStats:      ing.latency.Stats(),
+		EventsBuffered:    ing.events.Count(),
 	}
 }
 
 // IngestorStats holds ingestor statistics for the /api/v1/ebpf/stats endpoint.
 type IngestorStats struct {
-	PacketsIngested int64          `json:"packets_ingested"`
-	FlowsIngested  int64          `json:"flows_ingested"`
-	LatencyIngested int64          `json:"latency_ingested"`
-	SyscallIngested int64          `json:"syscall_ingested"`
-	ParseErrors     int64          `json:"parse_errors"`
-	FlowStats       FlowGraphStats `json:"flow_stats"`
-	LatencyStats    LatencyStats   `json:"latency_stats"`
-	EventsBuffered  int            `json:"events_buffered"`
+	PacketsIngested   int64          `json:"packets_ingested"`
+	FlowsIngested    int64          `json:"flows_ingested"`
+	LatencyIngested   int64          `json:"latency_ingested"`
+	SyscallIngested   int64          `json:"syscall_ingested"`
+	ComputeIngested   int64          `json:"compute_ingested"`
+	AnamnesisIngested int64          `json:"anamnesis_ingested"`
+	UnknownTopics     int64          `json:"unknown_topics"`
+	ParseErrors       int64          `json:"parse_errors"`
+	FlowStats         FlowGraphStats `json:"flow_stats"`
+	LatencyStats      LatencyStats   `json:"latency_stats"`
+	EventsBuffered    int            `json:"events_buffered"`
 }
 
 // MarshalJSON implements json.Marshaler for IngestorStats.

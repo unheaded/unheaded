@@ -727,3 +727,207 @@ func TestLatencyHistogram_Concurrent(t *testing.T) {
 
 	wg.Wait()
 }
+
+// === New Topic Routing Tests (S41) ===
+
+func TestIngestor_ComputeHopDispatch(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var received []EventEnvelope
+	var mu sync.Mutex
+	ing.OnEvent(func(e EventEnvelope) {
+		mu.Lock()
+		received = append(received, e)
+		mu.Unlock()
+	})
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	mock.send("compute.hop", `{"hop_id":3,"insn_count":1024,"timestamp_ns":1234567890}`)
+	time.Sleep(50 * time.Millisecond)
+
+	stats := ing.Stats()
+	if stats.ComputeIngested != 1 {
+		t.Errorf("compute_ingested = %d, want 1", stats.ComputeIngested)
+	}
+
+	mu.Lock()
+	if len(received) != 1 {
+		t.Errorf("listener received %d events, want 1", len(received))
+	} else if received[0].Type != "compute" {
+		t.Errorf("event type = %q, want compute", received[0].Type)
+	}
+	mu.Unlock()
+}
+
+func TestIngestor_ComputeMissDispatch(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	mock.send("compute.miss", `{"address":65536,"type":"rom"}`)
+	time.Sleep(50 * time.Millisecond)
+
+	stats := ing.Stats()
+	if stats.ComputeIngested != 1 {
+		t.Errorf("compute_ingested = %d, want 1", stats.ComputeIngested)
+	}
+}
+
+func TestIngestor_ComputeHaltDispatch(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	mock.send("compute.halt", `{"reason":"ebreak","insn_count":59800000}`)
+	time.Sleep(50 * time.Millisecond)
+
+	stats := ing.Stats()
+	if stats.ComputeIngested != 1 {
+		t.Errorf("compute_ingested = %d, want 1", stats.ComputeIngested)
+	}
+}
+
+func TestIngestor_AnamnesisFlowDispatch(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Anamnesis birth event in FlowEvent-compatible format
+	flow := `{"timestamp_ns":1234567890,"flow_key":{"src_addr":"10.0.1.0","dst_addr":"10.0.1.1","src_port":1024,"dst_port":443,"protocol":6},"flow_state":{"state":"new","packets_in":1,"bytes_in":1500},"event_type":"new"}`
+	mock.send("anamnesis.birth", flow)
+	time.Sleep(50 * time.Millisecond)
+
+	stats := ing.Stats()
+	if stats.AnamnesisIngested != 1 {
+		t.Errorf("anamnesis_ingested = %d, want 1", stats.AnamnesisIngested)
+	}
+}
+
+func TestIngestor_AnamnesisRawDispatch(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Anamnesis anomaly event in raw format
+	mock.send("anamnesis.anomaly", `{"event_type":"anomaly","hop_id":5,"severity":"warning"}`)
+	time.Sleep(50 * time.Millisecond)
+
+	stats := ing.Stats()
+	if stats.AnamnesisIngested != 1 {
+		t.Errorf("anamnesis_ingested = %d, want 1", stats.AnamnesisIngested)
+	}
+}
+
+func TestIngestor_UnknownTopicDispatch(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var received []EventEnvelope
+	var mu sync.Mutex
+	ing.OnEvent(func(e EventEnvelope) {
+		mu.Lock()
+		received = append(received, e)
+		mu.Unlock()
+	})
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Dispatch directly since Start() won't subscribe to unknown topics
+	ing.dispatch("custom.unknown.topic", `{"key":"value"}`)
+
+	stats := ing.Stats()
+	if stats.UnknownTopics != 1 {
+		t.Errorf("unknown_topics = %d, want 1", stats.UnknownTopics)
+	}
+	if stats.ParseErrors != 0 {
+		t.Errorf("parse_errors = %d, want 0", stats.ParseErrors)
+	}
+
+	mu.Lock()
+	if len(received) != 1 {
+		t.Errorf("listener received %d events, want 1", len(received))
+	} else if received[0].Type != "unknown" {
+		t.Errorf("event type = %q, want unknown", received[0].Type)
+	}
+	mu.Unlock()
+}
+
+func TestIngestor_UnknownTopicBadJSON(t *testing.T) {
+	mock := newMockWotanClient()
+	config := DefaultIngestorConfig()
+	config.ExpireInterval = time.Hour
+	ing := NewIngestor(config, mock, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ing.Start(ctx); err != nil {
+		t.Fatalf("start error: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Bad JSON on unknown topic — should increment parse errors, not crash
+	ing.dispatch("custom.bad", "not json at all")
+
+	stats := ing.Stats()
+	if stats.ParseErrors != 1 {
+		t.Errorf("parse_errors = %d, want 1", stats.ParseErrors)
+	}
+	if stats.UnknownTopics != 0 {
+		t.Errorf("unknown_topics = %d, want 0", stats.UnknownTopics)
+	}
+}
