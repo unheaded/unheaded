@@ -43,8 +43,8 @@ var (
 )
 
 var (
-	listenAddr = flag.String("listen", ":8004", "HTTP listen address")
-	wotanAddr = flag.String("wotan", "localhost:9090", "Wotan server address")
+	listenAddr = flag.String("listen", ":19004", "HTTP listen address")
+	wotanAddr = flag.String("wotan", "localhost:18001", "Wotan server address")
 	debug      = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs   = flag.Bool("json", false, "Output logs in JSON format")
 )
