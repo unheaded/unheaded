@@ -2532,11 +2532,36 @@ func (l *NativeLoader) attachXDP(loaded *loadedProgram) error {
 			loaded.linkFDs = append(loaded.linkFDs, linkFD)
 			return nil
 		}
+		// If driver mode failed via BPF link, try generic/SKB mode
+		if loaded.spec.AttachType != AttachXDPGeneric {
+			origType := loaded.spec.AttachType
+			loaded.spec.AttachType = AttachXDPGeneric
+			linkFD, err = l.attachXDPLink(loaded, ifIndex)
+			if err == nil {
+				loaded.linkFDs = append(loaded.linkFDs, linkFD)
+				return nil
+			}
+			loaded.spec.AttachType = origType
+		}
 		// Fall back to netlink if link creation failed
 	}
 
 	// Use netlink for XDP attachment
-	return l.attachXDPNetlink(loaded, ifIndex)
+	err = l.attachXDPNetlink(loaded, ifIndex)
+	if err == nil {
+		return nil
+	}
+
+	// If driver mode failed (EOPNOTSUPP on VMs/virtio), fall back to
+	// generic/SKB mode which works on all network interfaces.
+	if loaded.spec.AttachType != AttachXDPGeneric {
+		loaded.spec.AttachType = AttachXDPGeneric
+		if retryErr := l.attachXDPNetlink(loaded, ifIndex); retryErr == nil {
+			return nil
+		}
+	}
+
+	return err
 }
 
 // attachXDPLink attaches XDP using BPF link (modern method)
