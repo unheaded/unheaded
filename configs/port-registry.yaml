@@ -1,0 +1,35 @@
+# Unheaded Port Registry — "The Doom Range" (16666-26666)
+# Source of truth: pkg/ports/ports.go
+# This YAML is for container configs and non-Go consumers.
+
+infrastructure:
+  doom-bridge: { port: 16666, proto: websocket }
+  doom-go-injector: { port: 16667, proto: tcp }
+  trace-collector-http: { port: 16670, proto: http }
+  trace-collector-metrics: { port: 16671, proto: http }
+control-plane:
+  unheaded-daemon-http: { port: 17000, proto: http }
+  unheaded-daemon-grpc: { port: 17001, proto: grpc }
+  unheaded-cli: { port: 17010, proto: http }
+wotan:
+  wotan-http: { port: 18000, proto: http }
+  wotan-grpc: { port: 18001, proto: grpc }
+services:
+  timeguru: { port: 19000, proto: http }
+  architect: { port: 19001, proto: http }
+  captain: { port: 19002, proto: http }
+  micromanager: { port: 19003, proto: http }
+  monad: { port: 19004, proto: http }
+  sophia: { port: 19005, proto: http }
+  cuirass: { port: 19006, proto: http }
+applications:
+  dashboard-backend: { port: 20000, proto: http }
+  kanban-app: { port: 20001, proto: http }
+  wiki-server: { port: 20002, proto: http }
+gateway:
+  gateway-http: { port: 21000, proto: http }
+  gateway-https: { port: 21443, proto: https }
+utilities:
+  cert-gen: { port: 22000, proto: http }
+customer:
+  reserved: { range: "26000-26666" }
