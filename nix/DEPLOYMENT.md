@@ -59,9 +59,9 @@ nix run .#deploy
 lxc list
 
 # Check health endpoints
-curl http://10.10.10.10:8080/health  # wotan
-curl http://10.10.10.20:8000/health  # timeguru
-curl http://10.10.10.200:8080/health # kanban
+curl http://10.10.10.10:18000/health  # wotan
+curl http://10.10.10.20:19000/health  # timeguru
+curl http://10.10.10.200:20001/health # kanban
 ```
 
 ## Manual Deployment
@@ -111,7 +111,7 @@ lxc launch unheaded-wotan wotan \
 
 # Wait for wotan
 sleep 10
-curl http://10.10.10.10:8080/health
+curl http://10.10.10.10:18000/health
 
 # 2. Services (depend on wotan)
 for service in timeguru captain micromanager architect developer; do
@@ -169,7 +169,7 @@ done
 lxc exec unheaded-wotan -- bash
 
 # Run command
-lxc exec unheaded-timeguru -- curl http://10.10.10.10:8080/health
+lxc exec unheaded-timeguru -- curl http://10.10.10.10:18000/health
 
 # Copy files
 lxc file push local.txt unheaded-wotan/tmp/
@@ -184,23 +184,25 @@ lxc info unheaded-wotan
 # Real-time stats
 lxc monitor --type=logging
 
-# Prometheus metrics
-curl http://10.10.10.10:9100/metrics
+# Prometheus metrics (via service's /metrics endpoint)
+curl http://10.10.10.10:18000/metrics
 ```
 
 ## Network Configuration
 
-### Container IP Allocation
+### Container IP Allocation — Doom Range (16666-26666)
 | Container | IP | Port(s) | Access |
 |-----------|-----|---------|--------|
-| wotan | 10.10.10.10 | 9090, 8080, 9100 | Internal + Gateway |
-| timeguru | 10.10.10.20 | 8000, 9100 | Internal + Gateway |
-| captain | 10.10.10.21 | 8001, 9100 | Internal + Gateway |
-| micromanager | 10.10.10.22 | 8002, 9100 | Internal + Gateway |
-| architect | 10.10.10.23 | 8003, 9100 | Internal + Gateway |
-| developer | 10.10.10.24 | 8004, 9100 | Internal + Gateway |
-| kanban | 10.10.10.200 | 8080, 9100 | Public via Gateway |
-| dashboard | 10.10.10.201 | 8081, 9100 | Public via Gateway |
+| wotan | 10.10.10.10 | 18000 (HTTP), 18001 (gRPC) | Internal + Gateway |
+| timeguru | 10.10.10.20 | 19000 | Internal + Gateway |
+| captain | 10.10.10.21 | 19002 | Internal + Gateway |
+| micromanager | 10.10.10.22 | 19003 | Internal + Gateway |
+| architect | 10.10.10.23 | 19001 | Internal + Gateway |
+| monad | 10.10.10.24 | 19004 | Internal + Gateway |
+| sophia | 10.10.10.25 | 19005 | Internal + Gateway |
+| kanban | 10.10.10.200 | 20001 | Public via Gateway |
+| dashboard | 10.10.10.201 | 20000 | Public via Gateway |
+| daemon | 10.10.10.202 | 17000 | Internal |
 
 ### Firewall Rules
 All containers have default DENY with explicit allows:
@@ -212,13 +214,13 @@ All containers have default DENY with explicit allows:
 ### Testing Connectivity
 ```bash
 # From host to wotan
-curl http://10.10.10.10:8080/health
+curl http://10.10.10.10:18000/health
 
 # From timeguru to wotan
-lxc exec unheaded-timeguru -- curl http://10.10.10.10:8080/health
+lxc exec unheaded-timeguru -- curl http://10.10.10.10:18000/health
 
 # From kanban to timeguru
-lxc exec unheaded-kanban -- curl http://10.10.10.20:8000/api/v1/timeline
+lxc exec unheaded-kanban -- curl http://10.10.10.20:19000/api/v1/timeline
 ```
 
 ## Security
@@ -261,7 +263,7 @@ lxc exec unheaded-wotan -- systemctl status wotan
 lxc exec unheaded-wotan -- journalctl -u wotan -n 100
 
 # Check dependencies
-lxc exec unheaded-timeguru -- curl -v http://10.10.10.10:8080/health
+lxc exec unheaded-timeguru -- curl -v http://10.10.10.10:18000/health
 ```
 
 ### Network Issues
@@ -292,7 +294,7 @@ lxc exec unheaded-wotan -- iostat -x 1
 ### Health Check Failures
 ```bash
 # Test health endpoint
-curl -v http://10.10.10.10:8080/health
+curl -v http://10.10.10.10:18000/health
 
 # Check service status
 lxc exec unheaded-wotan -- systemctl status wotan
@@ -337,7 +339,7 @@ for c in timeguru captain micromanager architect developer; do
   # Re-deploy with new image
   lxc start unheaded-$c
   sleep 5
-  curl http://10.10.10.20:8000/health # verify
+  curl http://10.10.10.20:19000/health # verify
 done
 ```
 
