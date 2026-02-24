@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
@@ -121,6 +122,10 @@ func main() {
 
 	// Start service
 	ctx := context.Background()
+
+	// Service discovery registration (best-effort, nil conn until transport.Connect)
+	discovery.SetupServiceDiscovery(ctx, nil, "micromanager", 19003)
+
 	if err := service.Start(ctx); err != nil {
 		log.Error().Err(err).Msg("failed to start service")
 		os.Exit(1)
