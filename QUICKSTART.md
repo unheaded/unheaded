@@ -66,18 +66,20 @@ docker compose ps
 docker compose logs -f
 ```
 
-### Service Port Map
+### Service Port Map — "The Doom Range" (16666-26666)
 
 | Service | Container | Port | Health Check | Role |
 |---------|-----------|------|-------------|------|
-| Wotan | unheaded-wotan | 5555, 8081 | `localhost:8081/health` | Message bus |
-| Timeguru | unheaded-timeguru | 8082 | `localhost:8082/health` | Timeline tracking |
-| Captain | unheaded-captain | 8083 | `localhost:8083/health` | Strategy & vision |
-| Architect | unheaded-architect | 8084 | `localhost:8084/health` | Infrastructure design |
-| Micromanager | unheaded-micromanager | 8085 | `localhost:8085/health` | Task execution |
-| Monad | unheaded-monad | 8086 | `localhost:8086/health` | State management |
-| Sophia | unheaded-sophia | 8087 | `localhost:8087/health` | Knowledge graph |
-| Cuirass | unheaded-cuirass | 8080 | `localhost:8080/health` | Control plane |
+| Wotan | unheaded-wotan | 18000 (HTTP), 18001 (gRPC) | `localhost:18000/health` | Message bus |
+| Timeguru | unheaded-timeguru | 19000 | `localhost:19000/health` | Timeline tracking |
+| Captain | unheaded-captain | 19002 | `localhost:19002/health` | Strategy & vision |
+| Architect | unheaded-architect | 19001 | `localhost:19001/health` | Infrastructure design |
+| Micromanager | unheaded-micromanager | 19003 | `localhost:19003/health` | Task execution |
+| Monad | unheaded-monad | 19004 | `localhost:19004/health` | State management |
+| Sophia | unheaded-sophia | 19005 | `localhost:19005/health` | Knowledge graph |
+| Cuirass | unheaded-cuirass | 17000 | `localhost:17000/health` | Control plane |
+| Dashboard | unheaded-dashboard | 20000 | `localhost:20000/health` | Metrics + WebSocket |
+| Kanban | unheaded-kanban | 20001 | `localhost:20001/health` | Self-hosting proof |
 
 **Optional observability stack** (Prometheus + Grafana):
 ```bash
@@ -91,14 +93,14 @@ docker compose --profile observability up -d
 ## 4. Verify All Services Are Healthy
 
 ```bash
-# Quick health check across all services
-for port in 8080 8081 8082 8083 8084 8085 8086 8087; do
+# Quick health check across all services (Doom Range ports)
+for port in 17000 18000 19000 19001 19002 19003 19004 19005 20000 20001; do
   printf "localhost:%-5s → " "$port"
   curl -sf "http://localhost:$port/health" && echo "" || echo "UNREACHABLE"
 done
 ```
 
-**Expected:** All 8 return standard Kingdom health format:
+**Expected:** All services return standard Kingdom health format:
 ```json
 {"service":"<name>","status":"healthy","version":"<semver>","timestamp":"<RFC3339>"}
 ```
@@ -113,24 +115,24 @@ Wotan is the message bus. Verify topic subscribe/publish/messages work.
 
 ```bash
 # Subscribe to a test topic
-curl -s -X POST 'http://localhost:8081/api/v1/topics/test.events/subscribe' \
+curl -s -X POST 'http://localhost:18000/api/v1/topics/test.events/subscribe' \
   -H 'Content-Type: application/json' \
   -d '{"display_name":"smoke-tester"}'
 # → returns {"subscriber_id":"...","status":"subscribed",...}
 
 # Save the subscriber_id, then publish a message
 SID="<paste subscriber_id from above>"
-curl -s -X POST 'http://localhost:8081/api/v1/topics/test.events/publish' \
+curl -s -X POST 'http://localhost:18000/api/v1/topics/test.events/publish' \
   -H 'Content-Type: application/json' \
   -d "{\"subscriber_id\":\"$SID\",\"payload\":{\"msg\":\"hello kingdom\"}}"
 # → returns {"status":"published","seq":1}
 
 # Read messages back
-curl -s 'http://localhost:8081/api/v1/topics/test.events/messages'
+curl -s 'http://localhost:18000/api/v1/topics/test.events/messages'
 # → returns array of messages with seq numbers
 
 # List all active topics
-curl -s 'http://localhost:8081/api/v1/topics'
+curl -s 'http://localhost:18000/api/v1/topics'
 ```
 
 **Success criteria:**
@@ -147,23 +149,23 @@ Timeguru serves the timeline in JSON, YAML, TOML, and Markdown via `?format=` qu
 
 ```bash
 # JSON (default)
-curl -s 'http://localhost:8082/timeline?format=json' | head -c 200
+curl -s 'http://localhost:19000/timeline?format=json' | head -c 200
 echo
 
 # YAML
-curl -s 'http://localhost:8082/timeline?format=yaml' | head -c 200
+curl -s 'http://localhost:19000/timeline?format=yaml' | head -c 200
 echo
 
 # TOML
-curl -s 'http://localhost:8082/timeline?format=toml' | head -c 200
+curl -s 'http://localhost:19000/timeline?format=toml' | head -c 200
 echo
 
 # Markdown
-curl -s 'http://localhost:8082/timeline?format=md' | head -c 200
+curl -s 'http://localhost:19000/timeline?format=md' | head -c 200
 echo
 
 # Kanban tasks view
-curl -s 'http://localhost:8082/api/v1/timeline/tasks' | head -c 200
+curl -s 'http://localhost:19000/api/v1/timeline/tasks' | head -c 200
 echo
 ```
 
@@ -171,19 +173,19 @@ echo
 
 ```bash
 # Sync current timeline to JSON/TOML/YAML/MD files in the sync directory
-curl -s -X POST 'http://localhost:8082/api/v1/timeline/sync'
+curl -s -X POST 'http://localhost:19000/api/v1/timeline/sync'
 # → returns {"files_written":[...],"errors":[...]}
 # Note: timeline.md write may fail in Docker (mounted :ro) — this is correct
 
 # Import a timeline from JSON (round-trip test)
-curl -s 'http://localhost:8082/timeline?format=json' | \
-  curl -s -X POST 'http://localhost:8082/api/v1/timeline/import?format=json' \
+curl -s 'http://localhost:19000/timeline?format=json' | \
+  curl -s -X POST 'http://localhost:19000/api/v1/timeline/import?format=json' \
     -H 'Content-Type: application/json' -d @-
 # → returns {"message":"timeline imported successfully","version":"..."}
 
 # Import from TOML (round-trip test)
-curl -s 'http://localhost:8082/timeline?format=toml' | \
-  curl -s -X POST 'http://localhost:8082/api/v1/timeline/import?format=toml' \
+curl -s 'http://localhost:19000/timeline?format=toml' | \
+  curl -s -X POST 'http://localhost:19000/api/v1/timeline/import?format=toml' \
     -H 'Content-Type: application/toml' -d @-
 ```
 
@@ -202,25 +204,25 @@ The Kanban app is the "meta moment" — Unheaded tracking its own development.
 
 ```bash
 # Kanban-app connects to Timeguru + Wotan
-PORT=8090 TIMEGURU_ADDR=localhost:8082 WOTAN_ADDR=localhost:5555 \
+PORT=20001 TIMEGURU_ADDR=localhost:19000 WOTAN_ADDR=localhost:18001 \
   go run ./cmd/kanban-app/...
 ```
 
-Open browser: **http://localhost:8090**
+Open browser: **http://localhost:20001**
 
 ### 7b. API Smoke Test (curl)
 
 ```bash
 # Get timeline from Timeguru
-curl -s 'http://localhost:8082/api/v1/timeline' | head -c 200
+curl -s 'http://localhost:19000/api/v1/timeline' | head -c 200
 echo
 
 # Get timeline as kanban cards
-curl -s 'http://localhost:8082/api/v1/timeline/tasks' | head -c 200
+curl -s 'http://localhost:19000/api/v1/timeline/tasks' | head -c 200
 echo
 
 # Create a test task
-curl -s -X POST 'http://localhost:8090/api/v1/tasks' \
+curl -s -X POST 'http://localhost:20001/api/v1/tasks' \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "smoke-test-1",
@@ -231,17 +233,17 @@ curl -s -X POST 'http://localhost:8090/api/v1/tasks' \
 echo
 
 # Move task to in-progress
-curl -s -X PUT 'http://localhost:8090/api/v1/tasks/smoke-test-1' \
+curl -s -X PUT 'http://localhost:20001/api/v1/tasks/smoke-test-1' \
   -H 'Content-Type: application/json' \
   -d '{"status": "in_progress"}'
 echo
 
 # Verify task exists
-curl -s 'http://localhost:8090/api/v1/tasks/smoke-test-1'
+curl -s 'http://localhost:20001/api/v1/tasks/smoke-test-1'
 echo
 
 # Delete test task
-curl -s -X DELETE 'http://localhost:8090/api/v1/tasks/smoke-test-1'
+curl -s -X DELETE 'http://localhost:20001/api/v1/tasks/smoke-test-1'
 echo
 ```
 
@@ -256,10 +258,10 @@ echo
 
 ```bash
 # Start dashboard-backend (separate terminal)
-go run ./cmd/dashboard-backend/... -listen :8088 -wotan localhost:5555
+go run ./cmd/dashboard-backend/... -listen :20000 -wotan localhost:18001
 ```
 
-Open browser: **http://localhost:8088**
+Open browser: **http://localhost:20000**
 
 **Verify:**
 - [ ] Service health grid populates
@@ -287,53 +289,41 @@ Each service can run standalone for development:
 ```bash
 # Terminal 1: Wotan (message bus — start first)
 go run ./services/wotan/cmd/wotan/...
-# Defaults: HTTP :8080, gRPC :9090
+# Defaults: HTTP :18000, gRPC :18001
 
 # Terminal 2: Timeguru (needs Wotan)
-WOTAN_ADDR=localhost:8080 go run ./services/timeguru/cmd/timeguru/...
-# Default: :8000
+WOTAN_ADDR=localhost:18001 go run ./services/timeguru/cmd/timeguru/...
+# Default: :19000
 
 # Terminal 3: Captain
-WOTAN_ADDR=localhost:8080 HTTP_ADDR=:8001 go run ./services/captain/cmd/captain/...
+WOTAN_ADDR=localhost:18001 HTTP_ADDR=:19002 go run ./services/captain/cmd/captain/...
 
 # Terminal 4: Kanban App (needs Timeguru + Wotan)
-TIMEGURU_ADDR=localhost:8000 WOTAN_ADDR=localhost:8080 \
+TIMEGURU_ADDR=localhost:19000 WOTAN_ADDR=localhost:18001 \
   go run ./cmd/kanban-app/...
 ```
 
-> **Note:** Standalone Wotan defaults HTTP to :8080 (not :8081 like Docker Compose).
-> Override with `--http-port 8081` to match Docker port assignments.
+> **Note:** All services use Doom Range ports (16666-26666) by default.
+> gRPC transport to Wotan (port 18001) is primary; HTTP (18000) is fallback.
 
-Default ports when running standalone (without Docker):
+Default ports — "The Doom Range" (16666-26666):
 
 | Service | Default Port | Config Method |
 |---------|-------------|---------------|
-| Wotan HTTP | 8080 | `--http-port` flag |
-| Wotan gRPC | 9090 | `--grpc-port` flag |
-| Timeguru | 8000 | `PORT` env |
-| Captain | 8000 | `HTTP_ADDR` env |
-| Architect | 8001 | `-addr` flag |
-| Micromanager | 8003 | `-port` flag |
-| Monad | 8004 | `MONAD_PORT` env |
-| Sophia | 8005 | `SOPHIA_LISTEN_ADDR` env |
-| Cuirass | 8080 | `HTTP_ADDR` env |
-| Kanban App | 8080 | `PORT` env |
-| Dashboard | 8080 | `-listen` flag |
+| Wotan HTTP | 18000 | `--http-port` flag |
+| Wotan gRPC | 18001 | `--grpc-port` flag |
+| Timeguru | 19000 | `PORT` env |
+| Architect | 19001 | `-addr` flag |
+| Captain | 19002 | `HTTP_ADDR` env |
+| Micromanager | 19003 | `-port` flag |
+| Monad | 19004 | `MONAD_PORT` env |
+| Sophia | 19005 | `SOPHIA_LISTEN_ADDR` env |
+| Cuirass | 17000 | `HTTP_ADDR` env |
+| Dashboard | 20000 | `-listen` flag |
+| Kanban App | 20001 | `PORT` env |
 
-> **Note:** Several services default to 8080. Docker Compose remaps them to 8080-8087. When running standalone, override with env vars or flags.
-
-**Docker Compose port assignments:**
-
-| Service | Docker Port | Health Check |
-|---------|------------|--------------|
-| Cuirass | 8080 | `localhost:8080/health` |
-| Wotan | 8081 (HTTP), 5555 (gRPC) | `localhost:8081/health` |
-| Timeguru | 8082 | `localhost:8082/health` |
-| Captain | 8083 | `localhost:8083/health` |
-| Architect | 8084 | `localhost:8084/health` |
-| Micromanager | 8085 | `localhost:8085/health` |
-| Monad | 8086 | `localhost:8086/health` |
-| Sophia | 8087 | `localhost:8087/health` |
+> **Note:** All services have unique Doom Range ports. No conflicts when running
+> all services simultaneously. Each supports CLI flag + env var + config file override.
 
 ---
 
@@ -359,15 +349,15 @@ sudo ./scripts/load-ebpf.sh
 
 | Container | IP | Ports |
 |-----------|-----|-------|
-| Cuirass (control plane) | 10.10.10.5 | 8005, 9100 |
-| Wotan (message bus) | 10.10.10.10 | 9090, 8080 |
-| Timeguru | 10.10.10.20 | 8000, 9100 |
-| Captain | 10.10.10.21 | 8001, 9100 |
-| Micromanager | 10.10.10.22 | 8002, 9100 |
-| Architect | 10.10.10.23 | 8003, 9100 |
-| Gateway (public) | 10.10.10.100 | 80, 443 |
-| Kanban | 10.10.10.200 | 8080, 9100 |
-| Dashboard | 10.10.10.201 | 8081, 9100 |
+| Cuirass (control plane) | 10.10.10.5 | 17000, 17001 |
+| Wotan (message bus) | 10.10.10.10 | 18000, 18001 |
+| Timeguru | 10.10.10.20 | 19000 |
+| Architect | 10.10.10.21 | 19001 |
+| Captain | 10.10.10.22 | 19002 |
+| Micromanager | 10.10.10.23 | 19003 |
+| Gateway (public) | 10.10.10.100 | 21000, 21443 |
+| Dashboard | 10.10.10.200 | 20000 |
+| Kanban | 10.10.10.201 | 20001 |
 
 > See `nix/flake.nix` and `nix/containers/` for full configuration.
 
