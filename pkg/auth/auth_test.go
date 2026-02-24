@@ -59,8 +59,8 @@ func TestMTLSValidator_Authenticate(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 
 	identity, err := validator.Authenticate(context.Background(), req)
-	if !errors.Is(err, ErrUnauthenticated) {
-		t.Errorf("MTLSValidator.Authenticate() error = %v, want ErrUnauthenticated", err)
+	if !errors.Is(err, ErrInvalidCert) {
+		t.Errorf("MTLSValidator.Authenticate() error = %v, want ErrInvalidCert", err)
 	}
 	if identity != nil {
 		t.Errorf("MTLSValidator.Authenticate() identity = %v, want nil", identity)
@@ -77,8 +77,8 @@ func TestMTLSValidator_Authenticate_NilTLS(t *testing.T) {
 	req.TLS = nil
 
 	identity, err := validator.Authenticate(context.Background(), req)
-	if !errors.Is(err, ErrUnauthenticated) {
-		t.Errorf("MTLSValidator.Authenticate() error = %v, want ErrUnauthenticated", err)
+	if !errors.Is(err, ErrInvalidCert) {
+		t.Errorf("MTLSValidator.Authenticate() error = %v, want ErrInvalidCert", err)
 	}
 	if identity != nil {
 		t.Errorf("MTLSValidator.Authenticate() identity = %v, want nil", identity)
