@@ -30,6 +30,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/sophia"
 )
@@ -746,6 +747,17 @@ func main() {
 		*jsonLogs = true
 	}
 
+	// Transport config
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	if *wotanAddr != "" {
+		transportCfg.WotanGRPCAddr = *wotanAddr
+	}
+
+	// Health server
+	healthSrv := transport.NewHealthServer("sophia")
+	_ = transportCfg // used for future transport.Connect()
+
 	// Setup logging using Kingdom's native logger
 	logConfig := logger.DefaultConfig()
 	if *debug {
@@ -782,6 +794,7 @@ func main() {
 			log.Warn().
 				Err(err).
 				Msg("failed to connect to Wotan, continuing without event bus")
+			healthSrv.SetGRPCStatus(false)
 		} else {
 			wotanInstance = client
 			log.Info().Msg("connected to Wotan")
