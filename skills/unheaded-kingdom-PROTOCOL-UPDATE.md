@@ -133,7 +133,7 @@ BPF (1992) → IPv6 (1995) → RFC 9673 (2024) → Unheaded Protocol (2026)
 
 | Metric | Value |
 |--------|-------|
-| Total LOC | **465,000+** (433K code + 32K docs) |
+| Total LOC | **~260K production LOC (~464K w/ tests)** |
 | Go Files | 585 (390 prod + 195 test) |
 | Rust eBPF | 23,991 LOC (4/4 programs) |
 | Services | 25 active |

@@ -484,7 +484,7 @@ This is the Law. This is the Pattern. The Kingdom walks itself.
 
 | Metric | Value |
 |--------|-------|
-| Total LOC | **465,000+** (433K code + 32K docs) |
+| Total LOC | **~260K production (~464K w/ tests)** |
 | Go Files | 585 files across 25 services |
 | Rust eBPF | 23,991 LOC (4/4 programs compiled) |
 | Active Services | 25 |
@@ -625,7 +625,7 @@ CURRENT STATE (February 18, 2026):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Phase: Alpha Ascension (Age 1) - ~98% complete
 Build: ✅ SUCCESS | E2E Tests: 23/23 PASS
-Kingdom Strength: 465,000+ LOC (433K code + 32K docs)
+Kingdom Strength: ~260K production LOC (~464K w/ tests)
 Services: 25 active | Go Files: 585 | Rust eBPF: 23,991 LOC
 Target: Protocol Foundation Complete
 

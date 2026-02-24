@@ -25,7 +25,7 @@ The only thing left is Linux. The eight remaining tasks — packet ring test har
 
 Before the sprint, S16 convened a round table using all unheaded-\*.skill files to audit the project and generate the battle plan. Key findings:
 
-- **Project state:** 465K LOC, 25 services, 23/23 E2E tests passing. Alpha is 99% done.
+- **Project state:** ~260K prod LOC (~464K w/ tests), 25 services, 23/23 E2E tests passing. Alpha is 99% done.
 - **Doom-over-IPv6:** Partially complete from S14/S15. Two-pass RV32I→MBC translator done (52 tests). Wotan memory service done (13K LOC, 19 tests). monad-cpu-ebpf was a STUB.
 - **Protocol correction:** The project is NOT doing "Doom over rBPF" (userspace BPF simulation). It's REAL kernel BPF at XDP. REAL IPv6 Hop-by-Hop Options per RFC 8200 §4.3 + RFC 9673. REAL network namespaces. THE PACKET IS THE CPU.
 - **20 tasks generated:** `docs/DOOM_TASKS_20.md` — canonical agent task list with dependency graph and execution waves.

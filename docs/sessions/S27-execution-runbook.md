@@ -173,12 +173,12 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 | Symptom | Cause | Recovery |
 |---------|-------|----------|
 | `golangci-lint: command not found` | Not installed or not in PATH | `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && export PATH=$PATH:$(go env GOPATH)/bin` |
-| Timeout on large codebase | 465K LOC is heavy | Increase: `golangci-lint run --timeout 15m ./...` |
+| Timeout on large codebase | Large codebase is heavy | Increase: `golangci-lint run --timeout 15m ./...` |
 | `could not load packages` | Go module issue | `go mod tidy && go mod verify` |
 | Thousands of errcheck findings | Many unchecked errors | Batch fix: focus on `internal/` first, then `cmd/`, then `pkg/`. Use `//nolint:errcheck` SPARINGLY for intentional ignores with comment |
 | `staticcheck: unsupported Go version` | Tool version mismatch | `go install honnef.co/go/tools/cmd/staticcheck@latest` |
 | Tests break after lint fixes | Regression from code changes | `git diff` to review changes, `git stash` to isolate, fix the specific change that broke |
-| OOM during analysis | 465K LOC memory pressure | Run per-directory: `golangci-lint run ./internal/monad/...` |
+| OOM during analysis | Large codebase memory pressure | Run per-directory: `golangci-lint run ./internal/monad/...` |
 
 ### Failure Recovery — Multi-Tiered
 

@@ -426,7 +426,7 @@ Stay on track. Ship incremental. Test everything. Protect the customer. Celebrat
 | Build | SUCCESS |
 | E2E Tests | 23/23 PASS |
 | Overall Progress | ~99% |
-| Total LOC | 465,000+ (433K code + 32K docs) |
+| Total LOC | ~260K production (~464K w/ tests) |
 | Go Files | 585 (390 prod + 195 test) |
 | Services | 25 active |
 | Go Version | 1.24.0 |

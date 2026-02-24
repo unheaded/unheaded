@@ -62,7 +62,7 @@ Customer provides their app ("head"). We provide everything else ("unheaded"):
 | Build | ✅ SUCCESS |
 | E2E Tests | 23/23 PASS |
 | Overall Progress | **~99%** |
-| Total LOC | **465,000+** (433K code + 32K docs) |
+| Total LOC | **~260K production (~464K w/ tests)** |
 | Go Files | **585** (390 prod + 195 test) |
 | Services | 25 active |
 | Phase | Age 1 - Alpha Ascension |
@@ -175,7 +175,7 @@ The Kingdom runs IPv4 internally. Every packet carries **20 bytes of proprietary
 - **SHIPPED: 13,504 LOC**
 
 ### Phase 1: Age 1 - Alpha Ascension 🚀 99%
-- Infrastructure forged: 465K+ LOC (433K code + 32K docs)
+- Infrastructure forged: ~260K production LOC (~464K w/ tests)
 - All armor pieces taking shape
 - Gnostic services integrated
 - 4/4 eBPF programs compiled (23,991 LOC Rust)
@@ -609,7 +609,7 @@ Static phase markers in this skill WILL go stale. Timeguru is the source of trut
 
 **THE KNIGHT IS ARMORED. THE PATTERN GLOWS.**
 **THE KINGDOM RISES. SHADOW NEVER SEES.**
-**465,000 LINES STRONG.**
+**~260K PRODUCTION LOC (~464K W/ TESTS).**
 
 ⚔️🛡️🏰
 

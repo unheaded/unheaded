@@ -14,14 +14,15 @@ Your tools, our state model.
 
 ## Status
 
-Alpha (~99%).  465,000+ LOC (433K code + 32K docs).  25 services, 37 packages,
-8 eBPF programs (23,991 LOC Rust), 13 protocol packages (Go).
+Alpha (~99%).  ~261K production LOC (220K Go, 16K Rust, 13K JS, 5K Nix, 7K scripts)
+plus 203K test LOC (~93% test-to-production ratio).  25 services, 37 packages,
+8 eBPF programs (16K LOC Rust/Aya), 16 protocol packages (Go).
 
 Core protocol specified in three Internet-Drafts (IETF Experimental track):
 
-- [draft-bellis-unheaded-protocol-foundation-03](docs/protocol/draft-bellis-unheaded-protocol-foundation-03.md) — Monad wire format
-- [draft-bellis-unheaded-sophia-dictionary-00](docs/protocol/draft-bellis-unheaded-sophia-dictionary-00.md) — Sophia BPF dictionaries
-- [draft-bellis-unheaded-wotan-memory-00](docs/protocol/draft-bellis-unheaded-wotan-memory-00.md) — Wotan memory model
+- [draft-bellis-unheaded-protocol-foundation-04](docs/protocol/draft-bellis-unheaded-protocol-foundation-04.md) — Monad wire format
+- [draft-bellis-unheaded-sophia-dictionary-01](docs/protocol/draft-bellis-unheaded-sophia-dictionary-01.md) — Sophia BPF dictionaries
+- [draft-bellis-unheaded-wotan-memory-01](docs/protocol/draft-bellis-unheaded-wotan-memory-01.md) — Wotan memory model
 
 ## The Protocol
 
@@ -209,9 +210,9 @@ root or sudo for eBPF loading.
 
 ## Protocol Documents
 
-    docs/protocol/draft-bellis-unheaded-protocol-foundation-03.md   Monad wire format (current)
-    docs/protocol/draft-bellis-unheaded-sophia-dictionary-00.md     Sophia BPF dictionaries
-    docs/protocol/draft-bellis-unheaded-wotan-memory-00.md          Wotan memory model
+    docs/protocol/draft-bellis-unheaded-protocol-foundation-04.md   Monad wire format (current)
+    docs/protocol/draft-bellis-unheaded-sophia-dictionary-01.md     Sophia BPF dictionaries
+    docs/protocol/draft-bellis-unheaded-wotan-memory-01.md          Wotan memory model
     docs/protocol/patches/                                          Next-draft patch specs
     docs/protocol/references/                                       RFC crossref, IANA guide
     docs/protocol/error-registry.md                                 Protocol error codes
