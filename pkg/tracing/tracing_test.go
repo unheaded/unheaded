@@ -1162,8 +1162,8 @@ func TestNewCollector(t *testing.T) {
 		if c.config.CleanupInterval != 1*time.Minute {
 			t.Errorf("CleanupInterval = %v, want 1m", c.config.CleanupInterval)
 		}
-		if c.config.HTTPAddr != ":8080" {
-			t.Errorf("HTTPAddr = %q, want :8080", c.config.HTTPAddr)
+		if c.config.HTTPAddr != ":16670" {
+			t.Errorf("HTTPAddr = %q, want :16670", c.config.HTTPAddr)
 		}
 	})
 

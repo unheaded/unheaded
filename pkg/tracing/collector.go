@@ -1261,7 +1261,7 @@ func NewCollector(config CollectorConfig, wotan WotanPublisher, reg prometheus.R
 		config.CleanupInterval = 1 * time.Minute
 	}
 	if config.HTTPAddr == "" {
-		config.HTTPAddr = ":8080"
+		config.HTTPAddr = ":16670"
 	}
 
 	if reg == nil {

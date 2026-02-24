@@ -365,8 +365,8 @@ func TestConfig(t *testing.T) {
 	t.Run("default config has valid values", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 
-		if cfg.Server.HTTPPort != 8080 {
-			t.Errorf("Expected HTTP port 8080, got %d", cfg.Server.HTTPPort)
+		if cfg.Server.HTTPPort != 21000 {
+			t.Errorf("Expected HTTP port 21000, got %d", cfg.Server.HTTPPort)
 		}
 
 		if cfg.RateLimit.RequestsPerSec != 100 {

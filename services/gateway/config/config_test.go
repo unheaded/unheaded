@@ -14,11 +14,11 @@ func TestDefaultConfig(t *testing.T) {
 		t.Fatal("DefaultConfig returned nil")
 	}
 
-	if cfg.Server.HTTPPort != 8080 {
-		t.Errorf("expected HTTP port 8080, got %d", cfg.Server.HTTPPort)
+	if cfg.Server.HTTPPort != 21000 {
+		t.Errorf("expected HTTP port 21000, got %d", cfg.Server.HTTPPort)
 	}
-	if cfg.Server.HTTP3Port != 8443 {
-		t.Errorf("expected HTTP3 port 8443, got %d", cfg.Server.HTTP3Port)
+	if cfg.Server.HTTP3Port != 21443 {
+		t.Errorf("expected HTTP3 port 21443, got %d", cfg.Server.HTTP3Port)
 	}
 	if cfg.Server.ReadTimeout != 30*time.Second {
 		t.Errorf("expected read timeout 30s, got %v", cfg.Server.ReadTimeout)
@@ -46,23 +46,23 @@ func TestDefaultConfig(t *testing.T) {
 func TestDefaultConfig_AlphaServices(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.AlphaServices.TimeGuruHost != "timeguru:8000" {
-		t.Errorf("expected timeguru:8000, got %q", cfg.AlphaServices.TimeGuruHost)
+	if cfg.AlphaServices.TimeGuruHost != "timeguru:19000" {
+		t.Errorf("expected timeguru:19000, got %q", cfg.AlphaServices.TimeGuruHost)
 	}
-	if cfg.AlphaServices.CaptainHost != "captain:8001" {
-		t.Errorf("expected captain:8001, got %q", cfg.AlphaServices.CaptainHost)
+	if cfg.AlphaServices.CaptainHost != "captain:19002" {
+		t.Errorf("expected captain:19002, got %q", cfg.AlphaServices.CaptainHost)
 	}
-	if cfg.AlphaServices.ArchitectHost != "architect:8002" {
-		t.Errorf("expected architect:8002, got %q", cfg.AlphaServices.ArchitectHost)
+	if cfg.AlphaServices.ArchitectHost != "architect:19001" {
+		t.Errorf("expected architect:19001, got %q", cfg.AlphaServices.ArchitectHost)
 	}
-	if cfg.AlphaServices.MicromanagerHost != "micromanager:8003" {
-		t.Errorf("expected micromanager:8003, got %q", cfg.AlphaServices.MicromanagerHost)
+	if cfg.AlphaServices.MicromanagerHost != "micromanager:19003" {
+		t.Errorf("expected micromanager:19003, got %q", cfg.AlphaServices.MicromanagerHost)
 	}
-	if cfg.AlphaServices.MonadHost != "monad:8004" {
-		t.Errorf("expected monad:8004, got %q", cfg.AlphaServices.MonadHost)
+	if cfg.AlphaServices.MonadHost != "monad:19004" {
+		t.Errorf("expected monad:19004, got %q", cfg.AlphaServices.MonadHost)
 	}
-	if cfg.AlphaServices.SophiaHost != "sophia:8005" {
-		t.Errorf("expected sophia:8005, got %q", cfg.AlphaServices.SophiaHost)
+	if cfg.AlphaServices.SophiaHost != "sophia:19005" {
+		t.Errorf("expected sophia:19005, got %q", cfg.AlphaServices.SophiaHost)
 	}
 }
 
