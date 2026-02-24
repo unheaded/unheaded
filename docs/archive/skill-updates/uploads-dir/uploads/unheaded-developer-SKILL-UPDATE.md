@@ -528,7 +528,7 @@ for msg := range msgCh {
 | Build | SUCCESS |
 | E2E Tests | 23/23 PASS |
 | Overall Progress | ~99% |
-| Total LOC | 465,000+ (433K code + 32K docs) |
+| Total LOC | ~260K production (~464K w/ tests) |
 | Go Files | 585 (390 prod + 195 test) |
 | Services | 25 active |
 | Go Version | 1.24.0 |
@@ -605,6 +605,6 @@ B2 (Codebase mount): **RESOLVED** (workspace accessible)
 **TESTS BEFORE FEATURES.**
 **TRUST NOTHING.**
 
-⚔️🛡️🏰 **465,000 LINES STRONG** 🏰🛡️⚔️
+⚔️🛡️🏰 **~260K PRODUCTION LOC (~464K W/ TESTS)** 🏰🛡️⚔️
 
 *Last synced: February 17, 2026*

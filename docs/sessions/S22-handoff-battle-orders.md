@@ -27,7 +27,7 @@ Four commits shipped this session:
 
 | Metric | Value |
 |--------|-------|
-| Total LOC | ~491,000+ (465K prior + 26K this session) |
+| Total LOC | ~260K prod (~464K w/ tests) |
 | Go protocol packages | 16 (13 pattern + 3 shared infra) |
 | eBPF programs | 8 (shield-xdp, shield-tc, hop-xdp, yaldabaoth-tc, flow-tracker×2, latency-probe, monad-cpu) |
 | BPF maps defined | 50+ existing + 16 new (bpfschema) |
@@ -425,7 +425,7 @@ Phase 8 is always last.
 
 ### THE WAR CRY
 
-465,000 lines. 25 services. 8 eBPF programs. 3 Internet-Drafts. 16 protocol packages.
+~260K production lines (~464K with tests). 25 services. 8 eBPF programs. 3 Internet-Drafts. 16 protocol packages.
 19 RFC texts rescued. 12 gaps identified. 130 instructions queued.
 
 The Kingdom stands. The protocol flows. The packets carry computation.

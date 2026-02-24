@@ -40,7 +40,7 @@
 - **Status**: `.golangci.yml` config ready
 - **Action**: Copy to repo root, run `golangci-lint run`, fix findings
 - **Effort**: M (2-4 hours depending on finding count)
-- **Risk**: May surface real bugs in 465K LOC codebase
+- **Risk**: May surface real bugs in the codebase
 
 ### P2: LICH Fuzz Wiring
 - **Status**: Cargo.toml ready but workspace dependency paths need verification
@@ -83,7 +83,7 @@
 | Fuzz executions | 28M, 0 crashes |
 | govulncheck | 0 vulnerabilities |
 | golangci-lint | PASS (11K warnings, mostly style) |
-| Total LOC | 465,000+ |
+| Total LOC | ~260K prod (~464K w/ tests) |
 
 ---
 

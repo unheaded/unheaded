@@ -221,7 +221,7 @@ Customer voice. Feature strategist. Experience architect.
 
 **Team**: Battle-hardened infrastructure engineers building what we wished existed.
 
-**Traction**: 465K+ LOC shipped. 23/23 E2E tests passing. Alpha shipping February 2026.
+**Traction**: ~260K production LOC (~464K w/ tests) shipped. 23/23 E2E tests passing. Alpha shipping February 2026.
 
 ### Board Update Template
 
@@ -273,7 +273,7 @@ HELP NEEDED: [Specific ask]
 |--------|-------|
 | Current Age | Age 1 - Alpha Ascension |
 | Progress | **~99%** |
-| Total LOC | **465,000+** |
+| Total LOC | **~260K production (~464K w/ tests)** |
 | Services | 25 active |
 | E2E Tests | 23/23 PASS |
 | Build | ✅ SUCCESS |
@@ -317,7 +317,7 @@ The canonical timeline lives in `unheaded-timeguru/references/timeline.md`. Alwa
 
 **THE KNIGHT IS ARMORED. THE KINGDOM RISES. THE PATTERN GLOWS.**
 
-⚔️🛡️🏰 **465,000 LINES STRONG** 🏰🛡️⚔️
+⚔️🛡️🏰 **~260K PRODUCTION LOC (~464K W/ TESTS)** 🏰🛡️⚔️
 
 *Last synced: February 17, 2026*
 *Added: Protocol Foundation, Amber Mapping, updated pitch differentiator, LOC/E2E/services counts*

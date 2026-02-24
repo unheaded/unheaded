@@ -200,7 +200,7 @@ index 3ff5009..4e7c496 100644
 +A 6-agent parallel security review produced 104 findings. The 9 most critical P0 bugs were fixed immediately: CORS origin whitelist, CSP unsafe-inline removal, HSTS, WebSocket origin validation, path traversal in timeguru, race conditions in micromanager and wotan-client, captain storage and ID collisions, and HTTP server timeout hardening.
  
  **Repo size:** 252MB (down from 1.3GB after cleanup)
- **Codebase:** ~433K lines of code, ~465K with docs
+ **Codebase:** ~260K production LOC (~464K w/ tests)
 @@ -29,13 +31,37 @@ Service addresses are now configurable via `--services-file` flag or `SERVICES_F
  |----------|--------|------------|
  | 1. TopicStream gRPC Sprint | **DONE** | 100% |
@@ -413,8 +413,8 @@ index 3ff5009..4e7c496 100644
 @@ -179,16 +158,9 @@ JS syntax:  node --check dashboard.js  PASS
  Frontend:   2,820 lines (933 JS + 1,582 CSS + 305 HTML)
  eBPF pkg:   1,623 lines (5 Go files)
- Total code: ~433K lines
--Repo size:  252MB (down from 1.3GB)
+ Total code: ~260K production lines (~464K w/ tests)
+-Repo size:  252MB
 +Repo size:  252MB
  ```
  
