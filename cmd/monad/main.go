@@ -1,3 +1,13 @@
+/*
+ * This file is part of the Unheaded distributed system platform.
+ *
+ * Unheaded is licensed under the Business Source License 1.1 (BSL 1.1).
+ * See the LICENSE file in the root directory for the full license text.
+ *
+ * For protocol specifications, see LICENSE-PROTOCOLS.
+ * For GPL 2.0-licensed components (DOOM engine), see doom/LICENSE.
+ */
+
 // Package main provides the HTTP API server for the Monad service.
 // The Monad is the supreme orchestrator of functional composition in the Kingdom,
 // providing a unified interface for executing operations and transactions with

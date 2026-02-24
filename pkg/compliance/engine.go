@@ -1,3 +1,13 @@
+/*
+ * This file is part of the Unheaded distributed system platform.
+ *
+ * Unheaded is licensed under the Business Source License 1.1 (BSL 1.1).
+ * See the LICENSE file in the root directory for the full license text.
+ *
+ * For protocol specifications, see LICENSE-PROTOCOLS.
+ * For GPL 2.0-licensed components (DOOM engine), see doom/LICENSE.
+ */
+
 // Package compliance provides a comprehensive compliance engine for managing
 // regulatory compliance across multiple standards including SOC2, NIST, PCI-DSS,
 // HIPAA, and GDPR.

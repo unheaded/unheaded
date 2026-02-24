@@ -1,3 +1,13 @@
+/*
+ * This file is part of the Unheaded distributed system platform.
+ *
+ * Unheaded is licensed under the Business Source License 1.1 (BSL 1.1).
+ * See the LICENSE file in the root directory for the full license text.
+ *
+ * For protocol specifications, see LICENSE-PROTOCOLS.
+ * For GPL 2.0-licensed components (DOOM engine), see doom/LICENSE.
+ */
+
 // Package http provides a lightweight HTTP router for the Unheaded Kingdom.
 // It uses only the Go standard library with no external dependencies.
 package http
