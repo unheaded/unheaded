@@ -6,47 +6,59 @@ services:
     host: localhost
     port: 18001
     proto: grpc
+    display_name: wotan
   timeguru:
     host: localhost
     port: 19000
     proto: http
+    display_name: hourglass
   architect:
     host: localhost
     port: 19001
     proto: http
+    display_name: mason
   captain:
     host: localhost
     port: 19002
     proto: http
+    display_name: pennant
   micromanager:
     host: localhost
     port: 19003
     proto: http
+    display_name: quartermaster
   monad:
     host: localhost
     port: 19004
     proto: http
+    display_name: monad
   sophia:
     host: localhost
     port: 19005
     proto: http
+    display_name: sophia
   dashboard:
     host: localhost
     port: 20000
     proto: http
+    display_name: visor
   kanban:
     host: localhost
     port: 20001
     proto: http
+    display_name: herald
   wiki:
     host: localhost
     port: 20002
     proto: http
+    display_name: codex
   trace-collector:
     host: localhost
     port: 16670
     proto: http
+    display_name: vambraces
   daemon:
     host: localhost
     port: 17000
     proto: http
+    display_name: aegis
