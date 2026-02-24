@@ -1174,9 +1174,9 @@ func main() {
 
 	// Load config
 	cfg := Config{
-		Port:            getEnv("PORT", "8081"),
-		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:8000"),
-		WotanAddr:      getEnv("WOTAN_ADDR", "localhost:9080"),
+		Port:            getEnv("PORT", "20001"),
+		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:19000"),
+		WotanAddr:      getEnv("WOTAN_ADDR", "localhost:18000"),
 		DataDir:         getEnv("DATA_DIR", "./data"),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
@@ -1194,7 +1194,7 @@ func main() {
 	//   3. If WOTAN_ENABLED=false → standalone mode (no Wotan)
 	var server *Server
 	wotanEnabled := getEnv("WOTAN_ENABLED", "true") == "true"
-	wotanGRPCAddr := getEnv("WOTAN_GRPC_ADDR", "localhost:9090")
+	wotanGRPCAddr := getEnv("WOTAN_GRPC_ADDR", "localhost:18001")
 
 	if wotanEnabled {
 		log.Info().

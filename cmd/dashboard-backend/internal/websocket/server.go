@@ -719,11 +719,14 @@ func (s *Server) IsRunning() bool {
 // DefaultAllowedOrigins returns localhost origins for development.
 func DefaultAllowedOrigins() []string {
 	return []string{
-		"http://localhost:8080",
+		"http://localhost:20000",
+		"http://localhost:20001",
 		"http://localhost:3000",
-		"http://127.0.0.1:8080",
+		"http://127.0.0.1:20000",
+		"http://127.0.0.1:20001",
 		"http://127.0.0.1:3000",
-		"https://localhost:8080",
+		"https://localhost:20000",
+		"https://localhost:20001",
 		"https://localhost:3000",
 	}
 }

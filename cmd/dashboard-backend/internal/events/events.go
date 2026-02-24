@@ -81,7 +81,7 @@ type Config struct {
 // DefaultConfig returns default event streamer configuration
 func DefaultConfig() *Config {
 	return &Config{
-		WotanAddr:  "localhost:9090",
+		WotanAddr:  "localhost:18001",
 		ServiceName: "dashboard-backend",
 		Topics: []string{
 			"metrics.*",
