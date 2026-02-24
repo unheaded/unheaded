@@ -91,6 +91,8 @@ The CLI provides commands for managing:
   - Configuration: get, set, validate settings
   - Secrets: secure credential management
   - Network: policies and routing
+  - Generate: IaC artifact generation (Ansible, Terraform, K8s, etc.)
+  - Observe: observability backend configuration
   - Status: system-wide overview
 
 Use "unheaded <command> --help" for more information about a command.`,
@@ -107,6 +109,8 @@ Use "unheaded <command> --help" for more information about a command.`,
 	root.AddCommand(NewStatusCommand())
 	root.AddCommand(NewVersionCommand())
 	root.AddCommand(NewCompletionCommand())
+	root.AddCommand(NewGenerateCommand())
+	root.AddCommand(NewObserveCommand())
 
 	return root
 }
