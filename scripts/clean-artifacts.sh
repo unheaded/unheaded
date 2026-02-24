@@ -48,11 +48,13 @@ ARTIFACT_DIRS=(
     # Go build outputs
     "bin"
     ".build"
-    "build"
     "dist"
 
     # Doom build artifacts (C object files)
     "doom/doomgeneric/doomgeneric/build_monad"
+
+    # Runtime data (SQLite DBs, WAL files)
+    "data"
 
     # Fuzz corpus & artifacts (regenerate on next fuzz run)
     "crates/monad-mbc/fuzz/corpus"
@@ -83,12 +85,25 @@ STALE_ROOT_BINARIES=(
     "architect"
     "captain"
     "cert-gen"
+    "doom-bridge"
+    "doom-go-injector"
+    "doom-loader"
+    "dashboard-backend"
     "kanban-app"
     "micromanager"
     "sophia"
     "timeguru"
     "trace-collector-go"
     "unheaded-daemon"
+)
+
+# ─── Known stale binaries in subdirectories ─────────────────────────────
+# Demo/test ELF binaries that get rebuilt from source.
+STALE_SUBDIR_BINARIES=(
+    "demos/c/test_add.elf"
+    "demos/doom/unheaded-doom.elf"
+    "demos/doom/unheaded-doom.mbc"
+    "demos/doom/unheaded-doom.rv2mbc"
 )
 
 # ─── Junk file patterns ──────────────────────────────────────────────────
@@ -100,6 +115,8 @@ JUNK_PATTERNS=(
     "*.swp"
     "*.bak"
     "*~"
+    "*.db-shm"
+    "*.db-wal"
 )
 
 # ─── Functions ───────────────────────────────────────────────────────────────
@@ -120,7 +137,7 @@ show_sizes() {
     done
     echo ""
 
-    # Stale root-level binaries
+    # Stale binaries (root + subdirectory)
     local stale_total=0
     local stale_found=0
     for bin in "${STALE_ROOT_BINARIES[@]}"; do
@@ -131,9 +148,17 @@ show_sizes() {
             printf "  ${RED}%6dM${NC}  %s ${RED}(stale binary)${NC}\n" "$size" "$bin"
         fi
     done
+    for bin in "${STALE_SUBDIR_BINARIES[@]}"; do
+        if [ -f "$bin" ]; then
+            size=$(du -sm "$bin" 2>/dev/null | cut -f1)
+            stale_total=$((stale_total + size))
+            stale_found=$((stale_found + 1))
+            printf "  ${RED}%6dM${NC}  %s ${RED}(stale binary)${NC}\n" "$size" "$bin"
+        fi
+    done
     if [ "$stale_found" -gt 0 ]; then
         total=$((total + stale_total))
-        echo -e "  ${YELLOW}${stale_found} stale root binaries: ${stale_total}M${NC}"
+        echo -e "  ${YELLOW}${stale_found} stale binaries: ${stale_total}M${NC}"
         echo ""
     fi
 
@@ -189,7 +214,7 @@ dry_run() {
     done
     echo ""
 
-    # Stale root-level binaries
+    # Stale binaries (root + subdirectory)
     local stale_found=0
     for bin in "${STALE_ROOT_BINARIES[@]}"; do
         if [ -f "$bin" ] && file "$bin" 2>/dev/null | grep -q "ELF"; then
@@ -197,6 +222,12 @@ dry_run() {
             total_mb=$((total_mb + size))
             stale_found=$((stale_found + 1))
             printf "  ${RED}[DELETE]${NC} %s ${YELLOW}(%dM, stale ELF binary)${NC}\n" "$bin" "$size"
+        fi
+    done
+    for bin in "${STALE_SUBDIR_BINARIES[@]}"; do
+        if [ -f "$bin" ]; then
+            stale_found=$((stale_found + 1))
+            printf "  ${RED}[DELETE]${NC} %s ${YELLOW}(stale build output)${NC}\n" "$bin"
         fi
     done
     if [ "$stale_found" -gt 0 ]; then
@@ -285,6 +316,14 @@ nuke() {
     # Remove stale root-level binaries (Go builds accidentally output to repo root)
     for bin in "${STALE_ROOT_BINARIES[@]}"; do
         if [ -f "$bin" ] && file "$bin" 2>/dev/null | grep -q "ELF"; then
+            echo -e "${YELLOW}Removing stale binary: ${bin}${NC}"
+            rm -f "$bin"
+        fi
+    done
+
+    # Remove stale binaries in subdirectories (demo/test build outputs)
+    for bin in "${STALE_SUBDIR_BINARIES[@]}"; do
+        if [ -f "$bin" ]; then
             echo -e "${YELLOW}Removing stale binary: ${bin}${NC}"
             rm -f "$bin"
         fi
