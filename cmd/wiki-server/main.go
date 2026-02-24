@@ -3,7 +3,7 @@
 //
 // Usage:
 //
-//	wiki-server [--port 8007] [--wiki-dir ./docs/wiki]
+//	wiki-server [--port 20002] [--wiki-dir ./docs/wiki]
 //
 // Endpoints:
 //
@@ -250,7 +250,7 @@ func (ws *WikiServer) handleReady(w http.ResponseWriter, _ *http.Request) {
 }
 
 func main() {
-	port := flag.Int("port", 8007, "HTTP server port")
+	port := flag.Int("port", 20002, "HTTP server port")
 	wikiDir := flag.String("wiki-dir", "./docs/wiki", "Path to wiki markdown directory")
 	flag.Parse()
 
