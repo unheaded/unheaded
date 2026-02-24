@@ -42,7 +42,7 @@
 - Missing: Service discovery, frontend tests, real E2E suite, container scanning, secrets management
 - Doom auto-restart crash loop bug (doesn't reload .data sections)
 
-**Code Stats**: 465K+ LOC, 611 Go files, 14 Rust crates, 293 Rust tests, 135 Go packages, 23 services, 0 failures.
+**Code Stats**: ~260K production LOC (~464K w/ tests), 611 Go files, 14 Rust crates, 293 Rust tests, 135 Go packages, 23 services, 0 failures.
 
 **Critical Insight**: The Doom PoC proved the ENTIRE eBPF toolchain works end-to-end:
 Rust/Aya → BPF compilation → map pinning → XDP attachment → userspace reader.
@@ -1879,7 +1879,7 @@ Highlights:
 - Interchangeable IaC backends (Ansible, Terraform, Puppet, K8s, Chef, Salt)
 - Doom-over-IPv6 computational completeness proof
 
-465K+ LOC | 33 days from first commit | One engineer. One AI. One Kingdom."
+~260K production LOC (~464K w/ tests) | 33 days from first commit | One engineer. One AI. One Kingdom."
   ```
 
 - [ ] **Step 362** [V]: Tag created.

@@ -18,7 +18,7 @@ The Monad protocol -- a 20-byte register file carried in IPv6 Hop-by-Hop extensi
 
 | Metric | Value |
 |--------|-------|
-| Lines of code | 465,000+ |
+| Lines of code | ~260K production (~464K w/ tests) |
 | End-to-end tests | 23 passing |
 | Doom frames rendered | 559+ |
 | Instructions executed | 819,000,000+ |

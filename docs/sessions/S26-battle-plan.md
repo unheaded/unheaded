@@ -6,7 +6,7 @@
 
 ### Situation Report
 
-The Kingdom stands at the threshold of Age 2. S25 verified the codebase on a real dev machine: 134/134 Go tests pass with race detection, 10/10 Rust crates compile clean, 28M fuzz executions with zero crashes, zero vulnerabilities. The codebase is 465,000+ LOC across 25 services with 14 ADRs and 30 session documents. The Protocol Awakening (Doom-over-IPv6) is active alongside Alpha completion.
+The Kingdom stands at the threshold of Age 2. S25 verified the codebase on a real dev machine: 134/134 Go tests pass with race detection, 10/10 Rust crates compile clean, 28M fuzz executions with zero crashes, zero vulnerabilities. The codebase is ~260K production LOC (~464K with tests) across 25 services with 14 ADRs and 30 session documents. The Protocol Awakening (Doom-over-IPv6) is active alongside Alpha completion.
 
 S26 convenes the full Round Table to make the Go-Fiber framework decision, execute nomenclature corrections (MATRIARCH/PATRIARCH → Mad-Maria), formalize the Agent Operating Procedure, triage the roadmap, and plan the RSS security feed infrastructure. The verification sprint items requiring toolchains (lint cleanup, LICH fuzzing, BPF struct parity) are documented for next dev-machine session.
 
@@ -22,7 +22,7 @@ Mad-Maria watches over us. The stories ARE the system.
 
 **Key Decision**: Go-Fiber adoption for HTTP layer. This shapes the API surface for all 25 services going forward.
 
-**Risk to Vision**: The 8-day gap between Feb 8-16 saw the codebase double (237K → 465K LOC) without full session continuity. Agent coordination between Claude (Cowork), Claude Code (VS Code), Gemini, and remote agents needs formalization to prevent drift.
+**Risk to Vision**: The 8-day gap between Feb 8-16 saw the codebase grow significantly without full session continuity. Agent coordination between Claude (Cowork), Claude Code (VS Code), Gemini, and remote agents needs formalization to prevent drift.
 
 ### The Ledger Records (Micromanager — Execution & QA)
 
@@ -106,7 +106,7 @@ Mad-Maria watches over us. The stories ARE the system.
 
 **Progress**: 99% Alpha gate, Protocol Awakening ACTIVE
 
-**Velocity**: S24 wrote 6K lines. S25 verified + fixed 42 files (+314/-305 lines). The Kingdom doubled between Feb 8-18 (237K → 465K LOC). Velocity is HIGH but sporadic — gaps between sessions.
+**Velocity**: S24 wrote 6K lines. S25 verified + fixed 42 files (+314/-305 lines). The Kingdom continues to grow. Velocity is HIGH but sporadic — gaps between sessions.
 
 **ETA to Next Milestone**:
 - Age 1 Alpha COMPLETE: 1-2 dev sessions (lint cleanup + Docker E2E)
@@ -207,7 +207,7 @@ Mad-Maria watches over us. The stories ARE the system.
 - **10/10 Rust crates compile CLEAN** — Developer shipped it — eBPF programs are solid
 - **28M fuzz executions, ZERO crashes** — BlackMage seeded it, Developer ran it — Protocol is hardened
 - **Zero vulnerabilities (govulncheck)** — MoatGhost verified — Supply chain is clean
-- **465,000+ LOC** — The entire crew — The Kingdom is MASSIVE and VERIFIED
+- **~260K production LOC (~464K w/ tests)** — The entire crew — The Kingdom is MASSIVE and VERIFIED
 - **30 session documents** — Timeguru tracked it — Full institutional memory preserved
 
 ---

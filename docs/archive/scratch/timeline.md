@@ -142,7 +142,7 @@ The Royal Court assembles. The Armor pieces have been forged. The Arcane Hollows
 - [x] **Battle plan forged** with 5 decisions, roadmap triage, and next-session priorities
 - [x] **Lint strategy decided**: Critical-only (errcheck, govet, staticcheck, unused) for Age 1
 
-**Current LOC**: 465,000+ (433K code + 32K docs)
+**Current LOC**: ~260K production (~464K w/ tests)
 **Services**: 25 active across 4 tiers
 **ADRs**: 15 (ADR-001 through ADR-015)
 **Session docs**: 31 (S1 through S26)

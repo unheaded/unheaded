@@ -17,7 +17,7 @@ The Unheaded Kingdom has reached alpha feature completeness with all core system
 | Kanban app (Meta Moment) | Operational |
 | Control plane (unheaded-daemon) | Operational with Wotan + reconciliation |
 | Test suite | 293 Rust tests + 135 Go packages, zero failures |
-| Codebase | 465,000+ lines of code |
+| Codebase | ~260K production LOC (~464K w/ tests) |
 | End-to-end tests | 23/23 passing |
 
 ---

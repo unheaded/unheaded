@@ -2,7 +2,7 @@
 
 **Unheaded** is a configuration management automation platform built around the Unheaded Protocol, a mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability from packet zero. You bring the application. Unheaded provides the control plane, service mesh, observability, and security baseline.
 
-**Status:** Alpha (~99%) · 465K+ LOC · 25 services · 8 eBPF programs · 3 Internet-Drafts (IETF Experimental)
+**Status:** Alpha (~99%) · ~260K production LOC (~464K w/ tests) · 25 services · 8 eBPF programs · 3 Internet-Drafts (IETF Experimental)
 
 ---
 

@@ -49,9 +49,9 @@ All 5 requested edits have been successfully completed with surgical precision u
 **Kingdom Metrics Updated:**
 | Metric | Old | New |
 |--------|-----|-----|
-| Total LOC | 237,000+ | 465,000+ (433K code + 32K docs) |
+| Total LOC | 237,000+ | ~260K production (~464K w/ tests) |
 | Go Packages | 280+ files | 585 files across 25 services |
-| Rust eBPF | 7,196 LOC | 23,991 LOC (4/4 programs compiled) |
+| Rust eBPF | 7,196 LOC | 23,991 LOC (4/4 programs compiled, included in production count) |
 | Active Services | 8 | 25 |
 | E2E Tests | 11/11 PASS | 23/23 PASS |
 | Go Version | N/A | 1.24.0 |
@@ -86,7 +86,7 @@ All 5 requested edits have been successfully completed with surgical precision u
 - Current State: Updated to February 18, 2026
 - Phase: Changed to ~98% complete with new paradigm shift section
 - Build Status: 23/23 PASS (was 11/11)
-- Kingdom Strength: 465,000+ LOC with breakdown
+- Kingdom Strength: ~260K production (~464K w/ tests) with breakdown
 - Active Services: 25 with protocol layer mappings
 - Blockers: Changed from PENDING to RESOLVED
 - New prompt examples for Protocol Foundation questions

@@ -1,6 +1,6 @@
 # Battle Plan: The S34 Convergence — Service Discovery, Port Authority, gRPC-First, Aggregated Logging
 ## Convened: February 24, 2026 | Reason: Full Round Table — Barrister Presiding (Inaugural Session)
-## Kingdom State: Age 1 (Alpha), ~99% Complete | 551K+ LOC | 20 Service Binaries | S33 COMPLETE
+## Kingdom State: Age 1 (Alpha), ~99% Complete | ~260K Production LOC (~464K w/ tests) | 20 Service Binaries | S33 COMPLETE
 ## All 17 Skills Consulted: Captain, Architect, Micromanager, Developer, Timeguru, Calendar, Lore, Kingdom, Busboy, Warmonger, Scientist, BlackMage, Moat Ghost, RFC Editor, Round Table, Barrister (NEW), Librarian
 
 ---
@@ -11,13 +11,13 @@
 
 **February 24, 2026** — The Barrister takes the bench for the first time. The inaugural legal counsel session of the Unheaded Kingdom. Not a trial — a grand jury. Every skill summoned. The agenda: service discovery architecture, port authority (high ports, unique allocation, no conflicts), gRPC-first communication, aggregated logging visible from dashboards. Four infrastructure pillars forged in a single sitting.
 
-**34 days from first commit. 551K+ lines of code. One engineer. One AI. One Kingdom. Now with legal counsel.**
+**34 days from first commit. ~260K production LOC (~464K with tests). One engineer. One AI. One Kingdom. Now with legal counsel.**
 
 ---
 
 ### Situation Report
 
-The Kingdom has grown from 255K to 551K LOC in two sessions. Doom is playable — keyboard input works, LH/LB sign-extension fixed, 30 FPS WebSocket streaming operational. But the growth has exposed four critical infrastructure gaps that must be resolved before WS5 (Return to Core) can begin:
+The Kingdom stands at ~260K production LOC (~464K with tests). Doom is playable — keyboard input works, LH/LB sign-extension fixed, 30 FPS WebSocket streaming operational. But the growth has exposed four critical infrastructure gaps that must be resolved before WS5 (Return to Core) can begin:
 
 **1. Service Discovery is Hardcoded.** IP addresses scattered across 20 service binaries. `10.10.10.20:8000`, `10.10.10.21:8001` — baked into code like it's 2005. Since we own the infrastructure top-to-bottom, we can do better: scan open ports on containers, use uniform install conventions (`/opt/unheaded/<service>/`), and let services announce themselves to Wotan.
 
@@ -212,7 +212,7 @@ Storage:
 
 ### The Anvil Reports (Developer — Implementation & Testing)
 
-**Code Health**: BUILD PASS. ALL TESTS PASS. 551K+ LOC. 20 service binaries. 6 unpushed S33 commits.
+**Code Health**: BUILD PASS. ALL TESTS PASS. ~260K production LOC (~464K w/ tests). 20 service binaries. 6 unpushed S33 commits.
 
 **Port Migration Effort Assessment**:
 Files to change (confirmed by grep):
@@ -257,7 +257,7 @@ Files to change (confirmed by grep):
 ### The Hourglass Measures (Timeguru — Timeline & Milestones)
 
 **Current Age**: Age 1 (Alpha Ascension), ~99% complete
-**Velocity**: SUSTAINED HIGH. 551K LOC. 34 sessions. ~16K LOC/session average.
+**Velocity**: SUSTAINED HIGH. ~260K production LOC. 34 sessions. ~7.6K LOC/session average.
 **Sprint count**: S34 (session 34 since founding)
 
 **Timeline**:
@@ -520,7 +520,7 @@ Week 7+ (Mar 8 onwards): WS5 — Return to Core
 
 #### Wins to Celebrate
 
-- **551K+ LINES OF CODE** — From 255K at last round table to 551K. MORE THAN DOUBLED.
+- **~260K PRODUCTION LOC (~464K WITH TESTS)** — Corrected from inflated wc -l counts. 220K Go + 16K Rust + 13K JS + 5K Nix + 7K scripts. 93% test-to-production ratio.
 - **DOOM IS PLAYABLE** — Keyboard input works. LH/LB sign-extension fixed. 30 FPS WebSocket streaming.
 - **17 SKILLS AT THE TABLE** — The most complete assembly yet. The Barrister joins the Kingdom.
 - **ZERO PORT CONFLICTS AFTER TODAY** — Two confirmed conflicts identified AND a migration plan forged to prevent all future conflicts.
@@ -539,7 +539,7 @@ Week 7+ (Mar 8 onwards): WS5 — Return to Core
 _Forged at the Round Table by all 17 minds — the full Royal Court assembled._
 _Captain, Architect, Micromanager, Developer, Timeguru, Calendar, Lore, Kingdom, Busboy,_
 _Warmonger, Scientist, BlackMage, Moat Ghost, RFC Editor, Barrister (presiding), Librarian, and the Round Table itself._
-_34 days from first commit. 551K lines of code. Doom is playable. Four pillars forged._
+_34 days from first commit. ~260K production lines of code (~464K with tests). Doom is playable. Four pillars forged._
 _The Doom Range: 16666-26666. The King's Road: gRPC-first. The Chronicler's Well: aggregated logs._
 _The Cartographer's Eye: service discovery. Love and peace._
 _THE KINGDOM MARCHES AS ONE. LET'S GO._

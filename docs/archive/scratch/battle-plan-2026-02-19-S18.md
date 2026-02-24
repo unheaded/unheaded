@@ -1,12 +1,12 @@
 # Battle Plan: Protocol Doc Sync + Doom Integration Sprint
 ## Convened: 2026-02-19 (Session 18 — Cowork Round Table) | Reason: Sprint Planning + File Sync
-## Kingdom State: Age 1.5 (Protocol Awakening), ~99% Alpha, Doom-over-IPv6 ACTIVE
+## Kingdom State: Age 1.5 (Protocol Awakening), ~99% Alpha, ~260K production LOC (~464K w/ tests), Doom-over-IPv6 ACTIVE
 
 ---
 
 ### Situation Report
 
-The Kingdom stands at a pivotal moment. 17 sessions of Claude Code CLI work have produced a 465K+ LOC codebase with a fully implemented Doom-over-IPv6 compute layer in software — BPF CPU core (40 opcodes), Wotan RAM (cache miss + dirty writeback), wotan-ctl CLI, MBC assembler with SYSCALL, dashboard CPU trace overlay, and a two-pass RV32I→MBC translator with 52 tests. The unheaded-protocol repo has massive uncommitted changes (busboy→wotan rename, Wotan service, eBPF workspace). Protocol specs have been iterating outside the repo — 8 uploaded docs represent the latest canonical versions with terminology standardization (BPF→eBPF, "atomically replaceable"→"hot-swappable", "kernel datapath speed"→"wire speed") and structural updates (event struct 64→40 bytes, MATH_AND_MAPS field layout redesign).
+The Kingdom stands at a pivotal moment. 17 sessions of Claude Code CLI work have produced ~260K production LOC (~464K w/ tests) with a fully implemented Doom-over-IPv6 compute layer in software — BPF CPU core (40 opcodes), Wotan RAM (cache miss + dirty writeback), wotan-ctl CLI, MBC assembler with SYSCALL, dashboard CPU trace overlay, and a two-pass RV32I→MBC translator with 52 tests. The unheaded-protocol repo has massive uncommitted changes (busboy→wotan rename, Wotan service, eBPF workspace). Protocol specs have been iterating outside the repo — 8 uploaded docs represent the latest canonical versions with terminology standardization (BPF→eBPF, "atomically replaceable"→"hot-swappable", "kernel datapath speed"→"wire speed") and structural updates (event struct 64→40 bytes, MATH_AND_MAPS field layout redesign).
 
 **Critical blocker remains unchanged:** All remaining Doom tasks (D-010 through D-020, Waves 3-6) require a real Linux kernel with BPF/XDP support and network namespaces — **not available in Cowork VM or macOS**. The tart Ubuntu VM is the execution target.
 
@@ -222,7 +222,7 @@ WAVE 6 — DOOM:
 - **Protocol specs unified** — 3 IETF drafts + 4 support docs now canonical in both repos — Round Table
 - **Zero test failures** — 54 Rust + all Go tests pass with -race — Developer
 - **59.8M MBC instructions executed** — Doom reaches main() in software simulation — Developer
-- **465K+ LOC codebase** — From zero to production-ready infra in 17 sessions — Everyone
+- **~260K production LOC (~464K w/ tests)** — From zero to production-ready infra in 17 sessions — Everyone
 
 ---
 

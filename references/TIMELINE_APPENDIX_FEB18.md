@@ -172,7 +172,7 @@ Plus: Extended naming pool, heritage lineage, sacred laws.
 
 | Metric | Feb 4 | Feb 18 | Delta |
 |--------|-------|--------|-------|
-| Total LOC | ~265K+ | **465,000+** | +200K |
+| Total LOC | ~265K+ | **~260K production (~464K w/ tests)** | +200K |
 | Go Files | ~300 | **585** (390 prod + 195 test) | +285 |
 | Rust eBPF | 7,196 | **23,991** | +16,795 |
 | Services | 10 | **25** | +15 |
@@ -210,7 +210,7 @@ Plus: Extended naming pool, heritage lineage, sacred laws.
 - 6 new naming conventions added (Norse, Wagnerian, Greek)
 - All protocol docs merged into canonical repo
 - Monad MBC crate integrated
-- Prior session's code review validated: 465K+ LOC, 23/23 E2E, build SUCCESS
+- Prior session's code review validated: ~260K production LOC (~464K w/ tests), 23/23 E2E, build SUCCESS
 
 ---
 

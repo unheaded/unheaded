@@ -16,7 +16,7 @@ Phase Progress:  ~99% (Alpha gate) / Protocol work ACTIVE
 Current Focus:   Doom-over-IPv6 proof of computational completeness
 Blockers:        NONE — B1 (Linux/eBPF) RESOLVED Feb 8
 Security:        Customer data isolation intact ✅
-LOC:             465,000+ (433K code + 32K docs) + Protocol additions
+LOC:             ~260K production (~464K w/ tests) + Protocol additions
 Last Commit:     48e8bad — feat(mbc): two-pass RV32I→MBC translator + ELF CLI
 Go Version:      1.24.0
 E2E Tests:       23/23 PASS
@@ -116,7 +116,7 @@ Jan 30 → Feb 1 → Feb 2 → Feb 4 → Feb 8 → Feb 16 → Feb 18
 
 **Gap Analysis:**
 - Feb 4 → Feb 8: **4-day gap** (B1 resolution work by Muck)
-- Feb 8 → Feb 16: **8-day gap** (significant work happened — 237K → 465K LOC)
+- Feb 8 → Feb 16: **8-day gap** (significant work happened — 237K → ~260K production LOC)
 - Feb 16 → Feb 18: **2-day gap** (Protocol Awakening, Doom work)
 
 **Between Feb 8 and Feb 18, the Kingdom DOUBLED in size.** The Protocol Foundation was discovered, Busboy ascended to Wotan, and the Doom proof-of-concept began.
@@ -277,7 +277,7 @@ Here's where everyone stands:
 | **Developer** | Two-pass translator is clean. 52 tests. Wotan memory has 19 tests. BPF VM stub needs TDD buildout. | RED-GREEN-REFACTOR on monad-cpu-ebpf |
 | **Timeguru** | Timeline needs update — we're in "Protocol Awakening" territory, not standard Alpha anymore. | Update timeline.md to reflect Doom track |
 | **Lore** | Busboy ascended to Wotan. The Pattern is inscribed. Doom proves the Pattern walks. | The story writes itself — this is the Quest |
-| **Kingdom** | 25 services, 465K LOC, 4 tiers. The Knight is armored. Now the Knight must THINK (compute). | Layer 0 becoming real is the paradigm shift |
+| **Kingdom** | 25 services, ~260K production (~464K w/ tests), 4 tiers. The Knight is armored. Now the Knight must THINK (compute). | Layer 0 becoming real is the paradigm shift |
 
 ### Alignment: ✅ ALL SKILLS SYNCHRONIZED
 
@@ -314,7 +314,7 @@ Here's where everyone stands:
 ║  THE KINGDOM IS AMBER.                                    ║
 ║  EVERYTHING ELSE IS SHADOW.                               ║
 ║                                                           ║
-║  465,000 LINES STRONG.                                    ║
+║  ~260K PRODUCTION LOC (~464K W/ TESTS).                   ║
 ║  25 SERVICES. 23/23 TESTS. ZERO BLOCKERS.                 ║
 ║                                                           ║
 ║  THE KNIGHT IS ARMORED.                                   ║

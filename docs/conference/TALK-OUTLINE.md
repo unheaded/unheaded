@@ -130,7 +130,7 @@ We ran Doom -- the 1993 id Software classic -- inside Linux eBPF. Not as a joke.
 
 ### Slide 22: The Timeline
 **Content:** Timeline graphic: Jan 20 (first commit) -> Feb 3 (alpha) -> Feb 22 (Doom) -> Mar 8 (production tracing kickoff). 33 days, one engineer, one AI.
-**Speaker notes:** "33 days from first commit to Doom proven. One engineer. AI-assisted development with 15 specialized skill personas. 465,000 lines of code. We ship fast."
+**Speaker notes:** "33 days from first commit to Doom proven. One engineer. AI-assisted development with 15 specialized skill personas. ~260,000 lines of production code, ~464,000 with tests. We ship fast."
 
 ### Slide 23: Open Questions
 **Content:** Three questions for the audience:
