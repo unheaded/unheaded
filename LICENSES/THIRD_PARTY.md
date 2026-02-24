@@ -2,8 +2,10 @@
 
 The Unheaded Kingdom project uses the following third-party packages.
 All attributions and licenses are listed below as required.
-  
-TODO: Must scan codebase with something like  ScanCode, FOSSology, OSS Review Toolkit (ORT), etc.
+
+**Last audited:** 2026-02-24 (go.mod, Cargo.toml scan)
+**Go module:** `unheaded` — 17 direct + 14 indirect dependencies
+**Rust crates:** trace-collector (28 deps), monad-mbc (3 deps), shield/WAF (10 deps), ebpf-loader (5 deps)
 
 ---
 
@@ -112,6 +114,16 @@ Used for structured JSON logging throughout the Kingdom.
 
 ---
 
+### github.com/gorilla/mux
+
+**Copyright:** The Gorilla Authors
+**License:** BSD 3-Clause
+**URL:** https://github.com/gorilla/mux
+
+Used for HTTP request routing in all services.
+
+---
+
 ### github.com/gorilla/websocket
 
 **Copyright:** The Gorilla Authors
@@ -119,6 +131,16 @@ Used for structured JSON logging throughout the Kingdom.
 **URL:** https://github.com/gorilla/websocket
 
 Used in the Dashboard Cape for WebSocket connections.
+
+---
+
+### github.com/yuin/goldmark
+
+**Copyright:** Yusuke Inuzuka
+**License:** MIT
+**URL:** https://github.com/yuin/goldmark
+
+Used for Markdown parsing in triple-format (MD→JSON/YAML) rendering.
 
 ---
 
@@ -387,6 +409,16 @@ Used for cryptographic operations including mTLS and API key hashing.
 
 ---
 
+### golang.org/x/text
+
+**Copyright:** The Go Authors
+**License:** BSD 3-Clause
+**URL:** https://go.googlesource.com/text
+
+Used for text processing and Unicode support.
+
+---
+
 ### golang.org/x/time
 
 **Copyright:** The Go Authors
@@ -397,7 +429,52 @@ Used for rate limiting.
 
 ---
 
-## Rust Dependencies (trace-collector + eBPF programs)
+### golang.org/x/net
+
+**Copyright:** The Go Authors
+**License:** BSD 3-Clause
+**URL:** https://go.googlesource.com/net
+
+Indirect dependency for HTTP/2, gRPC networking.
+
+---
+
+### golang.org/x/exp
+
+**Copyright:** The Go Authors
+**License:** BSD 3-Clause
+**URL:** https://go.googlesource.com/exp
+
+Indirect dependency for experimental Go packages.
+
+---
+
+## Go Indirect Dependencies
+
+The following packages are pulled in transitively. Licenses verified.
+
+| Package | License | Via |
+|---------|---------|-----|
+| github.com/beorn7/perks | MIT | prometheus/client_golang |
+| github.com/cespare/xxhash/v2 | MIT | prometheus/client_golang |
+| github.com/dustin/go-humanize | MIT | modernc.org/sqlite |
+| github.com/kr/text | MIT | test infrastructure |
+| github.com/mattn/go-colorable | MIT | rs/zerolog |
+| github.com/mattn/go-isatty | MIT | rs/zerolog |
+| github.com/matttproud/golang_protobuf_extensions/v2 | Apache-2.0 | prometheus/client_golang |
+| github.com/ncruces/go-strftime | MIT | modernc.org/sqlite |
+| github.com/prometheus/client_model | Apache-2.0 | prometheus/client_golang |
+| github.com/prometheus/common | Apache-2.0 | prometheus/client_golang |
+| github.com/prometheus/procfs | Apache-2.0 | prometheus/client_golang |
+| github.com/remyoudompheng/bigfft | BSD-3-Clause | modernc.org/sqlite |
+| google.golang.org/genproto | Apache-2.0 | google.golang.org/grpc |
+| modernc.org/libc | BSD-3-Clause | modernc.org/sqlite |
+| modernc.org/mathutil | BSD-3-Clause | modernc.org/sqlite |
+| modernc.org/memory | BSD-3-Clause | modernc.org/sqlite |
+
+---
+
+## Rust Dependencies (trace-collector, monad-mbc, shield/WAF, ebpf-loader)
 
 ### tokio
 
@@ -509,6 +586,88 @@ Prometheus metrics exposition for trace-collector.
 
 ---
 
+### goblin
+
+**Copyright:** m4b
+**License:** MIT
+**URL:** https://github.com/m4b/goblin
+
+ELF parser used in monad-mbc RV32I-to-MBC translator.
+
+---
+
+### thiserror
+
+**Copyright:** David Tolnay
+**License:** MIT / Apache License 2.0
+**URL:** https://github.com/dtolnay/thiserror
+
+Derive macro for error types. Used in monad-mbc and trace-collector.
+
+---
+
+### anyhow
+
+**Copyright:** David Tolnay
+**License:** MIT / Apache License 2.0
+**URL:** https://github.com/dtolnay/anyhow
+
+Error handling. Used in trace-collector and ebpf-loader.
+
+---
+
+### rustls / tokio-rustls
+
+**Copyright:** The rustls Contributors
+**License:** MIT / Apache License 2.0 / ISC
+**URL:** https://github.com/rustls/rustls
+
+Pure-Rust TLS implementation. Used in shield/WAF for TLS termination.
+
+---
+
+### tracing / tracing-subscriber
+
+**Copyright:** Tokio Contributors
+**License:** MIT
+**URL:** https://github.com/tokio-rs/tracing
+
+Structured diagnostics for async Rust. Used in trace-collector.
+
+---
+
+### env_logger / log
+
+**Copyright:** The Rust Project Developers
+**License:** MIT / Apache License 2.0
+**URL:** https://github.com/rust-lang/log
+
+Logging facade and env-filter logger. Used in ebpf-loader.
+
+---
+
+## Additional Rust Indirect Dependencies
+
+| Crate | License | Via |
+|-------|---------|-----|
+| bytes | MIT | trace-collector (hyper, tonic) |
+| parking_lot | MIT / Apache-2.0 | trace-collector |
+| once_cell | MIT / Apache-2.0 | trace-collector |
+| pin-project | MIT / Apache-2.0 | trace-collector |
+| hostname | MIT | trace-collector |
+| flate2 | MIT / Apache-2.0 | trace-collector (gzip) |
+| regex | MIT / Apache-2.0 | trace-collector, shield |
+| fastrand | MIT / Apache-2.0 | trace-collector |
+| tokio-tungstenite | MIT | trace-collector (WebSocket) |
+| futures-util | MIT / Apache-2.0 | trace-collector |
+| http-body-util | MIT | trace-collector, shield |
+| hyper-util | MIT | trace-collector, shield |
+| rustls-pemfile | MIT / Apache-2.0 | shield (TLS cert loading) |
+| ctrlc | MIT / Apache-2.0 | ebpf-loader |
+| libc | MIT / Apache-2.0 | trace-collector (Linux FFI) |
+
+---
+
 ## GPL Licensed Packages
 
 ### doomgeneric
@@ -543,11 +702,17 @@ This software includes code from the following projects:
 - **Prometheus Go client** - Go client library for Prometheus
 - **gRPC-Go** - The Go implementation of gRPC
 - **zerolog** - Zero allocation JSON logger
+- **gorilla/mux** - HTTP request router for Go
+- **goldmark** - Markdown parser for Go (triple-format rendering)
 - **Tokio** - Async runtime for Rust (trace-collector)
 - **Tonic** - gRPC for Rust (trace-collector → Wotan)
+- **rustls** - Pure-Rust TLS (shield/WAF)
+- **goblin** - ELF parser for Rust (MBC translator)
 - **modernc.org/sqlite** - Pure Go SQLite (Kanban persistence)
 
 We thank the maintainers and contributors of these projects for their work.
+
+**Total dependency count:** 17 direct Go + 14 indirect Go + ~50 Rust crates across 4 binaries.
 
 ---
 
