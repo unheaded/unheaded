@@ -43,6 +43,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/logagg"
@@ -591,9 +592,13 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	mux.Handle("/api/v1/traces", &TracesHandler{State: state})
 	mux.Handle("/api/v1/stats", &StatsHandler{State: state})
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	unifiedAuthCfg := auth.LoadServiceAuthConfig("trace-collector")
+	var unifiedHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(unifiedAuthCfg))
+
 	httpServer := &http.Server{
 		Addr:         *metricsAddr,
-		Handler:      mux,
+		Handler:      unifiedHandler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
@@ -672,9 +677,13 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	})
 	healthSrv.RegisterHTTP(mux)
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	anamnesisAuthCfg := auth.LoadServiceAuthConfig("trace-collector")
+	var anamnesisHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(anamnesisAuthCfg))
+
 	httpServer := &http.Server{
 		Addr:    *httpAddr,
-		Handler: mux,
+		Handler: anamnesisHandler,
 	}
 	go func() {
 		log.Info().Str("addr", *httpAddr).Msg("HTTP server starting")

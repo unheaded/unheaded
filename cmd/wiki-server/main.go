@@ -44,6 +44,8 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
+
+	"unheaded/pkg/auth"
 )
 
 const (
@@ -294,9 +296,13 @@ func main() {
 	mux.HandleFunc("/health", ws.handleHealth)
 	mux.HandleFunc("/ready", ws.handleReady)
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("wiki-server")
+	var httpHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
+
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", *port),
-		Handler:           mux,
+		Handler:           httpHandler,
 		ReadTimeout:       10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      30 * time.Second,
