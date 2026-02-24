@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
@@ -362,6 +363,11 @@ func main() {
 
 	// Log aggregation publisher — forwards structured logs to Wotan
 	_ = logagg.NewPublisher("unheaded-daemon", nil) // nil transport — publisher disabled until zerolog is adopted
+
+	// Service discovery — best-effort registration (nil conn until transport is wired)
+	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
+	defer discoveryCancel()
+	discovery.SetupServiceDiscovery(discoveryCtx, nil, "unheaded-daemon", 17000)
 
 	// Create daemon
 	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)
