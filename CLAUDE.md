@@ -58,6 +58,39 @@ Layer 0: Infrastructure (LXD, host OS)
 - **Services:** 10.10.10.20-30 (agent services)
 - **Apps:** 10.10.10.200+ (kanban, demo)
 
+### Port Allocation — "The Doom Range" (16666-26666)
+
+All Unheaded services use high ports to avoid conflicts with common dev tools.
+
+| Tier | Range | Services |
+|------|-------|----------|
+| Infrastructure | 16666-16999 | doom-bridge (16666), doom-injector (16667), trace-collector (16670/16671) |
+| Control Plane | 17000-17999 | unheaded-daemon HTTP (17000), gRPC (17001) |
+| Wotan | 18000-18099 | wotan HTTP (18000), gRPC (18001) |
+| Core Services | 19000-19999 | timeguru (19000), architect (19001), captain (19002), micromanager (19003), monad (19004), sophia (19005) |
+| Applications | 20000-20999 | dashboard (20000), kanban (20001), wiki (20002) |
+| Gateway | 21000-21443 | HTTP (21000), HTTPS (21443) |
+| Customer Apps | 26000-26666 | Reserved for customer applications |
+
+### Transport Priority — gRPC-First
+
+1. **Primary:** Wotan gRPC streaming (port 18001)
+2. **Fallback:** HTTP/3 → HTTP/2 → HTTP/1.1
+3. **Health:** Both gRPC health check AND HTTP /health endpoint required
+
+### Service Discovery
+
+Three-layer approach:
+1. **Convention:** /opt/unheaded/<service>/config.yaml
+2. **Port-scan:** Verify declared ports are listening
+3. **Wotan registration:** Services register/deregister via system.discovery.* topics
+
+### Log Aggregation — "The Chronicler's Well"
+
+All services publish structured logs to Wotan topic `logs.<service>.<level>`.
+Test phase: 10,000 lines per service retained in ring buffer.
+Dashboard endpoint: GET /api/v1/logs, WebSocket /ws/logs for live tail.
+
 ---
 
 ## 🚀 Development Principles
@@ -624,7 +657,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
-## 🎯 Current Phase: Alpha (~99% Complete)
+## 🎯 Current Phase: Alpha (~99% Complete) | S34 Infrastructure Sprint
 
 **Goal:** Demonstrate core platform capabilities
 
@@ -646,7 +679,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 **What's Done:**
 - All 8 services have HTTP APIs with health/ready/metrics endpoints
-- Monad (port 8004) and Sophia (port 8005) services created
+- Monad (port 19004) and Sophia (port 19005) services created
 - Kanban task detail modal with view/edit/delete
 - Dashboard packet-flow visualization + system metrics display
 - Control plane (unheaded-daemon) with Wotan + reconciliation
@@ -900,6 +933,6 @@ See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
 
 ---
 
-**Last Updated:** February 3, 2026
-**Version:** Alpha (~99% Complete)
-**Status:** All services operational, all tests passing, wotan merged
+**Last Updated:** February 24, 2026
+**Version:** Alpha (~99% Complete) | S34 Infrastructure Sprint
+**Status:** All services operational, all tests passing, four infrastructure pillars forged (S34)
