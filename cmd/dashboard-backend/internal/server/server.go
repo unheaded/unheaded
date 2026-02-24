@@ -69,6 +69,10 @@ type Config struct {
 	// StaticFS provides embedded static files for the dashboard UI.
 	// When nil, falls back to filesystem-relative "static" directory.
 	StaticFS fs.FS
+
+	// VizDir is the path to the advanced visualization directory (dashboard/).
+	// When set, files are served under /viz/. Defaults to "" (disabled).
+	VizDir string
 }
 
 // DefaultConfig returns default server configuration
@@ -495,6 +499,13 @@ func (s *Server) setupRoutes() {
 	s.staticFS = staticFS
 	staticHandler := http.FileServer(staticFS)
 	s.mux.Handle("/static/", http.StripPrefix("/static/", staticHandler))
+
+	// Serve advanced visualizations from dashboard/ directory under /viz/
+	if s.config.VizDir != "" {
+		vizFS := http.Dir(s.config.VizDir)
+		vizHandler := http.StripPrefix("/viz/", http.FileServer(vizFS))
+		s.mux.Handle("/viz/", vizHandler)
+	}
 
 	// Serve dashboard pages
 	s.mux.HandleFunc("/logs", s.handleStaticFile("logs.html"))

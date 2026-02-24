@@ -24,6 +24,8 @@
                     <button class="nav-tab" data-page="flows">Flow Graph</button>
                     <button class="nav-tab" data-page="latency">Latency</button>
                     <button class="nav-tab" data-page="events">Events</button>
+                    <a class="nav-tab nav-link" href="/viz/doom.html" target="_blank">Doom</a>
+                    <a class="nav-tab nav-link" href="/viz/logs.html" target="_blank">Logs</a>
                 </nav>
             </div>
             <div class="header-right">
@@ -108,6 +110,14 @@
                         <div class="ebpf-stat-card">
                             <div class="ebpf-stat-label">Parse Errors</div>
                             <div class="ebpf-stat-value error" id="stat-errors">0</div>
+                        </div>
+                        <div class="ebpf-stat-card">
+                            <div class="ebpf-stat-label">Compute Events</div>
+                            <div class="ebpf-stat-value" id="stat-compute">0</div>
+                        </div>
+                        <div class="ebpf-stat-card">
+                            <div class="ebpf-stat-label">Anamnesis Events</div>
+                            <div class="ebpf-stat-value" id="stat-anamnesis">0</div>
                         </div>
                         <div class="ebpf-stat-card">
                             <div class="ebpf-stat-label">Events/sec</div>
