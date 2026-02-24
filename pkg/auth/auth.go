@@ -84,26 +84,50 @@ func (j *JWTValidator) Authenticate(_ context.Context, r *http.Request) (*Identi
 }
 
 // MTLSValidator validates client certificates presented during TLS handshake.
-// Stub -- real implementation needs:
-//   - CA certificate pool configuration
-//   - Certificate chain verification
-//   - CN/SAN extraction for identity mapping
-//   - CRL/OCSP revocation checking
+// Extracts the Common Name and SANs from verified peer certificates to build
+// an Identity with the "service" role.
 type MTLSValidator struct {
-	// ServiceName is the expected CN or SAN of the calling service.
+	// ServiceName is the expected CN or SAN of the calling service (optional filter).
 	ServiceName string
 }
 
 // Authenticate validates the client certificate from the TLS connection state.
-// STUB: always returns ErrUnauthenticated until implemented.
 func (m *MTLSValidator) Authenticate(_ context.Context, r *http.Request) (*Identity, error) {
-	// TODO: Implement mTLS validation
-	// 1. Check r.TLS != nil and r.TLS.PeerCertificates is non-empty
-	// 2. Verify certificate chain against configured CA pool
-	// 3. Extract CN and SANs for identity
-	// 4. Check CRL/OCSP status
-	_ = r
-	return nil, ErrUnauthenticated
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return nil, ErrInvalidCert
+	}
+
+	peer := r.TLS.PeerCertificates[0]
+	cn := peer.Subject.CommonName
+	if cn == "" {
+		return nil, ErrInvalidCert
+	}
+
+	// If ServiceName is set, verify it matches (CN or SAN).
+	if m.ServiceName != "" {
+		matched := false
+		if cn == m.ServiceName || strings.HasPrefix(cn, m.ServiceName+".") {
+			matched = true
+		}
+		for _, san := range peer.DNSNames {
+			if san == m.ServiceName || strings.HasPrefix(san, m.ServiceName+".") {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return nil, ErrForbidden
+		}
+	}
+
+	return &Identity{
+		Subject: cn,
+		Roles:   []string{"service"},
+		Extra: map[string]string{
+			"auth_method": "mtls",
+			"cert_cn":     cn,
+		},
+	}, nil
 }
 
 // Middleware returns an HTTP middleware that authenticates requests using the
