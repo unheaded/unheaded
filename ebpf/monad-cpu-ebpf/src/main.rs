@@ -139,7 +139,7 @@ const STAT_MEM_LOADS:       u32 = 10; // was CACHE_MISSES (all loads go direct t
 /// Each XDP invocation executes up to N MBC instructions.
 /// BPF verifier limits: 8192 jump complexity, 1M processed insns.
 /// Verifier state-explores each opcode branch per iteration.
-const MAX_INSN_PER_TICK: usize = 128;
+const MAX_INSN_PER_TICK: usize = 256;
 
 // ── Wire-format helpers ───────────────────────────────────────────────────────
 
@@ -634,19 +634,31 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 copy_fb_to_screen(mmap::SCREEN_BASE);
             } else if syscall_nr == sys::SYS_GET_KEY {
                 // DG_GetKey: r8 (a0) = key code, r9 (a1) = pressed.
-                // Encoding in KBD_MAP[0]: (key_code << 1) | pressed_flag
-                // Clear after read so the same event isn't returned twice.
-                let kv = match KBD_MAP.get(0) {
-                    Some(v) => *v,
-                    None => 0,
-                };
-                cpu.regs[8] = (kv >> 1) & 0x7FFF_FFFF; // key code
-                cpu.regs[9] = kv & 1;                   // pressed flag
-                // Consume: clear the slot so next DG_GetKey returns 0
-                if kv != 0 {
-                    if let Some(p) = KBD_MAP.get_ptr_mut(0) {
-                        unsafe { *p = 0; }
+                // Scan 8 KBD_MAP slots (circular queue) for the first non-zero event.
+                // Encoding per slot: (key_code << 1) | pressed_flag
+                // Clear consumed slot so the same event isn't returned twice.
+                let mut found = false;
+                let mut slot: u32 = 0;
+                while slot < 8 {
+                    let kv = match KBD_MAP.get(slot) {
+                        Some(v) => *v,
+                        None => 0,
+                    };
+                    if kv != 0 {
+                        cpu.regs[8] = (kv >> 1) & 0x7FFF_FFFF; // key code
+                        cpu.regs[9] = kv & 1;                   // pressed flag
+                        // Consume: clear slot
+                        if let Some(p) = KBD_MAP.get_ptr_mut(slot) {
+                            unsafe { *p = 0; }
+                        }
+                        found = true;
+                        break;
                     }
+                    slot += 1;
+                }
+                if !found {
+                    cpu.regs[8] = 0;
+                    cpu.regs[9] = 0;
                 }
             } else if syscall_nr == sys::SYS_GET_TICKS {
                 // DG_GetTicksMs: r8 (a0) = milliseconds since boot.

@@ -196,17 +196,21 @@ func injectSteady(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count int, de
 
 // injectBurst sends packets in bursts with a brief drain pause between each batch.
 // This models the Netflix approach: saturate the send buffer, let the kernel drain,
-// then fire again.
-func injectBurst(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batchSize int, shutdown *atomic.Bool) (uint64, time.Duration) {
+// then fire again. count=0 means infinite (run until SIGINT/SIGTERM).
+func injectBurst(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batchSize, burstSleepUS int, shutdown *atomic.Bool) (uint64, time.Duration) {
 	start := time.Now()
 	var sent uint64
 	batches := 0
+	infinite := count == 0
+	drainPause := time.Duration(burstSleepUS) * time.Microsecond
 
-	for sent < uint64(count) && !shutdown.Load() {
+	for (infinite || sent < uint64(count)) && !shutdown.Load() {
 		batch := batchSize
-		remaining := uint64(count) - sent
-		if uint64(batch) > remaining {
-			batch = int(remaining)
+		if !infinite {
+			remaining := uint64(count) - sent
+			if uint64(batch) > remaining {
+				batch = int(remaining)
+			}
 		}
 
 		for j := 0; j < batch; j++ {
@@ -218,31 +222,33 @@ func injectBurst(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batchSi
 		sent += uint64(batch)
 		batches++
 
-		// Brief drain pause between batches (100us) to let the XDP ring
-		// process the burst before we fire the next one.
-		time.Sleep(100 * time.Microsecond)
+		// Brief drain pause between batches to let XDP process.
+		time.Sleep(drainPause)
 
-		if batches%10 == 0 || sent >= uint64(count) {
+		if batches%100 == 0 {
 			elapsed := time.Since(start).Seconds()
 			pps := float64(sent) / elapsed
-			fmt.Printf("  [%3d%%] %d/%d pkt (%.0f pkt/s, batch=%d)\n",
-				sent*100/uint64(count), sent, count, pps, batchSize)
+			insns := sent * 256 * 255
+			fmt.Printf("  %d pkt (%.0f pkt/s, ~%.1fB insns)\n",
+				sent, pps, float64(insns)/1e9)
 		}
 	}
 	return sent, time.Since(start)
 }
 
 // injectFast sends packets with zero delay for maximum throughput measurement.
+// count=0 means infinite (run until SIGINT/SIGTERM).
 func injectFast(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count int, shutdown *atomic.Bool) (uint64, time.Duration) {
 	start := time.Now()
 	var sent uint64
+	infinite := count == 0
 
-	for i := 0; i < count; i++ {
+	for infinite || sent < uint64(count) {
 		if shutdown.Load() {
 			break
 		}
 		if err := unix.Sendto(fd, pkt, 0, sll); err != nil {
-			fmt.Fprintf(os.Stderr, "sendto: %v (packet %d)\n", err, i)
+			fmt.Fprintf(os.Stderr, "sendto: %v (packet %d)\n", err, sent)
 			break
 		}
 		sent++
@@ -251,7 +257,7 @@ func injectFast(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count int, shut
 }
 
 func main() {
-	count := flag.Int("count", 1000, "Number of packets to inject")
+	count := flag.Int("count", 1000, "Number of packets to inject (0 = infinite, run until Ctrl+C)")
 	batchSize := flag.Int("batch", 100, "Packets per burst (burst mode only)")
 	ifaceName := flag.String("iface", "veth01", "Network interface to inject on")
 	srcMACStr := flag.String("src-mac", "02:42:ac:11:00:02", "Source MAC address")
@@ -259,6 +265,7 @@ func main() {
 	flowLabel := flag.Uint("flow-label", DefaultFlowLabel, "IPv6 flow label (identifies Doom instance)")
 	mode := flag.String("mode", "burst", "Injection mode: steady, burst, fast")
 	delayUS := flag.Int("delay", 3000, "Inter-packet delay in microseconds (steady mode only)")
+	burstSleep := flag.Int("burst-sleep", 50, "Drain pause between bursts in microseconds (burst mode)")
 	rateHz := flag.Int("rate", 0, "Injection rate in Hz (overrides --delay, sets mode to steady)")
 
 	flag.Parse()
@@ -308,7 +315,11 @@ func main() {
 	// Print configuration banner.
 	fmt.Printf("=== Go Doom Ring Injector ===\n")
 	fmt.Printf("  Mode:       %s\n", *mode)
-	fmt.Printf("  Count:      %d\n", *count)
+	if *count == 0 {
+		fmt.Printf("  Count:      infinite (Ctrl+C to stop)\n")
+	} else {
+		fmt.Printf("  Count:      %d\n", *count)
+	}
 	fmt.Printf("  Interface:  %s\n", *ifaceName)
 	fmt.Printf("  Flow label: 0x%X\n", *flowLabel)
 	switch *mode {
@@ -316,6 +327,7 @@ func main() {
 		fmt.Printf("  Delay:      %d us\n", *delayUS)
 	case "burst":
 		fmt.Printf("  Batch size: %d\n", *batchSize)
+		fmt.Printf("  Burst sleep: %d us\n", *burstSleep)
 	case "fast":
 		fmt.Printf("  Delay:      0 (max throughput)\n")
 	}
@@ -329,7 +341,7 @@ func main() {
 	case "steady":
 		sent, elapsed = injectSteady(fd, sll, pkt, *count, *delayUS, &shutdown)
 	case "burst":
-		sent, elapsed = injectBurst(fd, sll, pkt, *count, *batchSize, &shutdown)
+		sent, elapsed = injectBurst(fd, sll, pkt, *count, *batchSize, *burstSleep, &shutdown)
 	case "fast":
 		sent, elapsed = injectFast(fd, sll, pkt, *count, &shutdown)
 	default:
