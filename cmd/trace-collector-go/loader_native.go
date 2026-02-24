@@ -201,6 +201,26 @@ func (n *NativeBPFLoader) GetLatencyMap() MapReader {
 	return n.mapReader("latency_probe", "LATENCY_MAP")
 }
 
+// GetPacketEventsCh returns a channel streaming raw packet events from the
+// PACKET_EVENTS ring buffer. Uses mmap-based reading via pkg/ebpf.ReadRingbuf.
+// Returns nil if the packet_marker program isn't loaded or ringbuf unavailable.
+func (n *NativeBPFLoader) GetPacketEventsCh(ctx context.Context) <-chan []byte {
+	n.mu.Lock()
+	prog, exists := n.programs["packet_marker"]
+	n.mu.Unlock()
+
+	if !exists || !prog.attached {
+		return nil
+	}
+
+	ch, err := n.loader.ReadRingbuf(ctx, prog.specName, "PACKET_EVENTS")
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to open PACKET_EVENTS ringbuf, falling back to poll mode")
+		return nil
+	}
+	return ch
+}
+
 // Close detaches all programs and releases resources.
 func (n *NativeBPFLoader) Close() error {
 	n.mu.Lock()

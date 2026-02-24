@@ -346,6 +346,165 @@ func TestTraceReader_EventChannel(t *testing.T) {
 	}
 }
 
+func TestTraceReader_RingbufMode(t *testing.T) {
+	loader := NewMockBPFLoader()
+
+	// Create a buffered channel to simulate ringbuf events
+	ringbufCh := make(chan []byte, 10)
+	loader.packetEventsCh = ringbufCh
+
+	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	config := DefaultTraceReaderConfig()
+	reader := NewTraceReader(loader, publisher, config)
+
+	// Send some trace entries through the ringbuf channel
+	te1 := makeTraceEntry(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 8080, 443, 6, 1000)
+	te2 := makeTraceEntry(net.ParseIP("10.0.0.3"), net.ParseIP("10.0.0.4"), 9090, 80, 6, 2000)
+	encoded1 := te1.Encode()
+	encoded2 := te2.Encode()
+	ringbufCh <- encoded1[:]
+	ringbufCh <- encoded2[:]
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Run in background
+	done := make(chan struct{})
+	go func() {
+		reader.Run(ctx)
+		close(done)
+	}()
+
+	// Wait for events on the output channel
+	var received []*TraceEntry
+	timeout := time.After(2 * time.Second)
+	for len(received) < 2 {
+		select {
+		case entry := <-reader.Events():
+			received = append(received, entry)
+		case <-timeout:
+			t.Fatalf("timeout: received %d/2 events", len(received))
+		}
+	}
+
+	// Verify entries
+	if received[0].SrcPort != 8080 {
+		t.Errorf("entry[0].SrcPort = %d, want 8080", received[0].SrcPort)
+	}
+	if received[1].SrcPort != 9090 {
+		t.Errorf("entry[1].SrcPort = %d, want 9090", received[1].SrcPort)
+	}
+
+	stats := reader.Stats()
+	if stats.EntriesRead != 2 {
+		t.Errorf("EntriesRead = %d, want 2", stats.EntriesRead)
+	}
+
+	cancel()
+	<-done
+}
+
+func TestTraceReader_RingbufBadData(t *testing.T) {
+	loader := NewMockBPFLoader()
+
+	ringbufCh := make(chan []byte, 10)
+	loader.packetEventsCh = ringbufCh
+
+	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	reader := NewTraceReader(loader, publisher, DefaultTraceReaderConfig())
+
+	// Send bad data followed by good data
+	ringbufCh <- []byte("tooshort")
+	te := makeTraceEntry(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 4444, 80, 6, 999)
+	encoded := te.Encode()
+	ringbufCh <- encoded[:]
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		reader.Run(ctx)
+		close(done)
+	}()
+
+	// Should get the good entry despite the bad one
+	select {
+	case entry := <-reader.Events():
+		if entry.SrcPort != 4444 {
+			t.Errorf("SrcPort = %d, want 4444", entry.SrcPort)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	stats := reader.Stats()
+	if stats.DecodeErrors != 1 {
+		t.Errorf("DecodeErrors = %d, want 1", stats.DecodeErrors)
+	}
+
+	cancel()
+	<-done
+}
+
+func TestTraceReader_RingbufChannelClose(t *testing.T) {
+	loader := NewMockBPFLoader()
+
+	ringbufCh := make(chan []byte, 10)
+	loader.packetEventsCh = ringbufCh
+
+	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	reader := NewTraceReader(loader, publisher, DefaultTraceReaderConfig())
+
+	ctx := context.Background()
+	done := make(chan struct{})
+	go func() {
+		reader.Run(ctx)
+		close(done)
+	}()
+
+	// Close the channel — reader should exit cleanly
+	close(ringbufCh)
+
+	select {
+	case <-done:
+		// Good — reader exited
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout: reader didn't exit after channel close")
+	}
+}
+
+func TestTraceReader_FallbackToPollWhenNoRingbuf(t *testing.T) {
+	loader := NewMockBPFLoader()
+	// packetEventsCh is nil — should fall back to poll mode
+
+	te := makeTraceEntry(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 5555, 80, 6, 123)
+	encoded := te.Encode()
+	loader.traceMap.Insert([]byte("test"), encoded[:])
+
+	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	config := DefaultTraceReaderConfig()
+	config.ReadInterval = 50 * time.Millisecond
+	reader := NewTraceReader(loader, publisher, config)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		reader.Run(ctx)
+		close(done)
+	}()
+
+	// Should get the entry via poll mode
+	select {
+	case entry := <-reader.Events():
+		if entry.SrcPort != 5555 {
+			t.Errorf("SrcPort = %d, want 5555", entry.SrcPort)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for poll event")
+	}
+
+	cancel()
+	<-done
+}
+
 func TestTraceReader_NoDeleteWhenDisabled(t *testing.T) {
 	loader := NewMockBPFLoader()
 
