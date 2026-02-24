@@ -21,6 +21,7 @@ import (
 
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/transport"
 
 	"gopkg.in/yaml.v3"
 )
@@ -83,6 +84,10 @@ type Daemon struct {
 
 	// eBPF loader (mock for now)
 	// ebpfLoader ebpf.Loader
+
+	// Transport
+	transportCfg transport.Config
+	healthSrv    *transport.HealthServer
 
 	// HTTP server
 	httpServer *http.Server
@@ -336,13 +341,26 @@ func main() {
 	// Load configuration
 	cfg := loadConfig(*configPath)
 
+	// Initialize transport config
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	if cfg.WotanGRPCAddr != "" {
+		transportCfg.WotanGRPCAddr = cfg.WotanGRPCAddr
+	}
+	if cfg.WotanAddr != "" {
+		transportCfg.WotanHTTPAddr = "http://" + cfg.WotanAddr
+	}
+
 	// Initialize logger
 	log := logger.New(os.Stdout)
 	level, _ := logger.ParseLevel(cfg.LogLevel)
 	log.SetLevel(level)
 
+	// Create transport health server
+	healthSrv := transport.NewHealthServer("unheaded-daemon")
+
 	// Create daemon
-	daemon := NewDaemon(cfg, log)
+	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)
 
 	// Setup signal handling
 	sigCh := make(chan os.Signal, 1)
@@ -376,7 +394,7 @@ func main() {
 // ============================================================================
 
 // NewDaemon creates a new daemon instance
-func NewDaemon(cfg *Config, log *logger.Logger) *Daemon {
+func NewDaemon(cfg *Config, log *logger.Logger, transportCfg transport.Config, healthSrv *transport.HealthServer) *Daemon {
 	return &Daemon{
 		config: cfg,
 		log:    log,
@@ -385,8 +403,10 @@ func NewDaemon(cfg *Config, log *logger.Logger) *Daemon {
 			actual:  make(map[string]*ContainerState),
 			drifts:  make([]DriftReport, 0),
 		},
-		lxdClient: NewMockLXDClient(log), // Use mock client for now
-		shutdown:  make(chan struct{}),
+		lxdClient:    NewMockLXDClient(log), // Use mock client for now
+		transportCfg: transportCfg,
+		healthSrv:    healthSrv,
+		shutdown:     make(chan struct{}),
 	}
 }
 
@@ -395,6 +415,7 @@ func (d *Daemon) Start() error {
 	// Initialize Wotan client
 	if err := d.initWotan(); err != nil {
 		d.log.Warn().Err(err).Msg("Wotan connection failed, will retry")
+		d.healthSrv.SetGRPCStatus(false)
 	}
 
 	// Log LXD client status
@@ -536,6 +557,7 @@ func (d *Daemon) wotanConnectionLoop() {
 			d.log.Info().Str("addr", d.config.WotanAddr).Msg("Attempting Wotan reconnection")
 			if err := d.initWotan(); err != nil {
 				d.log.Warn().Err(err).Dur("retry_in", reconnectInterval).Msg("Wotan reconnection failed")
+				d.healthSrv.SetGRPCStatus(false)
 
 				select {
 				case <-d.shutdown:
@@ -552,6 +574,7 @@ func (d *Daemon) wotanConnectionLoop() {
 			}
 			// Reset backoff on successful connection
 			reconnectInterval = 5 * time.Second
+			d.healthSrv.SetGRPCStatus(true)
 		}
 
 		// Check connection health periodically
@@ -618,6 +641,7 @@ func (d *Daemon) publishMetrics() {
 			d.wotanMu.Lock()
 			d.wotanReady = false
 			d.wotanMu.Unlock()
+			d.healthSrv.SetGRPCStatus(false)
 		}
 		d.log.Error().Err(err).Msg("Error publishing metrics to Wotan")
 		return
@@ -666,6 +690,7 @@ func (d *Daemon) publishDriftEvents(drifts []DriftReport) {
 			d.wotanMu.Lock()
 			d.wotanReady = false
 			d.wotanMu.Unlock()
+			d.healthSrv.SetGRPCStatus(false)
 		}
 		d.log.Error().Err(err).Msg("Error publishing drift events to Wotan")
 		return
@@ -679,9 +704,8 @@ func (d *Daemon) publishDriftEvents(drifts []DriftReport) {
 // ============================================================================
 
 func (d *Daemon) registerHandlers(mux *http.ServeMux) {
-	// Health endpoints
-	mux.HandleFunc("/health", d.handleHealth)
-	mux.HandleFunc("/ready", d.handleReady)
+	// Health endpoints (transport-based dual-protocol health)
+	d.healthSrv.RegisterHTTP(mux)
 
 	// State endpoints
 	mux.HandleFunc("/api/v1/state", d.handleGetState)
@@ -1173,6 +1197,7 @@ func (d *Daemon) publishReconcileEvents(actions []ReconcileAction) {
 			d.wotanMu.Lock()
 			d.wotanReady = false
 			d.wotanMu.Unlock()
+			d.healthSrv.SetGRPCStatus(false)
 		}
 		d.log.Error().Err(err).Msg("Error publishing reconcile events to Wotan")
 		return
