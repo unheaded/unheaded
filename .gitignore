@@ -47,6 +47,8 @@ coverage.html
 /wotan
 /wotan-ctl
 /doom-bridge
+/doom-go-injector
+/doom
 /captain
 /main
 /timeguru
@@ -70,6 +72,8 @@ cmd/*/trace-collector
 cmd/*/ebpf-loader
 cmd/*/wotan-ctl
 cmd/*/doom-bridge
+cmd/*/doom-go-injector
+cmd/*/doom
 # Runtime data directories (SQLite DBs, temp files)
 cmd/*/data/
 
@@ -165,9 +169,15 @@ data/*.db
 .claude-cache/
 
 # ─── Doom WAD binaries (copyrighted, owned locally) ───
+*.wad
 doom/*.wad
 
-# ─── Fuzz coverage artifacts ───
+# ─── Doom C build artifacts ───
+build_monad/
+
+# ─── Fuzz artifacts (corpus, crashes, coverage) ───
+**/fuzz/corpus/
+**/fuzz/artifacts/
 crates/*/fuzz/coverage/
 
 # ─── Dev artifacts ───
