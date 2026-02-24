@@ -1,3 +1,13 @@
+/*
+ * This file is part of the Unheaded distributed system platform.
+ *
+ * Unheaded is licensed under the Business Source License 1.1 (BSL 1.1).
+ * See the LICENSE file in the root directory for the full license text.
+ *
+ * For protocol specifications, see LICENSE-PROTOCOLS.
+ * For GPL 2.0-licensed components (DOOM engine), see doom/LICENSE.
+ */
+
 // Package main provides the entry point for the dashboard backend service.
 // The dashboard backend aggregates metrics, health status, and events from all
 // Kingdom services and serves them via REST API and WebSocket streaming.

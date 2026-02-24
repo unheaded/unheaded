@@ -1,0 +1,70 @@
+# DOOM Engine License
+
+## GNU General Public License, Version 2
+
+The `/doom/` subdirectory contains the Unheaded DOOM engine integration,
+including DOOM engine code, derivatives, and related build artifacts.
+
+This subdirectory is SEPARATELY licensed under the GNU General Public License
+(GPL) version 2 or later, as required by the original DOOM engine source code.
+
+The full GPL 2.0 text is available at:
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+## Copyright
+
+DOOM is derived from the original DOOM engine, copyright (C) 1993-1996 id Software.
+
+Modifications and integration into Unheaded are:
+Copyright (c) 2026 Unheaded Project Contributors
+
+## License Boundary
+
+### GPL 2.0 Licensed (this directory)
+
+- All DOOM engine code and derivatives in `/doom/`
+- Integration code that links to DOOM engine
+- Build artifacts and compiled binaries from `/doom/`
+
+### NOT GPL 2.0 Licensed
+
+- Code in the main repository outside `/doom/` is licensed under BSL 1.1 (see /LICENSE)
+- Protocol specifications in `/docs/protocol/` are MIT/Apache 2.0 (see /LICENSE-PROTOCOLS)
+- Dependencies listed in `/LICENSES/` follow their own licenses
+
+## GPL Compliance
+
+To maintain GPL 2.0 compliance:
+
+1. The `/doom/` subdirectory is self-contained and isolated
+2. GPL 2.0 headers appear in all GPL-licensed source files
+3. DOOM-specific code is isolated and clearly marked
+4. Source code distributions include unmodified DOOM sources (as required)
+5. Binary distributions include GPL source availability notices
+
+## Separation Architecture
+
+Code outside `/doom/` does NOT directly link to DOOM engine code.
+The current architecture maintains separation via:
+
+- DOOM engine runs as an isolated subprocess or container
+- Unheaded core communicates via defined APIs (sockets, RPC, etc.)
+- No GPL contamination of main codebase
+- Each `/doom/` binary may be distributed separately under GPL 2.0
+
+## Using /doom/
+
+If you redistribute or modify code in the `/doom/` subdirectory, you must:
+
+1. Provide or make available the complete, corresponding source code
+2. Include this LICENSE file
+3. Include the GPL 2.0 text (see URL above)
+4. Retain all copyright notices
+5. License your modifications under GPL 2.0 (or later)
+
+## References
+
+- DOOM Engine Source: https://github.com/id-Software/DOOM/
+- GPL 2.0 Full Text: https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+- Main Codebase License: /LICENSE (BSL 1.1)
+- Protocol License: /LICENSE-PROTOCOLS (MIT/Apache 2.0)
