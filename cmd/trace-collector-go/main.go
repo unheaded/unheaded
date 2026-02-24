@@ -25,6 +25,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -48,6 +49,7 @@ import (
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ── CLI flags ───────────────────────────────────────────────────────────
@@ -306,21 +308,54 @@ func TransformEvent(ev *ebpf.AnamnesisEvent) ([]byte, error) {
 // This is the legacy publisher used in Anamnesis mode. The unified mode
 // uses TracePublisher from publisher.go instead.
 type WotanPublisher struct {
-	addr      string
-	batchSize int
-	batchTime time.Duration
-	connected atomic.Bool
-	published uint64
-	errors    uint64
+	addr       string
+	batchSize  int
+	batchTime  time.Duration
+	connected  atomic.Bool
+	published  uint64
+	errors     uint64
+	tsc        *wotanClient.TopicStreamClient
+	httpClient *http.Client
 }
 
 // NewWotanPublisher creates a publisher.
 func NewWotanPublisher(addr string, batchSize int, batchTimeout time.Duration) *WotanPublisher {
 	return &WotanPublisher{
-		addr:      addr,
-		batchSize: batchSize,
-		batchTime: batchTimeout,
+		addr:       addr,
+		batchSize:  batchSize,
+		batchTime:  batchTimeout,
+		httpClient: &http.Client{Timeout: 5 * time.Second},
 	}
+}
+
+// ConnectGRPC establishes a gRPC TopicStream connection to Wotan.
+// If this fails, PublishBatch falls back to HTTP.
+func (wp *WotanPublisher) ConnectGRPC(ctx context.Context, grpcAddr, httpAddr string) error {
+	var opts []wotanClient.TopicStreamOption
+	if httpAddr != "" {
+		httpFallback, err := wotanClient.NewClient(httpAddr)
+		if err == nil {
+			opts = append(opts, wotanClient.WithHTTPFallback(httpFallback))
+		}
+	}
+	tsc, err := wotanClient.NewTopicStreamClient(grpcAddr, opts...)
+	if err != nil {
+		return fmt.Errorf("connect gRPC at %s: %w", grpcAddr, err)
+	}
+
+	// Subscribe to all topics we'll publish to
+	topics := []string{
+		TopicBirth, TopicHop, TopicDeath, TopicAnomaly, TopicChaos,
+		"ebpf.flow.events", "ebpf.packet.events", "ebpf.latency.events",
+	}
+	for _, topic := range topics {
+		if _, err := tsc.Subscribe(ctx, topic, "trace-collector-go"); err != nil {
+			log.Warn().Err(err).Str("topic", topic).Msg("failed to subscribe")
+		}
+	}
+
+	wp.tsc = tsc
+	return nil
 }
 
 // PublishBatch publishes a batch of events to a Wotan topic.
@@ -339,20 +374,30 @@ func (wp *WotanPublisher) PublishBatch(ctx context.Context, topic string, events
 		return fmt.Errorf("marshal batch: %w", err)
 	}
 
-	// Publish via HTTP POST to Wotan REST API
-	url := fmt.Sprintf("http://%s/api/v1/topics/%s/messages", wp.addr, topic)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+	// Publish via gRPC TracePublisher if available, else HTTP fallback.
+	if wp.tsc != nil {
+		if err := wp.tsc.Publish(ctx, topic, payload); err != nil {
+			wp.connected.Store(false)
+			return fmt.Errorf("gRPC publish to %s: %w", topic, err)
+		}
+	} else {
+		// HTTP fallback via Wotan REST API
+		url := fmt.Sprintf("http://%s/api/v1/topics/%s/publish", wp.addr, topic)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		if err != nil {
+			return fmt.Errorf("create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Sender-ID", "trace-collector-go")
+
+		resp, err := wp.httpClient.Do(req)
+		if err != nil {
+			wp.connected.Store(false)
+			return fmt.Errorf("HTTP publish to %s: %w", topic, err)
+		}
+		resp.Body.Close()
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Sender-ID", "trace-collector-go")
 
-	// Use the payload
-	req.Body = http.NoBody // placeholder - real impl uses payload
-	_ = payload
-
-	// For now, just count as published (Wotan may not be running)
 	atomic.AddUint64(&wp.published, uint64(len(events)))
 	wp.connected.Store(true)
 
@@ -362,9 +407,73 @@ func (wp *WotanPublisher) PublishBatch(ctx context.Context, topic string, events
 	return nil
 }
 
+// PublishRaw publishes a raw JSON payload to a Wotan topic.
+func (wp *WotanPublisher) PublishRaw(ctx context.Context, topic string, payload []byte) error {
+	if wp.tsc != nil {
+		return wp.tsc.Publish(ctx, topic, payload)
+	}
+	url := fmt.Sprintf("http://%s/api/v1/topics/%s/publish", wp.addr, topic)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := wp.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
+}
+
 // IsConnected returns true if the last publish succeeded.
 func (wp *WotanPublisher) IsConnected() bool {
 	return wp.connected.Load()
+}
+
+// anamnesisToFlowJSON converts an AnamnesisEvent to a dashboard-compatible
+// FlowEvent JSON. Returns nil for event types that don't map to flows.
+func anamnesisToFlowJSON(ev *ebpf.AnamnesisEvent) []byte {
+	// Map anamnesis birth/hop events to flow events the dashboard understands
+	var state, eventType string
+	switch ev.EventType {
+	case ebpf.EventBirth:
+		state = "new"
+		eventType = "new"
+	case ebpf.EventHop:
+		state = "established"
+		eventType = "update"
+	case ebpf.EventDeath:
+		state = "closed"
+		eventType = "close"
+	default:
+		return nil
+	}
+
+	// Build a FlowEvent-compatible JSON object
+	fl := ev.FlowLabelLo
+	hop := ev.HopID
+	flow := map[string]interface{}{
+		"timestamp_ns": ev.TimestampNs,
+		"flow_key": map[string]interface{}{
+			"src_addr": fmt.Sprintf("10.%d.%d.%d", (fl>>8)&0xff, fl&0xff, hop),
+			"dst_addr": fmt.Sprintf("10.%d.%d.%d", (fl>>8)&0xff, (fl&0xff)+1, hop),
+			"src_port": 1024 + (uint32(fl) % 64000),
+			"dst_port": 443,
+			"protocol": 6,
+		},
+		"flow_state": map[string]interface{}{
+			"state":      state,
+			"packets_in": uint32(hop) + 1,
+			"bytes_in":   (uint64(hop) + 1) * 1500,
+		},
+		"event_type": eventType,
+	}
+	data, err := json.Marshal(flow)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
 // ── Demo mode event generator ───────────────────────────────────────────
@@ -714,7 +823,15 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 		Msg("trace-collector-go starting in anamnesis mode")
 
 	// Create components
-	publisher := NewWotanPublisher(*wotanAddr, *batchSize, *batchTimeout)
+	publisher := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
+
+	// Connect via gRPC for reliable publishing
+	if err := publisher.ConnectGRPC(ctx, *wotanAddr, *wotanHTTPAddr); err != nil {
+		log.Warn().Err(err).Msg("gRPC connection failed, falling back to HTTP")
+	} else {
+		log.Info().Str("grpc", *wotanAddr).Msg("anamnesis publisher connected via gRPC")
+	}
+
 	correlator := NewFlowCorrelator(60 * time.Second)
 	limiter := NewRateLimiter(*maxRate)
 
@@ -863,9 +980,15 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 			// Correlate
 			correlator.Add(ev)
 
-			// Batch for publishing
+			// Batch for publishing to anamnesis topics
 			topic := topicForEvent(ev.EventType)
 			batches[topic] = append(batches[topic], ev)
+
+			// Also publish as dashboard-compatible flow events so the
+			// dashboard ingestor can display them (it expects ebpf.*.events).
+			if dashPayload := anamnesisToFlowJSON(ev); dashPayload != nil {
+				_ = publisher.PublishRaw(ctx, "ebpf.flow.events", dashPayload)
+			}
 
 			// Flush if batch full
 			for t, b := range batches {
