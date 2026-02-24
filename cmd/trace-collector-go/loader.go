@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sync"
 )
@@ -24,7 +25,7 @@ type BPFLoader interface {
 	// AttachXDP attaches the loaded XDP program to a network interface.
 	AttachXDP(iface string) error
 
-	// GetTraceMap returns a reader for the PACKET_EVENTS ring buffer.
+	// GetTraceMap returns a reader for the STATS hash map (fallback for polling).
 	GetTraceMap() MapReader
 
 	// GetStatsMap returns a reader for the STATS map.
@@ -35,6 +36,11 @@ type BPFLoader interface {
 
 	// GetLatencyMap returns a reader for the LATENCY_MAP.
 	GetLatencyMap() MapReader
+
+	// GetPacketEventsCh returns a channel that streams raw packet events
+	// from the PACKET_EVENTS ring buffer via mmap. Returns nil if the
+	// ringbuf is not available (e.g., program not attached or no kernel support).
+	GetPacketEventsCh(ctx context.Context) <-chan []byte
 
 	// Close detaches programs and closes all map file descriptors.
 	Close() error
@@ -60,16 +66,17 @@ type MapReader interface {
 
 // MockBPFLoader provides an in-memory BPF loader for testing without kernel.
 type MockBPFLoader struct {
-	mu          sync.Mutex
-	loaded      bool
-	attached    bool
-	iface       string
-	programPath string
-	traceMap    *MockMapReader
-	statsMap    *MockMapReader
-	flowMap     *MockMapReader
-	latencyMap  *MockMapReader
-	closed      bool
+	mu             sync.Mutex
+	loaded         bool
+	attached       bool
+	iface          string
+	programPath    string
+	traceMap       *MockMapReader
+	statsMap       *MockMapReader
+	flowMap        *MockMapReader
+	latencyMap     *MockMapReader
+	packetEventsCh chan []byte // optional: set by test to simulate ringbuf
+	closed         bool
 }
 
 // NewMockBPFLoader creates a new mock loader with empty maps.
@@ -121,6 +128,12 @@ func (m *MockBPFLoader) GetFlowStateMap() MapReader {
 
 func (m *MockBPFLoader) GetLatencyMap() MapReader {
 	return m.latencyMap
+}
+
+func (m *MockBPFLoader) GetPacketEventsCh(_ context.Context) <-chan []byte {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.packetEventsCh
 }
 
 func (m *MockBPFLoader) Close() error {
