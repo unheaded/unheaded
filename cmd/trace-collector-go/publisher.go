@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -263,7 +264,7 @@ func (tp *TracePublisher) enqueue(topic string, payload json.RawMessage) {
 }
 
 // sendBatch publishes a batch of JSON messages to a Wotan topic.
-// In production this uses gRPC; for now it uses the HTTP REST API.
+// Uses HTTP REST API with retry and exponential backoff (100ms/200ms/400ms, 3 attempts).
 func (tp *TracePublisher) sendBatch(ctx context.Context, topic string, messages []json.RawMessage) error {
 	start := time.Now()
 	defer func() {
@@ -276,23 +277,63 @@ func (tp *TracePublisher) sendBatch(ctx context.Context, topic string, messages 
 		return fmt.Errorf("marshal batch: %w", err)
 	}
 
-	// Build the HTTP request to Wotan REST API
 	url := fmt.Sprintf("http://%s/api/v1/topics/%s/messages", tp.config.WotanAddr, topic)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+
+	// Retry with exponential backoff: 100ms, 200ms, 400ms
+	backoffs := []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond}
+	var lastErr error
+
+	for attempt := 0; attempt <= len(backoffs); attempt++ {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		if err != nil {
+			return fmt.Errorf("create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Sender-ID", "trace-collector-go")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			lastErr = err
+			tp.connected.Store(false)
+
+			if attempt < len(backoffs) {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(backoffs[attempt]):
+				}
+				continue
+			}
+			return fmt.Errorf("publish to %s after %d attempts: %w", topic, attempt+1, lastErr)
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			tp.connected.Store(true)
+			return nil
+		}
+
+		lastErr = fmt.Errorf("wotan returned %d", resp.StatusCode)
+		tp.connected.Store(false)
+
+		// Retry on 5xx server errors only
+		if resp.StatusCode >= 500 && attempt < len(backoffs) {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoffs[attempt]):
+			}
+			continue
+		}
+
+		return lastErr
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Sender-ID", "trace-collector-go")
 
-	// Payload is ready for transport. In production mode with a running Wotan
-	// instance, we would send this via the gRPC TopicStreamClient.
-	// For now, mark as connected and count the publish.
-	_ = payload
-	req.Body = http.NoBody
-
-	tp.connected.Store(true)
-	return nil
+	return lastErr
 }
 
 // marshalTraceEntry converts a TraceEntry to JSON.

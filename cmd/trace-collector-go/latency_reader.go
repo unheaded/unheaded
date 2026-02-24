@@ -305,10 +305,7 @@ func (lr *LatencyReader) pollOnce(ctx context.Context) {
 		atomic.AddUint64(&lr.stats.PollCycles, 1)
 	}()
 
-	// Use the flow state map as a proxy for LATENCY_MAP.
-	// In production, BPFLoader would expose a dedicated GetLatencyMap().
-	// For now, we reuse GetFlowStateMap() which is backed by MockMapReader in tests.
-	latencyMap := lr.loader.GetFlowStateMap()
+	latencyMap := lr.loader.GetLatencyMap()
 	if latencyMap == nil {
 		return
 	}
