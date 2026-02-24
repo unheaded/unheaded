@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -230,7 +232,15 @@ func TestTransformEvent(t *testing.T) {
 // ── WotanPublisher tests ────────────────────────────────────────────────────
 
 func TestWotanPublisher_PublishBatch(t *testing.T) {
-	pub := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	var received []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	addr := strings.TrimPrefix(srv.URL, "http://")
+	pub := NewWotanPublisher(addr, 100, 50*time.Millisecond)
 
 	events := []*ebpf.AnamnesisEvent{
 		makeEvent(ebpf.EventBirth, 0, 0x1234, 1000),
@@ -245,6 +255,9 @@ func TestWotanPublisher_PublishBatch(t *testing.T) {
 
 	if !pub.IsConnected() {
 		t.Error("expected connected after publish")
+	}
+	if len(received) == 0 {
+		t.Error("server received no payload")
 	}
 }
 
