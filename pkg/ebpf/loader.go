@@ -1457,7 +1457,7 @@ func parseELF(path string) (*parsedELF, error) {
 		}
 
 		// Check for map sections
-		if section.Name == ".maps" || strings.HasPrefix(section.Name, ".maps.") {
+		if section.Name == ".maps" || section.Name == "maps" || strings.HasPrefix(section.Name, ".maps.") {
 			data, err := section.Data()
 			if err != nil {
 				continue
