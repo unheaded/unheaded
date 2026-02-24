@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
@@ -69,6 +70,13 @@ func main() {
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
 	transportCfg.WotanGRPCAddr = *wotanAddr
+
+	// Service lifecycle context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Service discovery registration
+	discovery.SetupServiceDiscovery(ctx, nil, "monad", 19004)
 
 	// Health server
 	healthSrv := transport.NewHealthServer("monad")
