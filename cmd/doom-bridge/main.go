@@ -35,6 +35,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"unheaded/pkg/auth"
 )
 
 // Service metadata.
@@ -170,9 +172,13 @@ func main() {
 	mux.HandleFunc("/metrics", b.handleMetrics)
 	mux.Handle("/", http.FileServer(http.Dir(b.static)))
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("doom-bridge")
+	var httpHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
+
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", b.port),
-		Handler:      mux,
+		Handler:      httpHandler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
