@@ -34,6 +34,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/ebpf"
+	"unheaded/pkg/transport"
 )
 
 // ── CLI flags ───────────────────────────────────────────────────────────
@@ -450,7 +451,7 @@ type LatencyReaderI interface {
 
 // runUnifiedMode starts the unified trace collector that loads all three
 // BPF programs (packet_marker, flow_tracker, latency_probe) based on flags.
-func runUnifiedMode(ctx context.Context) {
+func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	log.Info().
 		Str("interface", *iface).
 		Str("wotan_addr", *wotanAddr).
@@ -540,6 +541,7 @@ func runUnifiedMode(ctx context.Context) {
 				correlator.Add(entry)
 				if err := publisher.PublishPacketEvent(entry); err != nil {
 					log.Error().Err(err).Msg("failed to publish packet event")
+					healthSrv.SetGRPCStatus(false)
 				}
 			}
 		}()
@@ -560,6 +562,7 @@ func runUnifiedMode(ctx context.Context) {
 				}
 				if err := publisher.PublishCorrelatedFlow(flow); err != nil {
 					log.Error().Err(err).Msg("failed to publish correlated flow")
+					healthSrv.SetGRPCStatus(false)
 				}
 			}
 		}
@@ -609,7 +612,7 @@ func runUnifiedMode(ctx context.Context) {
 // ── Legacy Anamnesis mode runner ────────────────────────────────────────
 
 // runAnamnesisMode starts the original Anamnesis-based trace collector.
-func runAnamnesisMode(ctx context.Context) {
+func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	log.Info().
 		Str("ring_path", *ringPath).
 		Str("wotan_addr", *wotanAddr).
@@ -655,6 +658,7 @@ func runAnamnesisMode(ctx context.Context) {
 		correlator: correlator,
 		reader:     reader,
 	})
+	healthSrv.RegisterHTTP(mux)
 
 	httpServer := &http.Server{
 		Addr:    *httpAddr,
@@ -696,6 +700,7 @@ func runAnamnesisMode(ctx context.Context) {
 			}
 			if err := publisher.PublishBatch(ctx, topic, evs); err != nil {
 				log.Error().Err(err).Str("topic", topic).Int("count", len(evs)).Msg("publish failed")
+				healthSrv.SetGRPCStatus(false)
 			}
 			delete(batches, topic)
 		}
@@ -772,6 +777,7 @@ func runAnamnesisMode(ctx context.Context) {
 				if len(b) >= *batchSize {
 					if err := publisher.PublishBatch(ctx, t, b); err != nil {
 						log.Error().Err(err).Str("topic", t).Msg("publish failed")
+						healthSrv.SetGRPCStatus(false)
 					}
 					delete(batches, t)
 				}
@@ -795,6 +801,14 @@ func main() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
 	}
 
+	// Transport config: defaults → env → flag overrides
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	transportCfg.WotanGRPCAddr = *wotanAddr
+
+	// Unified health server for transport-aware readiness
+	healthSrv := transport.NewHealthServer("trace-collector")
+
 	// Create context with signal handling
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -808,8 +822,8 @@ func main() {
 	}()
 
 	if *unifiedMode {
-		runUnifiedMode(ctx)
+		runUnifiedMode(ctx, healthSrv)
 	} else {
-		runAnamnesisMode(ctx)
+		runAnamnesisMode(ctx, healthSrv)
 	}
 }
