@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
@@ -830,6 +831,9 @@ func main() {
 	// Start the Sophia service
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Service discovery registration
+	discovery.SetupServiceDiscovery(ctx, nil, "sophia", 19005)
 
 	if err := sophiaService.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("failed to start Sophia service")

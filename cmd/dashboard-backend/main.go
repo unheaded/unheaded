@@ -38,6 +38,7 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
@@ -225,6 +226,9 @@ func main() {
 	// Start server
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Service discovery registration
+	discovery.SetupServiceDiscovery(ctx, nil, "dashboard-backend", 20000)
 
 	if err := srv.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("failed to start server")
