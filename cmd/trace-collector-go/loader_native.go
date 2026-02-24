@@ -178,19 +178,22 @@ func (n *NativeBPFLoader) AttachXDP(iface string) error {
 	return nil
 }
 
-// GetTraceMap returns a reader for the packet_marker PACKET_EVENTS map.
+// GetTraceMap returns a reader for the packet_marker STATS map.
+// Note: PACKET_EVENTS is a ringbuf which requires mmap-based reading.
+// Until ringbuf support is added, we read from the STATS hash map
+// which contains per-event-type counters.
 func (n *NativeBPFLoader) GetTraceMap() MapReader {
-	return n.mapReader("packet_marker", "PACKET_EVENTS")
-}
-
-// GetStatsMap returns a reader for the packet_marker STATS map.
-func (n *NativeBPFLoader) GetStatsMap() MapReader {
 	return n.mapReader("packet_marker", "STATS")
 }
 
-// GetFlowStateMap returns a reader for the packet_marker FLOW_STATE map.
+// GetStatsMap returns a reader for the flow_tracker FLOW_STATS map.
+func (n *NativeBPFLoader) GetStatsMap() MapReader {
+	return n.mapReader("flow_tracker", "FLOW_STATS")
+}
+
+// GetFlowStateMap returns a reader for the flow_tracker FLOWS map.
 func (n *NativeBPFLoader) GetFlowStateMap() MapReader {
-	return n.mapReader("packet_marker", "FLOW_STATE")
+	return n.mapReader("flow_tracker", "FLOWS")
 }
 
 // GetLatencyMap returns a reader for the latency_probe LATENCY_MAP.
