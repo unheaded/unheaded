@@ -42,7 +42,7 @@ coverage.html
 *.prof
 *.pprof
 
-# ─── Compiled service binaries ───
+# ─── Compiled service binaries (top-level) ───
 /kanban-app
 /wotan
 /wotan-ctl
@@ -50,6 +50,19 @@ coverage.html
 /captain
 /main
 /timeguru
+/trace-collector-go
+/unheaded-daemon
+/monad
+/sophia
+/architect
+/micromanager
+/dashboard-backend
+/gateway
+/anamnesis
+/kenoma
+/pleroma
+/shield
+/yaldabaoth
 # Binaries built inside cmd/ subdirectories
 cmd/*/kanban-app
 cmd/*/dashboard-backend
