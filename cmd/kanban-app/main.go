@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -1218,6 +1219,9 @@ func main() {
 
 	// Health server — dual-protocol health tracking
 	healthSrv := transport.NewHealthServer("kanban-app")
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	_ = logagg.NewPublisher("kanban-app", nil) // nil transport — publisher disabled until zerolog is adopted
 
 	// Initialize Wotan client
 	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)

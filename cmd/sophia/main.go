@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -779,6 +780,9 @@ func main() {
 		Str("build_time", BuildTime).
 		Str("git_commit", GitCommit).
 		Msg("Sophia awakens - wisdom flows through the Kingdom")
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	_ = logagg.NewPublisher("sophia", nil) // nil transport — publisher disabled until zerolog is adopted
 
 	// Connect to Wotan
 	var wotanInstance *wotanClient.Client

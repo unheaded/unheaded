@@ -19,9 +19,10 @@ import (
 	"syscall"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
+	wotanClient "unheaded/pkg/wotan-client"
 
 	"gopkg.in/yaml.v3"
 )
@@ -358,6 +359,9 @@ func main() {
 
 	// Create transport health server
 	healthSrv := transport.NewHealthServer("unheaded-daemon")
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	_ = logagg.NewPublisher("unheaded-daemon", nil) // nil transport — publisher disabled until zerolog is adopted
 
 	// Create daemon
 	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)

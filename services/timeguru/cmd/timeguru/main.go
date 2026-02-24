@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/timeguru/internal/api"
@@ -109,6 +110,10 @@ func main() {
 		defer wotan.Close()
 		log.Info().Msg("Fae Chamber connected (Wotan online)")
 	}
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	logPublisher := logagg.NewPublisher("timeguru", nil) // nil transport — publisher disabled until transport.Connect() is used
+	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Initialize HTTP handler
 	handler := api.NewHandler(store)
