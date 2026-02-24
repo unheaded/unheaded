@@ -380,8 +380,13 @@ func (s *Streamer) Stop() error {
 
 	s.wg.Wait()
 
-	if s.client != nil {
-		s.client.Close()
+	s.connMu.Lock()
+	client := s.client
+	s.client = nil
+	s.connMu.Unlock()
+
+	if client != nil {
+		client.Close()
 	}
 
 	close(s.doneCh)
@@ -440,8 +445,6 @@ func (s *Streamer) connect(ctx context.Context) error {
 		return fmt.Errorf("create client: %w", err)
 	}
 
-	s.client = client
-
 	// Subscribe to topics
 	for _, topic := range s.config.Topics {
 		sub, err := client.Subscribe(ctx, topic, s.config.ServiceName)
@@ -461,6 +464,7 @@ func (s *Streamer) connect(ctx context.Context) error {
 	}
 
 	s.connMu.Lock()
+	s.client = client
 	s.connected = true
 	s.connMu.Unlock()
 
@@ -472,32 +476,38 @@ func (s *Streamer) connect(ctx context.Context) error {
 func (s *Streamer) disconnect() {
 	s.connMu.Lock()
 	s.connected = false
+	client := s.client
+	s.client = nil
 	s.connMu.Unlock()
 
-	if s.client != nil {
-		s.client.Close()
-		s.client = nil
+	if client != nil {
+		client.Close()
 	}
 }
 
 // streamMessages streams messages from subscribed topics
 func (s *Streamer) streamMessages(ctx context.Context) {
+	// Capture client under lock to avoid racing with disconnect().
+	s.connMu.RLock()
+	client := s.client
+	s.connMu.RUnlock()
+	if client == nil {
+		return
+	}
+
 	for _, topic := range s.config.Topics {
 		s.wg.Add(1)
 		go func(t string) {
 			defer s.wg.Done()
-			s.streamTopic(ctx, t)
+			s.streamTopicWith(ctx, client, t)
 		}(topic)
 	}
 }
 
-// streamTopic streams messages from a single topic
-func (s *Streamer) streamTopic(ctx context.Context, topic string) {
-	if s.client == nil {
-		return
-	}
-
-	msgCh, err := s.client.StreamMessages(ctx, topic)
+// streamTopicWith streams messages from a single topic using the given client.
+// The client is captured by the caller to avoid racing with disconnect().
+func (s *Streamer) streamTopicWith(ctx context.Context, client *wotanClient.Client, topic string) {
+	msgCh, err := client.StreamMessages(ctx, topic)
 	if err != nil {
 		s.log.Warn().
 			Err(err).
@@ -1022,11 +1032,11 @@ func (s *Streamer) SubscribeToTopic(ctx context.Context, topic string) error {
 	// Add to topics list
 	s.config.Topics = append(s.config.Topics, topic)
 
-	// Start streaming the new topic
+	// Start streaming the new topic (client already captured above)
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		s.streamTopic(ctx, topic)
+		s.streamTopicWith(ctx, client, topic)
 	}()
 
 	return nil

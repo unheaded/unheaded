@@ -33,8 +33,10 @@ package main
 import (
 	"bufio"
 	"context"
+	"embed"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"strings"
@@ -54,6 +56,12 @@ import (
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
+
+// Embed the dashboard static files into the binary so it works
+// regardless of the working directory.
+//
+//go:embed static/*
+var staticFiles embed.FS
 
 var (
 	// Version information (set by build)
@@ -153,6 +161,12 @@ func main() {
 		}
 	}
 
+	// Create embedded static filesystem (strips the "static/" prefix)
+	dashboardFS, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create static filesystem")
+	}
+
 	// Create server config
 	config := &server.Config{
 		ListenAddr:   *listenAddr,
@@ -203,6 +217,7 @@ func main() {
 		},
 
 		ServiceEndpoints: serviceEndpoints,
+		StaticFS:         dashboardFS,
 	}
 
 	// Create eBPF ingestor if gRPC address is provided (or from WOTAN_GRPC_ADDR env)
