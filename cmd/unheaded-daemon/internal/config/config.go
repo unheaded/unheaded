@@ -191,8 +191,8 @@ func DefaultConfig() *Config {
 		Zone:     "default",
 
 		Server: ServerConfig{
-			HTTPAddr:     ":8080",
-			GRPCAddr:     ":9090",
+			HTTPAddr:     ":17000",
+			GRPCAddr:     ":17001",
 			ReadTimeout:  30 * time.Second,
 			WriteTimeout: 30 * time.Second,
 			IdleTimeout:  60 * time.Second,
@@ -222,7 +222,7 @@ func DefaultConfig() *Config {
 		},
 
 		Wotan: WotanConfig{
-			Addr:         "localhost:5555",
+			Addr:         "localhost:18001",
 			Topics:       []string{"cuirass.events", "cuirass.drift", "cuirass.metrics"},
 			BatchSize:    100,
 			FlushTimeout: time.Second,

@@ -115,7 +115,7 @@ type bridge struct {
 }
 
 func main() {
-	port := flag.Int("port", 6660, "WebSocket server port")
+	port := flag.Int("port", 16666, "WebSocket server port")
 	mapPath := flag.String("map-path", "/sys/fs/bpf/unheaded/doom-ring/maps", "BPF map pin directory")
 	dryRun := flag.Bool("dry-run", false, "Run without BPF maps (serve fake gradient data)")
 	staticDir := flag.String("static", "", "Static files directory (default: demos/doom/ relative to binary or CWD)")

@@ -50,8 +50,8 @@ var (
 )
 
 var (
-	listenAddr     = flag.String("listen", ":8080", "HTTP listen address")
-	wotanAddr     = flag.String("wotan", "localhost:9090", "Wotan server address")
+	listenAddr     = flag.String("listen", ":20000", "HTTP listen address")
+	wotanAddr     = flag.String("wotan", "localhost:18001", "Wotan server address")
 	wotanGRPCAddr = flag.String("wotan-grpc-addr", "", "Wotan gRPC address for TopicStream (enables real eBPF events)")
 	debug          = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs       = flag.Bool("json", false, "Output logs in JSON format")

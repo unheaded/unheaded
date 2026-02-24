@@ -67,10 +67,10 @@ type Config struct {
 // DefaultConfig returns default server configuration
 func DefaultConfig() *Config {
 	return &Config{
-		ListenAddr:   ":8080",
+		ListenAddr:   ":20000",
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
-		WotanAddr:   "localhost:9090",
+		WotanAddr:   "localhost:18001",
 		ServiceName:  "dashboard-backend",
 	}
 }
@@ -81,7 +81,7 @@ func (c *Config) Validate() error {
 		return ErrNilConfig
 	}
 	if c.ListenAddr == "" {
-		c.ListenAddr = ":8080"
+		c.ListenAddr = ":20000"
 	}
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = 15 * time.Second

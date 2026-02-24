@@ -793,12 +793,12 @@ func (s *Scraper) IsRunning() bool {
 
 // DefaultServiceEndpoints returns the default LXD bridge addresses for Kingdom services.
 var DefaultServiceEndpoints = map[string]string{
-	"timeguru":     "10.10.10.20:8000",
-	"captain":      "10.10.10.21:8001",
-	"architect":    "10.10.10.22:8002",
-	"micromanager": "10.10.10.23:8003",
-	"wotan":       "10.10.10.10:9090",
-	"gateway":      "10.10.10.100:8080",
+	"timeguru":     "localhost:19000",
+	"captain":      "localhost:19002",
+	"architect":    "localhost:19001",
+	"micromanager": "localhost:19003",
+	"wotan":        "localhost:18001",
+	"gateway":      "localhost:21000",
 }
 
 // RegisterKingdomServices registers the standard Kingdom services as scrape targets.

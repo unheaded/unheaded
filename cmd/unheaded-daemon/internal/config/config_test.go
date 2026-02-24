@@ -21,11 +21,11 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Zone != "default" {
 		t.Errorf("expected zone 'default', got %q", cfg.Zone)
 	}
-	if cfg.Server.HTTPAddr != ":8080" {
-		t.Errorf("expected HTTP addr ':8080', got %q", cfg.Server.HTTPAddr)
+	if cfg.Server.HTTPAddr != ":17000" {
+		t.Errorf("expected HTTP addr ':17000', got %q", cfg.Server.HTTPAddr)
 	}
-	if cfg.Server.GRPCAddr != ":9090" {
-		t.Errorf("expected gRPC addr ':9090', got %q", cfg.Server.GRPCAddr)
+	if cfg.Server.GRPCAddr != ":17001" {
+		t.Errorf("expected gRPC addr ':17001', got %q", cfg.Server.GRPCAddr)
 	}
 	if cfg.LXD.Socket != "/var/lib/lxd/unix.socket" {
 		t.Errorf("expected LXD socket path, got %q", cfg.LXD.Socket)
@@ -250,7 +250,7 @@ func TestLoad_PartialOverride(t *testing.T) {
 		t.Errorf("expected overridden region 'eu-west-1', got %q", loaded.Region)
 	}
 	// Defaults should still be present
-	if loaded.Server.HTTPAddr != ":8080" {
+	if loaded.Server.HTTPAddr != ":17000" {
 		t.Errorf("expected default HTTP addr, got %q", loaded.Server.HTTPAddr)
 	}
 }
