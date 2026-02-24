@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"strconv"
 	"strings"
@@ -64,6 +65,10 @@ type Config struct {
 
 	// eBPF ingestor (optional — set when trace-collector is publishing)
 	EBPFIngestor *ebpfPkg.Ingestor
+
+	// StaticFS provides embedded static files for the dashboard UI.
+	// When nil, falls back to filesystem-relative "static" directory.
+	StaticFS fs.FS
 }
 
 // DefaultConfig returns default server configuration
@@ -208,6 +213,9 @@ type Server struct {
 	httpDuration    *metrics.HistogramVec
 	wsConnections   *metrics.Gauge
 	streamClients   *metrics.Gauge
+
+	// Static file system for embedded dashboard UI
+	staticFS http.FileSystem
 
 	// Lifecycle
 	started      bool
@@ -478,14 +486,18 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/ebpf/events", s.handleEBPFEvents)
 
 	// Static file serving for dashboard UI
-	// Serve static files from ./static directory
-	staticHandler := http.FileServer(http.Dir("static"))
+	var staticFS http.FileSystem
+	if s.config.StaticFS != nil {
+		staticFS = http.FS(s.config.StaticFS)
+	} else {
+		staticFS = http.Dir("static")
+	}
+	s.staticFS = staticFS
+	staticHandler := http.FileServer(staticFS)
 	s.mux.Handle("/static/", http.StripPrefix("/static/", staticHandler))
 
 	// Serve dashboard pages
-	s.mux.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/logs.html")
-	})
+	s.mux.HandleFunc("/logs", s.handleStaticFile("logs.html"))
 	s.mux.HandleFunc("/", s.handleStaticIndex)
 }
 
@@ -493,11 +505,43 @@ func (s *Server) setupRoutes() {
 func (s *Server) handleStaticIndex(w http.ResponseWriter, r *http.Request) {
 	// Only serve index.html for exact root path or explicit request
 	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
-		// Check if it's a static file request
-		http.ServeFile(w, r, "static/"+r.URL.Path)
+		// Serve from embedded/filesystem static files
+		f, err := s.staticFS.Open(r.URL.Path)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		f.Close()
+		http.FileServer(s.staticFS).ServeHTTP(w, r)
 		return
 	}
-	http.ServeFile(w, r, "static/index.html")
+	s.serveStaticFile(w, r, "index.html")
+}
+
+// handleStaticFile returns a handler that serves a specific static file.
+func (s *Server) handleStaticFile(name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.serveStaticFile(w, r, name)
+	}
+}
+
+// serveStaticFile serves a named file from the static filesystem.
+func (s *Server) serveStaticFile(w http.ResponseWriter, r *http.Request, name string) {
+	f, err := s.staticFS.Open(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	// http.ServeContent handles Content-Type, caching, range requests
+	http.ServeContent(w, r, name, stat.ModTime(), f.(io.ReadSeeker))
 }
 
 // Start starts the server and all components
