@@ -40,6 +40,12 @@
 - [[Dashboard|Service-Dashboard-Backend]]
 - [[Kanban|Service-Kanban-App]]
 
+**S36 Four Pillars**
+- [[Port Registry|Port-Registry]]
+- [[Transport Cascade|Transport-Cascade]]
+- [[Log Aggregation|Log-Aggregation]]
+- [[Service Discovery|Service-Discovery]]
+
 **Infrastructure**
 - [[Containers]]
 - [[IaC Backends|IaC-Backends]]
