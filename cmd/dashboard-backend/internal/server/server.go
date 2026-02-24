@@ -218,6 +218,9 @@ type Server struct {
 	wsConnections   *metrics.Gauge
 	streamClients   *metrics.Gauge
 
+	// Doom compute state (populated by compute.* events from ingestor)
+	doomState *DoomState
+
 	// Static file system for embedded dashboard UI
 	staticFS http.FileSystem
 
@@ -378,6 +381,7 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		logHandler:        logHandler,
 		logStream:         logStreamHandler,
 		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
+		doomState:         &DoomState{},
 		shutdown:          make(chan struct{}),
 	}
 
@@ -488,6 +492,11 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/latency", s.handleLatency)
 	s.mux.HandleFunc("/api/v1/ebpf/stats", s.handleEBPFStats)
 	s.mux.HandleFunc("/api/v1/ebpf/events", s.handleEBPFEvents)
+
+	// Doom compute endpoints (S42)
+	s.mux.HandleFunc("/api/v1/doom/screen", s.handleDoomScreen)
+	s.mux.HandleFunc("/api/v1/doom/cpu", s.handleDoomCPU)
+	s.mux.HandleFunc("/api/v1/doom/input", s.handleDoomInput)
 
 	// Static file serving for dashboard UI
 	var staticFS http.FileSystem
