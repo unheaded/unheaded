@@ -1,0 +1,103 @@
+# LICENSE-PROTOCOLS: Permissive License for Unheaded Protocol Specifications
+
+## Scope
+
+This license applies to all files in the `/docs/protocol/` directory of the
+Unheaded repository, including but not limited to:
+
+- `draft-bellis-unheaded-*.md` (IETF draft specifications)
+- `PROTOCOL_*.md` (protocol design documents)
+- Protocol implementation guides and technical summaries
+- Any protocol-related Markdown or text documentation in `/docs/protocol/`
+
+All protocol specifications are made available under the following permissive
+terms to encourage adoption, implementation, and ecosystem development.
+
+---
+
+## MIT License (Primary) + Apache 2.0 (Alternative)
+
+### MIT License Text (Primary License)
+
+Copyright (c) 2026 Unheaded Project Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+### Apache License 2.0 (Alternative License)
+
+Full text available at: https://www.apache.org/licenses/LICENSE-2.0.txt
+
+You may choose to use the protocol specifications under the Apache 2.0 license
+instead of MIT. Apache 2.0 provides explicit patent grant language and may be
+preferred in certain jurisdictions.
+
+---
+
+## Rationale for Permissive Licensing
+
+Protocol specifications are licensed separately from the BSL 1.1 main codebase
+for the following reasons:
+
+1. **Ecosystem Adoption:** Open protocols require open specifications. Permissive
+   licensing encourages third-party implementations.
+
+2. **Standards Compliance:** IETF draft standards expect public, freely-available
+   technical documentation.
+
+3. **Interoperability:** Other projects and organizations should be able to
+   implement the Unheaded protocol without licensing concerns.
+
+4. **Separation of Concerns:** Business license restrictions on the main codebase
+   do not apply to the protocol itself.
+
+---
+
+## What This Means for You
+
+- **Implementations:** You may create independent implementations of the Unheaded
+  protocol under any license (proprietary, open source, GPL, etc.)
+
+- **Derivatives:** You may modify, adapt, or extend the protocol specifications
+  for your own use or distribution.
+
+- **Attribution:** You must include the original copyright notice in any
+  substantial reproductions.
+
+- **Compatibility:** The protocol specifications can be used in conjunction with
+  GPL, BSL, and other licensed code without conflict.
+
+---
+
+## IETF Standards Track Status
+
+The protocol specifications follow IETF draft standards naming conventions:
+
+- `draft-bellis-unheaded-*.md` are intended for eventual submission to IETF
+- They are public documents subject to IETF IPR rules
+- This permissive license is compatible with IETF standards development
+
+---
+
+## Related Licenses
+
+- **Main Codebase:** BSL 1.1 (see /LICENSE)
+- **DOOM Engine:** GPL 2.0+ (see /doom/LICENSE)
+- **Dependencies:** See /LICENSES/THIRD_PARTY.md and /LICENSES/sbom-go-modules.txt
