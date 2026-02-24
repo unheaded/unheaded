@@ -15,6 +15,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/lifecycle"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/architect"
 )
@@ -65,9 +66,19 @@ func main() {
 	zerolog.SetGlobalLevel(parseLogLevel(*logLevel))
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
+	// Transport config
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	// Override with flag-provided Wotan HTTP address
+	transportCfg.WotanHTTPAddr = "http://" + *wotanAddr
+
+	// Health server
+	healthSrv := transport.NewHealthServer("architect")
+
 	log.Info().
 		Str("addr", *addr).
 		Str("wotan", *wotanAddr).
+		Str("transport", string(transportCfg.Type)).
 		Str("log_level", *logLevel).
 		Bool("mock_wotan", *useMock).
 		Msg("architect service starting")
@@ -79,10 +90,12 @@ func main() {
 		log.Info().Msg("using mock Wotan client - no actual Wotan integration")
 		// Mock client doesn't support full interface, create nil client
 		wotanConn = nil
+		healthSrv.SetGRPCStatus(false)
 	} else {
 		var err error
 		wotanConn, err = wotanClient.NewClient(*wotanAddr)
 		if err != nil {
+			healthSrv.SetGRPCStatus(false)
 			log.Fatal().Err(err).Msg("failed to create Wotan client")
 		}
 		defer wotanConn.Close()
@@ -99,6 +112,7 @@ func main() {
 	// Start service (subscribes to alerts.critical and architecture.updates)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := svc.Start(ctx); err != nil {
+		healthSrv.SetGRPCStatus(false)
 		log.Warn().Err(err).Msg("failed to start Wotan integration")
 	}
 	cancel()
@@ -115,6 +129,15 @@ func main() {
 
 	// Health endpoints
 	mux.HandleFunc("/health", handler.Health)
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		if healthSrv.Status() == transport.StatusDown {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"ready":false}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ready":true}`))
+	})
 
 	// Infrastructure endpoints
 	mux.HandleFunc("/infrastructure", instrument(handler.GetInfrastructure, "GET_INFRASTRUCTURE"))
