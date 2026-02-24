@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/captain"
@@ -54,6 +55,9 @@ func run() error {
 		return fmt.Errorf("create wotan client: %w", err)
 	}
 	defer wotan.Close()
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	_ = logagg.NewPublisher("captain", nil) // nil transport — publisher disabled until zerolog is adopted
 
 	// Subscribe to critical alerts
 	if _, err := wotan.Subscribe(ctx, "alerts.critical", "captain"); err != nil {

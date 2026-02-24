@@ -15,6 +15,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/lifecycle"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/architect"
@@ -100,6 +101,10 @@ func main() {
 		}
 		defer wotanConn.Close()
 	}
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	logPublisher := logagg.NewPublisher("architect", nil) // nil transport — publisher disabled until transport.Connect() is used
+	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create service with Wotan integration
 	var svc *architect.ArchitectService
