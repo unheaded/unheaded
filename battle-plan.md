@@ -512,11 +512,13 @@ Week 7+ (Mar 8 onwards): WS5 — Return to Core
 
 #### Open Questions (Carry to Next Round Table)
 
-1. **License choice for Unheaded** — Still undecided. BSL-1.1? Apache-2.0? Custom? The Barrister needs a dedicated session for this. Major decision.
+1. ~~**License choice for Unheaded**~~ — **RESOLVED S35**: BSL 1.1 short-term (while finishing codebase), converting to permissive (MIT/Apache/GNU) at stable release or K8s-scale adoption. Protocol specs licensed separately (permissive) for free implementation. Barrister session still needed to draft LICENSE file.
 2. **Port 16666 for doom-bridge vs keeping 6660** — Lore says 16666. Practicality says 6660 is already memorable. Round Table says 16666 for consistency.
 3. **HTTP/3 support timeline** — gRPC doesn't natively support HTTP/3 (QUIC). The cascade HTTP/3→2→1 applies to the HTTP fallback path, not gRPC. When do we add QUIC to the HTTP fallback? WS5 or later?
 4. **Log retention policy for production** — 10K lines in test phase. What for production? Configurable per observability backend? The Moat Ghost needs a compliance-driven answer.
 5. **Service discovery for multi-host** — Current design assumes single host (all services on one machine). Multi-host discovery needs DNS or BGP-style advertisement. Age 2+?
+6. **NEW — Inverse mask concept** — Explore, expand, and document. Requires BlackMage + Developer + Architect + Scientist session. Added S35.
+7. **NEW — Austin VC exploration** — While repo is still private, investigate Austin-area venture capital. Captain + Barrister to research.
 
 #### Wins to Celebrate
 
@@ -529,17 +531,87 @@ Week 7+ (Mar 8 onwards): WS5 — Return to Core
 
 ---
 
+## S35 Strategic Review — Muck's Directives (February 24, 2026)
+
+### Decisions Made
+
+**1. Licensing Direction — BSL 1.1 Short-Term, Permissive Long-Term**
+- BSL 1.1 with short conversion period while codebase is being polished toward stable release
+- Goal: credit for novel ideas (protocol covers that via RFC), BSL protects product commercially
+- Aspiration: if Unheaded reaches Kubernetes-scale adoption, convert to fully permissive (MIT/Apache/GNU)
+- Protocol specs (Monad, Sophia, Wotan) licensed separately under permissive license for free implementation
+- Started as a lab/portfolio project for GitHub — commercial viability is a bonus, not the origin
+
+**2. Doom Fork — Official id Software Source**
+- Replace doomgeneric fork with official https://github.com/id-Software/DOOM
+- Running real id DOOM with sound over Unheaded Protocol is the pitch, not stripped-down generic
+- Already have https://github.com/unheaded/doomgeneric — will become https://github.com/unheaded/DOOM
+- Doom code MUST be moved out of main repo before switching from private to public
+- GPL-2.0 isolation boundary maintained: submodule, compiled to MBC bytecode, no linking
+
+**3. SBOM Scanning — Tonight**
+- ScanCode, FOSSology, and ORT all downloaded to ~/tmp/
+- Run all 3 against codebase, output findings to ~/tmp/
+- Review results, fold into main ~/tmp/unheaded/ repo
+- Must complete before accepting outside contributors or going public
+
+**4. Observability & IaC Backends — DEFER, DO NOT KILL**
+- All backend adapters (Prometheus/Grafana/ELK/Jaeger/Nagios/Flume/Loki/Alertmanager) stay in roadmap
+- All IaC renderers (Ansible/Terraform/Puppet/K8s/Chef/Salt) stay in roadmap
+- Anti-proprietary lock-in is a core principle — scaffolding for all backends drives adoption
+- Priority: ship Prometheus + zerolog first (they work now), scaffold the rest iteratively
+- This is a DEFER not a KILL — no scope reduction, just sequencing
+
+**5. Inverse Mask Concept — Deep Exploration Required**
+- Call BlackMage, Developer, Architect, and Scientist for dedicated session
+- Explore, expand, and formally document the inverse mask concept
+- Potential protocol-level innovation worth protecting
+
+**6. Austin VC Exploration**
+- While repo is still private, investigate Austin-area venture capital landscape
+- "Doom-over-IPv6 proves computational completeness" is the pitch
+- Protocol IS the moat — BSL the product, open the specs, let protocol adoption drive product interest
+- Captain + Barrister to research firms, term sheet readiness, pitch deck prep
+
+**7. Timeline Honesty Audit**
+- timeline.md has milestones marked "completed" with 55-85% progress and unchecked subtasks
+- Age 4 "Scaling" marked COMPLETED at 5% — impossible, must be fixed
+- All milestone statuses must accurately reflect reality before external eyes see them
+- Investors and partners will look at this — honesty > hype
+
+### Strategic Direction Confirmed
+
+**The Protocol IS the Moat.**
+- BSL the product implementation
+- Open the protocol specs (permissive license)
+- Get IANA registration for HbH option type
+- Let protocol adoption drive product interest
+- "Doom-over-IPv6 proves computational completeness" = IETF hackathon pitch
+
+**Priority Order:**
+1. Execute S34 four pillars (port migration, gRPC-first, logging, discovery)
+2. License decision — draft LICENSE file (Barrister session)
+3. Run SBOM scanners (ScanCode + FOSSology + ORT)
+4. eBPF on bare metal — THE core differentiator
+5. Inverse mask deep dive (BlackMage + Developer + Architect + Scientist)
+6. IANA registration prep (RFC Editor)
+7. Austin VC exploration (Captain + Barrister)
+8. 5-minute demo video (Doom over IPv6 with packet tracing)
+
+---
+
 ### Next Round Table
 **Scheduled**: March 1, 2026 (post-implementation review of four pillars)
 **Reason**: Verify all four pillars are operational. Review WS5 readiness. Begin WS5 planning.
 **Trigger**: Also convene if port migration breaks more than 3 tests OR if gRPC transport causes service startup failures.
+**Additional Agenda**: License file draft review. SBOM scan results. Inverse mask session scheduling.
 
 ---
 
 _Forged at the Round Table by all 17 minds — the full Royal Court assembled._
 _Captain, Architect, Micromanager, Developer, Timeguru, Calendar, Lore, Kingdom, Busboy,_
 _Warmonger, Scientist, BlackMage, Moat Ghost, RFC Editor, Barrister (presiding), Librarian, and the Round Table itself._
-_34 days from first commit. ~260K production lines of code (~464K with tests). Doom is playable. Four pillars forged._
+_35 sessions from first commit. ~260K production lines of code (~464K with tests). Doom is playable. Four pillars forged._
 _The Doom Range: 16666-26666. The King's Road: gRPC-first. The Chronicler's Well: aggregated logs._
-_The Cartographer's Eye: service discovery. Love and peace._
+_The Cartographer's Eye: service discovery. The Protocol IS the Moat. Love and peace._
 _THE KINGDOM MARCHES AS ONE. LET'S GO._

@@ -3,33 +3,32 @@
 ## A Living Grimoire of the Kingdom's Journey
 
 **STATUS:** ALPHA
-**LAST UPDATED:** February 23, 2026
+**LAST UPDATED:** February 24, 2026
+**LOC:** ~260K production (~464K with tests) — 220K Go, 203K Go tests, 16K Rust, 13K JS, 5K Nix, 7K scripts
 
 ---
 
 ### Age 0: The Foundation Stone (✅ COMPLETED)
 
-### Age 1: The Alpha Ascension (✅ COMPLETED)
+### Age 1: The Alpha Ascension (🔄 IN PROGRESS)
 
-**Progress:** 96%
+**Progress:** ~96% — all services operational, eBPF blocked on bare metal, S34 four pillars planned
 
 ### Age 2: The Beta Trials (📋 PLANNED)
 
 ### Age 3: The MVP Era (📋 PLANNED)
 
-### Age 4: The Scaling Era (✅ COMPLETED)
-
-**Progress:** 5%
+### Age 4: The Scaling Era (📋 PLANNED)
 
 ## Milestones
 
-### ✅ The Whispering Void Awakens
+### 🔄 The Whispering Void Awakens
 
 **ETA:** Feb 3, 2026
 **Owner:** The Architect's rust-touched agents
-**Risk:** Medium
+**Risk:** Medium — blocked on bare metal Linux environment
 **Progress:** 55%
-**Status:** completed
+**Status:** in progress (code written, untested on hardware)
 
 **Tasks:**
 - [ ] `packet_marker.bpf` - Trace ID injection at XDP layer (Rust + Aya)
@@ -40,13 +39,13 @@
 - [ ] Bare metal communion (live testing)
 - [ ] Fae Chamber integration (Wotan connection)
 
-### ✅ The Cuirass Takes Form
+### 🔄 The Cuirass Takes Form
 
 **ETA:** Feb 4, 2026
 **Owner:** The Architect's Go-touched agents
-**Risk:** Medium
+**Risk:** Low
 **Progress:** 75%
-**Status:** completed
+**Status:** in progress (core done, real LXD + eBPF integration pending)
 
 **Tasks:**
 - [ ] `unheaded-daemon` skeleton (Go) - COMPLETE (main.go + internal packages)
@@ -58,13 +57,13 @@
 - [ ] Real LXD integration - awaiting live testing
 - [ ] Real eBPF integration - awaiting Whispering Void programs
 
-### ✅ The Royal Court Assembles
+### 🔄 The Royal Court Assembles
 
 **ETA:** Feb 4, 2026
 **Owner:** Four Cavalry agents (Micromanager coordinates)
 **Risk:** Low
 **Progress:** 85%
-**Status:** completed
+**Status:** in progress (APIs scaffolded, Wotan wiring + prophecy engine pending)
 
 **Tasks:**
 - [ ] Timeline REST API - serves the living roadmap
@@ -85,13 +84,13 @@
 - [ ] Health monitoring
 - [ ] Wisdom storage connection (future)
 
-### ✅ The Citadels Rise
+### 🔄 The Citadels Rise
 
 **ETA:** Feb 5, 2026
 **Owner:** The Architect + The Developer
 **Risk:** Low
 **Progress:** 75%
-**Status:** completed
+**Status:** in progress (NixOS + Docker done, IaC renderers + observability adapters deferred not killed)
 
 **Tasks:**
 - [ ] NixOS flake structure - the master blueprint (reference implementation)
@@ -162,13 +161,13 @@
 - [ ] Deployed on Kingdom infrastructure (pending)
 - [ ] **THE META MOMENT ACHIEVED** (pending final verification) 🎉
 
-### ✅ Alpha Demonstration
+### 📋 Alpha Demonstration
 
-**ETA:** Feb 8, 2026
+**ETA:** TBD (post-S34 four pillars + bare metal eBPF)
 **Owner:** Captain + Timeguru + the assembled Court
-**Risk:** Low
+**Risk:** Medium — depends on eBPF bare metal + S34 completion
 **Progress:** 0%
-**Status:** completed
+**Status:** planned (blocked on eBPF verification + public deployment)
 
 **Tasks:**
 - [ ] Kanban Frontend COMPLETE (P0 Epic above)
@@ -180,4 +179,16 @@
 
 ---
 
-*Synced: 2026-02-23 23:10:51 UTC*
+### S35 Strategic Direction (Feb 24, 2026)
+
+**Licensing:** BSL 1.1 short-term → permissive at stable/K8s-scale. Protocol specs separately permissive.
+**Doom:** Fork official id-Software/DOOM (with sound). Move out of repo before public.
+**SBOM:** ScanCode + FOSSology + ORT — run tonight, fold results into repo.
+**Backends:** DEFERRED not killed. Anti-lock-in core principle. Prometheus + zerolog ship first.
+**Inverse Mask:** Deep exploration session (BlackMage + Developer + Architect + Scientist).
+**VC:** Austin venture capital exploration while private. Protocol IS the moat.
+**Priority:** S34 pillars → LICENSE file → SBOM → bare metal eBPF → inverse mask → IANA → VC → demo video.
+
+---
+
+*Synced: 2026-02-24 UTC*

@@ -693,6 +693,16 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - Production deployment testing
 - E2E smoke test with all services running
 
+**S35 Strategic Decisions (Feb 24, 2026):**
+- **License**: BSL 1.1 short-term → permissive (MIT/Apache/GNU) at stable release or K8s-scale. Protocol specs separately permissive-licensed.
+- **Doom**: Fork official id-Software/DOOM (with sound), replace doomgeneric. Move out of repo before going public.
+- **SBOM**: Run ScanCode + FOSSology + ORT against codebase. Must complete before going public.
+- **Backends**: All observability + IaC adapters DEFERRED not killed. Anti-lock-in is core principle. Ship Prometheus + zerolog first.
+- **Inverse Mask**: Deep exploration session required (BlackMage + Developer + Architect + Scientist).
+- **VC**: Explore Austin venture capital while repo is private. Protocol IS the moat.
+- **LOC Audit**: Corrected from inflated 465K/551K to accurate ~260K production (~464K with tests).
+- **Timeline Audit**: Fix milestone statuses — no "completed" at 55% progress. Honesty > hype.
+
 ---
 
 ## 🧠 Working with Claude Agents

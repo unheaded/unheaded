@@ -6,6 +6,8 @@ Complete archive of development session handoffs. Each session documents what wa
 
 | Session | Date | Summary |
 |---------|------|---------|
+| S35 | 2026-02-24 | Strategic Review & LOC Audit. BSL 1.1 licensing direction. Doom fork → id-Software/DOOM. SBOM scanning queued. Backends DEFERRED not killed. Inverse mask exploration. Austin VC. Timeline honesty audit. 30+ files corrected. |
+| S34 | 2026-02-24 | Full Round Table: Port Authority, gRPC-First, Log Aggregation, Service Discovery. Four infrastructure pillars forged. Doom Range (16666-26666). |
 | S33 | 2026-02-22 | Round Table — battle plan forged, Wotan architecture documented |
 | S32 | 2026-02-22 | Turbo XDP mode |
 | S31 | 2026-02-22 | Doom battle plan execution |
