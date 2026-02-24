@@ -55,7 +55,8 @@ import (
 var (
 	// Existing Anamnesis-mode flags
 	ringPath     = flag.String("ring-path", ebpf.DefaultAnamnesisRingPath, "BPF ring buffer pin path")
-	wotanAddr    = flag.String("wotan-addr", "localhost:18001", "Wotan gRPC address")
+	wotanAddr     = flag.String("wotan-addr", "localhost:18001", "Wotan gRPC address")
+	wotanHTTPAddr = flag.String("wotan-http-addr", "localhost:18000", "Wotan HTTP address (fallback)")
 	httpAddr     = flag.String("http-addr", ":16670", "HTTP address for health/metrics")
 	maxRate      = flag.Int("max-rate", 10000, "Max events/sec (0 = unlimited)")
 	batchSize    = flag.Int("batch-size", 100, "Publish batch size")
@@ -479,12 +480,18 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	// Create shared state
 	state := NewCollectorState()
 
-	// Create the unified publisher
+	// Create the unified publisher with gRPC-first transport
 	pubConfig := DefaultTracePublisherConfig()
 	pubConfig.WotanAddr = *wotanAddr
+	pubConfig.WotanHTTPAddr = *wotanHTTPAddr
 	pubConfig.BatchSize = *batchSize
 	pubConfig.FlushInterval = *batchTimeout
 	publisher := NewTracePublisher(pubConfig)
+
+	// Connect publisher to Wotan via gRPC
+	if err := publisher.Connect(ctx); err != nil {
+		log.Warn().Err(err).Msg("Wotan gRPC connection failed, events will be dropped until connected")
+	}
 	state.Publisher = publisher
 
 	// Create the packet correlator
