@@ -83,7 +83,7 @@ The main event. WS5 builds the production packet tracing pipeline using the same
 - **trace-collector:** eBPF ring buffer to Wotan pipeline
 - **dashboard integration:** Real packet traces in the dashboard (replaces Doom framebuffer)
 
-WS5 is the product. Everything before WS5 was proof that the architecture works.
+WS5 is the application. Everything before WS5 was proof that the architecture works.
 
 ### Service Breakout (Post-Alpha, Target: Mar 15)
 
@@ -96,7 +96,7 @@ After stable alpha, the monorepo splits into individual service repositories. Ea
 ### Beta (Target: Q2 2026)
 
 - Production packet tracing pipeline operational
-- Real customer infrastructure (not Doom)
+- Real user infrastructure (not Doom)
 - Multi-tenant isolation validated
 - Performance: sub-50ms latency (packet to browser)
 - Container start time: < 10 seconds

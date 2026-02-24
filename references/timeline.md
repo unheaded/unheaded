@@ -148,7 +148,7 @@
 - [ ] Code complete and compiles
 - [ ] Unit tests pass (if applicable)
 - [ ] Integration test pass (if applicable)
-- [ ] Security review: **ZERO customer data access** ✓
+- [ ] Security review: **ZERO user data access** ✓
 - [ ] No external dependencies (Kingdom code only)
 - [ ] Documentation updated (if API change)
 - [ ] Code reviewed (or self-reviewed with rationale)

@@ -13,7 +13,7 @@ Layer 0: Infrastructure (LXD, host OS)
 
 ## Design Principles
 
-1. **Security First** — eBPF traceability, immutable infra, zero customer data access
+1. **Security First** — eBPF traceability, immutable infra, zero user data access
 2. **Observable by Default** — Packet-level visibility L2–L7
 3. **Declarative Everything** — Immutable containers (LXD/containerd/NixOS/Docker), version-controlled configs
 4. **Self-Hosting** — The Meta Moment proves it works
@@ -47,13 +47,13 @@ The platform's operational backbone consists of four cross-cutting infrastructur
 
 ## IaC Output Strategy
 
-Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers. Adding a new backend is an output renderer — the control plane and eBPF layer don't change.
+Unheaded generates configuration artifacts for the user's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers. Adding a new backend is an output renderer — the control plane and eBPF layer don't change.
 
 See [[IaC Backends|IaC-Backends]] for details on each supported backend.
 
 ## Observability Backend Strategy
 
-Unheaded emits OpenTelemetry-compatible signals. Customers plug in their preferred observability stack via interchangeable adapters. Long-term: custom Wotan-native implementations leveraging the eBPF data plane for wire-speed observability with zero serialization overhead.
+Unheaded emits OpenTelemetry-compatible signals. Users plug in their preferred observability stack via interchangeable adapters. Long-term: custom Wotan-native implementations leveraging the eBPF data plane for wire-speed observability with zero serialization overhead.
 
 See [[Observability Backends|Observability-Backends]] for supported tools and phased roadmap.
 

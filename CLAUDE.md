@@ -10,13 +10,13 @@
 
 **"Production-ready infrastructure in hours, not months."**
 
-Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. Customer brings their app ("the head"), we provide everything else ("unheaded").
+Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. User brings their app ("the head"), we provide everything else ("unheaded").
 
 **Core Capabilities:**
 - ✅ eBPF-based observability (L2-L7 tracing)
 - ✅ Immutable infrastructure (LXD, containerd, NixOS, Docker)
 - ✅ Interchangeable IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt)
-- ✅ Zero customer data access (architectural isolation)
+- ✅ Zero user data access (architectural isolation)
 - ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
 - ✅ Self-hosting proof (The Meta Moment)
@@ -70,7 +70,7 @@ All Unheaded services use high ports to avoid conflicts with common dev tools.
 | Core Services | 19000-19999 | timeguru (19000), architect (19001), captain (19002), micromanager (19003), monad (19004), sophia (19005) |
 | Applications | 20000-20999 | dashboard (20000), kanban (20001), wiki (20002) |
 | Gateway | 21000-21443 | HTTP (21000), HTTPS (21443) |
-| Customer Apps | 26000-26666 | Reserved for customer applications |
+| User Apps | 26000-26666 | Reserved for user applications |
 
 ### Transport Priority — gRPC-First
 
@@ -108,14 +108,14 @@ All services publish structured logs to Wotan topic `logs.<service>.<level>`. Lo
 
 **Critical Rules:**
 - eBPF traceability from packet zero
-- Zero customer data access - architectural isolation enforced
+- Zero user data access - architectural isolation enforced
 - Container hardening: seccomp, capabilities, read-only FS
 - Network policies: explicit allow, default deny
 - TLS 1.3 minimum for external traffic
 - Secrets: never in code, environment, or logs
 
 **Test every PR for:**
-- Does this access customer data? → BLOCK
+- Does this access user data? → BLOCK
 - Does this weaken isolation? → BLOCK
 - Does this skip hardening? → BLOCK
 
@@ -135,7 +135,7 @@ All services publish structured logs to Wotan topic `logs.<service>.<level>`. Lo
 - All correlated by trace_id
 
 **Observability Backend Strategy:**
-Unheaded's internal observability emits OpenTelemetry-compatible signals (metrics, logs, traces). Customers plug in their preferred backends — or use Unheaded's tailored defaults (long-term roadmap). Backends are interchangeable output adapters:
+Unheaded's internal observability emits OpenTelemetry-compatible signals (metrics, logs, traces). Users plug in their preferred backends — or use Unheaded's tailored defaults (long-term roadmap). Backends are interchangeable output adapters:
 
 | Category | Supported Backends | Unheaded Default (Future) |
 |----------|-------------------|--------------------------|
@@ -159,7 +159,7 @@ Config mirrors in `observability/` provide drop-in adapter configs for each back
 - Timeline and strategy (MD/JSON/YAML)
 
 **IaC Output Strategy:**
-Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers:
+Unheaded generates configuration artifacts for the user's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers:
 
 | Backend | Output | Use Case |
 |---------|--------|----------|
@@ -176,7 +176,7 @@ Unheaded generates configuration artifacts for the customer's preferred toolchai
 - Drift detection: unheaded-daemon polls every 30s
 - Auto-remediation: restart with correct config
 
-### 4. The Meta Moment - "We Drink Our Own Champagne"
+### 4. The Meta Moment - Self-Hosting Validation
 
 **Critical proof of concept:**
 - Kanban app shows Unheaded building Unheaded
@@ -184,7 +184,7 @@ Unheaded generates configuration artifacts for the customer's preferred toolchai
 - Every request traced by eBPF
 - Publicly accessible (optional auth)
 
-**If Unheaded can't host itself reliably, it's not ready for customers.**
+**If Unheaded can't host itself reliably, it's not ready for users.**
 
 ### 5. Ship Fast, Test Thoroughly
 
@@ -690,7 +690,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - [ ] Publicly accessible (optional auth)
 - [ ] Sub-50ms latency (packet → browser)
 - [ ] Containers start in <10s
-- [x] Zero customer data access (validated)
+- [x] Zero user data access (validated)
 
 **What's Done:**
 - All 10 services have HTTP APIs with health/ready/metrics endpoints
@@ -794,14 +794,14 @@ Deliverables:
 
 ## 💡 Design Philosophy
 
-### 1. "We Drink Our Own Champagne"
+### 1. Self-Hosting Validation
 
-Self-hosting is proof, not marketing. If Unheaded can't reliably host its own development, it's not ready for customers.
+Self-hosting is proof, not marketing. If Unheaded can't reliably host its own development, it's not ready for users.
 
 ### 2. Security is Not Optional
 
 Every decision evaluated through security lens:
-- Does this access customer data? → NO
+- Does this access user data? → NO
 - Does this weaken isolation? → NO
 - Does this skip hardening? → NO
 
@@ -855,7 +855,7 @@ We're building in the open because we have nothing to hide.
 **WRONG:**
 ```go
 // demo-app reading from Wotan topics
-wotan.Subscribe("network.traces")  // NO! Customer can see infrastructure
+wotan.Subscribe("network.traces")  // NO! User can see infrastructure
 ```
 
 **RIGHT:**

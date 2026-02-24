@@ -1,6 +1,6 @@
 # The Meta Moment
 
-*"We drink our own champagne."*
+*Self-hosting is proof, not marketing.*
 
 The Meta Moment is Unheaded's ultimate proof of concept: **using Unheaded to build and host Unheaded itself**.
 
@@ -11,7 +11,7 @@ The Kanban app displaying development progress is:
 4. Visualized in the custom dashboard
 5. Accessible from the public internet
 
-If Unheaded can reliably manage its own development infrastructure, it proves the platform works for ANY customer workload.
+If Unheaded can reliably manage its own development infrastructure, it proves the platform works for ANY user workload.
 
 ---
 

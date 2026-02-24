@@ -561,7 +561,7 @@ Convergence: < 50ms link failure, < 100ms node failure
 | **The Sacred Law** | Zero user data access |
 | **The Gauntlets Law** | CLI = API parity |
 | **Full Mesh Doctrine** | Every component connected |
-| **Meta Moment** | Self-hosting proof (we drink our own champagne) |
+| **Meta Moment** | Self-hosting proof |
 | **Partner Mode** | Peer-to-peer collaboration style |
 | **The Pattern** | The Protocol — 20 bytes of Sophia metadata per packet (Amber reference) |
 | **Shadow** | The outside world — all IPv4 and IPv6 networks beyond the Kingdom walls |

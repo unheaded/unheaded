@@ -1,6 +1,6 @@
 # Medieval Armory — Infrastructure as Armor
 
-Each infrastructure component maps to a piece of medieval plate armor. The customer's application is "the head" — Unheaded provides everything below the neck.
+Each infrastructure component maps to a piece of medieval plate armor. The user's application is "the head" — Unheaded provides everything below the neck.
 
 ## Armor Pieces
 

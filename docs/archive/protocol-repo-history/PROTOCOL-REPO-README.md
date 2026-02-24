@@ -370,6 +370,6 @@ GPL-2.0-only (eBPF workspace) / MIT (monad-mbc toolchain) — see individual `Ca
 
 ---
 
-**"We drink our own champagne."** 🍾
+**Self-hosting is proof, not marketing.**
 
 Built by Unheaded, running on Unheaded.

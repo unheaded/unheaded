@@ -386,13 +386,13 @@ eBPF (4d) → Daemon (3d) → Services (4d) → Containers (2d) → Dashboard (2
 
 ---
 
-## The Meta Moment: Your Own Champagne Test
+## The Meta Moment: Self-Hosting Validation
 
 If we ship Feb 8:
 - Unheaded will self-host its Kanban board
 - Every request traced by eBPF from packet zero
 - Publicly accessible
-- Proof of concept: "We drink our own champagne"
+- Proof of concept: self-hosting validation
 
 **This is not about hitting a date. This is about proving the architecture works.**
 

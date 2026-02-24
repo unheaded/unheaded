@@ -62,7 +62,7 @@ A good security report should include:
 Please do **not** report the following as security vulnerabilities:
 
 - **Bugs in dependencies**: Report these to the dependency maintainers
-- **Issues in customer applications**: These are outside the scope of Unheaded platform security
+- **Issues in user applications**: These are outside the scope of Unheaded platform security
 - **Social engineering or phishing**: Contact your local law enforcement
 - **DoS attacks or performance issues** that don't involve a security vulnerability
 - **Information disclosure from public sources** (e.g., published documentation, public repositories)
@@ -88,10 +88,10 @@ The Unheaded platform infrastructure includes:
 
 The following are **not** considered within the security scope of Unheaded:
 
-- **Customer applications** built on top of Unheaded
+- **User applications** built on top of Unheaded
 - **Third-party integrations** that use Unheaded APIs
-- **User data stored in customer databases** (responsibility of customer)
-- **Infrastructure security** of customer deployments
+- **User data stored in user databases** (responsibility of user)
+- **Infrastructure security** of user deployments
 - **Vulnerabilities in dependencies** (report to dependency maintainers)
 - **Social engineering** targeting users of Unheaded
 - **Physical security** of infrastructure

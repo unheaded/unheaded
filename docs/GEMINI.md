@@ -104,7 +104,7 @@ Layer 0: Infrastructure (LXD, host OS)
 - Drift detection: unheaded-daemon polls every 30s
 - Auto-remediation: restart with correct config
 
-### 4. The Meta Moment - "We Drink Our Own Champagne"
+### 4. The Meta Moment - Self-Hosting Validation
 
 **Critical proof of concept:**
 - Kanban app shows Unheaded building Unheaded
@@ -691,9 +691,9 @@ Deliverables:
 
 ## 💡 Design Philosophy
 
-### 1. "We Drink Our Own Champagne"
+### 1. Self-Hosting Validation
 
-Self-hosting is proof, not marketing. If Unheaded can't reliably host its own development, it's not ready for customers.
+Self-hosting is proof, not marketing. If Unheaded can't reliably host its own development, it's not ready for users.
 
 ### 2. Security is Not Optional
 

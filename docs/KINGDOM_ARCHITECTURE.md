@@ -2,7 +2,7 @@
 
 ```
                             +-----------------------------------------+
-                            |    "We drink our own champagne."        |
+                            |    Self-hosting is proof.               |
                             |                                         |
                             |   A Visual Journey Through the Realms   |
                             +-----------------------------------------+
@@ -296,7 +296,7 @@ flowchart TB
     +-------------------------------------------------------------------+
     |                                                                    |
     |                        THE SHIELD                                  |
-    |               (Customer Zone - Isolated)                           |
+    |               (User Zone - Isolated)                               |
     |                                                                    |
     |                   +------------------+                              |
     |                   |    DEMO-APP      |                              |
@@ -360,7 +360,7 @@ flowchart TB
         LP --> RB
     end
 
-    subgraph SHIELD["THE SHIELD - Customer Zone"]
+    subgraph SHIELD["THE SHIELD - User Zone"]
         DEMO["demo-app<br/>10.10.10.254<br/>ISOLATED"]
     end
 
@@ -813,7 +813,7 @@ flowchart TB
             KANBAN["Kanban App<br/>10.10.10.200<br/>:8001"]
         end
 
-        subgraph ISOLATED["Customer Zone (Isolated)"]
+        subgraph ISOLATED["User Zone (Isolated)"]
             DEMO["demo-app<br/>10.10.10.254<br/>DENY ALL except GW"]
         end
     end
@@ -1444,7 +1444,7 @@ sequenceDiagram
 
     +=========================================================================+
     ||                                                                        ||
-    ||                    "We drink our own champagne."                       ||
+    ||                    Self-hosting is proof, not marketing.               ||
     ||                                                                        ||
     +=========================================================================+
 
@@ -1751,7 +1751,7 @@ flowchart TB
 | Architect | 10.10.10.23 | 8000 | The Gauntlet (Design) |
 | Dashboard Backend | 10.10.10.30 | 8082, 8083 | The Greaves (Right) |
 | Kanban App | 10.10.10.200 | 8001 | The Meta Moment |
-| Demo App | 10.10.10.254 | 8000 | Customer Zone (Isolated) |
+| Demo App | 10.10.10.254 | 8000 | User Zone (Isolated) |
 
 ### Symbol Key
 
@@ -1817,7 +1817,7 @@ Mermaid Shapes:
     ||   Hosted by Unheaded.                                              ||
     ||   Observed by Unheaded.                                            ||
     ||                                                                    ||
-    ||   We drink our own champagne.                                      ||
+    ||   Self-hosting is proof, not marketing.                            ||
     ||                                                                    ||
     +=====================================================================+
 ```

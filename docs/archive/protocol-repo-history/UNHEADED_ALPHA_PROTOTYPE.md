@@ -112,7 +112,7 @@ unheaded/
 - Failure modes
 
 ### 4. **docs/THE_META_MOMENT.md** - Philosophy
-- "We drink our own champagne" 🍾
+- Self-hosting validation
 - Why self-hosting matters
 - Kanban app explanation
 - Data flow traced end-to-end
@@ -437,7 +437,7 @@ Unheaded delivers:
 
 ---
 
-## 🍾 "We Drink Our Own Champagne"
+## Self-Hosting Proof
 
 The Kanban app showing Unheaded building itself isn't a gimmick.
 

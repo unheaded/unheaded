@@ -9,10 +9,10 @@ Unheaded is a configuration management automation platform that delivers product
 
 ## Design Principles
 
-1. **Security First** - eBPF traceability, immutable infrastructure, zero customer data access
+1. **Security First** - eBPF traceability, immutable infrastructure, zero user data access
 2. **Observable by Default** - Packet-level visibility from L2-L7
 3. **Declarative Everything** - NixOS containers, version-controlled configs
-4. **Self-Hosting** - We drink our own champagne (Kanban app proves it)
+4. **Self-Hosting** - Self-hosting validation (Kanban app proves it)
 5. **Modern Stack** - HTTP/3, QUIC, gRPC, eBPF, Rust, Go
 
 ## Architecture Layers
@@ -38,7 +38,7 @@ Unheaded is a configuration management automation platform that delivers product
 │                                                                 │
 │ ┌──────────────────────┐ ┌──────────────────────┐             │
 │ │  dashboard-backend   │ │    demo-app          │             │
-│ │  (Metrics + WS)      │ │    (Customer sim)    │             │
+│ │  (Metrics + WS)      │ │    (User sim)        │             │
 │ └──────────────────────┘ └──────────────────────┘             │
 └────────────────────────────────────────────────────────────────┘
                              ↓
@@ -263,7 +263,7 @@ timeline.json, timeline.yaml
 ### Container Isolation
 
 ```
-demo-app (customer simulation)
+demo-app (user simulation)
     ↑ Network policy: DENY all except gateway
     ↑ No access to Unheaded internals
     ↑ Separate network namespace
@@ -416,6 +416,6 @@ unheaded-daemon polls every 30 seconds:
 
 ---
 
-**"We drink our own champagne."** 🍾
+**Self-hosting is proof, not marketing.**
 
 Architecture designed and implemented by the Unheaded team (with significant assistance from our AI pair programmers).

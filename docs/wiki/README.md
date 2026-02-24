@@ -6,7 +6,7 @@
 
 ## The Origin Story
 
-On January 20, 2026, the first commit landed. One engineer. One AI. A vision: deliver complete infrastructure for modern SaaS applications so customers could focus on their product -- "the head" -- while Unheaded provided everything else.
+On January 20, 2026, the first commit landed. One engineer. One AI. A vision: deliver complete infrastructure for modern SaaS applications so users could focus on their application -- "the head" -- while Unheaded provided everything else.
 
 Over the next 33 days, what began as a configuration management platform evolved into something unprecedented. The team built a 6-layer architecture spanning eBPF kernel programs, a Go microservice mesh, a custom message bus (Wotan), declarative NixOS containers, and a vanilla JS dashboard -- all orchestrated by an AI-driven development workflow with 15 specialized skill personas.
 
@@ -36,7 +36,7 @@ If a game engine can run in the data plane, packet tracing can too. That is the 
 
 - **[Architecture](architecture.md)** -- The 6-layer system architecture, Monad wire format, and eBPF execution model
 - **[Protocol Specifications](protocol-specs.md)** -- Monad protocol, Wotan message bus, and Sophia knowledge graph
-- **[Security](security.md)** -- Security posture, Lich campaign results, and zero customer data access
+- **[Security](security.md)** -- Security posture, Lich campaign results, and zero user data access
 
 ### Doom-over-IPv6
 

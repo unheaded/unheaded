@@ -615,7 +615,7 @@ Users will see:
 
 **That's not just a demo. That's a promise.**
 
-"We drink our own champagne" isn't marketing. It's proof.
+Self-hosting isn't marketing. It's proof.
 
 ---
 

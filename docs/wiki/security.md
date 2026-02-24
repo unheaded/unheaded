@@ -2,16 +2,16 @@
 
 ## Principles
 
-### Zero Customer Data Access
+### Zero User Data Access
 
-The foundational security principle of the Unheaded Kingdom: **zero customer data access** is enforced architecturally, not by policy. Customer applications ("the head") are isolated by design -- they communicate only through the gateway and never have access to infrastructure internals.
+The foundational security principle of the Unheaded Kingdom: **zero user data access** is enforced architecturally, not by policy. User applications ("the head") are isolated by design -- they communicate only through the gateway and never have access to infrastructure internals.
 
 **Isolation enforcement:**
-- Customer containers cannot subscribe to Wotan infrastructure topics
-- Customer network traffic is firewalled from the internal service mesh (10.10.10.0/24)
-- eBPF traces are read-only from customer perspective (observability data flows outward, never inward)
-- No shared storage between customer and infrastructure containers
-- Customer apps talk to the gateway; the gateway talks to services; services talk to Wotan
+- User containers cannot subscribe to Wotan infrastructure topics
+- User network traffic is firewalled from the internal service mesh (10.10.10.0/24)
+- eBPF traces are read-only from user perspective (observability data flows outward, never inward)
+- No shared storage between user and infrastructure containers
+- User apps talk to the gateway; the gateway talks to services; services talk to Wotan
 
 ### Default Deny
 
@@ -127,7 +127,7 @@ The Unheaded architecture is designed to satisfy multiple compliance frameworks:
 | ITAR | Planned | Data residency, access controls |
 | GDPR | Planned | Data minimization, right to erasure |
 
-The zero customer data access principle provides a strong foundation: if the infrastructure cannot access customer data, most data protection requirements are satisfied by architecture.
+The zero user data access principle provides a strong foundation: if the infrastructure cannot access user data, most data protection requirements are satisfied by architecture.
 
 ---
 

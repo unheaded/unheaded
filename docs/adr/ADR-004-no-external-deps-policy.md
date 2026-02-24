@@ -58,7 +58,7 @@ The policy extends to the frontend: no npm, no node_modules, no webpack, no Reac
 - **Full understanding**: Every line of code in production is written and maintained by the team. There are no "black box" dependencies where behavior is understood only through documentation.
 - **Minimal binary size**: Production binaries contain only the code they need. No unused transitive dependencies inflate the attack surface.
 - **License clarity**: The only licenses in production are Go's BSD license, Rust's MIT/Apache-2.0, and Unheaded's own license. The `LICENSES/THIRD_PARTY.md` file is for development tooling only.
-- **Brand alignment**: "We drink our own champagne" extends to dependencies. A platform that builds its own metrics, logging, netlink, and eBPF libraries demonstrates deep systems expertise.
+- **Brand alignment**: Self-hosting validation extends to dependencies. A platform that builds its own metrics, logging, netlink, and eBPF libraries demonstrates deep systems expertise.
 - **Operational independence**: The platform can be built, deployed, and operated on an air-gapped network with no internet access after the initial Go/Rust toolchain install.
 
 ### Negative
