@@ -100,6 +100,7 @@ var (
 	// should remain as an override option, but defaults should be localhost.
 	// Eventually move to a main config file and/or UI-based configuration.
 	servicesFile = flag.String("services-file", "", "Path to services endpoint file (name=host:port per line)")
+	vizDir       = flag.String("viz-dir", "", "Path to advanced visualizations directory (dashboard/), served under /viz/")
 )
 
 func main() {
@@ -218,6 +219,7 @@ func main() {
 
 		ServiceEndpoints: serviceEndpoints,
 		StaticFS:         dashboardFS,
+		VizDir:          *vizDir,
 	}
 
 	// Create eBPF ingestor if gRPC address is provided (or from WOTAN_GRPC_ADDR env)
