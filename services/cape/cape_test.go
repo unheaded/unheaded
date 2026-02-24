@@ -67,8 +67,8 @@ func TestDefaultConfig(t *testing.T) {
 		got  interface{}
 		want interface{}
 	}{
-		{"HTTPAddress", cfg.HTTPAddress, ":8080"},
-		{"GRPCAddress", cfg.GRPCAddress, ":9090"},
+		{"HTTPAddress", cfg.HTTPAddress, ":20000"},
+		{"GRPCAddress", cfg.GRPCAddress, ":18001"},
 		{"ReadTimeout", cfg.ReadTimeout, 30 * time.Second},
 		{"WriteTimeout", cfg.WriteTimeout, 30 * time.Second},
 		{"IdleTimeout", cfg.IdleTimeout, 120 * time.Second},
@@ -103,7 +103,7 @@ func TestNewService(t *testing.T) {
 	t.Run("nil config uses defaults", func(t *testing.T) {
 		t.Parallel()
 		svc := NewService(newTestLogger(), newTestWotan(), nil)
-		if svc.config.HTTPAddress != ":8080" {
+		if svc.config.HTTPAddress != ":20000" {
 			t.Errorf("expected default HTTPAddress, got %s", svc.config.HTTPAddress)
 		}
 	})
