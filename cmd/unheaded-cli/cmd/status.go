@@ -145,12 +145,12 @@ func gatherSystemStatus(ctx *Context) *SystemStatus {
 			LastUpdate: time.Now(),
 		},
 		Services: []ServiceStatus{
-			{Name: "timeguru", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.20:19000"},
-			{Name: "captain", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.21:19002"},
-			{Name: "micromanager", Status: "Running", Replicas: "2/2", Healthy: true, Endpoint: "http://10.10.10.22:19003"},
-			{Name: "architect", Status: "Pending", Replicas: "0/1", Healthy: false, Endpoint: "http://10.10.10.23:19001"},
-			{Name: "wotan", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.10:18000"},
-			{Name: "gateway", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "https://10.10.10.100:443"},
+			{Name: "timeguru", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://localhost:19000"},
+			{Name: "captain", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://localhost:19002"},
+			{Name: "micromanager", Status: "Running", Replicas: "2/2", Healthy: true, Endpoint: "http://localhost:19003"},
+			{Name: "architect", Status: "Pending", Replicas: "0/1", Healthy: false, Endpoint: "http://localhost:19001"},
+			{Name: "wotan", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://localhost:18000"},
+			{Name: "gateway", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "https://localhost:21443"},
 		},
 		Containers: []ContainerStats{
 			{Running: 6, Stopped: 1, Frozen: 0, Total: 7},
@@ -283,8 +283,8 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 
 // checkEndpointHealth performs a quick health check on an endpoint.
 func checkEndpointHealth(endpoint string) (bool, error) {
-	// Skip check for mock/demo purposes if endpoint is internal
-	if strings.HasPrefix(endpoint, "http://10.10.10.") {
+	// Skip check for mock/demo purposes if endpoint is localhost
+	if strings.HasPrefix(endpoint, "http://localhost:") || strings.HasPrefix(endpoint, "https://localhost:") {
 		return true, nil
 	}
 
