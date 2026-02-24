@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/captain"
 )
@@ -30,7 +31,15 @@ func run() error {
 	httpAddr := getEnv("HTTP_ADDR", "0.0.0.0:19002")
 	dataPath := getEnv("DATA_PATH", "/var/lib/unheaded/captain")
 
-	log.Printf("captain service starting (http:%s, wotan:%s)", httpAddr, wotanAddr)
+	// Transport config
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	transportCfg.WotanGRPCAddr = wotanAddr
+
+	// Health server
+	healthSrv := transport.NewHealthServer("captain")
+
+	log.Printf("captain service starting (http:%s, wotan:%s, transport:%s)", httpAddr, wotanAddr, transportCfg.Type)
 
 	// Create storage
 	storage, err := captain.NewFileStorage(dataPath)
@@ -41,6 +50,7 @@ func run() error {
 	// Create Wotan client
 	wotan, err := wotanClient.NewClient(wotanAddr)
 	if err != nil {
+		healthSrv.SetGRPCStatus(false)
 		return fmt.Errorf("create wotan client: %w", err)
 	}
 	defer wotan.Close()
