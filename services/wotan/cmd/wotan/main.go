@@ -18,6 +18,8 @@ import (
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	chatpb "unheaded/services/wotan/proto"
 	"unheaded/services/wotan/internal/api"
@@ -191,6 +193,11 @@ func main() {
 	// Register gRPC service implementations
 	chatpb.RegisterChatStreamServer(grpcServer, chatService)
 	chatpb.RegisterTopicStreamServer(grpcServer, topicService)
+
+	// Register gRPC health service (grpc.health.v1)
+	healthServer := health.NewServer()
+	healthpb.RegisterHealthServer(grpcServer, healthServer)
+	healthServer.SetServingStatus("wotan", healthpb.HealthCheckResponse_SERVING)
 
 	go func() {
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GRPCPort))

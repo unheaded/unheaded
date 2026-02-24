@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/timeguru/internal/api"
 	"unheaded/services/timeguru/internal/parser"
@@ -86,12 +87,24 @@ func main() {
 		}
 	}
 
-	// Initialize wotan client
+	// Initialize transport config and health server
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	if config.WotanAddr != "" {
+		transportCfg.WotanHTTPAddr = config.WotanAddr
+	}
+	if config.WotanGRPCAddr != "" {
+		transportCfg.WotanGRPCAddr = config.WotanGRPCAddr
+	}
+	healthSrv := transport.NewHealthServer("timeguru")
+
+	// Initialize wotan client using transport config addresses
 	var wotan *wotanClient.Client
-	wotan, err = initWotan(config.WotanAddr, config.WotanGRPCAddr)
+	wotan, err = initWotan(transportCfg.WotanHTTPAddr, transportCfg.WotanGRPCAddr)
 	if err != nil {
 		log.Warn().Err(err).Msg("Fae Chamber connection failed, continuing without Wotan integration")
 		wotan = nil
+		healthSrv.SetGRPCStatus(false)
 	} else {
 		defer wotan.Close()
 		log.Info().Msg("Fae Chamber connected (Wotan online)")
@@ -120,7 +133,16 @@ func main() {
 	// Setup HTTP router with all endpoints
 	mux := http.NewServeMux()
 
-	// Health & metrics
+	// Health & metrics — transport readiness endpoint
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
+		if healthSrv.Status() == transport.StatusDown {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"ready":false}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ready":true}`))
+	})
 	mux.HandleFunc("/health", handler.HandleHealth)
 
 	// Timeline endpoints (multiple formats: JSON, YAML, TOML, Markdown)
