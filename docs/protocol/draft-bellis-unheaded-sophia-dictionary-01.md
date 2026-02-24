@@ -30,6 +30,10 @@ normative:
       Internet-Draft: draft-bellis-unheaded-protocol-foundation-04
 
 informative:
+  RFC0768:
+  RFC0791:
+  RFC0792:
+  RFC0793:
   RFC8610:
   RFC8799:
   RFC9197:
