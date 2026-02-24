@@ -78,6 +78,13 @@
 - [[Dashboard Backend|Service-Dashboard-Backend]] — Metrics + WebSocket
 - [[Kanban App|Service-Kanban-App]] — The Meta Moment app
 
+## S36 Four Pillars
+
+- [[Port Registry|Port-Registry]] — The Doom Range (16666-26666) port allocation
+- [[Transport Cascade|Transport-Cascade]] — gRPC-first transport with HTTP fallback
+- [[Log Aggregation|Log-Aggregation]] — The Chronicler's Well: centralized structured logging
+- [[Service Discovery|Service-Discovery]] — The Cartographer's Eye: four-layer resolution
+
 ## Infrastructure
 
 - [[Containers|Containers]] — Immutable container definitions. LXD, containerd, NixOS, Docker
