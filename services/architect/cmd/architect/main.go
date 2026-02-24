@@ -55,8 +55,8 @@ func init() {
 
 func main() {
 	// Flags
-	addr := flag.String("addr", ":8001", "HTTP listen address")
-	wotanAddr := flag.String("wotan", "localhost:8081", "Wotan HTTP address")
+	addr := flag.String("addr", ":19001", "HTTP listen address")
+	wotanAddr := flag.String("wotan", "localhost:18000", "Wotan HTTP address")
 	logLevel := flag.String("log", "info", "Log level (debug, info, warn, error)")
 	useMock := flag.Bool("mock-wotan", false, "Use mock Wotan client for testing")
 	flag.Parse()
