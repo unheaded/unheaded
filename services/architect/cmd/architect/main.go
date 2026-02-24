@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
@@ -122,9 +123,12 @@ func main() {
 	}
 	cancel()
 
-	// Create a long-running context for alert listening
-	_, alertCancel := context.WithCancel(context.Background())
+	// Create a long-running context for alert listening and discovery
+	svcCtx, alertCancel := context.WithCancel(context.Background())
 	defer alertCancel()
+
+	// Service discovery registration (best-effort, nil conn until transport.Connect)
+	discovery.SetupServiceDiscovery(svcCtx, nil, "architect", 19001)
 
 	// HTTP handler
 	handler := architect.NewHTTPHandler(svc)

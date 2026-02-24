@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -26,6 +27,9 @@ func main() {
 func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Service discovery registration (best-effort, nil conn until transport.Connect)
+	discovery.SetupServiceDiscovery(ctx, nil, "captain", 19002)
 
 	// Configuration
 	wotanAddr := getEnv("WOTAN_ADDR", "localhost:18001")
