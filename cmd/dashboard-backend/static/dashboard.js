@@ -104,6 +104,8 @@
         el.statFlows = document.getElementById('stat-flows');
         el.statLatencySamples = document.getElementById('stat-latency-samples');
         el.statErrors = document.getElementById('stat-errors');
+        el.statCompute = document.getElementById('stat-compute');
+        el.statAnamnesis = document.getElementById('stat-anamnesis');
         el.statEps = document.getElementById('stat-eps');
         el.statUptime = document.getElementById('stat-uptime');
 
@@ -336,6 +338,8 @@
         setText(el.statFlows, formatNumber(stats.flows_tracked || 0));
         setText(el.statLatencySamples, formatNumber(stats.latency_samples || 0));
         setText(el.statErrors, formatNumber(stats.parse_errors || 0));
+        setText(el.statCompute, formatNumber(stats.compute_ingested || 0));
+        setText(el.statAnamnesis, formatNumber(stats.anamnesis_ingested || 0));
         setText(el.statEps, formatNumber(stats.events_per_sec || 0));
         setText(el.statUptime, formatUptime(stats.uptime_ms || 0));
         setText(el.ebpfEventsCount, formatNumber(stats.total_events || 0));
