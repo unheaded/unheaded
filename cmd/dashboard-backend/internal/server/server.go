@@ -24,10 +24,12 @@ import (
 	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
+	"unheaded/cmd/dashboard-backend/internal/logs"
 	internalMetrics "unheaded/cmd/dashboard-backend/internal/metrics"
 	"unheaded/cmd/dashboard-backend/internal/packetflow"
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
 )
@@ -191,6 +193,11 @@ type Server struct {
 	// Trace pipeline buffer (last 1000 events from traces.* topics)
 	traceBuffer *TraceBuffer
 
+	// Log aggregation
+	logBuffer  *logagg.RingBuffer
+	logHandler *logs.LogHandler
+	logStream  *logs.LogStream
+
 	// Stream subscriptions for /api/v1/stream
 	streamSubs   map[chan *StreamMessage]StreamFilter
 	streamSubsMu sync.RWMutex
@@ -339,6 +346,11 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		return nil, fmt.Errorf("create metrics aggregator: %w", err)
 	}
 
+	// Create log aggregation components
+	logBuf := logagg.NewRingBuffer(logagg.DefaultCapacity)
+	logHandler := logs.NewLogHandler(logBuf)
+	logStreamHandler := logs.NewLogStream(logBuf)
+
 	s := &Server{
 		config:            config,
 		log:               log,
@@ -350,6 +362,9 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		metricsAggregator: metricsAggregator,
 		ebpfIngestor:      config.EBPFIngestor,
 		traceBuffer:       NewTraceBuffer(1000),
+		logBuffer:         logBuf,
+		logHandler:        logHandler,
+		logStream:         logStreamHandler,
 		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
 		shutdown:          make(chan struct{}),
 	}
@@ -453,6 +468,10 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/aggregated/metrics", s.handleAggregatedMetrics)
 	s.mux.HandleFunc("/api/v1/aggregated/health", s.handleAggregatedHealth)
 
+	// Log aggregation endpoints
+	s.mux.Handle("/api/v1/logs", s.logHandler)
+	s.mux.Handle("/ws/logs", s.logStream)
+
 	// eBPF endpoints (Campaign 2.2)
 	s.mux.HandleFunc("/api/v1/latency", s.handleLatency)
 	s.mux.HandleFunc("/api/v1/ebpf/stats", s.handleEBPFStats)
@@ -463,7 +482,10 @@ func (s *Server) setupRoutes() {
 	staticHandler := http.FileServer(http.Dir("static"))
 	s.mux.Handle("/static/", http.StripPrefix("/static/", staticHandler))
 
-	// Serve index.html for root path
+	// Serve dashboard pages
+	s.mux.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "static/logs.html")
+	})
 	s.mux.HandleFunc("/", s.handleStaticIndex)
 }
 

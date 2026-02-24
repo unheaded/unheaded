@@ -116,7 +116,7 @@ age-identity.txt
 
 # ─── Logs ───
 *.log
-logs/
+/logs/
 *.log.*
 
 # ─── Testing ───

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unheaded — Log Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 16px;
+            background: #16213e;
+            border-bottom: 1px solid #0f3460;
+            flex-wrap: wrap;
+        }
+        .toolbar label { color: #888; font-size: 12px; }
+        .toolbar select, .toolbar input {
+            background: #0f3460;
+            color: #e0e0e0;
+            border: 1px solid #1a1a4e;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-family: inherit;
+            font-size: 13px;
+        }
+        .toolbar input[type="text"] { width: 200px; }
+        .toolbar .spacer { flex: 1; }
+
+        /* Log output */
+        #log-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 16px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .log-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+            cursor: pointer;
+            padding: 1px 4px;
+            border-radius: 2px;
+        }
+        .log-line:hover { background: rgba(255,255,255,0.05); }
+        .log-ts { color: #666; }
+        .log-service { color: #80cbc4; }
+        .log-msg { color: #e0e0e0; }
+        .log-fields { color: #666; font-size: 11px; }
+
+        /* Status bar */
+        .statusbar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 4px 16px;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            font-size: 11px;
+            color: #888;
+        }
+        .log-status-streaming { color: #4caf50; }
+        .log-status-connected { color: #4fc3f7; }
+        .log-status-disconnected { color: #ef5350; }
+        .log-status-error { color: #ef5350; }
+
+        /* Nav link */
+        .nav-link {
+            color: #4fc3f7;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .nav-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <a href="/" class="nav-link">← Dashboard</a>
+        <label>Service:</label>
+        <select id="log-service">
+            <option value="">All Services</option>
+            <option value="timeguru">timeguru</option>
+            <option value="captain">captain</option>
+            <option value="architect">architect</option>
+            <option value="micromanager">micromanager</option>
+            <option value="monad">monad</option>
+            <option value="sophia">sophia</option>
+            <option value="dashboard-backend">dashboard-backend</option>
+            <option value="kanban-app">kanban-app</option>
+            <option value="trace-collector">trace-collector</option>
+            <option value="unheaded-daemon">unheaded-daemon</option>
+        </select>
+
+        <label>Level:</label>
+        <select id="log-level">
+            <option value="">All Levels</option>
+            <option value="trace">TRACE</option>
+            <option value="debug">DEBUG</option>
+            <option value="info">INFO</option>
+            <option value="warn">WARN</option>
+            <option value="error">ERROR</option>
+            <option value="fatal">FATAL</option>
+        </select>
+
+        <label>Search:</label>
+        <input type="text" id="log-search" placeholder="Full-text search...">
+
+        <label>Range:</label>
+        <select id="log-timerange">
+            <option value="5m">Last 5m</option>
+            <option value="15m" selected>Last 15m</option>
+            <option value="1h">Last 1h</option>
+            <option value="24h">Last 24h</option>
+            <option value="">All Time</option>
+        </select>
+
+        <div class="spacer"></div>
+
+        <label>
+            <input type="checkbox" id="log-autoscroll" checked> Auto-scroll
+        </label>
+    </div>
+
+    <div id="log-output"></div>
+
+    <div class="statusbar">
+        <span>Status: <span id="log-status" class="log-status-disconnected">connecting...</span></span>
+        <span id="log-count">0 entries</span>
+        <span>Buffer: 10,000 lines</span>
+    </div>
+
+    <script src="/static/js/log-viewer.js"></script>
+</body>
+</html>
