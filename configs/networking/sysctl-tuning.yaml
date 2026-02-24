@@ -1,0 +1,33 @@
+# Unheaded Sysctl Tuning — Ephemeral Port Range
+# Avoids collision with Doom Range (16666-26666)
+#
+# The Linux default ephemeral port range is 32768-60999.
+# This is safe. However, some systems or containers may override this
+# to lower values (e.g., 1024-65535) which WILL collide with the Doom Range.
+#
+# Apply with: sysctl -p /etc/sysctl.d/99-unheaded.conf
+# Or via NixOS: boot.kernel.sysctl."net.ipv4.ip_local_port_range" = "27000 65000";
+
+sysctl:
+  # Ensure ephemeral ports start ABOVE the Doom Range ceiling (26666)
+  net.ipv4.ip_local_port_range: "27000 65000"
+
+  # TCP tuning for high-throughput eBPF event streaming
+  net.core.rmem_max: 16777216
+  net.core.wmem_max: 16777216
+  net.ipv4.tcp_rmem: "4096 87380 16777216"
+  net.ipv4.tcp_wmem: "4096 65536 16777216"
+
+  # Enable TCP BBR congestion control (better for datacenter)
+  net.core.default_qdisc: fq
+  net.ipv4.tcp_congestion_control: bbr
+
+  # Connection tracking for high-flow environments
+  net.netfilter.nf_conntrack_max: 262144
+
+# NixOS equivalent:
+# boot.kernel.sysctl = {
+#   "net.ipv4.ip_local_port_range" = "27000 65000";
+#   "net.core.rmem_max" = 16777216;
+#   "net.core.wmem_max" = 16777216;
+# };
