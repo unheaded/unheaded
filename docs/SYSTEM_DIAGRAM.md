@@ -150,7 +150,7 @@
 │  └─────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                    CUSTOMER SIMULATION                           │   │
+│  │                    USER SIMULATION                               │   │
 │  │                (Zero access to Unheaded)                        │   │
 │  │                                                                  │   │
 │  │  ┌──────────────┐                                               │   │
@@ -160,7 +160,7 @@
 │  │  │ :8000 HTTP   │                                               │   │
 │  │  │              │                                               │   │
 │  │  │ Simulates    │                                               │   │
-│  │  │ customer     │                                               │   │
+│  │  │ user         │                                               │   │
 │  │  │ workload     │                                               │   │
 │  │  │              │                                               │   │
 │  │  │ Network      │                                               │   │
@@ -281,7 +281,7 @@ User clicks "Kanban" in browser
 └────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────┐
-│ CUSTOMER ZONE (isolated)                       │
+│ USER ZONE (isolated)                           │
 │   • demo-app                                   │
 │   • Network policies: DENY all except gateway  │
 │   • Zero access to Unheaded internals          │
@@ -362,7 +362,7 @@ Container (timeguru):
 | architect | 10.10.10.23 | 8000 (HTTP) | Design API |
 | dashboard-backend | 10.10.10.30 | 8082 (HTTP), 8083 (WS) | Metrics + WS |
 | kanban-app | 10.10.10.200 | 8001 (HTTP) | Kanban UI |
-| demo-app | 10.10.10.254 | 8000 (HTTP) | Customer sim |
+| demo-app | 10.10.10.254 | 8000 (HTTP) | User sim |
 
 ## Technologies at a Glance
 

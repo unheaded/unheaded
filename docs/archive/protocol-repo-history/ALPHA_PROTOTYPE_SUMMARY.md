@@ -407,11 +407,11 @@ We're building:
 
 ---
 
-## 🍾 "We Drink Our Own Champagne"
+## Self-Hosting Proof
 
 This isn't just a tagline. The Kanban app proving Unheaded can host its own development is our north star.
 
-**If we trust it, customers will too.**
+**If we trust it, users will too.**
 
 ---
 

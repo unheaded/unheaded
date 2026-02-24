@@ -87,7 +87,7 @@ All services use high ports to avoid conflicts with common dev tools:
                                   micromanager (19003), monad (19004), sophia (19005)
     Applications     20000-20999   dashboard (20000), kanban (20001), wiki (20002)
     Gateway          21000-21443   HTTP (21000), HTTPS (21443)
-    Customer Apps    26000-26666   reserved for customer applications
+    User Apps        26000-26666   reserved for user applications
 
 ### Transport — gRPC-First
 

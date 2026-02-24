@@ -258,7 +258,7 @@ The customer-facing layer. The Cape (internal framework) powers the Cloak (custo
 **The Kingdom Hosts Itself**
 *ETA: Feb 8, 2026 | STATUS: Integration pending*
 
-**"We drink our own champagne."**
+**Self-hosting is proof, not marketing.**
 
 The ultimate proof: Unheaded tracking its own development. The Kanban board showing THIS timeline, running on THIS infrastructure, traced by THIS eBPF.
 
@@ -580,7 +580,7 @@ This timeline is a **living grimoire**. Updated continuously as we forge.
 **The Sacred Laws:**
 - Ship early, iterate fast
 - Security first, always
-- We drink our own champagne (The Meta Moment)
+- Self-hosting validation (The Meta Moment)
 - Radical transparency
 - Every component connected to every component
 - The Knight is never without armor

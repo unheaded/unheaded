@@ -2,7 +2,7 @@
 
 ## Overview
 
-Unheaded is a configuration management automation platform built on 6 layers, from bare metal infrastructure up through a user-facing dashboard. The platform delivers production-ready infrastructure for SaaS applications, with eBPF-based observability at every hop and zero customer data access by architectural design.
+Unheaded is a configuration management automation platform built on 6 layers, from bare metal infrastructure up through a user-facing dashboard. The platform delivers production-ready infrastructure for SaaS applications, with eBPF-based observability at every hop and zero user data access by architectural design.
 
 ---
 
@@ -180,7 +180,7 @@ Formula: `(unique_reporters / total_dependent_services) x 100`
 | 10.10.10.24 | monad | 8004 |
 | 10.10.10.25 | sophia | 8005 |
 | 10.10.10.100 | Gateway (nginx) | 443 (HTTPS), 80 (HTTP) |
-| 10.10.10.200+ | Customer apps | variable |
+| 10.10.10.200+ | User apps | variable |
 
 ### Doom Ring Network (separate namespace topology)
 
@@ -221,7 +221,7 @@ The same hardening baseline applies regardless of container runtime:
 
 ## IaC Output Strategy
 
-Unheaded generates configuration artifacts for the customer's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers:
+Unheaded generates configuration artifacts for the user's preferred toolchain. The control plane maintains a single desired-state model; IaC backends are interchangeable output renderers:
 
 | Backend | Output Format | Use Case |
 |---------|--------------|----------|
