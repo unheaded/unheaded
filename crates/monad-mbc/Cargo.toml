@@ -22,3 +22,7 @@ path = "src/bin/rv32i_to_mbc.rs"
 [[bin]]
 name = "mbc-asm"
 path = "src/bin/mbc_asm.rs"
+
+[[bin]]
+name = "mbc-emulate"
+path = "src/bin/mbc_emulate.rs"
