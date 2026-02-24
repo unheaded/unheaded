@@ -12,7 +12,7 @@
 
 ### Age 1: The Alpha Ascension (🔄 IN PROGRESS)
 
-**Progress:** ~96% — all services operational, eBPF blocked on bare metal, S34 four pillars planned
+**Progress:** ~98% — all services operational, S36 four pillars complete (ports, gRPC-first, logging, discovery), eBPF blocked on bare metal
 
 ### Age 2: The Beta Trials (📋 PLANNED)
 
@@ -163,11 +163,11 @@
 
 ### 📋 Alpha Demonstration
 
-**ETA:** TBD (post-S34 four pillars + bare metal eBPF)
+**ETA:** TBD (post bare metal eBPF)
 **Owner:** Captain + Timeguru + the assembled Court
-**Risk:** Medium — depends on eBPF bare metal + S34 completion
-**Progress:** 0%
-**Status:** planned (blocked on eBPF verification + public deployment)
+**Risk:** Medium — depends on eBPF bare metal verification
+**Progress:** 10%
+**Status:** planned (S36 four pillars COMPLETE, blocked on eBPF verification + public deployment)
 
 **Tasks:**
 - [ ] Kanban Frontend COMPLETE (P0 Epic above)
@@ -187,7 +187,18 @@
 **Backends:** DEFERRED not killed. Anti-lock-in core principle. Prometheus + zerolog ship first.
 **Inverse Mask:** Deep exploration session (BlackMage + Developer + Architect + Scientist).
 **VC:** Austin venture capital exploration while private. Protocol IS the moat.
-**Priority:** S34 pillars → LICENSE file → SBOM → bare metal eBPF → inverse mask → IANA → VC → demo video.
+**Priority:** ~~S34 pillars~~ (DONE — S36) → LICENSE file → SBOM → bare metal eBPF → inverse mask → IANA → VC → demo video.
+
+---
+
+### S36 Four Pillars — COMPLETE (Feb 24, 2026)
+
+All four infrastructure pillars planned in S34, executed via multi-agent sprint in S36:
+
+1. **Port Authority (Pillar 1):** All 20+ services migrated to Doom Range (16666-26666). `pkg/ports/ports.go` is single source of truth. `configs/port-registry.yaml` for container configs. Zero port conflicts.
+2. **gRPC-First Transport (Pillar 2):** `pkg/transport/` implements gRPC-first cascade with HTTP fallback. All 10 services wired. Dual health checks (gRPC + HTTP). DEGRADED state detection.
+3. **Log Aggregation (Pillar 3):** `pkg/logagg/` with zerolog hook publishing to Wotan `logs.<service>.<level>` topics. 10K-line ring buffer per service. Dashboard endpoints: `GET /api/v1/logs`, `WebSocket /ws/logs`.
+4. **Service Discovery (Pillar 4):** `pkg/discovery/` with convention-based + port-scan + Wotan registration. `configs/services.yaml` static fallback. Zero hardcoded IPs in production code.
 
 ---
 

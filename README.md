@@ -71,12 +71,47 @@ Full protocol specification: [docs/protocol/](docs/protocol/)
         ├── anamnesis            event ring buffer, trace correlation
         ├── kenoma / pleroma     outer/inner domain separation
         ├── trace-collector      eBPF → Wotan bridge (Rust)
-        ├── dashboard-backend    metrics aggregator, WebSocket
+        ├── dashboard-backend    metrics aggregator, WebSocket, log viewer
         ├── kanban-app           self-hosting proof
         ├── gateway              HTTP/3, QUIC, gRPC-Web, WebSocket
         └── yaldabaoth           chaos injection (controlled fault testing)
 
-Network fabric: EVPN-VXLAN with BGP control plane.  All inter-node
+### Port Allocation — "The Doom Range" (16666-26666)
+
+All services use high ports to avoid conflicts with common dev tools:
+
+    Infrastructure   16666-16999   doom-bridge (16666), trace-collector (16670/16671)
+    Control Plane    17000-17999   unheaded-daemon HTTP (17000), gRPC (17001)
+    Wotan            18000-18099   wotan HTTP (18000), gRPC (18001)
+    Core Services    19000-19999   timeguru (19000), architect (19001), captain (19002),
+                                  micromanager (19003), monad (19004), sophia (19005)
+    Applications     20000-20999   dashboard (20000), kanban (20001), wiki (20002)
+    Gateway          21000-21443   HTTP (21000), HTTPS (21443)
+    Customer Apps    26000-26666   reserved for customer applications
+
+### Transport — gRPC-First
+
+All inter-service communication defaults to Wotan gRPC streaming
+(port 18001).  HTTP serves as fallback (HTTP/3 -> HTTP/2 -> HTTP/1.1).
+Every service exposes both gRPC and HTTP health checks.  If gRPC
+fails but HTTP responds, the service reports DEGRADED status.
+
+### Log Aggregation — "The Chronicler's Well"
+
+All services publish structured logs to Wotan topic `logs.<service>.<level>`.
+Ring buffer retains 10,000 lines per service.  Dashboard serves
+`GET /api/v1/logs` for queries and `WebSocket /ws/logs` for live tail.
+
+### Service Discovery — "The Cartographer's Eye"
+
+Three-layer discovery: (1) convention-based `/opt/unheaded/<service>/config.yaml`,
+(2) port scanning to verify declared ports are listening,
+(3) Wotan registration via `system.discovery.*` topics with automatic
+deregistration on shutdown.
+
+### Network Fabric
+
+EVPN-VXLAN with BGP control plane.  All inter-node
 traffic is IPv6 over VXLAN tunnels.  eBPF programs attach at XDP
 (ingress) and TC (egress) on every interface.  Services run as
 containers (LXD, Docker, Podman), VMs, or bare metal processes —
@@ -176,12 +211,13 @@ the protocol is runtime-agnostic.  Only requirement: Linux kernel
     Go 1.24          services, control plane, CLI
     Rust             eBPF programs (aya), trace-collector
     Linux 5.15+      minimum kernel (BPF, XDP, TC)
-    gRPC             inter-service transport (Wotan)
+    gRPC             primary inter-service transport (Wotan, port 18001)
+    HTTP/3 + QUIC    fallback transport, external gateway
     eBPF (XDP/TC)    packet processing, tracing, chaos
     EVPN-VXLAN       L2 overlay fabric
     BGP              control plane routing
-    HTTP/3 + QUIC    external gateway
     Prometheus       metrics collection
+    zerolog          structured JSON logging → Wotan log aggregation
 
 Runtime-agnostic: runs on bare metal, LXD, Docker, Podman,
 systemd-nspawn, Firecracker, QEMU/KVM, or any Linux environment
