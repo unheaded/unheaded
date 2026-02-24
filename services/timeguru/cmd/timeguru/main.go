@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	defaultPort         = "8000"
-	defaultWotanAddr   = "localhost:9080"  // HTTP control plane (not gRPC 9090)
+	defaultPort         = "19000"
+	defaultWotanAddr   = "localhost:18000"  // HTTP control plane
 	defaultDBPath       = "./data/timeguru.db"
 	defaultTimelinePath = "./references/timeline.md"
 	shutdownTimeout     = 30 * time.Second
@@ -202,7 +202,7 @@ func loadConfig() Config {
 	config := Config{
 		Port:           getEnv("PORT", defaultPort),
 		WotanAddr:     getEnv("WOTAN_ADDR", defaultWotanAddr),
-		WotanGRPCAddr: getEnv("WOTAN_GRPC_ADDR", "localhost:9090"),
+		WotanGRPCAddr: getEnv("WOTAN_GRPC_ADDR", "localhost:18001"),
 		DBPath:         getEnv("DB_PATH", defaultDBPath),
 		TimelinePath:   getEnv("TIMELINE_PATH", defaultTimelinePath),
 		SyncDir:        os.Getenv("SYNC_DIR"), // empty = disabled

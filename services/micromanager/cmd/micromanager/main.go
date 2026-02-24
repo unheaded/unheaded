@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	port            = flag.String("port", "8003", "HTTP port to listen on")
+	port            = flag.String("port", "19003", "HTTP port to listen on")
 	wotanAddr      = flag.String("wotan", "", "Wotan address (host:port)")
 	logLevel        = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	readTimeout     = flag.Duration("read-timeout", 15*time.Second, "HTTP read timeout")

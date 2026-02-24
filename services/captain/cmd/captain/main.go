@@ -26,8 +26,8 @@ func run() error {
 	defer cancel()
 
 	// Configuration
-	wotanAddr := getEnv("WOTAN_ADDR", "localhost:9090")
-	httpAddr := getEnv("HTTP_ADDR", "0.0.0.0:8002")
+	wotanAddr := getEnv("WOTAN_ADDR", "localhost:18001")
+	httpAddr := getEnv("HTTP_ADDR", "0.0.0.0:19002")
 	dataPath := getEnv("DATA_PATH", "/var/lib/unheaded/captain")
 
 	log.Printf("captain service starting (http:%s, wotan:%s)", httpAddr, wotanAddr)
