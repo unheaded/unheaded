@@ -1,515 +1,658 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Unheaded Dashboard - Real-time infrastructure monitoring and packet flow visualization">
-    <meta name="theme-color" content="#1a1a2e">
-    <title>Unheaded Dashboard</title>
-    <link rel="stylesheet" href="/css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unheaded Control Surface - Real-time infrastructure monitoring and packet flow analysis">
+  <title>Unheaded — Control Surface</title>
+
+  <link rel="stylesheet" href="/dashboard/css/design-system.css">
+  <style>
+    /* Dashboard-specific layout styles */
+    main {
+      margin-top: 64px;
+      padding: var(--space-2xl);
+      min-height: 100vh;
+    }
+
+    .hero-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--space-lg);
+      margin-bottom: var(--space-2xl);
+    }
+
+    .hero-metric {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .hero-metric-value {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-3xl);
+      font-weight: 700;
+      color: var(--color-text-heading);
+    }
+
+    .hero-metric-label {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tabs-container {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .tab-content {
+      margin-top: var(--space-xl);
+    }
+
+    .flow-diagram {
+      width: 100%;
+      height: 400px;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background-color: var(--color-bg-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-lg);
+      position: relative;
+    }
+
+    .flow-diagram-svg {
+      width: 100%;
+      height: 100%;
+      filter: invert(0.95);
+    }
+
+    .flow-counter {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-lg);
+      color: var(--color-text-primary);
+      padding: var(--space-md);
+      background-color: var(--color-bg-tertiary);
+      border-radius: var(--border-radius-md);
+      border: var(--border-width-thin) solid var(--color-border);
+    }
+
+    .trace-table-wrapper {
+      overflow-x: auto;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background-color: var(--color-bg-secondary);
+    }
+
+    .chart-area {
+      width: 100%;
+      height: 300px;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background-color: var(--color-bg-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-lg);
+      position: relative;
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: var(--space-lg);
+    }
+
+    .stat-item {
+      flex: 1;
+      min-width: 150px;
+    }
+
+    .doom-placeholder {
+      width: 100%;
+      height: 500px;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background-color: var(--color-bg-secondary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-lg);
+      color: var(--color-text-dim);
+    }
+
+    .doom-label {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-lg);
+      margin-top: var(--space-lg);
+    }
+
+    .service-card {
+      background-color: var(--color-bg-secondary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      padding: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      transition: all var(--transition-normal);
+    }
+
+    .service-card:hover {
+      background-color: var(--color-bg-tertiary);
+      border-color: var(--color-border-light);
+    }
+
+    .service-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .service-name {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: var(--color-text-heading);
+    }
+
+    .service-health {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-dim);
+      text-transform: uppercase;
+      padding: var(--space-xs) var(--space-sm);
+      background-color: var(--color-bg-tertiary);
+      border-radius: var(--border-radius-sm);
+    }
+
+    .service-details {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      font-size: var(--font-size-sm);
+    }
+
+    .service-detail {
+      display: flex;
+      justify-content: space-between;
+      color: var(--color-text-dim);
+    }
+
+    .service-detail-value {
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+    }
+
+    .infrastructure-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-lg);
+      margin-top: var(--space-lg);
+    }
+
+    .container-card {
+      background-color: var(--color-bg-secondary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      padding: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .container-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: var(--space-md);
+      border-bottom: var(--border-width-thin) solid var(--color-border);
+    }
+
+    .container-name {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: var(--color-text-heading);
+    }
+
+    .container-status {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-dim);
+      text-transform: uppercase;
+    }
+
+    .container-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-dim);
+    }
+
+    .log-stream {
+      background-color: var(--color-bg-secondary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      padding: var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      max-height: 600px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .log-line {
+      color: var(--color-text-primary);
+      padding: var(--space-xs) 0;
+      border-bottom: var(--border-width-thin) solid var(--color-border);
+    }
+
+    .log-line.error {
+      color: var(--color-text-dim);
+    }
+
+    .log-line.info {
+      color: var(--color-text-ghost);
+    }
+
+    .log-filter {
+      display: flex;
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+
+    .log-filter input {
+      flex: 1;
+    }
+
+    .footer {
+      margin-top: var(--space-3xl);
+      padding: var(--space-2xl) 0;
+      border-top: var(--border-width-thin) solid var(--color-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-dim);
+    }
+
+    .footer-version {
+      font-family: var(--font-mono);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: var(--space-lg);
+    }
+
+    .footer-links a {
+      color: var(--color-text-ghost);
+      text-decoration: none;
+      transition: color var(--transition-fast);
+    }
+
+    .footer-links a:hover {
+      color: var(--color-text-primary);
+    }
+
+    .footer-slogan {
+      text-align: center;
+      margin-top: var(--space-2xl);
+      color: var(--color-text-ghost);
+      font-style: italic;
+      font-family: var(--font-body);
+    }
+
+    @media (max-width: 768px) {
+      main {
+        padding: var(--space-lg);
+      }
+
+      .hero-bar {
+        grid-template-columns: 1fr;
+      }
+
+      .services-grid,
+      .infrastructure-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .footer {
+        flex-direction: column;
+        gap: var(--space-lg);
+        align-items: flex-start;
+      }
+    }
+  </style>
 </head>
 <body>
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="/" class="nav-logo">UNHEADED</a>
+    <ul class="nav-links">
+      <li><a href="/dashboard" class="nav-link active">Dashboard</a></li>
+      <li><a href="/kanban" class="nav-link">Kanban</a></li>
+      <li><a href="/docs" class="nav-link">Docs</a></li>
+      <li><a href="/status" class="nav-link">Status</a></li>
+    </ul>
+  </nav>
 
-    <div class="ws-reconnect-banner" id="ws-reconnect-banner" role="alert" aria-live="assertive" aria-atomic="true">
-        <span class="reconnect-spinner" aria-hidden="true"></span>
-        <span class="reconnect-text">Reconnecting to server...</span>
-        <button class="reconnect-retry-btn" id="reconnect-retry-btn" aria-label="Retry connection now">Retry</button>
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto">
+    <!-- Hero Bar -->
+    <div class="hero-bar">
+      <div class="hero-metric">
+        <div class="hero-metric-value" id="currentTime">--:--:--</div>
+        <div class="hero-metric-label">Current Time</div>
+      </div>
+      <div class="hero-metric">
+        <div class="hero-metric-value" id="activeFlows">0</div>
+        <div class="hero-metric-label">Active Flows</div>
+      </div>
+      <div class="hero-metric">
+        <div class="hero-metric-value" id="packetRate">0/s</div>
+        <div class="hero-metric-label">Packet Rate</div>
+      </div>
     </div>
 
-    <canvas id="particle-canvas" aria-hidden="true"></canvas>
+    <!-- Tab Navigation -->
+    <div class="tabs-container">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="packet-flow">Packet Flow</button>
+        <button class="tab-btn" data-tab="trace-table">Trace Table</button>
+        <button class="tab-btn" data-tab="latency">Latency</button>
+        <button class="tab-btn" data-tab="doom">Doom</button>
+        <button class="tab-btn" data-tab="services">Services</button>
+        <button class="tab-btn" data-tab="infrastructure">Infrastructure</button>
+        <button class="tab-btn" data-tab="logs">Logs</button>
+      </div>
 
-    <nav role="navigation" aria-label="Main navigation">
-        <div class="nav-brand">
-            <span class="nav-logo">&#x2694;&#xFE0F;</span>
-            <h1>Unheaded Dashboard</h1>
+      <!-- Packet Flow Tab -->
+      <div id="packet-flow" class="tab-panel active">
+        <div class="tab-content">
+          <div class="flow-diagram">
+            <svg class="flow-diagram-svg" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+              <rect width="800" height="400" fill="none"/>
+              <circle cx="100" cy="200" r="40" fill="none" stroke="currentColor" stroke-width="2"/>
+              <text x="100" y="210" text-anchor="middle" font-size="12" fill="currentColor">INGRESS</text>
+              <circle cx="400" cy="150" r="40" fill="none" stroke="currentColor" stroke-width="2"/>
+              <text x="400" y="160" text-anchor="middle" font-size="12" fill="currentColor">XDP</text>
+              <circle cx="400" cy="250" r="40" fill="none" stroke="currentColor" stroke-width="2"/>
+              <text x="400" y="260" text-anchor="middle" font-size="12" fill="currentColor">TC</text>
+              <circle cx="700" cy="200" r="40" fill="none" stroke="currentColor" stroke-width="2"/>
+              <text x="700" y="210" text-anchor="middle" font-size="12" fill="currentColor">EGRESS</text>
+              <line x1="140" y1="185" x2="360" y2="150" stroke="currentColor" stroke-width="1" stroke-dasharray="5,5"/>
+              <line x1="140" y1="215" x2="360" y2="250" stroke="currentColor" stroke-width="1" stroke-dasharray="5,5"/>
+              <line x1="440" y1="150" x2="660" y2="185" stroke="currentColor" stroke-width="1"/>
+              <line x1="440" y1="250" x2="660" y2="215" stroke="currentColor" stroke-width="1"/>
+              <text x="250" y="130" font-size="11" fill="currentColor" opacity="0.6">kingdom mode</text>
+              <text x="550" y="130" font-size="11" fill="currentColor" opacity="0.6">active</text>
+            </svg>
+          </div>
+          <div style="display: flex; gap: var(--space-lg);">
+            <div class="flow-counter">Live Flows: <span id="liveFlowCount">0</span></div>
+            <div class="flow-counter">Packets/sec: <span id="livePacketRate">0</span></div>
+          </div>
         </div>
-        <ul class="nav-links">
-            <li><a href="/" class="active">Dashboard</a></li>
-            <li><a href="/kanban">Kanban</a></li>
-            <li><a href="/wiki/">Wiki</a></li>
-            <li><a href="/doom.html">Doom Viewer</a></li>
-            <li><a href="/api/v1/health" target="_blank" class="nav-link-subtle">API Health</a></li>
-        </ul>
-        <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle navigation menu" aria-expanded="false">
-            <span></span><span></span><span></span>
-        </button>
-        <div class="nav-status" role="status" aria-label="Connection status">
-            <span class="nav-status-dot" id="nav-connection-dot" aria-hidden="true"></span>
-            <span class="nav-status-text" id="nav-connection-text">Connecting...</span>
+      </div>
+
+      <!-- Trace Table Tab -->
+      <div id="trace-table" class="tab-panel">
+        <div class="tab-content">
+          <div class="trace-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Flow Label</th>
+                  <th>Timestamp</th>
+                  <th>Type</th>
+                  <th>Kingdom Mode</th>
+                  <th>Latency</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="traceTableBody">
+              </tbody>
+            </table>
+          </div>
         </div>
-    </nav>
+      </div>
 
-    <main id="main-content">
-        <!-- ============================================================
-             Tab Navigation: Packet Flow | Trace Table | Latency | Doom
-             ============================================================ -->
-        <div class="tab-navigation" role="tablist" aria-label="Dashboard views">
-            <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-panel-packet-flow" id="tab-packet-flow" data-tab="packet-flow">
-                <span class="tab-icon" aria-hidden="true">&#x1F4E1;</span>
-                Packet Flow
-            </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-panel-trace-table" id="tab-trace-table" data-tab="trace-table">
-                <span class="tab-icon" aria-hidden="true">&#x1F50D;</span>
-                Trace Table
-            </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-panel-latency" id="tab-latency" data-tab="latency">
-                <span class="tab-icon" aria-hidden="true">&#x1F4C8;</span>
-                Latency
-            </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-panel-doom" id="tab-doom" data-tab="doom">
-                <span class="tab-icon" aria-hidden="true">&#x1F3AE;</span>
-                Doom
-            </button>
-        </div>
-
-        <!-- ============================================================
-             Tab Panel: Packet Flow (default active)
-             ============================================================ -->
-        <div class="tab-panel active" id="tab-panel-packet-flow" role="tabpanel" aria-labelledby="tab-packet-flow">
-            <section id="packet-flow" aria-label="Real-time Packet Flow">
-                <h2>
-                    <span class="section-icon" aria-hidden="true">&#x1F4E1;</span>
-                    Real-time Packet Flow
-                </h2>
-                <p class="section-description">eBPF-traced network traffic between Unheaded services. Each packet carries a trace_id from gateway to destination.</p>
-                <div id="flow-viz" role="img" aria-label="Packet flow visualization showing network traffic between Unheaded services"></div>
-            </section>
-
-            <section id="packet-flow-diagram-section" aria-label="Network Topology">
-                <h2>
-                    <span class="section-icon" aria-hidden="true">&#x1F578;&#xFE0F;</span>
-                    Network Topology
-                </h2>
-                <p class="section-description">SVG-based service topology with animated traffic flow. Click a node for details.</p>
-                <div id="packet-flow-diagram-container" class="pfd-container" role="img" aria-label="Network topology diagram"></div>
-            </section>
-        </div>
-
-        <!-- ============================================================
-             Tab Panel: Trace Table
-             ============================================================ -->
-        <div class="tab-panel" id="tab-panel-trace-table" role="tabpanel" aria-labelledby="tab-trace-table" hidden>
-            <section id="trace-table-section" aria-label="Trace Events">
-                <h2>
-                    <span class="section-icon" aria-hidden="true">&#x1F50D;</span>
-                    Trace Events
-                </h2>
-                <p class="section-description">Live table of trace events with filtering, sorting, and click-to-expand detail. Color-coded by RTT.</p>
-                <div id="trace-viewer-container" class="trace-viewer-container"></div>
-            </section>
-        </div>
-
-        <!-- ============================================================
-             Tab Panel: Latency Chart
-             ============================================================ -->
-        <div class="tab-panel" id="tab-panel-latency" role="tabpanel" aria-labelledby="tab-latency" hidden>
-            <section id="latency-chart-section" aria-label="Latency Distribution">
-                <h2>
-                    <span class="section-icon" aria-hidden="true">&#x1F4C8;</span>
-                    Latency Distribution
-                </h2>
-                <p class="section-description">Real-time RTT distribution with p50, p90, p99 percentile lines. Anomalies highlighted at >3 sigma from mean.</p>
-                <div id="latency-chart-container" class="latency-chart-container"></div>
-            </section>
-        </div>
-
-        <!-- ============================================================
-             Tab Panel: Doom
-             ============================================================ -->
-        <div class="tab-panel" id="tab-panel-doom" role="tabpanel" aria-labelledby="tab-doom" hidden>
-            <section id="doom-viewport" aria-label="Compute Viewport">
-                <h2>
-                    <span class="section-icon" aria-hidden="true">&#x1F3AE;</span>
-                    Compute Viewport
-                    <span class="doom-badge">MBC VM</span>
-                </h2>
-                <p class="section-description">Real-time framebuffer from the Monad CPU BPF program. 320x200 pixels rendered via IPv6 extension header compute.</p>
-                <div id="doom-container" class="doom-container" role="img" aria-label="MBC framebuffer output (320x200)"></div>
-                <div class="doom-controls">
-                    <button class="doom-control-btn" onclick="window.DoomViewport && window.DoomViewport.runDemoGradient()" aria-label="Run gradient demo">Gradient Demo</button>
-                    <button class="doom-control-btn" onclick="window.DoomViewport && window.DoomViewport.runDemoCheckerboard()" aria-label="Run checkerboard demo">Checkerboard Demo</button>
-                    <button class="doom-control-btn" onclick="window.DoomViewport && window.DoomViewport.toggleOverlay()" aria-label="Toggle stats overlay">Toggle Stats</button>
-                </div>
-            </section>
-        </div>
-
-        <!-- ============================================================
-             Metrics (always visible below tabs)
-             ============================================================ -->
-        <section id="metrics" aria-label="System Metrics">
-            <h2>
-                <span class="section-icon" aria-hidden="true">&#x1F4CA;</span>
-                System Metrics
-            </h2>
-            <p class="section-description">Live performance metrics from the dashboard-backend service.</p>
-            <div id="metrics-grid" role="region" aria-label="Metrics data grid"></div>
-        </section>
-
-        <section id="quick-actions" class="quick-actions-section" aria-label="Quick Actions">
-            <h2>
-                <span class="section-icon" aria-hidden="true">&#x26A1;</span>
-                Quick Actions
-            </h2>
-            <div class="quick-actions-grid">
-                <a href="/api/v1/health" target="_blank" class="quick-action-card" aria-label="Open Health Check API endpoint">
-                    <span class="quick-action-icon" aria-hidden="true">&#x1F3E5;</span>
-                    <span class="quick-action-label">Health Check</span>
-                </a>
-                <a href="/api/v1/metrics" target="_blank" class="quick-action-card" aria-label="Open Raw Metrics API endpoint">
-                    <span class="quick-action-icon" aria-hidden="true">&#x1F4C8;</span>
-                    <span class="quick-action-label">Raw Metrics</span>
-                </a>
-                <a href="/kanban" class="quick-action-card" aria-label="Navigate to Kanban Board">
-                    <span class="quick-action-icon" aria-hidden="true">&#x1F4CB;</span>
-                    <span class="quick-action-label">Kanban Board</span>
-                </a>
-                <a href="/doom/" class="quick-action-card" aria-label="Launch Doom Viewer (Fenrir's Eye)">
-                    <span class="quick-action-icon" aria-hidden="true">&#x1F3AE;</span>
-                    <span class="quick-action-label">Doom Viewer</span>
-                </a>
-                <button class="quick-action-card" onclick="window.PacketFlowViz && window.PacketFlowViz.addDemoPacket()" aria-label="Send a demo packet through the flow visualization">
-                    <span class="quick-action-icon" aria-hidden="true">&#x1F3AF;</span>
-                    <span class="quick-action-label">Demo Packet</span>
-                </button>
+      <!-- Latency Tab -->
+      <div id="latency" class="tab-panel">
+        <div class="tab-content">
+          <div class="chart-area">
+            <canvas id="latencyChart" style="width: 100%; height: 100%;"></canvas>
+          </div>
+          <div class="stats-bar">
+            <div class="stat-item metric-card">
+              <div class="metric-label">P50 Latency</div>
+              <div class="metric-value" id="p50Latency">--</div>
             </div>
-        </section>
-    </main>
-
-    <footer role="contentinfo">
-        <div class="footer-content">
-            <div class="footer-brand">
-                <span class="footer-logo">&#x2694;&#xFE0F;&#x1F6E1;&#xFE0F;&#x1F3F0;</span>
-                <span class="footer-title">The Unheaded Kingdom</span>
+            <div class="stat-item metric-card">
+              <div class="metric-label">P95 Latency</div>
+              <div class="metric-value" id="p95Latency">--</div>
             </div>
-            <p class="footer-tagline">"Production-ready infrastructure in hours, not months."</p>
-            <div class="footer-meta">
-                <span class="version">v0.1.0-alpha</span>
-                <span class="separator">&bull;</span>
-                <span class="build-info">Built with eBPF + Go + NixOS</span>
-                <span class="separator">&bull;</span>
-                <span class="timestamp" id="footer-timestamp"></span>
+            <div class="stat-item metric-card">
+              <div class="metric-label">P99 Latency</div>
+              <div class="metric-value" id="p99Latency">--</div>
             </div>
-            <p class="footer-links">
-                <a href="https://github.com/unheaded/unheaded" target="_blank">GitHub</a>
-                <span class="separator">&bull;</span>
-                <a href="/api/v1/health" target="_blank">API</a>
-                <span class="separator">&bull;</span>
-                <a href="/kanban">Kanban</a>
-                <span class="separator">&bull;</span>
-                <a href="/wiki/">Wiki</a>
-            </p>
+            <div class="stat-item metric-card">
+              <div class="metric-label">Max Latency</div>
+              <div class="metric-value" id="maxLatency">--</div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- Doom Tab -->
+      <div id="doom" class="tab-panel">
+        <div class="tab-content">
+          <div class="doom-placeholder">
+            <div class="doom-label">eBPF Kernel Space Monitor</div>
+            <canvas id="doomCanvas" width="800" height="400" style="border: 1px solid var(--color-border); border-radius: 4px;"></canvas>
+            <div class="doom-label">DOOM running in BPF maps</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services Tab -->
+      <div id="services" class="tab-panel">
+        <div class="tab-content">
+          <div id="servicesContainer" class="services-grid">
+          </div>
+        </div>
+      </div>
+
+      <!-- Infrastructure Tab -->
+      <div id="infrastructure" class="tab-panel">
+        <div class="tab-content">
+          <div id="infrastructureContainer" class="infrastructure-grid">
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs Tab -->
+      <div id="logs" class="tab-panel">
+        <div class="tab-content">
+          <div class="log-filter">
+            <input type="search" id="logFilter" placeholder="Filter logs...">
+            <button class="btn">Clear</button>
+          </div>
+          <div class="log-stream" id="logStream">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-version">v0.1.0-alpha</div>
+      <div class="footer-links">
+        <a href="https://github.com/unheaded/unheaded" target="_blank">GitHub</a>
+        <a href="/docs">Documentation</a>
+        <a href="/status">Status</a>
+      </div>
     </footer>
+    <div class="footer-slogan">bellus perennis</div>
+  </main>
 
-    <div class="connection-status disconnected" id="connection-status" role="status" aria-live="polite" aria-label="WebSocket connection status">
-        <span class="connection-dot" aria-hidden="true"></span>
-        <span class="connection-status-text">Disconnected</span>
-        <span class="connection-status-latency"></span>
-    </div>
+  <script src="/dashboard/js/demo-data.js"></script>
+  <script>
+    window.DEMO_MODE = true;
 
-    <div class="toast-container" id="toast-container" role="log" aria-live="polite" aria-label="Notifications"></div>
+    function updateTime() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('currentTime').textContent = `${hours}:${minutes}:${seconds}`;
+    }
 
-    <!-- Core scripts -->
-    <script src="/js/particles.js"></script>
-    <script src="/js/packet-flow.js"></script>
-    <script src="/js/metrics.js"></script>
-    <script src="/js/doom-viewport.js"></script>
+    updateTime();
+    setInterval(updateTime, 1000);
 
-    <!-- Trace visualization scripts -->
-    <script src="/js/trace-viewer.js"></script>
-    <script src="/js/packet-flow-diagram.js"></script>
-    <script src="/js/latency-chart.js"></script>
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabName = btn.getAttribute('data-tab');
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+      });
+    });
 
-    <script>
-        // ================================================================
-        // Tab Navigation
-        // ================================================================
-        (function() {
-            'use strict';
-
-            var tabButtons = document.querySelectorAll('.tab-btn');
-            var tabPanels = document.querySelectorAll('.tab-panel');
-            var initialized = {};
-
-            function switchTab(tabId) {
-                // Deactivate all
-                for (var i = 0; i < tabButtons.length; i++) {
-                    tabButtons[i].classList.remove('active');
-                    tabButtons[i].setAttribute('aria-selected', 'false');
-                }
-                for (var j = 0; j < tabPanels.length; j++) {
-                    tabPanels[j].classList.remove('active');
-                    tabPanels[j].setAttribute('hidden', '');
-                }
-
-                // Activate selected
-                var btn = document.getElementById('tab-' + tabId);
-                var panel = document.getElementById('tab-panel-' + tabId);
-                if (btn) {
-                    btn.classList.add('active');
-                    btn.setAttribute('aria-selected', 'true');
-                }
-                if (panel) {
-                    panel.classList.add('active');
-                    panel.removeAttribute('hidden');
-                }
-
-                // Lazy-initialize components on first show
-                if (!initialized[tabId]) {
-                    initialized[tabId] = true;
-                    initTabContent(tabId);
-                }
-            }
-
-            function initTabContent(tabId) {
-                switch (tabId) {
-                    case 'trace-table':
-                        if (window.TraceViewer && !window.TraceViewer.isInitialized()) {
-                            window.TraceViewer.init('trace-viewer-container');
-                        }
-                        break;
-                    case 'latency':
-                        if (window.LatencyChart && !window.LatencyChart.isInitialized()) {
-                            window.LatencyChart.init('latency-chart-container');
-                        }
-                        break;
-                    case 'packet-flow':
-                        if (window.PacketFlowDiagram && !window.PacketFlowDiagram.isInitialized()) {
-                            window.PacketFlowDiagram.init('packet-flow-diagram-container');
-                        }
-                        break;
-                    case 'doom':
-                        // DoomViewport auto-initializes
-                        break;
-                }
-            }
-
-            // Bind tab click handlers
-            for (var k = 0; k < tabButtons.length; k++) {
-                tabButtons[k].addEventListener('click', function() {
-                    var tabId = this.getAttribute('data-tab');
-                    switchTab(tabId);
-                });
-            }
-
-            // Keyboard navigation (left/right arrow keys)
-            for (var m = 0; m < tabButtons.length; m++) {
-                tabButtons[m].addEventListener('keydown', function(e) {
-                    var btnArray = Array.prototype.slice.call(tabButtons);
-                    var idx = btnArray.indexOf(this);
-                    var newIdx = -1;
-
-                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        newIdx = (idx + 1) % btnArray.length;
-                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        newIdx = (idx - 1 + btnArray.length) % btnArray.length;
-                    } else if (e.key === 'Home') {
-                        e.preventDefault();
-                        newIdx = 0;
-                    } else if (e.key === 'End') {
-                        e.preventDefault();
-                        newIdx = btnArray.length - 1;
-                    }
-
-                    if (newIdx >= 0) {
-                        btnArray[newIdx].focus();
-                        btnArray[newIdx].click();
-                    }
-                });
-            }
-
-            // Initialize default tab's extra components
-            if (window.PacketFlowDiagram) {
-                window.PacketFlowDiagram.init('packet-flow-diagram-container');
-                initialized['packet-flow'] = true;
-            }
-        })();
-
-        // ================================================================
-        // WebSocket Bridge — Route trace messages to new components
-        // ================================================================
-        (function() {
-            'use strict';
-
-            var wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.hostname + ':8080/ws';
-            var ws = null;
-            var reconnectAttempts = 0;
-            var reconnectTimeout = null;
-            var maxReconnectDelay = 30000;
-            var baseDelay = 1000;
-            var multiplier = 1.5;
-
-            function connect() {
-                if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-                    return;
-                }
-
-                try {
-                    ws = new WebSocket(wsUrl);
-                } catch (e) {
-                    scheduleReconnect();
-                    return;
-                }
-
-                ws.onopen = function() {
-                    console.log('[TraceBridge] Connected');
-                    reconnectAttempts = 0;
-                };
-
-                ws.onmessage = function(event) {
-                    try {
-                        var msg = JSON.parse(event.data);
-                        routeMessage(msg);
-                    } catch (e) {
-                        // ignore parse errors
-                    }
-                };
-
-                ws.onclose = function(event) {
-                    ws = null;
-                    if (event.code !== 1000) {
-                        scheduleReconnect();
-                    }
-                };
-
-                ws.onerror = function() {
-                    // onclose will handle reconnect
-                };
-            }
-
-            function scheduleReconnect() {
-                if (reconnectTimeout) clearTimeout(reconnectTimeout);
-                var delay = Math.min(baseDelay * Math.pow(multiplier, reconnectAttempts), maxReconnectDelay);
-                reconnectAttempts++;
-                reconnectTimeout = setTimeout(connect, delay);
-            }
-
-            function routeMessage(msg) {
-                if (!msg || !msg.type) return;
-
-                switch (msg.type) {
-                    case 'trace':
-                        // Route trace events to TraceViewer and LatencyChart
-                        if (window.TraceViewer && window.TraceViewer.isInitialized()) {
-                            window.TraceViewer.addTrace(msg.data || msg);
-                        }
-                        if (window.LatencyChart && window.LatencyChart.isInitialized()) {
-                            var rtt = msg.data ? msg.data.rtt : msg.rtt;
-                            if (typeof rtt === 'number' && rtt > 0) {
-                                window.LatencyChart.addSample(rtt);
-                            }
-                        }
-                        if (window.PacketFlowDiagram && window.PacketFlowDiagram.isInitialized()) {
-                            var data = msg.data || msg;
-                            if (data.hops) {
-                                window.PacketFlowDiagram.processFlow(data);
-                            } else if (data.source && data.destination) {
-                                window.PacketFlowDiagram.addTraffic(data.source, data.destination, data.rtt || 0);
-                            }
-                        }
-                        break;
-
-                    case 'packet_flow':
-                        // Also route packet_flow events to new visualizations
-                        var flow = msg.data || msg;
-                        if (window.TraceViewer && window.TraceViewer.isInitialized() && flow.trace_id) {
-                            window.TraceViewer.addTrace(flow);
-                        }
-                        if (window.LatencyChart && window.LatencyChart.isInitialized() && flow.total_time) {
-                            window.LatencyChart.addSample(flow.total_time / 1e6);
-                        }
-                        if (window.PacketFlowDiagram && window.PacketFlowDiagram.isInitialized() && flow.hops) {
-                            window.PacketFlowDiagram.processFlow(flow);
-                        }
-                        break;
-
-                    case 'trace_update':
-                        // trace-collector updates
-                        var update = msg.update || msg.data;
-                        if (update && update.trace_id) {
-                            if (window.TraceViewer && window.TraceViewer.isInitialized()) {
-                                window.TraceViewer.addTrace({
-                                    trace_id: update.trace_id,
-                                    source: update.services && update.services[0] ? update.services[0] : 'unknown',
-                                    destination: update.services && update.services.length > 1 ? update.services[update.services.length - 1] : 'unknown',
-                                    protocol: (update.attributes && update.attributes.http_method) || 'HTTP',
-                                    rtt: (update.duration_ns || update.latency_ns || 0) / 1e6,
-                                    flow_state: update.status === 'error' ? 'error' : (update.is_complete ? 'complete' : 'active'),
-                                    status_code: update.status === 'error' ? 500 : 200,
-                                    method: (update.attributes && update.attributes.http_method) || '',
-                                    path: update.operation || ''
-                                });
-                            }
-                            if (window.LatencyChart && window.LatencyChart.isInitialized()) {
-                                var lat = (update.duration_ns || update.latency_ns || 0) / 1e6;
-                                if (lat > 0) window.LatencyChart.addSample(lat);
-                            }
-                        }
-                        break;
-                }
-            }
-
-            // Only connect the trace bridge if PacketFlowViz does not already handle it
-            // (avoid duplicate connections). We use a separate WS for trace routing.
-            connect();
-        })();
-
-        // ================================================================
-        // Existing dashboard initialization
-        // ================================================================
-
-        // Update footer timestamp
-        document.getElementById('footer-timestamp').textContent = new Date().toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.DEMO_MODE && window.DemoData) {
+        const tbody = document.getElementById('traceTableBody');
+        window.DemoData.traces.forEach(trace => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td><code>${trace.flowLabel}</code></td>
+            <td class="dim">${new Date(trace.timestamp).toLocaleTimeString()}</td>
+            <td>${trace.type}</td>
+            <td>${trace.kingdomMode}</td>
+            <td>${trace.latency}</td>
+            <td><button class="btn-ghost" style="cursor: pointer;">inspect</button></td>
+          `;
+          tbody.appendChild(row);
         });
 
-        // Sync connection status indicators
-        if (window.PacketFlowViz) {
-            window.PacketFlowViz.onStatusChange(function(status) {
-                var dot = document.getElementById('nav-connection-dot');
-                var text = document.getElementById('nav-connection-text');
-                var globalStatus = document.getElementById('connection-status');
-
-                if (dot) dot.className = 'nav-status-dot ' + status;
-                if (text) text.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-                if (globalStatus) globalStatus.className = 'connection-status ' + status;
-            });
+        const servicesContainer = document.getElementById('servicesContainer');
+        if (window.DemoData.services && window.DemoData.services.length > 0) {
+          servicesContainer.innerHTML = '';
+          window.DemoData.services.forEach(service => {
+            const card = document.createElement('div');
+            card.className = 'service-card';
+            card.innerHTML = `
+              <div class="service-header">
+                <div class="service-name">${service.name}</div>
+                <div class="service-health">${service.health}</div>
+              </div>
+              <div class="service-details">
+                <div class="service-detail">
+                  <span>Port</span>
+                  <span class="service-detail-value">${service.port}</span>
+                </div>
+                <div class="service-detail">
+                  <span>Protocol</span>
+                  <span class="service-detail-value">${service.protocol}</span>
+                </div>
+                <div class="service-detail">
+                  <span>Tier</span>
+                  <span class="service-detail-value">${service.tier}</span>
+                </div>
+              </div>
+            `;
+            servicesContainer.appendChild(card);
+          });
         }
 
-        // Mobile hamburger menu toggle
-        (function() {
-            var hamburger = document.getElementById('nav-hamburger');
-            var navLinks = document.querySelector('.nav-links');
-            if (hamburger && navLinks) {
-                hamburger.addEventListener('click', function() {
-                    var expanded = hamburger.getAttribute('aria-expanded') === 'true';
-                    hamburger.setAttribute('aria-expanded', String(!expanded));
-                    hamburger.classList.toggle('active');
-                    navLinks.classList.toggle('nav-open');
-                });
-            }
-        })();
+        const infContainer = document.getElementById('infrastructureContainer');
+        if (window.DemoData.services && window.DemoData.services.length > 0) {
+          infContainer.innerHTML = '';
+          window.DemoData.services.forEach((service, idx) => {
+            const card = document.createElement('div');
+            card.className = 'container-card';
+            const containerId = `container-${String(idx + 1).padStart(3, '0')}`;
+            card.innerHTML = `
+              <div class="container-header">
+                <div class="container-name">${containerId}</div>
+                <div class="container-status">running</div>
+              </div>
+              <div class="container-info">
+                <div>Image: ${service.protocol.toLowerCase()}:latest</div>
+                <div>Memory: ${Math.floor(Math.random() * 500 + 100)}MB</div>
+                <div>CPU: ${(Math.random() * 50).toFixed(1)}%</div>
+                <div>Uptime: ${Math.floor(Math.random() * 1000)}h</div>
+              </div>
+            `;
+            infContainer.appendChild(card);
+          });
+        }
 
-        // Toast notification helper
-        window.showToast = function(message, type) {
-            type = type || 'info';
-            var container = document.getElementById('toast-container');
-            if (!container) return;
+        const logStream = document.getElementById('logStream');
+        const logs = [
+          { text: '[INFO] Unheaded daemon started', level: 'info' },
+          { text: '[INFO] Loading kernel eBPF programs', level: 'info' },
+          { text: '[INFO] Attaching XDP hook on eth0', level: 'info' },
+          { text: '[DEBUG] Kingdom mode: IDLE', level: 'info' },
+          { text: '[INFO] WebSocket server listening on :8080', level: 'info' },
+          { text: '[INFO] Initial handshake with control plane', level: 'info' },
+          { text: '[DEBUG] Flow 0xa3f7e2 ingress packet received', level: 'info' },
+          { text: '[DEBUG] Latency sample: 142µs', level: 'info' },
+          { text: '[INFO] Active flows: 12', level: 'info' },
+          { text: '[DEBUG] Packet rate: 4521 pps', level: 'info' }
+        ];
+        logStream.innerHTML = logs.map(log =>
+          `<div class="log-line ${log.level}">${log.text}</div>`
+        ).join('');
 
-            var toast = document.createElement('div');
-            toast.className = 'toast ' + type;
-            toast.innerHTML = '<span class="toast-message">' + message + '</span><button class="toast-close" onclick="this.parentElement.remove()">&times;</button>';
-            container.appendChild(toast);
+        document.getElementById('activeFlows').textContent = window.DemoData.metrics?.activeFlows || '12';
+        document.getElementById('packetRate').textContent = (window.DemoData.metrics?.packetRate || 0).toLocaleString() + '/s';
 
-            setTimeout(function() {
-                if (toast.parentElement) toast.remove();
-            }, 5000);
-        };
-    </script>
+        setInterval(() => {
+          const flowCount = Math.floor(Math.random() * 20 + 5);
+          const pktRate = Math.floor(Math.random() * 10000 + 1000);
+          document.getElementById('activeFlows').textContent = flowCount;
+          document.getElementById('packetRate').textContent = pktRate.toLocaleString() + '/s';
+          document.getElementById('liveFlowCount').textContent = flowCount;
+          document.getElementById('livePacketRate').textContent = pktRate.toLocaleString();
+        }, 2000);
+
+        if (window.DemoData.metrics) {
+          document.getElementById('p50Latency').textContent = window.DemoData.metrics.p50 + 'µs';
+          document.getElementById('p95Latency').textContent = window.DemoData.metrics.p95 + 'µs';
+          document.getElementById('p99Latency').textContent = window.DemoData.metrics.p99 + 'µs';
+          document.getElementById('maxLatency').textContent = window.DemoData.metrics.max + 'µs';
+        }
+      }
+    });
+
+    function connectWebSocket() {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        ws.onopen = () => { console.log('WebSocket connected'); };
+        ws.onmessage = (event) => { console.log('Trace update:', JSON.parse(event.data)); };
+        ws.onerror = (error) => { console.error('WebSocket error:', error); };
+        ws.onclose = () => { console.log('Reconnecting...'); setTimeout(connectWebSocket, 3000); };
+      } catch (e) {
+        console.log('WebSocket not available, using demo mode');
+      }
+    }
+    connectWebSocket();
+  </script>
 </body>
 </html>

@@ -1,561 +1,509 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DOOM over IPv6 - Unheaded</title>
-<style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOOM — Unheaded BPF</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-body {
-    background: #000;
-    color: #aaa;
-    font-family: 'Courier New', monospace;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
-    overflow: hidden;
-}
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #0a0a0a;
+            color: #c9c9c9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
 
-#header {
-    text-align: center;
-    padding: 12px 0 8px 0;
-}
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
 
-#header h1 {
-    color: #c00;
-    font-size: 20px;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    text-shadow: 0 0 10px #600;
-}
+        h1 {
+            text-align: center;
+            margin-bottom: 5px;
+            font-size: 2em;
+            letter-spacing: 2px;
+        }
 
-#header .sub {
-    color: #666;
-    font-size: 11px;
-    margin-top: 2px;
-}
+        .subtitle {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            color: #888;
+        }
 
-#game-container {
-    position: relative;
-    border: 2px solid #333;
-    box-shadow: 0 0 20px rgba(200, 0, 0, 0.3);
-}
+        .viewer {
+            background-color: #1a1a1a;
+            border: 2px solid #444;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
 
-#doom-canvas {
-    display: block;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    cursor: crosshair;
-}
+        .screen-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 15px;
+            background-color: #000;
+            padding: 10px;
+            border: 1px solid #333;
+            border-radius: 2px;
+        }
 
-#overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.85);
-    pointer-events: none;
-    transition: opacity 0.3s;
-}
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            background-color: #000;
+        }
 
-#overlay.connected {
-    opacity: 0;
-}
+        .status {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
 
-#overlay .message {
-    color: #c00;
-    font-size: 18px;
-    text-align: center;
-    animation: pulse 1.5s infinite;
-}
+        .status-item {
+            padding: 10px;
+            background-color: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 2px;
+        }
 
-@keyframes pulse {
-    0%, 100% { opacity: 1.0; }
-    50% { opacity: 0.4; }
-}
+        .status-label {
+            color: #888;
+            margin-bottom: 5px;
+        }
 
-#stats-bar {
-    width: 960px;
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 12px;
-    background: #111;
-    border: 1px solid #333;
-    border-top: none;
-    font-size: 11px;
-}
+        .status-value {
+            color: #c9c9c9;
+            font-weight: bold;
+        }
 
-#stats-bar .stat {
-    color: #888;
-}
+        .fps-counter {
+            color: #4a9;
+        }
 
-#stats-bar .stat .val {
-    color: #0c0;
-    font-weight: bold;
-}
+        .connection-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
 
-#stats-bar .stat.warn .val {
-    color: #cc0;
-}
+        .connection-status.connected {
+            background-color: #4a9;
+            box-shadow: 0 0 5px #4a9;
+        }
 
-#stats-bar .stat.error .val {
-    color: #c00;
-}
+        .connection-status.disconnected {
+            background-color: #a44;
+            box-shadow: 0 0 5px #a44;
+        }
 
-#registers {
-    width: 960px;
-    padding: 6px 12px;
-    background: #0a0a0a;
-    border: 1px solid #222;
-    border-top: none;
-    font-size: 10px;
-    color: #555;
-    display: none;
-}
+        .connection-status.reconnecting {
+            background-color: #aa4;
+            box-shadow: 0 0 5px #aa4;
+        }
 
-#registers.visible {
-    display: block;
-}
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
 
-#registers .reg {
-    display: inline-block;
-    width: 112px;
-    margin: 1px 0;
-}
+        .info h3 {
+            margin-bottom: 10px;
+            color: #c9c9c9;
+        }
 
-#registers .reg .name {
-    color: #666;
-}
+        .key-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
 
-#registers .reg .val {
-    color: #0a0;
-}
+        .key-group {
+            background-color: #0a0a0a;
+            padding: 8px;
+            border-left: 2px solid #4a9;
+            border-radius: 2px;
+        }
 
-#controls {
-    width: 960px;
-    padding: 8px 12px;
-    font-size: 10px;
-    color: #444;
-    text-align: center;
-}
+        .key-group strong {
+            color: #4a9;
+            display: block;
+            margin-bottom: 5px;
+        }
 
-#controls kbd {
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 3px;
-    padding: 1px 5px;
-    color: #888;
-    font-family: inherit;
-}
-</style>
+        .key-binding {
+            margin: 3px 0;
+            font-size: 0.8em;
+        }
+
+        code {
+            background-color: #0a0a0a;
+            padding: 2px 4px;
+            border-radius: 2px;
+            color: #c9c9c9;
+        }
+
+        .error-message {
+            color: #a44;
+            padding: 10px;
+            background-color: #1a0a0a;
+            border: 1px solid #a44;
+            border-radius: 2px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h1>DOOM</h1>
+        <div class="subtitle">running in BPF maps via Monad CPU</div>
 
-<div id="header">
-    <h1>DOOM over IPv6</h1>
-    <div class="sub">BPF compute engine &mdash; Unheaded</div>
-</div>
+        <div class="viewer">
+            <div class="screen-wrapper">
+                <canvas id="doom-canvas" width="640" height="400"></canvas>
+            </div>
 
-<div id="game-container">
-    <canvas id="doom-canvas" width="960" height="600"></canvas>
-    <div id="overlay">
-        <div class="message" id="overlay-text">CONNECTING...</div>
+            <div class="status">
+                <div class="status-item">
+                    <div class="status-label">Connection</div>
+                    <div class="status-value">
+                        <span id="connection-indicator" class="connection-status disconnected"></span>
+                        <span id="connection-text">Disconnected</span>
+                    </div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Frames Per Second</div>
+                    <div class="status-value fps-counter" id="fps-counter">-- FPS</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Keys Sent</div>
+                    <div class="status-value" id="key-count">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Data Received</div>
+                    <div class="status-value" id="data-received">0 bytes</div>
+                </div>
+            </div>
+
+            <div id="error-message" class="error-message"></div>
+        </div>
+
+        <div class="info">
+            <h3>Key Bindings (Doom Internal Keycodes)</h3>
+            <div class="key-list">
+                <div class="key-group">
+                    <strong>Movement</strong>
+                    <div class="key-binding">↑ / W = Forward (0xAD)</div>
+                    <div class="key-binding">↓ / S = Back (0xAF)</div>
+                    <div class="key-binding">← / A = Strafe Left (0xAC)</div>
+                    <div class="key-binding">→ / D = Strafe Right (0xAE)</div>
+                </div>
+                <div class="key-group">
+                    <strong>Actions</strong>
+                    <div class="key-binding">Ctrl = Fire (0xA3)</div>
+                    <div class="key-binding">Space = Use (0xA2)</div>
+                    <div class="key-binding">Shift = Run (0xB6)</div>
+                    <div class="key-binding">Alt = Strafe (0xA4)</div>
+                </div>
+                <div class="key-group">
+                    <strong>Weapons</strong>
+                    <div class="key-binding">1–9 = Weapon Select</div>
+                    <div class="key-binding">0 = Deselect</div>
+                </div>
+                <div class="key-group">
+                    <strong>Other</strong>
+                    <div class="key-binding">Tab = Map</div>
+                    <div class="key-binding">Esc = Menu</div>
+                    <div class="key-binding">Enter = Accept</div>
+                </div>
+            </div>
+
+            <p style="margin-top: 15px; color: #888; font-size: 0.8em;">
+                This viewer sends keypresses to the Monad CPU's BPF KBD_MAP.
+                Screen updates are received via WebSocket from the DOOM CPU emulator.
+                Based on Doom internal keycode mapping (not IBM scan codes).
+            </p>
+        </div>
     </div>
-</div>
 
-<div id="stats-bar">
-    <span class="stat">FPS: <span class="val" id="stat-fps">0</span></span>
-    <span class="stat">Packets: <span class="val" id="stat-packets">0</span></span>
-    <span class="stat">CPU Ticks: <span class="val" id="stat-ticks">0</span></span>
-    <span class="stat">Insns: <span class="val" id="stat-insns">0</span></span>
-    <span class="stat">PC: <span class="val" id="stat-pc">0x0000</span></span>
-    <span class="stat" id="stat-halted-container">Halted: <span class="val" id="stat-halted">NO</span></span>
-    <span class="stat">Clients: <span class="val" id="stat-clients">1</span></span>
-</div>
+    <script>
+        // Doom internal keycodes (from i_input.c)
+        const KEY_MAP = {
+            // Movement (arrow keys and WASD aliases)
+            'ArrowUp': 0xAD,
+            'ArrowDown': 0xAF,
+            'ArrowLeft': 0xAC,
+            'ArrowRight': 0xAE,
+            'KeyW': 0xAD,
+            'KeyS': 0xAF,
+            'KeyA': 0xAC,
+            'KeyD': 0xAE,
 
-<div id="registers">
-    <!-- Populated by JS -->
-</div>
+            // Modifier keys (fire, use, run, strafe)
+            'ControlLeft': 0xA3,  // KEY_FIRE (was 0x9D in old IBM scan code — WRONG)
+            'ControlRight': 0xA3,
+            'Space': 0xA2,         // KEY_USE (was 0x20 ASCII — WRONG)
+            'ShiftLeft': 0xB6,     // KEY_RSHIFT (run)
+            'ShiftRight': 0xB6,
+            'AltLeft': 0xA4,       // KEY_STRAFE
+            'AltRight': 0xA4,
 
-<div id="controls">
-    Movement: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or Arrow Keys &nbsp;|&nbsp;
-    Fire: <kbd>Ctrl</kbd> &nbsp;|&nbsp;
-    Use: <kbd>Space</kbd> &nbsp;|&nbsp;
-    Run: <kbd>Shift</kbd> &nbsp;|&nbsp;
-    Weapons: <kbd>1</kbd>-<kbd>9</kbd> &nbsp;|&nbsp;
-    Menu: <kbd>Esc</kbd> &nbsp;|&nbsp;
-    <kbd>R</kbd> Toggle registers &nbsp;|&nbsp;
-    <kbd>Tab</kbd> Map
-</div>
+            // UI keys
+            'Escape': 27,
+            'Enter': 13,
+            'Tab': 9,
 
-<script>
-// ============================================================================
-// DOOM-over-IPv6 WebSocket Viewer
-// Renders 320x200 8-bit framebuffer from BPF SCREEN_MAP via doom-bridge.
-// ============================================================================
+            // Weapon select (1–9)
+            'Digit1': 0x31,
+            'Digit2': 0x32,
+            'Digit3': 0x33,
+            'Digit4': 0x34,
+            'Digit5': 0x35,
+            'Digit6': 0x36,
+            'Digit7': 0x37,
+            'Digit8': 0x38,
+            'Digit9': 0x39,
 
-(function() {
-    'use strict';
-
-    // --- Constants ---
-    const SCREEN_W = 320;
-    const SCREEN_H = 200;
-    const SCALE = 3;
-    const TAG_SCREEN = 0x01;
-    const TAG_KBD = 0x02;
-    const SCREEN_SIZE = SCREEN_W * SCREEN_H; // 64000
-
-    // --- Standard VGA/Doom 256-color palette ---
-    // This is the classic VGA palette used by Doom. Each entry is [R, G, B].
-    const VGA_PALETTE = buildDoomPalette();
-
-    function buildDoomPalette() {
-        const pal = new Uint8Array(256 * 3);
-        // The Doom palette (PLAYPAL lump, first palette).
-        // Encoded as a compact hex string for space efficiency.
-        const hex =
-            '0000001f170b170f074b4b4bffffff1b1b1b1313130b0b0b0707072f371f232b0f171f070f17004f3b2b4733233f2b1b' +
-            'ffb7b7f7ababf3a3a3eb9797e78f8fdf8787db7b7bd37373cb6b6bc76363bf5b5bbb5757b34f4faf4747a73f3fa33b3b' +
-            '9b3333972f2f8f2b2b8b2323831f1f7f1b1b7717177313136b0f0f670b0b5f07075b07075307074f0000470000430000' +
-            'ffebdfffe3d3ffdbc7ffd3bbffcfb3ffc7a7ffbf9bffbb93ffb383f7ab7befa373e79b6bdf9363d78b5bcf8353cb7f4f' +
-            'bf7b4bb37347ab6f43a36b3f9b633b8f5f378757337f532f774f2b6b47275f4323533f1f4b371b3f2f17332b132b230f' +
-            'efefefe7e7e7dfdfdfdbdbdbd3d3d3cbcbcbc7c7c7bfbfbfb7b7b7b3b3b3abababa7a7a79f9f9f9797979393938b8b8b' +
-            '8383837f7f7f7777776f6f6f6b6b6b6363635b5b5b5757574f4f4f4747474343433b3b3b3737372f2f2f272727232323' +
-            '77ff6f6fef6767df5f5fcf575bbf4f53af474b9f3f4393373f832f37732b2f632327531b1f431717330f13230b0b1707' +
-            'bfa78fb79f87af977fa78f779f876f9b7f6b937b638b735b836b577b634f775f4b6f574367533f5f4b37574333533f2f' +
-            '9f83638f7753836b4b775f3f6753335b472b4f3b2343331b7b7f636f7357676b4f5b634753573b474f333f472b373f27' +
-            'ffff73ebdb57d7bb43c39b2faf7b1f9b5b13874307732b00ffffffffdbdbffbbbbff9b9bff7b7bff5f5fff3f3fff1f1f' +
-            'ff0000ef0000e30000d70000cb0000bf0000b30000a700009b00008b00007f00007300006700005b00004f0000430000' +
-            'e7e7ffc7c7ffababff8f8fff7373ff5353ff3737ff1b1bff0000ff0000e30000cb0000b300009b00008300006b000053' +
-            'ffffffffebdbffd7bbffc79bffb37bffa35bff8f3bff7f1bf37317eb6f0fdf670fd75f0bcb5707c34f00b74700af4300' +
-            'ffffffffffd7ffffb3ffff8fffff6bffff47ffff23ffff00a73f009f3700932f008723004f3b27432f1b3723132f1b0b' +
-            '00005300004700003b00002f00002300001700000b000000ff9f43ffe74bff7bffff00ffcf00cf9f009b6f006ba76b6b';
-
-        // Parse hex palette. If the string is incomplete, fill remaining with
-        // a simple gradient so we always have 256 usable colors.
-        let idx = 0;
-        for (let i = 0; i < 256; i++) {
-            if (idx + 6 <= hex.length) {
-                pal[i * 3 + 0] = parseInt(hex.substr(idx, 2), 16);
-                pal[i * 3 + 1] = parseInt(hex.substr(idx + 2, 2), 16);
-                pal[i * 3 + 2] = parseInt(hex.substr(idx + 4, 2), 16);
-                idx += 6;
-            } else {
-                // Fallback: grayscale ramp
-                const v = i;
-                pal[i * 3 + 0] = v;
-                pal[i * 3 + 1] = v;
-                pal[i * 3 + 2] = v;
-            }
-        }
-        return pal;
-    }
-
-    // --- Doom key codes (doomkeys.h) ---
-    // Maps browser key names directly to Doom's internal key codes.
-    const KEY_MAP = {
-        // Arrow keys — Doom action codes (already correct)
-        'ArrowUp':    0xAD,  // KEY_UPARROW
-        'ArrowDown':  0xAF,  // KEY_DOWNARROW
-        'ArrowLeft':  0xAC,  // KEY_LEFTARROW
-        'ArrowRight': 0xAE,  // KEY_RIGHTARROW
-        'Enter':      13,    // KEY_ENTER
-        'Escape':     27,    // KEY_ESCAPE
-        'Tab':        9,     // KEY_TAB (automap)
-        'Backspace':  0x7F,  // KEY_BACKSPACE
-
-        // Action keys — must match Doom defaults from m_controls.c / doomkeys.h
-        ' ':          0xA2,  // KEY_USE (Doom's key_use = 0xA2, NOT ASCII 0x20)
-        'Control':    0xA3,  // KEY_FIRE (Doom's key_fire = 0xA3, NOT 0x9D KEY_RCTRL)
-        'Alt':        0xB8,  // KEY_RALT (strafe modifier)
-        'Shift':      0xB6,  // KEY_RSHIFT (run)
-
-        // WASD — map to Doom movement action codes
-        'w': 0xAD, 'W': 0xAD,  // KEY_UPARROW (forward)
-        'a': 0xA0, 'A': 0xA0,  // KEY_STRAFE_L
-        's': 0xAF, 'S': 0xAF,  // KEY_DOWNARROW (backward)
-        'd': 0xA1, 'D': 0xA1,  // KEY_STRAFE_R
-
-        // Number keys (weapons) — ASCII digits match key_weapon defaults
-        '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34, '5': 0x35,
-        '6': 0x36, '7': 0x37, '8': 0x38, '9': 0x39, '0': 0x30,
-
-        // Function keys — KEY_Fn = 0x80 + PC/AT scancode
-        'F1': 0xBB, 'F2': 0xBC, 'F3': 0xBD, 'F4': 0xBE,
-        'F5': 0xBF, 'F6': 0xC0, 'F7': 0xC1, 'F8': 0xC2,
-        'F9': 0xC3, 'F10': 0xC4, 'F11': 0xD7, 'F12': 0xD8,
-
-        // Y/N (for confirmation prompts) — ASCII
-        'y': 0x79, 'Y': 0x79,
-        'n': 0x6E, 'N': 0x6E,
-
-        // Minus and equals (screen size) — ASCII
-        '-': 0x2D, '=': 0x3D,
-    };
-
-    // --- State ---
-    let ws = null;
-    let canvas, ctx, imageData, pixelBuf, offCanvas, offCtx;
-    let frameCount = 0;
-    let lastFpsTime = performance.now();
-    let fpsFrameCount = 0;
-    let currentFps = 0;
-    let showRegisters = false;
-    let reconnectTimer = null;
-    let keysDown = new Set();
-
-    // --- DOM elements ---
-    const elOverlay = document.getElementById('overlay');
-    const elOverlayText = document.getElementById('overlay-text');
-    const elStatFps = document.getElementById('stat-fps');
-    const elStatPackets = document.getElementById('stat-packets');
-    const elStatTicks = document.getElementById('stat-ticks');
-    const elStatInsns = document.getElementById('stat-insns');
-    const elStatPc = document.getElementById('stat-pc');
-    const elStatHalted = document.getElementById('stat-halted');
-    const elStatHaltedC = document.getElementById('stat-halted-container');
-    const elRegisters = document.getElementById('registers');
-
-    // --- Initialize ---
-    function init() {
-        canvas = document.getElementById('doom-canvas');
-        ctx = canvas.getContext('2d');
-
-        // We draw at native resolution then the canvas CSS scales
-        // Actually, canvas is 960x600 and we scale each pixel 3x
-        offCanvas = document.createElement('canvas');
-        offCanvas.width = SCREEN_W;
-        offCanvas.height = SCREEN_H;
-        offCtx = offCanvas.getContext('2d');
-        imageData = offCtx.createImageData(SCREEN_W, SCREEN_H);
-        pixelBuf = imageData.data; // Uint8ClampedArray RGBA
-
-        // Pre-fill with black
-        for (let i = 0; i < pixelBuf.length; i += 4) {
-            pixelBuf[i + 0] = 0;
-            pixelBuf[i + 1] = 0;
-            pixelBuf[i + 2] = 0;
-            pixelBuf[i + 3] = 255;
-        }
-
-        // Build register display
-        let regHtml = '';
-        for (let i = 0; i < 16; i++) {
-            const name = i === 15 ? 'SP' : i === 14 ? 'LR' : 'r' + i;
-            regHtml += '<span class="reg"><span class="name">' + name +
-                       ':</span> <span class="val" id="reg-' + i + '">00000000</span></span> ';
-        }
-        elRegisters.innerHTML = regHtml;
-
-        connectWebSocket();
-        setupKeyboard();
-    }
-
-    // --- WebSocket ---
-    function connectWebSocket() {
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = protocol + '//' + location.host + '/ws';
-
-        elOverlayText.textContent = 'CONNECTING...';
-        elOverlay.classList.remove('connected');
-
-        ws = new WebSocket(wsUrl);
-        ws.binaryType = 'arraybuffer';
-
-        ws.onopen = function() {
-            elOverlay.classList.add('connected');
-            if (reconnectTimer) {
-                clearTimeout(reconnectTimer);
-                reconnectTimer = null;
-            }
+            // Special keys
+            'Digit0': 0x30,
+            'Pause': 0xFF,
+            'KeyR': 0x72,  // Reload
+            'KeyY': 0x79,  // Quick save yes
+            'KeyN': 0x6E,  // Quick load no
         };
 
-        ws.onmessage = function(evt) {
-            if (typeof evt.data === 'string') {
-                handleTextMessage(evt.data);
-            } else {
-                handleBinaryMessage(new Uint8Array(evt.data));
-            }
-        };
+        // Application state
+        let ws = null;
+        let canvas = null;
+        let ctx = null;
+        let frameCount = 0;
+        let lastFrameTime = Date.now();
+        let keySentCount = 0;
+        let dataReceivedBytes = 0;
+        let connectionState = 'disconnected'; // disconnected, connecting, connected
 
-        ws.onclose = function() {
-            elOverlayText.textContent = 'DISCONNECTED - RECONNECTING...';
-            elOverlay.classList.remove('connected');
-            scheduleReconnect();
-        };
+        // Initialize
+        function init() {
+            canvas = document.getElementById('doom-canvas');
+            ctx = canvas.getContext('2d');
 
-        ws.onerror = function() {
-            // onclose will fire after this
-        };
-    }
+            // Set canvas background to black
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    function scheduleReconnect() {
-        if (reconnectTimer) return;
-        reconnectTimer = setTimeout(function() {
-            reconnectTimer = null;
+            // Add text to canvas while disconnected
+            ctx.fillStyle = '#888';
+            ctx.font = '12px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText('Connecting to DOOM CPU...', canvas.width / 2, canvas.height / 2);
+
+            // Setup keyboard
+            document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keyup', handleKeyUp);
+
+            // Start FPS counter
+            setInterval(updateFPSCounter, 1000);
+
+            // Connect WebSocket
             connectWebSocket();
-        }, 2000);
-    }
-
-    // --- Message handlers ---
-    function handleBinaryMessage(data) {
-        if (data.length < 1) return;
-
-        const tag = data[0];
-        if (tag === TAG_SCREEN && data.length >= 1 + SCREEN_SIZE) {
-            renderScreen(data);
         }
-    }
 
-    function handleTextMessage(text) {
-        try {
-            const msg = JSON.parse(text);
-            if (msg.type === 'stats') {
-                updateStats(msg);
+        function connectWebSocket() {
+            if (connectionState === 'connecting') return;
+
+            connectionState = 'connecting';
+            updateConnectionStatus();
+
+            try {
+                ws = new WebSocket('ws://localhost:16666/ws');
+
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    connectionState = 'connected';
+                    updateConnectionStatus();
+                    clearErrorMessage();
+                };
+
+                ws.onmessage = (event) => {
+                    handleWebSocketMessage(event.data);
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    showErrorMessage('WebSocket connection error');
+                };
+
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    connectionState = 'disconnected';
+                    updateConnectionStatus();
+                    scheduleReconnect();
+                };
+            } catch (error) {
+                console.error('Failed to create WebSocket:', error);
+                showErrorMessage('Failed to connect: ' + error.message);
+                scheduleReconnect();
             }
-        } catch (e) {
-            // Ignore malformed JSON
-        }
-    }
-
-    // --- Screen rendering ---
-    function renderScreen(data) {
-        // data[0] = TAG_SCREEN, data[1..64001] = pixel indices
-        for (let i = 0; i < SCREEN_SIZE; i++) {
-            const palIdx = data[1 + i];
-            const pi = i * 4;       // RGBA pixel offset
-            const ci = palIdx * 3;  // Palette color offset
-
-            pixelBuf[pi + 0] = VGA_PALETTE[ci + 0]; // R
-            pixelBuf[pi + 1] = VGA_PALETTE[ci + 1]; // G
-            pixelBuf[pi + 2] = VGA_PALETTE[ci + 2]; // B
-            // Alpha stays 255
         }
 
-        // Draw at native 320x200, then scale up to display canvas
-        offCtx.putImageData(imageData, 0, 0);
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(offCanvas, 0, 0, 960, 600);
-
-        // Update FPS counter
-        fpsFrameCount++;
-        frameCount++;
-        const now = performance.now();
-        if (now - lastFpsTime >= 1000) {
-            currentFps = fpsFrameCount;
-            fpsFrameCount = 0;
-            lastFpsTime = now;
-            elStatFps.textContent = currentFps;
-        }
-    }
-
-    // --- Stats display ---
-    function updateStats(msg) {
-        elStatPackets.textContent = formatNumber(msg.packets);
-        elStatTicks.textContent = formatNumber(msg.ticks);
-        elStatInsns.textContent = formatNumber(msg.insns);
-        elStatPc.textContent = '0x' + (msg.pc >>> 0).toString(16).toUpperCase().padStart(4, '0');
-
-        if (msg.halted > 0) {
-            elStatHalted.textContent = 'YES';
-            elStatHaltedC.className = 'stat error';
-        } else {
-            elStatHalted.textContent = 'NO';
-            elStatHaltedC.className = 'stat';
-        }
-
-        // Update registers if visible
-        if (showRegisters && msg.regs) {
-            for (let i = 0; i < 16 && i < msg.regs.length; i++) {
-                const el = document.getElementById('reg-' + i);
-                if (el) {
-                    el.textContent = (msg.regs[i] >>> 0).toString(16).toUpperCase().padStart(8, '0');
+        function scheduleReconnect() {
+            setTimeout(() => {
+                if (connectionState === 'disconnected') {
+                    connectWebSocket();
                 }
+            }, 5000);
+        }
+
+        function updateConnectionStatus() {
+            const indicator = document.getElementById('connection-indicator');
+            const text = document.getElementById('connection-text');
+
+            indicator.classList.remove('connected', 'disconnected', 'reconnecting');
+
+            switch (connectionState) {
+                case 'connected':
+                    indicator.classList.add('connected');
+                    text.textContent = 'Connected';
+                    break;
+                case 'connecting':
+                    indicator.classList.add('reconnecting');
+                    text.textContent = 'Connecting...';
+                    break;
+                case 'disconnected':
+                    indicator.classList.add('disconnected');
+                    text.textContent = 'Disconnected';
+                    break;
             }
         }
-    }
 
-    function formatNumber(n) {
-        if (n === undefined || n === null) return '0';
-        if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
-        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-        if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-        return String(n);
-    }
+        function handleKeyDown(event) {
+            const code = KEY_MAP[event.code];
+            if (code !== undefined) {
+                event.preventDefault();
+                sendKey(code, true);
+            }
+        }
 
-    // --- Keyboard handling ---
-    function setupKeyboard() {
-        document.addEventListener('keydown', function(e) {
-            // Toggle register display with 'R' (without sending to BPF)
-            if (e.key === 'r' || e.key === 'R') {
-                if (!e.ctrlKey && !e.altKey) {
-                    showRegisters = !showRegisters;
-                    elRegisters.classList.toggle('visible', showRegisters);
+        function handleKeyUp(event) {
+            const code = KEY_MAP[event.code];
+            if (code !== undefined) {
+                event.preventDefault();
+                sendKey(code, false);
+            }
+        }
+
+        function sendKey(code, pressed) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = JSON.stringify({
+                    type: 'key',
+                    code: code,
+                    pressed: pressed
+                });
+                ws.send(message);
+                keySentCount++;
+                document.getElementById('key-count').textContent = keySentCount;
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            dataReceivedBytes += data.length;
+            updateDataReceivedDisplay();
+
+            // Try to parse as JSON for metadata
+            try {
+                const message = JSON.parse(data);
+                if (message.type === 'frame') {
+                    frameCount++;
                 }
+            } catch (e) {
+                // Binary frame data, just increment counter
+                frameCount++;
             }
 
-            // Prevent default for game keys
-            const scancode = KEY_MAP[e.key];
-            if (scancode !== undefined) {
-                e.preventDefault();
-
-                // Avoid key repeat
-                if (keysDown.has(scancode)) return;
-                keysDown.add(scancode);
-
-                sendKeyEvent(scancode, true);
+            // If it's binary screen data, render it
+            if (data instanceof ArrayBuffer || typeof data === 'string') {
+                renderFrame(data);
             }
-        });
+        }
 
-        document.addEventListener('keyup', function(e) {
-            const scancode = KEY_MAP[e.key];
-            if (scancode !== undefined) {
-                e.preventDefault();
-                keysDown.delete(scancode);
-                sendKeyEvent(scancode, false);
+        function renderFrame(data) {
+            // Placeholder for frame rendering
+            // In a real implementation, this would decode the frame data
+            // and render it to the canvas
+            if (ctx) {
+                // Draw a simple test pattern for now
+                ctx.fillStyle = '#111';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#4a9';
+                ctx.font = '14px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText('Frame ' + frameCount, canvas.width / 2, canvas.height / 2 - 10);
             }
-        });
+        }
 
-        // Clear keys on blur (when window loses focus)
-        window.addEventListener('blur', function() {
-            keysDown.forEach(function(scancode) {
-                sendKeyEvent(scancode, false);
-            });
-            keysDown.clear();
-        });
-    }
+        function updateFPSCounter() {
+            const now = Date.now();
+            const elapsed = (now - lastFrameTime) / 1000;
+            const fps = Math.round(frameCount / elapsed);
+            document.getElementById('fps-counter').textContent = fps + ' FPS';
+            frameCount = 0;
+            lastFrameTime = now;
+        }
 
-    function sendKeyEvent(scancode, pressed) {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        function updateDataReceivedDisplay() {
+            const bytes = dataReceivedBytes;
+            let display;
+            if (bytes < 1024) {
+                display = bytes + ' bytes';
+            } else if (bytes < 1024 * 1024) {
+                display = (bytes / 1024).toFixed(1) + ' KB';
+            } else {
+                display = (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            }
+            document.getElementById('data-received').textContent = display;
+        }
 
-        // Binary format: [TAG_KBD, scancode_lo, scancode_hi, pressed]
-        const buf = new ArrayBuffer(4);
-        const view = new DataView(buf);
-        view.setUint8(0, TAG_KBD);
-        view.setUint16(1, scancode, true); // little-endian
-        view.setUint8(3, pressed ? 1 : 0);
+        function showErrorMessage(message) {
+            const elem = document.getElementById('error-message');
+            elem.textContent = 'Error: ' + message;
+            elem.classList.add('show');
+        }
 
-        ws.send(buf);
-    }
+        function clearErrorMessage() {
+            document.getElementById('error-message').classList.remove('show');
+        }
 
-    // --- Start ---
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-
-})();
-</script>
+        // Start the application
+        window.addEventListener('load', init);
+    </script>
 </body>
 </html>

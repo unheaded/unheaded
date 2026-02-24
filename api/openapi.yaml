@@ -1,0 +1,1142 @@
+openapi: 3.0.3
+info:
+  title: Unheaded Protocol API
+  version: 0.1.0
+  description: |
+    RFC-compliant API for the Unheaded Protocol.
+
+    Provides encode/decode operations for Monad registers, Sophia dictionary access for flow optimization,
+    Wotan per-flow memory management, Anamnesis event queries and streaming, and flow lifecycle management.
+
+    All operations available in both:
+    - **Mock mode**: In-memory data structures, no BPF maps required (ideal for development/testing)
+    - **BPF mode**: Production mode with bare-metal eBPF map access at /sys/fs/bpf/unheaded
+
+    ## Authentication
+
+    If API key authentication is enabled (via --api-key flag), include the X-API-Key header:
+    ```
+    X-API-Key: your-secret-key
+    ```
+
+    ## Rate Limiting
+
+    Global rate limit: 1000 requests/second per endpoint. Responses with HTTP 429 indicate rate limit exceeded.
+
+    ## Protocol Details
+
+    - **Monad Register**: 20-byte wire format (18 bytes payload + 2 bytes CRC-16/CCITT-FALSE)
+    - **Kingdom Mode**: 2-bit state machine (IDLE=00, ACTIVE=01, CLOSING=10, CLOSED=11)
+    - **Flow Label**: 20-bit identifier in Monad register, encoded in IPv6 header
+    - **Sophia**: Dictionary-based flow optimization using BPF maps
+    - **Wotan**: Per-flow memory (40 bytes: 32 state + 8 sequence)
+    - **Anamnesis**: Event stream from eBPF to userspace
+
+  license:
+    name: MIT
+  contact:
+    name: Unheaded Protocol Team
+
+servers:
+  - url: http://localhost:17100
+    description: Local development server
+  - url: https://api.unheaded.local
+    description: Production server
+
+security:
+  - ApiKey: []
+
+paths:
+  /health:
+    get:
+      tags:
+        - System
+      operationId: getHealth
+      summary: Health check endpoint
+      description: Returns the current status, operational mode, and version of the API server
+      security: []
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ok"
+                mode: "mock"
+                version: "0.1.0"
+
+  /api/v1/monad/encode:
+    post:
+      tags:
+        - Monad
+      operationId: encodeMonad
+      summary: Encode structured fields into a 20-byte Monad register
+      description: |
+        Takes structured Monad fields and encodes them into a binary wire format.
+
+        Automatically computes CRC-16/CCITT-FALSE checksum over bytes 0-17,
+        storing the result in bytes 18-19 (big-endian).
+
+        **Field constraints:**
+        - flow_label: 0-0xFFFFF (20-bit mask)
+        - timestamp: 0-0xFFFFFFFFFF (40-bit unix milliseconds)
+        - sophia_dict_id: 0-0xFFFF (16-bit)
+        - wotan_sequence: 0-0xFFFF (16-bit)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncodeMonadRequest'
+            example:
+              flow_label: 74565
+              kingdom_mode: "ACTIVE"
+              timestamp: 1708790400000
+              source_address: "2001:db8::1"
+              dest_address: "2001:db8::2"
+              sophia_dict_id: 1
+              wotan_sequence: 100
+              reserved1: 0
+              reserved2: 0
+      responses:
+        '200':
+          description: Successfully encoded Monad register
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncodeMonadResponse'
+              example:
+                data: "AQIDBAUG0+ECAQAAAAEAAQAAEgg="
+                crc16: 4660
+                success: true
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized (invalid API key)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/monad/decode:
+    post:
+      tags:
+        - Monad
+      operationId: decodeMonad
+      summary: Decode a 20-byte Monad register into structured fields
+      description: |
+        Takes a raw 20-byte Monad register and decodes all fields.
+
+        Extracts:
+        - Flow label (20-bit)
+        - Kingdom Mode state (2-bit: K1|K0)
+        - Timestamp (40-bit unix milliseconds)
+        - IPv6 source/destination addresses
+        - Sophia dictionary ID (16-bit)
+        - Wotan sequence number (32-bit)
+        - CRC-16/CCITT-FALSE validation result
+
+        **Note:** Input must be exactly 20 bytes (base64-encoded in request)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecodeMonadRequest'
+            example:
+              data: "AQIDBAUG0+ECAQAAAAEAAQAAEgg="
+      responses:
+        '200':
+          description: Successfully decoded Monad register
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecodeMonadResponse'
+              example:
+                flow_label: 74565
+                kingdom_mode: "ACTIVE"
+                timestamp: 1708790400000
+                source_address: "2001:db8::1"
+                dest_address: "2001:db8::2"
+                sophia_dict_id: 1
+                wotan_sequence: 100
+                crc16: 4660
+                valid: true
+                crc_valid: true
+        '400':
+          description: Invalid input length or format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized (invalid API key)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/monad/validate:
+    post:
+      tags:
+        - Monad
+      operationId: validateMonad
+      summary: Validate CRC-16 checksum of a Monad register
+      description: |
+        Decodes a Monad register and validates its CRC-16/CCITT-FALSE checksum.
+
+        Returns the same output as /decode but only checking CRC validity.
+        Use this when you only care about CRC validation, not field extraction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecodeMonadRequest'
+      responses:
+        '200':
+          description: CRC validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecodeMonadResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/sophia/dictionaries:
+    get:
+      tags:
+        - Sophia
+      operationId: listDictionaries
+      summary: List all available Sophia dictionaries
+      description: |
+        Returns paginated list of Sophia dictionaries for flow optimization.
+
+        In **mock mode**: Returns 3 built-in dictionaries
+        - Protocol State Transitions
+        - IPv6 Flow Label Mappings
+        - Compression Algorithms
+
+        In **BPF mode**: Reads from /sys/fs/bpf/unheaded/sophia/maps/SOPHIA_MAP
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Maximum number of dictionaries to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: List of dictionaries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DictionaryListResponse'
+              example:
+                dictionaries:
+                  - id: 1
+                    name: "Protocol State Transitions"
+                    description: "Kingdom Mode state machine transitions"
+                    entry_count: 4
+                total: 3
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: BPF maps not available (BPF mode only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/sophia/dictionaries/{id}:
+    get:
+      tags:
+        - Sophia
+      operationId: getDictionary
+      summary: Get entries from a specific Sophia dictionary
+      description: |
+        Returns all key-value entries from a Sophia dictionary.
+
+        Dictionary IDs 1-3 are built-in in mock mode.
+        BPF mode dynamically loads from pinned maps.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: uint32
+          description: Dictionary ID
+      responses:
+        '200':
+          description: Dictionary with all entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DictionaryGetResponse'
+              example:
+                id: 1
+                name: "Protocol State Transitions"
+                description: "Kingdom Mode state machine transitions"
+                entries:
+                  - key: "IDLE_TO_ACTIVE"
+                    value: "AQI="
+                    created_at: 1708790400000
+                    updated_at: 1708790400000
+        '404':
+          description: Dictionary not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: BPF maps not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/wotan/read:
+    post:
+      tags:
+        - Wotan
+      operationId: wotanRead
+      summary: Read per-flow memory state
+      description: |
+        Reads 40-byte per-flow memory from Wotan storage.
+
+        Format: 32 bytes state data + 8 bytes sequence number
+
+        In **mock mode**: Returns empty or pre-seeded data
+        In **BPF mode**: Reads from /sys/fs/bpf/unheaded/wotan/ BPF map
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WotanReadRequest'
+            example:
+              flow_label: 74565
+      responses:
+        '200':
+          description: Memory slot data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WotanReadResponse'
+              example:
+                flow_label: 74565
+                state_data: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+                sequence_number: 1000
+                created_at: 1708790400000
+                updated_at: 1708790400000
+                found: true
+        '404':
+          description: Flow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/wotan/write:
+    post:
+      tags:
+        - Wotan
+      operationId: wotanWrite
+      summary: Write per-flow memory state
+      description: |
+        Writes 40-byte per-flow memory to Wotan storage.
+
+        Atomically updates the flow state and sequence number.
+
+        In **mock mode**: Updates in-memory storage
+        In **BPF mode**: Writes to pinned BPF map
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WotanWriteRequest'
+            example:
+              flow_label: 74565
+              state_data: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+              sequence_number: 1001
+      responses:
+        '200':
+          description: Write successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WotanWriteResponse'
+              example:
+                flow_label: 74565
+                success: true
+                written_at: 1708790401000
+        '400':
+          description: Invalid state data (must be 32 bytes)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: BPF maps not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/anamnesis/events:
+    get:
+      tags:
+        - Anamnesis
+      operationId: queryEvents
+      summary: Query event stream from eBPF
+      description: |
+        Queries the Anamnesis event stream with filtering options.
+
+        Events are protobuf-encoded records of:
+        - PACKET_RECEIVED / PACKET_SENT
+        - FLOW_CREATE / FLOW_UPDATE / FLOW_DESTROY
+        - ERROR events
+
+        Supports filtering by:
+        - Time range (unix milliseconds)
+        - Flow labels
+        - Event types
+      parameters:
+        - name: start_time
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Start time (unix milliseconds)
+        - name: end_time
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: End time (unix milliseconds)
+        - name: flow_labels
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+          description: Filter by specific flow labels
+        - name: event_types
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - PACKET_RECEIVED
+                - PACKET_SENT
+                - FLOW_CREATE
+                - FLOW_UPDATE
+                - FLOW_DESTROY
+                - ERROR
+          description: Filter by event types
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+          description: Maximum events to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: Event query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventQueryResponse'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/flows:
+    get:
+      tags:
+        - Flow Management
+      operationId: listFlows
+      summary: List all active flows
+      description: |
+        Returns a list of all active flows with their current state.
+
+        Each flow includes:
+        - Flow label (20-bit)
+        - Kingdom Mode state
+        - Sophia dictionary association
+        - Wotan sequence number
+        - IPv6 source and destination addresses
+        - Timestamps (created, updated, last packet)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of active flows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/flows/{label}/inject:
+    post:
+      tags:
+        - Flow Management
+      operationId: injectPacket
+      summary: Inject a packet into a specific flow
+      description: |
+        Injects a payload packet into an existing or new flow.
+
+        Creates the flow if it doesn't exist, then queues the packet
+        for transmission with the specified Kingdom Mode and Sophia dictionary.
+
+        The payload is the raw packet body to be transmitted.
+      parameters:
+        - name: label
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: uint32
+          description: Flow label (20-bit)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InjectPacketRequest'
+            example:
+              payload: "SGVsbG8gV29ybGQ="
+              kingdom_mode: "ACTIVE"
+              sophia_dict_id: 1
+      responses:
+        '200':
+          description: Packet injected successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InjectPacketResponse'
+              example:
+                packet_id: "pkt_74565_001"
+                injected_at: 1708790401000
+                success: true
+        '400':
+          description: Invalid flow label or payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - mode
+        - version
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, error]
+          description: Server health status
+        mode:
+          type: string
+          enum: [mock, bpf]
+          description: Operational mode
+        version:
+          type: string
+          description: API version
+
+    KingdomMode:
+      type: string
+      enum:
+        - IDLE
+        - ACTIVE
+        - CLOSING
+        - CLOSED
+      description: |
+        2-bit Kingdom Mode state machine
+        - IDLE (00): No active flow
+        - ACTIVE (01): Flow is active and processing
+        - CLOSING (10): Flow is closing, no new packets
+        - CLOSED (11): Flow is closed
+
+    EncodeMonadRequest:
+      type: object
+      required:
+        - flow_label
+        - kingdom_mode
+        - timestamp
+        - sophia_dict_id
+        - wotan_sequence
+      properties:
+        flow_label:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 1048575
+          description: 20-bit flow identifier
+        kingdom_mode:
+          $ref: '#/components/schemas/KingdomMode'
+        timestamp:
+          type: integer
+          format: uint64
+          description: Unix milliseconds (40-bit)
+        source_address:
+          type: string
+          format: ipv6
+          description: IPv6 source address (optional)
+        dest_address:
+          type: string
+          format: ipv6
+          description: IPv6 destination address (optional)
+        sophia_dict_id:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 65535
+          description: 16-bit Sophia dictionary ID
+        wotan_sequence:
+          type: integer
+          format: uint32
+          minimum: 0
+          description: Wotan sequence number
+        reserved1:
+          type: integer
+          format: uint32
+          default: 0
+          description: Reserved field 1
+        reserved2:
+          type: integer
+          format: uint32
+          default: 0
+          description: Reserved field 2
+
+    EncodeMonadResponse:
+      type: object
+      required:
+        - data
+        - crc16
+        - success
+      properties:
+        data:
+          type: string
+          format: byte
+          description: 20-byte Monad register (base64-encoded)
+        crc16:
+          type: integer
+          format: uint32
+          description: CRC-16/CCITT-FALSE checksum
+        success:
+          type: boolean
+          description: Encoding success status
+        error_message:
+          type: string
+          description: Error message if encoding failed
+
+    DecodeMonadRequest:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: string
+          format: byte
+          description: 20-byte Monad register (base64-encoded)
+
+    DecodeMonadResponse:
+      type: object
+      required:
+        - flow_label
+        - kingdom_mode
+        - timestamp
+        - sophia_dict_id
+        - wotan_sequence
+        - valid
+        - crc_valid
+      properties:
+        flow_label:
+          type: integer
+          format: uint32
+          description: Decoded 20-bit flow label
+        kingdom_mode:
+          $ref: '#/components/schemas/KingdomMode'
+        timestamp:
+          type: integer
+          format: uint64
+          description: Decoded timestamp (unix milliseconds)
+        source_address:
+          type: string
+          format: ipv6
+          description: IPv6 source address
+        dest_address:
+          type: string
+          format: ipv6
+          description: IPv6 destination address
+        sophia_dict_id:
+          type: integer
+          format: uint32
+          description: Sophia dictionary ID
+        wotan_sequence:
+          type: integer
+          format: uint32
+          description: Wotan sequence number
+        crc16:
+          type: integer
+          format: uint32
+          description: CRC-16 from register
+        valid:
+          type: boolean
+          description: Overall validity (CRC valid and fields consistent)
+        crc_valid:
+          type: boolean
+          description: CRC-16 checksum valid
+        error_message:
+          type: string
+          description: Error details if invalid
+
+    DictionaryEntry:
+      type: object
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+          description: Dictionary entry key
+        value:
+          type: string
+          format: byte
+          description: Entry value (base64-encoded)
+        created_at:
+          type: integer
+          format: uint64
+          description: Creation timestamp (unix milliseconds)
+        updated_at:
+          type: integer
+          format: uint64
+          description: Last update timestamp
+
+    Dictionary:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - entries
+      properties:
+        id:
+          type: integer
+          format: uint32
+          description: Dictionary ID
+        name:
+          type: string
+          description: Dictionary name
+        description:
+          type: string
+          description: Dictionary description
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/DictionaryEntry'
+        created_at:
+          type: integer
+          format: uint64
+          description: Creation timestamp
+        entry_count:
+          type: integer
+          description: Number of entries
+
+    DictionaryListResponse:
+      type: object
+      properties:
+        dictionaries:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dictionary'
+        total:
+          type: integer
+          description: Total dictionary count
+
+    DictionaryGetResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: uint32
+        name:
+          type: string
+        description:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/DictionaryEntry'
+        found:
+          type: boolean
+
+    MemorySlot:
+      type: object
+      required:
+        - flow_label
+        - state_data
+        - sequence_number
+      properties:
+        flow_label:
+          type: integer
+          format: uint32
+          description: Flow label
+        state_data:
+          type: string
+          format: byte
+          description: 32 bytes of state data (base64)
+        sequence_number:
+          type: integer
+          format: uint64
+          description: 8-byte sequence number
+        created_at:
+          type: integer
+          format: uint64
+        updated_at:
+          type: integer
+          format: uint64
+
+    WotanReadRequest:
+      type: object
+      required:
+        - flow_label
+      properties:
+        flow_label:
+          type: integer
+          format: uint32
+          description: Flow label to read
+
+    WotanReadResponse:
+      type: object
+      properties:
+        flow_label:
+          type: integer
+          format: uint32
+        state_data:
+          type: string
+          format: byte
+          description: 32 bytes state data
+        sequence_number:
+          type: integer
+          format: uint64
+        created_at:
+          type: integer
+          format: uint64
+        updated_at:
+          type: integer
+          format: uint64
+        found:
+          type: boolean
+        error_message:
+          type: string
+
+    WotanWriteRequest:
+      type: object
+      required:
+        - flow_label
+        - state_data
+      properties:
+        flow_label:
+          type: integer
+          format: uint32
+        state_data:
+          type: string
+          format: byte
+          description: 32 bytes state data (base64)
+        sequence_number:
+          type: integer
+          format: uint64
+          description: Update sequence number
+
+    WotanWriteResponse:
+      type: object
+      properties:
+        flow_label:
+          type: integer
+          format: uint32
+        success:
+          type: boolean
+        error_message:
+          type: string
+        written_at:
+          type: integer
+          format: uint64
+
+    Event:
+      type: object
+      required:
+        - type
+        - flow_label
+        - timestamp
+      properties:
+        type:
+          type: string
+          enum:
+            - PACKET_RECEIVED
+            - PACKET_SENT
+            - FLOW_CREATE
+            - FLOW_UPDATE
+            - FLOW_DESTROY
+            - ERROR
+          description: Event type
+        flow_label:
+          type: integer
+          format: uint32
+        timestamp:
+          type: integer
+          format: uint64
+          description: Unix milliseconds
+        payload:
+          type: string
+          format: byte
+          description: Event payload (base64)
+        source:
+          type: string
+          description: Event source (kernel/userspace)
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    EventQueryResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        total_count:
+          type: integer
+          format: uint64
+        error_message:
+          type: string
+
+    FlowState:
+      type: object
+      required:
+        - flow_label
+        - kingdom_mode
+      properties:
+        flow_label:
+          type: integer
+          format: uint32
+        kingdom_mode:
+          $ref: '#/components/schemas/KingdomMode'
+        sophia_dict_id:
+          type: integer
+          format: uint32
+        wotan_sequence:
+          type: integer
+          format: uint32
+        source_address:
+          type: string
+          format: ipv6
+        dest_address:
+          type: string
+          format: ipv6
+        created_at:
+          type: integer
+          format: uint64
+        updated_at:
+          type: integer
+          format: uint64
+        last_packet_at:
+          type: integer
+          format: uint64
+
+    FlowListResponse:
+      type: object
+      properties:
+        flows:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowState'
+        total:
+          type: integer
+        error_message:
+          type: string
+
+    InjectPacketRequest:
+      type: object
+      required:
+        - payload
+      properties:
+        payload:
+          type: string
+          format: byte
+          description: Packet payload (base64)
+        kingdom_mode:
+          $ref: '#/components/schemas/KingdomMode'
+          default: ACTIVE
+        sophia_dict_id:
+          type: integer
+          format: uint32
+          default: 0
+
+    InjectPacketResponse:
+      type: object
+      required:
+        - packet_id
+        - injected_at
+        - success
+      properties:
+        packet_id:
+          type: string
+          description: Unique packet identifier
+        injected_at:
+          type: integer
+          format: uint64
+          description: Injection timestamp (unix milliseconds)
+        success:
+          type: boolean
+        error_message:
+          type: string
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: HTTP status code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional error details
+
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key for authentication (if enabled on server)
+
+tags:
+  - name: System
+    description: System health and status
+  - name: Monad
+    description: Monad register encoding/decoding operations
+  - name: Sophia
+    description: Sophia dictionary access for flow optimization
+  - name: Wotan
+    description: Wotan per-flow memory management
+  - name: Anamnesis
+    description: Anamnesis event stream queries
+  - name: Flow Management
+    description: Flow lifecycle and packet injection
