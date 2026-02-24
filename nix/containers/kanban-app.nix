@@ -8,7 +8,7 @@
   #
   # App: Kanban board displaying timeline from timeguru
   # IP: 10.10.10.200
-  # Ports: 8080 (HTTP), 9100 (metrics)
+  # Ports: 20001 (HTTP), 9100 (metrics)
   # Public: Yes (via gateway)
   # =============================================================================
 
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/kanban-app"
       "/var/log/unheaded/kanban-app"
     ];
-    allowedPorts = [ 8080 9100 ];
+    allowedPorts = [ 20001 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.200";
-    servicePort = 8080;
+    servicePort = 20001;
     allowDirectAccess = true;          # Gateway routes public traffic
   };
 
@@ -59,8 +59,8 @@
       WorkingDirectory = "/var/lib/unheaded/kanban-app";
 
       Environment = [
-        "KANBAN_ADDR=0.0.0.0:8080"
-        "KANBAN_TIMEGURU_URL=http://10.10.10.20:8000"
+        "KANBAN_ADDR=0.0.0.0:20001"
+        "KANBAN_TIMEGURU_URL=http://10.10.10.20:19000"
         "KANBAN_PUBLIC=true"
       ];
 

@@ -38,16 +38,16 @@ type TestContainer struct {
 }
 
 var testContainers = []TestContainer{
-	{Name: "wotan", IP: "10.10.10.10", Port: 8080, DependsOn: []string{}},
-	{Name: "timeguru", IP: "10.10.10.20", Port: 8000, DependsOn: []string{"wotan"}},
-	{Name: "captain", IP: "10.10.10.21", Port: 8001, DependsOn: []string{"wotan"}},
-	{Name: "micromanager", IP: "10.10.10.22", Port: 8002, DependsOn: []string{"wotan"}},
-	{Name: "architect", IP: "10.10.10.23", Port: 8003, DependsOn: []string{"wotan"}},
-	{Name: "developer", IP: "10.10.10.24", Port: 8004, DependsOn: []string{"wotan"}},
-	{Name: "monad", IP: "10.10.10.25", Port: 8004, DependsOn: []string{"wotan"}},
-	{Name: "sophia", IP: "10.10.10.26", Port: 8005, DependsOn: []string{"wotan"}},
-	{Name: "kanban", IP: "10.10.10.200", Port: 8080, DependsOn: []string{"timeguru"}},
-	{Name: "dashboard", IP: "10.10.10.201", Port: 8081, DependsOn: []string{"wotan"}},
+	{Name: "wotan", IP: "10.10.10.10", Port: 18000, DependsOn: []string{}},
+	{Name: "timeguru", IP: "10.10.10.20", Port: 19000, DependsOn: []string{"wotan"}},
+	{Name: "captain", IP: "10.10.10.21", Port: 19002, DependsOn: []string{"wotan"}},
+	{Name: "micromanager", IP: "10.10.10.22", Port: 19003, DependsOn: []string{"wotan"}},
+	{Name: "architect", IP: "10.10.10.23", Port: 19001, DependsOn: []string{"wotan"}},
+	{Name: "developer", IP: "10.10.10.24", Port: 19004, DependsOn: []string{"wotan"}},
+	{Name: "monad", IP: "10.10.10.25", Port: 19004, DependsOn: []string{"wotan"}},
+	{Name: "sophia", IP: "10.10.10.26", Port: 19005, DependsOn: []string{"wotan"}},
+	{Name: "kanban", IP: "10.10.10.200", Port: 20001, DependsOn: []string{"timeguru"}},
+	{Name: "dashboard", IP: "10.10.10.201", Port: 20000, DependsOn: []string{"wotan"}},
 }
 
 // ==============================================================================
@@ -351,7 +351,7 @@ func TestNetwork_ContainerCanReachWotan(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	wotanURL := "http://10.10.10.10:8080/health"
+	wotanURL := "http://10.10.10.10:18000/health"
 
 	for _, c := range testContainers {
 		if c.Name == "wotan" {

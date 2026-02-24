@@ -21,9 +21,9 @@
     "args": ["/app/monad"],
     "env": [
       "SERVICE_NAME=monad",
-      "MONAD_ADDR=0.0.0.0:8004",
-      "WOTAN_ADDR=10.10.10.10:9090",
-      "WOTAN_HTTP_ADDR=http://10.10.10.10:8080",
+      "MONAD_ADDR=0.0.0.0:19004",
+      "WOTAN_ADDR=10.10.10.10:18001",
+      "WOTAN_HTTP_ADDR=http://10.10.10.10:18000",
       "LOG_LEVEL=info",
       "METRICS_ADDR=0.0.0.0:9100",
       "GOGC=100",
@@ -86,11 +86,11 @@
     ]
   },
   "annotations": {
-    "io.unheaded.healthcheck.cmd": "wget -qO- http://localhost:8004/health || exit 1",
+    "io.unheaded.healthcheck.cmd": "wget -qO- http://localhost:19004/health || exit 1",
     "io.unheaded.healthcheck.interval": "30s",
     "io.unheaded.healthcheck.timeout": "5s",
     "io.unheaded.healthcheck.retries": "3",
-    "io.unheaded.ports": "8004/tcp,9100/tcp",
+    "io.unheaded.ports": "19004/tcp,9100/tcp",
     "io.unheaded.network.ip": "10.10.10.27",
     "io.unheaded.network.bridge": "br-unheaded",
     "io.unheaded.restart.policy": "always",

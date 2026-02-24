@@ -12,16 +12,16 @@
   # Ports: 80 (HTTP redirect), 443 (HTTPS/HTTP3)
   #
   # Proxies to:
-  #   - Wotan (10.10.10.10:9090) - Message bus gRPC
-  #   - Timeguru (10.10.10.20:8000) - Timeline API
-  #   - Captain (10.10.10.21:8001) - Captain service
-  #   - Micromanager (10.10.10.22:8002) - Micromanager service
-  #   - Architect (10.10.10.23:8003) - Architect service
-  #   - Monad (10.10.10.27:8006) - Monad service
-  #   - Sophia (10.10.10.26:8007) - Sophia service
-  #   - Kanban (10.10.10.200:8080) - Kanban application
-  #   - Dashboard (10.10.10.201:8081) - Dashboard application
-  #   - Cuirass (10.10.10.5:8005) - Control plane API
+  #   - Wotan (10.10.10.10:18001) - Message bus gRPC
+  #   - Timeguru (10.10.10.20:19000) - Timeline API
+  #   - Captain (10.10.10.21:19002) - Captain service
+  #   - Micromanager (10.10.10.22:19003) - Micromanager service
+  #   - Architect (10.10.10.23:19001) - Architect service
+  #   - Monad (10.10.10.27:19004) - Monad service
+  #   - Sophia (10.10.10.26:19005) - Sophia service
+  #   - Kanban (10.10.10.200:20001) - Kanban application
+  #   - Dashboard (10.10.10.201:20000) - Dashboard application
+  #   - Cuirass (10.10.10.5:19006) - Control plane API
   # =============================================================================
 
   imports = [
@@ -88,17 +88,17 @@
     enable = true;
     serviceName = "gateway";
     dependencies = [
-      { name = "wotan"; ip = "10.10.10.10"; port = 8080; path = "/health"; }
-      { name = "timeguru"; ip = "10.10.10.20"; port = 8000; path = "/health"; }
-      { name = "captain"; ip = "10.10.10.21"; port = 8001; path = "/health"; }
-      { name = "micromanager"; ip = "10.10.10.22"; port = 8002; path = "/health"; }
-      { name = "architect"; ip = "10.10.10.23"; port = 8003; path = "/health"; }
-      { name = "monad"; ip = "10.10.10.27"; port = 8006; path = "/health"; }
-      { name = "sophia"; ip = "10.10.10.26"; port = 8007; path = "/health"; }
-      { name = "kanban"; ip = "10.10.10.200"; port = 8080; path = "/health"; }
-      { name = "dashboard"; ip = "10.10.10.201"; port = 8081; path = "/health"; }
-      { name = "cuirass"; ip = "10.10.10.5"; port = 8005; path = "/health"; }
-      { name = "doom-bridge"; ip = "10.10.10.28"; port = 6660; path = "/health"; }
+      { name = "wotan"; ip = "10.10.10.10"; port = 18000; path = "/health"; }
+      { name = "timeguru"; ip = "10.10.10.20"; port = 19000; path = "/health"; }
+      { name = "captain"; ip = "10.10.10.21"; port = 19002; path = "/health"; }
+      { name = "micromanager"; ip = "10.10.10.22"; port = 19003; path = "/health"; }
+      { name = "architect"; ip = "10.10.10.23"; port = 19001; path = "/health"; }
+      { name = "monad"; ip = "10.10.10.27"; port = 19004; path = "/health"; }
+      { name = "sophia"; ip = "10.10.10.26"; port = 19005; path = "/health"; }
+      { name = "kanban"; ip = "10.10.10.200"; port = 20001; path = "/health"; }
+      { name = "dashboard"; ip = "10.10.10.201"; port = 20000; path = "/health"; }
+      { name = "cuirass"; ip = "10.10.10.5"; port = 19006; path = "/health"; }
+      { name = "doom-bridge"; ip = "10.10.10.28"; port = 16666; path = "/health"; }
     ];
     checkInterval = "30s";
     checkTimeout = 5;
@@ -180,57 +180,57 @@
       # =======================
       # All active services in the Unheaded platform
       upstream wotan_backend {
-        server 10.10.10.10:9090;
+        server 10.10.10.10:18001;
         keepalive 32;
       }
 
       upstream timeguru_backend {
-        server 10.10.10.20:8000;
+        server 10.10.10.20:19000;
         keepalive 32;
       }
 
       upstream captain_backend {
-        server 10.10.10.21:8001;
+        server 10.10.10.21:19002;
         keepalive 32;
       }
 
       upstream micromanager_backend {
-        server 10.10.10.22:8002;
+        server 10.10.10.22:19003;
         keepalive 32;
       }
 
       upstream architect_backend {
-        server 10.10.10.23:8003;
+        server 10.10.10.23:19001;
         keepalive 32;
       }
 
       upstream monad_backend {
-        server 10.10.10.27:8006;
+        server 10.10.10.27:19004;
         keepalive 32;
       }
 
       upstream sophia_backend {
-        server 10.10.10.26:8007;
+        server 10.10.10.26:19005;
         keepalive 32;
       }
 
       upstream kanban_backend {
-        server 10.10.10.200:8080;
+        server 10.10.10.200:20001;
         keepalive 32;
       }
 
       upstream dashboard_backend {
-        server 10.10.10.201:8081;
+        server 10.10.10.201:20000;
         keepalive 32;
       }
 
       upstream cuirass_backend {
-        server 10.10.10.5:8005;
+        server 10.10.10.5:19006;
         keepalive 32;
       }
 
       upstream doom_bridge_backend {
-        server 10.10.10.28:6660;
+        server 10.10.10.28:16666;
         keepalive 32;
       }
 

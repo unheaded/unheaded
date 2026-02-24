@@ -8,7 +8,7 @@
   #
   # Service: Execution API (REST + Wotan)
   # IP: 10.10.10.22
-  # Ports: 8002 (HTTP), 9100 (metrics)
+  # Ports: 19003 (HTTP), 9100 (metrics)
   # =============================================================================
 
   imports = [
@@ -26,13 +26,13 @@
       "/var/lib/unheaded/micromanager"
       "/var/log/unheaded/micromanager"
     ];
-    allowedPorts = [ 8002 9100 ];
+    allowedPorts = [ 19003 9100 ];
   };
 
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.22";
-    servicePort = 8002;
+    servicePort = 19003;
     allowDirectAccess = true;
   };
 
@@ -55,7 +55,7 @@
       ExecStart = "${pkgs.micromanager}/bin/micromanager";
       WorkingDirectory = "/opt/unheaded/references";
       Environment = [
-        "MICROMANAGER_ADDR=0.0.0.0:8002"
+        "MICROMANAGER_ADDR=0.0.0.0:19003"
       ];
       Restart = "always";
       RestartSec = "5s";

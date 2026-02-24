@@ -4,7 +4,7 @@
 # Unheaded building Unheaded. Kanban board displaying timeline from timeguru.
 #
 # IP:    10.10.10.200
-# Ports: 8080 (HTTP), 9100 (metrics)
+# Ports: 20001 (HTTP), 9100 (metrics)
 # Role:  Application (public via gateway)
 # =============================================================================
 
@@ -51,11 +51,11 @@ write_files:
       ExecStart=/opt/unheaded/bin/kanban-app
       WorkingDirectory=/var/lib/unheaded/kanban
       Environment=SERVICE_NAME=kanban-app
-      Environment=KANBAN_ADDR=0.0.0.0:8080
-      Environment=KANBAN_TIMEGURU_URL=http://10.10.10.20:8000
+      Environment=KANBAN_ADDR=0.0.0.0:20001
+      Environment=KANBAN_TIMEGURU_URL=http://10.10.10.20:19000
       Environment=KANBAN_PUBLIC=true
-      Environment=WOTAN_ADDR=10.10.10.10:9090
-      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:8080
+      Environment=WOTAN_ADDR=10.10.10.10:18001
+      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:18000
       Environment=LOG_LEVEL=info
       Environment=METRICS_ADDR=0.0.0.0:9100
       Environment=GOGC=100
@@ -85,7 +85,7 @@ write_files:
     content: |
       #!/bin/bash
       set -euo pipefail
-      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:8080/health > /dev/null 2>&1
+      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:20001/health > /dev/null 2>&1
     permissions: "0755"
 
 runcmd:
@@ -97,7 +97,7 @@ runcmd:
     ufw --force reset
     ufw default deny incoming
     ufw default allow outgoing
-    ufw allow from 10.10.10.0/24 to any port 8080 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 20001 proto tcp
     ufw allow from 10.10.10.0/24 to any port 9100 proto tcp
     ufw --force enable
   - systemctl daemon-reload

@@ -45,7 +45,7 @@ clean:
 
 # Development
 dev:
-	go run ./cmd -addr :8001 -wotan localhost:9090 -log debug -mock-wotan
+	go run ./cmd -addr :19001 -wotan localhost:18001 -log debug -mock-wotan
 
 # Docker
 docker-build:

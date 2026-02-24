@@ -14,7 +14,7 @@
     serviceConfig = {
       # Execute
       Type = "simple";
-      ExecStart = "${pkgs.micromanager}/bin/micromanager -port 8003 -wotan wotan:9090 -log-level info";
+      ExecStart = "${pkgs.micromanager}/bin/micromanager -port 19003 -wotan wotan:18001 -log-level info";
       Restart = "always";
       RestartSec = "5s";
       StartLimitInterval = "60s";
@@ -105,7 +105,7 @@
     # Allow internal container network only
     extraCommands = ''
       # Allow from internal bridge
-      iptables -A INPUT -s 10.10.10.0/24 -d 10.10.10.21 -p tcp --dport 8003 -j ACCEPT
+      iptables -A INPUT -s 10.10.10.0/24 -d 10.10.10.21 -p tcp --dport 19003 -j ACCEPT
       # Allow loopback
       iptables -A INPUT -i lo -j ACCEPT
       # Drop everything else
@@ -128,7 +128,7 @@
     serviceConfig = {
       Type = "oneshot";
       ExecStart = ''
-        ${pkgs.curl}/bin/curl -f http://localhost:8003/health || \
+        ${pkgs.curl}/bin/curl -f http://localhost:19003/health || \
         systemctl restart micromanager
       '';
     };

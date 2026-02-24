@@ -247,7 +247,7 @@
         #!/usr/bin/env bash
         set -euo pipefail
 
-        SERVICE_PORT="''${UNHEADED_SERVICE_PORT:-8000}"
+        SERVICE_PORT="''${UNHEADED_SERVICE_PORT:-19000}"
         HEALTH_ENDPOINT="http://localhost:''${SERVICE_PORT}/health"
 
         # Attempt health check

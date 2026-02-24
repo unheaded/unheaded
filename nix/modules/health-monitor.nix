@@ -26,7 +26,7 @@
   #     enable = true;
   #     serviceName = "timeguru";
   #     dependencies = [
-  #       { name = "wotan"; ip = "10.10.10.10"; port = 8080; path = "/health"; }
+  #       { name = "wotan"; ip = "10.10.10.10"; port = 18000; path = "/health"; }
   #     ];
   #   };
   # =============================================================================
@@ -80,7 +80,7 @@
 
       wotanAddr = lib.mkOption {
         type = lib.types.str;
-        default = "http://10.10.10.10:8080";
+        default = "http://10.10.10.10:18000";
         description = "Wotan REST API address for publishing reports";
       };
 

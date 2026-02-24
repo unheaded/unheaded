@@ -8,7 +8,7 @@
   #
   # Service: Timeline API (REST + Wotan)
   # IP: 10.10.10.20
-  # Ports: 8000 (HTTP), 9100 (metrics)
+  # Ports: 19000 (HTTP), 9100 (metrics)
   # Data: /opt/unheaded/references/timeline.md
   # =============================================================================
 
@@ -30,7 +30,7 @@
       "/var/lib/unheaded/timeguru"     # State
       "/var/log/unheaded/timeguru"     # Logs
     ];
-    allowedPorts = [ 8000 9100 ];
+    allowedPorts = [ 19000 9100 ];
   };
 
   # ===========================================================================
@@ -39,7 +39,7 @@
   unheaded.networking = {
     enable = true;
     serviceIP = "10.10.10.20";
-    servicePort = 8000;
+    servicePort = 19000;
     allowDirectAccess = true;          # Gateway needs access
   };
 
@@ -72,7 +72,7 @@
       WorkingDirectory = "/opt/unheaded/references";
 
       Environment = [
-        "TIMEGURU_ADDR=0.0.0.0:8000"
+        "TIMEGURU_ADDR=0.0.0.0:19000"
         "TIMEGURU_TIMELINE_PATH=/opt/unheaded/references/timeline.md"
         "TIMEGURU_AUTO_SYNC=true"
       ];
