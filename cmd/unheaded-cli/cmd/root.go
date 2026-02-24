@@ -389,8 +389,8 @@ func DefaultConfig() *Config {
 		Contexts: map[string]Cluster{
 			"local": {
 				Name:       "local",
-				Endpoint:   "http://localhost:8080",
-				WotanAddr: "localhost:9090",
+				Endpoint:   "http://localhost:17000",
+				WotanAddr: "localhost:18001",
 			},
 		},
 		Defaults: Defaults{

@@ -145,11 +145,11 @@ func gatherSystemStatus(ctx *Context) *SystemStatus {
 			LastUpdate: time.Now(),
 		},
 		Services: []ServiceStatus{
-			{Name: "timeguru", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.20:8000"},
-			{Name: "captain", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.21:8001"},
-			{Name: "micromanager", Status: "Running", Replicas: "2/2", Healthy: true, Endpoint: "http://10.10.10.22:8002"},
-			{Name: "architect", Status: "Pending", Replicas: "0/1", Healthy: false, Endpoint: "http://10.10.10.23:8003"},
-			{Name: "wotan", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.10:9090"},
+			{Name: "timeguru", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.20:19000"},
+			{Name: "captain", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.21:19002"},
+			{Name: "micromanager", Status: "Running", Replicas: "2/2", Healthy: true, Endpoint: "http://10.10.10.22:19003"},
+			{Name: "architect", Status: "Pending", Replicas: "0/1", Healthy: false, Endpoint: "http://10.10.10.23:19001"},
+			{Name: "wotan", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://10.10.10.10:18000"},
 			{Name: "gateway", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "https://10.10.10.100:443"},
 		},
 		Containers: []ContainerStats{

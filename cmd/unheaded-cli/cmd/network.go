@@ -316,7 +316,7 @@ func newNetworkRouteListCommand() *Command {
 						Source:      "gateway",
 						Destination: "timeguru.services.local",
 						Protocol:    "HTTP",
-						Port:        8000,
+						Port:        19000,
 						Weight:      100,
 						Status:      "Active",
 					},
@@ -325,7 +325,7 @@ func newNetworkRouteListCommand() *Command {
 						Source:      "gateway",
 						Destination: "captain.services.local",
 						Protocol:    "HTTP",
-						Port:        8001,
+						Port:        19002,
 						Weight:      100,
 						Status:      "Active",
 					},
@@ -334,7 +334,7 @@ func newNetworkRouteListCommand() *Command {
 						Source:      "gateway",
 						Destination: "micromanager.services.local",
 						Protocol:    "HTTP",
-						Port:        8002,
+						Port:        19003,
 						Weight:      100,
 						Status:      "Active",
 					},
@@ -343,7 +343,7 @@ func newNetworkRouteListCommand() *Command {
 						Source:      "services.*",
 						Destination: "wotan.local",
 						Protocol:    "gRPC",
-						Port:        9090,
+						Port:        18001,
 						Weight:      100,
 						Status:      "Active",
 					},
@@ -352,7 +352,7 @@ func newNetworkRouteListCommand() *Command {
 						Source:      "gateway",
 						Destination: "architect-canary.services.local",
 						Protocol:    "HTTP",
-						Port:        8003,
+						Port:        19001,
 						Weight:      10,
 						Status:      "Pending",
 					},
@@ -374,7 +374,7 @@ func newNetworkRouteAddCommand() *Command {
 	flags := flag.NewFlagSet("add", flag.ContinueOnError)
 	flags.StringVar(&protocol, "protocol", "HTTP", "Protocol: HTTP, gRPC, TCP")
 	flags.StringVar(&protocol, "p", "HTTP", "Protocol (short)")
-	flags.IntVar(&port, "port", 8080, "Destination port")
+	flags.IntVar(&port, "port", 21000, "Destination port")
 	flags.IntVar(&weight, "weight", 100, "Traffic weight (0-100)")
 	flags.IntVar(&weight, "w", 100, "Weight (short)")
 
@@ -469,11 +469,11 @@ func newNetworkInspectCommand() *Command {
 			endpoints := output.NewTable(w.Out()).SetColor(color)
 			endpoints.SetHeaders("SERVICE", "IP", "PORT", "STATUS")
 			endpoints.AddRow("Gateway", "10.10.10.100", "443", output.StatusOutput{Status: "Running"}.Colorize(color))
-			endpoints.AddRow("Wotan", "10.10.10.10", "9090", output.StatusOutput{Status: "Running"}.Colorize(color))
-			endpoints.AddRow("Timeguru", "10.10.10.20", "8000", output.StatusOutput{Status: "Running"}.Colorize(color))
-			endpoints.AddRow("Captain", "10.10.10.21", "8001", output.StatusOutput{Status: "Running"}.Colorize(color))
-			endpoints.AddRow("Micromanager", "10.10.10.22", "8002", output.StatusOutput{Status: "Running"}.Colorize(color))
-			endpoints.AddRow("Architect", "10.10.10.23", "8003", output.StatusOutput{Status: "Pending"}.Colorize(color))
+			endpoints.AddRow("Wotan", "10.10.10.10", "18000", output.StatusOutput{Status: "Running"}.Colorize(color))
+			endpoints.AddRow("Timeguru", "10.10.10.20", "19000", output.StatusOutput{Status: "Running"}.Colorize(color))
+			endpoints.AddRow("Captain", "10.10.10.21", "19002", output.StatusOutput{Status: "Running"}.Colorize(color))
+			endpoints.AddRow("Micromanager", "10.10.10.22", "19003", output.StatusOutput{Status: "Running"}.Colorize(color))
+			endpoints.AddRow("Architect", "10.10.10.23", "19001", output.StatusOutput{Status: "Pending"}.Colorize(color))
 			endpoints.Render()
 
 			w.WriteStringln("")
@@ -481,8 +481,8 @@ func newNetworkInspectCommand() *Command {
 			rules := output.NewListTable(w.Out()).SetColor(color).SetBullet(string(output.IconTriangle))
 			rules.Add("ALLOW internal (10.10.10.0/24) -> all")
 			rules.Add("ALLOW external -> gateway:443 (TLS)")
-			rules.Add("ALLOW gateway -> services:8000-8010")
-			rules.Add("ALLOW services -> wotan:9090")
+			rules.Add("ALLOW gateway -> services:19000-19010")
+			rules.Add("ALLOW services -> wotan:18001")
 			rules.Add("DENY all other traffic")
 			rules.Render()
 

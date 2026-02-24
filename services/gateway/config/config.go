@@ -133,8 +133,8 @@ type TLSConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			HTTPPort:        8080,
-			HTTP3Port:       8443,
+			HTTPPort:        21000,
+			HTTP3Port:       21443,
 			ReadTimeout:     30 * time.Second,
 			WriteTimeout:    30 * time.Second,
 			IdleTimeout:     120 * time.Second,
@@ -170,7 +170,7 @@ func DefaultConfig() *Config {
 		},
 		Wotan: WotanConfig{
 			Enabled:     true,
-			URL:         "http://localhost:8081",
+			URL:         "http://localhost:18000",
 			Topic:       "gateway.requests",
 			ServiceName: "api-gateway",
 		},
@@ -179,12 +179,12 @@ func DefaultConfig() *Config {
 			Path:    "/metrics",
 		},
 		AlphaServices: AlphaServicesConfig{
-			TimeGuruHost:     "timeguru:8000",
-			CaptainHost:      "captain:8001",
-			ArchitectHost:    "architect:8002",
-			MicromanagerHost: "micromanager:8003",
-			MonadHost:        "monad:8004",
-			SophiaHost:       "sophia:8005",
+			TimeGuruHost:     "timeguru:19000",
+			CaptainHost:      "captain:19002",
+			ArchitectHost:    "architect:19001",
+			MicromanagerHost: "micromanager:19003",
+			MonadHost:        "monad:19004",
+			SophiaHost:       "sophia:19005",
 		},
 	}
 }
