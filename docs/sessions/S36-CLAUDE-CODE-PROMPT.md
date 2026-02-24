@@ -1,8 +1,16 @@
 # S36 Claude Code CLI Prompts — Multi-Agent Execution
 
+## Launch Command (EVERY terminal)
+
+```bash
+cd ~/tmp/unheaded && claude --dangerously-skip-permissions
+```
+
+The `--dangerously-skip-permissions` flag enables autonomous execution — no human confirmation prompts for file writes, bash commands, or git commits. Each agent runs fully autonomously through its assigned phase.
+
 ## How to Use
 
-You need **up to 6 terminals** running `claude` simultaneously. Each gets a different prompt below. The dependency order is:
+You need **up to 6 terminals** running `claude --dangerously-skip-permissions` simultaneously. Each gets a different prompt below. The dependency order is:
 
 ```
 Coordinator (Phase 0) → Agent A (Phase 1) → Agent B (Phase 2) + Agent D (Phase 4) + Agent E (Phase 5)
@@ -31,6 +39,7 @@ Read these files FIRST, in order:
 Execute ONLY Phase 0 (Steps 1-20): Foundation — verify environment, commit outstanding files, establish clean baseline, run port audit.
 
 Rules:
+- AUTONOMOUS MODE: Do NOT pause for approval. Proceed through every step without asking. Auto-commit at every [C] checkpoint.
 - Commit every 4 steps. Conventional commits: type(scope): description
 - If build or tests fail, fix before proceeding
 - Record port audit baseline for Phase 6 verification
@@ -64,6 +73,7 @@ Key deliverables:
 - ZERO old port references in production code
 
 Rules:
+- AUTONOMOUS MODE: Do NOT pause for approval. Proceed through every step without asking. Auto-commit at every [C] checkpoint.
 - TDD: tests first. Race detection: -race on all Go tests. All inputs hostile.
 - Commit every 4 steps. Conventional commits: feat(ports): description
 - Stuck protocol: skip after 3x time or 2 failed attempts. Commit before skip.
@@ -100,6 +110,7 @@ Key deliverables:
 - Env var + flag + config file override for transport selection
 
 Rules:
+- AUTONOMOUS MODE: Do NOT pause for approval. Auto-commit at every [C] checkpoint.
 - TDD: write transport tests BEFORE implementations
 - Commit every 4 steps. Conventional commits: feat(transport): description
 - Stuck protocol: skip after 3x time or 2 failed attempts.
@@ -135,6 +146,7 @@ Key deliverables:
 - Ring buffer retains 10K entries per service
 
 Rules:
+- AUTONOMOUS MODE: Do NOT pause for approval. Auto-commit at every [C] checkpoint.
 - TDD: write logagg tests BEFORE implementations
 - Commit every 4 steps. Conventional commits: feat(logs): description
 - Zerolog hook MUST NOT block service operation — async publish
@@ -214,6 +226,7 @@ IMPORTANT: You are running PARALLEL with code agents. Do NOT modify:
 - docker-compose.yml, Makefile, container configs
 Only modify .md files, wiki pages, and documentation.
 
+AUTONOMOUS MODE: Do NOT pause for approval. Auto-commit at every [C] checkpoint.
 Commit every 4 steps: docs(s36): description
 
 When Phase 5 EXIT GATE passes (Step 290), report "PHASE 5 COMPLETE"
