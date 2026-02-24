@@ -102,7 +102,7 @@ YALDABAOTH (Adversary)
 
 ## Sacred Laws
 
-1. Zero customer data access (architectural)
+1. Zero user data access (architectural)
 2. No Node.js - vanilla HTML/CSS/JS only
 3. Go std lib + golang.org/x/sys only (production)
 4. Single binary deployment via `//go:embed`

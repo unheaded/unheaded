@@ -6,7 +6,7 @@
 
 ## Context
 
-Unheaded manages customer application infrastructure. The platform's core security promise is **zero customer data access** -- an architectural guarantee, not just a policy. This means the containers hosting Unheaded's own services must be hardened to a level where even a compromised service cannot escape its sandbox to access customer data or other services' internal state.
+Unheaded manages user application infrastructure. The platform's core security promise is **zero user data access** -- an architectural guarantee, not just a policy. This means the containers hosting Unheaded's own services must be hardened to a level where even a compromised service cannot escape its sandbox to access user data or other services' internal state.
 
 The threat model includes:
 
@@ -14,7 +14,7 @@ The threat model includes:
 2. **Supply chain attack**: A dependency (even in dev builds) contains malicious code that activates at runtime.
 3. **Privilege escalation**: An attacker leverages kernel vulnerabilities or misconfigured capabilities to escape the container.
 4. **Lateral movement**: An attacker moves from one compromised container to others on the same network.
-5. **Data exfiltration**: An attacker attempts to read secrets, customer data, or platform state from a compromised container.
+5. **Data exfiltration**: An attacker attempts to read secrets, user data, or platform state from a compromised container.
 
 The hardening strategy must address all five threats while keeping containers functional and allowing legitimate operations (network communication via Wotan, file I/O for timeline/strategy documents, metrics exposition).
 

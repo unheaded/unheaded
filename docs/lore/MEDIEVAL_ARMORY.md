@@ -7,7 +7,7 @@ a different body part, all pieces work together, and removing any one weakens
 the whole. The same is true of production infrastructure.
 
 Unheaded's infrastructure components map to pieces of a full suit of plate armor.
-The customer's application is "the head" — unheaded (headless) means we provide
+The user's application is "the head" — unheaded (headless) means we provide
 everything below the neck.
 
 ## The Armor Pieces
@@ -78,7 +78,7 @@ reaches production.
 ## The Complete Knight
 
 ```
-         [APPLICATION]    ← customer brings this
+         [APPLICATION]    ← user brings this
          ─────────────
     ┌───[ PAULDRONS  ]───┐  ← load balancer
     │   [  CUIRASS   ]   │  ← control plane

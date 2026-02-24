@@ -105,7 +105,7 @@ Key findings from Developer's sprint:
 | `pkg/health/aggregator.go:948` | Exec with user-controlled target |
 | `pkg/network/policy_controller.go` | Shell commands with policy data |
 
-**THE SACRED LAW:** ZERO customer data access verified at every layer ✅
+**THE SACRED LAW:** ZERO user data access verified at every layer ✅
 
 ---
 
@@ -183,7 +183,7 @@ Feb 8-15:         🎉 ALPHA LAUNCH WINDOW
 4. Fix security P0s before Alpha
 
 ### Sacred Laws (Always Apply)
-- ZERO customer data access (architectural isolation)
+- ZERO user data access (architectural isolation)
 - No external dependencies in hot path (Kingdom code only)
 - Test everything before shipping
 - Timeguru is source of truth for progress

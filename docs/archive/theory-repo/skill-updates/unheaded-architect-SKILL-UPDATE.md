@@ -40,7 +40,7 @@ Then dive into architecture. Never design for the wrong phase.
 
 **Configuration management automation infrastructure-as-code tool.**
 
-Customer provides their app ("head"). We provide everything else ("unheaded"):
+User provides their app ("head"). We provide everything else ("unheaded"):
 - Drop-in production infrastructure in ~4 hours (not weeks/months)
 - Full IDP/SIEM/SOC/NOC/logging/visibility down to packet
 - eBPF packet tracing with custom dashboards
@@ -151,7 +151,7 @@ The Kingdom runs IPv4 internally. Every packet carries **20 bytes of proprietary
 
 ### Security Verification ✅
 
-- [x] Customer Data Isolation: ARCHITECTURAL ✅
+- [x] User Data Isolation: ARCHITECTURAL ✅
 - [x] XSS Protection: FIXED (`html.EscapeString`)
 - [x] Command Injection: FIXED (temp file + whitelisted interpreters)
 - [x] CORS Validation: ADDED (origin checking)
@@ -209,8 +209,8 @@ The Kingdom runs IPv4 internally. Every packet carries **20 bytes of proprietary
 - Clos-based EVPN-VXLAN fabric on BGP
 - Virtual Linux networking containers on Debian bare metal
 - Modern: IPv6-first, QUIC, HTTP/3, DoH/DoT, DNSSEC
-- HAProxy internal proxies (isolated from customer-facing load)
-- Nginx backends between HAProxy and customer apps
+- HAProxy internal proxies (isolated from user-facing load)
+- Nginx backends between HAProxy and user apps
 
 **Staff Infrastructure Architect**
 - K8s or LXD fleet across NixOS containers on Debian hardware
@@ -553,8 +553,8 @@ When designing, answer in order:
 **Plus:** Compliance templates, CI/CD integration
 
 **OUT OF SCOPE:**
-- Customer's application code ("head")
-- Frontend/UI for customer apps
+- User's application code ("head")
+- Frontend/UI for user apps
 - Business logic
 - Database schema design (infra for DBs is in scope)
 

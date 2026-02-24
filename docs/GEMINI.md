@@ -10,12 +10,12 @@
 
 **"Production-ready infrastructure in hours, not months."**
 
-Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. Customer brings their app ("the head"), we provide everything else ("unheaded").
+Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. User brings their app ("the head"), we provide everything else ("unheaded").
 
 **Core Capabilities:**
 - ✅ eBPF-based observability (L2-L7 tracing)
 - ✅ Immutable NixOS infrastructure
-- ✅ Zero customer data access (architectural isolation)
+- ✅ Zero user data access (architectural isolation)
 - ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
 - ✅ Self-hosting proof (The Meta Moment)
@@ -63,14 +63,14 @@ Layer 0: Infrastructure (LXD, host OS)
 
 **Critical Rules:**
 - eBPF traceability from packet zero
-- Zero customer data access - architectural isolation enforced
+- Zero user data access - architectural isolation enforced
 - Container hardening: seccomp, capabilities, read-only FS
 - Network policies: explicit allow, default deny
 - TLS 1.3 minimum for external traffic
 - Secrets: never in code, environment, or logs
 
 **Test every PR for:**
-- Does this access customer data? → BLOCK
+- Does this access user data? → BLOCK
 - Does this weaken isolation? → BLOCK
 - Does this skip hardening? → BLOCK
 
@@ -112,7 +112,7 @@ Layer 0: Infrastructure (LXD, host OS)
 - Every request traced by eBPF
 - Publicly accessible (optional auth)
 
-**If Unheaded can't host itself reliably, it's not ready for customers.**
+**If Unheaded can't host itself reliably, it's not ready for users.**
 
 ### 5. Ship Fast, Test Thoroughly
 
@@ -614,7 +614,7 @@ Co-Authored-By: Gemini <noreply@google.com>
 - [ ] Publicly accessible (optional auth)
 - [ ] Sub-50ms latency (packet → browser)
 - [ ] Containers start in <10s
-- [ ] Zero customer data access (validated)
+- [ ] Zero user data access (validated)
 
 ---
 
@@ -698,7 +698,7 @@ Self-hosting is proof, not marketing. If Unheaded can't reliably host its own de
 ### 2. Security is Not Optional
 
 Every decision evaluated through security lens:
-- Does this access customer data? → NO
+- Does this access user data? → NO
 - Does this weaken isolation? → NO
 - Does this skip hardening? → NO
 
@@ -752,7 +752,7 @@ We're building in the open because we have nothing to hide.
 **WRONG:**
 ```go
 // demo-app reading from Wotan topics
-wotan.Subscribe("network.traces")  // NO! Customer can see infrastructure
+wotan.Subscribe("network.traces")  // NO! User can see infrastructure
 ```
 
 **RIGHT:**
