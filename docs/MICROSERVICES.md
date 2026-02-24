@@ -83,7 +83,7 @@ var staticFiles embed.FS
 func main() {
     http.Handle("/", http.FileServer(http.FS(staticFiles)))
     http.HandleFunc("/api/v1/...", apiHandler)
-    log.Fatal(http.ListenAndServe(":8080", nil))
+    log.Fatal(http.ListenAndServe(":19000", nil)) // Doom Range port
 }
 ```
 
