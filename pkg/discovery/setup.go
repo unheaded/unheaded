@@ -15,7 +15,7 @@ import (
 //
 // Example usage:
 //
-//	reg, err := discovery.SetupDiscovery("timeguru", "10.10.10.20", 8000, wotanClient)
+//	reg, err := discovery.SetupDiscovery("timeguru", "localhost", 8000, wotanClient)
 //	if err != nil {
 //	    log.Fatalf("discovery setup: %v", err)
 //	}

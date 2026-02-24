@@ -137,7 +137,7 @@ func (g *Generator) generateFlow() *PacketFlow {
 		TraceID:    fmt.Sprintf(g.config.TraceIDPattern, g.counter),
 		Timestamp:  now,
 		SourceIP:   g.randomIP(),
-		DestIP:     "10.10.10.100", // Gateway IP
+		DestIP:     "10.10.10.100", // Simulated gateway IP on LXD bridge (visualization only)
 		Protocol:   g.randomProtocol(),
 		Method:     g.randomMethod(),
 		Path:       g.randomPath(),
@@ -239,15 +239,16 @@ func (g *Generator) randomStatusCode() int {
 	}
 }
 
-// randomHost returns a random container host
+// randomHost returns a random container host for simulated packet flow traces.
+// These are LXD bridge IPs used for visualization topology — not service addresses.
 func (g *Generator) randomHost() string {
 	hosts := []string{
-		"10.10.10.10",  // wotan
-		"10.10.10.20",  // timeguru
-		"10.10.10.21",  // captain
-		"10.10.10.22",  // micromanager
-		"10.10.10.23",  // architect
-		"10.10.10.100", // gateway
+		"10.10.10.10",  // wotan (simulated)
+		"10.10.10.20",  // timeguru (simulated)
+		"10.10.10.21",  // captain (simulated)
+		"10.10.10.22",  // micromanager (simulated)
+		"10.10.10.23",  // architect (simulated)
+		"10.10.10.100", // gateway (simulated)
 	}
 	return hosts[g.rand.Intn(len(hosts))]
 }

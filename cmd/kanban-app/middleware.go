@@ -219,8 +219,8 @@ func rateLimitMiddleware(limiter *RateLimiter) func(http.Handler) http.Handler {
 // X-Real-IP headers are trusted.  Empty by default — meaning the rate
 // limiter always keys on RemoteAddr, which cannot be spoofed by the
 // client.  Populate this from configuration when running behind a
-// known load-balancer or reverse proxy (e.g. the Unheaded gateway at
-// 10.10.10.100).
+// known load-balancer or reverse proxy (e.g. the Unheaded gateway on
+// localhost or the LXD bridge).
 var trustedProxies = map[string]bool{}
 
 // getClientIP extracts the client IP from the request.
