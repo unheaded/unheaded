@@ -75,6 +75,9 @@ sudo ip link set lxdbr0 up
 
 # Enable IP forwarding
 sudo sysctl -w net.ipv4.ip_forward=1
+
+# Set ephemeral port range above Doom Range (16666-26666)
+sudo sysctl -w net.ipv4.ip_local_port_range="27000 65000"
 ```
 
 ### Step 2: Build Container Images

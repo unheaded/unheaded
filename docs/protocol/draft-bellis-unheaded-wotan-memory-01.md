@@ -36,6 +36,10 @@ normative:
       Internet-Draft: draft-bellis-unheaded-sophia-dictionary-01
 
 informative:
+  RFC0768:
+  RFC0791:
+  RFC0792:
+  RFC0793:
   RFC8799:
   RFC9180:
   FIPS203:

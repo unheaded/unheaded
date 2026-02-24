@@ -189,6 +189,11 @@
       "net.ipv4.icmp_ratelimit" = 100;                # 100ms between ICMP
       "net.ipv4.icmp_ratemask" = 6168;                # Rate limit echo, timestamp
 
+      # Ephemeral port range: stay above Doom Range (16666-26666)
+      # Default Linux range is 32768-60999; we raise the floor to 27000
+      # to prevent ephemeral ports from colliding with Unheaded services
+      "net.ipv4.ip_local_port_range" = "27000 65000";
+
       # Disable IP forwarding (unless gateway)
       "net.ipv4.ip_forward" = 0;
       "net.ipv6.conf.all.forwarding" = 0;
