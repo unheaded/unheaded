@@ -1289,10 +1289,10 @@ func loadConfig(path string) *Config {
 	cfg := &Config{
 		NodeID:       getEnvOrDefault("UNHEADED_NODE_ID", fmt.Sprintf("citadel-%s", getHostname())),
 		NodeName:     getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
-		HTTPAddr:     getEnvOrDefault("HTTP_ADDR", ":8080"),
-		GRPCAddr:     getEnvOrDefault("GRPC_ADDR", ":9090"),
+		HTTPAddr:     getEnvOrDefault("HTTP_ADDR", ":17000"),
+		GRPCAddr:     getEnvOrDefault("GRPC_ADDR", ":17001"),
 		LXDSocket:    getEnvOrDefault("LXD_SOCKET", "/var/lib/lxd/unix.socket"),
-		WotanAddr:   getEnvOrDefault("WOTAN_ADDR", "localhost:5555"),
+		WotanAddr:   getEnvOrDefault("WOTAN_ADDR", "localhost:18001"),
 		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
 		PollInterval: 30 * time.Second,
 		LogLevel:     getEnvOrDefault("LOG_LEVEL", "info"),
