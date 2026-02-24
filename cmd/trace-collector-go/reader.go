@@ -113,18 +113,31 @@ func NewTraceReader(loader BPFLoader, publisher *WotanPublisher, config TraceRea
 	}
 }
 
-// Run starts the periodic map reading loop. Blocks until ctx is cancelled.
+// Run starts the trace reading loop. If the PACKET_EVENTS ringbuf is
+// available, events are received via mmap (push-based, zero-copy). Otherwise
+// falls back to periodic map polling.
 func (r *TraceReader) Run(ctx context.Context) {
-	ticker := time.NewTicker(r.config.ReadInterval)
-	defer ticker.Stop()
+	// Try ringbuf first — much lower latency than poll-based reading.
+	ringbufCh := r.loader.GetPacketEventsCh(ctx)
+	if ringbufCh != nil {
+		log.Info().
+			Int("batch_size", r.config.BatchSize).
+			Str("trace_topic", r.config.TraceTopic).
+			Msg("trace reader started (ringbuf mode)")
+		r.runRingbuf(ctx, ringbufCh)
+		return
+	}
 
+	// Fallback: poll STATS hash map on a timer.
 	log.Info().
 		Dur("interval", r.config.ReadInterval).
 		Int("batch_size", r.config.BatchSize).
 		Bool("delete_after_read", r.config.DeleteAfterRead).
 		Str("trace_topic", r.config.TraceTopic).
-		Msg("trace reader started")
+		Msg("trace reader started (poll mode)")
 
+	ticker := time.NewTicker(r.config.ReadInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -132,6 +145,36 @@ func (r *TraceReader) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			r.pollOnce(ctx)
+		}
+	}
+}
+
+// runRingbuf consumes events from the PACKET_EVENTS ring buffer channel.
+func (r *TraceReader) runRingbuf(ctx context.Context, ch <-chan []byte) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info().Msg("trace reader (ringbuf) shutting down")
+			return
+		case raw, ok := <-ch:
+			if !ok {
+				log.Warn().Msg("ringbuf channel closed, trace reader stopping")
+				return
+			}
+			entry, err := DecodeTraceEntry(raw)
+			if err != nil {
+				atomic.AddUint64(&r.stats.DecodeErrors, 1)
+				readerErrors.WithLabelValues("decode").Inc()
+				continue
+			}
+			atomic.AddUint64(&r.stats.EntriesRead, 1)
+			readerEntriesRead.Inc()
+
+			// Emit to event channel (non-blocking)
+			select {
+			case r.eventCh <- entry:
+			default:
+			}
 		}
 	}
 }
