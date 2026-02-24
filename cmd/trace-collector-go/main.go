@@ -492,8 +492,17 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	correlator := NewPacketCorrelator(corrConfig)
 	state.PacketCorrelator = correlator
 
-	// Create BPF loader
-	loader := NewMockBPFLoader() // Production: use NativeBPFLoader
+	// Create BPF loader — NativeBPFLoader bridges to pkg/ebpf.NativeLoader
+	var loader BPFLoader
+	loaderCfg := DefaultNativeBPFLoaderConfig()
+	loaderCfg.PinPath = *mapPinPath
+	nativeLoader, err := NewNativeBPFLoader(ctx, loaderCfg)
+	if err != nil {
+		log.Warn().Err(err).Msg("native BPF loader unavailable, falling back to mock")
+		loader = NewMockBPFLoader()
+	} else {
+		loader = nativeLoader
+	}
 
 	// Track program status
 	programs := []ProgramStatus{
@@ -502,36 +511,48 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 		{Name: "latency_probe", Enabled: *enableLatencyProbe},
 	}
 
-	// Load BPF programs
+	// BPF ELF binary base path — compiled by Aya/Rust
+	elfBase := "ebpf/target/bpfel-unknown-none/release"
+
+	// Load BPF programs from compiled ELF binaries
 	if *enablePacketMarker {
-		progPath := fmt.Sprintf("%s/packet_marker.bpf.o", *mapPinPath)
+		progPath := fmt.Sprintf("%s/packet-marker", elfBase)
 		if err := loader.Load(progPath); err != nil {
-			log.Error().Err(err).Msg("failed to load packet_marker")
+			log.Error().Err(err).Str("path", progPath).Msg("failed to load packet_marker")
 		} else {
-			if err := loader.AttachXDP(*iface); err != nil {
-				log.Error().Err(err).Str("iface", *iface).Msg("failed to attach packet_marker XDP")
-			} else {
-				programs[0].Loaded = true
-				programsLoaded.WithLabelValues("packet_marker").Set(1)
-				log.Info().Str("iface", *iface).Msg("packet_marker XDP attached")
-			}
+			programs[0].Loaded = true
+			programsLoaded.WithLabelValues("packet_marker").Set(1)
+			log.Info().Msg("packet_marker loaded")
 		}
 	}
 
 	if *enableFlowTracker {
-		// flow_tracker uses TC (Traffic Control) attachment
-		// Placeholder: will be loaded by flow_reader.go
-		programs[1].Loaded = true // Mark as loaded for health check
-		programsLoaded.WithLabelValues("flow_tracker").Set(1)
-		log.Info().Msg("flow_tracker TC program ready (placeholder)")
+		progPath := fmt.Sprintf("%s/flow-tracker", elfBase)
+		if err := loader.Load(progPath); err != nil {
+			log.Error().Err(err).Str("path", progPath).Msg("failed to load flow_tracker")
+		} else {
+			programs[1].Loaded = true
+			programsLoaded.WithLabelValues("flow_tracker").Set(1)
+			log.Info().Msg("flow_tracker loaded")
+		}
 	}
 
 	if *enableLatencyProbe {
-		// latency_probe uses tracepoint attachment
-		// Placeholder: will be loaded by latency_reader.go
-		programs[2].Loaded = true // Mark as loaded for health check
-		programsLoaded.WithLabelValues("latency_probe").Set(1)
-		log.Info().Msg("latency_probe tracepoint program ready (placeholder)")
+		progPath := fmt.Sprintf("%s/latency-probe", elfBase)
+		if err := loader.Load(progPath); err != nil {
+			log.Error().Err(err).Str("path", progPath).Msg("failed to load latency_probe")
+		} else {
+			programs[2].Loaded = true
+			programsLoaded.WithLabelValues("latency_probe").Set(1)
+			log.Info().Msg("latency_probe loaded")
+		}
+	}
+
+	// Attach all loaded programs to the target interface
+	if err := loader.AttachXDP(*iface); err != nil {
+		log.Error().Err(err).Str("iface", *iface).Msg("failed to attach BPF programs")
+	} else {
+		log.Info().Str("iface", *iface).Msg("BPF programs attached")
 	}
 
 	state.mu.Lock()
@@ -558,6 +579,52 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 				}
 			}
 		}()
+	}
+
+	// Start FlowReader (flow_tracker TC maps)
+	if *enableFlowTracker && programs[1].Loaded {
+		flowConfig := DefaultFlowReaderConfig()
+		wotanPub := &WotanPublisher{addr: *wotanAddr, batchSize: *batchSize, batchTime: *batchTimeout}
+		flowReader := NewFlowReader(loader, wotanPub, flowConfig)
+
+		go flowReader.Run(ctx)
+
+		// Feed flow events into publisher
+		go func() {
+			for ev := range flowReader.Events() {
+				payload, err := json.Marshal(ev)
+				if err != nil {
+					log.Error().Err(err).Msg("failed to marshal flow event")
+					continue
+				}
+				publisher.PublishFlowEvent(payload)
+			}
+		}()
+
+		log.Info().Msg("flow reader started for flow_tracker")
+	}
+
+	// Start LatencyReader (latency_probe kprobe maps)
+	if *enableLatencyProbe && programs[2].Loaded {
+		latencyConfig := DefaultLatencyReaderConfig()
+		wotanPub := &WotanPublisher{addr: *wotanAddr, batchSize: *batchSize, batchTime: *batchTimeout}
+		latencyReader := NewLatencyReader(loader, wotanPub, latencyConfig)
+
+		go latencyReader.Run(ctx)
+
+		// Feed latency samples into publisher
+		go func() {
+			for sample := range latencyReader.Samples() {
+				payload, err := json.Marshal(sample)
+				if err != nil {
+					log.Error().Err(err).Msg("failed to marshal latency sample")
+					continue
+				}
+				publisher.PublishLatencyEvent(payload)
+			}
+		}()
+
+		log.Info().Msg("latency reader started for latency_probe")
 	}
 
 	// Start correlator GC

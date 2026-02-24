@@ -4,11 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"unheaded/pkg/ebpf"
 )
+
+// newTestWotanServer creates a test HTTP server that accepts Wotan topic publishes.
+func newTestWotanServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+}
 
 // ── TracePublisher creation tests ─────────────────────────────────────────
 
@@ -173,8 +184,12 @@ func TestTracePublisher_PublishCorrelatedFlow(t *testing.T) {
 // ── Flush tests ─────────────────────────────────────────────────────────
 
 func TestTracePublisher_Flush(t *testing.T) {
+	srv := newTestWotanServer(t)
+	defer srv.Close()
+
 	config := DefaultTracePublisherConfig()
 	config.BatchSize = 1000 // Large batch, won't auto-flush
+	config.WotanAddr = strings.TrimPrefix(srv.URL, "http://")
 	pub := NewTracePublisher(config)
 
 	// Enqueue some events
@@ -203,8 +218,12 @@ func TestTracePublisher_Flush(t *testing.T) {
 }
 
 func TestTracePublisher_AutoFlushOnBatchSize(t *testing.T) {
+	srv := newTestWotanServer(t)
+	defer srv.Close()
+
 	config := DefaultTracePublisherConfig()
 	config.BatchSize = 3 // Small batch for auto-flush testing
+	config.WotanAddr = strings.TrimPrefix(srv.URL, "http://")
 	pub := NewTracePublisher(config)
 
 	// Enqueue exactly BatchSize events to trigger auto-flush
@@ -243,8 +262,12 @@ func TestTracePublisher_FlushEmpty(t *testing.T) {
 // ── Multi-topic batching tests ───────────────────────────────────────────
 
 func TestTracePublisher_MultiTopicFlush(t *testing.T) {
+	srv := newTestWotanServer(t)
+	defer srv.Close()
+
 	config := DefaultTracePublisherConfig()
 	config.BatchSize = 1000
+	config.WotanAddr = strings.TrimPrefix(srv.URL, "http://")
 	pub := NewTracePublisher(config)
 
 	// Publish to different topics
@@ -277,8 +300,12 @@ func TestTracePublisher_MultiTopicFlush(t *testing.T) {
 // ── Connected state tests ────────────────────────────────────────────────
 
 func TestTracePublisher_ConnectedAfterFlush(t *testing.T) {
+	srv := newTestWotanServer(t)
+	defer srv.Close()
+
 	config := DefaultTracePublisherConfig()
 	config.BatchSize = 1000
+	config.WotanAddr = strings.TrimPrefix(srv.URL, "http://")
 	pub := NewTracePublisher(config)
 
 	if pub.IsConnected() {
@@ -351,9 +378,13 @@ func TestAnamnesisTopicForEvent(t *testing.T) {
 // ── TracePublisher.Run tests ─────────────────────────────────────────────
 
 func TestTracePublisher_RunAndShutdown(t *testing.T) {
+	srv := newTestWotanServer(t)
+	defer srv.Close()
+
 	config := DefaultTracePublisherConfig()
 	config.FlushInterval = 10 * time.Millisecond
 	config.BatchSize = 1000
+	config.WotanAddr = strings.TrimPrefix(srv.URL, "http://")
 	pub := NewTracePublisher(config)
 
 	ctx, cancel := context.WithCancel(context.Background())
