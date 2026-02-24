@@ -1,5 +1,8 @@
 # Unattended Agent Prompt — S41 → S42 Sprint Chain
 
+> **SUPERSEDED**: Use `docs/sessions/S41-S43-CLAUDE-CODE-PROMPT.md` instead.
+> That prompt covers S41 → S42 → S43 with mandatory handoff docs, environment detection, and the forked repo layout.
+
 **Usage**: Copy the prompt below into a Claude Code CLI session running with `--dangerously-skip-permissions`:
 
 ```bash
