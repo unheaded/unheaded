@@ -418,86 +418,86 @@ Week 7+ (Mar 8 onwards): WS5 — Return to Core
 
 ### Unified Battle Plan
 
-#### IMMEDIATE: Port Registry + S33 Push (Today — 2 hours)
+#### IMMEDIATE: Port Registry + S33 Push (Today — 2 hours) — ✅ COMPLETE
 
-- [ ] Push 6 unpushed S33 Doom commits — Owner: Developer
-- [ ] Create `/opt/unheaded/port-registry.yaml` — Owner: Architect
-- [ ] Create `pkg/config/ports.go` — Go constants for all port allocations — Owner: Developer
-- [ ] Add CI validation: no duplicate ports in registry — Owner: Developer
-- [ ] **EXIT GATE**: All S33 commits pushed. Port registry exists. `go build ./...` passes.
+- [x] Push 6 unpushed S33 Doom commits — Owner: Developer
+- [x] Create `/opt/unheaded/port-registry.yaml` — Owner: Architect
+- [x] Create `pkg/config/ports.go` — Go constants for all port allocations — Owner: Developer
+- [x] Add CI validation: no duplicate ports in registry — Owner: Developer
+- [x] **EXIT GATE**: All S33 commits pushed. Port registry exists. `go build ./...` passes.
 
-#### PILLAR 1: Port Migration (Feb 25 — 4-6 hours) — Owner: Developer + Architect
+#### PILLAR 1: Port Migration (Feb 25 — 4-6 hours) — ✅ COMPLETE (S36)
 
-- [ ] Update timeguru: 8000 → 19000 (source + tests + nix + docker)
-- [ ] Update architect: 8001 → 19001
-- [ ] Update captain: 8002 → 19002
-- [ ] Update micromanager: 8003 → 19003
-- [ ] Update monad: 8004 → 19004
-- [ ] Update sophia: 8005 → 19005
-- [ ] Update wiki-server: 8007 → 20002
-- [ ] Update dashboard-backend: 8080 → 20000
-- [ ] Update kanban-app: 8081 → 20001
-- [ ] Update unheaded-daemon: HTTP 8080 → 17000, gRPC 9090 → 17001
-- [ ] Update doom-bridge: 6660 → 16666
-- [ ] Update trace-collector: HTTP 9092 → 16670, metrics 9100 → 16671
-- [ ] Update wotan: HTTP 9080 → 18000, gRPC 9090 → 18001
-- [ ] Update unheaded-cli: all hardcoded endpoints → registry lookup
-- [ ] Update CORS allowed origins (middleware.go)
-- [ ] Update Docker Compose configs
-- [ ] Update NixOS container definitions
-- [ ] Update gateway nginx config
-- [ ] Verify: every service has `--port` flag + `PORT` env var + config file override
-- [ ] **EXIT GATE**: `go test ./...` passes. `go build ./...` passes. Zero port conflicts. Every service has 3-level config override.
+- [x] Update timeguru: 8000 → 19000 (source + tests + nix + docker)
+- [x] Update architect: 8001 → 19001
+- [x] Update captain: 8002 → 19002
+- [x] Update micromanager: 8003 → 19003
+- [x] Update monad: 8004 → 19004
+- [x] Update sophia: 8005 → 19005
+- [x] Update wiki-server: 8007 → 20002
+- [x] Update dashboard-backend: 8080 → 20000
+- [x] Update kanban-app: 8081 → 20001
+- [x] Update unheaded-daemon: HTTP 8080 → 17000, gRPC 9090 → 17001
+- [x] Update doom-bridge: 6660 → 16666
+- [x] Update trace-collector: HTTP 9092 → 16670, metrics 9100 → 16671
+- [x] Update wotan: HTTP 9080 → 18000, gRPC 9090 → 18001
+- [x] Update unheaded-cli: all hardcoded endpoints → registry lookup
+- [x] Update CORS allowed origins (middleware.go)
+- [x] Update Docker Compose configs
+- [x] Update NixOS container definitions
+- [x] Update gateway nginx config
+- [x] Verify: every service has `--port` flag + `PORT` env var + config file override
+- [x] **EXIT GATE**: `go test ./...` passes. `go build ./...` passes. Zero port conflicts. Every service has 3-level config override.
 
-#### PILLAR 2: gRPC-First Transport (Feb 26 — 4-6 hours) — Owner: Developer + Architect
+#### PILLAR 2: gRPC-First Transport (Feb 26 — 4-6 hours) — ✅ COMPLETE (S36)
 
-- [ ] Define standard transport initialization pattern in `pkg/transport/`
-- [ ] Pattern: try gRPC → fallback HTTP/3 → HTTP/2 → HTTP/1.1
-- [ ] Add `grpc.health.v1.Health` service to all gRPC-capable services
-- [ ] Update all services to connect to Wotan gRPC (18001) by default
-- [ ] HTTP fallback to Wotan HTTP (18000) when gRPC unavailable
-- [ ] Add `--transport` flag: "grpc" (default) | "http" | "auto"
-- [ ] Health monitoring: check both gRPC AND HTTP, report DEGRADED if gRPC-only failure
-- [ ] Update cross-service health checks to include gRPC probe
-- [ ] **EXIT GATE**: All services start with gRPC transport. HTTP fallback works when Wotan gRPC is down. Health checks report both protocols.
+- [x] Define standard transport initialization pattern in `pkg/transport/`
+- [x] Pattern: try gRPC → fallback HTTP/3 → HTTP/2 → HTTP/1.1
+- [x] Add `grpc.health.v1.Health` service to all gRPC-capable services
+- [x] Update all services to connect to Wotan gRPC (18001) by default
+- [x] HTTP fallback to Wotan HTTP (18000) when gRPC unavailable
+- [x] Add `--transport` flag: "grpc" (default) | "http" | "auto"
+- [x] Health monitoring: check both gRPC AND HTTP, report DEGRADED if gRPC-only failure
+- [x] Update cross-service health checks to include gRPC probe
+- [x] **EXIT GATE**: All services start with gRPC transport. HTTP fallback works when Wotan gRPC is down. Health checks report both protocols.
 
-#### PILLAR 3: Aggregated Logging (Feb 27 — 4-6 hours) — Owner: Developer + Architect
+#### PILLAR 3: Aggregated Logging (Feb 27 — 4-6 hours) — ✅ COMPLETE (S36)
 
-- [ ] Create `pkg/logagg/publisher.go` — zerolog hook that publishes to Wotan
-- [ ] Define Wotan topics: `logs.<service>.<level>` (e.g., `logs.timeguru.info`)
-- [ ] Implement in-memory ring buffer in Wotan: 10K lines per service per version
-- [ ] Add dashboard API: `GET /api/v1/logs?service=X&lines=N&level=Y`
-- [ ] Add dashboard WebSocket: `ws://dashboard:20000/ws/logs` for live tail
-- [ ] Create dashboard UI: service selector, level filter, search, auto-scroll
-- [ ] Wire zerolog hook into all 20 services (one-line integration)
-- [ ] **EXIT GATE**: Logs from any service visible in dashboard within 5 seconds. Search works. Live tail works. 10K line retention per service.
+- [x] Create `pkg/logagg/publisher.go` — zerolog hook that publishes to Wotan
+- [x] Define Wotan topics: `logs.<service>.<level>` (e.g., `logs.timeguru.info`)
+- [x] Implement in-memory ring buffer in Wotan: 10K lines per service per version
+- [x] Add dashboard API: `GET /api/v1/logs?service=X&lines=N&level=Y`
+- [x] Add dashboard WebSocket: `ws://dashboard:20000/ws/logs` for live tail
+- [x] Create dashboard UI: service selector, level filter, search, auto-scroll
+- [x] Wire zerolog hook into all 20 services (one-line integration)
+- [x] **EXIT GATE**: Logs from any service visible in dashboard within 5 seconds. Search works. Live tail works. 10K line retention per service.
 
-#### PILLAR 4: Service Discovery (Feb 28 — 4-6 hours) — Owner: Developer + Architect
+#### PILLAR 4: Service Discovery (Feb 28 — 4-6 hours) — ✅ COMPLETE (S36)
 
-- [ ] Create `/opt/unheaded/` directory convention documentation
-- [ ] Implement `pkg/discovery/scanner.go` — scans `/opt/unheaded/*/config.yaml`
-- [ ] Implement `pkg/discovery/registrar.go` — Wotan register/deregister
-- [ ] Define Wotan topics: `system.discovery.register`, `system.discovery.deregister`, `system.discovery.report`
-- [ ] Define discovery message format (Sophia dictionary entry)
-- [ ] Add startup registration to all services (one-line integration)
-- [ ] Add shutdown deregistration via graceful shutdown hooks
-- [ ] Create static fallback: `/opt/unheaded/services.yaml`
-- [ ] Replace all hardcoded IPs in unheaded-cli with discovery lookups
-- [ ] **EXIT GATE**: Services register on startup. Deregister on shutdown. CLI uses discovery. Fallback works when Wotan is down.
+- [x] Create `/opt/unheaded/` directory convention documentation
+- [x] Implement `pkg/discovery/scanner.go` — scans `/opt/unheaded/*/config.yaml`
+- [x] Implement `pkg/discovery/registrar.go` — Wotan register/deregister
+- [x] Define Wotan topics: `system.discovery.register`, `system.discovery.deregister`, `system.discovery.report`
+- [x] Define discovery message format (Sophia dictionary entry)
+- [x] Add startup registration to all services (one-line integration)
+- [x] Add shutdown deregistration via graceful shutdown hooks
+- [x] Create static fallback: `/opt/unheaded/services.yaml`
+- [x] Replace all hardcoded IPs in unheaded-cli with discovery lookups
+- [x] **EXIT GATE**: Services register on startup. Deregister on shutdown. CLI uses discovery. Fallback works when Wotan is down.
 
-#### Documentation Sprint (Parallel with all pillars) — Owner: Librarian
+#### Documentation Sprint (Parallel with all pillars) — ✅ COMPLETE (S36)
 
-- [ ] Update CLAUDE.md: new port ranges, gRPC-first policy, log aggregation, service discovery
-- [ ] Update wiki Home.md: add four-pillar architecture section
-- [ ] Update wiki Architecture.md: port registry, transport cascade, log flow
-- [ ] Update wiki Service-*.md pages: new ports for each service
-- [ ] Update wiki _Sidebar.md: add Port Registry, Service Discovery, Logging pages
-- [ ] Create wiki Port-Registry.md: the full Doom Range allocation table
-- [ ] Create wiki Service-Discovery.md: three-layer architecture
-- [ ] Create wiki Log-Aggregation.md: Chronicler's Well architecture
-- [ ] Create wiki Transport-Cascade.md: gRPC-first policy
-- [ ] Update README.md: new quick-start ports
-- [ ] **EXIT GATE**: All 8+ document layers updated. Wiki _Sidebar links work. No stale port references.
+- [x] Update CLAUDE.md: new port ranges, gRPC-first policy, log aggregation, service discovery
+- [x] Update wiki Home.md: add four-pillar architecture section
+- [x] Update wiki Architecture.md: port registry, transport cascade, log flow
+- [x] Update wiki Service-*.md pages: new ports for each service
+- [x] Update wiki _Sidebar.md: add Port Registry, Service Discovery, Logging pages
+- [x] Create wiki Port-Registry.md: the full Doom Range allocation table
+- [x] Create wiki Service-Discovery.md: three-layer architecture
+- [x] Create wiki Log-Aggregation.md: Chronicler's Well architecture
+- [x] Create wiki Transport-Cascade.md: gRPC-first policy
+- [x] Update README.md: new quick-start ports
+- [x] **EXIT GATE**: All 8+ document layers updated. Wiki _Sidebar links work. No stale port references.
 
 #### Decisions Made at This Round Table
 
@@ -526,7 +526,8 @@ Week 7+ (Mar 8 onwards): WS5 — Return to Core
 - **DOOM IS PLAYABLE** — Keyboard input works. LH/LB sign-extension fixed. 30 FPS WebSocket streaming.
 - **17 SKILLS AT THE TABLE** — The most complete assembly yet. The Barrister joins the Kingdom.
 - **ZERO PORT CONFLICTS AFTER TODAY** — Two confirmed conflicts identified AND a migration plan forged to prevent all future conflicts.
-- **FOUR PILLARS FORGED** — Port Authority, gRPC-First, Log Aggregation, Service Discovery. In one session. At one table.
+- **FOUR PILLARS FORGED AND STANDING (S36)** — Port Authority, gRPC-First, Log Aggregation, Service Discovery. Planned in S34, executed in S36. All EXIT GATES passed.
+- **S36 COMPLETE — THE FOUR PILLARS STAND** — All services on Doom Range ports, gRPC-first transport wired, log aggregation via Wotan ring buffer, three-layer service discovery operational.
 - **LOVE AND PEACE** — From Muck. The vibes are immaculate.
 
 ---
