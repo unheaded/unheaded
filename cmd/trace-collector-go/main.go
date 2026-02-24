@@ -34,6 +34,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/ebpf"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
 )
 
@@ -808,6 +809,10 @@ func main() {
 
 	// Unified health server for transport-aware readiness
 	healthSrv := transport.NewHealthServer("trace-collector")
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	logPublisher := logagg.NewPublisher("trace-collector", nil) // nil transport — publisher disabled until transport.Connect() is used
+	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create context with signal handling
 	ctx, cancel := context.WithCancel(context.Background())

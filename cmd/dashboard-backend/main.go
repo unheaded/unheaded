@@ -38,6 +38,7 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -125,6 +126,9 @@ func main() {
 		Str("http_addr", transportCfg.WotanHTTPAddr).
 		Str("transport", string(transportCfg.Type)).
 		Msg("transport config initialized")
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	_ = logagg.NewPublisher("dashboard-backend", nil) // nil transport — publisher disabled until zerolog is adopted
 
 	// Load service endpoint overrides
 	serviceEndpoints, err := loadServiceEndpoints(*servicesFile)

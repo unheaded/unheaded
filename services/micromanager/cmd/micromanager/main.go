@@ -16,6 +16,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/lifecycle"
+	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/micromanager"
@@ -98,6 +99,10 @@ func main() {
 
 	// Create store
 	store := micromanager.NewStore()
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	logPublisher := logagg.NewPublisher("micromanager", nil) // nil transport — publisher disabled until transport.Connect() is used
+	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create Wotan client (if configured)
 	var wotan *wotanClient.Client
