@@ -1,0 +1,52 @@
+# Static service discovery fallback
+# Used when Wotan is unavailable
+# Source of truth: pkg/ports/ports.go
+services:
+  wotan:
+    host: localhost
+    port: 18001
+    proto: grpc
+  timeguru:
+    host: localhost
+    port: 19000
+    proto: http
+  architect:
+    host: localhost
+    port: 19001
+    proto: http
+  captain:
+    host: localhost
+    port: 19002
+    proto: http
+  micromanager:
+    host: localhost
+    port: 19003
+    proto: http
+  monad:
+    host: localhost
+    port: 19004
+    proto: http
+  sophia:
+    host: localhost
+    port: 19005
+    proto: http
+  dashboard:
+    host: localhost
+    port: 20000
+    proto: http
+  kanban:
+    host: localhost
+    port: 20001
+    proto: http
+  wiki:
+    host: localhost
+    port: 20002
+    proto: http
+  trace-collector:
+    host: localhost
+    port: 16670
+    proto: http
+  daemon:
+    host: localhost
+    port: 17000
+    proto: http
