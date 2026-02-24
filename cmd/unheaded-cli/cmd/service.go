@@ -94,7 +94,7 @@ func newServiceListCommand() *Command {
 						Status:    "Running",
 						Replicas:  "1/1",
 						Image:     "unheaded/timeguru:latest",
-						Endpoint:  "http://10.10.10.20:8000",
+						Endpoint:  "http://10.10.10.20:19000",
 						CreatedAt: time.Now().Add(-24 * time.Hour),
 						UpdatedAt: time.Now().Add(-2 * time.Hour),
 					},
@@ -103,7 +103,7 @@ func newServiceListCommand() *Command {
 						Status:    "Running",
 						Replicas:  "1/1",
 						Image:     "unheaded/captain:latest",
-						Endpoint:  "http://10.10.10.21:8001",
+						Endpoint:  "http://10.10.10.21:19002",
 						CreatedAt: time.Now().Add(-24 * time.Hour),
 						UpdatedAt: time.Now().Add(-1 * time.Hour),
 					},
@@ -112,7 +112,7 @@ func newServiceListCommand() *Command {
 						Status:    "Running",
 						Replicas:  "2/2",
 						Image:     "unheaded/micromanager:latest",
-						Endpoint:  "http://10.10.10.22:8002",
+						Endpoint:  "http://10.10.10.22:19003",
 						CreatedAt: time.Now().Add(-24 * time.Hour),
 						UpdatedAt: time.Now().Add(-30 * time.Minute),
 					},
@@ -121,7 +121,7 @@ func newServiceListCommand() *Command {
 						Status:    "Pending",
 						Replicas:  "0/1",
 						Image:     "unheaded/architect:latest",
-						Endpoint:  "http://10.10.10.23:8003",
+						Endpoint:  "http://10.10.10.23:19001",
 						CreatedAt: time.Now().Add(-1 * time.Hour),
 						UpdatedAt: time.Now().Add(-1 * time.Hour),
 					},
@@ -130,7 +130,7 @@ func newServiceListCommand() *Command {
 						Status:    "Running",
 						Replicas:  "1/1",
 						Image:     "unheaded/wotan:latest",
-						Endpoint:  "http://10.10.10.10:9090",
+						Endpoint:  "http://10.10.10.10:18000",
 						CreatedAt: time.Now().Add(-48 * time.Hour),
 						UpdatedAt: time.Now().Add(-24 * time.Hour),
 					},
@@ -158,8 +158,8 @@ func newServiceDeployCommand() *Command {
 	flags.IntVar(&replicas, "r", 1, "Replicas (short)")
 	flags.StringVar(&env, "env", "", "Environment variables (KEY=VALUE,...)")
 	flags.StringVar(&env, "e", "", "Environment variables (short)")
-	flags.IntVar(&port, "port", 8000, "Container port to expose")
-	flags.IntVar(&port, "p", 8000, "Port (short)")
+	flags.IntVar(&port, "port", 19000, "Container port to expose")
+	flags.IntVar(&port, "p", 19000, "Port (short)")
 	flags.BoolVar(&dryRun, "dry-run", false, "Show what would be deployed without actually deploying")
 
 	return &Command{
@@ -243,7 +243,7 @@ func newServiceStatusCommand() *Command {
 				Status:    "Running",
 				Replicas:  "2/2",
 				Image:     fmt.Sprintf("unheaded/%s:latest", name),
-				Endpoint:  fmt.Sprintf("http://10.10.10.20:800%d", len(name)%10),
+				Endpoint:  fmt.Sprintf("http://10.10.10.20:1900%d", len(name)%10),
 				CreatedAt: time.Now().Add(-24 * time.Hour),
 				UpdatedAt: time.Now().Add(-30 * time.Minute),
 			}
@@ -332,8 +332,8 @@ func newServiceLogsCommand() *Command {
 			w := ctx.Output
 
 			mockLogs := []string{
-				fmt.Sprintf("[%s] %s | INFO  | Service started on port 8000", time.Now().Add(-30*time.Minute).Format("2006-01-02 15:04:05"), name),
-				fmt.Sprintf("[%s] %s | INFO  | Connected to Wotan at 10.10.10.10:9090", time.Now().Add(-30*time.Minute).Format("2006-01-02 15:04:05"), name),
+				fmt.Sprintf("[%s] %s | INFO  | Service started on port 19000", time.Now().Add(-30*time.Minute).Format("2006-01-02 15:04:05"), name),
+				fmt.Sprintf("[%s] %s | INFO  | Connected to Wotan at 10.10.10.10:18001", time.Now().Add(-30*time.Minute).Format("2006-01-02 15:04:05"), name),
 				fmt.Sprintf("[%s] %s | INFO  | Health check endpoint ready", time.Now().Add(-29*time.Minute).Format("2006-01-02 15:04:05"), name),
 				fmt.Sprintf("[%s] %s | INFO  | Processing request GET /api/v1/status", time.Now().Add(-15*time.Minute).Format("2006-01-02 15:04:05"), name),
 				fmt.Sprintf("[%s] %s | DEBUG | Request completed in 12ms", time.Now().Add(-15*time.Minute).Format("2006-01-02 15:04:05"), name),
