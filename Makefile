@@ -148,10 +148,25 @@ test-rust: ## Run Rust tests
 	cd cmd/trace-collector && cargo test
 	cd crates/monad-mbc && cargo test
 
+test-e2e: ## Run E2E integration tests (auth, pipeline, security, message delivery)
+	@echo "Running E2E integration tests..."
+	go test -v -race -count=1 -timeout 300s ./tests/e2e/...
+	@echo "✓ E2E tests passed"
+
 test-e2e-bpf: ## Run BPF → Dashboard E2E integration tests (requires root for real BPF)
 	@echo "Running BPF → Dashboard E2E tests..."
 	go test -v -race -count=1 -run TestE2E_BPFDashboard ./cmd/dashboard-backend/internal/ebpf/
 	@echo "✓ BPF E2E tests passed"
+
+test-security: ## Run Lich security campaigns (requires running services)
+	@echo "Running Lich security campaigns..."
+	go run ./cmd/lich-security -gateway http://localhost:21000 -report /tmp/lich-report.md
+	@echo "✓ Security campaigns complete. Report: /tmp/lich-report.md"
+
+race-test: ## Run Go tests with race detection only
+	@echo "Running race detection tests..."
+	go test -race -count=1 -timeout 300s ./...
+	@echo "✓ No races detected"
 
 bench: ## Run benchmarks
 	@echo "Running benchmarks..."
@@ -241,6 +256,19 @@ deploy-logs: ## Tail deployment logs
 
 deploy-restart: ## Restart all deployed services
 	docker compose restart
+
+deploy-health: ## Verify all deployed services are healthy
+	@echo "Checking service health..."
+	@for svc in wotan timeguru captain architect micromanager monad sophia cuirass; do \
+		printf "%-16s " "$$svc:"; \
+		curl -sf http://localhost:$$(docker compose port $$svc 2>/dev/null | cut -d: -f2)/health > /dev/null 2>&1 && echo "healthy" || echo "UNHEALTHY"; \
+	done
+
+deploy-rollback: ## Rollback to previous Docker image versions
+	@echo "Rolling back to previous deployment..."
+	docker compose down
+	docker compose up -d --no-build
+	@echo "Rollback complete. Run 'make deploy-health' to verify."
 
 setup-host: ## Setup host environment (LXD, networking, etc)
 	@echo "Setting up host..."
