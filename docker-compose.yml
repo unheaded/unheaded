@@ -322,11 +322,22 @@ services:
       target: wotan
     container_name: unheaded-wotan
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=64M
     environment:
       LOG_LEVEL: info
     ports:
       - "18001:18001"     # gRPC streaming
       - "18000:18000"     # HTTP REST API
+    volumes:
+      - /var/log/unheaded/wotan:/var/log/unheaded:rw
     networks:
       - control
       - data
@@ -352,6 +363,15 @@ services:
       target: timeguru
     container_name: unheaded-timeguru
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=32M
     environment:
       PORT: "19000"
       WOTAN_ADDR: "wotan:18000"
@@ -384,6 +404,15 @@ services:
       target: captain
     container_name: unheaded-captain
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=32M
     environment:
       HTTP_ADDR: "0.0.0.0:19002"
       WOTAN_ADDR: "wotan:18001"
@@ -417,6 +446,15 @@ services:
       target: architect
     container_name: unheaded-architect
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=32M
     environment:
       WOTAN_ADDR: "wotan:18000"
     command: ["/app/architect", "-addr", ":19001"]
@@ -449,6 +487,15 @@ services:
       target: micromanager
     container_name: unheaded-micromanager
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=32M
     command: ["/app/micromanager", "-port", "19003"]
     ports:
       - "19003:19003"
@@ -479,6 +526,15 @@ services:
       target: monad
     container_name: unheaded-monad
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=32M
     environment:
       MONAD_PORT: "19004"
       WOTAN_ADDR: "wotan:18000"
@@ -511,6 +567,15 @@ services:
       target: sophia
     container_name: unheaded-sophia
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=32M
     environment:
       SOPHIA_LISTEN_ADDR: ":19005"
       WOTAN_ADDR: "wotan:18000"
@@ -543,11 +608,23 @@ services:
       target: cuirass
     container_name: unheaded-cuirass
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=64M
     environment:
       HTTP_ADDR: ":19006"
       WOTAN_ADDR: "wotan:18000"
     ports:
       - "19006:19006"
+    volumes:
+      - /var/lib/unheaded:/var/lib/unheaded:rw
+      - /var/log/unheaded/cuirass:/var/log/unheaded:rw
     networks:
       - control
       - data
