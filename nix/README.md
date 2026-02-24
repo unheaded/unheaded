@@ -79,31 +79,37 @@ nix run .#deploy
 
 ### Wotan (Message Hub)
 - **IP**: 10.10.10.10
-- **Ports**: 9090 (gRPC), 8080 (REST), 9100 (metrics)
+- **Ports**: 18001 (gRPC), 18000 (HTTP/REST)
 - **Role**: Central message bus - all services communicate through this
 - **Dependencies**: None (starts first)
 - **Critical**: All other services depend on wotan
 
-### Agent Services
+### Core Services — Doom Range (19000-19999)
 | Service | IP | Port | Role |
 |---------|-----|------|------|
-| timeguru | 10.10.10.20 | 8000 | Timeline tracking |
-| captain | 10.10.10.21 | 8001 | Strategic planning |
-| micromanager | 10.10.10.22 | 8002 | Execution tracking |
-| architect | 10.10.10.23 | 8003 | Infrastructure design |
-| developer | 10.10.10.24 | 8004 | Development tasks |
+| timeguru | 10.10.10.20 | 19000 | Timeline tracking |
+| architect | 10.10.10.23 | 19001 | Infrastructure design |
+| captain | 10.10.10.21 | 19002 | Strategic planning |
+| micromanager | 10.10.10.22 | 19003 | Execution tracking |
+| monad | 10.10.10.24 | 19004 | Unified state management |
+| sophia | 10.10.10.25 | 19005 | Knowledge graph |
 
 All services:
 - Depend on wotan
 - Expose REST API + metrics
-- Connect to wotan on startup
+- Connect to wotan on startup via gRPC-first transport
 - Auto-restart on failure
 
-### Applications
+### Applications — Doom Range (20000-20999)
 | App | IP | Port | Role |
 |-----|-----|------|------|
-| kanban | 10.10.10.200 | 8080 | Meta moment board |
-| dashboard | 10.10.10.201 | 8081 | eBPF trace viz |
+| dashboard | 10.10.10.201 | 20000 | eBPF trace viz + log viewer |
+| kanban | 10.10.10.200 | 20001 | Meta moment board |
+
+### Control Plane
+| Service | IP | Port | Role |
+|---------|-----|------|------|
+| daemon | 10.10.10.202 | 17000 | unheaded-daemon control plane |
 
 Both apps:
 - Public-facing (via gateway)
@@ -228,13 +234,13 @@ Network isolation and connectivity:
   unheaded.hardening = {
     enable = true;
     serviceName = "myservice";
-    allowedPorts = [ 8005 9100 ];
+    allowedPorts = [ 19006 ];
   };
 
   unheaded.networking = {
     enable = true;
-    serviceIP = "10.10.10.25";
-    servicePort = 8005;
+    serviceIP = "10.10.10.26";
+    servicePort = 19006;
   };
 
   systemd.services.myservice = {
@@ -345,7 +351,7 @@ lxc exec unheaded-timeguru -- ping 10.10.10.10
 lxc exec unheaded-wotan -- iptables -L -v -n
 
 # Test health endpoint
-curl http://10.10.10.10:8080/health
+curl http://10.10.10.10:18000/health
 ```
 
 ## Documentation
