@@ -16,6 +16,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/lifecycle"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/micromanager"
 )
@@ -78,10 +79,21 @@ func main() {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 
+	// Transport config
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	if *wotanAddr != "" {
+		transportCfg.WotanHTTPAddr = *wotanAddr
+	}
+
+	// Health server
+	healthSrv := transport.NewHealthServer("micromanager")
+
 	log.Info().
 		Str("version", "1.0.0").
 		Str("port", *port).
 		Str("wotan", *wotanAddr).
+		Str("transport_type", string(transportCfg.Type)).
 		Msg("starting micromanager service")
 
 	// Create store
@@ -94,6 +106,7 @@ func main() {
 		wotan, err = wotanClient.NewClient(*wotanAddr)
 		if err != nil {
 			log.Error().Err(err).Str("addr", *wotanAddr).Msg("failed to create wotan client")
+			healthSrv.SetGRPCStatus(false)
 			// Continue anyway, just without wotan integration
 		}
 	}
@@ -114,9 +127,8 @@ func main() {
 	// Set up HTTP routes with middleware
 	mux := http.NewServeMux()
 
-	// Health endpoints
-	mux.HandleFunc("/health", withMetrics("/health", api.Health))
-	mux.HandleFunc("/ready", withMetrics("/ready", readinessProbe(service)))
+	// Health endpoints (transport-aware)
+	healthSrv.RegisterHTTP(mux)
 
 	// API endpoints
 	mux.HandleFunc("/api/v1/backlog", withMetrics("/api/v1/backlog", api.GetBacklog))
