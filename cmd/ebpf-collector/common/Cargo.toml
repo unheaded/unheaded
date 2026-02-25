@@ -1,0 +1,12 @@
+[package]
+name = "ebpf-common"
+version = "0.1.0"
+edition = "2021"
+description = "Shared repr(C) types for eBPF kernel programs and userspace collector"
+
+[features]
+default = []
+# Enable userspace-only helpers (std, formatting, serde)
+userspace = []
+
+[dependencies]

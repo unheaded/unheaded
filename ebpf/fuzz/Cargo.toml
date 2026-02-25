@@ -1,0 +1,92 @@
+# =============================================================================
+# Cargo.toml — LICH Fuzz Crate (The Automated Adversary)
+# =============================================================================
+# WHAT: Fuzzing harness crate for Unheaded eBPF programs + wire format
+# WHY:  S25 ran 28M executions with zero crashes — LICH needs a proper home
+# WHO:  Developer + BlackMage (offensive security)
+# WHERE: ebpf/fuzz/Cargo.toml (move this file there)
+# WIRE: Seeds in ebpf/fuzz/seeds/, harnesses in ebpf/fuzz/fuzz_targets/
+# =============================================================================
+
+[package]
+name = "lich-fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The Lich — Automated adversary fuzzing for Unheaded protocol and eBPF programs"
+license = "UNLICENSED"
+
+# =============================================================================
+# FUZZ TARGETS
+# =============================================================================
+# Each [[bin]] is a separate fuzzing campaign target
+# Run with: cargo +nightly fuzz run <target_name>
+
+[[bin]]
+name = "fuzz_monad_wire"
+path = "fuzz_targets/fuzz_monad_wire.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_sophia_dict"
+path = "fuzz_targets/fuzz_sophia_dict.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_crc16"
+path = "fuzz_targets/fuzz_crc16.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_exponent_encoding"
+path = "fuzz_targets/fuzz_exponent_encoding.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_packet_parse"
+path = "fuzz_targets/fuzz_packet_parse.rs"
+doc = false
+
+# =============================================================================
+# DEPENDENCIES
+# =============================================================================
+[dependencies]
+# libFuzzer integration — THE standard for Rust fuzzing
+libfuzzer-sys = "0.4"
+
+# Arbitrary trait for structured fuzzing (not just byte slices)
+arbitrary = { version = "1", features = ["derive"] }
+
+# =============================================================================
+# WORKSPACE DEPENDENCIES (relative paths to sibling crates)
+# Uncomment and adjust paths based on actual crate layout
+# =============================================================================
+# monad-common = { path = "../monad-common" }
+# sophia-types = { path = "../sophia-types" }
+# shield-ebpf-common = { path = "../shield-ebpf-common" }
+
+# =============================================================================
+# PROFILE: FUZZ (optimized for fuzzing speed)
+# =============================================================================
+[profile.release]
+opt-level = 3
+debug = true          # Keep debug info for crash analysis
+overflow-checks = true # KEEP — we want to catch overflows
+
+# Fuzz profile — balance speed with crash reproducibility
+[profile.fuzz]
+inherits = "release"
+opt-level = 3
+debug = true
+overflow-checks = true
+# LTO disabled for faster compilation during fuzzing
+lto = false
+# Single codegen unit for better coverage
+codegen-units = 1
+
+# =============================================================================
+# CARGO-FUZZ CONFIGURATION
+# =============================================================================
+# This section is used by `cargo fuzz` command
+[workspace]
+members = ["."]
