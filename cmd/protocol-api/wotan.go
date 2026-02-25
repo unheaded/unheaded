@@ -6,12 +6,13 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/unheaded/unheaded/proto/unheaded/v1"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 // wotanServer implements per-flow memory management
 // Each flow has 40 bytes: 32 bytes state + 8 bytes sequence metadata
 type wotanServer struct {
+	pb.UnimplementedWotanServiceServer
 	mockStorage map[uint32]*pb.MemorySlot
 	mu          sync.RWMutex
 }
