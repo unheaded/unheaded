@@ -65,6 +65,42 @@
     var statusCallbacks = [];
     var cpuTrace = null; // CPU trace overlay (D-013)
 
+    // JavaScript keyCode → Doom internal keycode translation
+    // Doom keycodes: https://github.com/ozkl/doomgeneric doomkeys.h
+    var JS_TO_DOOM_KEY = {
+        // Arrow keys
+        38: 0xAD,   // ArrowUp → KEY_UPARROW
+        40: 0xAF,   // ArrowDown → KEY_DOWNARROW
+        37: 0xAC,   // ArrowLeft → KEY_LEFTARROW
+        39: 0xAE,   // ArrowRight → KEY_RIGHTARROW
+        // WASD → arrow equivalents
+        87: 0xAD,   // W → KEY_UPARROW
+        83: 0xAF,   // S → KEY_DOWNARROW
+        65: 0xAC,   // A → KEY_LEFTARROW
+        68: 0xAE,   // D → KEY_RIGHTARROW
+        // Action keys
+        17: 0xA3,   // Ctrl → KEY_FIRE
+        32: 0xA2,   // Space → KEY_USE
+        16: 0xB6,   // Shift → KEY_RSHIFT (run)
+        18: 0xA4,   // Alt → KEY_STRAFE
+        // Weapon selection
+        49: 0x31,   // 1
+        50: 0x32,   // 2
+        51: 0x33,   // 3
+        52: 0x34,   // 4
+        53: 0x35,   // 5
+        54: 0x36,   // 6
+        55: 0x37,   // 7
+        56: 0x38,   // 8
+        // Menu
+        27: 0x1B,   // Escape
+        13: 0x0D,   // Enter
+        9:  0x09,   // Tab → KEY_TAB (automap)
+        // Extra
+        188: 0xA4,  // , (comma) → KEY_STRAFE
+        190: 0xAE   // . (period) → KEY_RIGHTARROW (strafe right)
+    };
+
     // ── Initialization ──────────────────────────────────────────────────────
 
     function init(containerId, options) {
@@ -478,11 +514,14 @@
 
     function sendKeyEvent(keyCode, pressed) {
         if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'compute_input',
-                key_code: keyCode,
-                pressed: pressed
-            }));
+            var doomKey = JS_TO_DOOM_KEY[keyCode];
+            if (doomKey === undefined) return;  // Unmapped key, ignore
+            var buf = new ArrayBuffer(4);
+            var view = new DataView(buf);
+            view.setUint8(0, 0x02);                     // tagKbd
+            view.setUint16(1, doomKey, true);            // little-endian Doom keycode
+            view.setUint8(3, pressed ? 1 : 0);          // pressed flag
+            ws.send(buf);
         }
     }
 
