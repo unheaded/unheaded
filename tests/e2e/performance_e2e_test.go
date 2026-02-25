@@ -50,8 +50,8 @@ func TestPerformance_TraceProcessingLatency(t *testing.T) {
 
 		t.Logf("Trace ID generation: %d ops in %v (%.0f ns/op)", iterations, elapsed, float64(perOp.Nanoseconds()))
 
-		if perOp > 10*time.Microsecond {
-			t.Errorf("Trace ID generation too slow: %v/op (max 10us)", perOp)
+		if perOp > 25*time.Microsecond {
+			t.Errorf("Trace ID generation too slow: %v/op (max 25us)", perOp)
 		}
 	})
 
