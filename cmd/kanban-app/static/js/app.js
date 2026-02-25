@@ -171,6 +171,7 @@ const App = (function() {
         window.addEventListener('task:delete', (e) => openDeleteModal(e.detail.task));
         window.addEventListener('task:move', (e) => handleTaskMove(e.detail));
         window.addEventListener('task:update', (e) => handleInlineUpdate(e.detail));
+        window.addEventListener('task:review', (e) => handleReviewAction(e.detail));
     }
 
     /**
@@ -642,6 +643,52 @@ const App = (function() {
      * Handle task move from drag and drop
      * @param {Object} detail - Move details (taskId, newStatus, cardElement)
      */
+
+    /**
+     * Handle review actions (Approve, Reject, Request Changes)
+     * @param {Object} detail - Review detail (task, action)
+     */
+    async function handleReviewAction(detail) {
+        const { task, action, cardElement } = detail;
+
+        if (!task) return;
+
+        let newStatus;
+        let successMessage;
+
+        switch (action) {
+            case 'approve':
+                newStatus = 'done';
+                successMessage = 'Task approved and moved to Done';
+                break;
+            case 'reject':
+                newStatus = 'backlog';
+                successMessage = 'Task rejected and moved to Backlog';
+                break;
+            case 'changes':
+                // Request changes - stay in review but add flag
+                try {
+                    // Update task with changes-requested flag
+                    const updatedTask = await API.tasks.update(task.id, {
+                        status: 'review',
+                        // Add a marker that changes were requested
+                        description: (task.description || '').split('\n\n[Changes requested')[0] + '\n\n[Changes requested - ' + new Date().toLocaleDateString() + ']'
+                    });
+                    Board.updateTask(updatedTask);
+                    Board.showToast('info', 'Changes Requested', 'Author will be notified');
+                } catch (error) {
+                    console.error('[App] Failed to request changes:', error);
+                    Board.showToast('error', 'Failed to request changes', error.message);
+                }
+                return;
+            default:
+                return;
+        }
+
+        // Move task to new status
+        await Board.moveTask(task.id, newStatus);
+        Board.showToast('success', 'Review action completed', successMessage);
+    }
     async function handleTaskMove(detail) {
         const { taskId, newStatus, cardElement } = detail;
 

@@ -737,3 +737,360 @@
         transform: none;
     }
 }
+
+/* ============================================
+   Review Actions (for Review column)
+   ============================================ */
+.review-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.review-btn {
+    flex: 1;
+    padding: 0.375rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.review-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-color-hover);
+    transform: translateY(-1px);
+}
+
+.review-btn:active {
+    transform: translateY(0);
+}
+
+.review-btn--approve {
+    color: #6a9760;
+    border-color: #6a9760;
+}
+
+.review-btn--approve:hover {
+    background: rgba(106, 151, 96, 0.1);
+    color: #8adf7a;
+    border-color: #8adf7a;
+    box-shadow: 0 0 8px rgba(106, 151, 96, 0.3);
+}
+
+.review-btn--reject {
+    color: #9e5a5a;
+    border-color: #9e5a5a;
+}
+
+.review-btn--reject:hover {
+    background: rgba(158, 90, 90, 0.1);
+    color: #ee7070;
+    border-color: #ee7070;
+    box-shadow: 0 0 8px rgba(158, 90, 90, 0.3);
+}
+
+.review-btn--changes {
+    color: #998860;
+    border-color: #998860;
+}
+
+.review-btn--changes:hover {
+    background: rgba(153, 136, 96, 0.1);
+    color: #f0b878;
+    border-color: #f0b878;
+    box-shadow: 0 0 8px rgba(153, 136, 96, 0.3);
+}
+
+.review-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.review-btn.loading::after {
+    content: '';
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-left: 0.25rem;
+    border: 1px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+/* ============================================
+   Drag and Drop Enhancements
+   ============================================ */
+
+/* Enhanced dragging visual feedback */
+.task-card.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg) scale(0.98);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    border-color: var(--kingdom-gold);
+}
+
+/* Drop placeholder improvements */
+.drop-placeholder {
+    height: 80px;
+    margin: var(--spacing-xs) 0;
+    border: 2px dashed var(--kingdom-gold);
+    border-radius: var(--radius-md);
+    background: rgba(255, 215, 0, 0.05);
+    opacity: 0.8;
+    transition: all 0.2s ease;
+    animation: placeholder-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes placeholder-pulse {
+    0%, 100% {
+        opacity: 0.4;
+        transform: scaleY(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scaleY(1.03);
+    }
+}
+
+/* Column drag-over state enhancement */
+.column-content.drag-over {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.08) 0%, rgba(255, 215, 0, 0.03) 100%);
+    box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.1);
+    border-radius: var(--radius-md);
+}
+
+/* ============================================
+   Card Enhanced States
+   ============================================ */
+
+/* Card focus outline for keyboard navigation */
+.task-card:focus-visible {
+    outline: 2px solid var(--kingdom-gold);
+    outline-offset: 2px;
+}
+
+/* Completed task visual fade */
+.task-card.completed {
+    opacity: 0.65;
+}
+
+.task-card.completed .card-title {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+/* Updated animation */
+@keyframes card-updated {
+    0% {
+        background-color: rgba(255, 215, 0, 0.2);
+    }
+    100% {
+        background-color: var(--kingdom-bg-card);
+    }
+}
+
+.task-card.updated {
+    animation: card-updated 0.6s ease-out;
+}
+
+/* Just completed animation */
+@keyframes card-completed {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0.65;
+    }
+}
+
+.task-card.just-completed {
+    animation: card-completed 0.4s ease-out;
+}
+
+/* Deleting animation */
+@keyframes card-delete {
+    0% {
+        opacity: 1;
+        transform: translateX(0) rotateZ(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(30px) rotateZ(5deg);
+    }
+}
+
+.task-card.deleting {
+    animation: card-delete 0.3s ease-out forwards;
+}
+
+/* ============================================
+   Card Skeleton States
+   ============================================ */
+.card-skeleton {
+    background: var(--kingdom-bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-line {
+    height: 1rem;
+    background: var(--kingdom-bg-tertiary);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.skeleton-line.title {
+    height: 1.2rem;
+    width: 80%;
+}
+
+.skeleton-line.medium {
+    height: 0.875rem;
+    width: 60%;
+}
+
+.skeleton-line.short {
+    height: 0.875rem;
+    width: 40%;
+}
+
+@keyframes skeleton-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+/* ============================================
+   Card Inline Editing
+   ============================================ */
+.card-title-input {
+    width: 100%;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    background: var(--kingdom-bg-primary);
+    border: 2px solid var(--kingdom-gold);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 3px var(--kingdom-gold-muted);
+}
+
+.card-title-input:focus {
+    outline: none;
+}
+
+.edit-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+.edit-btn {
+    flex: 1;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--kingdom-bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.edit-btn:hover {
+    border-color: var(--kingdom-gold);
+    color: var(--kingdom-gold);
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.edit-btn.save {
+    border-color: #4a7a4a;
+    color: #8aaa8a;
+}
+
+.edit-btn.save:hover {
+    border-color: #6a9a6a;
+    color: #aaaaa;
+    background: rgba(106, 151, 96, 0.1);
+}
+
+/* ============================================
+   Card Accessibility
+   ============================================ */
+
+/* Keyboard focus visible styles */
+.task-card[tabindex]:focus-visible {
+    outline: 2px solid var(--kingdom-gold);
+    outline-offset: 2px;
+}
+
+.card-action-btn:focus-visible,
+.review-btn:focus-visible {
+    outline: 2px solid var(--kingdom-gold);
+    outline-offset: 1px;
+}
+
+/* Dark mode tweaks for better contrast */
+@media (prefers-color-scheme: dark) {
+    .review-btn {
+        background: rgba(0, 0, 0, 0.3);
+    }
+
+    .review-btn:hover {
+        background: rgba(255, 215, 0, 0.1);
+    }
+
+    .review-btn--approve:hover {
+        background: rgba(106, 151, 96, 0.2);
+    }
+
+    .review-btn--reject:hover {
+        background: rgba(158, 90, 90, 0.2);
+    }
+
+    .review-btn--changes:hover {
+        background: rgba(153, 136, 96, 0.2);
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .task-card,
+    .drop-placeholder,
+    .review-btn,
+    .edit-btn {
+        transition: none;
+        animation: none !important;
+    }
+}
