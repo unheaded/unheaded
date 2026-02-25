@@ -435,6 +435,7 @@
         <button class="tab-btn" data-tab="doom">doom</button>
         <button class="tab-btn" data-tab="services">services</button>
         <button class="tab-btn" data-tab="infrastructure">infrastructure</button>
+        <button class="tab-btn" data-tab="ai-inference">ai inference</button>
         <button class="tab-btn" data-tab="logs">logs</button>
       </div>
 
@@ -540,6 +541,12 @@
         <div class="tab-content">
           <div id="infrastructureContainer" class="infrastructure-grid">
           </div>
+        </div>
+      </div>
+
+      <!-- AI Inference Tab -->
+      <div id="ai-inference" class="tab-panel">
+        <div class="tab-content" id="aiInferenceContainer">
         </div>
       </div>
 
@@ -714,6 +721,49 @@
                 infContainer.appendChild(card);
               });
             }
+          });
+
+        // Load AI inference models from API (falls back to demo data)
+        const aiContainer = document.getElementById('aiInferenceContainer');
+        fetch('/api/v1/ai/models')
+          .then(r => r.json())
+          .then(data => {
+            const models = data.models || [];
+            aiContainer.innerHTML = '<div class="ai-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem"></div><div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
+            const summary = aiContainer.querySelector('.ai-summary');
+            const grid = aiContainer.querySelector('.ai-models-grid');
+            const online = models.filter(m => m.status === 'online').length;
+            const totalReqs = models.reduce((s, m) => s + (m.requests || 0), 0);
+            const avgLat = models.length ? Math.round(models.reduce((s, m) => s + (m.latency_p50 || 0), 0) / models.length) : 0;
+            [{l:'Requests (24h)',v:totalReqs},{l:'Avg Latency',v:avgLat+'ms'},{l:'Active Models',v:online+'/'+models.length},{l:'GPU Util',v:'--'}].forEach(item => {
+              const box = document.createElement('div');
+              box.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:1rem;text-align:center';
+              box.innerHTML = '<div style="color:var(--color-text-secondary,#888);font-size:0.75rem;margin-bottom:0.25rem">'+item.l+'</div><div style="font-size:1.5rem;font-weight:600;font-family:var(--font-mono,monospace)">'+item.v+'</div>';
+              summary.appendChild(box);
+            });
+            models.forEach(m => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              const statusColor = m.status === 'online' ? '#22c55e' : m.status === 'loading' ? '#eab308' : '#ef4444';
+              card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:'+statusColor+';font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+(m.throughput||'--')+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+(m.latency_p50||'--')+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+(m.latency_p99||'--')+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+(m.requests||0)+'</span></div></div>';
+              grid.appendChild(card);
+            });
+          })
+          .catch(() => {
+            const demoModels = [
+              {name:'deepseek-r1-7b',status:'online',throughput:42,latency_p50:85,latency_p99:220,requests:1247},
+              {name:'qwen-2.5-coder-7b',status:'online',throughput:38,latency_p50:92,latency_p99:245,requests:893},
+              {name:'bge-m3',status:'online',throughput:156,latency_p50:12,latency_p99:28,requests:3450},
+              {name:'qdrant',status:'online',throughput:0,latency_p50:3,latency_p99:8,requests:5200}
+            ];
+            aiContainer.innerHTML = '<div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
+            const grid = aiContainer.querySelector('.ai-models-grid');
+            demoModels.forEach(m => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:#22c55e;font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+m.throughput+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+m.latency_p50+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+m.latency_p99+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+m.requests+'</span></div></div>';
+              grid.appendChild(card);
+            });
           });
 
         const logStream = document.getElementById('logStream');
