@@ -13,6 +13,7 @@
 - [[Kingdom Architecture|Kingdom-Architecture]]
 - [[Project Structure|Project-Structure]]
 - [[Microservices]]
+- [[Auth Framework|Auth-Framework]]
 
 **Protocol**
 - [[Foundation|Protocol-Foundation]]
@@ -30,6 +31,12 @@
 - [[Overview|Security]]
 - [[Audit|Security-Audit]]
 - [[LICH Campaigns|LICH-Campaigns]]
+
+**Legal & Compliance**
+- [[License|LICENSE-BSL11]]
+- [[IP Inventory|IP-INVENTORY]]
+- [[IANA Registration|IANA-REGISTRATION]]
+- [[Contributor Guide|CONTRIBUTOR-GUIDE]]
 
 **Services**
 - [[Wotan|Service-Wotan]]
@@ -53,6 +60,9 @@
 - [[eBPF Programs|eBPF-Programs]]
 - [[Service Breakout|Service-Breakout-Strategy]]
 
+**Research**
+- [[IPv6 Metric Capacity|IPV6_METRIC_CAPACITY]]
+
 **Lore & Naming**
 - [[Lore Index|Lore-Index]]
 - [[Naming Map|Naming-Map]]
@@ -70,8 +80,11 @@
 
 **Development**
 - [[Developer Guide|Developer-Guide]]
-- [[Demo Script|Demo-Script]]
+- [[Alpha Demo Script|ALPHA_DEMO_SCRIPT]]
 - [[Agent Procedure|Agent-Operating-Procedure]]
+
+**Conference & Talks**
+- [[eBPF Summit 2026|EBPF_SUMMIT_2026]]
 
 **Planning**
 - [[Timeline]]

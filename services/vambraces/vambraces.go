@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package vambraces provides observability, metrics, and alerting capabilities.
 // Vambraces the Observability Stack is the Kingdom's sight - monitoring all systems.
 // Implements metrics collection, distributed tracing, and SLO management.

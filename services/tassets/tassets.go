@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package tassets provides data layer and storage management capabilities.
 // Tassets the Data Layer is the Kingdom's foundation - storing all data securely.
 // Implements data pipelines, storage backends, and backup/recovery.

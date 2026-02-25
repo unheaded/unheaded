@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package doom provides Go-side helpers for the Doom-over-IPv6 compute engine.
 //
 // It defines Go types that match the Rust #[repr(C)] structs from

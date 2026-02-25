@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package proxy provides L4/L7 proxy functionality for THE HAUBERK.
 package proxy
 

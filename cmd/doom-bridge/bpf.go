@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package main provides BPF map access for the doom-bridge.
 // Low-level BPF primitives live in internal/bpf; this file contains
 // doom-bridge-specific helpers (screen reads, stats, keyboard, palette).

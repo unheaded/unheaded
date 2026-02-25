@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package yaldabaoth provides chaos engineering and fault injection capabilities.
 // In Gnostic philosophy, Yaldabaoth is the Demiurge - a false god who created the flawed material world.
 // This service embodies that concept: deliberately introducing chaos, testing resilience,

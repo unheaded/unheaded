@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package bpfschema defines the canonical BPF map key/value structures shared
 // between Go userspace (map population, reading) and eBPF kernel programs
 // (map lookup, update).

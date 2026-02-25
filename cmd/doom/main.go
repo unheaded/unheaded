@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package main provides a standalone CLI for the Doom-over-IPv6 compute engine.
 //
 // This is a lightweight alternative to "wotan-ctl doom" that can be built and

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package metrics provides time-series metrics aggregation and storage.
 // This is a lightweight internal metrics aggregator for the dashboard backend.
 // For the main metrics collection, see the scraper package.

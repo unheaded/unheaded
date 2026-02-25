@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package bpf provides shared BPF map access primitives for Unheaded services.
 //
 // It implements raw BPF syscall wrappers for reading and writing pinned BPF maps

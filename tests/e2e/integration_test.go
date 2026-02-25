@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package e2e provides E2E integration tests that wire together the major packages.
 // This test file verifies the integration flow:
 // Scheduler -> Runtime -> Container -> DNS -> Mesh -> Load Balancer

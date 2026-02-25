@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Lich Security — offensive security test suite for Unheaded.
 //
 // Runs 6 campaign modules (D1-D6) against the Unheaded service stack:

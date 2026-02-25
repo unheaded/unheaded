@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Campaign: LICH-D3 — Keyboard Injection
 // Objective: Verify that keyboard input (KBD_MAP) cannot be injected by
 // unauthorized processes, and that the SYSCALL handler validates input

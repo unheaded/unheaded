@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package lifecycle provides GOAWAY and CANCEL_FLOW frame handling for the Unheaded protocol.
 // It implements H7 and H8 findings: GOAWAY monotonicity enforcement and flow cancellation.
 package lifecycle

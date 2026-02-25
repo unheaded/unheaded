@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package waf provides a Web Application Firewall implementation
 // using only Go standard library - THE SHIELD of the Unheaded Kingdom
 // TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference

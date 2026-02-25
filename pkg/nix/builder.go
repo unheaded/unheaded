@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package nix provides NixOS container building and management for Unheaded.
 // THE FORGE - Where immutable NixOS containers are forged from flake definitions.
 package nix

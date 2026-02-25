@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package wotanClient — message ordering for per-destination FIFO delivery.
 //
 // OrderedPublisher ensures that messages sent to the same destination

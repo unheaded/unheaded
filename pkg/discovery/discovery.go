@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package discovery provides Wotan-based service discovery for the Unheaded
 // platform. Services announce themselves via the "system.discovery" Wotan topic
 // and are automatically discovered by all other participants.

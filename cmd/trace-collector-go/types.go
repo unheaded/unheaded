@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // types.go — Shared types for the packet-marker BPF program's map entries.
 //
 // These Go structs mirror the Rust types in ebpf/common/src/lib.rs byte-for-byte.

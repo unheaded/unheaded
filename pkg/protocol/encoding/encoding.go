@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package encoding provides shared wire encoding primitives for the Unheaded protocol.
 //
 // All protocol packages MUST use these functions for encoding/decoding rather than

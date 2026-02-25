@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package audit provides comprehensive audit logging for the Unheaded Kingdom infrastructure.
 // It implements tamper-evident logging with multiple storage backends, async processing,
 // and SIEM integration capabilities.

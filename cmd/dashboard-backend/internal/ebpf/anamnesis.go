@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Anamnesis event ingestion for the dashboard backend.
 //
 // This module subscribes to anamnesis.* Wotan topics (published by

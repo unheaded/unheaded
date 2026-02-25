@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package monad provides functional composition and unified state management.
 // In Gnostic philosophy, the Monad is the supreme being - the One from which all emanates.
 // This service embodies that concept: a unified interface for composing operations,

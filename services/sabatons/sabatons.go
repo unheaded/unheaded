@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package sabatons provides bare metal and hardware management capabilities.
 // Sabatons the Bare Metal Agent is the Kingdom's boots - managing physical infrastructure.
 // Implements PXE boot, hardware discovery, IPMI control, and provisioning.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package state provides the State Reconciliation Engine for the Cuirass control plane.
 // This is the core of the control plane - detecting drift between desired and actual state,
 // then reconciling to bring the system back to the desired state.

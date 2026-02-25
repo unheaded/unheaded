@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package baremetal provides bare metal provisioning for the Unheaded Kingdom infrastructure.
 // THE SABATONS - the foundation upon which all else stands.
 package baremetal

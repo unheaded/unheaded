@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // cmd/doom-cpu-dump reads and displays CPU state from BPF maps.
 // Replaces Python scripts: doom-cpu-dump.py, read_cpu.py, reset_cpu.py
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package loadbalancer provides load balancing algorithms for the service mesh.
 // THE HAUBERK - Load balancer interface and management for the Unheaded Kingdom.
 package loadbalancer

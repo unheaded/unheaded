@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package e2e provides E2E integration tests for the Kanban application.
 // Story 5.2: E2E Smoke Test - THE META MOMENT
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // AnamnesisReader reads AnamnesisEvent structs from a BPF ring buffer.
 //
 // It wraps a raw byte channel (from NativeLoader.ReadRingbuf or any other

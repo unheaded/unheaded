@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package mock provides a mock Wotan client for testing.
 // It implements the same interface as the real client without network calls.
 package mock

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package sophia provides wisdom, knowledge management, and intelligent decision support.
 // In Gnostic philosophy, Sophia is divine wisdom - the feminine aspect of the godhead,
 // the bridge between the Pleroma (fullness/spiritual realm) and the Kenoma (material world).

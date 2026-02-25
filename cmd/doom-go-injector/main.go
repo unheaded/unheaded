@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package main implements a high-performance packet injector for the Doom-over-IPv6
 // compute ring. It replaces the Python inject.py with AF_PACKET raw socket injection
 // for significantly lower per-packet overhead.

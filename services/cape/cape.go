@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package cape provides internal web framework capabilities.
 // Cape the Internal Framework is the Kingdom's flowing mantle - the backend web layer.
 // Implements HTTP/3, gRPC, WebSocket handlers, middleware chains, and internal routing.

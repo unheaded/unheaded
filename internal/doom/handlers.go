@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package doom — HTTP handlers for Doom-over-IPv6 dashboard endpoints.
 //
 // These handlers expose the BPF map data (screen buffer, CPU state, keyboard)

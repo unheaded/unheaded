@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // reader.go — Map reader that periodically polls BPF maps and publishes traces.
 //
 // TraceReader reads FLOW_STATE and STATS maps from the packet_marker BPF

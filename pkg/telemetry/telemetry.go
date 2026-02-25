@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package telemetry provides application-level tracing and context propagation
 // for Unheaded services. It wraps span creation, trace/span ID generation,
 // context propagation, and OTLP-compatible export into a simple API that all

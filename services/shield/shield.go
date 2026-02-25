@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package shield provides WAF, DDoS protection, and Zero Trust gateway capabilities.
 // Shield the WAF is the Kingdom's edge defense - protecting all ingress traffic.
 // Implements rate limiting, threat detection, request validation, and edge security.

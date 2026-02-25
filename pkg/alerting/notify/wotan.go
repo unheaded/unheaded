@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package notify provides Wotan event notification channel implementation.
 // Wotan is the Kingdom's internal event bus for inter-service communication.
 package notify

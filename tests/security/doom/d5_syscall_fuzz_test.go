@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Campaign: LICH-D5 — SYSCALL Fuzzing
 // Objective: Verify that the BPF SYSCALL handler gracefully handles all
 // possible syscall numbers, malformed arguments, and out-of-bounds memory

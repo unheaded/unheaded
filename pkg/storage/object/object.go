@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package object provides object storage implementations for the Kingdom.
 // This package supports filesystem and S3-compatible backends for storing
 // large binary objects (blobs).

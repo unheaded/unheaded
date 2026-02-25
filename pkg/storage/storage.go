@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package storage provides THE TASSETS - the thighs that hold the data.
 // This is the Unheaded Kingdom's pluggable storage layer with support for
 // key-value stores, object storage, caching, and write-ahead logging.

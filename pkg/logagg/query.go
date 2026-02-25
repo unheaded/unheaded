@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package logagg provides centralized log aggregation for Unheaded services.
 // Services publish structured logs to Wotan topics (logs.<service>.<level>).
 // The dashboard subscribes and stores them in an in-memory ring buffer

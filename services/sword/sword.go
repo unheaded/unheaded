@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package sword provides deployment pipeline and CI/CD orchestration.
 // Sword the Deploy Pipeline is the Kingdom's weapon - deploying changes safely.
 // Implements blue-green, canary, rolling deployments, and auto-remediation.

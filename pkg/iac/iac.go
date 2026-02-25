@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package iac provides the Infrastructure as Code renderer framework.
 //
 // Unheaded maintains a single desired-state model for each managed service.

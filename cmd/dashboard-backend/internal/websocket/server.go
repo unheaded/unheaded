@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package websocket provides a WebSocket server for real-time dashboard updates.
 // This implementation uses only the Go standard library - no external dependencies.
 package websocket

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package runtime provides a Container Runtime Interface for Unheaded Kingdom.
 // It implements container lifecycle management, image handling, process execution,
 // and resource management using only Go standard library and golang.org/x/sys.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package tlv provides Type-Length-Value encoding for Monad extensions.
 // Uses pkg/protocol/encoding for TLV wire format per RFC 9114 §7 and RFC 8200 §4.
 package tlv

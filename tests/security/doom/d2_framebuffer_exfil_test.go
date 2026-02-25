@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Campaign: LICH-D2 — Framebuffer Exfiltration
 // Objective: Verify that SCREEN_MAP / RAM_MAP screen buffer regions cannot be
 // read by unprivileged processes, and that Fenrir's Eye (doom-bridge) WebSocket

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package certs provides TLS certificate management for The Moat.
 // It implements mTLS with short-lived certificates and automatic rotation.
 package certs
