@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package wotanClient provides a client for the Wotan message bus.
 // It supports both REST control plane and gRPC data plane operations.
 package wotanClient

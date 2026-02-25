@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Campaign: LICH-D6 — ROM TOCTOU (Time-of-Check-Time-of-Use)
 // Objective: Analyze the race condition window between ROM read and write
 // operations, measure the TOCTOU window size, and document the requirement

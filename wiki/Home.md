@@ -2,7 +2,7 @@
 
 **Unheaded** is a configuration management automation platform built around the Unheaded Protocol, a mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability from packet zero. You bring the application. Unheaded provides the control plane, service mesh, observability, and security baseline.
 
-**Status:** Alpha (~99%) · ~260K production LOC (~464K w/ tests) · 25 services · 8 eBPF programs · 3 Internet-Drafts (IETF Experimental)
+**Status:** Alpha (Age 1, ~98% S36 complete) · ~260K production LOC (~464K w/ tests) · 25 services · 8 eBPF programs · 3 Internet-Drafts (IETF Experimental)
 
 ---
 
@@ -19,6 +19,7 @@
 - [[Kingdom Architecture|Kingdom-Architecture]] — Component hierarchy and naming conventions
 - [[Project Structure|Project-Structure]] — Repository layout and conventions
 - [[Microservices|Microservices]] — Service catalog and responsibilities
+- [[Auth Framework|Auth-Framework]] — Security hardening, token management, rate limiting
 
 ## The Protocol
 
@@ -60,13 +61,17 @@
 - [[ADR-014|ADR-014-IPv6-Fragmentation-Support]] — IPv6 fragmentation support
 - [[ADR-015|ADR-015-Go-Fiber-HTTP-Layer]] — Go Fiber HTTP layer
 
-## Security
+## Security & Legal
 
 - [[Security Overview|Security]] — Security policy and reporting
 - [[Security Audit|Security-Audit]] — Full audit findings
 - [[Security TODOs|Security-TODOs]] — Current security work items
 - [[LICH Fuzzing Campaigns|LICH-Campaigns]] — Automated adversary testing
 - [[Dark Grimoire|Dark-Grimoire]] — Attack surface taxonomy and offensive security notes
+- [[License|LICENSE-BSL11]] — Busl1.1 License
+- [[IP Inventory|IP-INVENTORY]] — Intellectual property and legal components
+- [[IANA Registration|IANA-REGISTRATION]] — IANA type allocation strategy
+- [[Contributor Guide|CONTRIBUTOR-GUIDE]] — Contributing to Unheaded
 
 ## Services
 
@@ -84,6 +89,33 @@
 - [[Transport Cascade|Transport-Cascade]] — gRPC-first transport with HTTP fallback
 - [[Log Aggregation|Log-Aggregation]] — The Chronicler's Well: centralized structured logging
 - [[Service Discovery|Service-Discovery]] — The Cartographer's Eye: four-layer resolution
+
+## Recent Sessions & Waves
+
+### Wave 1 (S51): Security Hardening
+- **pkg/auth/** — 3,093 LOC, 64 tests
+- **Security baseline** — MaxHeaderBytes, rate limiter hardening, token management
+- See: [[Security-Hardening-Baseline]]
+
+### Wave 2 (S52): Legal & Compliance
+- **SPDX headers** — 838 .go files with proper license attribution
+- **THIRD_PARTY.md** — Dependency and attribution tracking
+- **IANA-REGISTRATION.md** — Type allocation and RFC strategy
+- **CONTRIBUTOR-GUIDE.md** — Community contribution guidelines
+- See: [[Compliance]] and [[Legal]] documentation
+
+### Wave 3 (S59): Dashboard Polish
+- **design-system.css** — 76 design tokens
+- **demo-data.js** — 9 data generators
+- **Kanban review actions** — Interactive UI improvements
+- See: [[Service-Dashboard-Backend]]
+
+### Wave 4-B (S60): IPv6 Metrics & Conference Preparation
+- **UNHEADED_METRIC_V1** — Type 0x2A protocol definition
+- **IPv6 HbH extension** — 52-byte metric header, 103-byte practical limit
+- **eBPF Summit 2026 talk** — "The Packet IS the Telemetry"
+- **Alpha demo script** — 5-minute technical walkthrough
+- See: [[EBPF_SUMMIT_2026|Talks]], [[ALPHA_DEMO_SCRIPT|Demo]]
 
 ## Infrastructure
 
@@ -107,6 +139,11 @@
 - [[Kingdom Mode Math|Kingdom-Mode-Math]] — Extended register space verification
 - [[Doom over IPv6|Doom-over-IPv6]] — Computational completeness proof
 
+## Research & Innovation
+
+- [[IPv6 Metric Capacity|IPV6_METRIC_CAPACITY]] — Header space analysis, 52–6,124 byte ranges
+- See: [[Research]] documentation
+
 ## Skills
 
 - [[Skills Index|Skills-Index]] — 16 AI agent specializations for development, ops, and docs
@@ -114,9 +151,14 @@
 ## Development
 
 - [[Developer Guide|Developer-Guide]] — CLAUDE.md — standards, patterns, guidelines
-- [[Demo Script|Demo-Script]] — How to demonstrate the platform
+- [[Alpha Demo Script|ALPHA_DEMO_SCRIPT]] — 5-minute technical demonstration walkthrough
 - [[Agent Operating Procedure|Agent-Operating-Procedure]] — AI agent workflow
 - [[Rust Components|Rust-Components]] — Rust crate inventory
+
+## Conference & Community
+
+- [[eBPF Summit 2026|EBPF_SUMMIT_2026]] — "The Packet IS the Telemetry" talk outline
+- See: [[Talks]] documentation
 
 ## Battle Plans & Timeline
 
@@ -130,4 +172,4 @@ See [[Session Index|Session-Index]] for the complete session handoff archive.
 
 ---
 
-*Last updated: February 22, 2026*
+*Last updated: February 25, 2026*

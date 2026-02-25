@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package pleroma provides configuration truth and desired state management.
 // In Gnostic philosophy, Pleroma is the fullness of the divine realm - perfect, complete, ideal.
 // This service embodies that concept: the single source of truth for what infrastructure SHOULD be.

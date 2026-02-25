@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package transport provides a unified transport abstraction for Unheaded services.
 // It implements the gRPC-first transport cascade:
 //   1. Primary: Wotan gRPC streaming (port 18001)

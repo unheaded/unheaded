@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package amplification provides ring path counter tracking and amplification validation
 // for the Unheaded protocol.
 package amplification

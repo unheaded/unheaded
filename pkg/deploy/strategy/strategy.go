@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package strategy provides deployment strategy implementations for the Unheaded Kingdom.
 // Strategies define HOW instances are updated during a deployment.
 package strategy

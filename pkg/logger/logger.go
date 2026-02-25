@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package logger provides the Unheaded Kingdom's structured logging library.
 // This is the Kingdom's voice - how services communicate their state.
 //

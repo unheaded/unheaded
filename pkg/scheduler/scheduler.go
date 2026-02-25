@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package scheduler implements a container scheduler for Unheaded Kingdom.
 // It provides node management, resource tracking, scheduling algorithms,
 // affinity/anti-affinity rules, taints/tolerations, priority classes,

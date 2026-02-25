@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // cmd/doom-loader loads DOOM ROM, RAM, and CPU state into BPF maps.
 // Replaces Python scripts: doom-loader-core.py, load_rom_fast.py, load_rom.py
 //

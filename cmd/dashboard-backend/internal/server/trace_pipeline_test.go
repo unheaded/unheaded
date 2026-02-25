@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package server provides E2E tests for the trace observability pipeline.
 //
 // This test verifies the full pipeline:

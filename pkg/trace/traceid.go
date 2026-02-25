@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package trace provides 128-bit trace ID generation for the Unheaded platform.
 //
 // Remediation for Lich D4 findings: 20-bit IPv6 flow labels have ~40% collision

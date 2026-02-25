@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package main - Timeline integration for THE META MOMENT
 // Kanban tracks its own timeline in real-time via Wotan
 package main

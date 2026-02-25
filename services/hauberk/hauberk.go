@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package hauberk provides service mesh and mTLS capabilities.
 // Hauberk the Service Mesh is the Kingdom's chainmail - secure inter-service communication.
 // Implements service discovery, circuit breakers, retries, and mutual TLS.

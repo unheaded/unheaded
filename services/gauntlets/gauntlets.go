@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package gauntlets provides CLI and API interface capabilities.
 // Gauntlets the CLI & API is the Kingdom's grip - unified command interface.
 // Implements The Gauntlets Law: every CLI command has a corresponding API endpoint.

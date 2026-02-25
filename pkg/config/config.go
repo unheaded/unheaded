@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package config provides a comprehensive configuration management system
 // for the Unheaded Kingdom. It supports multiple sources (files, environment
 // variables, command-line flags, remote endpoints), hot reload, validation,

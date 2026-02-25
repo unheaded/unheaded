@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package health provides service health monitoring and uptime tracking.
 // It polls /health endpoints from all Kingdom services and maintains
 // uptime history for the dashboard.

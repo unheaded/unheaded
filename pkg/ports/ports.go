@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package ports defines the canonical port assignments for all Unheaded services.
 // The "Doom Range" (16666-26666) ensures no conflicts with common dev tools.
 // This file is the SINGLE SOURCE OF TRUTH for port assignments.

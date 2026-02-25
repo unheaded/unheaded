@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Campaign: LICH-D4 — Flow Label Collision
 // Objective: Demonstrate via birthday attack analysis that the 20-bit IPv6
 // Flow Label is insufficient for production trace ID isolation. Calculate
