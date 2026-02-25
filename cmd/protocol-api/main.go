@@ -34,16 +34,18 @@ const (
 )
 
 var (
-	mockMode       = flag.Bool("mock", false, "Run in mock mode without BPF maps")
+	mode           = flag.String("mode", "mock", "Backend mode: mock (in-memory) or bpf (pinned maps)")
 	apiKey         = flag.String("api-key", "", "API key for authentication (empty = disabled)")
 	bpfMapsPath    = flag.String("bpf-maps", "/sys/fs/bpf/unheaded", "Path to pinned BPF maps")
 	logRequests    = flag.Bool("log", true, "Enable request logging")
 	version_flag   = flag.Bool("version", false, "Print version and exit")
+	// Deprecated: use --mode=mock instead. Kept for backwards compatibility.
+	mockMode       = flag.Bool("mock", false, "Alias for --mode=mock (deprecated)")
 )
 
 // Global state
 var (
-	globalMockMode bool
+	globalMockMode bool   // Derived from globalBackend.Mode(); kept for backwards compat
 	globalAPIKey   string
 	globalBPFPath  string
 
@@ -66,7 +68,20 @@ func main() {
 		os.Exit(0)
 	}
 
-	globalMockMode = *mockMode
+	// Resolve backend mode: --mock flag (deprecated) overrides --mode.
+	resolvedMode := *mode
+	if *mockMode {
+		resolvedMode = "mock"
+	}
+	switch resolvedMode {
+	case "mock":
+		globalBackend = NewMockBackend()
+	case "bpf":
+		globalBackend = NewBPFBackend(*bpfMapsPath)
+	default:
+		log.Fatalf("Unknown --mode %q (valid: mock, bpf)", resolvedMode)
+	}
+	globalMockMode = IsMockMode()
 	globalAPIKey = *apiKey
 	globalBPFPath = *bpfMapsPath
 
@@ -104,10 +119,10 @@ func main() {
 	)
 
 	pb.RegisterMonadServiceServer(grpcServer, &monadServer{})
-	pb.RegisterSophiaServiceServer(grpcServer, &sophiaServer{})
-	pb.RegisterWotanServiceServer(grpcServer, &wotanServer{})
-	pb.RegisterAnamnesisServiceServer(grpcServer, &anamnesisServer{})
-	pb.RegisterFlowServiceServer(grpcServer, &flowServer{})
+	pb.RegisterSophiaServiceServer(grpcServer, getSophiaServer())
+	pb.RegisterWotanServiceServer(grpcServer, getWotanServer())
+	pb.RegisterAnamnesisServiceServer(grpcServer, getAnamnesisServer())
+	pb.RegisterFlowServiceServer(grpcServer, getFlowServer())
 
 	// Start servers in goroutines
 	go func() {
@@ -417,7 +432,7 @@ func handleSophiaList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sophiaSvc := &sophiaServer{}
+	sophiaSvc := getSophiaServer()
 	pbReq := &pb.DictionaryListRequest{
 		Limit:  100,
 		Offset: 0,
@@ -451,7 +466,7 @@ func handleSophiaGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sophiaSvc := &sophiaServer{}
+	sophiaSvc := getSophiaServer()
 	pbReq := &pb.DictionaryGetRequest{
 		DictionaryId: dictID,
 	}
@@ -494,7 +509,7 @@ func handleWotanRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wotanSvc := &wotanServer{}
+	wotanSvc := getWotanServer()
 	pbReq := &pb.ReadRequest{
 		FlowLabel: req.FlowLabel,
 	}
@@ -531,7 +546,7 @@ func handleWotanWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wotanSvc := &wotanServer{}
+	wotanSvc := getWotanServer()
 	pbReq := &pb.WriteRequest{
 		FlowLabel:      req.FlowLabel,
 		StateData:      []byte(req.StateData),
@@ -556,7 +571,7 @@ func handleAnamnesisQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	amnesisSvc := &anamnesisServer{}
+	amnesisSvc := getAnamnesisServer()
 	pbReq := &pb.EventQuery{
 		Limit: 100,
 	}
@@ -579,7 +594,7 @@ func handleFlowList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flowSvc := &flowServer{}
+	flowSvc := getFlowServer()
 	pbReq := &emptypb.Empty{}
 
 	resp, err := flowSvc.List(r.Context(), pbReq)
@@ -624,7 +639,7 @@ func handleFlowInject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flowSvc := &flowServer{}
+	flowSvc := getFlowServer()
 	pbReq := &pb.InjectRequest{
 		FlowLabel:   flowLabel,
 		Payload:     []byte(req.Payload),
@@ -646,6 +661,9 @@ func handleFlowInject(w http.ResponseWriter, r *http.Request) {
 // Helper functions
 
 func modeString() string {
+	if globalBackend != nil {
+		return globalBackend.Mode()
+	}
 	if globalMockMode {
 		return "mock"
 	}
