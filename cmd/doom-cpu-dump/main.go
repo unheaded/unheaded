@@ -15,33 +15,14 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"unheaded/internal/bpf"
 )
 
 const (
 	defaultCPUMapPath = "/sys/fs/bpf/unheaded/doom-ring/maps/CPU_MAP"
 	defaultInstance   = 0xDE
-	cpuStateSize      = 136
-
-	// CpuState layout (136 bytes):
-	// regs[16] uint64 = 128 bytes (offset 0-127)
-	// pc uint64 = 8 bytes (offset 128-135)
-	// sp uint64 = 8 bytes (offset 136-143)
-	// flags uint64 = 8 bytes (offset 144-151)
-	// halted bool = 1 byte (offset 152)
-	// _pad [7]byte = 7 bytes (offset 153-159)
-	// insn_count uint64 = 8 bytes (offset 160-167)
-	// last_kbd_state [32]byte = 32 bytes (offset 168-199)
 )
-
-type CpuState struct {
-	Regs        [16]uint64
-	PC          uint64
-	SP          uint64
-	Flags       uint64
-	Halted      bool
-	InsnCount   uint64
-	LastKBDState [32]byte
-}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -95,26 +76,42 @@ Examples:
 `)
 }
 
+// instanceKey encodes the instance ID as a 4-byte little-endian uint32 key
+// suitable for BPF map lookups.
+func instanceKey(id uint32) []byte {
+	key := make([]byte, 4)
+	binary.LittleEndian.PutUint32(key, id)
+	return key
+}
+
 func dumpCPU(args []string) error {
 	fs := flag.NewFlagSet("dump", flag.ExitOnError)
 	instance := fs.String("instance", "DE", "CPU instance ID (hex)")
-	_ = fs.String("map", defaultCPUMapPath, "BPF CPU_MAP path")
+	mapPath := fs.String("map", defaultCPUMapPath, "BPF CPU_MAP path")
 
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	instanceByte, err := strconv.ParseUint(*instance, 16, 8)
+	instanceID, err := strconv.ParseUint(*instance, 16, 32)
 	if err != nil {
 		return fmt.Errorf("invalid instance ID: %v", err)
 	}
 
-	state := make([]byte, cpuStateSize)
+	m, err := bpf.OpenMap(*mapPath)
+	if err != nil {
+		return fmt.Errorf("open CPU_MAP: %v", err)
+	}
+	defer m.Close()
 
-	// TODO: Read from BPF map
-	// For now, just pretty-print the structure
-	cpu := decodeCpuState(state)
-	printCPUState(cpu, byte(instanceByte))
+	key := instanceKey(uint32(instanceID))
+	data, err := m.LookupElem(key, bpf.CpuStateSize)
+	if err != nil {
+		return fmt.Errorf("read CPU state: %v", err)
+	}
+
+	cpu := bpf.DecodeCpuState(data)
+	printCPUState(cpu, uint32(instanceID))
 
 	return nil
 }
@@ -123,35 +120,46 @@ func watchCPU(args []string) error {
 	fs := flag.NewFlagSet("watch", flag.ExitOnError)
 	instance := fs.String("instance", "DE", "CPU instance ID (hex)")
 	interval := fs.Int("interval", 200, "Update interval in milliseconds")
-	_ = fs.String("map", defaultCPUMapPath, "BPF CPU_MAP path")
+	mapPath := fs.String("map", defaultCPUMapPath, "BPF CPU_MAP path")
 
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	instanceByte, err := strconv.ParseUint(*instance, 16, 8)
+	instanceID, err := strconv.ParseUint(*instance, 16, 32)
 	if err != nil {
 		return fmt.Errorf("invalid instance ID: %v", err)
 	}
 
-	fmt.Printf("Watching CPU 0x%02X every %dms (Ctrl+C to stop)...\n", instanceByte, *interval)
+	m, err := bpf.OpenMap(*mapPath)
+	if err != nil {
+		return fmt.Errorf("open CPU_MAP: %v", err)
+	}
+	defer m.Close()
+
+	fmt.Printf("Watching CPU 0x%02X every %dms (Ctrl+C to stop)...\n", instanceID, *interval)
 	fmt.Println()
 
 	ticker := time.NewTicker(time.Duration(*interval) * time.Millisecond)
 	defer ticker.Stop()
 
-	state := make([]byte, cpuStateSize)
+	key := instanceKey(uint32(instanceID))
 	for range ticker.C {
-		// TODO: Read from BPF map
-		cpu := decodeCpuState(state)
+		data, err := m.LookupElem(key, bpf.CpuStateSize)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "read CPU state: %v\n", err)
+			continue
+		}
+
+		cpu := bpf.DecodeCpuState(data)
 
 		// Clear screen (ANSI escape)
 		fmt.Print("\033[H\033[2J")
 
-		fmt.Printf("=== CPU State (instance 0x%02X) ===\n", instanceByte)
+		fmt.Printf("=== CPU State (instance 0x%02X) ===\n", instanceID)
 		fmt.Printf("Last updated: %s\n\n", time.Now().Format("15:04:05.000"))
 
-		printCPUState(cpu, byte(instanceByte))
+		printCPUState(cpu, uint32(instanceID))
 	}
 
 	return nil
@@ -166,56 +174,37 @@ func resetCPU(args []string) error {
 		return err
 	}
 
-	instanceByte, err := strconv.ParseUint(*instance, 16, 8)
+	instanceID, err := strconv.ParseUint(*instance, 16, 32)
 	if err != nil {
 		return fmt.Errorf("invalid instance ID: %v", err)
 	}
 
+	m, err := bpf.OpenMap(*mapPath)
+	if err != nil {
+		return fmt.Errorf("open CPU_MAP: %v", err)
+	}
+	defer m.Close()
+
 	// Create zeroed CPU state
-	state := make([]byte, cpuStateSize)
+	zeroCPU := &bpf.CpuState{}
+	value := bpf.EncodeCpuState(zeroCPU)
+	key := instanceKey(uint32(instanceID))
 
-	fmt.Printf("Resetting CPU 0x%02X to all zeros...\n", instanceByte)
-	fmt.Printf("  Would write to: %s[0x%02X]\n", *mapPath, instanceByte)
+	fmt.Printf("Resetting CPU 0x%02X to all zeros...\n", instanceID)
+	fmt.Printf("  Map:      %s\n", *mapPath)
+	fmt.Printf("  Key:      0x%02X\n", instanceID)
 
-	// TODO: Write to BPF map
-	_ = state
+	if err := m.UpdateElem(key, value); err != nil {
+		return fmt.Errorf("write CPU state: %v", err)
+	}
 
+	fmt.Println("  Status:   OK")
 	return nil
 }
 
-func decodeCpuState(state []byte) *CpuState {
-	if len(state) < cpuStateSize {
-		// Return zero state if not enough data
-		return &CpuState{}
-	}
-
-	cpu := &CpuState{}
-
-	// Decode registers (16 x uint64)
-	for i := 0; i < 16; i++ {
-		cpu.Regs[i] = binary.LittleEndian.Uint64(state[i*8 : (i+1)*8])
-	}
-
-	// Decode PC, SP, flags
-	cpu.PC = binary.LittleEndian.Uint64(state[128:136])
-	cpu.SP = binary.LittleEndian.Uint64(state[136:144])
-	cpu.Flags = binary.LittleEndian.Uint64(state[144:152])
-
-	// Decode halted flag
-	cpu.Halted = state[152] != 0
-
-	// Decode instruction count
-	cpu.InsnCount = binary.LittleEndian.Uint64(state[160:168])
-
-	// Decode last KBD state
-	copy(cpu.LastKBDState[:], state[168:200])
-
-	return cpu
-}
-
-func printCPUState(cpu *CpuState, instance byte) {
+func printCPUState(cpu *bpf.CpuState, instance uint32) {
 	fmt.Println("CPU Registers:")
-	fmt.Println("  +-------+----------+  +-------+----------+")
+	fmt.Println("  +-------+------------+  +-------+------------+")
 
 	for i := 0; i < 8; i++ {
 		regLeft := i
@@ -253,24 +242,45 @@ func printCPUState(cpu *CpuState, instance byte) {
 			resetColor = "\033[0m"
 		}
 
-		fmt.Printf("  | %-5s | %s0x%08X%s | | %-5s | %s0x%08X%s |\n",
+		fmt.Printf("  | %-5s | %s0x%08X%s |  | %-5s | %s0x%08X%s |\n",
 			nameLeft, colorLeft, valLeft, resetColor,
 			nameRight, colorRight, valRight, resetColor)
 	}
 
-	fmt.Println("  +-------+----------+  +-------+----------+")
+	fmt.Println("  +-------+------------+  +-------+------------+")
 	fmt.Println()
 
 	// CPU state summary
+	haltedStr := "no"
+	if cpu.Halted != 0 {
+		haltedStr = fmt.Sprintf("\033[91mYES\033[0m (0x%02X)", cpu.Halted)
+	}
+
+	stalledStr := "no"
+	if cpu.Stalled != 0 {
+		stalledStr = fmt.Sprintf("\033[93mYES\033[0m (0x%02X)", cpu.Stalled)
+	}
+
 	fmt.Printf("CPU State:\n")
 	fmt.Printf("  PC (Program Counter): 0x%08X (%d)\n", cpu.PC, cpu.PC)
-	fmt.Printf("  SP (Stack Pointer):   0x%08X (%d)\n", cpu.SP, cpu.SP)
-	fmt.Printf("  Flags:                0x%016X\n", cpu.Flags)
-	fmt.Printf("  Halted:               %v\n", cpu.Halted)
+	fmt.Printf("  Flags:                0x%02X\n", cpu.Flags)
+	fmt.Printf("  Halted:               %s\n", haltedStr)
+	fmt.Printf("  Stalled:              %s\n", stalledStr)
 	fmt.Printf("  Instruction Count:    %d (0x%X)\n", cpu.InsnCount, cpu.InsnCount)
-
 	fmt.Println()
-	fmt.Printf("Last Keyboard State:  %02X %02X %02X %02X %02X %02X %02X %02X\n",
-		cpu.LastKBDState[0], cpu.LastKBDState[1], cpu.LastKBDState[2], cpu.LastKBDState[3],
-		cpu.LastKBDState[4], cpu.LastKBDState[5], cpu.LastKBDState[6], cpu.LastKBDState[7])
+
+	// Performance counters
+	fmt.Printf("Performance:\n")
+	fmt.Printf("  Cache Hits:           %d\n", cpu.CacheHits)
+	fmt.Printf("  Cache Misses:         %d\n", cpu.CacheMisses)
+	totalCache := cpu.CacheHits + cpu.CacheMisses
+	if totalCache > 0 {
+		hitRate := float64(cpu.CacheHits) / float64(totalCache) * 100.0
+		fmt.Printf("  Cache Hit Rate:       %.1f%%\n", hitRate)
+	}
+	fmt.Printf("  Sleep Until:          %d", cpu.SleepUntil)
+	if cpu.SleepUntil > 0 {
+		fmt.Printf(" (active)")
+	}
+	fmt.Println()
 }
