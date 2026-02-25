@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 
 // Package main - Timeline integration for THE META MOMENT
