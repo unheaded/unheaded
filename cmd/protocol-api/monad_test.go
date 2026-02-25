@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	pb "github.com/unheaded/unheaded/proto/unheaded/v1"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 // TestComputeCRC16 tests CRC-16/CCITT-FALSE computation with known test vectors
