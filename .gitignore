@@ -196,3 +196,6 @@ docs/archive/nist-reference/
 docs/archive/scratch/old-docs-toplevel/
 docs/archive/scratch/old-sessions/
 cert-gen
+doom-cpu-dump
+protocol-api
+sophia-gateway

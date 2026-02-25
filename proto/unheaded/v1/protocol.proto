@@ -1,6 +1,6 @@
 syntax = "proto3";
 package unheaded.v1;
-option go_package = "github.com/unheaded/unheaded/proto/unheaded/v1;unheadedv1";
+option go_package = "unheaded/proto/unheaded/v1;unheadedv1";
 
 // KingdomMode represents the 2-bit state machine for Monad registers
 enum KingdomMode {
