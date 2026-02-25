@@ -150,9 +150,9 @@ Layer 0: Infrastructure (Linux kernel, LXD/containerd/Docker/NixOS)
 
 ## License
 
-**Business Source License 1.1** — permissive for personal and internal use. Commercial licensing available; converts to Apache 2.0 at general availability (4-year conversion window). See LICENSE.
+**MIT License** — use it, build on it, break it, ship it. Copyright notice required in copies. See [LICENSE](./LICENSE).
 
-**Protocol Specifications**: MIT/Apache 2.0 — see LICENSE-PROTOCOLS. Three IETF Internet-Drafts on Experimental track:
+**Protocol Specifications**: MIT — see LICENSE-PROTOCOLS. Three IETF Internet-Drafts on Experimental track:
 - draft-bellis-unheaded-protocol-foundation-04
 - draft-bellis-unheaded-sophia-dictionary-01
 - draft-bellis-unheaded-wotan-memory-01

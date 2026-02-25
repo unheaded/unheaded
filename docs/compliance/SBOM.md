@@ -3,7 +3,7 @@
 **Project:** Unheaded Infrastructure  
 **Generated:** 2026-02-25  
 **Go Version:** 1.24.0  
-**License:** BSL 1.1 (see `/LICENSE`)
+**License:** MIT (see `/LICENSE`)
 
 ---
 
@@ -111,7 +111,7 @@ Per `/THIRD_PARTY.md`:
 
 - The **DOOM subsystem** (GPLv2) is isolated in a separate repository (`doom/`)
 - DOOM runs in a **BPF VM** and communicates with Go tooling through **BPF map syscalls only** (a data-level protocol, not code linking)
-- The **Unheaded Go codebase is entirely BSL 1.1 licensed** with no GPL dependencies
+- The **Unheaded Go codebase is entirely MIT licensed** with no GPL dependencies
 - This boundary is **architecturally enforced** and eliminates GPL licensing obligations for the main project
 
 ---
@@ -120,7 +120,7 @@ Per `/THIRD_PARTY.md`:
 
 - **No unknown licenses detected:** All dependencies are from well-known open source projects
 - **No proprietary licenses found:** All dependencies are freely redistributable
-- **Compatible with BSL 1.1:** No copyleft or GPL dependencies in Go code
+- **Compatible with MIT:** No copyleft or GPL dependencies in Go code
 - **Audit Status:** PASSED
 
 ---
