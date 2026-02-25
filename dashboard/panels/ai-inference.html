@@ -1,0 +1,842 @@
+<!-- AI Inference Tab Panel -->
+<!-- Displays AI model inference metrics, latency percentiles, GPU utilization, and Qdrant vector DB stats -->
+<div class="panel panel-ai-inference" id="panel-ai-inference">
+  <div class="panel-header">
+    <h2 class="panel-title">AI Inference</h2>
+    <div class="panel-controls">
+      <span class="ai-updated-at text-secondary text-xs" id="ai-updated-at"></span>
+      <button class="btn btn-secondary btn-sm" id="btn-refresh-ai" title="Refresh AI metrics">
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-body">
+    <!-- Empty State (shown when API unavailable and no demo data) -->
+    <div class="empty-state" id="ai-empty-state" style="display: none;">
+      <div class="empty-state-icon">&#x2699;</div>
+      <h3 class="empty-state-title">AI Inference Metrics Unavailable</h3>
+      <p class="empty-state-message">
+        Unable to connect to AI inference services. Ensure model servers are running.
+      </p>
+      <p class="empty-state-hint text-secondary">
+        Endpoints: <code>GET /api/v1/ai/models</code>, <code>GET /api/v1/ai/metrics</code>, <code>GET /api/v1/ai/qdrant/stats</code>
+      </p>
+    </div>
+
+    <!-- AI Inference Content -->
+    <div class="ai-inference-content" id="ai-inference-content">
+      <!-- Summary Bar -->
+      <section class="ai-section">
+        <div class="ai-summary-bar" id="ai-summary-bar">
+          <div class="summary-item">
+            <span class="summary-label">Requests (24h)</span>
+            <span class="summary-value mono" id="ai-total-requests">--</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Avg Latency</span>
+            <span class="summary-value mono" id="ai-avg-latency">-- ms</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Active Models</span>
+            <span class="summary-value mono" id="ai-active-models">--</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">GPU Utilization</span>
+            <span class="summary-value mono" id="ai-gpu-util">-- %</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Model Cards Section -->
+      <section class="ai-section">
+        <h3 class="section-title">Models</h3>
+        <div class="ai-models-grid" id="ai-models-grid">
+          <!-- Model cards dynamically generated here -->
+        </div>
+      </section>
+
+      <!-- Vector DB Section -->
+      <section class="ai-section">
+        <h3 class="section-title">Vector Database (Qdrant)</h3>
+        <div class="ai-qdrant-grid" id="ai-qdrant-grid">
+          <div class="status-card qdrant-card">
+            <div class="card-header">
+              <h4 class="card-title">Cluster Overview</h4>
+            </div>
+            <div class="card-body">
+              <div class="status-row">
+                <span class="label">Collections:</span>
+                <span class="value mono" id="qdrant-collections">--</span>
+              </div>
+              <div class="status-row">
+                <span class="label">Total Vectors:</span>
+                <span class="value mono" id="qdrant-vectors">--</span>
+              </div>
+              <div class="status-row">
+                <span class="label">Search Latency:</span>
+                <span class="value mono" id="qdrant-latency">-- ms</span>
+              </div>
+              <div class="status-row">
+                <span class="label">Storage Used:</span>
+                <span class="value mono" id="qdrant-storage">--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Model Card Template -->
+<template id="ai-model-card-template">
+  <div class="status-card model-card">
+    <div class="card-header model-card-header">
+      <h4 class="card-title model-name"></h4>
+      <span class="status-badge model-status">unknown</span>
+    </div>
+    <div class="card-body">
+      <div class="status-row">
+        <span class="label">Throughput:</span>
+        <span class="value mono model-throughput">-- tok/s</span>
+      </div>
+      <div class="status-row">
+        <span class="label">p50 Latency:</span>
+        <span class="value mono model-p50">-- ms</span>
+      </div>
+      <div class="status-row">
+        <span class="label">p95 Latency:</span>
+        <span class="value mono model-p95">-- ms</span>
+      </div>
+      <div class="status-row">
+        <span class="label">p99 Latency:</span>
+        <span class="value mono model-p99">-- ms</span>
+      </div>
+      <div class="status-row">
+        <span class="label">VRAM:</span>
+        <span class="value model-vram">
+          <div class="vram-bar-wrapper">
+            <div class="vram-bar">
+              <div class="vram-bar-fill"></div>
+            </div>
+            <span class="vram-pct mono">-- %</span>
+          </div>
+        </span>
+      </div>
+      <div class="status-row">
+        <span class="label">Requests:</span>
+        <span class="value mono model-requests">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Error Rate:</span>
+        <span class="value mono model-error-rate">-- %</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Styles for AI Inference Panel -->
+<style>
+  .panel-ai-inference {
+    background: var(--color-bg, #0a0a0a);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--spacing-lg, 24px);
+  }
+
+  .panel-ai-inference .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg, 24px);
+    border-bottom: 1px solid var(--color-border, #222222);
+    padding-bottom: var(--spacing-md, 16px);
+  }
+
+  .panel-ai-inference .panel-title {
+    font-size: var(--font-size-lg, 1.25rem);
+    font-weight: var(--font-weight-semibold, 600);
+    margin: 0;
+    color: var(--color-text-primary, #e8e8e8);
+  }
+
+  .panel-ai-inference .panel-controls {
+    display: flex;
+    gap: var(--spacing-md, 16px);
+    align-items: center;
+  }
+
+  .ai-updated-at {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-secondary, #888888);
+  }
+
+  .panel-ai-inference .btn {
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+    font-size: var(--font-size-sm, 0.875rem);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: var(--radius-sm, 4px);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--color-bg-secondary, #111111);
+    color: var(--color-text-primary, #e8e8e8);
+  }
+
+  .panel-ai-inference .btn:hover {
+    background: var(--color-bg-tertiary, #151515);
+    border-color: var(--color-accent, #4a9eff);
+  }
+
+  .panel-ai-inference .btn-sm {
+    padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+    font-size: var(--font-size-sm, 0.875rem);
+  }
+
+  .panel-ai-inference .empty-state {
+    padding: var(--spacing-xl, 32px) var(--spacing-lg, 24px);
+    text-align: center;
+    color: var(--color-text-secondary, #888888);
+    border: 2px dashed var(--color-border, #222222);
+    border-radius: var(--radius-md, 8px);
+    background: var(--color-bg-secondary, #111111);
+  }
+
+  .panel-ai-inference .empty-state-icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-md, 16px);
+    opacity: 0.5;
+  }
+
+  .panel-ai-inference .empty-state-title {
+    font-size: var(--font-size-md, 1rem);
+    font-weight: var(--font-weight-semibold, 600);
+    margin: 0 0 var(--spacing-sm, 8px) 0;
+    color: var(--color-text-primary, #e8e8e8);
+  }
+
+  .panel-ai-inference .empty-state-message {
+    margin: 0 0 var(--spacing-sm, 8px) 0;
+    font-size: var(--font-size-sm, 0.875rem);
+  }
+
+  .panel-ai-inference .empty-state-hint {
+    margin: 0;
+    font-size: var(--font-size-xs, 0.75rem);
+  }
+
+  .panel-ai-inference code {
+    background: var(--color-bg-tertiary, #151515);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+    color: var(--color-accent, #4a9eff);
+  }
+
+  .ai-inference-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg, 24px);
+  }
+
+  .ai-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md, 16px);
+  }
+
+  .panel-ai-inference .section-title {
+    font-size: var(--font-size-md, 1rem);
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--color-text-primary, #e8e8e8);
+    margin: 0;
+    padding-bottom: var(--spacing-md, 16px);
+    border-bottom: 2px solid var(--color-border, #222222);
+  }
+
+  /* Summary bar */
+  .ai-summary-bar {
+    display: flex;
+    gap: var(--spacing-lg, 24px);
+    padding: var(--spacing-md, 16px);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-md, 8px);
+    flex-wrap: wrap;
+    backdrop-filter: var(--backdrop-blur, blur(8px));
+  }
+
+  .panel-ai-inference .summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 140px;
+    flex: 1;
+  }
+
+  .panel-ai-inference .summary-label {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-secondary, #888888);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: var(--font-weight-semibold, 600);
+  }
+
+  .panel-ai-inference .summary-value {
+    font-size: var(--font-size-md, 1rem);
+    color: var(--color-text-primary, #e8e8e8);
+    font-weight: var(--font-weight-semibold, 600);
+  }
+
+  .panel-ai-inference .summary-value.mono,
+  .panel-ai-inference .value.mono {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.95em;
+  }
+
+  /* Model + Qdrant grids */
+  .ai-models-grid,
+  .ai-qdrant-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--spacing-lg, 24px);
+  }
+
+  .panel-ai-inference .status-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-md, 8px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  .panel-ai-inference .status-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .panel-ai-inference .card-header {
+    padding: var(--spacing-md, 16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--color-bg-tertiary, #151515);
+  }
+
+  .model-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .panel-ai-inference .card-title {
+    margin: 0;
+    font-size: var(--font-size-md, 1rem);
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--color-text-primary, #e8e8e8);
+  }
+
+  .panel-ai-inference .card-body {
+    padding: var(--spacing-md, 16px);
+    flex: 1;
+  }
+
+  .panel-ai-inference .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm, 8px) 0;
+    font-size: var(--font-size-sm, 0.875rem);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .panel-ai-inference .status-row:last-child {
+    border-bottom: none;
+  }
+
+  .panel-ai-inference .label {
+    color: var(--color-text-secondary, #888888);
+    font-weight: var(--font-weight-medium, 500);
+  }
+
+  .panel-ai-inference .value {
+    color: var(--color-text-primary, #e8e8e8);
+    text-align: right;
+    font-weight: var(--font-weight-medium, 500);
+  }
+
+  /* Status badges */
+  .panel-ai-inference .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: var(--font-weight-semibold, 600);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .panel-ai-inference .status-badge.online {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--color-success, #22c55e);
+  }
+
+  .panel-ai-inference .status-badge.loading {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--color-warning, #f59e0b);
+  }
+
+  .panel-ai-inference .status-badge.offline {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-error, #ef4444);
+  }
+
+  .panel-ai-inference .status-badge.unknown {
+    background: rgba(136, 136, 136, 0.15);
+    color: var(--color-text-secondary, #888888);
+  }
+
+  /* VRAM usage bar */
+  .vram-bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .vram-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(136, 136, 136, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 80px;
+  }
+
+  .vram-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease, background 0.3s ease;
+    background: var(--color-accent, #4a9eff);
+  }
+
+  .vram-bar-fill.low {
+    background: var(--color-success, #22c55e);
+  }
+
+  .vram-bar-fill.medium {
+    background: var(--color-warning, #f59e0b);
+  }
+
+  .vram-bar-fill.high {
+    background: var(--color-error, #ef4444);
+  }
+
+  .vram-pct {
+    font-size: var(--font-size-xs, 0.75rem);
+    min-width: 40px;
+    text-align: right;
+    color: var(--color-text-primary, #e8e8e8);
+  }
+
+  /* Error rate coloring */
+  .model-error-rate.error-high {
+    color: var(--color-error, #ef4444);
+  }
+
+  .model-error-rate.error-warn {
+    color: var(--color-warning, #f59e0b);
+  }
+
+  .model-error-rate.error-ok {
+    color: var(--color-success, #22c55e);
+  }
+
+  /* Refresh spinner animation */
+  .panel-ai-inference .btn.is-loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .panel-ai-inference .btn.is-loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 6px;
+    border: 2px solid var(--color-text-secondary, #888888);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: ai-spin 0.6s linear infinite;
+    vertical-align: middle;
+  }
+
+  @keyframes ai-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .ai-models-grid,
+    .ai-qdrant-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ai-summary-bar {
+      flex-direction: column;
+      gap: var(--spacing-sm, 8px);
+    }
+
+    .panel-ai-inference .status-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--spacing-xs, 4px);
+    }
+
+    .panel-ai-inference .value {
+      text-align: left;
+    }
+  }
+</style>
+
+<!-- JavaScript for AI Inference Panel -->
+<script>
+  (function() {
+    'use strict';
+
+    var MODELS_ENDPOINT = '/api/v1/ai/models';
+    var METRICS_ENDPOINT = '/api/v1/ai/metrics';
+    var QDRANT_ENDPOINT = '/api/v1/ai/qdrant/stats';
+    var REFRESH_INTERVAL = 5000;
+
+    var refreshTimer = null;
+
+    // ---------------------------------------------------------
+    // Demo / fallback data
+    // ---------------------------------------------------------
+
+    var DEMO_MODELS = [
+      {
+        name: 'llama-3.3-70b',
+        status: 'online',
+        throughput: 142.7,
+        latency: { p50: 28, p95: 67, p99: 134 },
+        vram_percent: 72,
+        vram_used: '23.4 GB',
+        vram_total: '32 GB',
+        requests: 48210,
+        error_rate: 0.12
+      },
+      {
+        name: 'qwen-2.5-coder-32b',
+        status: 'online',
+        throughput: 89.3,
+        latency: { p50: 41, p95: 98, p99: 203 },
+        vram_percent: 58,
+        vram_used: '18.6 GB',
+        vram_total: '32 GB',
+        requests: 15840,
+        error_rate: 0.04
+      },
+      {
+        name: 'nomic-embed-text-v1.5',
+        status: 'online',
+        throughput: 1240.0,
+        latency: { p50: 3, p95: 8, p99: 14 },
+        vram_percent: 12,
+        vram_used: '1.9 GB',
+        vram_total: '16 GB',
+        requests: 231400,
+        error_rate: 0.01
+      },
+      {
+        name: 'whisper-large-v3',
+        status: 'loading',
+        throughput: 0,
+        latency: { p50: 0, p95: 0, p99: 0 },
+        vram_percent: 0,
+        vram_used: '0 GB',
+        vram_total: '16 GB',
+        requests: 0,
+        error_rate: 0
+      }
+    ];
+
+    var DEMO_METRICS = {
+      total_requests_24h: 295450,
+      avg_latency_ms: 34.2,
+      active_models: 3,
+      gpu_utilization: 64.8
+    };
+
+    var DEMO_QDRANT = {
+      collections: 7,
+      total_vectors: 2847103,
+      search_latency_ms: 4.7,
+      storage_used: '12.3 GB'
+    };
+
+    // ---------------------------------------------------------
+    // Initialization
+    // ---------------------------------------------------------
+
+    function init() {
+      var refreshBtn = document.getElementById('btn-refresh-ai');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+          refreshAll(true);
+        });
+      }
+
+      // Initial load
+      refreshAll(false);
+
+      // Auto-refresh every 5 seconds
+      refreshTimer = setInterval(function() {
+        refreshAll(false);
+      }, REFRESH_INTERVAL);
+    }
+
+    // ---------------------------------------------------------
+    // Data fetching
+    // ---------------------------------------------------------
+
+    function refreshAll(showSpinner) {
+      var refreshBtn = document.getElementById('btn-refresh-ai');
+      if (showSpinner && refreshBtn) {
+        refreshBtn.classList.add('is-loading');
+      }
+
+      var modelsDone = false;
+      var metricsDone = false;
+      var qdrantDone = false;
+
+      function checkDone() {
+        if (modelsDone && metricsDone && qdrantDone && refreshBtn) {
+          refreshBtn.classList.remove('is-loading');
+        }
+      }
+
+      // Fetch models
+      fetch(MODELS_ENDPOINT)
+        .then(function(response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return response.json();
+        })
+        .then(function(data) {
+          showContent();
+          renderModels(data.models || data || []);
+        })
+        .catch(function() {
+          showContent();
+          renderModels(DEMO_MODELS);
+        })
+        .finally(function() {
+          modelsDone = true;
+          checkDone();
+        });
+
+      // Fetch aggregate metrics
+      fetch(METRICS_ENDPOINT)
+        .then(function(response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return response.json();
+        })
+        .then(function(data) {
+          renderSummary(data);
+        })
+        .catch(function() {
+          renderSummary(DEMO_METRICS);
+        })
+        .finally(function() {
+          metricsDone = true;
+          checkDone();
+        });
+
+      // Fetch Qdrant stats
+      fetch(QDRANT_ENDPOINT)
+        .then(function(response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return response.json();
+        })
+        .then(function(data) {
+          renderQdrant(data);
+        })
+        .catch(function() {
+          renderQdrant(DEMO_QDRANT);
+        })
+        .finally(function() {
+          qdrantDone = true;
+          checkDone();
+        });
+
+      renderUpdatedAt();
+    }
+
+    // ---------------------------------------------------------
+    // Show / hide states
+    // ---------------------------------------------------------
+
+    function showContent() {
+      var emptyState = document.getElementById('ai-empty-state');
+      var content = document.getElementById('ai-inference-content');
+      if (emptyState) emptyState.style.display = 'none';
+      if (content) content.style.display = '';
+    }
+
+    function showEmptyState() {
+      var emptyState = document.getElementById('ai-empty-state');
+      var content = document.getElementById('ai-inference-content');
+      if (emptyState) emptyState.style.display = '';
+      if (content) content.style.display = 'none';
+    }
+
+    // ---------------------------------------------------------
+    // Summary bar
+    // ---------------------------------------------------------
+
+    function renderSummary(data) {
+      setText('ai-total-requests', formatNumber(data.total_requests_24h || 0));
+      setText('ai-avg-latency', (data.avg_latency_ms != null ? data.avg_latency_ms.toFixed(1) : '--') + ' ms');
+      setText('ai-active-models', String(data.active_models || 0));
+      setText('ai-gpu-util', (data.gpu_utilization != null ? data.gpu_utilization.toFixed(1) : '--') + ' %');
+    }
+
+    // ---------------------------------------------------------
+    // Model cards
+    // ---------------------------------------------------------
+
+    function renderModels(models) {
+      var grid = document.getElementById('ai-models-grid');
+      var template = document.getElementById('ai-model-card-template');
+      if (!grid || !template) return;
+
+      grid.innerHTML = '';
+
+      if (!models || models.length === 0) {
+        grid.innerHTML = '<p style="color: var(--color-text-secondary, #888888); font-size: var(--font-size-sm, 0.875rem);">No models reported.</p>';
+        return;
+      }
+
+      for (var i = 0; i < models.length; i++) {
+        var m = models[i];
+        var card = template.content.cloneNode(true);
+
+        // Name + status
+        card.querySelector('.model-name').textContent = m.name || 'unknown';
+
+        var statusBadge = card.querySelector('.model-status');
+        var status = (m.status || 'unknown').toLowerCase();
+        statusBadge.textContent = status;
+        statusBadge.className = 'status-badge model-status ' + statusBadgeClass(status);
+
+        // Throughput
+        card.querySelector('.model-throughput').textContent =
+          m.throughput != null ? m.throughput.toFixed(1) + ' tok/s' : '-- tok/s';
+
+        // Latency percentiles
+        var lat = m.latency || {};
+        card.querySelector('.model-p50').textContent = lat.p50 != null ? lat.p50 + ' ms' : '-- ms';
+        card.querySelector('.model-p95').textContent = lat.p95 != null ? lat.p95 + ' ms' : '-- ms';
+        card.querySelector('.model-p99').textContent = lat.p99 != null ? lat.p99 + ' ms' : '-- ms';
+
+        // VRAM bar
+        var vramPct = m.vram_percent != null ? Number(m.vram_percent) : 0;
+        var vramFill = card.querySelector('.vram-bar-fill');
+        vramFill.style.width = vramPct + '%';
+        vramFill.className = 'vram-bar-fill ' + vramBarClass(vramPct);
+        card.querySelector('.vram-pct').textContent = vramPct + ' %';
+
+        // Requests
+        card.querySelector('.model-requests').textContent = formatNumber(m.requests || 0);
+
+        // Error rate
+        var errorRateEl = card.querySelector('.model-error-rate');
+        var errRate = m.error_rate != null ? m.error_rate : 0;
+        errorRateEl.textContent = errRate.toFixed(2) + ' %';
+        errorRateEl.className = 'value mono model-error-rate ' + errorRateClass(errRate);
+
+        grid.appendChild(card);
+      }
+    }
+
+    // ---------------------------------------------------------
+    // Qdrant stats
+    // ---------------------------------------------------------
+
+    function renderQdrant(data) {
+      setText('qdrant-collections', String(data.collections || 0));
+      setText('qdrant-vectors', formatNumber(data.total_vectors || 0));
+      setText('qdrant-latency', (data.search_latency_ms != null ? data.search_latency_ms.toFixed(1) : '--') + ' ms');
+      setText('qdrant-storage', data.storage_used || '--');
+    }
+
+    // ---------------------------------------------------------
+    // Updated-at timestamp
+    // ---------------------------------------------------------
+
+    function renderUpdatedAt() {
+      var el = document.getElementById('ai-updated-at');
+      if (!el) return;
+      var d = new Date();
+      el.textContent = 'Updated ' + d.toLocaleTimeString();
+    }
+
+    // ---------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------
+
+    function setText(id, text) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+
+    function formatNumber(n) {
+      if (n == null) return '--';
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function statusBadgeClass(status) {
+      switch (status) {
+        case 'online': return 'online';
+        case 'loading': return 'loading';
+        case 'offline': return 'offline';
+        default: return 'unknown';
+      }
+    }
+
+    function vramBarClass(pct) {
+      if (pct >= 85) return 'high';
+      if (pct >= 60) return 'medium';
+      return 'low';
+    }
+
+    function errorRateClass(rate) {
+      if (rate >= 5) return 'error-high';
+      if (rate >= 1) return 'error-warn';
+      return 'error-ok';
+    }
+
+    // ---------------------------------------------------------
+    // Lifecycle
+    // ---------------------------------------------------------
+
+    function cleanup() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+
+    window.addEventListener('beforeunload', cleanup);
+  })();
+</script>
