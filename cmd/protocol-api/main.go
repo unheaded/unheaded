@@ -58,7 +58,7 @@ type HealthResponse struct {
 	Version string `json:"version"`
 }
 
-func init() {
+func main() {
 	flag.Parse()
 
 	if *version_flag {
@@ -69,9 +69,7 @@ func init() {
 	globalMockMode = *mockMode
 	globalAPIKey = *apiKey
 	globalBPFPath = *bpfMapsPath
-}
 
-func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
