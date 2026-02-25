@@ -18,17 +18,23 @@ func TestComputeCRC16(t *testing.T) {
 		{
 			name:     "all zeros",
 			data:     make([]byte, 18),
-			expected: 0x8118, // CRC of 18 zero bytes
+			expected: 0x45AB, // CRC-16/CCITT-FALSE of 18 zero bytes
 		},
 		{
-			name:     "all ones",
-			data:     make([]byte, 18),
-			expected: 0xFFFF,
+			name: "all ones",
+			data: func() []byte {
+				b := make([]byte, 18)
+				for i := range b {
+					b[i] = 0xFF
+				}
+				return b
+			}(),
+			expected: 0x0041, // CRC-16/CCITT-FALSE of 18 0xFF bytes
 		},
 		{
 			name:     "known test vector 1",
 			data:     []byte{0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-			expected: 0x6A71,
+			expected: 0x99AE, // CRC-16/CCITT-FALSE of "123456789" + 9 zero bytes
 		},
 	}
 
