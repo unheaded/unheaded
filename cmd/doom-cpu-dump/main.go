@@ -98,7 +98,7 @@ Examples:
 func dumpCPU(args []string) error {
 	fs := flag.NewFlagSet("dump", flag.ExitOnError)
 	instance := fs.String("instance", "DE", "CPU instance ID (hex)")
-	mapPath := fs.String("map", defaultCPUMapPath, "BPF CPU_MAP path")
+	_ = fs.String("map", defaultCPUMapPath, "BPF CPU_MAP path")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -123,7 +123,7 @@ func watchCPU(args []string) error {
 	fs := flag.NewFlagSet("watch", flag.ExitOnError)
 	instance := fs.String("instance", "DE", "CPU instance ID (hex)")
 	interval := fs.Int("interval", 200, "Update interval in milliseconds")
-	mapPath := fs.String("map", defaultCPUMapPath, "BPF CPU_MAP path")
+	_ = fs.String("map", defaultCPUMapPath, "BPF CPU_MAP path")
 
 	if err := fs.Parse(args); err != nil {
 		return err
