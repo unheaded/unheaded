@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // latency_reader.go — Reads LATENCY_MAP from the latency_probe BPF program.
 //
 // LatencyReader periodically polls the LATENCY_MAP BPF hash map produced by

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package registry provides a generic, thread-safe registry for extensible
 // protocol code points.
 //

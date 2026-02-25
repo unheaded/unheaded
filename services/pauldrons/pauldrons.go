@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package pauldrons provides load balancing and traffic distribution.
 // Pauldrons the Load Balancer is the Kingdom's shoulders - bearing the weight of traffic.
 // Implements L4/L7 load balancing, Maglev hashing, and session persistence.

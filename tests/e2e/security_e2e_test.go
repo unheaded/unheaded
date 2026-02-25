@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package e2e provides security-focused E2E tests for the Unheaded platform.
 //
 // Tests verify:

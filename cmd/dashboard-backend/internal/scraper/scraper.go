@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package scraper provides metrics scraping from Kingdom services.
 // It polls /metrics endpoints from all registered services and aggregates
 // the results for the dashboard.

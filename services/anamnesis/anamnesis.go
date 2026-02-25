@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package anamnesis provides event sourcing, history keeping, and state reconstruction.
 // In Gnostic philosophy, Anamnesis is the soul's remembrance of its divine origin.
 // This service embodies that concept: remembering every state change, reconstructing the past,

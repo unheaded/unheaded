@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // mapfreeze.go provides BPF map freeze helpers for ROM protection.
 //
 // Remediation for Lich D1-001, D6-001: ROM_MAP must be frozen after load

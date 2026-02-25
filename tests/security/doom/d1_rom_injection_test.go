@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package doom_security_test implements offensive security test campaigns (D1-D6)
 // against the Doom-over-IPv6 eBPF compute engine.
 //

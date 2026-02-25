@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package events - Event Router for Cross-Service Communication
 //
 // The Router provides a centralized way to register handlers for events

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package auth — JWT authentication with HMAC-SHA256.
 // No external JWT libraries — uses crypto/hmac + crypto/sha256 from stdlib.
 package auth

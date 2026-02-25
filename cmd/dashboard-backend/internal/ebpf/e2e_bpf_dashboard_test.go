@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // End-to-end BPF → Dashboard pipeline test (Step 1.7).
 //
 // This test verifies the full Anamnesis event pipeline:

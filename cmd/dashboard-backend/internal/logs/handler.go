@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package logs provides the dashboard log viewer API.
 // GET /api/v1/logs — query log entries from the ring buffer.
 // WebSocket /ws/logs — live tail of new log entries.

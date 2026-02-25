@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package health provides a health check aggregator for the Unheaded Kingdom infrastructure.
 // It supports multiple check types (HTTP, TCP, gRPC, exec), concurrent execution,
 // circuit breakers, and integrates with Wotan for event emission.

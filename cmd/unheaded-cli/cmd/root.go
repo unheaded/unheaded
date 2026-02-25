@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package cmd provides the command structure for THE GAUNTLETS CLI.
 // This implements a subcommand pattern similar to kubectl/docker without external frameworks.
 package cmd

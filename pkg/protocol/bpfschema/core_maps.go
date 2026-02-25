@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BUSL-1.1
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 // Package bpfschema — core_maps.go
 //
 // Defines BPF map key/value structs for the EXISTING eBPF programs
