@@ -15,8 +15,9 @@ import (
 
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
-	pb "github.com/unheaded/unheaded/proto/unheaded/v1"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 const (
@@ -235,11 +236,8 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 // grpcAuthInterceptor enforces API key authentication for gRPC
 func grpcAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	if globalAPIKey != "" {
-		md, ok := grpc.MethodFromServerTransportStream(ctx, info)
-		if !ok {
-			return nil, fmt.Errorf("failed to get metadata")
-		}
-		_ = md // Use metadata to check API key if needed
+		// info.FullMethod contains the gRPC method name (e.g. "/unheaded.v1.MonadService/Encode")
+		_ = info.FullMethod // Placeholder: use metadata to check API key if needed
 	}
 
 	return handler(ctx, req)
@@ -580,7 +578,7 @@ func handleFlowList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	flowSvc := &flowServer{}
-	pbReq := &pb.Empty{}
+	pbReq := &emptypb.Empty{}
 
 	resp, err := flowSvc.List(r.Context(), pbReq)
 	if err != nil {
@@ -662,57 +660,7 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	// Simplified: actual implementation would use encoding/json
 }
 
-// Placeholder server implementations
-type monadServer struct{}
-type sophiaServer struct{}
-type wotanServer struct{}
-type anamnesisServer struct{}
-type flowServer struct{}
-
-func (s *monadServer) Encode(ctx context.Context, req *pb.EncodeRequest) (*pb.EncodeResponse, error) {
-	return &pb.EncodeResponse{Success: true}, nil
-}
-
-func (s *monadServer) Decode(ctx context.Context, req *pb.DecodeRequest) (*pb.DecodeResponse, error) {
-	return &pb.DecodeResponse{Valid: true}, nil
-}
-
-func (s *monadServer) Validate(ctx context.Context, req *pb.DecodeRequest) (*pb.DecodeResponse, error) {
-	return &pb.DecodeResponse{Valid: true}, nil
-}
-
-func (s *sophiaServer) List(ctx context.Context, req *pb.DictionaryListRequest) (*pb.DictionaryListResponse, error) {
-	return &pb.DictionaryListResponse{}, nil
-}
-
-func (s *sophiaServer) Get(ctx context.Context, req *pb.DictionaryGetRequest) (*pb.DictionaryGetResponse, error) {
-	return &pb.DictionaryGetResponse{Found: false}, nil
-}
-
-func (s *wotanServer) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadResponse, error) {
-	return &pb.ReadResponse{Found: false}, nil
-}
-
-func (s *wotanServer) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResponse, error) {
-	return &pb.WriteResponse{Success: true}, nil
-}
-
-func (s *anamnesisServer) Query(ctx context.Context, req *pb.EventQuery) (*pb.EventQueryResponse, error) {
-	return &pb.EventQueryResponse{}, nil
-}
-
-func (s *anamnesisServer) Stream(req *pb.StreamRequest, stream grpc.ServerStream) error {
-	return nil
-}
-
-func (s *flowServer) List(ctx context.Context, req *pb.Empty) (*pb.FlowListResponse, error) {
-	return &pb.FlowListResponse{}, nil
-}
-
-func (s *flowServer) GetState(ctx context.Context, req *pb.ReadRequest) (*pb.FlowState, error) {
-	return &pb.FlowState{}, nil
-}
-
-func (s *flowServer) Inject(ctx context.Context, req *pb.InjectRequest) (*pb.InjectResponse, error) {
-	return &pb.InjectResponse{Success: true}, nil
+// monadServer implements Monad encoding/decoding (methods in monad.go)
+type monadServer struct {
+	pb.UnimplementedMonadServiceServer
 }

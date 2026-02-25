@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 
-	pb "github.com/unheaded/unheaded/proto/unheaded/v1"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 // MonadPayloadSize is the total size in bytes: 18 bytes payload + 2 bytes CRC
@@ -68,14 +68,15 @@ func computeCRC16(data []byte) uint16 {
 		crc ^= uint16(data[i]) << 8
 
 		for j := 0; j < 8; j++ {
-			crc <<= 1
-			if (crc & 0x10000) != 0 {
-				crc ^= CRCPoly
+			if (crc & 0x8000) != 0 {
+				crc = (crc << 1) ^ CRCPoly
+			} else {
+				crc <<= 1
 			}
 		}
 	}
 
-	return crc & 0xFFFF
+	return crc
 }
 
 // verifyCRC16 verifies the CRC-16 checksum in a 20-byte Monad register

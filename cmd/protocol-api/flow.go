@@ -6,12 +6,13 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/unheaded/unheaded/proto/unheaded/v1"
+	pb "unheaded/proto/unheaded/v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // flowServer implements flow lifecycle and management
 type flowServer struct {
+	pb.UnimplementedFlowServiceServer
 	mockFlows map[uint32]*pb.FlowState
 	mu        sync.RWMutex
 }
@@ -171,13 +172,13 @@ func (s *flowServer) CreateFlow(
 	now := uint64(time.Now().UnixMilli())
 
 	flow := &pb.FlowState{
-		FlowLabel:    flowLabel,
-		KingdomMode:  kingdomMode,
-		SourceAddress: sourceAddr,
-		DestAddress:   destAddr,
-		SophiaDictId:  sophiaDictID,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		FlowLabel:          flowLabel,
+		KingdomMode:        kingdomMode,
+		SourceAddress:      []byte(sourceAddr),
+		DestinationAddress: []byte(destAddr),
+		SophiaDictId:       sophiaDictID,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 
 	s.mockFlows[flowLabel] = flow
