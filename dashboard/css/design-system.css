@@ -1,6 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+
 /* ============================================================================
    UNHEADED DESIGN SYSTEM
    Dark, minimal, monospace-first aesthetic for headless infrastructure control
+   Matching unheaded.org / bellis.tech monochrome identity
    ============================================================================ */
 
 /* Font faces */
@@ -20,41 +23,31 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: "Space Grotesk";
-  src: url("/dashboard/assets/fonts/SpaceGrotesk-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Space Grotesk";
-  src: url("/dashboard/assets/fonts/SpaceGrotesk-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 /* ============================================================================
    CSS VARIABLES: Color, Spacing, Typography
    ============================================================================ */
 
 :root {
-  /* Colors */
+  /* Colors — pure monochrome grayscale hierarchy
+     #fff (headings) > #c9c9c9 (primary text) > #888 (hover reveal)
+     > #666 (muted) > #555 (dim) > #444 (nodes) > #3a3a3a (ghost)
+     > #333 (border-light) > #222 (borders) > #1a1a1a (tertiary bg)
+     > #121212 (secondary bg) > #0a0a0a (primary bg) */
   --color-bg: #0a0a0a;
   --color-bg-secondary: #121212;
   --color-bg-tertiary: #1a1a1a;
   --color-text-primary: #c9c9c9;
   --color-text-heading: #ffffff;
-  --color-text-dim: #666666;
+  --color-text-muted: #666666;
+  --color-text-dim: #555555;
+  --color-text-nodes: #444444;
   --color-text-ghost: #3a3a3a;
+  --color-text-hover: #888888;
   --color-border: #222222;
-  --color-border-light: #2a2a2a;
+  --color-border-light: #333333;
 
-  /* Typography */
+  /* Typography — monospace only */
   --font-mono: "JetBrains Mono", monospace;
-  --font-body: "Space Grotesk", sans-serif;
 
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -94,6 +87,7 @@
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-ghost: 0.5s ease;
 
   /* Z-index Scale */
   --z-base: 1;
@@ -125,7 +119,7 @@ html {
 }
 
 body {
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   color: var(--color-text-primary);
@@ -140,17 +134,17 @@ body {
 .text-heading {
   font-family: var(--font-mono);
   font-size: var(--font-size-2xl);
-  font-weight: 700;
+  font-weight: 300;
   color: var(--color-text-heading);
   line-height: var(--line-height-tight);
-  letter-spacing: -0.02em;
+  letter-spacing: 0.3em;
 }
 
 .text-dim {
   font-size: var(--font-size-sm);
-  color: var(--color-text-dim);
+  color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.15em;
   font-family: var(--font-mono);
 }
 
@@ -158,11 +152,11 @@ body {
   color: var(--color-text-ghost);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
-  transition: color var(--transition-fast);
+  transition: color var(--transition-ghost);
 }
 
 .text-ghost:hover {
-  color: #888;
+  color: var(--color-text-hover);
 }
 
 .text-primary {
@@ -227,13 +221,11 @@ body {
   border-radius: var(--border-radius-lg);
   padding: var(--space-lg);
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition-normal);
+  transition: border-color var(--transition-ghost);
 }
 
 .card:hover {
-  background-color: var(--color-bg-tertiary);
   border-color: var(--color-border-light);
-  box-shadow: var(--shadow-md);
 }
 
 .card-header {
@@ -248,8 +240,9 @@ body {
 .card-title {
   font-family: var(--font-mono);
   font-size: var(--font-size-lg);
-  font-weight: 700;
+  font-weight: 300;
   color: var(--color-text-heading);
+  letter-spacing: 0.1em;
 }
 
 .card-body {
@@ -273,9 +266,9 @@ body {
 
 .card-metric-label {
   font-size: var(--font-size-sm);
-  color: var(--color-text-dim);
+  color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.15em;
 }
 
 /* ============================================================================
@@ -302,9 +295,9 @@ body {
 .nav-logo {
   font-family: var(--font-mono);
   font-size: var(--font-size-xl);
-  font-weight: 700;
+  font-weight: 300;
   color: var(--color-text-heading);
-  letter-spacing: -0.02em;
+  letter-spacing: 0.3em;
   text-decoration: none;
 }
 
@@ -318,24 +311,23 @@ body {
 .nav-link {
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
+  color: var(--color-text-ghost);
   text-decoration: none;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.15em;
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--border-radius-sm);
-  transition: all var(--transition-fast);
+  transition: color var(--transition-ghost);
   border: var(--border-width-thin) solid transparent;
 }
 
 .nav-link:hover {
-  color: var(--color-text-heading);
-  border-color: var(--color-border);
+  color: var(--color-text-hover);
 }
 
 .nav-link.active {
   color: var(--color-text-heading);
-  border-color: var(--color-text-primary);
+  border-color: var(--color-border);
 }
 
 /* ============================================================================
@@ -370,18 +362,18 @@ body {
   font-size: var(--font-size-sm);
   padding: var(--space-md) var(--space-lg);
   background: transparent;
-  color: var(--color-text-primary);
+  color: var(--color-text-ghost);
   border: none;
   border-bottom: var(--border-width-thick) solid transparent;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-ghost);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.15em;
   white-space: nowrap;
 }
 
 .tab-btn:hover {
-  color: var(--color-text-heading);
+  color: var(--color-text-hover);
   border-bottom-color: var(--color-border);
 }
 
@@ -412,9 +404,9 @@ body {
   background-color: transparent;
   color: var(--color-text-primary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-ghost);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.15em;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -422,7 +414,6 @@ body {
 }
 
 .btn:hover {
-  background-color: var(--color-bg-secondary);
   border-color: var(--color-border-light);
   color: var(--color-text-heading);
 }
@@ -438,7 +429,7 @@ body {
 }
 
 .btn-ghost:hover {
-  color: var(--color-text-primary);
+  color: var(--color-text-hover);
   background-color: transparent;
   border-color: transparent;
 }
@@ -446,7 +437,7 @@ body {
 .btn-approve {
   background-color: transparent;
   border-color: transparent;
-  color: var(--color-text-dim);
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
@@ -457,7 +448,7 @@ body {
 .btn-reject {
   background-color: transparent;
   border-color: transparent;
-  color: var(--color-text-dim);
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
@@ -472,7 +463,6 @@ body {
 }
 
 .btn-danger:hover {
-  background-color: rgba(255, 255, 255, 0.05);
   border-color: var(--color-text-primary);
   color: var(--color-text-primary);
 }
@@ -486,7 +476,7 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--color-text-dim);
+  background-color: var(--color-text-muted);
   margin-right: var(--space-sm);
 }
 
@@ -504,7 +494,7 @@ body {
   height: 8px;
   border-radius: 50%;
   background-color: var(--color-text-primary);
-  animation: pulse 2s infinite;
+  animation: pulse 4s ease-in-out infinite;
 }
 
 /* ============================================================================
@@ -526,16 +516,16 @@ body {
 .data-table th {
   padding: var(--space-md) var(--space-lg);
   text-align: left;
-  color: var(--color-text-dim);
+  color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.15em;
   font-weight: 600;
   font-size: var(--font-size-xs);
 }
 
 .data-table tbody tr {
   border-bottom: var(--border-width-thin) solid var(--color-border);
-  transition: background-color var(--transition-fast);
+  transition: color var(--transition-ghost);
 }
 
 .data-table tbody tr:hover {
@@ -548,7 +538,7 @@ body {
 }
 
 .data-table td.dim {
-  color: var(--color-text-dim);
+  color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
 
@@ -575,9 +565,9 @@ body {
 
 .metric-label {
   font-size: var(--font-size-xs);
-  color: var(--color-text-dim);
+  color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.15em;
 }
 
 .metric-delta {
@@ -597,7 +587,7 @@ body {
   justify-content: center;
   min-height: 300px;
   gap: var(--space-lg);
-  color: var(--color-text-dim);
+  color: var(--color-text-muted);
 }
 
 .empty-state-icon {
@@ -710,10 +700,10 @@ body {
 
 @keyframes pulse {
   0%, 100% {
-    opacity: 1;
+    opacity: 0.4;
   }
   50% {
-    opacity: 0.4;
+    opacity: 1;
   }
 }
 
@@ -742,7 +732,7 @@ body {
     color: var(--color-text-ghost);
   }
   to {
-    color: #888;
+    color: var(--color-text-hover);
   }
 }
 
@@ -811,7 +801,7 @@ select {
   color: var(--color-text-primary);
   border: var(--border-width-thin) solid var(--color-border);
   border-radius: var(--border-radius-md);
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-ghost);
 }
 
 input[type="text"]:focus,
