@@ -181,7 +181,7 @@
 
 ### S35 Strategic Direction (Feb 24, 2026)
 
-**Licensing:** BSL 1.1 short-term → permissive at stable/K8s-scale. Protocol specs separately permissive.
+**Licensing:** MIT short-term → permissive at stable/K8s-scale. Protocol specs separately permissive.
 **Doom:** Fork official id-Software/DOOM (with sound). Move out of repo before public.
 **SBOM:** ScanCode + FOSSology + ORT — run tonight, fold results into repo.
 **Backends:** DEFERRED not killed. Anti-lock-in core principle. Prometheus + zerolog ship first.

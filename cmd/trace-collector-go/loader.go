@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 
 // loader.go — BPF program loader interface and mock implementation.

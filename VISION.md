@@ -32,7 +32,7 @@ eBPF is the inflection point. IPv6 extension headers are the medium. gRPC is the
 
 **gRPC** is the canonical language for service-to-service communication. We built Monad-aware gRPC stubs that automatically encode/decode the register. Call `grpc.Dial()` with Unheaded transport; the register is populated automatically.
 
-**The protocol IS the moat.** Every other infrastructure platform is tied to cloud providers, container runtimes, orchestration frameworks. Unheaded is tied to one thing: IPv6. Ubiquitous, standardized, no vendor lock-in. Anyone running Linux 6.0+ with IPv6 can run Unheaded. Anyone who understands the protocol can implement it in their language, their runtime, their network.
+**The protocol is the moat.** Every other infrastructure platform is tied to cloud providers, container runtimes, orchestration frameworks. Unheaded is tied to one thing: IPv6. Ubiquitous, standardized, no vendor lock-in. Anyone running Linux 6.0+ with IPv6 can run Unheaded. Anyone who understands the protocol can implement it in their language, their runtime, their network.
 
 ## The Kingdom Metaphor
 
@@ -73,13 +73,13 @@ eBPF programs running on Linux 6.0+ kernel. Packet-level observability working. 
 
 Success criteria: Barebone deployment guide published. Trace propagation end-to-end. Sub-100µs latency to observability backend. Kernel verifier passing on all programs. Public demo on YouTube.
 
-**Age 3 — MVP: Multi-Tenant Production** (Jul 2026)
+**Age 3 — Hardening: Production-Ready** (Jul 2026)
 
-Production SLA commitments. Commercial licensing available. Integration with cloud provider consoles (AWS, Azure, GCP). Helm charts passing Artifact Hub validation. Zero security issues in third-party audits. First paying customer running Unheaded in production.
+Security audit complete. Integration with cloud provider consoles (AWS, Azure, GCP). Helm charts passing Artifact Hub validation. Zero security issues in third-party audits. Community deployments in the wild.
 
-Success criteria: 99.99% uptime SLA. Security audit passing. Paying customers. Conference talks at KubeCon and eBPF Summit.
+Success criteria: Deployment guide battle-tested. Security audit clean. Conference talks at KubeCon and eBPF Summit. Others are using it.
 
-**Age 4 — Scale: IANA-Registered Protocol, Standards-Track RFC** (Oct 2026)
+**Age 4 — Ecosystem: IANA-Registered Protocol, Standards-Track RFC** (Oct 2026)
 
 IANA registration of protocol type (0x2A for UNHEADED_METRIC_V1). Standards-track RFC published. Interoperable implementations in Go, Rust, Python, Node.js. Open-source SBOM. Open-source security audit.
 
@@ -95,33 +95,9 @@ Success criteria: Anyone can implement the protocol independently. Protocol is p
 
 **Kingdom Mode.** A single /48 block of IPv6 addresses can be interpreted two ways: as 2^80 hosts OR as 2^160 distinct flows with extended register space. Inverse Mask reclaims deterministic address bits as computational state. Deterministic yet flexible. No special hardware. Just IPv6 arithmetic.
 
-## Our Unfair Advantages
+## Open Source
 
-**The protocol is the product.** Every other infrastructure platform is tied to cloud providers, container runtimes, orchestration frameworks. We are tied to IPv6. Ubiquitous. Standardized. No vendor lock-in.
-
-**We built the demo application that uses our platform.** The Kanban board manages itself. It reads from timeguru, updates tasks, publishes events to Wotan. It proves Unheaded can host its own infrastructure. If we can't host ourselves, we're not ready for customers.
-
-**We have three Internet-Drafts already published.** Most startups hide their tech. We published our protocol specification before launch. IETF Experimental track. The architecture is peer-reviewed. The protocol is documented.
-
-**Zero external dependencies for the core protocol.** No Kubernetes. No cloud provider SDKs. No service mesh framework. Just IPv6, eBPF, gRPC. Anyone can implement it.
-
-## Why Now
-
-**eBPF reached production maturity.** Five years ago, BPF was a research project. Today, Kubernetes uses eBPF for networking. Datadog uses eBPF for observability. eBPF is stable on Linux 5.8+. The infrastructure is there.
-
-**IPv6 adoption is increasing.** Still not universal, but growing. Kubernetes defaults to IPv6. Cloud providers are pushing IPv6. The protocol is here.
-
-**Observability is now table stakes.** DevOps teams expect distributed tracing, metrics, and logs. We're not asking "should you observe your infrastructure?" We're answering "how do we embed observability into the protocol?"
-
-**The Kubernetes empire is showing cracks.** Kubernetes is the dominant orchestration platform, but it's complex, heavyweight, and expensive. There's a hunger for simpler infrastructure. Unheaded offers an alternative: declarative, auditable, observable, but not Kubernetes-first.
-
-## The Ask
-
-We are fundraising for Age 2 and Age 3. Series A to build the commercial support infrastructure, hire a security team, invest in ecosystem integrations, and bring products to market.
-
-We are not asking for guidance on vision. The vision is clear. We are not asking for tech advice. The protocol works. We are asking for capital and partnership to industrialize what we've built and share it with the world.
-
-The armor is ready. The head can focus on what it does best.
+Unheaded is MIT licensed. Take it. Use it. Build on it. Break it. The ideas matter more than the moat.
 
 ---
 

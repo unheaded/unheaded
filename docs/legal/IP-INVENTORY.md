@@ -8,7 +8,7 @@
 
 ## Table of Contents
 
-1. [Proprietary IP (BSL 1.1)](#proprietary-ip-bsl-11)
+1. [Proprietary IP (MIT)](#proprietary-ip-bsl-11)
 2. [Protocol Specifications (MIT / Apache 2.0)](#protocol-specifications-mit--apache-20)
 3. [Open Source Components](#open-source-components)
 4. [Trademarks](#trademarks)
@@ -18,17 +18,17 @@
 
 ---
 
-## Proprietary IP (BSL 1.1)
+## Proprietary IP (MIT)
 
-The following intellectual property is owned by Unheaded Kingdom and licensed under the **Business Source License 1.1 (BSL 1.1)**. See `/LICENSE` for full terms.
+The following intellectual property is owned by Unheaded Kingdom and licensed under the **MIT License (MIT)**. See `/LICENSE` for full terms.
 
-BSL 1.1 grants you the right to use this software for non-production purposes freely. Production use requires a license agreement. After 4 years from the release date, the license converts to Apache 2.0, allowing unlimited use.
+MIT grants you the right to use this software for non-production purposes freely. Production use requires a license agreement. After 4 years from the release date, the license converts to Apache 2.0, allowing unlimited use.
 
 ### Core Protocol & Architecture
 
 #### Monad Protocol
 
-**Status:** Proprietary (BSL 1.1), planned public specification (draft-bellis-unheaded-monad-header)
+**Status:** Proprietary (MIT), planned public specification (draft-bellis-unheaded-monad-header)
 
 The **Monad Protocol** is a packet-level protocol header format for in-band signaling of data plane control information across networks. It is the conceptual foundation of the Unheaded Kingdom's entire ecosystem.
 
@@ -56,7 +56,7 @@ The **Monad Protocol** is a packet-level protocol header format for in-band sign
 
 #### Sophia Dictionary System
 
-**Status:** Proprietary (BSL 1.1)
+**Status:** Proprietary (MIT)
 
 The **Sophia Dictionary** is the Unheaded Kingdom's symbolic metadata system. It maps protocol state changes to descriptive records that can be rendered in multiple formats (JSON, YAML, Markdown).
 
@@ -74,7 +74,7 @@ The **Sophia Dictionary** is the Unheaded Kingdom's symbolic metadata system. It
 
 #### Wotan Memory Model
 
-**Status:** Proprietary (BSL 1.1)
+**Status:** Proprietary (MIT)
 
 The **Wotan** subsystem provides unified memory abstraction for distributed flow state. It features:
 
@@ -98,7 +98,7 @@ The **Wotan** subsystem provides unified memory abstraction for distributed flow
 
 #### Anamnesis Event System
 
-**Status:** Proprietary (BSL 1.1)
+**Status:** Proprietary (MIT)
 
 **Anamnesis** is the event collection, correlation, and remediation framework. It consumes raw network telemetry and produces actionable events.
 
@@ -118,7 +118,7 @@ The **Wotan** subsystem provides unified memory abstraction for distributed flow
 
 #### Shield eBPF Pipeline
 
-**Status:** Proprietary (BSL 1.1)
+**Status:** Proprietary (MIT)
 
 **Shield** is the packet processing pipeline in the kernel space. It inspects, marks, tracks, and samples packets for observability and enforcement.
 
@@ -139,7 +139,7 @@ The **Wotan** subsystem provides unified memory abstraction for distributed flow
 
 #### Monad Bytecode (MBC) ISA
 
-**Status:** Proprietary (BSL 1.1), candidate for defensive publication
+**Status:** Proprietary (MIT), candidate for defensive publication
 
 The **Monad Bytecode (MBC)** is a 43-opcode instruction set architecture designed for efficient execution in constrained kernel eBPF environments.
 
@@ -161,7 +161,7 @@ The **Monad Bytecode (MBC)** is a 43-opcode instruction set architecture designe
 
 #### unheaded-daemon Orchestration Engine
 
-**Status:** Proprietary (BSL 1.1)
+**Status:** Proprietary (MIT)
 
 The **unheaded-daemon** is the core orchestrator that launches, manages, and coordinates all subsystems (Monad packet processing, Wotan state, Anamnesis events, Shield eBPF pipeline).
 
@@ -182,7 +182,7 @@ The **unheaded-daemon** is the core orchestrator that launches, manages, and coo
 
 #### The Lich: Automated Adversary Framework
 
-**Status:** Proprietary (BSL 1.1)
+**Status:** Proprietary (MIT)
 
 **The Lich** is an automated adversary simulation and attack injection framework. It can:
 - Inject synthetic network events (with Monad headers)
@@ -206,7 +206,7 @@ The **unheaded-daemon** is the core orchestrator that launches, manages, and coo
 
 #### Kingdom Mode (System Identity)
 
-**Status:** Proprietary (BSL 1.1)
+**Status:** Proprietary (MIT)
 
 **Kingdom Mode** is a system identity and governance model. Each Unheaded installation can be deployed in one of several modes:
 
@@ -300,7 +300,7 @@ The Unheaded Kingdom incorporates the **doomgeneric** portable DOOM source port 
 **Key points:**
 - GPL v2 code is **confined to the `doom/` directory only**
 - The GPL code is **compiled to MBC bytecode** and runs inside the **eBPF VM sandbox**
-- There is **no linking, compilation merging, or shared address space** with the BSL 1.1 codebase
+- There is **no linking, compilation merging, or shared address space** with the MIT codebase
 - The boundary is enforced by the Linux kernel's eBPF VM sandbox
 - The GPL v2 license **does not apply to any code outside the `doom/` directory**
 
@@ -356,7 +356,7 @@ Include:
 
 ## Trade Secrets
 
-The following information is protected as trade secrets under the BSL 1.1 license and applicable law:
+The following information is protected as trade secrets under the MIT license and applicable law:
 
 | Category | Description | Confidentiality Level |
 |----------|-------------|----------------------|
@@ -370,7 +370,7 @@ The following information is protected as trade secrets under the BSL 1.1 licens
 
 1. **Access control:** Trade secret information is available only to authorized Unheaded Kingdom maintainers and licensees under NDA.
 2. **Documentation:** Kept in private repositories or encrypted documents. Public documentation abstracts away secret details.
-3. **Source code:** Proprietary algorithms are implemented in closed-source binaries or obfuscated source (for BSL 1.1 code).
+3. **Source code:** Proprietary algorithms are implemented in closed-source binaries or obfuscated source (for MIT code).
 
 ### Disclosure Risk
 
@@ -391,7 +391,7 @@ The Unheaded Kingdom has **not filed any patents** on the core technology. This 
    - Trade secrets can be maintained indefinitely with reasonable security measures.
    - For protocol and infrastructure software, trade secrets offer better protection.
 
-2. **BSL 1.1 provides business protection.**
+2. **MIT provides business protection.**
    - The license restricts production use for 4 years, creating a moat.
    - After 4 years, conversion to Apache 2.0 is automatic (no perpetual control needed).
 
@@ -420,7 +420,7 @@ We are **considering defensive publication** of the **MBC ISA** to prevent third
 
 ### Liability
 
-The Unheaded Kingdom makes **no representation or warranty** regarding patent infringement. See `/LICENSE` (BSL 1.1) for liability limitations.
+The Unheaded Kingdom makes **no representation or warranty** regarding patent infringement. See `/LICENSE` (MIT) for liability limitations.
 
 ---
 
@@ -465,15 +465,15 @@ Portions of the Unheaded Kingdom codebase were generated or improved with assist
 
 | Asset | Type | License | Status | Location |
 |-------|------|---------|--------|----------|
-| Monad Protocol | Proprietary IP | BSL 1.1 | Core differentiator | /docs/protocol/ |
-| Sophia Dictionary | Proprietary IP | BSL 1.1 | Core differentiator | /internal/sophia/ |
-| Wotan Memory Model | Proprietary IP | BSL 1.1 | Core differentiator | /cmd/wotan/ |
-| Anamnesis Event System | Proprietary IP | BSL 1.1 | Core differentiator | /cmd/trace-collector/ |
-| Shield eBPF Pipeline | Proprietary IP | BSL 1.1 | Core differentiator | /ebpf-programs/ |
-| MBC ISA | Proprietary IP | BSL 1.1 | Core differentiator | /specs/ |
-| unheaded-daemon | Proprietary IP | BSL 1.1 | Core differentiator | /cmd/unheaded-daemon/ |
-| The Lich | Proprietary IP | BSL 1.1 | Testing framework | /cmd/lich/ |
-| Kingdom Mode | Proprietary IP | BSL 1.1 | Governance model | /internal/kingdom-mode/ |
+| Monad Protocol | Proprietary IP | MIT | Core differentiator | /docs/protocol/ |
+| Sophia Dictionary | Proprietary IP | MIT | Core differentiator | /internal/sophia/ |
+| Wotan Memory Model | Proprietary IP | MIT | Core differentiator | /cmd/wotan/ |
+| Anamnesis Event System | Proprietary IP | MIT | Core differentiator | /cmd/trace-collector/ |
+| Shield eBPF Pipeline | Proprietary IP | MIT | Core differentiator | /ebpf-programs/ |
+| MBC ISA | Proprietary IP | MIT | Core differentiator | /specs/ |
+| unheaded-daemon | Proprietary IP | MIT | Core differentiator | /cmd/unheaded-daemon/ |
+| The Lich | Proprietary IP | MIT | Testing framework | /cmd/lich/ |
+| Kingdom Mode | Proprietary IP | MIT | Governance model | /internal/kingdom-mode/ |
 | draft-bellis-unheaded-monad-header | Protocol Spec | MIT/Apache 2.0 | Public spec (planned) | /docs/protocol/ |
 | draft-bellis-unheaded-metric-header-00 | Protocol Spec | MIT/Apache 2.0 | Public spec (planned) | /docs/protocol/ |
 | LICENSE-PROTOCOLS | Permissive | MIT | Public declaration | /LICENSE-PROTOCOLS |

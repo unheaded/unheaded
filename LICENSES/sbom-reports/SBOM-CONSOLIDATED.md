@@ -12,12 +12,12 @@ Go module analysis were used as fallback.
 
 ## Key Findings
 
-### Main Codebase Licensing (BSL 1.1)
+### Main Codebase Licensing (MIT)
 
-- Primary license: Business Source License 1.1
+- Primary license: MIT License
 - Change Date: 2029-12-31
 - Change License: Apache 2.0
-- Status: All key source files have BSL 1.1 headers
+- Status: All key source files have MIT headers
 
 ### Protocol Specifications (MIT/Apache-2.0)
 

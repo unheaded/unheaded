@@ -2,7 +2,7 @@
 
 **Project:** Unheaded Kingdom  
 **Last updated:** 2026-02-25  
-**Main license:** BSL 1.1 (see `/LICENSE`)  
+**Main license:** MIT (see `/LICENSE`)  
 **Canonical third-party inventory location:** This file
 
 ---
@@ -12,7 +12,7 @@
 This document describes all third-party dependencies used by the Unheaded Kingdom project and defines the GPL boundary for the DOOM subsystem.
 
 The codebase consists of:
-- **Proprietary Unheaded code:** Licensed under BSL 1.1 (see `/LICENSE`)
+- **Proprietary Unheaded code:** Licensed under MIT (see `/LICENSE`)
 - **DOOM subsystem:** GPL v2.0, architecturally isolated and NOT linked into the main codebase
 - **Third-party dependencies:** Go modules, Rust crates, and JavaScript libraries with permissive licenses
 - **Protocol specifications:** Published under MIT/Apache 2.0 to encourage ecosystem adoption
@@ -27,11 +27,11 @@ The DOOM subsystem demonstrates **computational completeness** of the Monad Prot
 
 ### GPL Isolation Architecture
 
-The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the Linux kernel's eBPF VM sandbox. The rest of the Unheaded codebase (BSL 1.1) is completely separate. **There is no linking, compilation merging, or shared address space.**
+The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the Linux kernel's eBPF VM sandbox. The rest of the Unheaded codebase (MIT) is completely separate. **There is no linking, compilation merging, or shared address space.**
 
 ```
 +--------------------------------------------------+
-|  Unheaded Platform (BSL 1.1 / MIT / Apache 2.0) |
+|  Unheaded Platform (MIT / MIT / Apache 2.0) |
 |  Go binaries, Rust binaries, JS frontend        |
 |                                                  |
 |  cmd/doom-bridge   cmd/doom-loader               |
@@ -63,7 +63,7 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 
 5. **Independent compilation.** DOOM is compiled by a Rust translator (`monad-mbc`). Go/Rust tools are compiled by their respective compilers. The two toolchains never intersect.
 
-**Result:** The GPL v2 license applies exclusively to the files in the `doom/` directory. The main codebase (BSL 1.1) has no GPL obligations.
+**Result:** The GPL v2 license applies exclusively to the files in the `doom/` directory. The main codebase (MIT) has no GPL obligations.
 
 ### GPL v2 Licensed Components (inside the boundary)
 
@@ -90,27 +90,27 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 
 ### NOT GPL Licensed (outside the boundary)
 
-All code outside the `doom/` directory is **original Unheaded work** licensed under BSL 1.1. These components do NOT derive from, link to, or include any GPL-licensed code. They communicate with DOOM solely through BPF map syscalls (a data protocol boundary, analogous to user-space programs communicating with the GPL Linux kernel).
+All code outside the `doom/` directory is **original Unheaded work** licensed under MIT. These components do NOT derive from, link to, or include any GPL-licensed code. They communicate with DOOM solely through BPF map syscalls (a data protocol boundary, analogous to user-space programs communicating with the GPL Linux kernel).
 
 | Path | Description | License |
 |------|-------------|---------|
-| `cmd/doom-bridge/` | Go tool: bridges DOOM BPF map state to WebSocket for live viewport streaming | BSL 1.1 |
-| `cmd/doom-loader/` | Go tool: loads compiled MBC bytecode into BPF maps for execution | BSL 1.1 |
-| `cmd/doom-cpu-dump/` | Go tool: dumps MBC CPU register state from BPF maps for debugging | BSL 1.1 |
-| `cmd/doom-go-injector/` | Go tool: injects keyboard input and tick events into DOOM via BPF maps | BSL 1.1 |
-| `cmd/doom/` | Go DOOM orchestrator/launcher | BSL 1.1 |
-| `internal/bpf/` | Go BPF wrappers for loading and interacting with BPF programs and maps | BSL 1.1 |
-| `internal/bpfmap/` | Go BPF map abstraction layer for reading/writing DOOM VM state | BSL 1.1 |
-| `dashboard/doom.html` | HTML page for DOOM live viewport in dashboard | BSL 1.1 |
-| `dashboard/js/doom-viewport.js` | JavaScript WebSocket client rendering DOOM frames in canvas | BSL 1.1 |
-| `scripts/doom-*.{sh,py}` | Shell and Python helper scripts for DOOM development and testing | BSL 1.1 |
-| `configs/doom.toml` | DOOM subsystem configuration | BSL 1.1 |
+| `cmd/doom-bridge/` | Go tool: bridges DOOM BPF map state to WebSocket for live viewport streaming | MIT |
+| `cmd/doom-loader/` | Go tool: loads compiled MBC bytecode into BPF maps for execution | MIT |
+| `cmd/doom-cpu-dump/` | Go tool: dumps MBC CPU register state from BPF maps for debugging | MIT |
+| `cmd/doom-go-injector/` | Go tool: injects keyboard input and tick events into DOOM via BPF maps | MIT |
+| `cmd/doom/` | Go DOOM orchestrator/launcher | MIT |
+| `internal/bpf/` | Go BPF wrappers for loading and interacting with BPF programs and maps | MIT |
+| `internal/bpfmap/` | Go BPF map abstraction layer for reading/writing DOOM VM state | MIT |
+| `dashboard/doom.html` | HTML page for DOOM live viewport in dashboard | MIT |
+| `dashboard/js/doom-viewport.js` | JavaScript WebSocket client rendering DOOM frames in canvas | MIT |
+| `scripts/doom-*.{sh,py}` | Shell and Python helper scripts for DOOM development and testing | MIT |
+| `configs/doom.toml` | DOOM subsystem configuration | MIT |
 
 ---
 
 ## Go Dependencies (17 Direct)
 
-All Go dependencies use permissive licenses compatible with BSL 1.1.
+All Go dependencies use permissive licenses compatible with MIT.
 
 ### Direct Dependencies Table
 
@@ -209,17 +209,17 @@ The Unheaded dashboard uses minimal JavaScript. Core libraries:
 
 | Library | License | Purpose |
 |---------|---------|---------|
-| Vanilla JavaScript (ES6+) | BSL 1.1 | Canvas rendering, WebSocket handling |
+| Vanilla JavaScript (ES6+) | MIT | Canvas rendering, WebSocket handling |
 | WebSocket API | Built-in browser API | Real-time DOOM viewport streaming |
 | HTML Canvas 2D | Built-in browser API | Frame rendering |
 
-No npm packages in the shipped dashboard. Configuration and protocol handlers are in `/dashboard/js/` and are BSL 1.1.
+No npm packages in the shipped dashboard. Configuration and protocol handlers are in `/dashboard/js/` and are MIT.
 
 ---
 
 ## License Compatibility Summary
 
-| License Type | Count | Compatible with BSL 1.1? | Notes |
+| License Type | Count | Compatible with MIT? | Notes |
 |--------------|-------|--------------------------|-------|
 | MIT | 14 | Yes | Permissive, can be used in proprietary software |
 | BSD-3-Clause | 12 | Yes | Permissive, attribution required |
@@ -229,7 +229,7 @@ No npm packages in the shipped dashboard. Configuration and protocol handlers ar
 | GPL v2 | 1 (doom/) | Isolated | GPL code confined to doom/ directory; not linked |
 | Shareware | 1 (doom1.wad) | Isolated | Game data, not open source, freely redistributable |
 
-**Conclusion:** All dependencies are compatible with BSL 1.1. The GPL v2 boundary is architecturally enforced.
+**Conclusion:** All dependencies are compatible with MIT. The GPL v2 boundary is architecturally enforced.
 
 ---
 
@@ -263,7 +263,7 @@ cargo license          # Generate license report (requires: cargo install cargo-
 
 ## References
 
-- `/LICENSE` — BSL 1.1 (main codebase)
+- `/LICENSE` — MIT (main codebase)
 - `/doom/LICENSE` — GPL v2 boundary documentation
 - `/doom/doomgeneric/LICENSE` — GPL v2 full text (upstream)
 - `/LICENSES/THIRD_PARTY.md` — Detailed third-party attributions with full license texts

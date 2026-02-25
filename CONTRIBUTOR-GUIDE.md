@@ -15,41 +15,29 @@ We welcome contributions from developers, protocol designers, security researche
 
 ---
 
-## 2. Contributor License Agreement (CLA)
+## 2. Developer Certificate of Origin (DCO)
 
-The Unheaded Kingdom project requires all contributors to agree to a **Contributor License Agreement (CLA)** before contributions are merged.
+Unheaded is MIT licensed. No CLA required. We use the **Developer Certificate of Origin (DCO)** — a lightweight sign-off confirming you have the right to contribute your code.
 
-### Why a CLA?
+### What the DCO Says
 
-The project uses the **Busl 1.1 license** (Business Source License) with eventual transition to **Apache 2.0**. A CLA is necessary because:
+By adding a `Signed-off-by` line to your commits, you certify:
 
-1. **IP Assignment & Licensing Rights**: Busl 1.1 requires clear IP ownership by the project maintainer to enable future commercial licensing arrangements (similar to Anthropic's model).
-2. **Change License Rights**: All contributors must grant the right to relicense contributions from Busl 1.1 to Apache 2.0 (or another open license) in the future.
-3. **Clear Ownership**: Centralized IP ownership prevents fragmentation and enables the project to defend itself legally.
+1. The contribution was created in whole or in part by you and you have the right to submit it under the MIT License.
+2. The contribution is based upon previous work that, to the best of your knowledge, is covered under an appropriate open source license and you have the right to submit that work with modifications under the MIT License.
+3. The contribution was provided directly to you by some other person who certified (1) or (2) and you have not modified it.
 
-### CLA Terms Summary
+Full DCO text: https://developercertificate.org
 
-By submitting a pull request, you agree to the following (for full legal language, see **docs/legal/CLA.md**):
+### How to Sign Off
 
-1. **You grant a license**: You grant Steven Bellis and the Unheaded project a perpetual, irrevocable, worldwide, royalty-free, non-exclusive license to use, reproduce, modify, and sublicense your contribution.
+Add `-s` to your commit command:
 
-2. **You retain copyright**: You retain your own copyright in the contribution — this is a license grant, not an assignment.
-
-3. **You confirm authority**: You confirm that you have the legal right to grant this license (e.g., you wrote the code, or your employer has authorized you to contribute).
-
-4. **You confirm originality**: You confirm that the contribution is your original work or that you have the necessary rights to contribute it.
-
-5. **Future relicensing**: You acknowledge that the contribution may be relicensed under a different open-source license (e.g., Apache 2.0) in the future.
-
-### How to Agree
-
-When submitting a pull request, add the following statement to your PR description:
-
-```
-I have read and agree to the Contributor License Agreement in CONTRIBUTOR-GUIDE.md
+```bash
+git commit -s -m "feat: your change description"
 ```
 
-For more details, see the full CLA text in **docs/legal/CLA.md** (to be drafted).
+This appends `Signed-off-by: Your Name <your@email.com>` to the commit message. That's it. No forms, no IP assignment, no legal overhead.
 
 ---
 
@@ -276,7 +264,7 @@ header option types.
 1. **Create a PR** with a clear title and description
 2. **Link issues**: Reference related issues (e.g., `Fixes #123`)
 3. **Add testing evidence**: Describe how you tested the change
-4. **Agree to CLA**: Add the CLA agreement statement to the PR description
+4. **Sign-off**: Commits must have `Signed-off-by` (use `git commit -s`)
 5. **Address feedback**: Respond to code review comments
 6. **Ensure CI passes**: All automated checks must pass
 7. **Merge**: Once approved, maintainers will merge
@@ -313,7 +301,6 @@ Violations may result in removal from the project.
 ## References
 
 - [SECURITY.md](./SECURITY.md) — Security policy and disclosure
-- [docs/legal/CLA.md](./docs/legal/CLA.md) — Full CLA text (to be drafted)
 - [docs/legal/IANA-REGISTRATION.md](./docs/legal/IANA-REGISTRATION.md) — IANA registration strategy
 - [QUICKSTART.md](./QUICKSTART.md) — Development setup
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Architecture overview

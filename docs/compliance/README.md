@@ -13,12 +13,12 @@ Software Bill of Materials documenting all Go dependencies:
 - **Status: PASSED - No GPL or proprietary dependencies**
 
 ### LICENSE-AUDIT.md
-Detailed license audit and BSL 1.1 compatibility analysis:
+Detailed license audit and MIT compatibility analysis:
 - 27 MIT-licensed modules
 - 14 Apache 2.0-licensed modules
 - 6 BSD-licensed modules
 - 2 Public domain modules
-- **Status: PASSED - 100% compliant with BSL 1.1**
+- **Status: PASSED - 100% compliant with MIT**
 - **Recommendation: SAFE TO SHIP**
 
 ### SECRETS-SCAN.md
@@ -34,13 +34,13 @@ The DOOM subsystem (GPLv2) is architecturally isolated:
 - Separate repository: `doom/`
 - Communicates via BPF map syscalls (data-level protocol)
 - No GPL linking in main Unheaded codebase
-- Main code remains purely BSL 1.1 licensed
+- Main code remains purely MIT licensed
 
 ## Audit Status
 
 All compliance checks PASSED as of 2026-02-25:
 - ✅ SBOM: 17 direct deps, 39 total, all permissive licenses
-- ✅ License Audit: 100% BSL 1.1 compliant, no GPL conflicts
+- ✅ License Audit: 100% MIT compliant, no GPL conflicts
 - ✅ Secrets Scan: Zero hardcoded credentials, excellent practices
 - ✅ GPL Isolation: DOOM separate, data-level boundary only
 

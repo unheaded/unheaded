@@ -710,7 +710,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - E2E smoke test with all services running
 
 **S35 Strategic Decisions (Feb 24, 2026):**
-- **License**: BSL 1.1 short-term → permissive (MIT/Apache/GNU) at stable release or K8s-scale. Protocol specs separately permissive-licensed.
+- **License**: MIT short-term → permissive (MIT/Apache/GNU) at stable release or K8s-scale. Protocol specs separately permissive-licensed.
 - **Doom**: Fork official id-Software/DOOM (with sound), replace doomgeneric. Move out of repo before going public.
 - **SBOM**: Run ScanCode + FOSSology + ORT against codebase. Must complete before going public.
 - **Backends**: All observability + IaC adapters DEFERRED not killed. Anti-lock-in is core principle. Ship Prometheus + zerolog first.
@@ -981,11 +981,11 @@ See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
 
 ### Wave 2 Complete: Legal & Compliance (S52)
 - **SPDX Headers**: 838 Go files tagged with SPDX-License-Identifier
-  - Business Source License 1.1 (short-term)
+  - MIT License (short-term)
   - Apache 2.0 conversion clause documented
   - 100% coverage, automated CI checks
 - **docs/legal/**:
-  - LICENSE-BSL11.md: Full Business Source License text with commercial terms
+  - LICENSE-BSL11.md: Full MIT License text with commercial terms
   - IP-INVENTORY.md: Complete IP ownership matrix (original code, forks, integrations)
   - IANA-REGISTRATION.md: Plan for registering UNHEADED_METRIC_V1 (Type 0x2A)
 - **CONTRIBUTOR-GUIDE.md**:

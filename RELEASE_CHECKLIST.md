@@ -3,7 +3,7 @@
 ## Pre-Release Verification (Completed)
 
 ### Licensing & Compliance (Phase 1-2)
-- [x] LICENSE file (BSL 1.1) created and reviewed
+- [x] LICENSE file (MIT) created and reviewed
 - [x] LICENSE-PROTOCOLS file (MIT/Apache-2.0) created for specs
 - [x] doom/LICENSE (GPL 2.0) established with clear boundary
 - [x] License headers added to 21 key source files
@@ -34,7 +34,7 @@
 - [x] Release checklist complete (this file)
 
 ## Distribution Rights
-- **Main Codebase:** BSL 1.1 (internal use allowed; commercial service restricted)
+- **Main Codebase:** MIT (internal use allowed; commercial service restricted)
 - **Conversion Date:** 2029-12-31 (automatic conversion to Apache 2.0)
 - **Protocol Specs:** MIT (unrestricted implementation encouraged)
 - **DOOM Engine:** GPL 2.0 (fully compliant, isolated from main code)

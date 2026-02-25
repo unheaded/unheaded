@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 
 // Package audit provides comprehensive audit logging for the Unheaded Kingdom infrastructure.
