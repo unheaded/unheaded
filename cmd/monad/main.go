@@ -43,6 +43,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/monad"
@@ -56,7 +57,7 @@ var (
 )
 
 var (
-	listenAddr = flag.String("listen", ":19004", "HTTP listen address")
+	listenAddr = flag.String("listen", ports.DefaultAddr(ports.Monad), "HTTP listen address")
 	wotanAddr = flag.String("wotan", "localhost:18001", "Wotan server address")
 	debug      = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs   = flag.Bool("json", false, "Output logs in JSON format")

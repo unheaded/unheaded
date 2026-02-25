@@ -1,7 +1,7 @@
 /**
- * particles.js - Kingdom-themed Particle Animation
+ * particles.js - Particle Animation
  * Animated background with floating particles and connections
- * Styled for the Unheaded Kingdom (dark #1a1a2e, gold #ffd700)
+ * Matching bellis.tech aesthetic (dark #0a0a0a, accent #4a9eff)
  */
 
 (function() {
@@ -17,10 +17,10 @@
         mouseRadius: 200,
         mouseRepel: false,
         colors: {
-            particle: '#ffd700',
-            particleSecondary: '#c9a227',
-            connection: 'rgba(255, 215, 0, 0.15)',
-            connectionHover: 'rgba(255, 215, 0, 0.4)'
+            particle: '#4a9eff',
+            particleSecondary: '#2a5a99',
+            connection: 'rgba(74, 158, 255, 0.1)',
+            connectionHover: 'rgba(74, 158, 255, 0.3)'
         },
         fps: 60
     };
@@ -100,20 +100,20 @@
                 this.x, this.y, 0,
                 this.x, this.y, this.size * 4
             );
-            gradient.addColorStop(0, color.replace(')', `, ${this.currentOpacity * 0.5})`).replace('rgb', 'rgba').replace('#ffd700', 'rgba(255, 215, 0').replace('#c9a227', 'rgba(201, 162, 39'));
+            gradient.addColorStop(0, color.replace(')', `, ${this.currentOpacity * 0.5})`).replace('rgb', 'rgba').replace('#4a9eff', 'rgba(74, 158, 255').replace('#2a5a99', 'rgba(42, 90, 153'));
             gradient.addColorStop(1, 'transparent');
 
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.size * 4, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 215, 0, ${this.currentOpacity * 0.1})`;
+            ctx.fillStyle = `rgba(74, 158, 255, ${this.currentOpacity * 0.1})`;
             ctx.fill();
 
             // Draw particle
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
             ctx.fillStyle = this.isGold
-                ? `rgba(255, 215, 0, ${this.currentOpacity})`
-                : `rgba(201, 162, 39, ${this.currentOpacity})`;
+                ? `rgba(74, 158, 255, ${this.currentOpacity})`
+                : `rgba(42, 90, 153, ${this.currentOpacity})`;
             ctx.fill();
         }
     }
@@ -249,8 +249,8 @@
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(p2.x, p2.y);
                     ctx.strokeStyle = mouseNear
-                        ? `rgba(255, 215, 0, ${opacity * 2})`
-                        : `rgba(255, 215, 0, ${opacity})`;
+                        ? `rgba(74, 158, 255, ${opacity * 2})`
+                        : `rgba(74, 158, 255, ${opacity})`;
                     ctx.lineWidth = mouseNear ? 1.5 : 1;
                     ctx.stroke();
                 }
@@ -270,7 +270,7 @@
                     ctx.beginPath();
                     ctx.moveTo(p.x, p.y);
                     ctx.lineTo(mousePos.x, mousePos.y);
-                    ctx.strokeStyle = `rgba(255, 215, 0, ${opacity})`;
+                    ctx.strokeStyle = `rgba(74, 158, 255, ${opacity})`;
                     ctx.lineWidth = 1;
                     ctx.stroke();
                 }

@@ -8,13 +8,19 @@
 
   <link rel="stylesheet" href="/dashboard/css/design-system.css">
   <style>
-    /* Dashboard-specific layout styles */
+    /* Dashboard-specific layout — CSS variables only, no hardcoded colors */
     main {
-      margin-top: 64px;
+      margin-top: 80px;
       padding: var(--space-2xl);
       min-height: 100vh;
+      position: relative;
+      z-index: var(--z-base);
+      max-width: 80rem;
+      margin-left: auto;
+      margin-right: auto;
     }
 
+    /* Hero metrics */
     .hero-bar {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -31,17 +37,25 @@
     .hero-metric-value {
       font-family: var(--font-mono);
       font-size: var(--font-size-3xl);
-      font-weight: 700;
+      font-weight: 300;
+      letter-spacing: 0.3em;
       color: var(--color-text-heading);
     }
 
     .hero-metric-label {
+      font-family: var(--font-mono);
       font-size: var(--font-size-xs);
-      color: var(--color-text-dim);
+      color: var(--color-text-secondary);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.15em;
+      transition: color var(--transition-fast);
     }
 
+    .hero-metric:hover .hero-metric-label {
+      color: var(--color-text-primary);
+    }
+
+    /* Tab overrides */
     .tabs-container {
       margin-bottom: var(--space-2xl);
     }
@@ -50,6 +64,7 @@
       margin-top: var(--space-xl);
     }
 
+    /* Flow diagram */
     .flow-diagram {
       width: 100%;
       height: 400px;
@@ -66,7 +81,11 @@
     .flow-diagram-svg {
       width: 100%;
       height: 100%;
-      filter: invert(0.95);
+    }
+
+    .flow-counters {
+      display: flex;
+      gap: var(--space-lg);
     }
 
     .flow-counter {
@@ -79,6 +98,7 @@
       border: var(--border-width-thin) solid var(--color-border);
     }
 
+    /* Trace table */
     .trace-table-wrapper {
       overflow-x: auto;
       border: var(--border-width-thin) solid var(--color-border);
@@ -86,6 +106,7 @@
       background-color: var(--color-bg-secondary);
     }
 
+    /* Chart area */
     .chart-area {
       width: 100%;
       height: 300px;
@@ -110,6 +131,7 @@
       min-width: 150px;
     }
 
+    /* Doom placeholder */
     .doom-placeholder {
       width: 100%;
       height: 500px;
@@ -121,16 +143,23 @@
       align-items: center;
       justify-content: center;
       gap: var(--space-lg);
-      color: var(--color-text-dim);
+      color: var(--color-text-secondary);
     }
 
     .doom-label {
       font-family: var(--font-mono);
       font-size: var(--font-size-sm);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.15em;
+      color: var(--color-text-secondary);
     }
 
+    .doom-canvas {
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-sm);
+    }
+
+    /* Services grid */
     .services-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -151,7 +180,7 @@
 
     .service-card:hover {
       background-color: var(--color-bg-tertiary);
-      border-color: var(--color-border-light);
+      border-color: var(--color-accent-dim);
     }
 
     .service-header {
@@ -168,9 +197,11 @@
     }
 
     .service-health {
+      font-family: var(--font-mono);
       font-size: var(--font-size-xs);
-      color: var(--color-text-dim);
+      color: var(--color-text-secondary);
       text-transform: uppercase;
+      letter-spacing: 0.1em;
       padding: var(--space-xs) var(--space-sm);
       background-color: var(--color-bg-tertiary);
       border-radius: var(--border-radius-sm);
@@ -181,12 +212,13 @@
       flex-direction: column;
       gap: var(--space-sm);
       font-size: var(--font-size-sm);
+      font-family: var(--font-body);
     }
 
     .service-detail {
       display: flex;
       justify-content: space-between;
-      color: var(--color-text-dim);
+      color: var(--color-text-secondary);
     }
 
     .service-detail-value {
@@ -194,6 +226,7 @@
       font-family: var(--font-mono);
     }
 
+    /* Infrastructure grid */
     .infrastructure-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -209,6 +242,11 @@
       display: flex;
       flex-direction: column;
       gap: var(--space-md);
+      transition: all var(--transition-normal);
+    }
+
+    .container-card:hover {
+      border-color: var(--color-accent-dim);
     }
 
     .container-header {
@@ -227,9 +265,11 @@
     }
 
     .container-status {
+      font-family: var(--font-mono);
       font-size: var(--font-size-xs);
-      color: var(--color-text-dim);
+      color: var(--color-text-secondary);
       text-transform: uppercase;
+      letter-spacing: 0.1em;
     }
 
     .container-info {
@@ -237,9 +277,11 @@
       flex-direction: column;
       gap: var(--space-xs);
       font-size: var(--font-size-sm);
-      color: var(--color-text-dim);
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
     }
 
+    /* Log stream */
     .log-stream {
       background-color: var(--color-bg-secondary);
       border: var(--border-width-thin) solid var(--color-border);
@@ -259,11 +301,11 @@
     }
 
     .log-line.error {
-      color: var(--color-text-dim);
+      color: var(--color-error);
     }
 
     .log-line.info {
-      color: var(--color-text-ghost);
+      color: var(--color-text-secondary);
     }
 
     .log-filter {
@@ -276,6 +318,7 @@
       flex: 1;
     }
 
+    /* Footer */
     .footer {
       margin-top: var(--space-3xl);
       padding: var(--space-2xl) 0;
@@ -284,11 +327,12 @@
       justify-content: space-between;
       align-items: center;
       font-size: var(--font-size-sm);
-      color: var(--color-text-dim);
+      color: var(--color-text-secondary);
     }
 
     .footer-version {
       font-family: var(--font-mono);
+      color: var(--color-text-secondary);
     }
 
     .footer-links {
@@ -297,26 +341,39 @@
     }
 
     .footer-links a {
-      color: var(--color-text-ghost);
+      font-family: var(--font-mono);
+      color: var(--color-text-secondary);
       text-decoration: none;
       transition: color var(--transition-fast);
+      font-size: var(--font-size-xs);
+      text-transform: lowercase;
+      letter-spacing: 0.1em;
     }
 
     .footer-links a:hover {
-      color: var(--color-text-primary);
+      color: var(--color-accent);
     }
 
     .footer-slogan {
       text-align: center;
       margin-top: var(--space-2xl);
-      color: var(--color-text-ghost);
+      color: var(--color-text-secondary);
       font-style: italic;
-      font-family: var(--font-body);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      letter-spacing: 0.15em;
+      transition: color var(--transition-fast);
     }
 
+    .footer-slogan:hover {
+      color: var(--color-accent);
+    }
+
+    /* Responsive */
     @media (max-width: 768px) {
       main {
         padding: var(--space-lg);
+        margin-top: 64px;
       }
 
       .hero-bar {
@@ -337,45 +394,49 @@
   </style>
 </head>
 <body>
+  <!-- Particle background -->
+  <canvas id="particle-canvas"></canvas>
+
   <!-- Navigation -->
   <nav class="nav">
-    <a href="/" class="nav-logo">UNHEADED</a>
+    <a href="/" class="nav-logo"><span>(U)</span>NHEADED</a>
     <ul class="nav-links">
-      <li><a href="/dashboard" class="nav-link active">Dashboard</a></li>
-      <li><a href="/kanban" class="nav-link">Kanban</a></li>
-      <li><a href="/docs" class="nav-link">Docs</a></li>
-      <li><a href="/status" class="nav-link">Status</a></li>
+      <li><a href="/dashboard" class="nav-link active">dashboard</a></li>
+      <li><a href="/kanban" class="nav-link">kanban</a></li>
+      <li><a href="/docs" class="nav-link">docs</a></li>
+      <li><a href="/status" class="nav-link">status</a></li>
     </ul>
   </nav>
 
   <!-- Main Content -->
-  <main class="max-w-7xl mx-auto">
+  <main>
     <!-- Hero Bar -->
     <div class="hero-bar">
       <div class="hero-metric">
         <div class="hero-metric-value" id="currentTime">--:--:--</div>
-        <div class="hero-metric-label">Current Time</div>
+        <div class="hero-metric-label">current time</div>
       </div>
       <div class="hero-metric">
         <div class="hero-metric-value" id="activeFlows">0</div>
-        <div class="hero-metric-label">Active Flows</div>
+        <div class="hero-metric-label">active flows</div>
       </div>
       <div class="hero-metric">
         <div class="hero-metric-value" id="packetRate">0/s</div>
-        <div class="hero-metric-label">Packet Rate</div>
+        <div class="hero-metric-label">packet rate</div>
       </div>
     </div>
 
     <!-- Tab Navigation -->
     <div class="tabs-container">
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="packet-flow">Packet Flow</button>
-        <button class="tab-btn" data-tab="trace-table">Trace Table</button>
-        <button class="tab-btn" data-tab="latency">Latency</button>
-        <button class="tab-btn" data-tab="doom">Doom</button>
-        <button class="tab-btn" data-tab="services">Services</button>
-        <button class="tab-btn" data-tab="infrastructure">Infrastructure</button>
-        <button class="tab-btn" data-tab="logs">Logs</button>
+        <button class="tab-btn active" data-tab="packet-flow">packet flow</button>
+        <button class="tab-btn" data-tab="trace-table">trace table</button>
+        <button class="tab-btn" data-tab="latency">latency</button>
+        <button class="tab-btn" data-tab="doom">doom</button>
+        <button class="tab-btn" data-tab="services">services</button>
+        <button class="tab-btn" data-tab="infrastructure">infrastructure</button>
+        <button class="tab-btn" data-tab="ai-inference">ai inference</button>
+        <button class="tab-btn" data-tab="logs">logs</button>
       </div>
 
       <!-- Packet Flow Tab -->
@@ -384,25 +445,25 @@
           <div class="flow-diagram">
             <svg class="flow-diagram-svg" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
               <rect width="800" height="400" fill="none"/>
-              <circle cx="100" cy="200" r="40" fill="none" stroke="currentColor" stroke-width="2"/>
-              <text x="100" y="210" text-anchor="middle" font-size="12" fill="currentColor">INGRESS</text>
-              <circle cx="400" cy="150" r="40" fill="none" stroke="currentColor" stroke-width="2"/>
-              <text x="400" y="160" text-anchor="middle" font-size="12" fill="currentColor">XDP</text>
-              <circle cx="400" cy="250" r="40" fill="none" stroke="currentColor" stroke-width="2"/>
-              <text x="400" y="260" text-anchor="middle" font-size="12" fill="currentColor">TC</text>
-              <circle cx="700" cy="200" r="40" fill="none" stroke="currentColor" stroke-width="2"/>
-              <text x="700" y="210" text-anchor="middle" font-size="12" fill="currentColor">EGRESS</text>
-              <line x1="140" y1="185" x2="360" y2="150" stroke="currentColor" stroke-width="1" stroke-dasharray="5,5"/>
-              <line x1="140" y1="215" x2="360" y2="250" stroke="currentColor" stroke-width="1" stroke-dasharray="5,5"/>
-              <line x1="440" y1="150" x2="660" y2="185" stroke="currentColor" stroke-width="1"/>
-              <line x1="440" y1="250" x2="660" y2="215" stroke="currentColor" stroke-width="1"/>
-              <text x="250" y="130" font-size="11" fill="currentColor" opacity="0.6">kingdom mode</text>
-              <text x="550" y="130" font-size="11" fill="currentColor" opacity="0.6">active</text>
+              <circle cx="100" cy="200" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="100" y="210" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">INGRESS</text>
+              <circle cx="400" cy="150" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="400" y="160" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">XDP</text>
+              <circle cx="400" cy="250" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="400" y="260" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">TC</text>
+              <circle cx="700" cy="200" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="700" y="210" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">EGRESS</text>
+              <line x1="140" y1="185" x2="360" y2="150" stroke="var(--color-accent-dim)" stroke-width="1" stroke-dasharray="5,5"/>
+              <line x1="140" y1="215" x2="360" y2="250" stroke="var(--color-accent-dim)" stroke-width="1" stroke-dasharray="5,5"/>
+              <line x1="440" y1="150" x2="660" y2="185" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <line x1="440" y1="250" x2="660" y2="215" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="250" y="130" font-size="11" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.05em">kingdom mode</text>
+              <text x="550" y="130" font-size="11" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.05em">active</text>
             </svg>
           </div>
-          <div style="display: flex; gap: var(--space-lg);">
-            <div class="flow-counter">Live Flows: <span id="liveFlowCount">0</span></div>
-            <div class="flow-counter">Packets/sec: <span id="livePacketRate">0</span></div>
+          <div class="flow-counters">
+            <div class="flow-counter">live flows: <span id="liveFlowCount">0</span></div>
+            <div class="flow-counter">packets/sec: <span id="livePacketRate">0</span></div>
           </div>
         </div>
       </div>
@@ -414,12 +475,12 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Flow Label</th>
-                  <th>Timestamp</th>
-                  <th>Type</th>
-                  <th>Kingdom Mode</th>
-                  <th>Latency</th>
-                  <th>Action</th>
+                  <th>flow label</th>
+                  <th>timestamp</th>
+                  <th>type</th>
+                  <th>kingdom mode</th>
+                  <th>latency</th>
+                  <th>action</th>
                 </tr>
               </thead>
               <tbody id="traceTableBody">
@@ -437,19 +498,19 @@
           </div>
           <div class="stats-bar">
             <div class="stat-item metric-card">
-              <div class="metric-label">P50 Latency</div>
+              <div class="metric-label">p50 latency</div>
               <div class="metric-value" id="p50Latency">--</div>
             </div>
             <div class="stat-item metric-card">
-              <div class="metric-label">P95 Latency</div>
+              <div class="metric-label">p95 latency</div>
               <div class="metric-value" id="p95Latency">--</div>
             </div>
             <div class="stat-item metric-card">
-              <div class="metric-label">P99 Latency</div>
+              <div class="metric-label">p99 latency</div>
               <div class="metric-value" id="p99Latency">--</div>
             </div>
             <div class="stat-item metric-card">
-              <div class="metric-label">Max Latency</div>
+              <div class="metric-label">max latency</div>
               <div class="metric-value" id="maxLatency">--</div>
             </div>
           </div>
@@ -460,9 +521,9 @@
       <div id="doom" class="tab-panel">
         <div class="tab-content">
           <div class="doom-placeholder">
-            <div class="doom-label">eBPF Kernel Space Monitor</div>
-            <canvas id="doomCanvas" width="800" height="400" style="border: 1px solid var(--color-border); border-radius: 4px;"></canvas>
-            <div class="doom-label">DOOM running in BPF maps</div>
+            <div class="doom-label">ebpf kernel space monitor</div>
+            <canvas id="doomCanvas" width="800" height="400" class="doom-canvas"></canvas>
+            <div class="doom-label">doom running in bpf maps</div>
           </div>
         </div>
       </div>
@@ -483,12 +544,18 @@
         </div>
       </div>
 
+      <!-- AI Inference Tab -->
+      <div id="ai-inference" class="tab-panel">
+        <div class="tab-content" id="aiInferenceContainer">
+        </div>
+      </div>
+
       <!-- Logs Tab -->
       <div id="logs" class="tab-panel">
         <div class="tab-content">
           <div class="log-filter">
-            <input type="search" id="logFilter" placeholder="Filter logs...">
-            <button class="btn">Clear</button>
+            <input type="search" id="logFilter" placeholder="filter logs...">
+            <button class="btn">clear</button>
           </div>
           <div class="log-stream" id="logStream">
           </div>
@@ -500,15 +567,16 @@
     <footer class="footer">
       <div class="footer-version">v0.1.0-alpha</div>
       <div class="footer-links">
-        <a href="https://github.com/unheaded/unheaded" target="_blank">GitHub</a>
-        <a href="/docs">Documentation</a>
-        <a href="/status">Status</a>
+        <a href="https://github.com/unheaded/unheaded" target="_blank">github</a>
+        <a href="/docs">documentation</a>
+        <a href="/status">status</a>
       </div>
     </footer>
     <div class="footer-slogan">bellus perennis</div>
   </main>
 
   <script src="/dashboard/js/demo-data.js"></script>
+  <script src="/dashboard/js/particles.js"></script>
   <script>
     window.DEMO_MODE = true;
 
@@ -549,71 +617,167 @@
           tbody.appendChild(row);
         });
 
+        // Load services from API (falls back to demo data if API unavailable)
         const servicesContainer = document.getElementById('servicesContainer');
-        if (window.DemoData.services && window.DemoData.services.length > 0) {
-          servicesContainer.innerHTML = '';
-          window.DemoData.services.forEach(service => {
-            const card = document.createElement('div');
-            card.className = 'service-card';
-            card.innerHTML = `
-              <div class="service-header">
-                <div class="service-name">${service.name}</div>
-                <div class="service-health">${service.health}</div>
-              </div>
-              <div class="service-details">
-                <div class="service-detail">
-                  <span>Port</span>
-                  <span class="service-detail-value">${service.port}</span>
+        fetch('/api/v1/services')
+          .then(r => r.json())
+          .then(data => {
+            const services = data.services || [];
+            servicesContainer.innerHTML = '';
+            services.forEach(svc => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              const name = svc.name || (svc.config && svc.config.service && svc.config.service.name) || 'unknown';
+              const status = svc.status || 'unknown';
+              const port = (svc.config && svc.config.network && svc.config.network.port) || '--';
+              const protocol = (svc.config && svc.config.network && svc.config.network.protocol) || '--';
+              const tier = (svc.config && svc.config.deployment && svc.config.deployment.tier) || '--';
+              card.innerHTML = `
+                <div class="service-header">
+                  <div class="service-name">${name}</div>
+                  <div class="service-health">${status}</div>
                 </div>
-                <div class="service-detail">
-                  <span>Protocol</span>
-                  <span class="service-detail-value">${service.protocol}</span>
+                <div class="service-details">
+                  <div class="service-detail"><span>port</span><span class="service-detail-value">${port}</span></div>
+                  <div class="service-detail"><span>protocol</span><span class="service-detail-value">${protocol}</span></div>
+                  <div class="service-detail"><span>tier</span><span class="service-detail-value">${tier}</span></div>
                 </div>
-                <div class="service-detail">
-                  <span>Tier</span>
-                  <span class="service-detail-value">${service.tier}</span>
-                </div>
-              </div>
-            `;
-            servicesContainer.appendChild(card);
+              `;
+              servicesContainer.appendChild(card);
+            });
+            if (services.length === 0) {
+              servicesContainer.innerHTML = '<div style="color: var(--color-text-secondary, #888); text-align: center; padding: 2rem;">No services discovered</div>';
+            }
+          })
+          .catch(() => {
+            // Fallback to demo data
+            if (window.DemoData && window.DemoData.services) {
+              window.DemoData.services.forEach(service => {
+                const card = document.createElement('div');
+                card.className = 'service-card';
+                card.innerHTML = `
+                  <div class="service-header">
+                    <div class="service-name">${service.name}</div>
+                    <div class="service-health">${service.health}</div>
+                  </div>
+                  <div class="service-details">
+                    <div class="service-detail"><span>port</span><span class="service-detail-value">${service.port}</span></div>
+                    <div class="service-detail"><span>protocol</span><span class="service-detail-value">${service.protocol}</span></div>
+                    <div class="service-detail"><span>tier</span><span class="service-detail-value">${service.tier}</span></div>
+                  </div>
+                `;
+                servicesContainer.appendChild(card);
+              });
+            }
           });
-        }
 
+        // Load infrastructure from API (falls back to demo data if API unavailable)
         const infContainer = document.getElementById('infrastructureContainer');
-        if (window.DemoData.services && window.DemoData.services.length > 0) {
-          infContainer.innerHTML = '';
-          window.DemoData.services.forEach((service, idx) => {
-            const card = document.createElement('div');
-            card.className = 'container-card';
-            const containerId = `container-${String(idx + 1).padStart(3, '0')}`;
-            card.innerHTML = `
-              <div class="container-header">
-                <div class="container-name">${containerId}</div>
-                <div class="container-status">running</div>
-              </div>
-              <div class="container-info">
-                <div>Image: ${service.protocol.toLowerCase()}:latest</div>
-                <div>Memory: ${Math.floor(Math.random() * 500 + 100)}MB</div>
-                <div>CPU: ${(Math.random() * 50).toFixed(1)}%</div>
-                <div>Uptime: ${Math.floor(Math.random() * 1000)}h</div>
-              </div>
-            `;
-            infContainer.appendChild(card);
+        fetch('/api/v1/infrastructure/containers')
+          .then(r => r.json())
+          .then(data => {
+            const containers = data.containers || [];
+            infContainer.innerHTML = '';
+            containers.forEach(c => {
+              const card = document.createElement('div');
+              card.className = 'container-card';
+              card.innerHTML = `
+                <div class="container-header">
+                  <div class="container-name">${c.name}</div>
+                  <div class="container-status">${c.status || 'unknown'}</div>
+                </div>
+                <div class="container-info">
+                  <div>image: ${c.image || '--'}</div>
+                  <div>tier: ${c.tier || '--'}</div>
+                  <div>port: ${c.port || '--'}</div>
+                  <div>protocol: ${c.protocol || '--'}</div>
+                </div>
+              `;
+              infContainer.appendChild(card);
+            });
+            if (containers.length === 0) {
+              infContainer.innerHTML = '<div style="color: var(--color-text-secondary, #888); text-align: center; padding: 2rem;">No containers detected</div>';
+            }
+          })
+          .catch(() => {
+            // Fallback to demo data
+            if (window.DemoData && window.DemoData.services) {
+              window.DemoData.services.forEach((service, idx) => {
+                const card = document.createElement('div');
+                card.className = 'container-card';
+                const containerId = `container-${String(idx + 1).padStart(3, '0')}`;
+                card.innerHTML = `
+                  <div class="container-header">
+                    <div class="container-name">${containerId}</div>
+                    <div class="container-status">running</div>
+                  </div>
+                  <div class="container-info">
+                    <div>image: ${service.protocol.toLowerCase()}:latest</div>
+                    <div>tier: ${service.tier}</div>
+                    <div>port: ${service.port}</div>
+                    <div>protocol: ${service.protocol}</div>
+                  </div>
+                `;
+                infContainer.appendChild(card);
+              });
+            }
           });
-        }
+
+        // Load AI inference models from API (falls back to demo data)
+        const aiContainer = document.getElementById('aiInferenceContainer');
+        fetch('/api/v1/ai/models')
+          .then(r => r.json())
+          .then(data => {
+            const models = data.models || [];
+            aiContainer.innerHTML = '<div class="ai-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem"></div><div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
+            const summary = aiContainer.querySelector('.ai-summary');
+            const grid = aiContainer.querySelector('.ai-models-grid');
+            const online = models.filter(m => m.status === 'online').length;
+            const totalReqs = models.reduce((s, m) => s + (m.requests || 0), 0);
+            const avgLat = models.length ? Math.round(models.reduce((s, m) => s + (m.latency_p50 || 0), 0) / models.length) : 0;
+            [{l:'Requests (24h)',v:totalReqs},{l:'Avg Latency',v:avgLat+'ms'},{l:'Active Models',v:online+'/'+models.length},{l:'GPU Util',v:'--'}].forEach(item => {
+              const box = document.createElement('div');
+              box.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:1rem;text-align:center';
+              box.innerHTML = '<div style="color:var(--color-text-secondary,#888);font-size:0.75rem;margin-bottom:0.25rem">'+item.l+'</div><div style="font-size:1.5rem;font-weight:600;font-family:var(--font-mono,monospace)">'+item.v+'</div>';
+              summary.appendChild(box);
+            });
+            models.forEach(m => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              const statusColor = m.status === 'online' ? '#22c55e' : m.status === 'loading' ? '#eab308' : '#ef4444';
+              card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:'+statusColor+';font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+(m.throughput||'--')+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+(m.latency_p50||'--')+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+(m.latency_p99||'--')+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+(m.requests||0)+'</span></div></div>';
+              grid.appendChild(card);
+            });
+          })
+          .catch(() => {
+            const demoModels = [
+              {name:'deepseek-r1-7b',status:'online',throughput:42,latency_p50:85,latency_p99:220,requests:1247},
+              {name:'qwen-2.5-coder-7b',status:'online',throughput:38,latency_p50:92,latency_p99:245,requests:893},
+              {name:'bge-m3',status:'online',throughput:156,latency_p50:12,latency_p99:28,requests:3450},
+              {name:'qdrant',status:'online',throughput:0,latency_p50:3,latency_p99:8,requests:5200}
+            ];
+            aiContainer.innerHTML = '<div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
+            const grid = aiContainer.querySelector('.ai-models-grid');
+            demoModels.forEach(m => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:#22c55e;font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+m.throughput+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+m.latency_p50+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+m.latency_p99+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+m.requests+'</span></div></div>';
+              grid.appendChild(card);
+            });
+          });
 
         const logStream = document.getElementById('logStream');
         const logs = [
-          { text: '[INFO] Unheaded daemon started', level: 'info' },
-          { text: '[INFO] Loading kernel eBPF programs', level: 'info' },
-          { text: '[INFO] Attaching XDP hook on eth0', level: 'info' },
-          { text: '[DEBUG] Kingdom mode: IDLE', level: 'info' },
-          { text: '[INFO] WebSocket server listening on :8080', level: 'info' },
-          { text: '[INFO] Initial handshake with control plane', level: 'info' },
-          { text: '[DEBUG] Flow 0xa3f7e2 ingress packet received', level: 'info' },
-          { text: '[DEBUG] Latency sample: 142µs', level: 'info' },
-          { text: '[INFO] Active flows: 12', level: 'info' },
-          { text: '[DEBUG] Packet rate: 4521 pps', level: 'info' }
+          { text: '[INFO] unheaded daemon started', level: 'info' },
+          { text: '[INFO] loading kernel ebpf programs', level: 'info' },
+          { text: '[INFO] attaching xdp hook on eth0', level: 'info' },
+          { text: '[DEBUG] kingdom mode: IDLE', level: 'info' },
+          { text: '[INFO] websocket server listening on :8080', level: 'info' },
+          { text: '[INFO] initial handshake with control plane', level: 'info' },
+          { text: '[DEBUG] flow 0xa3f7e2 ingress packet received', level: 'info' },
+          { text: '[DEBUG] latency sample: 142\u00b5s', level: 'info' },
+          { text: '[INFO] active flows: 12', level: 'info' },
+          { text: '[DEBUG] packet rate: 4521 pps', level: 'info' }
         ];
         logStream.innerHTML = logs.map(log =>
           `<div class="log-line ${log.level}">${log.text}</div>`
@@ -632,10 +796,10 @@
         }, 2000);
 
         if (window.DemoData.metrics) {
-          document.getElementById('p50Latency').textContent = window.DemoData.metrics.p50 + 'µs';
-          document.getElementById('p95Latency').textContent = window.DemoData.metrics.p95 + 'µs';
-          document.getElementById('p99Latency').textContent = window.DemoData.metrics.p99 + 'µs';
-          document.getElementById('maxLatency').textContent = window.DemoData.metrics.max + 'µs';
+          document.getElementById('p50Latency').textContent = window.DemoData.metrics.p50 + '\u00b5s';
+          document.getElementById('p95Latency').textContent = window.DemoData.metrics.p95 + '\u00b5s';
+          document.getElementById('p99Latency').textContent = window.DemoData.metrics.p99 + '\u00b5s';
+          document.getElementById('maxLatency').textContent = window.DemoData.metrics.max + '\u00b5s';
         }
       }
     });

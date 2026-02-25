@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"unheaded/pkg/ports"
 )
 
 // ============================================================================
@@ -191,8 +193,8 @@ func DefaultConfig() *Config {
 		Zone:     "default",
 
 		Server: ServerConfig{
-			HTTPAddr:     ":17000",
-			GRPCAddr:     ":17001",
+			HTTPAddr:     ports.DefaultAddr(ports.DaemonHTTP),
+			GRPCAddr:     ports.DefaultAddr(ports.DaemonGRPC),
 			ReadTimeout:  30 * time.Second,
 			WriteTimeout: 30 * time.Second,
 			IdleTimeout:  60 * time.Second,

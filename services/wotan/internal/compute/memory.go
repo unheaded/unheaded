@@ -5,7 +5,7 @@
 //
 // Memory hierarchy:
 //
-//	L0: Monad Scratch (4 bytes, wire speed, in-packet)
+//	L0: Monad Register (20 bytes, wire speed, in-packet)
 //	L1: BPF hash map cache (RAM_MAP, ~100-200ns, per-hop)
 //	L2: Wotan ring buffer (this package, ~1-10us, Go heap)
 //	L3: WAL (optional, ~100us-1ms, disk)

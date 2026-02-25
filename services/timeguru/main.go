@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
 
 	"github.com/gorilla/mux"
@@ -39,7 +40,7 @@ var (
 func main() {
 	listenAddress := os.Getenv("LISTEN_ADDRESS")
 	if listenAddress == "" {
-		listenAddress = ":19000"
+		listenAddress = ports.DefaultAddr(ports.Timeguru)
 	}
 
 	wotanAddress := os.Getenv("WOTAN_ADDRESS")

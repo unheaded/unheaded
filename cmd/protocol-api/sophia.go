@@ -6,11 +6,12 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/unheaded/unheaded/proto/unheaded/v1"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 // sophiaServer implements the Sophia service for dictionary management
 type sophiaServer struct {
+	pb.UnimplementedSophiaServiceServer
 	mockDictionaries map[uint32]*pb.Dictionary
 	mu               sync.RWMutex
 }

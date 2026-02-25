@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -38,6 +37,9 @@ type SophiaGateway struct {
 	tokensPrompted     prometheus.Counter
 	requestsTotal      prometheus.Counter
 	registrationStatus prometheus.Gauge
+
+	// Track registration state for readiness checks
+	registered bool
 
 	mu sync.RWMutex
 }
@@ -290,6 +292,7 @@ func (sg *SophiaGateway) registerInSophia(ctx context.Context) error {
 	}
 
 	sg.registrationStatus.Set(1)
+	sg.registered = true
 	return nil
 }
 
@@ -470,7 +473,7 @@ func (sg *SophiaGateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (sg *SophiaGateway) handleReady(w http.ResponseWriter, r *http.Request) {
-	if sg.registrationStatus.Collect()[0].Metric[0].GetGauge().GetValue() == 1 {
+	if sg.registered {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
@@ -521,7 +524,7 @@ func (sg *SophiaGateway) Start(ctx context.Context) error {
 
 	// Start metrics server
 	go func() {
-		http.Handle("/metrics", sg.handleMetrics)
+		http.Handle("/metrics", http.HandlerFunc(sg.handleMetrics))
 		server := &http.Server{
 			Addr:         ":" + sg.metricsPort,
 			ReadTimeout:  10 * time.Second,

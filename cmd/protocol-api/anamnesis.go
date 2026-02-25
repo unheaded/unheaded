@@ -6,12 +6,13 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/unheaded/unheaded/proto/unheaded/v1"
+	pb "unheaded/proto/unheaded/v1"
 	"google.golang.org/grpc"
 )
 
 // anamnesisServer implements event streaming from eBPF
 type anamnesisServer struct {
+	pb.UnimplementedAnamnesisServiceServer
 	mockEventLog []*pb.Event
 	mu           sync.RWMutex
 	subscribers  []chan *pb.Event
@@ -186,7 +187,7 @@ func (s *anamnesisServer) queryBPF(req *pb.EventQuery) (*pb.EventQueryResponse, 
 }
 
 // Stream returns a continuous stream of events
-func (s *anamnesisServer) Stream(req *pb.StreamRequest, stream grpc.ServerStream) error {
+func (s *anamnesisServer) Stream(req *pb.StreamRequest, stream grpc.ServerStreamingServer[pb.Event]) error {
 	if globalMockMode {
 		return s.streamMock(req, stream)
 	}
@@ -195,7 +196,7 @@ func (s *anamnesisServer) Stream(req *pb.StreamRequest, stream grpc.ServerStream
 }
 
 // streamMock sends mock events from the event log
-func (s *anamnesisServer) streamMock(req *pb.StreamRequest, stream grpc.ServerStream) error {
+func (s *anamnesisServer) streamMock(req *pb.StreamRequest, stream grpc.ServerStreamingServer[pb.Event]) error {
 	// Send historical events if requested
 	if req.IncludeHistorical {
 		s.mu.RLock()
@@ -231,7 +232,7 @@ func (s *anamnesisServer) streamMock(req *pb.StreamRequest, stream grpc.ServerSt
 				}
 			}
 
-			if err := stream.SendMsg(event); err != nil {
+			if err := stream.Send(event); err != nil {
 				return err
 			}
 		}
@@ -277,7 +278,7 @@ func (s *anamnesisServer) streamMock(req *pb.StreamRequest, stream grpc.ServerSt
 				}
 			}
 
-			if err := stream.SendMsg(event); err != nil {
+			if err := stream.Send(event); err != nil {
 				return err
 			}
 		}
@@ -285,7 +286,7 @@ func (s *anamnesisServer) streamMock(req *pb.StreamRequest, stream grpc.ServerSt
 }
 
 // streamBPF streams events from eBPF ring buffer
-func (s *anamnesisServer) streamBPF(req *pb.StreamRequest, stream grpc.ServerStream) error {
+func (s *anamnesisServer) streamBPF(req *pb.StreamRequest, stream grpc.ServerStreamingServer[pb.Event]) error {
 	// In a real implementation, this would:
 	// 1. Attach to eBPF ring buffer
 	// 2. Read protobuf-encoded events as they arrive

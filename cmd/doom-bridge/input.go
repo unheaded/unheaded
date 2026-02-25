@@ -65,7 +65,7 @@ func (ks *KeyStateBitmap) SetKey(code uint8, pressed bool) {
 // The write includes the 32-byte state bitmap and an 8-byte sequence counter.
 // Returns an error if the BPF map write fails.
 // If IsDirty() is false, this may be optimized to skip the write.
-func (ks *KeyStateBitmap) Flush(kbdMap *bpfMap) error {
+func (ks *KeyStateBitmap) Flush(kbdMap *BPFMap) error {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 

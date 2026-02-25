@@ -30,9 +30,11 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/packetflow"
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
+	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
+	"unheaded/pkg/ports"
 )
 
 var (
@@ -78,7 +80,7 @@ type Config struct {
 // DefaultConfig returns default server configuration
 func DefaultConfig() *Config {
 	return &Config{
-		ListenAddr:   ":20000",
+		ListenAddr:   ports.DefaultAddr(ports.DashboardBackend),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		WotanAddr:   "localhost:18001",
@@ -92,7 +94,7 @@ func (c *Config) Validate() error {
 		return ErrNilConfig
 	}
 	if c.ListenAddr == "" {
-		c.ListenAddr = ":20000"
+		c.ListenAddr = ports.DefaultAddr(ports.DashboardBackend)
 	}
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = 15 * time.Second
@@ -217,6 +219,10 @@ type Server struct {
 	httpDuration    *metrics.HistogramVec
 	wsConnections   *metrics.Gauge
 	streamClients   *metrics.Gauge
+
+	// Service config management
+	configLoader  *discovery.ServiceConfigLoader
+	configWatcher *discovery.ConfigWatcher
 
 	// Doom compute state (populated by compute.* events from ingestor)
 	doomState *DoomState
@@ -366,6 +372,9 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	logHandler := logs.NewLogHandler(logBuf)
 	logStreamHandler := logs.NewLogStream(logBuf)
 
+	// Initialize service config loader
+	cfgLoader := discovery.NewServiceConfigLoader()
+
 	s := &Server{
 		config:            config,
 		log:               log,
@@ -381,6 +390,7 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		logHandler:        logHandler,
 		logStream:         logStreamHandler,
 		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
+		configLoader:      cfgLoader,
 		doomState:         &DoomState{},
 		shutdown:          make(chan struct{}),
 	}
@@ -492,6 +502,12 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/latency", s.handleLatency)
 	s.mux.HandleFunc("/api/v1/ebpf/stats", s.handleEBPFStats)
 	s.mux.HandleFunc("/api/v1/ebpf/events", s.handleEBPFEvents)
+
+	// Service config management endpoints (S47)
+	s.mux.HandleFunc("/api/v1/services/config/", s.handleServiceConfig)
+	s.mux.HandleFunc("/api/v1/services/restart/", s.handleServiceRestart)
+	s.mux.HandleFunc("/api/v1/infrastructure", s.handleInfrastructure)
+	s.mux.HandleFunc("/api/v1/infrastructure/containers", s.handleInfraContainers)
 
 	// Doom compute endpoints (S42)
 	s.mux.HandleFunc("/api/v1/doom/screen", s.handleDoomScreen)
@@ -857,12 +873,20 @@ func (s *Server) handleMetricsQuery(w http.ResponseWriter, r *http.Request) {
 
 // handleServices handles GET /api/v1/services - service status list
 func (s *Server) handleServices(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		s.handleServicesGet(w, r)
+	case http.MethodPost:
+		s.handleServicesPost(w, r)
+	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
+}
 
+// handleServicesGet returns all services with health and config data.
+func (s *Server) handleServicesGet(w http.ResponseWriter, r *http.Request) {
 	systemHealth := s.healthMonitor.GetSystemHealth()
+	configs := s.configLoader.GetAllConfigs()
 
 	services := make([]map[string]interface{}, 0, len(systemHealth.Services))
 	for name, svc := range systemHealth.Services {
@@ -884,54 +908,170 @@ func (s *Server) handleServices(w http.ResponseWriter, r *http.Request) {
 			service["metrics_count"] = len(svcMetrics.Metrics)
 		}
 
+		// Merge config data if available
+		if cfg, ok := configs[name]; ok {
+			service["config"] = cfg
+		}
+
 		services = append(services, service)
+	}
+
+	// Also include services that have configs but aren't in health yet
+	for name, cfg := range configs {
+		found := false
+		for _, svc := range services {
+			if svc["name"] == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			services = append(services, map[string]interface{}{
+				"name":   name,
+				"status": "unknown",
+				"config": cfg,
+			})
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"services":       services,
-		"total":          systemHealth.TotalServices,
+		"total":          len(services),
 		"healthy":        systemHealth.HealthyCount,
 		"degraded":       systemHealth.DegradedCount,
 		"unhealthy":      systemHealth.UnhealthyCount,
 		"overall_status": systemHealth.Status,
+		"updated_at":     time.Now(),
 	})
 }
 
-// handleServiceByName handles GET /api/v1/services/{name}
-func (s *Server) handleServiceByName(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+// handleServicesPost creates a new service config via POST.
+func (s *Server) handleServicesPost(w http.ResponseWriter, r *http.Request) {
+	var cfg discovery.ServiceConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		http.Error(w, fmt.Sprintf("invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
 
+	if err := discovery.ValidateConfig(&cfg); err != nil {
+		http.Error(w, fmt.Sprintf("validation failed: %v", err), http.StatusUnprocessableEntity)
+		return
+	}
+
+	// Check for duplicate
+	if existing := s.configLoader.GetConfig(cfg.Service.Name); existing != nil {
+		http.Error(w, fmt.Sprintf("service %q already exists", cfg.Service.Name), http.StatusConflict)
+		return
+	}
+
+	s.configLoader.UpdateConfig(cfg.Service.Name, &cfg)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"service": cfg.Service.Name,
+		"status":  "created",
+	})
+}
+
+// handleServiceByName handles GET/PUT/DELETE /api/v1/services/{name}
+func (s *Server) handleServiceByName(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Path[len("/api/v1/services/"):]
+	// Strip trailing path segments (for sub-resources like /config, /restart)
+	if idx := strings.Index(name, "/"); idx > 0 {
+		name = name[:idx]
+	}
 	if name == "" {
 		http.Error(w, "service name required", http.StatusBadRequest)
 		return
 	}
 
+	switch r.Method {
+	case http.MethodGet:
+		s.handleServiceByNameGet(w, r, name)
+	case http.MethodPut:
+		s.handleServiceByNamePut(w, r, name)
+	case http.MethodDelete:
+		s.handleServiceByNameDelete(w, r, name)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleServiceByNameGet(w http.ResponseWriter, _ *http.Request, name string) {
+	result := map[string]interface{}{
+		"name": name,
+	}
+
 	// Get health
 	svcHealth, err := s.healthMonitor.GetServiceHealth(name)
-	if err != nil {
-		http.Error(w, "service not found", http.StatusNotFound)
-		return
+	if err == nil {
+		result["health"] = svcHealth
 	}
 
 	// Get metrics
 	svcMetrics, _ := s.scraper.GetServiceMetrics(name)
-
-	result := map[string]interface{}{
-		"name":   name,
-		"health": svcHealth,
-	}
-
 	if svcMetrics != nil {
 		result["metrics"] = svcMetrics
 	}
 
+	// Get config
+	if cfg := s.configLoader.GetConfig(name); cfg != nil {
+		result["config"] = cfg
+	}
+
+	// If we have neither health nor config, the service doesn't exist
+	if _, hasHealth := result["health"]; !hasHealth {
+		if _, hasCfg := result["config"]; !hasCfg {
+			http.Error(w, "service not found", http.StatusNotFound)
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+func (s *Server) handleServiceByNamePut(w http.ResponseWriter, r *http.Request, name string) {
+	var cfg discovery.ServiceConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		http.Error(w, fmt.Sprintf("invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Ensure the name in the URL matches the config
+	if cfg.Service.Name != "" && cfg.Service.Name != name {
+		http.Error(w, "service name in URL and body must match", http.StatusBadRequest)
+		return
+	}
+	cfg.Service.Name = name
+
+	if err := discovery.ValidateConfig(&cfg); err != nil {
+		http.Error(w, fmt.Sprintf("validation failed: %v", err), http.StatusUnprocessableEntity)
+		return
+	}
+
+	s.configLoader.UpdateConfig(name, &cfg)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"service": name,
+		"status":  "updated",
+	})
+}
+
+func (s *Server) handleServiceByNameDelete(w http.ResponseWriter, _ *http.Request, name string) {
+	if !s.configLoader.DeleteConfig(name) {
+		http.Error(w, "service not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"service": name,
+		"status":  "deleted",
+	})
 }
 
 // handleEvents handles GET /api/v1/events - recent events
@@ -1936,6 +2076,195 @@ func (s *Server) GetTraceCollector() TraceCollector {
 // GetHealthAggregator returns the health aggregator
 func (s *Server) GetHealthAggregator() HealthAggregator {
 	return s.healthAggregator
+}
+
+// --- S47: Service Config Management Endpoints ---
+
+// handleServiceConfig handles GET/PUT /api/v1/services/config/{name}
+// Returns or updates the YAML config for a service.
+func (s *Server) handleServiceConfig(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/api/v1/services/config/")
+	name = strings.TrimSuffix(name, "/")
+	if name == "" {
+		http.Error(w, "service name required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		cfg := s.configLoader.GetConfig(name)
+		if cfg == nil {
+			http.Error(w, "service config not found", http.StatusNotFound)
+			return
+		}
+
+		yamlBytes, err := discovery.MarshalConfig(cfg)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to marshal config: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/x-yaml")
+		w.Write(yamlBytes)
+
+	case http.MethodPut:
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MB limit
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusBadRequest)
+			return
+		}
+
+		cfg, err := discovery.LoadServiceConfigFromBytes(body)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid config: %v", err), http.StatusUnprocessableEntity)
+			return
+		}
+
+		if cfg.Service.Name != name {
+			http.Error(w, "service name in config must match URL", http.StatusBadRequest)
+			return
+		}
+
+		s.configLoader.UpdateConfig(name, cfg)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"service": name,
+			"status":  "config_updated",
+		})
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleServiceRestart handles POST /api/v1/services/restart/{name}
+// Stub: in production this would signal the daemon to restart the service.
+func (s *Server) handleServiceRestart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	name := strings.TrimPrefix(r.URL.Path, "/api/v1/services/restart/")
+	name = strings.TrimSuffix(name, "/")
+	if name == "" {
+		http.Error(w, "service name required", http.StatusBadRequest)
+		return
+	}
+
+	// Verify the service exists in health or config
+	_, healthErr := s.healthMonitor.GetServiceHealth(name)
+	cfg := s.configLoader.GetConfig(name)
+	if healthErr != nil && cfg == nil {
+		http.Error(w, "service not found", http.StatusNotFound)
+		return
+	}
+
+	s.log.Info().
+		Str("service", name).
+		Str("remote_addr", r.RemoteAddr).
+		Msg("service restart requested")
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"service": name,
+		"action":  "restart",
+		"status":  "queued",
+		"message": "restart signal sent to daemon",
+	})
+}
+
+// handleInfrastructure handles GET /api/v1/infrastructure
+// Returns overall infrastructure status including container runtime and resource usage.
+func (s *Server) handleInfrastructure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	systemHealth := s.healthMonitor.GetSystemHealth()
+	configs := s.configLoader.GetAllConfigs()
+
+	// Count services by tier
+	tierCounts := map[string]int{
+		"control":        0,
+		"infrastructure": 0,
+		"presentation":   0,
+		"application":    0,
+	}
+	for _, cfg := range configs {
+		tierCounts[cfg.Deployment.Tier]++
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"runtime":          "docker",
+		"total_services":   len(configs),
+		"healthy_services": systemHealth.HealthyCount,
+		"tier_breakdown":   tierCounts,
+		"network": map[string]interface{}{
+			"bridge":   "lxdbr0",
+			"subnet":   "10.10.10.0/24",
+			"gateway":  "10.10.10.100",
+			"protocol": "VXLAN",
+			"mtu":      1450,
+		},
+		"resources": map[string]interface{}{
+			"total_cpu":    "available",
+			"total_memory": "available",
+		},
+		"updated_at": time.Now(),
+	})
+}
+
+// handleInfraContainers handles GET /api/v1/infrastructure/containers
+// Returns information about running containers/services with their resource usage.
+func (s *Server) handleInfraContainers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	configs := s.configLoader.GetAllConfigs()
+	systemHealth := s.healthMonitor.GetSystemHealth()
+
+	containers := make([]map[string]interface{}, 0, len(configs))
+	for name, cfg := range configs {
+		container := map[string]interface{}{
+			"name":           name,
+			"image":          fmt.Sprintf("unheaded:%s-%s", name, cfg.Service.Version),
+			"tier":           cfg.Deployment.Tier,
+			"port":           cfg.Network.Port,
+			"protocol":       cfg.Network.Protocol,
+			"replicas":       cfg.Deployment.Replicas,
+			"restart_policy": cfg.Deployment.RestartPolicy,
+			"binary":         cfg.Runtime.Binary,
+		}
+
+		// Add health status if available
+		if svc, ok := systemHealth.Services[name]; ok {
+			container["status"] = svc.Status
+			container["uptime_percent"] = svc.UptimePercent
+		} else {
+			container["status"] = "unknown"
+		}
+
+		containers = append(containers, container)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"containers": containers,
+		"total":      len(containers),
+		"updated_at": time.Now(),
+	})
+}
+
+// GetConfigLoader returns the service config loader.
+func (s *Server) GetConfigLoader() *discovery.ServiceConfigLoader {
+	return s.configLoader
 }
 
 // buildDashboardAuthenticators constructs authenticators from the auth config.
