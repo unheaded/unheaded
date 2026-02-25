@@ -1,53 +1,55 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap');
 
 /* ============================================================================
    UNHEADED DESIGN SYSTEM
-   Dark, minimal, monospace-first aesthetic for headless infrastructure control
-   Matching unheaded.org / bellis.tech monochrome identity
+   Dark minimal aesthetic matching bellis.tech / unheaded.org
    ============================================================================ */
 
-/* Font faces */
+/* Self-hosted font faces (override CDN when local files exist) */
 @font-face {
   font-family: "JetBrains Mono";
-  src: url("/dashboard/assets/fonts/JetBrainsMono-Regular.woff2") format("woff2");
-  font-weight: 400;
+  src: url("/dashboard/assets/fonts/jetbrains-mono-latin.woff2") format("woff2");
+  font-weight: 400 500;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "JetBrains Mono";
-  src: url("/dashboard/assets/fonts/JetBrainsMono-Bold.woff2") format("woff2");
-  font-weight: 700;
+  font-family: "Space Grotesk";
+  src: url("/dashboard/assets/fonts/space-grotesk-latin.woff2") format("woff2");
+  font-weight: 400 600;
   font-style: normal;
   font-display: swap;
 }
 
 /* ============================================================================
-   CSS VARIABLES: Color, Spacing, Typography
+   CSS VARIABLES — matching bellis.tech :root
    ============================================================================ */
 
 :root {
-  /* Colors — pure monochrome grayscale hierarchy
-     #fff (headings) > #c9c9c9 (primary text) > #888 (hover reveal)
-     > #666 (muted) > #555 (dim) > #444 (nodes) > #3a3a3a (ghost)
-     > #333 (border-light) > #222 (borders) > #1a1a1a (tertiary bg)
-     > #121212 (secondary bg) > #0a0a0a (primary bg) */
+  /* Colors — bellis.tech palette */
   --color-bg: #0a0a0a;
-  --color-bg-secondary: #121212;
-  --color-bg-tertiary: #1a1a1a;
-  --color-text-primary: #c9c9c9;
-  --color-text-heading: #ffffff;
-  --color-text-muted: #666666;
-  --color-text-dim: #555555;
-  --color-text-nodes: #444444;
+  --color-bg-secondary: #111111;
+  --color-bg-tertiary: #151515;
+  --color-text-primary: #e8e8e8;
+  --color-text-heading: #e8e8e8;
+  --color-text-secondary: #888888;
+  --color-text-dim: #888888;
+  --color-text-muted: #888888;
   --color-text-ghost: #3a3a3a;
-  --color-text-hover: #888888;
+  --color-text-hover: #e8e8e8;
+  --color-accent: #4a9eff;
+  --color-accent-dim: #2a5a99;
+  --color-accent-glow: rgba(74, 158, 255, 0.15);
   --color-border: #222222;
   --color-border-light: #333333;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
 
-  /* Typography — monospace only */
-  --font-mono: "JetBrains Mono", monospace;
+  /* Typography — Space Grotesk body, JetBrains Mono code */
+  --font-body: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -119,12 +121,13 @@ html {
 }
 
 body {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: var(--font-size-base);
-  line-height: var(--line-height-normal);
+  line-height: 1.7;
   color: var(--color-text-primary);
   background-color: var(--color-bg);
   overflow-x: hidden;
+  min-height: 100vh;
 }
 
 /* ============================================================================
@@ -216,16 +219,16 @@ body {
    ============================================================================ */
 
 .card {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--color-bg-tertiary);
   border: var(--border-width-thin) solid var(--color-border);
   border-radius: var(--border-radius-lg);
   padding: var(--space-lg);
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--transition-ghost);
+  transition: all var(--transition-normal);
 }
 
 .card:hover {
-  border-color: var(--color-border-light);
+  border-color: var(--color-accent-dim);
+  background-color: var(--color-bg-secondary);
 }
 
 .card-header {
@@ -278,27 +281,28 @@ body {
 .nav {
   position: fixed;
   top: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
+  width: 100%;
   background: rgba(10, 10, 10, 0.8);
-  backdrop-filter: var(--backdrop-blur);
-  border-bottom: var(--border-width-thin) solid var(--color-border);
-  z-index: var(--z-sticky);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(34, 34, 34, 0.6);
+  z-index: var(--z-overlay);
+  padding: 1rem 2rem;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-2xl);
-  box-shadow: var(--shadow-sm);
+  align-items: center;
 }
 
 .nav-logo {
   font-family: var(--font-mono);
-  font-size: var(--font-size-xl);
-  font-weight: 300;
-  color: var(--color-text-heading);
-  letter-spacing: 0.3em;
+  font-size: 1rem;
+  color: var(--color-text-primary);
+  letter-spacing: 0.5px;
   text-decoration: none;
+}
+
+.nav-logo span {
+  color: var(--color-accent);
 }
 
 .nav-links {
@@ -309,25 +313,19 @@ body {
 }
 
 .nav-link {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-ghost);
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
   text-decoration: none;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--border-radius-sm);
-  transition: color var(--transition-ghost);
-  border: var(--border-width-thin) solid transparent;
+  text-transform: lowercase;
+  transition: color var(--transition-fast);
 }
 
 .nav-link:hover {
-  color: var(--color-text-hover);
+  color: var(--color-text-primary);
 }
 
 .nav-link.active {
-  color: var(--color-text-heading);
-  border-color: var(--color-border);
+  color: var(--color-text-primary);
 }
 
 /* ============================================================================
@@ -359,27 +357,21 @@ body {
 
 .tab-btn {
   font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  padding: var(--space-md) var(--space-lg);
-  background: transparent;
-  color: var(--color-text-ghost);
-  border: none;
-  border-bottom: var(--border-width-thick) solid transparent;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
-  transition: color var(--transition-ghost);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
-.tab-btn:hover {
-  color: var(--color-text-hover);
-  border-bottom-color: var(--color-border);
-}
-
+.tab-btn:hover,
 .tab-btn.active {
-  color: var(--color-text-heading);
-  border-bottom-color: var(--color-text-primary);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .tab-panel {
@@ -396,26 +388,40 @@ body {
    ============================================================================ */
 
 .btn {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--border-radius-md);
-  border: var(--border-width-thin) solid var(--color-border);
-  background-color: transparent;
-  color: var(--color-text-primary);
-  cursor: pointer;
-  transition: all var(--transition-ghost);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: var(--space-sm);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
 }
 
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.btn-primary:hover {
+  background: var(--color-text-primary);
+  color: var(--color-bg);
+}
+
+.btn-secondary,
+.btn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.btn-secondary:hover,
 .btn:hover {
-  border-color: var(--color-border-light);
-  color: var(--color-text-heading);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .btn:active {
@@ -493,8 +499,8 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--color-text-primary);
-  animation: pulse 4s ease-in-out infinite;
+  background-color: var(--color-success);
+  animation: pulse 2s ease infinite;
 }
 
 /* ============================================================================
@@ -622,21 +628,19 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-light);
+  background: var(--color-accent-dim);
 }
 
 /* ============================================================================
    PARTICLE CANVAS LAYER
    ============================================================================ */
 
+#particle-canvas,
 .particle-canvas {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
+  inset: 0;
   pointer-events: none;
+  z-index: -1;
 }
 
 /* ============================================================================
@@ -699,12 +703,8 @@ body {
    ============================================================================ */
 
 @keyframes pulse {
-  0%, 100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 1;
-  }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.9); }
 }
 
 @keyframes fadeIn {
