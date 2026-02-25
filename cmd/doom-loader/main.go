@@ -2,11 +2,12 @@
 // Replaces Python scripts: doom-loader-core.py, load_rom_fast.py, load_rom.py
 //
 // Usage:
-//   doom-loader rom --file doom.mbc --map /sys/fs/bpf/.../ROM_MAP
-//   doom-loader ram --file wad.bin --base 0x0 --map /sys/fs/bpf/.../RAM_MAP
-//   doom-loader rv2mbc --file table.bin --map /sys/fs/bpf/.../RV2MBC_MAP
-//   doom-loader cpu --instance DE --map /sys/fs/bpf/.../CPU_MAP
-//   doom-loader all --file doom.mbc --wad wad.bin --map /sys/fs/bpf/.../
+//
+//	doom-loader rom --file doom.mbc --map /sys/fs/bpf/.../ROM_MAP
+//	doom-loader ram --file wad.bin --base 0x0 --map /sys/fs/bpf/.../RAM_MAP
+//	doom-loader rv2mbc --file table.bin --map /sys/fs/bpf/.../RV2MBC_MAP
+//	doom-loader cpu --instance DE --map /sys/fs/bpf/.../CPU_MAP
+//	doom-loader all --file doom.mbc --wad wad.bin --map /sys/fs/bpf/.../
 //
 // The batch API achieves ~500K entries/sec throughput, 8x faster than Python.
 package main
@@ -15,11 +16,12 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"unheaded/internal/bpf"
 )
 
 const (
@@ -30,9 +32,6 @@ const (
 	defaultRAMMapPath = "/sys/fs/bpf/unheaded/doom-ring/maps/RAM_MAP"
 	defaultRV2MBCPath = "/sys/fs/bpf/unheaded/doom-ring/maps/RV2MBC_MAP"
 	defaultCPUMapPath = "/sys/fs/bpf/unheaded/doom-ring/maps/CPU_MAP"
-
-	// CPU state size: 136 bytes
-	cpuStateSize = 136
 
 	// Initial SP (fits in 16M entry array)
 	defaultSP = 0x3F00000
@@ -86,6 +85,7 @@ Subcommands:
 Options (varies by subcommand):
   --file <path>      Input binary file
   --wad <path>       WAD file (for 'all' subcommand)
+  --rv2mbc <path>    RV2MBC table file (for 'all' subcommand)
   --base <addr>      Base address for RAM (default: 0x0, hex with 0x prefix)
   --map <path>       BPF map path (default: /sys/fs/bpf/unheaded/doom-ring/maps/*)
   --instance <hex>   CPU instance ID (default: DE)
@@ -94,9 +94,16 @@ Examples:
   doom-loader rom --file doom.mbc
   doom-loader ram --file sprites.wad --base 0x1000
   doom-loader cpu --instance DE
-  doom-loader all --file doom.mbc --wad data.bin
+  doom-loader all --file doom.mbc --wad data.bin --rv2mbc table.bin
 
 `)
+}
+
+// uint32Key encodes a uint32 as 4-byte little-endian key.
+func uint32Key(v uint32) []byte {
+	key := make([]byte, 4)
+	binary.LittleEndian.PutUint32(key, v)
+	return key
 }
 
 func loadROM(args []string) error {
@@ -112,7 +119,7 @@ func loadROM(args []string) error {
 		return fmt.Errorf("--file is required")
 	}
 
-	data, err := ioutil.ReadFile(*file)
+	data, err := os.ReadFile(*file)
 	if err != nil {
 		return err
 	}
@@ -139,21 +146,23 @@ func loadRAM(args []string) error {
 		return fmt.Errorf("invalid base address: %v", err)
 	}
 
-	data, err := ioutil.ReadFile(*file)
+	data, err := os.ReadFile(*file)
 	if err != nil {
 		return err
 	}
 
-	keys := make([]byte, 0)
-	values := make([]byte, 0)
-
+	// RAM uses per-byte addressing with a base offset.
+	// Each entry: key=4-byte LE addr, value=1 byte.
+	pairs := make([]kvPair, len(data))
 	for i := 0; i < len(data); i++ {
 		addr := uint32(baseAddr) + uint32(i)
-		keys = append(keys, byte(addr&0xFF), byte((addr>>8)&0xFF), byte((addr>>16)&0xFF), byte((addr>>24)&0xFF))
-		values = append(values, data[i])
+		pairs[i] = kvPair{
+			key:   uint32Key(addr),
+			value: []byte{data[i]},
+		}
 	}
 
-	return batchLoadMapCustom(*mapPath, keys, values)
+	return batchLoadMapCustom(*mapPath, pairs)
 }
 
 func loadRV2MBC(args []string) error {
@@ -169,7 +178,7 @@ func loadRV2MBC(args []string) error {
 		return fmt.Errorf("--file is required")
 	}
 
-	data, err := ioutil.ReadFile(*file)
+	data, err := os.ReadFile(*file)
 	if err != nil {
 		return err
 	}
@@ -191,20 +200,31 @@ func initCPU(args []string) error {
 		return fmt.Errorf("invalid instance ID: %v", err)
 	}
 
-	state := make([]byte, cpuStateSize)
-	binary.LittleEndian.PutUint64(state[136:144], uint64(defaultSP))
+	// Build canonical CpuState: zero everything, set SP in Regs[15].
+	cpu := &bpf.CpuState{}
+	cpu.Regs[15] = defaultSP
+	state := bpf.EncodeCpuState(cpu)
 
+	// CPU_MAP is keyed by a single-byte instance ID.
 	key := []byte{byte(instanceByte)}
 
-	fmt.Printf("CPU state initialized for instance 0x%02X:\n", instanceByte)
-	fmt.Printf("  PC: 0x%08X\n", 0)
-	fmt.Printf("  SP: 0x%08X\n", defaultSP)
+	fmt.Printf("CPU state initializing for instance 0x%02X:\n", instanceByte)
+	fmt.Printf("  PC: 0x%08X\n", cpu.PC)
+	fmt.Printf("  SP: 0x%08X (regs[15])\n", cpu.Regs[15])
 	fmt.Printf("  State size: %d bytes\n", len(state))
-	fmt.Printf("  Would write to: %s[0x%02X]\n", *mapPath, instanceByte)
+	fmt.Printf("  Map: %s\n", *mapPath)
 
-	_ = key
-	_ = state
+	m, err := bpf.OpenMap(*mapPath)
+	if err != nil {
+		return fmt.Errorf("open CPU_MAP: %w", err)
+	}
+	defer m.Close()
 
+	if err := m.UpdateElem(key, state); err != nil {
+		return fmt.Errorf("write CPU state: %w", err)
+	}
+
+	fmt.Printf("  CPU state written OK\n")
 	return nil
 }
 
@@ -212,6 +232,7 @@ func loadAll(args []string) error {
 	fs := flag.NewFlagSet("all", flag.ExitOnError)
 	file := fs.String("file", "", "ROM binary file")
 	wad := fs.String("wad", "", "WAD/RAM file")
+	rv2mbcFile := fs.String("rv2mbc", "", "RV2MBC translation table file")
 	mapDir := fs.String("map", "/sys/fs/bpf/unheaded/doom-ring/maps/", "BPF map directory")
 
 	if err := fs.Parse(args); err != nil {
@@ -222,61 +243,104 @@ func loadAll(args []string) error {
 		return fmt.Errorf("--file is required")
 	}
 
+	// 1. Load ROM
+	fmt.Println("=== Loading ROM ===")
 	if err := loadROM([]string{"--file", *file, "--map", filepath.Join(*mapDir, "ROM_MAP")}); err != nil {
 		return fmt.Errorf("ROM load failed: %v", err)
 	}
 
+	// 2. Load RAM (if WAD provided)
 	if *wad != "" {
+		fmt.Println("\n=== Loading RAM ===")
 		if err := loadRAM([]string{"--file", *wad, "--base", "0x0", "--map", filepath.Join(*mapDir, "RAM_MAP")}); err != nil {
 			return fmt.Errorf("RAM load failed: %v", err)
 		}
 	}
 
-	fmt.Println("RV2MBC loading not yet implemented")
+	// 3. Load RV2MBC (if table file provided)
+	if *rv2mbcFile != "" {
+		fmt.Println("\n=== Loading RV2MBC ===")
+		if err := loadRV2MBC([]string{"--file", *rv2mbcFile, "--map", filepath.Join(*mapDir, "RV2MBC_MAP")}); err != nil {
+			return fmt.Errorf("RV2MBC load failed: %v", err)
+		}
+	} else {
+		fmt.Println("\n=== Skipping RV2MBC (no --rv2mbc file provided) ===")
+	}
 
+	// 4. Init CPU
+	fmt.Println("\n=== Initializing CPU ===")
 	if err := initCPU([]string{"--instance", "DE", "--map", filepath.Join(*mapDir, "CPU_MAP")}); err != nil {
 		return fmt.Errorf("CPU init failed: %v", err)
 	}
 
+	fmt.Println("\n=== All loads complete ===")
 	return nil
 }
 
+// batchLoadMap loads sequential data into a BPF map using batch writes.
+// Each entry has a 4-byte LE uint32 key (0, 1, 2, ...) and a value of valueSize bytes.
 func batchLoadMap(mapPath string, data []byte, valueSize int) error {
 	numEntries := len(data) / valueSize
-	fmt.Printf("Loading %d entries (%d bytes) into %s\n", numEntries, len(data), mapPath)
+	fmt.Printf("Loading %d entries (%d bytes, %d bytes/entry) into %s\n",
+		numEntries, len(data), valueSize, mapPath)
 
-	keys := make([]byte, 0)
-
-	for i := 0; i < numEntries; i++ {
-		addr := uint32(i)
-		keys = append(keys, byte(addr&0xFF), byte((addr>>8)&0xFF), byte((addr>>16)&0xFF), byte((addr>>24)&0xFF))
+	m, err := bpf.OpenMap(mapPath)
+	if err != nil {
+		return fmt.Errorf("open map %s: %w", mapPath, err)
 	}
+	defer m.Close()
 
 	written := 0
-	for batch := 0; batch*batchSize < len(keys)/4; batch++ {
-		start := batch * batchSize
-		end := start + batchSize
-		if end > numEntries {
-			end = numEntries
+	for i := 0; i < numEntries; i++ {
+		key := uint32Key(uint32(i))
+		value := data[i*valueSize : (i+1)*valueSize]
+
+		if err := m.UpdateElem(key, value); err != nil {
+			return fmt.Errorf("write entry %d: %w", i, err)
 		}
+		written++
 
-		count := end - start
-		batchKeys := keys[start*4 : end*4]
-		batchValues := data[start*valueSize : end*valueSize]
-
-		fmt.Printf("  Batch %d: writing entries %d-%d\n", batch, start, end-1)
-		written += count
-
-		_ = batchKeys
-		_ = batchValues
+		// Progress bar: print every 10000 entries.
+		if written%10000 == 0 {
+			pct := float64(written) / float64(numEntries) * 100.0
+			fmt.Printf("  [%6.1f%%] %d / %d entries written\n", pct, written, numEntries)
+		}
 	}
 
-	fmt.Printf("Wrote %d entries\n", written)
+	fmt.Printf("  [100.0%%] %d / %d entries written -- done\n", written, numEntries)
 	return nil
 }
 
-func batchLoadMapCustom(mapPath string, keys, values []byte) error {
-	fmt.Printf("Loading custom key-value pairs into %s\n", mapPath)
-	fmt.Printf("  Keys: %d bytes, Values: %d bytes\n", len(keys), len(values))
+// batchLoadMapCustom loads arbitrary key-value pairs into a BPF map.
+type kvPair struct {
+	key   []byte
+	value []byte
+}
+
+func batchLoadMapCustom(mapPath string, pairs []kvPair) error {
+	numEntries := len(pairs)
+	fmt.Printf("Loading %d custom key-value pairs into %s\n", numEntries, mapPath)
+
+	m, err := bpf.OpenMap(mapPath)
+	if err != nil {
+		return fmt.Errorf("open map %s: %w", mapPath, err)
+	}
+	defer m.Close()
+
+	written := 0
+	for i, p := range pairs {
+		if err := m.UpdateElem(p.key, p.value); err != nil {
+			return fmt.Errorf("write entry %d: %w", i, err)
+		}
+		written++
+
+		// Progress bar: print every 10000 entries.
+		if written%10000 == 0 {
+			pct := float64(written) / float64(numEntries) * 100.0
+			fmt.Printf("  [%6.1f%%] %d / %d entries written\n", pct, written, numEntries)
+		}
+	}
+
+	fmt.Printf("  [100.0%%] %d / %d entries written -- done\n", written, numEntries)
 	return nil
 }
