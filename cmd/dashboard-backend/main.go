@@ -53,6 +53,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
@@ -71,7 +72,7 @@ var (
 )
 
 var (
-	listenAddr     = flag.String("listen", ":20000", "HTTP listen address")
+	listenAddr     = flag.String("listen", ports.DefaultAddr(ports.DashboardBackend), "HTTP listen address")
 	wotanAddr     = flag.String("wotan", "localhost:18001", "Wotan server address")
 	wotanGRPCAddr = flag.String("wotan-grpc-addr", "", "Wotan gRPC address for TopicStream (enables real eBPF events)")
 	debug          = flag.Bool("debug", false, "Enable debug logging")
