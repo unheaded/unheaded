@@ -15,13 +15,18 @@ import (
 
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
-	pb "github.com/unheaded/unheaded/proto/unheaded/v1"
+	pb "unheaded/proto/unheaded/v1"
+	"unheaded/pkg/ports"
+)
+
+var (
+	restPort = ports.DefaultAddr(ports.ProtocolAPIREST)
+	grpcPort = ports.DefaultAddr(ports.ProtocolAPIGRPC)
 )
 
 const (
-	restPort       = ":17100"
-	grpcPort       = ":17101"
 	apiKeyHeader   = "X-API-Key"
 	version        = "0.1.0"
 	drainTimeout   = 30 * time.Second
@@ -29,16 +34,18 @@ const (
 )
 
 var (
-	mockMode       = flag.Bool("mock", false, "Run in mock mode without BPF maps")
+	mode           = flag.String("mode", "mock", "Backend mode: mock (in-memory) or bpf (pinned maps)")
 	apiKey         = flag.String("api-key", "", "API key for authentication (empty = disabled)")
 	bpfMapsPath    = flag.String("bpf-maps", "/sys/fs/bpf/unheaded", "Path to pinned BPF maps")
 	logRequests    = flag.Bool("log", true, "Enable request logging")
 	version_flag   = flag.Bool("version", false, "Print version and exit")
+	// Deprecated: use --mode=mock instead. Kept for backwards compatibility.
+	mockMode       = flag.Bool("mock", false, "Alias for --mode=mock (deprecated)")
 )
 
 // Global state
 var (
-	globalMockMode bool
+	globalMockMode bool   // Derived from globalBackend.Mode(); kept for backwards compat
 	globalAPIKey   string
 	globalBPFPath  string
 
@@ -53,7 +60,7 @@ type HealthResponse struct {
 	Version string `json:"version"`
 }
 
-func init() {
+func main() {
 	flag.Parse()
 
 	if *version_flag {
@@ -61,12 +68,23 @@ func init() {
 		os.Exit(0)
 	}
 
-	globalMockMode = *mockMode
+	// Resolve backend mode: --mock flag (deprecated) overrides --mode.
+	resolvedMode := *mode
+	if *mockMode {
+		resolvedMode = "mock"
+	}
+	switch resolvedMode {
+	case "mock":
+		globalBackend = NewMockBackend()
+	case "bpf":
+		globalBackend = NewBPFBackend(*bpfMapsPath)
+	default:
+		log.Fatalf("Unknown --mode %q (valid: mock, bpf)", resolvedMode)
+	}
+	globalMockMode = IsMockMode()
 	globalAPIKey = *apiKey
 	globalBPFPath = *bpfMapsPath
-}
 
-func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -101,10 +119,10 @@ func main() {
 	)
 
 	pb.RegisterMonadServiceServer(grpcServer, &monadServer{})
-	pb.RegisterSophiaServiceServer(grpcServer, &sophiaServer{})
-	pb.RegisterWotanServiceServer(grpcServer, &wotanServer{})
-	pb.RegisterAnamnesisServiceServer(grpcServer, &anamnesisServer{})
-	pb.RegisterFlowServiceServer(grpcServer, &flowServer{})
+	pb.RegisterSophiaServiceServer(grpcServer, getSophiaServer())
+	pb.RegisterWotanServiceServer(grpcServer, getWotanServer())
+	pb.RegisterAnamnesisServiceServer(grpcServer, getAnamnesisServer())
+	pb.RegisterFlowServiceServer(grpcServer, getFlowServer())
 
 	// Start servers in goroutines
 	go func() {
@@ -235,11 +253,8 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 // grpcAuthInterceptor enforces API key authentication for gRPC
 func grpcAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	if globalAPIKey != "" {
-		md, ok := grpc.MethodFromServerTransportStream(ctx, info)
-		if !ok {
-			return nil, fmt.Errorf("failed to get metadata")
-		}
-		_ = md // Use metadata to check API key if needed
+		// info.FullMethod contains the gRPC method name (e.g. "/unheaded.v1.MonadService/Encode")
+		_ = info.FullMethod // Placeholder: use metadata to check API key if needed
 	}
 
 	return handler(ctx, req)
@@ -417,7 +432,7 @@ func handleSophiaList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sophiaSvc := &sophiaServer{}
+	sophiaSvc := getSophiaServer()
 	pbReq := &pb.DictionaryListRequest{
 		Limit:  100,
 		Offset: 0,
@@ -451,7 +466,7 @@ func handleSophiaGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sophiaSvc := &sophiaServer{}
+	sophiaSvc := getSophiaServer()
 	pbReq := &pb.DictionaryGetRequest{
 		DictionaryId: dictID,
 	}
@@ -494,7 +509,7 @@ func handleWotanRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wotanSvc := &wotanServer{}
+	wotanSvc := getWotanServer()
 	pbReq := &pb.ReadRequest{
 		FlowLabel: req.FlowLabel,
 	}
@@ -531,7 +546,7 @@ func handleWotanWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wotanSvc := &wotanServer{}
+	wotanSvc := getWotanServer()
 	pbReq := &pb.WriteRequest{
 		FlowLabel:      req.FlowLabel,
 		StateData:      []byte(req.StateData),
@@ -556,7 +571,7 @@ func handleAnamnesisQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	amnesisSvc := &anamnesisServer{}
+	amnesisSvc := getAnamnesisServer()
 	pbReq := &pb.EventQuery{
 		Limit: 100,
 	}
@@ -579,8 +594,8 @@ func handleFlowList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flowSvc := &flowServer{}
-	pbReq := &pb.Empty{}
+	flowSvc := getFlowServer()
+	pbReq := &emptypb.Empty{}
 
 	resp, err := flowSvc.List(r.Context(), pbReq)
 	if err != nil {
@@ -624,7 +639,7 @@ func handleFlowInject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flowSvc := &flowServer{}
+	flowSvc := getFlowServer()
 	pbReq := &pb.InjectRequest{
 		FlowLabel:   flowLabel,
 		Payload:     []byte(req.Payload),
@@ -646,6 +661,9 @@ func handleFlowInject(w http.ResponseWriter, r *http.Request) {
 // Helper functions
 
 func modeString() string {
+	if globalBackend != nil {
+		return globalBackend.Mode()
+	}
 	if globalMockMode {
 		return "mock"
 	}
@@ -662,57 +680,7 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	// Simplified: actual implementation would use encoding/json
 }
 
-// Placeholder server implementations
-type monadServer struct{}
-type sophiaServer struct{}
-type wotanServer struct{}
-type anamnesisServer struct{}
-type flowServer struct{}
-
-func (s *monadServer) Encode(ctx context.Context, req *pb.EncodeRequest) (*pb.EncodeResponse, error) {
-	return &pb.EncodeResponse{Success: true}, nil
-}
-
-func (s *monadServer) Decode(ctx context.Context, req *pb.DecodeRequest) (*pb.DecodeResponse, error) {
-	return &pb.DecodeResponse{Valid: true}, nil
-}
-
-func (s *monadServer) Validate(ctx context.Context, req *pb.DecodeRequest) (*pb.DecodeResponse, error) {
-	return &pb.DecodeResponse{Valid: true}, nil
-}
-
-func (s *sophiaServer) List(ctx context.Context, req *pb.DictionaryListRequest) (*pb.DictionaryListResponse, error) {
-	return &pb.DictionaryListResponse{}, nil
-}
-
-func (s *sophiaServer) Get(ctx context.Context, req *pb.DictionaryGetRequest) (*pb.DictionaryGetResponse, error) {
-	return &pb.DictionaryGetResponse{Found: false}, nil
-}
-
-func (s *wotanServer) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadResponse, error) {
-	return &pb.ReadResponse{Found: false}, nil
-}
-
-func (s *wotanServer) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResponse, error) {
-	return &pb.WriteResponse{Success: true}, nil
-}
-
-func (s *anamnesisServer) Query(ctx context.Context, req *pb.EventQuery) (*pb.EventQueryResponse, error) {
-	return &pb.EventQueryResponse{}, nil
-}
-
-func (s *anamnesisServer) Stream(req *pb.StreamRequest, stream grpc.ServerStream) error {
-	return nil
-}
-
-func (s *flowServer) List(ctx context.Context, req *pb.Empty) (*pb.FlowListResponse, error) {
-	return &pb.FlowListResponse{}, nil
-}
-
-func (s *flowServer) GetState(ctx context.Context, req *pb.ReadRequest) (*pb.FlowState, error) {
-	return &pb.FlowState{}, nil
-}
-
-func (s *flowServer) Inject(ctx context.Context, req *pb.InjectRequest) (*pb.InjectResponse, error) {
-	return &pb.InjectResponse{Success: true}, nil
+// monadServer implements Monad encoding/decoding (methods in monad.go)
+type monadServer struct {
+	pb.UnimplementedMonadServiceServer
 }

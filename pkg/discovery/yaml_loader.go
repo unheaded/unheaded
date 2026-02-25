@@ -88,6 +88,19 @@ func LoadServiceDirectory(dir string) ([]*ServiceConfig, error) {
 	return configs, nil
 }
 
+// LoadServiceConfigFromBytes parses and validates a single service config from YAML bytes.
+func LoadServiceConfigFromBytes(data []byte) (*ServiceConfig, error) {
+	var cfg ServiceConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid YAML: %w", err)
+	}
+	applyDefaults(&cfg)
+	if err := ValidateConfig(&cfg); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+	return &cfg, nil
+}
+
 // LoadBundledManifest parses the embedded services.yaml manifest as a fallback.
 // Used when /opt/unheaded/ is not accessible (development mode, containers).
 // Data should be the raw YAML bytes of a manifest file containing a list of service configs.

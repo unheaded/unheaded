@@ -12,6 +12,8 @@
       margin-top: 64px;
       padding: var(--space-2xl);
       min-height: 100vh;
+      position: relative;
+      z-index: var(--z-base);
     }
 
     .kanban-header {
@@ -21,14 +23,22 @@
     .kanban-title {
       font-family: var(--font-mono);
       font-size: var(--font-size-2xl);
-      font-weight: 700;
+      font-weight: 300;
       color: var(--color-text-heading);
       margin-bottom: var(--space-md);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
     }
 
     .kanban-subtitle {
+      font-family: var(--font-body);
       font-size: var(--font-size-sm);
-      color: var(--color-text-dim);
+      color: var(--color-text-ghost);
+      transition: color var(--transition-ghost);
+    }
+
+    .kanban-subtitle:hover {
+      color: var(--color-text-secondary);
     }
 
     .kanban-board {
@@ -58,14 +68,16 @@
 
     .column-title {
       font-family: var(--font-mono);
-      font-size: var(--font-size-lg);
-      font-weight: 700;
-      color: var(--color-text-heading);
+      font-size: var(--font-size-sm);
+      font-weight: 400;
+      color: var(--color-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
     }
 
     .column-count {
-      font-size: var(--font-size-sm);
-      color: var(--color-text-dim);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-ghost);
       font-family: var(--font-mono);
     }
 
@@ -90,16 +102,15 @@
       border-radius: var(--border-radius-md);
       padding: var(--space-md);
       cursor: move;
-      transition: all var(--transition-fast);
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
       display: flex;
       flex-direction: column;
       gap: var(--space-sm);
     }
 
     .task-card:hover {
-      background-color: var(--color-bg);
-      border-color: var(--color-border-light);
-      box-shadow: var(--shadow-md);
+      border-color: var(--color-accent-dim);
+      box-shadow: var(--shadow-sm);
     }
 
     .task-card.dragging {
@@ -109,7 +120,7 @@
     .task-drag-handle {
       width: 4px;
       height: 16px;
-      background-color: var(--color-text-dim);
+      background-color: var(--color-text-ghost);
       border-radius: 2px;
       margin-right: var(--space-sm);
       flex-shrink: 0;
@@ -124,11 +135,16 @@
     .task-title {
       font-family: var(--font-mono);
       font-size: var(--font-size-sm);
-      font-weight: 600;
-      color: var(--color-text-heading);
+      font-weight: 400;
+      color: var(--color-text-ghost);
       flex: 1;
       line-height: 1.3;
       word-break: break-word;
+      transition: color var(--transition-ghost);
+    }
+
+    .task-card:hover .task-title {
+      color: var(--color-text-secondary);
     }
 
     .task-priority {
@@ -136,15 +152,21 @@
       padding: var(--space-xs) var(--space-sm);
       background-color: var(--color-bg-secondary);
       border-radius: var(--border-radius-sm);
-      color: var(--color-text-dim);
+      color: var(--color-text-ghost);
       font-family: var(--font-mono);
       white-space: nowrap;
       text-transform: uppercase;
+      transition: color var(--transition-fast);
+    }
+
+    .task-card:hover .task-priority {
+      color: var(--color-text-dim);
     }
 
     .task-description {
+      font-family: var(--font-body);
       font-size: var(--font-size-xs);
-      color: var(--color-text-dim);
+      color: var(--color-text-ghost);
       line-height: 1.4;
       max-height: 40px;
       overflow: hidden;
@@ -152,6 +174,11 @@
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
+      transition: color var(--transition-ghost);
+    }
+
+    .task-card:hover .task-description {
+      color: var(--color-text-dim);
     }
 
     .task-meta {
@@ -184,30 +211,36 @@
       font-size: var(--font-size-xs);
       padding: var(--space-xs) var(--space-sm);
       background: transparent;
-      border: var(--border-width-thin) solid var(--color-border);
+      border: var(--border-width-thin) solid transparent;
       border-radius: var(--border-radius-sm);
       cursor: pointer;
-      transition: all var(--transition-fast);
+      transition: color var(--transition-fast), border-color var(--transition-fast);
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      color: var(--color-text-ghost);
+    }
+
+    .review-btn:hover {
+      color: var(--color-text-secondary);
+      border-color: var(--color-border);
     }
 
     .review-btn.approve {
-      color: var(--color-text-primary);
+      color: var(--color-text-ghost);
     }
 
     .review-btn.approve:hover {
-      background-color: var(--color-bg-secondary);
-      border-color: var(--color-text-primary);
+      color: var(--color-accent);
+      border-color: var(--color-accent-dim);
     }
 
     .review-btn.reject {
-      color: var(--color-text-dim);
+      color: var(--color-text-ghost);
     }
 
     .review-btn.reject:hover {
-      color: var(--color-text-primary);
-      border-color: var(--color-text-primary);
+      color: var(--color-text-secondary);
+      border-color: var(--color-border-light);
     }
 
     .review-btn.changes {
@@ -215,7 +248,8 @@
     }
 
     .review-btn.changes:hover {
-      color: var(--color-text-primary);
+      color: var(--color-text-secondary);
+      border-color: var(--color-border-light);
     }
 
     /* Modal */
@@ -237,7 +271,7 @@
     }
 
     .modal-content {
-      background-color: var(--color-bg-secondary);
+      background-color: var(--color-bg-tertiary);
       border: var(--border-width-thin) solid var(--color-border);
       border-radius: var(--border-radius-lg);
       padding: var(--space-2xl);
@@ -260,8 +294,9 @@
     .modal-title {
       font-family: var(--font-mono);
       font-size: var(--font-size-xl);
-      font-weight: 700;
+      font-weight: 300;
       color: var(--color-text-heading);
+      letter-spacing: 0.05em;
     }
 
     .modal-close {
@@ -277,11 +312,10 @@
       align-items: center;
       justify-content: center;
       border-radius: var(--border-radius-sm);
-      transition: all var(--transition-fast);
+      transition: color var(--transition-fast);
     }
 
     .modal-close:hover {
-      background-color: var(--color-bg-tertiary);
       color: var(--color-text-primary);
     }
 
@@ -299,21 +333,26 @@
 
     .modal-label {
       font-family: var(--font-mono);
-      font-size: var(--font-size-sm);
-      font-weight: 600;
-      color: var(--color-text-primary);
+      font-size: var(--font-size-xs);
+      font-weight: 400;
+      color: var(--color-accent);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.1em;
     }
 
     .modal-value {
       font-size: var(--font-size-sm);
-      color: var(--color-text-primary);
-      font-family: var(--font-mono);
+      color: var(--color-text-ghost);
+      font-family: var(--font-body);
       padding: var(--space-md);
-      background-color: var(--color-bg-tertiary);
+      background-color: var(--color-bg-secondary);
       border-radius: var(--border-radius-md);
       border: var(--border-width-thin) solid var(--color-border);
+      transition: color var(--transition-ghost);
+    }
+
+    .modal-value:hover {
+      color: var(--color-text-secondary);
     }
 
     .modal-actions {
@@ -324,14 +363,51 @@
       border-top: var(--border-width-thin) solid var(--color-border);
     }
 
+    .modal-actions .btn {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      padding: var(--space-sm) var(--space-lg);
+      background: transparent;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-sm);
+      color: var(--color-text-ghost);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .modal-actions .btn:hover {
+      color: var(--color-accent);
+      border-color: var(--color-accent-dim);
+      background: transparent;
+    }
+
+    .modal-actions .btn-danger {
+      color: var(--color-text-ghost);
+      border-color: var(--color-border);
+    }
+
+    .modal-actions .btn-danger:hover {
+      color: var(--color-text-primary);
+      border-color: var(--color-border-light);
+      background: transparent;
+    }
+
     .footer {
       margin-top: var(--space-3xl);
       padding: var(--space-2xl) 0;
       border-top: var(--border-width-thin) solid var(--color-border);
       text-align: center;
       color: var(--color-text-ghost);
-      font-family: var(--font-body);
+      font-family: var(--font-mono);
       font-style: italic;
+      font-size: var(--font-size-sm);
+      transition: color var(--transition-ghost);
+    }
+
+    .footer:hover {
+      color: var(--color-text-secondary);
     }
 
     @media (max-width: 768px) {
@@ -351,14 +427,16 @@
   </style>
 </head>
 <body>
+  <canvas id="particle-canvas"></canvas>
+
   <!-- Navigation -->
   <nav class="nav">
-    <a href="/" class="nav-logo">UNHEADED</a>
+    <a href="/" class="nav-logo"><span>(U)</span>NHEADED</a>
     <ul class="nav-links">
-      <li><a href="/dashboard" class="nav-link">Dashboard</a></li>
-      <li><a href="/kanban" class="nav-link active">Kanban</a></li>
-      <li><a href="/docs" class="nav-link">Docs</a></li>
-      <li><a href="/status" class="nav-link">Status</a></li>
+      <li><a href="/dashboard" class="nav-link">dashboard</a></li>
+      <li><a href="/kanban" class="nav-link active">kanban</a></li>
+      <li><a href="/docs" class="nav-link">docs</a></li>
+      <li><a href="/status" class="nav-link">status</a></li>
     </ul>
   </nav>
 
@@ -462,6 +540,7 @@
     </footer>
   </main>
 
+  <script src="/dashboard/js/particles.js"></script>
   <script>
     // Demo tasks
     const demoTasks = [

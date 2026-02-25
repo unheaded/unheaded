@@ -29,8 +29,31 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/BurntSushi/toml"
 	"golang.org/x/sys/unix"
 )
+
+// injectorConfig holds TOML configuration from the [injector] section.
+type injectorConfig struct {
+	Interface    string `toml:"interface"`
+	Mode         string `toml:"mode"`
+	SteadyDelay  int    `toml:"steady_delay_us"`
+	BurstSize    int    `toml:"burst_size"`
+}
+
+// doomConfig wraps the top-level TOML file to extract the [injector] section.
+type doomConfig struct {
+	Injector injectorConfig `toml:"injector"`
+}
+
+// loadConfig reads a TOML config file and returns the injector section.
+func loadConfig(path string) (injectorConfig, error) {
+	var cfg doomConfig
+	if _, err := toml.DecodeFile(path, &cfg); err != nil {
+		return injectorConfig{}, fmt.Errorf("load config %q: %w", path, err)
+	}
+	return cfg.Injector, nil
+}
 
 // Packet geometry constants.
 const (
@@ -166,7 +189,7 @@ func htons(v uint16) uint16 {
 }
 
 // injectSteady sends packets with a fixed inter-packet delay.
-func injectSteady(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count int, delayUS int, shutdown *atomic.Bool) (uint64, time.Duration) {
+func injectSteady(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count int, delayUS int, reportEvery int, shutdown *atomic.Bool) (uint64, time.Duration) {
 	delay := time.Duration(delayUS) * time.Microsecond
 	start := time.Now()
 	var sent uint64
@@ -183,7 +206,7 @@ func injectSteady(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count int, de
 		if delay > 0 {
 			time.Sleep(delay)
 		}
-		if (i+1)%1000 == 0 {
+		if reportEvery > 0 && (i+1)%reportEvery == 0 {
 			elapsed := time.Since(start).Seconds()
 			pps := float64(i+1) / elapsed
 			insns := uint64(i+1) * InsnsPerPacket
@@ -197,12 +220,17 @@ func injectSteady(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count int, de
 // injectBurst sends packets in bursts with a brief drain pause between each batch.
 // This models the Netflix approach: saturate the send buffer, let the kernel drain,
 // then fire again. count=0 means infinite (run until SIGINT/SIGTERM).
-func injectBurst(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batchSize, burstSleepUS int, shutdown *atomic.Bool) (uint64, time.Duration) {
+func injectBurst(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batchSize, burstSleepUS, reportEvery int, shutdown *atomic.Bool) (uint64, time.Duration) {
 	start := time.Now()
 	var sent uint64
 	batches := 0
 	infinite := count == 0
 	drainPause := time.Duration(burstSleepUS) * time.Microsecond
+	// Convert packet-level reportEvery to a batch count for burst reporting.
+	reportBatches := reportEvery / batchSize
+	if reportBatches < 1 {
+		reportBatches = 1
+	}
 
 	for (infinite || sent < uint64(count)) && !shutdown.Load() {
 		batch := batchSize
@@ -225,7 +253,7 @@ func injectBurst(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batchSi
 		// Brief drain pause between batches to let XDP process.
 		time.Sleep(drainPause)
 
-		if batches%100 == 0 {
+		if reportBatches > 0 && batches%reportBatches == 0 {
 			elapsed := time.Since(start).Seconds()
 			pps := float64(sent) / elapsed
 			insns := sent * 256 * 255
@@ -267,8 +295,38 @@ func main() {
 	delayUS := flag.Int("delay", 3000, "Inter-packet delay in microseconds (steady mode only)")
 	burstSleep := flag.Int("burst-sleep", 50, "Drain pause between bursts in microseconds (burst mode)")
 	rateHz := flag.Int("rate", 0, "Injection rate in Hz (overrides --delay, sets mode to steady)")
+	configFile := flag.String("config", "", "Path to TOML config file (e.g. configs/doom.toml)")
+	reportEvery := flag.Int("report-every", 10000, "Log progress every N packets")
 
 	flag.Parse()
+
+	// Load TOML config if --config is provided. Config values act as defaults;
+	// any flag explicitly set on the command line takes precedence.
+	if *configFile != "" {
+		cfg, err := loadConfig(*configFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Track which flags were explicitly set on the command line.
+		explicit := make(map[string]bool)
+		flag.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+
+		// Apply config values only for flags not explicitly set.
+		if !explicit["iface"] && cfg.Interface != "" {
+			*ifaceName = cfg.Interface
+		}
+		if !explicit["mode"] && cfg.Mode != "" {
+			*mode = cfg.Mode
+		}
+		if !explicit["delay"] && cfg.SteadyDelay > 0 {
+			*delayUS = cfg.SteadyDelay
+		}
+		if !explicit["batch"] && cfg.BurstSize > 0 {
+			*batchSize = cfg.BurstSize
+		}
+	}
 
 	// --rate convenience: convert Hz to delay and force steady mode.
 	if *rateHz > 0 {
@@ -314,6 +372,9 @@ func main() {
 
 	// Print configuration banner.
 	fmt.Printf("=== Go Doom Ring Injector ===\n")
+	if *configFile != "" {
+		fmt.Printf("  Config:     %s\n", *configFile)
+	}
 	fmt.Printf("  Mode:       %s\n", *mode)
 	if *count == 0 {
 		fmt.Printf("  Count:      infinite (Ctrl+C to stop)\n")
@@ -331,6 +392,7 @@ func main() {
 	case "fast":
 		fmt.Printf("  Delay:      0 (max throughput)\n")
 	}
+	fmt.Printf("  Report:     every %d packets\n", *reportEvery)
 	fmt.Println()
 
 	// Run the selected injection mode.
@@ -339,9 +401,9 @@ func main() {
 
 	switch *mode {
 	case "steady":
-		sent, elapsed = injectSteady(fd, sll, pkt, *count, *delayUS, &shutdown)
+		sent, elapsed = injectSteady(fd, sll, pkt, *count, *delayUS, *reportEvery, &shutdown)
 	case "burst":
-		sent, elapsed = injectBurst(fd, sll, pkt, *count, *batchSize, *burstSleep, &shutdown)
+		sent, elapsed = injectBurst(fd, sll, pkt, *count, *batchSize, *burstSleep, *reportEvery, &shutdown)
 	case "fast":
 		sent, elapsed = injectFast(fd, sll, pkt, *count, &shutdown)
 	default:

@@ -218,6 +218,34 @@
   </div>
 </template>
 
+<!-- Config Editor Modal -->
+<div class="config-modal-overlay" id="config-modal-overlay">
+  <div class="config-modal">
+    <div class="config-modal-header">
+      <h3 class="config-modal-title">
+        Configuration: <span id="config-modal-service-name">--</span>
+      </h3>
+      <button class="config-modal-close" id="config-modal-close" title="Close" aria-label="Close modal">&times;</button>
+    </div>
+    <div class="config-modal-body">
+      <textarea
+        class="config-editor"
+        id="config-editor-textarea"
+        spellcheck="false"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        placeholder="Loading configuration..."
+      ></textarea>
+    </div>
+    <div class="config-modal-status" id="config-modal-status"></div>
+    <div class="config-modal-footer">
+      <button class="btn config-btn-secondary" id="config-modal-btn-close">Close</button>
+      <button class="btn config-btn-primary" id="config-modal-btn-save">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Styles for Services Panel -->
 <style>
   .panel-services {
@@ -642,6 +670,264 @@
     background: var(--color-bg-tertiary);
     border-color: var(--color-border-default);
   }
+
+  /* ============================================================
+     Config Editor Modal
+     ============================================================ */
+
+  .config-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .config-modal-overlay.open {
+    display: flex;
+  }
+
+  .config-modal {
+    width: 680px;
+    max-width: 92vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg, #0a0a0a);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: 8px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(74, 158, 255, 0.1);
+    overflow: hidden;
+    animation: config-modal-enter 0.15s ease-out;
+  }
+
+  @keyframes config-modal-enter {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .config-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border, #222222);
+    background: var(--color-bg-secondary, #111111);
+    flex-shrink: 0;
+  }
+
+  .config-modal-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text-primary, #e8e8e8);
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .config-modal-title span {
+    color: var(--color-accent, #4a9eff);
+  }
+
+  .config-modal-close {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary, #888888);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+    margin-left: 12px;
+  }
+
+  .config-modal-close:hover {
+    color: var(--color-text-primary, #e8e8e8);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .config-modal-body {
+    flex: 1;
+    padding: 16px 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .config-editor {
+    flex: 1;
+    width: 100%;
+    min-height: 320px;
+    resize: vertical;
+    padding: 14px 16px;
+    font-family: var(--font-mono, "JetBrains Mono", monospace);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-text-primary, #e8e8e8);
+    background: var(--color-bg-tertiary, #151515);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: 6px;
+    outline: none;
+    tab-size: 2;
+    -moz-tab-size: 2;
+    white-space: pre;
+    overflow: auto;
+    transition: border-color 0.15s ease;
+  }
+
+  .config-editor:focus {
+    border-color: var(--color-accent, #4a9eff);
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.15);
+  }
+
+  .config-editor::placeholder {
+    color: var(--color-text-secondary, #888888);
+    font-style: italic;
+  }
+
+  .config-modal-status {
+    padding: 0 20px;
+    min-height: 24px;
+    flex-shrink: 0;
+  }
+
+  .config-modal-status:empty {
+    display: none;
+  }
+
+  .config-modal-status-msg {
+    display: inline-block;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    border-radius: 4px;
+    line-height: 1.4;
+  }
+
+  .config-modal-status-msg.status-success {
+    color: var(--color-success, #22c55e);
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+  }
+
+  .config-modal-status-msg.status-error {
+    color: var(--color-error, #ef4444);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .config-modal-status-msg.status-loading {
+    color: var(--color-text-secondary, #888888);
+    background: rgba(136, 136, 136, 0.1);
+    border: 1px solid rgba(136, 136, 136, 0.15);
+  }
+
+  .config-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--color-border, #222222);
+    background: var(--color-bg-secondary, #111111);
+    flex-shrink: 0;
+  }
+
+  .config-btn-primary {
+    background: var(--color-accent, #4a9eff);
+    color: #ffffff;
+    border: 1px solid var(--color-accent, #4a9eff);
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .config-btn-primary:hover {
+    background: var(--color-accent-dim, #2a5a99);
+    border-color: var(--color-accent-dim, #2a5a99);
+    box-shadow: 0 2px 8px rgba(74, 158, 255, 0.2);
+  }
+
+  .config-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .config-btn-secondary {
+    background: var(--color-bg-tertiary, #151515);
+    color: var(--color-text-primary, #e8e8e8);
+    border: 1px solid var(--color-border, #222222);
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .config-btn-secondary:hover {
+    background: var(--color-bg-secondary, #111111);
+    border-color: var(--color-text-secondary, #888888);
+  }
+
+  /* Restart feedback toast */
+  .services-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9500;
+    padding: 12px 20px;
+    font-size: 13px;
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    animation: toast-enter 0.2s ease-out;
+    max-width: 380px;
+    word-break: break-word;
+  }
+
+  .services-toast.toast-success {
+    color: var(--color-success, #22c55e);
+    background: var(--color-bg, #0a0a0a);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  .services-toast.toast-error {
+    color: var(--color-error, #ef4444);
+    background: var(--color-bg, #0a0a0a);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  @keyframes toast-enter {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 </style>
 
 <!-- JavaScript for Services Panel Functionality -->
@@ -652,6 +938,9 @@
 
     let allServices = [];
     let refreshTimer = null;
+
+    // Modal state
+    let currentConfigService = null;
 
     // Initialize the services panel
     function init() {
@@ -669,6 +958,31 @@
       document.getElementById('services-tier-filter')?.addEventListener('change', filterAndSort);
       document.getElementById('services-health-filter')?.addEventListener('change', filterAndSort);
       document.getElementById('services-sort')?.addEventListener('change', filterAndSort);
+
+      // Config modal event listeners
+      document.getElementById('config-modal-close')?.addEventListener('click', closeConfigModal);
+      document.getElementById('config-modal-btn-close')?.addEventListener('click', closeConfigModal);
+      document.getElementById('config-modal-btn-save')?.addEventListener('click', saveConfig);
+
+      // Close modal on overlay click (but not on modal body click)
+      var overlay = document.getElementById('config-modal-overlay');
+      if (overlay) {
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) {
+            closeConfigModal();
+          }
+        });
+      }
+
+      // Close modal on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          var overlayEl = document.getElementById('config-modal-overlay');
+          if (overlayEl && overlayEl.classList.contains('open')) {
+            closeConfigModal();
+          }
+        }
+      });
 
       // Initial load
       loadServices();
@@ -840,24 +1154,184 @@
       });
     }
 
-    // Handle card actions
+    // ============================================================
+    // Action handlers
+    // ============================================================
+
     function handleAction(action, serviceName) {
       switch (action) {
         case 'view-config':
-          console.log(`View config for ${serviceName}`);
-          alert(`View config: /opt/unheaded/${serviceName}/config.yaml`);
+          openConfigModal(serviceName);
           break;
         case 'view-logs':
-          console.log(`View logs for ${serviceName}`);
-          alert(`View logs for ${serviceName} - would navigate to logs panel`);
+          navigateToLogs(serviceName);
           break;
         case 'restart':
-          if (confirm(`Restart service: ${serviceName}?`)) {
-            console.log(`Restart ${serviceName}`);
-            alert(`Restart initiated for ${serviceName}`);
-          }
+          restartService(serviceName);
           break;
       }
+    }
+
+    // -- View Config: open modal with YAML fetched from API ------
+
+    function openConfigModal(serviceName) {
+      currentConfigService = serviceName;
+
+      var overlay = document.getElementById('config-modal-overlay');
+      var nameEl = document.getElementById('config-modal-service-name');
+      var textarea = document.getElementById('config-editor-textarea');
+      var saveBtn = document.getElementById('config-modal-btn-save');
+
+      nameEl.textContent = serviceName;
+      textarea.value = '';
+      textarea.disabled = true;
+      saveBtn.disabled = true;
+      setModalStatus('Loading configuration...', 'loading');
+
+      overlay.classList.add('open');
+
+      fetch(SERVICES_ENDPOINT + '/config/' + encodeURIComponent(serviceName))
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+          }
+          return response.text();
+        })
+        .then(function(yamlText) {
+          textarea.value = yamlText;
+          textarea.disabled = false;
+          saveBtn.disabled = false;
+          clearModalStatus();
+        })
+        .catch(function(err) {
+          console.error('Failed to load config for ' + serviceName + ':', err);
+          setModalStatus('Failed to load configuration: ' + err.message, 'error');
+          textarea.disabled = false;
+          textarea.value = '# Failed to load configuration\n# ' + err.message;
+        });
+    }
+
+    function closeConfigModal() {
+      var overlay = document.getElementById('config-modal-overlay');
+      overlay.classList.remove('open');
+      currentConfigService = null;
+      clearModalStatus();
+    }
+
+    function saveConfig() {
+      if (!currentConfigService) return;
+
+      var textarea = document.getElementById('config-editor-textarea');
+      var saveBtn = document.getElementById('config-modal-btn-save');
+      var yamlContent = textarea.value;
+
+      saveBtn.disabled = true;
+      textarea.disabled = true;
+      setModalStatus('Saving...', 'loading');
+
+      fetch(SERVICES_ENDPOINT + '/config/' + encodeURIComponent(currentConfigService), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'text/yaml'
+        },
+        body: yamlContent
+      })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+          }
+          return response.text();
+        })
+        .then(function() {
+          setModalStatus('Configuration saved successfully.', 'success');
+          textarea.disabled = false;
+          saveBtn.disabled = false;
+
+          // Refresh the services list to reflect any changes
+          loadServices();
+        })
+        .catch(function(err) {
+          console.error('Failed to save config for ' + currentConfigService + ':', err);
+          setModalStatus('Failed to save: ' + err.message, 'error');
+          textarea.disabled = false;
+          saveBtn.disabled = false;
+        });
+    }
+
+    function setModalStatus(message, type) {
+      var container = document.getElementById('config-modal-status');
+      container.innerHTML = '<span class="config-modal-status-msg status-' + type + '">' +
+        escapeHtml(message) + '</span>';
+    }
+
+    function clearModalStatus() {
+      var container = document.getElementById('config-modal-status');
+      container.innerHTML = '';
+    }
+
+    // -- View Logs: navigate to logs page with service filter ----
+
+    function navigateToLogs(serviceName) {
+      window.location.href = '/logs?service=' + encodeURIComponent(serviceName);
+    }
+
+    // -- Restart: confirm then POST to restart endpoint ----------
+
+    function restartService(serviceName) {
+      if (!confirm('Restart service "' + serviceName + '"?\n\nThis will interrupt any in-flight requests.')) {
+        return;
+      }
+
+      showToast('Restarting ' + serviceName + '...', 'success');
+
+      fetch(SERVICES_ENDPOINT + '/restart/' + encodeURIComponent(serviceName), {
+        method: 'POST'
+      })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+          }
+          return response.text();
+        })
+        .then(function() {
+          showToast('Service "' + serviceName + '" restart initiated.', 'success');
+          // Refresh the services list after a brief delay to let the restart take effect
+          setTimeout(loadServices, 2000);
+        })
+        .catch(function(err) {
+          console.error('Failed to restart ' + serviceName + ':', err);
+          showToast('Failed to restart "' + serviceName + '": ' + err.message, 'error');
+        });
+    }
+
+    // ============================================================
+    // Utility functions
+    // ============================================================
+
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+
+    function showToast(message, type) {
+      // Remove any existing toast
+      var existing = document.querySelector('.services-toast');
+      if (existing) {
+        existing.remove();
+      }
+
+      var toast = document.createElement('div');
+      toast.className = 'services-toast toast-' + type;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      // Auto-remove after 4 seconds
+      setTimeout(function() {
+        if (toast.parentNode) {
+          toast.remove();
+        }
+      }, 4000);
     }
 
     // Show empty state

@@ -27,6 +27,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"unheaded/pkg/ports"
 )
 
 // ============================================================================
@@ -1261,7 +1263,7 @@ func NewCollector(config CollectorConfig, wotan WotanPublisher, reg prometheus.R
 		config.CleanupInterval = 1 * time.Minute
 	}
 	if config.HTTPAddr == "" {
-		config.HTTPAddr = ":16670"
+		config.HTTPAddr = ports.DefaultAddr(ports.TraceCollectorHTTP)
 	}
 
 	if reg == nil {

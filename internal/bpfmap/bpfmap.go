@@ -295,7 +295,7 @@ func ParseKBDValue(value []byte) ([32]byte, uint64, error) {
 	return bitmap, sequence, nil
 }
 
-// Helper to format a 136-byte CpuState value
+// Helper to format a 200-byte CpuState value
 // regs[16] uint64, pc uint64, sp uint64, flags uint64, halted bool, _pad [7]byte, insn_count uint64, last_kbd_state [32]byte
 func FormatCpuState(regs [16]uint64, pc, sp, flags uint64, halted bool, instrCount uint64, kbdState [32]byte) []byte {
 	buf := new(bytes.Buffer)

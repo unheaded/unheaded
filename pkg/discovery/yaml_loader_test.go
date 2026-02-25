@@ -466,10 +466,11 @@ deployment:
 // TestValidateConfig tests each validation rule independently.
 func TestValidateConfig(t *testing.T) {
 	tests := []struct {
-		name      string
-		cfg       ServiceConfig
-		wantErr   bool
-		errSubstr string
+		name         string
+		cfg          ServiceConfig
+		skipDefaults bool
+		wantErr      bool
+		errSubstr    string
 	}{
 		{
 			name: "valid_config",
@@ -571,8 +572,9 @@ func TestValidateConfig(t *testing.T) {
 					Binary: "test",
 				},
 			},
-			wantErr:   true,
-			errSubstr: "replicas",
+			skipDefaults: true,
+			wantErr:      true,
+			errSubstr:    "replicas",
 		},
 		{
 			name: "invalid_check_interval_duration",
@@ -622,8 +624,11 @@ func TestValidateConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Apply defaults
-			applyDefaults(&tt.cfg)
+			// Apply defaults unless explicitly skipped (e.g., to test that
+			// the validator rejects zero-values that applyDefaults would mask)
+			if !tt.skipDefaults {
+				applyDefaults(&tt.cfg)
+			}
 
 			err := ValidateConfig(&tt.cfg)
 
