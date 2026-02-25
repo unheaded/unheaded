@@ -1,0 +1,78 @@
+{ config, pkgs, ... }:
+
+{
+  # =============================================================================
+  # ARCHITECT SERVICE CONTAINER
+  # =============================================================================
+  # Infrastructure design and architecture service.
+  #
+  # Service: Architecture API (REST + Wotan)
+  # IP: 10.10.10.23
+  # Ports: 19001 (HTTP), 9100 (metrics)
+  # =============================================================================
+
+  imports = [
+    ../modules/common.nix
+    ../modules/hardening.nix
+    ../modules/networking.nix
+  ];
+
+  unheaded.hardening = {
+    enable = true;
+    serviceName = "architect";
+    allowedCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+    writablePaths = [
+      "/opt/unheaded/references"
+      "/var/lib/unheaded/architect"
+      "/var/log/unheaded/architect"
+    ];
+    allowedPorts = [ 19001 9100 ];
+  };
+
+  unheaded.networking = {
+    enable = true;
+    serviceIP = "10.10.10.23";
+    servicePort = 19001;
+    allowDirectAccess = true;
+  };
+
+  unheaded.common = {
+    enable = true;
+    logLevel = "info";
+    enableMetrics = true;
+  };
+
+  systemd.services.architect = {
+    description = "Architect Design Service";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" "wotan.service" ];
+    wants = [ "network-online.target" "wotan.service" ];
+
+    serviceConfig = {
+      Type = "simple";
+      User = "unheaded";
+      Group = "unheaded";
+      ExecStart = "${pkgs.architect}/bin/architect";
+      WorkingDirectory = "/opt/unheaded/references";
+      Environment = [
+        "ARCHITECT_ADDR=0.0.0.0:19001"
+      ];
+      Restart = "always";
+      RestartSec = "5s";
+      ExecStartPost = "${pkgs.bash}/bin/bash -c 'sleep 2 && /etc/unheaded/health-check.sh'";
+      KillSignal = "SIGTERM";
+      TimeoutStopSec = "10s";
+      MemoryMax = "256M";
+      CPUQuota = "100%";
+    };
+  };
+
+  nixpkgs.config.packageOverrides = pkgs: {
+    architect = pkgs.buildGoModule rec {
+      pname = "architect";
+      version = "0.1.0";
+      src = /opt/unheaded/unheaded/services/architect;
+      vendorHash = null;
+    };
+  };
+}

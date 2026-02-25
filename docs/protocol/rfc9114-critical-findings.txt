@@ -1,0 +1,362 @@
+RFC 9114 (HTTP/3) CRITICAL FINDINGS FOR UNHEADED PROTOCOL
+=========================================================
+
+EXECUTIVE SUMMARY
+-----------------
+RFC 9114 Sections 7-12 contain eight major finding categories applicable to Unheaded.
+This document extracts CRITICAL (P1) and HIGH (P2) priority items that must be
+addressed before production deployment.
+
+Four P1 (CRITICAL) findings require immediate action:
+
+1. QPACK-Inspired Sophia Dictionary Compression + State Synchronization
+2. Monad TLV Extension Mechanism for Future Evolution
+3. Structured Error Code Taxonomy (Error Registry)
+4. DoS and Compression Attack Mitigations
+
+
+================================================================================
+P1 FINDING 1: QPACK-INSPIRED SOPHIA DICTIONARY COMPRESSION & STATE SYNC
+================================================================================
+
+HTTP/3 MECHANISM:
+- QPACK uses static + dynamic tables for header field compression
+- Dynamic table updates via dedicated encoder stream (guarantees in-order state sync)
+- Decoder stream acknowledges table state to prevent desynchronization
+- Compression ratio: typically 3-5x for repeated headers
+
+UNHEADED GAP:
+- Sophia dictionaries distributed as uncompressed CBOR blobs via Wotan
+- No dynamic table versioning or state synchronization
+- S20 race condition: hot-swap Sophia without acknowledgment → divergent endpoint tables
+- No compression overhead reduction strategy
+
+IMPACT:
+- Fixes S20 race condition (critical BPF map concurrent access issue)
+- Reduces Wotan blob size by 3-5x (significant bandwidth savings)
+- Enables safe dictionary evolution without breaking changes
+
+IMMEDIATE ACTION:
+1. Add varint-encoded dictionary index field to Monad (current: fixed 8-byte reference)
+2. Implement encoder stream (Wotan control frame) for Sophia table mutations
+3. Require decoder acknowledgment before table mutation takes effect
+4. Track table version per endpoint; validate before HEADERS/DATA processing
+
+VALIDATION:
+- Test: Multi-hop path with asynchronous Sophia updates
+- Expected: No divergence in table state across endpoints
+- Regression: S20 test suite must pass
+
+
+================================================================================
+P1 FINDING 2: MONAD TLV EXTENSION MECHANISM
+================================================================================
+
+HTTP/3 MECHANISM:
+- Unknown frame types (0x1f * N + 0x21 pattern) are safely ignored
+- Extensions can add SETTINGS parameters without breaking old endpoints
+- Negotiation via settings exchange (default = disabled)
+- IANA registries govern extension points (Frame Types, Settings, Error Codes, Stream Types)
+
+UNHEADED GAP:
+- Monad is version 0x01, fixed 20-byte layout
+- No extension field structure (no TLV mechanism)
+- Adding fields after v1 = breaking change (requires new protocol version)
+- No negotiation framework for optional Monad features
+
+IMPACT:
+- Enables safe future evolution (priority signaling, trace IDs, bitrate feedback)
+- Prevents protocol ossification
+- Maintains backward compatibility with v1 endpoints
+
+IMMEDIATE ACTION:
+1. Redesign Monad with TLV field:
+   ```
+   [Reserved:4b][Authority:4b][Sophia:8b][qos_class:1B][ttl:1B]
+   [TLV_Count:1B][TLV_Data:up to 8B variable]
+
+   TLV Format per field:
+   - Type (1B): 0x00-0x0F=core, 0x10-0x7F=negotiated, 0x80-0xFF=padding
+   - Length (1B): value size
+   - Value (Length bytes)
+   ```
+
+2. Define core TLV types (0x01-0x0F):
+   - 0x01 = PRIORITY_HINT (future)
+   - 0x02 = TRACE_SPAN_ID (future)
+   - Others reserved
+
+3. Negotiation via Wotan capability exchange:
+   Wotan SETTINGS: { "monad_extensions": [0x01, 0x02, ...] }
+
+4. Backward compatibility:
+   - Old endpoint: ignores unknown TLVs as padding
+   - New endpoint: validates TLV types against negotiated capabilities
+   - Unknown mandatory TLV (type < 0x20) from non-negotiating peer = error
+
+VALIDATION:
+- Test interop: v1 endpoint (no TLV support) vs. v1.5 endpoint (TLV support)
+- Expected: v1.5 suppresses TLVs when talking to v1
+- Regression: All existing Monad parsing must still work
+
+
+================================================================================
+P1 FINDING 3: STRUCTURED ERROR CODE TAXONOMY
+================================================================================
+
+HTTP/3 MECHANISM:
+- 17 predefined error codes (0x0100-0x0110) covering protocol violations
+- IANA registry for extensions (Specification Required policy)
+- Stream errors vs. connection errors clearly distinguished
+- Error codes enable peer-to-peer coordination on retry strategies
+
+UNHEADED GAP:
+- No error code registry
+- Anamnesis events (64-byte fixed) record events but lack structured error semantics
+- BPF map exhaustion, ring buffer overflow, race condition (S20) not distinguishable
+- Cannot signal error to peer (no equivalent to H3_EXCESSIVE_LOAD)
+
+IMPACT:
+- Enables observability and debugging
+- Allows peers to coordinate retry logic (e.g., exponential backoff on EXCESSIVE_LOAD)
+- IANA compliance for extensibility
+
+IMMEDIATE ACTION:
+Define Unheaded error code registry:
+```
+0x0000 = UNHD_NO_ERROR (graceful close, no error)
+0x0001 = UNHD_GENERAL_PROTOCOL_ERROR (catch-all)
+0x0002 = UNHD_MALFORMED_MONAD (layout/encoding violation)
+0x0003 = UNHD_INVALID_SOPHIA_REF (dict entry out of bounds)
+0x0004 = UNHD_SHIELD_AUTHORITY_INVALID (cert/token validation failed)
+0x0005 = UNHD_BPF_MAP_EXHAUSTED (eBPF map full)
+0x0006 = UNHD_RING_BUFFER_OVERFLOW (dropped events)
+0x0007 = UNHD_DUPLICATE_FLOW_ID (flow ID collision)
+0x0008 = UNHD_EXCESSIVE_QOS_CLASS (violates resource limits)
+0x0009 = UNHD_UNKNOWN_EXTENSION (unknown Monad TLV)
+0x000a = UNHD_RACE_CONDITION (concurrent BPF map access)
+0x000b = UNHD_REQUEST_REJECTED (destination refused before processing)
+0x000c = UNHD_INTERNAL_ERROR (kernel/BPF failure)
+```
+
+IANA policy:
+- 0x0000-0x3f: Standards Action (core protocol)
+- 0x40+: Specification Required (extensions)
+- 0x1f * N + 0x21: Reserved for testing/padding
+
+2. Add error code field to:
+   - Anamnesis event (64-byte): 2-byte error code + padding
+   - Stream reset (HbH error): Include UNHD error code
+   - Connection close (Wotan GOAWAY analogue): Include error code
+
+3. Document per error:
+   - Stream error or connection error?
+   - Recommended peer action (retry, backoff, close, etc.)
+   - Example: EXCESSIVE_LOAD = connection error → peer should backoff 1-5s
+
+VALIDATION:
+- Test: Emit each error code and verify peer response
+- Expected: Peer acts appropriately (e.g., EXCESSIVE_LOAD → rate limit)
+
+
+================================================================================
+P1 FINDING 4: DOS & COMPRESSION ATTACK MITIGATIONS
+================================================================================
+
+HTTP/3 THREATS (RFC 9114 Section 10.5-10.6):
+- Ring buffer exhaustion via high-rate events
+- BPF map exhaustion via many unique flows
+- Sophia dictionary bloat via unique entries
+- Compression-based side-channel attacks (CRIME/BREACH)
+- Extension frame DoS (process unknown frames)
+
+UNHEADED GAPS:
+- Ring buffer: Fixed-size, silently drops on overflow (S20 observability blind spot)
+- BPF map: No pre-allocation or overflow handling
+- Sophia: No size limits
+- Compression: If enabled (Section 1), vulnerable to CRIME attacks without mitigation
+
+IMPACT:
+- Silent observability loss when ring buffer overflows
+- Crashes or silent drops when BPF map exhausted
+- Memory exhaustion from unbounded Sophia tables
+- Attackers recover secrets via compression side-channels
+
+IMMEDIATE ACTION:
+
+4.1 RING BUFFER BACKPRESSURE:
+- Monitor BPF perfbuf.output() return value (error when full)
+- If drop rate > 1% per second:
+  a) Emit UNHD_RING_BUFFER_OVERFLOW error to peer
+  b) Reduce traced event sampling rate
+  c) Drop lowest-priority (qos_class 4-5) events first
+- Implement backpressure: Responder drops incoming packets if unable to emit events
+
+4.2 BPF MAP EXHAUSTION LIMITS:
+- Set BPF_MAP_TYPE_HASH max_entries at boot:
+  Default: 1,000,000 flows
+  Minimum: Enforced by kernel (at least 4KB = ~200 flows)
+  Configurable: Per deployment
+- Use BPF_F_NO_PREALLOC to fail-fast on exhaustion (not silent drop)
+- On lookup failure (map full):
+  a) Emit UNHD_BPF_MAP_EXHAUSTED error
+  b) Close lowest-qos_class flows (graceful reset)
+  c) Send H3_EXCESSIVE_LOAD equivalent to upstream
+- Monitor map utilization; alert at 80%, 90%, 95%
+
+4.3 SOPHIA DICTIONARY SIZE LIMITS:
+- Track uncompressed dictionary size in bytes
+- Per-flow limit: 1 MB (prevent one flow from monopolizing memory)
+- Global limit: 100 MB (prevent all flows from exhausting memory)
+- On size exceeded:
+  a) Reject new dictionary entries → UNHD_INVALID_SOPHIA_REF
+  b) Emit event with error code
+  c) May evict oldest entries (LRU) or disallow further updates
+- Advisory limit via SETTINGS: SETTINGS_MAX_SOPHIA_SIZE (varint, bytes)
+
+4.4 COMPRESSION ATTACK MITIGATION (RFC 9114 Section 10.6):
+- Do NOT compress Sophia dictionary values if they contain secrets
+  (e.g., authority tokens, cryptographic material)
+- Add per-entry flag: COMPRESS=0 for secret values
+- Use separate compression contexts:
+  - Context A (admin-supplied): Trusted entries, can compress
+  - Context B (flow-supplied): Untrusted, do not compress
+- Implement padding: Reserved Monad TLV types (0x80-0xFF) carry random padding
+  to obscure compression ratio
+- Monitor dictionary for unusual compression patterns (sign of probing attack)
+
+4.5 EXTENSION FRAME DOS:
+- Limit Monad TLV count: max 4 TLVs per Monad
+- Unknown TLV types (0x80-0xFF) skipped in constant O(1) time
+- BPF programs have bounded execution time (enforced by kernel)
+- No dynamic allocation per TLV (static-size processing)
+
+VALIDATION:
+- Stress test: 10x normal event rate → ring buffer overflow → backpressure applied
+- Stress test: 10x normal flows → map exhaustion → graceful degradation
+- Stress test: Create 1000 unique Sophia entries → size limit enforced
+- Compression test: Try to leak authority token via CRIME attack
+  → Token in uncompressed value → attack fails
+- Extension test: Send many unknown TLV types → no CPU spike
+
+
+================================================================================
+P2 FINDING 5: QPACK STATE DESYNCHRONIZATION ATTACK MITIGATION
+================================================================================
+
+HTTP/3 THREAT:
+- HPACK (HTTP/2) requires strict in-order delivery; loss = table divergence
+- QPACK uses encoder stream to recover (Section 1 implements this)
+
+UNHEADED MITIGATION (Follows from Section 1):
+- Separate encoder stream for Sophia updates
+- Decoder acknowledges before using new table state
+- If acknowledgment not received within timeout, resend update
+- Mismatch detection: Track table version; error if divergence detected
+
+VALIDATION:
+- Test: Encoder sends table update, decoder doesn't receive → encoder retransmits
+- Test: Peer endpoints have different table versions → error code UNHD_GENERAL_PROTOCOL_ERROR
+
+
+================================================================================
+P2 FINDING 6: REQUEST SMUGGLING VIA FRAMING AMBIGUITY
+================================================================================
+
+HTTP/3 MECHANISM:
+- Forbids Transfer-Encoding header (no dual semantics)
+- Requires strict Content-Length validation
+- Fixed frame layout prevents length encoding ambiguity
+
+UNHEADED MITIGATION:
+- Anamnesis events: 64-byte fixed structure, no variable-length encoding
+- Event type registry prevents misinterpretation
+- Malformed event (truncated, wrong size) → error code UNHD_MALFORMED_MONAD
+- Endpoint must validate event boundaries strictly
+
+VALIDATION:
+- Test: Truncated Anamnesis event → detected as malformed, error emitted
+- Test: Out-of-order event types → no smuggling possible (events are independent)
+
+
+================================================================================
+P2 FINDING 7: CROSS-PROTOCOL ATTACKS & MONAD CONFUSION
+================================================================================
+
+HTTP/3 MECHANISM:
+- ALPN (h3) established before data processing
+- Ensures peers agree on protocol before interpreting bytes
+
+UNHEADED RISK:
+- Monad HbH header could be confused with other HbH options (IPv6 Hop-by-Hop, MPLS)
+- If Monad TLV codes collide with other protocols, header misinterpreted
+
+MITIGATION:
+1. Magic number / sanity check:
+   - Reserved field in Monad (4 bits) must be 0
+   - Endpoints validate this before processing
+   - Non-zero reserved = not Unheaded, drop packet
+
+2. IANA coordination:
+   - Cross-check Monad TLV types (0x00-0xFF) against IPv6 HbH Option Numbers
+   - Example: IPv6 option 0x6D = experimental → reserve Monad TLV 0x6D for testing only
+   - Document in IANA registry: "No core Unheaded use; reserved for interop testing"
+
+3. Shield authority validation:
+   - Must validate source/destination authority, not rely on IP headers alone
+   - Authority token provides cryptographic binding
+
+VALIDATION:
+- Test: Send Monad with non-zero reserved field → drop, no processing
+- Test: Verify Monad TLV codes don't collide with IPv6 HbH options
+
+
+================================================================================
+SUMMARY: IMMEDIATE IMPLEMENTATION PRIORITY
+================================================================================
+
+P1 (CRITICAL - MUST DO BEFORE PRODUCTION):
+  1. QPACK-inspired Sophia compression + encoder/decoder stream state sync
+  2. Monad TLV extension mechanism (redesign Monad layout)
+  3. Error code registry (define 13 codes minimum)
+  4. DoS mitigations (ring buffer backpressure, BPF map limits, Sophia size limits)
+
+P2 (HIGH - MUST DO BEFORE WIDE DEPLOYMENT):
+  5. QPACK state desync mitigation (follows from #1)
+  6. Request smuggling prevention (frame validation, event boundaries)
+  7. Cross-protocol attack mitigation (reserved field sanity check, IANA coordination)
+
+P3 (MEDIUM - IANA AND EXTENSIONS):
+  8. IANA registry governance (expert review process)
+  9. Extension testing (reserved TLV types)
+
+P4 (LOW - DEFER TO V2):
+  10. Per-hop priority signaling (Section 6 of full analysis)
+  11. Multi-flow path multiplexing (Section 7 of full analysis)
+
+
+================================================================================
+FULL ANALYSIS DOCUMENT
+================================================================================
+
+See: /sessions/dazzling-modest-pascal/rfc9114_analysis.md
+
+This file contains detailed sections on:
+- Section 1: QPACK-inspired Sophia compression
+- Section 2: Error code taxonomy
+- Section 3: Monad TLV extension mechanism
+- Section 4: DoS & compression attack mitigations (detailed subsections 4.1-4.11)
+- Section 5: IANA registry structure
+- Section 6: Per-hop flow priority signaling
+- Section 7: Multi-service-flow path multiplexing
+- Section 8: Adversarial patterns unique to HTTP/3
+
+Each section includes:
+- HTTP/3 mechanism explanation
+- Unheaded applicability
+- Mapping to existing findings (Q1-Q10, S20, etc.)
+- Implementation guidance with code examples
+- Priority rating
+- Validation approaches
+
+================================================================================

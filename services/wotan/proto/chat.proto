@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package chat;
+
+option go_package = "github.com/unheaded/chat/proto;chatpb";
+
+import "google/protobuf/timestamp.proto";
+
+// ChatStream service provides live message streaming for rooms
+service ChatStream {
+  // StreamMessages subscribes to live messages from a room
+  rpc StreamMessages(StreamRequest) returns (stream MessageEvent);
+
+  // Ping keeps the connection alive
+  rpc Ping(PingRequest) returns (PongResponse);
+}
+
+// StreamRequest initiates a message stream for a room
+message StreamRequest {
+  string room_id = 1;
+  string member_id = 2;
+  // Optional: only stream messages after this timestamp
+  google.protobuf.Timestamp since = 3;
+}
+
+// MessageEvent represents a message in the stream
+message MessageEvent {
+  string id = 1;
+  string creator_id = 2;
+  string room_id = 3;
+  string content = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  EventType type = 6;
+  string creator_name = 7;  // Display name of message creator
+}
+
+// EventType indicates what happened to the message
+enum EventType {
+  MESSAGE_CREATED = 0;
+  MESSAGE_DELETED = 1;
+}
+
+// PingRequest for keep-alive
+message PingRequest {
+  google.protobuf.Timestamp timestamp = 1;
+}
+
+// PongResponse for keep-alive
+message PongResponse {
+  google.protobuf.Timestamp timestamp = 1;
+  string status = 2;
+}

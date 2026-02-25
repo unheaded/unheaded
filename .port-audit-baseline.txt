@@ -1,0 +1,7 @@
+PRE-MIGRATION PORT AUDIT Tue Feb 24 02:41:43 UTC 2026
+Old ports in production .go: 21
+10.10.10 IPs in production .go: 57
+
+POST-MIGRATION PORT AUDIT (S36 Four Pillars Complete)
+Old ports in production .go: 0
+10.10.10 IPs in production .go: 22 (cert SANs, LXD bridge config, simulation data only)

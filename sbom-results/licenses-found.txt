@@ -1,0 +1,5 @@
+./LICENSE
+./LICENSE-PROTOCOLS
+./LICENSES
+./doom/LICENSE
+./doom/doomgeneric/LICENSE

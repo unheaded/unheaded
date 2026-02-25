@@ -1,0 +1,270 @@
+syntax = "proto3";
+package unheaded.v1;
+option go_package = "unheaded/proto/unheaded/v1;unheadedv1";
+
+// KingdomMode represents the 2-bit state machine for Monad registers
+enum KingdomMode {
+  KINGDOM_MODE_UNSPECIFIED = 0;
+  KINGDOM_MODE_IDLE = 1;
+  KINGDOM_MODE_ACTIVE = 2;
+  KINGDOM_MODE_CLOSING = 3;
+  KINGDOM_MODE_CLOSED = 4;
+}
+
+// MonadRegister represents the complete 20-byte Unheaded Protocol register
+// Structure: 20 bytes total, stored in IPv6 Hop-by-Hop extension header
+// Bytes 0-17: payload, Bytes 18-19: CRC-16/CCITT-FALSE
+message MonadRegister {
+  // Flow identifier (20-bit)
+  uint32 flow_label = 1;
+
+  // Kingdom Mode state (2-bit, K1|K0)
+  KingdomMode kingdom_mode = 2;
+
+  // Timestamp (40-bit unix milliseconds)
+  uint64 timestamp = 3;
+
+  // Source address block (128-bit IPv6)
+  bytes source_address = 4;
+
+  // Destination address block (128-bit IPv6)
+  bytes destination_address = 5;
+
+  // Sophia dictionary identifier (16-bit)
+  uint32 sophia_dict_id = 6;
+
+  // Wotan sequence number (32-bit)
+  uint32 wotan_sequence = 7;
+
+  // Reserved field 1 (8-bit)
+  uint32 reserved1 = 8;
+
+  // Reserved field 2 (8-bit)
+  uint32 reserved2 = 9;
+
+  // CRC-16/CCITT-FALSE checksum (16-bit)
+  // Computed over bytes 0-17, stored in bytes 18-19
+  uint32 crc16 = 10;
+}
+
+// EncodeRequest contains structured fields to encode into wire format
+message EncodeRequest {
+  uint32 flow_label = 1;
+  KingdomMode kingdom_mode = 2;
+  uint64 timestamp = 3;
+  bytes source_address = 4;
+  bytes destination_address = 5;
+  uint32 sophia_dict_id = 6;
+  uint32 wotan_sequence = 7;
+  uint32 reserved1 = 8;
+  uint32 reserved2 = 9;
+}
+
+// EncodeResponse contains the raw encoded 20 bytes with computed CRC
+message EncodeResponse {
+  bytes data = 1;  // 20 bytes: bytes 0-17 payload + bytes 18-19 CRC-16
+  uint32 crc16 = 2;
+  bool success = 3;
+  string error_message = 4;
+}
+
+// DecodeRequest contains raw bytes to decode
+message DecodeRequest {
+  bytes data = 1;  // Must be exactly 20 bytes
+}
+
+// DecodeResponse contains decoded fields and validation result
+message DecodeResponse {
+  uint32 flow_label = 1;
+  KingdomMode kingdom_mode = 2;
+  uint64 timestamp = 3;
+  bytes source_address = 4;
+  bytes destination_address = 5;
+  uint32 sophia_dict_id = 6;
+  uint32 wotan_sequence = 7;
+  uint32 reserved1 = 8;
+  uint32 reserved2 = 9;
+  uint32 crc16 = 10;
+
+  bool valid = 11;
+  bool crc_valid = 12;
+  string error_message = 13;
+}
+
+// Sophia messages - Dictionary access for flow optimization
+
+message DictionaryEntry {
+  string key = 1;
+  bytes value = 2;
+  uint64 created_at = 3;
+  uint64 updated_at = 4;
+}
+
+message Dictionary {
+  uint32 id = 1;
+  string name = 2;
+  string description = 3;
+  repeated DictionaryEntry entries = 4;
+  uint64 created_at = 5;
+}
+
+message DictionaryListRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message DictionaryListResponse {
+  repeated Dictionary dictionaries = 1;
+  int32 total = 2;
+}
+
+message DictionaryGetRequest {
+  uint32 dictionary_id = 1;
+}
+
+message DictionaryGetResponse {
+  Dictionary dictionary = 1;
+  bool found = 2;
+  string error_message = 3;
+}
+
+// Wotan messages - Per-flow memory management
+// 40-byte value: 32 bytes state + 8 bytes sequence metadata
+
+message MemorySlot {
+  uint32 flow_label = 1;
+  bytes state_data = 2;      // 32 bytes of opaque state
+  uint64 sequence_number = 3; // 8 bytes of sequence metadata
+  uint64 created_at = 4;
+  uint64 updated_at = 5;
+}
+
+message ReadRequest {
+  uint32 flow_label = 1;
+}
+
+message ReadResponse {
+  MemorySlot slot = 1;
+  bool found = 2;
+  string error_message = 3;
+}
+
+message WriteRequest {
+  uint32 flow_label = 1;
+  bytes state_data = 2;
+  uint64 sequence_number = 3;
+}
+
+message WriteResponse {
+  uint32 flow_label = 1;
+  bool success = 2;
+  string error_message = 3;
+  uint64 written_at = 4;
+}
+
+// Anamnesis messages - Event stream from eBPF
+
+message Event {
+  enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    EVENT_TYPE_PACKET_RECEIVED = 1;
+    EVENT_TYPE_PACKET_SENT = 2;
+    EVENT_TYPE_FLOW_CREATE = 3;
+    EVENT_TYPE_FLOW_UPDATE = 4;
+    EVENT_TYPE_FLOW_DESTROY = 5;
+    EVENT_TYPE_ERROR = 6;
+  }
+
+  EventType type = 1;
+  uint32 flow_label = 2;
+  uint64 timestamp = 3;
+  bytes payload = 4;
+  string source = 5;
+  map<string, string> metadata = 6;
+}
+
+message EventQuery {
+  int64 start_time = 1;  // Unix milliseconds
+  int64 end_time = 2;
+  repeated uint32 flow_labels = 3;  // Filter by specific flow labels
+  repeated Event.EventType event_types = 4;  // Filter by event types
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+message EventQueryResponse {
+  repeated Event events = 1;
+  int64 total_count = 2;
+  string error_message = 3;
+}
+
+message StreamRequest {
+  repeated uint32 flow_labels = 1;  // Subscribe to specific flows
+  repeated Event.EventType event_types = 2;
+  bool include_historical = 3;
+}
+
+// Flow messages - Flow state and control
+
+message FlowState {
+  uint32 flow_label = 1;
+  KingdomMode kingdom_mode = 2;
+  uint32 sophia_dict_id = 3;
+  uint32 wotan_sequence = 4;
+  bytes source_address = 5;
+  bytes destination_address = 6;
+  uint64 created_at = 7;
+  uint64 updated_at = 8;
+  uint64 last_packet_at = 9;
+}
+
+message FlowListResponse {
+  repeated FlowState flows = 1;
+  int32 total = 2;
+  string error_message = 3;
+}
+
+message InjectRequest {
+  uint32 flow_label = 1;
+  bytes payload = 2;
+  KingdomMode kingdom_mode = 3;
+  uint32 sophia_dict_id = 4;
+}
+
+message InjectResponse {
+  string packet_id = 1;
+  uint64 injected_at = 2;
+  bool success = 3;
+  string error_message = 4;
+}
+
+// Services
+
+service MonadService {
+  rpc Encode (EncodeRequest) returns (EncodeResponse);
+  rpc Decode (DecodeRequest) returns (DecodeResponse);
+  rpc Validate (DecodeRequest) returns (DecodeResponse);
+}
+
+service SophiaService {
+  rpc List (DictionaryListRequest) returns (DictionaryListResponse);
+  rpc Get (DictionaryGetRequest) returns (DictionaryGetResponse);
+}
+
+service WotanService {
+  rpc Read (ReadRequest) returns (ReadResponse);
+  rpc Write (WriteRequest) returns (WriteResponse);
+}
+
+service AnamnesisService {
+  rpc Query (EventQuery) returns (EventQueryResponse);
+  rpc Stream (StreamRequest) returns (stream Event);
+}
+
+service FlowService {
+  rpc List (google.protobuf.Empty) returns (FlowListResponse);
+  rpc GetState (ReadRequest) returns (FlowState);
+  rpc Inject (InjectRequest) returns (InjectResponse);
+}
+
+import "google/protobuf/empty.proto";

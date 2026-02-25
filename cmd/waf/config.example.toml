@@ -1,0 +1,233 @@
+# THE SHIELD - Example Configuration
+# WAF/Gateway for the Unheaded Kingdom
+
+[server]
+# Listen address
+listen = "0.0.0.0"
+
+# HTTP port (set to 0 to disable HTTP)
+http_port = 8080
+
+# HTTPS port (requires TLS configuration)
+https_port = 8443
+
+# Maximum concurrent connections
+max_connections = 10000
+
+# Request timeout in seconds
+request_timeout_secs = 30
+
+# Maximum request body size for WAF inspection (bytes)
+max_body_size = 10485760  # 10 MB
+
+# TLS Configuration (optional - comment out to disable HTTPS)
+# [tls]
+# cert_path = "/etc/shield/cert.pem"
+# key_path = "/etc/shield/key.pem"
+# min_version = "1.2"  # 1.2 or 1.3
+
+# Backend servers
+[[backends]]
+name = "api-primary"
+address = "127.0.0.1:3000"
+weight = 2
+health_check_path = "/health"
+pool_size = 100
+
+[[backends]]
+name = "api-secondary"
+address = "127.0.0.1:3001"
+weight = 1
+health_check_path = "/health"
+pool_size = 50
+
+# Rate limiting configuration
+[rate_limit]
+enabled = true
+# Default requests per second per IP
+default_rate = 100
+# Burst size (token bucket capacity)
+default_burst = 200
+# Cleanup interval for expired entries (seconds)
+cleanup_interval_secs = 60
+
+# Circuit breaker configuration
+[circuit_breaker]
+enabled = true
+# Failures before opening circuit
+failure_threshold = 5
+# Successes before closing circuit
+success_threshold = 3
+# Time in half-open state (seconds)
+half_open_timeout_secs = 30
+# Reset timeout after circuit opens (seconds)
+reset_timeout_secs = 60
+
+# IP Allowlist - these IPs bypass all WAF rules
+ip_allowlist = [
+    "127.0.0.1",
+    "10.0.0.0/8",       # Internal network
+    "192.168.0.0/16",   # Private network
+]
+
+# IP Blocklist - these IPs are always blocked
+ip_blocklist = [
+    # Add known bad actors here
+    # "1.2.3.4",
+    # "5.6.7.0/24",
+]
+
+# Logging configuration
+[logging]
+level = "info"
+format = "text"
+log_blocked = true
+log_allowed = false
+
+# Metrics configuration
+[metrics]
+enabled = true
+path = "/metrics"
+port = 9090
+
+# =============================================================================
+# WAF Rules
+# =============================================================================
+
+# Block SQL Injection attempts
+[[rules]]
+id = "block-sqli-union"
+description = "Block UNION-based SQL injection"
+pattern = "(?i)\\bunion\\s+(all\\s+)?select\\b"
+target = "all"
+action = "block"
+log = true
+block_status = 403
+block_message = "SQL injection detected"
+priority = 10
+
+[[rules]]
+id = "block-sqli-or"
+description = "Block OR-based SQL injection"
+pattern = "(?i)\\bor\\s+[\\d\\w'\"]+\\s*=\\s*[\\d\\w'\"]+"
+target = "query"
+action = "block"
+log = true
+block_status = 403
+priority = 10
+
+[[rules]]
+id = "block-sqli-comments"
+description = "Block SQL comment injection"
+pattern = "(--|#|/\\*)\\s*$"
+target = "query"
+action = "block"
+log = true
+priority = 10
+
+# Block XSS attempts
+[[rules]]
+id = "block-xss-script"
+description = "Block script tag injection"
+pattern = "(?i)<\\s*script[^>]*>"
+target = "all"
+action = "block"
+log = true
+block_status = 403
+block_message = "XSS attack detected"
+priority = 10
+
+[[rules]]
+id = "block-xss-events"
+description = "Block event handler injection"
+pattern = "(?i)\\bon\\w+\\s*="
+target = "all"
+action = "block"
+log = true
+priority = 10
+
+[[rules]]
+id = "block-xss-javascript"
+description = "Block javascript: URLs"
+pattern = "(?i)javascript\\s*:"
+target = "all"
+action = "block"
+log = true
+priority = 10
+
+# Block path traversal
+[[rules]]
+id = "block-path-traversal"
+description = "Block directory traversal attempts"
+pattern = "\\.\\.[\\/]"
+target = "path"
+action = "block"
+log = true
+block_status = 400
+block_message = "Invalid path"
+priority = 5
+
+# Rate limit API endpoints
+[[rules]]
+id = "rate-limit-api"
+description = "Rate limit API requests"
+path = "/api/*"
+rate = 100
+per = "1m"
+action = "limit"
+log = false
+priority = 50
+
+# Rate limit authentication endpoints (stricter)
+[[rules]]
+id = "rate-limit-auth"
+description = "Strict rate limit for auth endpoints"
+path = "/auth/*"
+methods = ["POST"]
+rate = 10
+per = "1m"
+action = "limit"
+log = true
+priority = 40
+
+# Log suspicious user agents
+[[rules]]
+id = "log-suspicious-ua"
+description = "Log requests with suspicious user agents"
+pattern = "(?i)(curl|wget|python|scanner|bot)"
+target = "header"
+header_name = "User-Agent"
+action = "log"
+log = true
+priority = 100
+
+# Block requests to admin without proper header
+[[rules]]
+id = "protect-admin"
+description = "Protect admin endpoints"
+path = "/admin/*"
+pattern = "X-Admin-Key: secret"
+target = "header"
+action = "block"
+log = true
+block_status = 403
+block_message = "Unauthorized"
+priority = 20
+enabled = false  # Enable in production with proper key
+
+# Allow health check endpoints without inspection
+[[rules]]
+id = "allow-health"
+description = "Allow health check endpoints"
+path = "/health"
+action = "allow"
+log = false
+priority = 1
+
+[[rules]]
+id = "allow-ready"
+description = "Allow readiness check endpoints"
+path = "/ready"
+action = "allow"
+log = false
+priority = 1
