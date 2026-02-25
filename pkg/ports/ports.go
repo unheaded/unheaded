@@ -37,6 +37,14 @@ const (
 	KanbanApp        = 20001
 	WikiServer       = 20002
 
+	// AI Model Stack — Sophia's Eye (20100-20199)
+	VLLMDeepSeek = 20100
+	VLLMQwen     = 20101
+	Qdrant       = 20102
+	BGEM3        = 20104
+	SophiaEye    = 20105
+	AIWebUI      = 20106
+
 	// Gateway (21000-21443)
 	GatewayHTTP  = 21000
 	GatewayHTTPS = 21443
