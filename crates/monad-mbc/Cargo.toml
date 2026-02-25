@@ -1,0 +1,28 @@
+[package]
+name        = "monad-mbc"
+version     = "0.1.0"
+edition     = "2021"
+description = "MBC ISA assembler, disassembler, and RV32I translator for the Doom-over-IPv6 PoC"
+license     = "MIT"
+
+[dependencies]
+# Shared ISA types — MbcInsn, mbc_opcodes, mbc_flags, mbc_mmap, MbcCpuState
+monad-common = { path = "../../ebpf/monad-common" }
+thiserror    = "1"
+goblin       = "0.8"
+
+[dev-dependencies]
+# Integration tests
+monad-common = { path = "../../ebpf/monad-common" }
+
+[[bin]]
+name = "rv32i-to-mbc"
+path = "src/bin/rv32i_to_mbc.rs"
+
+[[bin]]
+name = "mbc-asm"
+path = "src/bin/mbc_asm.rs"
+
+[[bin]]
+name = "mbc-emulate"
+path = "src/bin/mbc_emulate.rs"

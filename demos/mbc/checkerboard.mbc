@@ -1,0 +1,78 @@
+; checkerboard.mbc - 8x8 checkerboard pattern
+; Demo 2: Tiled pattern with tile-based color computation
+;
+; Screen: 320x200 at 0xC000
+; Pattern: 8x8 pixel checkerboard (40 tiles wide, 25 tiles tall)
+; Light squares = palette 15 (white)
+; Dark squares  = palette 1 (dark blue)
+;
+; Registers:
+;   r1  = screen base (0xC000)
+;   r2  = y (0..199)
+;   r3  = height (200)
+;   r4  = x (0..319)
+;   r5  = width (320)
+;   r6  = pixel address
+;   r7  = row offset (y * 320)
+;   r8  = tile_x (x >> 3)
+;   r9  = tile_y (y >> 3)
+;   r10 = color
+;   r11 = 320 constant
+;   r13 = constant 1
+;   r14 = constant 14
+;
+; Instructions: 33
+
+    MOVI r1, 0xC000
+    MOVI r3, 200
+    MOVI r5, 320
+    MOVI r11, 320
+    MOVI r13, 1
+    MOVI r14, 14
+    MOVI r2, 0
+
+y_loop:
+    MOVI r4, 0
+    MOV r7, r2
+    MUL r7, r11
+    MOV r9, r2
+    SHR r9, 3
+
+x_loop:
+    ; pixel address = screen_base + y*320 + x
+    MOV r6, r7
+    ADD r6, r4
+    ADD r6, r1
+
+    ; tile_x = x >> 3
+    MOV r8, r4
+    SHR r8, 3
+
+    ; checker = (tile_x + tile_y) & 1
+    MOV r10, r8
+    ADD r10, r9
+    AND r10, r13
+
+    ; color = checker * 14 + 1 (gives 1 or 15)
+    MUL r10, r14
+    ADD r10, r13
+
+    ; store pixel
+    STB [r6+0], r10
+
+    ; x++
+    ADD r4, r13
+    CMP r4, r5
+    JN x_loop
+
+    ; y++
+    ADD r2, r13
+    CMP r2, r3
+    JN y_loop
+
+    ; Draw the frame to the dashboard: DRAW_FRAME
+    ; r1 is already set to 0xC000 (framebuffer base)
+    DRAW_FRAME
+
+    ; Halt execution
+    HALT

@@ -1,0 +1,101 @@
+# Static service discovery fallback
+# Used when Wotan is unavailable
+# Source of truth: pkg/ports/ports.go
+services:
+  wotan:
+    host: localhost
+    port: 18001
+    proto: grpc
+    display_name: wotan
+  timeguru:
+    host: localhost
+    port: 19000
+    proto: http
+    display_name: hourglass
+  architect:
+    host: localhost
+    port: 19001
+    proto: http
+    display_name: mason
+  captain:
+    host: localhost
+    port: 19002
+    proto: http
+    display_name: pennant
+  micromanager:
+    host: localhost
+    port: 19003
+    proto: http
+    display_name: quartermaster
+  monad:
+    host: localhost
+    port: 19004
+    proto: http
+    display_name: monad
+  sophia:
+    host: localhost
+    port: 19005
+    proto: http
+    display_name: sophia
+  dashboard:
+    host: localhost
+    port: 20000
+    proto: http
+    display_name: visor
+  kanban:
+    host: localhost
+    port: 20001
+    proto: http
+    display_name: herald
+  wiki:
+    host: localhost
+    port: 20002
+    proto: http
+    display_name: codex
+  trace-collector:
+    host: localhost
+    port: 16670
+    proto: http
+    display_name: vambraces
+  daemon:
+    host: localhost
+    port: 17000
+    proto: http
+    display_name: aegis
+  # AI Model Stack (Sophia's Eye)
+  vllm-deepseek:
+    host: localhost
+    port: 20100
+    proto: http
+    display_name: "vLLM DeepSeek-R1"
+    tier: applications
+  vllm-qwen:
+    host: localhost
+    port: 20101
+    proto: http
+    display_name: "vLLM Qwen Coder"
+    tier: applications
+  qdrant:
+    host: localhost
+    port: 20102
+    proto: http
+    display_name: "Qdrant Vector DB"
+    tier: applications
+  bge-m3:
+    host: localhost
+    port: 20104
+    proto: http
+    display_name: "BGE-M3 Embeddings"
+    tier: applications
+  sophia-eye:
+    host: localhost
+    port: 20105
+    proto: http
+    display_name: "Sophia's Eye"
+    tier: applications
+  ai-webui:
+    host: localhost
+    port: 20106
+    proto: http
+    display_name: "AI WebUI"
+    tier: applications

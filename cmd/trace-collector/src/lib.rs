@@ -1,0 +1,94 @@
+//! THE WHISPERING VOID - Library Root
+//!
+//! This crate provides the core functionality for eBPF event collection,
+//! parsing, and publishing to the Wotan message bus.
+//!
+//! # Architecture
+//!
+//! The trace-collector operates as a bridge between kernel-space eBPF programs
+//! and the Wotan message bus. It provides:
+//!
+//! - **BPF Readers**: Zero-copy event reading from ring buffers and perf arrays
+//! - **Multi-Source Reading**: Unified reading from all eBPF programs (packet-marker, flow-tracker, latency-probe, syscall-tracer)
+//! - **Event Parsing**: Strongly-typed event structures matching eBPF definitions
+//! - **Trace Correlation**: Cross-service trace correlation engine
+//! - **Publisher**: Batched, compressed gRPC client for Wotan
+//! - **WebSocket**: Real-time trace streaming to dashboard
+//! - **Metrics**: Prometheus-compatible metrics endpoint
+//! - **Storage**: In-memory and file-based trace storage
+//!
+//! # Modules
+//!
+//! - `bpf` - Low-level BPF map and syscall interaction
+//! - `collector` - High-level event collection orchestration
+//! - `config` - Configuration loading and management
+//! - `correlation` - Trace correlation engine and storage
+//! - `events` - Event types and parsing
+//! - `metrics` - Prometheus metrics and HTTP server
+//! - `proto` - Protocol buffer definitions
+//! - `publisher` - Wotan gRPC client and event batching
+//! - `websocket` - WebSocket server for real-time streaming
+//!
+//! # Example Usage
+//!
+//! ```ignore
+//! use trace_collector::{Config, Event, WotanPublisher};
+//! use std::time::Duration;
+//!
+//! let config = Config::default();
+//! let publisher = WotanPublisher::new(
+//!     "http://localhost:50051",
+//!     1000,
+//!     Duration::from_millis(10)
+//! ).await?;
+//! ```
+//!
+//! # Performance Targets
+//!
+//! - Sub-microsecond event read latency
+//! - 1M+ events/second throughput
+//! - Zero-copy where possible
+//! - Lock-free data structures
+
+pub mod bpf;
+pub mod collector;
+pub mod config;
+pub mod correlation;
+pub mod events;
+pub mod metrics;
+pub mod proto;
+pub mod publisher;
+pub mod websocket;
+
+// Re-export commonly used types
+pub use config::Config;
+pub use events::{Event, EventBatch, EventData, EventType, LatencyEvent, PacketEvent, SyscallEvent};
+pub use publisher::{WotanPublisher, PublisherState, PublisherStats};
+
+// Re-export collector types
+pub use collector::{
+    Collector, CollectorBuilder, CollectorConfig, CollectorError, CollectorState, CollectorStats,
+    EventFilter, EventProcessor,
+};
+
+// Re-export metrics types
+pub use metrics::{AtomicMetrics, MetricsHttpServer, MetricsServer, ServerConfig, ATOMIC_METRICS};
+
+// Re-export correlation types
+pub use correlation::{
+    CorrelationConfig, CorrelationEngine, CorrelationStats,
+    Span, SpanKind, SpanStatus, TraceContext, TraceSummary,
+    TraceQuery, TraceQueryResult, TraceStore, TraceStoreConfig,
+};
+
+// Re-export BPF multi-source types
+pub use bpf::{
+    EventSource, GlobalStats, MultiSourceConfig, MultiSourceReader, MultiSourceReaderBuilder,
+    SourceConfig, SourceStats, SourcedEvent,
+};
+
+// Re-export WebSocket types
+pub use websocket::{
+    ClientMessage, ServerMessage, Subscription, TraceUpdate, WebSocketConfig, WebSocketHandler,
+    WebSocketServer, WebSocketStats,
+};

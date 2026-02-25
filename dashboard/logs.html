@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unheaded Log Viewer - Real-time aggregated log streaming">
+  <title>Unheaded — Log Viewer</title>
+
+  <link rel="stylesheet" href="/dashboard/css/design-system.css">
+  <style>
+    /* Log viewer page-specific layout */
+    body {
+      margin-top: 64px;
+      height: calc(100vh - 64px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-sm) var(--space-lg);
+      background: var(--color-bg-secondary);
+      border-bottom: var(--border-width-thin) solid var(--color-border);
+      flex-wrap: wrap;
+    }
+
+    .toolbar label {
+      font-family: var(--font-body);
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .toolbar select,
+    .toolbar input[type="text"] {
+      background: var(--color-bg-tertiary);
+      color: var(--color-text-primary);
+      border: var(--border-width-thin) solid var(--color-border);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--border-radius-sm);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      transition: border-color var(--transition-fast);
+    }
+
+    .toolbar select:focus,
+    .toolbar input[type="text"]:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      background: var(--color-bg-tertiary);
+    }
+
+    .toolbar input[type="text"] {
+      width: 220px;
+    }
+
+    .toolbar .spacer {
+      flex: 1;
+    }
+
+    .toolbar input[type="checkbox"] {
+      accent-color: var(--color-accent);
+    }
+
+    .toolbar .autoscroll-label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      cursor: pointer;
+    }
+
+    /* Log output */
+    #log-output {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-sm) var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      line-height: 1.6;
+      background: var(--color-bg);
+    }
+
+    .log-line {
+      white-space: pre-wrap;
+      word-break: break-all;
+      cursor: pointer;
+      padding: 1px var(--space-xs);
+      border-radius: var(--border-radius-sm);
+      transition: background-color var(--transition-fast);
+    }
+
+    .log-line:hover {
+      background: var(--color-bg-tertiary);
+    }
+
+    .log-ts {
+      color: var(--color-text-ghost);
+    }
+
+    .log-service {
+      color: var(--color-accent);
+    }
+
+    .log-level-debug {
+      color: var(--color-text-ghost);
+    }
+
+    .log-level-info {
+      color: var(--color-text-primary);
+    }
+
+    .log-level-warn {
+      color: var(--color-warning);
+    }
+
+    .log-level-error {
+      color: var(--color-error);
+    }
+
+    .log-level-fatal {
+      color: var(--color-error);
+      font-weight: 700;
+    }
+
+    .log-msg {
+      color: var(--color-text-primary);
+    }
+
+    .log-fields {
+      color: var(--color-text-ghost);
+      font-size: var(--font-size-xs);
+    }
+
+    /* Status bar */
+    .statusbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-xs) var(--space-lg);
+      background: var(--color-bg-secondary);
+      border-top: var(--border-width-thin) solid var(--color-border);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+    }
+
+    .statusbar .status-label {
+      font-family: var(--font-body);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* Live indicator dot */
+    .live-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-right: var(--space-xs);
+      vertical-align: middle;
+    }
+
+    .live-dot.streaming {
+      background-color: var(--color-success);
+      animation: pulse 2s ease infinite;
+    }
+
+    .live-dot.connected {
+      background-color: var(--color-accent);
+    }
+
+    .live-dot.disconnected {
+      background-color: var(--color-error);
+    }
+
+    /* Status text colors */
+    .log-status-streaming {
+      color: var(--color-success);
+    }
+
+    .log-status-connected {
+      color: var(--color-accent);
+    }
+
+    .log-status-disconnected {
+      color: var(--color-error);
+    }
+
+    .log-status-error {
+      color: var(--color-error);
+    }
+
+    .statusbar .spacer {
+      flex: 1;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .toolbar {
+        padding: var(--space-sm) var(--space-md);
+        gap: var(--space-sm);
+      }
+
+      .toolbar input[type="text"] {
+        width: 140px;
+      }
+
+      #log-output {
+        padding: var(--space-xs) var(--space-sm);
+        font-size: var(--font-size-xs);
+      }
+
+      .statusbar {
+        padding: var(--space-xs) var(--space-md);
+        gap: var(--space-md);
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Particle background -->
+  <canvas id="particle-canvas"></canvas>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="/" class="nav-logo"><span>(U)</span>NHEADED</a>
+    <ul class="nav-links">
+      <li><a href="/dashboard" class="nav-link">dashboard</a></li>
+      <li><a href="/kanban" class="nav-link">kanban</a></li>
+      <li><a href="/docs" class="nav-link">docs</a></li>
+      <li><a href="/status" class="nav-link">status</a></li>
+    </ul>
+  </nav>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <label>Service:</label>
+    <select id="log-service">
+      <option value="">All Services</option>
+      <option value="timeguru">timeguru</option>
+      <option value="captain">captain</option>
+      <option value="architect">architect</option>
+      <option value="micromanager">micromanager</option>
+      <option value="monad">monad</option>
+      <option value="sophia">sophia</option>
+      <option value="dashboard-backend">dashboard-backend</option>
+      <option value="kanban-app">kanban-app</option>
+      <option value="trace-collector">trace-collector</option>
+      <option value="unheaded-daemon">unheaded-daemon</option>
+    </select>
+
+    <label>Level:</label>
+    <select id="log-level">
+      <option value="">All Levels</option>
+      <option value="trace">TRACE</option>
+      <option value="debug">DEBUG</option>
+      <option value="info">INFO</option>
+      <option value="warn">WARN</option>
+      <option value="error">ERROR</option>
+      <option value="fatal">FATAL</option>
+    </select>
+
+    <label>Search:</label>
+    <input type="text" id="log-search" placeholder="full-text search...">
+
+    <label>Range:</label>
+    <select id="log-timerange">
+      <option value="5m">Last 5m</option>
+      <option value="15m" selected>Last 15m</option>
+      <option value="1h">Last 1h</option>
+      <option value="24h">Last 24h</option>
+      <option value="">All Time</option>
+    </select>
+
+    <div class="spacer"></div>
+
+    <label class="autoscroll-label">
+      <input type="checkbox" id="log-autoscroll" checked>
+      auto-scroll
+    </label>
+  </div>
+
+  <!-- Log output area -->
+  <div id="log-output"></div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <span class="status-label">Status:</span>
+    <span>
+      <span class="live-dot disconnected" id="live-dot"></span>
+      <span id="log-status" class="log-status-disconnected">connecting...</span>
+    </span>
+    <div class="spacer"></div>
+    <span id="log-count">0 entries</span>
+    <span>Buffer: 10,000 lines</span>
+  </div>
+
+  <script src="/static/js/log-viewer.js"></script>
+  <script src="/dashboard/js/particles.js"></script>
+</body>
+</html>

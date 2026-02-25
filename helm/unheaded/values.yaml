@@ -1,0 +1,204 @@
+# Default values for unheaded Helm chart.
+# Override per-environment with values-dev.yaml, values-prod.yaml, etc.
+
+global:
+  namespace: unheaded
+  image:
+    registry: ghcr.io/unheaded
+    pullPolicy: IfNotPresent
+    tag: "0.1.0-alpha"
+  # Security hardening defaults (matches CLAUDE.md baseline)
+  security:
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    dropAllCapabilities: true
+    seccompProfile: RuntimeDefault
+
+# --- Infrastructure Services ---
+
+wotan:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/wotan
+  ports:
+    http: 18000
+    grpc: 18001
+  resources:
+    requests:
+      cpu: 200m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  env:
+    LOG_LEVEL: info
+    LOG_FORMAT: json
+
+unheadedDaemon:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/unheaded-daemon
+  ports:
+    http: 17000
+    grpc: 17001
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# --- Core Services ---
+
+timeguru:
+  enabled: true
+  replicas: 2
+  image:
+    repository: unheaded/timeguru
+  ports:
+    http: 19000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+architect:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/architect
+  ports:
+    http: 19001
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+captain:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/captain
+  ports:
+    http: 19002
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+micromanager:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/micromanager
+  ports:
+    http: 19003
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monad:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/monad
+  ports:
+    http: 19004
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+sophia:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/sophia
+  ports:
+    http: 19005
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# --- Application Services ---
+
+dashboardBackend:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/dashboard-backend
+  ports:
+    http: 20000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+kanbanApp:
+  enabled: true
+  replicas: 1
+  image:
+    repository: unheaded/kanban-app
+  ports:
+    http: 20001
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# --- Gateway ---
+
+gateway:
+  enabled: true
+  replicas: 1
+  image:
+    repository: nginx
+    tag: "1.25-alpine"
+  ports:
+    http: 21000
+    https: 21443
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# --- Network Policies ---
+
+networkPolicy:
+  enabled: true
+  defaultDeny: true

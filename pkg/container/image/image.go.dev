@@ -1,0 +1,463 @@
+// Package image provides container image management
+package image
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	
+	"os"
+	"unheaded/pkg/logger"
+)
+
+// ============================================================================
+// ERRORS
+// ============================================================================
+
+var (
+	ErrImageNotFound    = errors.New("image not found")
+	ErrImageExists      = errors.New("image already exists")
+	ErrInvalidReference = errors.New("invalid image reference")
+	ErrPullFailed       = errors.New("image pull failed")
+	ErrPushFailed       = errors.New("image push failed")
+	ErrDigestMismatch   = errors.New("image digest mismatch")
+)
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+// Image represents a container image
+type Image struct {
+	ID           string            `json:"id"`
+	RepoTags     []string          `json:"repo_tags,omitempty"`
+	RepoDigests  []string          `json:"repo_digests,omitempty"`
+	Size         int64             `json:"size"`
+	VirtualSize  int64             `json:"virtual_size,omitempty"`
+	Created      time.Time         `json:"created"`
+	Architecture string            `json:"architecture,omitempty"`
+	OS           string            `json:"os,omitempty"`
+	Author       string            `json:"author,omitempty"`
+	Labels       map[string]string `json:"labels,omitempty"`
+
+	// Additional metadata
+	Description string `json:"description,omitempty"`
+	Public      bool   `json:"public,omitempty"`
+	Cached      bool   `json:"cached,omitempty"`
+	AutoUpdate  bool   `json:"auto_update,omitempty"`
+}
+
+// ImageReference represents a parsed image reference
+type ImageReference struct {
+	Registry   string `json:"registry,omitempty"`
+	Repository string `json:"repository"`
+	Tag        string `json:"tag,omitempty"`
+	Digest     string `json:"digest,omitempty"`
+}
+
+// PullOptions configures image pull behavior
+type PullOptions struct {
+	All          bool              `json:"all,omitempty"`           // Pull all tags
+	Platform     string            `json:"platform,omitempty"`      // Target platform
+	Auth         *AuthConfig       `json:"auth,omitempty"`          // Authentication
+	Quiet        bool              `json:"quiet,omitempty"`         // Suppress output
+	ProgressChan chan<- PullStatus `json:"-"`                       // Progress updates
+}
+
+// PushOptions configures image push behavior
+type PushOptions struct {
+	Tag          string      `json:"tag,omitempty"`
+	Auth         *AuthConfig `json:"auth,omitempty"`
+	Quiet        bool        `json:"quiet,omitempty"`
+	ProgressChan chan<- PushStatus `json:"-"`
+}
+
+// AuthConfig holds registry authentication
+type AuthConfig struct {
+	Username      string `json:"username,omitempty"`
+	Password      string `json:"password,omitempty"`
+	Auth          string `json:"auth,omitempty"`
+	ServerAddress string `json:"server_address,omitempty"`
+	IdentityToken string `json:"identity_token,omitempty"`
+	RegistryToken string `json:"registry_token,omitempty"`
+}
+
+// PullStatus represents image pull progress
+type PullStatus struct {
+	ID             string `json:"id,omitempty"`
+	Status         string `json:"status"`
+	Progress       string `json:"progress,omitempty"`
+	ProgressDetail struct {
+		Current int64 `json:"current,omitempty"`
+		Total   int64 `json:"total,omitempty"`
+	} `json:"progressDetail,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// PushStatus represents image push progress
+type PushStatus struct {
+	ID             string `json:"id,omitempty"`
+	Status         string `json:"status"`
+	Progress       string `json:"progress,omitempty"`
+	ProgressDetail struct {
+		Current int64 `json:"current,omitempty"`
+		Total   int64 `json:"total,omitempty"`
+	} `json:"progressDetail,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// ListOptions configures image listing
+type ListOptions struct {
+	All     bool              `json:"all,omitempty"`
+	Filters map[string]string `json:"filters,omitempty"`
+}
+
+// ============================================================================
+// MANAGER INTERFACE
+// ============================================================================
+
+// Manager defines the interface for image management
+type Manager interface {
+	// Image operations
+	Pull(ctx context.Context, ref string, opts *PullOptions) (*Image, error)
+	Push(ctx context.Context, ref string, opts *PushOptions) error
+	List(ctx context.Context, opts *ListOptions) ([]*Image, error)
+	Get(ctx context.Context, ref string) (*Image, error)
+	Delete(ctx context.Context, ref string, force bool) error
+	Tag(ctx context.Context, source, target string) error
+
+	// Image inspection
+	Inspect(ctx context.Context, ref string) (*Image, error)
+	History(ctx context.Context, ref string) ([]HistoryEntry, error)
+
+	// Import/Export
+	Import(ctx context.Context, source string, ref string) (*Image, error)
+	Export(ctx context.Context, refs []string, dest string) error
+
+	// Cleanup
+	Prune(ctx context.Context, opts *PruneOptions) (*PruneReport, error)
+}
+
+// HistoryEntry represents a layer in image history
+type HistoryEntry struct {
+	ID        string    `json:"id"`
+	Created   time.Time `json:"created"`
+	CreatedBy string    `json:"created_by"`
+	Size      int64     `json:"size"`
+	Comment   string    `json:"comment,omitempty"`
+}
+
+// PruneOptions configures image pruning
+type PruneOptions struct {
+	All     bool              `json:"all,omitempty"`
+	Filters map[string]string `json:"filters,omitempty"`
+}
+
+// PruneReport contains results of image pruning
+type PruneReport struct {
+	ImagesDeleted []string `json:"images_deleted"`
+	SpaceReclaimed int64    `json:"space_reclaimed"`
+}
+
+// ============================================================================
+// DEFAULT MANAGER IMPLEMENTATION
+// ============================================================================
+
+// DefaultManager is a basic image manager implementation
+type DefaultManager struct {
+	mu     sync.RWMutex
+	images map[string]*Image
+	logger zerolog.Logger
+}
+
+// NewDefaultManager creates a new default image manager
+func NewDefaultManager() *DefaultManager {
+	return &DefaultManager{
+		images: make(map[string]*Image),
+		logger: log.With().Str("component", "image-manager").Logger(),
+	}
+}
+
+// Pull pulls an image from a registry
+func (m *DefaultManager) Pull(ctx context.Context, ref string, opts *PullOptions) (*Image, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.logger.Info().Str("ref", ref).Msg("pulling image")
+
+	// Parse reference
+	parsed, err := ParseReference(ref)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create image entry
+	img := &Image{
+		ID:       generateImageID(ref),
+		RepoTags: []string{ref},
+		Created:  time.Now(),
+		Cached:   true,
+	}
+
+	if parsed.Tag != "" {
+		img.RepoTags = []string{parsed.Repository + ":" + parsed.Tag}
+	}
+
+	m.images[ref] = img
+
+	if opts != nil && opts.ProgressChan != nil {
+		opts.ProgressChan <- PullStatus{
+			Status: "Pull complete",
+		}
+	}
+
+	return img, nil
+}
+
+// Push pushes an image to a registry
+func (m *DefaultManager) Push(ctx context.Context, ref string, opts *PushOptions) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	m.logger.Info().Str("ref", ref).Msg("pushing image")
+
+	if _, exists := m.images[ref]; !exists {
+		return ErrImageNotFound
+	}
+
+	if opts != nil && opts.ProgressChan != nil {
+		opts.ProgressChan <- PushStatus{
+			Status: "Push complete",
+		}
+	}
+
+	return nil
+}
+
+// List lists all images
+func (m *DefaultManager) List(ctx context.Context, opts *ListOptions) ([]*Image, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	images := make([]*Image, 0, len(m.images))
+	for _, img := range m.images {
+		images = append(images, img)
+	}
+
+	return images, nil
+}
+
+// Get retrieves an image by reference
+func (m *DefaultManager) Get(ctx context.Context, ref string) (*Image, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	img, exists := m.images[ref]
+	if !exists {
+		return nil, ErrImageNotFound
+	}
+
+	return img, nil
+}
+
+// Delete removes an image
+func (m *DefaultManager) Delete(ctx context.Context, ref string, force bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.logger.Info().Str("ref", ref).Bool("force", force).Msg("deleting image")
+
+	if _, exists := m.images[ref]; !exists {
+		return ErrImageNotFound
+	}
+
+	delete(m.images, ref)
+	return nil
+}
+
+// Tag creates a new tag for an image
+func (m *DefaultManager) Tag(ctx context.Context, source, target string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.logger.Info().Str("source", source).Str("target", target).Msg("tagging image")
+
+	img, exists := m.images[source]
+	if !exists {
+		return ErrImageNotFound
+	}
+
+	// Create a copy with the new tag
+	newImg := *img
+	newImg.RepoTags = append([]string{target}, img.RepoTags...)
+	m.images[target] = &newImg
+
+	return nil
+}
+
+// Inspect returns detailed image information
+func (m *DefaultManager) Inspect(ctx context.Context, ref string) (*Image, error) {
+	return m.Get(ctx, ref)
+}
+
+// History returns the build history of an image
+func (m *DefaultManager) History(ctx context.Context, ref string) ([]HistoryEntry, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	img, exists := m.images[ref]
+	if !exists {
+		return nil, ErrImageNotFound
+	}
+
+	// Return a basic history entry
+	return []HistoryEntry{
+		{
+			ID:        img.ID,
+			Created:   img.Created,
+			CreatedBy: "imported",
+		},
+	}, nil
+}
+
+// Import imports an image from a tarball
+func (m *DefaultManager) Import(ctx context.Context, source string, ref string) (*Image, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.logger.Info().Str("source", source).Str("ref", ref).Msg("importing image")
+
+	img := &Image{
+		ID:       generateImageID(ref),
+		RepoTags: []string{ref},
+		Created:  time.Now(),
+		Cached:   true,
+	}
+
+	m.images[ref] = img
+	return img, nil
+}
+
+// Export exports images to a tarball
+func (m *DefaultManager) Export(ctx context.Context, refs []string, dest string) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	m.logger.Info().Strs("refs", refs).Str("dest", dest).Msg("exporting images")
+
+	for _, ref := range refs {
+		if _, exists := m.images[ref]; !exists {
+			return fmt.Errorf("%w: %s", ErrImageNotFound, ref)
+		}
+	}
+
+	return nil
+}
+
+// Prune removes unused images
+func (m *DefaultManager) Prune(ctx context.Context, opts *PruneOptions) (*PruneReport, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.logger.Info().Msg("pruning images")
+
+	report := &PruneReport{
+		ImagesDeleted: []string{},
+	}
+
+	// In a real implementation, this would identify and remove dangling images
+	// For now, this is a placeholder
+
+	return report, nil
+}
+
+// ============================================================================
+// REFERENCE PARSING
+// ============================================================================
+
+// ParseReference parses an image reference string
+func ParseReference(ref string) (*ImageReference, error) {
+	if ref == "" {
+		return nil, ErrInvalidReference
+	}
+
+	result := &ImageReference{
+		Tag: "latest",
+	}
+
+	// Check for digest
+	if idx := strings.Index(ref, "@"); idx != -1 {
+		result.Digest = ref[idx+1:]
+		ref = ref[:idx]
+	}
+
+	// Check for tag
+	if idx := strings.LastIndex(ref, ":"); idx != -1 {
+		// Make sure this isn't a port number
+		afterColon := ref[idx+1:]
+		if !strings.Contains(afterColon, "/") {
+			result.Tag = afterColon
+			ref = ref[:idx]
+		}
+	}
+
+	// Check for registry
+	parts := strings.SplitN(ref, "/", 3)
+	switch len(parts) {
+	case 1:
+		// Just image name, use library prefix
+		result.Repository = "library/" + parts[0]
+	case 2:
+		// Could be registry/image or namespace/image
+		if strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") || parts[0] == "localhost" {
+			result.Registry = parts[0]
+			result.Repository = parts[1]
+		} else {
+			result.Repository = ref
+		}
+	case 3:
+		result.Registry = parts[0]
+		result.Repository = parts[1] + "/" + parts[2]
+	}
+
+	return result, nil
+}
+
+// String returns the string representation of an image reference
+func (r *ImageReference) String() string {
+	var sb strings.Builder
+
+	if r.Registry != "" {
+		sb.WriteString(r.Registry)
+		sb.WriteString("/")
+	}
+
+	sb.WriteString(r.Repository)
+
+	if r.Digest != "" {
+		sb.WriteString("@")
+		sb.WriteString(r.Digest)
+	} else if r.Tag != "" {
+		sb.WriteString(":")
+		sb.WriteString(r.Tag)
+	}
+
+	return sb.String()
+}
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+// generateImageID generates a unique image ID
+func generateImageID(ref string) string {
+	// In a real implementation, this would be a SHA256 hash
+	return fmt.Sprintf("sha256:%x", time.Now().UnixNano())
+}
+
+// Ensure DefaultManager implements Manager interface
+var _ Manager = (*DefaultManager)(nil)

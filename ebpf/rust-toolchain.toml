@@ -1,0 +1,6 @@
+# Rust toolchain configuration for eBPF programs
+# THE WHISPERING VOID requires nightly for no_std and build-std
+
+[toolchain]
+channel = "nightly"
+components = ["rust-src", "rustfmt", "clippy"]

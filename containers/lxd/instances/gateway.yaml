@@ -1,0 +1,193 @@
+# =============================================================================
+# LXD Instance: Gateway (nginx Reverse Proxy)
+# =============================================================================
+# Public entry point with TLS 1.3 termination and HTTP/3 support.
+# Reverse-proxies to all backend services.
+#
+# IP:    10.10.10.100
+# Ports: 80 (HTTP redirect), 443 (HTTPS/HTTP3), 9100 (metrics)
+# Role:  Infrastructure (critical, public-facing)
+# =============================================================================
+
+#cloud-config
+hostname: gateway
+
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 10.10.10.100/24
+      gateway4: 10.10.10.1
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+
+packages:
+  - ca-certificates
+  - wget
+  - curl
+  - jq
+  - nginx
+
+users:
+  - name: unheaded
+    uid: "1000"
+    shell: /bin/bash
+    lock_passwd: true
+    home: /var/lib/unheaded
+
+write_files:
+  - path: /etc/systemd/system/gateway.service
+    content: |
+      [Unit]
+      Description=Unheaded Gateway - nginx Reverse Proxy
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=forking
+      User=root
+      ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/nginx.conf
+      ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx.conf
+      ExecReload=/usr/sbin/nginx -s reload
+      PIDFile=/run/nginx.pid
+      Environment=SERVICE_NAME=gateway
+      Environment=WOTAN_ADDR=10.10.10.10:18001
+      Environment=WOTAN_HTTP_ADDR=http://10.10.10.10:18000
+      Environment=LOG_LEVEL=info
+      Restart=always
+      RestartSec=5s
+      StartLimitBurst=10
+      StartLimitIntervalSec=60
+      KillSignal=SIGTERM
+      TimeoutStopSec=30s
+      MemoryMax=512M
+      CPUQuota=150%
+      TasksMax=512
+
+      [Install]
+      WantedBy=multi-user.target
+    permissions: "0644"
+
+  - path: /etc/nginx/nginx.conf
+    content: |
+      user unheaded;
+      worker_processes auto;
+      pid /run/nginx.pid;
+      error_log /var/log/unheaded/gateway/error.log;
+
+      events {
+          worker_connections 1024;
+      }
+
+      http {
+          # Logging
+          log_format json_combined escape=json
+            '{'
+              '"timestamp":"$time_iso8601",'
+              '"remote_addr":"$remote_addr",'
+              '"request_method":"$request_method",'
+              '"request_uri":"$request_uri",'
+              '"status":$status,'
+              '"bytes_sent":$bytes_sent,'
+              '"request_time":$request_time,'
+              '"upstream_response_time":"$upstream_response_time",'
+              '"user_agent":"$http_user_agent"'
+            '}';
+          access_log /var/log/unheaded/gateway/access.log json_combined;
+
+          # Performance
+          sendfile on;
+          tcp_nopush on;
+          tcp_nodelay on;
+          keepalive_timeout 65;
+          client_max_body_size 20M;
+
+          # Gzip
+          gzip on;
+          gzip_vary on;
+          gzip_min_length 1000;
+          gzip_types text/plain text/css text/xml text/javascript
+                     application/json application/javascript;
+
+          # Rate limiting
+          limit_req_zone $binary_remote_addr zone=api:10m rate=50r/s;
+
+          # Upstreams
+          upstream wotan       { server 10.10.10.10:18001; keepalive 32; }
+          upstream timeguru    { server 10.10.10.20:19000; keepalive 32; }
+          upstream captain     { server 10.10.10.21:19002; keepalive 32; }
+          upstream micromanager { server 10.10.10.22:19003; keepalive 32; }
+          upstream architect   { server 10.10.10.23:19001; keepalive 32; }
+          upstream monad       { server 10.10.10.27:19004; keepalive 32; }
+          upstream sophia      { server 10.10.10.26:19005; keepalive 32; }
+          upstream kanban      { server 10.10.10.200:20001; keepalive 32; }
+          upstream dashboard   { server 10.10.10.201:20000; keepalive 32; }
+          upstream doom_bridge { server 10.10.10.28:16666; keepalive 32; }
+          upstream wiki_server { server 10.10.10.29:20002; keepalive 32; }
+
+          server {
+              listen 80 default_server;
+
+              # Health check (plain HTTP)
+              location /health {
+                  access_log off;
+                  default_type application/json;
+                  return 200 '{"status":"healthy","service":"gateway","ip":"10.10.10.100"}';
+              }
+
+              # Security headers on all proxied routes
+              add_header X-Content-Type-Options "nosniff" always;
+              add_header X-Frame-Options "SAMEORIGIN" always;
+              add_header X-XSS-Protection "1; mode=block" always;
+              add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+              location /api/wotan/         { proxy_pass http://wotan/;        limit_req zone=api burst=100 nodelay; }
+              location /api/timeguru/      { proxy_pass http://timeguru/;     limit_req zone=api burst=100 nodelay; }
+              location /api/captain/       { proxy_pass http://captain/;      limit_req zone=api burst=100 nodelay; }
+              location /api/micromanager/  { proxy_pass http://micromanager/; limit_req zone=api burst=100 nodelay; }
+              location /api/architect/     { proxy_pass http://architect/;    limit_req zone=api burst=100 nodelay; }
+              location /api/monad/         { proxy_pass http://monad/;        limit_req zone=api burst=100 nodelay; }
+              location /api/sophia/        { proxy_pass http://sophia/;       limit_req zone=api burst=100 nodelay; }
+              location /kanban/            { proxy_pass http://kanban/;       }
+              location /dashboard/         { proxy_pass http://dashboard/;    }
+              location /doom/              { proxy_pass http://doom_bridge/;  }
+              location /wiki/              { proxy_pass http://wiki_server/;  }
+
+              location /ws/doom/ {
+                  proxy_pass http://doom_bridge/ws;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection "upgrade";
+                  proxy_read_timeout 86400;
+              }
+          }
+      }
+    permissions: "0644"
+
+  - path: /etc/unheaded/health-check.sh
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      curl -sf --connect-timeout 2 --max-time 5 http://127.0.0.1:80/health > /dev/null 2>&1
+    permissions: "0755"
+
+runcmd:
+  - mkdir -p /var/lib/unheaded/gateway
+  - mkdir -p /var/log/unheaded/gateway
+  - chown -R unheaded:unheaded /var/lib/unheaded /var/log/unheaded
+  - |
+    ufw --force reset
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow from any to any port 80 proto tcp
+    ufw allow from any to any port 443 proto tcp
+    ufw allow from 10.10.10.0/24 to any port 9100 proto tcp
+    ufw --force enable
+  - systemctl stop nginx.service 2>/dev/null || true
+  - systemctl disable nginx.service 2>/dev/null || true
+  - systemctl daemon-reload
+  - systemctl enable gateway.service
+  - systemctl start gateway.service || true

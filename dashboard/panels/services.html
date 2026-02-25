@@ -1,0 +1,1365 @@
+<!-- Services Tab Panel -->
+<!-- Displays all configured Unheaded services with their status, configuration, and management actions -->
+<div class="panel panel-services" id="panel-services">
+  <div class="panel-header">
+    <h2 class="panel-title">Services</h2>
+    <div class="panel-controls">
+      <button class="btn btn-secondary btn-sm" id="btn-refresh-services" title="Refresh service list">
+        Refresh
+      </button>
+      <span class="text-secondary text-xs" id="services-last-updated">Last updated: --:--:--</span>
+    </div>
+  </div>
+
+  <div class="panel-body">
+    <!-- Filter and Sort Controls -->
+    <div class="services-toolbar">
+      <div class="toolbar-section">
+        <!-- Search input -->
+        <div class="form-group form-inline">
+          <label for="services-search" class="label-sm">Search:</label>
+          <input
+            type="text"
+            id="services-search"
+            class="input input-sm"
+            placeholder="Filter by name..."
+            autocomplete="off"
+          />
+        </div>
+
+        <!-- Tier filter dropdown -->
+        <div class="form-group form-inline">
+          <label for="services-tier-filter" class="label-sm">Tier:</label>
+          <select id="services-tier-filter" class="select select-sm">
+            <option value="">All Tiers</option>
+            <option value="control">Control Plane</option>
+            <option value="infrastructure">Infrastructure</option>
+            <option value="presentation">Presentation</option>
+            <option value="application">Application</option>
+          </select>
+        </div>
+
+        <!-- Health status filter -->
+        <div class="form-group form-inline">
+          <label for="services-health-filter" class="label-sm">Status:</label>
+          <select id="services-health-filter" class="select select-sm">
+            <option value="">All Services</option>
+            <option value="healthy">Healthy Only</option>
+            <option value="unhealthy">Unhealthy Only</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="toolbar-section">
+        <!-- Sort dropdown -->
+        <div class="form-group form-inline">
+          <label for="services-sort" class="label-sm">Sort by:</label>
+          <select id="services-sort" class="select select-sm">
+            <option value="name">Service Name</option>
+            <option value="tier">Deployment Tier</option>
+            <option value="health">Health Status</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Services Summary Stats -->
+    <div class="services-summary">
+      <div class="summary-stat">
+        <span class="stat-label">Total Services:</span>
+        <span class="stat-value" id="stat-total-services">0</span>
+      </div>
+      <div class="summary-stat">
+        <span class="stat-label">Healthy:</span>
+        <span class="stat-value stat-healthy" id="stat-healthy-services">0</span>
+      </div>
+      <div class="summary-stat">
+        <span class="stat-label">Unhealthy:</span>
+        <span class="stat-value stat-unhealthy" id="stat-unhealthy-services">0</span>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="services-empty-state" style="display: none;">
+      <div class="empty-state-icon">⚙️</div>
+      <h3 class="empty-state-title">No Services Configured</h3>
+      <p class="empty-state-message">
+        No services found. Place <code>config.yaml</code> files in <code>/opt/unheaded/&lt;service&gt;/</code> to register services.
+      </p>
+      <p class="empty-state-hint text-secondary">
+        Services will be automatically discovered and loaded when their configurations are present.
+      </p>
+    </div>
+
+    <!-- Services Grid -->
+    <div class="services-grid" id="services-grid">
+      <!-- Service cards dynamically generated here -->
+    </div>
+  </div>
+</div>
+
+<!-- Service Card Template (hidden, used for cloning) -->
+<template id="service-card-template">
+  <div class="service-card">
+    <div class="card-header">
+      <div class="header-title-section">
+        <h3 class="card-title service-name"></h3>
+        <div class="badge-container">
+          <span class="badge badge-tier"></span>
+          <span class="badge badge-protocol"></span>
+          <span class="badge badge-health"></span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="btn-icon btn-action-menu" title="Service actions" aria-label="Service actions">
+          ⋮
+        </button>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <!-- Service metadata -->
+      <div class="metadata-section">
+        <div class="metadata-row">
+          <span class="label">Port:</span>
+          <span class="value service-port"></span>
+        </div>
+        <div class="metadata-row">
+          <span class="label">HTTP Port:</span>
+          <span class="value service-http-port"></span>
+        </div>
+        <div class="metadata-row">
+          <span class="label">Version:</span>
+          <span class="value service-version"></span>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="description-section">
+        <p class="service-description"></p>
+      </div>
+
+      <!-- Health Details (collapsible) -->
+      <details class="health-details">
+        <summary class="summary-header">Health Details</summary>
+        <div class="health-info">
+          <div class="health-row">
+            <span class="label">Status:</span>
+            <span class="value service-health-status"></span>
+          </div>
+          <div class="health-row">
+            <span class="label">Last Check:</span>
+            <span class="value service-last-check"></span>
+          </div>
+          <div class="health-row">
+            <span class="label">Latency:</span>
+            <span class="value service-latency"></span>
+          </div>
+          <div class="health-row">
+            <span class="label">Check Interval:</span>
+            <span class="value service-check-interval"></span>
+          </div>
+          <div class="health-row">
+            <span class="label">Consecutive Failures:</span>
+            <span class="value service-failures"></span>
+          </div>
+          <div class="health-message service-health-message" style="display: none;">
+            <span class="label">Message:</span>
+            <span class="value"></span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Runtime Config (collapsible) -->
+      <details class="runtime-details">
+        <summary class="summary-header">Runtime Config</summary>
+        <div class="runtime-info">
+          <div class="runtime-row">
+            <span class="label">Binary:</span>
+            <code class="value service-binary"></code>
+          </div>
+          <div class="runtime-row" style="display: none;">
+            <span class="label">Arguments:</span>
+            <code class="value service-args"></code>
+          </div>
+          <div class="runtime-row">
+            <span class="label">Restart Policy:</span>
+            <span class="value service-restart-policy"></span>
+          </div>
+          <div class="runtime-row">
+            <span class="label">Replicas:</span>
+            <span class="value service-replicas"></span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Dependencies (collapsible, if any) -->
+      <details class="dependencies-details" style="display: none;">
+        <summary class="summary-header">Dependencies</summary>
+        <div class="dependencies-list">
+          <ul class="service-dependencies"></ul>
+        </div>
+      </details>
+    </div>
+
+    <div class="card-footer">
+      <div class="footer-actions">
+        <button class="btn btn-secondary btn-xs" data-action="view-config" title="View configuration file">
+          View Config
+        </button>
+        <button class="btn btn-secondary btn-xs" data-action="view-logs" title="View service logs">
+          View Logs
+        </button>
+        <button class="btn btn-secondary btn-xs" data-action="restart" title="Restart service">
+          Restart
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Config Editor Modal -->
+<div class="config-modal-overlay" id="config-modal-overlay">
+  <div class="config-modal">
+    <div class="config-modal-header">
+      <h3 class="config-modal-title">
+        Configuration: <span id="config-modal-service-name">--</span>
+      </h3>
+      <button class="config-modal-close" id="config-modal-close" title="Close" aria-label="Close modal">&times;</button>
+    </div>
+    <div class="config-modal-body">
+      <textarea
+        class="config-editor"
+        id="config-editor-textarea"
+        spellcheck="false"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        placeholder="Loading configuration..."
+      ></textarea>
+    </div>
+    <div class="config-modal-status" id="config-modal-status"></div>
+    <div class="config-modal-footer">
+      <button class="btn config-btn-secondary" id="config-modal-btn-close">Close</button>
+      <button class="btn config-btn-primary" id="config-modal-btn-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Styles for Services Panel -->
+<style>
+  .panel-services {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+  }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+    padding-bottom: var(--spacing-md);
+  }
+
+  .panel-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+    color: var(--color-text-primary);
+  }
+
+  .panel-controls {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+  }
+
+  .text-xs {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+  }
+
+  .services-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-sm);
+  }
+
+  .toolbar-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .form-inline {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .label-sm {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+  }
+
+  .input-sm,
+  .select-sm {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+  }
+
+  .input-sm:focus,
+  .select-sm:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-light);
+  }
+
+  .services-summary {
+    display: flex;
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-sm);
+    border-left: 4px solid var(--color-primary);
+  }
+
+  .summary-stat {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: baseline;
+  }
+
+  .stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .stat-value {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+  }
+
+  .stat-healthy {
+    color: var(--color-success);
+  }
+
+  .stat-unhealthy {
+    color: var(--color-warning);
+  }
+
+  .empty-state {
+    padding: var(--spacing-xl) var(--spacing-lg);
+    text-align: center;
+    color: var(--color-text-secondary);
+    border: 2px dashed var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+  }
+
+  .empty-state-icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-md);
+    opacity: 0.5;
+  }
+
+  .empty-state-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--color-text-primary);
+  }
+
+  .empty-state-message {
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-sm);
+  }
+
+  .empty-state-hint {
+    margin: 0;
+    font-size: var(--font-size-xs);
+  }
+
+  code {
+    background: var(--color-bg-primary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+  }
+
+  .services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: var(--spacing-lg);
+  }
+
+  .service-card {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .service-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .card-header {
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+
+  .header-title-section {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card-title {
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    word-break: break-word;
+  }
+
+  .badge-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    border-radius: 3px;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  .badge-tier {
+    background: var(--color-info-light);
+    color: var(--color-info-dark);
+    border: none;
+  }
+
+  .badge-protocol {
+    background: var(--color-primary-light);
+    color: var(--color-primary-dark);
+    border: none;
+  }
+
+  .badge-health {
+    border: none;
+  }
+
+  .badge-health.healthy {
+    background: var(--color-success-light);
+    color: var(--color-success-dark);
+  }
+
+  .badge-health.unhealthy {
+    background: var(--color-warning-light);
+    color: var(--color-warning-dark);
+  }
+
+  .card-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .btn-icon {
+    background: none;
+    border: none;
+    font-size: var(--font-size-lg);
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    padding: var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    transition: color 0.2s ease;
+  }
+
+  .btn-icon:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-secondary);
+  }
+
+  .card-body {
+    padding: var(--spacing-md);
+    flex: 1;
+    overflow-y: auto;
+    max-height: 400px;
+  }
+
+  .metadata-section {
+    margin-bottom: var(--spacing-md);
+  }
+
+  .metadata-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .metadata-row .label {
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .metadata-row .value {
+    color: var(--color-text-primary);
+    font-family: monospace;
+  }
+
+  .description-section {
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .service-description {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+  }
+
+  details {
+    margin-bottom: var(--spacing-md);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm);
+  }
+
+  details[open] {
+    background: var(--color-bg-secondary);
+  }
+
+  .summary-header {
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    user-select: none;
+    padding: var(--spacing-xs) 0;
+  }
+
+  .summary-header:hover {
+    color: var(--color-primary);
+  }
+
+  .health-info,
+  .runtime-info,
+  .dependencies-list {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+  }
+
+  .health-row,
+  .runtime-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-xs);
+    margin-bottom: var(--spacing-xs);
+    padding: var(--spacing-xs) 0;
+  }
+
+  .health-row .label,
+  .runtime-row .label {
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .health-row .value,
+  .runtime-row .value {
+    color: var(--color-text-primary);
+    text-align: right;
+    max-width: 60%;
+    word-break: break-word;
+  }
+
+  .health-message {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border-subtle);
+    color: var(--color-warning);
+    font-size: var(--font-size-xs);
+  }
+
+  .service-dependencies {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .service-dependencies li {
+    padding: var(--spacing-xs) 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .service-dependencies li:last-child {
+    border-bottom: none;
+  }
+
+  .card-footer {
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-secondary);
+  }
+
+  .footer-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+  }
+
+  .btn-xs {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-secondary {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-subtle);
+  }
+
+  .btn-secondary:hover {
+    background: var(--color-bg-tertiary);
+    border-color: var(--color-border-default);
+  }
+
+  /* ============================================================
+     Config Editor Modal
+     ============================================================ */
+
+  .config-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .config-modal-overlay.open {
+    display: flex;
+  }
+
+  .config-modal {
+    width: 680px;
+    max-width: 92vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg, #0a0a0a);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: 8px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(74, 158, 255, 0.1);
+    overflow: hidden;
+    animation: config-modal-enter 0.15s ease-out;
+  }
+
+  @keyframes config-modal-enter {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .config-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border, #222222);
+    background: var(--color-bg-secondary, #111111);
+    flex-shrink: 0;
+  }
+
+  .config-modal-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text-primary, #e8e8e8);
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .config-modal-title span {
+    color: var(--color-accent, #4a9eff);
+  }
+
+  .config-modal-close {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary, #888888);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+    margin-left: 12px;
+  }
+
+  .config-modal-close:hover {
+    color: var(--color-text-primary, #e8e8e8);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .config-modal-body {
+    flex: 1;
+    padding: 16px 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .config-editor {
+    flex: 1;
+    width: 100%;
+    min-height: 320px;
+    resize: vertical;
+    padding: 14px 16px;
+    font-family: var(--font-mono, "JetBrains Mono", monospace);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-text-primary, #e8e8e8);
+    background: var(--color-bg-tertiary, #151515);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: 6px;
+    outline: none;
+    tab-size: 2;
+    -moz-tab-size: 2;
+    white-space: pre;
+    overflow: auto;
+    transition: border-color 0.15s ease;
+  }
+
+  .config-editor:focus {
+    border-color: var(--color-accent, #4a9eff);
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.15);
+  }
+
+  .config-editor::placeholder {
+    color: var(--color-text-secondary, #888888);
+    font-style: italic;
+  }
+
+  .config-modal-status {
+    padding: 0 20px;
+    min-height: 24px;
+    flex-shrink: 0;
+  }
+
+  .config-modal-status:empty {
+    display: none;
+  }
+
+  .config-modal-status-msg {
+    display: inline-block;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    border-radius: 4px;
+    line-height: 1.4;
+  }
+
+  .config-modal-status-msg.status-success {
+    color: var(--color-success, #22c55e);
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+  }
+
+  .config-modal-status-msg.status-error {
+    color: var(--color-error, #ef4444);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .config-modal-status-msg.status-loading {
+    color: var(--color-text-secondary, #888888);
+    background: rgba(136, 136, 136, 0.1);
+    border: 1px solid rgba(136, 136, 136, 0.15);
+  }
+
+  .config-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--color-border, #222222);
+    background: var(--color-bg-secondary, #111111);
+    flex-shrink: 0;
+  }
+
+  .config-btn-primary {
+    background: var(--color-accent, #4a9eff);
+    color: #ffffff;
+    border: 1px solid var(--color-accent, #4a9eff);
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .config-btn-primary:hover {
+    background: var(--color-accent-dim, #2a5a99);
+    border-color: var(--color-accent-dim, #2a5a99);
+    box-shadow: 0 2px 8px rgba(74, 158, 255, 0.2);
+  }
+
+  .config-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .config-btn-secondary {
+    background: var(--color-bg-tertiary, #151515);
+    color: var(--color-text-primary, #e8e8e8);
+    border: 1px solid var(--color-border, #222222);
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .config-btn-secondary:hover {
+    background: var(--color-bg-secondary, #111111);
+    border-color: var(--color-text-secondary, #888888);
+  }
+
+  /* Restart feedback toast */
+  .services-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9500;
+    padding: 12px 20px;
+    font-size: 13px;
+    font-family: var(--font-body, "Space Grotesk", sans-serif);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    animation: toast-enter 0.2s ease-out;
+    max-width: 380px;
+    word-break: break-word;
+  }
+
+  .services-toast.toast-success {
+    color: var(--color-success, #22c55e);
+    background: var(--color-bg, #0a0a0a);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  .services-toast.toast-error {
+    color: var(--color-error, #ef4444);
+    background: var(--color-bg, #0a0a0a);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  @keyframes toast-enter {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+
+<!-- JavaScript for Services Panel Functionality -->
+<script>
+  (function() {
+    const SERVICES_ENDPOINT = '/api/v1/services';
+    const REFRESH_INTERVAL = 30000; // 30 seconds
+
+    let allServices = [];
+    let refreshTimer = null;
+
+    // Modal state
+    let currentConfigService = null;
+
+    // Initialize the services panel
+    function init() {
+      const gridContainer = document.getElementById('services-grid');
+      const emptyState = document.getElementById('services-empty-state');
+
+      if (!gridContainer || !emptyState) {
+        console.error('Services panel elements not found');
+        return;
+      }
+
+      // Event listeners
+      document.getElementById('btn-refresh-services')?.addEventListener('click', loadServices);
+      document.getElementById('services-search')?.addEventListener('input', filterAndSort);
+      document.getElementById('services-tier-filter')?.addEventListener('change', filterAndSort);
+      document.getElementById('services-health-filter')?.addEventListener('change', filterAndSort);
+      document.getElementById('services-sort')?.addEventListener('change', filterAndSort);
+
+      // Config modal event listeners
+      document.getElementById('config-modal-close')?.addEventListener('click', closeConfigModal);
+      document.getElementById('config-modal-btn-close')?.addEventListener('click', closeConfigModal);
+      document.getElementById('config-modal-btn-save')?.addEventListener('click', saveConfig);
+
+      // Close modal on overlay click (but not on modal body click)
+      var overlay = document.getElementById('config-modal-overlay');
+      if (overlay) {
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) {
+            closeConfigModal();
+          }
+        });
+      }
+
+      // Close modal on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          var overlayEl = document.getElementById('config-modal-overlay');
+          if (overlayEl && overlayEl.classList.contains('open')) {
+            closeConfigModal();
+          }
+        }
+      });
+
+      // Initial load
+      loadServices();
+
+      // Auto-refresh
+      refreshTimer = setInterval(loadServices, REFRESH_INTERVAL);
+    }
+
+    // Load services from API
+    function loadServices() {
+      fetch(SERVICES_ENDPOINT)
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          allServices = data.services || [];
+          updateSummaryStats(data);
+          filterAndSort();
+          updateLastUpdated(data.updated_at);
+        })
+        .catch(error => {
+          console.error('Failed to load services:', error);
+          showEmptyState('Failed to load services');
+        });
+    }
+
+    // Update summary statistics
+    function updateSummaryStats(data) {
+      document.getElementById('stat-total-services').textContent = data.total || 0;
+      document.getElementById('stat-healthy-services').textContent = data.healthy || 0;
+      document.getElementById('stat-unhealthy-services').textContent = data.unhealthy || 0;
+    }
+
+    // Update last updated timestamp
+    function updateLastUpdated(timestamp) {
+      const el = document.getElementById('services-last-updated');
+      if (el && timestamp) {
+        const date = new Date(timestamp);
+        el.textContent = `Last updated: ${date.toLocaleTimeString()}`;
+      }
+    }
+
+    // Filter and sort services
+    function filterAndSort() {
+      const searchTerm = (document.getElementById('services-search')?.value || '').toLowerCase();
+      const tierFilter = document.getElementById('services-tier-filter')?.value || '';
+      const healthFilter = document.getElementById('services-health-filter')?.value || '';
+      const sortBy = document.getElementById('services-sort')?.value || 'name';
+
+      let filtered = allServices.filter(service => {
+        const matchesSearch = service.config.service.name.includes(searchTerm) ||
+                             service.config.service.display_name.toLowerCase().includes(searchTerm);
+        const matchesTier = !tierFilter || service.config.deployment.tier === tierFilter;
+        const matchesHealth = !healthFilter ||
+                             (healthFilter === 'healthy' && service.status.healthy) ||
+                             (healthFilter === 'unhealthy' && !service.status.healthy);
+
+        return matchesSearch && matchesTier && matchesHealth;
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        switch (sortBy) {
+          case 'name':
+            return a.config.service.name.localeCompare(b.config.service.name);
+          case 'tier':
+            return a.config.deployment.tier.localeCompare(b.config.deployment.tier);
+          case 'health':
+            return (b.status.healthy ? 1 : 0) - (a.status.healthy ? 1 : 0);
+          default:
+            return 0;
+        }
+      });
+
+      renderServices(filtered);
+    }
+
+    // Render service cards
+    function renderServices(services) {
+      const gridContainer = document.getElementById('services-grid');
+      const emptyState = document.getElementById('services-empty-state');
+      const template = document.getElementById('service-card-template');
+
+      if (!gridContainer || !template) return;
+
+      gridContainer.innerHTML = '';
+
+      if (services.length === 0) {
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+
+      services.forEach(service => {
+        const card = template.content.cloneNode(true);
+        const config = service.config;
+        const status = service.status;
+
+        // Set service name
+        card.querySelector('.service-name').textContent = config.service.display_name || config.service.name;
+
+        // Set badges
+        const tierBadge = card.querySelector('.badge-tier');
+        tierBadge.textContent = config.deployment.tier;
+
+        const protocolBadge = card.querySelector('.badge-protocol');
+        protocolBadge.textContent = config.network.protocol.toUpperCase();
+
+        const healthBadge = card.querySelector('.badge-health');
+        healthBadge.textContent = status.healthy ? 'healthy' : 'degraded';
+        healthBadge.classList.add(status.healthy ? 'healthy' : 'unhealthy');
+
+        // Set metadata
+        card.querySelector('.service-port').textContent = config.network.port;
+        card.querySelector('.service-http-port').textContent = config.network.http_port;
+        card.querySelector('.service-version').textContent = config.service.version;
+
+        // Set description
+        card.querySelector('.service-description').textContent = config.service.description || 'No description provided';
+
+        // Set health details
+        card.querySelector('.service-health-status').textContent = status.healthy ? 'Healthy' : 'Unhealthy';
+        card.querySelector('.service-last-check').textContent = new Date(status.last_check).toLocaleTimeString();
+        card.querySelector('.service-latency').textContent = `${status.latency}ms`;
+        card.querySelector('.service-check-interval').textContent = config.health.check_interval;
+        card.querySelector('.service-failures').textContent = status.consecutive_failures;
+
+        if (status.message) {
+          const msgEl = card.querySelector('.service-health-message');
+          msgEl.style.display = 'block';
+          msgEl.querySelector('.value').textContent = status.message;
+        }
+
+        // Set runtime config
+        card.querySelector('.service-binary').textContent = config.runtime.binary;
+        card.querySelector('.service-restart-policy').textContent = config.deployment.restart_policy;
+        card.querySelector('.service-replicas').textContent = config.deployment.replicas;
+
+        if (config.runtime.args && config.runtime.args.length > 0) {
+          const argsRow = card.querySelector('[class*="runtime-row"]');
+          if (argsRow) {
+            const argsDisplay = argsRow.querySelector('.service-args');
+            if (argsDisplay) {
+              argsDisplay.textContent = config.runtime.args.join(' ');
+              argsRow.style.display = 'flex';
+            }
+          }
+        }
+
+        // Set dependencies
+        if (config.deployment.depends_on && config.deployment.depends_on.length > 0) {
+          const depDetails = card.querySelector('.dependencies-details');
+          depDetails.style.display = 'block';
+          const depList = card.querySelector('.service-dependencies');
+          depList.innerHTML = config.deployment.depends_on
+            .map(dep => `<li>${dep}</li>`)
+            .join('');
+        }
+
+        // Add action listeners
+        const actions = card.querySelectorAll('[data-action]');
+        actions.forEach(btn => {
+          btn.addEventListener('click', () => handleAction(btn.dataset.action, config.service.name));
+        });
+
+        gridContainer.appendChild(card);
+      });
+    }
+
+    // ============================================================
+    // Action handlers
+    // ============================================================
+
+    function handleAction(action, serviceName) {
+      switch (action) {
+        case 'view-config':
+          openConfigModal(serviceName);
+          break;
+        case 'view-logs':
+          navigateToLogs(serviceName);
+          break;
+        case 'restart':
+          restartService(serviceName);
+          break;
+      }
+    }
+
+    // -- View Config: open modal with YAML fetched from API ------
+
+    function openConfigModal(serviceName) {
+      currentConfigService = serviceName;
+
+      var overlay = document.getElementById('config-modal-overlay');
+      var nameEl = document.getElementById('config-modal-service-name');
+      var textarea = document.getElementById('config-editor-textarea');
+      var saveBtn = document.getElementById('config-modal-btn-save');
+
+      nameEl.textContent = serviceName;
+      textarea.value = '';
+      textarea.disabled = true;
+      saveBtn.disabled = true;
+      setModalStatus('Loading configuration...', 'loading');
+
+      overlay.classList.add('open');
+
+      fetch(SERVICES_ENDPOINT + '/config/' + encodeURIComponent(serviceName))
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+          }
+          return response.text();
+        })
+        .then(function(yamlText) {
+          textarea.value = yamlText;
+          textarea.disabled = false;
+          saveBtn.disabled = false;
+          clearModalStatus();
+        })
+        .catch(function(err) {
+          console.error('Failed to load config for ' + serviceName + ':', err);
+          setModalStatus('Failed to load configuration: ' + err.message, 'error');
+          textarea.disabled = false;
+          textarea.value = '# Failed to load configuration\n# ' + err.message;
+        });
+    }
+
+    function closeConfigModal() {
+      var overlay = document.getElementById('config-modal-overlay');
+      overlay.classList.remove('open');
+      currentConfigService = null;
+      clearModalStatus();
+    }
+
+    function saveConfig() {
+      if (!currentConfigService) return;
+
+      var textarea = document.getElementById('config-editor-textarea');
+      var saveBtn = document.getElementById('config-modal-btn-save');
+      var yamlContent = textarea.value;
+
+      saveBtn.disabled = true;
+      textarea.disabled = true;
+      setModalStatus('Saving...', 'loading');
+
+      fetch(SERVICES_ENDPOINT + '/config/' + encodeURIComponent(currentConfigService), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'text/yaml'
+        },
+        body: yamlContent
+      })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+          }
+          return response.text();
+        })
+        .then(function() {
+          setModalStatus('Configuration saved successfully.', 'success');
+          textarea.disabled = false;
+          saveBtn.disabled = false;
+
+          // Refresh the services list to reflect any changes
+          loadServices();
+        })
+        .catch(function(err) {
+          console.error('Failed to save config for ' + currentConfigService + ':', err);
+          setModalStatus('Failed to save: ' + err.message, 'error');
+          textarea.disabled = false;
+          saveBtn.disabled = false;
+        });
+    }
+
+    function setModalStatus(message, type) {
+      var container = document.getElementById('config-modal-status');
+      container.innerHTML = '<span class="config-modal-status-msg status-' + type + '">' +
+        escapeHtml(message) + '</span>';
+    }
+
+    function clearModalStatus() {
+      var container = document.getElementById('config-modal-status');
+      container.innerHTML = '';
+    }
+
+    // -- View Logs: navigate to logs page with service filter ----
+
+    function navigateToLogs(serviceName) {
+      window.location.href = '/logs?service=' + encodeURIComponent(serviceName);
+    }
+
+    // -- Restart: confirm then POST to restart endpoint ----------
+
+    function restartService(serviceName) {
+      if (!confirm('Restart service "' + serviceName + '"?\n\nThis will interrupt any in-flight requests.')) {
+        return;
+      }
+
+      showToast('Restarting ' + serviceName + '...', 'success');
+
+      fetch(SERVICES_ENDPOINT + '/restart/' + encodeURIComponent(serviceName), {
+        method: 'POST'
+      })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+          }
+          return response.text();
+        })
+        .then(function() {
+          showToast('Service "' + serviceName + '" restart initiated.', 'success');
+          // Refresh the services list after a brief delay to let the restart take effect
+          setTimeout(loadServices, 2000);
+        })
+        .catch(function(err) {
+          console.error('Failed to restart ' + serviceName + ':', err);
+          showToast('Failed to restart "' + serviceName + '": ' + err.message, 'error');
+        });
+    }
+
+    // ============================================================
+    // Utility functions
+    // ============================================================
+
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+
+    function showToast(message, type) {
+      // Remove any existing toast
+      var existing = document.querySelector('.services-toast');
+      if (existing) {
+        existing.remove();
+      }
+
+      var toast = document.createElement('div');
+      toast.className = 'services-toast toast-' + type;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      // Auto-remove after 4 seconds
+      setTimeout(function() {
+        if (toast.parentNode) {
+          toast.remove();
+        }
+      }, 4000);
+    }
+
+    // Show empty state
+    function showEmptyState(message) {
+      const emptyState = document.getElementById('services-empty-state');
+      const gridContainer = document.getElementById('services-grid');
+      if (emptyState && gridContainer) {
+        gridContainer.innerHTML = '';
+        emptyState.querySelector('.empty-state-message').textContent = message;
+        emptyState.style.display = 'block';
+      }
+    }
+
+    // Cleanup on panel removal
+    function cleanup() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+      }
+    }
+
+    // Initialize on load
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
+  })();
+</script>

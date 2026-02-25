@@ -1,0 +1,4 @@
+[workspace]
+members = ["common", "collector"]
+exclude = ["ebpf-programs"]
+resolver = "2"

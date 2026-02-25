@@ -1,0 +1,100 @@
+{
+  "ociVersion": "1.1.0",
+  "metadata": {
+    "name": "sophia",
+    "description": "Sophia Knowledge Graph Service",
+    "labels": {
+      "io.unheaded.service": "sophia",
+      "io.unheaded.tier": "application",
+      "io.unheaded.ip": "10.10.10.26"
+    }
+  },
+  "image": {
+    "ref": "ghcr.io/unheaded/sophia:latest"
+  },
+  "process": {
+    "terminal": false,
+    "user": {
+      "uid": 1000,
+      "gid": 1000
+    },
+    "args": ["/app/sophia"],
+    "env": [
+      "SERVICE_NAME=sophia",
+      "SOPHIA_ADDR=0.0.0.0:19005",
+      "WOTAN_ADDR=10.10.10.10:18001",
+      "WOTAN_HTTP_ADDR=http://10.10.10.10:18000",
+      "LOG_LEVEL=info",
+      "METRICS_ADDR=0.0.0.0:9100",
+      "GOGC=100",
+      "GOMAXPROCS=2"
+    ],
+    "cwd": "/app",
+    "noNewPrivileges": true
+  },
+  "root": {
+    "path": "rootfs",
+    "readonly": true
+  },
+  "mounts": [
+    {
+      "destination": "/data",
+      "type": "bind",
+      "source": "/var/lib/unheaded/sophia",
+      "options": ["rbind", "rw"]
+    },
+    {
+      "destination": "/tmp",
+      "type": "tmpfs",
+      "source": "tmpfs",
+      "options": ["nosuid", "nodev", "noexec", "size=64m"]
+    },
+    {
+      "destination": "/proc",
+      "type": "proc",
+      "source": "proc"
+    }
+  ],
+  "linux": {
+    "resources": {
+      "memory": {
+        "limit": 536870912
+      },
+      "cpu": {
+        "quota": 100000,
+        "period": 100000
+      },
+      "pids": {
+        "limit": 512
+      }
+    },
+    "namespaces": [
+      { "type": "pid" },
+      { "type": "ipc" },
+      { "type": "uts" },
+      { "type": "mount" },
+      { "type": "network" }
+    ],
+    "maskedPaths": [
+      "/proc/asound", "/proc/acpi", "/proc/kcore", "/proc/keys",
+      "/proc/latency_stats", "/proc/timer_list", "/proc/timer_stats",
+      "/proc/sched_debug", "/proc/scsi", "/sys/firmware"
+    ],
+    "readonlyPaths": [
+      "/proc/bus", "/proc/fs", "/proc/irq", "/proc/sys",
+      "/proc/sysrq-trigger"
+    ]
+  },
+  "annotations": {
+    "io.unheaded.healthcheck.cmd": "wget -qO- http://localhost:19005/health || exit 1",
+    "io.unheaded.healthcheck.interval": "30s",
+    "io.unheaded.healthcheck.timeout": "5s",
+    "io.unheaded.healthcheck.retries": "3",
+    "io.unheaded.ports": "19005/tcp,9100/tcp",
+    "io.unheaded.network.ip": "10.10.10.26",
+    "io.unheaded.network.bridge": "br-unheaded",
+    "io.unheaded.restart.policy": "always",
+    "io.unheaded.restart.delay": "5s",
+    "io.unheaded.depends_on": "wotan"
+  }
+}
