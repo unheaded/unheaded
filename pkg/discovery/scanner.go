@@ -21,8 +21,8 @@ type Scanner struct {
 	basePath string
 }
 
-// ServiceConfig represents a service config.yaml discovered by the scanner.
-type ServiceConfig struct {
+// scannerServiceConfig represents a service config.yaml discovered by the scanner.
+type scannerServiceConfig struct {
 	Name   string `yaml:"name"`
 	Port   int    `yaml:"port"`
 	Proto  string `yaml:"proto"`
@@ -96,13 +96,13 @@ func (s *Scanner) ScanService(name string) (*ServiceEntry, error) {
 }
 
 // loadServiceConfig reads and parses a config.yaml file.
-func (s *Scanner) loadServiceConfig(path string) (*ServiceConfig, error) {
+func (s *Scanner) loadServiceConfig(path string) (*scannerServiceConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var cfg ServiceConfig
+	var cfg scannerServiceConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
