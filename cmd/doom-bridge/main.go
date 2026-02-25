@@ -99,6 +99,9 @@ type bridge struct {
 	statsMap  *BPFMap
 	cpuMap    *BPFMap
 
+	// Bitmap-based keyboard state (supports multi-key)
+	keyState *KeyStateBitmap
+
 	// Whether batch read is supported for screen map
 	batchSupported bool
 
@@ -141,11 +144,12 @@ func main() {
 	}
 
 	b := &bridge{
-		port:    *port,
-		mapPath: *mapPath,
-		dryRun:  *dryRun,
-		static:  static,
-		clients: make(map[*client]struct{}),
+		port:     *port,
+		mapPath:  *mapPath,
+		dryRun:   *dryRun,
+		static:   static,
+		keyState: NewKeyStateBitmap(),
+		clients:  make(map[*client]struct{}),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: screenSize*4 + 1024, // RGBA frame (256000) + tag + overhead
@@ -379,6 +383,25 @@ func (b *bridge) readLoop(c *client) {
 			return
 		}
 
+		// Handle JSON keyboard events for backward compatibility
+		// Format: {"type":"compute_input","key_code":87,"pressed":true}
+		if msgType == websocket.TextMessage {
+			var msg struct {
+				Type    string `json:"type"`
+				KeyCode int    `json:"key_code"`
+				Pressed bool   `json:"pressed"`
+			}
+			if err := json.Unmarshal(data, &msg); err == nil && msg.Type == "compute_input" {
+				b.keyState.SetKey(uint8(msg.KeyCode), msg.Pressed)
+				if b.kbdMap != nil {
+					if err := b.keyState.Flush(b.kbdMap); err != nil {
+						logf("ERROR", "KBD_MAP flush error", "err", err)
+					}
+				}
+			}
+			continue
+		}
+
 		// Only process binary messages with keyboard tag
 		if msgType != websocket.BinaryMessage {
 			continue
@@ -396,9 +419,11 @@ func (b *bridge) readLoop(c *client) {
 		scancode := binary.LittleEndian.Uint16(data[1:3])
 		pressed := data[3] != 0
 
+		// Use bitmap-based keyboard state (supports multi-key)
+		b.keyState.SetKey(uint8(scancode), pressed)
 		if b.kbdMap != nil {
-			if err := writeKbdMap(b.kbdMap, scancode, pressed); err != nil {
-				logf("ERROR", "KBD_MAP write error", "err", err)
+			if err := b.keyState.Flush(b.kbdMap); err != nil {
+				logf("ERROR", "KBD_MAP flush error", "err", err)
 			}
 		}
 	}
