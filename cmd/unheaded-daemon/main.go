@@ -33,6 +33,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 
@@ -1339,8 +1340,8 @@ func loadConfig(path string) *Config {
 	cfg := &Config{
 		NodeID:       getEnvOrDefault("UNHEADED_NODE_ID", fmt.Sprintf("citadel-%s", getHostname())),
 		NodeName:     getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
-		HTTPAddr:     getEnvOrDefault("HTTP_ADDR", ":17000"),
-		GRPCAddr:     getEnvOrDefault("GRPC_ADDR", ":17001"),
+		HTTPAddr:     getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
+		GRPCAddr:     getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
 		LXDSocket:    getEnvOrDefault("LXD_SOCKET", "/var/lib/lxd/unix.socket"),
 		WotanAddr:   getEnvOrDefault("WOTAN_ADDR", "localhost:18001"),
 		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),

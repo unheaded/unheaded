@@ -13,9 +13,11 @@ const (
 	TraceCollectorMetrics = 16671
 
 	// Control Plane (17000-17999)
-	DaemonHTTP = 17000
-	DaemonGRPC = 17001
-	CLIServer  = 17010
+	DaemonHTTP      = 17000
+	DaemonGRPC      = 17001
+	CLIServer       = 17010
+	ProtocolAPIREST = 17100
+	ProtocolAPIGRPC = 17101
 
 	// Wotan — Message Bus (18000-18099)
 	WotanHTTP = 18000
@@ -34,6 +36,14 @@ const (
 	DashboardBackend = 20000
 	KanbanApp        = 20001
 	WikiServer       = 20002
+
+	// AI Model Stack — Sophia's Eye (20100-20199)
+	VLLMDeepSeek = 20100
+	VLLMQwen     = 20101
+	Qdrant       = 20102
+	BGEM3        = 20104
+	SophiaEye    = 20105
+	AIWebUI      = 20106
 
 	// Gateway (21000-21443)
 	GatewayHTTP  = 21000

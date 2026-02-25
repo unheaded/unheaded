@@ -6,53 +6,57 @@
     <meta name="description" content="Doom-over-IPv6 Viewer - MBC CPU framebuffer via WebSocket">
     <meta name="theme-color" content="#0a0a0a">
     <title>Doom-over-IPv6 Viewer | Unheaded</title>
+    <link rel="stylesheet" href="/dashboard/css/design-system.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* Doom viewer page-specific styles — inherits design-system.css variables */
 
         body {
-            background: #0a0a0a;
-            color: #e0e0e0;
-            font-family: 'Courier New', monospace;
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-height: 100vh;
-            padding: 20px;
+            padding: calc(80px + var(--space-xl)) var(--space-xl) var(--space-xl);
         }
 
         h1 {
-            color: #ff5c00;
-            margin-bottom: 10px;
-            font-size: 1.4em;
+            color: var(--color-accent);
+            margin-bottom: var(--space-sm);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-xl);
+            font-weight: 300;
+            letter-spacing: 0.1em;
         }
 
         .subtitle {
-            color: #888;
-            font-size: 0.85em;
-            margin-bottom: 20px;
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--space-xl);
+            font-family: var(--font-mono);
         }
 
         .container {
             display: flex;
-            gap: 20px;
+            gap: var(--space-xl);
             flex-wrap: wrap;
             justify-content: center;
             max-width: 1200px;
         }
 
         .panel {
-            background: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 15px;
+            background: var(--color-bg-tertiary);
+            border: var(--border-width-thin) solid var(--color-border);
+            border-radius: var(--border-radius-lg);
+            padding: var(--space-lg);
         }
 
         .panel h2 {
-            color: #fdda61;
-            font-size: 1em;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 5px;
+            color: var(--color-accent);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-base);
+            font-weight: 300;
+            letter-spacing: 0.1em;
+            margin-bottom: var(--space-md);
+            border-bottom: var(--border-width-thin) solid var(--color-border);
+            padding-bottom: var(--space-sm);
         }
 
         /* Screen canvas */
@@ -61,7 +65,7 @@
         }
 
         #doom-canvas {
-            border: 2px solid #ff5c00;
+            border: var(--border-width-thick) solid var(--color-accent);
             image-rendering: pixelated;
             image-rendering: crisp-edges;
             cursor: crosshair;
@@ -70,37 +74,40 @@
         }
 
         .screen-controls {
-            margin-top: 8px;
+            margin-top: var(--space-sm);
             display: flex;
-            gap: 10px;
+            gap: var(--space-md);
             justify-content: center;
             align-items: center;
-            font-size: 0.8em;
+            font-size: var(--font-size-sm);
         }
 
         .screen-controls label {
-            color: #aaa;
+            color: var(--color-text-secondary);
+            font-family: var(--font-mono);
         }
 
         .screen-controls select, .screen-controls button {
-            background: #222;
-            color: #e0e0e0;
-            border: 1px solid #444;
-            padding: 4px 8px;
-            border-radius: 4px;
+            background: var(--color-bg-secondary);
+            color: var(--color-text-primary);
+            border: var(--border-width-thin) solid var(--color-border-light);
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--border-radius-sm);
             cursor: pointer;
-            font-family: inherit;
-            font-size: 0.9em;
+            font-family: var(--font-mono);
+            font-size: var(--font-size-sm);
+            transition: all var(--transition-fast);
         }
 
         .screen-controls button:hover {
-            background: #333;
+            border-color: var(--color-accent);
+            color: var(--color-accent);
         }
 
         .screen-controls button.active {
-            background: #ff5c00;
-            color: #000;
-            border-color: #ff5c00;
+            background: var(--color-accent);
+            color: var(--color-bg);
+            border-color: var(--color-accent);
         }
 
         /* CPU status panel */
@@ -111,128 +118,92 @@
         .status-grid {
             display: grid;
             grid-template-columns: auto 1fr;
-            gap: 4px 12px;
-            font-size: 0.85em;
+            gap: var(--space-xs) var(--space-md);
+            font-size: var(--font-size-sm);
+            font-family: var(--font-mono);
         }
 
         .status-label {
-            color: #888;
+            color: var(--color-text-secondary);
         }
 
         .status-value {
-            color: #00ff88;
+            color: var(--color-success);
             font-weight: bold;
         }
 
         .status-value.halted {
-            color: #ff0000;
+            color: var(--color-error);
         }
 
         .status-value.stalled {
-            color: #fdda61;
+            color: var(--color-warning);
         }
 
         /* Registers */
         .registers {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 2px 8px;
-            font-size: 0.75em;
-            margin-top: 10px;
-            padding-top: 8px;
-            border-top: 1px solid #333;
+            gap: 2px var(--space-sm);
+            font-size: var(--font-size-xs);
+            font-family: var(--font-mono);
+            margin-top: var(--space-md);
+            padding-top: var(--space-sm);
+            border-top: var(--border-width-thin) solid var(--color-border);
         }
 
         .reg-entry {
             display: flex;
-            gap: 4px;
+            gap: var(--space-xs);
         }
 
         .reg-name {
-            color: #888;
+            color: var(--color-text-secondary);
             min-width: 28px;
         }
 
         .reg-val {
-            color: #88ccff;
+            color: var(--color-accent);
         }
 
         /* FPS counter */
         .fps-display {
             position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.8);
-            color: #00ff88;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.75em;
+            top: 70px;
+            right: var(--space-md);
+            background: rgba(10, 10, 10, 0.8);
+            color: var(--color-success);
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--border-radius-sm);
+            font-size: var(--font-size-xs);
+            font-family: var(--font-mono);
+            z-index: var(--z-sticky);
         }
 
         /* Key hints */
         .key-hints {
-            margin-top: 10px;
-            font-size: 0.75em;
-            color: #666;
+            margin-top: var(--space-md);
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
             text-align: center;
+            font-family: var(--font-mono);
         }
 
         .key-hints kbd {
-            background: #222;
-            border: 1px solid #444;
-            border-radius: 3px;
-            padding: 1px 4px;
+            background: var(--color-bg-secondary);
+            border: var(--border-width-thin) solid var(--color-border-light);
+            border-radius: var(--border-radius-sm);
+            padding: 1px var(--space-xs);
             font-size: 0.9em;
-        }
-
-        /* Navigation bar */
-        .doom-nav {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 20px;
-            background: rgba(10, 10, 10, 0.95);
-            border-bottom: 1px solid #333;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            margin-bottom: 20px;
-            width: 100%;
-        }
-
-        .doom-nav a {
-            color: #e0e0e0;
-            text-decoration: none;
-            font-size: 0.85em;
-            padding: 4px 10px;
-            border-radius: 4px;
-            transition: all 0.2s ease;
-        }
-
-        .doom-nav a:hover {
-            color: #ff5c00;
-            background: rgba(255, 92, 0, 0.1);
-        }
-
-        .doom-nav-brand {
-            color: #ff5c00;
-            font-weight: bold;
-            font-size: 0.95em;
-        }
-
-        .doom-nav-links {
-            display: flex;
-            gap: 8px;
-            list-style: none;
+            font-family: var(--font-mono);
         }
 
         /* Connection status */
         .connection-status {
-            margin-top: 10px;
-            font-size: 0.8em;
+            margin-top: var(--space-md);
+            font-size: var(--font-size-sm);
             text-align: center;
+            font-family: var(--font-mono);
         }
 
         .dot {
@@ -240,25 +211,26 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            margin-right: 4px;
+            margin-right: var(--space-xs);
         }
 
-        .dot.connected { background: #00ff88; }
-        .dot.disconnected { background: #ff0000; }
-        .dot.error { background: #fdda61; }
+        .dot.connected { background: var(--color-success); }
+        .dot.disconnected { background: var(--color-error); }
+        .dot.error { background: var(--color-warning); }
 
         /* Overlay */
         .overlay-panel {
             position: absolute;
-            top: 8px;
-            left: 8px;
-            background: rgba(0, 0, 0, 0.7);
-            color: #00FF00;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 0.7em;
+            top: var(--space-sm);
+            left: var(--space-sm);
+            background: rgba(10, 10, 10, 0.7);
+            color: var(--color-success);
+            padding: var(--space-sm);
+            border-radius: var(--border-radius-sm);
+            font-size: var(--font-size-xs);
+            font-family: var(--font-mono);
             pointer-events: none;
-            z-index: 10;
+            z-index: var(--z-sticky);
             display: none;
         }
 
@@ -291,11 +263,11 @@
             }
 
             h1 {
-                font-size: 1.1em;
+                font-size: var(--font-size-lg);
             }
 
             .subtitle {
-                font-size: 0.75em;
+                font-size: var(--font-size-xs);
             }
 
             .screen-controls {
@@ -305,35 +277,23 @@
             .key-hints {
                 font-size: 0.65em;
             }
-
-            .doom-nav-links {
-                gap: 4px;
-            }
-
-            .doom-nav a {
-                font-size: 0.75em;
-                padding: 3px 6px;
-            }
         }
 
         @media (max-width: 480px) {
             body {
-                padding: 10px;
+                padding-top: calc(80px + var(--space-md));
+                padding-left: var(--space-md);
+                padding-right: var(--space-md);
+                padding-bottom: var(--space-md);
             }
 
             .panel {
-                padding: 10px;
+                padding: var(--space-md);
             }
 
             .registers {
                 grid-template-columns: repeat(2, 1fr);
                 font-size: 0.65em;
-            }
-
-            .doom-nav {
-                flex-direction: column;
-                gap: 8px;
-                padding: 8px 12px;
             }
         }
 
@@ -347,17 +307,20 @@
     </style>
 </head>
 <body>
-    <nav class="doom-nav" role="navigation" aria-label="Doom viewer navigation">
-        <span class="doom-nav-brand">Fenrir's Eye</span>
-        <ul class="doom-nav-links">
-            <li><a href="/">Dashboard</a></li>
-            <li><a href="/kanban">Kanban</a></li>
-            <li><a href="/wiki/">Wiki</a></li>
+    <canvas id="particle-canvas"></canvas>
+
+    <nav class="nav">
+        <a href="/" class="nav-logo"><span>(U)</span>NHEADED</a>
+        <ul class="nav-links">
+            <li><a href="/dashboard" class="nav-link">dashboard</a></li>
+            <li><a href="/kanban" class="nav-link">kanban</a></li>
+            <li><a href="/docs" class="nav-link">docs</a></li>
+            <li><a href="/status" class="nav-link">status</a></li>
         </ul>
     </nav>
 
     <h1>Doom-over-IPv6</h1>
-    <p class="subtitle">Fenrir's Eye &mdash; MBC CPU framebuffer via WebSocket &mdash; Packet-as-clock-tick compute engine</p>
+    <p class="subtitle">MBC CPU framebuffer via WebSocket &mdash; Packet-as-clock-tick compute engine</p>
 
     <div class="container">
         <!-- Screen Panel -->
@@ -365,14 +328,14 @@
             <h2>Framebuffer (320x200)</h2>
             <canvas id="doom-canvas" width="640" height="400"></canvas>
             <div id="overlay-panel" class="overlay-panel visible">
-                <div>Fenrir's Eye -- Doom-over-IPv6</div>
+                <div>Doom-over-IPv6</div>
                 <div id="overlay-fps">FPS: --</div>
                 <div id="overlay-ips">IPS: --</div>
                 <div id="overlay-pc">PC: --</div>
                 <div id="overlay-cache">Cache: --</div>
                 <div id="overlay-frames">Frames: 0</div>
                 <div id="overlay-bytes">Bytes: 0 MB</div>
-                <div style="color: #888; margin-top: 4px;">F3 to toggle</div>
+                <div style="color: var(--color-text-secondary); margin-top: 4px;">F3 to toggle</div>
             </div>
             <div class="screen-controls">
                 <label>Scale:</label>
@@ -748,20 +711,21 @@
         // --- Initialize ---
         setConnectionStatus('disconnected', 'Starting...');
 
-        // Draw initial "waiting" message
-        ctx.fillStyle = '#1a1a1a';
+        // Draw initial "waiting" message — use design-system CSS variable values
+        ctx.fillStyle = '#151515';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ff5c00';
-        ctx.font = '20px Courier New';
+        ctx.fillStyle = '#4a9eff';
+        ctx.font = '20px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.fillText('Waiting for Doom framebuffer...', canvas.width/2, canvas.height/2);
-        ctx.font = '14px Courier New';
-        ctx.fillStyle = '#888';
+        ctx.font = '14px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#888888';
         ctx.fillText('Connecting via WebSocket...', canvas.width/2, canvas.height/2 + 30);
 
         // Connect WebSocket
         connectWebSocket();
     })();
     </script>
+    <script src="/dashboard/js/particles.js"></script>
 </body>
 </html>
