@@ -18,11 +18,15 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	pb "unheaded/proto/unheaded/v1"
+	"unheaded/pkg/ports"
+)
+
+var (
+	restPort = ports.DefaultAddr(ports.ProtocolAPIREST)
+	grpcPort = ports.DefaultAddr(ports.ProtocolAPIGRPC)
 )
 
 const (
-	restPort       = ":17100"
-	grpcPort       = ":17101"
 	apiKeyHeader   = "X-API-Key"
 	version        = "0.1.0"
 	drainTimeout   = 30 * time.Second

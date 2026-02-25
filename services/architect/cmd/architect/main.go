@@ -17,6 +17,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/architect"
@@ -58,7 +59,7 @@ func init() {
 
 func main() {
 	// Flags
-	addr := flag.String("addr", ":19001", "HTTP listen address")
+	addr := flag.String("addr", ports.DefaultAddr(ports.Architect), "HTTP listen address")
 	wotanAddr := flag.String("wotan", "localhost:18000", "Wotan HTTP address")
 	logLevel := flag.String("log", "info", "Log level (debug, info, warn, error)")
 	useMock := flag.Bool("mock-wotan", false, "Use mock Wotan client for testing")

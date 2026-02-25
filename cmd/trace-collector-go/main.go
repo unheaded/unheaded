@@ -48,6 +48,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/logagg"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
@@ -59,7 +60,7 @@ var (
 	ringPath     = flag.String("ring-path", ebpf.DefaultAnamnesisRingPath, "BPF ring buffer pin path")
 	wotanAddr     = flag.String("wotan-addr", "localhost:18001", "Wotan gRPC address")
 	wotanHTTPAddr = flag.String("wotan-http-addr", "localhost:18000", "Wotan HTTP address (fallback)")
-	httpAddr     = flag.String("http-addr", ":16670", "HTTP address for health/metrics")
+	httpAddr     = flag.String("http-addr", ports.DefaultAddr(ports.TraceCollectorHTTP), "HTTP address for health/metrics")
 	maxRate      = flag.Int("max-rate", 10000, "Max events/sec (0 = unlimited)")
 	batchSize    = flag.Int("batch-size", 100, "Publish batch size")
 	batchTimeout = flag.Duration("batch-timeout", 50*time.Millisecond, "Publish batch timeout")
@@ -69,7 +70,7 @@ var (
 
 	// Unified BPF loader flags
 	iface              = flag.String("interface", "lo", "Network interface to attach BPF programs")
-	metricsAddr        = flag.String("metrics-addr", ":16671", "Prometheus metrics address (unified mode)")
+	metricsAddr        = flag.String("metrics-addr", ports.DefaultAddr(ports.TraceCollectorMetrics), "Prometheus metrics address (unified mode)")
 	mapPinPath         = flag.String("map-pin-path", "/sys/fs/bpf/unheaded/", "BPF map pin path")
 	readInterval       = flag.Duration("read-interval", 100*time.Millisecond, "Map read interval")
 	enablePacketMarker = flag.Bool("enable-packet-marker", true, "Enable packet_marker XDP program")
