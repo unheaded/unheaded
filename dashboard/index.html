@@ -610,58 +610,111 @@
           tbody.appendChild(row);
         });
 
+        // Load services from API (falls back to demo data if API unavailable)
         const servicesContainer = document.getElementById('servicesContainer');
-        if (window.DemoData.services && window.DemoData.services.length > 0) {
-          servicesContainer.innerHTML = '';
-          window.DemoData.services.forEach(service => {
-            const card = document.createElement('div');
-            card.className = 'service-card';
-            card.innerHTML = `
-              <div class="service-header">
-                <div class="service-name">${service.name}</div>
-                <div class="service-health">${service.health}</div>
-              </div>
-              <div class="service-details">
-                <div class="service-detail">
-                  <span>port</span>
-                  <span class="service-detail-value">${service.port}</span>
+        fetch('/api/v1/services')
+          .then(r => r.json())
+          .then(data => {
+            const services = data.services || [];
+            servicesContainer.innerHTML = '';
+            services.forEach(svc => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              const name = svc.name || (svc.config && svc.config.service && svc.config.service.name) || 'unknown';
+              const status = svc.status || 'unknown';
+              const port = (svc.config && svc.config.network && svc.config.network.port) || '--';
+              const protocol = (svc.config && svc.config.network && svc.config.network.protocol) || '--';
+              const tier = (svc.config && svc.config.deployment && svc.config.deployment.tier) || '--';
+              card.innerHTML = `
+                <div class="service-header">
+                  <div class="service-name">${name}</div>
+                  <div class="service-health">${status}</div>
                 </div>
-                <div class="service-detail">
-                  <span>protocol</span>
-                  <span class="service-detail-value">${service.protocol}</span>
+                <div class="service-details">
+                  <div class="service-detail"><span>port</span><span class="service-detail-value">${port}</span></div>
+                  <div class="service-detail"><span>protocol</span><span class="service-detail-value">${protocol}</span></div>
+                  <div class="service-detail"><span>tier</span><span class="service-detail-value">${tier}</span></div>
                 </div>
-                <div class="service-detail">
-                  <span>tier</span>
-                  <span class="service-detail-value">${service.tier}</span>
-                </div>
-              </div>
-            `;
-            servicesContainer.appendChild(card);
+              `;
+              servicesContainer.appendChild(card);
+            });
+            if (services.length === 0) {
+              servicesContainer.innerHTML = '<div style="color: var(--color-text-secondary, #888); text-align: center; padding: 2rem;">No services discovered</div>';
+            }
+          })
+          .catch(() => {
+            // Fallback to demo data
+            if (window.DemoData && window.DemoData.services) {
+              window.DemoData.services.forEach(service => {
+                const card = document.createElement('div');
+                card.className = 'service-card';
+                card.innerHTML = `
+                  <div class="service-header">
+                    <div class="service-name">${service.name}</div>
+                    <div class="service-health">${service.health}</div>
+                  </div>
+                  <div class="service-details">
+                    <div class="service-detail"><span>port</span><span class="service-detail-value">${service.port}</span></div>
+                    <div class="service-detail"><span>protocol</span><span class="service-detail-value">${service.protocol}</span></div>
+                    <div class="service-detail"><span>tier</span><span class="service-detail-value">${service.tier}</span></div>
+                  </div>
+                `;
+                servicesContainer.appendChild(card);
+              });
+            }
           });
-        }
 
+        // Load infrastructure from API (falls back to demo data if API unavailable)
         const infContainer = document.getElementById('infrastructureContainer');
-        if (window.DemoData.services && window.DemoData.services.length > 0) {
-          infContainer.innerHTML = '';
-          window.DemoData.services.forEach((service, idx) => {
-            const card = document.createElement('div');
-            card.className = 'container-card';
-            const containerId = `container-${String(idx + 1).padStart(3, '0')}`;
-            card.innerHTML = `
-              <div class="container-header">
-                <div class="container-name">${containerId}</div>
-                <div class="container-status">running</div>
-              </div>
-              <div class="container-info">
-                <div>image: ${service.protocol.toLowerCase()}:latest</div>
-                <div>memory: ${Math.floor(Math.random() * 500 + 100)}MB</div>
-                <div>cpu: ${(Math.random() * 50).toFixed(1)}%</div>
-                <div>uptime: ${Math.floor(Math.random() * 1000)}h</div>
-              </div>
-            `;
-            infContainer.appendChild(card);
+        fetch('/api/v1/infrastructure/containers')
+          .then(r => r.json())
+          .then(data => {
+            const containers = data.containers || [];
+            infContainer.innerHTML = '';
+            containers.forEach(c => {
+              const card = document.createElement('div');
+              card.className = 'container-card';
+              card.innerHTML = `
+                <div class="container-header">
+                  <div class="container-name">${c.name}</div>
+                  <div class="container-status">${c.status || 'unknown'}</div>
+                </div>
+                <div class="container-info">
+                  <div>image: ${c.image || '--'}</div>
+                  <div>tier: ${c.tier || '--'}</div>
+                  <div>port: ${c.port || '--'}</div>
+                  <div>protocol: ${c.protocol || '--'}</div>
+                </div>
+              `;
+              infContainer.appendChild(card);
+            });
+            if (containers.length === 0) {
+              infContainer.innerHTML = '<div style="color: var(--color-text-secondary, #888); text-align: center; padding: 2rem;">No containers detected</div>';
+            }
+          })
+          .catch(() => {
+            // Fallback to demo data
+            if (window.DemoData && window.DemoData.services) {
+              window.DemoData.services.forEach((service, idx) => {
+                const card = document.createElement('div');
+                card.className = 'container-card';
+                const containerId = `container-${String(idx + 1).padStart(3, '0')}`;
+                card.innerHTML = `
+                  <div class="container-header">
+                    <div class="container-name">${containerId}</div>
+                    <div class="container-status">running</div>
+                  </div>
+                  <div class="container-info">
+                    <div>image: ${service.protocol.toLowerCase()}:latest</div>
+                    <div>tier: ${service.tier}</div>
+                    <div>port: ${service.port}</div>
+                    <div>protocol: ${service.protocol}</div>
+                  </div>
+                `;
+                infContainer.appendChild(card);
+              });
+            }
           });
-        }
 
         const logStream = document.getElementById('logStream');
         const logs = [
