@@ -198,5 +198,5 @@ docs/archive/scratch/old-sessions/
 cert-gen
 doom-cpu-dump
 doom-loader
-protocol-api
-sophia-gateway
+/protocol-api
+/sophia-gateway
