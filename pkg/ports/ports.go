@@ -13,9 +13,11 @@ const (
 	TraceCollectorMetrics = 16671
 
 	// Control Plane (17000-17999)
-	DaemonHTTP = 17000
-	DaemonGRPC = 17001
-	CLIServer  = 17010
+	DaemonHTTP      = 17000
+	DaemonGRPC      = 17001
+	CLIServer       = 17010
+	ProtocolAPIREST = 17100
+	ProtocolAPIGRPC = 17101
 
 	// Wotan — Message Bus (18000-18099)
 	WotanHTTP = 18000

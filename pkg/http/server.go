@@ -23,6 +23,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"unheaded/pkg/ports"
 )
 
 // Server wraps the standard http.Server with additional functionality
@@ -88,7 +90,7 @@ type ServerConfig struct {
 // DefaultServerConfig returns a ServerConfig with sensible defaults
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
-		Addr:              ":20000",
+		Addr:              ports.DefaultAddr(ports.DashboardBackend),
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -108,7 +110,7 @@ func NewServer(router *Router) *Server {
 func NewServerWithConfig(router *Router, config ServerConfig) *Server {
 	// Set defaults
 	if config.Addr == "" {
-		config.Addr = ":20000"
+		config.Addr = ports.DefaultAddr(ports.DashboardBackend)
 	}
 	if config.ShutdownTimeout == 0 {
 		config.ShutdownTimeout = 30 * time.Second
@@ -290,7 +292,7 @@ func (r *Router) ListenAndServeTLS(addr, certFile, keyFile string) error {
 
 // Run starts the server (alias for ListenAndServe)
 func (r *Router) Run(addr ...string) error {
-	address := ":20000"
+	address := ports.DefaultAddr(ports.DashboardBackend)
 	if len(addr) > 0 {
 		address = addr[0]
 	}

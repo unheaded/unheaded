@@ -33,6 +33,7 @@ import (
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
+	"unheaded/pkg/ports"
 )
 
 var (
@@ -78,7 +79,7 @@ type Config struct {
 // DefaultConfig returns default server configuration
 func DefaultConfig() *Config {
 	return &Config{
-		ListenAddr:   ":20000",
+		ListenAddr:   ports.DefaultAddr(ports.DashboardBackend),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		WotanAddr:   "localhost:18001",
@@ -92,7 +93,7 @@ func (c *Config) Validate() error {
 		return ErrNilConfig
 	}
 	if c.ListenAddr == "" {
-		c.ListenAddr = ":20000"
+		c.ListenAddr = ports.DefaultAddr(ports.DashboardBackend)
 	}
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = 15 * time.Second
