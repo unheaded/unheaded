@@ -4,6 +4,7 @@
   <div class="panel-header">
     <h2 class="panel-title">Infrastructure</h2>
     <div class="panel-controls">
+      <span class="infra-updated-at text-secondary" id="infra-updated-at"></span>
       <button class="btn btn-secondary btn-sm" id="btn-refresh-infrastructure" title="Refresh infrastructure status">
         Refresh
       </button>
@@ -25,11 +26,37 @@
 
     <!-- Infrastructure Content (shown when daemon is available) -->
     <div class="infrastructure-content" id="infrastructure-content" style="display: none;">
+      <!-- Summary Bar -->
+      <section class="infrastructure-section">
+        <div class="infra-summary-bar" id="infra-summary-bar">
+          <div class="summary-item">
+            <span class="summary-label">Runtime</span>
+            <span class="summary-value" id="summary-runtime">--</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Services</span>
+            <span class="summary-value" id="summary-services">0 / 0</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Tier Breakdown</span>
+            <span class="summary-value" id="summary-tiers">--</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Container Runtimes Section -->
       <section class="infrastructure-section">
         <h3 class="section-title">Container Runtimes</h3>
         <div class="runtimes-grid" id="runtimes-grid">
           <!-- Runtime status cards dynamically generated here -->
+        </div>
+      </section>
+
+      <!-- Containers Section -->
+      <section class="infrastructure-section">
+        <h3 class="section-title">Containers</h3>
+        <div class="containers-grid" id="containers-grid">
+          <!-- Container cards dynamically generated here -->
         </div>
       </section>
 
@@ -145,11 +172,56 @@
   </div>
 </template>
 
+<!-- Container Card Template -->
+<template id="container-card-template">
+  <div class="status-card container-card">
+    <div class="card-header container-card-header">
+      <h4 class="card-title container-name"></h4>
+      <span class="status-badge container-status">unknown</span>
+    </div>
+    <div class="card-body">
+      <div class="status-row">
+        <span class="label">Image:</span>
+        <span class="value mono container-image">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Port:</span>
+        <span class="value mono container-port">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Protocol:</span>
+        <span class="value container-protocol">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Tier:</span>
+        <span class="value container-tier">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Binary:</span>
+        <span class="value mono container-binary">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Replicas:</span>
+        <span class="value container-replicas">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Restart Policy:</span>
+        <span class="value container-restart">--</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Uptime:</span>
+        <span class="value container-uptime">--</span>
+      </div>
+    </div>
+  </div>
+</template>
+
 <!-- IaC Backend Card Template -->
 <template id="iac-card-template">
   <div class="status-card iac-card">
-    <div class="card-header">
+    <div class="card-header iac-card-header">
       <h4 class="card-title iac-name"></h4>
+      <span class="status-badge iac-status">unavailable</span>
     </div>
     <div class="card-body">
       <div class="status-row">
@@ -158,7 +230,7 @@
       </div>
       <div class="status-row">
         <span class="label">Status:</span>
-        <span class="value status-badge iac-status">unavailable</span>
+        <span class="value iac-availability">--</span>
       </div>
       <div class="status-row">
         <span class="label">Version:</span>
@@ -180,158 +252,206 @@
 <!-- Styles for Infrastructure Panel -->
 <style>
   .panel-infrastructure {
-    background: var(--color-bg-primary);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-lg);
+    background: var(--color-bg, #0a0a0a);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--spacing-lg, 24px);
   }
 
   .panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--spacing-lg);
-    border-bottom: 1px solid var(--color-border-subtle);
-    padding-bottom: var(--spacing-md);
+    margin-bottom: var(--spacing-lg, 24px);
+    border-bottom: 1px solid var(--color-border, #222222);
+    padding-bottom: var(--spacing-md, 16px);
   }
 
   .panel-title {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-lg, 1.25rem);
+    font-weight: var(--font-weight-semibold, 600);
     margin: 0;
-    color: var(--color-text-primary);
+    color: var(--color-text-primary, #e8e8e8);
   }
 
   .panel-controls {
     display: flex;
-    gap: var(--spacing-md);
+    gap: var(--spacing-md, 16px);
+    align-items: center;
+  }
+
+  .infra-updated-at {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-secondary, #888888);
   }
 
   .btn {
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+    font-size: var(--font-size-sm, 0.875rem);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: var(--radius-sm, 4px);
     cursor: pointer;
     transition: all 0.2s ease;
-    background: var(--color-bg-secondary);
-    color: var(--color-text-primary);
+    background: var(--color-bg-secondary, #111111);
+    color: var(--color-text-primary, #e8e8e8);
   }
 
   .btn:hover {
-    background: var(--color-bg-tertiary);
-    border-color: var(--color-border-default);
+    background: var(--color-bg-tertiary, #151515);
+    border-color: var(--color-accent, #4a9eff);
   }
 
   .btn-sm {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: var(--font-size-sm);
+    padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+    font-size: var(--font-size-sm, 0.875rem);
   }
 
   .btn-secondary {
-    background: var(--color-bg-secondary);
-    color: var(--color-text-primary);
-    border-color: var(--color-border-subtle);
+    background: var(--color-bg-secondary, #111111);
+    color: var(--color-text-primary, #e8e8e8);
+    border-color: var(--color-border, #222222);
   }
 
   .empty-state {
-    padding: var(--spacing-xl) var(--spacing-lg);
+    padding: var(--spacing-xl, 32px) var(--spacing-lg, 24px);
     text-align: center;
-    color: var(--color-text-secondary);
-    border: 2px dashed var(--color-border-subtle);
-    border-radius: var(--radius-md);
-    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary, #888888);
+    border: 2px dashed var(--color-border, #222222);
+    border-radius: var(--radius-md, 8px);
+    background: var(--color-bg-secondary, #111111);
   }
 
   .empty-state-icon {
     font-size: 3rem;
-    margin-bottom: var(--spacing-md);
+    margin-bottom: var(--spacing-md, 16px);
     opacity: 0.5;
   }
 
   .empty-state-title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    margin: 0 0 var(--spacing-sm) 0;
-    color: var(--color-text-primary);
+    font-size: var(--font-size-md, 1rem);
+    font-weight: var(--font-weight-semibold, 600);
+    margin: 0 0 var(--spacing-sm, 8px) 0;
+    color: var(--color-text-primary, #e8e8e8);
   }
 
   .empty-state-message {
-    margin: 0 0 var(--spacing-sm) 0;
-    font-size: var(--font-size-sm);
+    margin: 0 0 var(--spacing-sm, 8px) 0;
+    font-size: var(--font-size-sm, 0.875rem);
   }
 
   .empty-state-hint {
     margin: 0;
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-xs, 0.75rem);
   }
 
   code {
-    background: var(--color-bg-primary);
+    background: var(--color-bg-tertiary, #151515);
     padding: 2px 6px;
     border-radius: 3px;
     font-family: monospace;
     font-size: 0.9em;
+    color: var(--color-accent, #4a9eff);
   }
 
   .text-secondary {
-    color: var(--color-text-secondary);
+    color: var(--color-text-secondary, #888888);
   }
 
   .infrastructure-content {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-lg, 24px);
   }
 
   .infrastructure-section {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-md, 16px);
   }
 
   .section-title {
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
+    font-size: var(--font-size-md, 1rem);
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--color-text-primary, #e8e8e8);
     margin: 0;
-    padding-bottom: var(--spacing-md);
-    border-bottom: 2px solid var(--color-border-subtle);
+    padding-bottom: var(--spacing-md, 16px);
+    border-bottom: 2px solid var(--color-border, #222222);
+  }
+
+  /* Summary bar */
+  .infra-summary-bar {
+    display: flex;
+    gap: var(--spacing-lg, 24px);
+    padding: var(--spacing-md, 16px);
+    background: var(--color-bg-secondary, #111111);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: var(--radius-md, 8px);
+    flex-wrap: wrap;
+  }
+
+  .summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 120px;
+  }
+
+  .summary-label {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-secondary, #888888);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: var(--font-weight-semibold, 600);
+  }
+
+  .summary-value {
+    font-size: var(--font-size-md, 1rem);
+    color: var(--color-text-primary, #e8e8e8);
+    font-weight: var(--font-weight-semibold, 600);
   }
 
   .runtimes-grid,
   .iac-grid,
-  .network-grid {
+  .network-grid,
+  .containers-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: var(--spacing-lg);
+    gap: var(--spacing-lg, 24px);
   }
 
   .status-card {
-    background: var(--color-bg-primary);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary, #111111);
+    border: 1px solid var(--color-border, #222222);
+    border-radius: var(--radius-md, 8px);
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    transition: box-shadow 0.2s ease;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
   }
 
   .status-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-bg-tertiary, #151515);
   }
 
   .card-header {
-    padding: var(--spacing-md);
-    border-bottom: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-secondary);
+    padding: var(--spacing-md, 16px);
+    border-bottom: 1px solid var(--color-border, #222222);
+    background: var(--color-bg-tertiary, #151515);
+  }
+
+  .container-card-header,
+  .iac-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 
   .card-title {
     margin: 0;
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
+    font-size: var(--font-size-md, 1rem);
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--color-text-primary, #e8e8e8);
   }
 
   .runtime-name,
@@ -340,7 +460,7 @@
   }
 
   .card-body {
-    padding: var(--spacing-md);
+    padding: var(--spacing-md, 16px);
     flex: 1;
   }
 
@@ -348,9 +468,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--spacing-sm) 0;
-    font-size: var(--font-size-sm);
-    border-bottom: 1px solid var(--color-border-subtle);
+    padding: var(--spacing-sm, 8px) 0;
+    font-size: var(--font-size-sm, 0.875rem);
+    border-bottom: 1px solid var(--color-border, #222222);
   }
 
   .status-row:last-child {
@@ -358,14 +478,14 @@
   }
 
   .label {
-    color: var(--color-text-secondary);
-    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary, #888888);
+    font-weight: var(--font-weight-medium, 500);
   }
 
   .value {
-    color: var(--color-text-primary);
+    color: var(--color-text-primary, #e8e8e8);
     text-align: right;
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-medium, 500);
   }
 
   .value.mono {
@@ -377,41 +497,50 @@
     display: inline-block;
     padding: 2px 8px;
     border-radius: 3px;
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: var(--font-weight-semibold, 600);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
+  .status-badge.healthy,
   .status-badge.operational,
-  .status-badge.available {
-    background: var(--color-success-light);
-    color: var(--color-success-dark);
+  .status-badge.available,
+  .status-badge.running {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--color-success, #22c55e);
   }
 
   .status-badge.degraded,
   .status-badge.warning {
-    background: var(--color-warning-light);
-    color: var(--color-warning-dark);
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--color-warning, #f59e0b);
   }
 
+  .status-badge.unhealthy,
   .status-badge.unavailable,
-  .status-badge.error {
-    background: var(--color-error-light);
-    color: var(--color-error-dark);
+  .status-badge.error,
+  .status-badge.stopped {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-error, #ef4444);
+  }
+
+  .status-badge.unknown {
+    background: rgba(136, 136, 136, 0.15);
+    color: var(--color-text-secondary, #888888);
   }
 
   .card-footer {
-    padding: var(--spacing-md);
-    border-top: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-secondary);
+    padding: var(--spacing-md, 16px);
+    border-top: 1px solid var(--color-border, #222222);
+    background: var(--color-bg-tertiary, #151515);
     display: flex;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-sm, 8px);
   }
 
   .btn-xs {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: var(--font-size-xs);
+    padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+    font-size: var(--font-size-xs, 0.75rem);
     flex: 1;
   }
 
@@ -420,30 +549,99 @@
   }
 
   .network-card .status-row {
-    padding: var(--spacing-sm) 0;
-    font-size: var(--font-size-xs);
+    padding: var(--spacing-sm, 8px) 0;
+    font-size: var(--font-size-xs, 0.75rem);
   }
 
   .network-card .card-body {
-    padding: var(--spacing-md);
+    padding: var(--spacing-md, 16px);
   }
 
   .network-card .value {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-sm, 0.875rem);
+  }
+
+  /* Container card uptime bar */
+  .uptime-bar-wrapper {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .uptime-bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(136, 136, 136, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .uptime-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .uptime-bar-fill.high {
+    background: var(--color-success, #22c55e);
+  }
+
+  .uptime-bar-fill.medium {
+    background: var(--color-warning, #f59e0b);
+  }
+
+  .uptime-bar-fill.low {
+    background: var(--color-error, #ef4444);
+  }
+
+  .uptime-pct {
+    font-size: var(--font-size-xs, 0.75rem);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* Refresh spinner animation */
+  .btn.loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .btn.loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 6px;
+    border: 2px solid var(--color-text-secondary, #888888);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* Responsive adjustments */
   @media (max-width: 768px) {
     .runtimes-grid,
     .iac-grid,
-    .network-grid {
+    .network-grid,
+    .containers-grid {
       grid-template-columns: 1fr;
+    }
+
+    .infra-summary-bar {
+      flex-direction: column;
+      gap: var(--spacing-sm, 8px);
     }
 
     .status-row {
       flex-direction: column;
       align-items: flex-start;
-      gap: var(--spacing-xs);
+      gap: var(--spacing-xs, 4px);
     }
 
     .value {
@@ -463,184 +661,416 @@
 <!-- JavaScript for Infrastructure Panel Functionality -->
 <script>
   (function() {
-    const INFRASTRUCTURE_ENDPOINT = '/api/v1/infrastructure';
-    const REFRESH_INTERVAL = 30000; // 30 seconds
+    'use strict';
 
-    let refreshTimer = null;
+    var INFRA_ENDPOINT = '/api/v1/infrastructure';
+    var CONTAINERS_ENDPOINT = '/api/v1/infrastructure/containers';
+    var REFRESH_INTERVAL = 30000;
 
-    // Initialize the infrastructure panel
+    var refreshTimer = null;
+
+    // Known container runtimes and IaC backends
+    var KNOWN_RUNTIMES = ['Docker', 'LXD', 'containerd', 'NixOS'];
+    var KNOWN_IAC_BACKENDS = [
+      { name: 'Ansible',    type: 'Configuration Management' },
+      { name: 'Terraform',  type: 'Infrastructure Provisioning' },
+      { name: 'Puppet',     type: 'Configuration Management' },
+      { name: 'Kubernetes', type: 'Container Orchestration' },
+      { name: 'Chef',       type: 'Configuration Management' },
+      { name: 'Salt',       type: 'Event-Driven Automation' }
+    ];
+
+    // -------------------------------------------------------
+    // Initialization
+    // -------------------------------------------------------
+
     function init() {
-      document.getElementById('btn-refresh-infrastructure')?.addEventListener('click', loadInfrastructure);
+      var refreshBtn = document.getElementById('btn-refresh-infrastructure');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+          refreshAll(true);
+        });
+      }
 
       // Initial load
-      loadInfrastructure();
+      refreshAll(false);
 
-      // Auto-refresh
-      refreshTimer = setInterval(loadInfrastructure, REFRESH_INTERVAL);
+      // Auto-refresh every 30 seconds
+      refreshTimer = setInterval(function() {
+        refreshAll(false);
+      }, REFRESH_INTERVAL);
     }
 
-    // Load infrastructure data from API
-    function loadInfrastructure() {
-      fetch(INFRASTRUCTURE_ENDPOINT)
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    // -------------------------------------------------------
+    // Data fetching
+    // -------------------------------------------------------
+
+    function refreshAll(showSpinner) {
+      var refreshBtn = document.getElementById('btn-refresh-infrastructure');
+      if (showSpinner && refreshBtn) {
+        refreshBtn.classList.add('loading');
+      }
+
+      var infraDone = false;
+      var containersDone = false;
+
+      function checkDone() {
+        if (infraDone && containersDone && refreshBtn) {
+          refreshBtn.classList.remove('loading');
+        }
+      }
+
+      // Fetch main infrastructure data
+      fetch(INFRA_ENDPOINT)
+        .then(function(response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
           return response.json();
         })
-        .then(data => {
+        .then(function(data) {
           showContent();
-          renderContainerRuntimes(data.runtimes || []);
-          renderIaCBackends(data.iac_backends || []);
-          renderNetworkStatus(data.network || {});
+          renderSummary(data);
+          renderRuntimes(data.runtime);
+          renderIaCBackends(data);
+          renderNetwork(data);
+          renderUpdatedAt(data.updated_at);
         })
-        .catch(error => {
-          console.error('Failed to load infrastructure data:', error);
+        .catch(function(err) {
+          console.error('[infrastructure] Failed to load infrastructure data:', err);
           showEmptyState();
+        })
+        .finally(function() {
+          infraDone = true;
+          checkDone();
+        });
+
+      // Fetch container list
+      fetch(CONTAINERS_ENDPOINT)
+        .then(function(response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return response.json();
+        })
+        .then(function(data) {
+          renderContainers(data.containers || []);
+        })
+        .catch(function(err) {
+          console.error('[infrastructure] Failed to load containers:', err);
+          renderContainers([]);
+        })
+        .finally(function() {
+          containersDone = true;
+          checkDone();
         });
     }
 
-    // Show content and hide empty state
-    function showContent() {
-      const emptyState = document.getElementById('infrastructure-empty-state');
-      const content = document.getElementById('infrastructure-content');
+    // -------------------------------------------------------
+    // Show / hide states
+    // -------------------------------------------------------
 
+    function showContent() {
+      var emptyState = document.getElementById('infrastructure-empty-state');
+      var content = document.getElementById('infrastructure-content');
       if (emptyState) emptyState.style.display = 'none';
-      if (content) content.style.display = 'block';
+      if (content) content.style.display = '';
     }
 
-    // Show empty state
     function showEmptyState() {
-      const emptyState = document.getElementById('infrastructure-empty-state');
-      const content = document.getElementById('infrastructure-content');
-
-      if (emptyState) emptyState.style.display = 'block';
+      var emptyState = document.getElementById('infrastructure-empty-state');
+      var content = document.getElementById('infrastructure-content');
+      if (emptyState) emptyState.style.display = '';
       if (content) content.style.display = 'none';
     }
 
-    // Render container runtime cards
-    function renderContainerRuntimes(runtimes) {
-      const grid = document.getElementById('runtimes-grid');
-      const template = document.getElementById('runtime-card-template');
+    // -------------------------------------------------------
+    // Summary bar
+    // -------------------------------------------------------
 
+    function renderSummary(data) {
+      setText('summary-runtime', data.runtime || '--');
+      setText('summary-services',
+        (data.healthy_services || 0) + ' / ' + (data.total_services || 0) + ' healthy'
+      );
+
+      var tierStr = '--';
+      if (data.tier_breakdown && typeof data.tier_breakdown === 'object') {
+        var parts = [];
+        var keys = Object.keys(data.tier_breakdown);
+        for (var i = 0; i < keys.length; i++) {
+          parts.push(keys[i] + ': ' + data.tier_breakdown[keys[i]]);
+        }
+        tierStr = parts.join(' | ') || '--';
+      }
+      setText('summary-tiers', tierStr);
+    }
+
+    // -------------------------------------------------------
+    // Updated-at timestamp
+    // -------------------------------------------------------
+
+    function renderUpdatedAt(updatedAt) {
+      var el = document.getElementById('infra-updated-at');
+      if (!el) return;
+      if (!updatedAt) {
+        el.textContent = '';
+        return;
+      }
+      try {
+        var d = new Date(updatedAt);
+        el.textContent = 'Updated ' + d.toLocaleTimeString();
+      } catch (e) {
+        el.textContent = 'Updated ' + updatedAt;
+      }
+    }
+
+    // -------------------------------------------------------
+    // Container Runtimes
+    // -------------------------------------------------------
+
+    function renderRuntimes(activeRuntime) {
+      var grid = document.getElementById('runtimes-grid');
+      var template = document.getElementById('runtime-card-template');
       if (!grid || !template) return;
 
       grid.innerHTML = '';
+      var normalizedActive = (activeRuntime || '').toLowerCase();
 
-      const defaultRuntimes = ['docker', 'containerd', 'lxd', 'nixos'];
-      const runtimeMap = new Map(runtimes.map(r => [r.name.toLowerCase(), r]));
-
-      defaultRuntimes.forEach(name => {
-        const runtime = runtimeMap.get(name.toLowerCase());
-        const card = template.content.cloneNode(true);
+      for (var i = 0; i < KNOWN_RUNTIMES.length; i++) {
+        var name = KNOWN_RUNTIMES[i];
+        var card = template.content.cloneNode(true);
+        var isActive = normalizedActive === name.toLowerCase() ||
+                       (normalizedActive === 'docker' && name === 'Docker') ||
+                       (normalizedActive === 'lxd' && name === 'LXD') ||
+                       (normalizedActive === 'containerd' && name === 'containerd') ||
+                       (normalizedActive === 'nixos' && name === 'NixOS');
 
         card.querySelector('.runtime-name').textContent = name;
-        card.querySelector('.runtime-version').textContent = runtime?.version || 'Not installed';
-        card.querySelector('.runtime-containers').textContent = runtime?.containers || 0;
-        card.querySelector('.runtime-images').textContent = runtime?.images || 0;
+        card.querySelector('.runtime-version').textContent = isActive ? 'active' : 'Not detected';
+        card.querySelector('.runtime-containers').textContent = isActive ? '--' : '0';
+        card.querySelector('.runtime-images').textContent = isActive ? '--' : '0';
 
-        const statusBadge = card.querySelector('.runtime-status');
-        if (runtime && runtime.available) {
+        var statusBadge = card.querySelector('.runtime-status');
+        if (isActive) {
           statusBadge.textContent = 'available';
-          statusBadge.classList.add('available');
+          statusBadge.className = 'value status-badge runtime-status available';
         } else {
           statusBadge.textContent = 'unavailable';
-          statusBadge.classList.add('unavailable');
+          statusBadge.className = 'value status-badge runtime-status unavailable';
         }
 
-        const actionBtn = card.querySelector('.runtime-action');
-        actionBtn.addEventListener('click', () => handleRuntimeAction(name));
+        var actionBtn = card.querySelector('.runtime-action');
+        (function(runtimeName) {
+          actionBtn.addEventListener('click', function() {
+            handleRuntimeAction(runtimeName);
+          });
+        })(name);
 
         grid.appendChild(card);
-      });
+      }
     }
 
-    // Render IaC backend cards
-    function renderIaCBackends(backends) {
-      const grid = document.getElementById('iac-grid');
-      const template = document.getElementById('iac-card-template');
+    // -------------------------------------------------------
+    // Containers (from /api/v1/infrastructure/containers)
+    // -------------------------------------------------------
 
+    function renderContainers(containers) {
+      var grid = document.getElementById('containers-grid');
+      var template = document.getElementById('container-card-template');
       if (!grid || !template) return;
 
       grid.innerHTML = '';
 
-      const defaultBackends = ['ansible', 'terraform', 'pulumi', 'helm', 'nixos', 'packer'];
-      const backendMap = new Map(backends.map(b => [b.name.toLowerCase(), b]));
+      if (!containers || containers.length === 0) {
+        grid.innerHTML = '<p style="color: var(--color-text-secondary, #888888); font-size: var(--font-size-sm, 0.875rem);">No containers reported.</p>';
+        return;
+      }
 
-      defaultBackends.forEach(name => {
-        const backend = backendMap.get(name.toLowerCase());
-        const card = template.content.cloneNode(true);
+      for (var i = 0; i < containers.length; i++) {
+        var c = containers[i];
+        var card = template.content.cloneNode(true);
 
-        card.querySelector('.iac-name').textContent = name;
-        card.querySelector('.iac-type').textContent = name;
-        card.querySelector('.iac-version').textContent = backend?.version || 'Not installed';
-        card.querySelector('.iac-last-run').textContent = backend?.last_run || 'Never';
+        card.querySelector('.container-name').textContent = c.name || 'unknown';
 
-        const statusBadge = card.querySelector('.iac-status');
-        if (backend && backend.available) {
-          statusBadge.textContent = backend.healthy ? 'healthy' : 'degraded';
-          statusBadge.classList.add(backend.healthy ? 'operational' : 'warning');
+        // Status badge
+        var statusBadge = card.querySelector('.container-status');
+        var status = (c.status || 'unknown').toLowerCase();
+        statusBadge.textContent = status;
+        statusBadge.className = 'status-badge container-status ' + statusClass(status);
+
+        // Metadata rows
+        card.querySelector('.container-image').textContent = c.image || '--';
+        card.querySelector('.container-port').textContent = c.port ? String(c.port) : '--';
+        card.querySelector('.container-protocol').textContent = c.protocol || '--';
+        card.querySelector('.container-tier').textContent = c.tier || '--';
+        card.querySelector('.container-binary').textContent = c.binary || '--';
+        card.querySelector('.container-replicas').textContent = c.replicas != null ? String(c.replicas) : '--';
+        card.querySelector('.container-restart').textContent = c.restart_policy || '--';
+
+        // Uptime percent as bar
+        var uptimeCell = card.querySelector('.container-uptime');
+        if (c.uptime_percent != null) {
+          var pct = Number(c.uptime_percent);
+          var barClass = pct >= 99 ? 'high' : (pct >= 90 ? 'medium' : 'low');
+          uptimeCell.innerHTML =
+            '<div class="uptime-bar-wrapper">' +
+              '<div class="uptime-bar">' +
+                '<div class="uptime-bar-fill ' + barClass + '" style="width: ' + pct + '%;"></div>' +
+              '</div>' +
+              '<span class="uptime-pct">' + pct.toFixed(1) + '%</span>' +
+            '</div>';
         } else {
-          statusBadge.textContent = 'unavailable';
-          statusBadge.classList.add('unavailable');
+          uptimeCell.textContent = '--';
         }
 
-        const actionBtn = card.querySelector('.iac-action');
-        actionBtn.addEventListener('click', () => handleIaCAction(name));
+        grid.appendChild(card);
+      }
+    }
+
+    // -------------------------------------------------------
+    // IaC Backends
+    // -------------------------------------------------------
+
+    function renderIaCBackends(data) {
+      var grid = document.getElementById('iac-grid');
+      var template = document.getElementById('iac-card-template');
+      if (!grid || !template) return;
+
+      grid.innerHTML = '';
+
+      // The main API response may contain iac_backends or we infer from runtime
+      var iacData = data.iac_backends || {};
+
+      for (var i = 0; i < KNOWN_IAC_BACKENDS.length; i++) {
+        var backend = KNOWN_IAC_BACKENDS[i];
+        var card = template.content.cloneNode(true);
+        var backendInfo = iacData[backend.name.toLowerCase()] || iacData[backend.name] || null;
+
+        card.querySelector('.iac-name').textContent = backend.name;
+        card.querySelector('.iac-type').textContent = backend.type;
+
+        var statusBadge = card.querySelector('.iac-status');
+        if (backendInfo && backendInfo.available) {
+          statusBadge.textContent = 'available';
+          statusBadge.className = 'status-badge iac-status available';
+          card.querySelector('.iac-availability').textContent = 'Installed';
+          card.querySelector('.iac-version').textContent = backendInfo.version || '--';
+          card.querySelector('.iac-last-run').textContent = backendInfo.last_run
+            ? formatTimestamp(backendInfo.last_run)
+            : 'never';
+        } else {
+          statusBadge.textContent = 'unavailable';
+          statusBadge.className = 'status-badge iac-status unavailable';
+          card.querySelector('.iac-availability').textContent = 'Not installed';
+          card.querySelector('.iac-version').textContent = '--';
+          card.querySelector('.iac-last-run').textContent = 'never';
+        }
+
+        var actionBtn = card.querySelector('.iac-action');
+        (function(backendName) {
+          actionBtn.addEventListener('click', function() {
+            handleIaCAction(backendName);
+          });
+        })(backend.name);
 
         grid.appendChild(card);
-      });
+      }
     }
 
-    // Render network status
-    function renderNetworkStatus(network) {
-      document.getElementById('network-protocol').textContent = network.protocol || 'VXLAN';
+    // -------------------------------------------------------
+    // Network
+    // -------------------------------------------------------
 
-      const networkStatus = document.getElementById('network-status');
-      if (network.operational) {
-        networkStatus.textContent = 'operational';
-        networkStatus.classList.add('operational');
-      } else {
-        networkStatus.textContent = 'degraded';
-        networkStatus.classList.add('degraded');
+    function renderNetwork(data) {
+      // Network data may be nested under data.network or at the top level
+      var net = data.network || data;
+
+      setTextSafe('network-protocol', net.protocol || net.overlay_protocol || 'VXLAN');
+
+      var networkStatus = document.getElementById('network-status');
+      if (networkStatus) {
+        var isOp = net.operational !== false && net.network_status !== 'degraded';
+        networkStatus.textContent = isOp ? 'operational' : 'degraded';
+        networkStatus.className = 'value status-badge ' + (isOp ? 'operational' : 'degraded');
       }
 
-      document.getElementById('network-mtu').textContent = network.mtu ? `${network.mtu} bytes` : '1450 bytes';
-      document.getElementById('bgp-peer-count').textContent = network.bgp_peers || 0;
-      document.getElementById('bgp-route-count').textContent = network.bgp_routes || 0;
-      document.getElementById('bgp-uptime').textContent = network.bgp_uptime || '--';
-      document.getElementById('cluster-nodes').textContent = network.nodes || 0;
-      document.getElementById('pod-cidr').textContent = network.pod_cidr || '--';
-      document.getElementById('service-cidr').textContent = network.service_cidr || '--';
+      setTextSafe('network-mtu', net.mtu ? (net.mtu + ' bytes') : '1450 bytes');
+      setTextSafe('bgp-peer-count', net.bgp_peers || net.bgp_peer_count || '0');
+      setTextSafe('bgp-route-count', net.bgp_routes || net.bgp_route_count || '0');
+      setTextSafe('bgp-uptime', net.bgp_uptime || '--');
+      setTextSafe('cluster-nodes', net.nodes || net.cluster_nodes || '0');
+      setTextSafe('pod-cidr', net.pod_cidr || '--');
+      setTextSafe('service-cidr', net.service_cidr || '--');
     }
 
-    // Handle runtime card actions
+    // -------------------------------------------------------
+    // Action handlers (stubs)
+    // -------------------------------------------------------
+
     function handleRuntimeAction(runtime) {
-      console.log(`Runtime action for ${runtime}`);
-      alert(`View details for ${runtime} container runtime - stub action`);
+      console.log('[infrastructure] View details for runtime:', runtime);
     }
 
-    // Handle IaC backend card actions
     function handleIaCAction(backend) {
-      console.log(`Generate config for ${backend}`);
-      if (confirm(`Generate IaC configuration for ${backend}?`)) {
-        alert(`Configuration generation initiated for ${backend} - stub action`);
+      console.log('[infrastructure] Generate config for IaC backend:', backend);
+    }
+
+    // -------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------
+
+    function setText(id, text) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+
+    function setTextSafe(id, text) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = String(text);
+    }
+
+    function statusClass(status) {
+      switch (status) {
+        case 'healthy':
+        case 'running':
+        case 'operational':
+          return 'healthy';
+        case 'unhealthy':
+        case 'stopped':
+        case 'error':
+          return 'unhealthy';
+        case 'degraded':
+        case 'warning':
+          return 'warning';
+        default:
+          return 'unknown';
       }
     }
 
-    // Cleanup on panel removal
+    function formatTimestamp(ts) {
+      try {
+        var d = new Date(ts);
+        if (isNaN(d.getTime())) return String(ts);
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+      } catch (e) {
+        return String(ts);
+      }
+    }
+
+    // -------------------------------------------------------
+    // Lifecycle
+    // -------------------------------------------------------
+
     function cleanup() {
       if (refreshTimer) {
         clearInterval(refreshTimer);
+        refreshTimer = null;
       }
     }
 
-    // Initialize on load
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init);
     } else {
       init();
     }
 
-    // Cleanup on page unload
     window.addEventListener('beforeunload', cleanup);
   })();
 </script>
