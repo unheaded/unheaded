@@ -171,6 +171,7 @@ const Cards = (function() {
         const priority = PRIORITIES[task.priority] || PRIORITIES[2];
         const dueDateClass = getDueDateClass(task.due_date);
         const isCompleted = task.status === 'done';
+        const isInReview = task.status === 'review';
 
         const card = document.createElement('div');
         card.className = `task-card${isCompleted ? ' completed' : ''}`;
@@ -199,6 +200,24 @@ const Cards = (function() {
         let typeBadge = '';
         if (task.type) {
             typeBadge = `<span class="type-badge type-${task.type}">${escapeHtml(task.type)}</span>`;
+        }
+
+        // Build review actions HTML if card is in review column
+        let reviewActionsHtml = '';
+        if (isInReview) {
+            reviewActionsHtml = `
+                <div class="review-actions">
+                    <button class="review-btn review-btn--approve" title="Approve & move to Done" data-action="approve">
+                        Approve
+                    </button>
+                    <button class="review-btn review-btn--changes" title="Request changes" data-action="changes">
+                        Changes
+                    </button>
+                    <button class="review-btn review-btn--reject" title="Reject & move to Backlog" data-action="reject">
+                        Reject
+                    </button>
+                </div>
+            `;
         }
 
         card.innerHTML = `
@@ -249,6 +268,7 @@ const Cards = (function() {
                     ${task.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
                 </div>
             ` : ''}
+            ${reviewActionsHtml}
         `;
 
         // Set progress bar width via CSSOM (CSP-safe, no inline style attribute)
@@ -272,7 +292,7 @@ const Cards = (function() {
         // Click to view details
         card.addEventListener('click', (e) => {
             // Ignore if clicking action buttons
-            if (e.target.closest('.card-action-btn')) return;
+            if (e.target.closest('.card-action-btn') || e.target.closest('.review-btn')) return;
             if (isDragging) return;
 
             // Emit event for app to handle
@@ -302,6 +322,18 @@ const Cards = (function() {
                 }));
             });
         }
+
+        // Review action buttons (only in review column)
+        const reviewBtns = card.querySelectorAll('.review-btn');
+        reviewBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                window.dispatchEvent(new CustomEvent('task:review', {
+                    detail: { task, cardElement: card, action }
+                }));
+            });
+        });
 
         // Keyboard navigation
         card.addEventListener('keydown', (e) => {
