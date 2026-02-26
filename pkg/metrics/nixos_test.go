@@ -8,6 +8,7 @@ package metrics
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 func TestParseSystemdUnits(t *testing.T) {
@@ -230,5 +231,3 @@ func TestParseSystemdUnitsStateCount(t *testing.T) {
 		t.Errorf("expected 1 failed unit, got %d", stateCounts["failed"])
 	}
 }
-
-import "time"

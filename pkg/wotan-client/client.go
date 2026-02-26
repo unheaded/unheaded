@@ -158,8 +158,10 @@ type Client struct {
 	baseURL       string
 	controlClient *http.Client // short timeout for Subscribe, Publish (5s)
 	streamClient  *http.Client // long timeout for GetMessages, polling (30s)
-	grpcAddr      string       // gRPC endpoint for streaming (empty = HTTP-only mode)
-	grpcClient    *GRPCClient  // Lazy-initialized gRPC client
+	grpcAddr   string       // gRPC endpoint for streaming (empty = HTTP-only mode)
+	grpcClient *GRPCClient  // Lazy-initialized gRPC client
+	grpcOnce   sync.Once    // ensures single gRPC client initialization
+	grpcErr    error         // cached error from gRPC client init
 
 	// Transport state — gRPC primary, HTTP fallback
 	transport     TransportState // current active transport
@@ -613,29 +615,15 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 }
 
 // getOrCreateGRPCClient lazily initializes the gRPC client.
+// Uses sync.Once for race-free single initialization.
 func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
-	c.mu.RLock()
-	if c.grpcClient != nil {
-		c.mu.RUnlock()
-		return c.grpcClient, nil
-	}
-	c.mu.RUnlock()
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Double-check after acquiring write lock
-	if c.grpcClient != nil {
-		return c.grpcClient, nil
-	}
-
-	grpcCl, err := NewGRPCClient(c.grpcAddr)
-	if err != nil {
-		return nil, fmt.Errorf("create gRPC client: %w", err)
-	}
-
-	c.grpcClient = grpcCl
-	return grpcCl, nil
+	c.grpcOnce.Do(func() {
+		c.grpcClient, c.grpcErr = NewGRPCClient(c.grpcAddr)
+		if c.grpcErr != nil {
+			c.grpcErr = fmt.Errorf("create gRPC client: %w", c.grpcErr)
+		}
+	})
+	return c.grpcClient, c.grpcErr
 }
 
 // backoff calculates exponential backoff: min(pollBackoffMin * 2^failures, pollBackoffMax).

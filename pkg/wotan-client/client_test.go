@@ -2182,3 +2182,51 @@ func TestStressConcurrentOperations(t *testing.T) {
 		t.Errorf("... and %d more errors", errCount-5)
 	}
 }
+
+// ============================================================================
+// getOrCreateGRPCClient CONCURRENCY TEST (B3)
+// ============================================================================
+
+func TestGetOrCreateGRPCClient_ConcurrentInit(t *testing.T) {
+	c, err := NewClient("localhost:18001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.grpcAddr = "localhost:18001"
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	results := make([]*GRPCClient, goroutines)
+	errs := make([]error, goroutines)
+
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			results[idx], errs[idx] = c.getOrCreateGRPCClient()
+		}(i)
+	}
+	wg.Wait()
+
+	// All goroutines should get the same client (or the same error).
+	var firstClient *GRPCClient
+	var firstErr error
+	for i := 0; i < goroutines; i++ {
+		if i == 0 {
+			firstClient = results[0]
+			firstErr = errs[0]
+			continue
+		}
+		if results[i] != firstClient {
+			t.Errorf("goroutine %d got different client: %p vs %p", i, results[i], firstClient)
+		}
+		if (errs[i] == nil) != (firstErr == nil) {
+			t.Errorf("goroutine %d got different error state: %v vs %v", i, errs[i], firstErr)
+		}
+	}
+
+	// Exactly one initialization should have occurred (sync.Once guarantees this).
+	if firstClient == nil && firstErr == nil {
+		t.Error("expected either a client or an error")
+	}
+}

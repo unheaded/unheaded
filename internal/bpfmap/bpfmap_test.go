@@ -57,7 +57,7 @@ func TestIsOpen(t *testing.T) {
 	}{
 		{"Valid FD", 3, true},
 		{"Closed (minus one)", -1, false},
-		{"Closed (zero)", 0, false},
+		{"FD zero (valid)", 0, true},
 	}
 
 	for _, tt := range tests {

@@ -1095,11 +1095,12 @@ func (e *Engine) runHook(ctx context.Context, hook HookAction) error {
 		return nil
 	case "wotan":
 		// Publish to Wotan topic
-		if e.wotan != nil {
-			payload, _ := json.Marshal(hook.Payload)
-			return e.wotan.Publish(ctx, hook.Topic, payload)
+		if e.wotan == nil {
+			e.log.Warn().Str("topic", hook.Topic).Msg("wotan unavailable — hook event dropped (degraded mode)")
+			return nil
 		}
-		return nil
+		payload, _ := json.Marshal(hook.Payload)
+		return e.wotan.Publish(ctx, hook.Topic, payload)
 	default:
 		return fmt.Errorf("unknown hook type: %s", hook.Type)
 	}
@@ -1202,6 +1203,7 @@ func (e *Engine) buildConditions(deployment *Deployment) []Condition {
 // emitEvent emits a deployment event.
 func (e *Engine) emitEvent(ctx context.Context, topic string, data map[string]interface{}) {
 	if e.wotan == nil {
+		e.log.Warn().Str("topic", topic).Msg("wotan unavailable — deploy event dropped (degraded mode)")
 		return
 	}
 

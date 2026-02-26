@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 )
