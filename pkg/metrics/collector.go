@@ -27,8 +27,8 @@ type Sample struct {
 	Timestamp int64
 }
 
-// Collector is the interface that all metric collectors must implement.
-type Collector interface {
+// SystemCollector is the interface that all metric collectors must implement.
+type SystemCollector interface {
 	// Collect gathers metrics from the source and returns them as samples.
 	// It should be defensive about missing data and not fail entirely if some
 	// sources are unavailable. Context can be used to cancel long operations.
@@ -44,19 +44,19 @@ type Collector interface {
 // CollectorRegistry holds a collection of collectors and coordinates their execution.
 type CollectorRegistry struct {
 	mu         sync.RWMutex
-	collectors map[string]Collector
+	collectors map[string]SystemCollector
 }
 
 // NewCollectorRegistry creates a new collector registry.
 func NewCollectorRegistry() *CollectorRegistry {
 	return &CollectorRegistry{
-		collectors: make(map[string]Collector),
+		collectors: make(map[string]SystemCollector),
 	}
 }
 
 // Register adds a collector to the registry.
 // Returns an error if a collector with the same name is already registered.
-func (r *CollectorRegistry) Register(c Collector) error {
+func (r *CollectorRegistry) Register(c SystemCollector) error {
 	if c == nil {
 		return fmt.Errorf("cannot register nil collector")
 	}
@@ -83,7 +83,7 @@ func (r *CollectorRegistry) Register(c Collector) error {
 // Returns a combined slice of all samples.
 func (r *CollectorRegistry) CollectAll(ctx context.Context) ([]Sample, error) {
 	r.mu.RLock()
-	collectors := make(map[string]Collector)
+	collectors := make(map[string]SystemCollector)
 	for name, c := range r.collectors {
 		collectors[name] = c
 	}
@@ -110,7 +110,7 @@ func (r *CollectorRegistry) CollectAll(ctx context.Context) ([]Sample, error) {
 
 	for name, collector := range collectors {
 		wg.Add(1)
-		go func(name string, c Collector) {
+		go func(name string, c SystemCollector) {
 			defer wg.Done()
 			samples, err := c.Collect(ctx)
 			resultChan <- result{

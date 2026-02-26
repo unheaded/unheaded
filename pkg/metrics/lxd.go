@@ -6,7 +6,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
