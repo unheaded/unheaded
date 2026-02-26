@@ -457,7 +457,7 @@ The packet IS the telemetry.
 - [ ] Audio sync verified (A/V lip-sync test)
 - [ ] Subtitles display correctly (test on mobile + desktop)
 - [ ] GitHub link in description is clickable and correct
-- [ ] License information visible (BUSL 1.1)
+- [ ] License information visible (MIT)
 - [ ] No sensitive info (IP addresses, passwords, keys) visible on screen
 - [ ] Thumbnail generated (custom PNG with logo/text)
 - [ ] Description includes:

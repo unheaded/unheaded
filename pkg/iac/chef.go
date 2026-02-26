@@ -109,7 +109,7 @@ func (r *ChefRenderer) renderMetadata(config ServiceConfig) string {
 	return fmt.Sprintf(`name '%s'
 maintainer 'Unheaded Project'
 maintainer_email 'stevie@bellis.tech'
-license 'BSL-1.1'
+license 'MIT'
 description 'Deploys the Unheaded %s service'
 version '0.1.0'
 chef_version '>= 16.0'

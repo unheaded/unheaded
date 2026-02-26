@@ -33,7 +33,7 @@
 - [[LICH Campaigns|LICH-Campaigns]]
 
 **Legal & Compliance**
-- [[License|LICENSE-BSL11]]
+- [[License|LICENSE]]
 - [[IP Inventory|IP-INVENTORY]]
 - [[IANA Registration|IANA-REGISTRATION]]
 - [[Contributor Guide|CONTRIBUTOR-GUIDE]]
