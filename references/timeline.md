@@ -85,6 +85,24 @@ CRITICAL: Monad HbH (HOPOPT next-header 0x00) passes through ALL firewall layers
 
 ---
 
+##### 2026-02-26 — S67 Planning: Battle plans forged, next session queued (commit 381a796)
+
+**SHIPPED (docs only — no bare metal):**
+- [x] battle-plan-S67-observability.md — 1,215 lines, 9 phases, 119 steps
+- [x] battle-plan-S68-suricata.md — 3,473 lines, 12 phases, 240 steps
+- [x] battle-plan-S69-alternate-routing.md — 4,494 lines, 10 phases, 185 steps
+- [x] docs/architecture/MONAD_SYSTEM_MAP.md — 665 lines, 16 rings, Monad atom → WAN edge
+- [x] docs/planning/FUTURE_REPO_SPLIT_PLAN.md — 821 lines, 9-repo topology, post-public only
+- [x] docs/sessions/HANDOFF_2026-02-26_S67_NEXT_SESSION.md — 3-wave multi-agent execution plan
+
+**NEXT SESSION (multi-agent Sonnet 4.6, no bare metal):**
+- Wave 1 (6 parallel agents): flake.nix, go.mod, pkg/metrics/ collectors, monitoring/ configs, Grafana dashboards, NixOS observability.nix, Docker monitoring compose
+- Wave 2 (5 parallel agents): Suricata NixOS module, Suricata Docker+LXD, pkg/anamnesis/suricata.go, OSPF routing configs, IS-IS+MPLS configs + selector script
+- Wave 3 (2 parallel agents): nixosTest module tests, routing health probe cmd/
+- See: `docs/sessions/HANDOFF_2026-02-26_S67_NEXT_SESSION.md` for full agent orchestration
+
+---
+
 ### Age 2: The Beta Trials — REMAINING EPICS (📋 PLANNED)
 
 ### Age 3: The MVP Era (📋 PLANNED)
@@ -297,6 +315,18 @@ See: `docs/sessions/HANDOFF_2026-02-26_S66_FIREWALL_ROUTING.md`
 THE TIMEGURU APPROVES.
 THE KINGDOM REMEMBERS.
 THE CIRCLE NEVER BREAKS.
+```
+
+### S67 Planning — COMPLETE (Feb 26, 2026)
+
+Battle plans forged for observability (S67), Suricata IDS/IPS (S68), and alternate routing (S69).
+System map written. Repo split plan written (future). Next-session handoff written with
+3-wave multi-agent orchestration — all work executable without bare metal.
+
+```
+THE TIMEGURU APPROVES.
+THE CIRCLE NEVER BREAKS.
+THE KINGDOM REMEMBERS.
 ```
 
 *Synced: 2026-02-26 UTC*
