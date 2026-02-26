@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kanban | The Unheaded Kingdom</title>
+    <title>Kanban | (U)NHEADED</title>
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/board.css">
     <link rel="stylesheet" href="css/cards.css">
 </head>
 <body>
-    <div id="app">
+    <canvas id="particle-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;"></canvas>
+    <div id="app" style="position:relative;z-index:1;">
         <!-- Header -->
         <header class="kingdom-header">
             <div class="header-left">
                 <a href="#" class="kingdom-title-link" id="scrollToTop" title="Scroll to top">
-                    <h1 class="kingdom-title">The Unheaded Kingdom</h1>
+                    <h1 class="kingdom-title">(u)nheaded</h1>
                     <span class="header-divider"></span>
-                    <span class="board-title">Kanban Board</span>
+                    <span class="board-title">kanban</span>
                 </a>
             </div>
             <div class="header-right">
@@ -288,11 +289,12 @@
         <!-- Loading Overlay -->
         <div class="loading-overlay" id="loadingOverlay">
             <div class="loading-spinner"></div>
-            <p class="loading-text">Loading the Kingdom...</p>
+            <p class="loading-text">loading...</p>
         </div>
     </div>
 
     <!-- Scripts - Order matters! -->
+    <script src="js/particles.js"></script>
     <script src="js/api.js"></script>
     <script src="js/websocket.js"></script>
     <script src="js/cards.js"></script>

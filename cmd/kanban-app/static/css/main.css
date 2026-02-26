@@ -7,50 +7,50 @@
    CSS Custom Properties (Design Tokens)
    ============================================ */
 :root {
-    /* Kingdom Colors */
-    --kingdom-bg-primary: #1a1a2e;
-    --kingdom-bg-secondary: #16213e;
-    --kingdom-bg-tertiary: #0f3460;
-    --kingdom-bg-card: #252542;
-    --kingdom-bg-hover: #2d2d4a;
+    /* Backgrounds — void palette */
+    --kingdom-bg-primary: #0a0a0a;
+    --kingdom-bg-secondary: #111111;
+    --kingdom-bg-tertiary: #161616;
+    --kingdom-bg-card: #161616;
+    --kingdom-bg-hover: #1c1c1c;
 
-    /* Gold Accents */
-    --kingdom-gold: #ffd700;
-    --kingdom-gold-light: #ffe44d;
-    --kingdom-gold-dark: #ccac00;
-    --kingdom-gold-muted: rgba(255, 215, 0, 0.2);
+    /* Accent — steel blue (matches particles) */
+    --kingdom-gold: #4a9eff;
+    --kingdom-gold-light: #6ab0ff;
+    --kingdom-gold-dark: #3a7acc;
+    --kingdom-gold-muted: rgba(74, 158, 255, 0.15);
 
-    /* Text Colors */
-    --text-primary: #e8e8e8;
-    --text-secondary: #b8b8b8;
-    --text-muted: #888888;
-    --text-inverse: #1a1a2e;
+    /* Text Colors — silver on void */
+    --text-primary: #c9c9c9;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --text-inverse: #0a0a0a;
 
-    /* Priority Colors */
-    --priority-p0: #ff4444;
-    --priority-p1: #ff8c00;
-    --priority-p2: #ffd700;
-    --priority-p3: #4a9eff;
-    --priority-p4: #888888;
+    /* Priority Colors — slightly desaturated */
+    --priority-p0: #cc4444;
+    --priority-p1: #cc8800;
+    --priority-p2: #4a9eff;
+    --priority-p3: #3a7acc;
+    --priority-p4: #555555;
 
     /* Status Colors */
-    --status-success: #4caf50;
-    --status-warning: #ff9800;
-    --status-error: #f44336;
-    --status-info: #2196f3;
+    --status-success: #3d9e50;
+    --status-warning: #cc8800;
+    --status-error: #cc4444;
+    --status-info: #3a6a8a;
 
     /* Borders & Shadows */
-    --border-color: rgba(255, 215, 0, 0.15);
-    --border-color-hover: rgba(255, 215, 0, 0.3);
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
-    --shadow-gold: 0 0 20px rgba(255, 215, 0, 0.15);
+    --border-color: #222222;
+    --border-color-hover: #444444;
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.6);
+    --shadow-gold: 0 0 20px rgba(74, 158, 255, 0.15);
 
-    /* Typography */
-    --font-serif: 'Georgia', 'Times New Roman', serif;
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+    /* Typography — JetBrains Mono primary */
+    --font-serif: Georgia, 'Times New Roman', serif;
+    --font-sans: 'JetBrains Mono', 'SF Mono', monospace;
+    --font-mono: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Inconsolata', monospace;
 
     /* Spacing */
     --spacing-xs: 4px;
@@ -111,10 +111,11 @@ body {
    Typography
    ============================================ */
 h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-serif);
-    font-weight: 600;
-    line-height: 1.3;
+    font-family: var(--font-mono);
+    font-weight: 300;
+    line-height: 1.4;
     color: var(--text-primary);
+    letter-spacing: 0.1em;
 }
 
 h1 { font-size: 2rem; }
@@ -130,13 +131,13 @@ p {
 }
 
 a {
-    color: var(--kingdom-gold);
+    color: var(--text-muted);
     text-decoration: none;
     transition: color var(--transition-fast);
 }
 
 a:hover {
-    color: var(--kingdom-gold-light);
+    color: var(--text-primary);
 }
 
 /* ============================================
@@ -156,7 +157,9 @@ a:hover {
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-md) var(--spacing-xl);
-    background: linear-gradient(180deg, var(--kingdom-bg-secondary) 0%, var(--kingdom-bg-primary) 100%);
+    background: rgba(17, 17, 17, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
@@ -183,12 +186,12 @@ a:hover {
 }
 
 .kingdom-title {
-    font-family: var(--font-serif);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--kingdom-gold);
-    text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-    letter-spacing: 0.5px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    letter-spacing: 0.3em;
+    text-transform: lowercase;
 }
 
 .header-divider {
@@ -473,9 +476,11 @@ select {
 }
 
 .modal-title {
-    font-family: var(--font-serif);
-    font-size: 1.25rem;
-    color: var(--kingdom-gold);
+    font-family: var(--font-mono);
+    font-size: 1.125rem;
+    font-weight: 300;
+    color: var(--text-primary);
+    letter-spacing: 0.1em;
 }
 
 .modal-close {
@@ -625,9 +630,11 @@ select {
 }
 
 .loading-text {
-    font-family: var(--font-serif);
-    font-size: 1.125rem;
-    color: var(--kingdom-gold);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    letter-spacing: 0.2em;
 }
 
 /* ============================================
