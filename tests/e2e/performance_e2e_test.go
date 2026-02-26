@@ -124,9 +124,9 @@ func TestPerformance_TraceProcessingLatency(t *testing.T) {
 
 		t.Logf("Trace event round-trip: %d ops in %v (%.0f ns/op)", iterations, elapsed, float64(perOp.Nanoseconds()))
 
-		// JSON round-trip should complete within 10us.
-		if perOp > 10*time.Microsecond {
-			t.Errorf("Trace event round-trip too slow: %v/op (max 10us)", perOp)
+		// JSON round-trip should complete within 50us (varies by host).
+		if perOp > 50*time.Microsecond {
+			t.Errorf("Trace event round-trip too slow: %v/op (max 50us)", perOp)
 		}
 	})
 

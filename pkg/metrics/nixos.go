@@ -94,7 +94,6 @@ type systemdUnit struct {
 // collectSystemdUnits gathers systemd unit statistics.
 func (n *NixOSCollector) collectSystemdUnits(ctx context.Context) []Sample {
 	var samples []Sample
-	baseLabels := map[string]string{"collector": "nixos"}
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(ctx, n.timeout)
