@@ -1,52 +1,21 @@
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
-# lxd/containers/prometheus.yaml
-# Prometheus metrics collection container definition
+# Unheaded Kingdom — Prometheus Container
+# Metrics collection and time-series database
+# License: MIT, Copyright (c) 2024-2026 Steven Bellis
 
-name: unheaded-prometheus
-image: ubuntu:24.04
-
+name: prometheus
+description: "Unheaded Prometheus metrics container"
 profiles:
+  - default
   - unheaded-base
-  - unheaded-telemetry
-
+  - unheaded-observability
+source:
+  type: image
+  protocol: simplestreams
+  server: https://images.linuxcontainers.org
+  alias: ubuntu/noble/amd64
 config:
-  limits.cpu: "4"
-  limits.memory: "4GB"
-  limits.memory.swap: "false"
-  
-  environment.PROMETHEUS_PORT: "9090"
-  environment.WOTAN_ADDR: "10.20.1.1:50053"
-  environment.LOG_LEVEL: "info"
-  
-  user.service: "prometheus"
-  user.tier: "telemetry"
-  user.port: "9090"
-  user.description: "Prometheus metrics collection and storage"
-  
   boot.autostart: "true"
-  boot.autostart.delay: "5"
-  boot.autostart.priority: "20"
-
-devices:
-  root:
-    path: /
-    pool: unheaded-ssd
-    size: 20GB
-    type: disk
-  bin-prometheus:
-    type: disk
-    source: /opt/unheaded/bin/prometheus
-    path: /opt/unheaded/bin/prometheus
-    readonly: "true"
-  state:
-    type: disk
-    source: /var/lib/unheaded/prometheus
-    path: /var/lib/unheaded/prometheus
-    readonly: "false"
-  logs:
-    type: disk
-    source: /var/log/unheaded
-    path: /var/log/unheaded
-
-description: "Unheaded Prometheus — metrics collection and storage"
+  boot.autostart.priority: "185"
+  user.service: "prometheus"
+  user.description: "Unheaded Prometheus metrics collection service"
+devices: {}

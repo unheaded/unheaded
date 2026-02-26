@@ -1,0 +1,53 @@
+# VictoriaMetrics single-node configuration
+# Metrics storage backend for Prometheus remote_write
+# 
+# NOTE: VictoriaMetrics v1.x uses command-line flags, not a config file.
+# This YAML documents the equivalent configuration.
+# All settings below should be passed as ExecStart flags in systemd service.
+#
+# Unheaded Kingdom infrastructure
+# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+
+# YAML representation of VictoriaMetrics single-node configuration
+# (for documentation purposes)
+httpListenAddr: '[fd00:dead:beef::1]:8428'
+retentionPeriod: 12
+storageDataPath: /var/lib/victoriametrics
+dedup.minScrapeInterval: 15s
+maxConcurrentInserts: 8
+maxInsertRequestSize: 32MB
+
+# Systemd service ExecStart example:
+# ExecStart=/usr/bin/victoria-metrics \
+#   -httpListenAddr=[fd00:dead:beef::1]:8428 \
+#   -retentionPeriod=12 \
+#   -storageDataPath=/var/lib/victoriametrics \
+#   -dedup.minScrapeInterval=15s \
+#   -maxConcurrentInserts=8 \
+#   -maxInsertRequestSize=32MB
+
+# Configuration parameters explained:
+#
+# -httpListenAddr=[fd00:dead:beef::1]:8428
+#   HTTP server listen address. IPv6 address for WireGuard network.
+#
+# -retentionPeriod=12
+#   Data retention period in months. 12 months = ~365 days.
+#   Data older than this is automatically deleted.
+#
+# -storageDataPath=/var/lib/victoriametrics
+#   Directory path for storing time-series data.
+#   Must have sufficient free space for 12 months of metrics.
+#
+# -dedup.minScrapeInterval=15s
+#   Deduplication setting. Data points closer than this interval
+#   are deduplicated (keeps only the first one).
+#   Should match Prometheus scrape_interval (15s in our case).
+#
+# -maxConcurrentInserts=8
+#   Maximum number of concurrent insert requests.
+#   Tuned for dual-host setup with moderate load.
+#
+# -maxInsertRequestSize=32MB
+#   Maximum size of a single insert request from Prometheus.
+#   Matches Prometheus queue_config max_samples_per_send budget.

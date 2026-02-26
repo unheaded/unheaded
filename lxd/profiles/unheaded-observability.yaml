@@ -1,0 +1,37 @@
+# Unheaded Kingdom — Observability Profile
+# For monitoring and logging services
+# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+
+name: unheaded-observability
+description: Unheaded observability profile — bind-mounts log dirs, resource limits
+
+config:
+  limits.cpu: "1"
+  limits.memory: 512MB
+  limits.memory.enforce: hard
+  boot.autostart: "true"
+  boot.autostart.priority: "180"
+  boot.autostart.delay: "5"
+  security.privileged: "false"
+  security.nesting: "false"
+
+devices:
+  eth0:
+    name: eth0
+    network: lxdbr0
+    type: nic
+  root:
+    path: /
+    pool: default
+    type: disk
+    size: 10GB
+  varlog:
+    path: /host-varlog
+    source: /var/log
+    type: disk
+    readonly: "true"
+  run-systemd:
+    path: /host-run-systemd
+    source: /run/systemd
+    type: disk
+    readonly: "true"

@@ -378,7 +378,7 @@ services:
     tmpfs:
     - /tmp:size=64m,mode=1777
   promtail:
-    image: grafana/promtail:2.9.0
+    image: grafana/promtail:3.0.0
     container_name: unheaded-promtail
     restart: unless-stopped
     networks:
@@ -389,7 +389,7 @@ services:
     command:
     - -config.file=/etc/promtail/config.yaml
     volumes:
-    - ./promtail-config.yaml:/etc/promtail/config.yaml:ro
+    - /etc/unheaded/promtail/promtail-host-b.yaml:/etc/promtail/config.yaml:ro
     - /var/log:/var/log:ro
     - /var/lib/docker/containers:/var/lib/docker/containers:ro
     - /var/run/docker.sock:/var/run/docker.sock
