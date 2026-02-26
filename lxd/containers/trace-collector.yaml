@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/trace-collector.yaml
+# Trace collector container definition
+
+name: unheaded-trace-collector
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "2"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.TRACE_COLLECTOR_PORT: "9411"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "trace-collector"
+  user.tier: "observability"
+  user.port: "9411"
+  user.description: "Distributed trace collector (Zipkin)"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "75"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-trace-collector:
+    type: disk
+    source: /opt/unheaded/bin/trace-collector
+    path: /opt/unheaded/bin/trace-collector
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/trace-collector
+    path: /var/lib/unheaded/trace-collector
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded trace collector — observability service"

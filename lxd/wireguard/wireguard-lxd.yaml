@@ -1,0 +1,136 @@
+# SPDX-License-Identifier: MIT
+# WireGuard east-west gateway
+# Bridges host-a (fd00:dead:beef::1) to host-b (fd00:dead:beef::2)
+# On host-a: server (ListenPort: 51820)
+# On host-b: client (peers to host-a public IP)
+
+name: unheaded-wireguard
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "2"
+  limits.memory: "1GB"
+  
+  # Role: server (host-a) or client (host-b)
+  environment.WG_ROLE: "server"
+  environment.WG_PRIVATE_KEY: ""
+  environment.WG_PEER_PUBLIC_KEY: ""
+  environment.WG_ENDPOINT_ADDR: ""
+  environment.WG_LISTEN_PORT: "51820"
+
+  # Static network configuration
+  # On host-a: 10.20.1.100
+  # On host-b: 10.20.2.100
+  cloud-init.network-config: |
+    version: 2
+    ethernets:
+      eth0:
+        dhcp4: false
+        addresses:
+          - 10.20.1.100/24
+        gateway4: 10.20.1.1
+        nameservers:
+          addresses: [8.8.8.8, 8.8.4.4]
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 10GB
+    type: disk
+
+  # TUN device for WireGuard
+  tun:
+    type: unix-char
+    source: /dev/net/tun
+    path: /dev/net/tun
+    uid: "0"
+    gid: "0"
+    mode: "0666"
+
+  # Raw LXC config for capabilities
+  raw.lxc: |
+    lxc.cap.drop = sys_module sys_rawio
+    lxc.cap.keep = net_admin
+    lxc.mount.entry = /dev/net/tun dev/net/tun none bind,create=file 0 0
+
+security:
+  privileged: false
+  syscalls.intercept: none
+
+cloud-init.user-data: |
+  #cloud-config
+  package_update: true
+  packages:
+    - wireguard-tools
+    - iptables
+    - ipv6calc
+    - curl
+    - net-tools
+
+  runcmd:
+    - mkdir -p /etc/wireguard
+    - chmod 700 /etc/wireguard
+    - |
+      if [ "$WG_ROLE" = "server" ]; then
+        cat > /etc/wireguard/wg0.conf << 'WG_SERVER'
+      [Interface]
+      PrivateKey = ${WG_PRIVATE_KEY}
+      Address = fd00:dead:beef::1/48
+      ListenPort = 51820
+      MTU = 1380
+
+      PostUp = ip6tables -A FORWARD -i wg0 -j ACCEPT; ip6tables -A FORWARD -o wg0 -j ACCEPT; ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+      PostDown = ip6tables -D FORWARD -i wg0 -j ACCEPT; ip6tables -D FORWARD -o wg0 -j ACCEPT; ip6tables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+      [Peer]
+      PublicKey = ${WG_PEER_PUBLIC_KEY}
+      AllowedIPs = fd00:dead:beef::2/128, fd00:dead:beef:2::/64
+      PersistentKeepalive = 25
+      WG_SERVER
+      else
+        cat > /etc/wireguard/wg0.conf << 'WG_CLIENT'
+      [Interface]
+      PrivateKey = ${WG_PRIVATE_KEY}
+      Address = fd00:dead:beef::2/48
+      DNS = 8.8.8.8, 8.8.4.4
+      MTU = 1380
+
+      PostUp = ip6tables -A FORWARD -i wg0 -j ACCEPT; ip6tables -A FORWARD -o wg0 -j ACCEPT; ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+      PostDown = ip6tables -D FORWARD -i wg0 -j ACCEPT; ip6tables -D FORWARD -o wg0 -j ACCEPT; ip6tables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+      [Peer]
+      PublicKey = ${WG_PEER_PUBLIC_KEY}
+      Endpoint = ${WG_ENDPOINT_ADDR}:${WG_LISTEN_PORT}
+      AllowedIPs = fd00:dead:beef::1/128, fd00:dead:beef:1::/64
+      PersistentKeepalive = 25
+      WG_CLIENT
+      fi
+    - chmod 600 /etc/wireguard/wg0.conf
+    - |
+      cat > /etc/systemd/system/wireguard.service << 'SYSCTL'
+      [Unit]
+      Description=WireGuard Tunnel
+      After=network-online.target
+      Wants=network-online.target
+      PartOf=wg-quick@wg0.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/wg-quick up wg0
+      ExecStop=/usr/bin/wg-quick down wg0
+      RemainAfterExit=yes
+      StandardOutput=journal
+      StandardError=journal
+      SyslogIdentifier=wireguard
+
+      [Install]
+      WantedBy=multi-user.target
+      SYSCTL
+    - systemctl daemon-reload
+    - systemctl enable wireguard
+    - systemctl start wireguard
+    - ip -6 addr show wg0 || echo "WireGuard interface pending..."

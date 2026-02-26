@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: MIT
+# Grafana visualization and dashboarding
+# Static IP: 10.20.1.53, Port: 3000
+# Dark theme default, 2GB memory
+
+name: unheaded-grafana
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "2"
+  limits.memory: "2GB"
+  
+  # Static network configuration
+  cloud-init.network-config: |
+    version: 2
+    ethernets:
+      eth0:
+        dhcp4: false
+        addresses:
+          - 10.20.1.53/24
+        gateway4: 10.20.1.1
+        nameservers:
+          addresses: [8.8.8.8, 8.8.4.4]
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 15GB
+    type: disk
+
+  # Grafana provisioning bind mount from host
+  grafana-provisioning:
+    type: disk
+    source: /etc/unheaded/grafana/provisioning
+    path: /etc/grafana/provisioning
+    readonly: false
+
+cloud-init.user-data: |
+  #cloud-config
+  package_update: true
+  packages:
+    - curl
+    - wget
+    - net-tools
+    - ca-certificates
+    - adduser
+    - libfontconfig1
+
+  runcmd:
+    - |
+      curl -L https://github.com/grafana/grafana/releases/download/v10.2.2/grafana-10.2.2.linux-amd64.tar.gz \
+        -o /tmp/grafana.tar.gz
+    - mkdir -p /opt/grafana && cd /opt/grafana && tar xzf /tmp/grafana.tar.gz --strip-components=1
+    - mkdir -p /var/lib/grafana /var/log/grafana /etc/grafana
+    - useradd -r -s /bin/false grafana 2>/dev/null || true
+    - |
+      cat > /etc/grafana/grafana.ini << 'GRAFANA'
+      [paths]
+      data = /var/lib/grafana
+      plugins = /var/lib/grafana/plugins
+      provisioning = /etc/grafana/provisioning
+
+      [server]
+      protocol = http
+      http_port = 3000
+      enforce_domain = false
+
+      [security]
+      admin_user = admin
+      admin_password = unheaded-kingdom
+      cookie_secure = false
+
+      [users]
+      allow_sign_up = false
+      allow_org_create = false
+
+      [auth]
+      disable_login_form = false
+      disable_signout_menu = false
+
+      [ui]
+      default_theme = dark
+      logo_url = 
+      favicon_url = 
+
+      [alerting]
+      enabled = true
+
+      [unified_alerting]
+      enabled = false
+
+      [feature_toggles]
+      enable = ngalert
+      GRAFANA
+    - |
+      cat > /etc/systemd/system/grafana.service << 'SYSCTL'
+      [Unit]
+      Description=Grafana
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=grafana
+      Group=grafana
+      ExecStart=/opt/grafana/bin/grafana-server -config /etc/grafana/grafana.ini -homepath /opt/grafana
+      Restart=on-failure
+      RestartSec=5s
+      StandardOutput=journal
+      StandardError=journal
+      SyslogIdentifier=grafana
+
+      [Install]
+      WantedBy=multi-user.target
+      SYSCTL
+    - chown -R grafana:grafana /var/lib/grafana /var/log/grafana /etc/grafana
+    - systemctl daemon-reload
+    - systemctl enable grafana
+    - systemctl start grafana
