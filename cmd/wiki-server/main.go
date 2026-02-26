@@ -338,27 +338,20 @@ const pageTemplate = `<!DOCTYPE html>
     <title>{{.Title}} - Unheaded Wiki</title>
     <style>
         :root {
-            /* Design-system tokens (inlined — wiki is standalone) */
-            --bg-primary:    #0a0a0a;
-            --bg-secondary:  #111111;
-            --bg-tertiary:   #161616;
-            --bg-glass:      rgba(22, 22, 22, 0.8);
-            --text-primary:  #c9c9c9;
-            --text-secondary:#666666;
-            --text-heading:  #ffffff;
-            --text-dim:      #666666;
-            --text-ghost:    #3a3a3a;
-            --text-code:     #a0a0a0;
-            --accent:        #666666;
-            --accent-hover:  #c9c9c9;
-            --border:        #222222;
-            --border-card:   #2a2a2a;
-            --code-bg:       #111111;
-            --link:          #666666;
-            --link-hover:    #c9c9c9;
-            --font-mono:     'JetBrains Mono', 'Courier New', Courier, monospace;
-            --font-body:     'Space Grotesk', system-ui, -apple-system, sans-serif;
-            --nav-height:    48px;
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --text-heading: #e6edf3;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --border: #30363d;
+            --code-bg: #1a1f29;
+            --link: #58a6ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
         }
 
         * {
@@ -367,93 +360,28 @@ const pageTemplate = `<!DOCTYPE html>
             box-sizing: border-box;
         }
 
-        html {
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
         body {
-            font-family: var(--font-mono);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
-            line-height: 1.8;
-            font-size: 0.875rem;
+            line-height: 1.6;
         }
-
-        /* Particle canvas */
-        #particle-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-            pointer-events: none;
-        }
-
-        /* Nav bar — frosted glass */
-        .nav {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            height: var(--nav-height);
-            background: var(--bg-glass);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 2rem;
-            gap: 2rem;
-        }
-
-        .nav-logo {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            letter-spacing: 0.3em;
-            text-decoration: none;
-            text-transform: lowercase;
-            transition: color 0.25s ease;
-        }
-
-        .nav-logo:hover { color: var(--text-primary); }
-        .nav-logo span { color: var(--text-primary); }
-
-        .nav-links {
-            display: flex;
-            gap: 1.5rem;
-            list-style: none;
-        }
-
-        .nav-link {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            letter-spacing: 0.1em;
-            text-decoration: none;
-            transition: color 0.25s ease;
-        }
-
-        .nav-link:hover, .nav-link.active { color: var(--text-primary); }
 
         .layout {
             display: flex;
-            min-height: calc(100vh - var(--nav-height));
-            position: relative;
-            z-index: 1;
+            min-height: 100vh;
         }
 
         /* Sidebar */
         .sidebar {
-            width: 240px;
-            min-width: 240px;
+            width: 280px;
+            min-width: 280px;
             background: var(--bg-secondary);
             border-right: 1px solid var(--border);
             padding: 24px 0;
             position: sticky;
-            top: var(--nav-height);
-            height: calc(100vh - var(--nav-height));
+            top: 0;
+            height: 100vh;
             overflow-y: auto;
         }
 
@@ -464,24 +392,15 @@ const pageTemplate = `<!DOCTYPE html>
         }
 
         .sidebar-brand h1 {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            font-weight: 300;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
+            font-size: 18px;
+            color: var(--text-heading);
+            font-weight: 600;
         }
 
         .sidebar-brand .subtitle {
-            font-size: 0.625rem;
-            color: var(--text-ghost);
-            margin-top: 4px;
-            letter-spacing: 0.1em;
-            transition: color 0.5s ease;
-        }
-
-        .sidebar-brand .subtitle:hover {
+            font-size: 12px;
             color: var(--text-secondary);
+            margin-top: 4px;
         }
 
         .sidebar nav ul {
@@ -490,14 +409,12 @@ const pageTemplate = `<!DOCTYPE html>
 
         .sidebar nav a {
             display: block;
-            padding: 6px 20px;
-            color: var(--text-ghost);
+            padding: 8px 20px;
+            color: var(--text-secondary);
             text-decoration: none;
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            letter-spacing: 0.1em;
-            border-left: 2px solid transparent;
-            transition: all 0.25s ease;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.15s ease;
         }
 
         .sidebar nav a:hover {
@@ -506,8 +423,8 @@ const pageTemplate = `<!DOCTYPE html>
         }
 
         .sidebar nav a.active {
-            color: var(--text-primary);
-            border-left-color: var(--border-card);
+            color: var(--accent);
+            border-left-color: var(--accent);
             background: var(--bg-tertiary);
         }
 
@@ -515,19 +432,13 @@ const pageTemplate = `<!DOCTYPE html>
             padding: 16px 20px;
             border-top: 1px solid var(--border);
             margin-top: 16px;
-            font-size: 0.625rem;
-            color: var(--text-ghost);
-            letter-spacing: 0.1em;
+            font-size: 12px;
+            color: var(--text-secondary);
         }
 
         .sidebar-footer a {
-            color: var(--text-ghost);
+            color: var(--accent);
             text-decoration: none;
-            transition: color 0.25s ease;
-        }
-
-        .sidebar-footer a:hover {
-            color: var(--text-primary);
         }
 
         /* Main content */
@@ -538,43 +449,32 @@ const pageTemplate = `<!DOCTYPE html>
         }
 
         .main h1 {
-            font-family: var(--font-mono);
-            font-size: 1.5rem;
-            font-weight: 300;
+            font-size: 32px;
             color: var(--text-heading);
             margin-bottom: 16px;
             padding-bottom: 8px;
             border-bottom: 1px solid var(--border);
-            letter-spacing: 0.3em;
         }
 
         .main h2 {
-            font-family: var(--font-mono);
-            font-size: 1.25rem;
-            font-weight: 300;
-            color: var(--text-primary);
+            font-size: 24px;
+            color: var(--text-heading);
             margin-top: 32px;
             margin-bottom: 12px;
             padding-bottom: 6px;
             border-bottom: 1px solid var(--border);
-            letter-spacing: 0.2em;
         }
 
         .main h3 {
-            font-family: var(--font-mono);
-            font-size: 1.125rem;
-            font-weight: 300;
-            color: var(--text-dim);
+            font-size: 20px;
+            color: var(--text-heading);
             margin-top: 24px;
             margin-bottom: 8px;
-            letter-spacing: 0.2em;
         }
 
         .main h4 {
-            font-family: var(--font-mono);
-            font-size: 1rem;
-            font-weight: 400;
-            color: var(--text-dim);
+            font-size: 16px;
+            color: var(--text-heading);
             margin-top: 20px;
             margin-bottom: 6px;
         }
@@ -584,13 +484,12 @@ const pageTemplate = `<!DOCTYPE html>
         }
 
         .main a {
-            color: var(--text-dim);
+            color: var(--link);
             text-decoration: none;
-            transition: color 0.25s ease;
         }
 
         .main a:hover {
-            color: var(--text-primary);
+            text-decoration: underline;
         }
 
         .main ul, .main ol {
@@ -605,16 +504,16 @@ const pageTemplate = `<!DOCTYPE html>
         .main code {
             background: var(--code-bg);
             padding: 2px 6px;
-            border-radius: 2px;
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            color: var(--text-code);
+            border-radius: 4px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.9em;
+            color: var(--accent);
         }
 
         .main pre {
             background: var(--code-bg);
             border: 1px solid var(--border);
-            border-radius: 4px;
+            border-radius: 6px;
             padding: 16px;
             overflow-x: auto;
             margin-bottom: 16px;
@@ -624,7 +523,7 @@ const pageTemplate = `<!DOCTYPE html>
             background: none;
             padding: 0;
             color: var(--text-primary);
-            font-size: 0.75rem;
+            font-size: 13px;
             line-height: 1.5;
         }
 
@@ -632,32 +531,30 @@ const pageTemplate = `<!DOCTYPE html>
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 16px;
-            font-size: 0.75rem;
         }
 
         .main th {
             background: var(--bg-tertiary);
-            color: var(--text-dim);
+            color: var(--text-heading);
             padding: 10px 12px;
             text-align: left;
-            font-weight: 400;
+            font-weight: 600;
             border: 1px solid var(--border);
-            letter-spacing: 0.1em;
+            font-size: 14px;
         }
 
         .main td {
             padding: 8px 12px;
             border: 1px solid var(--border);
-            color: var(--text-primary);
-            font-family: var(--font-mono);
+            font-size: 14px;
         }
 
-        .main tr:hover td {
-            background: var(--bg-tertiary);
+        .main tr:nth-child(even) {
+            background: var(--bg-secondary);
         }
 
         .main blockquote {
-            border-left: 2px solid var(--border-card);
+            border-left: 4px solid var(--accent);
             padding: 8px 16px;
             margin-bottom: 16px;
             background: var(--bg-secondary);
@@ -677,13 +574,11 @@ const pageTemplate = `<!DOCTYPE html>
 
         .main img {
             max-width: 100%;
-            border-radius: 4px;
+            border-radius: 6px;
         }
 
         /* Responsive */
         @media (max-width: 768px) {
-            .nav-links { display: none; }
-
             .layout {
                 flex-direction: column;
             }
@@ -704,24 +599,11 @@ const pageTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <canvas id="particle-canvas"></canvas>
-
-    <!-- Navigation -->
-    <nav class="nav">
-        <a href="/" class="nav-logo"><span>(U)</span>NHEADED</a>
-        <ul class="nav-links">
-            <li><a href="/dashboard" class="nav-link">dashboard</a></li>
-            <li><a href="/kanban" class="nav-link">kanban</a></li>
-            <li><a href="/wiki/" class="nav-link active">docs</a></li>
-            <li><a href="/status" class="nav-link">status</a></li>
-        </ul>
-    </nav>
-
     <div class="layout">
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <h1>Wiki</h1>
-                <div class="subtitle">the kingdom's knowledge base</div>
+                <h1>Unheaded Wiki</h1>
+                <div class="subtitle">The Kingdom's Knowledge Base</div>
             </div>
             <nav>
                 <ul>
@@ -732,73 +614,12 @@ const pageTemplate = `<!DOCTYPE html>
             </nav>
             <div class="sidebar-footer">
                 <p>v{{.Version}}</p>
-                <p><a href="/">dashboard</a> | <a href="/kanban">kanban</a> | <a href="/health">health</a></p>
+                <p><a href="/">Dashboard</a> | <a href="/kanban">Kanban</a> | <a href="/health">Health</a></p>
             </div>
         </aside>
         <main class="main">
             {{.Content}}
         </main>
     </div>
-
-    <script>
-    // Minimal particle animation (inline — wiki is standalone)
-    (function() {
-        var canvas = document.getElementById('particle-canvas');
-        if (!canvas) return;
-        var ctx = canvas.getContext('2d');
-        var particles = [];
-        var w, h, dpr = window.devicePixelRatio || 1;
-
-        function resize() {
-            w = window.innerWidth; h = window.innerHeight;
-            canvas.width = w * dpr; canvas.height = h * dpr;
-            canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-            ctx.scale(dpr, dpr);
-        }
-
-        function init() {
-            resize();
-            particles = [];
-            for (var i = 0; i < 50; i++) {
-                particles.push({
-                    x: Math.random() * w, y: Math.random() * h,
-                    vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
-                    s: 1 + Math.random() * 2, o: 0.3 + Math.random() * 0.4
-                });
-            }
-        }
-
-        function animate() {
-            ctx.clearRect(0, 0, w, h);
-            for (var i = 0; i < particles.length; i++) {
-                var p = particles[i];
-                p.x += p.vx; p.y += p.vy;
-                if (p.x < -10) p.x = w + 10;
-                if (p.x > w + 10) p.x = -10;
-                if (p.y < -10) p.y = h + 10;
-                if (p.y > h + 10) p.y = -10;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(74,158,255,' + p.o + ')';
-                ctx.fill();
-                for (var j = i + 1; j < particles.length; j++) {
-                    var q = particles[j];
-                    var dx = p.x - q.x, dy = p.y - q.y;
-                    var d = Math.sqrt(dx * dx + dy * dy);
-                    if (d < 150) {
-                        ctx.beginPath();
-                        ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
-                        ctx.strokeStyle = 'rgba(74,158,255,' + ((1 - d / 150) * 0.2) + ')';
-                        ctx.lineWidth = 1; ctx.stroke();
-                    }
-                }
-            }
-            requestAnimationFrame(animate);
-        }
-
-        window.addEventListener('resize', function() { resize(); });
-        init(); animate();
-    })();
-    </script>
 </body>
 </html>`
