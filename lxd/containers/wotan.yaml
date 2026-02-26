@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/wotan.yaml
+# Wotan message broker container definition
+
+name: unheaded-wotan
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "2"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.WOTAN_GRPC_PORT: "50053"
+  environment.WOTAN_NATS_PORT: "4222"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "wotan"
+  user.tier: "protocol"
+  user.port: "50053,4222"
+  user.description: "Wotan message broker (gRPC + NATS)"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "100"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-wotan:
+    type: disk
+    source: /opt/unheaded/bin/wotan
+    path: /opt/unheaded/bin/wotan
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/wotan
+    path: /var/lib/unheaded/wotan
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Wotan — message broker and coordination service"

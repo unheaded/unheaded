@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/doom.yaml
+# Doom compute engine container definition
+
+name: unheaded-doom
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "4"
+  limits.memory: "1GB"
+  limits.memory.swap: "false"
+  
+  environment.DOOM_PORT: "16680"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "doom"
+  user.tier: "compute"
+  user.port: "16680"
+  user.description: "Doom compute engine"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "50"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 10GB
+    type: disk
+  bin-doom:
+    type: disk
+    source: /opt/unheaded/bin/doom
+    path: /opt/unheaded/bin/doom
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/doom
+    path: /var/lib/unheaded/doom
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Doom — compute engine"

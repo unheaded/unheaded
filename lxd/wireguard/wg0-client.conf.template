@@ -1,0 +1,20 @@
+# WireGuard Client Configuration Template
+# Host-b (Outpost) — Connects to host-a server
+# Subnet: fd00:dead:beef:2::/64
+
+[Interface]
+PrivateKey = ${WG_PRIVATE_KEY}
+Address = fd00:dead:beef::2/48
+DNS = 8.8.8.8, 8.8.4.4
+MTU = 1380
+
+# IPv6 NAT and forwarding
+PostUp = ip6tables -A FORWARD -i wg0 -j ACCEPT; ip6tables -A FORWARD -o wg0 -j ACCEPT; ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = ip6tables -D FORWARD -i wg0 -j ACCEPT; ip6tables -D FORWARD -o wg0 -j ACCEPT; ip6tables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+# Peer: host-a server
+[Peer]
+PublicKey = ${WG_PEER_PUBLIC_KEY}
+Endpoint = ${WG_ENDPOINT_ADDR}:${WG_LISTEN_PORT}
+AllowedIPs = fd00:dead:beef::1/128, fd00:dead:beef:1::/64
+PersistentKeepalive = 25

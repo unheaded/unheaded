@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/hosts/host-a/static-ips.yaml
+# Static LXD DHCP reservations for Unheaded containers
+# These IPs are deterministic — used in prometheus.yml and service configs
+
+containers:
+  wotan:
+    ipv4: "10.20.1.1"
+    ipv6: "fd00:dead:beef:1::101"
+    port_grpc: 50053
+    port_nats: 4222
+
+  monad:
+    ipv4: "10.20.1.2"
+    ipv6: "fd00:dead:beef:1::102"
+    port: 50051
+
+  sophia:
+    ipv4: "10.20.1.3"
+    ipv6: "fd00:dead:beef:1::103"
+    port: 50052
+
+  anamnesis:
+    ipv4: "10.20.1.4"
+    ipv6: "fd00:dead:beef:1::104"
+    port: 50054
+
+  shield:
+    ipv4: "10.20.1.5"
+    ipv6: "fd00:dead:beef:1::105"
+    port: 50055
+
+  unheaded-daemon:
+    ipv4: "10.20.1.6"
+    ipv6: "fd00:dead:beef:1::106"
+    port: 9100
+
+  dashboard-backend:
+    ipv4: "10.20.1.7"
+    ipv6: "fd00:dead:beef:1::107"
+    port: 8080
+
+  dashboard-frontend:
+    ipv4: "10.20.1.8"
+    ipv6: "fd00:dead:beef:1::108"
+    port: 3001
+
+  protocol-api:
+    ipv4: "10.20.1.9"
+    ipv6: "fd00:dead:beef:1::109"
+    port: 50056
+
+  trace-collector:
+    ipv4: "10.20.1.10"
+    ipv6: "fd00:dead:beef:1::10a"
+    port: 9411
+
+  gateway:
+    ipv4: "10.20.1.11"
+    ipv6: "fd00:dead:beef:1::10b"
+    port: 8443
+
+  service-discovery:
+    ipv4: "10.20.1.12"
+    ipv6: "fd00:dead:beef:1::10c"
+    port_grpc: 50057
+    port_http: 8500
+
+  doom:
+    ipv4: "10.20.1.13"
+    ipv6: "fd00:dead:beef:1::10d"
+    port: 16680
+
+  lich:
+    ipv4: "10.20.1.14"
+    ipv6: "fd00:dead:beef:1::10e"
+    port: 9999
+
+  captain:
+    ipv4: "10.20.1.15"
+    ipv6: "fd00:dead:beef:1::10f"
+    port: 50058
+
+  micromanager:
+    ipv4: "10.20.1.16"
+    ipv6: "fd00:dead:beef:1::110"
+    port: 50059
+
+  timeguru:
+    ipv4: "10.20.1.17"
+    ipv6: "fd00:dead:beef:1::111"
+    port_grpc: 50060
+    port_http: 8600
+
+  architect:
+    ipv4: "10.20.1.18"
+    ipv6: "fd00:dead:beef:1::112"
+    port: 50061
+
+  developer:
+    ipv4: "10.20.1.19"
+    ipv6: "fd00:dead:beef:1::113"
+    port: 50062
+
+  kanban:
+    ipv4: "10.20.1.20"
+    ipv6: "fd00:dead:beef:1::114"
+    port: 3002
+
+  lore:
+    ipv4: "10.20.1.21"
+    ipv6: "fd00:dead:beef:1::115"
+    port: 50063
+
+  busboy:
+    ipv4: "10.20.1.22"
+    ipv6: "fd00:dead:beef:1::116"
+    port: 50064
+
+  kingdom:
+    ipv4: "10.20.1.23"
+    ipv6: "fd00:dead:beef:1::117"
+    port: 50065
+
+  blackmage:
+    ipv4: "10.20.1.24"
+    ipv6: "fd00:dead:beef:1::118"
+    port: 50066
+
+  moatghost:
+    ipv4: "10.20.1.25"
+    ipv6: "fd00:dead:beef:1::119"
+    port: 50067
+
+  ebpf-exporter:
+    ipv4: "10.20.1.26"
+    ipv6: "fd00:dead:beef:1::11a"
+    port: 9435
+
+  prometheus:
+    ipv4: "10.20.1.50"
+    ipv6: "fd00:dead:beef:1::150"
+    port: 9090
+
+  victoriametrics:
+    ipv4: "10.20.1.51"
+    ipv6: "fd00:dead:beef:1::151"
+    port: 8428
+
+  loki:
+    ipv4: "10.20.1.52"
+    ipv6: "fd00:dead:beef:1::152"
+    port: 3100
+
+  grafana:
+    ipv4: "10.20.1.53"
+    ipv6: "fd00:dead:beef:1::153"
+    port: 3000

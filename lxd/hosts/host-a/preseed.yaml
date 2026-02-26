@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/hosts/host-a/preseed.yaml
+# LXD host-a (Forge) initialization preseed
+# Usage: sudo lxd init --preseed < preseed.yaml
+
+config:
+  core.https_address: "[::]:8443"
+  core.trust_password: ""
+  images.auto_update_interval: "6"
+  images.remote_cache_expiry: "3"
+
+networks:
+  - config:
+      ipv4.address: 10.20.0.1/16
+      ipv4.dhcp: "true"
+      ipv4.dhcp.ranges: "10.20.1.1-10.20.1.254"
+      ipv4.firewall: "true"
+      ipv4.nat: "true"
+      ipv6.address: "fd00:dead:beef:1::1/64"
+      ipv6.dhcp: "true"
+      ipv6.dhcp.stateful: "true"
+      ipv6.firewall: "true"
+      ipv6.nat: "false"
+      dns.domain: unheaded.internal
+      dns.mode: managed
+    description: "Unheaded Kingdom internal bridge"
+    name: unheaded
+    type: bridge
+
+storage_pools:
+  - config:
+      size: 200GB
+    description: "Unheaded Kingdom SSD storage (ZFS)"
+    driver: zfs
+    name: unheaded-ssd
+
+profiles:
+  - config:
+      security.privileged: "false"
+      security.nesting: "false"
+      limits.cpu: "2"
+      limits.memory: "512MB"
+      limits.memory.swap: "false"
+      boot.autostart: "true"
+      boot.autostart.delay: "2"
+    description: "Default Unheaded container profile"
+    devices:
+      eth0:
+        name: eth0
+        network: unheaded
+        type: nic
+      root:
+        path: /
+        pool: unheaded-ssd
+        size: 8GB
+        type: disk
+    name: default
+
+cluster: null

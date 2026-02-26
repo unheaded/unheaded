@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/profiles/unheaded-ebpf.yaml
+# eBPF profile — applied to containers needing BPF + network admin access
+# Apply: lxc profile create unheaded-ebpf < profiles/unheaded-ebpf.yaml
+# Usage: lxc launch IMAGE NAME --profile unheaded-base --profile unheaded-ebpf
+
+config:
+  # eBPF capability grants (unprivileged with specific caps — no privileged:true)
+  raw.lxc: |
+    lxc.cap.keep = cap_bpf cap_net_admin cap_net_raw cap_sys_admin cap_sys_resource cap_perfmon
+    lxc.cgroup2.devices.allow = c 10:232 rwm
+    lxc.cgroup2.devices.allow = a
+    lxc.apparmor.profile = unconfined
+    lxc.seccomp.profile =
+
+  # Allow BPF filesystem operations
+  security.syscalls.intercept.mknod: "true"
+  security.syscalls.intercept.setxattr: "true"
+
+  # Host network access for XDP programs
+  # Note: Use network_mode: host-equivalent in LXD with:
+  raw.idmap: "both 0 0"
+
+  # Higher resource limits for eBPF workloads
+  limits.cpu: "4"
+  limits.memory: "2GB"
+  limits.cpu.priority: "8"
+
+description: "Unheaded eBPF profile — CAP_BPF, NET_ADMIN, XDP-capable"
+
+devices:
+  # BPF filesystem mount
+  bpffs:
+    type: disk
+    source: bpffs
+    path: /sys/fs/bpf
+    optional: "true"
+  # Debug filesystem (for BTF)
+  debugfs:
+    type: disk
+    source: debugfs
+    path: /sys/kernel/debug
+    optional: "true"
+  # Host network access for XDP attachment
+  eth0:
+    type: nic
+    nictype: physical
+    parent: enp1s0
+    name: eth0

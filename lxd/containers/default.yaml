@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/default.yaml
+# Default container definition template
+# This file documents all available fields and serves as a reference
+
+name: unheaded-service-name            # Container name (required)
+image: ubuntu:24.04                    # Base image (required)
+
+# Profile assignment for shared config
+# unheaded-base: network, storage, DNS, log rotation
+# unheaded-ebpf: eBPF kernel module, debugfs mount
+# unheaded-telemetry: telemetry stack common settings
+profiles:
+  - unheaded-base
+
+# Container configuration
+config:
+  # CPU and memory limits
+  limits.cpu: "2"                     # Number of vCPUs (1, 2, 4, etc.)
+  limits.memory: "512MB"              # RAM allocation
+  limits.memory.swap: "false"         # Disable swap
+
+  # Service environment variables
+  # These are passed to the service binary at startup
+  # Names follow SCREAMING_SNAKE_CASE convention
+  environment.SERVICE_PORT: "50051"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"      # debug, info, warn, error
+  environment.SERVICE_ROLE: "primary"
+
+  # Container metadata (user.* are arbitrary)
+  user.service: "service-name"        # Service binary name
+  user.tier: "protocol"               # Tier: protocol, security, control, presentation, etc.
+  user.port: "50051"                  # Port(s) exposed by service
+  user.description: "Service description"
+  
+  # Autostart configuration
+  boot.autostart: "true"              # Start container on LXD boot
+  boot.autostart.delay: "5"           # Seconds to wait before starting
+  boot.autostart.priority: "50"       # Higher = starts first (1-100)
+                                      # 100 = Wotan (message broker, FIRST)
+                                      # 90-89 = Protocol services (monad, sophia)
+                                      # 85-84 = Security/control (shield, daemon)
+                                      # 75-70 = Observability/API
+                                      # 65-60 = Gateway/presentation
+                                      # 55-50 = Dashboard/compute
+                                      # 45-35 = Coordination/knowledge
+                                      # 30    = Security/compliance
+                                      # 20-15 = Telemetry (prometheus, grafana)
+                                      # 10    = Lich (LAST - testing)
+
+devices:
+  # Root filesystem
+  root:
+    path: /                           # Mount path
+    pool: unheaded-ssd                # Storage pool (required)
+    size: 8GB                         # Disk size
+    type: disk
+
+  # Service binary (read-only bind-mount from host)
+  bin-service:
+    type: disk
+    source: /opt/unheaded/bin/service-name   # Host path
+    path: /opt/unheaded/bin/service-name     # Container path
+    readonly: "true"
+
+  # Service state (persistent, writable)
+  state:
+    type: disk
+    source: /var/lib/unheaded/service-name
+    path: /var/lib/unheaded/service-name
+    readonly: "false"
+
+  # Logs (shared across all containers for centralized logging)
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded service — description"
+
+# NETWORKING NOTES:
+# - Containers attach to "unheaded" bridge automatically (via profile)
+# - Network: 10.20.0.0/16 for IPv4, fd00:dead:beef:1::/64 for IPv6
+# - Container IPs are assigned sequentially from the bridge
+# - Services listen on 0.0.0.0:<port> inside container
+# - Host access: <container_ip>:<port>
+
+# STORAGE NOTES:
+# - Root filesystem stored in "unheaded-ssd" pool
+# - Service state directories mounted from host for persistence
+# - Host path: /var/lib/unheaded/<service>/
+# - Container path: /var/lib/unheaded/<service>/
+# - State survives container restart/rebuild
+
+# LAUNCH METHODS:
+# 1. Via launch.sh: ./launch.sh service-name
+# 2. Manual init:
+#    lxc init ubuntu:24.04 unheaded-service-name
+#    lxc profile assign unheaded-service-name unheaded-base
+#    lxc config set unheaded-service-name ... (set config)
+#    lxc device add unheaded-service-name ... (add devices)
+#    lxc start unheaded-service-name
+# 3. From YAML:
+#    cat containers/service-name.yaml | lxc init ubuntu:24.04 unheaded-service-name
