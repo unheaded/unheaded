@@ -1,21 +1,203 @@
-MIT License
+# Unheaded - Business Source License 1.1
 
-Copyright (c) 2024-2026 Steven Bellis
+## License Agreement
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+**Effective Date:** 2026-02-24
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+**Licensor:** Unheaded Project Contributors
+**Licensed Work:** The Unheaded distributed system platform, including all source code,
+build configuration, and documentation in this repository, EXCLUDING:
+- Files in the `/doom/` subdirectory (covered under GPL 2.0)
+- Files in `/docs/protocol/` (covered under Permissive License - see LICENSE-PROTOCOLS)
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+**Change Date:** 2029-12-31 (4 years from Effective Date)
+**Change License:** Apache License 2.0 (transition on Change Date or at public
+Kubernetes integration milestone, whichever is earlier)
+
+---
+
+## FULL TEXT: BUSINESS SOURCE LICENSE 1.1
+
+This Agreement governs your use of the Unheaded Licensed Work under the
+Business Source License 1.1 (BSL 1.1).
+
+### 1. GRANT OF RIGHTS
+
+Subject to the conditions of this Agreement, Licensor hereby grants You a
+non-exclusive, worldwide, non-transferable, royalty-free license to:
+
+(a) Reproduce the Licensed Work;
+(b) Prepare derivative works of the Licensed Work;
+(c) Display the Licensed Work publicly;
+(d) Perform the Licensed Work publicly;
+(e) Distribute the Licensed Work and derivative works thereof.
+
+**EXPLICITLY PERMITTED:**
+- Internal use within organizations of any size
+- Use in open source projects (any license compatible with BSL 1.1)
+- Educational and research use (universities, non-profits, government)
+- Personal projects and hobby use
+- Evaluation and testing (up to 30 days without restrictions)
+- Contribution to the Unheaded project itself
+
+### 2. RESTRICTIONS
+
+Your rights under Section 1 are subject to the following restrictions:
+
+#### 2.1 Commercial Service Prohibition
+
+You may not:
+
+(a) Offer or provide the Licensed Work (or any derivative) as a managed service,
+SaaS, or hosted service to paying users or third parties, except:
+- You may offer the Licensed Work internally within your own organization
+- You may offer it free-of-charge for educational or charitable purposes
+- You may operate a single public instance if your organization qualifies
+  as a Permitted User (see definitions below)
+
+(b) Operate the Licensed Work as a core revenue-generating application or service
+without prior written consent from Licensor
+
+#### 2.2 Competitor Restrictions
+
+You may not use the Licensed Work to build, sell, or distribute an application or
+service that directly competes with Unheaded or its planned commercial offerings,
+unless:
+- You have obtained explicit written permission from Licensor, OR
+- You are a Permitted User (see definitions below), OR
+- The Change Date has passed
+
+#### 2.3 Removal of Notices
+
+You must retain all copyright, license, and attribution notices in any
+distribution or derivative work.
+
+#### 2.4 Compliance
+
+You agree to use the Licensed Work in compliance with all applicable laws
+and regulations.
+
+### 3. DEFINITIONS
+
+**Permitted User:** Any entity (natural person, corporation, partnership,
+non-profit, open source project, educational institution) that meets ONE
+of the following criteria:
+
+(a) Has fewer than 1,000 employees AND less than $10M USD annual revenue; OR
+(b) Is an accredited educational institution (K-12, university, research); OR
+(c) Is a registered 501(c)(3) non-profit organization; OR
+(d) Is an open source project with a recognized OSI-compatible license; OR
+(e) Is a government entity or publicly-funded agency
+
+**Change Date:** 2029-12-31 (or earlier upon reaching Kubernetes-scale adoption
+as determined by Licensor)
+
+**Change License:** Apache License 2.0 (see CHANGE-LICENSE file or
+https://www.apache.org/licenses/LICENSE-2.0)
+
+### 4. AUTOMATIC CONVERSION
+
+On or after the Change Date, this Agreement will no longer apply. The Licensed
+Work will automatically be governed by the Change License (Apache 2.0) without
+requiring any action by You. All rights granted under this Agreement will
+remain in effect.
+
+### 5. ADDITIONAL USE GRANT
+
+Licensor may, at its sole discretion, grant You additional rights via written
+authorization. Contact: stevie@bellis.tech
+
+### 6. WARRANTY DISCLAIMER
+
+THE LICENSED WORK IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO:
+
+- MERCHANTABILITY
+- FITNESS FOR A PARTICULAR PURPOSE
+- NONINFRINGEMENT
+- TITLE
+- AUTHORITY
+
+IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES.
+
+### 7. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL LICENSOR'S TOTAL LIABILITY EXCEED $100 USD, REGARDLESS OF
+THE FORM OF ACTION OR THE BASIS OF THE CLAIM.
+
+### 8. TERMINATION
+
+(a) This license is perpetual, except:
+
+(b) If You breach any material term of this Agreement and do not cure the
+breach within 30 days of written notice from Licensor, your license will
+automatically terminate.
+
+(c) Upon termination, you will immediately cease use and distribution of the
+Licensed Work, though you may retain one copy for archival purposes.
+
+(d) Sections 6 (Warranty Disclaimer) and 7 (Limitation of Liability) survive
+termination.
+
+### 9. OPEN SOURCE EXCEPTION
+
+This Agreement does not restrict your ability to use the Licensed Work within
+an open source project or community, provided the project itself is governed
+by an OSI-compatible open source license.
+
+### 10. ENTIRE AGREEMENT
+
+This Agreement constitutes the entire agreement between You and Licensor
+regarding the Licensed Work and supersedes all prior or contemporaneous
+agreements, understandings, and representations.
+
+### 11. GOVERNING LAW
+
+This Agreement is governed by the laws of the jurisdiction where Licensor is
+located, without regard to conflicts of law principles.
+
+### 12. SEVERABILITY
+
+If any provision of this Agreement is found to be invalid or unenforceable,
+that provision will be modified to the minimum extent necessary to make it
+enforceable, and the remaining provisions will remain in full effect.
+
+---
+
+## APPENDIX A: FAQ (Frequently Asked Questions & Examples)
+
+**Q: Can I use Unheaded inside my company for our own infrastructure?**
+A: YES, unconditionally. Internal use is always permitted, regardless of company size.
+
+**Q: Can I contribute to Unheaded itself?**
+A: YES. By submitting contributions, you agree to license them under the same BSL 1.1 terms.
+
+**Q: Can I offer Unheaded as a managed service to users?**
+A: Only if you are a Permitted User (small company, non-profit, educational, etc.)
+OR you have written permission from Licensor. Large enterprises offering competing
+services will be declined.
+
+**Q: What happens on the Change Date?**
+A: The entire Licensed Work automatically converts to Apache 2.0. All previous
+restrictions lift. No action required on your part.
+
+**Q: Can I use Unheaded in my open source project?**
+A: YES. This is explicitly encouraged and does not trigger commercial restrictions.
+
+**Q: What about the /doom/ directory?**
+A: Files in /doom/ are separately licensed under GPL 2.0 and not subject to BSL 1.1.
+See /doom/LICENSE for details.
+
+**Q: What about /docs/protocol/?**
+A: Protocol specifications in /docs/protocol/ are licensed separately under a
+Permissive License (MIT/Apache-2.0). See LICENSE-PROTOCOLS for details.
+
+---
+
+## NEXT STEPS
+
+- See LICENSE-PROTOCOLS for protocol specification licensing
+- See /doom/LICENSE for GPL 2.0 terms governing DOOM engine integration
+- For licensing questions: stevie@bellis.tech
+- For commercial licensing requests: stevie@bellis.tech
