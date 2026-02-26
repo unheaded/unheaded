@@ -224,7 +224,7 @@ No npm packages in the shipped dashboard. Configuration and protocol handlers ar
 | MIT | 14 | Yes | Permissive, can be used in proprietary software |
 | BSD-3-Clause | 12 | Yes | Permissive, attribution required |
 | BSD-2-Clause | 1 | Yes | Permissive, attribution required |
-| Apache-2.0 | 8 | Yes | Permissive, patent grants compatible with BSL |
+| Apache-2.0 | 8 | Yes | Permissive, patent grants compatible with MIT |
 | ISC | 1 | Yes | Permissive, minimal restrictions |
 | GPL v2 | 1 (doom/) | Isolated | GPL code confined to doom/ directory; not linked |
 | Shareware | 1 (doom1.wad) | Isolated | Game data, not open source, freely redistributable |

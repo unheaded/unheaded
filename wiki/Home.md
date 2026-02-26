@@ -68,7 +68,7 @@
 - [[Security TODOs|Security-TODOs]] — Current security work items
 - [[LICH Fuzzing Campaigns|LICH-Campaigns]] — Automated adversary testing
 - [[Dark Grimoire|Dark-Grimoire]] — Attack surface taxonomy and offensive security notes
-- [[License|LICENSE-BSL11]] — Busl1.1 License
+- [[License|LICENSE]] — MIT License
 - [[IP Inventory|IP-INVENTORY]] — Intellectual property and legal components
 - [[IANA Registration|IANA-REGISTRATION]] — IANA type allocation strategy
 - [[Contributor Guide|CONTRIBUTOR-GUIDE]] — Contributing to Unheaded

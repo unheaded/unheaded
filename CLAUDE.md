@@ -985,7 +985,7 @@ See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
   - Apache 2.0 conversion clause documented
   - 100% coverage, automated CI checks
 - **docs/legal/**:
-  - LICENSE-BSL11.md: Full MIT License text with commercial terms
+  - LICENSE.md: MIT License
   - IP-INVENTORY.md: Complete IP ownership matrix (original code, forks, integrations)
   - IANA-REGISTRATION.md: Plan for registering UNHEADED_METRIC_V1 (Type 0x2A)
 - **CONTRIBUTOR-GUIDE.md**:
