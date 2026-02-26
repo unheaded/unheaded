@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
-# Host-A: The Forge — Full Unheaded stack + vLLM/ROCm
+# Host-A: The Forge — Full Unheaded stack + vLLM/ROCm + OPNsense firewall VM
 # nixos-rebuild switch to apply
 { config, pkgs, lib, ... }:
 
@@ -8,10 +8,13 @@
   imports = [
     ./hardware-configuration.nix
     ../../modules/unheaded-base.nix
+    ../../modules/firewall-bridge.nix
+    ../../modules/opnsense-vm.nix
     ../../modules/telemetry.nix
     ../../modules/wireguard.nix
     ../../modules/vllm-rocm.nix
     ../../modules/ebpf-exporter.nix
+    ../../modules/frr.nix
     ../../modules/services/monad.nix
     ../../modules/services/sophia.nix
     ../../modules/services/wotan.nix
@@ -33,6 +36,16 @@
     ../../modules/services/developer.nix
     ../../modules/services/kanban.nix
   ];
+
+  # ── FRR Routing (BGP EVPN + IS-IS + BFD) ────────────────────────────────────
+  services.unheaded.frr = {
+    enable = true;
+    bgpAs = 65001;
+    routerId = "10.20.255.1";
+    wgPeer = "fd00:dead:beef::2";
+    peerAs = 65002;
+    vnis = [ 10001 10002 10100 ];
+  };
 
   # ── Networking ──────────────────────────────────────────────────────────────
   networking = {
@@ -77,6 +90,28 @@
       ];
     };
   };
+
+  # ── Firewall Bridge (WAN macvlan + LAN service bridge) ──────────────────────
+  unheaded.firewallBridge = {
+    enable = true;
+    wanInterface = "eno1";
+    lanBridge = "br-unheaded";
+    firewallLanIP = "10.20.0.1";
+    ipv6Prefix = "fd00:dead:beef:1::/64";
+  };
+
+  # ── OPNsense VM (Forge firewall) ──────────────────────────────────────────
+  services.unheaded.opnsense = {
+    enable = true;
+    vcpus = 4;
+    memoryMiB = 4096;
+    wanMacvlan = "wan-macvlan";
+    lanBridge = "br-unheaded";
+  };
+
+  # NOTE: All service containers on this host must use 10.20.0.1 as default gateway
+  # and place their interfaces on br-unheaded bridge. The OPNsense VM handles
+  # all WAN-facing firewall policy and NAT.
 
   # ── Boot / Kernel ────────────────────────────────────────────────────────────
   boot = {
@@ -165,6 +200,8 @@
     # ROCm
     rocmPackages.rocm-smi
     rocmPackages.rocminfo
+    # Virtualization
+    libvirt virsh
   ];
 
   # ── NixOS state version ───────────────────────────────────────────────────────

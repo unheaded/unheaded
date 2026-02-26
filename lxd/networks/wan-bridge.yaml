@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT
+# wan-bridge.yaml — External WAN bridge for OPNsense/IPFire
+# This bridge connects to the physical WAN NIC via macvlan
+# DO NOT assign a host IP on this bridge — the firewall VM owns the WAN interface
+
+name: unheaded-wan
+description: "External WAN bridge — OPNsense/IPFire WAN interface"
+type: macvlan
+config:
+  parent: eno1        # Physical WAN NIC — change to match your NIC name
+  mtu: "1500"
+  # IPv4: assigned by DHCP from upstream router (no static — firewall handles it)
+  ipv4.address: none
+  ipv6.address: none
+  # Raw macvlan mode for direct physical NIC access
+  # Mode 'bridge' allows firewall VM to communicate with the upstream router

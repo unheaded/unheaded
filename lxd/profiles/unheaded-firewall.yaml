@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: MIT
+# unheaded-firewall.yaml — LXD profile for firewall VMs
+# Applies to: unheaded-opnsense (host-a), unheaded-ipfire (host-b)
+
+name: unheaded-firewall
+description: "Firewall VM profile — 2 NICs, KVM, serial console"
+config:
+  # VMs require virtualization
+  security.privileged: "false"
+  
+  # Serial console (OPNsense img is serial-optimized)
+  boot.autostart: "true"
+  boot.autostart.priority: "200"    # Start FIRST before all containers
+  boot.autostart.delay: "30"        # Wait 30s before starting service containers
+  
+  # VM-specific
+  limits.cpu: "4"
+  limits.memory: "4GB"
+  limits.memory.hugepages: "false"
+  
+  # Security
+  security.secureboot: "false"      # OPNsense doesn't use secureboot
+  
+  raw.qemu: >-
+    -serial mon:stdio
+    -nographic
+    -no-reboot
+    -device virtio-rng-pci
+
+devices:
+  # Boot disk (set per-VM — profile just defines the structure)
+  root:
+    type: disk
+    path: /
+    pool: unheaded-ssd
+    size: 20GB
+    
+  # WAN interface — connects to upstream router via macvlan
+  wan:
+    type: nic
+    nictype: macvlan
+    parent: eno1
+    name: vtnet0      # OPNsense BSD NIC naming
+    
+  # LAN interface — connects to service container bridge
+  lan:
+    type: nic
+    nictype: bridged
+    parent: unheaded    # The existing service bridge
+    name: vtnet1

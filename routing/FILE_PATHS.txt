@@ -1,0 +1,484 @@
+================================================================================
+UNHEADED KINGDOM ROUTING CONFIGURATION — ABSOLUTE FILE PATHS
+================================================================================
+
+BASE DIRECTORY: /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/
+
+All files created and ready for deployment.
+
+================================================================================
+COMPLETE FILE LIST (14 files)
+================================================================================
+
+DOCUMENTATION (4 files)
+───────────────────────
+
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/README.md
+  Size: 24 KB | Lines: 731 | Type: Markdown
+  Content: Complete architecture & protocol documentation
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/DEPLOYMENT.md
+  Size: 7.2 KB | Lines: 358 | Type: Markdown
+  Content: Quick-start deployment guide with integration tests
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/MANIFEST.md
+  Size: 15 KB | Lines: 524 | Type: Markdown
+  Content: Comprehensive file reference matrix and details
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/INDEX.md
+  Size: 7 KB | Lines: ~200 | Type: Markdown
+  Content: Quick reference index and file summary
+
+
+FRR CONFIGURATION (host-a Forge — OPNsense)
+─────────────────────────────────────────────
+
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/frr/frr.conf
+  Size: 4.8 KB | Lines: 201 | Type: FRR routing config
+  Content: BGP EVPN, IS-IS underlay, BFD, route-maps
+  Deploy to: /etc/frr/frr.conf
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/frr/daemons
+  Size: 330 B | Lines: 24 | Type: FRR daemon control
+  Content: Enable bgpd, isisd, bfdd, zebra, staticd, mgmtd
+  Deploy to: /etc/frr/daemons
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/frr/vtysh.conf
+  Size: 178 B | Lines: 6 | Type: Vtysh configuration
+  Content: Integrated config mode, root passwordless access
+  Deploy to: /etc/frr/vtysh.conf
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/frr/setup-vtep.sh
+  Size: 1.1 KB | Lines: 41 | Type: Bash script (EXECUTABLE)
+  Content: Create VXLAN interfaces (vxlan10001, 10002, 10100)
+  Deploy to: /opt/frr/setup-vtep.sh
+  Permissions: chmod +x
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/frr/Dockerfile
+  Size: 2.3 KB | Lines: 71 | Type: Dockerfile
+  Content: Multi-stage FRR build from source (Ubuntu 24.04)
+  Use for: docker build -t frr:unheaded -f routing/frr/Dockerfile .
+
+
+BIRD CONFIGURATION (host-b Outpost — IPFire)
+───────────────────────────────────────────────
+
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/bird/bird.conf
+  Size: 4.0 KB | Lines: 184 | Type: BIRD routing config
+  Content: BGP EVPN peer, BFD, OSPF, radv, static routes
+  Deploy to: /etc/bird/bird.conf
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/bird/bird-env
+  Size: 359 B | Lines: 16 | Type: Environment variables
+  Content: Log paths, PID file, IPv6 flags
+  Deploy to: /etc/bird/bird-env
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/bird/bird-check.sh
+  Size: 559 B | Lines: 15 | Type: Bash script (EXECUTABLE)
+  Content: Connectivity verification (BGP, EVPN, BFD, kernel routes)
+  Deploy to: /opt/bird/bird-check.sh or ~/bin/
+  Permissions: chmod +x
+  Usage: ./bird-check.sh
+  
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/bird/Dockerfile
+  Size: 950 B | Lines: 38 | Type: Dockerfile
+  Content: Multi-stage BIRD build from source (Alpine 3.19)
+  Use for: docker build -t bird:unheaded -f routing/bird/Dockerfile .
+
+
+================================================================================
+QUICK COPY COMMANDS
+================================================================================
+
+COPY FRR CONFIGURATION TO HOST-A (OPNsense):
+──────────────────────────────────────────────
+scp /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/frr/* \
+  root@[opnsense-ip]:/tmp/
+
+ssh root@[opnsense-ip] << 'SSH_CMD'
+  mkdir -p /etc/frr /opt/frr
+  cp /tmp/frr.conf /etc/frr/
+  cp /tmp/daemons /etc/frr/
+  cp /tmp/vtysh.conf /etc/frr/
+  cp /tmp/setup-vtep.sh /opt/frr/
+  chmod +x /opt/frr/setup-vtep.sh
+SSH_CMD
+
+
+COPY BIRD CONFIGURATION TO HOST-B (IPFire):
+────────────────────────────────────────────
+scp /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/bird/bird.conf \
+  root@[ipfire-ip]:/tmp/
+
+ssh root@[ipfire-ip] << 'SSH_CMD'
+  mkdir -p /etc/bird
+  cp /tmp/bird.conf /etc/bird/
+  chown bird:bird /etc/bird/bird.conf
+  chmod 640 /etc/bird/bird.conf
+SSH_CMD
+
+
+COPY DOCUMENTATION (OPTIONAL — keep locally):
+──────────────────────────────────────────────
+cp /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/*.md \
+   ~/unheaded-routing-docs/
+
+
+================================================================================
+DIRECTORY STRUCTURE (after creation)
+================================================================================
+
+/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/routing/
+├── README.md ........................ Full architecture guide (24 KB)
+├── DEPLOYMENT.md .................... Setup & testing (7.2 KB)
+├── MANIFEST.md ...................... File reference matrix (15 KB)
+├── INDEX.md ......................... Quick reference (7 KB)
+│
+├── frr/ ............................ FRR daemon configs (host-a)
+│   ├── frr.conf ..................... BGP EVPN + IS-IS (4.8 KB)
+│   ├── daemons ...................... Daemon startup (330 B)
+│   ├── vtysh.conf ................... Vtysh shell (178 B)
+│   ├── setup-vtep.sh ................ VXLAN setup script (1.1 KB, EXEC)
+│   └── Dockerfile ................... FRR source build (2.3 KB)
+│
+├── bird/ ........................... BIRD daemon configs (host-b)
+│   ├── bird.conf .................... BGP EVPN peer (4.0 KB)
+│   ├── bird-env ..................... Environment vars (359 B)
+│   ├── bird-check.sh ................ Verification script (559 B, EXEC)
+│   └── Dockerfile ................... BIRD source build (950 B)
+│
+└── FILE_PATHS.txt ................... This file
+
+
+================================================================================
+FILE DESCRIPTIONS
+================================================================================
+
+README.md
+─────────
+Purpose: Complete architecture documentation
+Content:
+  • Two-tier routing architecture (IS-IS underlay + BGP EVPN overlay)
+  • Physical & logical topology diagrams
+  • IPv4/IPv6 addressing plan (fd00:dead:beef::/32 supernet)
+  • Protocol stack detail (IS-IS, BGP, BFD, VXLAN)
+  • Monad HbH header passthrough guarantees
+  • VXLAN VTEP lifecycle management
+  • Deployment steps for OPNsense and IPFire
+  • Troubleshooting commands and quick-fix guide
+  • Performance limits and references
+  • File locations reference
+Start with: Yes (foundational)
+Audience: Architects, ops teams, protocol enthusiasts
+
+
+DEPLOYMENT.md
+─────────────
+Purpose: Quick-start deployment and integration testing
+Content:
+  • Pre-deployment checklist
+  • Step-by-step FRR installation (OPNsense)
+  • Step-by-step BIRD installation (IPFire)
+  • Systemd service configuration templates
+  • 4 integration test cases (BGP, EVPN, VXLAN, BFD failover)
+  • Troubleshooting quick-fix guide
+  • File locations after deployment
+  • Performance expectations
+  • Next steps and enhancements
+Start with: After README (practical deployment)
+Audience: Network engineers, DevOps
+
+
+MANIFEST.md
+───────────
+Purpose: Comprehensive file reference and matrix
+Content:
+  • Directory structure with full paths
+  • Line counts and file sizes for each file
+  • Detailed section-by-section breakdown (frr.conf, bird.conf)
+  • Responsibility matrix (which component uses which file)
+  • Version compatibility matrix
+  • Configuration size and complexity
+  • Testing procedures (minimal, full, stress)
+  • Maintenance notes
+Start with: For reference while deploying
+Audience: System administrators, auditors
+
+
+INDEX.md
+────────
+Purpose: Quick reference index
+Content:
+  • File count summary
+  • Execution permissions
+  • Key characteristics table
+  • Quick start (5 minutes)
+  • Architecture at a glance
+  • Deployment path flowchart
+  • File locations after deployment
+  • Verification commands
+Start with: For rapid navigation
+Audience: Experienced ops, quick lookups
+
+
+frr.conf
+────────
+Purpose: Main FRR routing daemon configuration (host-a)
+Content:
+  • Interface definitions (loopback, WAN, LAN bridge, WireGuard)
+  • IS-IS underlay routing (L2-only, segment routing enabled)
+  • BGP EVPN overlay (iBGP to host-b, VNI 10001/10002/10100)
+  • BFD fast-failover (300ms detection)
+  • Route-maps and prefix lists (HbH-transparent)
+  • VXLAN VTEP management via zebra
+Syntax: FRR configuration language
+Deploy to: /etc/frr/frr.conf
+Test with: vtysh
+
+
+daemons
+───────
+Purpose: FRR daemon startup control (host-a)
+Content:
+  • Enabled daemons: zebra, bgpd, isisd, bfdd, staticd, mgmtd
+  • Disabled daemons: ospf, rip, pimd, ldpd, nhrpd, etc.
+Format: Key=yes/no lines
+Deploy to: /etc/frr/daemons
+Required by: systemd frr.service
+
+
+vtysh.conf
+──────────
+Purpose: Vtysh shell configuration (host-a)
+Content:
+  • Enable integrated-vtysh-config (merge all daemon configs)
+  • Allow root passwordless access to CLI
+Format: Simple config directives
+Deploy to: /etc/frr/vtysh.conf
+Usage: vtysh (interactive shell)
+
+
+setup-vtep.sh
+──────────────
+Purpose: Pre-boot VXLAN VTEP interface creation (host-a)
+Content:
+  • Creates VXLAN interfaces: vxlan10001, vxlan10002, vxlan10100
+  • Creates per-VNI bridges: br-vxlan10001, br-vxlan10002, br-vxlan10100
+  • Attaches VXLAN to bridges with proper flags (nolearning)
+  • Idempotent (checks before creating)
+Execution: Bash script, must be executable
+Deploy to: /opt/frr/setup-vtep.sh
+Called by: systemd ExecStartPre=/opt/frr/setup-vtep.sh
+Permissions: chmod +x (executable)
+
+
+Dockerfile (FRR)
+────────────────
+Purpose: Build FRR from source (host-a)
+Content:
+  • Multi-stage build (builder + runtime)
+  • Base: Ubuntu 24.04
+  • Installs build tools, compiles FRR from /src/frr
+  • Copies FRR binaries to runtime container
+  • Installs configuration files
+Build: docker build -t frr:unheaded -f routing/frr/Dockerfile .
+Run: docker run --net=host -v /etc/frr:/etc/frr:ro frr:unheaded
+Ports: 2601-2610 (exposed, not used in network namespace mode)
+
+
+bird.conf
+──────────
+Purpose: Main BIRD routing daemon configuration (host-b)
+Content:
+  • Device and direct protocol definitions
+  • Kernel protocol (IPv4/IPv6 sync with bidirectional learning)
+  • BFD protocol (300ms intervals, multiplier 3)
+  • Static routes (service subnets)
+  • BGP session to host-a (AS65001, iBGP peer)
+  • EVPN address family (Type-2, Type-5 routes)
+  • OSPF v3 (optional, for intra-host routing)
+  • Router Advertisement (SLAAC for containers on fd00:dead:beef:2::/64)
+  • Filters for IPv4/IPv6 exports
+Syntax: BIRD configuration language
+Deploy to: /etc/bird/bird.conf
+Test with: birdc
+
+
+bird-env
+─────────
+Purpose: BIRD environment variables (host-b)
+Content:
+  • BIRD_OPTS: daemon startup options
+  • BIRD_LOG_LEVEL: logging verbosity
+  • BIRD_LOG_FILE: output path
+  • BIRD_PIDFILE: process ID file location
+  • ENABLE_IPV6: IPv6 support flag
+Format: Shell environment variables
+Deploy to: /etc/bird/bird-env (or source in systemd)
+Usage: source /etc/bird/bird-env (or ExecEnvironmentFile=)
+
+
+bird-check.sh
+──────────────
+Purpose: BIRD connectivity verification (host-b)
+Content:
+  • Shows protocol status: birdc show protocols all
+  • Shows BGP session: birdc show protocols forge
+  • Shows learned routes: birdc show route protocol forge
+  • Shows IPv6 routes: birdc show route where net ~ fd00:dead:beef::/32
+  • Shows BFD sessions: birdc show bfd sessions
+  • Shows kernel routes: ip -6 route show | grep dead:beef
+Execution: Bash script, must be executable
+Deploy to: /opt/bird/bird-check.sh or ~/bin/
+Usage: ./bird-check.sh
+Output: Real-time status of BGP peering, routes, BFD
+Permissions: chmod +x (executable)
+
+
+Dockerfile (BIRD)
+──────────────────
+Purpose: Build BIRD from source (host-b)
+Content:
+  • Multi-stage build (builder + runtime)
+  • Base: Alpine 3.19 (minimal, ~5 MB)
+  • Installs build tools, compiles BIRD from /src/bird
+  • Copies BIRD binaries to runtime container
+  • Installs configuration file
+  • Creates bird user/group
+Build: docker build -t bird:unheaded -f routing/bird/Dockerfile .
+Run: docker run --net=host -v /etc/bird:/etc/bird:ro bird:unheaded
+Port: 179 (exposed, BGP)
+
+
+================================================================================
+VERIFICATION AFTER DEPLOYMENT
+================================================================================
+
+Host-A (OPNsense + FRR):
+  cat /etc/frr/frr.conf .................... Verify config is in place
+  ls -l /opt/frr/setup-vtep.sh ............ Should be executable (-rwx)
+  systemctl status frr .................... Should be running
+  vtysh ................................. Enter interactive shell
+    > show bgp neighbors .................. Should see fd00:dead:beef::2
+    > show bfd peers ...................... Should show active session
+    > show isis neighbors ................. Should show peer
+    > exit
+
+Host-B (IPFire + BIRD):
+  cat /etc/bird/bird.conf ................. Verify config is in place
+  systemctl status bird ................... Should be running
+  birdc show protocols .................... Should show all protocols
+  birdc show protocols forge .............. Should show BGP "up"
+  birdc show bfd sessions ................. Should show active session
+
+
+================================================================================
+DEPLOYMENT VERIFICATION CHECKLIST
+================================================================================
+
+Pre-Deployment:
+  [ ] WireGuard tunnel: ping6 fd00:dead:beef::1 from host-b
+  [ ] WireGuard tunnel: ping6 fd00:dead:beef::2 from host-a
+  [ ] br-unheaded bridge exists on both hosts
+  
+Host-A:
+  [ ] FRR package installed
+  [ ] /etc/frr/frr.conf exists and readable
+  [ ] /etc/frr/daemons exists and readable
+  [ ] /opt/frr/setup-vtep.sh exists and executable
+  [ ] systemd ExecStartPre hook added
+  [ ] FRR service running
+  [ ] vtysh > show bgp summary (shows 1 neighbor)
+  [ ] vtysh > show bfd peers (shows 1 peer)
+  [ ] ip link show | grep vxlan (shows 3 interfaces)
+
+Host-B:
+  [ ] BIRD installed (binary or compiled)
+  [ ] /etc/bird/bird.conf exists and readable
+  [ ] bird user/group exists
+  [ ] BIRD service running
+  [ ] birdc show protocols (shows all 7 protocols)
+  [ ] birdc show protocols forge (shows "up")
+  [ ] birdc show bfd sessions (shows 1 active)
+
+Integration:
+  [ ] BGP session established (Established / up)
+  [ ] EVPN routes advertised (Type-2, Type-5 visible)
+  [ ] Container traffic: ping6 across VXLAN works
+  [ ] BFD failover: link down triggers convergence <1s
+  [ ] BFD recovery: link up triggers convergence <300ms
+
+
+================================================================================
+TROUBLESHOOTING FILE PATHS
+================================================================================
+
+FRR Log Files:
+  /var/log/frr/bgpd.log ................... BGP protocol logs
+  /var/log/frr/isisd.log .................. IS-IS protocol logs
+  /var/log/frr/bfdd.log ................... BFD logs
+  /var/log/frr/zebra.log .................. Zebra kernel interface logs
+  /var/log/frr/frr.log .................... General FRR logs
+
+BIRD Log Files:
+  /var/log/bird/bird.log .................. All BIRD logs
+  /var/log/syslog or /var/log/messages ... BIRD syslog entries
+
+Configuration Paths:
+  /etc/frr/ .............................. FRR config directory
+  /etc/bird/ ............................. BIRD config directory
+  /etc/systemd/system/frr.service ........ FRR systemd unit
+  /etc/systemd/system/bird.service ....... BIRD systemd unit
+
+Runtime Paths:
+  /var/run/frr/ .......................... FRR runtime sockets, PID
+  /var/run/bird/ ......................... BIRD runtime sockets, PID
+  /var/run/frrvty/ ....................... FRR vtysh socket
+
+
+================================================================================
+SUPPORT RESOURCES
+================================================================================
+
+Online Documentation:
+  FRR: https://docs.frrouting.org/
+  BIRD: https://bird.network.cz/
+  WireGuard: https://www.wireguard.com/
+
+RFCs:
+  RFC 5308 — Routing IPv6 with IS-IS
+  RFC 7432 — BGP MPLS Ethernet VPN (EVPN)
+  RFC 7348 — VXLAN
+  RFC 8200 — IPv6 Specification
+
+Local Documentation:
+  README.md ............................ Full architecture
+  DEPLOYMENT.md ........................ Setup guide
+  MANIFEST.md .......................... File reference
+  INDEX.md ............................ Quick reference
+
+
+================================================================================
+CONTACT & LICENSING
+================================================================================
+
+Author: Unheaded Kingdom team
+Date: 2026-02-26
+License: MIT (all files)
+
+Questions about:
+  - Architecture → See README.md
+  - Deployment → See DEPLOYMENT.md
+  - File details → See MANIFEST.md
+  - Quick lookup → See INDEX.md
+
+For problems:
+  1. Check troubleshooting in DEPLOYMENT.md
+  2. Verify file paths match this document
+  3. Review FRR/BIRD logs in /var/log/
+  4. Test connectivity: ping6, vtysh, birdc
+
+
+================================================================================
+END OF FILE PATHS REFERENCE
+================================================================================

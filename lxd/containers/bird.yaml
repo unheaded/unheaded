@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: MIT
+# bird.yaml — BIRD routing daemon container (host-b)
+
+name: unheaded-bird
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+  - unheaded-ebpf
+
+config:
+  limits.cpu: "1"
+  limits.memory: "256MB"
+  boot.autostart: "true"
+  boot.autostart.priority: "190"
+  boot.autostart.delay: "10"
+  
+  user.user-data: |
+    #cloud-config
+    packages: [make, gcc, flex, bison, libreadline-dev, libssh-dev]
+    runcmd:
+      - groupadd -g 153 bird || true
+      - useradd -u 153 -g bird -d /var/run/bird bird || true
+  
+  environment.BIRD_CONF: "/etc/bird/bird.conf"
+  
+  user.unheaded.role: "routing"
+  user.unheaded.daemon: "bird"
+  user.unheaded.bgp_as: "65002"
+  user.unheaded.router_id: "10.20.255.2"
+
+devices:
+  root:
+    type: disk
+    path: /
+    pool: unheaded-ssd
+    size: 2GB
+  
+  bird-conf:
+    type: disk
+    source: /etc/unheaded/bird
+    path: /etc/bird

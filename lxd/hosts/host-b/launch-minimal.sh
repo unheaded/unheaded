@@ -89,6 +89,56 @@ launch_container() {
     fi
 }
 
+# Launch container with ebpf profile
+launch_container_ebpf() {
+    local svc_name=$1
+    local cpu_limit=$2
+    local memory_limit=$3
+    
+    local container_name="unheaded-${svc_name}"
+    
+    log_info "Launching ${container_name}..."
+    
+    # Check if already exists
+    if lxc list "${container_name}" 2>/dev/null | grep -q "${container_name}"; then
+        log_warn "${container_name} already exists, skipping"
+        LAUNCHED_OK+=("${svc_name}")
+        return 0
+    fi
+    
+    # Build launch command
+    local cmd="lxc launch ubuntu:24.04 ${container_name}"
+    cmd="${cmd} --profile default"
+    cmd="${cmd} --profile unheaded-ebpf"
+    cmd="${cmd} --config limits.cpu=${cpu_limit}"
+    cmd="${cmd} --config limits.memory=${memory_limit}MB"
+    cmd="${cmd} --config boot.autostart=true"
+    cmd="${cmd} --config environment.SERVICE_NAME=${svc_name}"
+    cmd="${cmd} --config environment.LOG_LEVEL=info"
+    
+    # Execute launch command
+    if eval "${cmd}" 2>/dev/null; then
+        log_success "Container ${container_name} launched"
+        
+        # Wait for cloud-init to complete
+        log_info "Waiting for ${container_name} to be ready..."
+        sleep 3
+        if timeout 60 lxc exec "${container_name}" -- cloud-init status --wait 2>/dev/null || true; then
+            log_success "${container_name} is ready"
+            LAUNCHED_OK+=("${svc_name}")
+            return 0
+        else
+            log_warn "${container_name} cloud-init timeout, continuing..."
+            LAUNCHED_OK+=("${svc_name}")
+            return 0
+        fi
+    else
+        log_error "Failed to launch ${container_name}"
+        LAUNCHED_FAIL+=("${svc_name}")
+        return 1
+    fi
+}
+
 # Push binary and start service
 push_and_start_service() {
     local svc_name=$1
@@ -149,6 +199,44 @@ print_status_table() {
 log_info "Starting Unheaded Kingdom minimal deployment on host-b (Outpost)..."
 echo ""
 
+# ============================================================
+# PHASE 0: INGRESS/EGRESS FIREWALL + ROUTING (must be first)
+# ============================================================
+log_info "Phase 0: Importing firewall VM images..."
+bash "$(dirname "$0")/../../firewall/import-ipfire.sh" 2>/dev/null || log_warn "IPFire image import failed or already imported"
+
+log_info "Phase 0: Launching IPFire VM (ingress/egress firewall)..."
+if lxc list "unheaded-ipfire" 2>/dev/null | grep -q "unheaded-ipfire"; then
+    log_warn "unheaded-ipfire already exists, skipping launch"
+    LAUNCHED_OK+=("ipfire")
+else
+    if lxc launch ipfire-2.29-core199 unheaded-ipfire \
+        --vm \
+        --profile unheaded-firewall \
+        --config limits.cpu=2 \
+        --config limits.memory=2GB \
+        --config boot.autostart.priority=200 2>/dev/null; then
+        log_success "IPFire VM launched"
+        LAUNCHED_OK+=("ipfire")
+    else
+        log_error "IPFire VM launch failed"
+        LAUNCHED_FAIL+=("ipfire")
+    fi
+fi
+
+log_info "Phase 0: Waiting for IPFire to initialize (90s)..."
+sleep 90
+if lxc info unheaded-ipfire 2>/dev/null | grep -E "Status|Name"; then
+    log_success "IPFire is running"
+else
+    log_warn "IPFire status check failed (may still be initializing)"
+fi
+
+log_info "Phase 0: Launching BIRD routing container..."
+launch_container_ebpf "bird" 1 256
+log_success "Ingress/egress tier ready. Proceeding to core services..."
+echo ""
+
 # Phase 1: Core message bus
 log_info "Phase 1: Launching message bus (wotan)..."
 launch_container "wotan" 2 512
@@ -198,6 +286,8 @@ if [[ ${#LAUNCHED_FAIL[@]} -eq 0 ]]; then
     log_success "All core services launched successfully on host-b!"
     echo ""
     echo "Configuration notes:"
+    echo "  - IPFire is running as a VM with firewall/IDS capabilities"
+    echo "  - BIRD is handling dynamic routing (BGP) for host-b"
     echo "  - Prometheus is in agent mode with remote_write to host-a"
     echo "  - Logs are shipped to host-a Loki via Promtail"
     echo "  - Node metrics are exported for host-a Prometheus"

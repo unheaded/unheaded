@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: MIT
+# ipfire.yaml — IPFire 2.29 VM for host-b (Outpost). GPL v2.
+
+name: unheaded-ipfire
+type: virtual-machine
+image: ipfire-2.29-core199
+
+profiles:
+  - unheaded-firewall
+
+config:
+  limits.cpu: "2"
+  limits.memory: "2GB"
+  boot.autostart: "true"
+  boot.autostart.priority: "200"
+  boot.autostart.delay: "30"
+  
+  raw.qemu: "-serial mon:stdio -nographic -no-reboot -device virtio-rng-pci"
+  
+  user.unheaded.role: "firewall"
+  user.unheaded.platform: "ipfire"
+  user.unheaded.version: "2.29-core199"
+  user.unheaded.wan_role: "ingress-egress"
+  user.unheaded.lan_ip: "10.20.0.1"
+  user.unheaded.license: "GPL-2.0"
+  user.unheaded.host: "outpost"
+
+devices:
+  root:
+    type: disk
+    path: /
+    pool: unheaded-ssd
+    size: 15GB
+    
+  wan:
+    type: nic
+    nictype: macvlan
+    parent: eno1
+    name: eth0
+    
+  lan:
+    type: nic
+    nictype: bridged
+    parent: unheaded
+    name: eth1

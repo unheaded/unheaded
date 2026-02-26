@@ -156,6 +156,44 @@ print_status_table() {
 log_info "Starting Unheaded Kingdom service deployment on host-a..."
 echo ""
 
+# ============================================================
+# PHASE 0: INGRESS/EGRESS FIREWALL + ROUTING (must be first)
+# ============================================================
+log_info "Phase 0: Importing firewall VM images..."
+bash "$(dirname "$0")/../../firewall/import-opnsense.sh" 2>/dev/null || log_warn "OPNsense image import failed or already imported"
+
+log_info "Phase 0: Launching OPNsense VM (ingress/egress firewall)..."
+if lxc list "unheaded-opnsense" 2>/dev/null | grep -q "unheaded-opnsense"; then
+    log_warn "unheaded-opnsense already exists, skipping launch"
+    LAUNCHED_OK+=("opnsense")
+else
+    if lxc launch opnsense-26.1.2 unheaded-opnsense \
+        --vm \
+        --profile unheaded-firewall \
+        --config limits.cpu=4 \
+        --config limits.memory=4GB \
+        --config boot.autostart.priority=200 2>/dev/null; then
+        log_success "OPNsense VM launched"
+        LAUNCHED_OK+=("opnsense")
+    else
+        log_error "OPNsense VM launch failed"
+        LAUNCHED_FAIL+=("opnsense")
+    fi
+fi
+
+log_info "Phase 0: Waiting for OPNsense to initialize (90s)..."
+sleep 90
+if lxc info unheaded-opnsense 2>/dev/null | grep -E "Status|Name"; then
+    log_success "OPNsense is running"
+else
+    log_warn "OPNsense status check failed (may still be initializing)"
+fi
+
+log_info "Phase 0: Launching FRR routing container..."
+launch_container "frr" 2 1024 true false
+log_success "Ingress/egress tier ready. Proceeding to service containers..."
+echo ""
+
 # Phase 1: Message bus
 log_info "Phase 1: Launching message bus (wotan)..."
 launch_container "wotan" 4 1024
