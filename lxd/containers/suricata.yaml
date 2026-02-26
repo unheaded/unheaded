@@ -1,0 +1,66 @@
+name: suricata
+description: "Suricata IDS/IPS — GPL-2.0 isolated via EVE JSON boundary"
+
+profiles:
+  - default
+  - unheaded-base
+  - unheaded-ebpf
+
+source:
+  type: image
+  protocol: simplestreams
+  server: https://images.linuxcontainers.org
+  alias: ubuntu/noble/amd64
+
+config:
+  security.privileged: "true"
+  security.nesting: "false"
+  boot.autostart: "true"
+  boot.autostart.priority: "195"
+  boot.autostart.delay: "10"
+  user.service: "suricata"
+  user.description: "Suricata IDS/IPS — GPL-2.0 isolation boundary"
+  
+  # AppArmor profile for network packet capture and BPF maps
+  raw.apparmor: |
+    network raw,
+    network packet,
+    capability net_raw,
+    capability net_admin,
+    capability sys_nice,
+    /sys/fs/bpf/ rw,
+    /sys/fs/bpf/** rw,
+    /var/log/suricata/ rw,
+    /var/log/suricata/** rw,
+    /run/suricata/ rw,
+    /run/suricata/** rw,
+
+devices:
+  eth0:
+    name: eth0
+    network: lxdbr0
+    type: nic
+    
+  eth1:
+    name: eth1
+    network: lxdbr0
+    type: nic
+    nictype: bridged
+    parent: br-unheaded
+    
+  root:
+    path: /
+    pool: default
+    type: disk
+    size: 15GB
+    
+  bpf-fs:
+    path: /sys/fs/bpf
+    source: /sys/fs/bpf
+    type: disk
+    optional: "true"
+    
+  suricata-logs:
+    path: /var/log/suricata
+    source: /var/log/unheaded/suricata
+    type: disk

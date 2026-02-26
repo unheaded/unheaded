@@ -1,0 +1,4 @@
+{"timestamp":"2026-02-26T04:15:00.123456+0000","event_type":"alert","src_ip":"fd00:dead:beef::1","dest_ip":"fd00:dead:beef::2","alert":{"signature_id":9000001,"signature":"MONAD HbH extension header detected","severity":3}}
+{"timestamp":"2026-02-26T04:15:01.234567+0000","event_type":"alert","src_ip":"192.168.1.100","dest_ip":"192.168.1.200","alert":{"signature_id":2000000,"signature":"ET SCAN Nmap","severity":2}}
+{"timestamp":"2026-02-26T04:15:02.345678+0000","event_type":"stats","stats":{"uptime":300}}
+{"timestamp":"2026-02-26T04:15:03.456789+0000","event_type":"alert","src_ip":"fd00:1:2:3::10","dest_ip":"fd00:1:2:3::20","alert":{"signature_id":9000030,"signature":"MONAD HbH replay attack","severity":1}}

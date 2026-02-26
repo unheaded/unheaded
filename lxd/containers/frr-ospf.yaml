@@ -1,0 +1,31 @@
+name: frr-ospf
+description: "FRR OSPFv3 routing daemon — Alternate Option A"
+profiles:
+  - default
+  - unheaded-base
+  - unheaded-ebpf
+source:
+  type: image
+  protocol: simplestreams
+  server: https://images.linuxcontainers.org
+  alias: ubuntu/noble/amd64
+config:
+  boot.autostart: "true"
+  boot.autostart.priority: "188"
+  boot.autostart.delay: "5"
+  user.service: "frr-ospf"
+  user.routing-option: "A-ospf"
+devices:
+  wg0:
+    name: wg0
+    nictype: ipvlan
+    parent: wg0
+    type: nic
+  br-unheaded:
+    name: br-unheaded
+    network: lxdbr0
+    type: nic
+  frr-conf:
+    path: /etc/frr
+    source: /etc/unheaded/frr-ospf
+    type: disk
