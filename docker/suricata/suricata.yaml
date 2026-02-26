@@ -1,0 +1,186 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Suricata Configuration for Unheaded Kingdom
+# Production IDS deployment with Monad protocol support
+
+# Network variables
+vars:
+  address-groups:
+    HOME_NET: "[10.20.0.0/16, fd00:dead:beef::/48]"
+    EXTERNAL_NET: "!$HOME_NET"
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNS_PORTS: 53
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    GENEVE_PORTS: 6081
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+# Logging configuration
+logging:
+  default-log-level: notice
+  outputs:
+    - stdout
+
+# Default action order
+action-order:
+  - alert
+  - reject
+  - drop
+  - pass
+
+# AF_PACKET input configuration for host-b LAN capture
+af-packet:
+  - interface: eth1
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    tpacket-v3: yes
+    block-size: 32768
+    block-timeout: 10
+    preallocated-flows: 10000
+    threads: auto
+    checksum-checks: kernel
+
+# Decoder configuration - CRITICAL for Monad HbH support
+decoder:
+  # NEVER strip Monad HbH (IPv6 HOPOPT nexthdr 0x00)
+  decode-events: no
+  ipv6-hopopts: yes
+  ipv4:
+    checksum-validation: yes
+  ipv6:
+    checksum-validation: yes
+  pcap:
+    checksum-checks: yes
+
+# TCP and packet settings
+stream:
+  memcap: 64mb
+  checksum-validation: yes
+  inline: auto
+  reassembly:
+    memcap: 256mb
+    depth: 1mb
+    toserver-chunk-size: 2560
+    toclient-chunk-size: 2560
+    randomize-chunk-size: yes
+
+# IP defragmentation
+defrag:
+  memcap: 32mb
+  hash-size: 65536
+  trackers: 65535
+  max-frags: 65535
+  prealloc: yes
+  timeout: 60
+
+# Performance tuning
+performance:
+  profile: medium
+  sgh-mpm-context: auto
+  inspection-recursion-limit: 3000
+  lua:
+    gc-threshold: 100
+
+# Output configurations
+outputs:
+  # EVE JSON - Primary output for anamnesis bridge
+  - eve-log:
+      enabled: yes
+      filename: /var/log/suricata/eve.json
+      filetype: regular
+      append: yes
+      types:
+        - alert:
+            payload: yes
+            payload-buffer-size: 4096
+            payload-printable: yes
+            packet: yes
+            metadata: yes
+            verdict: yes
+        - anomaly:
+            enabled: yes
+        - stats:
+            enabled: yes
+            totals: yes
+            threads: yes
+            deltas: yes
+        - dns:
+            enabled: no
+        - http:
+            enabled: no
+        - tls:
+            enabled: no
+      metadata:
+        use-lock: yes
+      pcapfile: no
+
+  # Fast log for quick reference
+  - fast:
+      enabled: yes
+      filename: /var/log/suricata/fast.log
+      append: yes
+
+  # Stats output
+  - stats:
+      enabled: yes
+      filename: /var/log/suricata/stats.log
+      append: yes
+      totals: yes
+      threads: yes
+      interval: 60
+      uptime: yes
+      decoder-events: yes
+      stream-events: yes
+
+  # Redis output (optional, for external correlation)
+  - redis:
+      enabled: no
+      server: 127.0.0.1
+      port: 6379
+      async: yes
+      mode: list
+      key: suricata
+
+# IPC - Unix command socket for run-time control
+unix-command:
+  enabled: yes
+  filename: /run/suricata/suricata.socket
+  format: json
+
+# Rule configuration
+default-rule-path: /etc/suricata/rules
+rule-files:
+  - unheaded-monad.rules
+
+# Stats settings
+stats:
+  enabled: yes
+  interval: 60
+
+# Threshold configuration
+threshold-file: /etc/suricata/threshold.config
+
+# Tuning for IDS mode (no inline blocking)
+legacy:
+  uricontent: enabled
+
+# Monad protocol detection (custom variables if needed)
+# These are used in unheaded-monad.rules
+vars-monad:
+  monad-hbh-sid-base: 9000000
+  monad-cluster-id: 99
+  monad-timeout: 60
+
+# Engine configuration
+engine-analysis-file: /var/log/suricata/engine-analysis.log
+
+# Preproc configuration
+preproc:
+  fragbits: yes
+  flow: yes

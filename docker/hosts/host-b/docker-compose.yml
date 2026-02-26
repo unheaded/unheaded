@@ -253,6 +253,44 @@ services:
     - /tmp:size=64m,mode=1777
     volumes:
     - anamnesis-data:/var/lib/anamnesis
+  suricata:
+    build:
+      context: ../../suricata
+      dockerfile: Dockerfile
+    image: unheaded/suricata:latest
+    container_name: unheaded-suricata
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+    - NET_RAW
+    - NET_ADMIN
+    - SYS_NICE
+    network_mode: host
+    environment:
+    - SURICATA_INTERFACE=eth1
+    - SURICATA_LOG_DIR=/var/log/suricata
+    volumes:
+    - suricata_logs:/var/log/suricata
+    - ./../../suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
+    - ./../../routing/suricata/rules:/etc/suricata/rules:ro
+    - /sys/fs/bpf:/sys/fs/bpf:rw
+    healthcheck:
+      test:
+      - CMD
+      - test
+      - -S
+      - /run/suricata/suricata.socket
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      prometheus.io/scrape: 'false'
+      unheaded.role: ids
+      unheaded.tier: security
+    security_opt:
+    - no-new-privileges:false
+    tmpfs:
+    - /run/suricata:size=64m,mode=0755
   dashboard-backend:
     image: unheaded-dashboard-backend:${VERSION:-dev}
     container_name: unheaded-dashboard-backend
@@ -504,6 +542,7 @@ volumes:
   monad-data: null
   sophia-data: null
   anamnesis-data: null
+  suricata_logs: null
   dashboard-backend-data: null
   gateway-data: null
   prometheus-data: null

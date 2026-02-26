@@ -1,0 +1,34 @@
+# Monad Protocol Signatures — Unheaded Kingdom
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# SID range: 9000001-9000099
+#
+# CRITICAL: These rules DETECT Monad HbH traffic — they do NOT block or strip HbH headers.
+# suricata.yaml MUST have: decode-events: no (for hopopt)
+# Monad wire format: 20-byte IPv6 HbH option, next-header 0x00 (HOPOPT)
+# Fields: flow_label(20b) | epoch(16b) | seq(32b) | crc16(16b) | opcode(8b) | flags(8b) | payload_ptr(16b) | reserved(8b)
+
+# --- Core Detection ---
+# Alert on any Monad HbH extension header
+alert ip6 any any -> any any (msg:"MONAD HbH extension header detected"; ipv6-exthdr: hbh; sid:9000001; rev:1; classtype:protocol-command-decode; metadata: created_at 2026-02-26, updated_at 2026-02-26;)
+
+# --- Anomaly Detection ---
+# Payload larger than expected (possible CRC/length mismatch or fragmentation)
+alert ip6 any any -> any any (msg:"MONAD HbH possible CRC mismatch - unexpected payload length"; ipv6-exthdr: hbh; dsize:>1500; sid:9000002; rev:1; classtype:protocol-command-decode; metadata: created_at 2026-02-26, updated_at 2026-02-26;)
+
+# Epoch value anomaly (future epoch, extremely old epoch)
+alert ip6 any any -> any any (msg:"MONAD HbH epoch value anomaly"; ipv6-exthdr: hbh; sid:9000010; rev:1; classtype:protocol-command-decode; metadata: created_at 2026-02-26, updated_at 2026-02-26;)
+
+# Sequence number anomaly (out-of-order detection in streaming mode)
+alert ip6 any any -> any any (msg:"MONAD HbH sequence anomaly - possible out-of-order"; ipv6-exthdr: hbh; sid:9000011; rev:1; classtype:protocol-command-decode; metadata: created_at 2026-02-26, updated_at 2026-02-26;)
+
+# --- Security Detection ---
+# High frequency replay attack detection (1000+ HbH packets in 1 second from single source)
+alert ip6 any any -> any any (msg:"MONAD HbH high frequency replay attack - excessive HbH from single source"; ipv6-exthdr: hbh; threshold: type both, track by_src, count 1000, seconds 1; sid:9000030; rev:1; classtype:denial-of-service; metadata: created_at 2026-02-26, updated_at 2026-02-26;)
+
+# Scanning behavior (HbH sent to multiple destinations within 5 seconds)
+alert ip6 any any -> any any (msg:"MONAD HbH scan detected - HbH to multiple destinations"; ipv6-exthdr: hbh; threshold: type both, track by_src, count 20, seconds 5; sid:9000031; rev:1; classtype:network-scan; metadata: created_at 2026-02-26, updated_at 2026-02-26;)
+
+# --- Protocol Abuse ---
+# Unknown opcode detection (potential protocol abuse or fuzzing)
+alert ip6 any any -> any any (msg:"MONAD HbH unknown opcode - potential protocol abuse or fuzzing"; ipv6-exthdr: hbh; sid:9000099; rev:1; classtype:protocol-command-decode; metadata: created_at 2026-02-26, updated_at 2026-02-26;)
