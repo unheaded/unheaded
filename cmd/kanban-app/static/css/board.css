@@ -12,10 +12,7 @@
     flex-direction: column;
     padding: var(--spacing-lg);
     overflow: hidden;
-    background:
-        radial-gradient(ellipse at top left, rgba(255, 215, 0, 0.03) 0%, transparent 50%),
-        radial-gradient(ellipse at bottom right, rgba(255, 215, 0, 0.02) 0%, transparent 50%),
-        var(--kingdom-bg-primary);
+    background: var(--kingdom-bg-primary);
 }
 
 .board {
@@ -108,11 +105,12 @@
 }
 
 .column-title {
-    font-family: var(--font-serif);
-    font-size: 1rem;
-    font-weight: 600;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 300;
     color: var(--text-primary);
-    letter-spacing: 0.02em;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
 }
 
 .column-count {
@@ -259,9 +257,11 @@
 }
 
 .board-empty-title {
-    font-family: var(--font-serif);
-    font-size: 1.5rem;
-    color: var(--kingdom-gold);
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    font-weight: 300;
+    color: var(--text-primary);
+    letter-spacing: 0.2em;
     margin-bottom: var(--spacing-md);
 }
 
