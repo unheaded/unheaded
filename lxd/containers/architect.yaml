@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/architect.yaml
+# Architect royal court service container definition
+
+name: unheaded-architect
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "1"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.ARCHITECT_PORT: "50061"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "architect"
+  user.tier: "royal-court"
+  user.port: "50061"
+  user.description: "Architect royal court service"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "40"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-architect:
+    type: disk
+    source: /opt/unheaded/bin/architect
+    path: /opt/unheaded/bin/architect
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/architect
+    path: /var/lib/unheaded/architect
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Architect — royal court service"

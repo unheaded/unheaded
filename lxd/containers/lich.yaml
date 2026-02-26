@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/lich.yaml
+# Lich security testing container definition
+
+name: unheaded-lich
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+  - unheaded-ebpf
+
+config:
+  limits.cpu: "4"
+  limits.memory: "2GB"
+  limits.memory.swap: "false"
+  
+  environment.LICH_INTERNAL_MODE: "true"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "lich"
+  user.tier: "security-testing"
+  user.port: "none"
+  user.description: "Lich security testing (no external port)"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "10"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 10GB
+    type: disk
+  bin-lich:
+    type: disk
+    source: /opt/unheaded/bin/lich
+    path: /opt/unheaded/bin/lich
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/lich
+    path: /var/lib/unheaded/lich
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Lich — eBPF security testing (no external port)"

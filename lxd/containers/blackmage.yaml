@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/blackmage.yaml
+# BlackMage secret management container definition
+
+name: unheaded-blackmage
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "2"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.BLACKMAGE_PORT: "50066"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "blackmage"
+  user.tier: "security"
+  user.port: "50066"
+  user.description: "BlackMage secret management and key derivation"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "30"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-blackmage:
+    type: disk
+    source: /opt/unheaded/bin/blackmage
+    path: /opt/unheaded/bin/blackmage
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/blackmage
+    path: /var/lib/unheaded/blackmage
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded BlackMage — secret management and key derivation"

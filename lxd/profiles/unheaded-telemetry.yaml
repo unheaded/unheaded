@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/profiles/unheaded-telemetry.yaml
+# Telemetry profile — for observability stack containers
+# Targets: Prometheus, Grafana, Loki, VictoriaMetrics
+# Apply: lxc profile create unheaded-telemetry < profiles/unheaded-telemetry.yaml
+# Usage: lxc launch IMAGE prometheus --profile unheaded-base --profile unheaded-telemetry
+
+config:
+  # Higher resource allocation for telemetry workloads
+  limits.cpu: "4"
+  limits.memory: "4GB"
+  limits.cpu.priority: "7"
+  
+  # Persistent storage configuration
+  user.telemetry.retention: "30d"
+  user.telemetry.tier: "critical"
+  
+  # I/O tuning for time-series databases
+  raw.lxc: |
+    lxc.cgroup2.io.max = /dev/sda 100000000 50000000
+
+description: "Unheaded Telemetry profile — Prometheus, Grafana, Loki, VictoriaMetrics"
+
+devices:
+  eth0:
+    type: nic
+    network: unheaded
+  telemetry-data:
+    type: disk
+    path: /var/lib/telemetry
+    pool: unheaded-ssd
+    size: 50GB

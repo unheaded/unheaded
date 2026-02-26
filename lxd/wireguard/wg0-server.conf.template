@@ -1,0 +1,19 @@
+# WireGuard Server Configuration Template
+# Host-a (Forge) — Listens on 51820, bridges to host-b
+# Subnet: fd00:dead:beef::/48
+
+[Interface]
+PrivateKey = ${WG_PRIVATE_KEY}
+Address = fd00:dead:beef::1/48
+ListenPort = 51820
+MTU = 1380
+
+# IPv6 NAT and forwarding
+PostUp = ip6tables -A FORWARD -i wg0 -j ACCEPT; ip6tables -A FORWARD -o wg0 -j ACCEPT; ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = ip6tables -D FORWARD -i wg0 -j ACCEPT; ip6tables -D FORWARD -o wg0 -j ACCEPT; ip6tables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+# Peer: host-b client
+[Peer]
+PublicKey = ${WG_PEER_PUBLIC_KEY}
+AllowedIPs = fd00:dead:beef::2/128, fd00:dead:beef:2::/64
+PersistentKeepalive = 25

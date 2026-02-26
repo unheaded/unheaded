@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/cloud-init/ebpf.yaml
+# Cloud-init user-data — eBPF container initialization
+# Installs libbpf, bpftool, mounts bpffs, configures BPF environment
+# Apply in combination with base.yaml
+# Usage: lxc launch IMAGE NAME --config user.user-data="$(cat cloud-init/base.yaml && cat cloud-init/ebpf.yaml)"
+
+#cloud-config
+package_update: true
+package_upgrade: false
+packages:
+  - linux-headers-generic
+  - libbpf-dev
+  - bpftool
+  - clang
+  - llvm
+  - libelf-dev
+  - zlib1g-dev
+  - pkg-config
+
+write_files:
+  - path: /etc/systemd/system/bpffs.mount
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=BPF filesystem
+      After=local-fs-pre.target
+      Before=local-fs.target
+
+      [Mount]
+      What=bpffs
+      Where=/sys/fs/bpf
+      Type=bpf
+      Options=rw,relatime,mode=0700
+
+      [Install]
+      WantedBy=local-fs.target
+
+  - path: /etc/profile.d/ebpf.sh
+    permissions: '0644'
+    content: |
+      export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+      export BPF_PATH="/sys/fs/bpf"
+      export CLANG_INCLUDE_PATH="/usr/include/bpf"
+
+  - path: /etc/unheaded/ebpf.env
+    permissions: '0640'
+    owner: 'unheaded:unheaded'
+    content: |
+      BPF_ENABLED=true
+      BPF_PATH=/sys/fs/bpf
+      CLANG_BPF=clang
+      LLVM_VERSION=14
+
+runcmd:
+  - mkdir -p /sys/fs/bpf
+  - systemctl enable bpffs.mount
+  - systemctl start bpffs.mount
+  - mkdir -p /var/lib/bpf
+  - chown unheaded:unheaded /var/lib/bpf /sys/fs/bpf

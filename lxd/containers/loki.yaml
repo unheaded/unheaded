@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/loki.yaml
+# Loki log aggregation container definition
+
+name: unheaded-loki
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+  - unheaded-telemetry
+
+config:
+  limits.cpu: "2"
+  limits.memory: "4GB"
+  limits.memory.swap: "false"
+  
+  environment.LOKI_PORT: "3100"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "loki"
+  user.tier: "telemetry"
+  user.port: "3100"
+  user.description: "Loki log aggregation service"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "20"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 25GB
+    type: disk
+  bin-loki:
+    type: disk
+    source: /opt/unheaded/bin/loki
+    path: /opt/unheaded/bin/loki
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/loki
+    path: /var/lib/unheaded/loki
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Loki — log aggregation service"

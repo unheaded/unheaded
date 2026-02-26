@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/timeguru.yaml
+# TimeGuru royal court service container definition
+
+name: unheaded-timeguru
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "1"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.TIMEGURU_GRPC_PORT: "50060"
+  environment.TIMEGURU_HTTP_PORT: "8600"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "timeguru"
+  user.tier: "royal-court"
+  user.port: "50060,8600"
+  user.description: "TimeGuru temporal and scheduling service"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "40"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-timeguru:
+    type: disk
+    source: /opt/unheaded/bin/timeguru
+    path: /opt/unheaded/bin/timeguru
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/timeguru
+    path: /var/lib/unheaded/timeguru
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded TimeGuru — temporal and scheduling service"

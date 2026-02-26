@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: MIT
+# VictoriaMetrics long-term metrics storage
+# Static IP: 10.20.1.51, Port: 8428
+# 90-day retention, 8GB memory, 50GB storage
+
+name: unheaded-victoriametrics
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "4"
+  limits.memory: "8GB"
+  
+  # Static network configuration
+  cloud-init.network-config: |
+    version: 2
+    ethernets:
+      eth0:
+        dhcp4: false
+        addresses:
+          - 10.20.1.51/24
+        gateway4: 10.20.1.1
+        nameservers:
+          addresses: [8.8.8.8, 8.8.4.4]
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 50GB
+    type: disk
+
+cloud-init.user-data: |
+  #cloud-config
+  package_update: true
+  packages:
+    - curl
+    - wget
+    - net-tools
+    - ca-certificates
+
+  runcmd:
+    - mkdir -p /opt/victoriametrics /var/lib/victoriametrics
+    - |
+      curl -L https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.97.0/victoria-metrics-linux-amd64-v1.97.0.tar.gz \
+        -o /tmp/vm.tar.gz
+    - cd /opt/victoriametrics && tar xzf /tmp/vm.tar.gz
+    - |
+      cat > /etc/systemd/system/victoriametrics.service << 'SYSCTL'
+      [Unit]
+      Description=VictoriaMetrics
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      ExecStart=/opt/victoriametrics/victoria-metrics-prod \
+        -storageDataPath=/var/lib/victoriametrics \
+        -httpListenAddr=:8428 \
+        -retentionPeriod=2160h \
+        -memory.allowedPercent=80
+      Restart=on-failure
+      RestartSec=5s
+      StandardOutput=journal
+      StandardError=journal
+      SyslogIdentifier=victoriametrics
+
+      [Install]
+      WantedBy=multi-user.target
+      SYSCTL
+    - systemctl daemon-reload
+    - systemctl enable victoriametrics
+    - systemctl start victoriametrics

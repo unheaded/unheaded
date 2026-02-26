@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/storage/unheaded-ssd.yaml
+# LXD storage pool: ZFS on SSD
+# Apply: lxc storage create unheaded-ssd zfs source=<zpool-name>
+# Or for loop device: lxc storage create unheaded-ssd zfs
+
+config:
+  volume.size: "8GB"
+  volume.zfs.use_refquota: "true"
+  volume.zfs.remove_snapshots: "false"
+  zfs.clone_copy: "true"
+  zfs.pool_name: "unheaded"
+  rsync.bwlimit: "0"
+  zfs.fstype: "ext4"
+
+description: "Unheaded Kingdom ZFS storage pool — SSD-backed, ext4 filesystem"
+driver: zfs
+name: unheaded-ssd

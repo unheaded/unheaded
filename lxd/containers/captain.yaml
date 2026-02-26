@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/captain.yaml
+# Captain royal court service container definition
+
+name: unheaded-captain
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "1"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.CAPTAIN_PORT: "50058"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "captain"
+  user.tier: "royal-court"
+  user.port: "50058"
+  user.description: "Captain royal court service"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "40"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-captain:
+    type: disk
+    source: /opt/unheaded/bin/captain
+    path: /opt/unheaded/bin/captain
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/captain
+    path: /var/lib/unheaded/captain
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Captain — royal court service"

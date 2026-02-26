@@ -1,0 +1,267 @@
+UNHEADED KINGDOM - LXD CONTAINER DEFINITIONS
+Generated: 2026-02-26
+Location: /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/lxd/containers/
+
+================================================================================
+APPLICATION SERVICES (25 YAML FILES)
+================================================================================
+
+PROTOCOL LAYER (5 services)
+  1. wotan.yaml                    - Message broker (50053 gRPC + 4222 NATS) [Priority 100]
+  2. monad.yaml                    - Register service (50051) [Priority 90]
+  3. sophia.yaml                   - Consensus (50052) [Priority 89]
+  4. anamnesis.yaml                - Memory service (50054) [Priority 88]
+  5. protocol-api.yaml             - Protocol API (50056) [Priority 70]
+
+SECURITY & CONTROL (3 services)
+  6. shield.yaml                   - Security enforcement (50055) eBPF [Priority 85]
+  7. unheaded-daemon.yaml          - Metrics daemon (9100) eBPF [Priority 84]
+  8. blackmage.yaml                - Secret management (50066) [Priority 30]
+
+INFRASTRUCTURE (2 services)
+  9. service-discovery.yaml        - Service registry (50057 gRPC + 8500 HTTP) [Priority 80]
+ 10. gateway.yaml                  - API gateway (8443) [Priority 65]
+
+OBSERVABILITY (2 services)
+ 11. trace-collector.yaml          - Zipkin traces (9411) [Priority 75]
+ 12. ebpf-exporter.yaml            - eBPF metrics (9435) eBPF [Priority 75]
+
+PRESENTATION (3 services)
+ 13. dashboard-backend.yaml        - Dashboard API (8080) [Priority 60]
+ 14. dashboard-frontend.yaml       - Web UI (3001) [Priority 55]
+ 15. kanban.yaml                   - Project mgmt (3002) [Priority 45]
+
+COMPUTE (1 service)
+ 16. doom.yaml                     - Computation engine (16680) [Priority 50]
+
+ROYAL COURT (5 services)
+ 17. captain.yaml                  - Coordination (50058) [Priority 40]
+ 18. micromanager.yaml             - Task management (50059) [Priority 40]
+ 19. timeguru.yaml                 - Scheduling (50060 gRPC + 8600 HTTP) [Priority 40]
+ 20. architect.yaml                - System design (50061) [Priority 40]
+ 21. developer.yaml                - Development env (50062) [Priority 40]
+
+COORDINATION & KNOWLEDGE (3 services)
+ 22. busboy.yaml                   - Event coordination (50064) [Priority 35]
+ 23. kingdom.yaml                  - Realm coordination (50065) [Priority 35]
+ 24. lore.yaml                     - Knowledge mgmt (50063) [Priority 35]
+
+COMPLIANCE (1 service)
+ 25. moatghost.yaml                - Compliance audit (50067) [Priority 30]
+
+TESTING (1 service - NO EXTERNAL PORT)
+ 26. lich.yaml                     - Security testing (internal only) [Priority 10]
+
+================================================================================
+TELEMETRY SERVICES (4 YAML FILES)
+================================================================================
+
+METRICS (2 services)
+ 27. prometheus.yaml               - Metrics collection (9090) [Priority 20]
+ 28. victoriametrics.yaml          - Time-series storage (8428) [Priority 20]
+
+LOGS (1 service)
+ 29. loki.yaml                     - Log aggregation (3100) [Priority 20]
+
+VISUALIZATION (1 service)
+ 30. grafana.yaml                  - Dashboards (3000) [Priority 15]
+
+================================================================================
+DOCUMENTATION FILES (3 FILES)
+================================================================================
+
+ 31. default.yaml                  - Complete template with all fields documented
+ 32. README.md                     - Comprehensive reference guide (13 KB)
+ 33. INDEX.md                      - Complete index with all tables and details
+
+================================================================================
+SUMMARY STATISTICS
+================================================================================
+
+Total Files:                        33
+  - Service containers:             30
+  - Documentation/templates:         3
+
+Total YAML Lines:                   1,651
+  - Service files:                  ~1,280 lines
+  - Template (default.yaml):        ~350 lines
+  - Manifest & listings:            ~21 lines
+
+File Breakdown by Category:
+  - Protocol services:               5 files
+  - Security/Control:                3 files
+  - Infrastructure:                  2 files
+  - Observability:                   2 files
+  - Presentation:                    3 files
+  - Compute:                         1 file
+  - Royal Court:                     5 files
+  - Coordination/Knowledge:          3 files
+  - Compliance:                      1 file
+  - Testing:                         1 file
+  - Telemetry:                       4 files
+
+Resource Profiles:
+  - unheaded-base:                  22 services
+  - unheaded-ebpf:                   4 services
+  - unheaded-telemetry:              4 services
+
+CPU Allocation:
+  - 1 vCPU:                          7 services (512 MB each)
+  - 2 vCPU:                         13 services (512MB - 1GB each)
+  - 4 vCPU:                          5 services (1GB - 8GB each)
+  - Total capacity:                 ~54 vCPU
+
+Memory Allocation:
+  - 256 MB:                          1 service (dashboard-frontend)
+  - 512 MB:                         21 services
+  - 1 GB:                            3 services
+  - 2 GB:                            2 services
+  - 4 GB:                            2 services
+  - 8 GB:                            1 service
+  - Total capacity:                 ~38.5 GB
+
+Disk Allocation:
+  - 8 GB:                           22 services
+  - 10 GB:                           4 services
+  - 15 GB:                           1 service
+  - 20 GB:                           1 service
+  - 25 GB:                           1 service
+  - 30 GB:                           1 service
+  - Total capacity:                 ~250 GB
+
+Port Assignments:
+  - Unique ports:                    25+
+  - Port range 50051-50067:          17 services (gRPC protocol layer)
+  - Standard HTTP/HTTPS:             8 services
+  - Special ports:                   5 services (4222, 9100, 9411, etc.)
+
+Network Configuration (all containers):
+  - Bridge:                          "unheaded"
+  - IPv4 CIDR:                       10.20.0.0/16
+  - IPv6 CIDR:                       fd00:dead:beef:1::/64
+
+Storage Configuration (all containers):
+  - Pool:                            "unheaded-ssd"
+  - Autostart:                       enabled (boot.autostart: true)
+  - Autostart delay:                 5 seconds
+  - Priority order:                  100 (first) → 10 (last)
+
+Startup Sequence:
+  1. Wotan (100)              - Message broker (CRITICAL FIRST)
+  2. Monad, Sophia (90-89)    - Register & consensus
+  3. Protocol/Infra (88-65)   - Core services
+  4. Presentation (60-45)     - UI services
+  5. Coordination (35)        - Support services
+  6. Compliance/Security (30) - Compliance
+  7. Telemetry (20-15)        - Metrics/logs
+  8. Lich (10)                - Testing (LAST)
+
+================================================================================
+CONTENT HIGHLIGHTS
+================================================================================
+
+Each service container YAML includes:
+  ✓ Service name and description
+  ✓ Base image (ubuntu:24.04)
+  ✓ Profile assignments
+  ✓ CPU and memory limits
+  ✓ Environment variables (SERVICE_PORT, WOTAN_ADDR, LOG_LEVEL, etc.)
+  ✓ Container metadata (tier, port, description)
+  ✓ Autostart configuration (priority-based)
+  ✓ Device configuration:
+    - Root filesystem (pool: unheaded-ssd)
+    - Service binary (read-only bind-mount)
+    - Persistent state (read-write bind-mount)
+    - Shared logs (centralized logging)
+
+Environment Variables Pattern:
+  - <SERVICE>_PORT: Service listening port
+  - <SERVICE>_GRPC_PORT: gRPC endpoint port (if applicable)
+  - <SERVICE>_HTTP_PORT: HTTP endpoint port (if applicable)
+  - WOTAN_ADDR: Message broker address (10.20.1.1:50053)
+  - LOG_LEVEL: Logging verbosity (info, debug, warn, error)
+  - Service-specific variables (SHIELD_ROLE, LICH_INTERNAL_MODE, etc.)
+
+Bind-Mount Structure:
+  1. /opt/unheaded/bin/<service> (read-only)
+     → Allows binary updates without rebuild
+  2. /var/lib/unheaded/<service>/ (read-write)
+     → Persistent state across restarts
+  3. /var/log/unheaded/ (read-write, shared)
+     → Centralized logging for all services
+
+Documentation Files:
+  - default.yaml: Template reference with all field documentation
+  - README.md: 13 KB comprehensive guide including:
+    * All 30 services with ports and priorities
+    * Launch order rationale
+    * Manual launch instructions
+    * Environment variable mapping
+    * Bind-mount pattern explanation
+    * Port reference table
+    * Profiles documentation
+    * Troubleshooting guide
+  - INDEX.md: Quick reference index with:
+    * All services by priority (table)
+    * Services by resource allocation
+    * Services by profile requirements
+    * File descriptions
+    * Design rationale
+    * Total resource footprint
+
+================================================================================
+USAGE INSTRUCTIONS
+================================================================================
+
+Launch single service:
+  $ lxc init ubuntu:24.04 unheaded-monad < containers/monad.yaml
+  $ lxc start unheaded-monad
+
+Launch via script:
+  $ ./launch.sh monad
+
+Verify configuration:
+  $ lxc config show unheaded-monad
+  $ lxc device list unheaded-monad
+
+Check container status:
+  $ lxc list | grep unheaded
+
+Access service:
+  $ lxc list unheaded-monad  # Get container IP
+  # Connect to: <ip>:<port>
+
+View logs:
+  $ lxc file pull unheaded-monad/var/log/unheaded/monad.log -
+
+Update binary:
+  $ go build -o /opt/unheaded/bin/monad ./cmd/monad
+  $ lxc restart unheaded-monad
+
+================================================================================
+KEY FEATURES
+================================================================================
+
+✓ All 30 services with complete YAML definitions
+✓ Priority-based startup order (Wotan first, Lich last)
+✓ eBPF support for security services (Shield, Daemon, Lich, Exporter)
+✓ Telemetry stack (Prometheus, VictoriaMetrics, Loki, Grafana)
+✓ Resource isolation (CPU/memory limits per tier)
+✓ Persistent state (survives restarts)
+✓ Centralized logging (all services log to /var/log/unheaded)
+✓ Network isolation ("unheaded" bridge + dual-stack IPv4/IPv6)
+✓ Binary bind-mounts (read-only, allows updates)
+✓ Profile-based configuration (base, eBPF, telemetry)
+✓ Complete documentation (README.md, INDEX.md, default.yaml)
+
+================================================================================
+COPYRIGHT & LICENSE
+================================================================================
+
+SPDX-License-Identifier: MIT
+Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
+All files in this directory are distributed under the MIT License.
+See individual file headers for license information.
+
+================================================================================

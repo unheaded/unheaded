@@ -1,0 +1,113 @@
+# Unheaded Kingdom LXD Container Definitions - Complete Manifest
+# Generated: 2026-02-26
+
+## Container Definition Files (30 total)
+
+### Protocol Services (5)
+- monad.yaml              (port 50051, priority 90, tier: protocol)
+- sophia.yaml             (port 50052, priority 89, tier: protocol)
+- wotan.yaml              (port 50053+4222, priority 100, tier: protocol)
+- anamnesis.yaml          (port 50054, priority 88, tier: protocol)
+- protocol-api.yaml       (port 50056, priority 70, tier: protocol)
+
+### Security & Control (3)
+- shield.yaml             (port 50055, priority 85, tier: security, eBPF)
+- unheaded-daemon.yaml    (port 9100, priority 84, tier: control, eBPF)
+- blackmage.yaml          (port 50066, priority 30, tier: security)
+
+### Infrastructure (2)
+- service-discovery.yaml  (port 50057+8500, priority 80, tier: infrastructure)
+- gateway.yaml            (port 8443, priority 65, tier: infrastructure)
+
+### Observability (2)
+- trace-collector.yaml    (port 9411, priority 75, tier: observability)
+- ebpf-exporter.yaml      (port 9435, priority 75, tier: observability, eBPF)
+
+### Presentation (3)
+- dashboard-backend.yaml  (port 8080, priority 60, tier: presentation)
+- dashboard-frontend.yaml (port 3001, priority 55, tier: presentation)
+- kanban.yaml             (port 3002, priority 45, tier: presentation)
+
+### Compute (1)
+- doom.yaml               (port 16680, priority 50, tier: compute)
+
+### Royal Court (5)
+- captain.yaml            (port 50058, priority 40, tier: royal-court)
+- micromanager.yaml       (port 50059, priority 40, tier: royal-court)
+- timeguru.yaml           (port 50060+8600, priority 40, tier: royal-court)
+- architect.yaml          (port 50061, priority 40, tier: royal-court)
+- developer.yaml          (port 50062, priority 40, tier: royal-court)
+
+### Coordination & Knowledge (3)
+- busboy.yaml             (port 50064, priority 35, tier: coordination)
+- kingdom.yaml            (port 50065, priority 35, tier: coordination)
+- lore.yaml               (port 50063, priority 35, tier: knowledge)
+
+### Compliance (1)
+- moatghost.yaml          (port 50067, priority 30, tier: compliance)
+
+### Telemetry (5)
+- prometheus.yaml         (port 9090, priority 20, tier: telemetry)
+- victoriametrics.yaml    (port 8428, priority 20, tier: telemetry)
+- loki.yaml               (port 3100, priority 20, tier: telemetry)
+- grafana.yaml            (port 3000, priority 15, tier: telemetry)
+
+### Testing (1)
+- lich.yaml               (no external port, priority 10, tier: security-testing, eBPF)
+
+## Documentation Files (2)
+
+- default.yaml            Template with all fields documented
+- README.md              Complete reference documentation (13 KB)
+
+## Launch Configuration
+
+All containers:
+- Base image: ubuntu:24.04
+- Profiles: unheaded-base (all), plus unheaded-ebpf (security/eBPF), unheaded-telemetry (telemetry)
+- Network: "unheaded" bridge (10.20.0.0/16 + fd00:dead:beef:1::/64)
+- Storage: "unheaded-ssd" pool
+- Startup: Automatic (boot.autostart: true) with priority-based ordering
+
+## Startup Priority Order
+
+100  → Wotan (message broker - starts first)
+90-70 → Protocol & infrastructure services
+60-45 → Presentation & compute
+35    → Coordination & knowledge
+30    → Compliance & security
+20-15 → Telemetry services
+10    → Lich security testing (starts last)
+
+## Key Features
+
+1. **Bind-Mount Pattern**: Binary (read-only) + State (read-write) + Logs (shared)
+2. **Environment Variables**: Service configuration via env vars (SERVICE_PORT, WOTAN_ADDR, etc.)
+3. **Resource Isolation**: CPU/memory limits per tier
+4. **Profile-Based Config**: Shared settings via LXD profiles
+5. **Persistent State**: Service state survives container restart
+6. **Centralized Logging**: All containers log to /var/log/unheaded
+
+## Usage
+
+Launch individual service:
+```bash
+lxc init ubuntu:24.04 unheaded-monad < containers/monad.yaml
+lxc start unheaded-monad
+```
+
+Or use launch.sh:
+```bash
+./launch.sh monad
+```
+
+## Statistics
+
+- Total containers: 30
+- Total lines of YAML: ~850 (service) + ~350 (default template)
+- Total documentation: ~13 KB
+- Unique ports: 25+
+- eBPF services: 4 (shield, daemon, lich, ebpf-exporter)
+- Telemetry profiles: 5 containers
+- Total CPU allocation: ~60 vCPU capacity
+- Total RAM allocation: ~45 GB capacity

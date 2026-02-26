@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/dashboard-backend.yaml
+# Dashboard backend API container definition
+
+name: unheaded-dashboard-backend
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "2"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.DASHBOARD_BACKEND_PORT: "8080"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "dashboard-backend"
+  user.tier: "presentation"
+  user.port: "8080"
+  user.description: "Dashboard backend API server"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "60"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-dashboard-backend:
+    type: disk
+    source: /opt/unheaded/bin/dashboard-backend
+    path: /opt/unheaded/bin/dashboard-backend
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/dashboard-backend
+    path: /var/lib/unheaded/dashboard-backend
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded dashboard backend — presentation API service"

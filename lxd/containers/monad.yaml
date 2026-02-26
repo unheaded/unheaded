@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/monad.yaml
+# Monad register service container definition
+# Launch: ./launch.sh monad OR lxc init ubuntu:24.04 unheaded-monad < containers/monad.yaml
+
+name: unheaded-monad
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "2"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  # Service environment
+  environment.MONAD_PORT: "50051"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  environment.UNHEADED_HOST_ROLE: "forge"
+  
+  # Container metadata
+  user.service: "monad"
+  user.tier: "protocol"
+  user.port: "50051"
+  user.description: "Monad 20-byte IPv6 HbH extension header register"
+  
+  # Autostart
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "90"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-monad:
+    type: disk
+    source: /opt/unheaded/bin/monad
+    path: /opt/unheaded/bin/monad
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/monad
+    path: /var/lib/unheaded/monad
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Monad — protocol register service"

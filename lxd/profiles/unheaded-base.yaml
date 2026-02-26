@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/profiles/unheaded-base.yaml
+# LXD base profile — applied to every Unheaded container
+# Apply: lxc profile create unheaded-base < profiles/unheaded-base.yaml
+
+config:
+  # Security baseline
+  security.privileged: "false"
+  security.nesting: "false"
+  security.idmap.isolated: "true"
+  
+  # Prevent privilege escalation
+  raw.lxc: |
+    lxc.cap.drop = sys_time sys_module mac_admin mac_override sys_rawio
+  
+  # Kernel tuning (inherited from host)
+  linux.kernel_modules: "ip_tables,ip6_tables,netfilter,xt_conntrack"
+  
+  # Boot optimization
+  boot.autostart: "true"
+  boot.autostart.delay: "2"
+  boot.autostart.priority: "10"
+  
+  # Default resource limits (overridden per-container)
+  limits.cpu: "2"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  limits.cpu.priority: "5"
+  
+  # Logging
+  environment.LOG_FORMAT: "json"
+  environment.TZ: "UTC"
+  
+  # Unheaded identity
+  environment.UNHEADED_ENV: "production"
+
+description: "Unheaded Kingdom — base profile for all service containers"
+
+devices:
+  eth0:
+    type: nic
+    network: unheaded
+  root:
+    path: /
+    pool: unheaded-ssd
+    type: disk
+    size: 8GB

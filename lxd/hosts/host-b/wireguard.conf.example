@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# host-b/wireguard.conf.example
+# WireGuard configuration example for host-b → host-a tunnel
+# 
+# INSTRUCTIONS:
+# 1. Copy this file to wireguard.conf (remove .example)
+# 2. Generate keypairs on both hosts:
+#    wg genkey | tee privatekey | wg pubkey > publickey
+# 3. Replace PLACEHOLDER values with actual keys and IPs
+# 4. Ensure init.sh can find this file before running
+
+[Interface]
+# host-b private key
+PrivateKey = PLACEHOLDER_HOST_B_PRIVATE_KEY
+
+# host-b WireGuard IP (allocated from VPN subnet)
+Address = 10.50.0.2/24
+ListenPort = 51820
+
+# Optional: Set MTU for tunnel
+MTU = 1280
+
+[Peer]
+# host-a public key
+PublicKey = PLACEHOLDER_HOST_A_PUBLIC_KEY
+
+# host-a WireGuard IP
+AllowedIPs = 10.50.0.1/32, 10.20.0.0/16
+
+# host-a endpoint (public IP or FQDN)
+Endpoint = PLACEHOLDER_HOST_A_ENDPOINT:51820
+
+# Keep-alive to maintain tunnel through NAT
+PersistentKeepalive = 25
+
+# Optional settings:
+# PreUp = ...
+# PostUp = ...
+# PreDown = ...
+# PostDown = ...
+
+################################################################################
+# SETUP INSTRUCTIONS
+################################################################################
+#
+# On host-a (initiator/server):
+# ============================================
+# 1. Generate keypair:
+#    wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey
+#
+# 2. Create /etc/wireguard/wg0.conf:
+#    [Interface]
+#    PrivateKey = <content of /etc/wireguard/privatekey>
+#    Address = 10.50.0.1/24
+#    ListenPort = 51820
+#    
+#    [Peer]
+#    PublicKey = <host-b public key (see below)>
+#    AllowedIPs = 10.50.0.2/32, 10.21.0.0/16
+#
+# 3. Bring up interface:
+#    wg-quick up wg0
+#
+# 4. Verify:
+#    wg show wg0
+#    ip addr show wg0
+#
+# On host-b (client/peer):
+# ============================================
+# 1. Generate keypair:
+#    wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey
+#
+# 2. Get host-a public key from host-a:
+#    ssh admin@host-a cat /etc/wireguard/publickey
+#
+# 3. Get host-a public IP/FQDN (endpoint for Endpoint field)
+#
+# 4. Create this file (wireguard.conf) with:
+#    - host-b PrivateKey
+#    - host-a PublicKey
+#    - host-a Endpoint (public IP or FQDN)
+#
+# 5. init.sh will handle bringing up the interface
+#
+# VERIFICATION:
+# ============================================
+# After init.sh completes:
+#
+# Check tunnel status:
+#   wg show wg0
+#
+# Check tunnel IP:
+#   ip addr show wg0
+#
+# Ping host-a through tunnel:
+#   ping -c 3 10.50.0.1
+#
+# Ping host-a containers:
+#   ping -c 3 10.20.0.1
+#
+# From container on host-b:
+#   lxc exec unheaded-wotan -- ping -c 3 10.20.1.1  # host-a wotan
+#
+# TROUBLESHOOTING:
+# ============================================
+# No connection after startup:
+#   wg show wg0  # Check handshake time (should be recent)
+#
+# Check if interface is up:
+#   ip link show wg0
+#
+# Monitor WireGuard:
+#   watch -n 1 'wg show wg0'
+#
+# Packet loss through tunnel:
+#   traceroute -m 15 10.20.0.1
+#
+# MTU issues (large packets fail):
+#   # Try reducing MTU to 1280 in config above
+#   # Then: wg-quick down wg0 && wg-quick up wg0
+

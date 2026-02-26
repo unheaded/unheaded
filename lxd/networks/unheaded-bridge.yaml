@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/networks/unheaded-bridge.yaml
+# LXD network: unheaded bridge (IPv4 + IPv6 dual-stack)
+# Apply: lxc network create unheaded < networks/unheaded-bridge.yaml
+# Bridge IP: 10.20.0.1/16 (IPv4), fd00:dead:beef:1::1/64 (IPv6)
+# Host: host-a; Host-b bridges in via WireGuard
+
+config:
+  ipv4.address: 10.20.0.1/16
+  ipv4.dhcp: "true"
+  ipv4.dhcp.ranges: 10.20.1.0-10.20.1.250
+  ipv4.firewall: "true"
+  ipv4.nat: "true"
+  
+  ipv6.address: fd00:dead:beef:1::1/64
+  ipv6.dhcp: "true"
+  ipv6.dhcp.stateful: "true"
+  ipv6.firewall: "true"
+  ipv6.nat: "false"
+  
+  # Internal DNS (resolves container names)
+  dns.domain: "unheaded.internal"
+  dns.mode: "managed"
+  
+  # Metadata
+  user.network.purpose: "unheaded-kingdom-east-west"
+  user.network.host: "host-a"
+  user.network.ipv4.range: "10.20.0.0/16"
+  user.network.ipv6.range: "fd00:dead:beef:1::/64"
+
+description: "Unheaded Kingdom internal bridge — IPv4 + IPv6 dual-stack"
+name: unheaded
+type: bridge

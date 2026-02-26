@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/shield.yaml
+# Shield security enforcement container definition
+
+name: unheaded-shield
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+  - unheaded-ebpf
+
+config:
+  limits.cpu: "4"
+  limits.memory: "2GB"
+  limits.memory.swap: "false"
+  
+  environment.SHIELD_PORT: "50055"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "shield"
+  user.tier: "security"
+  user.port: "50055"
+  user.description: "Shield eBPF security enforcement"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "85"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 10GB
+    type: disk
+  bin-shield:
+    type: disk
+    source: /opt/unheaded/bin/shield
+    path: /opt/unheaded/bin/shield
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/shield
+    path: /var/lib/unheaded/shield
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Shield — eBPF security enforcement"

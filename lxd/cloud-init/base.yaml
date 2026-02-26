@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/cloud-init/base.yaml
+# Cloud-init user-data — applied to all Unheaded service containers
+# Usage: lxc launch IMAGE NAME --config user.user-data="$(cat cloud-init/base.yaml)"
+
+#cloud-config
+users:
+  - name: unheaded
+    uid: 10001
+    gid: 10001
+    groups: [unheaded, systemd-journal]
+    shell: /usr/sbin/nologin
+    home: /var/lib/unheaded
+    no_create_home: false
+    lock_passwd: true
+    system: true
+
+groups:
+  - name: unheaded
+    gid: 10001
+
+package_update: true
+package_upgrade: false
+packages:
+  - curl
+  - ca-certificates
+  - tini
+
+write_files:
+  - path: /etc/unheaded/env
+    permissions: '0640'
+    owner: 'unheaded:unheaded'
+    content: |
+      UNHEADED_ENV=production
+      LOG_FORMAT=json
+      LOG_LEVEL=info
+
+  - path: /etc/systemd/system.conf.d/unheaded.conf
+    permissions: '0644'
+    content: |
+      [Manager]
+      DefaultLimitNOFILE=65536
+      DefaultLimitNPROC=4096
+
+runcmd:
+  - mkdir -p /opt/unheaded/bin /var/lib/unheaded /var/log/unheaded
+  - chown -R unheaded:unheaded /var/lib/unheaded /var/log/unheaded
+  - systemctl daemon-reload

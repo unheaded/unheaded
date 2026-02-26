@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/profiles/unheaded-gpu.yaml
+# GPU profile — AMD ROCm passthrough for vLLM on Host-A (RX 7700 XT, gfx1101)
+# Apply: lxc profile create unheaded-gpu < profiles/unheaded-gpu.yaml
+# Usage: lxc launch IMAGE vllm-deepseek --profile unheaded-base --profile unheaded-gpu
+
+config:
+  limits.cpu: "8"
+  limits.memory: "16GB"
+  limits.cpu.priority: "9"
+
+  environment.HSA_OVERRIDE_GFX_VERSION: "11.0.1"
+  environment.PYTORCH_ROCM_ARCH: "gfx1101"
+  environment.HIP_VISIBLE_DEVICES: "0"
+
+description: "Unheaded GPU profile — AMD ROCm RX 7700 XT passthrough"
+
+devices:
+  gpu:
+    type: gpu
+    uid: "10001"
+    gid: "44"
+  kfd:
+    type: unix-char
+    source: /dev/kfd
+    path: /dev/kfd
+    uid: "10001"
+    gid: "44"
+    mode: "0660"
+  renderD128:
+    type: unix-char
+    source: /dev/dri/renderD128
+    path: /dev/dri/renderD128
+    uid: "10001"
+    gid: "44"
+    mode: "0660"
+  # Shared memory for ROCm IPC
+  shm:
+    type: disk
+    source: tmpfs
+    path: /dev/shm
+    size: 4GB

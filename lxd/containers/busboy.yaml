@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/busboy.yaml
+# Busboy event coordination container definition
+
+name: unheaded-busboy
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "1"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.BUSBOY_PORT: "50064"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "busboy"
+  user.tier: "coordination"
+  user.port: "50064"
+  user.description: "Busboy event coordination service"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "35"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-busboy:
+    type: disk
+    source: /opt/unheaded/bin/busboy
+    path: /opt/unheaded/bin/busboy
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/busboy
+    path: /var/lib/unheaded/busboy
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Busboy — event coordination service"

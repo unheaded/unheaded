@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/containers/kanban.yaml
+# Kanban project management container definition
+
+name: unheaded-kanban
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+
+config:
+  limits.cpu: "2"
+  limits.memory: "512MB"
+  limits.memory.swap: "false"
+  
+  environment.KANBAN_PORT: "3002"
+  environment.WOTAN_ADDR: "10.20.1.1:50053"
+  environment.LOG_LEVEL: "info"
+  
+  user.service: "kanban"
+  user.tier: "presentation"
+  user.port: "3002"
+  user.description: "Kanban project management interface"
+  
+  boot.autostart: "true"
+  boot.autostart.delay: "5"
+  boot.autostart.priority: "45"
+
+devices:
+  root:
+    path: /
+    pool: unheaded-ssd
+    size: 8GB
+    type: disk
+  bin-kanban:
+    type: disk
+    source: /opt/unheaded/bin/kanban
+    path: /opt/unheaded/bin/kanban
+    readonly: "true"
+  state:
+    type: disk
+    source: /var/lib/unheaded/kanban
+    path: /var/lib/unheaded/kanban
+    readonly: "false"
+  logs:
+    type: disk
+    source: /var/log/unheaded
+    path: /var/log/unheaded
+
+description: "Unheaded Kanban — project management interface"

@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/cloud-init/gpu.yaml
+# Cloud-init user-data — GPU/ROCm container initialization
+# Installs ROCm runtime, creates video/render group memberships
+# Targets: vLLM, deepseek-style LLM inference
+# Apply in combination with base.yaml
+# Usage: lxc launch IMAGE NAME --config user.user-data="$(cat cloud-init/base.yaml && cat cloud-init/gpu.yaml)"
+
+#cloud-config
+package_update: true
+package_upgrade: false
+packages:
+  - rocm-core
+  - rocm-libs
+  - rocm-dev
+  - rocm-utils
+  - rocm-smi
+  - rocminfo
+  - amd-gpu-install
+  - hipify-clang
+  - clang-14
+  - lld-14
+  - llvm-14
+
+users:
+  - name: unheaded
+    groups: [video, render, kvm]
+
+write_files:
+  - path: /etc/unheaded/rocm.env
+    permissions: '0640'
+    owner: 'unheaded:unheaded'
+    content: |
+      ROCM_HOME=/opt/rocm
+      ROCM_PATH=/opt/rocm
+      LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
+      HIP_PATH=/opt/rocm
+      HIPCC_COMPILE_FLAGS_APPEND=-O3
+      HSA_OVERRIDE_GFX_VERSION=11.0.1
+      PYTORCH_ROCM_ARCH=gfx1101
+      HIP_VISIBLE_DEVICES=0
+
+  - path: /usr/local/bin/rocm-check.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      echo "ROCm Installation Check"
+      echo "========================"
+      rocm-smi --version
+      rocminfo | grep -E "^Name|gfx"
+      echo "HSA Agents:"
+      rocm-smi --showid
+
+runcmd:
+  - apt-get install -y --no-install-recommends rocm-runtime rocm-core
+  - usermod -aG video,render,kvm unheaded
+  - mkdir -p /opt/rocm/lib /var/lib/amd
+  - chown unheaded:unheaded /var/lib/amd
+  - systemctl daemon-reload

@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# lxd/profiles/unheaded-service.yaml
+# Service profile — mid-level profile for standard microservices
+# Inherits base profile, adds observability labels and metadata
+# Apply: lxc profile create unheaded-service < profiles/unheaded-service.yaml
+# Usage: lxc launch IMAGE service-name --profile unheaded-base --profile unheaded-service
+
+config:
+  # Observability labels
+  user.service.tier: "standard"
+  user.service.observability: "enabled"
+  
+  # Resource allocation for typical microservices
+  limits.cpu: "2"
+  limits.memory: "768MB"
+  limits.cpu.priority: "6"
+  
+  # Logging configuration
+  environment.LOG_LEVEL: "info"
+  environment.LOG_FORMAT: "json"
+  environment.OTEL_ENABLED: "true"
+
+description: "Unheaded Service profile — standard microservices with observability"
+
+devices:
+  eth0:
+    type: nic
+    network: unheaded
