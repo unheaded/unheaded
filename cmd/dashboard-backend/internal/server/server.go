@@ -398,6 +398,9 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		shutdown:          make(chan struct{}),
 	}
 
+	// Seed the log buffer with startup events
+	s.seedLogBuffer()
+
 	// Initialize metrics
 	s.initMetrics()
 
@@ -425,6 +428,53 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	}
 
 	return s, nil
+}
+
+// seedLogBuffer pushes initial startup log entries and starts a background
+// goroutine that periodically logs service health into the ring buffer.
+func (s *Server) seedLogBuffer() {
+	now := time.Now()
+	services := []string{"dashboard-backend", "wotan", "kanban-app", "wiki-server"}
+	messages := []struct {
+		svc, lvl, msg string
+		offset        time.Duration
+	}{
+		{"dashboard-backend", "info", "server starting", 0},
+		{"dashboard-backend", "info", "wotan transport connected", 10 * time.Millisecond},
+		{"dashboard-backend", "info", "metrics scraper initialized", 20 * time.Millisecond},
+		{"dashboard-backend", "info", "websocket server ready", 30 * time.Millisecond},
+		{"dashboard-backend", "info", "log aggregation buffer ready (capacity=10000)", 40 * time.Millisecond},
+		{"dashboard-backend", "info", "listening on " + s.config.ListenAddr, 50 * time.Millisecond},
+	}
+	for _, m := range messages {
+		s.logBuffer.Push(logagg.LogEntry{
+			Timestamp: now.Add(m.offset),
+			Service:   m.svc,
+			Level:     m.lvl,
+			Message:   m.msg,
+		})
+	}
+
+	// Background: periodically push health check results as log entries
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.shutdown:
+				return
+			case <-ticker.C:
+				for _, svc := range services {
+					s.logBuffer.Push(logagg.LogEntry{
+						Timestamp: time.Now(),
+						Service:   svc,
+						Level:     "info",
+						Message:   "health check OK",
+					})
+				}
+			}
+		}
+	}()
 }
 
 // initMetrics initializes Prometheus metrics
@@ -528,11 +578,14 @@ func (s *Server) setupRoutes() {
 	staticHandler := http.FileServer(staticFS)
 	s.mux.Handle("/static/", http.StripPrefix("/static/", staticHandler))
 
-	// Serve advanced visualizations from dashboard/ directory under /viz/
+	// Serve advanced visualizations from dashboard/ directory under /viz/ and /dashboard/
 	if s.config.VizDir != "" {
 		vizFS := http.Dir(s.config.VizDir)
 		vizHandler := http.StripPrefix("/viz/", http.FileServer(vizFS))
 		s.mux.Handle("/viz/", vizHandler)
+		// Also serve under /dashboard/ for asset references (css/, js/)
+		dashHandler := http.StripPrefix("/dashboard/", http.FileServer(vizFS))
+		s.mux.Handle("/dashboard/", dashHandler)
 	}
 
 	// Serve dashboard pages

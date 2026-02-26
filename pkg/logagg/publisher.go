@@ -76,6 +76,28 @@ func (p *Publisher) SetEnabled(enabled bool) {
 	p.enabled = enabled && p.conn != nil
 }
 
+// BufferHook is a zerolog.Hook that pushes log entries directly into a RingBuffer.
+// Use this for local log aggregation (e.g., dashboard live tail).
+type BufferHook struct {
+	serviceName string
+	buf         *RingBuffer
+}
+
+// NewBufferHook creates a hook that pushes to a local ring buffer.
+func NewBufferHook(serviceName string, buf *RingBuffer) *BufferHook {
+	return &BufferHook{serviceName: serviceName, buf: buf}
+}
+
+// Run implements zerolog.Hook.
+func (h *BufferHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
+	h.buf.Push(LogEntry{
+		Timestamp: time.Now(),
+		Service:   h.serviceName,
+		Level:     levelString(level),
+		Message:   msg,
+	})
+}
+
 // levelString converts a zerolog.Level to a string.
 func levelString(level zerolog.Level) string {
 	switch level {
