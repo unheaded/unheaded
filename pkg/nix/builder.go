@@ -1269,6 +1269,7 @@ func (b *Builder) onFlakeChange(path string, config *FlakeConfig) {
 // publishBuildEvent sends a build event to Wotan.
 func (b *Builder) publishBuildEvent(result *BuildResult) {
 	if b.wotan == nil {
+		fmt.Fprintf(os.Stderr, "nix: wotan unavailable — build event dropped (degraded mode)\n")
 		return
 	}
 

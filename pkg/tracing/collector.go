@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"net/http"
 	"sort"
 	"sync"
@@ -1644,6 +1645,7 @@ func (c *Collector) matchesStreamFilter(trace *Trace, filter *StreamFilter) bool
 // publishToWotan publishes trace to Wotan
 func (c *Collector) publishToWotan(trace *Trace) {
 	if c.wotan == nil {
+		fmt.Fprintf(os.Stderr, "tracing: wotan unavailable — trace event dropped (degraded mode)\n")
 		return
 	}
 

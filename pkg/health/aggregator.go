@@ -1260,7 +1260,9 @@ func (a *Aggregator) emitEvent(event HealthEvent) {
 	}
 
 	// Publish to Wotan if configured
-	if a.wotan != nil {
+	if a.wotan == nil {
+		log.Printf("health: wotan unavailable — health event dropped (degraded mode)")
+	} else {
 		payload, err := json.Marshal(event)
 		if err == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

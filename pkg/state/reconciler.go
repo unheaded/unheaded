@@ -1728,6 +1728,7 @@ func (r *Reconciler) IsClosed() bool {
 // emitEvent publishes an event to Wotan
 func (r *Reconciler) emitEvent(ctx context.Context, event ReconciliationEvent) {
 	if r.wotan == nil {
+		r.logger.Warn("wotan unavailable — reconciliation event dropped (degraded mode)", nil)
 		return
 	}
 

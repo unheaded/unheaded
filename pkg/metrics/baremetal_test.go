@@ -74,7 +74,7 @@ func TestParseProcLoadavg(t *testing.T) {
 		{
 			name:    "incomplete content",
 			content: "1.23 0.45",
-			want:    2,
+			want:    0, // requires 3+ fields
 		},
 		{
 			name:    "empty content",
@@ -149,8 +149,6 @@ cpu0 1132 16 17875 11311718 3675 110 341 0 0 0`,
 }
 
 func TestParseNetStats(t *testing.T) {
-	tmpDir := t.TempDir()
-
 	tests := []struct {
 		name      string
 		setupFunc func(tmpDir string) error

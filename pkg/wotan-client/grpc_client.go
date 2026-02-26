@@ -5,8 +5,10 @@ package wotanClient
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -38,15 +40,23 @@ type GRPCClient struct {
 	retryDelay time.Duration
 }
 
-// NewGRPCClient creates a new gRPC-based Wotan client with insecure credentials
+// NewGRPCClient creates a new gRPC-based Wotan client.
+// Set UNHEADED_GRPC_TLS=1 to enable TLS 1.3 transport credentials.
 func NewGRPCClient(addr string) (*GRPCClient, error) {
 	if addr == "" {
 		return nil, errors.New("address cannot be empty")
 	}
 
+	var creds credentials.TransportCredentials
+	if os.Getenv("UNHEADED_GRPC_TLS") == "1" {
+		creds = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS13})
+	} else {
+		creds = insecure.NewCredentials()
+	}
+
 	conn, err := grpc.NewClient(
 		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("dial grpc server: %w", err)

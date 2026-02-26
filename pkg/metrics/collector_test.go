@@ -98,19 +98,19 @@ func TestCollectorRegistry_Register(t *testing.T) {
 func TestCollectorRegistry_CollectAll(t *testing.T) {
 	tests := []struct {
 		name        string
-		collectors  []Collector
+		collectors  []SystemCollector
 		wantSamples int
 		wantErr     bool
 	}{
 		{
 			name:        "empty registry",
-			collectors:  []Collector{},
+			collectors:  []SystemCollector{},
 			wantSamples: 0,
 			wantErr:     false,
 		},
 		{
 			name: "single collector with samples",
-			collectors: []Collector{
+			collectors: []SystemCollector{
 				&mockCollector{
 					name: "test",
 					samples: []Sample{
@@ -128,7 +128,7 @@ func TestCollectorRegistry_CollectAll(t *testing.T) {
 		},
 		{
 			name: "multiple collectors with samples",
-			collectors: []Collector{
+			collectors: []SystemCollector{
 				&mockCollector{
 					name: "collector1",
 					samples: []Sample{
@@ -157,7 +157,7 @@ func TestCollectorRegistry_CollectAll(t *testing.T) {
 		},
 		{
 			name: "collector with empty samples",
-			collectors: []Collector{
+			collectors: []SystemCollector{
 				&mockCollector{
 					name:    "empty",
 					samples: []Sample{},
