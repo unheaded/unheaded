@@ -1,9 +1,88 @@
 version: '3.8'
-
 services:
-  # ============================================================================
-  # NATS Message Bus (foundational service)
-  # ============================================================================
+  ipfire:
+    build:
+      context: ../firewall/ipfire
+      dockerfile: Dockerfile
+    container_name: unheaded-ipfire
+    hostname: ipfire-outpost
+    restart: unless-stopped
+    privileged: true
+    devices:
+    - /dev/kvm:/dev/kvm
+    networks:
+      wan:
+        ipv4_address: ${IPFIRE_WAN_IP:-192.168.1.3}
+      unheaded:
+        ipv4_address: 10.20.0.1
+    volumes:
+    - ipfire-images:/images
+    - ipfire-data:/var/lib/ipfire
+    - ${IPFIRE_IMG_PATH:-${HOME}/tmp/ipfire/ipfire-2.29-core199-x86_64.img.xz}:/images/ipfire.img.xz:ro
+    environment:
+      IPFIRE_MEM: ${IPFIRE_MEM:-2048}
+      IPFIRE_CPUS: ${IPFIRE_CPUS:-2}
+    cap_add:
+    - NET_ADMIN
+    - NET_RAW
+    - SYS_ADMIN
+    security_opt:
+    - apparmor:unconfined
+    - seccomp:unconfined
+    healthcheck:
+      test:
+      - CMD
+      - bash
+      - -c
+      - nc -z 10.20.0.1 444 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    labels:
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '81'
+      prometheus.io/path: /metrics
+      unheaded.role: firewall
+      unheaded.tier: ingress
+  bird:
+    build:
+      context: ../firewall/bird
+      dockerfile: Dockerfile
+    container_name: unheaded-bird
+    hostname: bird-outpost
+    restart: unless-stopped
+    privileged: false
+    networks:
+    - unheaded
+    cap_add:
+    - NET_ADMIN
+    - NET_RAW
+    - SYS_ADMIN
+    - NET_BROADCAST
+    security_opt:
+    - no-new-privileges:false
+    volumes:
+    - bird-data:/etc/bird
+    - bird-run:/var/run
+    - ${BIRD_CONF:-./../../routing/bird/bird.conf}:/etc/bird/bird.conf:ro
+    depends_on:
+      ipfire:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - birdc
+      - show route
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '179'
+      unheaded.role: routing
+      unheaded.tier: ingress
   wotan:
     image: unheaded-wotan:${VERSION:-dev}
     container_name: unheaded-wotan
@@ -13,14 +92,18 @@ services:
         ipv6_address: fd00:dead:beef:2::101
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      NATS_PORT: "4222"
-      NATS_HTTP_PORT: "8222"
+      NATS_PORT: '4222'
+      NATS_HTTP_PORT: '8222'
       UNHEADED_ROLE: ${UNHEADED_HOST_ROLE:-outpost}
     ports:
-      - "4222:4222"
-      - "8222:8222"
+    - 4222:4222
+    - 8222:8222
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8222/healthz"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8222/healthz
       interval: 10s
       timeout: 5s
       retries: 3
@@ -31,20 +114,16 @@ services:
           cpus: '2.0'
           memory: 512M
     labels:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "8222"
-      prometheus.io/path: "/metrics"
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '8222'
+      prometheus.io/path: /metrics
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
+    - /tmp:size=64m,mode=1777
     volumes:
-      - wotan-data:/var/lib/wotan
-
-  # ============================================================================
-  # Core Protocol Services (reduced memory footprint)
-  # ============================================================================
+    - wotan-data:/var/lib/wotan
   monad:
     image: unheaded-monad:${VERSION:-dev}
     container_name: unheaded-monad
@@ -54,15 +133,19 @@ services:
         ipv6_address: fd00:dead:beef:2::102
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      NATS_URL: "nats://wotan:4222"
-      MONAD_PORT: "5000"
+      NATS_URL: nats://wotan:4222
+      MONAD_PORT: '5000'
     ports:
-      - "5000:5000"
+    - 5000:5000
     depends_on:
       wotan:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:5000/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -73,17 +156,16 @@ services:
           cpus: '1.0'
           memory: 256M
     labels:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "5000"
-      prometheus.io/path: "/metrics"
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '5000'
+      prometheus.io/path: /metrics
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
+    - /tmp:size=64m,mode=1777
     volumes:
-      - monad-data:/var/lib/monad
-
+    - monad-data:/var/lib/monad
   sophia:
     image: unheaded-sophia:${VERSION:-dev}
     container_name: unheaded-sophia
@@ -93,15 +175,19 @@ services:
         ipv6_address: fd00:dead:beef:2::103
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      NATS_URL: "nats://wotan:4222"
-      SOPHIA_PORT: "5001"
+      NATS_URL: nats://wotan:4222
+      SOPHIA_PORT: '5001'
     ports:
-      - "5001:5001"
+    - 5001:5001
     depends_on:
       wotan:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:5001/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -112,20 +198,19 @@ services:
           cpus: '1.0'
           memory: 256M
     labels:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "5001"
-      prometheus.io/path: "/metrics"
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '5001'
+      prometheus.io/path: /metrics
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
+    - /tmp:size=64m,mode=1777
     cap_add:
-      - NET_RAW
-      - NET_ADMIN
+    - NET_RAW
+    - NET_ADMIN
     volumes:
-      - sophia-data:/var/lib/sophia
-
+    - sophia-data:/var/lib/sophia
   anamnesis:
     image: unheaded-anamnesis:${VERSION:-dev}
     container_name: unheaded-anamnesis
@@ -135,15 +220,19 @@ services:
         ipv6_address: fd00:dead:beef:2::104
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      NATS_URL: "nats://wotan:4222"
-      ANAMNESIS_PORT: "5002"
+      NATS_URL: nats://wotan:4222
+      ANAMNESIS_PORT: '5002'
     ports:
-      - "5002:5002"
+    - 5002:5002
     depends_on:
       wotan:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:5002/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -154,20 +243,16 @@ services:
           cpus: '1.0'
           memory: 256M
     labels:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "5002"
-      prometheus.io/path: "/metrics"
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '5002'
+      prometheus.io/path: /metrics
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
+    - /tmp:size=64m,mode=1777
     volumes:
-      - anamnesis-data:/var/lib/anamnesis
-
-  # ============================================================================
-  # API & Dashboard Services (minimal)
-  # ============================================================================
+    - anamnesis-data:/var/lib/anamnesis
   dashboard-backend:
     image: unheaded-dashboard-backend:${VERSION:-dev}
     container_name: unheaded-dashboard-backend
@@ -177,15 +262,19 @@ services:
         ipv6_address: fd00:dead:beef:2::301
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      NATS_URL: "nats://wotan:4222"
-      DASHBOARD_BACKEND_PORT: "7000"
+      NATS_URL: nats://wotan:4222
+      DASHBOARD_BACKEND_PORT: '7000'
     ports:
-      - "7000:7000"
+    - 7000:7000
     depends_on:
       anamnesis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7000/health"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:7000/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -196,17 +285,16 @@ services:
           cpus: '1.0'
           memory: 256M
     labels:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "7000"
-      prometheus.io/path: "/metrics"
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '7000'
+      prometheus.io/path: /metrics
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
+    - /tmp:size=64m,mode=1777
     volumes:
-      - dashboard-backend-data:/var/lib/dashboard-backend
-
+    - dashboard-backend-data:/var/lib/dashboard-backend
   gateway:
     image: unheaded-gateway:${VERSION:-dev}
     container_name: unheaded-gateway
@@ -216,15 +304,19 @@ services:
         ipv6_address: fd00:dead:beef:2::305
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      NATS_URL: "nats://wotan:4222"
-      GATEWAY_PORT: "8080"
+      NATS_URL: nats://wotan:4222
+      GATEWAY_PORT: '8080'
     ports:
-      - "8080:8080"
+    - 8080:8080
     depends_on:
       dashboard-backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8080/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -235,20 +327,16 @@ services:
           cpus: '1.0'
           memory: 256M
     labels:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "8080"
-      prometheus.io/path: "/metrics"
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '8080'
+      prometheus.io/path: /metrics
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
+    - /tmp:size=64m,mode=1777
     volumes:
-      - gateway-data:/var/lib/gateway
-
-  # ============================================================================
-  # Telemetry Stack (agent mode)
-  # ============================================================================
+    - gateway-data:/var/lib/gateway
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: unheaded-prometheus-outpost
@@ -257,20 +345,24 @@ services:
       unheaded:
         ipv6_address: fd00:dead:beef:2::701
     ports:
-      - "9090:9090"
+    - 9090:9090
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=7d"
-      - "--web.console.libraries=/etc/prometheus/console_libraries"
-      - "--web.console.templates=/etc/prometheus/consoles"
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --storage.tsdb.retention.time=7d
+    - --web.console.libraries=/etc/prometheus/console_libraries
+    - --web.console.templates=/etc/prometheus/consoles
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
+    - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - prometheus-data:/prometheus
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:9090/-/healthy
       interval: 10s
       timeout: 5s
       retries: 3
@@ -281,11 +373,10 @@ services:
           cpus: '1.0'
           memory: 256M
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
-
+    - /tmp:size=64m,mode=1777
   promtail:
     image: grafana/promtail:2.9.0
     container_name: unheaded-promtail
@@ -296,23 +387,22 @@ services:
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     command:
-      - "-config.file=/etc/promtail/config.yaml"
+    - -config.file=/etc/promtail/config.yaml
     volumes:
-      - ./promtail-config.yaml:/etc/promtail/config.yaml:ro
-      - /var/log:/var/log:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+    - ./promtail-config.yaml:/etc/promtail/config.yaml:ro
+    - /var/log:/var/log:ro
+    - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 128M
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
-
+    - /tmp:size=64m,mode=1777
   node-exporter:
     image: prom/node-exporter:v1.7.0
     container_name: unheaded-node-exporter
@@ -321,18 +411,22 @@ services:
       unheaded:
         ipv6_address: fd00:dead:beef:2::703
     ports:
-      - "9100:9100"
+    - 9100:9100
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     command:
-      - "--path.rootfs=/host"
-      - "--path.procfs=/host/proc"
-      - "--path.sysfs=/host/sys"
-      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    - --path.rootfs=/host
+    - --path.procfs=/host/proc
+    - --path.sysfs=/host/sys
+    - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
     volumes:
-      - /:/host:ro,rslave
+    - /:/host:ro,rslave
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9100/metrics"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:9100/metrics
       interval: 10s
       timeout: 5s
       retries: 3
@@ -343,18 +437,14 @@ services:
           cpus: '0.5'
           memory: 128M
     labels:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "9100"
-      prometheus.io/path: "/metrics"
+      prometheus.io/scrape: 'true'
+      prometheus.io/port: '9100'
+      prometheus.io/path: /metrics
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:size=64m,mode=1777
-
-  # ============================================================================
-  # WireGuard VPN Bridge to Host-A
-  # ============================================================================
+    - /tmp:size=64m,mode=1777
   wireguard:
     image: linuxserver/wireguard:latest
     container_name: unheaded-wireguard
@@ -363,16 +453,15 @@ services:
       unheaded:
         ipv6_address: fd00:dead:beef:2::800
     ports:
-      - "51820:51820/udp"
+    - 51820:51820/udp
     cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
+    - NET_ADMIN
+    - SYS_MODULE
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PUID: 1000
       PGID: 1000
       TZ: UTC
-      # WireGuard interface configuration
       SERVERURL: ${WG_ENDPOINT_HOST:-auto}
       SERVERPORT: 51820
       PEERS: 1
@@ -380,10 +469,14 @@ services:
       INTERNAL_SUBNET: 10.13.13.0
       INTERFACE: eth0
     volumes:
-      - wireguard-config:/config
-      - /lib/modules:/lib/modules:ro
+    - wireguard-config:/config
+    - /lib/modules:/lib/modules:ro
     healthcheck:
-      test: ["CMD", "test", "-e", "/config/wg0.conf"]
+      test:
+      - CMD
+      - test
+      - -e
+      - /config/wg0.conf
       interval: 10s
       timeout: 5s
       retries: 3
@@ -394,37 +487,43 @@ services:
           cpus: '1.0'
           memory: 256M
     security_opt:
-      - no-new-privileges:false
+    - no-new-privileges:false
     privileged: false
     sysctls:
-      - net.ipv4.ip_forward=1
-      - net.ipv6.conf.all.forwarding=1
+    - net.ipv4.ip_forward=1
+    - net.ipv6.conf.all.forwarding=1
     read_only: false
     tmpfs:
-      - /tmp:size=64m,mode=1777
-
+    - /tmp:size=64m,mode=1777
 volumes:
-  # Core protocol services
-  wotan-data:
-  monad-data:
-  sophia-data:
-  anamnesis-data:
-
-  # API & Dashboard
-  dashboard-backend-data:
-  gateway-data:
-
-  # Telemetry
-  prometheus-data:
-  wireguard-config:
-
+  ipfire-images: null
+  ipfire-data: null
+  bird-data: null
+  bird-run: null
+  wotan-data: null
+  monad-data: null
+  sophia-data: null
+  anamnesis-data: null
+  dashboard-backend-data: null
+  gateway-data: null
+  prometheus-data: null
+  wireguard-config: null
 networks:
   unheaded:
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_icc: 'true'
     ipam:
       config:
-        - subnet: 172.21.0.0/16
-        - subnet: fd00:dead:beef:2::/64
+      - subnet: 172.21.0.0/16
+      - subnet: fd00:dead:beef:2::/64
     enable_ipv6: true
+  wan:
+    driver: macvlan
+    driver_opts:
+      parent: ${WAN_INTERFACE:-eno1}
+    ipam:
+      driver: default
+      config:
+      - subnet: ${WAN_SUBNET:-192.168.1.0/24}
+        gateway: ${WAN_GATEWAY:-192.168.1.1}

@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: MIT
+# frr.yaml — FRR routing daemon container (host-a)
+# FRR handles BGP EVPN-VXLAN, IS-IS underlay
+
+name: unheaded-frr
+image: ubuntu:24.04
+
+profiles:
+  - unheaded-base
+  - unheaded-ebpf
+
+config:
+  limits.cpu: "2"
+  limits.memory: "1GB"
+  boot.autostart: "true"
+  boot.autostart.priority: "190"
+  boot.autostart.delay: "10"
+  
+  # Cloud-init: install FRR from ~/tmp/frr-master/ build
+  user.user-data: |
+    #cloud-config
+    packages: [make, gcc, libreadline-dev, libc-ares-dev, python3, bison, flex, pkg-config]
+    runcmd:
+      - mkdir -p /etc/frr /var/run/frr
+      - groupadd -g 92 frr || true
+      - groupadd -g 85 frrvty || true
+      - useradd -u 92 -g frr -G frrvty -d /var/run/frr frr || true
+  
+  environment.ZEBRA_FLAGS: "-A 127.0.0.1"
+  environment.BGP_FLAGS: "-A 127.0.0.1"
+  environment.ISIS_FLAGS: "-A 127.0.0.1"
+  environment.BFD_FLAGS: "-A 127.0.0.1"
+  
+  user.unheaded.role: "routing"
+  user.unheaded.daemon: "frr"
+  user.unheaded.bgp_as: "65001"
+  user.unheaded.router_id: "10.20.255.1"
+
+devices:
+  root:
+    type: disk
+    path: /
+    pool: unheaded-ssd
+    size: 5GB
+  
+  # FRR needs access to the host network stack for kernel routes
+  frr-conf:
+    type: disk
+    source: /etc/unheaded/frr
+    path: /etc/frr
+  
+  frr-run:
+    type: disk
+    source: tmpfs
+    path: /var/run/frr
+    size: 64MB

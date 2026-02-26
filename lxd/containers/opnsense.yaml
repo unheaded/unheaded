@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: MIT
+# opnsense.yaml — OPNsense 26.1.2 VM definition for host-a (Forge)
+# Import image first: lxd/firewall/import-opnsense.sh
+# Launch: lxc launch opnsense-26.1.2 unheaded-opnsense --vm --profile unheaded-base --profile unheaded-firewall
+
+name: unheaded-opnsense
+description: "OPNsense 26.1.2 — Network ingress/egress firewall for host-a (Forge). BSD 2-Clause."
+type: virtual-machine
+image: opnsense-26.1.2
+
+profiles:
+  - unheaded-firewall
+
+config:
+  limits.cpu: "4"
+  limits.memory: "4GB"
+  boot.autostart: "true"
+  boot.autostart.priority: "200"
+  boot.autostart.delay: "30"
+  
+  # Serial console (OPNsense serial image)
+  raw.qemu: >-
+    -serial mon:stdio -nographic -no-reboot
+    -device virtio-rng-pci
+    -boot c
+  
+  # Environment hints (used by setup scripts, not available inside FreeBSD)
+  user.unheaded.role: "firewall"
+  user.unheaded.platform: "opnsense"
+  user.unheaded.version: "26.1.2"
+  user.unheaded.wan_role: "ingress-egress"
+  user.unheaded.lan_ip: "10.20.0.1"
+  user.unheaded.license: "BSD-2-Clause"
+  user.unheaded.host: "forge"
+
+devices:
+  root:
+    type: disk
+    path: /
+    pool: unheaded-ssd
+    size: 20GB
+    
+  wan:
+    type: nic
+    nictype: macvlan
+    parent: eno1
+    name: vtnet0
+    
+  lan:
+    type: nic
+    nictype: bridged
+    parent: unheaded
+    name: vtnet1

@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT
+# Unheaded Kingdom — BIRD Environment Configuration
+# IPFire + BIRD: daemon startup and logging settings
+
+# BIRD daemon options
+BIRD_OPTS="-c /etc/bird/bird.conf"
+
+# Logging
+BIRD_LOG_LEVEL="info"
+BIRD_LOG_FILE="/var/log/bird/bird.log"
+
+# PID file
+BIRD_PIDFILE="/var/run/bird/bird.pid"
+
+# Enable IPv6 support
+ENABLE_IPV6="yes"
