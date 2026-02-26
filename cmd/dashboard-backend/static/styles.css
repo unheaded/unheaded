@@ -5,12 +5,12 @@
 
 /* CSS Variables - Unheaded Design System */
 :root {
-    /* Backgrounds — void palette */
+    /* Backgrounds — void palette (semi-transparent for particle bleed) */
     --bg-primary: #0a0a0a;
-    --bg-secondary: #111111;
-    --bg-tertiary: #161616;
-    --bg-card: #161616;
-    --bg-hover: #1c1c1c;
+    --bg-secondary: rgba(17, 17, 17, 0.85);
+    --bg-tertiary: rgba(22, 22, 22, 0.85);
+    --bg-card: rgba(22, 22, 22, 0.8);
+    --bg-hover: rgba(28, 28, 28, 0.85);
 
     /* Accent Colors — steel blue (matches particles) */
     --gold: #4a9eff;

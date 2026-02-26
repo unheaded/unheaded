@@ -7,12 +7,12 @@
    CSS Custom Properties (Design Tokens)
    ============================================ */
 :root {
-    /* Backgrounds — void palette */
+    /* Backgrounds — void palette (semi-transparent for particle bleed) */
     --kingdom-bg-primary: #0a0a0a;
-    --kingdom-bg-secondary: #111111;
-    --kingdom-bg-tertiary: #161616;
-    --kingdom-bg-card: #161616;
-    --kingdom-bg-hover: #1c1c1c;
+    --kingdom-bg-secondary: rgba(17, 17, 17, 0.85);
+    --kingdom-bg-tertiary: rgba(22, 22, 22, 0.85);
+    --kingdom-bg-card: rgba(22, 22, 22, 0.8);
+    --kingdom-bg-hover: rgba(28, 28, 28, 0.85);
 
     /* Accent — steel blue (matches particles) */
     --kingdom-gold: #4a9eff;
