@@ -1773,7 +1773,4 @@ The following changes are made in draft-04 to address S21 assessment findings:
 The Linux kernel BPF community (Alexei Starovoitov, Daniel Borkmann) for
 creating the infrastructure that made this design possible.
 
-Adam Dunkels for demonstrating with uIP and Contiki that full protocol
-stacks operate in impossibly constrained spaces — demonstrating that
-resource constraints can drive effective architectural choices.
-
+All current and previous internet operators, admins, and engineers. Cheers to innovation.
