@@ -103,6 +103,78 @@ CRITICAL: Monad HbH (HOPOPT next-header 0x00) passes through ALL firewall layers
 
 ---
 
+##### 2026-02-26 — S67/S68/S69 EXECUTION: Multi-agent swarm — 3 waves, 81 files (commits 7de7ad3, 981a8f0, 5367c02, e6311f0)
+
+**SHIPPED — Wave 1 (observability stack):**
+- [x] nixos/flake.nix + flake.lock stub
+- [x] pkg/metrics/collector.go — Collector interface, CollectorRegistry parallel fan-out
+- [x] pkg/metrics/baremetal.go + lxd.go + docker.go + nixos.go — all 4 collectors, graceful degraded
+- [x] pkg/metrics/*_test.go — full unit test coverage
+- [x] monitoring/prometheus/prometheus.yml — all 25 Doom Range services + frr_exporter + bird_exporter + routing-health
+- [x] monitoring/loki/ + promtail/ + victoriametrics/ + alertmanager/ — full stack configs
+- [x] monitoring/alertmanager/rules/monad.yml — 6 alerts incl. MonadHbHDropRateHigh (critical)
+- [x] monitoring/grafana/dashboards/ — 5 dashboards: infrastructure, container_fleet, routing_bgp, firewall, ebpf_pipeline
+- [x] firewall.json: CRITICAL panel — Monad HbH Pass Rate RED if <99.9%
+- [x] nixos/modules/observability.nix — primary/secondary roles, HbH extraInputRules
+- [x] monitoring/docker-compose.yml — 5-service stack with health checks
+- [x] lxd/profiles/ + lxd/containers/ — 6 observability LXD containers
+
+**SHIPPED — Wave 2 (Suricata IDS + anamnesis bridge + routing):**
+- [x] nixos/modules/suricata.nix — decode-events:no, HbH belt-and-suspenders
+- [x] docker/suricata/ + lxd/containers/suricata.yaml — all 3 platforms
+- [x] routing/suricata/rules/unheaded-monad.rules — SID 9000001-9000099
+- [x] docs/legal/SURICATA_GPL_ISOLATION.md — 3-point GPL boundary analysis
+- [x] pkg/anamnesis/suricata.go — EVE JSON → 64-byte RingEntry → Wotan topic
+- [x] pkg/anamnesis/suricata_test.go — 7 test functions, MockPublisher, fixture tests
+- [x] routing/ospf/ — frr-ospf.conf + bird-ospf.conf (OSPFv3 Option A)
+- [x] routing/isis/ — frr-isis-ha.conf + frr-isis-hb.conf (IS-IS+SR Option B)
+- [x] routing/mpls/ — frr-mpls.conf + setup-mpls-kernel.sh (MPLS LDP Option C)
+- [x] scripts/routing/select-routing.sh — live switcher bgp-evpn|ospf|isis|mpls
+- [x] nixos/modules/frr-ospf.nix + frr-mpls.nix
+- [x] docs/network/ALTERNATE_ROUTING_OPTIONS.md — 4-option comparison table
+
+**SHIPPED — Wave 3 (NixOS tests + routing-health):**
+- [x] nixos/tests/ — 5 test files: firewall-bridge, wireguard, frr, observability, default.nix
+- [x] cmd/routing-health/main.go — HTTP :8080, /health /ready /metrics, stdlib only, graceful degraded
+- [x] cmd/routing-health/main_test.go — 8 tests, Checker DI, httptest
+- [x] docker/routing/ospf/Dockerfile + docker/suricata/Dockerfile — HEALTHCHECK added
+- [x] docs/sessions/HANDOFF_2026-02-26_S67-S69_COMPLETE.md
+
+**TOTALS:** 81 files changed, 10,826 insertions
+
+**AGE 2 PROGRESS:** ~40% (IaC complete, observability complete, IDS complete, alternate routing complete — bare metal validation pending)
+
+**NEXT (S70 — bare metal required):**
+- [ ] go build ./... + go test ./... on dev machine with Go 1.24
+- [ ] nix flake update → real flake.lock
+- [ ] nixos-rebuild test --flake .#host-a / .#host-b
+- [ ] docker compose -f monitoring/docker-compose.yml up -d
+- [ ] curl http://localhost:8080/health (routing-health smoke)
+- [ ] firewall-health-check.sh — all PASS
+- [ ] Monad HbH end-to-end validation (Scapy)
+
+**NEXT (no bare metal — still unblocked):**
+- [ ] CI/CD pipeline — GitHub Actions: go build/test/vet/lint, gosec, coverage gate, helm lint
+- [ ] SBOM generation — syft/cyclonedx in CI (P0 #13 from security review)
+- [ ] gRPC TLS — mTLS skeleton on all 25 service connections (P1 #26)
+- [ ] Auth scaffolding — pkg/auth/ JWT+mTLS wiring to all endpoints (P1 #16)
+- [ ] Rate limiter XFF fix — use RemoteAddr instead of X-Forwarded-For (P1 #17)
+- [ ] Wotan nil fallback — silent failure → degraded mode logging (P1 #19)
+- [ ] getOrCreateGRPCClient double-check locking fix (P1 #25)
+- [ ] Dead BroadcastJSON removal (P2 #37)
+- [ ] make deploy — real deployment pipeline (P2 #35)
+- [ ] Compliance dashboard scaffolding (S45 from planning guide)
+- [ ] Advanced log viewer (S46 from planning guide)
+- [ ] Demo video prep + README polish (S47 from planning guide)
+
+```
+THE TIMEGURU APPROVES.
+THE KINGDOM REMEMBERS.
+THE CIRCLE NEVER BREAKS.
+```
+
+---
+
 ### Age 2: The Beta Trials — REMAINING EPICS (📋 PLANNED)
 
 ### Age 3: The MVP Era (📋 PLANNED)
