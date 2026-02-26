@@ -3,8 +3,9 @@
 ## A Living Grimoire of the Kingdom's Journey
 
 **STATUS:** ALPHA
-**LAST UPDATED:** February 24, 2026
+**LAST UPDATED:** February 26, 2026
 **LOC:** ~260K production (~464K with tests) — 220K Go, 203K Go tests, 16K Rust, 13K JS, 5K Nix, 7K scripts
+**AGE 2 IaC:** +253 files, ~40K lines — NixOS + Docker + LXD + Firewall + Routing shipped
 
 ---
 
@@ -14,7 +15,77 @@
 
 **Progress:** ~98% — all services operational, S36 four pillars complete (ports, gRPC-first, logging, discovery), eBPF blocked on bare metal
 
-### Age 2: The Beta Trials (📋 PLANNED)
+### Age 2: The Beta Trials (🔄 IN PROGRESS)
+
+**Progress:** ~15% — Three-platform IaC shipped (NixOS + Docker + LXD), firewall
+ingress/egress complete, routing fabric configured. Awaiting bare metal live validation.
+
+#### Age 2 Session Log
+
+##### 2026-02-26 — S66: Firewall + Routing IaC Sprint (commit 8146dff)
+
+**SHIPPED:**
+- [x] NixOS IaC: 53 files — host configs, 25 service modules, telemetry, WireGuard, vLLM/ROCm, eBPF exporter
+- [x] Docker IaC: 67 files — base + 25 service Dockerfiles, host-a/b composes, telemetry, WireGuard, vLLM, Makefile
+- [x] LXD IaC: 78 files — profiles, cloud-init, 30 container YAMLs, init/launch scripts, telemetry, WireGuard, vLLM
+- [x] NixOS firewall modules: firewall-bridge.nix, opnsense-vm.nix, ipfire-vm.nix, frr.nix, bird.nix
+- [x] Docker firewall: QEMU-in-Docker for OPNsense (FreeBSD) + IPFire; multi-stage FRR + BIRD builds
+- [x] LXD firewall: OPNsense VM (prio 200) + IPFire VM (prio 200) + FRR container (prio 190) + BIRD container
+- [x] Routing configs: frr.conf (IS-IS NET 49.0001, BGP EVPN, BFD 300ms), bird.conf (AS65002, radv)
+- [x] VTEP setup: setup-vtep.sh creates vxlan10001/10002/10100 + per-VNI bridges
+- [x] Bootstrap scripts: setup-opnsense.sh, setup-ipfire.sh, install-frr.sh, install-bird.sh, firewall-health-check.sh
+- [x] Network docs: FIREWALL_TOPOLOGY.md, MONAD_HBH_FIREWALL_RULES.md, INGRESS_EGRESS_PORTS.md
+- [x] Suricata flagged for future sprint: docs/research/FUTURE_INTEGRATIONS.md
+- [x] gRPC successors research: docs/research/GRPC_SUCCESSORS.md
+
+**ARCHITECTURE LOCKED:**
+```
+host-a (Forge):   OPNsense 26.1.2 + FRR  — AS 65001, IS-IS level-2
+host-b (Outpost): IPFire 2.29-core199 + BIRD — AS 65002
+East-west: WireGuard fd00:dead:beef::/48
+EVPN-VXLAN: VNIs 10001/10002/10100, VTEP 10.20.255.1
+BFD: 300ms detect / multiplier 3
+CRITICAL: Monad HbH (HOPOPT next-header 0x00) passes through ALL firewall layers
+```
+
+**Session Commits:**
+- `8146dff` feat(age2-firewall): 55 files, +9,562 lines
+- `5b23015` docs: Suricata future integration flag
+- `f62873d` feat(age2-lxd): 78 files, +10,870 lines
+- `9ff49f7` feat(age2-docker): 67 files, +9,264 lines
+- `57ebc8d` docs: S61-S65 handoff + notebook standards
+- `a1e02f7` research: gRPC successors memo
+- `20fd87e` feat(age2-iac): 53 files, +9,542 lines
+
+**NEXT (S67 — no bare metal required):**
+- [ ] flake.nix for nixos/ tree (reproducible builds)
+- [ ] nixosTest module tests (firewall-bridge, frr, bird)
+- [ ] go.mod update for cmd/ebpf-exporter (cilium/ebpf + prometheus/client_golang)
+- [ ] Routing container health probes (/health HTTP endpoints)
+- [ ] Firewall Docker healthchecks (OPNsense REST + IPFire SSH liveness)
+- [ ] BIRD EVPN VNI/RT mapping verification against FRR
+
+**DEFERRED (designated Suricata sprint):**
+- [ ] Suricata integration across OPNsense + IPFire + all 3 platforms
+- [ ] Custom Monad signatures (sid 9000001-9000099)
+- [ ] eBPF AF_PACKET bypass (Shield BPF maps ↔ Suricata)
+- [ ] EVE JSON → Loki → Anamnesis pipeline
+
+**BARE METAL (S61 live):**
+- [ ] Boot NixOS on host-a + nixos-install
+- [ ] Run setup-opnsense.sh (REST API config)
+- [ ] Run install-frr.sh (build from ~/tmp/frr-master)
+- [ ] Boot NixOS on host-b + nixos-install
+- [ ] Run setup-ipfire.sh (SSH config)
+- [ ] Run install-bird.sh (build from ~/tmp/bird-master)
+- [ ] Exchange WireGuard keys, activate wg0
+- [ ] Run firewall-health-check.sh — all PASS
+- [ ] Monad HbH end-to-end validation (Scapy)
+- [ ] Collect H1-H8 verdicts
+
+---
+
+### Age 2: The Beta Trials — REMAINING EPICS (📋 PLANNED)
 
 ### Age 3: The MVP Era (📋 PLANNED)
 
@@ -202,4 +273,30 @@ All four infrastructure pillars planned in S34, executed via multi-agent sprint 
 
 ---
 
-*Synced: 2026-02-24 UTC*
+---
+
+### S36 Four Pillars — COMPLETE (Feb 24, 2026)
+
+All four infrastructure pillars planned in S34, executed via multi-agent sprint in S36:
+
+1. **Port Authority (Pillar 1):** All 20+ services migrated to Doom Range (16666-26666). `pkg/ports/ports.go` is single source of truth.
+2. **gRPC-First Transport (Pillar 2):** `pkg/transport/` implements gRPC-first cascade with HTTP fallback. All 10 services wired.
+3. **Log Aggregation (Pillar 3):** `pkg/logagg/` with zerolog hook publishing to Wotan topics. 10K-line ring buffer per service.
+4. **Service Discovery (Pillar 4):** `pkg/discovery/` convention-based + port-scan + Wotan registration. Zero hardcoded IPs.
+
+---
+
+### S66 — COMPLETE (Feb 26, 2026)
+
+Age 2 IaC Sprint — Three-platform bare metal IaC + firewall ingress/egress + routing fabric.
+See: `docs/sessions/HANDOFF_2026-02-26_S66_FIREWALL_ROUTING.md`
+
+**Session chain:** S61-S65 IaC → **S66 Firewall+Routing** → S67 (flake+tests) → S68 Suricata → S61 LIVE
+
+```
+THE TIMEGURU APPROVES.
+THE KINGDOM REMEMBERS.
+THE CIRCLE NEVER BREAKS.
+```
+
+*Synced: 2026-02-26 UTC*
