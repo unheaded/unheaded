@@ -1,0 +1,118 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# docker/vllm-rocm/docker-compose.vllm.yml — vLLM ROCm service composition
+
+version: '3.8'
+
+services:
+  vllm-deepseek:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ROCM_VERSION: ${ROCM_VERSION:-6.1.3}
+        VLLM_VERSION: ${VLLM_VERSION:-0.4.3}
+    image: unheaded-vllm-rocm:${VERSION:-dev}
+    container_name: unheaded-vllm-deepseek
+    restart: unless-stopped
+    
+    # GPU device passthrough (AMD RX 7700 XT)
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    
+    # User/group for GPU access
+    group_add:
+      - video
+      - render
+    
+    environment:
+      # ROCm configuration for gfx1101 (RX 7700 XT)
+      HSA_OVERRIDE_GFX_VERSION: "11.0.1"
+      PYTORCH_ROCM_ARCH: "gfx1101"
+      HIP_VISIBLE_DEVICES: "0"
+      HIP_DEVICE_SELECT: "0"
+      
+      # vLLM model configuration
+      VLLM_MODEL: "${VLLM_MODEL:-/models/deepseek-r1-7b-q4}"
+      VLLM_PORT: "20100"
+      VLLM_DTYPE: "half"
+      VLLM_GPU_MEMORY_UTILIZATION: "0.90"
+      VLLM_MAX_MODEL_LEN: "8192"
+      
+      # Logging and observability
+      VLLM_LOGGING_LEVEL: "${UNHEADED_LOG_LEVEL:-info}"
+      PROMETHEUS_MULTIPROC_DIR: "/tmp/prometheus"
+    
+    # Volume mounts
+    volumes:
+      # Read-only model cache (pre-downloaded weights)
+      - /mnt/models:/models:ro
+      # Prometheus metrics (optional)
+      - prometheus-tmp:/tmp/prometheus
+    
+    # Port mappings
+    ports:
+      - "20100:20100"
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 14g
+          cpus: '8.0'
+        reservations:
+          devices:
+            - driver: amdgpu
+              count: 1
+              capabilities: [compute]
+    
+    # Shared memory for GPU operations
+    shm_size: 4g
+    
+    # Network configuration
+    networks:
+      - unheaded
+    
+    # Labels for monitoring and orchestration
+    labels:
+      app: unheaded
+      component: llm-inference
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "20100"
+      prometheus.io/path: "/metrics"
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+      - apparmor=unconfined
+    
+    # Capabilities required for GPU access
+    cap_add:
+      - SYS_PTRACE
+    
+    # Health check for liveness probe
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:20100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+# Shared named volumes
+volumes:
+  prometheus-tmp:
+    driver: local
+
+# Shared network for inter-service communication
+networks:
+  unheaded:
+    external: true
+    name: unheaded_unheaded

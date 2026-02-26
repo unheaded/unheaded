@@ -1,0 +1,99 @@
+groups:
+  - name: unheaded.rules
+    interval: 30s
+    rules:
+      # Service availability alerts
+      - alert: UnheadedServiceDown
+        expr: |
+          up{job="unheaded-services"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: unheaded
+        annotations:
+          summary: "Unheaded service {{ $labels.instance }} is down"
+          description: "Service {{ $labels.service }} on {{ $labels.instance }} has been unreachable for 30 seconds."
+
+      # Memory pressure alerts
+      - alert: HighMemoryPressure
+        expr: |
+          rate(pressure_stall_some_memory_full_total[5m]) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          service: unheaded
+        annotations:
+          summary: "High memory pressure on {{ $labels.instance }}"
+          description: "Memory full pressure is {{ $value | humanizePercentage }} on {{ $labels.instance }} over the last 5 minutes."
+
+      # eBPF packet drop rate alerts
+      - alert: EBPFDropRateHigh
+        expr: |
+          rate(unheaded_ebpf_xdp_drop_total[1m]) > 1000
+        for: 2m
+        labels:
+          severity: warning
+          service: unheaded
+        annotations:
+          summary: "High eBPF XDP drop rate on {{ $labels.instance }}"
+          description: "XDP drop rate is {{ $value | humanize }} packets/sec on {{ $labels.instance }}. This may indicate network saturation or packet filtering issues."
+
+      # WireGuard handshake staleness alerts
+      - alert: WireGuardHandshakeStale
+        expr: |
+          time() - wireguard_interface_last_handshake_time_seconds > 180
+        for: 2m
+        labels:
+          severity: warning
+          service: unheaded
+        annotations:
+          summary: "WireGuard handshake stale on {{ $labels.interface }}"
+          description: "Last handshake on {{ $labels.interface }} was {{ $value | humanizeDuration }} ago. Peer {{ $labels.peer }} may be unreachable."
+
+      # LLM inference stalled alerts
+      - alert: LLMInferenceStalled
+        expr: |
+          rate(vllm_generation_tokens_total[1m]) == 0
+        for: 60s
+        labels:
+          severity: critical
+          service: unheaded
+        annotations:
+          summary: "LLM inference stalled on {{ $labels.instance }}"
+          description: "vLLM token generation rate is zero on {{ $labels.instance }}. Inference pipeline may be frozen."
+
+      # High CPU usage alerts
+      - alert: HighCPUUsage
+        expr: |
+          (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: unheaded
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}."
+
+      # High memory usage alerts
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: unheaded
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}."
+
+      # Disk space alerts
+      - alert: DiskSpaceRunningOut
+        expr: |
+          (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lowerfs|squashfs|vfat"} / node_filesystem_size_bytes)) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: unheaded
+        annotations:
+          summary: "Disk space running out on {{ $labels.instance }}"
+          description: "Disk {{ $labels.device }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}."
