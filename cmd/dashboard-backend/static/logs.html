@@ -8,6 +8,17 @@
 
   <link rel="stylesheet" href="/static/css/design-system.css">
   <style>
+    /* Particle canvas — fixed background, non-interactive */
+    #particle-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      pointer-events: none;
+    }
+
     /* Log viewer page-specific layout */
     body {
       margin-top: 64px;
