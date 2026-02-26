@@ -1,0 +1,55 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: info
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://[fd00:dead:beef::1]:3100/loki/api/v1/push
+    tenant_id: "host-b-outpost"
+    batchwait: 1s
+    batchsize: 1048576
+
+scrape_configs:
+  # Host system logs
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          host: host-b
+          __path__: /var/log/*log
+
+  # Docker container logs
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          host: host-b
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        target_label: container
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: stream
+
+  # Unheaded service logs
+  - job_name: unheaded-services
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: unheaded
+          host: host-b
+          __path__: /var/lib/docker/containers/*/*.log
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_id']
+        target_label: container_id
+      - source_labels: ['__meta_docker_container_name']
+        target_label: service
+        regex: 'unheaded-(.*)'
+        replacement: '$1'
