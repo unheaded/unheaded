@@ -4,18 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Unheaded Kingdom Dashboard - Real-time infrastructure monitoring">
-    <title>Kingdom Dashboard | Unheaded</title>
+    <title>Dashboard | (U)NHEADED</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%91%91%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230a0a0a'/%3E%3Ctext x='50' y='55' text-anchor='middle' dominant-baseline='middle' fill='%234a9eff' font-family='monospace' font-size='40'%3E(u)%3C/text%3E%3C/svg%3E">
 </head>
 <body>
-    <div id="app">
+    <canvas id="particle-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;"></canvas>
+    <div id="app" style="position:relative;z-index:1;">
         <!-- Header -->
         <header class="header">
             <div class="header-left">
                 <h1 class="logo">
-                    <span class="logo-icon">&#x1F451;</span>
-                    <span class="logo-text">Kingdom Dashboard</span>
+                    <span class="logo-text">(u)nheaded</span>
+                    <span style="color:#333;margin:0 0.5rem;">|</span>
+                    <span style="color:#888;font-size:0.75rem;letter-spacing:0.1em;">dashboard</span>
                 </h1>
             </div>
             <div class="header-center">
@@ -310,6 +312,7 @@
     <div id="toast-container"></div>
 
     <!-- Scripts -->
+    <script src="js/particles.js"></script>
     <script src="dashboard.js"></script>
 </body>
 </html>

@@ -3,56 +3,56 @@
    Theme: Dark (#1a1a2e) with Gold (#ffd700) accents
    ========================================================================== */
 
-/* CSS Variables - Kingdom Theme */
+/* CSS Variables - Unheaded Design System */
 :root {
-    /* Primary Colors */
-    --bg-primary: #1a1a2e;
-    --bg-secondary: #16213e;
-    --bg-tertiary: #0f3460;
-    --bg-card: #1e2746;
-    --bg-hover: #253352;
+    /* Backgrounds — void palette */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-tertiary: #161616;
+    --bg-card: #161616;
+    --bg-hover: #1c1c1c;
 
-    /* Accent Colors */
-    --gold: #ffd700;
-    --gold-light: #ffed4a;
-    --gold-dark: #b8a000;
-    --gold-muted: rgba(255, 215, 0, 0.2);
+    /* Accent Colors — steel blue (matches particles) */
+    --gold: #4a9eff;
+    --gold-light: #6ab0ff;
+    --gold-dark: #3a7acc;
+    --gold-muted: rgba(74, 158, 255, 0.15);
 
-    /* Status Colors */
-    --status-healthy: #00d26a;
-    --status-healthy-bg: rgba(0, 210, 106, 0.15);
-    --status-degraded: #ff9800;
-    --status-degraded-bg: rgba(255, 152, 0, 0.15);
-    --status-unhealthy: #ff4757;
-    --status-unhealthy-bg: rgba(255, 71, 87, 0.15);
-    --status-unknown: #6c757d;
-    --status-unknown-bg: rgba(108, 117, 125, 0.15);
+    /* Status Colors — muted but readable */
+    --status-healthy: #3d9e50;
+    --status-healthy-bg: rgba(61, 158, 80, 0.15);
+    --status-degraded: #cc8800;
+    --status-degraded-bg: rgba(204, 136, 0, 0.15);
+    --status-unhealthy: #cc4444;
+    --status-unhealthy-bg: rgba(204, 68, 68, 0.15);
+    --status-unknown: #555555;
+    --status-unknown-bg: rgba(85, 85, 85, 0.15);
 
-    /* Text Colors */
-    --text-primary: #f8f9fa;
-    --text-secondary: #adb5bd;
-    --text-muted: #6c757d;
+    /* Text Colors — silver on void */
+    --text-primary: #c9c9c9;
+    --text-secondary: #888888;
+    --text-muted: #555555;
 
     /* Severity Colors */
-    --severity-critical: #ff4757;
-    --severity-error: #ff6b81;
-    --severity-warning: #ff9800;
-    --severity-info: #00bcd4;
+    --severity-critical: #cc4444;
+    --severity-error: #aa6a6a;
+    --severity-warning: #cc8800;
+    --severity-info: #3a6a8a;
 
-    /* Flow Colors */
-    --flow-xdp: #ff6b6b;
-    --flow-gateway: #ffd700;
-    --flow-wotan: #4ecdc4;
-    --flow-service: #45b7d1;
-    --flow-collector: #a29bfe;
+    /* Flow Colors — desaturated */
+    --flow-xdp: #aa6a6a;
+    --flow-gateway: #4a9eff;
+    --flow-wotan: #4a8a7a;
+    --flow-service: #3a6a8a;
+    --flow-collector: #6a5a9a;
 
     /* Borders & Shadows */
-    --border-color: rgba(255, 215, 0, 0.1);
-    --border-highlight: rgba(255, 215, 0, 0.3);
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
-    --glow-gold: 0 0 20px rgba(255, 215, 0, 0.3);
+    --border-color: #222222;
+    --border-highlight: #444444;
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.6);
+    --glow-gold: 0 0 20px rgba(74, 158, 255, 0.15);
 
     /* Spacing */
     --spacing-xs: 4px;
@@ -72,9 +72,9 @@
     --transition-normal: 250ms ease;
     --transition-slow: 400ms ease;
 
-    /* Font */
-    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --font-mono: 'SF Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+    /* Font — JetBrains Mono primary (design-system standard) */
+    --font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
 }
 
 /* Reset & Base Styles */
@@ -113,7 +113,9 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-md) var(--spacing-lg);
-    background: var(--bg-secondary);
+    background: rgba(17, 17, 17, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
@@ -130,20 +132,20 @@ body {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--gold);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    letter-spacing: 0.3em;
+    text-transform: lowercase;
 }
 
 .logo-icon {
-    font-size: 1.8rem;
+    display: none;
 }
 
 .logo-text {
-    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--text-muted);
 }
 
 .system-status {
@@ -248,8 +250,9 @@ body {
 
 .section-title {
     font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--gold);
+    font-weight: 300;
+    color: var(--text-primary);
+    letter-spacing: 0.1em;
     margin-bottom: var(--spacing-md);
     display: flex;
     align-items: center;

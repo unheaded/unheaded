@@ -335,23 +335,23 @@ const pageTemplate = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}} - Unheaded Wiki</title>
+    <title>{{.Title}} | (U)NHEADED Wiki</title>
     <style>
         :root {
-            --bg-primary: #0d1117;
-            --bg-secondary: #161b22;
-            --bg-tertiary: #21262d;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-            --text-heading: #e6edf3;
-            --accent: #58a6ff;
-            --accent-hover: #79c0ff;
-            --border: #30363d;
-            --code-bg: #1a1f29;
-            --link: #58a6ff;
-            --success: #3fb950;
-            --warning: #d29922;
-            --danger: #f85149;
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-tertiary: #161616;
+            --text-primary: #c9c9c9;
+            --text-secondary: #666666;
+            --text-heading: #ffffff;
+            --accent: #4a9eff;
+            --accent-hover: #6ab0ff;
+            --border: #222222;
+            --code-bg: #111111;
+            --link: #4a9eff;
+            --success: #3d9e50;
+            --warning: #cc8800;
+            --danger: #cc4444;
         }
 
         * {
@@ -361,10 +361,11 @@ const pageTemplate = `<!DOCTYPE html>
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
             background: var(--bg-primary);
             color: var(--text-primary);
-            line-height: 1.6;
+            font-size: 14px;
+            line-height: 1.8;
         }
 
         .layout {
@@ -392,15 +393,18 @@ const pageTemplate = `<!DOCTYPE html>
         }
 
         .sidebar-brand h1 {
-            font-size: 18px;
-            color: var(--text-heading);
-            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 300;
+            letter-spacing: 0.3em;
+            text-transform: lowercase;
         }
 
         .sidebar-brand .subtitle {
-            font-size: 12px;
-            color: var(--text-secondary);
+            font-size: 11px;
+            color: #3a3a3a;
             margin-top: 4px;
+            letter-spacing: 0.1em;
         }
 
         .sidebar nav ul {
@@ -449,16 +453,20 @@ const pageTemplate = `<!DOCTYPE html>
         }
 
         .main h1 {
-            font-size: 32px;
+            font-size: 1.5rem;
             color: var(--text-heading);
+            font-weight: 300;
+            letter-spacing: 0.3em;
             margin-bottom: 16px;
             padding-bottom: 8px;
             border-bottom: 1px solid var(--border);
         }
 
         .main h2 {
-            font-size: 24px;
-            color: var(--text-heading);
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            font-weight: 300;
+            letter-spacing: 0.2em;
             margin-top: 32px;
             margin-bottom: 12px;
             padding-bottom: 6px;
@@ -466,15 +474,19 @@ const pageTemplate = `<!DOCTYPE html>
         }
 
         .main h3 {
-            font-size: 20px;
-            color: var(--text-heading);
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            font-weight: 300;
+            letter-spacing: 0.15em;
             margin-top: 24px;
             margin-bottom: 8px;
         }
 
         .main h4 {
-            font-size: 16px;
-            color: var(--text-heading);
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 300;
+            letter-spacing: 0.1em;
             margin-top: 20px;
             margin-bottom: 6px;
         }
@@ -535,12 +547,14 @@ const pageTemplate = `<!DOCTYPE html>
 
         .main th {
             background: var(--bg-tertiary);
-            color: var(--text-heading);
+            color: var(--text-primary);
             padding: 10px 12px;
             text-align: left;
-            font-weight: 600;
+            font-weight: 400;
+            letter-spacing: 0.1em;
             border: 1px solid var(--border);
-            font-size: 14px;
+            font-size: 12px;
+            text-transform: uppercase;
         }
 
         .main td {
@@ -577,6 +591,22 @@ const pageTemplate = `<!DOCTYPE html>
             border-radius: 6px;
         }
 
+        /* Particle canvas */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .wiki-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .layout {
@@ -599,11 +629,13 @@ const pageTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
+    <canvas id="particle-canvas"></canvas>
+    <div class="wiki-wrapper">
     <div class="layout">
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <h1>Unheaded Wiki</h1>
-                <div class="subtitle">The Kingdom's Knowledge Base</div>
+                <h1>(u)nheaded</h1>
+                <div class="subtitle">wiki</div>
             </div>
             <nav>
                 <ul>
@@ -621,5 +653,23 @@ const pageTemplate = `<!DOCTYPE html>
             {{.Content}}
         </main>
     </div>
+    </div>
+    <script>
+    (function(){
+        var c=document.getElementById('particle-canvas'),x=c.getContext('2d'),
+            ps=[],N=50,W,H,dpr=window.devicePixelRatio||1;
+        function resize(){W=window.innerWidth;H=window.innerHeight;c.width=W*dpr;c.height=H*dpr;c.style.width=W+'px';c.style.height=H+'px';x.scale(dpr,dpr);}
+        resize();window.addEventListener('resize',resize);
+        for(var i=0;i<N;i++)ps.push({x:Math.random()*W,y:Math.random()*H,s:1+Math.random()*2,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,o:0.2+Math.random()*0.4});
+        function draw(){x.clearRect(0,0,W,H);
+            for(var i=0;i<ps.length;i++){var p=ps[i];p.x+=p.vx;p.y+=p.vy;
+                if(p.x<-10)p.x=W+10;if(p.x>W+10)p.x=-10;if(p.y<-10)p.y=H+10;if(p.y>H+10)p.y=-10;
+                x.beginPath();x.arc(p.x,p.y,p.s,0,Math.PI*2);x.fillStyle='rgba(74,158,255,'+p.o+')';x.fill();
+                for(var j=i+1;j<ps.length;j++){var q=ps[j],dx=p.x-q.x,dy=p.y-q.y,d=Math.sqrt(dx*dx+dy*dy);
+                    if(d<150){x.beginPath();x.moveTo(p.x,p.y);x.lineTo(q.x,q.y);x.strokeStyle='rgba(74,158,255,'+(1-d/150)*0.2+')';x.stroke();}}}
+            requestAnimationFrame(draw);}
+        draw();
+    })();
+    </script>
 </body>
 </html>`
