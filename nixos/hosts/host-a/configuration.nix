@@ -11,6 +11,7 @@
     ../../modules/firewall-bridge.nix
     ../../modules/opnsense-vm.nix
     ../../modules/telemetry.nix
+    ../../modules/observability.nix
     ../../modules/wireguard.nix
     ../../modules/vllm-rocm.nix
     ../../modules/ebpf-exporter.nix
@@ -45,6 +46,13 @@
     wgPeer = "fd00:dead:beef::2";
     peerAs = 65002;
     vnis = [ 10001 10002 10100 ];
+  };
+
+  # ── Observability Stack (Prometheus + Grafana + Loki + VictoriaMetrics) ──────
+  services.unheaded.observability = {
+    enable = true;
+    role = "primary";
+    victoriaAddr = "fd00:dead:beef::1";
   };
 
   # ── Networking ──────────────────────────────────────────────────────────────

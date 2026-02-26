@@ -11,6 +11,7 @@
     ../../modules/firewall-bridge.nix
     ../../modules/ipfire-vm.nix
     ../../modules/telemetry.nix
+    ../../modules/observability.nix
     ../../modules/wireguard.nix
     ../../modules/bird.nix
     ../../modules/ebpf-exporter.nix
@@ -29,6 +30,14 @@
     routerId = "10.20.255.2";
     forgePeer = "fd00:dead:beef::1";
     forgeAs = 65001;
+  };
+
+  # ── Observability Stack (Secondary: Promtail + remote_write only) ────────────
+  services.unheaded.observability = {
+    enable = true;
+    role = "secondary";
+    lokiAddr = "fd00:dead:beef::1";
+    victoriaAddr = "fd00:dead:beef::1";
   };
 
   # ── Networking ──────────────────────────────────────────────────────────────

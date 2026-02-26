@@ -1,0 +1,36 @@
+# Prometheus agent configuration - Secondary host (Outpost, host-b)
+# Minimal scrape config with remote_write to host-a via WireGuard
+# Unheaded Kingdom infrastructure
+# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+
+global:
+  scrape_interval: 30s
+  external_labels:
+    cluster: "unheaded"
+    host: "outpost"
+
+scrape_configs:
+  # Local node exporter
+  - job_name: node_exporter
+    static_configs:
+      - targets: ['localhost:9100']
+
+  # Local unheaded daemon metrics
+  - job_name: unheaded_daemon
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # BIRD exporter (Outpost routing daemon)
+  - job_name: bird_exporter
+    static_configs:
+      - targets: ['localhost:9324']
+
+  # Routing health check
+  - job_name: routing_health
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['localhost:8080']
+
+remote_write:
+  - url: 'http://[fd00:dead:beef::1]:8428/api/v1/write'

@@ -1,9 +1,9 @@
-# Unheaded Kingdom — Loki Container
-# Log aggregation and querying
+# Unheaded Kingdom — Promtail Container
+# Log shipping and forwarding agent
 # License: MIT, Copyright (c) 2024-2026 Steven Bellis
 
-name: loki
-description: "Unheaded Loki log aggregation container"
+name: promtail
+description: "Unheaded Promtail log shipping container"
 profiles:
   - default
   - unheaded-base
@@ -15,7 +15,7 @@ source:
   alias: ubuntu/noble/amd64
 config:
   boot.autostart: "true"
-  boot.autostart.priority: "182"
-  user.service: "loki"
-  user.description: "Unheaded Loki log aggregation service"
+  boot.autostart.priority: "181"
+  user.service: "promtail"
+  user.description: "Unheaded Promtail log shipping service"
 devices: {}

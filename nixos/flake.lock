@@ -1,0 +1,6 @@
+{
+  "_comment": "Run `nix flake update` on bare metal to generate this file",
+  "nodes": {},
+  "root": "root",
+  "version": 7
+}

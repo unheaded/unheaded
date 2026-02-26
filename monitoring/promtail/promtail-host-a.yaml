@@ -1,0 +1,109 @@
+# Promtail configuration - Log shipper for Forge (host-a)
+# Collects logs from systemd, FRR, Suricata, Docker, and Unheaded services
+# Unheaded Kingdom infrastructure
+# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: 'http://[fd00:dead:beef::1]:3100/loki/api/v1/push'
+
+scrape_configs:
+  # Systemd journal logs
+  - job_name: systemd-journal
+    journal:
+      labels:
+        host: "forge"
+        job: "systemd"
+    pipeline_stages:
+      - match:
+          selector: '{PRIORITY=~"[0-3]"}'
+          stages:
+            - labels:
+                level: error
+      - match:
+          selector: '{PRIORITY=~"[4-5]"}'
+          stages:
+            - labels:
+                level: warning
+      - match:
+          selector: '{PRIORITY=~"[6-7]"}'
+          stages:
+            - labels:
+                level: info
+
+  # FRR routing daemon logs
+  - job_name: frr
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          host: "forge"
+          job: "frr"
+          service: "frr"
+    pipeline_stages:
+      - multiline:
+          line_start_pattern: '^\d{4}-\d{2}-\d{2}'
+    file_sd_configs:
+      - files:
+          - /var/log/frr/*.log
+
+  # Suricata IDS alerts (eve.json)
+  - job_name: suricata
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          host: "forge"
+          job: "suricata"
+          service: "suricata"
+    pipeline_stages:
+      - json:
+          expressions:
+            event_type: event_type
+            alert_sig: alert.signature_id
+            alert_action: alert.action
+      - labels:
+          event_type: event_type
+          alert_sig: alert_sig
+          alert_action: alert_action
+    file_sd_configs:
+      - files:
+          - /var/log/suricata/eve.json
+
+  # Docker container logs
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          host: "forge"
+          job: "docker"
+    pipeline_stages:
+      - docker: {}
+      - json:
+          expressions:
+            log: log
+    file_sd_configs:
+      - files:
+          - /var/lib/docker/containers/*/*-json.log
+
+  # Unheaded infrastructure service logs
+  - job_name: unheaded
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          host: "forge"
+          job: "unheaded"
+    pipeline_stages:
+      - multiline:
+          line_start_pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+    file_sd_configs:
+      - files:
+          - /var/log/unheaded/*.log

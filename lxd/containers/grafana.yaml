@@ -1,52 +1,21 @@
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
-# lxd/containers/grafana.yaml
-# Grafana visualization container definition
+# Unheaded Kingdom — Grafana Container
+# Visualization and dashboarding platform
+# License: MIT, Copyright (c) 2024-2026 Steven Bellis
 
-name: unheaded-grafana
-image: ubuntu:24.04
-
+name: grafana
+description: "Unheaded Grafana visualization container"
 profiles:
+  - default
   - unheaded-base
-  - unheaded-telemetry
-
+  - unheaded-observability
+source:
+  type: image
+  protocol: simplestreams
+  server: https://images.linuxcontainers.org
+  alias: ubuntu/noble/amd64
 config:
-  limits.cpu: "2"
-  limits.memory: "2GB"
-  limits.memory.swap: "false"
-  
-  environment.GRAFANA_PORT: "3000"
-  environment.WOTAN_ADDR: "10.20.1.1:50053"
-  environment.LOG_LEVEL: "info"
-  
-  user.service: "grafana"
-  user.tier: "telemetry"
-  user.port: "3000"
-  user.description: "Grafana visualization and dashboarding"
-  
   boot.autostart: "true"
-  boot.autostart.delay: "5"
-  boot.autostart.priority: "15"
-
-devices:
-  root:
-    path: /
-    pool: unheaded-ssd
-    size: 15GB
-    type: disk
-  bin-grafana:
-    type: disk
-    source: /opt/unheaded/bin/grafana
-    path: /opt/unheaded/bin/grafana
-    readonly: "true"
-  state:
-    type: disk
-    source: /var/lib/unheaded/grafana
-    path: /var/lib/unheaded/grafana
-    readonly: "false"
-  logs:
-    type: disk
-    source: /var/log/unheaded
-    path: /var/log/unheaded
-
-description: "Unheaded Grafana — visualization and dashboarding"
+  boot.autostart.priority: "183"
+  user.service: "grafana"
+  user.description: "Unheaded Grafana dashboarding service"
+devices: {}
