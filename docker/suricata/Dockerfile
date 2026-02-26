@@ -111,4 +111,6 @@ RUN chmod 755 /entrypoint.sh
 USER suricata:suricata
 WORKDIR /var/log/suricata
 
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD test -f /var/log/suricata/eve.json || exit 1
+
 ENTRYPOINT ["/entrypoint.sh"]
