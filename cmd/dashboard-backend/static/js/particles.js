@@ -124,7 +124,7 @@
         if (!canvas) {
             canvas = document.createElement('canvas');
             canvas.id = 'particle-canvas';
-            canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;pointer-events:none;';
+            canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none;';
             document.body.appendChild(canvas);
         }
 
