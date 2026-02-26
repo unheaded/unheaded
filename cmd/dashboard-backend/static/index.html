@@ -1,315 +1,874 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Unheaded Kingdom Dashboard - Real-time infrastructure monitoring">
-    <title>Kingdom Dashboard | Unheaded</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%91%91%3C/text%3E%3C/svg%3E">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unheaded Control Surface - Real-time infrastructure monitoring and packet flow analysis">
+  <title>Unheaded — Control Surface</title>
+
+  <link rel="stylesheet" href="/static/css/design-system.css">
+  <style>
+    /* Dashboard-specific layout — CSS variables only, no hardcoded colors */
+    main {
+      margin-top: 80px;
+      padding: var(--space-2xl);
+      min-height: 100vh;
+      position: relative;
+      z-index: var(--z-base);
+      max-width: 80rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* Hero metrics */
+    .hero-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--space-lg);
+      margin-bottom: var(--space-2xl);
+    }
+
+    .hero-metric {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .hero-metric-value {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-3xl);
+      font-weight: 300;
+      letter-spacing: 0.3em;
+      color: var(--color-text-heading);
+    }
+
+    .hero-metric-label {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      transition: color var(--transition-fast);
+    }
+
+    .hero-metric:hover .hero-metric-label {
+      color: var(--color-text-primary);
+    }
+
+    /* Tab overrides */
+    .tabs-container {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .tab-content {
+      margin-top: var(--space-xl);
+    }
+
+    /* Flow diagram */
+    .flow-diagram {
+      width: 100%;
+      height: 400px;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background-color: var(--color-bg-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-lg);
+      position: relative;
+    }
+
+    .flow-diagram-svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .flow-counters {
+      display: flex;
+      gap: var(--space-lg);
+    }
+
+    .flow-counter {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-lg);
+      color: var(--color-text-primary);
+      padding: var(--space-md);
+      background-color: var(--color-bg-tertiary);
+      border-radius: var(--border-radius-md);
+      border: var(--border-width-thin) solid var(--color-border);
+    }
+
+    /* Trace table */
+    .trace-table-wrapper {
+      overflow-x: auto;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background-color: var(--color-bg-secondary);
+    }
+
+    /* Chart area */
+    .chart-area {
+      width: 100%;
+      height: 300px;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background-color: var(--color-bg-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-lg);
+      position: relative;
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: var(--space-lg);
+    }
+
+    .stat-item {
+      flex: 1;
+      min-width: 150px;
+    }
+
+    /* Doom placeholder */
+    .doom-placeholder {
+      width: 100%;
+      height: 500px;
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background-color: var(--color-bg-secondary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-lg);
+      color: var(--color-text-secondary);
+    }
+
+    .doom-label {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--color-text-secondary);
+    }
+
+    .doom-canvas {
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-sm);
+    }
+
+    /* Services grid */
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-lg);
+      margin-top: var(--space-lg);
+    }
+
+    .service-card {
+      background-color: var(--color-bg-secondary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      padding: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      transition: all var(--transition-normal);
+    }
+
+    .service-card:hover {
+      background-color: var(--color-bg-tertiary);
+      border-color: var(--color-accent-dim);
+    }
+
+    .service-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .service-name {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: var(--color-text-heading);
+    }
+
+    .service-health {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: var(--space-xs) var(--space-sm);
+      background-color: var(--color-bg-tertiary);
+      border-radius: var(--border-radius-sm);
+    }
+
+    .service-details {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      font-size: var(--font-size-sm);
+      font-family: var(--font-body);
+    }
+
+    .service-detail {
+      display: flex;
+      justify-content: space-between;
+      color: var(--color-text-secondary);
+    }
+
+    .service-detail-value {
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+    }
+
+    /* Infrastructure grid */
+    .infrastructure-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-lg);
+      margin-top: var(--space-lg);
+    }
+
+    .container-card {
+      background-color: var(--color-bg-secondary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      padding: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      transition: all var(--transition-normal);
+    }
+
+    .container-card:hover {
+      border-color: var(--color-accent-dim);
+    }
+
+    .container-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: var(--space-md);
+      border-bottom: var(--border-width-thin) solid var(--color-border);
+    }
+
+    .container-name {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: var(--color-text-heading);
+    }
+
+    .container-status {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .container-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+    }
+
+    /* Log stream */
+    .log-stream {
+      background-color: var(--color-bg-secondary);
+      border: var(--border-width-thin) solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      padding: var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      max-height: 600px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .log-line {
+      color: var(--color-text-primary);
+      padding: var(--space-xs) 0;
+      border-bottom: var(--border-width-thin) solid var(--color-border);
+    }
+
+    .log-line.error {
+      color: var(--color-error);
+    }
+
+    .log-line.info {
+      color: var(--color-text-secondary);
+    }
+
+    .log-filter {
+      display: flex;
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+
+    .log-filter input {
+      flex: 1;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: var(--space-3xl);
+      padding: var(--space-2xl) 0;
+      border-top: var(--border-width-thin) solid var(--color-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+    }
+
+    .footer-version {
+      font-family: var(--font-mono);
+      color: var(--color-text-secondary);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: var(--space-lg);
+    }
+
+    .footer-links a {
+      font-family: var(--font-mono);
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      transition: color var(--transition-fast);
+      font-size: var(--font-size-xs);
+      text-transform: lowercase;
+      letter-spacing: 0.1em;
+    }
+
+    .footer-links a:hover {
+      color: var(--color-accent);
+    }
+
+    .footer-slogan {
+      text-align: center;
+      margin-top: var(--space-2xl);
+      color: var(--color-text-secondary);
+      font-style: italic;
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      letter-spacing: 0.15em;
+      transition: color var(--transition-fast);
+    }
+
+    .footer-slogan:hover {
+      color: var(--color-accent);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      main {
+        padding: var(--space-lg);
+        margin-top: 64px;
+      }
+
+      .hero-bar {
+        grid-template-columns: 1fr;
+      }
+
+      .services-grid,
+      .infrastructure-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .footer {
+        flex-direction: column;
+        gap: var(--space-lg);
+        align-items: flex-start;
+      }
+    }
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-md);
+      padding: var(--space-2xl);
+      text-align: center;
+      color: var(--color-text-secondary);
+      min-height: 200px;
+    }
+
+    .empty-state__glyph {
+      font-size: 3rem;
+      opacity: 0.5;
+      font-family: var(--font-mono);
+    }
+
+    .empty-state__title {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-md);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .empty-state__sub {
+      font-family: var(--font-body);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      max-width: 40ch;
+    }
+
+      </style>
 </head>
 <body>
-    <div id="app">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-left">
-                <h1 class="logo">
-                    <span class="logo-icon">&#x1F451;</span>
-                    <span class="logo-text">Kingdom Dashboard</span>
-                </h1>
-            </div>
-            <div class="header-center">
-                <nav class="nav-tabs" id="nav-tabs">
-                    <button class="nav-tab active" data-page="overview">Overview</button>
-                    <button class="nav-tab" data-page="flows">Flow Graph</button>
-                    <button class="nav-tab" data-page="latency">Latency</button>
-                    <button class="nav-tab" data-page="events">Events</button>
-                    <a class="nav-tab nav-link" href="/viz/doom.html" target="_blank">Doom</a>
-                    <a class="nav-tab nav-link" href="/viz/logs.html" target="_blank">Logs</a>
-                </nav>
-            </div>
-            <div class="header-right">
-                <div class="connection-status" id="connection-status">
-                    <span class="connection-indicator disconnected" id="ws-indicator"></span>
-                    <span class="connection-text" id="ws-status-text">Disconnected</span>
-                </div>
-                <div class="timestamp" id="last-update">--:--:--</div>
-            </div>
-        </header>
+  <!-- Particle background -->
+  <canvas id="particle-canvas"></canvas>
 
-        <!-- ================================================================ -->
-        <!-- PAGE: Overview (System Overview + Service Health)                 -->
-        <!-- ================================================================ -->
-        <main class="page-content active" id="page-overview">
-            <!-- Metrics Cards Row -->
-            <section class="section section-overview">
-                <h2 class="section-title">System Overview</h2>
-                <div class="metrics-grid">
-                    <div class="metric-card" id="metric-services">
-                        <div class="metric-icon">&#x1F4E1;</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="total-services">0</div>
-                            <div class="metric-label">Total Services</div>
-                        </div>
-                    </div>
-                    <div class="metric-card healthy" id="metric-healthy">
-                        <div class="metric-icon">&#x2705;</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="healthy-services">0</div>
-                            <div class="metric-label">Healthy</div>
-                        </div>
-                    </div>
-                    <div class="metric-card degraded" id="metric-degraded">
-                        <div class="metric-icon">&#x26A0;</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="degraded-services">0</div>
-                            <div class="metric-label">Degraded</div>
-                        </div>
-                    </div>
-                    <div class="metric-card unhealthy" id="metric-unhealthy">
-                        <div class="metric-icon">&#x274C;</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="unhealthy-services">0</div>
-                            <div class="metric-label">Unhealthy</div>
-                        </div>
-                    </div>
-                    <div class="metric-card" id="metric-ebpf-events">
-                        <div class="metric-icon">&#x1F50D;</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="ebpf-events-count">0</div>
-                            <div class="metric-label">eBPF Events</div>
-                        </div>
-                    </div>
-                    <div class="metric-card" id="metric-active-flows">
-                        <div class="metric-icon">&#x1F310;</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="active-flows-count">0</div>
-                            <div class="metric-label">Active Flows</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="/" class="nav-logo"><span>(U)</span>NHEADED</a>
+    <ul class="nav-links">
+      <li><a href="/dashboard" class="nav-link active">dashboard</a></li>
+      <li><a href="/kanban" class="nav-link">kanban</a></li>
+      <li><a href="/docs" class="nav-link">docs</a></li>
+      <li><a href="/status" class="nav-link">status</a></li>
+    </ul>
+  </nav>
 
-            <!-- eBPF Stats + Gauges -->
-            <div class="overview-row">
-                <section class="section section-ebpf-stats">
-                    <h2 class="section-title">eBPF Program Stats</h2>
-                    <div class="ebpf-stats-grid" id="ebpf-stats-grid">
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Packets Ingested</div>
-                            <div class="ebpf-stat-value" id="stat-packets">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Flows Tracked</div>
-                            <div class="ebpf-stat-value" id="stat-flows">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Latency Samples</div>
-                            <div class="ebpf-stat-value" id="stat-latency-samples">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Parse Errors</div>
-                            <div class="ebpf-stat-value error" id="stat-errors">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Compute Events</div>
-                            <div class="ebpf-stat-value" id="stat-compute">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Anamnesis Events</div>
-                            <div class="ebpf-stat-value" id="stat-anamnesis">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Events/sec</div>
-                            <div class="ebpf-stat-value" id="stat-eps">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Uptime</div>
-                            <div class="ebpf-stat-value" id="stat-uptime">--</div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="section section-gauges">
-                    <h2 class="section-title">System Resources</h2>
-                    <div class="gauges-container">
-                        <div class="gauge-wrapper">
-                            <canvas id="cpu-gauge" width="120" height="120"></canvas>
-                            <div class="gauge-label">CPU</div>
-                            <div class="gauge-value" id="cpu-value">--%</div>
-                        </div>
-                        <div class="gauge-wrapper">
-                            <canvas id="memory-gauge" width="120" height="120"></canvas>
-                            <div class="gauge-label">Memory</div>
-                            <div class="gauge-value" id="memory-value">--%</div>
-                        </div>
-                        <div class="gauge-wrapper">
-                            <canvas id="goroutines-gauge" width="120" height="120"></canvas>
-                            <div class="gauge-label">Goroutines</div>
-                            <div class="gauge-value" id="goroutines-value">--</div>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <!-- Service Health Grid -->
-            <section class="section section-services">
-                <h2 class="section-title">Service Health</h2>
-                <div class="services-grid" id="services-grid">
-                    <div class="service-card placeholder">
-                        <div class="service-skeleton"></div>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- ================================================================ -->
-        <!-- PAGE: Flow Graph (Real-time network topology)                    -->
-        <!-- ================================================================ -->
-        <main class="page-content" id="page-flows">
-            <section class="section section-flow-full">
-                <div class="flow-toolbar">
-                    <h2 class="section-title">Network Flow Graph</h2>
-                    <div class="flow-controls">
-                        <span class="flow-stat">Active Flows: <span id="flow-graph-count">0</span></span>
-                        <span class="flow-stat">Bytes/s: <span id="flow-bytes-sec">0</span></span>
-                        <span class="flow-stat">Packets/s: <span id="flow-pkts-sec">0</span></span>
-                    </div>
-                </div>
-                <div class="flow-graph-wrapper">
-                    <canvas id="flow-canvas" width="1200" height="600"></canvas>
-                </div>
-                <div class="flow-legend">
-                    <div class="legend-item"><span class="legend-color" style="background:#4ecdc4"></span><span>TCP</span></div>
-                    <div class="legend-item"><span class="legend-color" style="background:#00d26a"></span><span>UDP</span></div>
-                    <div class="legend-item"><span class="legend-color" style="background:#ff6b6b"></span><span>Error</span></div>
-                    <div class="legend-item"><span class="legend-color" style="background:#ffd700"></span><span>New Flow</span></div>
-                    <div class="legend-item"><span class="legend-color" style="background:#6c757d"></span><span>Closing</span></div>
-                </div>
-            </section>
-
-            <!-- Flow table below graph -->
-            <section class="section section-flow-table">
-                <h2 class="section-title">Active Connections</h2>
-                <div class="flow-table-wrapper">
-                    <table class="flow-table" id="flow-table">
-                        <thead>
-                            <tr>
-                                <th>Source</th>
-                                <th>Destination</th>
-                                <th>Protocol</th>
-                                <th>Packets</th>
-                                <th>Bytes</th>
-                                <th>State</th>
-                                <th>Age</th>
-                            </tr>
-                        </thead>
-                        <tbody id="flow-table-body">
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </main>
-
-        <!-- ================================================================ -->
-        <!-- PAGE: Latency Dashboard (P50/P90/P99 histograms)                 -->
-        <!-- ================================================================ -->
-        <main class="page-content" id="page-latency">
-            <section class="section section-latency-summary">
-                <h2 class="section-title">Latency Overview</h2>
-                <div class="latency-summary-grid" id="latency-summary-grid">
-                    <!-- Dynamically populated -->
-                </div>
-            </section>
-
-            <section class="section section-latency-charts">
-                <h2 class="section-title">Latency by Operation</h2>
-                <div class="latency-charts-grid" id="latency-charts-grid">
-                    <!-- Per-operation latency charts -->
-                    <div class="latency-chart-card">
-                        <h3 class="chart-title">tcp_connect</h3>
-                        <canvas id="latency-chart-connect" width="500" height="200"></canvas>
-                        <div class="latency-percentiles" id="percentiles-connect"></div>
-                    </div>
-                    <div class="latency-chart-card">
-                        <h3 class="chart-title">tcp_send</h3>
-                        <canvas id="latency-chart-send" width="500" height="200"></canvas>
-                        <div class="latency-percentiles" id="percentiles-send"></div>
-                    </div>
-                    <div class="latency-chart-card">
-                        <h3 class="chart-title">tcp_recv</h3>
-                        <canvas id="latency-chart-recv" width="500" height="200"></canvas>
-                        <div class="latency-percentiles" id="percentiles-recv"></div>
-                    </div>
-                    <div class="latency-chart-card">
-                        <h3 class="chart-title">http_request</h3>
-                        <canvas id="latency-chart-http" width="500" height="200"></canvas>
-                        <div class="latency-percentiles" id="percentiles-http"></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Latency sparkline history -->
-            <section class="section section-latency-history">
-                <h2 class="section-title">Latency Trend (60s)</h2>
-                <div class="latency-history-wrapper">
-                    <canvas id="latency-history-canvas" width="1200" height="200"></canvas>
-                </div>
-            </section>
-        </main>
-
-        <!-- ================================================================ -->
-        <!-- PAGE: Event Stream (Live scrolling log)                          -->
-        <!-- ================================================================ -->
-        <main class="page-content" id="page-events">
-            <section class="section section-event-controls">
-                <div class="event-toolbar">
-                    <h2 class="section-title">Live Event Stream</h2>
-                    <div class="event-controls">
-                        <div class="event-topic-filter">
-                            <input type="text" id="event-topic-input" class="topic-input" placeholder="Filter by topic (e.g. ebpf.*)">
-                        </div>
-                        <div class="event-type-filters">
-                            <button class="filter-btn active" data-type="all">All</button>
-                            <button class="filter-btn" data-type="packet">Packet</button>
-                            <button class="filter-btn" data-type="flow">Flow</button>
-                            <button class="filter-btn" data-type="latency">Latency</button>
-                            <button class="filter-btn" data-type="syscall">Syscall</button>
-                        </div>
-                        <button class="pause-btn" id="event-pause-btn">Pause</button>
-                    </div>
-                </div>
-            </section>
-
-            <section class="section section-event-stream">
-                <div class="event-stream-stats">
-                    <span>Events: <strong id="event-stream-total">0</strong></span>
-                    <span>Visible: <strong id="event-stream-visible">0</strong></span>
-                    <span>Rate: <strong id="event-stream-rate">0</strong>/s</span>
-                </div>
-                <div class="event-stream-list" id="event-stream-list">
-                    <!-- Live events scroll here -->
-                </div>
-            </section>
-        </main>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <div class="footer-left">
-                <span>Unheaded Kingdom Dashboard v0.2.0</span>
-            </div>
-            <div class="footer-right">
-                <span id="uptime">Uptime: --</span>
-                <span class="separator">|</span>
-                <span id="server-time">Server: --:--:--</span>
-            </div>
-        </footer>
+  <!-- Main Content -->
+  <main>
+    <!-- Hero Bar -->
+    <div class="hero-bar">
+      <div class="hero-metric">
+        <div class="hero-metric-value" id="currentTime">--:--:--</div>
+        <div class="hero-metric-label">current time</div>
+      </div>
+      <div class="hero-metric">
+        <div class="hero-metric-value" id="activeFlows">0</div>
+        <div class="hero-metric-label">active flows</div>
+      </div>
+      <div class="hero-metric">
+        <div class="hero-metric-value" id="packetRate">0/s</div>
+        <div class="hero-metric-label">packet rate</div>
+      </div>
     </div>
 
-    <!-- Toast Notifications Container -->
-    <div id="toast-container"></div>
+    <!-- Tab Navigation -->
+    <div class="tabs-container">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="packet-flow">packet flow</button>
+        <button class="tab-btn" data-tab="trace-table">trace table</button>
+        <button class="tab-btn" data-tab="latency">latency</button>
+        <button class="tab-btn" data-tab="doom">doom</button>
+        <button class="tab-btn" data-tab="services">services</button>
+        <button class="tab-btn" data-tab="infrastructure">infrastructure</button>
+        <button class="tab-btn" data-tab="ai-inference">ai inference</button>
+        <button class="tab-btn" data-tab="logs">logs</button>
+      </div>
 
-    <!-- Scripts -->
-    <script src="dashboard.js"></script>
+      <!-- Packet Flow Tab -->
+      <div id="packet-flow" class="tab-panel active">
+        <div class="tab-content">
+          <div class="flow-diagram">
+            <svg class="flow-diagram-svg" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+              <rect width="800" height="400" fill="none"/>
+              <circle cx="100" cy="200" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="100" y="210" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">INGRESS</text>
+              <circle cx="400" cy="150" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="400" y="160" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">XDP</text>
+              <circle cx="400" cy="250" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="400" y="260" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">TC</text>
+              <circle cx="700" cy="200" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="700" y="210" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">EGRESS</text>
+              <line x1="140" y1="185" x2="360" y2="150" stroke="var(--color-accent-dim)" stroke-width="1" stroke-dasharray="5,5"/>
+              <line x1="140" y1="215" x2="360" y2="250" stroke="var(--color-accent-dim)" stroke-width="1" stroke-dasharray="5,5"/>
+              <line x1="440" y1="150" x2="660" y2="185" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <line x1="440" y1="250" x2="660" y2="215" stroke="var(--color-accent-dim)" stroke-width="1"/>
+              <text x="250" y="130" font-size="11" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.05em">kingdom mode</text>
+              <text x="550" y="130" font-size="11" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.05em">active</text>
+            </svg>
+          </div>
+          <div class="flow-counters">
+            <div class="flow-counter">live flows: <span id="liveFlowCount">0</span></div>
+            <div class="flow-counter">packets/sec: <span id="livePacketRate">0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trace Table Tab -->
+      <div id="trace-table" class="tab-panel">
+        <div class="tab-content">
+          <div class="trace-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>flow label</th>
+                  <th>timestamp</th>
+                  <th>type</th>
+                  <th>kingdom mode</th>
+                  <th>latency</th>
+                  <th>action</th>
+                </tr>
+              </thead>
+              <tbody id="traceTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Latency Tab -->
+      <div id="latency" class="tab-panel">
+        <div class="tab-content">
+          <div class="chart-area">
+            <canvas id="latencyChart" style="width: 100%; height: 100%;"></canvas>
+          </div>
+          <div class="stats-bar">
+            <div class="stat-item metric-card">
+              <div class="metric-label">p50 latency</div>
+              <div class="metric-value" id="p50Latency">--</div>
+            </div>
+            <div class="stat-item metric-card">
+              <div class="metric-label">p95 latency</div>
+              <div class="metric-value" id="p95Latency">--</div>
+            </div>
+            <div class="stat-item metric-card">
+              <div class="metric-label">p99 latency</div>
+              <div class="metric-value" id="p99Latency">--</div>
+            </div>
+            <div class="stat-item metric-card">
+              <div class="metric-label">max latency</div>
+              <div class="metric-value" id="maxLatency">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Doom Tab -->
+      <div id="doom" class="tab-panel">
+        <div class="tab-content">
+          <div class="doom-placeholder">
+            <div class="doom-label">ebpf kernel space monitor</div>
+            <canvas id="doomCanvas" width="800" height="400" class="doom-canvas"></canvas>
+            <div class="doom-label">doom running in bpf maps</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services Tab -->
+      <div id="services" class="tab-panel">
+        <div class="tab-content">
+          <div id="servicesContainer" class="services-grid">
+            <div class="empty-state">
+              <div class="empty-state__glyph">&#9708;</div>
+              <div class="empty-state__title">services</div>
+              <div class="empty-state__sub">loading service registry...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Infrastructure Tab -->
+      <div id="infrastructure" class="tab-panel">
+        <div class="tab-content">
+          <div id="infrastructureContainer" class="infrastructure-grid">
+            <div class="empty-state">
+              <div class="empty-state__glyph">&#11041;</div>
+              <div class="empty-state__title">infrastructure</div>
+              <div class="empty-state__sub">scanning container runtimes...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Inference Tab -->
+      <div id="ai-inference" class="tab-panel">
+        <div class="tab-content" id="aiInferenceContainer">
+          <div class="empty-state">
+            <div class="empty-state__glyph">&#9881;</div>
+            <div class="empty-state__title">ai inference</div>
+            <div class="empty-state__sub">awaiting hardware provisioning...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs Tab -->
+      <div id="logs" class="tab-panel">
+        <div class="tab-content">
+          <div class="log-filter">
+            <input type="search" id="logFilter" placeholder="filter logs...">
+            <button class="btn">clear</button>
+          </div>
+          <div class="log-stream" id="logStream">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-version">v0.1.0-alpha</div>
+      <div class="footer-links">
+        <a href="https://github.com/unheaded/unheaded" target="_blank">github</a>
+        <a href="/docs">documentation</a>
+        <a href="/status">status</a>
+      </div>
+    </footer>
+    <div class="footer-slogan">bellus perennis</div>
+  </main>
+
+  <script src="/static/js/demo-data.js"></script>
+  <script src="/static/js/particles.js"></script>
+  <script>
+    window.DEMO_MODE = true;
+
+    function updateTime() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('currentTime').textContent = `${hours}:${minutes}:${seconds}`;
+    }
+
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabName = btn.getAttribute('data-tab');
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+      });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.DEMO_MODE && window.DemoData) {
+        const tbody = document.getElementById('traceTableBody');
+        window.DemoData.traces.forEach(trace => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td><code>${trace.flowLabel}</code></td>
+            <td class="dim">${new Date(trace.timestamp).toLocaleTimeString()}</td>
+            <td>${trace.type}</td>
+            <td>${trace.kingdomMode}</td>
+            <td>${trace.latency}</td>
+            <td><button class="btn-ghost" style="cursor: pointer;">inspect</button></td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        // Load services from API (falls back to demo data if API unavailable)
+        const servicesContainer = document.getElementById('servicesContainer');
+        fetch('/api/v1/services')
+          .then(r => r.json())
+          .then(data => {
+            const services = data.services || [];
+            servicesContainer.innerHTML = '';
+            services.forEach(svc => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              const name = svc.name || (svc.config && svc.config.service && svc.config.service.name) || 'unknown';
+              const status = svc.status || 'unknown';
+              const port = (svc.config && svc.config.network && svc.config.network.port) || '--';
+              const protocol = (svc.config && svc.config.network && svc.config.network.protocol) || '--';
+              const tier = (svc.config && svc.config.deployment && svc.config.deployment.tier) || '--';
+              card.innerHTML = `
+                <div class="service-header">
+                  <div class="service-name">${name}</div>
+                  <div class="service-health">${status}</div>
+                </div>
+                <div class="service-details">
+                  <div class="service-detail"><span>port</span><span class="service-detail-value">${port}</span></div>
+                  <div class="service-detail"><span>protocol</span><span class="service-detail-value">${protocol}</span></div>
+                  <div class="service-detail"><span>tier</span><span class="service-detail-value">${tier}</span></div>
+                </div>
+              `;
+              servicesContainer.appendChild(card);
+            });
+            if (services.length === 0) {
+              servicesContainer.innerHTML = '<div style="color: var(--color-text-secondary, #888); text-align: center; padding: 2rem;">No services discovered</div>';
+            }
+          })
+          .catch(() => {
+            // Fallback to demo data
+            if (window.DemoData && window.DemoData.services) {
+              servicesContainer.innerHTML = '';
+              window.DemoData.services.forEach(service => {
+                const card = document.createElement('div');
+                card.className = 'service-card';
+                card.innerHTML = `
+                  <div class="service-header">
+                    <div class="service-name">${service.name}</div>
+                    <div class="service-health">${service.health}</div>
+                  </div>
+                  <div class="service-details">
+                    <div class="service-detail"><span>port</span><span class="service-detail-value">${service.port}</span></div>
+                    <div class="service-detail"><span>protocol</span><span class="service-detail-value">${service.protocol}</span></div>
+                    <div class="service-detail"><span>tier</span><span class="service-detail-value">${service.tier}</span></div>
+                  </div>
+                `;
+                servicesContainer.appendChild(card);
+              });
+            }
+          });
+
+        // Load infrastructure from API (falls back to demo data if API unavailable)
+        const infContainer = document.getElementById('infrastructureContainer');
+        fetch('/api/v1/infrastructure/containers')
+          .then(r => r.json())
+          .then(data => {
+            const containers = data.containers || [];
+            infContainer.innerHTML = '';
+            containers.forEach(c => {
+              const card = document.createElement('div');
+              card.className = 'container-card';
+              card.innerHTML = `
+                <div class="container-header">
+                  <div class="container-name">${c.name}</div>
+                  <div class="container-status">${c.status || 'unknown'}</div>
+                </div>
+                <div class="container-info">
+                  <div>image: ${c.image || '--'}</div>
+                  <div>tier: ${c.tier || '--'}</div>
+                  <div>port: ${c.port || '--'}</div>
+                  <div>protocol: ${c.protocol || '--'}</div>
+                </div>
+              `;
+              infContainer.appendChild(card);
+            });
+            if (containers.length === 0) {
+              infContainer.innerHTML = '<div style="color: var(--color-text-secondary, #888); text-align: center; padding: 2rem;">No containers detected</div>';
+            }
+          })
+          .catch(() => {
+            // Fallback to demo data
+            if (window.DemoData && window.DemoData.services) {
+              infContainer.innerHTML = '';
+              window.DemoData.services.forEach((service, idx) => {
+                const card = document.createElement('div');
+                card.className = 'container-card';
+                const containerId = `container-${String(idx + 1).padStart(3, '0')}`;
+                card.innerHTML = `
+                  <div class="container-header">
+                    <div class="container-name">${containerId}</div>
+                    <div class="container-status">running</div>
+                  </div>
+                  <div class="container-info">
+                    <div>image: ${service.protocol.toLowerCase()}:latest</div>
+                    <div>tier: ${service.tier}</div>
+                    <div>port: ${service.port}</div>
+                    <div>protocol: ${service.protocol}</div>
+                  </div>
+                `;
+                infContainer.appendChild(card);
+              });
+            }
+          });
+
+        // Load AI inference models from API (falls back to demo data)
+        const aiContainer = document.getElementById('aiInferenceContainer');
+        fetch('/api/v1/ai/models')
+          .then(r => r.json())
+          .then(data => {
+            const models = data.models || [];
+            aiContainer.innerHTML = '<div class="ai-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem"></div><div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
+            const summary = aiContainer.querySelector('.ai-summary');
+            const grid = aiContainer.querySelector('.ai-models-grid');
+            const online = models.filter(m => m.status === 'online').length;
+            const totalReqs = models.reduce((s, m) => s + (m.requests || 0), 0);
+            const avgLat = models.length ? Math.round(models.reduce((s, m) => s + (m.latency_p50 || 0), 0) / models.length) : 0;
+            [{l:'Requests (24h)',v:totalReqs},{l:'Avg Latency',v:avgLat+'ms'},{l:'Active Models',v:online+'/'+models.length},{l:'GPU Util',v:'--'}].forEach(item => {
+              const box = document.createElement('div');
+              box.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:1rem;text-align:center';
+              box.innerHTML = '<div style="color:var(--color-text-secondary,#888);font-size:0.75rem;margin-bottom:0.25rem">'+item.l+'</div><div style="font-size:1.5rem;font-weight:600;font-family:var(--font-mono,monospace)">'+item.v+'</div>';
+              summary.appendChild(box);
+            });
+            models.forEach(m => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              const statusColor = m.status === 'online' ? '#22c55e' : m.status === 'loading' ? '#eab308' : '#ef4444';
+              card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:'+statusColor+';font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+(m.throughput||'--')+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+(m.latency_p50||'--')+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+(m.latency_p99||'--')+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+(m.requests||0)+'</span></div></div>';
+              grid.appendChild(card);
+            });
+          })
+          .catch(() => {
+            const demoModels = [
+              {name:'deepseek-r1-7b',status:'online',throughput:42,latency_p50:85,latency_p99:220,requests:1247},
+              {name:'qwen-2.5-coder-7b',status:'online',throughput:38,latency_p50:92,latency_p99:245,requests:893},
+              {name:'bge-m3',status:'online',throughput:156,latency_p50:12,latency_p99:28,requests:3450},
+              {name:'qdrant',status:'online',throughput:0,latency_p50:3,latency_p99:8,requests:5200}
+            ];
+            aiContainer.innerHTML = '<div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
+            const grid = aiContainer.querySelector('.ai-models-grid');
+            demoModels.forEach(m => {
+              const card = document.createElement('div');
+              card.className = 'service-card';
+              card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:#22c55e;font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+m.throughput+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+m.latency_p50+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+m.latency_p99+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+m.requests+'</span></div></div>';
+              grid.appendChild(card);
+            });
+          });
+
+        const logStream = document.getElementById('logStream');
+        const logs = [
+          { text: '[INFO] unheaded daemon started', level: 'info' },
+          { text: '[INFO] loading kernel ebpf programs', level: 'info' },
+          { text: '[INFO] attaching xdp hook on eth0', level: 'info' },
+          { text: '[DEBUG] kingdom mode: IDLE', level: 'info' },
+          { text: '[INFO] websocket server listening on :8080', level: 'info' },
+          { text: '[INFO] initial handshake with control plane', level: 'info' },
+          { text: '[DEBUG] flow 0xa3f7e2 ingress packet received', level: 'info' },
+          { text: '[DEBUG] latency sample: 142\u00b5s', level: 'info' },
+          { text: '[INFO] active flows: 12', level: 'info' },
+          { text: '[DEBUG] packet rate: 4521 pps', level: 'info' }
+        ];
+        logStream.innerHTML = logs.map(log =>
+          `<div class="log-line ${log.level}">${log.text}</div>`
+        ).join('');
+
+        document.getElementById('activeFlows').textContent = window.DemoData.metrics?.activeFlows || '12';
+        document.getElementById('packetRate').textContent = (window.DemoData.metrics?.packetRate || 0).toLocaleString() + '/s';
+
+        setInterval(() => {
+          const flowCount = Math.floor(Math.random() * 20 + 5);
+          const pktRate = Math.floor(Math.random() * 10000 + 1000);
+          document.getElementById('activeFlows').textContent = flowCount;
+          document.getElementById('packetRate').textContent = pktRate.toLocaleString() + '/s';
+          document.getElementById('liveFlowCount').textContent = flowCount;
+          document.getElementById('livePacketRate').textContent = pktRate.toLocaleString();
+        }, 2000);
+
+        if (window.DemoData.metrics) {
+          document.getElementById('p50Latency').textContent = window.DemoData.metrics.p50 + '\u00b5s';
+          document.getElementById('p95Latency').textContent = window.DemoData.metrics.p95 + '\u00b5s';
+          document.getElementById('p99Latency').textContent = window.DemoData.metrics.p99 + '\u00b5s';
+          document.getElementById('maxLatency').textContent = window.DemoData.metrics.max + '\u00b5s';
+        }
+      }
+    });
+
+    function connectWebSocket() {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        ws.onopen = () => { console.log('WebSocket connected'); };
+        ws.onmessage = (event) => { console.log('Trace update:', JSON.parse(event.data)); };
+        ws.onerror = (error) => { console.error('WebSocket error:', error); };
+        ws.onclose = () => { console.log('Reconnecting...'); setTimeout(connectWebSocket, 3000); };
+      } catch (e) {
+        console.log('WebSocket not available, using demo mode');
+      }
+    }
+    connectWebSocket();
+  </script>
 </body>
 </html>
