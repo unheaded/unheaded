@@ -1,0 +1,15 @@
+.git
+.gitignore
+**/*_test.go
+**/testdata/
+**/vendor/
+*.md
+*.txt
+!go.mod
+!go.sum
+docs/
+notebooks/
+nixos/
+docker/
+scripts/
+monitoring/

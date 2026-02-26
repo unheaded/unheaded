@@ -1,0 +1,80 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: warn
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait: 10s
+    batchsize: 1048576
+
+scrape_configs:
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project=unheaded"]
+    relabel_configs:
+      # Container name label
+      - source_labels: ['__meta_docker_container_name']
+        action: replace
+        regex: '/?(.+)'
+        target_label: container
+      
+      # Service name label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        action: replace
+        target_label: service
+      
+      # Container ID label
+      - source_labels: ['__meta_docker_container_id']
+        action: replace
+        regex: '(.{12}).*'
+        target_label: container_id
+      
+      # Host label
+      - action: replace
+        replacement: unheaded
+        target_label: host
+      
+      # Skip containers without logs
+      - source_labels: ['__meta_docker_container_log_stream']
+        action: replace
+        target_label: stream
+
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            ts: ts
+            error: error
+            trace_id: trace_id
+      
+      # Extract level as label
+      - labels:
+          level:
+      
+      # Parse timestamp
+      - timestamp:
+          source: ts
+          format: RFC3339Nano
+          fallbacks:
+            - RFC3339
+            - RFC822
+            - unix_ms
+            - unix
+      
+      # Parse multi-line logs (stack traces, etc.)
+      - multiline:
+          line_start_pattern: '^\d{4}-\d{2}-\d{2}T'
+      
+      # Add output label to distinguish stdout/stderr
+      - labels:
+          stream:

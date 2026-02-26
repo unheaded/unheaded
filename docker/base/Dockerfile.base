@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# docker/base/Dockerfile.base — Unheaded multi-stage Go build base
+#
+# Stage 1: builder — full Go toolchain for compilation
+# Stage 2: certs  — pull CA certificates only
+# Stage 3: final  — gcr.io/distroless/static-debian12 (no shell, no package manager)
+#
+# Build args:
+#   SERVICE    — binary name to copy (e.g. monad, sophia, wotan)
+#   VERSION    — git tag / semver (default: dev)
+#   BUILD_DATE — ISO 8601 build timestamp
+#   COMMIT     — git short SHA
+
+ARG GO_VERSION=1.24.0
+ARG SERVICE=undefined
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+ARG COMMIT=unknown
+
+# ─── Stage 1: builder ─────────────────────────────────────────────────────────
+FROM golang:${GO_VERSION}-bookworm AS builder
+
+ARG SERVICE
+ARG VERSION
+ARG BUILD_DATE
+ARG COMMIT
+
+WORKDIR /build
+
+# Cache dependencies first
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
+# Copy all source
+COPY . .
+
+# Build with hardened flags:
+#   -trimpath    removes local paths from binary
+#   -buildvcs=false  reproducible builds
+#   CGO_ENABLED=0   static binary (no libc dependency)
+#   ldflags: strip debug info, inject version metadata
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build \
+      -trimpath \
+      -buildvcs=false \
+      -ldflags="-s -w \
+        -X main.Version=${VERSION} \
+        -X main.BuildDate=${BUILD_DATE} \
+        -X main.Commit=${COMMIT} \
+        -extldflags '-static'" \
+      -o /out/${SERVICE} \
+      ./cmd/${SERVICE}
+
+# ─── Stage 2: certs ───────────────────────────────────────────────────────────
+FROM debian:bookworm-slim AS certs
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# ─── Stage 3: final ───────────────────────────────────────────────────────────
+FROM gcr.io/distroless/static-debian12:nonroot AS final
+
+ARG SERVICE
+ARG VERSION
+ARG BUILD_DATE
+ARG COMMIT
+
+# OCI image labels
+LABEL org.opencontainers.image.title="unheaded-${SERVICE}" \
+      org.opencontainers.image.description="Unheaded Kingdom: ${SERVICE} service" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="Steven Bellis" \
+      org.opencontainers.image.source="https://github.com/stevenrbellis/unheaded"
+
+# Pull CA certs from certs stage
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Pull compiled binary from builder stage
+COPY --from=builder /out/${SERVICE} /usr/local/bin/${SERVICE}
+
+# distroless:nonroot runs as uid 65532 (nonroot user)
+USER nonroot:nonroot
+
+ENTRYPOINT ["/usr/local/bin/${SERVICE}"]

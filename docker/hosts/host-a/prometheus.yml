@@ -1,0 +1,208 @@
+global:
+  scrape_interval: 5s
+  scrape_timeout: 4s
+  evaluation_interval: 5s
+  external_labels:
+    cluster: 'unheaded-kingdom'
+    host: 'host-a'
+    role: 'forge'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # NATS (Wotan)
+  - job_name: 'wotan'
+    static_configs:
+      - targets: ['wotan:8222']
+        labels:
+          service: 'wotan'
+
+  # Core Protocol Services
+  - job_name: 'monad'
+    static_configs:
+      - targets: ['monad:5000']
+        labels:
+          service: 'monad'
+
+  - job_name: 'sophia'
+    static_configs:
+      - targets: ['sophia:5001']
+        labels:
+          service: 'sophia'
+
+  - job_name: 'anamnesis'
+    static_configs:
+      - targets: ['anamnesis:5002']
+        labels:
+          service: 'anamnesis'
+
+  # Core Daemons
+  - job_name: 'shield'
+    static_configs:
+      - targets: ['shield:6000']
+        labels:
+          service: 'shield'
+
+  - job_name: 'unheaded-daemon'
+    static_configs:
+      - targets: ['unheaded-daemon:6001']
+        labels:
+          service: 'unheaded-daemon'
+
+  # API & Dashboard
+  - job_name: 'dashboard-backend'
+    static_configs:
+      - targets: ['dashboard-backend:7000']
+        labels:
+          service: 'dashboard-backend'
+
+  - job_name: 'dashboard-frontend'
+    static_configs:
+      - targets: ['dashboard-frontend:3000']
+        labels:
+          service: 'dashboard-frontend'
+
+  - job_name: 'protocol-api'
+    static_configs:
+      - targets: ['protocol-api:7001']
+        labels:
+          service: 'protocol-api'
+
+  - job_name: 'trace-collector'
+    static_configs:
+      - targets: ['trace-collector:7002']
+        labels:
+          service: 'trace-collector'
+
+  - job_name: 'gateway'
+    static_configs:
+      - targets: ['gateway:8080']
+        labels:
+          service: 'gateway'
+
+  - job_name: 'service-discovery'
+    static_configs:
+      - targets: ['service-discovery:7003']
+        labels:
+          service: 'service-discovery'
+
+  # High-Performance Services
+  - job_name: 'doom'
+    static_configs:
+      - targets: ['doom:8001']
+        labels:
+          service: 'doom'
+
+  - job_name: 'lich'
+    static_configs:
+      - targets: ['lich:8002']
+        labels:
+          service: 'lich'
+
+  # Orchestration Services
+  - job_name: 'captain'
+    static_configs:
+      - targets: ['captain:8003']
+        labels:
+          service: 'captain'
+
+  - job_name: 'micromanager'
+    static_configs:
+      - targets: ['micromanager:8004']
+        labels:
+          service: 'micromanager'
+
+  - job_name: 'timeguru'
+    static_configs:
+      - targets: ['timeguru:8005']
+        labels:
+          service: 'timeguru'
+
+  - job_name: 'architect'
+    static_configs:
+      - targets: ['architect:8006']
+        labels:
+          service: 'architect'
+
+  - job_name: 'developer'
+    static_configs:
+      - targets: ['developer:8007']
+        labels:
+          service: 'developer'
+
+  # Data & Knowledge Services
+  - job_name: 'kanban'
+    static_configs:
+      - targets: ['kanban:8008']
+        labels:
+          service: 'kanban'
+
+  - job_name: 'lore'
+    static_configs:
+      - targets: ['lore:8009']
+        labels:
+          service: 'lore'
+
+  - job_name: 'busboy'
+    static_configs:
+      - targets: ['busboy:8010']
+        labels:
+          service: 'busboy'
+
+  - job_name: 'kingdom'
+    static_configs:
+      - targets: ['kingdom:8011']
+        labels:
+          service: 'kingdom'
+
+  - job_name: 'blackmage'
+    static_configs:
+      - targets: ['blackmage:8012']
+        labels:
+          service: 'blackmage'
+
+  - job_name: 'moatghost'
+    static_configs:
+      - targets: ['moatghost:8013']
+        labels:
+          service: 'moatghost'
+
+  # Telemetry Stack
+  - job_name: 'victoriametrics'
+    static_configs:
+      - targets: ['victoriametrics:8428']
+        labels:
+          service: 'victoriametrics'
+
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          service: 'grafana'
+
+  - job_name: 'ebpf-exporter'
+    static_configs:
+      - targets: ['ebpf-exporter:9435']
+        labels:
+          service: 'ebpf-exporter'
+
+  # Remote write to VictoriaMetrics for long-term storage
+remote_write:
+  - url: http://victoriametrics:8428/api/v1/write
+    queue_config:
+      max_shards: 200
+      max_samples_per_send: 10000
+      capacity: 10000

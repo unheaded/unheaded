@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT
+# WireGuard server configuration (Host-A side)
+# East-west bridge between host-a and host-b
+# MTU: 1380 (IPv6-safe: 1500 - 20 IPv4 - 8 UDP - 32 WireGuard - 40 IPv6 inner = 1380)
+
+[Interface]
+Address = fd00:dead:beef::1/48
+ListenPort = 51820
+PrivateKey = __SERVER_PRIVATE_KEY__
+MTU = 1380
+
+# Enable forwarding for east-west traffic
+PostUp = ip6tables -A FORWARD -i %i -j ACCEPT; ip6tables -A FORWARD -o %i -j ACCEPT; ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = ip6tables -D FORWARD -i %i -j ACCEPT; ip6tables -D FORWARD -o %i -j ACCEPT; ip6tables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+# Client peer (Host-B)
+[Peer]
+PublicKey = __CLIENT_PUBLIC_KEY__
+AllowedIPs = fd00:dead:beef::2/128

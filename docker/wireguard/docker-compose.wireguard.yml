@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# docker/wireguard/docker-compose.wireguard.yml — WireGuard east-west bridge
+
+version: '3.8'
+
+services:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: unheaded-wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - SERVERURL=${WG_SERVERURL:-auto}
+      - SERVERPORT=51820
+      - PEERS=${WG_PEERS:-1}
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=fd00:dead:beef::/48
+      - ALLOWEDIPS=fd00:dead:beef::/48
+      - LOG_CONFS=false
+    volumes:
+      - ./config:/config
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.disable_ipv6=0
+      - net.ipv6.conf.all.forwarding=1
+    restart: unless-stopped
+    networks:
+      - unheaded
+    labels:
+      app: unheaded
+      component: network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wg", "show", "all", "peers"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  unheaded:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+        - subnet: "fd00:dead:cafe::/64"
+          gateway: "fd00:dead:cafe::1"

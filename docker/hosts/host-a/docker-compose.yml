@@ -1,0 +1,1252 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # NATS Message Bus (foundational service)
+  # ============================================================================
+  wotan:
+    image: unheaded-wotan:${VERSION:-dev}
+    container_name: unheaded-wotan
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::101
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_PORT: "4222"
+      NATS_HTTP_PORT: "8222"
+      UNHEADED_ROLE: ${UNHEADED_HOST_ROLE:-forge}
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 1G
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8222"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - wotan-data:/var/lib/wotan
+
+  # ============================================================================
+  # Core Protocol Services
+  # ============================================================================
+  monad:
+    image: unheaded-monad:${VERSION:-dev}
+    container_name: unheaded-monad
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::102
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      MONAD_PORT: "5000"
+    ports:
+      - "5000:5000"
+    depends_on:
+      wotan:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "5000"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - monad-data:/var/lib/monad
+
+  sophia:
+    image: unheaded-sophia:${VERSION:-dev}
+    container_name: unheaded-sophia
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::103
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      SOPHIA_PORT: "5001"
+    ports:
+      - "5001:5001"
+    depends_on:
+      wotan:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "5001"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    volumes:
+      - sophia-data:/var/lib/sophia
+
+  anamnesis:
+    image: unheaded-anamnesis:${VERSION:-dev}
+    container_name: unheaded-anamnesis
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::104
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      ANAMNESIS_PORT: "5002"
+    ports:
+      - "5002:5002"
+    depends_on:
+      wotan:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "5002"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - anamnesis-data:/var/lib/anamnesis
+
+  # ============================================================================
+  # Core Daemons
+  # ============================================================================
+  shield:
+    image: unheaded-shield:${VERSION:-dev}
+    container_name: unheaded-shield
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::201
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      SHIELD_PORT: "6000"
+    ports:
+      - "6000:6000"
+    depends_on:
+      monad:
+        condition: service_healthy
+      sophia:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 2G
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "6000"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - apparmor:unconfined
+      - seccomp:unconfined
+    cap_add:
+      - BPF
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+    privileged: false
+    network_mode: host
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - shield-data:/var/lib/shield
+
+  unheaded-daemon:
+    image: unheaded-daemon:${VERSION:-dev}
+    container_name: unheaded-daemon
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::202
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      DAEMON_PORT: "6001"
+    ports:
+      - "6001:6001"
+    depends_on:
+      monad:
+        condition: service_healthy
+      sophia:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 1G
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "6001"
+      prometheus.io/path: "/metrics"
+    cap_add:
+      - BPF
+      - NET_ADMIN
+    network_mode: host
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - daemon-data:/var/lib/unheaded-daemon
+
+  # ============================================================================
+  # API & Dashboard Services
+  # ============================================================================
+  dashboard-backend:
+    image: unheaded-dashboard-backend:${VERSION:-dev}
+    container_name: unheaded-dashboard-backend
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::301
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      DASHBOARD_BACKEND_PORT: "7000"
+    ports:
+      - "7000:7000"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "7000"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - dashboard-backend-data:/var/lib/dashboard-backend
+
+  dashboard-frontend:
+    image: unheaded-dashboard-frontend:${VERSION:-dev}
+    container_name: unheaded-dashboard-frontend
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::302
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DASHBOARD_FRONTEND_PORT: "3000"
+      API_ENDPOINT: "http://dashboard-backend:7000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      dashboard-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "3000"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+  protocol-api:
+    image: unheaded-protocol-api:${VERSION:-dev}
+    container_name: unheaded-protocol-api
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::303
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      PROTOCOL_API_PORT: "7001"
+    ports:
+      - "7001:7001"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "7001"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - protocol-api-data:/var/lib/protocol-api
+
+  trace-collector:
+    image: unheaded-trace-collector:${VERSION:-dev}
+    container_name: unheaded-trace-collector
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::304
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      TRACE_COLLECTOR_PORT: "7002"
+    ports:
+      - "7002:7002"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "7002"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - trace-collector-data:/var/lib/trace-collector
+
+  gateway:
+    image: unheaded-gateway:${VERSION:-dev}
+    container_name: unheaded-gateway
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::305
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      GATEWAY_PORT: "8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - gateway-data:/var/lib/gateway
+
+  service-discovery:
+    image: unheaded-service-discovery:${VERSION:-dev}
+    container_name: unheaded-service-discovery
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::306
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      SERVICE_DISCOVERY_PORT: "7003"
+    ports:
+      - "7003:7003"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "7003"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - service-discovery-data:/var/lib/service-discovery
+
+  # ============================================================================
+  # High-Performance Services
+  # ============================================================================
+  doom:
+    image: unheaded-doom:${VERSION:-dev}
+    container_name: unheaded-doom
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::401
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      DOOM_PORT: "8001"
+    ports:
+      - "8001:8001"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 1G
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8001"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - doom-data:/var/lib/doom
+
+  lich:
+    image: unheaded-lich:${VERSION:-dev}
+    container_name: unheaded-lich
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::402
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      LICH_PORT: "8002"
+    ports:
+      - "8002:8002"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 2G
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8002"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - lich-data:/var/lib/lich
+
+  # ============================================================================
+  # Orchestration Services
+  # ============================================================================
+  captain:
+    image: unheaded-captain:${VERSION:-dev}
+    container_name: unheaded-captain
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::501
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      CAPTAIN_PORT: "8003"
+    ports:
+      - "8003:8003"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8003"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - captain-data:/var/lib/captain
+
+  micromanager:
+    image: unheaded-micromanager:${VERSION:-dev}
+    container_name: unheaded-micromanager
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::502
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      MICROMANAGER_PORT: "8004"
+    ports:
+      - "8004:8004"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8004"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - micromanager-data:/var/lib/micromanager
+
+  timeguru:
+    image: unheaded-timeguru:${VERSION:-dev}
+    container_name: unheaded-timeguru
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::503
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      TIMEGURU_PORT: "8005"
+    ports:
+      - "8005:8005"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8005"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - timeguru-data:/var/lib/timeguru
+
+  architect:
+    image: unheaded-architect:${VERSION:-dev}
+    container_name: unheaded-architect
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::504
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      ARCHITECT_PORT: "8006"
+    ports:
+      - "8006:8006"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8006"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - architect-data:/var/lib/architect
+
+  developer:
+    image: unheaded-developer:${VERSION:-dev}
+    container_name: unheaded-developer
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::505
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      DEVELOPER_PORT: "8007"
+    ports:
+      - "8007:8007"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8007"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - developer-data:/var/lib/developer
+
+  # ============================================================================
+  # Data & Knowledge Services
+  # ============================================================================
+  kanban:
+    image: unheaded-kanban:${VERSION:-dev}
+    container_name: unheaded-kanban
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::601
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      KANBAN_PORT: "8008"
+    ports:
+      - "8008:8008"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8008"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - kanban-data:/var/lib/kanban
+
+  lore:
+    image: unheaded-lore:${VERSION:-dev}
+    container_name: unheaded-lore
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::602
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      LORE_PORT: "8009"
+    ports:
+      - "8009:8009"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8009"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - lore-data:/var/lib/lore
+
+  busboy:
+    image: unheaded-busboy:${VERSION:-dev}
+    container_name: unheaded-busboy
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::603
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      BUSBOY_PORT: "8010"
+    ports:
+      - "8010:8010"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8010"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - busboy-data:/var/lib/busboy
+
+  kingdom:
+    image: unheaded-kingdom:${VERSION:-dev}
+    container_name: unheaded-kingdom
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::604
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      KINGDOM_PORT: "8011"
+    ports:
+      - "8011:8011"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8011"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - kingdom-data:/var/lib/kingdom
+
+  blackmage:
+    image: unheaded-blackmage:${VERSION:-dev}
+    container_name: unheaded-blackmage
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::605
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      BLACKMAGE_PORT: "8012"
+    ports:
+      - "8012:8012"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8012/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8012"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    cap_add:
+      - NET_RAW
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - blackmage-data:/var/lib/blackmage
+
+  moatghost:
+    image: unheaded-moatghost:${VERSION:-dev}
+    container_name: unheaded-moatghost
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::606
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: "nats://wotan:4222"
+      MOATGHOST_PORT: "8013"
+    ports:
+      - "8013:8013"
+    depends_on:
+      unheaded-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8013/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8013"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - moatghost-data:/var/lib/moatghost
+
+  # ============================================================================
+  # Telemetry Stack
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: unheaded-prometheus
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::701
+    ports:
+      - "9090:9090"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.99.0
+    container_name: unheaded-victoriametrics
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::702
+    ports:
+      - "8428:8428"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    command:
+      - "--storageDataPath=/victoria-metrics-data"
+      - "--retentionPeriod=${VM_RETENTION_PERIOD:-90d}"
+    volumes:
+      - victoriametrics-data:/victoria-metrics-data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8428/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: unheaded-loki
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::703
+    ports:
+      - "3100:3100"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    command:
+      - "-config.file=/etc/loki/local-config.yaml"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: unheaded-grafana
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::704
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY:-changeme32characterssecretkey!!}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_THEME_DEFAULT_DARK_MODE: "true"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-provisioning:/etc/grafana/provisioning:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      victoriametrics:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+  ebpf-exporter:
+    image: unheaded-ebpf-exporter:${VERSION:-dev}
+    container_name: unheaded-ebpf-exporter
+    restart: unless-stopped
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::705
+    ports:
+      - "9435:9435"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EBPF_EXPORTER_PORT: "9435"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9435/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9435"
+      prometheus.io/path: "/metrics"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+volumes:
+  # Core protocol services
+  wotan-data:
+  monad-data:
+  sophia-data:
+  anamnesis-data:
+
+  # Daemons
+  shield-data:
+  daemon-data:
+
+  # API & Dashboard
+  dashboard-backend-data:
+  protocol-api-data:
+  trace-collector-data:
+  gateway-data:
+  service-discovery-data:
+
+  # High-performance services
+  doom-data:
+  lich-data:
+
+  # Orchestration
+  captain-data:
+  micromanager-data:
+  timeguru-data:
+  architect-data:
+  developer-data:
+
+  # Data & Knowledge
+  kanban-data:
+  lore-data:
+  busboy-data:
+  kingdom-data:
+  blackmage-data:
+  moatghost-data:
+
+  # Telemetry
+  prometheus-data:
+  victoriametrics-data:
+  loki-data:
+  grafana-data:
+
+networks:
+  unheaded:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+        - subnet: fd00:dead:beef:1::/64
+    enable_ipv6: true

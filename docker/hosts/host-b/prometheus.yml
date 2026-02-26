@@ -1,0 +1,78 @@
+global:
+  scrape_interval: 10s
+  scrape_timeout: 9s
+  evaluation_interval: 10s
+  external_labels:
+    cluster: 'unheaded-kingdom'
+    host: 'host-b'
+    role: 'outpost'
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          host: 'host-b'
+
+  # NATS (Wotan)
+  - job_name: 'wotan'
+    static_configs:
+      - targets: ['wotan:8222']
+        labels:
+          service: 'wotan'
+          host: 'host-b'
+
+  # Core Protocol Services
+  - job_name: 'monad'
+    static_configs:
+      - targets: ['monad:5000']
+        labels:
+          service: 'monad'
+          host: 'host-b'
+
+  - job_name: 'sophia'
+    static_configs:
+      - targets: ['sophia:5001']
+        labels:
+          service: 'sophia'
+          host: 'host-b'
+
+  - job_name: 'anamnesis'
+    static_configs:
+      - targets: ['anamnesis:5002']
+        labels:
+          service: 'anamnesis'
+          host: 'host-b'
+
+  # API & Dashboard
+  - job_name: 'dashboard-backend'
+    static_configs:
+      - targets: ['dashboard-backend:7000']
+        labels:
+          service: 'dashboard-backend'
+          host: 'host-b'
+
+  - job_name: 'gateway'
+    static_configs:
+      - targets: ['gateway:8080']
+        labels:
+          service: 'gateway'
+          host: 'host-b'
+
+  # Node Exporter for hardware metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          host: 'host-b'
+
+  # Remote write to host-a VictoriaMetrics for centralized storage
+remote_write:
+  - url: http://[fd00:dead:beef::1]:8428/api/v1/write
+    queue_config:
+      max_shards: 50
+      max_samples_per_send: 5000
+      capacity: 5000
