@@ -285,7 +285,6 @@ func (b *BareMetalCollector) parseProcStat(content string) []float64 {
 // collectNetwork reads network metrics from /sys/class/net.
 func (b *BareMetalCollector) collectNetwork() []Sample {
 	var samples []Sample
-	baseLabels := map[string]string{"collector": "baremetal"}
 
 	netPath := filepath.Join(b.sysRoot, "class", "net")
 	entries, err := ioutil.ReadDir(netPath)
