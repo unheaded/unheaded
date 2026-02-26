@@ -1,0 +1,136 @@
+# Prometheus configuration - Primary observability host (Forge, host-a)
+# Unheaded Kingdom infrastructure
+# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: "unheaded"
+    env: "production"
+
+scrape_configs:
+  # Self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node exporters on both hosts
+  - job_name: node_exporter
+    static_configs:
+      - targets:
+          - '[fd00:dead:beef::1]:9100'
+          - '[fd00:dead:beef::2]:9100'
+
+  # Unheaded daemon metrics
+  - job_name: unheaded_daemon
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - '[fd00:dead:beef::1]:9090'
+          - '[fd00:dead:beef::2]:9090'
+
+  # FRR exporter (host-a only)
+  - job_name: frr_exporter
+    static_configs:
+      - targets:
+          - '[fd00:dead:beef::1]:9342'
+
+  # BIRD exporter (host-b only)
+  - job_name: bird_exporter
+    static_configs:
+      - targets:
+          - '[fd00:dead:beef::2]:9324'
+
+  # Routing health checks
+  - job_name: routing_health
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - '[fd00:dead:beef::1]:8080'
+          - '[fd00:dead:beef::2]:8080'
+
+  # Doom Range services (16666-16689)
+  - job_name: doom_services
+    static_configs:
+      # Protocol services
+      - targets: ['[fd00:dead:beef::1]:16666']
+        labels:
+          service: "protocol-api"
+      - targets: ['[fd00:dead:beef::1]:16667']
+        labels:
+          service: "dashboard-backend"
+      - targets: ['[fd00:dead:beef::1]:16668']
+        labels:
+          service: "monad"
+      - targets: ['[fd00:dead:beef::1]:16669']
+        labels:
+          service: "sophia"
+      - targets: ['[fd00:dead:beef::1]:16670']
+        labels:
+          service: "anamnesis"
+      - targets: ['[fd00:dead:beef::1]:16671']
+        labels:
+          service: "wotan"
+      - targets: ['[fd00:dead:beef::1]:16672']
+        labels:
+          service: "shield"
+      - targets: ['[fd00:dead:beef::1]:16673']
+        labels:
+          service: "timeguru-svc"
+      - targets: ['[fd00:dead:beef::1]:16674']
+        labels:
+          service: "captain-svc"
+      - targets: ['[fd00:dead:beef::1]:16675']
+        labels:
+          service: "micromanager-svc"
+      - targets: ['[fd00:dead:beef::1]:16676']
+        labels:
+          service: "architect-svc"
+      - targets: ['[fd00:dead:beef::1]:16677']
+        labels:
+          service: "developer-svc"
+      - targets: ['[fd00:dead:beef::1]:16678']
+        labels:
+          service: "blackmage-svc"
+      - targets: ['[fd00:dead:beef::1]:16679']
+        labels:
+          service: "moatghost-svc"
+      - targets: ['[fd00:dead:beef::1]:16680']
+        labels:
+          service: "busboy-svc"
+      - targets: ['[fd00:dead:beef::1]:16681']
+        labels:
+          service: "lore-svc"
+      - targets: ['[fd00:dead:beef::1]:16682']
+        labels:
+          service: "kingdom-svc"
+      - targets: ['[fd00:dead:beef::1]:16683']
+        labels:
+          service: "rfceditor-svc"
+      - targets: ['[fd00:dead:beef::1]:16684']
+        labels:
+          service: "calendar-svc"
+      - targets: ['[fd00:dead:beef::1]:16685']
+        labels:
+          service: "scientist-svc"
+      - targets: ['[fd00:dead:beef::1]:16686']
+        labels:
+          service: "warmonger-svc"
+      - targets: ['[fd00:dead:beef::1]:16687']
+        labels:
+          service: "librarian-svc"
+      - targets: ['[fd00:dead:beef::1]:16688']
+        labels:
+          service: "barrister-svc"
+      - targets: ['[fd00:dead:beef::1]:16689']
+        labels:
+          service: "unheaded-daemon"
+
+remote_write:
+  - url: 'http://[fd00:dead:beef::1]:8428/api/v1/write'
+    queue_config:
+      max_samples_per_send: 10000
+
+rule_files:
+  - 'rules/*.yml'

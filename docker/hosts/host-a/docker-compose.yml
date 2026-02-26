@@ -1346,6 +1346,34 @@ services:
     read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
+
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: unheaded-promtail
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+      - /etc/unheaded/promtail/promtail-host-a.yaml:/etc/promtail/config.yaml:ro
+    command: -config.file=/etc/promtail/config.yaml
+    networks:
+      unheaded:
+        ipv6_address: fd00:dead:beef:1::100
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3101/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   opnsense-images: null
   opnsense-data: null

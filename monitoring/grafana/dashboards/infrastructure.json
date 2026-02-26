@@ -35,6 +35,244 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
+            "axisLabel": "CPU %",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "100 - (avg by(cpu)(rate(node_cpu_seconds_total{host=\"forge\",mode=\"idle\"}[5m])) * 100)",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Forge CPU Usage",
+          "refId": "A"
+        }
+      ],
+      "title": "Host A - Forge: CPU Usage %",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "decgbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "fields": "",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "(node_memory_MemTotal_bytes{host=\"forge\"} - node_memory_MemAvailable_bytes{host=\"forge\"}) / 1024 / 1024 / 1024",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Memory Used",
+          "refId": "A"
+        }
+      ],
+      "title": "Host A - Forge: Memory Used GB",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Bytes/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "rate(node_disk_read_bytes_total{host=\"forge\"}[5m]) + rate(node_disk_written_bytes_total{host=\"forge\"}[5m])",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Disk I/O",
+          "refId": "A"
+        }
+      ],
+      "title": "Host A - Forge: Disk I/O",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "Packets/sec",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -72,289 +310,7 @@
               }
             ]
           },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
-      "id": 1,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"pass\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "A"
-        },
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"drop\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "B"
-        },
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"redirect\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "C"
-        },
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"tx\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "D"
-        },
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"aborted\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "E"
-        }
-      ],
-      "title": "XDP Packets/sec by Action",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "max": 100,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#00ff88",
-                "value": null
-              },
-              {
-                "color": "#ff6b35",
-                "value": 50
-              },
-              {
-                "color": "#ff2442",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "id": 2,
-      "options": {
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "fields": "",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "expr": "(rate(unheaded_xdp_packets_total{action=\"drop\"}[5m]) / (rate(unheaded_xdp_packets_total[5m])) ) * 100",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "Drop Rate %",
-          "refId": "A"
-        }
-      ],
-      "title": "XDP Drop Rate %",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Latency (ns)",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ns"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 3,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.5, unheaded_flow_latency_ns_bucket)",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "P50",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, unheaded_flow_latency_ns_bucket)",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "P95",
-          "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.99, unheaded_flow_latency_ns_bucket)",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "P99",
-          "refId": "C"
-        }
-      ],
-      "title": "Flow Latency P50/P95/P99 (ns)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Events/sec",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ops"
+          "unit": "pps"
         },
         "overrides": []
       },
@@ -381,14 +337,14 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "rate(unheaded_ring_events_total[5m])",
+          "expr": "rate(node_network_receive_packets_total{host=\"forge\"}[5m]) + rate(node_network_transmit_packets_total{host=\"forge\"}[5m])",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "{{instance}}",
+          "legendFormat": "Network PPS",
           "refId": "A"
         }
       ],
-      "title": "Ring Buffer Events/sec",
+      "title": "Host A - Forge: Network PPS",
       "type": "timeseries"
     },
     {
@@ -399,37 +355,7 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Packet Count",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -446,37 +372,112 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 12,
         "x": 0,
         "y": 16
       },
-      "id": 7,
+      "id": 5,
       "options": {
-        "legend": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "fields": "",
           "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
+            "lastNotNull"
+          ]
         },
-        "tooltip": {
-          "mode": "multi"
-        }
+        "text": {},
+        "textMode": "auto"
       },
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "rate(unheaded_monad_hbh_packets_total[5m])",
+          "expr": "node_load1{host=\"forge\"}",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "HbH Packets",
+          "legendFormat": "Load 1m",
+          "refId": "A"
+        },
+        {
+          "expr": "node_load5{host=\"forge\"}",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Load 5m",
+          "refId": "B"
+        },
+        {
+          "expr": "node_load15{host=\"forge\"}",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Load 15m",
+          "refId": "C"
+        }
+      ],
+      "title": "Host A - Forge: Load Average",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "fields": "",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "time() - node_boot_time_seconds{host=\"forge\"}",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Uptime",
           "refId": "A"
         }
       ],
-      "title": "Monad HbH Packet Count",
-      "type": "timeseries"
+      "title": "Host A - Forge: Uptime",
+      "type": "stat"
     },
     {
       "datasource": {
@@ -491,7 +492,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Pass/Drop Ratio %",
+            "axisLabel": "CPU %",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -535,10 +536,10 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 16
+        "x": 0,
+        "y": 20
       },
-      "id": 8,
+      "id": 7,
       "options": {
         "legend": {
           "calcs": [
@@ -555,14 +556,14 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "rate(unheaded_monad_hbh_pass_total[5m]) / (rate(unheaded_monad_hbh_pass_total[5m]) + rate(unheaded_monad_hbh_drop_total[5m])) * 100",
+          "expr": "100 - (avg by(cpu)(rate(node_cpu_seconds_total{host=\"outpost\",mode=\"idle\"}[5m])) * 100)",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "HbH Pass Ratio",
+          "legendFormat": "Outpost CPU Usage",
           "refId": "A"
         }
       ],
-      "title": "HbH Pass/Drop Ratio %",
+      "title": "Host B - Outpost: CPU Usage %",
       "type": "timeseries"
     },
     {
@@ -580,34 +581,31 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#00ff88",
+                "color": "green",
                 "value": null
               },
               {
-                "color": "#ff6b35",
-                "value": 1
+                "color": "yellow",
+                "value": 75
               },
               {
-                "color": "#ff2442",
-                "value": 5
+                "color": "red",
+                "value": 90
               }
             ]
           },
-          "unit": "short"
+          "unit": "decgbytes"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 24
+        "x": 12,
+        "y": 20
       },
-      "id": 5,
+      "id": 8,
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
           "values": false,
@@ -616,21 +614,195 @@
             "lastNotNull"
           ]
         },
-        "text": {},
-        "textMode": "auto"
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
       },
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "unheaded_bpf_map_errors_total",
+          "expr": "(node_memory_MemTotal_bytes{host=\"outpost\"} - node_memory_MemAvailable_bytes{host=\"outpost\"}) / 1024 / 1024 / 1024",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "{{error_type}}",
+          "legendFormat": "Memory Used",
           "refId": "A"
         }
       ],
-      "title": "BPF Map Errors Total",
-      "type": "stat"
+      "title": "Host B - Outpost: Memory Used GB",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Bytes/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "rate(node_disk_read_bytes_total{host=\"outpost\"}[5m]) + rate(node_disk_written_bytes_total{host=\"outpost\"}[5m])",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Disk I/O",
+          "refId": "A"
+        }
+      ],
+      "title": "Host B - Outpost: Disk I/O",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Packets/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "rate(node_network_receive_packets_total{host=\"outpost\"}[5m]) + rate(node_network_transmit_packets_total{host=\"outpost\"}[5m])",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Network PPS",
+          "refId": "A"
+        }
+      ],
+      "title": "Host B - Outpost: Network PPS",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -642,21 +814,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "#ff2442",
-                  "text": "Down"
-                },
-                "1": {
-                  "color": "#00ff88",
-                  "text": "Up"
-                }
-              },
-              "type": "value"
-            }
-          ],
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -673,10 +831,10 @@
       "gridPos": {
         "h": 4,
         "w": 12,
-        "x": 12,
-        "y": 24
+        "x": 0,
+        "y": 36
       },
-      "id": 6,
+      "id": 11,
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -695,14 +853,87 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "up{job=\"unheaded-ebpf-exporter\"}",
+          "expr": "node_load1{host=\"outpost\"}",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "{{instance}}",
+          "legendFormat": "Load 1m",
+          "refId": "A"
+        },
+        {
+          "expr": "node_load5{host=\"outpost\"}",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Load 5m",
+          "refId": "B"
+        },
+        {
+          "expr": "node_load15{host=\"outpost\"}",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Load 15m",
+          "refId": "C"
+        }
+      ],
+      "title": "Host B - Outpost: Load Average",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "fields": "",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "time() - node_boot_time_seconds{host=\"outpost\"}",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Uptime",
           "refId": "A"
         }
       ],
-      "title": "eBPF Exporter Status",
+      "title": "Host B - Outpost: Uptime",
       "type": "stat"
     }
   ],
@@ -710,9 +941,9 @@
   "schemaVersion": 38,
   "style": "dark",
   "tags": [
-    "ebpf",
-    "xdp",
-    "networking"
+    "infrastructure",
+    "hosts",
+    "monitoring"
   ],
   "templating": {
     "list": []
@@ -723,8 +954,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "eBPF Pipeline",
-  "uid": "unheaded-02",
-  "version": 2,
+  "title": "Unheaded — Infrastructure",
+  "uid": "unheaded-infra",
+  "version": 1,
   "weekStart": ""
 }

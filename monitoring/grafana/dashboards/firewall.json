@@ -35,6 +35,254 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
+            "axisLabel": "Pass Rate %",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 99.9
+              },
+              {
+                "color": "green",
+                "value": 99.95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "min",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "rate(unheaded_monad_hbh_pass_total[5m]) / (rate(unheaded_monad_hbh_pass_total[5m]) + rate(unheaded_monad_hbh_drop_total[5m])) * 100",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Monad HbH Pass Rate %",
+          "refId": "A"
+        }
+      ],
+      "title": "CRITICAL: Monad HbH Pass Rate (< 99.9% = RED alert)",
+      "type": "timeseries",
+      "description": "CRITICAL: HbH drops indicate Monad extension headers being stripped"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 2,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "fields": "",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "unheaded_pf_states_total / unheaded_pf_states_max * 100",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "State Table Usage",
+          "refId": "A"
+        }
+      ],
+      "title": "OPNsense pf State Table Usage",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Connections/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "cps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "rate(unheaded_pf_connections_total[1m])",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Connection Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Connection Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "Packets/sec",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -72,7 +320,7 @@
               }
             ]
           },
-          "unit": "ops"
+          "unit": "pps"
         },
         "overrides": []
       },
@@ -80,289 +328,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
-      },
-      "id": 1,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"pass\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "A"
-        },
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"drop\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "B"
-        },
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"redirect\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "C"
-        },
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"tx\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "D"
-        },
-        {
-          "expr": "rate(unheaded_xdp_packets_total{action=\"aborted\"}[5m])",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{action}}",
-          "refId": "E"
-        }
-      ],
-      "title": "XDP Packets/sec by Action",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "max": 100,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#00ff88",
-                "value": null
-              },
-              {
-                "color": "#ff6b35",
-                "value": 50
-              },
-              {
-                "color": "#ff2442",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "id": 2,
-      "options": {
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "fields": "",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "expr": "(rate(unheaded_xdp_packets_total{action=\"drop\"}[5m]) / (rate(unheaded_xdp_packets_total[5m])) ) * 100",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "Drop Rate %",
-          "refId": "A"
-        }
-      ],
-      "title": "XDP Drop Rate %",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Latency (ns)",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ns"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 3,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.5, unheaded_flow_latency_ns_bucket)",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "P50",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, unheaded_flow_latency_ns_bucket)",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "P95",
-          "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.99, unheaded_flow_latency_ns_bucket)",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "P99",
-          "refId": "C"
-        }
-      ],
-      "title": "Flow Latency P50/P95/P99 (ns)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Events/sec",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
+        "y": 16
       },
       "id": 4,
       "options": {
@@ -381,188 +347,21 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "rate(unheaded_ring_events_total[5m])",
+          "expr": "rate(unheaded_wan_rx_packets_total[5m])",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "{{instance}}",
+          "legendFormat": "WAN RX",
           "refId": "A"
-        }
-      ],
-      "title": "Ring Buffer Events/sec",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Packet Count",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "id": 7,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
         {
-          "expr": "rate(unheaded_monad_hbh_packets_total[5m])",
+          "expr": "rate(unheaded_wan_tx_packets_total[5m])",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "HbH Packets",
-          "refId": "A"
+          "legendFormat": "WAN TX",
+          "refId": "B"
         }
       ],
-      "title": "Monad HbH Packet Count",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Pass/Drop Ratio %",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "id": 8,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "expr": "rate(unheaded_monad_hbh_pass_total[5m]) / (rate(unheaded_monad_hbh_pass_total[5m]) + rate(unheaded_monad_hbh_drop_total[5m])) * 100",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "HbH Pass Ratio",
-          "refId": "A"
-        }
-      ],
-      "title": "HbH Pass/Drop Ratio %",
+      "title": "WAN in/out PPS",
       "type": "timeseries"
     },
     {
@@ -580,16 +379,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#00ff88",
+                "color": "green",
                 "value": null
-              },
-              {
-                "color": "#ff6b35",
-                "value": 1
-              },
-              {
-                "color": "#ff2442",
-                "value": 5
               }
             ]
           },
@@ -598,10 +389,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 24
+        "x": 12,
+        "y": 16
       },
       "id": 5,
       "options": {
@@ -622,14 +413,14 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "unheaded_bpf_map_errors_total",
+          "expr": "unheaded_conntrack_count",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "{{error_type}}",
+          "legendFormat": "Conntrack Count",
           "refId": "A"
         }
       ],
-      "title": "BPF Map Errors Total",
+      "title": "IPFire Conntrack Count",
       "type": "stat"
     },
     {
@@ -640,23 +431,39 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "#ff2442",
-                  "text": "Down"
-                },
-                "1": {
-                  "color": "#00ff88",
-                  "text": "Up"
-                }
-              },
-              "type": "value"
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Packets/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
             }
-          ],
+          },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -666,53 +473,145 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "pps"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 12,
-        "x": 12,
+        "h": 8,
+        "w": 24,
+        "x": 0,
         "y": 24
       },
       "id": 6,
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "fields": "",
+        "legend": {
           "calcs": [
-            "lastNotNull"
-          ]
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
         },
-        "text": {},
-        "textMode": "auto"
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "up{job=\"unheaded-ebpf-exporter\"}",
+          "expr": "rate(unheaded_blocked_packets_total[1m])",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "{{instance}}",
+          "legendFormat": "{{rule}} @ {{host}}",
           "refId": "A"
         }
       ],
-      "title": "eBPF Exporter Status",
-      "type": "stat"
+      "title": "Blocked Packets/sec by Rule",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Packets/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "rate(unheaded_monad_hbh_pass_total[5m])",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "HbH Pass",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(unheaded_monad_hbh_drop_total[5m])",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "HbH Drop",
+          "refId": "B"
+        }
+      ],
+      "title": "HbH Pass vs Drop (Stacked)",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
   "tags": [
-    "ebpf",
-    "xdp",
-    "networking"
+    "firewall",
+    "security",
+    "hbh"
   ],
   "templating": {
     "list": []
@@ -723,8 +622,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "eBPF Pipeline",
-  "uid": "unheaded-02",
-  "version": 2,
+  "title": "Unheaded — Firewall & HbH Monitor",
+  "uid": "unheaded-firewall",
+  "version": 1,
   "weekStart": ""
 }
