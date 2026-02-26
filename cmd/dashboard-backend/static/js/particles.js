@@ -122,8 +122,10 @@
     function init() {
         canvas = document.getElementById('particle-canvas');
         if (!canvas) {
-            console.warn('[Particles] Canvas element not found');
-            return false;
+            canvas = document.createElement('canvas');
+            canvas.id = 'particle-canvas';
+            canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;pointer-events:none;';
+            document.body.appendChild(canvas);
         }
 
         ctx = canvas.getContext('2d');
