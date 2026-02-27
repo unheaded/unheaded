@@ -1,0 +1,1 @@
+./scripts/generate-sbom.sh: line 80: go-licenses: command not found
