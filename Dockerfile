@@ -64,6 +64,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
     -o /build/bin/sophia ./cmd/sophia
 
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME}" \
+    -o /build/bin/dashboard-backend ./cmd/dashboard-backend
+
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /build/bin/kanban-app ./cmd/kanban-app
+
 # ============================================================================
 # STAGE 2: WOTAN - THE FAE CHAMBER
 # ============================================================================
@@ -268,6 +276,58 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 ENTRYPOINT ["/app/unheaded-daemon"]
 
 # ============================================================================
+# STAGE 10: DASHBOARD-BACKEND - THE VISOR (Observability Dashboard)
+# ============================================================================
+FROM alpine:3.19 AS dashboard-backend
+
+RUN apk add --no-cache ca-certificates tzdata
+
+RUN addgroup -g 1000 unheaded && \
+    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/dashboard-backend /app/dashboard-backend
+# Copy advanced visualization files for --viz-dir
+COPY --from=builder /build/dashboard/ /app/viz/
+
+RUN mkdir -p /data && chown unheaded:unheaded /data
+
+USER unheaded
+
+EXPOSE 20000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:20000/health || exit 1
+
+ENTRYPOINT ["/app/dashboard-backend", "--viz-dir", "/app/viz"]
+
+# ============================================================================
+# STAGE 11: KANBAN-APP - THE META MOMENT (Self-Hosting Proof)
+# ============================================================================
+FROM alpine:3.19 AS kanban-app
+
+RUN apk add --no-cache ca-certificates tzdata
+
+RUN addgroup -g 1000 unheaded && \
+    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/kanban-app /app/kanban-app
+
+RUN mkdir -p /data && chown unheaded:unheaded /data
+
+USER unheaded
+
+EXPOSE 20001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:20001/health || exit 1
+
+ENTRYPOINT ["/app/kanban-app"]
+
+# ============================================================================
 # DEFAULT: ALL-IN-ONE (for development)
 # ============================================================================
 FROM alpine:3.19
@@ -362,8 +422,26 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
+
+[program:dashboard-backend]
+command=/app/dashboard-backend
+autostart=true
+autorestart=true
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+
+[program:kanban-app]
+command=/app/kanban-app
+autostart=true
+autorestart=true
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
 EOF
 
-EXPOSE 5555 8080 8081 8082 8083 8084 8085 8086 8087 9090
+EXPOSE 5555 8080 8081 8082 8083 8084 8085 8086 8087 9090 20000 20001
 
 ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
