@@ -5,7 +5,7 @@ package auth
 
 import (
 	"context"
-	"fmt"
+	"net/http"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -33,11 +33,9 @@ func GRPCUnaryInterceptor(auth Authenticator) grpc.UnaryServerInterceptor {
 			return nil, status.Error(codes.Unauthenticated, "missing authorization header")
 		}
 
-		// Create a fake request with the Authorization header for the authenticator
-		// We wrap the metadata in a gRPC-compatible context for the authenticator
-		identity, err := auth.Authenticate(ctx, &fakeHTTPRequest{
-			authHeader: authValues[0],
-		})
+		// Create a minimal http.Request with the Authorization header for the authenticator
+		fakeReq := &http.Request{Header: http.Header{"Authorization": authValues}}
+		identity, err := auth.Authenticate(ctx, fakeReq)
 
 		if err != nil {
 			switch {
@@ -70,9 +68,8 @@ func GRPCStreamInterceptor(auth Authenticator) grpc.StreamServerInterceptor {
 		}
 
 		// Authenticate
-		identity, err := auth.Authenticate(ss.Context(), &fakeHTTPRequest{
-			authHeader: authValues[0],
-		})
+		fakeReq := &http.Request{Header: http.Header{"Authorization": authValues}}
+		identity, err := auth.Authenticate(ss.Context(), fakeReq)
 
 		if err != nil {
 			switch {
@@ -90,20 +87,6 @@ func GRPCStreamInterceptor(auth Authenticator) grpc.StreamServerInterceptor {
 		}
 
 		return handler(srv, wrappedStream)
-	}
-}
-
-// fakeHTTPRequest is a minimal http.Request-like object for passing through
-// to Authenticator implementations that expect http.Request.
-// It implements just enough to satisfy the Authenticator interface.
-type fakeHTTPRequest struct {
-	authHeader string
-}
-
-// Header implements a minimal header getter for the fakeHTTPRequest.
-func (f *fakeHTTPRequest) Header() map[string][]string {
-	return map[string][]string{
-		"authorization": {f.authHeader},
 	}
 }
 

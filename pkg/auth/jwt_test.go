@@ -339,7 +339,7 @@ func TestJWTRejectExpiredTokens(t *testing.T) {
 		Sub:   "user@unheaded.dev",
 		Iss:   "https://auth.unheaded.dev",
 		Aud:   "unheaded-api",
-		Exp:   now.Add(-1 * time.Second).Unix(), // expired
+		Exp:   now.Add(-10 * time.Second).Unix(), // expired beyond 5s clock skew
 		Iat:   now.Add(-5 * time.Minute).Unix(),
 		Roles: []string{"observer"},
 	})
