@@ -71,14 +71,14 @@
 
 | # | Finding | File(s) | Impact |
 |---|---------|---------|--------|
-| 28 | 🟡 Go version 1.21 — update to 1.22+ | `go.mod` | Missing security patches, range-over-func, improved stdlib |
+| 28 | ✅ Go version updated to 1.24.0 | `go.mod` | FIXED: Already at Go 1.24.0 |
 | 29 | 🟡 No structured logging in kanban-app middleware | `middleware.go` | Uses `log.Debug()`/`log.Warn()` (zerolog) but rate limiter cleanup is only structured log |
 | 30 | ✅ Timeguru uses stdlib `log` instead of zerolog | `services/timeguru/cmd/timeguru/main.go` | FIXED: Already uses `github.com/rs/zerolog` |
 | 31 | ✅ `publishTimelineUpdate` generates trace_id with `UnixNano()` | `main.go:393` | FIXED: Uses atomic counter |
 | 32 | ✅ WebSocket client ID uses `UnixNano()` | `server.go:315` | FIXED: Uses `atomic.AddInt64` |
 | 33 | ✅ Coverage not enforced in CI | CI config | FIXED: commit 92dbf78 added CI coverage gate at 50% threshold |
 | 34 | ✅ 90% of Nix integration tests are stubs | `nix/tests/` | FIXED: commit 92dbf78 implemented 4 security tests that validate actual Nix config files |
-| 35 | 🟡 `make deploy` is a no-op | `Makefile` | Deployment pipeline doesn't exist yet |
+| 35 | ✅ `make deploy` fully functional | `Makefile`, `pkg/deploy/` | FIXED: Complete deployment pipeline with rolling/blue-green/canary strategies, health checks, rollback. Makefile targets: deploy, deploy-down, deploy-status, deploy-logs, deploy-restart, deploy-health, deploy-rollback. |
 | 36 | 🟡 Log forwarding commented out | Multiple services | Logs stay local, no aggregation |
 | 37 | ✅ `BroadcastJSON` returns error instead of encoding | `server.go:611` | FIXED: Dead method removed; websocket server uses Broadcast() with raw bytes |
 | 38 | ✅ No request ID / correlation in HTTP middleware | `middleware.go` | FIXED: commit 79a5215 added X-Request-ID middleware to kanban-app |
@@ -101,11 +101,11 @@
 | # | Component | Location | Notes |
 |---|-----------|----------|-------|
 | 43 | ✅ Auth middleware (JWT/mTLS) | `pkg/auth/` | EXISTS: `pkg/auth/auth.go` has skeleton with JWT/mTLS validators, Identity, Middleware (stub, beta-phase) |
-| 44 | Service discovery | `pkg/discovery/` | Hardcoded IPs everywhere, partially addressed by `--services-file` flag (commit d37e324) |
+| 44 | ✅ Service discovery | `pkg/discovery/` | FIXED: S36 Four Pillars — four-layer discovery (Wotan/port-scan/convention/static). All 10 services call discovery.SetupServiceDiscovery() on startup. |
 | 45 | ✅ Fuzz testing | `*_fuzz_test.go` | FIXED: commit 13e43f1 added 18 fuzz targets across 6 packages |
 | 46 | Frontend unit tests | `dashboard/`, `kanban/` | No JS test framework configured |
 | 47 | E2E test suite (real) | `tests/e2e/` | Existing E2E tests are partial |
-| 48 | SBOM generation | CI | No `syft`/`cyclonedx` integration |
+| 48 | ✅ SBOM generation | `scripts/generate-sbom.sh` | FIXED: commit 85a575a — syft auto-download, CycloneDX JSON output to sbom/ |
 | 49 | Container image scanning | CI | No `trivy`/`grype` scanning |
 | 50 | Secrets management | `pkg/secrets/` | No SOPS/age integration yet |
 
