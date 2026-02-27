@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
 
@@ -79,9 +80,14 @@ func main() {
 	router.HandleFunc("/api/v1/timeline", timelineHandler).Methods("GET")
 	router.HandleFunc("/timeline", timelineHandler).Methods("GET")
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("timeguru")
+	var srvHandler http.Handler = router
+	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
+
 	httpServer := &http.Server{
 		Addr:         listenAddress,
-		Handler:      router,
+		Handler:      srvHandler,
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
