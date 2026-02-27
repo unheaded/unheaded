@@ -45,7 +45,8 @@ echo "[*] Building cert-gen tool..."
 go build -o "${PROJECT_DIR}/bin/cert-gen" "${PROJECT_DIR}/cmd/cert-gen"
 
 # Run cert-gen
-ARGS="-out ${CERT_DIR} -ca-validity ${CA_VALIDITY} -cert-validity ${CERT_VALIDITY}"
+# cert-gen uses a single -ttl flag for certificate validity.
+ARGS="-out ${CERT_DIR} -ttl ${CERT_VALIDITY}"
 if [ -n "${SERVICES}" ]; then
     ARGS="${ARGS} -services ${SERVICES}"
 fi
