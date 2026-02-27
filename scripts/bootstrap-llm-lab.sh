@@ -305,18 +305,84 @@ phase_storage() {
     # Create directory hierarchy
     step "Creating directory hierarchy..."
     run mkdir -p "${MODELS_DIR}"
-    run mkdir -p "${HDD_MOUNT}"/{logs,backups,data,scratch}
+    run mkdir -p "${HDD_MOUNT}"/{logs,backups,data,scratch,cache,datasets,tensorboard,wandb}
     run mkdir -p "${NVME_MOUNT}" 2>/dev/null || true
     run mkdir -p "${UNHEADED_HOME}"/{bin,config,data,logs,state,ebpf,certs}
     run mkdir -p /var/lib/unheaded/{state,ebpf,containers}
     run mkdir -p /etc/unheaded
     run mkdir -p /var/log/unheaded
 
-    # Symlink models if HDD is available
+    # ── MAD SCIENTIST STORAGE STRATEGY ──
+    # NVMe = Active Memory (OS, containers, active model, KV cache, scratch)
+    # HDD  = Deep Storage (model library, datasets, logs, caches, checkpoints)
     if mountpoint -q "${HDD_MOUNT}" 2>/dev/null; then
-        step "Symlinking model storage..."
+        step "Configuring NVMe/HDD split storage strategy..."
+
+        # Models: HDD is the archive, symlink to /mnt/models
         [[ -L /mnt/models ]] || run ln -sf "${MODELS_DIR}" /mnt/models
         ok "Models dir: ${MODELS_DIR} → /mnt/models"
+
+        # HuggingFace cache → HDD (can balloon to 100s of GB)
+        run mkdir -p "${HDD_MOUNT}/cache/huggingface"
+        run mkdir -p "${HDD_MOUNT}/cache/pip"
+        run mkdir -p "${HDD_MOUNT}/cache/ollama"
+
+        # Ollama models → HDD
+        run mkdir -p "${HDD_MOUNT}/models/ollama"
+
+        # Active model slot on NVMe (symlink one model here for fast load)
+        run mkdir -p /opt/unheaded/active-model
+        info "Active model slot: /opt/unheaded/active-model (NVMe)"
+        info "  Usage: ln -sf ${MODELS_DIR}/your-model /opt/unheaded/active-model/current"
+        info "  Loading from NVMe: ~5-10s vs HDD: ~1-3min for 70B model"
+
+        # Redirect pip cache → HDD
+        run mkdir -p "${HDD_MOUNT}/cache/pip"
+
+        # Redirect conda/mamba cache → HDD
+        run mkdir -p "${HDD_MOUNT}/cache/conda"
+
+        step "Writing cache redirect environment..."
+        cat > /etc/profile.d/unheaded-storage.sh << STENV
+# ═══════════════════════════════════════════════════════════
+# UNHEADED KINGDOM — MAD SCIENTIST STORAGE STRATEGY
+# NVMe = Active Memory | HDD = Deep Storage Archive
+# ═══════════════════════════════════════════════════════════
+
+# HuggingFace → HDD (model weights, tokenizers, datasets)
+export HF_HOME="${HDD_MOUNT}/cache/huggingface"
+export HF_DATASETS_CACHE="${HDD_MOUNT}/cache/huggingface/datasets"
+export HUGGINGFACE_HUB_CACHE="${HDD_MOUNT}/cache/huggingface/hub"
+
+# hf_transfer: Rust-based parallel downloads (10x faster)
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
+# Ollama → HDD
+export OLLAMA_MODELS="${HDD_MOUNT}/models/ollama"
+
+# pip cache → HDD
+export PIP_CACHE_DIR="${HDD_MOUNT}/cache/pip"
+
+# conda/mamba → HDD
+export CONDA_PKGS_DIRS="${HDD_MOUNT}/cache/conda/pkgs"
+
+# TensorBoard + W&B logs → HDD (write-heavy, not perf-critical)
+export TENSORBOARD_LOGDIR="${HDD_MOUNT}/tensorboard"
+export WANDB_DIR="${HDD_MOUNT}/wandb"
+
+# XDG cache → HDD (npm, go, misc caches)
+export XDG_CACHE_HOME="${HDD_MOUNT}/cache"
+
+# vLLM: AMD AITER acceleration (optimized attention for ROCm)
+export VLLM_USE_AITER=1
+
+# Active model slot (NVMe fast lane)
+export UNHEADED_ACTIVE_MODEL="/opt/unheaded/active-model/current"
+STENV
+        chmod 644 /etc/profile.d/unheaded-storage.sh
+        ok "Storage environment configured — HDD as deep archive, NVMe as active brain"
+    else
+        warn "No HDD mounted — all storage on NVMe (will fill fast with models)"
     fi
 
     ok "Storage layout configured"
@@ -928,40 +994,68 @@ phase_observability() {
 phase_vllm() {
     phase "11/16 — vLLM ROCm INFERENCE SERVER"
 
-    step "Building vLLM ROCm container..."
-    local vllm_dir="${UNHEADED_HOME}/docker/vllm-rocm"
-
-    if [[ -f "${vllm_dir}/Dockerfile" ]]; then
-        info "Using existing Dockerfile at ${vllm_dir}"
-    else
-        info "Dockerfile will be available after cloning unheaded repo"
-    fi
-
-    # Pre-pull ROCm PyTorch base image (big download)
-    step "Pulling ROCm PyTorch base image (this is large, ~15GB)..."
-    run docker pull "rocm/pytorch:6.1.3-ubuntu22.04" 2>/dev/null || {
-        warn "ROCm PyTorch pull failed — try manually:"
-        warn "  docker pull rocm/pytorch:6.1.3-ubuntu22.04"
+    # ── Official AMD vLLM ROCm image (pre-tuned for GFX architectures) ──
+    step "Pulling official AMD vLLM ROCm image (pre-validated, no build needed)..."
+    run docker pull rocm/vllm:latest 2>/dev/null || {
+        warn "Official rocm/vllm:latest pull failed — trying ROCm PyTorch base as fallback..."
+        run docker pull "rocm/pytorch:6.1.3-ubuntu22.04" 2>/dev/null || {
+            warn "Fallback also failed — try manually:"
+            warn "  docker pull rocm/vllm:latest"
+        }
     }
 
-    # Create model download helper
+    # Also pull custom Dockerfile base if repo has one
+    local vllm_dir="${UNHEADED_HOME}/docker/vllm-rocm"
+    if [[ -f "${vllm_dir}/Dockerfile" ]]; then
+        info "Custom Dockerfile also available at ${vllm_dir}"
+        info "Build custom: cd ${vllm_dir} && docker compose -f docker-compose.vllm.yml build"
+    fi
+
+    # ── Install hf_transfer (Rust-based parallel downloader — 10x faster) ──
+    step "Installing hf_transfer (Rust parallel HuggingFace downloads)..."
+    run pip3 install --break-system-packages hf_transfer 2>/dev/null || warn "hf_transfer install failed"
+
+    # ── Install huggingface-cli ──
+    step "Installing huggingface-cli..."
+    run pip3 install --break-system-packages huggingface-hub 2>/dev/null || true
+
+    # ── Model download helper (enhanced with hf_transfer + storage strategy) ──
     step "Creating model download helper..."
     cat > /usr/local/bin/unheaded-download-model << 'MODELDL'
 #!/usr/bin/env bash
-# Download LLM model weights to /mnt/models/
+# ═══════════════════════════════════════════════════════════
+# UNHEADED — LLM Model Downloader
+# Downloads to HDD archive, optionally symlinks to NVMe active slot
+# Uses hf_transfer for 10x faster parallel downloads
+# ═══════════════════════════════════════════════════════════
 set -euo pipefail
-MODELS_DIR="${MODELS_DIR:-/mnt/hdd/models}"
+
+MODELS_DIR="${HF_HOME:-/mnt/hdd/models}"
+ACTIVE_SLOT="/opt/unheaded/active-model/current"
+
+# Enable Rust parallel downloader
+export HF_HUB_ENABLE_HF_TRANSFER=1
 
 usage() {
-    echo "Usage: $0 <huggingface-repo> [output-name]"
-    echo "Example: $0 deepseek-ai/DeepSeek-R1-Distill-Qwen-7B deepseek-r1-7b"
+    echo "Usage: $0 <huggingface-repo> [output-name] [--activate]"
+    echo ""
+    echo "Examples:"
+    echo "  $0 deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+    echo "  $0 deepseek-ai/DeepSeek-R1-Distill-Qwen-7B deepseek-r1-7b --activate"
+    echo ""
+    echo "Flags:"
+    echo "  --activate   Symlink model to NVMe active slot for fast loading"
     echo ""
     echo "Popular models for RX 7700 XT (12GB VRAM):"
-    echo "  deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
-    echo "  mistralai/Mistral-7B-Instruct-v0.3"
-    echo "  meta-llama/Meta-Llama-3.1-8B-Instruct"
-    echo "  Qwen/Qwen2.5-7B-Instruct"
-    echo "  google/gemma-2-9b-it"
+    echo "  deepseek-ai/DeepSeek-R1-Distill-Qwen-7B     (~7B, fits in VRAM)"
+    echo "  mistralai/Mistral-7B-Instruct-v0.3           (~7B, fast inference)"
+    echo "  meta-llama/Meta-Llama-3.1-8B-Instruct        (~8B, great quality)"
+    echo "  Qwen/Qwen2.5-7B-Instruct                    (~7B, multilingual)"
+    echo "  google/gemma-2-9b-it                         (~9B, tight fit)"
+    echo ""
+    echo "Storage strategy:"
+    echo "  Archive (HDD): ${MODELS_DIR}"
+    echo "  Active (NVMe): ${ACTIVE_SLOT}"
     exit 1
 }
 
@@ -969,6 +1063,15 @@ usage() {
 
 REPO="$1"
 NAME="${2:-$(basename "$REPO")}"
+ACTIVATE=false
+
+# Parse --activate flag
+for arg in "$@"; do
+    [[ "$arg" == "--activate" ]] && ACTIVATE=true
+done
+
+echo "Downloading ${REPO} → ${MODELS_DIR}/${NAME}"
+echo "Using hf_transfer for parallel downloads..."
 
 if command -v huggingface-cli &>/dev/null; then
     huggingface-cli download "$REPO" --local-dir "${MODELS_DIR}/${NAME}"
@@ -976,22 +1079,75 @@ elif command -v git &>/dev/null; then
     GIT_LFS_SKIP_SMUDGE=0 git clone "https://huggingface.co/${REPO}" "${MODELS_DIR}/${NAME}"
 else
     echo "ERROR: Need huggingface-cli or git-lfs"
+    echo "  pip install huggingface-hub hf_transfer"
     exit 1
 fi
 
-echo "Model downloaded to: ${MODELS_DIR}/${NAME}"
-echo "Start vLLM with: --model ${MODELS_DIR}/${NAME}"
+echo ""
+echo "✓ Model downloaded to: ${MODELS_DIR}/${NAME}"
+
+if $ACTIVATE; then
+    ln -sfn "${MODELS_DIR}/${NAME}" "${ACTIVE_SLOT}"
+    echo "✓ Activated: ${ACTIVE_SLOT} → ${MODELS_DIR}/${NAME}"
+    echo "  vLLM flag: --model ${ACTIVE_SLOT}"
+else
+    echo "  Activate for NVMe speed: $0 $REPO $NAME --activate"
+fi
+
+echo ""
+echo "Quick start:"
+echo "  # Official AMD image (recommended):"
+echo "  docker run --device=/dev/kfd --device=/dev/dri --group-add video \\"
+echo "    -v ${MODELS_DIR}:/models -p 20100:20100 rocm/vllm:latest \\"
+echo "    --model /models/${NAME} --port 20100 --dtype half"
+echo ""
+echo "  # Custom Unheaded image:"
+echo "  cd docker/vllm-rocm && docker compose -f docker-compose.vllm.yml up -d"
 MODELDL
     chmod +x /usr/local/bin/unheaded-download-model
 
-    # Install huggingface-cli
-    step "Installing huggingface-cli..."
-    run pip3 install --break-system-packages huggingface-hub 2>/dev/null || true
+    # ── Quick-launch helper for official AMD vLLM ──
+    step "Creating vLLM quick-launch helper..."
+    cat > /usr/local/bin/unheaded-vllm-start << 'VLLMSTART'
+#!/usr/bin/env bash
+# Quick-launch vLLM with official AMD ROCm image
+set -euo pipefail
+MODEL="${1:-/models/deepseek-r1-7b}"
+PORT="${2:-20100}"
+
+echo "Starting vLLM on port ${PORT} with model ${MODEL}..."
+docker run -d \
+    --name unheaded-vllm \
+    --restart unless-stopped \
+    --device=/dev/kfd --device=/dev/dri \
+    --group-add video --group-add render \
+    --shm-size=4g \
+    -e HSA_OVERRIDE_GFX_VERSION=11.0.1 \
+    -e PYTORCH_ROCM_ARCH=gfx1101 \
+    -e VLLM_USE_AITER=1 \
+    -v /mnt/hdd/models:/models:ro \
+    -p "${PORT}:${PORT}" \
+    --network unheaded_unheaded \
+    rocm/vllm:latest \
+    --model "${MODEL}" \
+    --port "${PORT}" \
+    --host 0.0.0.0 \
+    --dtype half \
+    --gpu-memory-utilization 0.90 \
+    --max-model-len 8192 \
+    --tensor-parallel-size 1
+
+echo "vLLM starting on port ${PORT}..."
+echo "  Health:  curl http://localhost:${PORT}/health"
+echo "  Models:  curl http://localhost:${PORT}/v1/models"
+echo "  Logs:    docker logs -f unheaded-vllm"
+VLLMSTART
+    chmod +x /usr/local/bin/unheaded-vllm-start
 
     ok "vLLM infrastructure ready"
-    info "Download a model: unheaded-download-model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
-    info "Build container:  cd docker/vllm-rocm && docker compose -f docker-compose.vllm.yml build"
-    info "Start inference:  docker compose -f docker-compose.vllm.yml up -d"
+    info "Download a model:   unheaded-download-model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B deepseek-r1-7b --activate"
+    info "Start inference:    unheaded-vllm-start /models/deepseek-r1-7b"
+    info "Or custom build:    cd docker/vllm-rocm && docker compose -f docker-compose.vllm.yml up -d"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1330,6 +1486,14 @@ alias flames='perf record -g -F 99 -p'
 alias vllm-health='curl -s http://localhost:20100/health | jq'
 alias vllm-models='curl -s http://localhost:20100/v1/models | jq'
 alias vllm-chat='curl -s http://localhost:20100/v1/chat/completions -H "Content-Type: application/json" -d'
+alias vllm-start='unheaded-vllm-start'
+alias vllm-stop='docker stop unheaded-vllm && docker rm unheaded-vllm'
+alias vllm-logs='docker logs -f unheaded-vllm'
+
+# Model management
+alias model-dl='unheaded-download-model'
+alias model-ls='ls -lhS /mnt/hdd/models/'
+alias model-active='readlink -f /opt/unheaded/active-model/current'
 ALIASES
     chmod 644 /etc/profile.d/unheaded-aliases.sh
 
