@@ -617,16 +617,21 @@ func (s *Sampler) ShouldSample(span *Span) bool {
 		s.mu.Unlock()
 	}
 
-	// Probabilistic sampling based on trace ID
-	counter := atomic.AddUint64(&s.counter, 1)
-	threshold := uint64(s.config.SampleRate * float64(^uint64(0)))
+	// Rate 1.0 means sample everything — fast-path to avoid float precision bugs.
+	if s.config.SampleRate >= 1.0 {
+		return true
+	}
 
-	// Use trace ID for consistent sampling across spans in same trace
+	// Probabilistic sampling based on trace ID for consistent decisions
+	// across all spans within the same trace.
+	threshold := uint64(s.config.SampleRate * float64(uint64(1)<<63))
+
 	var hash uint64
 	for i := 0; i < 8; i++ {
 		hash = hash<<8 | uint64(span.TraceID[i])
 	}
-	hash ^= counter // Add entropy
+	// Fold to 63 bits so the comparison space matches the threshold range.
+	hash = hash >> 1
 
 	return hash <= threshold
 }
