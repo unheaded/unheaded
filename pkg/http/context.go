@@ -319,28 +319,53 @@ func (c *Context) RemoteAddr() string {
 	return c.Request.RemoteAddr
 }
 
-// ClientIP attempts to get the real client IP
+// trustedProxies holds IPs whose X-Forwarded-For / X-Real-IP headers are
+// trusted for client IP extraction.  Empty by default — meaning ClientIP()
+// always returns RemoteAddr, which cannot be spoofed by the client.
+// Populate via SetTrustedProxies() when running behind a known load-balancer
+// or reverse proxy (e.g. the Unheaded gateway or LXD bridge).
+var trustedProxies = map[string]bool{}
+
+// SetTrustedProxies configures the set of proxy IPs whose forwarded headers
+// (X-Forwarded-For, X-Real-IP) are trusted by ClientIP().
+func SetTrustedProxies(proxies []string) {
+	m := make(map[string]bool, len(proxies))
+	for _, p := range proxies {
+		m[p] = true
+	}
+	trustedProxies = m
+}
+
+// ClientIP extracts the client IP from the request.
+//
+// It uses RemoteAddr (with port stripped) by default.  X-Forwarded-For
+// and X-Real-IP are only consulted when RemoteAddr belongs to a
+// trusted proxy — preventing spoofing by arbitrary clients.
 func (c *Context) ClientIP() string {
-	// Check X-Forwarded-For header
-	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-		// X-Forwarded-For can contain multiple IPs, take the first
-		if idx := strings.Index(xff, ","); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
+	// Extract peer IP from RemoteAddr (cannot be spoofed)
+	remoteIP := c.Request.RemoteAddr
+	if idx := strings.LastIndex(remoteIP, ":"); idx != -1 {
+		remoteIP = remoteIP[:idx]
+	}
+
+	// Only trust forwarded headers when the direct peer is a known proxy.
+	if trustedProxies[remoteIP] {
+		// Check X-Forwarded-For header
+		if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+			// X-Forwarded-For can contain multiple IPs, take the first
+			if idx := strings.Index(xff, ","); idx != -1 {
+				return strings.TrimSpace(xff[:idx])
+			}
+			return strings.TrimSpace(xff)
 		}
-		return strings.TrimSpace(xff)
+
+		// Check X-Real-IP header
+		if xri := c.GetHeader("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
+		}
 	}
 
-	// Check X-Real-IP header
-	if xri := c.GetHeader("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-
-	// Fall back to RemoteAddr
-	addr := c.Request.RemoteAddr
-	if idx := strings.LastIndex(addr, ":"); idx != -1 {
-		return addr[:idx]
-	}
-	return addr
+	return remoteIP
 }
 
 // UserAgent returns the User-Agent header

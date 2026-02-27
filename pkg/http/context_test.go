@@ -517,65 +517,100 @@ func TestContextGetHeader(t *testing.T) {
 }
 
 func TestContextClientIP(t *testing.T) {
-	tests := []struct {
-		name     string
-		xff      string
-		xri      string
-		remote   string
-		expected string
-	}{
-		{
-			name:     "X-Forwarded-For single",
-			xff:      "192.168.1.1",
-			expected: "192.168.1.1",
-		},
-		{
-			name:     "X-Forwarded-For multiple",
-			xff:      "192.168.1.1, 10.0.0.1, 172.16.0.1",
-			expected: "192.168.1.1",
-		},
-		{
-			name:     "X-Forwarded-For with spaces",
-			xff:      "  192.168.1.1  ",
-			expected: "192.168.1.1",
-		},
-		{
-			name:     "X-Real-IP",
-			xri:      "10.0.0.100",
-			expected: "10.0.0.100",
-		},
-		{
-			name:     "RemoteAddr with port",
-			remote:   "192.168.1.1:12345",
-			expected: "192.168.1.1",
-		},
-		{
-			name:     "RemoteAddr without port",
-			remote:   "192.168.1.1",
-			expected: "192.168.1.1",
-		},
-	}
+	// Secure default: XFF/XRI headers are IGNORED unless the peer is a trusted proxy.
+	// httptest.NewRequest sets RemoteAddr to "192.0.2.1:1234".
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			if tt.xff != "" {
-				req.Header.Set("X-Forwarded-For", tt.xff)
-			}
-			if tt.xri != "" {
-				req.Header.Set("X-Real-IP", tt.xri)
-			}
-			if tt.remote != "" {
-				req.RemoteAddr = tt.remote
-			}
-			c := &Context{Request: req}
+	t.Run("untrusted peer ignores XFF", func(t *testing.T) {
+		SetTrustedProxies(nil) // ensure clean state
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Forwarded-For", "192.168.1.1")
+		c := &Context{Request: req}
+		got := c.ClientIP()
+		if got != "192.0.2.1" {
+			t.Errorf("expected RemoteAddr '192.0.2.1', got '%s'", got)
+		}
+	})
 
-			got := c.ClientIP()
-			if got != tt.expected {
-				t.Errorf("expected '%s', got '%s'", tt.expected, got)
-			}
-		})
-	}
+	t.Run("untrusted peer ignores XRI", func(t *testing.T) {
+		SetTrustedProxies(nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Real-IP", "10.0.0.100")
+		c := &Context{Request: req}
+		got := c.ClientIP()
+		if got != "192.0.2.1" {
+			t.Errorf("expected RemoteAddr '192.0.2.1', got '%s'", got)
+		}
+	})
+
+	t.Run("trusted proxy uses XFF single", func(t *testing.T) {
+		SetTrustedProxies([]string{"192.0.2.1"})
+		defer SetTrustedProxies(nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Forwarded-For", "192.168.1.1")
+		c := &Context{Request: req}
+		got := c.ClientIP()
+		if got != "192.168.1.1" {
+			t.Errorf("expected '192.168.1.1', got '%s'", got)
+		}
+	})
+
+	t.Run("trusted proxy uses XFF multiple", func(t *testing.T) {
+		SetTrustedProxies([]string{"192.0.2.1"})
+		defer SetTrustedProxies(nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Forwarded-For", "192.168.1.1, 10.0.0.1, 172.16.0.1")
+		c := &Context{Request: req}
+		got := c.ClientIP()
+		if got != "192.168.1.1" {
+			t.Errorf("expected '192.168.1.1', got '%s'", got)
+		}
+	})
+
+	t.Run("trusted proxy uses XFF with spaces", func(t *testing.T) {
+		SetTrustedProxies([]string{"192.0.2.1"})
+		defer SetTrustedProxies(nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Forwarded-For", "  192.168.1.1  ")
+		c := &Context{Request: req}
+		got := c.ClientIP()
+		if got != "192.168.1.1" {
+			t.Errorf("expected '192.168.1.1', got '%s'", got)
+		}
+	})
+
+	t.Run("trusted proxy uses XRI", func(t *testing.T) {
+		SetTrustedProxies([]string{"192.0.2.1"})
+		defer SetTrustedProxies(nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Real-IP", "10.0.0.100")
+		c := &Context{Request: req}
+		got := c.ClientIP()
+		if got != "10.0.0.100" {
+			t.Errorf("expected '10.0.0.100', got '%s'", got)
+		}
+	})
+
+	t.Run("RemoteAddr with port", func(t *testing.T) {
+		SetTrustedProxies(nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = "192.168.1.1:12345"
+		c := &Context{Request: req}
+		got := c.ClientIP()
+		if got != "192.168.1.1" {
+			t.Errorf("expected '192.168.1.1', got '%s'", got)
+		}
+	})
+
+	t.Run("RemoteAddr without port", func(t *testing.T) {
+		SetTrustedProxies(nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = "192.168.1.1"
+		c := &Context{Request: req}
+		got := c.ClientIP()
+		if got != "192.168.1.1" {
+			t.Errorf("expected '192.168.1.1', got '%s'", got)
+		}
+	})
 }
 
 // --- Context Values (Request-Scoped Storage) Tests ---
