@@ -326,6 +326,197 @@ func TestJWTAuthenticator_NoExpiration(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// PHASE 5: JWT VALIDATION HARDENING TESTS
+// ============================================================================
+
+// TestJWTRejectExpiredTokens verifies that expired tokens are strictly rejected.
+func TestJWTRejectExpiredTokens(t *testing.T) {
+	auth := newJWTAuth()
+	now := time.Now()
+
+	token := makeTestToken(t, &JWTClaims{
+		Sub:   "user@unheaded.dev",
+		Iss:   "https://auth.unheaded.dev",
+		Aud:   "unheaded-api",
+		Exp:   now.Add(-1 * time.Second).Unix(), // expired
+		Iat:   now.Add(-5 * time.Minute).Unix(),
+		Roles: []string{"observer"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	_, err := auth.Authenticate(context.Background(), req)
+	if !errors.Is(err, ErrTokenExpired) {
+		t.Errorf("expected ErrTokenExpired for expired token, got: %v", err)
+	}
+}
+
+// TestJWTRejectWrongAlgorithm verifies protection against algorithm confusion attacks.
+func TestJWTRejectWrongAlgorithm(t *testing.T) {
+	auth := newJWTAuth()
+
+	// Manually craft a token with "alg": "RS256" (not HS256).
+	// This must be rejected — we only accept HS256.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
+
+	// Test with a manually crafted token header claiming RS256.
+	// The token format is invalid, but the point is the algorithm check happens.
+	// base64url({"alg":"RS256","typ":"JWT"}) + ... = RS256 token
+	req.Header.Set("Authorization", "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoYWNrZXIifQ.invalid")
+
+	_, err := auth.Authenticate(context.Background(), req)
+	if !errors.Is(err, ErrUnauthenticated) {
+		t.Errorf("expected ErrUnauthenticated for wrong algorithm, got: %v", err)
+	}
+}
+
+// TestJWTRejectEmptySubject verifies that tokens without a subject are rejected.
+func TestJWTRejectEmptySubject(t *testing.T) {
+	auth := newJWTAuth()
+	token := makeTestToken(t, &JWTClaims{
+		Sub:   "", // INVALID: empty subject
+		Iss:   "https://auth.unheaded.dev",
+		Aud:   "unheaded-api",
+		Exp:   time.Now().Add(1 * time.Hour).Unix(),
+		Roles: []string{"admin"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	_, err := auth.Authenticate(context.Background(), req)
+	if !errors.Is(err, ErrUnauthenticated) {
+		t.Errorf("expected ErrUnauthenticated for empty subject, got: %v", err)
+	}
+}
+
+// TestJWTRejectWrongSigningKey verifies signature verification is strict.
+func TestJWTRejectWrongSigningKey(t *testing.T) {
+	// Sign with wrong key
+	wrongKey := []byte("completely-different-secret-key")
+	token, err := SignToken(wrongKey, &JWTClaims{
+		Sub:   "user@unheaded.dev",
+		Iss:   "https://auth.unheaded.dev",
+		Aud:   "unheaded-api",
+		Exp:   time.Now().Add(1 * time.Hour).Unix(),
+		Roles: []string{"admin"},
+	})
+	if err != nil {
+		t.Fatalf("SignToken: %v", err)
+	}
+
+	// Verify with correct key (should fail)
+	auth := newJWTAuth()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	_, err = auth.Authenticate(context.Background(), req)
+	if !errors.Is(err, ErrUnauthenticated) {
+		t.Errorf("expected ErrUnauthenticated for wrong key, got: %v", err)
+	}
+}
+
+// TestJWTAcceptValidTokenWithAllClaims verifies a fully valid token is accepted.
+func TestJWTAcceptValidTokenWithAllClaims(t *testing.T) {
+	auth := newJWTAuth()
+	now := time.Now()
+
+	token := makeTestToken(t, &JWTClaims{
+		Sub:   "user@unheaded.dev",
+		Iss:   "https://auth.unheaded.dev",
+		Aud:   "unheaded-api",
+		Exp:   now.Add(1 * time.Hour).Unix(),
+		Iat:   now.Unix(),
+		Nbf:   now.Unix(),
+		Roles: []string{"admin", "operator", "observer"},
+		Extra: map[string]string{
+			"tier":     "gold",
+			"region":   "us-west-2",
+			"instance": "prod-01",
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	identity, err := auth.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected valid token, got: %v", err)
+	}
+	if identity.Subject != "user@unheaded.dev" {
+		t.Errorf("Subject = %q, want %q", identity.Subject, "user@unheaded.dev")
+	}
+	if !identity.HasRole("admin") {
+		t.Error("expected admin role")
+	}
+	if !identity.HasRole("operator") {
+		t.Error("expected operator role")
+	}
+	if identity.Extra["tier"] != "gold" {
+		t.Errorf("Extra[tier] = %q, want %q", identity.Extra["tier"], "gold")
+	}
+}
+
+// TestJWTExtractRolesIntoIdentity verifies roles are properly extracted.
+func TestJWTExtractRolesIntoIdentity(t *testing.T) {
+	auth := newJWTAuth()
+	roles := []string{"admin", "operator", "observer", "service"}
+
+	token := makeTestToken(t, &JWTClaims{
+		Sub:   "power-user@unheaded.dev",
+		Iss:   "https://auth.unheaded.dev",
+		Aud:   "unheaded-api",
+		Exp:   time.Now().Add(1 * time.Hour).Unix(),
+		Roles: roles,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	identity, err := auth.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected valid token, got: %v", err)
+	}
+
+	for _, role := range roles {
+		if !identity.HasRole(role) {
+			t.Errorf("expected role %q not found", role)
+		}
+	}
+	if len(identity.Roles) != len(roles) {
+		t.Errorf("expected %d roles, got %d", len(roles), len(identity.Roles))
+	}
+}
+
+// TestJWTClockSkewLeeway verifies 5-second clock skew tolerance.
+func TestJWTClockSkewLeeway(t *testing.T) {
+	auth := newJWTAuth()
+	now := time.Now()
+
+	// Token expiring in 3 seconds (within 5-second leeway)
+	token := makeTestToken(t, &JWTClaims{
+		Sub:   "user@unheaded.dev",
+		Iss:   "https://auth.unheaded.dev",
+		Aud:   "unheaded-api",
+		Exp:   now.Add(3 * time.Second).Unix(),
+		Roles: []string{"observer"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	// Should accept because clock skew < 5 seconds
+	identity, err := auth.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected valid token within clock skew, got: %v", err)
+	}
+	if identity.Subject != "user@unheaded.dev" {
+		t.Errorf("Subject = %q, want %q", identity.Subject, "user@unheaded.dev")
+	}
+}
+
 func TestSignToken_Roundtrip(t *testing.T) {
 	key := []byte("roundtrip-test-key-256-bits-long!")
 

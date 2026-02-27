@@ -277,3 +277,250 @@ func TestRBACMiddleware_AuditFunc(t *testing.T) {
 		t.Errorf("expected 1 allowed event, got %d events", len(events))
 	}
 }
+
+// ============================================================================
+// PHASE 5: RBAC ENFORCEMENT HARDENING TESTS
+// ============================================================================
+
+// TestRBACAdminFullAccess verifies admin role has full access.
+func TestRBACAdminFullAccess(t *testing.T) {
+	cfg := DefaultServicePolicies("test")
+	mw := RBACMiddleware(cfg)
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	adminIdentity := &Identity{
+		Subject: "admin-user",
+		Roles:   []string{RoleAdmin},
+	}
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/v1/data"},
+		{http.MethodPost, "/api/v1/data"},
+		{http.MethodPut, "/api/v1/config/something"},
+		{http.MethodDelete, "/api/v1/deploy/service"},
+		{http.MethodGet, "/api/v1/admin/users"},
+		{http.MethodPost, "/api/v1/admin/settings"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			ctx := context.WithValue(req.Context(), identityKey, adminIdentity)
+			req = req.WithContext(ctx)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != http.StatusOK {
+				t.Errorf("expected 200, got %d", rr.Code)
+			}
+		})
+	}
+}
+
+// TestRBACObserverReadOnly verifies observer can only read.
+func TestRBACObserverReadOnly(t *testing.T) {
+	cfg := DefaultServicePolicies("test")
+	mw := RBACMiddleware(cfg)
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	observerIdentity := &Identity{
+		Subject: "observer-user",
+		Roles:   []string{RoleObserver},
+	}
+
+	// Observer can GET
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/data", nil)
+	ctx := context.WithValue(req.Context(), identityKey, observerIdentity)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("observer GET /api/v1/data: expected 200, got %d", rr.Code)
+	}
+
+	// Observer cannot POST
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/data", nil)
+	ctx = context.WithValue(req.Context(), identityKey, observerIdentity)
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("observer POST /api/v1/data: expected 403, got %d", rr.Code)
+	}
+
+	// Observer cannot access admin
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil)
+	ctx = context.WithValue(req.Context(), identityKey, observerIdentity)
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("observer GET /api/v1/admin/users: expected 403, got %d", rr.Code)
+	}
+}
+
+// TestRBACServiceInterServiceAccess verifies service role for inter-service calls.
+func TestRBACServiceInterServiceAccess(t *testing.T) {
+	cfg := DefaultServicePolicies("test")
+	mw := RBACMiddleware(cfg)
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	serviceIdentity := &Identity{
+		Subject: "timeguru",
+		Roles:   []string{RoleService},
+	}
+
+	// Service can GET
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/data", nil)
+	ctx := context.WithValue(req.Context(), identityKey, serviceIdentity)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("service GET /api/v1/data: expected 200, got %d", rr.Code)
+	}
+
+	// Service can POST (write via inter-service token)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/data", nil)
+	ctx = context.WithValue(req.Context(), identityKey, serviceIdentity)
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("service POST /api/v1/data: expected 200, got %d", rr.Code)
+	}
+
+	// Service cannot access admin endpoints
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil)
+	ctx = context.WithValue(req.Context(), identityKey, serviceIdentity)
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("service GET /api/v1/admin/users: expected 403, got %d", rr.Code)
+	}
+}
+
+// TestRBACGuestPublicOnly verifies guest can only access public endpoints.
+func TestRBACGuestPublicOnly(t *testing.T) {
+	cfg := DefaultServicePolicies("test")
+	mw := RBACMiddleware(cfg)
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	guestIdentity := &Identity{
+		Subject: "public",
+		Roles:   []string{RoleGuest},
+	}
+
+	// Guest can access health
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	ctx := context.WithValue(req.Context(), identityKey, guestIdentity)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("guest GET /health: expected 200, got %d", rr.Code)
+	}
+
+	// Guest cannot access API
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/data", nil)
+	ctx = context.WithValue(req.Context(), identityKey, guestIdentity)
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("guest GET /api/v1/data: expected 403, got %d", rr.Code)
+	}
+}
+
+// TestRBACRejectNoRole verifies that missing role is denied.
+func TestRBACRejectNoRole(t *testing.T) {
+	cfg := RBACConfig{
+		ServiceName:   "test",
+		DefaultPolicy: []string{RoleAdmin, RoleOperator},
+	}
+	mw := RBACMiddleware(cfg)
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Identity with no matching role
+	guestIdentity := &Identity{
+		Subject: "public",
+		Roles:   []string{RoleGuest},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/data", nil)
+	ctx := context.WithValue(req.Context(), identityKey, guestIdentity)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for non-matching role, got %d", rr.Code)
+	}
+}
+
+// TestRBACRoleHierarchy verifies role hierarchy: admin > operator > observer > service > guest.
+func TestRBACRoleHierarchy(t *testing.T) {
+	cfg := DefaultServicePolicies("test")
+	mw := RBACMiddleware(cfg)
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// All roles should access read-only GET /api/v1/* (except guest)
+	adminIdentity := &Identity{Subject: "admin", Roles: []string{RoleAdmin}}
+	operatorIdentity := &Identity{Subject: "operator", Roles: []string{RoleOperator}}
+	observerIdentity := &Identity{Subject: "observer", Roles: []string{RoleObserver}}
+	serviceIdentity := &Identity{Subject: "svc", Roles: []string{RoleService}}
+	guestIdentity := &Identity{Subject: "guest", Roles: []string{RoleGuest}}
+
+	identities := []struct {
+		name     string
+		id       *Identity
+		canRead  bool
+		canWrite bool
+	}{
+		{"admin", adminIdentity, true, true},
+		{"operator", operatorIdentity, true, true},
+		{"observer", observerIdentity, true, false},
+		{"service", serviceIdentity, true, true},
+		{"guest", guestIdentity, false, false},
+	}
+
+	for _, id := range identities {
+		// Test READ
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/data", nil)
+		ctx := context.WithValue(req.Context(), identityKey, id.id)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if id.canRead && rr.Code != http.StatusOK {
+			t.Errorf("%s read: expected 200, got %d", id.name, rr.Code)
+		} else if !id.canRead && rr.Code != http.StatusForbidden {
+			t.Errorf("%s read: expected 403, got %d", id.name, rr.Code)
+		}
+
+		// Test WRITE (POST)
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/data", nil)
+		ctx = context.WithValue(req.Context(), identityKey, id.id)
+		req = req.WithContext(ctx)
+		rr = httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if id.canWrite && rr.Code != http.StatusOK {
+			t.Errorf("%s write: expected 200, got %d", id.name, rr.Code)
+		} else if !id.canWrite && rr.Code != http.StatusForbidden {
+			t.Errorf("%s write: expected 403, got %d", id.name, rr.Code)
+		}
+	}
+}

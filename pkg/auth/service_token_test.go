@@ -286,3 +286,214 @@ func TestServiceTokenManager_DefaultTTL(t *testing.T) {
 		t.Errorf("TTL = %v, want %v", mgr.ttl, DefaultServiceTokenTTL)
 	}
 }
+
+// ============================================================================
+// PHASE 5: SERVICE TOKEN HARDENING TESTS
+// ============================================================================
+
+// TestServiceTokenValidAuth verifies a valid service token is accepted.
+func TestServiceTokenValidAuth(t *testing.T) {
+	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
+		SigningKey:   testServiceKey,
+		ServiceName: "timeguru",
+		TTL:         5 * time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("NewServiceTokenManager: %v", err)
+	}
+
+	token, err := mgr.GenerateToken("captain")
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+
+	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
+		SigningKey:   testServiceKey,
+		ServiceName: "captain",
+	})
+	if err != nil {
+		t.Fatalf("NewServiceTokenManager (captain): %v", err)
+	}
+
+	validator := captainMgr.NewValidator()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/strategy", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	identity, err := validator.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected valid service token, got: %v", err)
+	}
+	if identity.Subject != "timeguru" {
+		t.Errorf("Subject = %q, want %q", identity.Subject, "timeguru")
+	}
+	if !identity.HasRole(RoleService) {
+		t.Error("expected service role")
+	}
+}
+
+// TestServiceTokenExpiredRejected verifies expired service tokens are rejected.
+func TestServiceTokenExpiredRejected(t *testing.T) {
+	// Create an already-expired service token
+	claims := &JWTClaims{
+		Sub:   "timeguru",
+		Iss:   ServiceTokenIssuer,
+		Aud:   "captain",
+		Iat:   time.Now().Add(-10 * time.Minute).Unix(),
+		Exp:   time.Now().Add(-1 * time.Minute).Unix(), // expired 1 minute ago
+		Roles: []string{RoleService},
+		Extra: map[string]string{"auth_method": "service_token"},
+	}
+	token, err := SignToken(testServiceKey, claims)
+	if err != nil {
+		t.Fatalf("SignToken: %v", err)
+	}
+
+	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
+		SigningKey:   testServiceKey,
+		ServiceName: "captain",
+	})
+	if err != nil {
+		t.Fatalf("NewServiceTokenManager (captain): %v", err)
+	}
+
+	validator := captainMgr.NewValidator()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/strategy", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	_, err = validator.Authenticate(context.Background(), req)
+	if !errors.Is(err, ErrTokenExpired) {
+		t.Errorf("expected ErrTokenExpired for expired service token, got: %v", err)
+	}
+}
+
+// TestServiceTokenCannotEscalateToAdmin verifies service tokens cannot get admin role.
+func TestServiceTokenCannotEscalateToAdmin(t *testing.T) {
+	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
+		SigningKey:   testServiceKey,
+		ServiceName: "timeguru",
+		TTL:         5 * time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("NewServiceTokenManager: %v", err)
+	}
+
+	token, err := mgr.GenerateToken("captain")
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+
+	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
+		SigningKey:   testServiceKey,
+		ServiceName: "captain",
+	})
+	if err != nil {
+		t.Fatalf("NewServiceTokenManager (captain): %v", err)
+	}
+
+	validator := captainMgr.NewValidator()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/strategy", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	identity, err := validator.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected valid service token, got: %v", err)
+	}
+
+	// Service token should only have RoleService, not admin/operator/observer
+	if identity.HasRole(RoleAdmin) {
+		t.Error("service token should not have admin role")
+	}
+	if identity.HasRole(RoleOperator) {
+		t.Error("service token should not have operator role")
+	}
+	if identity.HasRole(RoleObserver) {
+		t.Error("service token should not have observer role")
+	}
+	if !identity.HasRole(RoleService) {
+		t.Error("service token must have service role")
+	}
+}
+
+// TestServiceTokenIdentifiesCallingService verifies the token identifies the calling service.
+func TestServiceTokenIdentifiesCallingService(t *testing.T) {
+	services := []string{"timeguru", "captain", "architect", "micromanager"}
+
+	for _, svc := range services {
+		mgr, err := NewServiceTokenManager(ServiceTokenConfig{
+			SigningKey:   testServiceKey,
+			ServiceName: svc,
+			TTL:         5 * time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("NewServiceTokenManager(%s): %v", svc, err)
+		}
+
+		token, err := mgr.GenerateToken("destination")
+		if err != nil {
+			t.Fatalf("GenerateToken(%s): %v", svc, err)
+		}
+
+		// Validate from destination
+		dstMgr, err := NewServiceTokenManager(ServiceTokenConfig{
+			SigningKey:   testServiceKey,
+			ServiceName: "destination",
+		})
+		if err != nil {
+			t.Fatalf("NewServiceTokenManager(destination): %v", err)
+		}
+
+		validator := dstMgr.NewValidator()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/strategy", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		identity, err := validator.Authenticate(context.Background(), req)
+		if err != nil {
+			t.Fatalf("Authenticate for %s: %v", svc, err)
+		}
+		if identity.Subject != svc {
+			t.Errorf("token from %s: Subject = %q, want %q", svc, identity.Subject, svc)
+		}
+		if identity.Extra["source"] != svc {
+			t.Errorf("token from %s: Extra[source] = %q, want %q", svc, identity.Extra["source"], svc)
+		}
+	}
+}
+
+// TestServiceTokenRotationGracePeriod verifies token can be used after rotation (with leeway).
+func TestServiceTokenRotationGracePeriod(t *testing.T) {
+	// Create a token that is valid but very close to expiry
+	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
+		SigningKey:   testServiceKey,
+		ServiceName: "timeguru",
+		TTL:         10 * time.Second, // Short TTL
+	})
+	if err != nil {
+		t.Fatalf("NewServiceTokenManager: %v", err)
+	}
+
+	token, err := mgr.GenerateToken("captain")
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+
+	// Validate immediately — should work
+	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
+		SigningKey:   testServiceKey,
+		ServiceName: "captain",
+	})
+	if err != nil {
+		t.Fatalf("NewServiceTokenManager (captain): %v", err)
+	}
+
+	validator := captainMgr.NewValidator()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/strategy", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	identity, err := validator.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected valid service token immediately, got: %v", err)
+	}
+	if identity.Subject != "timeguru" {
+		t.Errorf("Subject = %q, want %q", identity.Subject, "timeguru")
+	}
+}

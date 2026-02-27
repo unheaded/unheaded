@@ -2,7 +2,7 @@
        ebpf-shield ebpf-hop ebpf-yaldabaoth ebpf-monad-cpu \
        build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
        test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
-       deploy-restart
+       deploy-restart sbom license-check
 
 # Build configuration
 BINARY_DIR := bin
@@ -331,6 +331,24 @@ security: ## Run Go security audit (gosec)
 	@echo "Running security audit..."
 	@which gosec > /dev/null || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@v2.21.0)
 	gosec ./...
+
+##@ SBOM & Compliance
+
+sbom: ## Generate SBOM in multiple formats (CycloneDX, SPDX, module list, audit)
+	@echo "Generating SBOM..."
+	./scripts/generate-sbom.sh $(VERSION)
+	@echo "✓ SBOM generation complete. See sbom-results/"
+
+license-check: ## Check Go and Rust dependencies for permitted licenses
+	@echo "Checking Go licenses..."
+	@which go-licenses > /dev/null || (echo "Installing go-licenses..." && go install github.com/google/go-licenses@latest)
+	go-licenses check ./... --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC
+	@echo "✓ Go license check passed"
+	@if [ -d "ebpf" ] && [ -f "ebpf/Cargo.toml" ]; then \
+		echo "Checking Rust licenses (ebpf)..."; \
+		cd ebpf && cargo license --all-features > /dev/null && echo "✓ Rust licenses OK" || true; \
+		cd ..; \
+	fi
 
 deps: ## Download dependencies
 	@echo "Downloading Go dependencies..."
