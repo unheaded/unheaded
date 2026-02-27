@@ -2506,6 +2506,86 @@ The following changes are made in draft-04 to address S21 assessment findings:
 
 5. **Forward Reference: Extended Register Option**: Added informative reference to {{MONAD-EXT-REG}} and a new subsection under Monad Register File describing the optional Extended Register Option.  The extension doubles MBC compute capacity by claiming the complement space of the primary register map as a second HbH option, inspired by the wildcard mask formalism of {{RFC0950}}.
 
+# Changes from draft-bellis-unheaded-protocol-foundation-04 (Draft-05)
+
+The following changes are made in draft-05 to complete Monad specification
+and address patches M1-M8 from S21 assessment:
+
+1. **Patch M1: CRC-16 Scope Already Extended**: Draft-04 already covered all
+   20 bytes in CRC-16 computation. Confirmed in section 5.2 (Checksum Field).
+
+2. **Patch M2: Multiple HbH Header Restriction Added**: Added section 1a
+   to per-hop processing (after step 1), mandating immediate drop if multiple
+   HbH options present (no error code, no fallback). Eliminates header
+   smuggling (X3).
+
+3. **Patch M3: Kernel 5.17+ Requirement Confirmed**: Draft-04 already mandated
+   kernel 5.17+. Confirmed in section 12.2 (BPF Containment).
+
+4. **Patch M4: Wotan Helper Bounds Checking Added**: Extended section 11.3
+   (BPF Helper Functions) with detailed bounds checking specification for
+   bpf_wotan_read() and bpf_wotan_write(). Specifies offset ranges, error
+   codes, atomicity semantics, memory ordering (acquire/release), and test
+   requirements per LICH-008 and D4 findings.
+
+5. **Patch M5: Strict Version Checking Emphasized**: Updated version field
+   definition to explicitly mandate immediate drop for unknown versions
+   (version != 0x01), no fallback, no negotiation. Per-hop processing already
+   enforced this; clarified normative requirements to eliminate X4 attacks.
+
+6. **Patch M6: TLV Extension Mechanism Section Added**: New section 7 defines
+   TLV container format, type registry (0x00-0x7F with critical bit), unknown
+   TLV handling rules, and extension registration process. Centralizes TLV
+   definition in Monad RFC, prevents X3 (parser divergence).
+
+7. **Patch M7: Error Code Registry Added**: Added Error Code Registry to IANA
+   section with 30+ error codes (0x00-0xFF). Codes include CRC_FAILED,
+   VERSION_UNSUPPORTED, WOTAN_BOUNDS_CHECK_FAILED, etc. Also added TLV Type
+   Registry to IANA for coordinated allocation.
+
+8. **Patch M8: Ring Path Counter TLV Added**: New section 7.4 defines optional
+   TLV type 0x01 (Ring Path Counter) for tracking ring buffer path traversals.
+   Increments at each ring node, supports loop detection and traffic engineering.
+
+9. **New Section: Shield: eBPF Security Pipeline (Section 6)**: Comprehensive
+   new section detailing XDP ingress (wire-speed stamping), TC egress
+   (stateful filtering), BPF map pinning contract at /sys/fs/bpf/unheaded/,
+   map types and schemas, BPF verifier compliance, interaction with Monad
+   processing. Shield is the critical security boundary with rate limiting,
+   admission control, and address restoration.
+
+10. **New Section: Anamnesis: Event Capture Architecture (Section 9)**: New
+    section details 64-byte RingEntry format, EVE JSON transformation, Wotan
+    topic routing (anamnesis.*), Suricata GPL isolation, event correlation via
+    IPv6 flow labels, ring buffer configuration. Anamnesis events provide
+    complete audit trail of packet computation.
+
+11. **New Section: Kingdom Mode: Operational States (Section 13)**: New section
+    defines three operational states (Normal/Degraded/Emergency) with state
+    transition triggers, Wotan system.state topic for real-time state
+    distribution, and dashboard indicators. Enables graceful degradation
+    during partial outages.
+
+12. **Enhanced IANA Section**: Added IPv6 Next Header 0xFE allocation request,
+    IPv6 Flow Label RFC 6437 notes, expanded Error Code Registry (30+ codes),
+    new TLV Type Registry with critical bit handling, expanded PQC Algorithm
+    Registry.
+
+13. **Enhanced Security Considerations**: Added DoS protection details
+    (rate limiting, token bucket parameters), amplification attack mitigations,
+    BPF verifier as security boundary (verification failures are fatal),
+    flow label entropy requirements, address reclamation attack surface
+    analysis (ULA spoofing, register forgery, host bits collision).
+
+14. **Frontmatter Updates**: Updated docname to draft-05, date to 2026-02-27,
+    added keywords: shield-ebpf, anamnesis, kingdom-mode. Added RFC 9000
+    (QUIC) and RFC 9114 (HTTP/3) to normative references for integration notes.
+
+15. **Cross-References Added**: Added [SOPHIA] and [WOTAN] cross-reference
+    notations throughout (sections 6, 9, 11, 13). References align with
+    companion specs: draft-bellis-unheaded-sophia-dictionary-02 and
+    draft-bellis-unheaded-wotan-memory-02.
+
 ---
 # Acknowledgments
 
