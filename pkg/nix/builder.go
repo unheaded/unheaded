@@ -1474,11 +1474,24 @@ func ParseFlake(path string) (*FlakeConfig, error) {
 		config.Description = desc
 	}
 
-	// Extract inputs
-	if inputs, ok := metadata["locks"].(map[string]interface{}); ok {
-		if nodes, ok := inputs["nodes"].(map[string]interface{}); ok {
-			for name, nodeData := range nodes {
-				if name == "root" {
+	// Extract inputs (only direct inputs, not transitive dependencies)
+	if locks, ok := metadata["locks"].(map[string]interface{}); ok {
+		if nodes, ok := locks["nodes"].(map[string]interface{}); ok {
+			// Find direct inputs from the root node
+			directInputs := make(map[string]string) // input name -> node name
+			if rootData, ok := nodes["root"].(map[string]interface{}); ok {
+				if rootInputs, ok := rootData["inputs"].(map[string]interface{}); ok {
+					for inputName, nodeRef := range rootInputs {
+						if nodeName, ok := nodeRef.(string); ok {
+							directInputs[inputName] = nodeName
+						}
+					}
+				}
+			}
+
+			for inputName, nodeName := range directInputs {
+				nodeData, ok := nodes[nodeName]
+				if !ok {
 					continue
 				}
 				node, ok := nodeData.(map[string]interface{})
@@ -1487,7 +1500,7 @@ func ParseFlake(path string) (*FlakeConfig, error) {
 				}
 
 				input := FlakeInput{
-					Name:   name,
+					Name:   inputName,
 					Locked: true,
 				}
 
