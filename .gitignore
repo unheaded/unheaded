@@ -159,6 +159,9 @@ temp/
 *.bak
 *.backup
 data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
 
 # ─── Dev Placeholders (external deps) ───
 # These are intentionally tracked as .dev files
@@ -201,3 +204,6 @@ doom-loader
 /protocol-api
 /sophia-gateway
 /wiki-server
+
+# ─── Secrets (dotfile variant) ───
+.secrets/
