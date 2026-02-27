@@ -112,6 +112,9 @@ services:
       - "--log.level=INFO"
       - "--accesslog=true"
       - "--accesslog.format=json"
+      # --- Ping / Health ---
+      - "--ping=true"
+      - "--ping.entryPoint=web"
       # --- Metrics ---
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.entryPoint=metrics"
@@ -373,6 +376,8 @@ services:
       - NET_BIND_SERVICE
     tmpfs:
       - /tmp:size=32M
+      - /app/data:size=64M
+      - /app/references:size=16M
     environment:
       PORT: "19000"
       WOTAN_ADDR: "wotan:18000"
@@ -414,6 +419,7 @@ services:
       - NET_BIND_SERVICE
     tmpfs:
       - /tmp:size=32M
+      - /data:size=64M
     environment:
       HTTP_ADDR: "0.0.0.0:19002"
       WOTAN_ADDR: "wotan:18001"
@@ -456,6 +462,7 @@ services:
       - NET_BIND_SERVICE
     tmpfs:
       - /tmp:size=32M
+      - /data:size=64M
     environment:
       WOTAN_ADDR: "wotan:18000"
     command: ["/app/architect", "-addr", ":19001"]
@@ -497,6 +504,7 @@ services:
       - NET_BIND_SERVICE
     tmpfs:
       - /tmp:size=32M
+      - /data:size=64M
     command: ["/app/micromanager", "-port", "19003"]
     ports:
       - "19003:19003"
@@ -536,6 +544,7 @@ services:
       - NET_BIND_SERVICE
     tmpfs:
       - /tmp:size=32M
+      - /data:size=64M
     environment:
       MONAD_PORT: "19004"
       WOTAN_ADDR: "wotan:18000"
@@ -577,6 +586,7 @@ services:
       - NET_BIND_SERVICE
     tmpfs:
       - /tmp:size=32M
+      - /data:size=64M
     environment:
       SOPHIA_LISTEN_ADDR: ":19005"
       WOTAN_ADDR: "wotan:18000"

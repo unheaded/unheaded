@@ -45,19 +45,19 @@ done
 
 SERVICES=(
     # Infrastructure services
-    "traefik|localhost|8080|ping"
+    "traefik|localhost|80|ping"       # requires --ping=true in compose
     "victoria|localhost|8428|-/healthy"
     "clickhouse|localhost|8123|ping"
     "grafana|localhost|3001|api/health"
-    # Application services (Kingdom Core)
-    "wotan|localhost|8081|health"
-    "timeguru|localhost|8000|health"
-    "captain|localhost|8001|health"
-    "architect|localhost|8002|health"
-    "micromanager|localhost|8003|health"
-    "monad|localhost|8004|health"
-    "sophia|localhost|8005|health"
-    "cuirass|localhost|8006|health"
+    # Application services (Kingdom Core) -- Doom Range ports
+    "wotan|localhost|18000|health"
+    "timeguru|localhost|19000|health"
+    "captain|localhost|19002|health"
+    "architect|localhost|19001|health"
+    "micromanager|localhost|19003|health"
+    "monad|localhost|19004|health"
+    "sophia|localhost|19005|health"
+    "cuirass|localhost|19006|health"
 )
 
 # ============================================================================
