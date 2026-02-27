@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	wotanClient "unheaded/pkg/wotan-client"
@@ -208,6 +209,9 @@ type Service struct {
 
 	// Alert handling
 	alertsCh chan *wotanClient.Message
+
+	// Degraded mode counter — messages dropped because Wotan is nil
+	wotanDrops int64
 }
 
 // QueryHandler processes read-only queries.
@@ -288,9 +292,15 @@ func (s *Service) Stop() error {
 	return nil
 }
 
+// WotanDrops returns the total number of messages dropped because Wotan was nil.
+func (s *Service) WotanDrops() int64 {
+	return atomic.LoadInt64(&s.wotanDrops)
+}
+
 // listenForAlerts listens for critical alerts from Wotan
 func (s *Service) listenForAlerts(ctx context.Context) {
 	if s.wotan == nil {
+		s.log.Warn().Msg("wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
 
@@ -586,6 +596,8 @@ func (s *Service) completeOperation(op *Operation) {
 // publishOperationEvent sends an operation event to Wotan.
 func (s *Service) publishOperationEvent(ctx context.Context, op *Operation) {
 	if s.wotan == nil {
+		atomic.AddInt64(&s.wotanDrops, 1)
+		s.log.Warn().Str("operation_id", op.ID).Msg("wotan unavailable — operation event dropped (degraded mode)")
 		return
 	}
 
@@ -628,6 +640,8 @@ func (s *Service) publishOperationEvent(ctx context.Context, op *Operation) {
 // publishStateChange publishes state changes to Wotan with trace_id
 func (s *Service) publishStateChange(ctx context.Context, eventType string, changes []StateChange) {
 	if s.wotan == nil {
+		atomic.AddInt64(&s.wotanDrops, 1)
+		s.log.Warn().Str("event_type", eventType).Int("changes", len(changes)).Msg("wotan unavailable — state change event dropped (degraded mode)")
 		return
 	}
 
