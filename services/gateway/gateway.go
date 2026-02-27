@@ -365,6 +365,7 @@ func (g *Gateway) Shutdown() error {
 // listenForAlerts listens for critical alerts from Wotan
 func (g *Gateway) listenForAlerts(ctx context.Context) {
 	if g.wotan == nil {
+		g.log.Warn().Msg("wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
 

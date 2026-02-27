@@ -14,6 +14,7 @@ import (
 	"io"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	wotanClient "unheaded/pkg/wotan-client"
@@ -118,6 +119,14 @@ type Service struct {
 	// Counters
 	observationCounter int64
 	driftCounter       int64
+
+	// Degraded mode counter — messages dropped because Wotan is nil
+	wotanDrops int64
+}
+
+// WotanDrops returns the total number of messages dropped because Wotan was nil.
+func (s *Service) WotanDrops() int64 {
+	return atomic.LoadInt64(&s.wotanDrops)
 }
 
 // Config holds Kenoma service configuration.
@@ -575,6 +584,7 @@ func (s *Service) runDriftDetection(ctx context.Context) {
 // subscribeToEvents listens for state change events.
 func (s *Service) subscribeToEvents(ctx context.Context) {
 	if s.wotan == nil {
+		s.log.Warn().Msg("wotan unavailable — event subscription disabled (degraded mode)")
 		return
 	}
 
@@ -590,6 +600,8 @@ func (s *Service) subscribeToEvents(ctx context.Context) {
 // publishEvent sends an event to Wotan.
 func (s *Service) publishEvent(ctx context.Context, eventType string, data map[string]interface{}) {
 	if s.wotan == nil {
+		atomic.AddInt64(&s.wotanDrops, 1)
+		s.log.Warn().Str("event_type", eventType).Msg("wotan unavailable — event dropped (degraded mode)")
 		return
 	}
 

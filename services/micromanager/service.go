@@ -23,6 +23,14 @@ type Service struct {
 	subscriptions  map[string]bool
 	subMu          sync.RWMutex
 	alertListener  chan *wotanClient.Message
+
+	// Degraded mode counter — messages dropped because Wotan is nil
+	wotanDrops int64
+}
+
+// WotanDrops returns the total number of messages dropped because Wotan was nil.
+func (s *Service) WotanDrops() int64 {
+	return atomic.LoadInt64(&s.wotanDrops)
 }
 
 // NewService creates a new micromanager service
@@ -39,7 +47,7 @@ func NewService(store *Store, wotan *wotanClient.Client) *Service {
 // Start initializes the service (connects to Wotan, subscribes to topics)
 func (s *Service) Start(ctx context.Context) error {
 	if s.wotan == nil {
-		log.Info().Msg("wotan client not configured, skipping integration")
+		log.Warn().Msg("wotan unavailable — subscriptions disabled (degraded mode)")
 		return nil
 	}
 
@@ -86,7 +94,8 @@ func (s *Service) GenerateTaskID() string {
 // PublishTaskCreated publishes a task.created event to Wotan
 func (s *Service) PublishTaskCreated(taskID string, task *Task) error {
 	if s.wotan == nil {
-		log.Debug().Str("task_id", taskID).Msg("wotan client not configured, skipping publish")
+		atomic.AddInt64(&s.wotanDrops, 1)
+		log.Warn().Str("task_id", taskID).Msg("wotan unavailable — task.created event dropped (degraded mode)")
 		return nil
 	}
 
@@ -125,7 +134,8 @@ func (s *Service) PublishTaskCreated(taskID string, task *Task) error {
 // PublishTaskUpdated publishes a task.updated event to Wotan
 func (s *Service) PublishTaskUpdated(taskID string, task *Task) error {
 	if s.wotan == nil {
-		log.Debug().Str("task_id", taskID).Msg("wotan client not configured, skipping publish")
+		atomic.AddInt64(&s.wotanDrops, 1)
+		log.Warn().Str("task_id", taskID).Msg("wotan unavailable — task.updated event dropped (degraded mode)")
 		return nil
 	}
 
@@ -164,7 +174,8 @@ func (s *Service) PublishTaskUpdated(taskID string, task *Task) error {
 // PublishTaskCompleted publishes a task.completed event
 func (s *Service) PublishTaskCompleted(taskID string, task *Task) error {
 	if s.wotan == nil {
-		log.Debug().Str("task_id", taskID).Msg("wotan client not configured, skipping publish")
+		atomic.AddInt64(&s.wotanDrops, 1)
+		log.Warn().Str("task_id", taskID).Msg("wotan unavailable — task.completed event dropped (degraded mode)")
 		return nil
 	}
 
@@ -201,6 +212,7 @@ func (s *Service) PublishTaskCompleted(taskID string, task *Task) error {
 // listenForAlerts subscribes to critical alerts
 func (s *Service) listenForAlerts(ctx context.Context) {
 	if s.wotan == nil {
+		log.Warn().Msg("wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
 

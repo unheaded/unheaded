@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	wotanClient "unheaded/pkg/wotan-client"
@@ -131,6 +132,14 @@ type ArchitectService struct {
 	wotan       *wotanClient.Client
 	alertChannel chan *wotanClient.Message
 	mu           sync.RWMutex
+
+	// Degraded mode counter — messages dropped because Wotan is nil
+	wotanDrops int64
+}
+
+// WotanDrops returns the total number of messages dropped because Wotan was nil.
+func (s *ArchitectService) WotanDrops() int64 {
+	return atomic.LoadInt64(&s.wotanDrops)
 }
 
 // New creates a new ArchitectService
@@ -172,7 +181,8 @@ func (s *ArchitectService) SetWotan(wotan *wotanClient.Client) {
 // Start initializes Wotan subscriptions and starts listening for alerts
 func (s *ArchitectService) Start(ctx context.Context) error {
 	if s.wotan == nil {
-		return nil // Wotan not configured, skip
+		log.Println("[WARN] architect: wotan unavailable — subscriptions disabled (degraded mode)")
+		return nil
 	}
 
 	// Subscribe to alerts.critical (required by CLAUDE.md)
@@ -194,6 +204,7 @@ func (s *ArchitectService) Start(ctx context.Context) error {
 // listenForAlerts listens for critical alerts from Wotan
 func (s *ArchitectService) listenForAlerts(ctx context.Context) {
 	if s.wotan == nil {
+		log.Println("[WARN] architect: wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
 
@@ -229,6 +240,8 @@ func (s *ArchitectService) handleCriticalAlert(ctx context.Context, msg *wotanCl
 // publishStateChange publishes a state change event to Wotan
 func (s *ArchitectService) publishStateChange(ctx context.Context, eventType string, data interface{}) {
 	if s.wotan == nil {
+		atomic.AddInt64(&s.wotanDrops, 1)
+		log.Printf("[WARN] architect: wotan unavailable — %s event dropped (degraded mode)", eventType)
 		return
 	}
 
