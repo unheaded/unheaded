@@ -1494,6 +1494,9 @@ alias vllm-logs='docker logs -f unheaded-vllm'
 alias model-dl='unheaded-download-model'
 alias model-ls='ls -lhS /mnt/hdd/models/'
 alias model-active='readlink -f /opt/unheaded/active-model/current'
+alias runway='python3 /opt/unheaded/scripts/vault-to-runway.py'
+alias runway-list='python3 /opt/unheaded/scripts/vault-to-runway.py --list'
+alias runway-go='python3 /opt/unheaded/scripts/vault-to-runway.py --launch'
 ALIASES
     chmod 644 /etc/profile.d/unheaded-aliases.sh
 
