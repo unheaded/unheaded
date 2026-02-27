@@ -206,7 +206,7 @@ CRITICAL: Monad HbH (HOPOPT next-header 0x00) passes through ALL firewall layers
 - [ ] Rate limiter XFF fix — use RemoteAddr instead of X-Forwarded-For (P1 #17)
 - [ ] Wotan nil fallback — silent failure → degraded mode logging (P1 #19)
 - [ ] getOrCreateGRPCClient double-check locking fix (P1 #25)
-- [ ] Dead BroadcastJSON removal (P2 #37)
+- [x] Dead BroadcastJSON removal (P2 #37)
 - [ ] Compliance dashboard scaffolding (S45 from planning guide)
 - [ ] Advanced log viewer (S46 from planning guide)
 - [ ] Demo video prep + README polish (S47 from planning guide)

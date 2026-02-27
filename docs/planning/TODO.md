@@ -80,7 +80,7 @@
 | 34 | ✅ 90% of Nix integration tests are stubs | `nix/tests/` | FIXED: commit 92dbf78 implemented 4 security tests that validate actual Nix config files |
 | 35 | 🟡 `make deploy` is a no-op | `Makefile` | Deployment pipeline doesn't exist yet |
 | 36 | 🟡 Log forwarding commented out | Multiple services | Logs stay local, no aggregation |
-| 37 | 🟡 `BroadcastJSON` returns error instead of encoding | `server.go:611` | Dead method — either implement or remove |
+| 37 | ✅ `BroadcastJSON` returns error instead of encoding | `server.go:611` | FIXED: Dead method removed; websocket server uses Broadcast() with raw bytes |
 | 38 | ✅ No request ID / correlation in HTTP middleware | `middleware.go` | FIXED: commit 79a5215 added X-Request-ID middleware to kanban-app |
 
 ---
@@ -180,7 +180,7 @@ The detailed task list (`TASK_LIST.md`) contains 92 tasks across 9 phases. This 
 4. ✅ **Add exponential backoff** to `pollMessages` error path in wotan-client
 5. ✅ **Replace `UnixNano()` IDs** with atomic counter + timestamp combo (already done in micromanager, replicate pattern)
 6. ✅ **Add X-Request-ID middleware** — generate UUID, propagate in context, log with every request
-7. **Remove dead `BroadcastJSON` method** from websocket server
+7. ✅ **Remove dead `BroadcastJSON` method** from websocket server
 8. ✅ **Gitignore dev artifacts** — `churn_analysis.awk`, `*-results.txt`, `PROJECT_TREE.txt`
 9. ✅ **Migrate timeguru to zerolog** — consistency with all other services
 10. ✅ **Split HTTP client timeouts** — 5s for control plane ops, 30s for streaming only
