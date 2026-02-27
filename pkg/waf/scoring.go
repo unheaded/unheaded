@@ -7,6 +7,7 @@ package waf
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
@@ -615,15 +616,17 @@ func (e *ScoringEngine) GetStats() map[string]interface{} {
 
 // Helper functions
 
+// extractClientIP extracts the client IP from the request.
+// Uses RemoteAddr as the primary source. X-Forwarded-For and X-Real-IP
+// are NOT trusted here because the scoring engine has no knowledge of
+// which upstream peers are trusted proxies. Callers that need proxy-aware
+// IP extraction should use IPManager.GetClientIP() instead.
 func extractClientIP(req *http.Request) string {
-	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
+	host, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		return req.RemoteAddr
 	}
-	if xri := req.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-	return req.RemoteAddr
+	return host
 }
 
 func formatFloat(f float64) string {
