@@ -10,7 +10,8 @@ target = "bpfel-unknown-none"
 build-std = ["core"]
 
 [target.bpfel-unknown-none]
-# Use bpf-linker for linking BPF objects
+# Use bpf-linker (cargo install bpf-linker) for linking BPF objects.
+# bpf-linker consumes LLVM bitcode from rustc and produces BPF ELF.
 linker = "bpf-linker"
 
 # Optimization flags for BPF
@@ -19,7 +20,7 @@ rustflags = [
     "-C", "opt-level=3",
     # No debug info in production
     "-C", "debuginfo=0",
-    # Link-time optimization
+    # Link-time optimization (required for BPF — bpf-linker does final codegen)
     "-C", "lto=true",
     # Single codegen unit for better optimization
     "-C", "codegen-units=1",
