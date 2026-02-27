@@ -596,15 +596,43 @@ phase_lxd() {
         local lxc_cmd="lxc"
         command -v incus &>/dev/null && { lxd_cmd="incus"; lxc_cmd="incus"; }
 
-        if $lxc_cmd network list 2>/dev/null | grep -q "lxdbr0\|incusbr0"; then
+        # Bridge name: incus uses incusbr0, LXD uses lxdbr0
+        local br_name="lxdbr0"
+        [[ "$lxd_cmd" == "incus" ]] && br_name="incusbr0"
+
+        # Check what's already configured
+        local has_network=false has_pool=false has_profile=false
+        $lxc_cmd network list 2>/dev/null | grep -q "${br_name}" && has_network=true
+        $lxc_cmd storage list 2>/dev/null | grep -q "default" && has_pool=true
+        $lxc_cmd profile show default 2>/dev/null | grep -q "pool:" && has_profile=true
+
+        if $has_network && $has_pool && $has_profile; then
             ok "LXD/Incus already initialized"
         else
-            step "Initializing LXD with preseed..."
-            cat << 'LXDPRESEED' | run $lxd_cmd init --preseed
+            step "Initializing LXD..."
+
+            # Clean up stale storage pool dir from failed runs (LXD dir driver
+            # refuses to create a pool if the target directory already exists)
+            local pool_base=""
+            if [[ "$lxd_cmd" == "incus" ]]; then
+                pool_base="/var/lib/incus/storage-pools/default"
+            elif snap list lxd &>/dev/null 2>&1; then
+                pool_base="/var/snap/lxd/common/lxd/storage-pools/default"
+            else
+                pool_base="/var/lib/lxd/storage-pools/default"
+            fi
+            # Only nuke the dir if the pool isn't registered (stale leftover)
+            if ! $has_pool && [[ -d "$pool_base" ]]; then
+                step "Removing stale storage pool directory from previous failed run..."
+                rm -rf "$pool_base"
+            fi
+
+            # Preseed — omit source: so LXD auto-provisions the directory
+            cat <<LXDPRESEED | run $lxd_cmd init --preseed
 config:
   core.https_address: '[::]:8443'
 networks:
-- name: lxdbr0
+- name: ${br_name}
   type: bridge
   config:
     ipv4.address: 10.10.10.1/24
@@ -615,14 +643,12 @@ networks:
 storage_pools:
 - name: default
   driver: dir
-  config:
-    source: /var/lib/lxd/storage-pools/default
 profiles:
 - name: default
   devices:
     eth0:
       name: eth0
-      network: lxdbr0
+      network: ${br_name}
       type: nic
     root:
       path: /
@@ -1626,7 +1652,7 @@ SVCUNIT
     # Node exporter for Prometheus
     step "Installing node_exporter..."
     if ! command -v node_exporter &>/dev/null; then
-        local ne_ver="1.8.2"
+        local ne_ver="1.10.2"
         run wget -q "https://github.com/prometheus/node_exporter/releases/download/v${ne_ver}/node_exporter-${ne_ver}.linux-amd64.tar.gz" \
             -O /tmp/node_exporter.tar.gz 2>/dev/null || warn "node_exporter download failed"
         if [[ -f /tmp/node_exporter.tar.gz ]]; then
