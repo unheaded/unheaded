@@ -3,9 +3,9 @@ set -euo pipefail
 
 # Unheaded SBOM Generation Script
 # Generates SBOM in multiple formats: CycloneDX JSON, SPDX JSON, Go module list, Cargo audit, summary
-# Output: sbom-results/
+# Output: sbom/
 
-SBOM_DIR="sbom-results"
+SBOM_DIR="sbom"
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 VERSION="${1:-dev}"
 
@@ -28,22 +28,27 @@ mkdir -p "$SBOM_DIR"
 # ============================================================================
 echo -e "${BLUE}[1/5] Generating SBOMs with Syft...${NC}"
 
-if command -v syft &> /dev/null; then
-  echo "✓ Syft found, generating CycloneDX JSON..."
-  syft dir:. \
-    -o cyclonedx-json="${SBOM_DIR}/sbom-cyclonedx.json" \
-    --quiet
-
-  echo "✓ Generating SPDX JSON..."
-  syft dir:. \
-    -o spdx-json="${SBOM_DIR}/sbom-spdx.json" \
-    --quiet
-
-  echo -e "${GREEN}✓ Syft SBOM generation complete${NC}"
-else
-  echo -e "${YELLOW}⚠ Syft not found, skipping Syft SBOM generation${NC}"
-  echo "  Install with: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin"
+if ! command -v syft &> /dev/null; then
+  echo -e "${YELLOW}Syft not found, downloading...${NC}"
+  SYFT_INSTALL_DIR="${SYFT_INSTALL_DIR:-./bin}"
+  mkdir -p "$SYFT_INSTALL_DIR"
+  curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$SYFT_INSTALL_DIR"
+  export PATH="$SYFT_INSTALL_DIR:$PATH"
 fi
+
+echo "Syft found: $(syft version 2>/dev/null || echo 'unknown')"
+
+echo "Generating CycloneDX JSON..."
+syft dir:. \
+  -o cyclonedx-json="${SBOM_DIR}/sbom-cyclonedx.json" \
+  --quiet
+
+echo "Generating SPDX JSON..."
+syft dir:. \
+  -o spdx-json="${SBOM_DIR}/sbom-spdx.json" \
+  --quiet
+
+echo -e "${GREEN}Syft SBOM generation complete${NC}"
 
 # ============================================================================
 # 2. Generate Go module list with versions

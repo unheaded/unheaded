@@ -337,7 +337,7 @@ security: ## Run Go security audit (gosec)
 sbom: ## Generate SBOM in multiple formats (CycloneDX, SPDX, module list, audit)
 	@echo "Generating SBOM..."
 	./scripts/generate-sbom.sh $(VERSION)
-	@echo "✓ SBOM generation complete. See sbom-results/"
+	@echo "✓ SBOM generation complete. See sbom/"
 
 license-check: ## Check Go and Rust dependencies for permitted licenses
 	@echo "Checking Go licenses..."
