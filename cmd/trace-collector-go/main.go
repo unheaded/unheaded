@@ -36,6 +36,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -79,6 +80,7 @@ var (
 	enablePacketMarker = flag.Bool("enable-packet-marker", true, "Enable packet_marker XDP program")
 	enableFlowTracker  = flag.Bool("enable-flow-tracker", true, "Enable flow_tracker TC program")
 	enableLatencyProbe = flag.Bool("enable-latency-probe", true, "Enable latency_probe tracepoint program")
+	ebpfObjDir         = flag.String("ebpf-obj-dir", "", "Directory containing compiled BPF ELF objects (default: ebpf/target/bpfel-unknown-none/release)")
 	unifiedMode        = flag.Bool("unified", false, "Run in unified mode (load all BPF programs)")
 )
 
@@ -574,6 +576,50 @@ type LatencyReaderI interface {
 	LatencyStats() map[string]uint64
 }
 
+// ── BPF object directory resolution ─────────────────────────────────────
+
+// resolveEBPFObjDir determines the directory containing compiled BPF ELF
+// objects. It checks (in priority order):
+//  1. --ebpf-obj-dir flag
+//  2. UNHEADED_EBPF_OBJ_DIR environment variable
+//  3. /opt/unheaded/ebpf/ (production install path)
+//  4. ebpf/target/bpfel-unknown-none/release (development default)
+func resolveEBPFObjDir() string {
+	// 1. CLI flag takes highest priority
+	if *ebpfObjDir != "" {
+		abs, err := filepath.Abs(*ebpfObjDir)
+		if err != nil {
+			log.Warn().Err(err).Str("path", *ebpfObjDir).Msg("cannot resolve --ebpf-obj-dir, using as-is")
+			return *ebpfObjDir
+		}
+		return abs
+	}
+
+	// 2. Environment variable
+	if envDir := os.Getenv("UNHEADED_EBPF_OBJ_DIR"); envDir != "" {
+		abs, err := filepath.Abs(envDir)
+		if err != nil {
+			log.Warn().Err(err).Str("path", envDir).Msg("cannot resolve UNHEADED_EBPF_OBJ_DIR, using as-is")
+			return envDir
+		}
+		return abs
+	}
+
+	// 3. Production install path
+	prodPath := "/opt/unheaded/ebpf"
+	if info, err := os.Stat(prodPath); err == nil && info.IsDir() {
+		return prodPath
+	}
+
+	// 4. Development default (relative to working directory)
+	devPath := "ebpf/target/bpfel-unknown-none/release"
+	abs, err := filepath.Abs(devPath)
+	if err != nil {
+		return devPath
+	}
+	return abs
+}
+
 // ── Unified mode runner ─────────────────────────────────────────────────
 
 // runUnifiedMode starts the unified trace collector that loads all three
@@ -631,8 +677,13 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 		{Name: "latency_probe", Enabled: *enableLatencyProbe},
 	}
 
-	// BPF ELF binary base path — compiled by Aya/Rust
-	elfBase := "ebpf/target/bpfel-unknown-none/release"
+	// BPF ELF binary base path — compiled by Aya/Rust.
+	// Resolved from (in priority order):
+	//   1. --ebpf-obj-dir flag
+	//   2. UNHEADED_EBPF_OBJ_DIR environment variable
+	//   3. /opt/unheaded/ebpf/ (production install)
+	//   4. ebpf/target/bpfel-unknown-none/release (development)
+	elfBase := resolveEBPFObjDir()
 
 	// Load BPF programs from compiled ELF binaries
 	if *enablePacketMarker {

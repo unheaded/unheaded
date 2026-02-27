@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 
+//go:build linux
+// +build linux
+
 // loader_native.go — NativeBPFLoader bridges BPFLoader to pkg/ebpf.NativeLoader.
 //
 // This file implements the production BPF loader that delegates to the
