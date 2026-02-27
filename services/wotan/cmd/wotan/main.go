@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
+	"unheaded/pkg/auth"
 	chatpb "unheaded/services/wotan/proto"
 	"unheaded/services/wotan/internal/api"
 	"unheaded/services/wotan/internal/wotan"
@@ -128,9 +129,14 @@ func main() {
 	httpMux := setupHTTPRoutes(apiServer, config.AdminEnabled, m)
 	httpHandler := setupMiddleware(httpMux, rateLimiter, config.CORSOrigins)
 
+	// Auth middleware (activated via AUTH_ENABLED=true)
+	authCfg := auth.LoadServiceAuthConfig("wotan")
+	var srvHandler http.Handler = httpHandler
+	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
+
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", config.HTTPPort),
-		Handler:      httpHandler,
+		Handler:      srvHandler,
 		ReadTimeout:  config.ReadTimeout,
 		WriteTimeout: config.WriteTimeout,
 		IdleTimeout:    config.IdleTimeout,
