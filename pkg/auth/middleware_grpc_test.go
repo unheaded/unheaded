@@ -29,9 +29,7 @@ func TestGRPCUnaryInterceptor_ValidAuth(t *testing.T) {
 	interceptor := GRPCUnaryInterceptor(auth)
 
 	// Create context with authorization metadata
-	md := metadata.New(map[string][]string{
-		"authorization": {"Bearer valid-token"},
-	})
+	md := metadata.Pairs("authorization", "Bearer valid-token")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 
 	var capturedCtx context.Context
@@ -73,7 +71,7 @@ func TestGRPCUnaryInterceptor_MissingAuth(t *testing.T) {
 	interceptor := GRPCUnaryInterceptor(auth)
 
 	// Create context without authorization metadata
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string][]string{}))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{}))
 
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return nil, errors.New("handler should not be called")
@@ -108,9 +106,7 @@ func TestGRPCUnaryInterceptor_InvalidAuth(t *testing.T) {
 
 	interceptor := GRPCUnaryInterceptor(auth)
 
-	md := metadata.New(map[string][]string{
-		"authorization": {"Bearer invalid-token"},
-	})
+	md := metadata.Pairs("authorization", "Bearer invalid-token")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
@@ -146,9 +142,7 @@ func TestGRPCUnaryInterceptor_ForbiddenAuth(t *testing.T) {
 
 	interceptor := GRPCUnaryInterceptor(auth)
 
-	md := metadata.New(map[string][]string{
-		"authorization": {"Bearer forbidden-token"},
-	})
+	md := metadata.Pairs("authorization", "Bearer forbidden-token")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
@@ -225,9 +219,7 @@ func TestGRPCStreamInterceptor_ValidAuth(t *testing.T) {
 
 	interceptor := GRPCStreamInterceptor(auth)
 
-	md := metadata.New(map[string][]string{
-		"authorization": {"Bearer valid-token"},
-	})
+	md := metadata.Pairs("authorization", "Bearer valid-token")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 
 	mockStream := &mockServerStream{ctx: ctx}
@@ -264,7 +256,7 @@ func TestGRPCStreamInterceptor_MissingAuth(t *testing.T) {
 
 	interceptor := GRPCStreamInterceptor(auth)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string][]string{}))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{}))
 	mockStream := &mockServerStream{ctx: ctx}
 
 	handler := func(srv interface{}, stream grpc.ServerStream) error {
