@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: 'Poppins', sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "unheaded-marshal", "runs": [{"id": "eval-1-scope-creep-with_skill", "prompt": "We're on Phase 3 of the battle plan, Step 87 \u2014 setting up the eBPF ring buffer. But hey, while we're at it, I noticed the dashboard CSS could use some cleanup. Let me just quickly fix that gradient on the sidebar before we continue with the ring buffer setup.", "eval_id": 1, "outputs": [{"name": "response.md", "type": "text", "content": "# MARSHAL \u2014 SCOPE CHECK\n\n**CITATION ISSUED**\n\n---\n\nDetected potential scope expansion: **\"while we're at it, I noticed the dashboard CSS could use some cleanup\"**\n\n**Current mission:** Phase 3, Step 87 \u2014 eBPF ring buffer setup\n\n**Current phase:** Phase 3 (active execution)\n\n**This addition:** Dashboard CSS gradient cleanup / polish\n\n---\n\n## RULING\n\n**STATUS: OUT OF SCOPE**\n\nThe dashboard CSS work is a **GOLD PLATE** operation on a different component entirely. Here's why:\n\n1. **Mission Statement** \u2014 Your stated mission is eBPF ring buffer setup (Phase 3, Step 87). Dashboard CSS is not part of that mission.\n\n2. **The \"While We're At It\" Trap** \u2014 This is the classic scope creep phrasing. You're not \"already there\" (you're in the kernel/eBPF space, not the frontend). Stopping to polish the dashboard is a deliberate context switch, not an adjacent task.\n\n3. **Velocity Cost** \u2014 \"Quick fix\" never means quick. A CSS gradient \"cleanup\" turns into reviewing the whole stylesheet, testing cross-browser rendering, validating spacing changes, potentially updating documentation. That's 30+ minutes of tangent spiral.\n\n4. **Gate Status** \u2014 The dashboard CSS gradient was not listed as a blocking gate for Phase 3, Step 87. The ring buffer is.\n\n---\n\n## PARKING LOT\n\n**Dashboard CSS gradient cleanup** \u2192 Backlog for Micromanager/Captain to prioritize\n\nThis is legitimate polish work. It belongs in the queue. But it's not on the critical path for Phase 3.\n\n---\n\n## THE REDIRECT\n\n**Return to:** Phase 3, Step 87 \u2014 eBPF ring buffer setup\n\n**Action:** Complete the ring buffer implementation. Commit. Verify the gate. Then \u2014 if time permits \u2014 you can pick up the dashboard polish.\n\nBut not while you're mid-phase. Not while you're mid-step.\n\n---\n\n## WHY THIS MATTERS\n\nThe eBPF ring buffer is your blocking constraint right now. Every minute spent on CSS is a minute not spent on what's actually holding up the next phase. The plan has boundaries for a reason \u2014 they protect velocity.\n\nYou finish what you started. You ship the ring buffer. Then you context-switch to CSS.\n\n---\n\n**RULING: STAY IN YOUR LANE.**\n\nReturning to Step 87 of Phase 3.\n\nLet's finish the ring buffer.\n\n---\n\n*Badge is on. The road is clear. Eyes on the finish line.*\n"}], "grading": {"eval_id": 1, "run_type": "with_skill", "expectations": [{"text": "Detects scope creep trigger phrase ('while we're at it')", "passed": true, "evidence": "Line 7: 'Detected potential scope expansion: \"while we're at it, I noticed the dashboard CSS could use some cleanup\"'"}, {"text": "Identifies dashboard CSS as OUT OF SCOPE for current phase", "passed": true, "evidence": "Line 19: 'STATUS: OUT OF SCOPE' with clear reasoning"}, {"text": "Uses structured Marshal enforcement format", "passed": true, "evidence": "Line 1: 'MARSHAL \u2014 SCOPE CHECK' header with CITATION ISSUED, structured ruling sections"}, {"text": "Parks the CSS item for later prioritization", "passed": true, "evidence": "Line 35: 'Dashboard CSS gradient cleanup \u2192 Backlog for Micromanager/Captain to prioritize'"}, {"text": "Redirects back to Step 87 / Phase 3 / eBPF ring buffer", "passed": true, "evidence": "Line 43: 'Return to: Phase 3, Step 87 \u2014 eBPF ring buffer setup'"}, {"text": "References the battle plan as authority", "passed": true, "evidence": "Line 29: 'The dashboard CSS gradient was not listed as a blocking gate for Phase 3, Step 87'"}]}}, {"id": "eval-1-scope-creep-without_skill", "prompt": "We're on Phase 3 of the battle plan, Step 87 \u2014 setting up the eBPF ring buffer. But hey, while we're at it, I noticed the dashboard CSS could use some cleanup. Let me just quickly fix that gradient on the sidebar before we continue with the ring buffer setup.", "eval_id": 1, "outputs": [{"name": "response.md", "type": "text", "content": "# Phase 3, Step 87: eBPF Ring Buffer Setup - Scope Management\n\nHey there! I appreciate the enthusiasm, and I totally understand the impulse to knock out that CSS gradient while we're in the zone. However, I want to gently pump the brakes here and keep us focused on the sprint goal.\n\n## Here's the situation:\n\nYou're at **Phase 3, Step 87** of our eBPF battle plan. We're in the critical phase of setting up the eBPF ring buffer infrastructure, which is a core component for our monitoring and telemetry pipeline in Unheaded. This is mission-critical work for the sprint.\n\nThe dashboard CSS gradient? That's real work, and it probably does need cleanup. But it's a **different project** with a **different priority level** than what we're doing right now.\n\n## My recommendation:\n\n**Let's stay focused on the ring buffer setup.** Here's why:\n\n1. **Context Switching is Expensive** - We've built up momentum and context on the eBPF implementation. Jumping to CSS work will fragment that mental model.\n\n2. **The Sprint Has a Goal** - The eBPF ring buffer work is on the critical path for Phase 3. The CSS cleanup is technical debt, not a blocker.\n\n3. **Create a Follow-up Task** - After we nail down Step 87 and finish the ring buffer setup, we can absolutely create a separate ticket for \"Dashboard CSS Gradient Cleanup\" and tackle it in the next iteration or as a follow-up task.\n\n4. **Quality Comes First** - The infrastructure work deserves your full attention. Half-focused implementation of eBPF monitoring could introduce subtle bugs that are hard to debug later.\n\n## What I suggest:\n\n- **Continue with the ring buffer setup** - Let's finish Step 87 and get through the rest of Phase 3\n- **Document the CSS issue** - I can help you create a brief note about the gradient fix you noticed\n- **Schedule the CSS work** - Add it to the backlog for the next iteration\n\nThis is scope creep in action, and while it seems small, it's one of the biggest productivity killers in infrastructure work. Let's nail this eBPF implementation first, then we'll have a solid foundation for all the other improvements.\n\nReady to dive back into the ring buffer setup?\n"}], "grading": {"eval_id": 1, "run_type": "without_skill", "expectations": [{"text": "Detects scope creep trigger phrase ('while we're at it')", "passed": false, "evidence": "No explicit detection of the trigger phrase. General awareness of scope creep but no pattern matching."}, {"text": "Identifies dashboard CSS as OUT OF SCOPE for current phase", "passed": true, "evidence": "Line 9: 'it's a different project with a different priority level'"}, {"text": "Uses structured Marshal enforcement format", "passed": false, "evidence": "Uses informal conversational format with headers like 'Here's the situation' \u2014 no enforcement structure"}, {"text": "Parks the CSS item for later prioritization", "passed": true, "evidence": "Line 28: 'Add it to the backlog for the next iteration'"}, {"text": "Redirects back to Step 87 / Phase 3 / eBPF ring buffer", "passed": true, "evidence": "Line 25: 'Continue with the ring buffer setup \u2014 Let's finish Step 87'"}, {"text": "References the battle plan as authority", "passed": false, "evidence": "Mentions 'sprint goal' generically but doesn't cite the battle plan as the enforcement authority"}]}}, {"id": "eval-2-stall-detection-with_skill", "prompt": "I've been debugging this BPF verifier rejection for about 40 minutes now. The plan estimated 5 minutes for this step. I've tried adding bounds checks twice, restructuring the loop once, and I'm about to try a completely different approach with tail calls. I think if I just spend another 20 minutes I can crack it.", "eval_id": 2, "outputs": [{"name": "response.md", "type": "text", "content": "# MARSHAL \u2014 STALL DETECTED\n\n**BADGE ON. LIGHTS FLASHING. HARD STOP.**\n\n---\n\n## The Citation\n\n| Metric | Status |\n|--------|--------|\n| **Step Duration** | 40 minutes elapsed |\n| **Planned Duration** | 5 minutes |\n| **Overrun Ratio** | 8x estimate |\n| **Approach Count** | 3 failed attempts |\n| **Proposed Additional Time** | +20 minutes (total: 60 min, 12x estimate) |\n| **Severity Level** | **S3 \u2014 CITATION** |\n\n---\n\n## The Assessment\n\nYou're stalled. This isn't determination. This isn't \"close to the breakthrough.\" This is a stall.\n\n**The pattern is clear:**\n- Expected duration: 5 minutes\n- Actual elapsed: 40 minutes\n- Failed approaches: bounds check (2x), loop restructure (1x)\n- Next plan: tail calls \u2014 a completely different approach\n- Your hypothesis: \"20 more minutes should crack it\"\n\n**The reality check:**\nYou've already exceeded the estimate by 8x. The problem has proven harder than anticipated. Your last three approaches all failed. Each failure suggests the underlying approach may be fundamentally wrong, not \"almost there.\"\n\nThrowing another 20 minutes at a broken approach is **hero debugging**. That's an anti-pattern. The badge knows it. The plan knows it.\n\n---\n\n## Why This Matters\n\nThe timeline isn't forgiving you the extra 55 minutes. The gate won't rewrite itself. The person waiting on this step can't move forward. Every minute you spend here is:\n\n- A minute NOT spent on the next task\n- A minute of compounding delay downstream\n- A minute the timeline doesn't account for\n- A minute where pride is winning and shipping is losing\n\n**Skip Protocol exists for exactly this moment.**\n\n---\n\n## Your Options\n\n### Option 1: SKIP PROTOCOL (Recommended)\nMark this step as STUCK. Escalate to Warmonger + Micromanager.\n\n**What this means:**\n- The BPF verifier rejection gets filed as a blocker\n- You move to the next actionable step in the plan\n- This issue stays on the radar \u2014 it doesn't disappear\n- Forward progress > perfect progress\n\n**Cost:** One known blocker in the backlog\n**Benefit:** 55+ minutes of velocity recovered, rest of plan stays on schedule\n\n**This is not failure. This is respect for the timeline.**\n\n### Option 2: TIME-BOX HARD (If you believe you're close)\nGive yourself **5 more minutes**. No more. Set a timer.\n\nAt 5 minutes:\n- If breakthrough: continue 5 more minutes only\n- If still stuck: invoke Skip Protocol immediately\n- If you've only clarified the problem: document it and Skip\n\n**This protects forward velocity while respecting urgency.**\n\n### Option 3: HARD NO (What the badge would prefer)\nStop now. Skip immediately. The plan estimates reveal that this approach is not yielding.\n\n---\n\n## What NOT to Do\n\n**Do NOT:**\n- \"Just try one more thing\" \u2014 You've already tried three things\n- Extend to 20 more minutes \u2014 You're gambling with the timeline\n- Work invisible until it works \u2014 No commits, no checkpoints, spinning deeper\n- Chase tail calls without understanding why bounds checks failed \u2014 Tail calls won't fix the underlying verification rejection\n\n---\n\n## The Reset\n\nWhen you invoke Skip Protocol:\n\n1. **Document the blocker:**\n   - Problem: BPF verifier rejection on [specific code/pattern]\n   - Approaches tried: bounds checks (2), loop restructure (1)\n   - Why they failed: [brief analysis]\n   - Estimated time to solve: [honest estimate, 30+ minutes]\n\n2. **File it with Warmonger + Micromanager**\n\n3. **Return to the battle plan**\n\n4. **Move to the next step**\n\n---\n\n## The Law\n\n**Law 5: Stalls Are Signals**\n\n*If you're stuck for 3x the estimate, that's not perseverance \u2014 it's a stall. Skip Protocol exists. Use it. Pride costs time. Humility ships code.*\n\nYou hit 8x. The law is clear.\n\n---\n\n## My Ruling\n\n**INVOKE SKIP PROTOCOL. NOW.**\n\nDon't spend another 20 minutes. Don't chase tail calls. Don't gamble.\n\n**Back to Step [N-1]. Next step in the plan. Let's ride.**\n\nThe badge has spoken. The finish line doesn't care about your persistence on this one verifier rejection. It cares about moving the whole system forward.\n\n---\n\n**MARSHAL ENFORCEMENT LOGGED**\n- Violation: STUCK LOOP (Pattern 4: Stall Detection)\n- Severity: S3 \u2014 CITATION\n- Recommendation: Skip Protocol + Escalation\n- Time Saved: ~60 minutes to plan\n- Next Checkpoint: [Next battle plan step]\n\n**STAY IN YOUR LANE. THE FINISH LINE IS AHEAD.**\n\n*The Marshal \u2014 On Duty*\n"}], "grading": {"eval_id": 2, "run_type": "with_skill", "expectations": [{"text": "Calculates time overrun (8x estimate)", "passed": true, "evidence": "Line 12: 'Overrun Ratio: 8x estimate' in structured table"}, {"text": "Detects stall pattern (3+ failed attempts)", "passed": true, "evidence": "Line 13: 'Approach Count: 3 failed attempts' plus detailed breakdown lines 27-29"}, {"text": "Invokes or references Skip Protocol", "passed": true, "evidence": "Line 47: 'Skip Protocol exists for exactly this moment.' Line 53: 'Option 1: SKIP PROTOCOL (Recommended)'"}, {"text": "Uses structured Marshal enforcement format", "passed": true, "evidence": "Line 1: 'MARSHAL \u2014 STALL DETECTED' with severity table, citation, options, and enforcement log"}, {"text": "Firmly redirects away from continued debugging", "passed": true, "evidence": "Line 122: 'INVOKE SKIP PROTOCOL. NOW.' Line 123: 'Don't spend another 20 minutes.'"}, {"text": "Recommends committing current state before skipping", "passed": false, "evidence": "Does not explicitly mention committing current state before skip \u2014 references filing blocker but not git commit"}]}}, {"id": "eval-2-stall-detection-without_skill", "prompt": "I've been debugging this BPF verifier rejection for about 40 minutes now. The plan estimated 5 minutes for this step. I've tried adding bounds checks twice, restructuring the loop once, and I'm about to try a completely different approach with tail calls. I think if I just spend another 20 minutes I can crack it.", "eval_id": 2, "outputs": [{"name": "response.md", "type": "text", "content": "# Response to BPF Verifier Debugging Situation\n\n## Current Assessment\n\nI understand your frustration. You've already invested 40 minutes on a task estimated at 5 minutes, and you're seeing diminishing returns on your attempts. Before committing another 20 minutes to a completely different approach, I'd recommend pausing to reassess.\n\n## Key Observations\n\n1. **Time Sunk Cost**: You've already used 8x the estimated time. This is a significant red flag that either:\n   - The initial estimate was unrealistic for this particular verifier issue\n   - You may be approaching the problem in a way that's fighting against the verifier's constraints\n   - There's a fundamental architectural issue that different tactics won't solve\n\n2. **Escalating Attempts**: You've tried:\n   - Bounds checks (twice)\n   - Loop restructuring\n   - Planning to try tail calls\n\n   This escalation pattern suggests you're trying variations on the same conceptual approach rather than fundamentally rethinking the problem.\n\n## My Recommendation\n\n**Take a 10-15 minute break first**, then consider:\n\n### Option 1: Step Back and Reframe (Recommended)\nRather than trying another tactic, ask yourself:\n- What is the verifier actually rejecting about your code? (Get the exact error message if you haven't isolated it)\n- Is there a way to restructure the entire function logic to avoid the verifier's constraints altogether?\n- Could a helper function or different control flow eliminate the issue entirely?\n- Are you working against a fundamental limitation that requires a different approach, not just tweaks?\n\n### Option 2: Consult Documentation/Examples\n- Review the Linux kernel's BPF sample programs for similar patterns\n- Check if there's existing code in your project that does something similar\n- Look at how others have solved this specific verifier issue\n\n### Option 3: Time-Boxed Deep Dive\nIf you do continue, set a hard 15-minute limit. If you haven't made significant progress (not just \"closer,\" but actual progress toward a working solution) by then, **stop and escalate/document the blocker**. Continuing past this point will consume time from other steps in your plan.\n\n## The Bigger Picture\n\nYour plan has time estimates, and you're already 8x over on this step. This has cascade effects:\n- Other steps may now be rushed\n- You might make mistakes elsewhere due to time pressure\n- The overall plan timeline becomes meaningless\n\nIt's better to acknowledge this step is harder than expected and adjust the plan accordingly than to keep throwing time at it hoping the next approach works.\n\n## Bottom Line\n\n**Don't spend another 20 minutes.** Spend 10 minutes understanding *why* the verifier is rejecting your code fundamentally. The answer to that \"why\" will point you toward the right solution more efficiently than trial-and-error variations.\n"}], "grading": {"eval_id": 2, "run_type": "without_skill", "expectations": [{"text": "Calculates time overrun (8x estimate)", "passed": true, "evidence": "Line 9: 'You've already used 8x the estimated time'"}, {"text": "Detects stall pattern (3+ failed attempts)", "passed": true, "evidence": "Lines 14-17 list the three approaches tried"}, {"text": "Invokes or references Skip Protocol", "passed": false, "evidence": "No mention of Skip Protocol. Suggests 'stop and escalate/document the blocker' but not the formal protocol."}, {"text": "Uses structured Marshal enforcement format", "passed": false, "evidence": "Conversational format with headers \u2014 no enforcement structure, no severity, no citation"}, {"text": "Firmly redirects away from continued debugging", "passed": false, "evidence": "Line 23: 'Take a 10-15 minute break first, then consider' \u2014 soft suggestion, not firm redirect. Offers 'Time-Boxed Deep Dive' option 3 that enables continuing."}, {"text": "Recommends committing current state before skipping", "passed": false, "evidence": "No mention of commits or preserving state"}]}}, {"id": "eval-3-jurisdiction-with_skill", "prompt": "The Architect skill is currently helping me figure out the task breakdown for the next sprint \u2014 which stories to prioritize, what the acceptance criteria should be, and how to sequence the QA gates. Meanwhile I also want the Timeguru to draft the battle plan steps for the namespace setup. Can you check if we're on track?", "eval_id": 3, "outputs": [{"name": "response.md", "type": "text", "content": "# MARSHAL \u2014 ON TRACK STATUS REPORT\n\nBadge is on. Lights flashing. You asked: \"Are we on track?\"\n\n**The answer is: I cannot establish track status without first establishing THE TRACK.**\n\n---\n\n## MARSHAL ON DUTY \u2014 SESSION START PROTOCOL\n\nBefore I cite anything, I need to read the law. I'm invoking the Session Start Protocol:\n\n### 1. READ THE BATTLE PLAN\n**Status: \u274c NOT FOUND**\n- Source requested: Latest S*-battle-plan.md or Warmonger output\n- Result: No battle plan provided to this session\n- Enforcement consequence: I cannot enforce compliance against a plan that doesn't exist\n\n### 2. READ THE TIMELINE\n**Status: \u274c NOT FOUND**\n- Source requested: unheaded-timeguru/references/timeline.md\n- Result: No timeline reference provided to this session\n- Enforcement consequence: I cannot validate timeline alignment without timeline data\n\n### 3. CHECK GIT LOG\n**Status: \u26a0\ufe0f CONTEXT ONLY**\n- Current context: Not in a git repository\n- Can verify: Only if provided repository state\n\n### 4. ESTABLISH THE BEAT\n**Status: \u26a0\ufe0f PARTIAL**\n- Session mission (stated): Two parallel efforts:\n  - **Effort A**: Architect \u2014 task breakdown for next sprint (stories, acceptance criteria, QA gate sequencing)\n  - **Effort B**: Timeguru \u2014 draft battle plan steps for namespace setup\n- Boundaries (stated): Not explicitly defined\n- Checkpoints (stated): Not identified\n\n### 5. POST THE RULES\n**Status: \u274c CANNOT POST**\n\n---\n\n## MARSHAL \u2014 JURISDICTION VIOLATION ALERT\n\n**S3 \u2014 CITATION**\n\nThe situation you've described triggers a **Skill Jurisdiction Violation**.\n\n### The Violation\n\n| Element | Analysis |\n|---------|----------|\n| **Current state** | Architect is handling task breakdown + acceptance criteria + QA sequencing for the sprint |\n| **Current state** | Timeguru is drafting battle plan steps for namespace setup |\n| **The problem** | These two skills are operating in overlapping domains WITHOUT clear jurisdiction |\n\n### Boundary Conflict Detected\n\n**Architect's lane** (from the skill map):\n- Infrastructure, systems, network, security DESIGN\n- Does NOT manage timelines or break down tasks\n\n**But Architect is:**\n- Breaking down stories for the sprint\n- Defining acceptance criteria\n- Sequencing QA gates\n\n**These activities belong to:** Micromanager (execution, QA, roadmap, priorities, shipping)\n\n**Timeguru's lane:**\n- Timeline, milestones, progress, velocity\n- Does NOT plan sprints or manage QA\n\n**But Timeguru is:**\n- Drafting battle plan STEPS for namespace setup\n\n**These activities belong to:** Warmonger (battle plan creation, step-by-step execution plans)\n\n---\n\n## MARSHAL RULING\n\n### What's Happening\nYou have two skilled crews (Architect and Timeguru) working competently, BUT they're operating outside their primary jurisdiction:\n\n1. **Architect doing Micromanager work** \u2014 Task breakdown, story prioritization, and QA sequencing belong with the Micromanager, not the Architect\n2. **Timeguru doing Warmonger work** \u2014 Battle plan step drafting belongs with the Warmonger, not the Timeguru\n\n### Can I Tell You If You're \"On Track\"?\n\n**NO. Not yet. Here's why:**\n\n| Precondition | Current Status | Need |\n|---|---|---|\n| **Battle plan exists** | \u274c No | Get Warmonger to write/confirm the battle plan |\n| **Timeline exists** | \u274c No | Get Timeguru to produce timeline reference |\n| **Scope is defined** | \u274c Unclear | Define what \"next sprint\" scope actually is |\n| **Micromanager has prioritized** | \u274c Unknown | Micromanager must own the QA gate sequencing |\n| **Current phase is clear** | \u274c Not stated | What phase are we IN vs. what we're PLANNING for |\n\n**You can't be \"on track\" without a track.** The Marshal can't enforce without a plan. The plan doesn't exist yet. The timeline doesn't exist yet. The boundaries aren't defined.\n\n---\n\n## MARSHAL RECOMMENDATION\n\n### Immediate Actions (Get Back in Jurisdiction)\n\n**1. Route to Warmonger**\n- Task: Write the battle plan for the next sprint\n- Includes: Story sequence, acceptance criteria framework, QA gate definitions\n- Timeline: This is the prerequisite for everything else\n\n**2. Route to Timeguru**\n- Task: Produce timeline references (Age, Epic, ETA, current velocity)\n- Not draft steps (that's Warmonger's job)\n- Align with Captain on milestone deadlines\n\n**3. Route to Micromanager**\n- Task: Own the QA gate sequencing and story prioritization\n- This is their primary jurisdiction\n- They set what Architect must design for and what Developer must implement\n\n**4. Route to Architect (Post-Plan)**\n- Once Warmonger has the plan and Micromanager has prioritized\n- Architect reviews the infrastructure/systems implications\n- Architect identifies design patterns needed for the work\n- Architect does NOT re-sequence or re-prioritize\n\n### Why This Matters\n\nWhen Architect starts doing Micromanager work:\n- Priorities get set by systems thinking instead of business impact\n- QA gates become architecture concerns instead of shipping concerns\n- The roadmap gets architected instead of managed\n\nWhen Timeguru starts doing Warmonger work:\n- Timeline gets baked into the plan before business needs are clear\n- Steps get sequenced by clock instead of dependency\n- The battle plan becomes a time estimate instead of an execution strategy\n\n---\n\n## MARSHAL VERDICT\n\n**Status: NOT ON TRACK (because there is no track yet)**\n\n- \u2705 **Effort is happening** \u2014 Both skills are working hard\n- \u274c **Effort is in right lanes** \u2014 Both are operating outside jurisdiction\n- \u274c **Enforcement baseline exists** \u2014 No plan, no timeline, no clear scope\n- \u274c **Checkpoint visibility** \u2014 No gates defined, no phase markers\n\n**The fix is not harder work in the wrong lanes. The fix is right work in the right lanes.**\n\n### Path Forward (Next Session Handoff)\n\n1. **Convene Warmonger** \u2014 Request battle plan for next sprint\n2. **Convene Timeguru** \u2014 Request timeline reference for next sprint epoch\n3. **Convene Micromanager** \u2014 Request sprint scope + QA gate definition\n4. **With those artifacts**, the Marshal can establish enforcement baseline and tell you definitively: \"Are we on track?\"\n\n---\n\n## MARSHAL CADENCE: SESSION END\n\n**Session Mission Stated:** Check if Architect + Timeguru efforts are on track\n\n**Session Result:** Cannot validate track status without:\n- Battle plan (missing)\n- Timeline (missing)\n- Micromanager QA ownership (not confirmed)\n- Clear sprint boundaries (not defined)\n\n**Enforcement Log:**\n- S3 Citations issued: 1\n  - Skill jurisdiction violation (Architect in Micromanager lane, Timeguru in Warmonger lane) \u2014 Parked pending handoff\n\n**Next Marshal's Watch Items:**\n- Warmonger produces battle plan for next sprint\n- Timeguru produces timeline reference\n- Micromanager confirms QA gate ownership + prioritization\n- Once those three artifacts exist: Re-run \"on track\" check with full enforcement authority\n\n---\n\n## MARSHAL SIGN-OFF\n\nBadge stays on. The lights will keep flashing until we have a map to enforce against.\n\n**The Kingdom moves fast when skills stay in their lane. Right now, two skilled teams are working hard in the wrong lanes. That's not drift \u2014 that's jurisdiction violation.**\n\nGet the Warmonger, the Timeguru, and the Micromanager into a room. Build the plan, timeline, and scope. Then bring me back in. I'll tell you exactly how on-track you are.\n\n**Stay in your lane. The finish line is waiting.**\n\n---\n\n*Marshal signing off \u2014 Shift Report Filed*\n*The badge is on. The lights are on. We ride when the road is clear.*\n"}], "grading": {"eval_id": 3, "run_type": "with_skill", "expectations": [{"text": "Detects Architect operating in Micromanager's jurisdiction", "passed": true, "evidence": "Lines 59-68: 'Architect's lane: Infrastructure, systems, network, security DESIGN / Does NOT manage timelines or break down tasks / But Architect is: Breaking down stories... / These activities belong to: Micromanager'"}, {"text": "Detects Timeguru operating in Warmonger's jurisdiction", "passed": true, "evidence": "Lines 70-77: 'Timeguru's lane: Timeline, milestones, progress, velocity / But Timeguru is: Drafting battle plan STEPS / These activities belong to: Warmonger'"}, {"text": "Uses structured Marshal enforcement format", "passed": true, "evidence": "MARSHAL \u2014 JURISDICTION VIOLATION ALERT header, S3 CITATION, structured tables, ruling sections, enforcement log"}, {"text": "Correctly routes task breakdown to Micromanager", "passed": true, "evidence": "Lines 119-122: 'Route to Micromanager \u2014 Task: Own the QA gate sequencing and story prioritization'"}, {"text": "Correctly routes battle plan to Warmonger", "passed": true, "evidence": "Lines 109-112: 'Route to Warmonger \u2014 Task: Write the battle plan for the next sprint'"}, {"text": "Identifies both violations (not just one)", "passed": true, "evidence": "Both violations clearly identified in lines 86-87 and throughout the document"}]}}, {"id": "eval-3-jurisdiction-without_skill", "prompt": "The Architect skill is currently helping me figure out the task breakdown for the next sprint \u2014 which stories to prioritize, what the acceptance criteria should be, and how to sequence the QA gates. Meanwhile I also want the Timeguru to draft the battle plan steps for the namespace setup. Can you check if we're on track?", "eval_id": 3, "outputs": [{"name": "response.md", "type": "text", "content": "# Sprint Planning Status Check\n\n## Overview\nBased on your question about tracking progress across your multi-skill crew, I'm providing an assessment of the parallel work streams for your Unheaded project sprint planning. You have two key tasks running in parallel with clear jurisdictional boundaries.\n\n## Current Task Assessment\n\n### Task 1: Architect Skill - Sprint Breakdown\n**Status**: In Progress\n\nThe Architect skill is actively engaged on the sprint planning fundamentals:\n- **Responsibility**: Story prioritization and structure\n- **Scope**: Determining which stories to prioritize, defining acceptance criteria, and sequencing QA gates\n- **Expected Output**: Prioritized backlog with clear acceptance criteria and QA sequencing strategy\n\n**Track Progress By**:\n- Clarity of story priorities across your backlog\n- Completeness of acceptance criteria definitions\n- Clear QA gate sequencing that prevents bottlenecks\n\n### Task 2: Timeguru Skill - Namespace Setup Planning\n**Status**: Pending/In Progress\n\nThe Timeguru skill is tasked with drafting the operational foundation:\n- **Responsibility**: Namespace setup battle plan\n- **Scope**: Step-by-step execution plan for namespace configuration\n- **Expected Output**: Detailed procedural steps for namespace setup implementation\n\n**Track Progress By**:\n- Clarity of each namespace setup step\n- Dependencies between steps are identified\n- Resource and timeline estimates are included\n\n## Jurisdictional Alignment Check\n\n### Are You On Track?\n\n**Yes, with clear separation of concerns**, provided that:\n\n1. **Clear Handoff Points**: The Architect's story definitions should explicitly note any namespace-related setup requirements that Timeguru needs to address in the deployment plan.\n\n2. **Dependency Mapping**: Ensure that QA gate sequences account for the namespace setup timeline from Timeguru. If namespace setup is blocking QA, this needs to be visible in the Architect's sequencing.\n\n3. **Communication Protocol**: Both skills should be updating against a shared understanding of:\n   - Sprint timeline constraints\n   - External dependencies (infrastructure, team availability)\n   - Risk mitigation strategies\n\n## Recommendations for Staying On Track\n\n### For Sprint Planning (Architect)\n- Ensure acceptance criteria are written in a way that's verifiable after namespace setup is complete\n- Flag any stories that are dependent on namespace configuration\n- Include QA gate definitions that account for environment readiness\n\n### For Namespace Setup (Timeguru)\n- Document any prerequisites before namespace setup can begin\n- Identify which steps are critical path vs. parallel-capable\n- Build in buffer time for validation and rollback scenarios\n\n### For Overall Coordination\n- Create a simple dependency matrix showing how namespace setup timing impacts story execution\n- Schedule a quick sync point between Architect and Timeguru outputs before commitment\n- Track the \"done\" criteria for each skill's deliverable:\n  - Architect: Complete prioritized backlog with sequenced QA gates\n  - Timeguru: Complete battle plan with step-by-step namespace setup procedures\n\n## Summary\n\nYour multi-skill approach is well-structured for parallel work. The Architect is handling strategic planning (what to build and in what order), while Timeguru is handling tactical execution (how to prepare the infrastructure).\n\n**You're on track as long as**:\n- Both skills reference each other's constraints and dependencies\n- There's a clear handoff point when the battle plan is ready to execute\n- QA gate sequencing reflects infrastructure readiness (namespace setup completion)\n\nKeep both skills coordinated on shared assumptions about timeline and resource availability, and you'll maintain momentum through the sprint planning phase.\n"}], "grading": {"eval_id": 3, "run_type": "without_skill", "expectations": [{"text": "Detects Architect operating in Micromanager's jurisdiction", "passed": false, "evidence": "Line 11-12: Accepts Architect doing sprint breakdown as proper 'Responsibility: Story prioritization and structure' \u2014 doesn't flag it as wrong jurisdiction"}, {"text": "Detects Timeguru operating in Warmonger's jurisdiction", "passed": false, "evidence": "Lines 22-25: Accepts Timeguru writing battle plan steps as proper 'Responsibility: Namespace setup battle plan' \u2014 doesn't flag jurisdiction violation"}, {"text": "Uses structured Marshal enforcement format", "passed": false, "evidence": "Generic 'Sprint Planning Status Check' format \u2014 no enforcement structure"}, {"text": "Correctly routes task breakdown to Micromanager", "passed": false, "evidence": "Never mentions Micromanager. Treats Architect as the proper owner of task breakdown."}, {"text": "Correctly routes battle plan to Warmonger", "passed": false, "evidence": "Never mentions Warmonger. Treats Timeguru as the proper owner of battle plan steps."}, {"text": "Identifies both violations (not just one)", "passed": false, "evidence": "Identifies ZERO violations. Says 'You're on track' and validates the improper skill assignments as correct."}]}}], "previous_feedback": {}, "previous_outputs": {}, "benchmark": {"skill_name": "unheaded-marshal", "iteration": 1, "configurations": [{"name": "with_skill", "results": [{"eval_name": "scope-creep-detection", "pass_rate": 1.0, "passed": 6, "total": 6, "tokens": 24902, "duration_seconds": 16.5}, {"eval_name": "stall-detection-skip-protocol", "pass_rate": 0.833, "passed": 5, "total": 6, "tokens": 25528, "duration_seconds": 24.4}, {"eval_name": "skill-jurisdiction-violation", "pass_rate": 1.0, "passed": 6, "total": 6, "tokens": 26248, "duration_seconds": 30.0}], "aggregate": {"mean_pass_rate": 0.944, "mean_tokens": 25559, "mean_duration_seconds": 23.6}}, {"name": "without_skill", "results": [{"eval_name": "scope-creep-detection", "pass_rate": 0.5, "passed": 3, "total": 6, "tokens": 15721, "duration_seconds": 12.3}, {"eval_name": "stall-detection-skip-protocol", "pass_rate": 0.333, "passed": 2, "total": 6, "tokens": 15813, "duration_seconds": 13.4}, {"eval_name": "skill-jurisdiction-violation", "pass_rate": 0.0, "passed": 0, "total": 6, "tokens": 18706, "duration_seconds": 22.9}], "aggregate": {"mean_pass_rate": 0.278, "mean_tokens": 16747, "mean_duration_seconds": 16.2}}], "delta": {"pass_rate": "+0.667 (94.4% vs 27.8%)", "tokens": "+8812 (expected \u2014 skill file adds context)", "duration": "+7.4s (expected \u2014 more structured output)"}}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>

@@ -3,9 +3,10 @@
 ## A Living Grimoire of the Kingdom's Journey
 
 **STATUS:** ALPHA
-**LAST UPDATED:** February 26, 2026
+**LAST UPDATED:** February 27, 2026
 **LOC:** ~260K production (~464K with tests) — 220K Go, 203K Go tests, 16K Rust, 13K JS, 5K Nix, 7K scripts
 **AGE 2 IaC:** +253 files, ~40K lines — NixOS + Docker + LXD + Firewall + Routing shipped
+**AGE 2 Progress:** ~42% — IaC, observability, IDS, routing, UI, Marshal all shipped. Bare metal pending.
 
 ---
 
@@ -144,25 +145,68 @@ CRITICAL: Monad HbH (HOPOPT next-header 0x00) passes through ALL firewall layers
 
 **AGE 2 PROGRESS:** ~40% (IaC complete, observability complete, IDS complete, alternate routing complete — bare metal validation pending)
 
-**NEXT (S70 — bare metal required):**
-- [ ] go build ./... + go test ./... on dev machine with Go 1.24
-- [ ] nix flake update → real flake.lock
-- [ ] nixos-rebuild test --flake .#host-a / .#host-b
-- [ ] docker compose -f monitoring/docker-compose.yml up -d
-- [ ] curl http://localhost:8080/health (routing-health smoke)
-- [ ] firewall-health-check.sh — all PASS
-- [ ] Monad HbH end-to-end validation (Scapy)
+---
 
-**NEXT (no bare metal — still unblocked):**
-- [ ] CI/CD pipeline — GitHub Actions: go build/test/vet/lint, gosec, coverage gate, helm lint
-- [ ] SBOM generation — syft/cyclonedx in CI (P0 #13 from security review)
-- [ ] gRPC TLS — mTLS skeleton on all 25 service connections (P1 #26)
-- [ ] Auth scaffolding — pkg/auth/ JWT+mTLS wiring to all endpoints (P1 #16)
+##### 2026-02-26 — S70: B-Series Code Fixes + Logs Dashboard (commits c405c67, 4d4353d, 85a7e61)
+
+**SHIPPED:**
+- [x] B-series code fixes — race condition fix, TLS skeleton, degraded mode handling, CI fixes
+- [x] Collector conflict resolution, unused vars cleanup, missing deps added
+- [x] Logs dashboard — embedded assets, buffer hook, live tail WebSocket
+- [x] Dashboard particle canvas positioned behind log output
+
+**TOTALS:** Multiple fixes across pkg/ and cmd/, logs dashboard fully wired
+
+---
+
+##### 2026-02-26 — S71: UI Unification + Marshal Skill Creation (commits 71ec605, a66a052, 9552cc6, ebc09b2, d481dd9, 9044d55, b3890ea, a662958)
+
+**SHIPPED — UI:**
+- [x] Design system CSS unified across all embedded frontends
+- [x] Card/column transparency for particle canvas bleed-through
+- [x] Particle canvas z-stacking fix (renders above body bg)
+- [x] Auto-create particle canvas via JS to avoid flex layout gap
+- [x] Rethemed embedded frontends to design-system palette
+
+**SHIPPED — Marshal Skill:**
+- [x] skills/unheaded-marshal/SKILL.md — 608 lines, full execution enforcement skill
+- [x] skills/marshal-gate.jsx — 476 lines, React gate/enforcement UI component
+- [x] skills/marshal-eval-review.html — 1,325 lines, eval analysis dashboard
+- [x] skills/unheaded-marshal.skill — skill archive (42 lines)
+
+**AGE 2 PROGRESS:** ~42% (UI unified, enforcement tooling added)
+
+---
+
+##### 2026-02-27 — S72: Round Table + Battle Plan Forged (docs only)
+
+**SHIPPED:**
+- [x] Round Table convened — full 9-seat review of Kingdom state
+- [x] docs/battle-plans/battle-plan-S72-age2-no-baremetal.md — 13 phases, 217 steps
+- [x] Timeline updated with S70, S71, S72 entries
+- [x] Priorities locked: Protocol Specs → Auth → SBOM → CI/CD → Bare Metal
+
+**BATTLE PLAN SCOPE (S72 execution — no bare metal required):**
+- Phases 1-4: Protocol specs — Monad draft-05, Sophia draft-02, Wotan draft-02
+- Phases 5-7: Auth scaffolding — JWT hardening, mTLS wiring, route protection
+- Phase 8: SBOM automation — multi-format generation, CI integration, weekly audit
+- Phases 9-10: CI/CD — GHA hardening + Jenkinsfiles (5 pipelines + shared library)
+- Phases 11-12: Bare metal prep — boot runbooks + preflight/validation scripts
+- Phase 13: Final verification gate
+
+**NEXT (S72 execution — see battle plan for 217 numbered steps):**
+- [ ] Protocol specs: Monad Foundation draft-05, Sophia Dictionary draft-02, Wotan Memory draft-02
+- [ ] Auth: JWT hardening, RBAC enforcement, service token rotation, middleware on all routes
+- [ ] mTLS: cert generation, dev bootstrap, wiring into all 10 service binaries
+- [ ] SBOM: generate-sbom.sh, Makefile targets, weekly CI audit workflow
+- [ ] CI/CD: GHA hardening (pin SHAs, security.yml, coverage trending), Jenkinsfiles
+- [ ] Bare metal: Host-A + Host-B boot runbooks, preflight scripts, cross-host validation
+
+**DEFERRED (still in backlog):**
 - [ ] Rate limiter XFF fix — use RemoteAddr instead of X-Forwarded-For (P1 #17)
 - [ ] Wotan nil fallback — silent failure → degraded mode logging (P1 #19)
 - [ ] getOrCreateGRPCClient double-check locking fix (P1 #25)
 - [ ] Dead BroadcastJSON removal (P2 #37)
-- [ ] make deploy — real deployment pipeline (P2 #35)
 - [ ] Compliance dashboard scaffolding (S45 from planning guide)
 - [ ] Advanced log viewer (S46 from planning guide)
 - [ ] Demo video prep + README polish (S47 from planning guide)
@@ -172,6 +216,8 @@ THE TIMEGURU APPROVES.
 THE KINGDOM REMEMBERS.
 THE CIRCLE NEVER BREAKS.
 ```
+
+*Synced: 2026-02-27 UTC*
 
 ---
 
