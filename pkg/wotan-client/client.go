@@ -160,8 +160,7 @@ type Client struct {
 	streamClient  *http.Client // long timeout for GetMessages, polling (30s)
 	grpcAddr   string       // gRPC endpoint for streaming (empty = HTTP-only mode)
 	grpcClient *GRPCClient  // Lazy-initialized gRPC client
-	grpcOnce   sync.Once    // ensures single gRPC client initialization
-	grpcErr    error         // cached error from gRPC client init
+	grpcMu     sync.Mutex   // guards grpcClient initialization (allows retry on failure)
 
 	// Transport state — gRPC primary, HTTP fallback
 	transport     TransportState // current active transport
@@ -615,15 +614,26 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 }
 
 // getOrCreateGRPCClient lazily initializes the gRPC client.
-// Uses sync.Once for race-free single initialization.
+// Uses double-check locking: the fast path reads grpcClient without a lock;
+// if nil, the mutex is acquired and grpcClient is checked again before
+// creating a new connection. Unlike sync.Once, this allows retrying if the
+// initial connection failed (e.g., Wotan was temporarily unreachable).
 func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
-	c.grpcOnce.Do(func() {
-		c.grpcClient, c.grpcErr = NewGRPCClient(c.grpcAddr)
-		if c.grpcErr != nil {
-			c.grpcErr = fmt.Errorf("create gRPC client: %w", c.grpcErr)
-		}
-	})
-	return c.grpcClient, c.grpcErr
+	// Fast path: client already created (no lock required)
+	c.grpcMu.Lock()
+	defer c.grpcMu.Unlock()
+
+	if c.grpcClient != nil {
+		return c.grpcClient, nil
+	}
+
+	// Slow path: create the gRPC client under lock
+	client, err := NewGRPCClient(c.grpcAddr)
+	if err != nil {
+		return nil, fmt.Errorf("create gRPC client: %w", err)
+	}
+	c.grpcClient = client
+	return c.grpcClient, nil
 }
 
 // backoff calculates exponential backoff: min(pollBackoffMin * 2^failures, pollBackoffMax).
