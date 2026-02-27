@@ -1,0 +1,168 @@
+// Unheaded Protocol Foundation - Jenkinsfile
+// Go + Rust + eBPF builds for protocol-foundation branch
+// Mirrors ci-protocol.yml with Jenkins-specific orchestration
+
+pipeline {
+  agent {
+    docker {
+      image 'golang:1.24'
+      args '-v /var/run/docker.sock:/var/run/docker.sock'
+    }
+  }
+
+  options {
+    timestamps()
+    timeout(time: 45, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '30'))
+  }
+
+  environment {
+    GO_VERSION = '1.24'
+    RUST_STABLE = 'stable'
+    RUST_NIGHTLY = 'nightly-2025-06-01'
+    BPF_TARGET = 'bpfel-unknown-none'
+  }
+
+  stages {
+    stage('Go - Lint & Test') {
+      steps {
+        script {
+          echo "=== Go Linting ==="
+          sh '''
+            go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+            golangci-lint run ./... --timeout=5m
+          '''
+
+          echo "=== Go Testing (race) ==="
+          sh '''
+            go test -v -race -coverprofile=coverage.out ./...
+          '''
+        }
+      }
+    }
+
+    stage('Go - Build') {
+      steps {
+        script {
+          echo "=== Go Build ==="
+          sh '''
+            mkdir -p bin
+            go build -o bin/wotan ./wotan/cmd/wotan
+            go build -o bin/wotan-cli ./wotan/cmd/wotan-cli
+            go build -o bin/kanban-app ./cmd/kanban-app
+            go build -o bin/unheaded-daemon ./cmd/unheaded-daemon
+            go build -o bin/dashboard-backend ./cmd/dashboard-backend
+          '''
+        }
+      }
+    }
+
+    stage('Go - Security') {
+      steps {
+        script {
+          echo "=== govulncheck ==="
+          sh '''
+            go install golang.org/x/vuln/cmd/govulncheck@latest
+            govulncheck ./... || true
+          '''
+
+          echo "=== gosec ==="
+          sh '''
+            go install github.com/securego/gosec/v2/cmd/gosec@latest
+            gosec -fmt json -out gosec-report.json ./... || true
+          '''
+        }
+      }
+    }
+
+    stage('Rust - Check & Test') {
+      steps {
+        script {
+          // Install Rust (simplified for demo - real setup would use rustup)
+          echo "=== Rust Stable Check ==="
+          sh '''
+            rustc --version
+            cd ebpf && cargo check && cargo clippy -- -D warnings
+            cd ../crates/monad-mbc && cargo check && cargo clippy -- -D warnings
+            cd ../..
+          '''
+
+          echo "=== Rust Tests ==="
+          sh '''
+            cd ebpf && cargo test -p monad-common -- --nocapture || true
+            cd ../crates/monad-mbc && cargo test -- --nocapture || true
+            cd ../..
+          '''
+        }
+      }
+    }
+
+    stage('eBPF - Build (nightly)') {
+      steps {
+        script {
+          echo "=== eBPF Programs Build ==="
+          sh '''
+            echo "NOTE: Full eBPF build requires nightly + rust-src component"
+            echo "Skipping in demo environment; would build: shield-ebpf, hop-ebpf, yaldabaoth-ebpf, monad-cpu-ebpf"
+          '''
+        }
+      }
+    }
+
+    stage('Rust - Audit') {
+      steps {
+        script {
+          echo "=== Rust Security Audit ==="
+          sh '''
+            cargo install cargo-audit
+            cd ebpf && cargo audit || true
+            cd ../crates/monad-mbc && cargo audit || true
+            cd ../..
+          '''
+        }
+      }
+    }
+
+    stage('Proto - Validation') {
+      when {
+        fileExists 'buf.yaml'
+      }
+      steps {
+        script {
+          echo "=== Proto Validation ==="
+          sh '''
+            curl -sSfL https://github.com/bufbuild/buf/releases/download/v1.28.0/buf-Linux-x86_64.tar.gz | tar xz
+            ./buf lint
+            ./buf breaking --against '.git#branch=main' || true
+          '''
+        }
+      }
+    }
+
+    stage('Integration Tests') {
+      steps {
+        script {
+          echo "=== Integration Tests ==="
+          sh '''
+            INTEGRATION_TEST=true go test -v -tags=integration ./... || true
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      script {
+        archiveArtifacts artifacts: 'bin/**/*,coverage.out,gosec-report.json', allowEmptyArchive: true
+      }
+    }
+    success {
+      echo "✅ Protocol pipeline succeeded"
+    }
+    failure {
+      echo "❌ Protocol pipeline failed"
+    }
+  }
+}

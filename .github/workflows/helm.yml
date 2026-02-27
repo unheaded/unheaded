@@ -10,10 +10,15 @@ on:
     paths:
       - 'helm/**'
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   lint:
     name: Helm Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +39,7 @@ jobs:
   template:
     name: Helm Template
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -57,9 +63,21 @@ jobs:
           python3 -c "import yaml; yaml.safe_load_all(open('/tmp/dev.yaml'))"
           python3 -c "import yaml; yaml.safe_load_all(open('/tmp/prod.yaml'))"
 
+      - name: Install kubeconform
+        run: |
+          curl -L https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin
+
+      - name: Validate schemas with kubeconform
+        run: |
+          kubeconform -summary -output json /tmp/default.yaml
+          kubeconform -summary -output json /tmp/dev.yaml
+          kubeconform -summary -output json /tmp/prod.yaml
+
   security:
     name: Chart Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -83,4 +101,19 @@ jobs:
             echo "::error::Missing allowPrivilegeEscalation: false"
             exit 1
           fi
-          echo "Security context checks passed"
+          # Must not have hostNetwork: true
+          if grep -c "hostNetwork: true" /tmp/manifests.yaml | grep -v "0"; then
+            echo "::error::hostNetwork: true is not permitted"
+            exit 1
+          fi
+          # Must not have privileged: true
+          if grep -c "privileged: true" /tmp/manifests.yaml | grep -v "0"; then
+            echo "::error::privileged: true is not permitted"
+            exit 1
+          fi
+          echo "✓ Security context checks passed"
+
+      - name: OPA policy validation (placeholder)
+        run: |
+          echo "TODO: Integrate OPA/Gatekeeper for policy enforcement"
+          echo "Example policies: no-host-network, no-privileged, require-security-context"
