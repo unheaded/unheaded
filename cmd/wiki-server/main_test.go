@@ -102,7 +102,7 @@ func TestWikiHomepage(t *testing.T) {
 	if !strings.Contains(html, "Welcome") {
 		t.Error("wiki homepage: missing 'Welcome' heading")
 	}
-	if !strings.Contains(html, "Unheaded Wiki") {
+	if !strings.Contains(html, "(u)nheaded") {
 		t.Error("wiki homepage: missing sidebar brand")
 	}
 	if !strings.Contains(html, "Home") {

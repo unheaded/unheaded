@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	pb "unheaded/proto/unheaded/v1"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/ports"
 )
 
@@ -106,9 +107,15 @@ func main() {
 		recoveryMiddleware,
 	)
 
+	// Wrap with pkg/auth middleware (activated via AUTH_ENABLED=true env var).
+	// This layers on top of the legacy --api-key flag auth.
+	authCfg := auth.LoadServiceAuthConfig("protocol-api")
+	var srvHandler http.Handler = restHandler
+	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
+
 	restServer := &http.Server{
 		Addr:           restPort,
-		Handler:        restHandler,
+		Handler:        srvHandler,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
