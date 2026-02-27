@@ -1,0 +1,67 @@
+# Prometheus alert rules - Monad protocol and infrastructure health
+# Unheaded Kingdom infrastructure
+# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+
+groups:
+  - name: monad
+    interval: 15s
+    rules:
+      # MONAD protocol HbH (Hop-by-Hop) header drop rate exceeds 1%
+      - alert: MonadHbHDropRateHigh
+        expr: rate(unheaded_monad_hbh_drop_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Monad HbH drop rate elevated"
+          description: "HbH packet drops > 1% on {{ $labels.host }}"
+
+      # BGP session down (indicates routing failure)
+      - alert: BGPSessionDown
+        expr: unheaded_bgp_session_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "BGP session down on {{ $labels.host }}"
+          description: "BGP session to {{ $labels.peer }} is not up"
+
+      # BFD failover triggered (routing redundancy engaged)
+      - alert: BFDFailoverTriggered
+        expr: increase(unheaded_bfd_failover_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "BFD failover triggered"
+          description: "Failover event detected on {{ $labels.host }}, may indicate link degradation"
+
+      # Suricata alert spike for Monad protocol signatures (90xx)
+      - alert: SuricataMonadSigSpike
+        expr: rate(unheaded_suricata_alert_total{sid=~"9000.*"}[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Suricata Monad signature spike"
+          description: "Monad protocol alerts > 10/s on {{ $labels.host }}"
+
+      # Routing health service down
+      - alert: RoutingHealthDown
+        expr: unheaded_routing_health_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Routing health service down"
+          description: "routing-health (port 8080) is not responding on {{ $labels.host }}"
+
+      # Node exporter down (host unreachable)
+      - alert: NodeExporterDown
+        expr: up{job="node_exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node exporter down on {{ $labels.instance }}"
+          description: "Cannot scrape node_exporter from {{ $labels.instance }}"
