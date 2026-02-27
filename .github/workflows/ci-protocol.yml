@@ -1,10 +1,15 @@
-name: CI
+name: CI (Protocol Foundation)
 
 on:
   push:
     branches: [main, develop, "theory/protocol-foundation"]
   pull_request:
     branches: [main, develop, "theory/protocol-foundation"]
+
+permissions:
+  contents: read
+  security-events: write
+  packages: write
 
 env:
   GO_VERSION: '1.24'
@@ -20,6 +25,7 @@ jobs:
   go-lint:
     name: Go Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +34,15 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Go Cache (modules)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
@@ -38,6 +53,7 @@ jobs:
   go-test:
     name: Go Test (race)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +62,15 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Go Cache (modules)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
 
       - name: Run tests with race detection
         run: go test -v -race -coverprofile=coverage.out ./...
@@ -60,6 +85,7 @@ jobs:
   go-build:
     name: Go Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [go-lint, go-test]
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +95,15 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Go Cache (modules)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
 
       - name: Build all binaries
         run: |
@@ -94,6 +129,7 @@ jobs:
   rust-check:
     name: Rust Check + Clippy (stable)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -109,6 +145,7 @@ jobs:
           workspaces: |
             ebpf -> target
             crates/monad-mbc -> target
+          key: ${{ runner.os }}-cargo-${{ env.RUST_STABLE }}
 
       - name: Check formatting — ebpf workspace
         working-directory: ebpf
@@ -129,6 +166,7 @@ jobs:
   rust-test:
     name: Rust Test (stable, host-testable crates)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -143,6 +181,7 @@ jobs:
           workspaces: |
             ebpf -> target
             crates/monad-mbc -> target
+          key: ${{ runner.os }}-cargo-${{ env.RUST_STABLE }}
 
       - name: Test monad-common (host, with race-equivalent --test-threads=1 for determinism)
         working-directory: ebpf
