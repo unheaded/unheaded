@@ -1,6 +1,9 @@
 # IANA Error Code Registry
 
-This document specifies the authoritative error code registry for the Unheaded protocol. Error codes are used in packet headers, control messages, and diagnostic logs to communicate failure modes and conditions.
+**Last Updated**: February 27, 2026 (S72 Phase 4)
+**Status**: RFC v1.0-draft — aligned with draft-bellis-unheaded-protocol-foundation-05
+
+This document specifies the authoritative error code registry for the Unheaded protocol. Error codes are used in packet headers, control messages, and diagnostic logs to communicate failure modes and conditions. All 13 normative codes (0x00-0x0C) are formalized and cross-referenced with protocol patches M1-M8.
 
 ---
 

@@ -10,7 +10,7 @@ info:
 
     Each service runs on its own port and exposes the common endpoints
     (/health, /ready, /metrics) plus service-specific REST API endpoints.
-  version: 1.0.0
+  version: 2.0.0
   contact:
     name: Unheaded
     email: stevie@bellis.tech
@@ -75,6 +75,18 @@ tags:
       Kanban application service (port 8080). Serves the project Kanban
       board with task CRUD operations, timeline integration, and real-time
       updates via SSE/WebSocket.
+  - name: shield
+    description: |
+      Shield eBPF status and control service. Manages ingress/egress BPF programs,
+      status monitoring, and dynamic program reloading for kernel-space packet processing.
+  - name: anamnesis
+    description: |
+      Anamnesis event observability service. Provides access to protocol-level events,
+      ring buffer data, flow statistics, and packet telemetry for network analysis.
+  - name: kingdom
+    description: |
+      Kingdom Mode state management service. Provides state machine transitions,
+      health checks, and lifecycle management for Kingdom Mode deployment.
 
 paths:
   # ===========================================================================
@@ -1684,6 +1696,275 @@ paths:
                     type: string
                     example: timeline
 
+  # ===========================================================================
+  # SHIELD eBPF STATUS AND CONTROL ENDPOINTS
+  # ===========================================================================
+  /api/v1/shield/status:
+    get:
+      summary: Get Shield eBPF program status
+      description: Returns the current status of all loaded eBPF programs (XDP, TC, kprobes)
+      tags:
+        - shield
+      responses:
+        "200":
+          description: Shield status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [operational, degraded, offline]
+                  programs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ShieldProgramStatus"
+                  last_update:
+                    type: string
+                    format: date-time
+
+  /api/v1/shield/programs:
+    get:
+      summary: List all Shield eBPF programs
+      description: Returns detailed information about all running BPF programs
+      tags:
+        - shield
+      responses:
+        "200":
+          description: BPF programs list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  programs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ShieldProgram"
+
+  /api/v1/shield/reload:
+    post:
+      summary: Reload Shield eBPF programs
+      description: Triggers a reload of eBPF programs with zero-downtime hot-swap
+      tags:
+        - shield
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                programs:
+                  type: array
+                  items:
+                    type: string
+                  description: List of program names to reload (empty = all)
+      responses:
+        "200":
+          description: Reload initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: reloading
+                  request_id:
+                    type: string
+
+  # ===========================================================================
+  # ANAMNESIS EVENT ENDPOINTS
+  # ===========================================================================
+  /api/v1/anamnesis/events:
+    get:
+      summary: Get Anamnesis events
+      description: Query ring buffer events with optional filtering
+      tags:
+        - anamnesis
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: event_type
+          in: query
+          schema:
+            type: string
+            description: Filter by event type (BIRTH, COMPUTED, DEATH, ANOMALY, CHAOS)
+      responses:
+        "200":
+          description: Events list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AnamnesisEvent"
+                  total_count:
+                    type: integer
+
+  /api/v1/anamnesis/events/{flow_label}:
+    get:
+      summary: Get events for a specific flow
+      description: Query all events associated with a specific flow label
+      tags:
+        - anamnesis
+      parameters:
+        - name: flow_label
+          in: path
+          required: true
+          schema:
+            type: string
+            format: hex
+            description: 128-bit flow label in hex format
+      responses:
+        "200":
+          description: Flow events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flow_label:
+                    type: string
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AnamnesisEvent"
+                  event_count:
+                    type: integer
+
+  /api/v1/anamnesis/stats:
+    get:
+      summary: Get Anamnesis event statistics
+      description: Returns event counts, rates, and anomaly statistics
+      tags:
+        - anamnesis
+      responses:
+        "200":
+          description: Event statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_events:
+                    type: integer
+                  events_per_second:
+                    type: number
+                  event_breakdown:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  anomalies_detected:
+                    type: integer
+                  last_update:
+                    type: string
+                    format: date-time
+
+  # ===========================================================================
+  # KINGDOM MODE ENDPOINTS
+  # ===========================================================================
+  /api/v1/kingdom/state:
+    get:
+      summary: Get Kingdom Mode state
+      description: Returns current Kingdom Mode deployment state machine status
+      tags:
+        - kingdom
+      responses:
+        "200":
+          description: Kingdom state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state:
+                    type: string
+                    enum: [IDLE, ACTIVE, CLOSING, CLOSED]
+                  deployment_ring:
+                    type: string
+                  transition_count:
+                    type: integer
+                  last_transition:
+                    type: string
+                    format: date-time
+
+  /api/v1/kingdom/state/transition:
+    post:
+      summary: Trigger Kingdom Mode state transition
+      description: Initiates a state machine transition with validation
+      tags:
+        - kingdom
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - target_state
+              properties:
+                target_state:
+                  type: string
+                  enum: [IDLE, ACTIVE, CLOSING, CLOSED]
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Transition initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  previous_state:
+                    type: string
+                  target_state:
+                    type: string
+                  transition_id:
+                    type: string
+        "400":
+          description: Invalid state transition
+
+  /api/v1/kingdom/health:
+    get:
+      summary: Get Kingdom Mode health
+      description: Returns health metrics for Kingdom Mode deployment
+      tags:
+        - kingdom
+      responses:
+        "200":
+          description: Kingdom health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, critical]
+                  ring_buffer_usage:
+                    type: number
+                    format: percentage
+                  active_flows:
+                    type: integer
+                  error_rate:
+                    type: number
+                    format: percentage
+
 # =============================================================================
 # COMPONENTS
 # =============================================================================
@@ -2564,3 +2845,118 @@ components:
           format: date-time
         data:
           type: object
+
+    # Shield eBPF Schemas
+    ShieldProgramStatus:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Program name (xdp_ingress, tc_egress, kprobe_lifecycle)
+        status:
+          type: string
+          enum: [loaded, unloaded, error]
+        load_time:
+          type: string
+          format: date-time
+        packet_count:
+          type: integer
+        error_count:
+          type: integer
+        attached_to:
+          type: string
+          description: Kernel hook (xdp, tc, kprobe)
+
+    ShieldProgram:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [xdp, tc, kprobe]
+        status:
+          type: string
+          enum: [active, inactive]
+        size_bytes:
+          type: integer
+        load_time:
+          type: string
+          format: date-time
+        maps:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+              entries:
+                type: integer
+        metrics:
+          type: object
+          additionalProperties:
+            type: integer
+
+    # Anamnesis Event Schemas
+    AnamnesisEvent:
+      type: object
+      properties:
+        timestamp_ns:
+          type: integer
+          format: uint64
+          description: Nanosecond timestamp
+        event_type:
+          type: string
+          enum: [BIRTH, COMPUTED, DEATH, ANOMALY, CHAOS, ROLLBACK]
+        flow_label:
+          type: string
+          format: hex
+        hop_index:
+          type: integer
+        input_monad:
+          type: string
+          format: hex
+          description: 20-byte Monad before hop
+        output_monad:
+          type: string
+          format: hex
+          description: 20-byte Monad after hop
+        trace_id:
+          type: string
+          format: hex
+        wotan_addr:
+          type: string
+          format: hex
+          description: Wotan memory address accessed
+        wotan_value:
+          type: string
+          format: hex
+          description: Value read/written
+
+    # Kingdom Mode Schemas
+    KingdomState:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [IDLE, ACTIVE, CLOSING, CLOSED]
+        state_code:
+          type: integer
+          minimum: 0
+          maximum: 3
+        transition_history:
+          type: array
+          items:
+            type: object
+            properties:
+              from_state:
+                type: string
+              to_state:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+              reason:
+                type: string

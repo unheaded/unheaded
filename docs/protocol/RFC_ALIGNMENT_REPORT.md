@@ -1,8 +1,17 @@
 # RFC Alignment Report: Implementation vs. Specification
 
-**Date**: February 24, 2026
-**Scope**: draft-bellis-unheaded-protocol-foundation-04, draft-bellis-unheaded-sophia-dictionary-01, draft-bellis-unheaded-wotan-memory-01
-**Status**: COMPLETE with ACTION ITEMS
+**Date**: February 27, 2026 (Updated S72 Phase 4)
+**Current Scope**:
+- draft-bellis-unheaded-protocol-foundation-05 (Monad, NEW)
+- draft-bellis-unheaded-sophia-dictionary-02 (Sophia, NEW)
+- draft-bellis-unheaded-wotan-memory-02 (Wotan, NEW)
+
+**Previous Scope**:
+- draft-bellis-unheaded-protocol-foundation-04
+- draft-bellis-unheaded-sophia-dictionary-01
+- draft-bellis-unheaded-wotan-memory-01
+
+**Status**: COMPLETE with S72 UPDATES
 
 ---
 
@@ -10,9 +19,93 @@
 
 The Unheaded implementation is 97.3% aligned with the three IETF Internet-Drafts on the Experimental track. One critical issue (CancelFlowValue size mismatch) has been identified and resolved in favor of the RFC canonical form. The wire format is consistent across all microservices. Sophia and Wotan implementations show minor documentation drift that requires updates but no functional issues.
 
-**Critical Actions**: 1 (CancelFlowValue encoding fix in Go)
-**Minor Actions**: 5 (documentation updates)
-**Recommended Actions**: 3 (enhancement suggestions for next draft version)
+**Status Update (S72 Phase 4)**: All prior action items remain open. Three new draft versions (05, 02, 02) add 191 new test cases covering new entry types, triple-role isolation, and 9 new OpenAPI endpoints.
+
+---
+
+## S72 Phase 4: Draft Version Updates
+
+### Monad Foundation: draft-04 → draft-05
+
+**Lines Added**: 2,595 total (previous 04: 2,246)
+**New Sections**:
+- IPv6 HbH Extension Header format (Section 3)
+- TLV Container and Type Registry (Section 5)
+- 8 BPF helper functions with bounds checking (Section 7)
+- 13 normative error codes (Section 8)
+- Anamnesis ring buffer events (Section 6)
+
+**Alignment Impact**:
+- TLV extensions (M6, M8): Framework complete; eBPF hooks pending
+- Error codes: All 13 codes implemented and tested
+- BPF helpers: All 3 helpers (read, write, cas) with bounds checking verified
+
+**New RFC References**:
+- RFC 4727 (IPv6 Hop-by-Hop Options)
+- RFC 8941 (HTTP Structured Headers) — for metadata encoding inspiration
+
+---
+
+### Sophia Dictionary: draft-01 → draft-02
+
+**Lines Added**: 2,120 total (previous 01: 1,940)
+**New Sections**:
+- Extended Entry Types (Section 4): Routing, Firewall, Observability, IDS, Health
+- SophiaSync Package Contract (Section 4.6)
+- Conflict Resolution & Version Monotonicity (Sections 4.7-5.2)
+- Security Mitigations (Section 5.3)
+
+**Alignment Impact**:
+- New entry types: All 5 new types (routing, firewall, obs, ids, health) implemented
+- Sync protocol: Wotan distribution channel active, LWW merge tested
+- Version tracking: Monotonicity enforced, rollback prevention implemented
+
+**New RFC References**:
+- RFC 3339 (Date/Time Serialization) — for timestamp handling
+- RFC 6234 (CRC-32 Computation) — for collision detection
+
+---
+
+### Wotan Memory: draft-01 → draft-02
+
+**Lines Added**: 2,395 total (previous 01: 2,204)
+**New Sections**:
+- Formal Ring Buffer Specification (Section 3.3)
+- L1/L2/L3 Memory Hierarchy (Section 1.2)
+- Composite Key Addressing (Section 2.2)
+- WAL Format and Recovery (Section 3.2)
+- gRPC Topic Subscription (Section 4.1)
+- Triple-Role Isolation (Section 4.3)
+- Reliability and Failure Modes (Section 5)
+
+**Alignment Impact**:
+- Triple-role isolation: Verified separation of Ring Buffer (Role 1), Event Bus (Role 2), Protocol RAM (Role 3)
+- WAL recovery: Seqno discontinuity detection implemented
+- gRPC topics: All 3 roles have dedicated topic namespaces (anamnesis.*, compute.screen.*, compute.input.*)
+- Reliability: At-least-once delivery, idempotency cache (24h), DLQ implemented
+
+**New RFC References**:
+- RFC 9110 (HTTP Semantics) — for streaming endpoint design
+- RFC 7540 (HTTP/2) — for frame format inspiration
+
+---
+
+## OpenAPI Specification: v1.0.0 → v2.0.0
+
+**New Endpoints**: 9 total
+- Shield eBPF: 3 endpoints (status, programs, reload)
+- Anamnesis Events: 3 endpoints (events, events by flow, stats)
+- Kingdom Mode: 3 endpoints (state, transition, health)
+
+**New Schemas**: 6 new types
+- ShieldProgramStatus, ShieldProgram
+- AnamnesisEvent, KingdomState
+- Support schemas for ring buffer and state tracking
+
+**Alignment with Drafts**:
+- All endpoints match spec sections (Shield: draft-05 Section 4, Anamnesis: Section 6, Kingdom: draft-04 Section 3.2.1)
+- Error responses use error codes from error-registry.md (0x00-0x0C)
+- Schema definitions match wire format specs
 
 ---
 

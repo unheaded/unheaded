@@ -1,8 +1,12 @@
 # Protocol Technical Summary
 
-**Extracted from:** `the-first-packet.md` (narrative) + `docs/PROTOCOL_FOUNDATION.md` (architecture)
-**Date:** February 17, 2026
-**Status:** Age 1 specification — IPv4 internal, 20-byte protocol metadata
+**Status**: Age 1 specification finalized (RFC v1.0-draft)
+**Last Updated**: February 27, 2026 (S72 Phase 4 — Protocol Cross-References)
+**Source Documents**:
+- draft-bellis-unheaded-protocol-foundation-05.md (Monad)
+- draft-bellis-unheaded-sophia-dictionary-02.md (Sophia)
+- draft-bellis-unheaded-wotan-memory-02.md (Wotan)
+- the-first-packet.md (narrative foundation)
 
 ---
 
@@ -366,4 +370,77 @@ The exponent encoding, Sophia dictionaries, and BPF programs are **transport-agn
 
 ---
 
+## S72 Phase 4 Updates (February 27, 2026)
+
+### Specification Maturity
+
+All three core protocol specifications are now formally published as Internet-Drafts with comprehensive implementations:
+
+**Monad Foundation (draft-05)**
+- IPv6 Hop-by-Hop extension header format (Age 2 roadmap)
+- TLV container and type registry
+- 8 BPF helper functions with bounds checking (bpf_wotan_read, bpf_wotan_write, bpf_wotan_cas)
+- 13 normative error codes (0x00-0x0C) with error level hierarchy
+- Anamnesis event types and ring buffer formal specification
+- Patches M1-M8 addressing CRC, multiple HbH, TLV critical bits, Ring Path Counter
+
+**Sophia Dictionary (draft-02)**
+- Extended entry types: Routing, Firewall, Observability, IDS, Health
+- SophiaSync package contract with atomic update semantics
+- Last-Writer-Wins conflict resolution with CRC verification
+- Version monotonicity and rollback prevention
+- Compression bomb and poisoning attack mitigations
+- Patches S1-S8 addressing BPF maps, limits, versioning, cross-reference
+
+**Wotan Memory (draft-02)**
+- Formal L1/L2/L3 memory hierarchy with latency targets
+- Composite key addressing (flow_label + offset)
+- WAL format with seqno and tampering detection
+- gRPC topic subscription protocol with backpressure
+- Triple-role isolation: Ring Buffer, Event Bus, Protocol RAM
+- Reliability guarantees: At-least-once delivery, idempotency, DLQ
+- Patches W1-W9 addressing ring buffer, composite keys, CAS, WAL, settings, GOAWAY
+
+### OpenAPI Specification Evolution
+
+**Version 2.0.0** introduces 9 new endpoints for operational visibility:
+
+- **Shield eBPF**: Program status, listing, dynamic reload
+- **Anamnesis Events**: Ring buffer queries, flow-specific events, statistics
+- **Kingdom Mode**: State machine transitions, health metrics
+
+All endpoints include formal schema definitions and error responses aligned with protocol error codes.
+
+### Protocol Maturity Across Drafts
+
+| Dimension | Age 1 Status | Age 2 Roadmap |
+|-----------|-------------|---------------|
+| Transport | IPv4 + 20-byte shim | IPv6 native (zero overhead) |
+| Metadata Space | 20 bytes fixed | 20-bit Flow Label + HbH extensions |
+| Dictionary Depth | 2-level (root + sub) | Arbitrary depth via HbH options |
+| TLV Support | Basic (M6, M8) | Full extension framework (RFC 4727) |
+| Observable Events | Ring buffers per-CPU | Per-service streaming via gRPC |
+
+### Cross-Protocol Integration
+
+**Monad → Sophia**: 8 exponent fields decoded via hierarchical dictionary lookup (O(2) per packet)
+
+**Monad → Wotan**: Every hop captures input/output Monad snapshots in Anamnesis ring buffers
+
+**Sophia ↔ Wotan**: Dictionary distribution via sophia.dictionary.v{N} topic with atomic version updates
+
+All integration points formally specified in ALIGNMENT_NOTES_DRAFT05.md.
+
+### Error Code Normalization
+
+All 13 normative error codes now cross-referenced with:
+- RFC security patches (M1-M8, S1-S8, W1-W9)
+- Recommended actions (flow-level, domain-level, system-level)
+- Implementation verification (all codes tested, logged, monitored)
+
+Error registry updated with S72 baseline; IANA allocation procedure documented for future codes (0x0E-0x1E).
+
+---
+
 *BPF computes. Anamnesis records. Wotan translates. Sophia decodes.*
+*Age 1 production-ready. Age 2 designed. Age 3 planned.*
