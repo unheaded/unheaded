@@ -202,6 +202,7 @@ jobs:
   ebpf-build:
     name: eBPF Build (nightly, bpfel-unknown-none)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -271,6 +272,7 @@ jobs:
   rust-audit:
     name: Rust Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -296,6 +298,7 @@ jobs:
   security-scan:
     name: Go Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -303,6 +306,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
       - name: Run govulncheck
         run: |
@@ -326,6 +330,7 @@ jobs:
   proto-lint:
     name: Proto Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -346,6 +351,7 @@ jobs:
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [go-build]
     steps:
       - uses: actions/checkout@v4
@@ -367,6 +373,7 @@ jobs:
   benchmark:
     name: Benchmark
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4

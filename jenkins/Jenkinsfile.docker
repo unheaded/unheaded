@@ -1,0 +1,153 @@
+// Unheaded Docker Build & Scan - Jenkinsfile
+// Container image building with Trivy vulnerability scanning
+// Mirrors docker.yml
+
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    timeout(time: 45, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+  }
+
+  parameters {
+    string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag')
+    booleanParam(name: 'SCAN_ONLY', defaultValue: false, description: 'Run Trivy scan only (skip build)')
+    booleanParam(name: 'PUSH_IMAGE', defaultValue: false, description: 'Push to registry')
+  }
+
+  environment {
+    REGISTRY = 'ghcr.io'
+    IMAGE_NAME = "${REGISTRY}/${GIT_REPOSITORY_OWNER}/${GIT_REPOSITORY}"
+    DOCKER_BUILDKIT = '1'
+  }
+
+  stages {
+    stage('Setup') {
+      steps {
+        script {
+          echo "=== Docker Build Setup ==="
+          sh '''
+            docker version
+            docker buildx version
+            echo "Image: ${IMAGE_NAME}"
+            echo "Tag: ${IMAGE_TAG}"
+          '''
+        }
+      }
+    }
+
+    stage('Build Wotan Image') {
+      when {
+        expression { return !params.SCAN_ONLY }
+      }
+      steps {
+        script {
+          echo "=== Building Wotan Image ==="
+          sh '''
+            docker buildx build \
+              --file wotan/Dockerfile \
+              --tag ${IMAGE_NAME}/wotan:${IMAGE_TAG} \
+              --load \
+              .
+            echo "✓ Wotan image built"
+          '''
+        }
+      }
+    }
+
+    stage('Build Kanban Image') {
+      when {
+        expression { return !params.SCAN_ONLY }
+      }
+      steps {
+        script {
+          echo "=== Building Kanban Image ==="
+          sh '''
+            docker buildx build \
+              --file cmd/kanban-app/Dockerfile \
+              --tag ${IMAGE_NAME}/kanban:${IMAGE_TAG} \
+              --load \
+              .
+            echo "✓ Kanban image built"
+          '''
+        }
+      }
+    }
+
+    stage('Scan with Trivy') {
+      steps {
+        script {
+          echo "=== Vulnerability Scanning ==="
+          sh '''
+            # Install Trivy if not present
+            which trivy || (curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin)
+
+            # Scan Wotan image
+            trivy image \
+              --format json \
+              --output trivy-wotan.json \
+              --severity CRITICAL,HIGH \
+              ${IMAGE_NAME}/wotan:${IMAGE_TAG} || true
+
+            # Scan Kanban image
+            trivy image \
+              --format json \
+              --output trivy-kanban.json \
+              --severity CRITICAL,HIGH \
+              ${IMAGE_NAME}/kanban:${IMAGE_TAG} || true
+
+            # Summary
+            echo "=== Trivy Scan Results ==="
+            trivy image \
+              --format table \
+              --severity CRITICAL,HIGH \
+              ${IMAGE_NAME}/wotan:${IMAGE_TAG} || true
+          '''
+        }
+      }
+    }
+
+    stage('Push to Registry') {
+      when {
+        expression { return params.PUSH_IMAGE && !params.SCAN_ONLY }
+      }
+      steps {
+        script {
+          echo "=== Pushing images to registry ==="
+          sh '''
+            echo "TODO: Configure registry credentials (ghcr.io login)"
+            echo "Would run: docker push ${IMAGE_NAME}/wotan:${IMAGE_TAG}"
+            echo "Would run: docker push ${IMAGE_NAME}/kanban:${IMAGE_TAG}"
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      script {
+        archiveArtifacts artifacts: 'trivy-*.json', allowEmptyArchive: true
+
+        // Save image inspection data
+        sh '''
+          docker image ls | grep unheaded || true
+        '''
+      }
+    }
+    success {
+      echo "✅ Docker build succeeded"
+    }
+    failure {
+      echo "❌ Docker build failed"
+    }
+    cleanup {
+      sh '''
+        echo "Cleaning up temporary images..."
+        docker image prune -a --force --filter "until=1h" || true
+      '''
+    }
+  }
+}
