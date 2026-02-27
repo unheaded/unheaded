@@ -43,12 +43,31 @@ This appends `Signed-off-by: Your Name <your@email.com>` to the commit message. 
 
 ## 3. Development Setup
 
+### Automated Setup (Recommended)
+
+For a fresh Ubuntu 25.x machine, the bootstrap script installs **everything** in one shot:
+
+```bash
+sudo ./scripts/bootstrap-llm-lab.sh
+```
+
+This handles all prerequisites below plus GPU drivers, kernel tuning, eBPF environment, monitoring stack, secrets management, and LLM inference tooling. See the script for full details (16 phases).
+
 ### Prerequisites
 
-- **Go** 1.22 or later (for core protocol implementation)
-- **Rust** 1.75 or later (for eBPF components)
-- **Linux kernel** 5.15+ (for bare-metal eBPF execution)
-- **Docker** or **LXD** (for containerized development and testing)
+| Tool | Version | Install | Check |
+|------|---------|---------|-------|
+| **Go** | 1.24+ | `wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz && tar -C /usr/local -xzf go*.tar.gz` | `go version` |
+| **Rust** | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh -s -- -y --default-toolchain nightly` | `rustc --version` |
+| **Rust eBPF targets** | — | `rustup target add x86_64-unknown-linux-musl && rustup component add rust-src && cargo install bpf-linker` | `cargo install --list \| grep bpf` |
+| **Docker + Compose** | 24+ | [docs.docker.com/engine/install](https://docs.docker.com/engine/install/) | `docker compose version` |
+| **LXD/Incus** | latest | `snap install lxd` | `lxd --version` |
+| **Nix** | 2.18+ | `curl -L https://nixos.org/nix/install \| sh -s -- --daemon` | `nix --version` |
+| **Node.js** | 22 LTS | `curl -fsSL https://deb.nodesource.com/setup_22.x \| bash && apt install nodejs` | `node --version` |
+| **Claude Code** | latest | `npm install -g @anthropic-ai/claude-code` | `claude --version` |
+| **Linux kernel** | 6.8+ | Ubuntu 25.x ships 6.14 | `uname -r` |
+| **eBPF tools** | — | `apt install bpftool bpftrace bpfcc-tools clang llvm libbpf-dev` | `bpftool version` |
+| **SOPS + age** | — | `apt install age` + [github.com/getsops/sops](https://github.com/getsops/sops/releases) | `sops --version && age --version` |
 
 ### Build Commands
 
@@ -67,11 +86,14 @@ cargo test
 
 **Full integration build:**
 ```bash
-make build
-make test
+make build          # build all Go services
+make ebpf           # build eBPF programs (Rust/Aya)
+make containers     # build container images
+make test           # run test suite
+make dev            # local development (docker-compose)
 ```
 
-For detailed setup instructions, see [QUICKSTART.md](./QUICKSTART.md).
+For detailed setup and smoke tests, see [QUICKSTART.md](./QUICKSTART.md).
 
 ---
 

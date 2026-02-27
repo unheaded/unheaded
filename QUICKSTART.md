@@ -7,12 +7,47 @@
 
 ## Prerequisites
 
-| Tool | Version | Check |
-|------|---------|-------|
-| Go | 1.24+ | `go version` |
-| Docker + Compose | 20.10+ | `docker compose version` |
-| curl | any | `curl --version` |
-| Git | any | `git --version` |
+### Full Lab Server Setup (Fresh Ubuntu 25.x)
+
+If starting from a bare Ubuntu install, run the bootstrap script first — it installs **everything** (16 phases: drivers, toolchains, containers, eBPF, monitoring, LLM inference):
+
+```bash
+sudo ./scripts/bootstrap-llm-lab.sh        # installs all prerequisites + more
+sudo reboot                                 # AMD GPU driver needs reboot
+```
+
+### Minimum Requirements (Dev Only)
+
+| Tool | Version | Install | Check |
+|------|---------|---------|-------|
+| Go | 1.24+ | [go.dev/dl](https://go.dev/dl/) | `go version` |
+| Rust | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | `rustc --version` |
+| Docker + Compose | 24+ | [docs.docker.com](https://docs.docker.com/engine/install/) | `docker compose version` |
+| Node.js | 22 LTS | [nodesource](https://deb.nodesource.com/) | `node --version` |
+| Claude Code | latest | `npm install -g @anthropic-ai/claude-code` | `claude --version` |
+| curl | any | pre-installed | `curl --version` |
+| Git + LFS | any | `apt install git git-lfs` | `git --version` |
+
+### Additional Tools (eBPF / Production)
+
+| Tool | Version | Install | Check |
+|------|---------|---------|-------|
+| bpftool | kernel-matched | `apt install bpftool` | `bpftool version` |
+| clang/llvm | 15+ | `apt install clang llvm` | `clang --version` |
+| libbpf-dev | — | `apt install libbpf-dev` | — |
+| Nix | 2.18+ | [nixos.org/nix](https://nixos.org/nix/) | `nix --version` |
+| SOPS + age | — | See [CONTRIBUTOR-GUIDE.md](./CONTRIBUTOR-GUIDE.md) | `sops --version` |
+| LXD/Incus | latest | `snap install lxd` | `lxd --version` |
+
+### LLM Lab Server Tools (GPU Inference)
+
+| Tool | Purpose | Install | Check |
+|------|---------|---------|-------|
+| ROCm | AMD GPU compute | `amdgpu-install --usecase=rocm` | `rocminfo` |
+| vLLM | LLM inference | `docker pull rocm/vllm:latest` | `vllm-health` |
+| Ollama | Quick local LLMs | `curl -fsSL https://ollama.com/install.sh \| sh` | `ollama --version` |
+| hf_transfer | Fast model DL | `pip install hf_transfer` | — |
+| huggingface-cli | Model hub | `pip install huggingface-hub` | `huggingface-cli --help` |
 
 ---
 
@@ -332,9 +367,14 @@ Default ports — "The Doom Range" (16666-26666):
 Production uses NixOS containers on LXD — **requires a Linux host**.
 
 ```bash
-# 1. Setup host (installs LXD, Nix, networking)
+# Option A: Full LLM lab server bootstrap (Ubuntu 25.x, AMD GPU, everything)
+sudo ./scripts/bootstrap-llm-lab.sh
+sudo reboot
+
+# Option B: Minimal host setup (LXD, Nix, networking only)
 sudo ./scripts/setup-host.sh
 
+# Then for both options:
 # 2. Build NixOS container images
 cd nix && nix build .#containers
 
@@ -343,6 +383,10 @@ sudo ./scripts/deploy-alpha.sh
 
 # 4. Load eBPF programs (packet tracing)
 sudo ./scripts/load-ebpf.sh
+
+# 5. (Option A only) Start LLM inference
+unheaded-download-model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B deepseek-r1-7b --activate
+unheaded-vllm-start /models/deepseek-r1-7b
 ```
 
 **Network topology (production):**
