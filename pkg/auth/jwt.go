@@ -27,6 +27,8 @@ type JWTConfig struct {
 	Audience string
 	// AllowedRoles restricts which roles are accepted. Empty = allow all.
 	AllowedRoles []string
+	// ClockSkew is the tolerance for exp/nbf validation. Defaults to 5 seconds.
+	ClockSkew time.Duration
 }
 
 // JWTHeader represents the JOSE header of a JWT.
@@ -50,17 +52,18 @@ type JWTClaims struct {
 	Extra map[string]string `json:"extra,omitempty"`
 }
 
-// Validate checks that the claims are valid at the given time.
-func (c *JWTClaims) Validate(now time.Time, issuer, audience string) error {
+// Validate checks that the claims are valid at the given time with clock skew tolerance.
+func (c *JWTClaims) Validate(now time.Time, issuer, audience string, clockSkew time.Duration) error {
 	unixNow := now.Unix()
+	skewSeconds := int64(clockSkew.Seconds())
 
-	// Check expiration
-	if c.Exp > 0 && unixNow > c.Exp {
+	// Check expiration (with clock skew tolerance)
+	if c.Exp > 0 && unixNow > c.Exp+skewSeconds {
 		return ErrTokenExpired
 	}
 
-	// Check not-before
-	if c.Nbf > 0 && unixNow < c.Nbf {
+	// Check not-before (with clock skew tolerance)
+	if c.Nbf > 0 && unixNow < c.Nbf-skewSeconds {
 		return fmt.Errorf("%w: token not yet valid", ErrUnauthenticated)
 	}
 
@@ -84,11 +87,16 @@ func (c *JWTClaims) Validate(now time.Time, issuer, audience string) error {
 
 // NewJWTAuthenticator creates a new JWT authenticator from config.
 func NewJWTAuthenticator(cfg JWTConfig) *JWTAuthenticator {
+	clockSkew := cfg.ClockSkew
+	if clockSkew == 0 {
+		clockSkew = 5 * time.Second // Default: 5-second clock skew tolerance
+	}
 	return &JWTAuthenticator{
 		signingKey:   cfg.SigningKey,
 		issuer:       cfg.Issuer,
 		audience:     cfg.Audience,
 		allowedRoles: cfg.AllowedRoles,
+		clockSkew:    clockSkew,
 		nowFunc:      time.Now,
 	}
 }
@@ -99,6 +107,7 @@ type JWTAuthenticator struct {
 	issuer       string
 	audience     string
 	allowedRoles []string
+	clockSkew    time.Duration   // tolerance for exp/nbf validation
 	nowFunc      func() time.Time // injectable for testing
 }
 
@@ -128,7 +137,7 @@ func (j *JWTAuthenticator) Authenticate(_ context.Context, r *http.Request) (*Id
 
 	// 3. Validate claims
 	now := j.nowFunc()
-	if err := claims.Validate(now, j.issuer, j.audience); err != nil {
+	if err := claims.Validate(now, j.issuer, j.audience, j.clockSkew); err != nil {
 		return nil, err
 	}
 

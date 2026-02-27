@@ -1,8 +1,8 @@
 # Third-Party Dependencies and GPL Boundary
 
-**Project:** Unheaded Kingdom  
-**Last updated:** 2026-02-25  
-**Main license:** MIT (see `/LICENSE`)  
+**Project:** Unheaded Kingdom
+**Last updated:** 2026-02-27
+**Main license:** MIT (see `/LICENSE`)
 **Canonical third-party inventory location:** This file
 
 ---
@@ -275,5 +275,5 @@ cargo license          # Generate license report (requires: cargo install cargo-
 
 ---
 
-**Last audited:** 2026-02-25  
-**Auditor notes:** All dependencies scanned against go.mod, Cargo.toml, and package repositories. GPL boundary verified with architecture team.
+**Last audited:** 2026-02-27
+**Auditor notes:** All dependencies scanned against go.mod, Cargo.toml, and package repositories. GPL boundary verified with architecture team. SBOM automation integrated into CI/CD via GitHub Actions and Makefile targets.

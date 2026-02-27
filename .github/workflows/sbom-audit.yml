@@ -1,0 +1,157 @@
+name: Weekly SBOM Audit
+
+on:
+  schedule:
+    # Every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  sbom-generate:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM
+        run: |
+          ./scripts/generate-sbom.sh ${{ github.sha }}
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-artifacts
+          path: |
+            sbom-results/sbom-cyclonedx.json
+            sbom-results/sbom-spdx.json
+            sbom-results/go-modules-list.txt
+            sbom-results/go-licenses-report.txt
+            sbom-results/cargo-audit-report.txt
+            sbom-results/SBOM-SUMMARY.md
+          retention-days: 30
+
+  grype-scan:
+    name: Vulnerability Scan (Grype)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: sbom-generate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-artifacts
+          path: sbom-results
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Run Grype scan on CycloneDX SBOM
+        run: |
+          grype sbom:sbom-results/sbom-cyclonedx.json \
+            -o sarif \
+            --file grype-results.sarif \
+            || true
+
+      - name: Parse Grype results for HIGH/CRITICAL
+        id: grype-check
+        run: |
+          if [ -f grype-results.sarif ]; then
+            CRITICAL=$(jq '[.runs[].results[] | select(.level == "error")] | length' grype-results.sarif)
+            HIGH=$(jq '[.runs[].results[] | select(.level == "warning")] | length' grype-results.sarif)
+            echo "critical=${CRITICAL}" >> $GITHUB_OUTPUT
+            echo "high=${HIGH}" >> $GITHUB_OUTPUT
+            echo "Vulnerabilities found - Critical: ${CRITICAL}, High: ${HIGH}"
+            if [ "${CRITICAL}" -gt 0 ]; then
+              echo "::error::Found CRITICAL vulnerabilities in dependencies"
+              exit 1
+            fi
+          fi
+
+      - name: Upload Grype SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: grype-results.sarif
+
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Check Go licenses
+        run: |
+          go install github.com/google/go-licenses@latest
+          go-licenses check ./... \
+            --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC \
+            || exit 1
+
+  report:
+    name: Generate Weekly Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [sbom-generate, grype-scan, license-compliance]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-artifacts
+          path: sbom-results
+
+      - name: Create audit report
+        run: |
+          cat > sbom-results/AUDIT-REPORT.md << 'EOF'
+          # Weekly SBOM Audit Report
+
+          **Date:** $(date -u +%Y-%m-%d)
+          **Run ID:** ${{ github.run_id }}
+          **Commit:** ${{ github.sha }}
+
+          ## Status
+
+          - SBOM Generation: ${{ needs.sbom-generate.result }}
+          - Vulnerability Scan: ${{ needs.grype-scan.result }}
+          - License Compliance: ${{ needs.license-compliance.result }}
+
+          ## Artifacts
+
+          See uploaded artifacts for detailed SBOM files and scan results.
+          EOF
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-audit-report
+          path: sbom-results/AUDIT-REPORT.md
+          retention-days: 90
+
+      - name: Slack notification (optional)
+        if: failure()
+        run: |
+          echo "SBOM audit failed - check GitHub Actions for details"
