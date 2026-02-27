@@ -1,0 +1,10 @@
+# Dashboard-backend service endpoint overrides for Docker Compose
+# Format: name=host:port (Docker DNS resolves container names)
+timeguru=timeguru:19000
+captain=captain:19002
+architect=architect:19001
+micromanager=micromanager:19003
+monad=monad:19004
+sophia=sophia:19005
+wotan=wotan:18000
+cuirass=cuirass:19006

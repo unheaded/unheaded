@@ -612,6 +612,105 @@ services:
           memory: 128M
           cpus: "0.25"
 
+  # --- Dashboard Backend: The Visor (Observability Dashboard) ---
+  dashboard-backend:
+    build:
+      context: .
+      target: dashboard-backend
+    container_name: unheaded-dashboard
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=32M
+      - /data:size=64M
+    environment:
+      WOTAN_ADDR: "wotan:18000"
+      WOTAN_GRPC_ADDR: "wotan:18001"
+      SERVICES_FILE: "/etc/unheaded/services.txt"
+    volumes:
+      - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
+    command: ["/app/dashboard-backend", "--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--viz-dir", "/app/viz", "--ws-allowed-origins", "*"]
+    ports:
+      - "20000:20000"
+    networks:
+      - data
+      - observe
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "visor"
+      kingdom.role: "dashboard"
+      traefik.enable: "true"
+      traefik.http.routers.dashboard.rule: "PathPrefix(`/dashboard`)"
+      traefik.http.services.dashboard.loadbalancer.server.port: "20000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:20000/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # --- Kanban App: The Meta Moment (Self-Hosting Proof) ---
+  kanban-app:
+    build:
+      context: .
+      target: kanban-app
+    container_name: unheaded-kanban
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=32M
+      - /data:size=64M
+    environment:
+      PORT: "20001"
+      WOTAN_ADDR: "wotan:18000"
+      TIMEGURU_ADDR: "timeguru:19000"
+      DATA_DIR: "/data"
+    ports:
+      - "20001:20001"
+    networks:
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+      timeguru:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "meta-moment"
+      kingdom.role: "kanban"
+      traefik.enable: "true"
+      traefik.http.routers.kanban.rule: "PathPrefix(`/kanban`)"
+      traefik.http.services.kanban.loadbalancer.server.port: "20001"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:20001/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
   # --- Cuirass: Control Plane Daemon ---
   cuirass:
     build:
