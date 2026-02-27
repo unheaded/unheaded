@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -325,30 +326,44 @@ func (r *TraceReader) publishTraceEntries(ctx context.Context, entries []*TraceE
 		return fmt.Errorf("marshal trace entries: %w", err)
 	}
 
-	// Publish via Wotan publisher (reuse the existing WotanPublisher)
-	// Convert to AnamnesisEvent slice for compatibility; for packet traces
-	// we publish the raw JSON directly as a message.
-	_ = payload // payload ready for Wotan transport
+	// Publish to Wotan via the legacy publisher (best-effort).
+	// Publishing failures are logged but do not fail the reader — trace
+	// collection must continue even when Wotan is temporarily unreachable.
+	if r.publisher != nil {
+		if pubErr := r.publisher.PublishRaw(ctx, r.config.TraceTopic, payload); pubErr != nil {
+			log.Debug().Err(pubErr).Str("topic", r.config.TraceTopic).Msg("trace publish failed (best-effort)")
+		}
+	}
 	return nil
 }
 
 // readStats reads the STATS BPF map and publishes aggregated stats.
+// Stats map keys from packet_marker: 0=packets_total, 1=bytes_total,
+// 2=traces_created, 3=traces_updated, 4=errors.
 func (r *TraceReader) readStats(ctx context.Context) {
 	statsMap := r.loader.GetStatsMap()
 	if statsMap == nil {
 		return
 	}
 
-	// Stats map is a simple key->u64 map; aggregate all entries.
 	var stats StatsEntry
 	err := statsMap.Iterate(func(key, value []byte) error {
-		if len(value) < 8 {
+		if len(value) < 8 || len(key) < 4 {
 			return nil
 		}
-		// Stats keys from packet_marker: 0=total, 1=ipv4, 2=tcp, 3=udp, etc.
-		// We aggregate into our StatsEntry structure.
-		if len(key) < 4 {
-			return nil
+		keyIdx := binary.LittleEndian.Uint32(key[:4])
+		val := binary.LittleEndian.Uint64(value[:8])
+		switch keyIdx {
+		case 0:
+			stats.PacketsTotal = val
+		case 1:
+			stats.BytesTotal = val
+		case 2:
+			stats.TracesCreated = val
+		case 3:
+			stats.TracesUpdated = val
+		case 4:
+			stats.Errors = val
 		}
 		return nil
 	})
@@ -356,5 +371,17 @@ func (r *TraceReader) readStats(ctx context.Context) {
 		readerErrors.WithLabelValues("stats_iterate").Inc()
 		return
 	}
-	_ = stats
+
+	// Publish aggregated stats to Wotan
+	payload, err := json.Marshal(stats)
+	if err != nil {
+		readerErrors.WithLabelValues("stats_marshal").Inc()
+		return
+	}
+
+	if r.publisher != nil {
+		if pubErr := r.publisher.PublishRaw(ctx, r.config.StatsTopic, payload); pubErr != nil {
+			readerErrors.WithLabelValues("stats_publish").Inc()
+		}
+	}
 }
