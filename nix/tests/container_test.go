@@ -505,10 +505,19 @@ func TestPerformance_CPUQuota(t *testing.T) {
 // HELPER FUNCTIONS
 // ==============================================================================
 
-// isLXDAvailable checks if LXD is installed and the container runtime is accessible.
+// isLXDAvailable checks if LXD is installed and Unheaded containers are actually running.
+// Having the lxc binary alone is not sufficient — the containers must be present.
 func isLXDAvailable() bool {
 	cmd := exec.Command("lxc", "version")
-	return cmd.Run() == nil
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	// Verify at least one unheaded container is actually running
+	out, err := exec.Command("lxc", "list", "--format=csv", "-c", "n,s").Output()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(out), "unheaded-")
 }
 
 func execCommand(t *testing.T, name string, args ...string) (string, error) {
