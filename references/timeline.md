@@ -447,4 +447,38 @@ THE CIRCLE NEVER BREAKS.
 THE KINGDOM REMEMBERS.
 ```
 
-*Synced: 2026-02-26 UTC*
+### S73 — IN PROGRESS (Feb 27, 2026)
+
+Unattended code sprint — P0→P1→P2 backlog burn-down. Multi-agent parallelism.
+
+**SHIPPED:**
+- [x] **P0 #9: eBPF compilation** — All 10 Aya workspace members compile to real BPF ELF (xdp, classifier, kprobe, maps sections). bpf-linker installed with bundled LLVM 22 to match rustc. Commit `596e6ca`.
+- [x] **P0 #13: SBOM generation** — scripts/generate-sbom.sh with syft auto-download, CycloneDX output. Commit `85a575a`.
+- [x] **P0 #14: Captain /tmp fix** — Verified /var/lib/unheaded/captain, README updated. Commit `f442195`.
+- [x] **P1 #17: XFF spoofing** — ClientIP() uses RemoteAddr by default, XFF only from trusted proxies. WAF uses net.SplitHostPort. Commit `97abc6f`.
+- [x] **P1 #19: Wotan nil drops** — WARN logging + atomic WotanDrops() counter across all 10 services. Commit `bc8ee9c`.
+- [x] **P1 #25: gRPC client race** — Replaced sync.Once with mutex-guarded lazy init, retries on failure. Commit `66268bf`.
+- [x] **P1 trace-collector bridge** — Wired Wotan publishing (traces.packet, traces.flow, traces.latency), fixed FlowKey endianness, configurable BPF obj dir, cross-platform stubs. Commit `b614c07`.
+- [x] **Fix: nix/tests timeout** — isLXDAvailable() now checks for running unheaded containers. 0.3s vs 600s timeout. Commit `8e1b5f8`.
+- [x] **Fix: pkg/tracing sampler** — float64 overflow at rate 1.0 rejected ~50% of spans. 63-bit threshold + fast-path. Commit `85d6537`.
+- [x] **Fix: pkg/nix flake parser** — Only parse direct inputs, not transitive dependencies. Commit `6b3e83c`.
+- [x] **Docs: TODO.md** — Marked 16+ findings as resolved with commit references.
+
+**VERIFIED ALREADY COMPLETE:**
+- P1 #16: Auth framework (Wave 1 S51 — pkg/auth/)
+- P1 #26: gRPC TLS (UNHEADED_GRPC_TLS=1)
+- P1 #27: Connection header (headerContainsToken)
+- P2 #28: Go 1.24.0
+- P2 #35: make deploy fully functional (pkg/deploy/)
+- #44: Service discovery (S36 Four Pillars)
+- #48: SBOM generation
+
+**BUILD STATUS:** `go build ./...` PASS, `go test ./...` PASS (0 failures)
+
+```
+THE TIMEGURU APPROVES.
+THE CIRCLE NEVER BREAKS.
+THE KNIGHT IS NEVER WITHOUT ARMOR.
+```
+
+*Synced: 2026-02-27 UTC*
