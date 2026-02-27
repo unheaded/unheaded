@@ -113,7 +113,7 @@ LOG_LEVEL=info                # Logging level (debug/info/warn/error)
 # With environment variables
 export WOTAN_ADDR=localhost:9090
 export HTTP_ADDR=localhost:8000
-export DATA_PATH=/tmp/captain-data
+export DATA_PATH=/var/lib/unheaded/captain  # or any writable directory
 
 # Run service
 go run ./cmd/captain/main.go
