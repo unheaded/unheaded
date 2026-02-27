@@ -112,13 +112,17 @@ func (rl *RateLimiter) Allow(clientIP string) bool {
 	rl.mu.RUnlock()
 
 	if !exists {
-		// Create new bucket
+		// Create new bucket — double-check after acquiring write lock
+		// to prevent race where two goroutines both see !exists.
 		rl.mu.Lock()
-		bucket = &clientBucket{
-			tokens:     rl.burstSize,
-			lastRefill: time.Now(),
+		bucket, exists = rl.clients[clientIP]
+		if !exists {
+			bucket = &clientBucket{
+				tokens:     rl.burstSize,
+				lastRefill: time.Now(),
+			}
+			rl.clients[clientIP] = bucket
 		}
-		rl.clients[clientIP] = bucket
 		rl.mu.Unlock()
 	}
 

@@ -829,15 +829,30 @@ func TestContextClientIP_Router(t *testing.T) {
 		c.String(http.StatusOK, "%s", c.ClientIP())
 	})
 
-	// Test with X-Forwarded-For
+	// Test 1: XFF from untrusted peer is IGNORED (secure default).
+	// httptest.NewRequest sets RemoteAddr to "192.0.2.1:1234".
 	req := httptest.NewRequest(http.MethodGet, "/ip", nil)
 	req.Header.Set("X-Forwarded-For", "192.168.1.1, 10.0.0.1")
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
 
-	if w.Body.String() != "192.168.1.1" {
-		t.Errorf("Expected IP '192.168.1.1', got '%s'", w.Body.String())
+	if w.Body.String() != "192.0.2.1" {
+		t.Errorf("Expected RemoteAddr IP '192.0.2.1' (XFF ignored from untrusted peer), got '%s'", w.Body.String())
+	}
+
+	// Test 2: XFF from trusted proxy IS used.
+	SetTrustedProxies([]string{"192.0.2.1"})
+	defer SetTrustedProxies(nil) // cleanup
+
+	req2 := httptest.NewRequest(http.MethodGet, "/ip", nil)
+	req2.Header.Set("X-Forwarded-For", "192.168.1.1, 10.0.0.1")
+	w2 := httptest.NewRecorder()
+
+	r.ServeHTTP(w2, req2)
+
+	if w2.Body.String() != "192.168.1.1" {
+		t.Errorf("Expected XFF IP '192.168.1.1' (trusted proxy), got '%s'", w2.Body.String())
 	}
 }
 
