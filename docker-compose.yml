@@ -26,7 +26,6 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: fd00:unhe:ctrl::/64
         - subnet: 172.28.0.0/24
     driver_opts:
       com.docker.network.bridge.name: br-unhe-ctrl
@@ -39,7 +38,6 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: fd00:unhe:data::/64
         - subnet: 172.28.1.0/24
     driver_opts:
       com.docker.network.bridge.name: br-unhe-data
@@ -52,7 +50,6 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: fd00:unhe:obs::/64
         - subnet: 172.28.2.0/24
     driver_opts:
       com.docker.network.bridge.name: br-unhe-obs
@@ -161,10 +158,14 @@ services:
       - "-retentionPeriod=30d"
       - "-httpListenAddr=:8428"
       - "-selfScrapeInterval=15s"
+      - "-promscrape.config=/etc/victoria/scrape.yml"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8428:8428"  # Prometheus-compatible API
     volumes:
       - victoria-data:/victoria-data
+      - ./config/victoria/scrape.yml:/etc/victoria/scrape.yml:ro
     networks:
       - observe
     labels:

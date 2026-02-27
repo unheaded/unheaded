@@ -1,0 +1,43 @@
+api:
+  enabled: true
+  address: "0.0.0.0:8686"
+
+sources:
+  docker_logs:
+    type: docker_logs
+    include_containers:
+      - "unheaded-*"
+
+  internal_metrics:
+    type: internal_metrics
+
+transforms:
+  parse_json:
+    type: remap
+    inputs:
+      - docker_logs
+    source: |
+      . = parse_json(.message) ?? .
+      .container = .container_name
+      .timestamp = now()
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs:
+      - parse_json
+    endpoint: "http://clickhouse:8123"
+    database: "unheaded_logs"
+    table: "logs"
+    auth:
+      strategy: "basic"
+      user: "unheaded"
+      password: "${CLICKHOUSE_PASSWORD:-changeme}"
+    skip_unknown_fields: true
+
+  console:
+    type: console
+    inputs:
+      - parse_json
+    encoding:
+      codec: json
