@@ -272,6 +272,10 @@ func (l *StubLoader) Detach(ctx context.Context, name string) error {
 	return ErrNotSupported
 }
 
+func (l *StubLoader) SetAttachTarget(ctx context.Context, name string, attachTo string) error {
+	return ErrNotSupported
+}
+
 func (l *StubLoader) GetProgram(ctx context.Context, name string) (*ProgramInfo, error) {
 	return nil, ErrNotSupported
 }

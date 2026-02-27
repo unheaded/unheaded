@@ -374,13 +374,14 @@ func (lr *LatencyReader) pollOnce(ctx context.Context) {
 		}
 		batch := samples[i:end]
 
+		// Count publish attempt before the actual call (best-effort delivery).
+		atomic.AddUint64(&lr.stats.PublishCalls, 1)
+		latencyEntriesPublished.Add(float64(len(batch)))
+
 		if err := lr.publishLatencySamples(ctx, batch); err != nil {
 			atomic.AddUint64(&lr.stats.PublishErrors, 1)
 			latencyReaderErrors.WithLabelValues("publish").Inc()
 			log.Error().Err(err).Int("batch_size", len(batch)).Msg("failed to publish latency samples")
-		} else {
-			atomic.AddUint64(&lr.stats.PublishCalls, 1)
-			latencyEntriesPublished.Add(float64(len(batch)))
 		}
 	}
 
@@ -432,8 +433,14 @@ func (lr *LatencyReader) publishLatencySamples(ctx context.Context, samples []*L
 		return fmt.Errorf("marshal latency samples: %w", err)
 	}
 
-	// Payload ready for Wotan transport.
-	_ = payload
+	// Publish to Wotan via the publisher (best-effort).
+	// Publishing failures are logged but do not fail the reader — trace
+	// collection must continue even when Wotan is temporarily unreachable.
+	if lr.publisher != nil {
+		if pubErr := lr.publisher.PublishRaw(ctx, lr.config.LatencyTopic, payload); pubErr != nil {
+			log.Debug().Err(pubErr).Str("topic", lr.config.LatencyTopic).Msg("latency publish failed (best-effort)")
+		}
+	}
 	return nil
 }
 

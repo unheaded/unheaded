@@ -129,33 +129,36 @@ type FlowKey struct {
 	Pad      [3]byte // Alignment padding
 }
 
-// DecodeFlowKey decodes a FlowKey from a byte slice (little-endian struct layout,
-// but addr/port fields are in network byte order as stored by BPF).
+// DecodeFlowKey decodes a FlowKey from a byte slice. Address and port fields
+// are stored in network byte order (big-endian) by the BPF program.
 func DecodeFlowKey(b []byte) (*FlowKey, error) {
 	if len(b) < FlowKeySize {
 		return nil, fmt.Errorf("flow key too short: %d < %d", len(b), FlowKeySize)
 	}
 	return &FlowKey{
-		SrcAddr:  binary.LittleEndian.Uint32(b[0:4]),
-		DstAddr:  binary.LittleEndian.Uint32(b[4:8]),
-		SrcPort:  binary.LittleEndian.Uint16(b[8:10]),
-		DstPort:  binary.LittleEndian.Uint16(b[10:12]),
+		SrcAddr:  binary.BigEndian.Uint32(b[0:4]),
+		DstAddr:  binary.BigEndian.Uint32(b[4:8]),
+		SrcPort:  binary.BigEndian.Uint16(b[8:10]),
+		DstPort:  binary.BigEndian.Uint16(b[10:12]),
 		Protocol: b[12],
 	}, nil
 }
 
-// Encode serializes a FlowKey to a byte slice.
+// Encode serializes a FlowKey to a byte slice (network byte order for
+// addresses and ports, matching the BPF map layout).
 func (fk *FlowKey) Encode() [FlowKeySize]byte {
 	var b [FlowKeySize]byte
-	binary.LittleEndian.PutUint32(b[0:4], fk.SrcAddr)
-	binary.LittleEndian.PutUint32(b[4:8], fk.DstAddr)
-	binary.LittleEndian.PutUint16(b[8:10], fk.SrcPort)
-	binary.LittleEndian.PutUint16(b[10:12], fk.DstPort)
+	binary.BigEndian.PutUint32(b[0:4], fk.SrcAddr)
+	binary.BigEndian.PutUint32(b[4:8], fk.DstAddr)
+	binary.BigEndian.PutUint16(b[8:10], fk.SrcPort)
+	binary.BigEndian.PutUint16(b[10:12], fk.DstPort)
 	b[12] = fk.Protocol
 	return b
 }
 
 // SrcIP returns the source address as a net.IP (IPv4).
+// SrcAddr was decoded from network byte order, so the uint32 holds the
+// correct host-order value. We write it back as big-endian for net.IP.
 func (fk *FlowKey) SrcIP() net.IP {
 	ip := make(net.IP, 4)
 	binary.BigEndian.PutUint32(ip, fk.SrcAddr)
@@ -178,9 +181,7 @@ func (fk *FlowKey) String() string {
 	case 17:
 		proto = "udp"
 	}
-	srcPort := binary.BigEndian.Uint16([]byte{byte(fk.SrcPort >> 8), byte(fk.SrcPort)})
-	dstPort := binary.BigEndian.Uint16([]byte{byte(fk.DstPort >> 8), byte(fk.DstPort)})
-	return fmt.Sprintf("%s:%d->%s:%d/%s", fk.SrcIP(), srcPort, fk.DstIP(), dstPort, proto)
+	return fmt.Sprintf("%s:%d->%s:%d/%s", fk.SrcIP(), fk.SrcPort, fk.DstIP(), fk.DstPort, proto)
 }
 
 // ── FlowStateEntry ───────────────────────────────────────────────────────────
@@ -627,13 +628,20 @@ func (fr *FlowReader) publishFlowEvents(ctx context.Context, events []*FlowEvent
 			continue
 		}
 
-		// Payload ready for Wotan transport
-		_ = payload
-
+		// Count events before publishing (best-effort delivery).
 		count := uint64(len(batch))
 		atomic.AddUint64(&fr.stats.EventsSent, count)
 		for _, je := range batch {
 			flowReaderEventsTotal.WithLabelValues(je.EventType).Inc()
+		}
+
+		// Publish to Wotan via the publisher (best-effort).
+		// Publishing failures are logged but do not block event processing —
+		// trace collection must continue when Wotan is temporarily unreachable.
+		if fr.publisher != nil {
+			if pubErr := fr.publisher.PublishRaw(ctx, fr.config.FlowTopic, payload); pubErr != nil {
+				log.Debug().Err(pubErr).Str("topic", fr.config.FlowTopic).Msg("flow publish failed (best-effort)")
+			}
 		}
 	}
 }
