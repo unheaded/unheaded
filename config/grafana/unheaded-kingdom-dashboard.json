@@ -1,0 +1,594 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "unheaded-kingdom",
+    "title": "Unheaded Kingdom — Service Overview",
+    "description": "Real-time overview of all Unheaded Kingdom services",
+    "tags": ["unheaded", "kingdom", "demo"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "time": { "from": "now-15m", "to": "now" },
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "panels": [
+      {
+        "id": 1,
+        "title": "",
+        "type": "text",
+        "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+        "options": {
+          "mode": "markdown",
+          "content": "# The Unheaded Kingdom\n**Production-ready infrastructure in hours, not months.** &nbsp; 7 services | Wotan message bus | eBPF-native observability"
+        }
+      },
+
+      {
+        "id": 2,
+        "title": "Services UP",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 0, "y": 3 },
+        "targets": [{
+          "expr": "count(up == 1)",
+          "legendFormat": "Services"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 3 },
+                { "color": "green", "value": 6 }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "textMode": "value",
+          "reduceOptions": { "calcs": ["lastNotNull"] }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Wotan Rooms",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 4, "y": 3 },
+        "targets": [{
+          "expr": "unheaded_chat_rooms_total",
+          "legendFormat": "Rooms"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "blue", "value": null }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "textMode": "value",
+          "reduceOptions": { "calcs": ["lastNotNull"] }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Wotan Members",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 8, "y": 3 },
+        "targets": [{
+          "expr": "unheaded_chat_members_approved",
+          "legendFormat": "Approved"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "purple", "value": null }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "textMode": "value",
+          "reduceOptions": { "calcs": ["lastNotNull"] }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Kanban Tasks",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 12, "y": 3 },
+        "targets": [{
+          "expr": "kanban_tasks_total",
+          "legendFormat": "Tasks"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "orange", "value": null }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "textMode": "value",
+          "reduceOptions": { "calcs": ["lastNotNull"] }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Dashboard WS Clients",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 16, "y": 3 },
+        "targets": [{
+          "expr": "dashboard_websocket_connections",
+          "legendFormat": "WebSocket"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "super-light-blue", "value": null }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "textMode": "value",
+          "reduceOptions": { "calcs": ["lastNotNull"] }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Goroutines (Wotan)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 20, "y": 3 },
+        "targets": [{
+          "expr": "unheaded_chat_goroutines_active",
+          "legendFormat": "Active"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "semi-dark-green", "value": null },
+                { "color": "yellow", "value": 100 },
+                { "color": "red", "value": 500 }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "textMode": "value",
+          "reduceOptions": { "calcs": ["lastNotNull"] }
+        }
+      },
+
+      {
+        "id": 10,
+        "title": "Service Health Status",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+        "targets": [{
+          "expr": "up",
+          "legendFormat": "{{job}}",
+          "instant": true,
+          "format": "table"
+        }],
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Value" },
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "mappings",
+                  "value": [
+                    { "type": "value", "options": { "1": { "text": "HEALTHY", "color": "green" } } },
+                    { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "Time" },
+              "properties": [{ "id": "custom.hidden", "value": true }]
+            },
+            {
+              "matcher": { "id": "byName", "options": "__name__" },
+              "properties": [{ "id": "custom.hidden", "value": true }]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [{ "displayName": "job", "desc": false }]
+        },
+        "transformations": [
+          { "id": "organize", "options": { "renameByName": { "job": "Service", "instance": "Endpoint", "Value": "Status" } } }
+        ]
+      },
+
+      {
+        "id": 11,
+        "title": "Wotan HTTP Request Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+        "targets": [{
+          "expr": "rate(unheaded_chat_http_requests_total[1m])",
+          "legendFormat": "{{method}} {{code}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "gradientMode": "scheme",
+              "spanNulls": false,
+              "stacking": { "mode": "none" }
+            },
+            "unit": "reqps"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 20,
+        "title": "Memory Usage by Service",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+        "targets": [{
+          "expr": "process_resident_memory_bytes",
+          "legendFormat": "{{job}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "gradientMode": "scheme",
+              "spanNulls": false,
+              "stacking": { "mode": "none" }
+            },
+            "unit": "bytes"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 21,
+        "title": "CPU Usage by Service",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+        "targets": [{
+          "expr": "rate(process_cpu_seconds_total[1m])",
+          "legendFormat": "{{job}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "gradientMode": "scheme",
+              "spanNulls": false,
+              "stacking": { "mode": "none" }
+            },
+            "unit": "percentunit",
+            "min": 0
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 30,
+        "title": "Goroutines by Service",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 23 },
+        "targets": [{
+          "expr": "go_goroutines",
+          "legendFormat": "{{job}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "spanNulls": false
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 31,
+        "title": "Wotan HTTP Latency (p50 / p95 / p99)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 23 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(unheaded_chat_http_request_duration_seconds_bucket[1m]))",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(unheaded_chat_http_request_duration_seconds_bucket[1m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(unheaded_chat_http_request_duration_seconds_bucket[1m]))",
+            "legendFormat": "p99"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "spanNulls": false
+            },
+            "unit": "s"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 32,
+        "title": "Wotan Buffered Messages / Idempotency",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 23 },
+        "targets": [
+          {
+            "expr": "wotan_buffered_messages",
+            "legendFormat": "Buffered Messages"
+          },
+          {
+            "expr": "wotan_idempotency_entries",
+            "legendFormat": "Idempotency Entries"
+          },
+          {
+            "expr": "rate(wotan_idempotency_hits_total[1m])",
+            "legendFormat": "Dedup Hits/s"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "spanNulls": false
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 40,
+        "title": "Open File Descriptors by Service",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 31 },
+        "targets": [{
+          "expr": "process_open_fds",
+          "legendFormat": "{{job}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "bars",
+              "lineWidth": 1,
+              "fillOpacity": 50,
+              "spanNulls": false
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 41,
+        "title": "Captain HTTP Requests",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 31 },
+        "targets": [
+          {
+            "expr": "rate(captain_http_requests_total[1m])",
+            "legendFormat": "Total/s"
+          },
+          {
+            "expr": "rate(captain_http_requests_success[1m])",
+            "legendFormat": "Success/s"
+          },
+          {
+            "expr": "rate(captain_http_requests_error[1m])",
+            "legendFormat": "Error/s"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "spanNulls": false
+            },
+            "unit": "reqps"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 42,
+        "title": "VictoriaMetrics — Ingestion & Queries",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 31 },
+        "targets": [
+          {
+            "expr": "rate(vm_rows_inserted_total[1m])",
+            "legendFormat": "Rows inserted/s ({{type}})"
+          },
+          {
+            "expr": "vm_active_merges",
+            "legendFormat": "Active merges ({{type}})"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "spanNulls": false
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 50,
+        "title": "GC Pause Duration by Service",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+        "targets": [{
+          "expr": "rate(go_gc_duration_seconds_sum[1m])",
+          "legendFormat": "{{job}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "spanNulls": false
+            },
+            "unit": "s"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+
+      {
+        "id": 51,
+        "title": "Heap Allocation Rate by Service",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+        "targets": [{
+          "expr": "rate(go_memstats_alloc_bytes_total[1m])",
+          "legendFormat": "{{job}}"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "spanNulls": false
+            },
+            "unit": "Bps"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      }
+    ],
+    "templating": { "list": [] },
+    "annotations": { "list": [] },
+    "links": []
+  },
+  "overwrite": true
+}

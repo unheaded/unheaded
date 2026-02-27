@@ -1,0 +1,42 @@
+scrape_configs:
+  - job_name: "wotan"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:18000"]
+    metrics_path: /metrics
+
+  - job_name: "timeguru"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19000"]
+    metrics_path: /metrics
+
+  - job_name: "architect"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19001"]
+    metrics_path: /metrics
+
+  - job_name: "captain"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19002"]
+    metrics_path: /metrics
+
+  - job_name: "micromanager"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19003"]
+    metrics_path: /metrics
+
+  - job_name: "dashboard-backend"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:16667"]
+    metrics_path: /metrics
+
+  - job_name: "kanban-app"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:16668"]
+    metrics_path: /metrics

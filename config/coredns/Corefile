@@ -1,0 +1,48 @@
+unheaded.local:53 {
+    log
+    errors
+    health {
+        lameduck 5s
+    }
+    ready
+
+    # Service discovery records
+    template IN A unheaded.local {
+        answer "{{ .Name }} 60 IN A 172.28.1.1"
+    }
+
+    template IN A wotan.unheaded.local {
+        answer "{{ .Name }} 60 IN A 172.28.1.10"
+    }
+
+    template IN A timeguru.unheaded.local {
+        answer "{{ .Name }} 60 IN A 172.28.1.20"
+    }
+
+    template IN A captain.unheaded.local {
+        answer "{{ .Name }} 60 IN A 172.28.1.21"
+    }
+
+    template IN A architect.unheaded.local {
+        answer "{{ .Name }} 60 IN A 172.28.1.22"
+    }
+
+    template IN A micromanager.unheaded.local {
+        answer "{{ .Name }} 60 IN A 172.28.1.23"
+    }
+
+    template IN A monad.unheaded.local {
+        answer "{{ .Name }} 60 IN A 172.28.1.24"
+    }
+
+    template IN A sophia.unheaded.local {
+        answer "{{ .Name }} 60 IN A 172.28.1.25"
+    }
+}
+
+.:53 {
+    forward . 8.8.8.8 8.8.4.4
+    log
+    errors
+    cache 30
+}
