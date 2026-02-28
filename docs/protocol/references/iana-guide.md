@@ -1213,6 +1213,42 @@ Upon publication, IANA SHALL replace these placeholders with assigned values.
 
 ---
 
+## Wire Format Freeze Status (S67 — February 28, 2026)
+
+### Monad v0x01 Wire Format FROZEN
+
+All 12 IANA registries established in the Unheaded Protocol Foundation Specification are now frozen at version 0x01:
+
+| Registry | ID | Scope | Status |
+|----------|----|----|--------|
+| Version | 1 | Field 0x00 (8 bits) | CLOSED — v0x01 active, no future versions planned for Age 1 |
+| Flags Bitfield | 2 | Byte 0x01 (8 bits) | CLOSED — all 8 bits defined (C, Y, T, E, S, M, K1, K0) |
+| Flow Actions | 3 | Values 0x00–0x11 | CLOSED — 18 actions allocated, expert review for 0x12–0xFF |
+| Kingdom Mode | 4 | Bits K1:K0 | CLOSED — 4 modes exhaustive (NORMAL, PRIORITY, EXPERIMENTAL, RESERVED) |
+| Service Identity | 5 | Sophia dict 0x01 | OPEN — expert review for future service IDs |
+| QoS Class | 6 | Sophia dict 0x03 | OPEN — expert review for new QoS classes |
+| Deployment Ring | 7 | Sophia dict 0x04 | OPEN — expert review for new rings |
+| Circuit State | 8 | Sophia dict 0x05 | OPEN — expert review for new circuit states |
+| Mesh Flags | 9 | Sophia dict 0x06 | OPEN — expert review for new mesh flags |
+| Anamnesis Event Type | 10 | Ring buffer (0x00–0x08) | CLOSED — 9 types defined, future events via extension headers (Age 2) |
+| Error Code | 11 | Protocol errors (0x00–0x0C) | CLOSED — 13 normative codes, expert review for 0x0E–0x1E (0x0D reserved) |
+| BPF Helper Function | 12 | Kernel API | CLOSED — 3 functions defined, 5 reserved for Age 2 |
+
+### IPR & Implementation Status
+
+- **Disclosure:** Complete, verified against IETF patent database
+- **Collision Status:** Zero known conflicts
+- **Implementation:** WEST bare metal system operational (Monad v0x01 live)
+- **Freeze Date:** 2026-02-28 02:25:00 UTC
+- **Backward Compatibility:** 20-byte Monad immutable for Age 1; Age 2 expands via HbH options
+
+### Future Registry Expansion (Age 2+)
+
+New registries for Age 2 (IPv6 native transport) will use Hop-by-Hop TLV option types (RFC 4727) without modifying the core 20-byte envelope. Registry conflicts with future IETF standards are mitigated by the Limited Domain design (RFC 8799 — link-local scope only).
+
+---
+
 ## Document Version History
 
 - Version 1.0 (2026-02-20): Initial comprehensive guide including RFC 8126 policies and Unheaded protocol registries
+- Version 1.1 (2026-02-28): S67 Wire Format Freeze — 12 registries locked, Age 1 production-ready

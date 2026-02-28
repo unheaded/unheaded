@@ -2184,6 +2184,11 @@ Attack surface:
 
 # IANA Considerations
 
+All registries defined in this document are placed in a new
+"Unheaded Protocol Parameters" registry group, consistent with
+IANA practice for protocol families (cf. "QUIC Transport Parameters"
+for [RFC9000]).
+
 ## IPv6 Hop-by-Hop Option Type
 
 A new IPv6 Hop-by-Hop option type is requested:
@@ -2198,6 +2203,111 @@ Reference:          This document
 The high-order two bits MUST be 00 (skip on unrecognized) and the third
 bit MUST be 1 (option data may change en-route). This yields the format
 001xxxxx.
+
+## Monad Protocol Version Registry
+
+IANA is requested to create a new registry entitled "Monad Protocol
+Version Numbers" in the "Unheaded Protocol Parameters" registry group.
+
+Registration Policy: Standards Action [RFC8126]
+
+~~~~
+Value       Description                     Reference
+-------     ---------------------------     ---------
+0x00        Reserved (MUST NOT be used)     [this document]
+0x01        Unheaded Protocol v1            [this document]
+0x02-0xEF   Unassigned
+0xF0-0xFE   Reserved for Experimental Use   [this document]
+0xFF        Reserved (MUST NOT be used)     [this document]
+~~~~
+
+The version field occupies offset 0x00 of the Monad register file
+(Section 5.3). Receivers MUST drop packets with unknown version
+values as specified in Section 5.3.
+
+## Monad Flags Bitfield Registry
+
+IANA is requested to create a new registry entitled "Monad Flags"
+in the "Unheaded Protocol Parameters" registry group.
+
+Registration Policy: Specification Required [RFC8126]
+
+The flags field occupies offset 0x07 of the Monad register file
+(Section 5.5).
+
+~~~~
+Bit   Name      Description                                     Reference
+---   --------  ------------------------------------------      ---------
+7     CHAOS     Chaos injection active (Yaldabaoth)              [this document]
+6     CANARY    Canary deployment path marker                    [this document]
+5     TRACED    Full trace active (all hops emit to Anamnesis)   [this document]
+4     ENCRYPT   Payload encrypted (intra-Kingdom TLS)            [this document]
+3     SAMPLED   Statistical sampling active                      [this document]
+2     MIRROR    Mirror copy (not original packet)                [this document]
+1     CUSTOM    Scratch fields carry exponent-encoded values     [this document]
+0     RSVD      Reserved. Senders MUST set to zero.              [this document]
+~~~~
+
+Designated Expert Guidelines: The designated expert(s) SHOULD verify
+that new flag assignments do not conflict with existing bit semantics,
+that the specification clearly defines when the flag is set and
+cleared, and that the flag serves a purpose not achievable through
+existing Sophia dictionary entries. The flags byte is fully allocated;
+future assignments require repurposing bit 0 (RSVD) or use of the
+Extended Register Option [MONAD-EXT-REG].
+
+## Monad Flow Action Registry
+
+IANA is requested to create a new registry entitled "Monad Flow
+Actions" in the "Unheaded Protocol Parameters" registry group.
+
+Registration Policy: Expert Review [RFC8126]
+
+The flow_action field occupies offset 0x05 of the Monad register
+file (Section 5.3). Values are exponent-encoded; the registry tracks
+semantic meanings of decoded values as defined by Sophia dictionaries.
+
+~~~~
+Value       Name              Description                       Reference
+-------     --------          ---------------------------       ---------
+0x00        FORWARD           Normal forwarding (default)       [this document]
+0x01        TRACE             Full event logging to Anamnesis   [this document]
+0x02        SAMPLE            Probabilistic event logging       [this document]
+0x03        DROP              Discard packet                    [this document]
+0x04        MIRROR            Clone to monitoring interface     [this document]
+0x05        RATE_LIMIT        Apply rate limiting policy        [this document]
+0x06        REDIRECT          Redirect to alternate dest        [this document]
+0x07        INJECT            Inject synthetic packet           [this document]
+0x08-0x0F   Unassigned
+0x10        KEY_ROTATE        PQC key rotation event            [this document]
+0x11        KEY_REVOKE        PQC key revocation event          [this document]
+0x12        KEY_DISTRIBUTE    PQC key distribution event        [this document]
+0x13        KEY_VERIFY        PQC key verification event        [this document]
+0x14        KEY_CHALLENGE     PQC challenge-response            [this document]
+0x15-0xEF   Unassigned
+0xF0-0xFE   Experimental Use                                    [this document]
+0xFF        Reserved          MUST NOT be used                  [this document]
+~~~~
+
+## Kingdom Mode Registry
+
+IANA is requested to create a new registry entitled "Kingdom Mode
+Values" in the "Unheaded Protocol Parameters" registry group.
+
+Registration Policy: Standards Action [RFC8126]
+
+Kingdom Mode is a 2-bit field carried in the Extended Register Option
+[MONAD-EXT-REG] indicating the operational mode within a Limited
+Domain (Section 10).
+
+~~~~
+Value   Name            Description                             Reference
+-----   -----------     ----------------------------------      ---------
+0b00    NORMAL          Standard processing                     [this document]
+0b01    PRIORITY        Priority processing with address-aware  [this document]
+0b10    EXPERIMENTAL    Development/testing mode                [this document]
+0b11    RESERVED        Reserved. MUST NOT be used.             [this document]
+~~~~
 
 ## IPv6 Next Header Type Allocation
 

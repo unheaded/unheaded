@@ -442,5 +442,43 @@ Error registry updated with S72 baseline; IANA allocation procedure documented f
 
 ---
 
+## S67 Wire Format Freeze (February 28, 2026)
+
+### Monad v0x01 FROZEN
+
+The 20-byte wire format is locked at protocol version **0x01**. No further version increments planned for Age 1.
+
+### IANA Registries Established (12 Total)
+
+**Foundation Spec allocates:**
+
+| # | Registry | Scope | Values | Notes |
+|---|----------|-------|--------|-------|
+| 1 | **Version** | Field 0x00 | 0x00–0xFF | Currently allocated: 0x01 (active) |
+| 2 | **Flags Bitfield** | Byte 0x01 bits 0–7 | 8 bits | C, Y, T, E, S, M, K1, K0 (all defined) |
+| 3 | **Flow Actions** | Action ID values | 0x00–0x11 (18 total) | forward, drop, dup, redirect, queue, ratelimit, encrypt, sign, etc. |
+| 4 | **Kingdom Mode** | Bits K1:K0 in flags | 0x00–0x11 (4 values) | NORMAL, PRIORITY, EXPERIMENTAL, RESERVED |
+| 5 | Service Identity | Sophia dict 0x01 | 0x01–0xFF (255 max) | captain, deck, engine, lookout, etc. |
+| 6 | QoS Class | Sophia dict 0x03 | 0x00–0xFF | Standard, Interactive, Realtime, etc. |
+| 7 | Deployment Ring | Sophia dict 0x04 | 0x00–0xFF | Canary, Staging, Production, etc. |
+| 8 | Circuit State | Sophia dict 0x05 | 0x00–0xFF | Open, Closed, Half-Open, etc. |
+| 9 | Mesh Flags | Sophia dict 0x06 | 0x00–0xFF | NAT Type, Direction, etc. |
+| 10 | Anamnesis Event Type | Ring buffer | 0x00–0x08 (9 types) | BORN, PARSE, WOTAN_READ, WOTAN_WRITE, SOPHIA_LOOKUP, ACTION_EXEC, REWRITE, ERROR, DEATH |
+| 11 | Error Code | Protocol errors | 0x00–0x0C (13 codes) | Version mismatch, CRC failure, access denied, bounds check failure, etc. |
+| 12 | BPF Helper Function | Kernel API | 8 total | bpf_wotan_read, bpf_wotan_write, bpf_wotan_cas, (5 reserved) |
+
+### Intellectual Property & Implementation Status
+
+- **IPR Disclosure:** Complete and verified
+- **Patent Collision Check:** Zero conflicts identified
+- **Implementation Readiness:** WEST bare metal system online and operational
+- **Freeze Date:** February 28, 2026, 02:25 UTC
+
+### Backward Compatibility Guarantee
+
+The 20-byte Monad structure is final for Age 1. Age 2 (IPv6 native transport) will expand the metadata space via Hop-by-Hop extension headers without modifying the core 20-byte envelope.
+
+---
+
 *BPF computes. Anamnesis records. Wotan translates. Sophia decodes.*
 *Age 1 production-ready. Age 2 designed. Age 3 planned.*
