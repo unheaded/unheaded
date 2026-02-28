@@ -1,0 +1,144 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# host-b/wireguard-ipv6.conf.example
+# WireGuard IPv6 configuration for host-b → host-a tunnel
+# Architecture: fd00:dead:beef::/48 addressing scheme
+#
+# INSTRUCTIONS:
+# 1. Copy this file to wireguard.conf (remove .example)
+# 2. Generate keypairs on both hosts:
+#    wg genkey | tee privatekey | wg pubkey > publickey
+# 3. Replace PLACEHOLDER values with actual keys
+# 4. Ensure init.sh can find this file before running
+
+[Interface]
+# host-b private key
+PrivateKey = PLACEHOLDER_HOST_B_PRIVATE_KEY
+
+# host-b WireGuard IPv6 address (allocated from fd00:dead:beef::/48)
+# This is the EAST address in the WireGuard tunnel
+Address = fd00:dead:beef::2/48
+ListenPort = 51820
+
+# MTU = 1380 for IPv6 + HbH (Hop-by-Hop) headers
+# This accommodates the Unheaded architecture requirements
+MTU = 1380
+
+[Peer]
+# host-a public key
+PublicKey = PLACEHOLDER_HOST_A_PUBLIC_KEY
+
+# Allowed IPs for host-a:
+# - fd00:dead:beef::1/128 : host-a WireGuard endpoint in tunnel
+# - fd00:dead:beef::/32   : host-a LAN and container IPv6 space
+AllowedIPs = fd00:dead:beef::1/128, fd00:dead:beef::/32
+
+# host-a endpoint (public IPv4 or IPv6 address + port)
+# Example: 203.0.113.1:51820
+Endpoint = PLACEHOLDER_HOST_A_ENDPOINT:51820
+
+# Keep-alive to maintain tunnel through NAT (25 seconds)
+PersistentKeepalive = 25
+
+# Optional settings:
+# PreUp = ...
+# PostUp = ...
+# PreDown = ...
+# PostDown = ...
+
+################################################################################
+# IPv6 SETUP INSTRUCTIONS
+################################################################################
+#
+# On host-a (initiator/server):
+# ============================================
+# 1. Generate keypair:
+#    wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey
+#
+# 2. Create /etc/wireguard/wg0.conf:
+#    [Interface]
+#    PrivateKey = <content of /etc/wireguard/privatekey>
+#    Address = fd00:dead:beef::1/48
+#    ListenPort = 51820
+#    MTU = 1380
+#
+#    [Peer]
+#    PublicKey = <host-b public key (see below)>
+#    AllowedIPs = fd00:dead:beef::2/128, fd00:dead:beef:1::/32
+#
+# 3. Bring up interface:
+#    wg-quick up wg0
+#
+# 4. Verify (IPv6):
+#    wg show wg0
+#    ip -6 addr show wg0
+#    ip -6 route show
+#
+# On host-b (client/peer):
+# ============================================
+# 1. Generate keypair:
+#    wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey
+#
+# 2. Get host-a public key from host-a:
+#    ssh admin@host-a cat /etc/wireguard/publickey
+#
+# 3. Get host-a public IP/FQDN (endpoint for Endpoint field)
+#
+# 4. Create this file (wireguard.conf) with:
+#    - host-b PrivateKey
+#    - host-a PublicKey
+#    - host-a Endpoint (public IP or FQDN)
+#
+# 5. init.sh will handle bringing up the interface
+#
+# IPv6 VERIFICATION:
+# ============================================
+# After init.sh completes:
+#
+# Check tunnel status:
+#   wg show wg0
+#
+# Check tunnel IPv6 address:
+#   ip -6 addr show wg0
+#   Expected: fd00:dead:beef::2/48
+#
+# Verify IPv6 routing:
+#   ip -6 route show
+#   Should include: fd00:dead:beef::/48 via <gateway>
+#
+# Ping host-a through tunnel (IPv6):
+#   ping -6 -c 3 fd00:dead:beef::1
+#   Expected: responses from fd00:dead:beef::1
+#
+# Ping host-a containers (IPv6):
+#   ping -6 -c 3 fd00:dead:beef:1::1
+#
+# From container on host-b (IPv6):
+#   lxc exec unheaded-wotan -- ping -6 -c 3 fd00:dead:beef:1::1  # host-a wotan
+#
+# TROUBLESHOOTING:
+# ============================================
+# No IPv6 connectivity after startup:
+#   wg show wg0  # Check handshake time (should be recent)
+#
+# Check if interface is up and has IPv6:
+#   ip link show wg0
+#   ip -6 addr show wg0
+#
+# Monitor WireGuard (IPv6):
+#   watch -n 1 'wg show wg0; echo "---"; ip -6 addr show wg0'
+#
+# Packet loss through tunnel:
+#   traceroute -6 fd00:dead:beef:1::1
+#
+# MTU issues (large IPv6 packets fail):
+#   # If ping -6 with large packets (-s 1400) fails:
+#   # 1. Reduce MTU to 1280 (basic IPv6 minimum)
+#   # 2. But preferred is 1380 with proper fragmentation support
+#   # 3. Then: wg-quick down wg0 && wg-quick up wg0
+#
+# Link-local address not appearing:
+#   # Link-local should be auto-configured. If not:
+#   # ip link set wg0 up
+#   # ip -6 addr show wg0
+
