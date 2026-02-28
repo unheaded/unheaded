@@ -1,0 +1,83 @@
+# HAProxy and Nginx Sidecar Prometheus Scrape Configuration
+# This file should be included in the main prometheus.yml scrape_configs section
+
+scrape_configs:
+  # HAProxy Edge Metrics
+  - job_name: haproxy-edge
+    static_configs:
+      - targets: ['haproxy-edge:21404']
+    metrics_path: /metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        action: replace
+        target_label: instance
+      - action: replace
+        replacement: haproxy
+        target_label: component
+      - action: replace
+        replacement: edge
+        target_label: tier
+      - action: replace
+        replacement: haproxy-edge
+        target_label: job
+
+  # HAProxy Internal Metrics
+  - job_name: haproxy-internal
+    static_configs:
+      - targets: ['haproxy-internal:21405']
+    metrics_path: /metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        action: replace
+        target_label: instance
+      - action: replace
+        replacement: haproxy
+        target_label: component
+      - action: replace
+        replacement: internal
+        target_label: tier
+      - action: replace
+        replacement: haproxy-internal
+        target_label: job
+
+  # Nginx Sidecar Exporters via stub_status
+  - job_name: nginx-exporters
+    metrics_path: /stub_status
+    static_configs:
+      # Wotan service nginx sidecar
+      - targets: ['wotan:18080']
+        labels:
+          service: wotan
+      # Monad service nginx sidecar
+      - targets: ['monad:19080']
+        labels:
+          service: monad
+      # Sophia service nginx sidecar
+      - targets: ['sophia:19081']
+        labels:
+          service: sophia
+      # Dashboard service nginx sidecar
+      - targets: ['dashboard:20080']
+        labels:
+          service: dashboard
+      # Kanban service nginx sidecar
+      - targets: ['kanban:20081']
+        labels:
+          service: kanban
+      # Gateway service nginx sidecar
+      - targets: ['gateway:21090']
+        labels:
+          service: gateway
+    relabel_configs:
+      - source_labels: [__address__]
+        action: replace
+        target_label: instance
+      - action: replace
+        replacement: nginx
+        target_label: component
+      - action: replace
+        replacement: sidecar
+        target_label: tier
+      - action: replace
+        replacement: nginx-exporters
+        target_label: job
