@@ -121,6 +121,7 @@
 
 ## Infrastructure
 
+- [[Load Balancers|Load-Balancers]] — HAProxy edge/internal + Nginx per-app sidecars. Docker, bare metal, LXD, containerd, NixOS
 - [[Containers|Containers]] — Immutable container definitions. LXD, containerd, NixOS, Docker
 - [[IaC Backends|IaC-Backends]] — Interchangeable config management. Ansible, Terraform, Puppet, Kubernetes, Chef, Salt
 - [[Observability Backends|Observability-Backends]] — Interchangeable logging/metrics/tracing. Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios + more
