@@ -5,6 +5,54 @@
 
 ---
 
+## Interchangeable Alternatives
+
+The Pauldrons follow the Kingdom's interchangeability pattern. HAProxy and Nginx are the defaults, but any component can be swapped for an equivalent that exposes Prometheus metrics and structured JSON logs.
+
+### Edge / Internal Load Balancer (replaces HAProxy)
+
+| Alternative | Strengths | Metrics | Trade-off |
+|-------------|-----------|---------|-----------|
+| **HAProxy** (default) | Battle-tested L4/L7, native PROMEX, stick tables, hot reload | Native `/metrics` | Config syntax learning curve |
+| **Envoy** | xDS API (dynamic config), gRPC-native, WASM filters, HTTP/3 | Native `/stats/prometheus` | Higher memory footprint, YAML config complexity |
+| **Traefik** | Auto-discovery (Docker/K8s labels), ACME built-in, HTTP/3 | Native `/metrics` | Less granular L4 control, limited stick tables |
+| **Caddy** | Automatic HTTPS, simple config (Caddyfile), HTTP/3 | Via `metrics` directive | Fewer LB algorithms, no native L4 mode |
+| **IPVS/LVS** | Kernel-space L4 (zero user-space overhead), battle-tested at hyperscale | Via `ipvs_exporter` | L4 only — no path-based routing, no TLS term |
+| **Keepalived + IPVS** | VRRP failover + kernel L4, used by every major CDN | Via `keepalived_exporter` | L4 only, requires separate L7 for path routing |
+| **Katran (Meta)** | XDP-based L4 (eBPF), used at Meta scale, Maglev hashing | Custom eBPF maps | L4 only, Linux 4.19+, no L7 features |
+| **Cilium** | eBPF-native service mesh, kube-proxy replacement, L3/L4/L7 | Native `/metrics` | K8s-centric, heavier operational model |
+
+### Per-App Sidecar (replaces Nginx)
+
+| Alternative | Strengths | Metrics | Trade-off |
+|-------------|-----------|---------|-----------|
+| **Nginx** (default) | Battle-tested, stub_status, low memory, WebSocket upgrade | `/stub_status` + VTS module | Limited dynamic upstream reconfig |
+| **Envoy** | Dynamic upstream via xDS, circuit breaking, outlier detection | Native `/stats/prometheus` | 10-30× memory vs Nginx for simple proxy |
+| **Caddy** | Auto-TLS, reverse_proxy directive, health checks built-in | Via `metrics` directive | Less mature at high connection counts |
+| **Pingora (Cloudflare)** | Rust, async, connection pooling, used at Cloudflare scale | Custom integration | Young ecosystem, fewer community plugins |
+| **OpenResty** | Nginx + LuaJIT — programmable proxy, custom auth/routing logic | stub_status + Lua metrics | Lua complexity, harder to debug |
+| **Sozu** | Rust, hot config reload, zero-downtime, memory-safe | Prometheus endpoint | Smaller community, fewer features |
+| **linkerd2-proxy** | Ultra-light Rust mesh proxy, mTLS, latency-aware LB | Native `/metrics` | Designed for sidecar mesh, not standalone |
+
+### When to Swap
+
+**Swap HAProxy → Envoy when:** you need dynamic config (xDS), gRPC-heavy workloads, or WASM extensibility.
+**Swap HAProxy → Katran when:** L4-only at extreme scale and you're already on eBPF (we are).
+**Swap HAProxy → Traefik when:** Docker/K8s auto-discovery is more important than stick-table granularity.
+**Swap Nginx → Envoy when:** per-app circuit breaking and outlier detection matter more than memory footprint.
+**Swap Nginx → Pingora when:** you need Rust-level memory safety in the hot path and connection pool efficiency.
+**Swap Nginx → linkerd2-proxy when:** moving to full mesh with mTLS between every sidecar.
+
+### Adaptation Requirement
+
+Any replacement MUST:
+1. Export Prometheus-compatible metrics (scrape endpoint or exporter)
+2. Emit structured JSON logs with `trace_id` field for Loki pipeline
+3. Support health check endpoints for HAProxy/upstream backend checks
+4. Preserve `X-Trace-Id` header propagation through the proxy chain
+
+---
+
 ## Architecture
 
 ```
