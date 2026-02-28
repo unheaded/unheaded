@@ -54,6 +54,7 @@
 - [[Service Discovery|Service-Discovery]]
 
 **Infrastructure**
+- [[Load Balancers|Load-Balancers]]
 - [[Containers]]
 - [[IaC Backends|IaC-Backends]]
 - [[Observability|Observability-Backends]]

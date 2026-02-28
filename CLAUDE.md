@@ -44,6 +44,7 @@ Layer 0: Infrastructure (LXD, host OS)
 | Services | **Go 1.21+** | Simplicity, concurrency, tooling |
 | Containers | **LXD / containerd / NixOS / Docker** | Interchangeable drop-in runtimes, same hardening baseline |
 | Message Bus | **Wotan** (Go + gRPC) | Triple-role: ring buffer + event bus + protocol RAM |
+| Load Balancers | **HAProxy 2.8+** (edge + internal) + **Nginx 1.25+** (per-app sidecars) | Three-layer LB: TLS term → service routing → app proxying. Full Prometheus + Loki telemetry |
 | Gateway | **nginx** | Battle-tested, HTTP/3 support |
 | Frontend | **Vanilla JS** | No framework overhead, full control |
 | Orchestration | **LXD** (primary), containerd, Docker | Runtime-agnostic control plane |
@@ -1059,6 +1060,14 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | micromanager | 19003 | HTTP | Execution Service |
 | monad | 19004 | gRPC | State Management |
 | sophia | 19005 | gRPC | Knowledge Graph |
+| haproxy-edge | 21080/21443/21404 | HTTP/HTTPS/Stats | Edge LB: TLS term, rate limiting |
+| haproxy-internal | 21081/21405 | HTTP/Stats | Internal LB: service routing |
+| nginx-wotan | 18080 | HTTP | Sidecar LB for wotan |
+| nginx-monad | 19080 | HTTP | Sidecar LB for monad |
+| nginx-sophia | 19081 | HTTP | Sidecar LB for sophia |
+| nginx-dashboard | 20080 | HTTP | Sidecar LB for dashboard |
+| nginx-kanban | 20081 | HTTP | Sidecar LB for kanban |
+| nginx-gateway | 21090 | HTTP | Sidecar LB for gateway |
 | gateway | 21000/21443 | HTTP/HTTPS | TLS Termination |
 | AI Services | 20100-20106 | HTTP | vLLM, inference |
 | User Apps | 26000-26666 | HTTP/HTTPS | Reserved |
