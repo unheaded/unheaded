@@ -31,6 +31,7 @@
 /// 0x40    1     hop_count       (u8, number of XDP hops observed)
 /// 0x41    3     _pad            (alignment padding, must be zero)
 /// ```
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TraceEntry {
@@ -84,6 +85,7 @@ pub struct TraceEntry {
 /// 0x18    8     traces_updated
 /// 0x20    8     errors
 /// ```
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct StatsEntry {
@@ -103,33 +105,17 @@ pub struct StatsEntry {
     pub errors: u64,
 }
 
-/// Flow key used for the FLOW_STATE and TRACE_INJECT BPF maps.
-///
-/// This is a re-export from unheaded-common for convenience; the canonical
-/// definition lives in `ebpf/common/src/lib.rs`.
-///
-/// 16 bytes total: src_addr(4) + dst_addr(4) + src_port(2) + dst_port(2) + protocol(1) + pad(3).
-pub use unheaded_common::FlowKey;
 
-/// Flow state stored per connection.
-pub use unheaded_common::FlowState;
 
-/// Trace ID (128-bit).
-pub use unheaded_common::TraceId;
 
-/// Packet event for ring buffer transport.
-pub use unheaded_common::PacketEvent;
 
-/// Direction of packet flow.
-pub use unheaded_common::Direction;
 
-/// Action taken on a packet.
-pub use unheaded_common::PacketAction;
 
 /// Map names pinned to the BPF filesystem.
 ///
 /// These constants must match the map names used in the XDP program
 /// and the paths expected by the Go trace-collector.
+#[allow(dead_code)]
 pub mod map_names {
     /// Flow state map: FlowKey -> FlowState
     pub const FLOW_STATE: &str = "FLOW_STATE";
@@ -145,6 +131,7 @@ pub mod map_names {
 }
 
 /// Statistics counter keys (must match XDP program constants).
+#[allow(dead_code)]
 pub mod stat_keys {
     pub const PACKETS_TOTAL: u32 = 0;
     pub const PACKETS_IPV4: u32 = 1;

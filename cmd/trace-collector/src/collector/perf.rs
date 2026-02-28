@@ -21,11 +21,11 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use crossbeam::channel::Sender;
 use memmap2::{MmapMut, MmapOptions};
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, trace, warn};
 
 use super::events::EventFilter;
 use super::CollectorStats;
-use crate::bpf::{bpf_map_info, bpf_obj_get, BpfError, BpfMapType};
+use crate::bpf::{bpf_map_info, bpf_obj_get, BpfMapType};
 use crate::events::Event;
 use crate::metrics;
 
@@ -33,6 +33,7 @@ use crate::metrics;
 const PAGE_SIZE: usize = 4096;
 
 /// Perf event types (from perf_event.h)
+#[allow(dead_code)]
 const PERF_RECORD_MMAP: u32 = 1;
 const PERF_RECORD_LOST: u32 = 2;
 const PERF_RECORD_SAMPLE: u32 = 9;

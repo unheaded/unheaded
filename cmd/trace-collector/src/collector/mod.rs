@@ -17,17 +17,14 @@ pub mod ringbuf;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use crossbeam::channel::{bounded, Receiver, Sender};
 use parking_lot::RwLock;
 use thiserror::Error;
-use tokio::sync::broadcast;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use crate::events::Event;
-use crate::metrics;
 
 pub use events::{EventFilter, EventProcessor};
 pub use perf::PerfCollector;

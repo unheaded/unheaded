@@ -45,7 +45,7 @@
 
 use aya_ebpf::{
     bindings::xdp_action,
-    helpers::{bpf_ktime_get_ns, bpf_get_prandom_u32},
+    helpers::bpf_ktime_get_ns,
     macros::{map, xdp},
     maps::{Array, HashMap, RingBuf, LruHashMap},
     programs::XdpContext,
@@ -55,7 +55,7 @@ use monad_common::{
     MbcCpuState, MbcInsn, ComputeHopEvent,
     mbc_opcodes as op, mbc_flags as mf, mbc_syscalls as sys, mbc_mmap as mmap,
     IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_TYPE, MONAD_OPT_DATA_LEN, MONAD_SIZE,
-    flags, MBC_REG_COUNT,
+    flags,
     EVENT_CACHE_MISS, EVENT_SCREEN_WRITE, EVENT_COMPUTE_HALT,
 };
 
@@ -126,6 +126,7 @@ const STAT_INSNS_EXECUTED:  u32 = 2;
 const STAT_HALTED:          u32 = 3;
 const STAT_SLEEPING:        u32 = 4;
 const STAT_NO_STATE:        u32 = 5;
+#[allow(dead_code)]
 const STAT_MEM_FAULTS:      u32 = 6;
 const STAT_SYSCALLS:        u32 = 7;
 const STAT_ROM_FAULT:       u32 = 8;
@@ -712,9 +713,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 // ── Event emission helpers ─────────────────────────────────────────────────────
 
 /// Emit a CACHE_MISS event to the ring buffer.
-#[inline(always)]
+#[allow(dead_code)]
 fn emit_cache_miss(flow_label: u32, miss_addr: u32, hop_id: u8) {
-    if let Some(mut entry) = unsafe { COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) } {
+    if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
             timestamp_ns: unsafe { bpf_ktime_get_ns() },
             event_type: EVENT_CACHE_MISS,
@@ -738,7 +739,7 @@ fn emit_cache_miss(flow_label: u32, miss_addr: u32, hop_id: u8) {
 /// Emit a SCREEN_WRITE event to the ring buffer.
 #[inline(always)]
 fn emit_screen_write(flow_label: u32, fb_addr: u32, hop_id: u8) {
-    if let Some(mut entry) = unsafe { COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) } {
+    if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
             timestamp_ns: unsafe { bpf_ktime_get_ns() },
             event_type: EVENT_SCREEN_WRITE,
@@ -762,7 +763,7 @@ fn emit_screen_write(flow_label: u32, fb_addr: u32, hop_id: u8) {
 /// Emit a COMPUTE_HALT event to the ring buffer.
 #[inline(always)]
 fn emit_compute_halt(flow_label: u32, insn_count: u64, hop_id: u8) {
-    if let Some(mut entry) = unsafe { COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) } {
+    if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
             timestamp_ns: unsafe { bpf_ktime_get_ns() },
             event_type: EVENT_COMPUTE_HALT,
@@ -852,6 +853,7 @@ fn mem_write_word(word_addr: u32, value: u32) {
 }
 
 /// Read a single byte from the MBC address space.
+#[allow(dead_code)]
 #[inline(always)]
 fn mem_read_byte(byte_addr: u32) -> u8 {
     // Screen region: direct SCREEN_MAP read.
@@ -890,6 +892,7 @@ fn mem_write_byte(byte_addr: u32, value: u8) {
 }
 
 /// Read a 16-bit halfword from the MBC address space (little-endian).
+#[allow(dead_code)]
 #[inline(always)]
 fn mem_read_half(byte_addr: u32) -> u16 {
     let word_addr  = byte_addr >> 2;

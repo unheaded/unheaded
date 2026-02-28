@@ -128,6 +128,7 @@ impl Default for EventFilter {
 /// Event processor for transforming events
 pub struct EventProcessor {
     /// Hostname to attach to events
+    #[allow(dead_code)]
     hostname: String,
     /// Enable enrichment
     enrichment_enabled: bool,
@@ -145,7 +146,7 @@ impl EventProcessor {
     }
 
     /// Process an event, optionally enriching it
-    pub fn process(&self, mut event: Event) -> Event {
+    pub fn process(&self, event: Event) -> Event {
         if self.enrichment_enabled {
             // Add hostname if not present
             // Events don't have a hostname field currently, but we could add metadata

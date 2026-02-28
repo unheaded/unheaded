@@ -13,9 +13,9 @@
 //! - Binary and JSON message formats
 //! - Heartbeat/ping-pong keepalive
 
-mod handler;
-mod protocol;
-mod server;
+pub mod handler;
+pub mod protocol;
+pub mod server;
 
 pub use handler::WebSocketHandler;
 pub use protocol::{ClientMessage, ServerMessage, Subscription, TraceUpdate};

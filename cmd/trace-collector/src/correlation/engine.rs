@@ -4,16 +4,14 @@
 //! Maintains active trace state and cross-service associations.
 
 use std::collections::{HashMap, VecDeque};
-use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::Result;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, warn};
 
 use super::{FlowKey, Span, SpanBuilder, SpanId, SpanKind, SpanStatus, TraceId};
 use crate::events::{Event, EventData, EventType};
@@ -686,7 +684,7 @@ impl CorrelationEngine {
 mod tests {
     use super::*;
     use crate::events::{EventData, PacketEvent};
-    use std::net::IpAddr;
+    use std::net::{IpAddr, Ipv4Addr};
 
     fn create_test_packet_event() -> Event {
         Event {
