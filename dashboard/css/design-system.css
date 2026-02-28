@@ -37,7 +37,8 @@
   --text-primary:    #c9c9c9;   /* body text — muted silver */
   --text-heading:    #ffffff;   /* headings — pure white (rare) */
   --text-dim:        #666666;   /* labels, meta, etymology */
-  --text-ghost:      #3a3a3a;   /* infrastructure poetry — nearly invisible */
+  --text-ghost:      #555555;   /* infrastructure poetry — WCAG AA compliant */
+  --text-ghost-dim:  #444444;   /* intermediate ghost value */
   --text-ghost-hover:#888888;   /* ghost hover reveal */
   --text-nodes:      #444444;   /* node labels — very subtle */
   --text-accent:     #555555;   /* serif "here we are" motif */
