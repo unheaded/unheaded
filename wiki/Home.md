@@ -23,7 +23,9 @@
 
 ## The Protocol
 
-- [[Protocol Foundation|Protocol-Foundation]] — Monad 20-byte wire format
+**Status:** Wire format FROZEN at v0x01, 12 IANA registries (S67, Feb 28, 2026)
+
+- [[Protocol Foundation|Protocol-Foundation]] — Monad 20-byte wire format (FROZEN)
 - [[Protocol Technical Summary|Protocol-Technical-Summary]] — Quick technical reference
 - [[Sophia Dictionaries|Sophia-Dictionaries]] — Exponent-encoded BPF maps
 - [[Wotan Memory Model|Wotan-Memory-Model]] — Ring buffer + event bus + protocol RAM

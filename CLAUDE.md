@@ -50,6 +50,8 @@ Layer 0: Infrastructure (LXD, host OS)
 | Config Management | **Ansible / Terraform / Puppet / Kubernetes / Chef / Salt** | Interchangeable IaC backends, same desired-state model |
 | Observability | **Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios** + more | Interchangeable backends; custom Wotan-native defaults long-term |
 
+**S67 Protocol Foundation:** Monad wire format frozen at v0x01 (20 bytes). Foundation spec draft-05 includes 12 IANA registries: Monad Protocol Version Numbers, Monad Flags Bitfield (C|Y|T|E|S|M|CUST|R), Monad Flow Actions (13 entries), Kingdom Mode Values, plus 8 others for extensibility and interoperability. IPR clearance: RFC 8928/9927 CLEAR.
+
 ### Network Design
 
 - **Bridge:** lxdbr0 (10.10.10.0/24)
@@ -57,6 +59,10 @@ Layer 0: Infrastructure (LXD, host OS)
 - **Wotan:** 10.10.10.10 (message hub)
 - **Services:** 10.10.10.20-30 (agent services)
 - **Apps:** 10.10.10.200+ (kanban, demo)
+
+**Bare Metal Status (S67):**
+- **WEST:** Online and running (test cluster, full feature validation)
+- **EAST:** In preparation (4-core, 8GB DDR3 — staging environment)
 
 ### Port Allocation — "The Doom Range" (16666-26666)
 
@@ -666,11 +672,13 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
-## 🎯 Current Phase: Alpha (~99% Complete) | S36 Four Pillars Complete
+## 🎯 Current Phase: Alpha (~99% Complete) | S36 Four Pillars Complete | S67 Wire Format FROZEN
 
 **Goal:** Demonstrate core platform capabilities
 
 **Timeline:** Jan 26 - Feb 3, 2026
+
+**Wire Format Status:** FROZEN at version 0x01 (20 bytes) — monad protocol locked, 7 breaking change candidates analyzed and rejected
 
 **Services:** 10 total (timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, wotan, unheaded-daemon)
 
@@ -1079,6 +1087,7 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-**Last Updated**: February 25, 2026 (Wave 4-A Docs Sprint)
-**Version**: Alpha (~99% Complete) — S36 Four Pillars + Wave 1-3 Complete
-**Status**: README rewritten, VISION.md created, CLAUDE.md updated with recent sprints
+**Last Updated**: February 28, 2026 (S67 Wire Format Freeze Documentation Ripple)
+**Version**: Alpha (~99% Complete) — S36 Four Pillars + Wave 1-3 Complete + S67 Wire Format Freeze
+**Status**: Wire format frozen (0x01, 20 bytes). 12 IANA registries integrated in foundation spec draft-05. WEST bare metal online. 7 breaking change candidates analyzed and rejected.
+**LOC**: ~260K production (~517K+ total with tests, docs, IaC)
