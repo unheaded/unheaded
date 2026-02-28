@@ -30,6 +30,17 @@ All services are documented for 4 deployment methods:
 | Logs | JSON format → Promtail → Loki | Grafana Explore |
 | Alerts | 7 rules in `loadbalancers.yml` → AlertManager | PagerDuty/Slack (TBD) |
 
+## Interchangeable Alternatives
+
+Follows the Kingdom's interchangeability pattern — any component swappable if it exports Prometheus metrics + JSON logs with `trace_id`.
+
+| Role | Default | Alternatives |
+|------|---------|-------------|
+| Edge/Internal LB | HAProxy | Envoy, Traefik, Caddy, IPVS/LVS, Keepalived, Katran (XDP), Cilium |
+| Per-App Sidecar | Nginx | Envoy, Caddy, Pingora (Rust), OpenResty, Sozu (Rust), linkerd2-proxy |
+
+See [full comparison table](../docs/infrastructure/LOAD_BALANCERS.md#interchangeable-alternatives) for strengths, metrics endpoints, and trade-offs.
+
 ## Nginx Sidecars
 
 | Sidecar | Port | Upstream Service | Upstream Port |
