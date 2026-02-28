@@ -177,7 +177,9 @@
             border-radius: var(--border-radius-sm);
             font-size: var(--font-size-xs);
             font-family: var(--font-mono);
-            z-index: var(--z-sticky);
+            z-index: 99;
+            white-space: nowrap;
+            pointer-events: none;
         }
 
         /* Key hints */
@@ -230,8 +232,17 @@
             font-size: var(--font-size-xs);
             font-family: var(--font-mono);
             pointer-events: none;
-            z-index: var(--z-sticky);
+            z-index: 98;
             display: none;
+            max-width: 200px;
+            overflow: hidden;
+        }
+
+        .overlay-panel div {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            word-break: break-all;
         }
 
         .overlay-panel.visible {
