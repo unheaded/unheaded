@@ -19,9 +19,8 @@ pub mod server;
 
 // Re-export server types
 pub use server::{
-    record_batch_size, record_dropped, record_error, record_event, record_events_published,
-    record_publish_latency_seconds, record_ringbuf_read, set_build_info, set_connection_state,
-    set_queue_depth, set_uptime, MetricsHttpServer, ServerConfig,
+    record_batch_size, record_events_published, set_connection_state,
+    set_queue_depth, MetricsHttpServer, ServerConfig,
 };
 
 use std::sync::atomic::{AtomicU64, Ordering};

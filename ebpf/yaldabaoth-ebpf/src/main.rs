@@ -201,7 +201,7 @@ fn apply_chaos(
     monad:      &mut Monad,
     mode:       u8,
     param:      u32,
-    flow_label: u32,
+    _flow_label: u32,
 ) -> Result<(), ()> {
     if mode == ChaosMode::BitFlip as u8 {
         apply_bit_flip(ctx, monad)?;

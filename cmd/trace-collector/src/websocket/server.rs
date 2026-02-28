@@ -14,7 +14,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use futures_util::{SinkExt, StreamExt};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
 use super::handler::{HandlerStats, WebSocketHandler};
 use super::protocol::{ClientMessage, ServerMessage, TraceUpdate};
@@ -81,9 +81,11 @@ impl WebSocketStats {
 
 /// Connection handle for managing a single client
 struct Connection {
+    #[allow(dead_code)]
     id: String,
     handler: Arc<WebSocketHandler>,
     tx: mpsc::Sender<ServerMessage>,
+    #[allow(dead_code)]
     connected_at: Instant,
 }
 
@@ -227,7 +229,7 @@ impl WebSocketServer {
 
         // Close all connections
         let connections: Vec<_> = self.connections.write().drain().collect();
-        for (id, conn) in connections {
+        for (_id, conn) in connections {
             let _ = conn.tx.send(ServerMessage::Error {
                 code: "shutdown".to_string(),
                 message: "Server shutting down".to_string(),
@@ -300,7 +302,7 @@ impl WebSocketServer {
         let batch_interval = self.config.batch_interval;
         let max_batch_size = self.config.max_batch_size;
         let mut pending_updates: Vec<(String, TraceUpdate)> = Vec::new();
-        let mut last_batch_send = Instant::now();
+        let mut _last_batch_send = Instant::now();
 
         loop {
             tokio::select! {
@@ -398,14 +400,14 @@ impl WebSocketServer {
                 // Batch flush timer
                 _ = tokio::time::sleep(batch_interval), if batching && !pending_updates.is_empty() => {
                     self.flush_batch(&handler, &mut ws_sink, &mut pending_updates, max_batch_size).await?;
-                    last_batch_send = Instant::now();
+                    _last_batch_send = Instant::now();
                 }
             }
 
             // Check if we should flush batch due to size
             if batching && pending_updates.len() >= max_batch_size {
                 self.flush_batch(&handler, &mut ws_sink, &mut pending_updates, max_batch_size).await?;
-                last_batch_send = Instant::now();
+                _last_batch_send = Instant::now();
             }
         }
 
@@ -428,7 +430,7 @@ impl WebSocketServer {
         handler: &Arc<WebSocketHandler>,
         ws_sink: &mut futures_util::stream::SplitSink<S, Message>,
         pending_updates: &mut Vec<(String, TraceUpdate)>,
-        max_batch_size: usize,
+        _max_batch_size: usize,
     ) -> Result<()>
     where
         S: futures_util::Sink<Message> + Unpin,
@@ -491,7 +493,7 @@ mod tests {
     #[test]
     fn test_broadcast() {
         let server = WebSocketServer::new(WebSocketConfig::default());
-        let mut rx = server.subscribe_updates();
+        let _rx = server.subscribe_updates();
 
         let update = TraceUpdate::new("test-trace", "packet");
         server.broadcast_update(update);

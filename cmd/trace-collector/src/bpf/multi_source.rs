@@ -17,13 +17,11 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use crossbeam::channel::Sender;
-use parking_lot::RwLock;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
-use crate::events::{Event, EventData, EventType};
-use crate::metrics;
+use crate::events::{Event, EventType};
 
 /// Default paths for eBPF ring buffer maps
 pub mod paths {
@@ -256,7 +254,7 @@ impl SourcedEvent {
     }
 
     /// Get the latency from kernel event to userspace receipt
-    pub fn kernel_to_user_latency_ns(&self, boot_time_ns: u64) -> u64 {
+    pub fn kernel_to_user_latency_ns(&self, _boot_time_ns: u64) -> u64 {
         // Approximate: use the difference between receive time and event timestamp
         // This is not perfectly accurate but gives a reasonable estimate
         let now_ns = std::time::SystemTime::now()
@@ -269,6 +267,7 @@ impl SourcedEvent {
 }
 
 /// State for a single reader task
+#[allow(dead_code)]
 struct ReaderState {
     source: EventSource,
     ringbuf_path: PathBuf,
@@ -429,10 +428,10 @@ async fn run_source_reader(
     path: PathBuf,
     ringbuf_size: usize,
     stats: Arc<SourceStats>,
-    global_stats: Arc<GlobalStats>,
+    _global_stats: Arc<GlobalStats>,
     shutdown: Arc<AtomicBool>,
     event_tx: Sender<Event>,
-    poll_timeout_ms: u64,
+    _poll_timeout_ms: u64,
 ) -> Result<()> {
     use super::ringbuf::RingBufReader;
 
@@ -443,7 +442,7 @@ async fn run_source_reader(
     );
 
     // Create the ring buffer reader
-    let mut reader = match RingBufReader::new(&path, ringbuf_size) {
+    let reader = match RingBufReader::new(&path, ringbuf_size) {
         Ok(r) => r,
         Err(e) => {
             error!(

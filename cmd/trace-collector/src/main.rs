@@ -54,18 +54,11 @@ use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-mod bpf;
-mod collector;
-mod config;
-mod correlation;
-mod events;
-mod metrics;
-mod proto;
-mod publisher;
-mod websocket;
+use trace_collector::bpf;
+use trace_collector::publisher;
 
-use config::Config;
-use metrics::MetricsServer;
+use trace_collector::config::Config;
+use trace_collector::metrics::MetricsServer;
 
 // ============================================================================
 // CLI DEFINITIONS
@@ -371,6 +364,7 @@ struct RunConfig {
     config: Config,
     wotan_endpoint: String,
     metrics_addr: String,
+    #[allow(dead_code)]
     bpf_prog: Option<PathBuf>,
     ringbuf_path: PathBuf,
     perf_path: PathBuf,
@@ -378,6 +372,7 @@ struct RunConfig {
     batch_size: usize,
     batch_timeout_ms: u64,
     dry_run: bool,
+    #[allow(dead_code)]
     event_filter: Option<String>,
 }
 
@@ -398,8 +393,8 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     // Initialize Correlation Engine and Trace Store
     // =========================================================================
 
-    use crate::correlation::{CorrelationConfig, CorrelationEngine, TraceStore, TraceStoreConfig};
-    use crate::websocket::{WebSocketConfig, WebSocketServer};
+    use trace_collector::correlation::{CorrelationConfig, CorrelationEngine, TraceStore, TraceStoreConfig};
+    use trace_collector::websocket::{WebSocketConfig, WebSocketServer};
 
     // Create trace store
     let trace_store = Arc::new(
@@ -663,7 +658,7 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
         }
 
         let event_tx_clone = event_tx.clone();
-        let shutdown_flag_clone = Arc::clone(&shutdown_flag);
+        let _shutdown_flag_clone = Arc::clone(&shutdown_flag);
         let mut shutdown_rx = shutdown_tx.subscribe();
 
         let handle = tokio::spawn(async move {
@@ -1018,7 +1013,7 @@ struct BpfProgramStatus {
 }
 
 async fn dump_events(ringbuf_path: &PathBuf, max_events: usize, raw: bool) -> Result<()> {
-    use crate::events::Event;
+    
 
     if !ringbuf_path.exists() {
         anyhow::bail!(

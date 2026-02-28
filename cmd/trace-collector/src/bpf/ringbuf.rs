@@ -25,7 +25,7 @@ use memmap2::{MmapMut, MmapOptions};
 use tracing::{debug, trace, warn};
 
 use super::{bpf_map_info, bpf_obj_get, BpfError, BpfMapType};
-use crate::events::Event;
+use crate::events::{Event, EventData, EventType};
 use crate::metrics;
 
 /// Ring buffer record header bits
@@ -36,15 +36,21 @@ const BPF_RINGBUF_LEN_MASK: u32 = (1 << 28) - 1;
 /// Page size (typically 4096)
 const PAGE_SIZE: usize = 4096;
 
-/// Ring buffer reader for zero-copy event reading
+/// Ring buffer reader for zero-copy event reading.
+///
+/// BPF ring buffer mmap layout (from kernel/bpf/ringbuf.c):
+///   Page 0 (offset 0):            consumer_pos — WRITABLE by userspace
+///   Page 1 (offset PAGE_SIZE):    producer_pos — read-only for userspace
+///   Pages 2..2N+1 (offset 2*PS):  data pages   — read-only, mapped twice for wrap
 pub struct RingBufReader {
-    /// Memory-mapped producer page
-    producer_mmap: MmapMut,
-    /// Memory-mapped consumer page
+    /// Memory-mapped consumer page at offset 0 (read-write — we update consumer position)
     consumer_mmap: MmapMut,
-    /// Memory-mapped data pages
-    data_mmap: MmapMut,
+    /// Memory-mapped producer page at offset PAGE_SIZE (read-only — kernel writes producer position)
+    producer_mmap: memmap2::Mmap,
+    /// Memory-mapped data pages at offset 2*PAGE_SIZE (read-only — kernel writes event data)
+    data_mmap: memmap2::Mmap,
     /// Ring buffer size (data portion only)
+    #[allow(dead_code)]
     data_size: usize,
     /// Mask for wrapping (size - 1, since size is power of 2)
     mask: usize,
@@ -93,36 +99,37 @@ impl RingBufReader {
         // (we close it ourselves in RingBufReader::drop).
         let file = std::mem::ManuallyDrop::new(unsafe { std::fs::File::from_raw_fd(fd) });
 
-        // Producer page (read-only, offset 0)
-        let producer_mmap = unsafe {
+        // Consumer page at offset 0 (read-write — userspace writes consumer_pos)
+        // Kernel only allows PROT_WRITE on pgoff==0 with size==PAGE_SIZE.
+        let consumer_mmap = unsafe {
             MmapOptions::new()
                 .len(PAGE_SIZE)
                 .offset(0)
                 .map_mut(&*file)
-                .map_err(|e| BpfError::Mmap(e.to_string()))?
+                .map_err(|e| BpfError::Mmap(format!("consumer mmap (offset 0): {}", e)))?
         };
 
-        // Consumer page (read-write, offset PAGE_SIZE)
-        let consumer_mmap = unsafe {
+        // Producer page at offset PAGE_SIZE (read-only — kernel writes producer_pos)
+        let producer_mmap = unsafe {
             MmapOptions::new()
                 .len(PAGE_SIZE)
                 .offset(PAGE_SIZE as u64)
-                .map_mut(&*file)
-                .map_err(|e| BpfError::Mmap(e.to_string()))?
+                .map(&*file)
+                .map_err(|e| BpfError::Mmap(format!("producer mmap (offset {}): {}", PAGE_SIZE, e)))?
         };
 
-        // Data pages (offset 2*PAGE_SIZE, size = 2 * data_size for wrap-around)
+        // Data pages at offset 2*PAGE_SIZE (read-only, mapped twice for wrap-around)
         let data_mmap = unsafe {
             MmapOptions::new()
                 .len(data_size * 2)
                 .offset((2 * PAGE_SIZE) as u64)
-                .map_mut(&*file)
-                .map_err(|e| BpfError::Mmap(e.to_string()))?
+                .map(&*file)
+                .map_err(|e| BpfError::Mmap(format!("data mmap (offset {}): {}", 2 * PAGE_SIZE, e)))?
         };
 
         Ok(Self {
-            producer_mmap,
             consumer_mmap,
+            producer_mmap,
             data_mmap,
             data_size,
             mask: data_size - 1,
@@ -172,9 +179,58 @@ impl RingBufReader {
         (len + 7) & !7
     }
 
+    /// Parse a 32-byte AnamnesisEvent from Shield eBPF.
+    ///
+    /// Layout (monad-common/src/lib.rs):
+    ///   [0..8]   timestamp_ns: u64 (LE, bpf_ktime_get_ns)
+    ///   [8]      event_type: u8 (0=Birth, 1=Hop, 2=Death, 3=Anomaly, 4=Chaos)
+    ///   [9]      hop_id: u8
+    ///   [10..12] flow_label_lo: [u8; 2] (BE)
+    ///   [12..32] monad: Monad (20 bytes)
+    fn parse_anamnesis_event(data: &[u8]) -> Result<Event, BpfError> {
+        if data.len() < 32 {
+            return Err(BpfError::Syscall(format!(
+                "AnamnesisEvent too short: {} < 32", data.len()
+            )));
+        }
+
+        let timestamp_ns = u64::from_le_bytes(data[0..8].try_into().unwrap());
+        let event_type_raw = data[8];
+        let _hop_id = data[9];
+        let _flow_label = u16::from_be_bytes(data[10..12].try_into().unwrap());
+
+        // EventType (monad-common): Birth=1, Hop=2, Death=3, Anomaly=4, Chaos=5
+        let event_type_name = match event_type_raw {
+            1 => "Birth",
+            2 => "Hop",
+            3 => "Death",
+            4 => "Anomaly",
+            5 => "Chaos",
+            _ => "Unknown",
+        };
+
+        // Map Shield event types to trace-collector EventType
+        let event_type = match event_type_raw {
+            1 | 2 | 3 => EventType::Packet,   // Birth/Hop/Death → Packet
+            4 | 5 => EventType::Custom,        // Anomaly/Chaos → Custom
+            _ => EventType::Custom,
+        };
+
+        Ok(Event {
+            event_type,
+            cpu: 0,
+            timestamp_ns,
+            pid: 0,
+            tid: 0,
+            comm: event_type_name.to_string(),
+            data: EventData::Raw(data.to_vec()),
+            raw: Some(bytes::Bytes::copy_from_slice(data)),
+        })
+    }
+
     /// Poll for available data
     fn poll_wait(&self, timeout_ms: i32) -> Result<bool, BpfError> {
-        use std::os::unix::io::AsRawFd;
+        
 
         let mut pollfd = libc::pollfd {
             fd: self.fd,
@@ -221,13 +277,16 @@ impl RingBufReader {
                 // Valid record, parse it
                 let data = self.record_data(cons_pos as usize, len as usize);
 
-                match Event::from_bytes(data) {
-                    Ok(event) => {
-                        // Record processing latency
+                // Try generic Event format first, fall back to AnamnesisEvent (32 bytes)
+                let event = Event::from_bytes(data).or_else(|_| {
+                    Self::parse_anamnesis_event(data)
+                });
+
+                match event {
+                    Ok(ev) => {
                         let now = std::time::Instant::now();
 
-                        if sender.try_send(event).is_err() {
-                            // Channel full, record drop
+                        if sender.try_send(ev).is_err() {
                             metrics::record_event_dropped();
                             warn!("Event queue full, dropping event");
                         } else {
@@ -235,11 +294,10 @@ impl RingBufReader {
                             metrics::record_event_received("ringbuf", "bpf");
                         }
 
-                        // This is just measuring our processing time, not the full latency
                         metrics::record_processing_latency_ns(now.elapsed().as_nanos() as u64);
                     }
                     Err(e) => {
-                        trace!(error = %e, "Failed to parse event");
+                        trace!(error = %e, len = len, "Failed to parse event");
                     }
                 }
             }
@@ -262,6 +320,19 @@ impl RingBufReader {
         shutdown: Arc<AtomicBool>,
     ) -> Result<(), BpfError> {
         debug!("Ring buffer reader starting");
+
+        // Drain any existing data before entering the poll loop.
+        // Without this, a full ring buffer deadlocks: poll() waits for NEW data
+        // but the producer can't write because the buffer is full.
+        match self.read_events(&sender) {
+            Ok(count) if count > 0 => {
+                debug!(events = count, "Drained existing ring buffer data on startup");
+            }
+            Err(e) => {
+                warn!(error = %e, "Error draining existing ring buffer data");
+            }
+            _ => {}
+        }
 
         while !shutdown.load(Ordering::Relaxed) {
             // Poll for data with timeout

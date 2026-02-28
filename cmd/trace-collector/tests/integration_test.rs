@@ -26,7 +26,7 @@ use trace_collector::events::{
 use trace_collector::events::latency::{LatencyBucket, ProbeType};
 use trace_collector::events::packet::{IpProtocol, PacketDirection};
 use trace_collector::events::syscall::SyscallCategory;
-use trace_collector::publisher::{
+use trace_collector::publisher::batch::{
     BatchPayload, BatchState, EventBatcher,
 };
 use trace_collector::websocket::{

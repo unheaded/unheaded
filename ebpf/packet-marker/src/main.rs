@@ -49,6 +49,7 @@ const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_PACKETS_IPV4: u32 = 1;
 const STAT_PACKETS_TCP: u32 = 2;
 const STAT_PACKETS_UDP: u32 = 3;
+#[allow(dead_code)]
 const STAT_TRACE_EXTRACTED: u32 = 4;
 const STAT_TRACE_INJECTED: u32 = 5;
 const STAT_EVENTS_SENT: u32 = 6;
@@ -218,6 +219,7 @@ fn try_packet_marker(ctx: &XdpContext) -> Result<u32, ()> {
 /// Extract trace ID from IP options.
 ///
 /// Same black_box(options_end) pattern as TCP option parsing — see comment there.
+#[allow(dead_code)]
 #[inline(always)]
 fn extract_ip_trace_id(ip_start: usize, ip_hdr_len: usize, data_end: usize) -> Option<TraceId> {
     let options_start = ip_start + IPV4_MIN_HLEN;
@@ -287,6 +289,7 @@ fn extract_ip_trace_id(ip_start: usize, ip_hdr_len: usize, data_end: usize) -> O
 /// knowledge that `options_end <= data_end`. Without this, LLVM proves
 /// `offset < options_end <= data_end` and eliminates the per-iteration
 /// data_end checks that the BPF verifier requires before packet reads.
+#[allow(dead_code)]
 #[inline(always)]
 fn extract_tcp_trace_id(tcp_start: usize, tcp_hdr_len: usize, data_end: usize) -> Option<TraceId> {
     let options_start = tcp_start + TCP_MIN_HLEN;
