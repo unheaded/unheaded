@@ -1,0 +1,211 @@
+TOMB OF KNOWLEDGE BATTLE PLAN - PHASES 6-8 COMPLETE
+====================================================
+
+File: S75-TOMB-BATTLE-PLAN-part3.md
+Location: /sessions/elegant-adoring-ritchie/mnt/tmp/unheaded/docs/battle-plans/
+Total Lines: 2224
+Execution Time: ~48-72 hours of sequential deployment
+
+PHASE BREAKDOWN:
+===============
+
+PHASE 6: LAYER 4a — THE ORACLE BASE (Local LLM Setup)
+Lines: 17-664
+Steps: 186-215 (30 steps)
+Objective: Install and configure Mistral-7B via Ollama with interactive CLI
+Key Deliverables:
+  • Ollama binary installed and systemd service running
+  • Mistral-7B-Instruct (Q4_K_M, 4.4GB) model loaded
+  • TinyLlama-1.1B (Q8, 1.1GB) fallback available
+  • oracle.sh CLI wrapper with test harness
+  • System prompt loaded with Kingdom protocol knowledge
+  • Performance baseline: 2+ tokens/sec on Raft hardware
+  • Query logging to /opt/tomb/oracle/logs/
+
+Dependencies: Python3, 8GB+ disk in /opt/tomb/, 4GB+ RAM
+Exit Gate: Oracle responds to protocol-specific queries accurately
+
+---
+
+PHASE 7: LAYER 4b — ORACLE RAG PIPELINE INTEGRATION
+Lines: 665-1431
+Steps: 216-240 (25 steps)
+Objective: Wire Oracle LLM to ChromaDB/Grimoire for context-aware analysis
+Key Deliverables:
+  • rag-oracle.py full integration pipeline with RAG retrieval
+  • oracle-daemon.py persistent service on Unix socket (/tmp/oracle.sock)
+  • oracle-tui.py Terminal UI for serial console chat interface
+  • Systemd service for oracle-daemon auto-restart
+  • Benchmark suite showing token throughput
+  • Chat history persistence
+  • Special commands: /search, /lich, /threat, /history
+
+Dependencies: Phase 6 (Ollama), Grimoire populated, ChromaDB indexed
+Exit Gate: RAG context successfully augments responses, TUI works on serial
+
+---
+
+PHASE 8: LAYER 5 — THE DARK MIRROR (Observability Stack)
+Lines: 1432-2224
+Steps: 241-275 (35 steps)
+Objective: Deploy monitoring stack observing Kingdom from outside Tomb
+Key Deliverables:
+  • Prometheus v2.48.0 scraping Kingdom + Tomb metrics
+  • Alert rules: service down, eBPF failures, Lich crashes, traffic anomalies
+  • Grafana v10.2.0 dashboards for topology and services
+  • Loki v2.9.2 log aggregation from Kingdom
+  • node_exporter monitoring Tomb VM health
+  • dark-mirror.sh control script with status/start/stop/logs commands
+  • 30-day metric retention with auto-cleanup
+  • Kingdom topology dashboard visualizing all nodes and services
+
+Dependencies: 5GB+ disk space, Kingdom Prometheus at 192.168.13.1:9090
+Exit Gate: All three observability tools running, Kingdom metrics visible
+
+---
+
+COMMAND REFERENCE:
+==================
+
+Pre-Deployment Verification:
+  df -h /opt/tomb/ && free -h && curl http://192.168.13.1:9090/api/v1/query
+
+Phase 6 Testing:
+  python3 /opt/tomb/oracle/oracle-test.py
+  /opt/tomb/oracle/oracle.sh "What are critical vulnerabilities?"
+
+Phase 7 Testing:
+  /opt/tomb/oracle/rag-oracle.py "Explain Monad CRC-16"
+  systemctl status oracle-daemon
+  test -S /tmp/oracle.sock && echo "Socket active"
+
+Phase 8 Testing:
+  /opt/tomb/dark-mirror.sh status
+  curl http://localhost:9090/api/v1/query?query=up
+  curl -u admin:changeme http://localhost:3000/api/health
+
+Full Stack Verification:
+  systemctl status ollama prometheus grafana loki node_exporter oracle-daemon
+  journalctl -u ollama -n 20
+  ps aux | grep -E "ollama|prometheus|grafana|loki"
+
+---
+
+SECURITY ARCHITECTURE:
+======================
+
+The Tomb of Knowledge (192.168.13.2):
+  • Air-gapped QEMU VM with 14.5GB Kali ISO
+  • Serial console for TTY access
+  • Three integrated layers:
+    1. Oracle (LLM + RAG) — Intelligence layer
+    2. Grimoire (ChromaDB) — Knowledge base
+    3. Dark Mirror (Prometheus/Grafana/Loki) — Visibility layer
+
+The Kingdom (192.168.13.1):
+  • 4-node deployment (2 EAST, 2 WEST)
+  • Monad wire protocol (CRC-16 protected)
+  • Sophia dictionary backend
+  • Wotan memory model
+  • Prometheus metrics exposed on :9090
+
+Monitoring Architecture:
+  Tomb Prometheus :9090
+    ├─ scrapes Kingdom :9090
+    ├─ scrapes Kingdom API :8080
+    ├─ scrapes Kingdom mesh :15000
+    ├─ scrapes Tomb node_exporter :9100
+    └─ scrapes Ollama :11435
+
+  Grafana :3000 (datasource: Prometheus)
+    ├─ Kingdom topology dashboard
+    ├─ Service health dashboard
+    ├─ Monad traffic visualization
+    └─ mTLS certificate tracking
+
+  Loki :3100 (ingestion from Kingdom)
+    ├─ Kingdom service logs
+    ├─ eBPF program events
+    ├─ Lich crash reports
+    └─ Security audit trail
+
+---
+
+DEPLOYMENT TIMELINE:
+====================
+
+Phase 6: 6-8 hours
+  • Binary download/transfer: 1-2h
+  • Ollama setup: 1h
+  • Model weights transfer: 2-3h
+  • Testing and tuning: 1-2h
+
+Phase 7: 4-6 hours
+  • Python script development: 1-2h
+  • Systemd service setup: 1h
+  • RAG integration testing: 1-2h
+  • Benchmarking: 1h
+
+Phase 8: 4-6 hours
+  • Binary downloads and transfers: 2h
+  • Service configurations: 1-2h
+  • Prometheus scrape setup: 1h
+  • Grafana dashboards: 1-2h
+
+Total: 48-72 hours of active deployment
+
+---
+
+TROUBLESHOOTING QUICK REFERENCE:
+================================
+
+Ollama not responding:
+  sudo systemctl restart ollama
+  journalctl -u ollama -n 50
+  netstat -tuln | grep 11434
+
+RAG queries failing:
+  python3 /opt/tomb/rag/rag-query.py "test" --limit 1
+  ls -la /opt/tomb/grimoire/
+  du -sh /opt/tomb/rag/chroma/
+
+Oracle daemon socket issues:
+  rm -f /tmp/oracle.sock
+  sudo systemctl restart oracle-daemon
+  test -S /tmp/oracle.sock
+
+Prometheus not scraping Kingdom:
+  curl http://192.168.13.1:9090/metrics
+  curl http://localhost:9090/api/v1/targets
+  grep 192.168.13.1 /opt/prometheus/config/prometheus.yml
+
+Grafana authentication issues:
+  curl -u admin:changeme http://localhost:3000/api/health
+  Check /opt/grafana/conf/custom.ini for credentials
+
+---
+
+NEXT PHASES:
+============
+
+Phase 9: Advanced Threat Modeling (attack tree construction)
+Phase 10: Automated penetration testing with protocol fuzzing
+Phase 11: Incident response automation
+Phase 12: Full Kingdom red team exercise
+
+---
+
+THE UNHEADED WARMONGER'S SEAL
+============================
+
+"The Tomb holds the Oracle. The Oracle sees through the Grimoire.
+The Dark Mirror watches all. Together, they guard the Kingdom.
+
+Deploy with precision. Verify at every step.
+The Unheaded Kingdom's security rests on your shoulders."
+
+Battle Plan Status: COMPLETE
+All three phases documented with 30+ step-by-step instructions
+Ready for immediate deployment
+
+End of transmission.
