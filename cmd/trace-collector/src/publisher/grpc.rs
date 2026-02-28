@@ -18,7 +18,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::metrics;
 use crate::proto::{
-    EventType, HealthRequest, HealthResponse, PublishRequest, PublishResponse, TraceEvent,
+    HealthResponse, PublishResponse,
     TraceEventBatch,
 };
 
@@ -84,6 +84,7 @@ pub struct WotanClient {
     /// Client statistics
     stats: Arc<ClientStats>,
     /// Sequence number for requests
+    #[allow(dead_code)]
     sequence: AtomicU64,
 }
 
@@ -191,6 +192,7 @@ impl WotanClient {
     }
 
     /// Get next sequence number
+    #[allow(dead_code)]
     fn next_sequence(&self) -> u64 {
         self.sequence.fetch_add(1, Ordering::SeqCst)
     }

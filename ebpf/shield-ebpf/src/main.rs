@@ -57,7 +57,10 @@ const ANAMNESIS_RING_SIZE: u32 = 8 * 1024 * 1024; // 8 MiB
 
 /// Maximum number of IPv6 extension headers to strip per ingress packet.
 /// Bounded so the verifier can prove loop termination.
-const MAX_EXT_HDRS_TO_STRIP: usize = 8;
+/// Reduced from 8 to 2 to stay within verifier 1M instruction limit on
+/// kernel 6.17.  Sufficient for real-world traffic (Routing + Fragment is
+/// the deepest common chain from the Shadow network).
+const MAX_EXT_HDRS_TO_STRIP: usize = 2;
 
 /// Maximum rate-limit token bucket capacity (source addresses blocked).
 const MAX_BLOCKLIST_ENTRIES: u32 = 4096;
@@ -131,10 +134,17 @@ const STAT_EXT_STRIPPED:              u32 = 5;
 const STAT_ANOMALIES:                 u32 = 6;
 const STAT_RING_DROPS:                u32 = 7;
 const STAT_DEST_OPTIONS_PROCESSED:    u32 = 8;
+#[allow(dead_code)]
 const STAT_DST_OPT_SKIP:              u32 = 9;
+#[allow(dead_code)]
 const STAT_DST_OPT_DISCARD:           u32 = 10;
+#[allow(dead_code)]
 const STAT_DST_OPT_ICMP:              u32 = 11;
+#[allow(dead_code)]
 const STAT_DST_OPT_ICMP_MCAST:        u32 = 12;
+const STAT_TC_ENTRY:                   u32 = 13;
+const STAT_TC_IPV6:                    u32 = 14;
+const STAT_TC_HBH:                     u32 = 15;
 
 // ── IPv6 header layout (repr(C, packed) for BPF direct pointer casts) ────────
 
@@ -234,37 +244,11 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         // Unknown HBH header from Shadow — strip it.
     }
 
-    // ── 4b. HMAC validation on initial flows (RFC 9000 §8.1) ─────────────────
-    // For flows not yet in the FLOWS map (initial packets), check HMAC keys.
-    // Extract a flow_id from the transport header (simplified: use dst port).
-    let transport_start = ip_start + IPV6_HDR_SIZE;
-    let flow_id: u16 = if transport_start + 2 <= data_end {
-        unsafe { u16::from_be(core::ptr::read_volatile((transport_start + 2) as *const u16)) }
-    } else {
-        0
-    };
-
-    // Encode HMAC key: (flow_id, namespace=0 for now)
-    let hmac_key = make_hmac_key(flow_id, 0);
-    let _ = unsafe { HMAC_KEYS.get(&hmac_key) }; // Lookup only, no action yet
-    // Future: validate HMAC-SHA256 over packet payload
-
-    // ── 4c. Retry token check for initial flows (RFC 9000 §8.1.2) ────────────
-    // Check if this is a retry token on a new address.
-    let src_low_64 = src_addr_key(&ip.src);
-    let retry_key = make_retry_token_key(flow_id, src_low_64);
-    let _ = unsafe { RETRY_TOKENS.get(&retry_key) }; // Lookup only
-    // Future: validate token expiry and signature
-
-    // ── 4d. Hop validator check (RFC 8200 §4) ─────────────────────────────────
-    // Verify that Monad version and fields comply with per-hop policies.
-    // This would normally happen in the hop program, but we can do a pre-check
-    // to drop obviously invalid packets early.
-    let hop_id: u32 = 0; // Shield is hop 0
-    let namespace: u32 = 0; // Default namespace
-    let hv_key = ((hop_id as u64) << 32) | (namespace as u64);
-    let _ = unsafe { HOP_VALIDATORS.get(&hv_key) }; // Lookup for validation rules
-    // Future: enforce version min/max, required CRC/HMAC, allowed dict IDs
+    // ── 4b–4d. HMAC / Retry / HopValidator lookups ─────────────────────────────
+    // Deferred to reduce verifier instruction count.  The HMAC_KEYS,
+    // RETRY_TOKENS, and HOP_VALIDATORS maps exist and are populated by
+    // userspace; validation logic will be enabled once bpf_loop() is
+    // integrated in the next iteration.
 
     // ── 5. Save original transport protocol before stripping extension headers ─
     let original_next_header = strip_extension_headers(ip, ip_start, data_end);
@@ -406,11 +390,14 @@ pub fn shield_tc(mut ctx: TcContext) -> i32 {
 
 #[inline(always)]
 fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
+    increment_stat(STAT_TC_ENTRY);
+
     // Load EtherType to check for IPv6.
     let eth_proto: u16 = ctx.load(12).map_err(|_| ())?;
     if u16::from_be(eth_proto) != ETH_P_IPV6 {
         return Ok(TC_ACT_OK);
     }
+    increment_stat(STAT_TC_IPV6);
 
     // Load IPv6 Next Header field (offset 14 + 6 = 20).
     let next_header: u8 = ctx.load(ETH_HDR_SIZE + 6).map_err(|_| ())?;
@@ -418,6 +405,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
         // Not a Kingdom packet (no HBH) — pass through.
         return Ok(TC_ACT_OK);
     }
+    increment_stat(STAT_TC_HBH);
 
     // ── Read the HBH Options header ────────────────────────────────────────────
     let hbh_offset = ETH_HDR_SIZE + IPV6_HDR_SIZE;
@@ -542,6 +530,7 @@ fn src_addr_key(addr: &[u8; 16]) -> u64 {
 }
 
 /// Encode a (flow_id, namespace) pair as a 64-bit map key for HMAC_KEYS / HOP_VALIDATORS.
+#[allow(dead_code)]
 #[inline(always)]
 fn make_hmac_key(flow_id: u16, namespace: u16) -> u64 {
     ((flow_id as u64) << 48) | ((namespace as u64) << 32)
@@ -549,6 +538,7 @@ fn make_hmac_key(flow_id: u16, namespace: u16) -> u64 {
 
 /// Encode a (flow_id, src_addr_low_64) pair as a 64-bit key for RETRY_TOKENS.
 /// The src_addr_low_64 is the low 64 bits of the IPv6 source address.
+#[allow(dead_code)]
 #[inline(always)]
 fn make_retry_token_key(flow_id: u16, src_low_64: u64) -> u64 {
     ((flow_id as u64) << 48) | (src_low_64 & 0x0000_FFFF_FFFF_FFFF)
@@ -598,10 +588,10 @@ fn strip_extension_headers(ip: &Ipv6Hdr, ip_start: usize, data_end: usize) -> u8
         let hdr_len  = unsafe { core::ptr::read_volatile((offset + 1) as *const u8) };
         let hdr_size = (hdr_len as usize + 1) * 8;
 
-        // RFC 8200 §4.6: Destination Options validation
-        // Parse TLV options within Destination Options header (nh=60)
+        // RFC 8200 §4.6: Destination Options TLV parsing deferred to reduce
+        // verifier instruction count.  Stats still counted via STAT_EXT_STRIPPED.
         if nh == 60 {
-            process_destination_options(offset, hdr_size, data_end);
+            increment_stat(STAT_DEST_OPTIONS_PROCESSED);
         }
 
         nh = next_nh;
@@ -615,6 +605,7 @@ fn strip_extension_headers(ip: &Ipv6Hdr, ip_start: usize, data_end: usize) -> u8
 /// Process TLV options within a Destination Options header.
 /// Validates each option according to RFC 8200 §4.2 option type processing rules.
 /// Updates statistics for options encountered.
+#[allow(dead_code)]
 #[inline(always)]
 fn process_destination_options(offset: usize, hdr_size: usize, data_end: usize) {
     // Destination Options header format:
@@ -631,9 +622,10 @@ fn process_destination_options(offset: usize, hdr_size: usize, data_end: usize) 
     let mut opt_offset = offset + 2; // Skip next_header and hdr_len fields
     let options_end = offset + hdr_size;
 
-    // Iterate through TLV options with bounded loop
+    // Iterate through TLV options with bounded loop.
+    // Reduced from 64 to 16 to stay within verifier instruction limit.
     let mut opt_iter = 0;
-    while opt_iter < 64 && opt_offset < options_end {
+    while opt_iter < 16 && opt_offset < options_end {
         if opt_offset >= data_end {
             break;
         }

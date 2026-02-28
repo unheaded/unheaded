@@ -27,6 +27,7 @@ const ALL_PROGRAMS: &[&str] = &[
     "flow-tracker",
     "latency-probe",
     "syscall-tracer",
+    "shield-ebpf",
 ];
 
 #[derive(Parser)]
@@ -109,6 +110,7 @@ fn main() -> Result<()> {
             "latency-probe" => load_latency_probe(&cli),
             "syscall-tracer" => load_syscall_tracer(&cli),
             "monad-cpu" => load_monad_cpu(&cli),
+            "shield-ebpf" => load_shield(&cli),
             other => {
                 warn!("Unknown program: {}, skipping", other);
                 continue;
@@ -377,6 +379,105 @@ fn load_monad_cpu(cli: &Cli) -> Result<Ebpf> {
         "  monad_cpu attached to {} (XDP, mode={})",
         cli.interface, mode
     );
+    Ok(ebpf)
+}
+
+// ---------------------------------------------------------------------------
+// shield-ebpf: XDP ingress (BIRTH) + TC egress (DEATH) on boundary interface
+// ---------------------------------------------------------------------------
+
+fn load_shield(cli: &Cli) -> Result<Ebpf> {
+    let path = cli.obj_dir.join("shield-ebpf");
+    info!("Loading shield-ebpf from {}", path.display());
+
+    let mut ebpf = if let Some(ref pin_path) = cli.map_pin_path {
+        let shield_pin = pin_path.join("shield-ebpf");
+        std::fs::create_dir_all(&shield_pin)
+            .with_context(|| format!("Failed to create {}", shield_pin.display()))?;
+        EbpfLoader::new()
+            .map_pin_path(&shield_pin)
+            .load_file(&path)
+            .context("Failed to parse shield-ebpf ELF with map pinning")?
+    } else {
+        Ebpf::load_file(&path).context("Failed to parse shield-ebpf ELF")?
+    };
+
+    // XDP program — ingress: stamp Monad, emit BIRTH
+    let xdp: &mut Xdp = ebpf
+        .program_mut("shield_xdp")
+        .context("program 'shield_xdp' not found in shield-ebpf ELF")?
+        .try_into()?;
+
+    xdp.load().context("Failed to load shield_xdp into kernel")?;
+
+    let flags = if cli.xdp_skb_mode {
+        XdpFlags::SKB_MODE
+    } else {
+        XdpFlags::default()
+    };
+
+    xdp.attach(&cli.interface, flags)
+        .with_context(|| format!("Failed to attach shield_xdp XDP to {}", cli.interface))?;
+
+    let mode = if cli.xdp_skb_mode { "SKB/generic" } else { "native" };
+    info!(
+        "  shield_xdp attached to {} (XDP ingress, mode={})",
+        cli.interface, mode
+    );
+
+    // TC program — egress: capture final Monad state, emit DEATH, strip HBH
+    if let Err(e) = tc::qdisc_add_clsact(&cli.interface) {
+        warn!(
+            "qdisc_add_clsact on {}: {} (may already exist)",
+            cli.interface, e
+        );
+    }
+
+    let tc_prog: &mut SchedClassifier = ebpf
+        .program_mut("shield_tc")
+        .context("program 'shield_tc' not found in shield-ebpf ELF")?
+        .try_into()?;
+
+    tc_prog.load().context("Failed to load shield_tc into kernel")?;
+    tc_prog
+        .attach(&cli.interface, TcAttachType::Egress)
+        .context("Failed to attach shield_tc to TC egress")?;
+
+    info!("  shield_tc attached to {} (TC egress)", cli.interface);
+
+    // Pin ANAMNESIS ring buffer for trace-collector access
+    if cli.pin_maps || cli.map_pin_path.is_some() {
+        let pin_base = cli
+            .map_pin_path
+            .as_deref()
+            .unwrap_or(std::path::Path::new("/sys/fs/bpf/unheaded"));
+        let shield_pin_dir = pin_base.join("shield-ebpf");
+        std::fs::create_dir_all(&shield_pin_dir).ok();
+
+        for (map_name, map) in ebpf.maps_mut() {
+            let pin = shield_pin_dir.join(&map_name);
+            if pin.exists() {
+                info!("  map {} already pinned at {}", map_name, pin.display());
+            } else {
+                match map.pin(&pin) {
+                    Ok(()) => info!("  pinned map {} → {}", map_name, pin.display()),
+                    Err(e) => warn!("  failed to pin map {}: {}", map_name, e),
+                }
+            }
+        }
+
+        // Create convenience symlink for trace-collector
+        let anamnesis_link = pin_base.join("trace_events");
+        let anamnesis_src = shield_pin_dir.join("ANAMNESIS");
+        if anamnesis_src.exists() && !anamnesis_link.exists() {
+            if let Err(e) = std::os::unix::fs::symlink(&anamnesis_src, &anamnesis_link) {
+                warn!("Failed to symlink trace_events: {}", e);
+            } else {
+                info!("  symlinked trace_events → {}", anamnesis_src.display());
+            }
+        }
+    }
+
     Ok(ebpf)
 }
 

@@ -9,8 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
-use tokio::sync::{broadcast, mpsc};
-use tracing::{debug, error, info, trace, warn};
+use tracing::debug;
 
 use super::protocol::{
     ClientMessage, ServerMessage, SpanEventInfo, SpanInfo, Subscription, TraceDetailsResponse,

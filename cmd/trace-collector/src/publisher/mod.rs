@@ -19,20 +19,14 @@ pub mod batch;
 pub mod grpc;
 
 // Re-export batch types
-pub use batch::{
-    AdaptiveBatcher, BatchPayload, BatchState, BatchStats, EventBatcher, DEFAULT_BATCH_SIZE,
-    DEFAULT_BATCH_TIMEOUT, MAX_BATCH_BYTES,
-};
 
 // Re-export gRPC types
-pub use grpc::{WotanClient, ClientState, ClientStats, StreamingClient};
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use bytes::Bytes;
 use crossbeam::channel::Receiver;
 use parking_lot::RwLock;
 use prost::Message;
@@ -40,13 +34,13 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tonic::transport::{Channel, Endpoint};
-use tonic::{Request, Status};
 use tracing::{debug, error, info, trace, warn};
 
-use crate::events::{Event, EventBatch, EventData, EventType};
+use crate::events::{Event, EventBatch, EventType};
 use crate::metrics;
 
 /// Maximum message size (4MB)
+#[allow(dead_code)]
 const MAX_MESSAGE_SIZE: usize = 4 * 1024 * 1024;
 
 /// Maximum retry attempts
@@ -751,6 +745,7 @@ impl AsyncWotanPublisher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::EventData;
 
     #[test]
     fn test_publisher_state() {

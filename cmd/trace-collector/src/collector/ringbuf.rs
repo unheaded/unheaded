@@ -27,11 +27,11 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use crossbeam::channel::Sender;
 use memmap2::{MmapMut, MmapOptions};
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, trace, warn};
 
 use super::events::EventFilter;
 use super::CollectorStats;
-use crate::bpf::{bpf_map_info, bpf_obj_get, BpfError, BpfMapType};
+use crate::bpf::{bpf_map_info, bpf_obj_get, BpfMapType};
 use crate::events::Event;
 use crate::metrics;
 
@@ -78,6 +78,7 @@ pub struct RingBufCollector {
     /// Memory-mapped data pages
     data_mmap: MmapMut,
     /// Ring buffer data size
+    #[allow(dead_code)]
     data_size: usize,
     /// Mask for wrap-around (size - 1)
     mask: usize,
@@ -89,7 +90,7 @@ pub struct RingBufCollector {
 
 impl RingBufCollector {
     /// Create a new ring buffer collector
-    pub fn new(path: PathBuf, expected_size: usize, stats: Arc<CollectorStats>) -> Result<Self> {
+    pub fn new(path: PathBuf, _expected_size: usize, stats: Arc<CollectorStats>) -> Result<Self> {
         // Open the pinned BPF map
         let fd = bpf_obj_get(&path).map_err(|e| anyhow::anyhow!("Failed to open BPF map: {}", e))?;
 

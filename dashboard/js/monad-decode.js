@@ -16,11 +16,14 @@ const FLOW_ACTIONS = {
 };
 
 const FLAGS = {
-  TRACED: 0x01,
-  SAMPLED: 0x02,
-  MIRROR: 0x04,
-  CHAOS: 0x08,
-  CUSTOM: 0x10,
+  CHAOS:   0x80, // Yaldabaoth chaos injection
+  CANARY:  0x40, // Canary deployment path
+  TRACED:  0x20, // Full Anamnesis event required
+  ENCRYPT: 0x10, // Intra-Kingdom TLS payload
+  SAMPLED: 0x08, // Statistical sampling
+  MIRROR:  0x04, // Mirror copy
+  CUSTOM:  0x02, // Scratch carries exponent-encoded values
+  RSVD:    0x01, // Reserved, MUST be zero
 };
 
 const CIRCUIT_STATES = {
@@ -311,20 +314,36 @@ window.UnheadedMonad = {
   },
 
   /**
-   * Generate fake monad hex dump for visualization
+   * Generate monad hex dump matching the real 20-byte wire format.
+   * Layout (from monad-common/src/lib.rs):
+   *   0x00: version, 0x01: src_service_id, 0x02: dst_service_id,
+   *   0x03: hop_count, 0x04: qos_class, 0x05: flow_action,
+   *   0x06: circuit_state, 0x07: flags, 0x08-09: latency_hint (BE),
+   *   0x0A: deploy_ring, 0x0B: mesh_flags, 0x0C: src_prefix_lo,
+   *   0x0D: dst_prefix_lo, 0x0E-11: scratch[4], 0x12-13: checksum (BE)
    */
   generateFakeHexDump(monad) {
-    // Synthesize 20 bytes from monad fields
-    const bytes = [];
-    bytes.push(monad.flow_action & 0xFF);
-    bytes.push((monad.hop_count & 0xFF));
-    bytes.push(monad.flags & 0xFF);
-    bytes.push((monad.circuit_state << 4) | (monad.src_service_id & 0x0F));
-    bytes.push(monad.dst_service_id & 0xFF);
-    
-    for (let i = 5; i < 20; i++) {
-      bytes.push(Math.floor(Math.random() * 256));
-    }
+    const bytes = new Array(20).fill(0);
+    bytes[0]  = (monad.regs && monad.regs[0]) || 0x01; // version
+    bytes[1]  = monad.src_service_id & 0xFF;
+    bytes[2]  = monad.dst_service_id & 0xFF;
+    bytes[3]  = monad.hop_count & 0xFF;
+    bytes[4]  = (monad.regs && monad.regs[1]) || 0;    // qos_class
+    bytes[5]  = monad.flow_action & 0xFF;
+    bytes[6]  = monad.circuit_state & 0xFF;
+    bytes[7]  = monad.flags & 0xFF;
+    bytes[8]  = 0; // latency_hint high byte
+    bytes[9]  = 0; // latency_hint low byte
+    bytes[10] = (monad.regs && monad.regs[2]) || 0;    // deploy_ring
+    bytes[11] = (monad.regs && monad.regs[3]) || 0;    // mesh_flags
+    bytes[12] = 0; // src_prefix_lo
+    bytes[13] = 0; // dst_prefix_lo
+    bytes[14] = (monad.scratch_r0 >> 8) & 0xFF;        // scratch[0]
+    bytes[15] = monad.scratch_r0 & 0xFF;               // scratch[1]
+    bytes[16] = (monad.scratch_r1 >> 8) & 0xFF;        // scratch[2]
+    bytes[17] = monad.scratch_r1 & 0xFF;               // scratch[3]
+    bytes[18] = (monad.crc >> 8) & 0xFF;               // checksum high
+    bytes[19] = monad.crc & 0xFF;                      // checksum low
 
     return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
   },

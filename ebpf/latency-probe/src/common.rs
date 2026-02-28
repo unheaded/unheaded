@@ -35,9 +35,11 @@ pub struct LatencyEntry {
 }
 
 /// Size of LatencyKey in bytes.
+#[allow(dead_code)]
 pub const LATENCY_KEY_SIZE: usize = 40;
 
 /// Size of LatencyEntry in bytes.
+#[allow(dead_code)]
 pub const LATENCY_ENTRY_SIZE: usize = 40;
 
 /// Maximum number of entries in the LATENCY_MAP.

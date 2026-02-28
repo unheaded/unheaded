@@ -14,9 +14,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
-use super::{Span, SpanStatus, TraceContext, TraceId, TraceSummary};
+use super::{Span, TraceContext, TraceId, TraceSummary};
 
 /// Configuration for the trace store
 #[derive(Debug, Clone)]
@@ -606,7 +606,7 @@ impl TraceStore {
 
     /// Clean up old data
     pub fn cleanup(&self) {
-        let now = Instant::now();
+        let _now = Instant::now();
         let mut to_remove = Vec::new();
 
         {

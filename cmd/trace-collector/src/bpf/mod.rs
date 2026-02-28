@@ -188,7 +188,7 @@ pub fn bpf_map_info(fd: RawFd) -> Result<BpfMapInfo, BpfError> {
     }
 
     let mut info = BpfMapInfo::default();
-    let mut attr = BpfObjInfoAttr {
+    let attr = BpfObjInfoAttr {
         bpf_fd: fd as u32,
         info_len: std::mem::size_of::<BpfMapInfo>() as u32,
         info: &mut info as *mut _ as u64,

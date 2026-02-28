@@ -5,8 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::correlation::{SpanId, TraceSummary, TraceId};
-use crate::events::EventType;
+use crate::correlation::TraceSummary;
 
 /// Subscription parameters for filtering events
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -14,6 +14,7 @@ pub struct BpfMap {
     fd: RawFd,
     key_size: u32,
     value_size: u32,
+    #[allow(dead_code)]
     max_entries: u32,
     map_type: u32,
     name: String,
