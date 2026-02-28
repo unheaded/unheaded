@@ -1,0 +1,319 @@
+# =============================================================================
+# docker-compose.loadbalancers.yml — HAProxy + Nginx Load Balancer Stack
+# =============================================================================
+# WHAT: Load balancing and reverse proxy infrastructure for Unheaded
+# WHY:  Edge routing, internal load balancing, per-service request distribution
+# WHO:  Operator (owner), Developer (consumer for local dev)
+# DECISION: HAProxy for edge/internal TCP+HTTP, Nginx for per-service HTTP
+# =============================================================================
+# USAGE:
+#   docker compose -f docker-compose.yml -f docker/docker-compose.loadbalancers.yml up -d
+#   docker compose -f docker-compose.yml -f docker/docker-compose.loadbalancers.yml ps
+#   docker compose -f docker-compose.yml -f docker/docker-compose.loadbalancers.yml logs -f haproxy-edge
+# =============================================================================
+
+version: '3.8'
+
+services:
+
+  # =========================================================================
+  # EDGE LOAD BALANCER (HAProxy)
+  # =========================================================================
+  haproxy-edge:
+    image: haproxy:2.9-alpine
+    container_name: unheaded-haproxy-edge
+    restart: unless-stopped
+    ports:
+      - "21080:21080"   # HTTP ingress
+      - "21443:21443"   # HTTPS ingress
+      - "21404:21404"   # Metrics/healthcheck
+    volumes:
+      - ./haproxy/edge/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - control
+      - data
+    labels:
+      kingdom.armor: "pauldrons"
+      kingdom.role: "edge-lb"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "21404"
+      prometheus.io/path: "/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:21404/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "512M"
+
+  # =========================================================================
+  # INTERNAL LOAD BALANCER (HAProxy)
+  # =========================================================================
+  haproxy-internal:
+    image: haproxy:2.9-alpine
+    container_name: unheaded-haproxy-internal
+    restart: unless-stopped
+    ports:
+      - "21081:21081"   # Internal HTTP load balancing
+      - "21405:21405"   # Metrics/healthcheck
+    volumes:
+      - ./haproxy/internal/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - control
+      - data
+    labels:
+      kingdom.armor: "pauldrons"
+      kingdom.role: "internal-lb"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "21405"
+      prometheus.io/path: "/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:21405/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "256M"
+
+  # =========================================================================
+  # PER-SERVICE LOAD BALANCERS (Nginx)
+  # =========================================================================
+
+  # --- Nginx for Wotan (Message Bus) ---
+  nginx-wotan:
+    image: nginx:1.25-alpine
+    container_name: unheaded-nginx-wotan
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx-wotan.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - data
+    labels:
+      kingdom.armor: "pauldrons"
+      kingdom.role: "app-lb"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "18080"
+      prometheus.io/path: "/stub_status"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    depends_on:
+      - wotan
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "128M"
+
+  # --- Nginx for Monad (State Management) ---
+  nginx-monad:
+    image: nginx:1.25-alpine
+    container_name: unheaded-nginx-monad
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx-monad.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - data
+    labels:
+      kingdom.armor: "pauldrons"
+      kingdom.role: "app-lb"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "19080"
+      prometheus.io/path: "/stub_status"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:19080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    depends_on:
+      - monad
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "128M"
+
+  # --- Nginx for Sophia (Knowledge Graph) ---
+  nginx-sophia:
+    image: nginx:1.25-alpine
+    container_name: unheaded-nginx-sophia
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx-sophia.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - data
+    labels:
+      kingdom.armor: "pauldrons"
+      kingdom.role: "app-lb"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "19081"
+      prometheus.io/path: "/stub_status"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:19081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    depends_on:
+      - sophia
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "128M"
+
+  # --- Nginx for Dashboard Backend ---
+  nginx-dashboard:
+    image: nginx:1.25-alpine
+    container_name: unheaded-nginx-dashboard
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx-dashboard.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - data
+    labels:
+      kingdom.armor: "pauldrons"
+      kingdom.role: "app-lb"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "20080"
+      prometheus.io/path: "/stub_status"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:20080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    depends_on:
+      - dashboard-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "128M"
+
+  # --- Nginx for Kanban ---
+  nginx-kanban:
+    image: nginx:1.25-alpine
+    container_name: unheaded-nginx-kanban
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx-kanban.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - data
+    labels:
+      kingdom.armor: "pauldrons"
+      kingdom.role: "app-lb"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "20081"
+      prometheus.io/path: "/stub_status"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:20081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    depends_on:
+      - kanban-app
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "128M"
+
+  # --- Nginx for Gateway ---
+  nginx-gateway:
+    image: nginx:1.25-alpine
+    container_name: unheaded-nginx-gateway
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx-gateway.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - data
+    labels:
+      kingdom.armor: "pauldrons"
+      kingdom.role: "app-lb"
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "21090"
+      prometheus.io/path: "/stub_status"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:21090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    depends_on:
+      - gateway
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "128M"
+
+# =============================================================================
+# NETWORKS (external, defined in main docker-compose.yml)
+# =============================================================================
+networks:
+  control:
+    external: true
+  data:
+    external: true
+
+# =============================================================================
+# LABELS LEGEND
+# =============================================================================
+# kingdom.armor   = pauldrons (arm armor — load balancing layer)
+# kingdom.role    = Specific function (edge-lb, internal-lb, app-lb)
+# prometheus.io/* = Prometheus scrape configuration
+# =============================================================================

@@ -1,0 +1,90 @@
+groups:
+  - name: loadbalancers.rules
+    interval: 30s
+    rules:
+      # HAProxy Backend Server Down Alert
+      - alert: HAProxyBackendDown
+        expr: |
+          haproxy_backend_up == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: haproxy
+        annotations:
+          summary: "HAProxy backend server is down for {{ $labels.backend }}"
+          description: "HAProxy backend {{ $labels.backend }} on {{ $labels.instance }} has been unreachable for 30 seconds. Service availability may be impacted."
+
+      # HAProxy High Error Rate Alert
+      - alert: HAProxyHighErrorRate
+        expr: |
+          (rate(haproxy_backend_http_responses_total{code=~"5.."}[2m]) /
+           rate(haproxy_backend_http_responses_total[2m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          component: haproxy
+        annotations:
+          summary: "HAProxy backend {{ $labels.backend }} has high error rate"
+          description: "HAProxy backend {{ $labels.backend }} on {{ $labels.instance }} has {{ $value | humanizePercentage }} 5xx error rate over the last 2 minutes."
+
+      # HAProxy High Latency Alert
+      - alert: HAProxyHighLatency
+        expr: |
+          haproxy_backend_response_time_bucket{le="+Inf"} > 0 and
+          histogram_quantile(0.99, haproxy_backend_response_time_bucket) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: haproxy
+        annotations:
+          summary: "HAProxy backend {{ $labels.backend }} has high latency"
+          description: "HAProxy backend {{ $labels.backend }} on {{ $labels.instance }} has p99 response time of {{ $value | humanizeDuration }} over the last 5 minutes."
+
+      # HAProxy Connection Saturation Alert
+      - alert: HAProxyConnectionSaturation
+        expr: |
+          (haproxy_frontend_current_sessions / haproxy_frontend_limit_sessions) > 0.80
+        for: 2m
+        labels:
+          severity: warning
+          component: haproxy
+        annotations:
+          summary: "HAProxy frontend {{ $labels.frontend }} connection saturation"
+          description: "HAProxy frontend {{ $labels.frontend }} on {{ $labels.instance }} is at {{ $value | humanizePercentage }} connection capacity. Max connections may be reached soon."
+
+      # HAProxy Rate Limited Responses Alert
+      - alert: HAProxyRateLimited
+        expr: |
+          rate(haproxy_frontend_http_responses_total{code="429"}[1m]) > 50
+        for: 1m
+        labels:
+          severity: warning
+          component: haproxy
+        annotations:
+          summary: "HAProxy rate limiting active for frontend {{ $labels.frontend }}"
+          description: "HAProxy frontend {{ $labels.frontend }} on {{ $labels.instance }} is returning {{ $value | humanize }} rate-limited (429) responses per second."
+
+      # Nginx High Error Rate Alert
+      - alert: NginxHighErrorRate
+        expr: |
+          (rate(nginx_http_requests_total{status=~"5.."}[2m]) /
+           rate(nginx_http_requests_total[2m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          component: nginx
+        annotations:
+          summary: "Nginx {{ $labels.service }} has high error rate"
+          description: "Nginx sidecar for service {{ $labels.service }} on {{ $labels.instance }} has {{ $value | humanizePercentage }} 5xx error rate over the last 2 minutes."
+
+      # Nginx Upstream Down Alert
+      - alert: NginxUpstreamDown
+        expr: |
+          nginx_upstream_server_up{upstream_status!~"200"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: nginx
+        annotations:
+          summary: "Nginx upstream server is down for {{ $labels.service }}"
+          description: "Nginx upstream server {{ $labels.upstream }} for service {{ $labels.service }} on {{ $labels.instance }} has been unreachable for 1 minute. Service requests may fail."
