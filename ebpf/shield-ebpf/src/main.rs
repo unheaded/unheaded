@@ -31,24 +31,23 @@
 #![no_main]
 
 use aya_ebpf::{
-    bindings::{TC_ACT_OK, xdp_action},
+    bindings::{xdp_action, TC_ACT_OK},
     macros::{classifier, map, xdp},
     maps::{HashMap, RingBuf, XskMap},
     programs::{TcContext, XdpContext},
     EbpfContext,
 };
 use monad_common::{
-    AnamnesisEvent, EventType, HopByHopHeader, Monad,
-    MONAD_OPT_TYPE, MONAD_OPT_DATA_LEN, MONAD_SIZE, HBH_TOTAL_LEN,
-    IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
-    circuit_state, deploy_ring, flags, flow_action, redirect_action,
+    circuit_state, deploy_ring, flags, flow_action, redirect_action, AnamnesisEvent, EventType,
+    HopByHopHeader, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN,
+    MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 #[allow(dead_code)]
-const ETH_HLEN:    usize = 14;
-const ETH_P_IPV6:  u16   = 0x86DD;
+const ETH_HLEN: usize = 14;
+const ETH_P_IPV6: u16 = 0x86DD;
 
 /// Ring buffer capacity per Shield instance.
 /// Sized for 1 Gbps full-trace at 35 FPS (covers Doom screen_map events too).
@@ -140,28 +139,28 @@ static ERROR_COUNTERS: HashMap<u64, [u8; 8]> = HashMap::with_max_entries(256, 0)
 static AUTHORITY: HashMap<u64, [u8; 24]> = HashMap::with_max_entries(512, 0);
 
 // Stats keys
-const STAT_TOTAL:                     u32 = 0;
-const STAT_IPV6:                      u32 = 1;
-const STAT_BIRTHS:                    u32 = 2;
-const STAT_DEATHS:                    u32 = 3;
-const STAT_BLOCKED:                   u32 = 4;
-const STAT_EXT_STRIPPED:              u32 = 5;
-const STAT_ANOMALIES:                 u32 = 6;
-const STAT_RING_DROPS:                u32 = 7;
-const STAT_DEST_OPTIONS_PROCESSED:    u32 = 8;
+const STAT_TOTAL: u32 = 0;
+const STAT_IPV6: u32 = 1;
+const STAT_BIRTHS: u32 = 2;
+const STAT_DEATHS: u32 = 3;
+const STAT_BLOCKED: u32 = 4;
+const STAT_EXT_STRIPPED: u32 = 5;
+const STAT_ANOMALIES: u32 = 6;
+const STAT_RING_DROPS: u32 = 7;
+const STAT_DEST_OPTIONS_PROCESSED: u32 = 8;
 #[allow(dead_code)]
-const STAT_DST_OPT_SKIP:              u32 = 9;
+const STAT_DST_OPT_SKIP: u32 = 9;
 #[allow(dead_code)]
-const STAT_DST_OPT_DISCARD:           u32 = 10;
+const STAT_DST_OPT_DISCARD: u32 = 10;
 #[allow(dead_code)]
-const STAT_DST_OPT_ICMP:              u32 = 11;
+const STAT_DST_OPT_ICMP: u32 = 11;
 #[allow(dead_code)]
-const STAT_DST_OPT_ICMP_MCAST:        u32 = 12;
-const STAT_TC_ENTRY:                   u32 = 13;
-const STAT_TC_IPV6:                    u32 = 14;
-const STAT_TC_HBH:                     u32 = 15;
-const STAT_REDIRECT_ATTEMPTS:          u32 = 16;
-const STAT_REDIRECT_SUCCESS:           u32 = 17;
+const STAT_DST_OPT_ICMP_MCAST: u32 = 12;
+const STAT_TC_ENTRY: u32 = 13;
+const STAT_TC_IPV6: u32 = 14;
+const STAT_TC_HBH: u32 = 15;
+const STAT_REDIRECT_ATTEMPTS: u32 = 16;
+const STAT_REDIRECT_SUCCESS: u32 = 17;
 
 /// SHIELD_CONFIG key for AF_XDP enable toggle.
 const SHIELD_AF_XDP_ENABLE: u32 = 0;
@@ -172,12 +171,12 @@ const SHIELD_AF_XDP_ENABLE: u32 = 0;
 /// vtf = version(4b) | traffic_class(8b) | flow_label(20b), network byte order.
 #[repr(C, packed)]
 struct Ipv6Hdr {
-    vtf:         u32,   // version(4) + TC(8) + flow_label(20), big-endian
-    payload_len: u16,   // payload length (not including fixed header), big-endian
-    next_header: u8,    // next protocol number
-    hop_limit:   u8,    // hop limit (TTL)
-    src:         [u8; 16],
-    dst:         [u8; 16],
+    vtf: u32,         // version(4) + TC(8) + flow_label(20), big-endian
+    payload_len: u16, // payload length (not including fixed header), big-endian
+    next_header: u8,  // next protocol number
+    hop_limit: u8,    // hop limit (TTL)
+    src: [u8; 16],
+    dst: [u8; 16],
 }
 
 const IPV6_HDR_SIZE: usize = core::mem::size_of::<Ipv6Hdr>(); // must == 40
@@ -185,9 +184,9 @@ const IPV6_HDR_SIZE: usize = core::mem::size_of::<Ipv6Hdr>(); // must == 40
 /// Ethernet header — 14 bytes.
 #[repr(C, packed)]
 struct EthHdr {
-    dst:   [u8; 6],
-    src:   [u8; 6],
-    proto: u16,         // EtherType, big-endian
+    dst: [u8; 6],
+    src: [u8; 6],
+    proto: u16, // EtherType, big-endian
 }
 
 const ETH_HDR_SIZE: usize = core::mem::size_of::<EthHdr>(); // must == 14
@@ -209,7 +208,7 @@ const ETH_HDR_SIZE: usize = core::mem::size_of::<EthHdr>(); // must == 14
 pub fn shield_xdp(ctx: XdpContext) -> u32 {
     match try_shield_xdp(&ctx) {
         Ok(action) => action,
-        Err(_)     => xdp_action::XDP_PASS,
+        Err(_) => xdp_action::XDP_PASS,
     }
 }
 
@@ -217,7 +216,7 @@ pub fn shield_xdp(ctx: XdpContext) -> u32 {
 fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_TOTAL);
 
-    let data     = ctx.data();
+    let data = ctx.data();
     let data_end = ctx.data_end();
 
     // ── 1. Ethernet header bounds check ──────────────────────────────────────
@@ -282,11 +281,11 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // The full address decoding (ULA prefix → Sophia service_identity lookup)
     // happens in the hop-ebpf programs.  Shield just initializes the prefix
     // bytes for the hop programs to read.
-    monad.src_prefix_lo = ip.src[7];   // Low byte of subnet identifier
+    monad.src_prefix_lo = ip.src[7]; // Low byte of subnet identifier
     monad.dst_prefix_lo = ip.dst[7];
-    monad.deploy_ring    = deploy_ring::PRODUCTION;
-    monad.flow_action    = flow_action::FORWARD;
-    monad.circuit_state  = circuit_state::CLOSED;
+    monad.deploy_ring = deploy_ring::PRODUCTION;
+    monad.flow_action = flow_action::FORWARD;
+    monad.circuit_state = circuit_state::CLOSED;
     monad.recompute_checksum();
 
     // ── 8. Insert 24-byte HBH header ──────────────────────────────────────────
@@ -311,16 +310,15 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     //   new [14..54]: copy IPv6 from [38..78]       (move IPv6 after ETH)
     //   new [54..78]: write HBH header (24 bytes)   (new HBH in freed space)
     //   new [78..]:   Transport payload (unchanged)
-    let adjust_result = unsafe {
-        aya_ebpf::helpers::bpf_xdp_adjust_head(ctx.as_ptr() as *mut _, -24i32)
-    };
+    let adjust_result =
+        unsafe { aya_ebpf::helpers::bpf_xdp_adjust_head(ctx.as_ptr() as *mut _, -24i32) };
     if adjust_result != 0 {
         // bpf_xdp_adjust_head failed (e.g., no headroom)
         return Ok(xdp_action::XDP_PASS);
     }
 
     // CRITICAL: Re-read data/data_end after adjust_head — verifier requires it.
-    let data     = ctx.data();
+    let data = ctx.data();
     let data_end = ctx.data_end();
 
     // Verify we have room for ETH + IPv6 + HBH + at least 0 bytes of payload.
@@ -400,7 +398,13 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
                 redirect_act = redirect_action::AF_XDP;
                 // Emit BIRTH event with redirect_action encoded in hop_id
                 let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
-                emit_anamnesis(now, EventType::Birth, redirect_act, flow_label, &hbh_header.monad);
+                emit_anamnesis(
+                    now,
+                    EventType::Birth,
+                    redirect_act,
+                    flow_label,
+                    &hbh_header.monad,
+                );
                 increment_stat(STAT_BIRTHS);
                 return Ok(action);
             }
@@ -415,7 +419,13 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 
     // ── 14. Emit BIRTH event to Anamnesis ─────────────────────────────────────
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
-    emit_anamnesis(now, EventType::Birth, redirect_act, flow_label, &hbh_header.monad);
+    emit_anamnesis(
+        now,
+        EventType::Birth,
+        redirect_act,
+        flow_label,
+        &hbh_header.monad,
+    );
     increment_stat(STAT_BIRTHS);
 
     Ok(xdp_action::XDP_PASS)
@@ -438,7 +448,7 @@ fn try_shield_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 pub fn shield_tc(mut ctx: TcContext) -> i32 {
     match try_shield_tc(&mut ctx) {
         Ok(action) => action,
-        Err(_)     => TC_ACT_OK,
+        Err(_) => TC_ACT_OK,
     }
 }
 
@@ -529,7 +539,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
     let namespace: u16 = 0; // Default namespace
     let auth_key = make_authority_key(dict_id as u16, namespace);
     let _ = unsafe { AUTHORITY.get(&auth_key) }; // Lookup for authority validation
-    // Future: check fingerprint and expiry timestamp
+                                                 // Future: check fingerprint and expiry timestamp
 
     // ── Emit DEATH event ───────────────────────────────────────────────────────
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
@@ -562,12 +572,14 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
 
     // ── Fixup IPv6 header fields after header removal ──────────────────────────
     // Restore original Next Header.
-    ctx.store(ETH_HDR_SIZE + 6, &original_nh, 0).map_err(|_| ())?;
+    ctx.store(ETH_HDR_SIZE + 6, &original_nh, 0)
+        .map_err(|_| ())?;
 
     // Decrement Payload Length by 24.
     let plen: u16 = ctx.load(ETH_HDR_SIZE + 4).map_err(|_| ())?;
     let new_plen = u16::from_be(plen).saturating_sub(HBH_TOTAL_LEN as u16);
-    ctx.store(ETH_HDR_SIZE + 4, &new_plen.to_be(), 0).map_err(|_| ())?;
+    ctx.store(ETH_HDR_SIZE + 4, &new_plen.to_be(), 0)
+        .map_err(|_| ())?;
 
     Ok(TC_ACT_OK)
 }
@@ -578,8 +590,7 @@ fn try_shield_tc(ctx: &mut TcContext) -> Result<i32, ()> {
 #[inline(always)]
 fn src_addr_key(addr: &[u8; 16]) -> u64 {
     u64::from_be_bytes([
-        addr[8], addr[9], addr[10], addr[11],
-        addr[12], addr[13], addr[14], addr[15],
+        addr[8], addr[9], addr[10], addr[11], addr[12], addr[13], addr[14], addr[15],
     ])
 }
 
@@ -638,8 +649,8 @@ fn strip_extension_headers(ip: &Ipv6Hdr, ip_start: usize, data_end: usize) -> u8
         if offset + 2 > data_end {
             break;
         }
-        let next_nh  = unsafe { core::ptr::read_volatile(offset as *const u8) };
-        let hdr_len  = unsafe { core::ptr::read_volatile((offset + 1) as *const u8) };
+        let next_nh = unsafe { core::ptr::read_volatile(offset as *const u8) };
+        let hdr_len = unsafe { core::ptr::read_volatile((offset + 1) as *const u8) };
         let hdr_size = (hdr_len as usize + 1) * 8;
 
         // RFC 8200 §4.6: Destination Options TLV parsing deferred to reduce
@@ -749,11 +760,7 @@ fn process_destination_options(offset: usize, hdr_size: usize, data_end: usize) 
 /// Caller must ensure `src` and `dst` are valid packet data pointers.
 /// Overlapping regions: safe only if `dst <= src` (forward copy).
 #[inline(always)]
-fn copy_bytes_forward<const N: usize>(
-    dst:      usize,
-    src:      usize,
-    data_end: usize,
-) -> Result<(), ()> {
+fn copy_bytes_forward<const N: usize>(dst: usize, src: usize, data_end: usize) -> Result<(), ()> {
     if src + N > data_end || dst + N > data_end {
         return Err(());
     }
@@ -770,11 +777,7 @@ fn copy_bytes_forward<const N: usize>(
 
 /// Write exactly N bytes from `src_arr` to packet memory at `dst` with bounds check.
 #[inline(always)]
-fn write_bytes<const N: usize>(
-    dst:      usize,
-    src_arr:  &[u8; N],
-    data_end: usize,
-) -> Result<(), ()> {
+fn write_bytes<const N: usize>(dst: usize, src_arr: &[u8; N], data_end: usize) -> Result<(), ()> {
     if dst + N > data_end {
         return Err(());
     }
@@ -804,10 +807,10 @@ fn load_monad_from_skb(ctx: &TcContext, offset: usize) -> Result<Monad, ()> {
 #[inline(always)]
 fn emit_anamnesis(
     timestamp_ns: u64,
-    event_type:   EventType,
-    hop_id:       u8,
-    flow_label:   u32,
-    monad:        &Monad,
+    event_type: EventType,
+    hop_id: u8,
+    flow_label: u32,
+    monad: &Monad,
 ) {
     let event = AnamnesisEvent::new(timestamp_ns, event_type, hop_id, flow_label, *monad);
     if let Some(mut entry) = ANAMNESIS.reserve::<AnamnesisEvent>(0) {
@@ -859,7 +862,9 @@ fn make_authority_key(dict_id: u16, namespace: u16) -> u64 {
 #[inline(always)]
 fn increment_stat(key: u32) {
     if let Some(val) = STATS.get_ptr_mut(&key) {
-        unsafe { *val = (*val).saturating_add(1); }
+        unsafe {
+            *val = (*val).saturating_add(1);
+        }
     } else {
         let _ = STATS.insert(&key, &1u64, 0);
     }

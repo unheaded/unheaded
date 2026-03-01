@@ -161,7 +161,10 @@ impl BenchRunner {
 /// Compute the p-th percentile from a sorted slice of durations.
 /// Uses nearest-rank method.
 fn percentile(sorted: &[Duration], p: u32) -> Duration {
-    assert!(!sorted.is_empty(), "cannot compute percentile of empty slice");
+    assert!(
+        !sorted.is_empty(),
+        "cannot compute percentile of empty slice"
+    );
     assert!(p <= 100, "percentile must be 0..=100");
     if sorted.len() == 1 {
         return sorted[0];
@@ -313,9 +316,7 @@ mod tests {
 
     #[test]
     fn test_percentile_sorted() {
-        let durations: Vec<Duration> = (1..=100)
-            .map(|i| Duration::from_nanos(i))
-            .collect();
+        let durations: Vec<Duration> = (1..=100).map(|i| Duration::from_nanos(i)).collect();
         assert_eq!(percentile(&durations, 50), Duration::from_nanos(50));
         assert_eq!(percentile(&durations, 99), Duration::from_nanos(99));
         assert_eq!(percentile(&durations, 100), Duration::from_nanos(100));

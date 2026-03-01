@@ -22,9 +22,9 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use unheaded_common::{
-    Direction, FlowKey, FlowState, PacketAction, PacketEvent, TraceId,
-    ETH_HLEN, ETH_P_IP, IPV4_MIN_HLEN, IPPROTO_TCP, IPPROTO_UDP,
-    MAX_FLOWS, RING_BUFFER_SIZE, TCP_MIN_HLEN, TRACE_OPTION_TYPE,
+    Direction, FlowKey, FlowState, PacketAction, PacketEvent, TraceId, ETH_HLEN, ETH_P_IP,
+    IPPROTO_TCP, IPPROTO_UDP, IPV4_MIN_HLEN, MAX_FLOWS, RING_BUFFER_SIZE, TCP_MIN_HLEN,
+    TRACE_OPTION_TYPE,
 };
 
 /// Flow state map: 5-tuple -> flow state with trace ID.
@@ -241,7 +241,13 @@ fn try_packet_marker(ctx: &XdpContext) -> Result<u32, ()> {
             Ok(action) => {
                 increment_stat(STAT_AFXDP_REDIRECT);
                 let packet_len = (data_end - data) as u32;
-                send_packet_event(&flow_key, &trace_id, packet_len, PacketAction::Redirect, Direction::Ingress);
+                send_packet_event(
+                    &flow_key,
+                    &trace_id,
+                    packet_len,
+                    PacketAction::Redirect,
+                    Direction::Ingress,
+                );
                 return Ok(action);
             }
             Err(_) => {
@@ -253,7 +259,13 @@ fn try_packet_marker(ctx: &XdpContext) -> Result<u32, ()> {
 
     // Send packet event to userspace (standard path)
     let packet_len = (data_end - data) as u32;
-    send_packet_event(&flow_key, &trace_id, packet_len, PacketAction::Pass, Direction::Ingress);
+    send_packet_event(
+        &flow_key,
+        &trace_id,
+        packet_len,
+        PacketAction::Pass,
+        Direction::Ingress,
+    );
 
     Ok(xdp_action::XDP_PASS)
 }

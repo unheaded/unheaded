@@ -17,14 +17,13 @@
 use aya_ebpf::{
     bindings::TC_ACT_PIPE,
     macros::{classifier, map},
-    maps::{HashMap, RingBuf, LruHashMap},
+    maps::{HashMap, LruHashMap, RingBuf},
     programs::TcContext,
 };
 use unheaded_common::{
-    ConnectionState, Direction, FlowEvent, FlowEventType, FlowKey, FlowState, TraceId,
-    ETH_HLEN, ETH_P_IP, IPV4_MIN_HLEN, IPPROTO_TCP, IPPROTO_UDP,
-    MAX_FLOWS, RING_BUFFER_SIZE, TCP_MIN_HLEN,
-    TCP_FLAG_SYN, TCP_FLAG_ACK, TCP_FLAG_FIN, TCP_FLAG_RST,
+    ConnectionState, Direction, FlowEvent, FlowEventType, FlowKey, FlowState, TraceId, ETH_HLEN,
+    ETH_P_IP, IPPROTO_TCP, IPPROTO_UDP, IPV4_MIN_HLEN, MAX_FLOWS, RING_BUFFER_SIZE, TCP_FLAG_ACK,
+    TCP_FLAG_FIN, TCP_FLAG_RST, TCP_FLAG_SYN, TCP_MIN_HLEN,
 };
 
 /// Main flow state map using LRU for automatic expiration.
@@ -122,14 +121,14 @@ struct UdpHdr {
 /// Size: 48 bytes.
 #[repr(C, packed)]
 struct MigrationTokenValue {
-    token: [u8; 16],           // 128-bit migration token
-    expiry_ns: u64,            // Expiry timestamp (bpf_ktime_get_ns)
-    new_src_addr: u32,         // New source address after migration
-    new_dst_addr: u32,         // New destination address after migration
-    new_src_port: u16,         // New source port
-    new_dst_port: u16,         // New destination port
-    flags: u32,                // Migration flags (bit 0: active)
-    _pad: [u8; 4],             // Alignment padding to 48 bytes
+    token: [u8; 16],   // 128-bit migration token
+    expiry_ns: u64,    // Expiry timestamp (bpf_ktime_get_ns)
+    new_src_addr: u32, // New source address after migration
+    new_dst_addr: u32, // New destination address after migration
+    new_src_port: u16, // New source port
+    new_dst_port: u16, // New destination port
+    flags: u32,        // Migration flags (bit 0: active)
+    _pad: [u8; 4],     // Alignment padding to 48 bytes
 }
 
 /// Cancel flow value for per-flow teardown (RFC 9114 §4.1.1).
@@ -137,10 +136,10 @@ struct MigrationTokenValue {
 /// Size: 24 bytes.
 #[repr(C, packed)]
 struct CancelFlowValue {
-    reason: u32,               // Cancellation reason code
-    timestamp_ns: u64,         // When cancellation was requested
-    flags: u32,                // Bit 0: active, Bit 1: send-rst
-    _pad: [u8; 4],             // Alignment padding to 24 bytes
+    reason: u32,       // Cancellation reason code
+    timestamp_ns: u64, // When cancellation was requested
+    flags: u32,        // Bit 0: active, Bit 1: send-rst
+    _pad: [u8; 4],     // Alignment padding to 24 bytes
 }
 
 /// TC classifier for ingress traffic.
@@ -250,17 +249,11 @@ fn process_tcp(
     }
 
     // Build normalized flow key (smaller IP first for bidirectional matching)
-    let flow_key = normalize_flow_key(
-        ip.saddr,
-        ip.daddr,
-        tcp.source,
-        tcp.dest,
-        IPPROTO_TCP,
-    );
+    let flow_key = normalize_flow_key(ip.saddr, ip.daddr, tcp.source, tcp.dest, IPPROTO_TCP);
 
     // Determine if this is the "forward" direction (src initiated the flow)
-    let is_forward = ip.saddr < ip.daddr ||
-        (ip.saddr == ip.daddr && u16::from_be(tcp.source) < u16::from_be(tcp.dest));
+    let is_forward = ip.saddr < ip.daddr
+        || (ip.saddr == ip.daddr && u16::from_be(tcp.source) < u16::from_be(tcp.dest));
 
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
 
@@ -354,16 +347,10 @@ fn process_udp(
     let udp = unsafe { &*(udp_start as *const UdpHdr) };
 
     // Build normalized flow key
-    let flow_key = normalize_flow_key(
-        ip.saddr,
-        ip.daddr,
-        udp.source,
-        udp.dest,
-        IPPROTO_UDP,
-    );
+    let flow_key = normalize_flow_key(ip.saddr, ip.daddr, udp.source, udp.dest, IPPROTO_UDP);
 
-    let is_forward = ip.saddr < ip.daddr ||
-        (ip.saddr == ip.daddr && u16::from_be(udp.source) < u16::from_be(udp.dest));
+    let is_forward = ip.saddr < ip.daddr
+        || (ip.saddr == ip.daddr && u16::from_be(udp.source) < u16::from_be(udp.dest));
 
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
 
@@ -429,7 +416,9 @@ fn normalize_flow_key(
     dst_port: u16,
     protocol: u8,
 ) -> FlowKey {
-    if src_addr < dst_addr || (src_addr == dst_addr && u16::from_be(src_port) < u16::from_be(dst_port)) {
+    if src_addr < dst_addr
+        || (src_addr == dst_addr && u16::from_be(src_port) < u16::from_be(dst_port))
+    {
         FlowKey {
             src_addr,
             dst_addr,
@@ -474,11 +463,7 @@ fn get_or_create_flow(flow_key: &FlowKey, now: u64) -> (FlowState, bool) {
 
 /// TCP state machine transition based on flags.
 #[inline(always)]
-fn tcp_state_transition(
-    current: ConnectionState,
-    flags: u8,
-    is_forward: bool,
-) -> ConnectionState {
+fn tcp_state_transition(current: ConnectionState, flags: u8, is_forward: bool) -> ConnectionState {
     let is_syn = flags & TCP_FLAG_SYN != 0;
     let is_ack = flags & TCP_FLAG_ACK != 0;
     let is_fin = flags & TCP_FLAG_FIN != 0;

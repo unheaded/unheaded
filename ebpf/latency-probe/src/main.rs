@@ -22,11 +22,10 @@ use aya_ebpf::{
     maps::{HashMap, RingBuf},
     programs::{ProbeContext, RetProbeContext},
 };
+use common::{LatencyEntry, LatencyKey, MAX_LATENCY_MAP_ENTRIES};
 use unheaded_common::{
-    LatencyEvent, LatencyOperation, TraceId,
-    MAX_LATENCY_ENTRIES, RING_BUFFER_SIZE,
+    LatencyEvent, LatencyOperation, TraceId, MAX_LATENCY_ENTRIES, RING_BUFFER_SIZE,
 };
-use common::{LatencyKey, LatencyEntry, MAX_LATENCY_MAP_ENTRIES};
 
 /// Key for in-flight operation tracking.
 #[repr(C)]
@@ -42,14 +41,15 @@ struct InflightKey {
 #[derive(Clone, Copy, Default)]
 struct InflightValue {
     start_ns: u64,
-    sock_ptr: u64,  // Pointer to socket for correlation
+    sock_ptr: u64, // Pointer to socket for correlation
 }
 
 /// Map tracking in-flight operations.
 /// Key: pid_tgid + operation type
 /// Value: start timestamp + socket pointer
 #[map]
-static INFLIGHT: HashMap<InflightKey, InflightValue> = HashMap::with_max_entries(MAX_LATENCY_ENTRIES, 0);
+static INFLIGHT: HashMap<InflightKey, InflightValue> =
+    HashMap::with_max_entries(MAX_LATENCY_ENTRIES, 0);
 
 /// Socket to trace ID mapping.
 /// Populated by userspace or other eBPF programs.
@@ -64,7 +64,8 @@ static LATENCY_EVENTS: RingBuf = RingBuf::with_byte_size(RING_BUFFER_SIZE, 0);
 /// Key: LatencyKey (5-tuple), Value: LatencyEntry (min/max/latest/samples).
 /// Read by Go userspace LatencyReader to publish to Wotan and expose as Prometheus histogram.
 #[map]
-static LATENCY_MAP: HashMap<LatencyKey, LatencyEntry> = HashMap::with_max_entries(MAX_LATENCY_MAP_ENTRIES, 0);
+static LATENCY_MAP: HashMap<LatencyKey, LatencyEntry> =
+    HashMap::with_max_entries(MAX_LATENCY_MAP_ENTRIES, 0);
 
 /// Statistics counters.
 #[map]

@@ -4,14 +4,13 @@
 // Sacred Law: NO external deps. Raw syscalls only via crate::syscall.
 // Provides zero-copy packet receive and transmit via AF_XDP kernel interface.
 
-use af_xdp_common::{
-    AF_XDP, SOL_XDP, XskDesc, XskMmapOffsets, XskRingOffsets,
-    XDP_MMAP_OFFSETS, XDP_OPTIONS, XDP_PGOFF_RX_RING, XDP_PGOFF_TX_RING,
-    XDP_RX_RING, XDP_STATISTICS, XDP_TX_RING, XDP_RING_NEED_WAKEUP,
-    XskStatistics, Sockaddr_xdp, DEFAULT_RING_SIZE,
-};
 use crate::syscall;
 use crate::umem::Umem;
+use af_xdp_common::{
+    Sockaddr_xdp, XskDesc, XskMmapOffsets, XskRingOffsets, XskStatistics, AF_XDP,
+    DEFAULT_RING_SIZE, SOL_XDP, XDP_MMAP_OFFSETS, XDP_OPTIONS, XDP_PGOFF_RX_RING,
+    XDP_PGOFF_TX_RING, XDP_RING_NEED_WAKEUP, XDP_RX_RING, XDP_STATISTICS, XDP_TX_RING,
+};
 
 // =============================================================================
 // RX Ring — kernel produces received packets, userspace consumes
@@ -40,13 +39,8 @@ pub struct RxRing {
 
 impl RxRing {
     /// Create RX ring from mmap'd kernel memory.
-    fn new(
-        sock_fd: i32,
-        offsets: &XskRingOffsets,
-        ring_size: u32,
-    ) -> Result<Self, &'static str> {
-        let map_size = offsets.desc
-            + (ring_size as u64) * std::mem::size_of::<XskDesc>() as u64;
+    fn new(sock_fd: i32, offsets: &XskRingOffsets, ring_size: u32) -> Result<Self, &'static str> {
+        let map_size = offsets.desc + (ring_size as u64) * std::mem::size_of::<XskDesc>() as u64;
 
         let map_addr = unsafe {
             syscall::mmap(
@@ -150,13 +144,8 @@ pub struct TxRing {
 
 impl TxRing {
     /// Create TX ring from mmap'd kernel memory.
-    fn new(
-        sock_fd: i32,
-        offsets: &XskRingOffsets,
-        ring_size: u32,
-    ) -> Result<Self, &'static str> {
-        let map_size = offsets.desc
-            + (ring_size as u64) * std::mem::size_of::<XskDesc>() as u64;
+    fn new(sock_fd: i32, offsets: &XskRingOffsets, ring_size: u32) -> Result<Self, &'static str> {
+        let map_size = offsets.desc + (ring_size as u64) * std::mem::size_of::<XskDesc>() as u64;
 
         let map_addr = unsafe {
             syscall::mmap(
@@ -287,13 +276,17 @@ impl XskSocket {
 
         // Step 2: Register UMEM
         if let Err(e) = umem.register(fd) {
-            unsafe { let _ = syscall::close(fd); }
+            unsafe {
+                let _ = syscall::close(fd);
+            }
             return Err(e);
         }
 
         // Step 3: Set ring sizes
         if let Err(e) = set_ring_sizes(fd, umem, ring_size) {
-            unsafe { let _ = syscall::close(fd); }
+            unsafe {
+                let _ = syscall::close(fd);
+            }
             return Err(e);
         }
 
@@ -301,7 +294,9 @@ impl XskSocket {
         let offsets = match Umem::query_mmap_offsets(fd) {
             Ok(o) => o,
             Err(e) => {
-                unsafe { let _ = syscall::close(fd); }
+                unsafe {
+                    let _ = syscall::close(fd);
+                }
                 return Err(e);
             }
         };
@@ -310,7 +305,9 @@ impl XskSocket {
         let rx = match RxRing::new(fd, &offsets.rx, ring_size) {
             Ok(r) => r,
             Err(e) => {
-                unsafe { let _ = syscall::close(fd); }
+                unsafe {
+                    let _ = syscall::close(fd);
+                }
                 return Err(e);
             }
         };
@@ -318,7 +315,9 @@ impl XskSocket {
         let tx = match TxRing::new(fd, &offsets.tx, ring_size) {
             Ok(r) => r,
             Err(e) => {
-                unsafe { let _ = syscall::close(fd); }
+                unsafe {
+                    let _ = syscall::close(fd);
+                }
                 return Err(e);
             }
         };
@@ -326,7 +325,9 @@ impl XskSocket {
         let fill = match crate::umem::FillRing::new(fd, &offsets.fr, ring_size) {
             Ok(r) => r,
             Err(e) => {
-                unsafe { let _ = syscall::close(fd); }
+                unsafe {
+                    let _ = syscall::close(fd);
+                }
                 return Err(e);
             }
         };
@@ -334,14 +335,18 @@ impl XskSocket {
         let comp = match crate::umem::CompletionRing::new(fd, &offsets.cr, ring_size) {
             Ok(r) => r,
             Err(e) => {
-                unsafe { let _ = syscall::close(fd); }
+                unsafe {
+                    let _ = syscall::close(fd);
+                }
                 return Err(e);
             }
         };
 
         // Step 6: Bind to interface + queue
         if let Err(e) = bind_socket(fd, ifname, queue_id) {
-            unsafe { let _ = syscall::close(fd); }
+            unsafe {
+                let _ = syscall::close(fd);
+            }
             return Err(e);
         }
 
@@ -464,8 +469,7 @@ impl XskSocket {
         };
 
         unsafe {
-            syscall::poll(&mut pfd, 1, timeout_ms)
-                .map_err(|_| "poll failed")?;
+            syscall::poll(&mut pfd, 1, timeout_ms).map_err(|_| "poll failed")?;
         }
 
         Ok(pfd.revents)
@@ -562,10 +566,7 @@ fn set_ring_sizes(sock_fd: i32, umem: &Umem, ring_size: u32) -> Result<(), &'sta
 
 /// Bind AF_XDP socket to interface and RX/TX queue.
 fn bind_socket(sock_fd: i32, ifname: &str, queue_id: u32) -> Result<(), &'static str> {
-    let ifindex = unsafe {
-        syscall::if_nametoindex(ifname)
-            .map_err(|_| "interface not found")?
-    };
+    let ifindex = unsafe { syscall::if_nametoindex(ifname).map_err(|_| "interface not found")? };
 
     let saddr = Sockaddr_xdp {
         sxdp_family: AF_XDP,
@@ -641,7 +642,9 @@ mod tests {
             // Expected without privileges
         } else {
             // Clean up if it succeeded
-            unsafe { let _ = syscall::close(result.unwrap()); }
+            unsafe {
+                let _ = syscall::close(result.unwrap());
+            }
         }
     }
 
@@ -672,7 +675,10 @@ mod tests {
         };
         let mut umem = Umem::new(config).expect("UMEM creation failed");
         let xsk = XskSocket::new(&mut umem, "lo", 0, DEFAULT_RING_SIZE);
-        assert!(xsk.is_ok(), "XskSocket creation on loopback should succeed with CAP_NET_ADMIN");
+        assert!(
+            xsk.is_ok(),
+            "XskSocket creation on loopback should succeed with CAP_NET_ADMIN"
+        );
     }
 
     #[test]

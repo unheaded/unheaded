@@ -14,8 +14,7 @@
 mod harness;
 
 use harness::{
-    BenchResult, BenchRunner, measure_cpu, print_cpu_summary, print_markdown_table,
-    results_to_json,
+    measure_cpu, print_cpu_summary, print_markdown_table, results_to_json, BenchResult, BenchRunner,
 };
 use std::collections::HashMap;
 use std::hint::black_box;
@@ -196,8 +195,7 @@ impl BenchRing {
             let idx = ((prod.wrapping_add(i)) & self.mask) as usize;
             self.entries[idx] = vals[i as usize];
         }
-        self.prod
-            .store(prod.wrapping_add(count), Ordering::Release);
+        self.prod.store(prod.wrapping_add(count), Ordering::Release);
         count
     }
 
@@ -213,8 +211,7 @@ impl BenchRing {
             let idx = ((cons.wrapping_add(i)) & self.mask) as usize;
             out.push(self.entries[idx]);
         }
-        self.cons
-            .store(cons.wrapping_add(count), Ordering::Release);
+        self.cons.store(cons.wrapping_add(count), Ordering::Release);
         out
     }
 
@@ -752,15 +749,11 @@ fn main() {
     eprintln!("## Comparison Matrix: Ring Buffer vs UMEM Operations");
     eprintln!();
     // Find the relevant results
-    let ring_only = all_results
-        .iter()
-        .find(|r| r.name == "ring_only_push_pop");
+    let ring_only = all_results.iter().find(|r| r.name == "ring_only_push_pop");
     let umem_only = all_results
         .iter()
         .find(|r| r.name == "umem_only_alloc_free");
-    let combined = all_results
-        .iter()
-        .find(|r| r.name == "umem_ring_combined");
+    let combined = all_results.iter().find(|r| r.name == "umem_ring_combined");
 
     if let (Some(ro), Some(uo), Some(co)) = (ring_only, umem_only, combined) {
         eprintln!(
@@ -777,8 +770,9 @@ fn main() {
         );
 
         if ro.avg_latency_ns > 0 && uo.avg_latency_ns > 0 {
-            let overhead_ns =
-                co.avg_latency_ns.saturating_sub(ro.avg_latency_ns + uo.avg_latency_ns);
+            let overhead_ns = co
+                .avg_latency_ns
+                .saturating_sub(ro.avg_latency_ns + uo.avg_latency_ns);
             eprintln!(
                 "  Integration overhead: ~{}ns (memcpy + coordination)",
                 overhead_ns
