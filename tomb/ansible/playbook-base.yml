@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# tomb/ansible/playbook-base.yml -- Base system setup for Tomb VM
+#
+# Creates directory structure, verifies packages, sets up users/permissions.
+# All package installation is offline (air-gapped).
+---
+- name: "Tomb of Knowledge -- Base System Setup"
+  hosts: tomb
+  become: true
+  gather_facts: true
+
+  vars:
+    tomb_dirs:
+      - { path: "{{ tomb_root }}", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/campaigns", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/harnesses", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/crash-triage", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/crash-triage/corpus", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/crash-triage/crashes", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/crash-triage/crashes/rce", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/crash-triage/crashes/dos", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/crash-triage/crashes/memory-leak", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/crash-triage/crashes/info-leak", mode: "0750" }
+      - { path: "{{ tomb_root }}/lich/crash-triage/crashes/unknown", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/kingdom-docs", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/mitre-attck", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/nvd-cves", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/cwe", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/threat-models", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/history", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/rag", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/rag/chroma.db", mode: "0750" }
+      - { path: "{{ tomb_root }}/grimoire/rag/embeddings", mode: "0750" }
+      - { path: "{{ tomb_root }}/oracle", mode: "0700" }
+      - { path: "{{ tomb_root }}/oracle/ollama", mode: "0700" }
+      - { path: "{{ tomb_root }}/oracle/ollama/models", mode: "0700" }
+      - { path: "{{ tomb_root }}/oracle/logs", mode: "0700" }
+      - { path: "{{ tomb_root }}/oracle/suggestions", mode: "0700" }
+      - { path: "{{ tomb_root }}/dark-mirror", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/prometheus", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/prometheus/data", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/grafana", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/grafana/dashboards", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/grafana/datasources", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/grafana/provisioning", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/grafana/provisioning/datasources", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/loki", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/loki/data", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/loki/data/chunks", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/loki/data/rules", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/loki/data/compactor", mode: "0750" }
+      - { path: "{{ tomb_root }}/dark-mirror/alerts", mode: "0750" }
+      - { path: "{{ tomb_root }}/captures", mode: "0750" }
+      - { path: "{{ tomb_root }}/captures/pcaps", mode: "0750" }
+      - { path: "{{ tomb_root }}/captures/packet-analysis", mode: "0750" }
+      - { path: "{{ tomb_root }}/reports", mode: "0700" }
+      - { path: "{{ tomb_root }}/reports/archive", mode: "0700" }
+      - { path: "{{ tomb_staging }}", mode: "0755" }
+
+    # Kali packages expected to be pre-installed on the live ISO
+    expected_kali_tools:
+      - nmap
+      - nikto
+      - sqlmap
+      - hydra
+      - john
+      - hashcat
+      - wireshark-common
+      - gdb
+      - python3
+      - python3-pip
+      - python3-venv
+      - jq
+      - curl
+      - socat
+      - tmux
+
+  tasks:
+    - name: "Verify air-gap -- must NOT reach public internet"
+      ansible.builtin.command:
+        cmd: "ping -c 1 -W 2 8.8.8.8"
+      register: airgap_check
+      failed_when: airgap_check.rc == 0
+      changed_when: false
+      ignore_errors: false
+
+    - name: "Verify bridge connectivity to host"
+      ansible.builtin.command:
+        cmd: "ping -c 2 -W 3 {{ tomb_host_ip }}"
+      register: bridge_check
+      changed_when: false
+      failed_when: false
+
+    - name: "Display bridge connectivity status"
+      ansible.builtin.debug:
+        msg: "Bridge to {{ tomb_host_ip }}: {{ 'REACHABLE' if bridge_check.rc == 0 else 'UNREACHABLE' }}"
+
+    - name: "Create Tomb directory structure"
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "{{ item.mode }}"
+      loop: "{{ tomb_dirs }}"
+
+    - name: "Check Kali tools availability"
+      ansible.builtin.command:
+        cmd: "dpkg -l {{ item }}"
+      register: tool_checks
+      loop: "{{ expected_kali_tools }}"
+      changed_when: false
+      failed_when: false
+
+    - name: "Report tool availability"
+      ansible.builtin.debug:
+        msg: "{{ item.item }}: {{ 'INSTALLED' if item.rc == 0 else 'MISSING' }}"
+      loop: "{{ tool_checks.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "Transfer pre-staged .deb packages (if available)"
+      ansible.builtin.copy:
+        src: "{{ packages_src }}/debs/"
+        dest: "{{ tomb_staging }}/debs/"
+        mode: "0644"
+      when: airgap_mode | bool
+      failed_when: false
+
+    - name: "Install pre-staged .deb packages"
+      ansible.builtin.shell:
+        cmd: "dpkg -i {{ tomb_staging }}/debs/*.deb 2>/dev/null; apt-get -f install -y --allow-unauthenticated 2>/dev/null || true"
+      when: airgap_mode | bool
+      changed_when: false
+      failed_when: false
+
+    - name: "Deploy scope.conf"
+      ansible.builtin.template:
+        src: "templates/scope.conf.j2"
+        dest: "{{ tomb_root }}/scope.conf"
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0640"
+      failed_when: false
+
+    - name: "Gather system facts for verification"
+      ansible.builtin.setup:
+        gather_subset:
+          - hardware
+          - network
+
+    - name: "Display system summary"
+      ansible.builtin.debug:
+        msg: |
+          Tomb VM System Summary:
+            OS:      {{ ansible_distribution }} {{ ansible_distribution_version }}
+            Kernel:  {{ ansible_kernel }}
+            CPU:     {{ ansible_processor_vcpus }} vCPUs
+            RAM:     {{ ansible_memtotal_mb }}MB
+            Disk:    {{ ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_total') | first | default('unknown') }}
+
+  handlers:
+    - name: "Reload systemd"
+      ansible.builtin.systemd:
+        daemon_reload: true

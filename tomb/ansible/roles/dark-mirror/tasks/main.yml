@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: MIT
+# roles/dark-mirror/tasks/main.yml -- Dark Mirror observability role
+---
+- name: "Ensure Dark Mirror directories exist"
+  ansible.builtin.file:
+    path: "{{ tomb_root }}/dark-mirror/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - prometheus
+    - prometheus/data
+    - grafana
+    - grafana/dashboards
+    - grafana/datasources
+    - grafana/provisioning
+    - grafana/provisioning/datasources
+    - grafana/logs
+    - grafana/plugins
+    - loki
+    - loki/data
+    - loki/data/chunks
+    - loki/data/rules
+    - loki/data/compactor
+    - alerts
+
+- name: "Check for pre-installed Prometheus"
+  ansible.builtin.command:
+    cmd: "which prometheus"
+  register: prom_which
+  changed_when: false
+  failed_when: false
+
+- name: "Report Dark Mirror binary status"
+  ansible.builtin.debug:
+    msg: "Prometheus binary: {{ 'FOUND' if prom_which.rc == 0 else 'NOT FOUND (stage in packages/dark-mirror/)' }}"

@@ -1,0 +1,10 @@
+LICH-008 Seed Corpus: Wotan Ring Buffer / Cache
+
+Operation sequences (bytes, mod 4):
+  0 = Push   1 = Get   2 = Query   3 = Count
+
+Focus areas:
+  - Capacity boundary behavior (fill to N, push N+1)
+  - Interleaved read/write patterns
+  - Query filter edge cases (empty strings, case sensitivity)
+  - Wrapping behavior verification

@@ -1,0 +1,173 @@
+# SPDX-License-Identifier: MIT
+# Promtail configuration for the Dark Mirror — Tomb of Knowledge
+#
+# Ships Tomb VM logs to Loki for centralized log aggregation.
+# Captures: Lich campaign logs, Oracle logs, system logs, Dark Mirror service logs.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    tenant_id: tomb
+    batchwait: 1s
+    batchsize: 1048576  # 1MB
+    timeout: 10s
+
+scrape_configs:
+
+  # =============================================
+  # Lich Campaign Logs
+  # =============================================
+  - job_name: lich-campaigns
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: lich
+          component: campaigns
+          __path__: /opt/tomb/lich/campaigns/**/*.log
+
+  - job_name: lich-crashes
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: lich
+          component: crashes
+          __path__: /opt/tomb/lich/crashes/**/*
+
+  - job_name: lich-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: lich
+          component: runner
+          __path__: /opt/tomb/lich/logs/*.log
+
+  # =============================================
+  # Oracle Logs
+  # =============================================
+  - job_name: oracle-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: oracle
+          component: queries
+          __path__: /opt/tomb/oracle/logs/*.log
+
+  - job_name: oracle-suggestions
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: oracle
+          component: suggestions
+          __path__: /opt/tomb/oracle/suggestions/*.md
+
+  - job_name: oracle-daemon
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: oracle
+          component: daemon
+          __path__: /opt/tomb/oracle/logs/oracle-daemon.log
+
+  # =============================================
+  # Dark Mirror Service Logs (Docker containers)
+  # =============================================
+  - job_name: docker-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: dark-mirror
+          component: docker
+          __path__: /var/lib/docker/containers/**/*-json.log
+    pipeline_stages:
+      - docker: {}
+      - labels:
+          container_name:
+      - match:
+          selector: '{job="dark-mirror"}'
+          stages:
+            - json:
+                expressions:
+                  log: log
+                  stream: stream
+                  time: time
+            - output:
+                source: log
+
+  # =============================================
+  # System Logs
+  # =============================================
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          component: system
+          __path__: /var/log/syslog
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\w+)\s+(?P<process>\w+)(\[(?P<pid>\d+)\])?:\s+(?P<message>.*)'
+      - labels:
+          hostname:
+          process:
+
+  - job_name: auth-log
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          component: auth
+          __path__: /var/log/auth.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\w+)\s+(?P<process>\w+)(\[(?P<pid>\d+)\])?:\s+(?P<message>.*)'
+      - labels:
+          hostname:
+          process:
+
+  - job_name: kern-log
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          component: kernel
+          __path__: /var/log/kern.log
+
+  # =============================================
+  # Tomb Reports
+  # =============================================
+  - job_name: attack-reports
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: reports
+          component: attack
+          __path__: /opt/tomb/reports/**/*.md
+
+  # =============================================
+  # Network Capture Metadata
+  # =============================================
+  - job_name: pcap-metadata
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: captures
+          component: pcap
+          __path__: /opt/tomb/captures/packet-analysis/*.log

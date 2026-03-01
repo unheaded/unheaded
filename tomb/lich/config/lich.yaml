@@ -1,0 +1,273 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+#
+# LICH Adversary Framework Configuration
+# Tomb of Knowledge — Security Fuzzing Platform
+#
+# This file configures fuzzing campaigns for the Unheaded protocol stack.
+
+# ============================================================================
+# Global Settings
+# ============================================================================
+
+global:
+  # Default fuzz duration per target (Go duration format)
+  fuzz_time: "60s"
+
+  # Maximum parallel fuzzing processes
+  max_parallel: 2
+
+  # Go build tags for conditional compilation
+  build_tags: ""
+
+  # Output directory (relative to tomb/lich/)
+  output_dir: "results"
+
+  # Enable verbose logging during fuzzing
+  verbose: false
+
+# ============================================================================
+# Harness Configuration
+# ============================================================================
+
+harnesses:
+  lich_001_monad_wire:
+    enabled: true
+    description: "Monad wire format (20-byte protocol, CRC-16)"
+    priority: critical
+    fuzz_time: "120s"  # Extra time for critical protocol surface
+    targets:
+      - FuzzMonadWireParse
+      - FuzzMonadWireRoundtrip
+    seeds_dir: "seeds/lich_001_monad_wire"
+    tags:
+      - wire-format
+      - protocol
+      - crc
+
+  lich_002_monad_codec:
+    enabled: true
+    description: "Monad encoder/decoder (varint, exponent, TLV)"
+    priority: critical
+    fuzz_time: "120s"
+    targets:
+      - FuzzMonadCodecVarintStress
+      - FuzzMonadCodecExponentOverflow
+      - FuzzMonadCodecTLVChain
+      - FuzzMonadCodecTLVSequenceStress
+      - FuzzMonadCodecCombined
+    seeds_dir: "seeds/lich_002_monad_codec"
+    tags:
+      - encoding
+      - protocol
+      - overflow
+
+  lich_003_crc16_collision:
+    enabled: true
+    description: "CRC-16 collision attack hunting"
+    priority: high
+    fuzz_time: "180s"  # Longer for collision hunting
+    targets:
+      - FuzzCRC16CollisionPair
+      - FuzzCRC16StealthBitFlip
+      - FuzzCRC16MonadCollision
+      - FuzzCRC16LengthExtension
+      - FuzzCRC32MPEG2Collision
+    seeds_dir: "seeds/lich_003_crc16_collision"
+    tags:
+      - collision
+      - checksum
+      - attack
+
+  lich_004_mbc_parser:
+    enabled: true
+    description: "MBC (Monad ByteCode) parser"
+    priority: high
+    fuzz_time: "60s"
+    targets:
+      - FuzzMBCParsing
+      - FuzzMBCValidation
+    seeds_dir: "seeds/lich_004_mbc_parser"
+    tags:
+      - bytecode
+      - parser
+      - mbc
+
+  lich_005_kernel_interface:
+    enabled: true
+    description: "eBPF kernel interface boundaries"
+    priority: critical
+    fuzz_time: "90s"
+    targets:
+      - FuzzBPFMapCreateAttr
+      - FuzzELFSectionClassifier
+      - FuzzBPFMapKeyValueSerialization
+    seeds_dir: "seeds/lich_005_kernel_interface"
+    tags:
+      - ebpf
+      - kernel
+      - syscall
+
+  lich_006_state_machine:
+    enabled: true
+    description: "Monad state machine transitions"
+    priority: high
+    fuzz_time: "60s"
+    targets:
+      - FuzzStateMachineTransitions
+      - FuzzGoawayMonotonicity
+      - FuzzStateMachineGoawayIntegration
+    seeds_dir: "seeds/lich_006_state_machine"
+    tags:
+      - state-machine
+      - goaway
+      - lifecycle
+
+  lich_007_mbc_ebpf:
+    enabled: true
+    description: "eBPF MBC program execution"
+    priority: critical
+    fuzz_time: "120s"
+    targets:
+      - FuzzMBCExecution
+      - FuzzMBCArithmeticEdgeCases
+    seeds_dir: "seeds/lich_007_mbc_ebpf"
+    tags:
+      - vm
+      - execution
+      - mbc
+      - ebpf
+
+  lich_008_wotan_cache:
+    enabled: true
+    description: "Wotan ring buffer/cache operations"
+    priority: medium
+    fuzz_time: "60s"
+    targets:
+      - FuzzCacheRingBufferPush
+      - FuzzCacheRingBufferQuery
+      - FuzzCacheRingBufferInterleaved
+      - FuzzCacheRingBufferCapacityBoundary
+    seeds_dir: "seeds/lich_008_wotan_cache"
+    tags:
+      - ring-buffer
+      - cache
+      - wotan
+
+  lich_009_flow_collision:
+    enabled: true
+    description: "Flow ID collision detection"
+    priority: high
+    fuzz_time: "90s"
+    targets:
+      - FuzzFlowIDCollision
+      - FuzzIPv6FlowLabelRoundtrip
+      - FuzzFlowLabelHashDistribution
+      - FuzzFlowSequenceMonotonicity
+    seeds_dir: "seeds/lich_009_flow_collision"
+    tags:
+      - flow
+      - collision
+      - ipv6
+      - hash
+
+  lich_010_wal_integrity:
+    enabled: true
+    description: "WAL (Write-Ahead Log) integrity"
+    priority: high
+    fuzz_time: "60s"
+    targets:
+      - FuzzWALEntryRoundtrip
+      - FuzzWALEntryCorruption
+      - FuzzWALSequenceGaps
+      - FuzzWALCRC32Collision
+      - FuzzWALEntryChain
+    seeds_dir: "seeds/lich_010_wal_integrity"
+    tags:
+      - wal
+      - integrity
+      - crc
+      - storage
+
+# ============================================================================
+# Severity Classification
+# ============================================================================
+
+severity:
+  critical:
+    description: "Memory safety violation (panic, nil deref, buffer overflow)"
+    action: "BLOCK RELEASE — fix immediately"
+    patterns:
+      - "panic:"
+      - "runtime error:"
+      - "nil pointer dereference"
+      - "index out of range"
+      - "slice bounds out of range"
+      - "SIGSEGV"
+
+  high:
+    description: "Logic error exploitable for security bypass"
+    action: "REVIEW REQUIRED — file security issue"
+    patterns:
+      - "CRC mismatch after successful"
+      - "accepted unknown version"
+      - "bypass"
+      - "state corruption"
+      - "monotonicity violation.*false"
+
+  medium:
+    description: "Correctness issue (roundtrip failure, assertion violation)"
+    action: "FIX IN NEXT SPRINT"
+    patterns:
+      - "roundtrip.*mismatch"
+      - "assertion.*failed"
+      - "length.*mismatch"
+
+  low:
+    description: "Performance or cosmetic issue"
+    action: "TRACK IN BACKLOG"
+    patterns:
+      - "timeout"
+      - "exceeded.*max"
+      - "slow"
+
+  info:
+    description: "Expected finding (CRC collision by design)"
+    action: "DOCUMENT — validates security model"
+    patterns:
+      - "COLLISION"
+      - "STEALTH"
+      - "LENGTH-EXTENSION"
+      - "overflow.*expected"
+
+# ============================================================================
+# Reporting
+# ============================================================================
+
+reporting:
+  # Generate machine-readable JSON report alongside text report
+  json_report: true
+
+  # Include raw crash inputs in report (base64 encoded)
+  include_crash_inputs: true
+
+  # Maximum crash inputs to include per harness
+  max_crashes_per_harness: 10
+
+  # Wotan topic for publishing results (when integrated with live system)
+  wotan_topic: "security.lich.results"
+
+# ============================================================================
+# CI Integration
+# ============================================================================
+
+ci:
+  # Exit code on critical findings (for CI pipeline gates)
+  fail_on_critical: true
+  fail_on_high: false
+
+  # Reduced fuzz time for CI (quick smoke test)
+  ci_fuzz_time: "10s"
+
+  # Maximum total CI fuzz time
+  ci_max_total_time: "300s"

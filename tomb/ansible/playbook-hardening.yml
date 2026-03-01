@@ -1,0 +1,242 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# tomb/ansible/playbook-hardening.yml -- Phase 13 security hardening
+#
+# Applies firewall rules (default deny, Kingdom-only egress),
+# SSH hardening, kernel sysctl parameters, filesystem permissions,
+# audit logging, and disables unnecessary services.
+---
+- name: "Tomb of Knowledge -- Phase 13: Security Hardening"
+  hosts: tomb
+  become: true
+  gather_facts: true
+
+  vars:
+    allowed_ssh_source: "192.168.13.2"
+    allowed_network: "192.168.13.0/30"
+    tomb_listen_ip: "192.168.13.6"
+
+    disable_services:
+      - avahi-daemon
+      - cups
+      - bluetooth
+      - ModemManager
+
+    sysctl_params:
+      # Network hardening
+      net.ipv4.ip_forward: 0
+      net.ipv4.conf.all.accept_redirects: 0
+      net.ipv4.conf.default.accept_redirects: 0
+      net.ipv4.conf.all.send_redirects: 0
+      net.ipv4.conf.default.send_redirects: 0
+      net.ipv4.conf.all.accept_source_route: 0
+      net.ipv4.conf.default.accept_source_route: 0
+      net.ipv4.conf.all.log_martians: 1
+      net.ipv4.icmp_echo_ignore_broadcasts: 1
+      net.ipv4.tcp_syncookies: 1
+      net.ipv6.conf.all.accept_redirects: 0
+      net.ipv6.conf.default.accept_redirects: 0
+      # Kernel hardening
+      kernel.randomize_va_space: 2
+      kernel.kptr_restrict: 2
+      kernel.dmesg_restrict: 1
+      kernel.perf_event_paranoid: 3
+      kernel.yama.ptrace_scope: 1
+      fs.protected_hardlinks: 1
+      fs.protected_symlinks: 1
+      fs.suid_dumpable: 0
+
+  roles:
+    - role: hardening
+
+  tasks:
+    # ---- FIREWALL ----
+    - name: "Deploy firewall script"
+      ansible.builtin.copy:
+        content: |
+          #!/bin/sh
+          # SPDX-License-Identifier: MIT
+          # Tomb VM firewall -- default deny, Kingdom-only egress
+          set -eu
+          iptables -F
+          iptables -X
+          iptables -Z
+          iptables -P INPUT DROP
+          iptables -P FORWARD DROP
+          iptables -P OUTPUT DROP
+          iptables -A INPUT -i lo -j ACCEPT
+          iptables -A OUTPUT -o lo -j ACCEPT
+          iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+          iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+          iptables -A INPUT -s {{ allowed_ssh_source }} -p tcp --dport 22 -j ACCEPT
+          iptables -A INPUT -s {{ allowed_network }} -p icmp -j ACCEPT
+          iptables -A OUTPUT -d {{ allowed_network }} -p icmp -j ACCEPT
+          iptables -A OUTPUT -d {{ allowed_network }} -j ACCEPT
+          iptables -A OUTPUT -j DROP
+          iptables -I INPUT -m limit --limit 5/min -j LOG --log-prefix "TOMB-IN-DROP: "
+          iptables -I OUTPUT -m limit --limit 5/min -j LOG --log-prefix "TOMB-OUT-DROP: "
+          echo "[  OK] Firewall rules applied"
+        dest: /etc/tomb-firewall.sh
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: "Apply firewall rules"
+      ansible.builtin.command:
+        cmd: /etc/tomb-firewall.sh
+      changed_when: true
+
+    - name: "Deploy firewall persistence service"
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Tomb Firewall Rules (air-gap enforcement)
+          Before=network-pre.target
+          Wants=network-pre.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/etc/tomb-firewall.sh
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/tomb-firewall.service
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: "Enable firewall service"
+      ansible.builtin.systemd:
+        name: tomb-firewall
+        enabled: true
+        daemon_reload: true
+
+    # ---- SSH HARDENING ----
+    - name: "Harden SSH configuration"
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+        - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+        - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 3' }
+        - { regexp: '^#?AllowTcpForwarding', line: 'AllowTcpForwarding no' }
+      notify: Reload SSH
+
+    - name: "Restrict SSH listen address"
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?ListenAddress'
+        line: "ListenAddress {{ tomb_listen_ip }}"
+        state: present
+      notify: Reload SSH
+
+    # ---- FILESYSTEM PERMISSIONS ----
+    - name: "Tighten Tomb directory permissions"
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "{{ tomb_root }}/oracle", mode: "0700" }
+        - { path: "{{ tomb_root }}/reports", mode: "0700" }
+        - { path: "{{ tomb_root }}/lich", mode: "0750" }
+        - { path: "{{ tomb_root }}/grimoire", mode: "0750" }
+        - { path: "{{ tomb_root }}/dark-mirror", mode: "0750" }
+        - { path: "{{ tomb_root }}/scope.conf", mode: "0640" }
+      failed_when: false
+
+    # ---- KERNEL HARDENING ----
+    - name: "Apply sysctl hardening parameters"
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_file: /etc/sysctl.d/99-tomb-hardening.conf
+        reload: true
+        state: present
+      loop: "{{ sysctl_params | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      failed_when: false
+
+    # ---- DISABLE UNNECESSARY SERVICES ----
+    - name: "Disable unnecessary services"
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+      loop: "{{ disable_services }}"
+      failed_when: false
+
+    # ---- AUDIT LOGGING ----
+    - name: "Create audit log directory"
+      ansible.builtin.file:
+        path: /var/log/tomb-audit
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: "Deploy audit rsyslog config"
+      ansible.builtin.copy:
+        content: |
+          # Tomb audit logging -- capture firewall drops
+          :msg, contains, "TOMB-" /var/log/tomb-audit/firewall.log
+          & stop
+        dest: /etc/rsyslog.d/tomb-audit.conf
+        mode: "0644"
+      notify: Restart rsyslog
+
+    # ---- VERIFICATION ----
+    - name: "Verify firewall is active"
+      ansible.builtin.command:
+        cmd: "iptables -L -n"
+      register: fw_status
+      changed_when: false
+
+    - name: "Check firewall default DROP policy"
+      ansible.builtin.assert:
+        that:
+          - "'DROP' in fw_status.stdout"
+        fail_msg: "Firewall default DROP policy not detected"
+        success_msg: "Firewall active with default DROP"
+
+    - name: "Verify air-gap post-hardening"
+      ansible.builtin.command:
+        cmd: "ping -c 1 -W 2 8.8.8.8"
+      register: post_airgap
+      failed_when: post_airgap.rc == 0
+      changed_when: false
+
+    - name: "Verify ASLR is enabled"
+      ansible.builtin.command:
+        cmd: "sysctl kernel.randomize_va_space"
+      register: aslr_check
+      changed_when: false
+
+    - name: "Report hardening status"
+      ansible.builtin.debug:
+        msg: |
+          Hardening Verification:
+            Firewall:  ACTIVE (default DROP)
+            Air-gap:   ENFORCED
+            SSH:       Root disabled, key-only, no forwarding
+            ASLR:      {{ aslr_check.stdout }}
+            Kernel:    Hardened (kptr_restrict, dmesg_restrict, ptrace_scope)
+
+  handlers:
+    - name: "Reload systemd"
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: "Reload SSH"
+      ansible.builtin.service:
+        name: "{{ 'sshd' if ansible_os_family == 'RedHat' else 'ssh' }}"
+        state: reloaded
+
+    - name: "Restart rsyslog"
+      ansible.builtin.service:
+        name: rsyslog
+        state: restarted

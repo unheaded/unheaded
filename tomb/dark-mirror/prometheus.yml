@@ -1,0 +1,381 @@
+# SPDX-License-Identifier: MIT
+# Prometheus configuration for the Dark Mirror — Tomb of Knowledge
+#
+# Scrapes all Unheaded Kingdom services at 192.168.13.1 across the Doom Range.
+# This configuration observes the Kingdom from an external, untrusted perspective.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+  external_labels:
+    monitor: 'dark-mirror'
+    environment: 'tomb'
+    cluster: 'kingdom-west'
+
+# Alert rules
+rule_files:
+  - '/etc/prometheus/kingdom-alerts.yml'
+
+# Alertmanager (optional — not deployed by default in Tomb)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['127.0.0.1:9093']
+
+scrape_configs:
+
+  # =====================================================
+  # Prometheus self-monitoring
+  # =====================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['127.0.0.1:9090']
+        labels:
+          instance: 'dark-mirror'
+
+  # =====================================================
+  # Infrastructure Tier (16666-16999)
+  # =====================================================
+
+  - job_name: 'protocol-api'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['192.168.13.1:16666']
+        labels:
+          service: 'protocol-api'
+          tier: 'infrastructure'
+          layer: 'protocol-handlers'
+
+  - job_name: 'doom-injector'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:16667']
+        labels:
+          service: 'doom-injector'
+          tier: 'infrastructure'
+
+  - job_name: 'trace-collector-http'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:16670']
+        labels:
+          service: 'trace-collector'
+          tier: 'infrastructure'
+          protocol: 'grpc'
+
+  - job_name: 'trace-collector-metrics'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:16671']
+        labels:
+          service: 'trace-collector'
+          tier: 'infrastructure'
+          protocol: 'http'
+
+  # =====================================================
+  # Control Plane (17000-17999)
+  # =====================================================
+
+  - job_name: 'unheaded-daemon-http'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['192.168.13.1:17000']
+        labels:
+          service: 'unheaded-daemon'
+          tier: 'control-plane'
+          protocol: 'http'
+
+  - job_name: 'cli-server'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:17010']
+        labels:
+          service: 'cli-server'
+          tier: 'control-plane'
+
+  - job_name: 'protocol-api-rest'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:17100']
+        labels:
+          service: 'protocol-api'
+          tier: 'control-plane'
+          protocol: 'rest'
+
+  # =====================================================
+  # Wotan Message Bus (18000-18099)
+  # =====================================================
+
+  - job_name: 'wotan-http'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['192.168.13.1:18000']
+        labels:
+          service: 'wotan'
+          tier: 'message-bus'
+          protocol: 'http'
+
+  # =====================================================
+  # Core Services (19000-19999)
+  # =====================================================
+
+  - job_name: 'timeguru'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19000']
+        labels:
+          service: 'timeguru'
+          tier: 'core-services'
+
+  - job_name: 'architect'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19001']
+        labels:
+          service: 'architect'
+          tier: 'core-services'
+
+  - job_name: 'captain'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19002']
+        labels:
+          service: 'captain'
+          tier: 'core-services'
+
+  - job_name: 'micromanager'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19003']
+        labels:
+          service: 'micromanager'
+          tier: 'core-services'
+
+  - job_name: 'monad'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19004']
+        labels:
+          service: 'monad'
+          tier: 'core-services'
+          protocol: 'grpc'
+
+  - job_name: 'sophia'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19005']
+        labels:
+          service: 'sophia'
+          tier: 'core-services'
+          protocol: 'grpc'
+
+  - job_name: 'cuirass'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19006']
+        labels:
+          service: 'cuirass'
+          tier: 'core-services'
+
+  # =====================================================
+  # Applications (20000-20999)
+  # =====================================================
+
+  - job_name: 'dashboard-backend'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:20000']
+        labels:
+          service: 'dashboard-backend'
+          tier: 'applications'
+
+  - job_name: 'kanban-app'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:20001']
+        labels:
+          service: 'kanban-app'
+          tier: 'applications'
+
+  - job_name: 'wiki-server'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:20002']
+        labels:
+          service: 'wiki-server'
+          tier: 'applications'
+
+  # =====================================================
+  # AI Model Stack — Sophia's Eye (20100-20199)
+  # =====================================================
+
+  - job_name: 'vllm-deepseek'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['192.168.13.1:20100']
+        labels:
+          service: 'vllm-deepseek'
+          tier: 'ai-services'
+
+  - job_name: 'vllm-qwen'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['192.168.13.1:20101']
+        labels:
+          service: 'vllm-qwen'
+          tier: 'ai-services'
+
+  - job_name: 'qdrant'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['192.168.13.1:20102']
+        labels:
+          service: 'qdrant'
+          tier: 'ai-services'
+
+  - job_name: 'sophia-eye'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['192.168.13.1:20105']
+        labels:
+          service: 'sophia-eye'
+          tier: 'ai-services'
+
+  # =====================================================
+  # Gateway (21000-21443)
+  # =====================================================
+
+  - job_name: 'gateway-http'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['192.168.13.1:21000']
+        labels:
+          service: 'gateway'
+          tier: 'gateway'
+          protocol: 'http'
+
+  # =====================================================
+  # Load Balancers — HAProxy + Nginx Sidecars
+  # =====================================================
+
+  - job_name: 'haproxy-edge-stats'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['192.168.13.1:21404']
+        labels:
+          service: 'haproxy-edge'
+          tier: 'load-balancer'
+          role: 'edge'
+
+  - job_name: 'haproxy-internal-stats'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['192.168.13.1:21405']
+        labels:
+          service: 'haproxy-internal'
+          tier: 'load-balancer'
+          role: 'internal'
+
+  - job_name: 'nginx-wotan'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:18080']
+        labels:
+          service: 'nginx-wotan'
+          tier: 'load-balancer'
+          role: 'sidecar'
+
+  - job_name: 'nginx-monad'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19080']
+        labels:
+          service: 'nginx-monad'
+          tier: 'load-balancer'
+          role: 'sidecar'
+
+  - job_name: 'nginx-sophia'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:19081']
+        labels:
+          service: 'nginx-sophia'
+          tier: 'load-balancer'
+          role: 'sidecar'
+
+  - job_name: 'nginx-dashboard'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:20080']
+        labels:
+          service: 'nginx-dashboard'
+          tier: 'load-balancer'
+          role: 'sidecar'
+
+  - job_name: 'nginx-kanban'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:20081']
+        labels:
+          service: 'nginx-kanban'
+          tier: 'load-balancer'
+          role: 'sidecar'
+
+  - job_name: 'nginx-gateway'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['192.168.13.1:21090']
+        labels:
+          service: 'nginx-gateway'
+          tier: 'load-balancer'
+          role: 'sidecar'
+
+  # =====================================================
+  # Utilities (22000-22099)
+  # =====================================================
+
+  - job_name: 'certgen'
+    metrics_path: '/metrics'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['192.168.13.1:22000']
+        labels:
+          service: 'certgen'
+          tier: 'utilities'
+
+  # =====================================================
+  # Kingdom Health Probes (HTTP /health endpoints)
+  # =====================================================
+
+  - job_name: 'kingdom-health'
+    metrics_path: '/health'
+    scrape_interval: 30s
+    scrape_timeout: 5s
+    static_configs:
+      - targets:
+          - '192.168.13.1:16666'
+          - '192.168.13.1:17000'
+          - '192.168.13.1:18000'
+          - '192.168.13.1:19000'
+          - '192.168.13.1:19001'
+          - '192.168.13.1:19002'
+          - '192.168.13.1:19003'
+          - '192.168.13.1:20000'
+          - '192.168.13.1:20001'
+          - '192.168.13.1:21000'
+        labels:
+          probe: 'health'
+    # Health checks may return non-Prometheus format; ignore parse errors
+    honor_labels: true

@@ -1,0 +1,10 @@
+LICH-003 Seed Corpus: CRC-16 Collision Hunting
+
+Seeds target CRC-16/CCITT-FALSE collision hunting.
+The birthday bound for 16-bit CRC is ~256 inputs (50% chance of collision).
+
+Known collision pairs found during fuzzing should be saved here as:
+  collision_NNN_a.bin / collision_NNN_b.bin
+
+Monad header seeds (18 bytes each) for monad-specific collision hunting
+are embedded in the harness.

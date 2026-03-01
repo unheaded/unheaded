@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+# roles/oracle/handlers/main.yml
+---
+- name: "Restart Ollama"
+  ansible.builtin.systemd:
+    name: ollama
+    state: restarted
+
+- name: "Restart oracle-daemon"
+  ansible.builtin.systemd:
+    name: oracle-daemon
+    state: restarted

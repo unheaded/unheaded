@@ -1,0 +1,175 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+#
+# Dark Mirror — Docker Compose Stack
+# Tomb of Knowledge observability layer for monitoring the Kingdom externally.
+#
+# Services: Prometheus, Grafana, Loki, Promtail
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f
+#   docker compose down
+#
+# Air-gapped deployment:
+#   1. Pre-pull images on internet-connected host (see load-images.sh)
+#   2. Transfer .tar files to Tomb VM
+#   3. Load images: ./load-images.sh --load /tmp/dark-mirror-images/
+#   4. Start stack: docker compose up -d
+
+services:
+
+  # =============================================
+  # Prometheus — Metrics Collection & Storage
+  # =============================================
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: dark-mirror-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/kingdom-alerts.yml:/etc/prometheus/kingdom-alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    networks:
+      - dark-mirror
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # =============================================
+  # Grafana — Visualization & Dashboards
+  # =============================================
+  grafana:
+    image: grafana/grafana:10.3.3
+    container_name: dark-mirror-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=tomb-of-knowledge
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_ALLOW_ORG_CREATE=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+      - GF_SNAPSHOTS_EXTERNAL_ENABLED=false
+      - GF_SERVER_ROOT_URL=http://127.0.0.1:3000
+      - GF_LOG_MODE=console
+      - GF_LOG_LEVEL=info
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/kingdom-overview.json
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - dark-mirror
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # =============================================
+  # Loki — Log Aggregation
+  # =============================================
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: dark-mirror-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command:
+      - '-config.file=/etc/loki/local-config.yaml'
+    networks:
+      - dark-mirror
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # =============================================
+  # Promtail — Log Shipper
+  # =============================================
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: dark-mirror-promtail
+    restart: unless-stopped
+    ports:
+      - "9080:9080"
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      # Mount Tomb directories for log collection
+      - /opt/tomb/lich:/opt/tomb/lich:ro
+      - /opt/tomb/oracle:/opt/tomb/oracle:ro
+      - /opt/tomb/reports:/opt/tomb/reports:ro
+      - /opt/tomb/captures:/opt/tomb/captures:ro
+      # System logs
+      - /var/log:/var/log:ro
+      # Docker container logs
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command:
+      - '-config.file=/etc/promtail/config.yml'
+    networks:
+      - dark-mirror
+    depends_on:
+      loki:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+networks:
+  dark-mirror:
+    driver: bridge
+    name: dark-mirror
+
+volumes:
+  prometheus-data:
+    name: dark-mirror-prometheus-data
+  grafana-data:
+    name: dark-mirror-grafana-data
+  loki-data:
+    name: dark-mirror-loki-data

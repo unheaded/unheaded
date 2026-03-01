@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+# roles/hardening/defaults/main.yml
+---
+tomb_root: /opt/tomb
+tomb_vm_ip: 192.168.13.6
+allowed_ssh_source: 192.168.13.2
+allowed_network: 192.168.13.0/30
