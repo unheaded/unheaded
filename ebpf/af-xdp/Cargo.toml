@@ -6,6 +6,7 @@ license = "GPL-2.0-only"
 publish = false
 repository = "https://github.com/unheaded-kingdom/ebpf"
 authors = ["Unheaded Contributors"]
+autobenches = false
 
 [dependencies]
 af-xdp-common = { path = "../af-xdp-common" }
@@ -21,3 +22,7 @@ lto = false
 
 [profile.release]
 lto = "thin"
+
+[[bin]]
+name = "af-xdp-bench"
+path = "benches/main.rs"
