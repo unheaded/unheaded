@@ -1,0 +1,9 @@
+# AF_XDP userspace library — builds for HOST target (not bpfel)
+# Overrides parent ebpf/.cargo/config.toml settings
+
+[build]
+# Host target — do NOT set bpfel-unknown-none
+
+# Override parent's build-std = ["core"] with full std set for host target
+[unstable]
+build-std = ["std", "core", "alloc"]
