@@ -160,16 +160,16 @@ pub mod flags {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum EventType {
     /// Shield ingress inserted the Monad (packet birth).
-    Birth   = 0x01,
+    Birth = 0x01,
     /// Intermediate eBPF program processed the packet at a Kingdom hop.
     #[default]
-    Hop     = 0x02,
+    Hop = 0x02,
     /// Shield egress stripped the Monad (packet death).
-    Death   = 0x03,
+    Death = 0x03,
     /// Checksum failure, unknown Sophia key, or decode error.
     Anomaly = 0x04,
     /// Chaos injection subsystem (Yaldabaoth) modified the packet.
-    Chaos   = 0x05,
+    Chaos = 0x05,
 }
 
 impl EventType {
@@ -182,7 +182,7 @@ impl EventType {
             0x03 => Some(Self::Death),
             0x04 => Some(Self::Anomaly),
             0x05 => Some(Self::Chaos),
-            _    => None,
+            _ => None,
         }
     }
 }
@@ -196,15 +196,15 @@ pub enum ChaosMode {
     /// XOR a random byte in Monad offsets 0x01–0x11 with a random mask.
     /// Checksum is NOT recomputed — the corruption is intentional.
     #[default]
-    BitFlip      = 0x01,
+    BitFlip = 0x01,
     /// Use TC scheduling to add a configurable microsecond delay.
-    Delay        = 0x02,
+    Delay = 0x02,
     /// Clone the packet via bpf_clone_redirect to the same interface.
-    Duplicate    = 0x03,
+    Duplicate = 0x03,
     /// Zero out Monad octets 0x08 through 0x13 (Latency Hint through Checksum).
-    Truncate     = 0x04,
+    Truncate = 0x04,
     /// Set the CHAOS flag without any other modification.
-    ChaosMarker  = 0x05,
+    ChaosMarker = 0x05,
 }
 
 // ── Well-known Sophia key values ──────────────────────────────────────────────
@@ -212,9 +212,9 @@ pub enum ChaosMode {
 /// Common values for the exponent-encoded Circuit State field.
 pub mod circuit_state {
     /// Circuit is closed — normal traffic flow.
-    pub const CLOSED:    u8 = 0x01;
+    pub const CLOSED: u8 = 0x01;
     /// Circuit is open — traffic is blocked (too many failures).
-    pub const OPEN:      u8 = 0x02;
+    pub const OPEN: u8 = 0x02;
     /// Circuit is half-open — probe traffic allowed for recovery testing.
     pub const HALF_OPEN: u8 = 0x03;
 }
@@ -224,13 +224,13 @@ pub mod flow_action {
     /// Forward the packet normally.
     pub const FORWARD: u8 = 0x01;
     /// Collect a full distributed trace for this packet.
-    pub const TRACE:   u8 = 0x02;
+    pub const TRACE: u8 = 0x02;
     /// Select this packet for statistical sampling.
-    pub const SAMPLE:  u8 = 0x03;
+    pub const SAMPLE: u8 = 0x03;
     /// Mirror the packet to an analysis interface.
-    pub const MIRROR:  u8 = 0x04;
+    pub const MIRROR: u8 = 0x04;
     /// Drop the packet at the next hop.
-    pub const DROP:    u8 = 0x05;
+    pub const DROP: u8 = 0x05;
 }
 
 /// Common values for the exponent-encoded Deployment Ring field.
@@ -238,9 +238,9 @@ pub mod deploy_ring {
     /// Production traffic — full stability guarantees.
     pub const PRODUCTION: u8 = 0x01;
     /// Canary ring — small percentage of production traffic.
-    pub const CANARY:     u8 = 0x02;
+    pub const CANARY: u8 = 0x02;
     /// Staging ring — pre-production validation.
-    pub const STAGING:    u8 = 0x03;
+    pub const STAGING: u8 = 0x03;
     /// Development ring — unrestricted experimentation.
     pub const DEVELOPMENT: u8 = 0x04;
 }
@@ -411,10 +411,21 @@ pub struct Monad {
 // These will fail to compile if the struct layout is wrong.
 const _: () = {
     let m = Monad {
-        version: 0, src_service_id: 0, dst_service_id: 0, hop_count: 0,
-        qos_class: 0, flow_action: 0, circuit_state: 0, flags: 0,
-        latency_hint: [0; 2], deploy_ring: 0, mesh_flags: 0,
-        src_prefix_lo: 0, dst_prefix_lo: 0, scratch: [0; 4], checksum: [0; 2],
+        version: 0,
+        src_service_id: 0,
+        dst_service_id: 0,
+        hop_count: 0,
+        qos_class: 0,
+        flow_action: 0,
+        circuit_state: 0,
+        flags: 0,
+        latency_hint: [0; 2],
+        deploy_ring: 0,
+        mesh_flags: 0,
+        src_prefix_lo: 0,
+        dst_prefix_lo: 0,
+        scratch: [0; 4],
+        checksum: [0; 2],
     };
     // Size check — must be exactly 20 bytes
     let _ = [(); MONAD_SIZE - core::mem::size_of::<Monad>()];
@@ -431,21 +442,21 @@ impl Monad {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            version:        MONAD_VERSION,
+            version: MONAD_VERSION,
             src_service_id: 0,
             dst_service_id: 0,
-            hop_count:      0,
-            qos_class:      0,
-            flow_action:    flow_action::FORWARD,
-            circuit_state:  circuit_state::CLOSED,
-            flags:          0,
-            latency_hint:   [0; 2],
-            deploy_ring:    deploy_ring::PRODUCTION,
-            mesh_flags:     0,
-            src_prefix_lo:  0,
-            dst_prefix_lo:  0,
-            scratch:        [0; 4],
-            checksum:       [0; 2],
+            hop_count: 0,
+            qos_class: 0,
+            flow_action: flow_action::FORWARD,
+            circuit_state: circuit_state::CLOSED,
+            flags: 0,
+            latency_hint: [0; 2],
+            deploy_ring: deploy_ring::PRODUCTION,
+            mesh_flags: 0,
+            src_prefix_lo: 0,
+            dst_prefix_lo: 0,
+            scratch: [0; 4],
+            checksum: [0; 2],
         }
     }
 
@@ -480,21 +491,21 @@ impl Monad {
     #[inline]
     pub const fn from_bytes(b: [u8; MONAD_SIZE]) -> Self {
         Self {
-            version:        b[0],
+            version: b[0],
             src_service_id: b[1],
             dst_service_id: b[2],
-            hop_count:      b[3],
-            qos_class:      b[4],
-            flow_action:    b[5],
-            circuit_state:  b[6],
-            flags:          b[7],
-            latency_hint:   [b[8], b[9]],
-            deploy_ring:    b[10],
-            mesh_flags:     b[11],
-            src_prefix_lo:  b[12],
-            dst_prefix_lo:  b[13],
-            scratch:        [b[14], b[15], b[16], b[17]],
-            checksum:       [b[18], b[19]],
+            hop_count: b[3],
+            qos_class: b[4],
+            flow_action: b[5],
+            circuit_state: b[6],
+            flags: b[7],
+            latency_hint: [b[8], b[9]],
+            deploy_ring: b[10],
+            mesh_flags: b[11],
+            src_prefix_lo: b[12],
+            dst_prefix_lo: b[13],
+            scratch: [b[14], b[15], b[16], b[17]],
+            checksum: [b[18], b[19]],
         }
     }
 
@@ -613,8 +624,7 @@ impl Monad {
     /// Returns `true` if this Monad has a valid version and default flags.
     #[inline]
     pub const fn is_valid(&self) -> bool {
-        self.version == MONAD_VERSION
-        && (self.flags & flags::RSVD) == 0
+        self.version == MONAD_VERSION && (self.flags & flags::RSVD) == 0
     }
 }
 
@@ -658,10 +668,10 @@ impl HopByHopHeader {
     pub const fn new(next_header: u8) -> Self {
         Self {
             next_header,
-            hdr_ext_len:  HBH_HDR_EXT_LEN,
-            opt_type:     MONAD_OPT_TYPE,
+            hdr_ext_len: HBH_HDR_EXT_LEN,
+            opt_type: MONAD_OPT_TYPE,
             opt_data_len: MONAD_OPT_DATA_LEN,
-            monad:        Monad::new(),
+            monad: Monad::new(),
         }
     }
 
@@ -731,10 +741,10 @@ impl AnamnesisEvent {
     #[inline]
     pub const fn new(
         timestamp_ns: u64,
-        event_type:   EventType,
-        hop_id:       u8,
-        flow_label:   u32,
-        monad:        Monad,
+        event_type: EventType,
+        hop_id: u8,
+        flow_label: u32,
+        monad: Monad,
     ) -> Self {
         let flow_lo = (flow_label & 0xFFFF) as u16;
         Self {
@@ -1034,9 +1044,9 @@ impl MbcInsn {
     pub const fn encode(opcode: u8, dst: u8, src: u8, imm: u16) -> Self {
         Self(
             ((opcode as u32) << 24)
-            | (((dst & 0x0F) as u32) << 20)
-            | (((src & 0x0F) as u32) << 16)
-            | (imm as u32),
+                | (((dst & 0x0F) as u32) << 20)
+                | (((src & 0x0F) as u32) << 16)
+                | (imm as u32),
         )
     }
 }
@@ -1045,43 +1055,43 @@ impl MbcInsn {
 pub mod mbc_opcodes {
     // ── No-op ─────────────────────────────────────────────────
     /// No operation.  CPU advances PC, no other side effects.
-    pub const NOP:  u8 = 0x00;
+    pub const NOP: u8 = 0x00;
 
     // ── Arithmetic ────────────────────────────────────────────
     /// `dst = dst + src`
-    pub const ADD:  u8 = 0x01;
+    pub const ADD: u8 = 0x01;
     /// `dst = dst - src`
-    pub const SUB:  u8 = 0x02;
+    pub const SUB: u8 = 0x02;
     /// `dst = dst * src`
-    pub const MUL:  u8 = 0x03;
+    pub const MUL: u8 = 0x03;
     /// `dst = dst / src`  (unsigned)
-    pub const DIV:  u8 = 0x04;
+    pub const DIV: u8 = 0x04;
     /// `dst = dst % src`  (unsigned)
-    pub const MOD:  u8 = 0x05;
+    pub const MOD: u8 = 0x05;
     /// `dst = -dst`
-    pub const NEG:  u8 = 0x06;
+    pub const NEG: u8 = 0x06;
 
     // ── Logical / bitwise ─────────────────────────────────────
     /// `dst = dst & src`
-    pub const AND:  u8 = 0x07;
+    pub const AND: u8 = 0x07;
     /// `dst = dst | src`
-    pub const OR:   u8 = 0x08;
+    pub const OR: u8 = 0x08;
     /// `dst = dst ^ src`
-    pub const XOR:  u8 = 0x09;
+    pub const XOR: u8 = 0x09;
     /// `dst = ~dst`
-    pub const NOT:  u8 = 0x0A;
+    pub const NOT: u8 = 0x0A;
     /// `dst = dst << imm16`
-    pub const SHL:  u8 = 0x0B;
+    pub const SHL: u8 = 0x0B;
     /// `dst = dst >> imm16`  (logical)
-    pub const SHR:  u8 = 0x0C;
+    pub const SHR: u8 = 0x0C;
     /// `dst = dst >> imm16`  (arithmetic, sign-extending)
-    pub const SAR:  u8 = 0x0D;
+    pub const SAR: u8 = 0x0D;
 
     // ── Stack operations ───────────────────────────────────────
     /// `SP -= 1; ram[SP] = regs[dst]` (push register to stack)
     pub const PUSH: u8 = 0x1A;
     /// `regs[dst] = ram[SP]; SP += 1` (pop stack to register)
-    pub const POP:  u8 = 0x1B;
+    pub const POP: u8 = 0x1B;
 
     // ── Extended immediate ────────────────────────────────────
     /// `regs[dst][31:16] = imm16` (load upper 16 bits, preserving lower 16)
@@ -1101,33 +1111,33 @@ pub mod mbc_opcodes {
 
     // ── Register operations ────────────────────────────────────
     /// `dst = src`
-    pub const MOV:  u8 = 0x0E;
+    pub const MOV: u8 = 0x0E;
     /// `dst = zero_extend(imm16)`
     pub const MOVI: u8 = 0x0F;
 
     // ── Comparison ─────────────────────────────────────────────
     /// `flags = cmp(dst, src)` (sets Z, N, C without storing result)
-    pub const CMP:  u8 = 0x10;
+    pub const CMP: u8 = 0x10;
 
     // ── Branch ─────────────────────────────────────────────────
     /// `pc += imm16_signed` (unconditional)
-    pub const JMP:  u8 = 0x20;
+    pub const JMP: u8 = 0x20;
     /// `if Z: pc += imm16_signed`
-    pub const JZ:   u8 = 0x21;
+    pub const JZ: u8 = 0x21;
     /// `if !Z: pc += imm16_signed`
-    pub const JNZ:  u8 = 0x22;
+    pub const JNZ: u8 = 0x22;
     /// `if N: pc += imm16_signed`
-    pub const JN:   u8 = 0x23;
+    pub const JN: u8 = 0x23;
     /// `if !N: pc += imm16_signed`
-    pub const JP:   u8 = 0x24;
+    pub const JP: u8 = 0x24;
     /// `if C: pc += imm16_signed`
-    pub const JC:   u8 = 0x25;
+    pub const JC: u8 = 0x25;
     /// `if !C: pc += imm16_signed`
-    pub const JNC:  u8 = 0x26;
+    pub const JNC: u8 = 0x26;
     /// Push PC+1 to stack, then `pc = imm16`
     pub const CALL: u8 = 0x27;
     /// Pop PC from stack
-    pub const RET:  u8 = 0x28;
+    pub const RET: u8 = 0x28;
     /// `pc = regs[dst]` (indirect jump — jump to register)
     pub const JMPR: u8 = 0x29;
     /// `push(PC+1); pc = regs[dst]` (indirect call — call register)
@@ -1135,23 +1145,23 @@ pub mod mbc_opcodes {
 
     // ── Memory ─────────────────────────────────────────────────
     /// `dst = ram_map[src + imm16]`  (32-bit load)
-    pub const LD:   u8 = 0x30;
+    pub const LD: u8 = 0x30;
     /// `ram_map[dst + imm16] = src`  (32-bit store)
-    pub const ST:   u8 = 0x31;
+    pub const ST: u8 = 0x31;
     /// `dst = zero_extend(ram_map[src + imm16])`  (byte load)
-    pub const LDB:  u8 = 0x32;
+    pub const LDB: u8 = 0x32;
     /// `ram_map[dst + imm16] = src & 0xFF`  (byte store)
-    pub const STB:  u8 = 0x33;
+    pub const STB: u8 = 0x33;
     /// `dst = zero_extend(ram_map[src + imm16])` (16-bit load)
-    pub const LDH:  u8 = 0x34;
+    pub const LDH: u8 = 0x34;
     /// `ram_map[dst + imm16] = src & 0xFFFF`  (16-bit store)
-    pub const STH:  u8 = 0x35;
+    pub const STH: u8 = 0x35;
 
     // ── System ─────────────────────────────────────────────────
     /// Invoke I/O callback.  `imm16` = syscall number (see `mbc_syscalls`).
     pub const SYSCALL: u8 = 0x40;
     /// Halt execution.  Sets `MbcCpuState.halted = 1`.
-    pub const HALT:    u8 = 0xFF;
+    pub const HALT: u8 = 0xFF;
 }
 
 /// MBC syscall numbers (value in `r0` at time of SYSCALL instruction).
@@ -1161,28 +1171,28 @@ pub mod mbc_syscalls {
     pub const SYS_DRAW_FRAME: u32 = 0x01;
     /// `DG_GetKey()` — read from kbd_map.
     /// Returns: `r0` = key scancode, `r1` = 1 if pressed / 0 if released.
-    pub const SYS_GET_KEY:    u32 = 0x02;
+    pub const SYS_GET_KEY: u32 = 0x02;
     /// `DG_GetTicksMs()` — `r0 = bpf_ktime_get_ns() / 1_000_000`.
-    pub const SYS_GET_TICKS:  u32 = 0x03;
+    pub const SYS_GET_TICKS: u32 = 0x03;
     /// `DG_SleepMs(ms)` — set `sleep_until = now + r0 * 1_000_000`.
-    pub const SYS_SLEEP:      u32 = 0x04;
+    pub const SYS_SLEEP: u32 = 0x04;
 }
 
 /// Screen / I/O memory map constants for the Doom-over-IPv6 PoC.
 pub mod mbc_mmap {
     /// Base address of general RAM in `ram_map`.
-    pub const RAM_BASE:    u32 = 0x0000_0000;
+    pub const RAM_BASE: u32 = 0x0000_0000;
     /// Size of general RAM (0xC000 = 49152 bytes = 48 KiB).
-    pub const RAM_SIZE:    u32 = 0x0000_C000;
+    pub const RAM_SIZE: u32 = 0x0000_C000;
     /// Base address of the screen I/O region in `ram_map`.
     /// Maps to `screen_map[0..64000]` (320x200 pixels, 8-bit palette indices).
     pub const SCREEN_BASE: u32 = 0x0000_C000;
     /// Size of screen I/O region (320×200 = 64000 bytes).
     pub const SCREEN_SIZE: u32 = 64_000;
     /// Address of the keyboard I/O word (1 u32: `scancode << 1 | pressed`).
-    pub const KBD_ADDR:    u32 = 0x0000_FFFF;
+    pub const KBD_ADDR: u32 = 0x0000_FFFF;
     /// Base address of the WAD data in `ram_map` (loaded by Wotan).
-    pub const WAD_BASE:    u32 = 0x0001_0000;
+    pub const WAD_BASE: u32 = 0x0001_0000;
     /// Maximum WAD size (4 MB — sufficient for doom1.wad).
     pub const WAD_MAX_SIZE: u32 = 4 * 1024 * 1024;
 }
@@ -1202,9 +1212,9 @@ pub mod mbc_mmap {
 /// Returns the size in bytes, rounded up to the nearest power of two
 /// (required by the BPF ring buffer allocator).
 pub const fn anamnesis_ring_size(
-    packets_per_sec:  u64,
-    sampling_num:     u64,
-    sampling_den:     u64,
+    packets_per_sec: u64,
+    sampling_num: u64,
+    sampling_den: u64,
     hot_retention_sec: u64,
 ) -> u64 {
     if sampling_den == 0 {
@@ -1220,7 +1230,7 @@ pub const fn anamnesis_ring_size(
     while p < raw {
         p = match p.checked_mul(2) {
             Some(v) => v,
-            None    => return u64::MAX,
+            None => return u64::MAX,
         };
     }
     p
@@ -1275,41 +1285,41 @@ mod tests {
             };
         }
 
-        assert_eq!(off!(version),        OFF_VERSION,        "version");
+        assert_eq!(off!(version), OFF_VERSION, "version");
         assert_eq!(off!(src_service_id), OFF_SRC_SERVICE_ID, "src_service_id");
         assert_eq!(off!(dst_service_id), OFF_DST_SERVICE_ID, "dst_service_id");
-        assert_eq!(off!(hop_count),      OFF_HOP_COUNT,      "hop_count");
-        assert_eq!(off!(qos_class),      OFF_QOS_CLASS,      "qos_class");
-        assert_eq!(off!(flow_action),    OFF_FLOW_ACTION,    "flow_action");
-        assert_eq!(off!(circuit_state),  OFF_CIRCUIT_STATE,  "circuit_state");
-        assert_eq!(off!(flags),          OFF_FLAGS,          "flags");
-        assert_eq!(off!(latency_hint),   OFF_LATENCY_HINT,   "latency_hint");
-        assert_eq!(off!(deploy_ring),    OFF_DEPLOY_RING,    "deploy_ring");
-        assert_eq!(off!(mesh_flags),     OFF_MESH_FLAGS,     "mesh_flags");
-        assert_eq!(off!(src_prefix_lo),  OFF_SRC_PREFIX_LO,  "src_prefix_lo");
-        assert_eq!(off!(dst_prefix_lo),  OFF_DST_PREFIX_LO,  "dst_prefix_lo");
-        assert_eq!(off!(scratch),        OFF_SCRATCH_0,      "scratch[0]");
-        assert_eq!(off!(checksum),       OFF_CHECKSUM,       "checksum");
+        assert_eq!(off!(hop_count), OFF_HOP_COUNT, "hop_count");
+        assert_eq!(off!(qos_class), OFF_QOS_CLASS, "qos_class");
+        assert_eq!(off!(flow_action), OFF_FLOW_ACTION, "flow_action");
+        assert_eq!(off!(circuit_state), OFF_CIRCUIT_STATE, "circuit_state");
+        assert_eq!(off!(flags), OFF_FLAGS, "flags");
+        assert_eq!(off!(latency_hint), OFF_LATENCY_HINT, "latency_hint");
+        assert_eq!(off!(deploy_ring), OFF_DEPLOY_RING, "deploy_ring");
+        assert_eq!(off!(mesh_flags), OFF_MESH_FLAGS, "mesh_flags");
+        assert_eq!(off!(src_prefix_lo), OFF_SRC_PREFIX_LO, "src_prefix_lo");
+        assert_eq!(off!(dst_prefix_lo), OFF_DST_PREFIX_LO, "dst_prefix_lo");
+        assert_eq!(off!(scratch), OFF_SCRATCH_0, "scratch[0]");
+        assert_eq!(off!(checksum), OFF_CHECKSUM, "checksum");
     }
 
     #[test]
     fn monad_bytes_roundtrip() {
         let m = Monad {
-            version:        0x01,
+            version: 0x01,
             src_service_id: 0x02,
             dst_service_id: 0x03,
-            hop_count:      0x05,
-            qos_class:      0x06,
-            flow_action:    flow_action::TRACE,
-            circuit_state:  circuit_state::CLOSED,
-            flags:          flags::TRACED | flags::SAMPLED,
-            latency_hint:   250u16.to_be_bytes(),
-            deploy_ring:    deploy_ring::CANARY,
-            mesh_flags:     0x00,
-            src_prefix_lo:  0x0A,
-            dst_prefix_lo:  0x0B,
-            scratch:        [0xDE, 0xAD, 0xBE, 0xEF],
-            checksum:       [0; 2],
+            hop_count: 0x05,
+            qos_class: 0x06,
+            flow_action: flow_action::TRACE,
+            circuit_state: circuit_state::CLOSED,
+            flags: flags::TRACED | flags::SAMPLED,
+            latency_hint: 250u16.to_be_bytes(),
+            deploy_ring: deploy_ring::CANARY,
+            mesh_flags: 0x00,
+            src_prefix_lo: 0x0A,
+            dst_prefix_lo: 0x0B,
+            scratch: [0xDE, 0xAD, 0xBE, 0xEF],
+            checksum: [0; 2],
         };
         let bytes = m.to_bytes();
         let restored = Monad::from_bytes(bytes);
@@ -1319,43 +1329,43 @@ mod tests {
     #[test]
     fn monad_bytes_layout_exact() {
         let m = Monad {
-            version:        0x01,
+            version: 0x01,
             src_service_id: 0x0A,
             dst_service_id: 0x0B,
-            hop_count:      0x03,
-            qos_class:      0x01,
-            flow_action:    0x01,
-            circuit_state:  0x01,
-            flags:          0x20,
-            latency_hint:   [0x00, 0x64], // 100 µs
-            deploy_ring:    0x01,
-            mesh_flags:     0x00,
-            src_prefix_lo:  0x10,
-            dst_prefix_lo:  0x20,
-            scratch:        [0x11, 0x22, 0x33, 0x44],
-            checksum:       [0xAB, 0xCD],
+            hop_count: 0x03,
+            qos_class: 0x01,
+            flow_action: 0x01,
+            circuit_state: 0x01,
+            flags: 0x20,
+            latency_hint: [0x00, 0x64], // 100 µs
+            deploy_ring: 0x01,
+            mesh_flags: 0x00,
+            src_prefix_lo: 0x10,
+            dst_prefix_lo: 0x20,
+            scratch: [0x11, 0x22, 0x33, 0x44],
+            checksum: [0xAB, 0xCD],
         };
         let b = m.to_bytes();
-        assert_eq!(b[OFF_VERSION],        0x01, "version");
+        assert_eq!(b[OFF_VERSION], 0x01, "version");
         assert_eq!(b[OFF_SRC_SERVICE_ID], 0x0A, "src_service_id");
         assert_eq!(b[OFF_DST_SERVICE_ID], 0x0B, "dst_service_id");
-        assert_eq!(b[OFF_HOP_COUNT],      0x03, "hop_count");
-        assert_eq!(b[OFF_QOS_CLASS],      0x01, "qos_class");
-        assert_eq!(b[OFF_FLOW_ACTION],    0x01, "flow_action");
-        assert_eq!(b[OFF_CIRCUIT_STATE],  0x01, "circuit_state");
-        assert_eq!(b[OFF_FLAGS],          0x20, "flags");
-        assert_eq!(b[OFF_LATENCY_HINT],   0x00, "latency_hint[0]");
-        assert_eq!(b[OFF_LATENCY_HINT+1], 0x64, "latency_hint[1]");
-        assert_eq!(b[OFF_DEPLOY_RING],    0x01, "deploy_ring");
-        assert_eq!(b[OFF_MESH_FLAGS],     0x00, "mesh_flags");
-        assert_eq!(b[OFF_SRC_PREFIX_LO],  0x10, "src_prefix_lo");
-        assert_eq!(b[OFF_DST_PREFIX_LO],  0x20, "dst_prefix_lo");
-        assert_eq!(b[OFF_SCRATCH_0],      0x11, "scratch[0]");
-        assert_eq!(b[OFF_SCRATCH_0+1],    0x22, "scratch[1]");
-        assert_eq!(b[OFF_SCRATCH_0+2],    0x33, "scratch[2]");
-        assert_eq!(b[OFF_SCRATCH_0+3],    0x44, "scratch[3]");
-        assert_eq!(b[OFF_CHECKSUM],       0xAB, "checksum[0]");
-        assert_eq!(b[OFF_CHECKSUM+1],     0xCD, "checksum[1]");
+        assert_eq!(b[OFF_HOP_COUNT], 0x03, "hop_count");
+        assert_eq!(b[OFF_QOS_CLASS], 0x01, "qos_class");
+        assert_eq!(b[OFF_FLOW_ACTION], 0x01, "flow_action");
+        assert_eq!(b[OFF_CIRCUIT_STATE], 0x01, "circuit_state");
+        assert_eq!(b[OFF_FLAGS], 0x20, "flags");
+        assert_eq!(b[OFF_LATENCY_HINT], 0x00, "latency_hint[0]");
+        assert_eq!(b[OFF_LATENCY_HINT + 1], 0x64, "latency_hint[1]");
+        assert_eq!(b[OFF_DEPLOY_RING], 0x01, "deploy_ring");
+        assert_eq!(b[OFF_MESH_FLAGS], 0x00, "mesh_flags");
+        assert_eq!(b[OFF_SRC_PREFIX_LO], 0x10, "src_prefix_lo");
+        assert_eq!(b[OFF_DST_PREFIX_LO], 0x20, "dst_prefix_lo");
+        assert_eq!(b[OFF_SCRATCH_0], 0x11, "scratch[0]");
+        assert_eq!(b[OFF_SCRATCH_0 + 1], 0x22, "scratch[1]");
+        assert_eq!(b[OFF_SCRATCH_0 + 2], 0x33, "scratch[2]");
+        assert_eq!(b[OFF_SCRATCH_0 + 3], 0x44, "scratch[3]");
+        assert_eq!(b[OFF_CHECKSUM], 0xAB, "checksum[0]");
+        assert_eq!(b[OFF_CHECKSUM + 1], 0xCD, "checksum[1]");
     }
 
     // ── CRC-16/CCITT ─────────────────────────────────────────────────────────
@@ -1392,9 +1402,10 @@ mod tests {
 
     #[test]
     fn crc_ccitt_single_bit_flip_detected() {
-        let data = [0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06,
-                    0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
-                    0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12];
+        let data = [
+            0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+            0x0F, 0x10, 0x11, 0x12,
+        ];
         let original = CrcCcitt::compute(&data);
         // Flip a single bit in byte 7
         let mut corrupted = data;
@@ -1406,9 +1417,8 @@ mod tests {
     #[test]
     fn crc_ccitt_any_double_bit_flip_detected() {
         let data: [u8; 18] = [
-            0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45,
-            0x67, 0x89, 0x00, 0xFF, 0x10, 0x20,
-            0x30, 0x40, 0x50, 0x60, 0x70, 0x80,
+            0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0x00, 0xFF, 0x10, 0x20, 0x30, 0x40,
+            0x50, 0x60, 0x70, 0x80,
         ];
         let original = CrcCcitt::compute(&data);
         // Flip two bits in the same byte
@@ -1445,7 +1455,10 @@ mod tests {
 
         // Corrupt one field
         m.dst_service_id ^= 0x01;
-        assert!(!m.verify_checksum(), "Checksum must fail after field corruption");
+        assert!(
+            !m.verify_checksum(),
+            "Checksum must fail after field corruption"
+        );
     }
 
     #[test]
@@ -1491,8 +1504,13 @@ mod tests {
     fn monad_flags_all_defined_bits_do_not_overlap() {
         // Each flag is an independent bit
         let bits = [
-            flags::CHAOS, flags::CANARY, flags::TRACED, flags::ENCRYPT,
-            flags::SAMPLED, flags::MIRROR, flags::CUSTOM,
+            flags::CHAOS,
+            flags::CANARY,
+            flags::TRACED,
+            flags::ENCRYPT,
+            flags::SAMPLED,
+            flags::MIRROR,
+            flags::CUSTOM,
         ];
         let mut seen: u8 = 0;
         for &b in &bits {
@@ -1552,9 +1570,9 @@ mod tests {
     #[test]
     fn hbh_header_new_sets_correct_constants() {
         let hbh = HopByHopHeader::new(6); // TCP
-        assert_eq!(hbh.next_header,  6);
-        assert_eq!(hbh.hdr_ext_len,  HBH_HDR_EXT_LEN);
-        assert_eq!(hbh.opt_type,     MONAD_OPT_TYPE);
+        assert_eq!(hbh.next_header, 6);
+        assert_eq!(hbh.hdr_ext_len, HBH_HDR_EXT_LEN);
+        assert_eq!(hbh.opt_type, MONAD_OPT_TYPE);
         assert_eq!(hbh.opt_data_len, MONAD_OPT_DATA_LEN);
         assert_eq!(hbh.monad.version, MONAD_VERSION);
     }
@@ -1564,11 +1582,11 @@ mod tests {
         let hbh = HopByHopHeader::new(17); // UDP
         let b = hbh.to_bytes();
         assert_eq!(b.len(), HBH_TOTAL_LEN);
-        assert_eq!(b[0], 17);              // next_header
+        assert_eq!(b[0], 17); // next_header
         assert_eq!(b[1], HBH_HDR_EXT_LEN);
         assert_eq!(b[2], MONAD_OPT_TYPE);
         assert_eq!(b[3], MONAD_OPT_DATA_LEN);
-        assert_eq!(b[4], MONAD_VERSION);   // monad.version at byte 4
+        assert_eq!(b[4], MONAD_VERSION); // monad.version at byte 4
     }
 
     #[test]
@@ -1576,7 +1594,11 @@ mod tests {
         // Bits 7-6 = action 00 (skip if unrecognized)
         assert_eq!((MONAD_OPT_TYPE >> 6) & 0x03, 0b00, "action bits must be 00");
         // Bit 5 = change-en-route 1
-        assert_eq!((MONAD_OPT_TYPE >> 5) & 0x01, 0b1, "change-en-route bit must be 1");
+        assert_eq!(
+            (MONAD_OPT_TYPE >> 5) & 0x01,
+            0b1,
+            "change-en-route bit must be 1"
+        );
     }
 
     // ── AnamnesisEvent ────────────────────────────────────────────────────
@@ -1603,22 +1625,25 @@ mod tests {
         let m = Monad::new();
         // flow_label_lo = 100 → 100 % 10 == 0 → sampled
         let ev = AnamnesisEvent {
-            timestamp_ns:  0,
-            event_type:    EventType::Hop as u8,
-            hop_id:        0,
+            timestamp_ns: 0,
+            event_type: EventType::Hop as u8,
+            hop_id: 0,
             flow_label_lo: 100u16.to_be_bytes(),
-            monad:         m,
+            monad: m,
         };
         assert!(ev.should_sample(10));
-        assert!(!ev.should_sample(7));  // 100 % 7 = 2 ≠ 0
+        assert!(!ev.should_sample(7)); // 100 % 7 = 2 ≠ 0
     }
 
     #[test]
     fn anamnesis_sampling_zero_divisor_never_samples() {
         let m = Monad::new();
         let ev = AnamnesisEvent {
-            timestamp_ns: 0, event_type: 0, hop_id: 0,
-            flow_label_lo: 0u16.to_be_bytes(), monad: m,
+            timestamp_ns: 0,
+            event_type: 0,
+            hop_id: 0,
+            flow_label_lo: 0u16.to_be_bytes(),
+            monad: m,
         };
         assert!(!ev.should_sample(0));
     }
@@ -1640,11 +1665,11 @@ mod tests {
 
     #[test]
     fn event_type_values_match_spec() {
-        assert_eq!(EventType::Birth   as u8, 0x01);
-        assert_eq!(EventType::Hop     as u8, 0x02);
-        assert_eq!(EventType::Death   as u8, 0x03);
+        assert_eq!(EventType::Birth as u8, 0x01);
+        assert_eq!(EventType::Hop as u8, 0x02);
+        assert_eq!(EventType::Death as u8, 0x03);
         assert_eq!(EventType::Anomaly as u8, 0x04);
-        assert_eq!(EventType::Chaos   as u8, 0x05);
+        assert_eq!(EventType::Chaos as u8, 0x05);
     }
 
     #[test]
@@ -1661,10 +1686,10 @@ mod tests {
 
     #[test]
     fn chaos_mode_values_match_spec() {
-        assert_eq!(ChaosMode::BitFlip     as u8, 0x01);
-        assert_eq!(ChaosMode::Delay       as u8, 0x02);
-        assert_eq!(ChaosMode::Duplicate   as u8, 0x03);
-        assert_eq!(ChaosMode::Truncate    as u8, 0x04);
+        assert_eq!(ChaosMode::BitFlip as u8, 0x01);
+        assert_eq!(ChaosMode::Delay as u8, 0x02);
+        assert_eq!(ChaosMode::Duplicate as u8, 0x03);
+        assert_eq!(ChaosMode::Truncate as u8, 0x04);
         assert_eq!(ChaosMode::ChaosMarker as u8, 0x05);
     }
 
@@ -1678,7 +1703,7 @@ mod tests {
             circuit_state::HALF_OPEN,
         ];
         for i in 0..states.len() {
-            for j in (i+1)..states.len() {
+            for j in (i + 1)..states.len() {
                 assert_ne!(states[i], states[j], "Circuit states must be distinct");
             }
         }
@@ -1694,7 +1719,7 @@ mod tests {
             flow_action::DROP,
         ];
         for i in 0..actions.len() {
-            for j in (i+1)..actions.len() {
+            for j in (i + 1)..actions.len() {
                 assert_ne!(actions[i], actions[j], "Flow actions must be distinct");
             }
         }
@@ -1765,7 +1790,10 @@ mod tests {
         let rates = [1000u64, 100_000, 500_000, 1_000_000];
         for r in rates {
             let sz = anamnesis_ring_size(r, 1, 1, 2);
-            assert!(sz.is_power_of_two(), "size {sz} must be power of 2 for rate {r}");
+            assert!(
+                sz.is_power_of_two(),
+                "size {sz} must be power of 2 for rate {r}"
+            );
         }
     }
 

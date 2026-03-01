@@ -14,28 +14,26 @@
 #![no_main]
 
 use aya_ebpf::{
-    helpers::{
-        bpf_get_current_pid_tgid, bpf_get_current_uid_gid, bpf_get_current_comm,
-        bpf_ktime_get_ns, bpf_probe_read_kernel,
-    },
-    macros::{raw_tracepoint, map},
-    maps::{HashMap, RingBuf, Array},
-    programs::RawTracePointContext,
     cty::c_long,
+    helpers::{
+        bpf_get_current_comm, bpf_get_current_pid_tgid, bpf_get_current_uid_gid, bpf_ktime_get_ns,
+        bpf_probe_read_kernel,
+    },
+    macros::{map, raw_tracepoint},
+    maps::{Array, HashMap, RingBuf},
+    programs::RawTracePointContext,
     EbpfContext,
 };
-use unheaded_common::{
-    SyscallEvent, SyscallEventType, RING_BUFFER_SIZE,
-};
+use unheaded_common::{SyscallEvent, SyscallEventType, RING_BUFFER_SIZE};
 
 /// Configuration for syscall filtering.
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct FilterConfig {
-    pub enabled: u32,           // Global enable flag
-    pub filter_pid: u32,        // Filter by specific PID (0 = all)
-    pub filter_uid: u32,        // Filter by specific UID (0 = all)
-    pub log_all: u32,           // Log all syscalls (1) or only filtered (0)
+    pub enabled: u32,    // Global enable flag
+    pub filter_pid: u32, // Filter by specific PID (0 = all)
+    pub filter_uid: u32, // Filter by specific UID (0 = all)
+    pub log_all: u32,    // Log all syscalls (1) or only filtered (0)
     pub _pad: [u32; 4],
 }
 
@@ -83,7 +81,7 @@ const STAT_EVENTS_DROPPED: u32 = 4;
 /// }
 #[repr(C)]
 struct SysEnterArgs {
-    _ent: [u8; 8],      // trace_entry (8 bytes on most systems)
+    _ent: [u8; 8], // trace_entry (8 bytes on most systems)
     id: c_long,
     args: [u64; 6],
 }
@@ -96,7 +94,7 @@ struct SysEnterArgs {
 /// }
 #[repr(C)]
 struct SysExitArgs {
-    _ent: [u8; 8],      // trace_entry
+    _ent: [u8; 8], // trace_entry
     id: c_long,
     ret: c_long,
 }

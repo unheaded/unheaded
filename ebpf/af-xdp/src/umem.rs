@@ -3,13 +3,12 @@
 //
 // Sacred Law: NO external deps. Raw syscalls only via crate::syscall.
 
-use af_xdp_common::{
-    CompletionDesc, FillDesc, XskConfig, XskRingOffsets, XskUmemReg,
-    SOL_XDP, XDP_UMEM_COMPLETION_RING, XDP_UMEM_FILL_RING, XDP_UMEM_REG,
-    XDP_PGOFF_FILL_RING, XDP_PGOFF_COMPLETION_RING,
-    XDP_MMAP_OFFSETS, XskMmapOffsets,
-};
 use crate::syscall;
+use af_xdp_common::{
+    CompletionDesc, FillDesc, XskConfig, XskMmapOffsets, XskRingOffsets, XskUmemReg, SOL_XDP,
+    XDP_MMAP_OFFSETS, XDP_PGOFF_COMPLETION_RING, XDP_PGOFF_FILL_RING, XDP_UMEM_COMPLETION_RING,
+    XDP_UMEM_FILL_RING, XDP_UMEM_REG,
+};
 use std::ptr::NonNull;
 
 // =============================================================================
@@ -498,31 +497,56 @@ mod tests {
 
     #[test]
     fn test_invalid_config_zero_frame_size() {
-        let config = XskConfig { frame_size: 0, frame_count: 10, headroom: 0, flags: 0 };
+        let config = XskConfig {
+            frame_size: 0,
+            frame_count: 10,
+            headroom: 0,
+            flags: 0,
+        };
         assert!(Umem::new(config).is_err());
     }
 
     #[test]
     fn test_invalid_config_non_power_of_2() {
-        let config = XskConfig { frame_size: 3000, frame_count: 10, headroom: 0, flags: 0 };
+        let config = XskConfig {
+            frame_size: 3000,
+            frame_count: 10,
+            headroom: 0,
+            flags: 0,
+        };
         assert!(Umem::new(config).is_err());
     }
 
     #[test]
     fn test_invalid_config_too_small() {
-        let config = XskConfig { frame_size: 1024, frame_count: 10, headroom: 0, flags: 0 };
+        let config = XskConfig {
+            frame_size: 1024,
+            frame_count: 10,
+            headroom: 0,
+            flags: 0,
+        };
         assert!(Umem::new(config).is_err());
     }
 
     #[test]
     fn test_invalid_config_zero_count() {
-        let config = XskConfig { frame_size: 4096, frame_count: 0, headroom: 0, flags: 0 };
+        let config = XskConfig {
+            frame_size: 4096,
+            frame_count: 0,
+            headroom: 0,
+            flags: 0,
+        };
         assert!(Umem::new(config).is_err());
     }
 
     #[test]
     fn test_invalid_config_headroom_too_large() {
-        let config = XskConfig { frame_size: 4096, frame_count: 10, headroom: 4096, flags: 0 };
+        let config = XskConfig {
+            frame_size: 4096,
+            frame_count: 10,
+            headroom: 4096,
+            flags: 0,
+        };
         assert!(Umem::new(config).is_err());
     }
 

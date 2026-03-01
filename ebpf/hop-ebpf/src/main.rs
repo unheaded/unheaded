@@ -32,10 +32,9 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    AnamnesisEvent, EventType, Monad, SophiaEntry,
-    HBH_TOTAL_LEN, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
-    IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
-    circuit_state as cs, flags, flow_action as fa,
+    circuit_state as cs, flags, flow_action as fa, AnamnesisEvent, EventType, Monad, SophiaEntry,
+    HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE,
+    MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -101,38 +100,38 @@ static DOS_STATE: HashMap<u64, [u8; 16]> = HashMap::with_max_entries(256, 0);
 static FLOW_TYPES: HashMap<u64, [u8; 4]> = HashMap::with_max_entries(65536, 0);
 
 // ── Stats keys ────────────────────────────────────────────────────────────────
-const STAT_PACKETS_TOTAL:        u32 = 0;
-const STAT_PACKETS_IPV6:         u32 = 1;
-const STAT_PACKETS_HBH:          u32 = 2;
-const STAT_MONAD_FOUND:          u32 = 3;
-const STAT_CRC_BAD:              u32 = 4;
-const STAT_HOP_LIMIT_EXCEEDED:   u32 = 5;
-const STAT_CIRCUIT_OPEN:         u32 = 6;
-const STAT_SOPHIA_HITS:          u32 = 7;
-const STAT_EVENTS_SENT:          u32 = 8;
-const STAT_EVENTS_DROPPED:       u32 = 9;
-const STAT_CHAOS_SKIPPED:        u32 = 10;
-const STAT_ACTION_DROP:          u32 = 11;
-const STAT_ACTION_TRACE:         u32 = 12;
-const STAT_ACTION_SAMPLE:        u32 = 13;
-const STAT_ACTION_MIRROR:        u32 = 14;
-const STAT_SETTINGS_REJECTED:    u32 = 20;
-const STAT_DOS_ECN_SET:          u32 = 21;
-const STAT_DOS_DROPPED:          u32 = 22;
-const STAT_FLOW_CONTROL:         u32 = 23;
-const STAT_FLOW_DATA:            u32 = 24;
-const STAT_FLOW_BULK:            u32 = 25;
-const STAT_FLOW_UNKNOWN:         u32 = 26;
+const STAT_PACKETS_TOTAL: u32 = 0;
+const STAT_PACKETS_IPV6: u32 = 1;
+const STAT_PACKETS_HBH: u32 = 2;
+const STAT_MONAD_FOUND: u32 = 3;
+const STAT_CRC_BAD: u32 = 4;
+const STAT_HOP_LIMIT_EXCEEDED: u32 = 5;
+const STAT_CIRCUIT_OPEN: u32 = 6;
+const STAT_SOPHIA_HITS: u32 = 7;
+const STAT_EVENTS_SENT: u32 = 8;
+const STAT_EVENTS_DROPPED: u32 = 9;
+const STAT_CHAOS_SKIPPED: u32 = 10;
+const STAT_ACTION_DROP: u32 = 11;
+const STAT_ACTION_TRACE: u32 = 12;
+const STAT_ACTION_SAMPLE: u32 = 13;
+const STAT_ACTION_MIRROR: u32 = 14;
+const STAT_SETTINGS_REJECTED: u32 = 20;
+const STAT_DOS_ECN_SET: u32 = 21;
+const STAT_DOS_DROPPED: u32 = 22;
+const STAT_FLOW_CONTROL: u32 = 23;
+const STAT_FLOW_DATA: u32 = 24;
+const STAT_FLOW_BULK: u32 = 25;
+const STAT_FLOW_UNKNOWN: u32 = 26;
 
 // ── Config keys ───────────────────────────────────────────────────────────────
-const CFG_HOP_ID:            u32 = 0;
-const CFG_SAMPLE_DIVISOR:    u32 = 1;
+const CFG_HOP_ID: u32 = 0;
+const CFG_SAMPLE_DIVISOR: u32 = 1;
 const CFG_CIRCUIT_THRESHOLD: u32 = 2;
-const CFG_MAX_HOPS:          u32 = 3;
+const CFG_MAX_HOPS: u32 = 3;
 
 // ── Sophia dictionary IDs ─────────────────────────────────────────────────────
 // These MUST match the dictionary IDs configured in the Kingdom Sophia service.
-const SOPHIA_DICT_QOS:     u8 = 0x01; // qos_class     → scheduling weight / DSCP mark
+const SOPHIA_DICT_QOS: u8 = 0x01; // qos_class     → scheduling weight / DSCP mark
 const SOPHIA_DICT_CIRCUIT: u8 = 0x02; // circuit_state → human-readable metadata
 const SOPHIA_DICT_SERVICE: u8 = 0x03; // service_id    → service name / tier
 
@@ -141,24 +140,24 @@ const SOPHIA_DICT_SERVICE: u8 = 0x03; // service_id    → service name / tier
 /// Ethernet header (14 bytes, packed).
 #[repr(C, packed)]
 struct EthHdr {
-    dst:   [u8; 6],
-    src:   [u8; 6],
+    dst: [u8; 6],
+    src: [u8; 6],
     proto: u16,
 }
 
 /// IPv6 fixed header (40 bytes, packed).
 #[repr(C, packed)]
 struct Ipv6Hdr {
-    vtf:         u32,  // version(4) + traffic-class(8) + flow-label(20)
+    vtf: u32, // version(4) + traffic-class(8) + flow-label(20)
     payload_len: u16,
     next_header: u8,
-    hop_limit:   u8,
-    src:         [u8; 16],
-    dst:         [u8; 16],
+    hop_limit: u8,
+    src: [u8; 16],
+    dst: [u8; 16],
 }
 
-const ETH_HLEN:    usize = 14;
-const ETH_P_IPV6:  u16   = 0x86DD;
+const ETH_HLEN: usize = 14;
+const ETH_P_IPV6: u16 = 0x86DD;
 
 // ── XDP entry point ───────────────────────────────────────────────────────────
 
@@ -166,7 +165,7 @@ const ETH_P_IPV6:  u16   = 0x86DD;
 pub fn hop_xdp(ctx: XdpContext) -> u32 {
     match try_hop_xdp(&ctx) {
         Ok(action) => action,
-        Err(_)     => xdp_action::XDP_PASS, // fail-open: never silently drop
+        Err(_) => xdp_action::XDP_PASS, // fail-open: never silently drop
     }
 }
 
@@ -174,7 +173,7 @@ pub fn hop_xdp(ctx: XdpContext) -> u32 {
 fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_PACKETS_TOTAL);
 
-    let data     = ctx.data();
+    let data = ctx.data();
     let data_end = ctx.data_end();
 
     // ── Ethernet ──────────────────────────────────────────────────────────────
@@ -201,7 +200,7 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_PACKETS_HBH);
 
     // Extract Flow Label from the packed vtf field (low 20 bits).
-    let vtf        = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
+    let vtf = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
     let flow_label = vtf & 0x000F_FFFF;
 
     // ── Hop-by-Hop Header ─────────────────────────────────────────────────────
@@ -214,7 +213,7 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 
     // hdr_ext_len: length in 8-byte units, not counting the first 8.
     let hbh_ext_len = unsafe { core::ptr::read_volatile((hbh_start + 1) as *const u8) };
-    let hbh_total   = (hbh_ext_len as usize + 1) * 8;
+    let hbh_total = (hbh_ext_len as usize + 1) * 8;
 
     if hbh_start + hbh_total > data_end {
         return Ok(xdp_action::XDP_PASS);
@@ -222,7 +221,7 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 
     // Options live at bytes [2..hbh_total] within the HBH header.
     let opts_start = hbh_start + 2;
-    let opts_end   = hbh_start + hbh_total;
+    let opts_end = hbh_start + hbh_total;
 
     // ── Find Monad option ─────────────────────────────────────────────────────
     let monad_opt_off = find_monad_option(opts_start, opts_end, data_end)?;
@@ -309,15 +308,21 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         let current = unsafe { core::ptr::read_volatile(entry as *const u32) };
         let highest = unsafe { core::ptr::read_volatile(entry.add(4) as *const u32) };
         let new_val = current.saturating_add(1);
-        unsafe { core::ptr::write_volatile(entry as *mut u32, new_val); }
+        unsafe {
+            core::ptr::write_volatile(entry as *mut u32, new_val);
+        }
 
         // Track highest seen and detect gaps / reordering
         if new_val > highest {
-            unsafe { core::ptr::write_volatile(entry.add(4) as *mut u32, new_val); }
+            unsafe {
+                core::ptr::write_volatile(entry.add(4) as *mut u32, new_val);
+            }
         } else {
             // Gap detected — increment gap counter
             let gaps = unsafe { core::ptr::read_volatile(entry.add(8) as *const u32) };
-            unsafe { core::ptr::write_volatile(entry.add(8) as *mut u32, gaps.saturating_add(1)); }
+            unsafe {
+                core::ptr::write_volatile(entry.add(8) as *mut u32, gaps.saturating_add(1));
+            }
         }
     }
 
@@ -351,7 +356,9 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 
         // Increment total_count (bytes 4-7)
         let total = unsafe { core::ptr::read_volatile(entry.add(4) as *const u32) };
-        unsafe { core::ptr::write_volatile(entry.add(4) as *mut u32, total.saturating_add(1)); }
+        unsafe {
+            core::ptr::write_volatile(entry.add(4) as *mut u32, total.saturating_add(1));
+        }
 
         // Read backpressure level (byte 8)
         let backpressure_lvl = unsafe { core::ptr::read_volatile(entry.add(8)) };
@@ -369,7 +376,9 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
             2.. => {
                 // SHUTDOWN — drop packet
                 let drop_count = unsafe { core::ptr::read_volatile(entry as *const u32) };
-                unsafe { core::ptr::write_volatile(entry as *mut u32, drop_count.saturating_add(1)); }
+                unsafe {
+                    core::ptr::write_volatile(entry as *mut u32, drop_count.saturating_add(1));
+                }
                 increment_stat(STAT_DOS_DROPPED);
                 return Ok(xdp_action::XDP_DROP);
             }
@@ -425,9 +434,9 @@ fn try_hop_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     write_monad_to_pkt(monad_data_off, data_end, &m)?;
 
     // ── Emit Hop Event ────────────────────────────────────────────────────────
-    let hop_id   = cfg(CFG_HOP_ID) as u8;
-    let divisor  = cfg(CFG_SAMPLE_DIVISOR) as u32;
-    let sampled  = divisor == 0 || (flow_label % divisor) == 0;
+    let hop_id = cfg(CFG_HOP_ID) as u8;
+    let divisor = cfg(CFG_SAMPLE_DIVISOR) as u32;
+    let sampled = divisor == 0 || (flow_label % divisor) == 0;
 
     if m.has_flag(flags::TRACED) || m.has_flag(flags::SAMPLED) || sampled {
         emit_event(EventType::Hop as u8, hop_id, flow_label, &m);
@@ -452,7 +461,6 @@ fn apply_flow_action(m: &mut Monad, flow_label: u32) -> bool {
         m.set_flag(flags::TRACED);
         increment_stat(STAT_ACTION_TRACE);
         false
-
     } else if m.flow_action == fa::SAMPLE {
         // SAMPLE: mark packet as selected for statistical sampling.
         let divisor = cfg(CFG_SAMPLE_DIVISOR) as u32;
@@ -461,19 +469,16 @@ fn apply_flow_action(m: &mut Monad, flow_label: u32) -> bool {
         }
         increment_stat(STAT_ACTION_SAMPLE);
         false
-
     } else if m.flow_action == fa::MIRROR {
         // MIRROR: set MIRROR flag for mirror-copy handling.
         // Actual duplication is done by TC egress (bpf_clone_redirect).
         m.set_flag(flags::MIRROR);
         increment_stat(STAT_ACTION_MIRROR);
         false
-
     } else if m.flow_action == fa::DROP {
         // DROP: the control plane has instructed this flow to be dropped.
         // We still write back the Monad so the XDP_DROP event captures state.
         false // caller checks the return value AFTER write-back
-
     } else {
         // FORWARD (default) and anything unknown: pass through.
         false
@@ -523,7 +528,7 @@ fn find_monad_option(opts_start: usize, opts_end: usize, data_end: usize) -> Res
             break;
         }
         let opt_data_len = unsafe { core::ptr::read_volatile((offset + 1) as *const u8) };
-        let opt_total    = 2 + opt_data_len as usize; // type + len + data
+        let opt_total = 2 + opt_data_len as usize; // type + len + data
 
         if opt_total < 2 || offset + opt_total > data_end {
             break;
@@ -611,7 +616,7 @@ fn make_flow_type_key(flow_id: u32) -> u64 {
 fn cfg(key: u32) -> u64 {
     match unsafe { CONFIG.get(&key) } {
         Some(v) => *v,
-        None    => 0,
+        None => 0,
     }
 }
 
@@ -619,7 +624,9 @@ fn cfg(key: u32) -> u64 {
 #[inline(always)]
 fn increment_stat(key: u32) {
     if let Some(v) = STATS.get_ptr_mut(&key) {
-        unsafe { *v = (*v).saturating_add(1); }
+        unsafe {
+            *v = (*v).saturating_add(1);
+        }
     } else {
         let _ = STATS.insert(&key, &1u64, 0);
     }
@@ -631,16 +638,13 @@ fn increment_stat(key: u32) {
 /// On ring-full: increments dropped counter, does not block.
 #[inline(always)]
 fn emit_event(event_type: u8, hop_id: u8, flow_label: u32, monad: &Monad) {
-    let now   = unsafe { bpf_ktime_get_ns() };
+    let now = unsafe { bpf_ktime_get_ns() };
     let event = AnamnesisEvent {
-        timestamp_ns:  now,
+        timestamp_ns: now,
         event_type,
         hop_id,
         // Store low 16 bits of flow label (big-endian within the 2-byte array).
-        flow_label_lo: [
-            ((flow_label >> 8) & 0xFF) as u8,
-            ( flow_label       & 0xFF) as u8,
-        ],
+        flow_label_lo: [((flow_label >> 8) & 0xFF) as u8, (flow_label & 0xFF) as u8],
         monad: *monad,
     };
 

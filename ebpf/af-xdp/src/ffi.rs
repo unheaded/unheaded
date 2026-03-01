@@ -8,7 +8,7 @@
 // checked via null guards at each entry point.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::engine::{XdpEngine, EngineStats};
+use crate::engine::{EngineStats, XdpEngine};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int, c_uint};
 use std::ptr;
@@ -65,11 +65,9 @@ pub extern "C" fn afxdp_create(
     };
 
     match XdpEngine::new(iface_str, queue as u32, frame_count as u32) {
-        Ok(engine) => {
-            Box::into_raw(Box::new(AfxdpHandle {
-                engine: Box::into_raw(Box::new(engine)),
-            }))
-        }
+        Ok(engine) => Box::into_raw(Box::new(AfxdpHandle {
+            engine: Box::into_raw(Box::new(engine)),
+        })),
         Err(_) => ptr::null_mut(),
     }
 }
@@ -106,11 +104,7 @@ pub extern "C" fn afxdp_recv(
 
         let src = engine.frame_ptr(pkt.addr);
         unsafe {
-            ptr::copy_nonoverlapping(
-                src,
-                buf.add(offset) as *mut u8,
-                pkt_len,
-            );
+            ptr::copy_nonoverlapping(src, buf.add(offset) as *mut u8, pkt_len);
         }
         offset += pkt_len;
 
@@ -165,10 +159,7 @@ pub extern "C" fn afxdp_send(
 /// # Safety
 /// `handle` and `stats` must be valid pointers.
 #[no_mangle]
-pub extern "C" fn afxdp_stats(
-    handle: *mut AfxdpHandle,
-    stats: *mut AfxdpStats,
-) -> c_int {
+pub extern "C" fn afxdp_stats(handle: *mut AfxdpHandle, stats: *mut AfxdpStats) -> c_int {
     if handle.is_null() || stats.is_null() {
         return AFXDP_ERR_INVALID_ARGS;
     }
@@ -195,10 +186,7 @@ pub extern "C" fn afxdp_stats(
 /// # Safety
 /// `handle` must be a valid handle from `afxdp_create`.
 #[no_mangle]
-pub extern "C" fn afxdp_poll(
-    handle: *mut AfxdpHandle,
-    timeout_ms: c_int,
-) -> c_int {
+pub extern "C" fn afxdp_poll(handle: *mut AfxdpHandle, timeout_ms: c_int) -> c_int {
     if handle.is_null() {
         return AFXDP_ERR_INVALID_ARGS;
     }

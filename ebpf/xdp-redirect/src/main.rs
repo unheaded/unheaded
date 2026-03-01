@@ -14,13 +14,13 @@
 #![no_std]
 #![no_main]
 
+use af_xdp_common::{XdpRedirectConfig, XdpRedirectStats};
 use aya_ebpf::{
     bindings::xdp_action,
     macros::{map, xdp},
     maps::{HashMap, XskMap},
     programs::XdpContext,
 };
-use af_xdp_common::{XdpRedirectConfig, XdpRedirectStats};
 
 // ── Maps ─────────────────────────────────────────────────────────────────────
 
@@ -34,15 +34,13 @@ static XSKS: XskMap = XskMap::with_max_entries(64, 0);
 /// Userspace writes to enable/disable redirect and set protocol filters.
 /// Key: queue_id (u32), Value: XdpRedirectConfig
 #[map]
-static CONFIG: HashMap<u32, XdpRedirectConfig> =
-    HashMap::with_max_entries(256, 0);
+static CONFIG: HashMap<u32, XdpRedirectConfig> = HashMap::with_max_entries(256, 0);
 
 /// STATS — per-queue packet counters.
 /// Updated by eBPF, read by userspace for monitoring.
 /// Key: queue_id (u32), Value: XdpRedirectStats
 #[map]
-static STATS: HashMap<u32, XdpRedirectStats> =
-    HashMap::with_max_entries(256, 0);
+static STATS: HashMap<u32, XdpRedirectStats> = HashMap::with_max_entries(256, 0);
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

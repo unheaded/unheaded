@@ -32,12 +32,10 @@ impl TraceId {
     /// Create from raw bytes (big-endian).
     pub const fn from_bytes(bytes: [u8; 16]) -> Self {
         let high = u64::from_be_bytes([
-            bytes[0], bytes[1], bytes[2], bytes[3],
-            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
         ]);
         let low = u64::from_be_bytes([
-            bytes[8], bytes[9], bytes[10], bytes[11],
-            bytes[12], bytes[13], bytes[14], bytes[15],
+            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
         ]);
         Self { high, low }
     }
@@ -47,8 +45,8 @@ impl TraceId {
         let h = self.high.to_be_bytes();
         let l = self.low.to_be_bytes();
         [
-            h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7],
-            l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7],
+            h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], l[0], l[1], l[2], l[3], l[4], l[5],
+            l[6], l[7],
         ]
     }
 }
@@ -62,12 +60,12 @@ pub struct SpanId(pub u64);
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FlowKey {
-    pub src_addr: u32,      // IPv4 source address (network byte order)
-    pub dst_addr: u32,      // IPv4 destination address (network byte order)
-    pub src_port: u16,      // Source port (network byte order)
-    pub dst_port: u16,      // Destination port (network byte order)
-    pub protocol: u8,       // IP protocol (TCP=6, UDP=17)
-    pub _pad: [u8; 3],      // Alignment padding
+    pub src_addr: u32, // IPv4 source address (network byte order)
+    pub dst_addr: u32, // IPv4 destination address (network byte order)
+    pub src_port: u16, // Source port (network byte order)
+    pub dst_port: u16, // Destination port (network byte order)
+    pub protocol: u8,  // IP protocol (TCP=6, UDP=17)
+    pub _pad: [u8; 3], // Alignment padding
 }
 
 impl FlowKey {
@@ -106,28 +104,28 @@ pub enum ConnectionState {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct FlowState {
-    pub trace_id: TraceId,          // Associated trace ID
-    pub start_ns: u64,              // Connection start timestamp (nanoseconds)
-    pub last_seen_ns: u64,          // Last packet timestamp
-    pub packets_in: u64,            // Inbound packet count
-    pub packets_out: u64,           // Outbound packet count
-    pub bytes_in: u64,              // Inbound bytes
-    pub bytes_out: u64,             // Outbound bytes
-    pub state: ConnectionState,     // Connection state
-    pub _pad: [u8; 7],              // Alignment
+    pub trace_id: TraceId,      // Associated trace ID
+    pub start_ns: u64,          // Connection start timestamp (nanoseconds)
+    pub last_seen_ns: u64,      // Last packet timestamp
+    pub packets_in: u64,        // Inbound packet count
+    pub packets_out: u64,       // Outbound packet count
+    pub bytes_in: u64,          // Inbound bytes
+    pub bytes_out: u64,         // Outbound bytes
+    pub state: ConnectionState, // Connection state
+    pub _pad: [u8; 7],          // Alignment
 }
 
 /// Packet event sent to userspace via ring buffer.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PacketEvent {
-    pub timestamp_ns: u64,          // Kernel timestamp
-    pub trace_id: TraceId,          // Trace ID from packet
-    pub flow_key: FlowKey,          // 5-tuple
-    pub packet_len: u32,            // Total packet length
-    pub action: PacketAction,       // What action was taken
-    pub direction: Direction,       // Ingress or egress
-    pub _pad: [u8; 2],              // Alignment
+    pub timestamp_ns: u64,    // Kernel timestamp
+    pub trace_id: TraceId,    // Trace ID from packet
+    pub flow_key: FlowKey,    // 5-tuple
+    pub packet_len: u32,      // Total packet length
+    pub action: PacketAction, // What action was taken
+    pub direction: Direction, // Ingress or egress
+    pub _pad: [u8; 2],        // Alignment
 }
 
 /// Action taken on a packet.
@@ -137,8 +135,8 @@ pub enum PacketAction {
     #[default]
     Pass = 0,
     Drop = 1,
-    Marked = 2,         // Trace ID was written
-    Extracted = 3,      // Trace ID was read
+    Marked = 2,    // Trace ID was written
+    Extracted = 3, // Trace ID was read
     Redirect = 4,
 }
 
@@ -178,11 +176,11 @@ pub enum FlowEventType {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LatencyEvent {
-    pub timestamp_ns: u64,          // When measurement was taken
-    pub trace_id: TraceId,          // Associated trace (if known)
-    pub pid: u32,                   // Process ID
-    pub tid: u32,                   // Thread ID
-    pub latency_ns: u64,            // Measured latency in nanoseconds
+    pub timestamp_ns: u64, // When measurement was taken
+    pub trace_id: TraceId, // Associated trace (if known)
+    pub pid: u32,          // Process ID
+    pub tid: u32,          // Thread ID
+    pub latency_ns: u64,   // Measured latency in nanoseconds
     pub operation: LatencyOperation,
     pub _pad: [u8; 7],
 }
@@ -207,10 +205,10 @@ pub struct SyscallEvent {
     pub tid: u32,
     pub uid: u32,
     pub gid: u32,
-    pub syscall_nr: i64,            // Syscall number
-    pub args: [u64; 6],             // Syscall arguments
-    pub ret: i64,                   // Return value (if exit event)
-    pub comm: [u8; 16],             // Process name
+    pub syscall_nr: i64, // Syscall number
+    pub args: [u64; 6],  // Syscall arguments
+    pub ret: i64,        // Return value (if exit event)
+    pub comm: [u8; 16],  // Process name
     pub event_type: SyscallEventType,
     pub _pad: [u8; 7],
 }
@@ -308,8 +306,10 @@ mod tests {
         let bytes = id.to_bytes();
         assert_eq!(
             bytes,
-            [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-             0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10]
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10
+            ]
         );
     }
 
@@ -373,12 +373,20 @@ mod tests {
     #[test]
     fn test_flow_key_hash_protocol_matters() {
         let tcp_key = FlowKey {
-            src_addr: 1, dst_addr: 2, src_port: 100, dst_port: 200,
-            protocol: IPPROTO_TCP, _pad: [0; 3],
+            src_addr: 1,
+            dst_addr: 2,
+            src_port: 100,
+            dst_port: 200,
+            protocol: IPPROTO_TCP,
+            _pad: [0; 3],
         };
         let udp_key = FlowKey {
-            src_addr: 1, dst_addr: 2, src_port: 100, dst_port: 200,
-            protocol: IPPROTO_UDP, _pad: [0; 3],
+            src_addr: 1,
+            dst_addr: 2,
+            src_port: 100,
+            dst_port: 200,
+            protocol: IPPROTO_UDP,
+            _pad: [0; 3],
         };
         assert_ne!(tcp_key.hash(), udp_key.hash());
     }
@@ -463,25 +471,45 @@ mod tests {
     fn test_packet_event_size_aligned() {
         // repr(C) struct should have predictable alignment
         let size = std::mem::size_of::<PacketEvent>();
-        assert_eq!(size % 8, 0, "PacketEvent should be 8-byte aligned, got size {}", size);
+        assert_eq!(
+            size % 8,
+            0,
+            "PacketEvent should be 8-byte aligned, got size {}",
+            size
+        );
     }
 
     #[test]
     fn test_flow_event_size_aligned() {
         let size = std::mem::size_of::<FlowEvent>();
-        assert_eq!(size % 8, 0, "FlowEvent should be 8-byte aligned, got size {}", size);
+        assert_eq!(
+            size % 8,
+            0,
+            "FlowEvent should be 8-byte aligned, got size {}",
+            size
+        );
     }
 
     #[test]
     fn test_latency_event_size_aligned() {
         let size = std::mem::size_of::<LatencyEvent>();
-        assert_eq!(size % 8, 0, "LatencyEvent should be 8-byte aligned, got size {}", size);
+        assert_eq!(
+            size % 8,
+            0,
+            "LatencyEvent should be 8-byte aligned, got size {}",
+            size
+        );
     }
 
     #[test]
     fn test_syscall_event_size_aligned() {
         let size = std::mem::size_of::<SyscallEvent>();
-        assert_eq!(size % 8, 0, "SyscallEvent should be 8-byte aligned, got size {}", size);
+        assert_eq!(
+            size % 8,
+            0,
+            "SyscallEvent should be 8-byte aligned, got size {}",
+            size
+        );
     }
 
     // ── Constants ────────────────────────────────────────────
@@ -521,7 +549,8 @@ mod tests {
         assert_eq!(TCP_FLAG_ACK, 0x10);
         assert_eq!(TCP_FLAG_URG, 0x20);
         // No two flags overlap
-        let all = TCP_FLAG_FIN | TCP_FLAG_SYN | TCP_FLAG_RST | TCP_FLAG_PSH | TCP_FLAG_ACK | TCP_FLAG_URG;
+        let all =
+            TCP_FLAG_FIN | TCP_FLAG_SYN | TCP_FLAG_RST | TCP_FLAG_PSH | TCP_FLAG_ACK | TCP_FLAG_URG;
         assert_eq!(all.count_ones(), 6);
     }
 
