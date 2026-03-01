@@ -330,6 +330,42 @@ pub const DEFAULT_HEADROOM: u32 = 0;
 pub const MIN_FRAME_SIZE: u32 = 2048;
 
 // =============================================================================
+// XDP Redirect Program Types — shared with xdp-redirect eBPF program
+// =============================================================================
+
+/// Per-queue redirect configuration (written by userspace, read by eBPF).
+/// Stored in CONFIG BPF_MAP_TYPE_HASH: key=queue_id (u32).
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct XdpRedirectConfig {
+    /// Non-zero to enable redirect for this queue
+    pub enabled: u8,
+    /// Protocol filter: 0 = all, 4 = IPv4 only, 6 = IPv6 only
+    pub protocol_filter: u8,
+    /// Reserved for alignment
+    pub _pad: [u8; 2],
+}
+
+const_assert_size!(XdpRedirectConfig, 4);
+const_assert_align!(XdpRedirectConfig, 1);
+
+/// Per-queue redirect statistics (written by eBPF, read by userspace).
+/// Stored in STATS BPF_MAP_TYPE_HASH: key=queue_id (u32).
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct XdpRedirectStats {
+    /// Packets redirected to AF_XDP socket
+    pub redirected: u64,
+    /// Packets passed to kernel stack
+    pub passed: u64,
+    /// Packets dropped
+    pub dropped: u64,
+}
+
+const_assert_size!(XdpRedirectStats, 24);
+const_assert_align!(XdpRedirectStats, 8);
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -509,5 +545,33 @@ mod tests {
         assert_eq!(s.rx_ring_full, 0);
         assert_eq!(s.rx_fill_ring_empty_descs, 0);
         assert_eq!(s.tx_ring_empty_descs, 0);
+    }
+
+    // ── XdpRedirectConfig / XdpRedirectStats ───────────────────
+
+    #[test]
+    fn test_xdp_redirect_config_layout() {
+        assert_eq!(core::mem::size_of::<XdpRedirectConfig>(), 4);
+    }
+
+    #[test]
+    fn test_xdp_redirect_config_default() {
+        let c = XdpRedirectConfig::default();
+        assert_eq!(c.enabled, 0);
+        assert_eq!(c.protocol_filter, 0);
+    }
+
+    #[test]
+    fn test_xdp_redirect_stats_layout() {
+        assert_eq!(core::mem::size_of::<XdpRedirectStats>(), 24);
+        assert_eq!(core::mem::align_of::<XdpRedirectStats>(), 8);
+    }
+
+    #[test]
+    fn test_xdp_redirect_stats_default() {
+        let s = XdpRedirectStats::default();
+        assert_eq!(s.redirected, 0);
+        assert_eq!(s.passed, 0);
+        assert_eq!(s.dropped, 0);
     }
 }

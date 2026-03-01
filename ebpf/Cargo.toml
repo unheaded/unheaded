@@ -15,6 +15,7 @@ members = [
     "monad-cpu-ebpf",
     # --- AF_XDP Zero-Copy Packet I/O ---
     "af-xdp-common",
+    "xdp-redirect",
 ]
 # af-xdp is a userspace (std) library — excluded from bpfel workspace build
 exclude = ["af-xdp"]

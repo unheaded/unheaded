@@ -5,10 +5,12 @@
 // Sacred Law: NO external deps. Rust std only. All kernel interaction
 // via raw syscalls through std::arch::asm!
 
+pub mod ring;
 pub mod syscall;
 pub mod umem;
 pub mod xsk;
 
 pub use af_xdp_common as common;
+pub use ring::Ring;
 pub use umem::Umem;
 pub use xsk::XskSocket;
