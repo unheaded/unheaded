@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT
+# roles/dark-mirror/defaults/main.yml
+---
+tomb_root: /opt/tomb
+prometheus_port: 9090
+grafana_port: 3000
+loki_port: 3100
+retention_days: 30

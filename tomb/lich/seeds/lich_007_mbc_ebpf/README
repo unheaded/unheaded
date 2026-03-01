@@ -1,0 +1,8 @@
+LICH-007 Seed Corpus: MBC eBPF Execution
+
+MBC programs for VM execution testing. Same 9-byte instruction format as LICH-004.
+Focus on execution paths:
+  - Arithmetic edge cases (overflow, underflow, div-by-zero)
+  - Control flow (backward jumps, deep recursion)
+  - Memory access (bounds checking)
+  - Instruction count limits (infinite loop detection)

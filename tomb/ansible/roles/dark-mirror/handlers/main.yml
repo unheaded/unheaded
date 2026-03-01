@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+# roles/dark-mirror/handlers/main.yml
+---
+- name: "Restart Prometheus"
+  ansible.builtin.systemd:
+    name: tomb-prometheus
+    state: restarted
+
+- name: "Restart Grafana"
+  ansible.builtin.systemd:
+    name: tomb-grafana
+    state: restarted
+
+- name: "Restart Loki"
+  ansible.builtin.systemd:
+    name: tomb-loki
+    state: restarted

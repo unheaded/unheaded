@@ -1,0 +1,35 @@
+# scope.conf -- Tomb of Knowledge Attack Scope
+# Managed by Ansible -- do not edit manually
+# Updated: {{ ansible_date_time.iso8601 | default('unknown') }}
+
+metadata:
+  kingdom_id: "westmarch-core"
+  kingdom_network: "{{ tomb_network }}"
+  approval_date: "{{ ansible_date_time.date | default('unknown') }}"
+  approval_authority: "Chief Architect"
+
+in_scope:
+  networks:
+    - "{{ tomb_network }}"
+  attack_types:
+    - "network_reconnaissance"
+    - "vulnerability_scanning"
+    - "credential_testing"
+    - "web_exploitation"
+    - "privilege_escalation"
+    - "fuzzing"
+
+out_of_scope:
+  networks:
+    - "0.0.0.0/0"
+  attack_types:
+    - "denial_of_service"
+    - "data_destruction"
+    - "physical_attacks"
+
+rules_of_engagement:
+  max_connections_per_target: 1000
+  max_requests_per_second: 50
+  max_data_per_campaign: "1GB"
+  alert_on_scope_violation: true
+  auto_abort_on_scope_violation: true

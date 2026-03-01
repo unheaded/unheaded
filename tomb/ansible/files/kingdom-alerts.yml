@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: MIT
+# Tomb of Knowledge -- Dark Mirror alerting rules
+groups:
+  - name: kingdom_health
+    interval: 30s
+    rules:
+      - alert: KingdomServiceDown
+        expr: up{job="kingdom-services"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          layer: kingdom
+        annotations:
+          summary: "Kingdom service {{ $labels.instance }} is DOWN"
+          description: "Service has been unreachable for 2+ minutes from Tomb perspective."
+
+      - alert: KingdomHighLatency
+        expr: probe_duration_seconds{job="kingdom-services"} > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          layer: kingdom
+        annotations:
+          summary: "High latency to {{ $labels.instance }} ({{ $value }}s)"
+
+      - alert: KingdomHighErrorRate
+        expr: rate(unheaded_http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          layer: kingdom
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.service }}"
+
+  - name: tomb_health
+    interval: 60s
+    rules:
+      - alert: TombDiskSpaceLow
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          layer: tomb
+        annotations:
+          summary: "Tomb VM disk space below 10%"
+
+      - alert: OllamaDown
+        expr: up{job="tomb-ollama"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          layer: tomb
+        annotations:
+          summary: "Oracle (Ollama) service is DOWN"

@@ -1,0 +1,13 @@
+LICH-006 Seed Corpus: State Machine
+
+State machine events (bytes):
+  0x01 Activate  0x02 Drain    0x03 Close
+  0x04 Error     0x05 Reset    0x06 Goaway
+  0x07 Cancel
+
+Valid transition sequences:
+  [01, 02, 03, 03]  -> idle -> active -> draining -> closing -> closed
+  [01, 04, 05]      -> idle -> active -> error -> reset (back to idle)
+  [01, 06]          -> idle -> active -> draining (via GOAWAY)
+
+GOAWAY flow IDs are encoded as big-endian uint32 (4 bytes each).

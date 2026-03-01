@@ -1,0 +1,141 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# tomb/ansible/playbook-lich.yml -- Deploy Lich adversary framework (Layer 2)
+#
+# Deploys LICH-001 through LICH-010 campaign scaffolding, operational
+# scripts (lich-runner, crash-triage, attack-preflight, attack-report).
+---
+- name: "Tomb of Knowledge -- Layer 2: The Lich"
+  hosts: tomb
+  become: true
+  gather_facts: false
+
+  vars:
+    lich_root: "{{ tomb_root }}/lich"
+    lich_campaigns:
+      - { id: "LICH-001", purpose: "Network reconnaissance" }
+      - { id: "LICH-002", purpose: "Web vulnerability discovery" }
+      - { id: "LICH-003", purpose: "Wireless network assessment" }
+      - { id: "LICH-004", purpose: "Social engineering simulation" }
+      - { id: "LICH-005", purpose: "Credential stuffing and brute force" }
+      - { id: "LICH-006", purpose: "Privilege escalation hunting" }
+      - { id: "LICH-007", purpose: "Persistence mechanism planting" }
+      - { id: "LICH-008", purpose: "Data exfiltration simulation" }
+      - { id: "LICH-009", purpose: "Malware fuzzing and mutation" }
+      - { id: "LICH-010", purpose: "Lateral movement simulation" }
+
+  roles:
+    - role: lich
+
+  tasks:
+    - name: "Create campaign directories"
+      ansible.builtin.file:
+        path: "{{ lich_root }}/campaigns/{{ item.id }}/{{ subdir }}"
+        state: directory
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0750"
+      loop: "{{ lich_campaigns }}"
+      loop_control:
+        label: "{{ item.id }}"
+      vars:
+        subdir: "{{ outer_item }}"
+      with_nested:
+        - "{{ lich_campaigns }}"
+        - ["config", "results", "evidence"]
+      # Flatten: create config/results/evidence for each campaign
+      when: false  # Handled by the nested loop below
+
+    - name: "Create campaign subdirectories (config, results, evidence)"
+      ansible.builtin.file:
+        path: "{{ lich_root }}/campaigns/{{ item.0.id }}/{{ item.1 }}"
+        state: directory
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0750"
+      with_nested:
+        - "{{ lich_campaigns }}"
+        - ["config", "results", "evidence"]
+      loop_control:
+        label: "{{ item.0.id }}/{{ item.1 }}"
+
+    - name: "Deploy campaign metadata"
+      ansible.builtin.copy:
+        content: |
+          # {{ item.id }} -- {{ item.purpose }}
+          # SPDX-License-Identifier: MIT
+          campaign_id: "{{ item.id }}"
+          purpose: "{{ item.purpose }}"
+          status: "ready"
+          created: "{{ ansible_date_time.iso8601 | default('unknown') }}"
+        dest: "{{ lich_root }}/campaigns/{{ item.id }}/config/campaign.yml"
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0640"
+      loop: "{{ lich_campaigns }}"
+      loop_control:
+        label: "{{ item.id }}"
+      failed_when: false
+
+    - name: "Transfer pre-staged Lich harnesses"
+      ansible.builtin.copy:
+        src: "{{ packages_src }}/lich/"
+        dest: "{{ lich_root }}/"
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0750"
+      failed_when: false
+
+    - name: "Deploy lich-runner.sh"
+      ansible.builtin.copy:
+        src: "files/lich-runner.sh"
+        dest: "{{ lich_root }}/lich-runner.sh"
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0755"
+      failed_when: false
+
+    - name: "Deploy crash-triage.sh"
+      ansible.builtin.copy:
+        src: "files/crash-triage.sh"
+        dest: "{{ lich_root }}/crash-triage.sh"
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0755"
+      failed_when: false
+
+    - name: "Deploy attack-preflight.sh"
+      ansible.builtin.copy:
+        src: "files/attack-preflight.sh"
+        dest: "{{ lich_root }}/attack-preflight.sh"
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0755"
+      failed_when: false
+
+    - name: "Deploy attack-report.sh"
+      ansible.builtin.copy:
+        src: "files/attack-report.sh"
+        dest: "{{ lich_root }}/attack-report.sh"
+        owner: "{{ tomb_user }}"
+        group: "{{ tomb_user }}"
+        mode: "0755"
+      failed_when: false
+
+    - name: "Verify Lich deployment"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: lich_verify
+      loop:
+        - "{{ lich_root }}/campaigns/LICH-001"
+        - "{{ lich_root }}/campaigns/LICH-010"
+        - "{{ lich_root }}/crash-triage/corpus"
+      loop_control:
+        label: "{{ item | basename }}"
+
+    - name: "Report Lich verification"
+      ansible.builtin.debug:
+        msg: "{{ item.item | basename }}: {{ 'EXISTS' if item.stat.exists else 'MISSING' }}"
+      loop: "{{ lich_verify.results }}"
+      loop_control:
+        label: "{{ item.item | basename }}"

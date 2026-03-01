@@ -1,0 +1,52 @@
+{
+  "embedding": {
+    "model_name": "all-MiniLM-L6-v2",
+    "device": "cpu",
+    "normalize_embeddings": true,
+    "batch_size": 64
+  },
+  "chunking": {
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "min_chunk_size": 50,
+    "separator": "\n\n",
+    "fallback_separators": ["\n", ". ", " "]
+  },
+  "chromadb": {
+    "persist_directory": "/opt/tomb/grimoire/rag/chroma.db",
+    "distance_function": "cosine",
+    "collections": {
+      "kingdom-docs": {
+        "description": "Unheaded Kingdom architecture, security, protocol, and operational docs",
+        "metadata_fields": ["source_file", "section", "doc_type", "source_type"]
+      },
+      "mitre-attck": {
+        "description": "MITRE ATT&CK Enterprise techniques, tactics, mitigations, and groups",
+        "metadata_fields": ["technique_id", "tactic", "platforms", "source_type"]
+      },
+      "threat-models": {
+        "description": "Kingdom-specific threat models and security assessments",
+        "metadata_fields": ["source_file", "threat_category", "severity", "source_type"]
+      }
+    }
+  },
+  "query": {
+    "top_k": 8,
+    "min_relevance_score": 0.25,
+    "include_metadata": true,
+    "include_distances": true,
+    "rerank": false
+  },
+  "source_types": {
+    "kingdom": {
+      "file_extensions": [".md", ".yaml", ".yml", ".toml", ".nix"],
+      "parser": "text",
+      "metadata_extractor": "filename_and_headers"
+    },
+    "mitre": {
+      "file_extensions": [".json"],
+      "parser": "stix",
+      "metadata_extractor": "stix_fields"
+    }
+  }
+}

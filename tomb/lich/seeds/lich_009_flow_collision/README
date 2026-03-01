@@ -1,0 +1,7 @@
+LICH-009 Seed Corpus: Flow ID Collision
+
+Flow ID structure: FlowLabel(4) + Namespace(4) + Sequence(4) = 12 bytes
+
+IPv6 flow label fast-path: [SVC:4][STATUS:4][LATENCY_BUCKET:8][FLAGS:4] = 20 bits
+
+Namespace+Sequence pairs for monotonicity testing: 8 bytes each (ns:4 + seq:4)

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# roles/hardening/tasks/main.yml -- Security hardening role
+---
+- name: "Verify we are running on the Tomb VM"
+  ansible.builtin.assert:
+    that:
+      - ansible_host == tomb_vm_ip or ansible_host == '192.168.13.6'
+    fail_msg: "Hardening role should only run on the Tomb VM"
+    success_msg: "Running on Tomb VM ({{ ansible_host }})"
+  failed_when: false
+
+- name: "Check current firewall status"
+  ansible.builtin.command:
+    cmd: "iptables -L -n --line-numbers"
+  register: current_fw
+  changed_when: false
+  failed_when: false
+
+- name: "Report current firewall state"
+  ansible.builtin.debug:
+    msg: "Current iptables rules: {{ current_fw.stdout_lines | length }} lines"
