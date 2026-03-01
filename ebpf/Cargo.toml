@@ -16,6 +16,8 @@ members = [
     # --- AF_XDP Zero-Copy Packet I/O ---
     "af-xdp-common",
 ]
+# af-xdp is a userspace (std) library — excluded from bpfel workspace build
+exclude = ["af-xdp"]
 
 [workspace.package]
 version = "0.1.0"
