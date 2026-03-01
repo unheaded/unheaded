@@ -118,8 +118,9 @@ impl XdpEngine {
             flags: 0,
         };
 
-        let umem = Umem::new(config)?;
-        let socket = XskSocket::new(iface, queue, &umem)?;
+        let mut umem = Umem::new(config)?;
+        let ring_size = config.frame_count; // one descriptor per frame
+        let socket = XskSocket::new(&mut umem, iface, queue, ring_size)?;
 
         Ok(XdpEngine {
             socket,
@@ -351,6 +352,7 @@ impl Drop for EventLoop {
 
 /// Minimal epoll event structure (matches kernel layout).
 #[repr(C, packed)]
+#[derive(Clone, Copy)]
 struct EpollEvent {
     events: u32,
     data: u64,
