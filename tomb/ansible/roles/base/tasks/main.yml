@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT
+# roles/base/tasks/main.yml -- Base system role tasks
+---
+- name: "Ensure staging directory exists"
+  ansible.builtin.file:
+    path: "{{ tomb_staging }}"
+    state: directory
+    mode: "0755"
+
+- name: "Set timezone to UTC"
+  ansible.builtin.timezone:
+    name: UTC
+  failed_when: false
+
+- name: "Ensure Python3 is available"
+  ansible.builtin.command:
+    cmd: python3 --version
+  register: python_check
+  changed_when: false
+  failed_when: false
+
+- name: "Report Python3 status"
+  ansible.builtin.debug:
+    msg: "Python3: {{ python_check.stdout | default('NOT FOUND') }}"

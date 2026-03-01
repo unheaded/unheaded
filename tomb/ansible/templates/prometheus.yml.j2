@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: MIT
+# Tomb of Knowledge -- Dark Mirror Prometheus configuration
+# Managed by Ansible -- do not edit manually
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    monitor: 'tomb-dark-mirror'
+    environment: 'security-testing'
+
+rule_files:
+  - '{{ tomb_root }}/dark-mirror/alerts/*.yml'
+
+scrape_configs:
+  - job_name: 'tomb-prometheus'
+    static_configs:
+      - targets: ['127.0.0.1:{{ prometheus_port }}']
+        labels:
+          layer: 'dark-mirror'
+
+  - job_name: 'kingdom-services'
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+{% for svc in kingdom_services %}
+          - '{{ svc.host }}:{{ svc.port }}'    # {{ svc.name }}
+{% endfor %}
+        labels:
+          layer: 'kingdom'
+          perspective: 'external'
+
+  - job_name: 'kingdom-gateway'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - '{{ tomb_host_ip }}:21000'
+        labels:
+          layer: 'kingdom-edge'
+          perspective: 'external'
+
+  - job_name: 'kingdom-haproxy'
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - '{{ tomb_host_ip }}:21404'
+          - '{{ tomb_host_ip }}:21405'
+        labels:
+          layer: 'kingdom-lb'
+          perspective: 'external'
+
+  - job_name: 'lich-campaigns'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['127.0.0.1:9101']
+        labels:
+          layer: 'lich'
+
+  - job_name: 'tomb-node'
+    static_configs:
+      - targets: ['127.0.0.1:9100']
+        labels:
+          layer: 'tomb-self'

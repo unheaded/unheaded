@@ -1,0 +1,10 @@
+LICH-010 Seed Corpus: WAL Integrity
+
+WAL entry format: [Sequence:8][Length:4][CRC32:4][Data:Length]
+  Header = 16 bytes, CRC32-IEEE over Data field.
+
+Focus areas:
+  - CRC verification (corruption detection)
+  - Length field overflow (claims more data than available)
+  - Sequence gap detection
+  - Entry chain parsing (multiple entries concatenated)

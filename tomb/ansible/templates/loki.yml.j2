@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT
+# Tomb of Knowledge -- Loki log aggregation configuration
+# Managed by Ansible -- do not edit manually
+
+auth_enabled: false
+
+server:
+  http_listen_port: {{ loki_port }}
+  http_listen_address: 127.0.0.1
+  grpc_listen_port: 9096
+  grpc_listen_address: 127.0.0.1
+
+common:
+  path_prefix: {{ tomb_root }}/dark-mirror/loki/data
+  storage:
+    filesystem:
+      chunks_directory: {{ tomb_root }}/dark-mirror/loki/data/chunks
+      rules_directory: {{ tomb_root }}/dark-mirror/loki/data/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: {{ retention_days * 24 }}h
+  max_query_length: {{ retention_days * 24 + 1 }}h
+  max_query_parallelism: 2
+
+compactor:
+  working_directory: {{ tomb_root }}/dark-mirror/loki/data/compactor
+  compaction_interval: 10m
+  retention_enabled: true

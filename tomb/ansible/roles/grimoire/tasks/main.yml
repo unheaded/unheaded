@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MIT
+# roles/grimoire/tasks/main.yml -- Grimoire knowledge base role
+---
+- name: "Ensure Grimoire directories exist"
+  ansible.builtin.file:
+    path: "{{ tomb_root }}/grimoire/{{ item }}"
+    state: directory
+    owner: "{{ tomb_user }}"
+    group: "{{ tomb_user }}"
+    mode: "0750"
+  loop:
+    - kingdom-docs
+    - mitre-attck
+    - nvd-cves
+    - cwe
+    - threat-models
+    - history
+    - rag
+    - rag/chroma.db
+    - rag/embeddings
+
+- name: "Verify Python3 + pip available for RAG"
+  ansible.builtin.command:
+    cmd: "python3 -m pip --version"
+  register: pip_check
+  changed_when: false
+  failed_when: false
+
+- name: "Report RAG readiness"
+  ansible.builtin.debug:
+    msg: "pip3: {{ 'AVAILABLE' if pip_check.rc == 0 else 'MISSING (needed for RAG)' }}"

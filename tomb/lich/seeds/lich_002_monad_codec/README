@@ -1,0 +1,11 @@
+LICH-002 Seed Corpus: Monad Encoder/Decoder
+
+Seeds are built into the harness via f.Add() calls.
+Additional seed files can be placed here for extended fuzzing.
+
+Varint boundary values (encoded):
+  0x00           -> 0
+  0x3F           -> 63 (max 1-byte)
+  0x40 0x40      -> 64 (min 2-byte)
+  0x7F 0xFF      -> 16383 (max 2-byte)
+  0x80 0x00 0x40 0x00 -> 16384 (min 4-byte)

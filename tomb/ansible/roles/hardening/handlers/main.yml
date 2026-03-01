@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT
+# roles/hardening/handlers/main.yml
+---
+- name: "Reload systemd"
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: "Reload SSH"
+  ansible.builtin.service:
+    name: ssh
+    state: reloaded
+
+- name: "Restart rsyslog"
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted

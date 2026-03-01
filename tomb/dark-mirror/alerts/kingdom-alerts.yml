@@ -1,0 +1,301 @@
+# SPDX-License-Identifier: MIT
+# Prometheus alerting rules for the Dark Mirror — Tomb of Knowledge
+#
+# These rules monitor the Kingdom from the Tomb's external perspective.
+# Severity levels follow the Kingdom consensus doctrine:
+#   OK (0-12.49%), WARN (12.5-37.49%), ERROR (37.5-62.49%),
+#   CRITICAL (62.5-87.49%), PANIC (87.5-100%)
+
+groups:
+
+  # =============================================
+  # Service Availability Alerts
+  # =============================================
+  - name: kingdom-availability
+    interval: 15s
+    rules:
+
+      - alert: KingdomServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: kingdom
+        annotations:
+          summary: "Kingdom service {{ $labels.job }} is down"
+          description: >
+            Service {{ $labels.job }} at {{ $labels.instance }} has been
+            unreachable for more than 1 minute. The Dark Mirror cannot
+            scrape metrics from this target.
+          runbook: "Check service status on Kingdom host. Verify network path from Tomb."
+
+      - alert: KingdomServiceFlapping
+        expr: changes(up[10m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: kingdom
+        annotations:
+          summary: "Kingdom service {{ $labels.job }} is flapping"
+          description: >
+            Service {{ $labels.job }} has changed state more than 5 times
+            in the last 10 minutes, indicating instability.
+
+      - alert: KingdomHighTargetDown
+        expr: (count(up == 0) / count(up)) * 100 > 37.5
+        for: 2m
+        labels:
+          severity: error
+          team: kingdom
+        annotations:
+          summary: "More than 37.5% of Kingdom services are down"
+          description: >
+            {{ $value | printf "%.1f" }}% of monitored Kingdom services are
+            unreachable. This exceeds the ERROR threshold per Kingdom
+            consensus doctrine.
+
+      - alert: KingdomPanicAllDown
+        expr: (count(up == 0) / count(up)) * 100 > 87.5
+        for: 1m
+        labels:
+          severity: panic
+          team: kingdom
+        annotations:
+          summary: "PANIC: >87.5% of Kingdom services are down"
+          description: >
+            {{ $value | printf "%.1f" }}% of services unreachable.
+            Kingdom is in PANIC state per consensus doctrine.
+            All hands required.
+
+  # =============================================
+  # Latency Alerts
+  # =============================================
+  - name: kingdom-latency
+    interval: 15s
+    rules:
+
+      - alert: KingdomHighLatencyP99
+        expr: >
+          histogram_quantile(0.99,
+            rate(unheaded_http_request_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: kingdom
+        annotations:
+          summary: "High P99 latency on {{ $labels.service }}"
+          description: >
+            P99 request latency for {{ $labels.service }} is
+            {{ $value | printf "%.3f" }}s (threshold: 500ms).
+
+      - alert: KingdomExtremeLatency
+        expr: >
+          histogram_quantile(0.99,
+            rate(unheaded_http_request_duration_seconds_bucket[5m])
+          ) > 2.0
+        for: 2m
+        labels:
+          severity: critical
+          team: kingdom
+        annotations:
+          summary: "Extreme latency on {{ $labels.service }} (>2s P99)"
+          description: >
+            P99 request latency for {{ $labels.service }} has exceeded 2 seconds.
+            This may indicate resource exhaustion or a denial-of-service condition.
+
+      - alert: KingdomScrapeLatency
+        expr: scrape_duration_seconds > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: dark-mirror
+        annotations:
+          summary: "Slow scrape for {{ $labels.job }} ({{ $value | printf \"%.1f\" }}s)"
+          description: >
+            Prometheus is taking more than 5 seconds to scrape {{ $labels.job }}.
+            Network latency between Tomb and Kingdom may be degraded.
+
+  # =============================================
+  # Error Rate Alerts
+  # =============================================
+  - name: kingdom-errors
+    interval: 15s
+    rules:
+
+      - alert: KingdomHighErrorRate
+        expr: >
+          (
+            sum by (service) (rate(unheaded_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (service) (rate(unheaded_http_requests_total[5m]))
+          ) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: kingdom
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.service }} ({{ $value | printf \"%.1f\" }}%)"
+          description: >
+            Service {{ $labels.service }} is returning more than 5% server errors.
+
+      - alert: KingdomCriticalErrorRate
+        expr: >
+          (
+            sum by (service) (rate(unheaded_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (service) (rate(unheaded_http_requests_total[5m]))
+          ) * 100 > 25
+        for: 2m
+        labels:
+          severity: critical
+          team: kingdom
+        annotations:
+          summary: "Critical error rate on {{ $labels.service }} ({{ $value | printf \"%.1f\" }}%)"
+          description: >
+            Service {{ $labels.service }} is returning more than 25% server errors.
+            Likely indicates a service failure or cascading error.
+
+  # =============================================
+  # Wotan Message Bus Alerts
+  # =============================================
+  - name: kingdom-wotan
+    interval: 30s
+    rules:
+
+      - alert: WotanDown
+        expr: up{job="wotan-http"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: kingdom
+        annotations:
+          summary: "Wotan message bus is DOWN"
+          description: >
+            The Wotan message bus at 192.168.13.1:18000 is unreachable.
+            This affects ALL inter-service communication in the Kingdom.
+            Every service depends on Wotan for event delivery.
+
+      - alert: WotanHighPublishRate
+        expr: >
+          sum(rate(unheaded_wotan_messages_published_total[5m])) > 10000
+        for: 5m
+        labels:
+          severity: warning
+          team: kingdom
+        annotations:
+          summary: "Abnormally high Wotan publish rate"
+          description: >
+            Wotan is receiving more than 10,000 messages/sec.
+            This may indicate a message storm, runaway publisher,
+            or denial-of-service attack.
+
+  # =============================================
+  # Gateway / Load Balancer Alerts
+  # =============================================
+  - name: kingdom-gateway
+    interval: 15s
+    rules:
+
+      - alert: GatewayDown
+        expr: up{job="gateway-http"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: kingdom
+        annotations:
+          summary: "Kingdom gateway is DOWN"
+          description: >
+            The Kingdom gateway at 192.168.13.1:21000 is unreachable.
+            External access to all Kingdom services is blocked.
+
+      - alert: HAProxyEdgeDown
+        expr: up{job="haproxy-edge-stats"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: kingdom
+        annotations:
+          summary: "HAProxy edge load balancer is DOWN"
+          description: >
+            The edge HAProxy at 192.168.13.1:21404 is unreachable.
+            TLS termination and rate limiting are offline.
+
+      - alert: HAProxyHighBackendErrors
+        expr: >
+          rate(haproxy_backend_http_responses_total{code="5xx"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: kingdom
+        annotations:
+          summary: "HAProxy backend errors on {{ $labels.proxy }}"
+          description: >
+            HAProxy backend {{ $labels.proxy }} is generating more than
+            10 5xx errors per second.
+
+  # =============================================
+  # Lich Campaign Attack Metrics
+  # =============================================
+  - name: lich-campaigns
+    interval: 30s
+    rules:
+
+      - alert: LichCampaignActive
+        expr: >
+          increase(unheaded_http_requests_total{instance=~"192.168.13.1.*"}[5m]) > 1000
+        for: 1m
+        labels:
+          severity: informational
+          team: dark-mirror
+        annotations:
+          summary: "High request volume detected (possible Lich campaign)"
+          description: >
+            More than 1,000 requests in 5 minutes to {{ $labels.instance }}.
+            This may indicate an active Lich campaign.
+
+      - alert: KingdomUnderAttack
+        expr: >
+          sum(rate(unheaded_http_requests_total{status=~"4.."}[1m])) > 100
+        for: 2m
+        labels:
+          severity: warning
+          team: dark-mirror
+        annotations:
+          summary: "Elevated 4xx responses — possible active probing"
+          description: >
+            Kingdom services are returning more than 100 4xx errors/sec.
+            This pattern is consistent with automated scanning or fuzzing.
+
+  # =============================================
+  # Dark Mirror Self-Monitoring
+  # =============================================
+  - name: dark-mirror-health
+    interval: 30s
+    rules:
+
+      - alert: PrometheusStorageFull
+        expr: >
+          (prometheus_tsdb_storage_blocks_bytes / 1073741824) > 8
+        for: 10m
+        labels:
+          severity: warning
+          team: dark-mirror
+        annotations:
+          summary: "Prometheus storage exceeds 8GB"
+          description: >
+            Prometheus TSDB is using {{ $value | printf "%.1f" }}GB.
+            Consider increasing disk allocation or reducing retention.
+
+      - alert: PrometheusScrapeErrors
+        expr: >
+          sum(rate(prometheus_target_scrapes_exceeded_sample_limit_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: dark-mirror
+        annotations:
+          summary: "Prometheus scrape sample limit exceeded"
+          description: >
+            Some scrape targets are exceeding the sample limit.
+            Metric cardinality may be too high.

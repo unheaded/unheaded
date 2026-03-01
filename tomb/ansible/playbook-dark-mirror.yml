@@ -1,0 +1,216 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# tomb/ansible/playbook-dark-mirror.yml -- Deploy Dark Mirror observability (Layer 5)
+#
+# Installs Prometheus, Grafana, Loki inside the Tomb VM.
+# Configures scraping of Kingdom services from the attacker perspective.
+# All binaries pre-staged on host -- no internet access.
+---
+- name: "Tomb of Knowledge -- Layer 5: The Dark Mirror"
+  hosts: tomb
+  become: true
+  gather_facts: false
+
+  vars:
+    mirror_root: "{{ tomb_root }}/dark-mirror"
+    prometheus_listen: "127.0.0.1:{{ prometheus_port }}"
+    grafana_listen: "127.0.0.1:{{ grafana_port }}"
+    loki_listen: "127.0.0.1:{{ loki_port }}"
+    retention_days: 30
+
+    dark_mirror_binaries:
+      - { name: prometheus, src: "{{ packages_src }}/dark-mirror/prometheus" }
+      - { name: grafana-server, src: "{{ packages_src }}/dark-mirror/grafana-server" }
+      - { name: loki, src: "{{ packages_src }}/dark-mirror/loki" }
+      - { name: promtail, src: "{{ packages_src }}/dark-mirror/promtail" }
+
+  roles:
+    - role: dark-mirror
+
+  tasks:
+    - name: "Transfer Dark Mirror binaries"
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/usr/local/bin/{{ item.name }}"
+        owner: root
+        group: root
+        mode: "0755"
+      loop: "{{ dark_mirror_binaries }}"
+      loop_control:
+        label: "{{ item.name }}"
+      failed_when: false
+
+    - name: "Deploy Prometheus configuration"
+      ansible.builtin.template:
+        src: "templates/prometheus.yml.j2"
+        dest: "{{ mirror_root }}/prometheus/prometheus.yml"
+        owner: root
+        group: root
+        mode: "0644"
+      failed_when: false
+
+    - name: "Deploy Grafana configuration"
+      ansible.builtin.template:
+        src: "templates/grafana.ini.j2"
+        dest: "{{ mirror_root }}/grafana/grafana.ini"
+        owner: root
+        group: root
+        mode: "0644"
+      failed_when: false
+
+    - name: "Deploy Grafana datasource provisioning"
+      ansible.builtin.copy:
+        content: |
+          apiVersion: 1
+          datasources:
+            - name: Prometheus (Tomb)
+              type: prometheus
+              access: proxy
+              url: http://{{ prometheus_listen }}
+              isDefault: true
+              editable: false
+            - name: Loki (Tomb)
+              type: loki
+              access: proxy
+              url: http://{{ loki_listen }}
+              editable: false
+        dest: "{{ mirror_root }}/grafana/provisioning/datasources/tomb.yml"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: "Deploy Loki configuration"
+      ansible.builtin.template:
+        src: "templates/loki.yml.j2"
+        dest: "{{ mirror_root }}/loki/loki.yml"
+        owner: root
+        group: root
+        mode: "0644"
+      failed_when: false
+
+    - name: "Deploy alerting rules"
+      ansible.builtin.copy:
+        src: "files/kingdom-alerts.yml"
+        dest: "{{ mirror_root }}/alerts/kingdom-alerts.yml"
+        owner: root
+        group: root
+        mode: "0644"
+      failed_when: false
+
+    - name: "Deploy Prometheus systemd service"
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Prometheus (Dark Mirror)
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          ExecStart=/usr/local/bin/prometheus \
+            --config.file={{ mirror_root }}/prometheus/prometheus.yml \
+            --storage.tsdb.path={{ mirror_root }}/prometheus/data \
+            --storage.tsdb.retention.time={{ retention_days }}d \
+            --web.listen-address={{ prometheus_listen }} \
+            --web.enable-lifecycle
+          Restart=on-failure
+          RestartSec=10s
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/tomb-prometheus.service
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: "Deploy Grafana systemd service"
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Grafana (Dark Mirror)
+          After=tomb-prometheus.service
+
+          [Service]
+          Type=simple
+          User=root
+          ExecStart=/usr/local/bin/grafana-server \
+            --config={{ mirror_root }}/grafana/grafana.ini \
+            --homepath=/usr/share/grafana
+          Restart=on-failure
+          RestartSec=10s
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/tomb-grafana.service
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: "Deploy Loki systemd service"
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Loki (Dark Mirror)
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          ExecStart=/usr/local/bin/loki \
+            --config.file={{ mirror_root }}/loki/loki.yml
+          Restart=on-failure
+          RestartSec=10s
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/tomb-loki.service
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: "Reload systemd"
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: "Enable and start Dark Mirror services"
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop:
+        - tomb-prometheus
+        - tomb-loki
+        - tomb-grafana
+      failed_when: false
+
+    - name: "Verify Prometheus is responding"
+      ansible.builtin.uri:
+        url: "http://{{ prometheus_listen }}/-/healthy"
+        method: GET
+        timeout: 5
+      register: prom_health
+      retries: 5
+      delay: 3
+      until: prom_health.status == 200
+      failed_when: false
+
+    - name: "Verify Loki is responding"
+      ansible.builtin.uri:
+        url: "http://{{ loki_listen }}/ready"
+        method: GET
+        timeout: 5
+      register: loki_health
+      retries: 5
+      delay: 3
+      until: loki_health.status == 200
+      failed_when: false
+
+    - name: "Report Dark Mirror status"
+      ansible.builtin.debug:
+        msg: |
+          Dark Mirror Status:
+            Prometheus: {{ 'READY' if (prom_health.status | default(0)) == 200 else 'NOT READY' }}
+            Loki:       {{ 'READY' if (loki_health.status | default(0)) == 200 else 'NOT READY' }}
+            Grafana:    Enabled (check http://{{ grafana_listen }})
+
+  handlers:
+    - name: "Reload systemd"
+      ansible.builtin.systemd:
+        daemon_reload: true

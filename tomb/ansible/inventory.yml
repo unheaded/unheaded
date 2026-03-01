@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# tomb/ansible/inventory.yml -- Tomb of Knowledge VM inventory
+#
+# The Tomb VM is an air-gapped Kali Linux QEMU VM reachable from
+# the host (WEST, 192.168.13.2) via a bridge at 192.168.13.5/30.
+---
+all:
+  vars:
+    # Tomb VM configuration
+    tomb_root: /opt/tomb
+    tomb_staging: /tmp/tomb-staging
+    tomb_user: kali
+    tomb_host_ip: 192.168.13.2
+    tomb_bridge_ip: 192.168.13.5
+    tomb_vm_ip: 192.168.13.6
+    tomb_network: 192.168.13.0/30
+
+    # Ansible SSH settings
+    ansible_user: kali
+    ansible_ssh_private_key_file: "{{ lookup('env', 'TOMB_SSH_KEY') | default('~/.ssh/id_tomb', true) }}"
+    ansible_ssh_common_args: >-
+      -o StrictHostKeyChecking=no
+      -o UserKnownHostsFile=/dev/null
+      -o ConnectTimeout=10
+    ansible_become: true
+    ansible_become_method: sudo
+
+    # Air-gap: all packages pre-staged, no internet
+    airgap_mode: true
+    packages_src: "{{ playbook_dir }}/../packages"
+
+    # Service ports (inside Tomb)
+    ollama_port: 11434
+    prometheus_port: 9090
+    grafana_port: 3000
+    loki_port: 3100
+
+    # Kingdom service endpoints (for Dark Mirror scraping)
+    kingdom_services:
+      - { name: unheaded-daemon, host: 192.168.13.2, port: 17000 }
+      - { name: wotan,           host: 192.168.13.2, port: 18000 }
+      - { name: timeguru,        host: 192.168.13.2, port: 19000 }
+      - { name: architect,       host: 192.168.13.2, port: 19001 }
+      - { name: captain,         host: 192.168.13.2, port: 19002 }
+      - { name: micromanager,    host: 192.168.13.2, port: 19003 }
+      - { name: monad,           host: 192.168.13.2, port: 19004 }
+      - { name: sophia,          host: 192.168.13.2, port: 19005 }
+
+  children:
+    tomb:
+      hosts:
+        tomb-vm:
+          ansible_host: 192.168.13.6
+          ansible_port: 22

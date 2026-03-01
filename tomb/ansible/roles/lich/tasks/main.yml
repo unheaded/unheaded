@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+# roles/lich/tasks/main.yml -- Lich adversary framework role
+---
+- name: "Ensure Lich directories exist"
+  ansible.builtin.file:
+    path: "{{ tomb_root }}/lich/{{ item }}"
+    state: directory
+    owner: "{{ tomb_user }}"
+    group: "{{ tomb_user }}"
+    mode: "0750"
+  loop:
+    - campaigns
+    - harnesses
+    - crash-triage
+    - crash-triage/corpus
+    - crash-triage/crashes
+    - crash-triage/crashes/rce
+    - crash-triage/crashes/dos
+    - crash-triage/crashes/memory-leak
+    - crash-triage/crashes/info-leak
+    - crash-triage/crashes/unknown
+
+- name: "Verify Lich tooling prerequisites"
+  ansible.builtin.command:
+    cmd: "which {{ item }}"
+  register: lich_tools
+  loop:
+    - nmap
+    - nikto
+    - gdb
+    - strings
+    - file
+  changed_when: false
+  failed_when: false
+
+- name: "Report Lich tool availability"
+  ansible.builtin.debug:
+    msg: "{{ item.item }}: {{ 'AVAILABLE' if item.rc == 0 else 'MISSING' }}"
+  loop: "{{ lich_tools.results }}"
+  loop_control:
+    label: "{{ item.item }}"

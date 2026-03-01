@@ -1,0 +1,7 @@
+LICH-005 Seed Corpus: eBPF Kernel Interface
+
+BPF_MAP_CREATE attribute struct: 36 bytes (little-endian)
+  [MapType:4][KeySize:4][ValueSize:4][MaxEntries:4][MapFlags:4][MapName:16]
+
+ELF section names for classification:
+  xdp, tc/, kprobe/, tracepoint/, maps, .BTF, license
