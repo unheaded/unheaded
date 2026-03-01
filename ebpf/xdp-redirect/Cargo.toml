@@ -1,0 +1,12 @@
+[package]
+name        = "xdp-redirect"
+description = "XDP redirect program — steers packets to AF_XDP sockets via XSKMAP"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+repository.workspace = true
+authors.workspace    = true
+
+[dependencies]
+aya-ebpf.workspace = true
+af-xdp-common = { path = "../af-xdp-common" }
