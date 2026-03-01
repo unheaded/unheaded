@@ -21,7 +21,6 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use af_xdp_common::{XdpRedirectConfig, XdpRedirectStats};
-use core::mem;
 
 // ── Maps ─────────────────────────────────────────────────────────────────────
 
