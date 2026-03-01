@@ -13,7 +13,7 @@ pub mod umem;
 pub mod xsk;
 
 pub use af_xdp_common as common;
-pub use engine::{XdpEngine, PacketBuf, EngineStats, EventLoop, SignalHandler};
+pub use engine::{EngineStats, EventLoop, PacketBuf, SignalHandler, XdpEngine};
 pub use ffi::{AfxdpHandle, AfxdpStats};
 pub use ring::Ring;
 pub use umem::Umem;

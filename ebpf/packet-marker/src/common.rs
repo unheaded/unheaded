@@ -105,12 +105,6 @@ pub struct StatsEntry {
     pub errors: u64,
 }
 
-
-
-
-
-
-
 /// Map names pinned to the BPF filesystem.
 ///
 /// These constants must match the map names used in the XDP program

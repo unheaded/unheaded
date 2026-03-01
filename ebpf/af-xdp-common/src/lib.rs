@@ -437,7 +437,11 @@ mod tests {
 
     #[test]
     fn test_xsk_desc_copy() {
-        let d = XskDesc { addr: 0x1000, len: 4096, options: 0 };
+        let d = XskDesc {
+            addr: 0x1000,
+            len: 4096,
+            options: 0,
+        };
         let d2 = d;
         assert_eq!(d, d2);
     }

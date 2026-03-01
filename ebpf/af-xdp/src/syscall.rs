@@ -24,15 +24,7 @@ const SYS_POLL: u64 = 7;
 
 /// Issue a 6-argument syscall. Returns raw kernel result (negative = -errno).
 #[inline(always)]
-unsafe fn syscall6(
-    nr: u64,
-    a1: u64,
-    a2: u64,
-    a3: u64,
-    a4: u64,
-    a5: u64,
-    a6: u64,
-) -> i64 {
+unsafe fn syscall6(nr: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64) -> i64 {
     let ret: i64;
     asm!(
         "syscall",
@@ -127,12 +119,7 @@ pub const SOCK_RAW: i32 = 3;
 
 /// socket(domain, type, protocol)
 pub unsafe fn socket(domain: i32, stype: i32, protocol: i32) -> Result<i32, i32> {
-    let ret = syscall3(
-        SYS_SOCKET,
-        domain as u64,
-        stype as u64,
-        protocol as u64,
-    );
+    let ret = syscall3(SYS_SOCKET, domain as u64, stype as u64, protocol as u64);
     if ret < 0 {
         Err((-ret) as i32)
     } else {
@@ -142,12 +129,7 @@ pub unsafe fn socket(domain: i32, stype: i32, protocol: i32) -> Result<i32, i32>
 
 /// bind(sockfd, addr, addrlen)
 pub unsafe fn bind(sockfd: i32, addr: *const u8, addrlen: u32) -> Result<(), i32> {
-    let ret = syscall3(
-        SYS_BIND,
-        sockfd as u64,
-        addr as u64,
-        addrlen as u64,
-    );
+    let ret = syscall3(SYS_BIND, sockfd as u64, addr as u64, addrlen as u64);
     if ret < 0 {
         Err((-ret) as i32)
     } else {
@@ -303,7 +285,12 @@ pub unsafe fn if_nametoindex(name: &str) -> Result<u32, i32> {
     req.ifr_name[..copy_len].copy_from_slice(&name_bytes[..copy_len]);
     // Already null-terminated since zeroed
 
-    let ret = syscall3(SYS_IOCTL, sock as u64, SIOCGIFINDEX, &mut req as *mut Ifreq as u64);
+    let ret = syscall3(
+        SYS_IOCTL,
+        sock as u64,
+        SIOCGIFINDEX,
+        &mut req as *mut Ifreq as u64,
+    );
     let _ = close(sock);
 
     if ret < 0 {

@@ -47,16 +47,14 @@ use aya_ebpf::{
     bindings::xdp_action,
     helpers::bpf_ktime_get_ns,
     macros::{map, xdp},
-    maps::{Array, HashMap, RingBuf, LruHashMap},
+    maps::{Array, HashMap, LruHashMap, RingBuf},
     programs::XdpContext,
 };
 use monad_common::{
-    Monad,
-    MbcCpuState, MbcInsn, ComputeHopEvent,
-    mbc_opcodes as op, mbc_flags as mf, mbc_syscalls as sys, mbc_mmap as mmap,
-    IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_TYPE, MONAD_OPT_DATA_LEN, MONAD_SIZE,
-    flags,
-    EVENT_CACHE_MISS, EVENT_SCREEN_WRITE, EVENT_COMPUTE_HALT,
+    flags, mbc_flags as mf, mbc_mmap as mmap, mbc_opcodes as op, mbc_syscalls as sys,
+    ComputeHopEvent, MbcCpuState, MbcInsn, Monad, EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
+    EVENT_SCREEN_WRITE, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE,
+    MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -120,18 +118,18 @@ static RV2MBC_MAP: Array<u32> = Array::with_max_entries(65_536, 0);
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
 
 // ── Stat keys ─────────────────────────────────────────────────────────────────
-const STAT_PACKETS_TOTAL:   u32 = 0;
-const STAT_CPU_TICKS:       u32 = 1;
-const STAT_INSNS_EXECUTED:  u32 = 2;
-const STAT_HALTED:          u32 = 3;
-const STAT_SLEEPING:        u32 = 4;
-const STAT_NO_STATE:        u32 = 5;
+const STAT_PACKETS_TOTAL: u32 = 0;
+const STAT_CPU_TICKS: u32 = 1;
+const STAT_INSNS_EXECUTED: u32 = 2;
+const STAT_HALTED: u32 = 3;
+const STAT_SLEEPING: u32 = 4;
+const STAT_NO_STATE: u32 = 5;
 #[allow(dead_code)]
-const STAT_MEM_FAULTS:      u32 = 6;
-const STAT_SYSCALLS:        u32 = 7;
-const STAT_ROM_FAULT:       u32 = 8;
-const STAT_MEM_STORES:      u32 = 9;  // was CACHE_HITS (misleading — cache is disabled)
-const STAT_MEM_LOADS:       u32 = 10; // was CACHE_MISSES (all loads go direct to Array)
+const STAT_MEM_FAULTS: u32 = 6;
+const STAT_SYSCALLS: u32 = 7;
+const STAT_ROM_FAULT: u32 = 8;
+const STAT_MEM_STORES: u32 = 9; // was CACHE_HITS (misleading — cache is disabled)
+const STAT_MEM_LOADS: u32 = 10; // was CACHE_MISSES (all loads go direct to Array)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -146,23 +144,23 @@ const MAX_INSN_PER_TICK: usize = 256;
 
 #[repr(C, packed)]
 struct EthHdr {
-    _dst:   [u8; 6],
-    _src:   [u8; 6],
-    proto:  u16,
+    _dst: [u8; 6],
+    _src: [u8; 6],
+    proto: u16,
 }
 
 #[repr(C, packed)]
 struct Ipv6Hdr {
-    vtf:         u32,
+    vtf: u32,
     payload_len: u16,
     next_header: u8,
-    hop_limit:   u8,
-    _src:        [u8; 16],
-    _dst:        [u8; 16],
+    hop_limit: u8,
+    _src: [u8; 16],
+    _dst: [u8; 16],
 }
 
-const ETH_HLEN:   usize = 14;
-const ETH_P_IPV6: u16   = 0x86DD;
+const ETH_HLEN: usize = 14;
+const ETH_P_IPV6: u16 = 0x86DD;
 
 // ── XDP entry point ───────────────────────────────────────────────────────────
 
@@ -170,7 +168,7 @@ const ETH_P_IPV6: u16   = 0x86DD;
 pub fn monad_cpu(ctx: XdpContext) -> u32 {
     match try_monad_cpu(&ctx) {
         Ok(action) => action,
-        Err(_)     => xdp_action::XDP_PASS,
+        Err(_) => xdp_action::XDP_PASS,
     }
 }
 
@@ -178,7 +176,7 @@ pub fn monad_cpu(ctx: XdpContext) -> u32 {
 fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_PACKETS_TOTAL);
 
-    let data     = ctx.data();
+    let data = ctx.data();
     let data_end = ctx.data_end();
 
     // ── Ethernet ──────────────────────────────────────────────────────────────
@@ -207,7 +205,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         return Ok(xdp_action::XDP_PASS);
     }
 
-    let opt_type: u8     = unsafe { core::ptr::read_volatile((hbh_start + 2) as *const u8) };
+    let opt_type: u8 = unsafe { core::ptr::read_volatile((hbh_start + 2) as *const u8) };
     let opt_data_len: u8 = unsafe { core::ptr::read_volatile((hbh_start + 3) as *const u8) };
     if opt_type != MONAD_OPT_TYPE || opt_data_len != MONAD_OPT_DATA_LEN {
         return Ok(xdp_action::XDP_PASS);
@@ -227,14 +225,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_CPU_TICKS);
 
     // ── Extract instance_id from Flow Label ───────────────────────────────────
-    let vtf        = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
+    let vtf = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
     let flow_label = vtf & 0x000F_FFFF;
-    let instance   = flow_label & 0xFF; // low 8 bits → 256 possible instances
+    let instance = flow_label & 0xFF; // low 8 bits → 256 possible instances
 
     // ── Load CPU state ────────────────────────────────────────────────────────
     let cpu_ptr = match CPU_MAP.get_ptr_mut(&instance) {
         Some(p) => p,
-        None    => {
+        None => {
             increment_stat(STAT_NO_STATE);
             return Ok(xdp_action::XDP_DROP); // tick consumed, no instance
         }
@@ -270,7 +268,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         // Fetch
         let insn_word = match ROM_MAP.get(cpu.pc) {
             Some(w) => *w,
-            None    => {
+            None => {
                 // PC out of bounds — halt the CPU.
                 cpu.halted = 1;
                 increment_stat(STAT_ROM_FAULT);
@@ -278,10 +276,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
         };
         let insn = MbcInsn(insn_word);
-        let opc  = insn.opcode();
-        let d    = (insn.dst() as usize) & 0x0F;
-        let s    = (insn.src() as usize) & 0x0F;
-        let imm  = insn.imm16() as u32;
+        let opc = insn.opcode();
+        let d = (insn.dst() as usize) & 0x0F;
+        let s = (insn.src() as usize) & 0x0F;
+        let imm = insn.imm16() as u32;
         let simm = insn.imm16_signed() as i32;
 
         // Advance PC before execution (branches will overwrite if taken).
@@ -300,7 +298,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         if opc == op::NOP {
             // No operation — just advance PC (already done above).
 
-        // ── Arithmetic ────────────────────────────────────────────────────────
+            // ── Arithmetic ────────────────────────────────────────────────────────
         } else if opc == op::ADD {
             let (r, c) = cpu.regs[d].overflowing_add(cpu.regs[s]);
             cpu.regs[d] = r;
@@ -418,14 +416,20 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
         // ── Compare ───────────────────────────────────────────────────────────
         } else if opc == op::CMP {
-            let rd  = cpu.regs[d];
-            let rs  = cpu.regs[s];
+            let rd = cpu.regs[d];
+            let rs = cpu.regs[s];
             let (diff, borrow) = rd.overflowing_sub(rs);
             // Z: equal, N: signed less-than (MSB of diff set), C: unsigned borrow
             cpu.flags = 0;
-            if diff == 0 { cpu.flags |= mf::Z; }
-            if diff & 0x8000_0000 != 0 { cpu.flags |= mf::N; }
-            if borrow { cpu.flags |= mf::C; }
+            if diff == 0 {
+                cpu.flags |= mf::Z;
+            }
+            if diff & 0x8000_0000 != 0 {
+                cpu.flags |= mf::N;
+            }
+            if borrow {
+                cpu.flags |= mf::C;
+            }
 
         // ── Branches ─────────────────────────────────────────────────────────
         } else if opc == op::JMP {
@@ -467,11 +471,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = target;
             // Restart trap: catch direct call to PC 0 (translator bug)
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);   // sentinel
-                mem_write_word(0xE0004 >> 2, 0x27);          // CALL opcode
-                mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC of CALL insn
-                mem_write_word(0xE000C >> 2, target);        // target was 0
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
+                mem_write_word(0xE0004 >> 2, 0x27); // CALL opcode
+                mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of CALL insn
+                mem_write_word(0xE000C >> 2, target); // target was 0
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
                 cpu.halted = 1;
                 increment_stat(STAT_ROM_FAULT);
                 break;
@@ -487,12 +491,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 Some(mbc_idx) => *mbc_idx,
                 None => {
                     // Unmapped address — halt + write diagnostics.
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0002);   // sentinel (unmapped)
-                    mem_write_word(0xE0004 >> 2, opc as u32);    // 0x29 = JMPR
-                    mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC of JMPR insn
-                    mem_write_word(0xE000C >> 2, rv_addr);       // RV byte addr
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
-                    mem_write_word(0xE0014 >> 2, rv_word);       // RV word index
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0002); // sentinel (unmapped)
+                    mem_write_word(0xE0004 >> 2, opc as u32); // 0x29 = JMPR
+                    mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of JMPR insn
+                    mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
+                    mem_write_word(0xE0014 >> 2, rv_word); // RV word index
                     cpu.halted = 1;
                     increment_stat(STAT_ROM_FAULT);
                     break;
@@ -500,11 +504,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             };
             // Restart trap: catch jump to PC 0 (_start) — indicates restart bug
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);   // sentinel
-                mem_write_word(0xE0004 >> 2, opc as u32);    // 0x29 = JMPR
-                mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC before jump
-                mem_write_word(0xE000C >> 2, rv_addr);       // RV addr that mapped to 0
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
+                mem_write_word(0xE0004 >> 2, opc as u32); // 0x29 = JMPR
+                mem_write_word(0xE0008 >> 2, old_pc); // MBC PC before jump
+                mem_write_word(0xE000C >> 2, rv_addr); // RV addr that mapped to 0
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
                 cpu.halted = 1;
                 increment_stat(STAT_ROM_FAULT);
                 break;
@@ -521,12 +525,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
                 Some(mbc_idx) => *mbc_idx,
                 None => {
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0003);   // sentinel (unmapped CALLR)
-                    mem_write_word(0xE0004 >> 2, opc as u32);    // 0x2A = CALLR
-                    mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC of CALLR insn
-                    mem_write_word(0xE000C >> 2, rv_addr);       // RV byte addr
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
-                    mem_write_word(0xE0014 >> 2, rv_word);       // RV word index
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0003); // sentinel (unmapped CALLR)
+                    mem_write_word(0xE0004 >> 2, opc as u32); // 0x2A = CALLR
+                    mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of CALLR insn
+                    mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
+                    mem_write_word(0xE0014 >> 2, rv_word); // RV word index
                     cpu.halted = 1;
                     increment_stat(STAT_ROM_FAULT);
                     break;
@@ -534,11 +538,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             };
             // Restart trap: catch indirect call to PC 0
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);   // sentinel
-                mem_write_word(0xE0004 >> 2, opc as u32);    // 0x2A = CALLR
-                mem_write_word(0xE0008 >> 2, old_pc);        // MBC PC before call
-                mem_write_word(0xE000C >> 2, rv_addr);       // RV addr that mapped to 0
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
+                mem_write_word(0xE0004 >> 2, opc as u32); // 0x2A = CALLR
+                mem_write_word(0xE0008 >> 2, old_pc); // MBC PC before call
+                mem_write_word(0xE000C >> 2, rv_addr); // RV addr that mapped to 0
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
                 cpu.halted = 1;
                 increment_stat(STAT_ROM_FAULT);
                 break;
@@ -550,12 +554,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.regs[15] = cpu.regs[15].wrapping_add(4);
             // Restart trap: catch RET popping 0 (stack corruption)
             if ret == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);   // sentinel
-                mem_write_word(0xE0004 >> 2, 0x28);          // RET opcode
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
+                mem_write_word(0xE0004 >> 2, 0x28); // RET opcode
                 mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1)); // PC of RET insn
-                mem_write_word(0xE000C >> 2, ret);           // popped value (0)
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);  // SP after pop
-                mem_write_word(0xE0014 >> 2, word_addr);     // stack word addr that was read
+                mem_write_word(0xE000C >> 2, ret); // popped value (0)
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP after pop
+                mem_write_word(0xE0014 >> 2, word_addr); // stack word addr that was read
                 cpu.halted = 1;
                 increment_stat(STAT_ROM_FAULT);
                 break;
@@ -574,14 +578,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 None => 0,
             };
             cpu.regs[d] = val;
-            cpu.cache_misses += 1;  // mem_loads counter (legacy field name)
+            cpu.cache_misses += 1; // mem_loads counter (legacy field name)
             increment_stat(STAT_MEM_LOADS);
         } else if opc == op::ST {
             // RAM[dst + simm16] = src  (32-bit word store)
             let addr = cpu.regs[d].wrapping_add(simm as u32);
             let val = cpu.regs[s];
             mem_write_word(addr >> 2, val);
-            cpu.cache_hits += 1;  // mem_stores counter (legacy field name)
+            cpu.cache_hits += 1; // mem_stores counter (legacy field name)
             increment_stat(STAT_MEM_STORES);
         } else if opc == op::LDB {
             // dst = zero_extend(RAM[src + simm16])  (byte load)
@@ -647,10 +651,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     };
                     if kv != 0 {
                         cpu.regs[8] = (kv >> 1) & 0x7FFF_FFFF; // key code
-                        cpu.regs[9] = kv & 1;                   // pressed flag
-                        // Consume: clear slot
+                        cpu.regs[9] = kv & 1; // pressed flag
+                                              // Consume: clear slot
                         if let Some(p) = KBD_MAP.get_ptr_mut(slot) {
-                            unsafe { *p = 0; }
+                            unsafe {
+                                *p = 0;
+                            }
                         }
                         found = true;
                         break;
@@ -673,7 +679,6 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 break;
             }
             // Unknown syscall: silently ignore (fail-safe).
-
         } else if opc == op::HALT {
             cpu.halted = 1;
             increment_stat(STAT_HALTED);
@@ -746,7 +751,7 @@ fn emit_screen_write(flow_label: u32, fb_addr: u32, hop_id: u8) {
             hop_id,
             _pad: [0; 2],
             flow_label,
-            pc: fb_addr,  // Reuse pc field for framebuffer address
+            pc: fb_addr, // Reuse pc field for framebuffer address
             instruction: 0,
             regs: [0; 16],
             flags: 0,
@@ -815,12 +820,12 @@ fn mem_read_word(word_addr: u32) -> u32 {
     if word_addr == kbd_word {
         return match KBD_MAP.get(0) {
             Some(v) => *v,
-            None    => 0,
+            None => 0,
         };
     }
     match RAM_MAP.get(word_addr) {
         Some(v) => *v,
-        None    => 0,
+        None => 0,
     }
 }
 
@@ -830,7 +835,7 @@ fn mem_read_word(word_addr: u32) -> u32 {
 fn mem_write_word(word_addr: u32, value: u32) {
     // Screen region: word_addr in [SCREEN_BASE/4 .. (SCREEN_BASE+SCREEN_SIZE)/4)
     let screen_word_start = mmap::SCREEN_BASE >> 2;
-    let screen_word_end   = (mmap::SCREEN_BASE + mmap::SCREEN_SIZE + 3) >> 2;
+    let screen_word_end = (mmap::SCREEN_BASE + mmap::SCREEN_SIZE + 3) >> 2;
 
     if word_addr >= screen_word_start && word_addr < screen_word_end {
         // Write four bytes to SCREEN_MAP.
@@ -840,7 +845,9 @@ fn mem_write_word(word_addr: u32, value: u32) {
             let px = pixel_base + k;
             if px < mmap::SCREEN_SIZE {
                 if let Some(p) = SCREEN_MAP.get_ptr_mut(px) {
-                    unsafe { *p = bytes[k as usize]; }
+                    unsafe {
+                        *p = bytes[k as usize];
+                    }
                 }
             }
         }
@@ -848,7 +855,9 @@ fn mem_write_word(word_addr: u32, value: u32) {
 
     // Always write to RAM_MAP (SCREEN_MAP is a projection of RAM_MAP).
     if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
-        unsafe { *ptr = value; }
+        unsafe {
+            *ptr = value;
+        }
     }
 }
 
@@ -861,11 +870,11 @@ fn mem_read_byte(byte_addr: u32) -> u8 {
         let px = byte_addr - mmap::SCREEN_BASE;
         return match SCREEN_MAP.get(px) {
             Some(v) => *v,
-            None    => 0,
+            None => 0,
         };
     }
     // General RAM: extract byte from word.
-    let word_addr  = byte_addr >> 2;
+    let word_addr = byte_addr >> 2;
     let byte_shift = (byte_addr & 3) * 8;
     let word = mem_read_word(word_addr);
     ((word >> byte_shift) & 0xFF) as u8
@@ -878,16 +887,20 @@ fn mem_write_byte(byte_addr: u32, value: u8) {
     if byte_addr >= mmap::SCREEN_BASE && byte_addr < mmap::SCREEN_BASE + mmap::SCREEN_SIZE {
         let px = byte_addr - mmap::SCREEN_BASE;
         if let Some(p) = SCREEN_MAP.get_ptr_mut(px) {
-            unsafe { *p = value; }
+            unsafe {
+                *p = value;
+            }
         }
         // Fall through to also write the enclosing word in RAM_MAP so reads are consistent.
     }
-    let word_addr  = byte_addr >> 2;
+    let word_addr = byte_addr >> 2;
     let byte_shift = (byte_addr & 3) * 8;
     let old_word = mem_read_word(word_addr);
     let new_word = (old_word & !(0xFF << byte_shift)) | ((value as u32) << byte_shift);
     if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
-        unsafe { *ptr = new_word; }
+        unsafe {
+            *ptr = new_word;
+        }
     }
 }
 
@@ -895,7 +908,7 @@ fn mem_write_byte(byte_addr: u32, value: u8) {
 #[allow(dead_code)]
 #[inline(always)]
 fn mem_read_half(byte_addr: u32) -> u16 {
-    let word_addr  = byte_addr >> 2;
+    let word_addr = byte_addr >> 2;
     let half_shift = (byte_addr & 2) * 8; // 0 for low half, 16 for high half
     let word = mem_read_word(word_addr);
     ((word >> half_shift) & 0xFFFF) as u16
@@ -904,7 +917,7 @@ fn mem_read_half(byte_addr: u32) -> u16 {
 /// Write a 16-bit halfword to the MBC address space (little-endian).
 #[inline(always)]
 fn mem_write_half(byte_addr: u32, value: u16) {
-    let word_addr  = byte_addr >> 2;
+    let word_addr = byte_addr >> 2;
     let half_shift = (byte_addr & 2) * 8;
     let old_word = mem_read_word(word_addr);
     let new_word = (old_word & !(0xFFFF << half_shift)) | ((value as u32) << half_shift);
@@ -950,7 +963,9 @@ fn read_monad_xdp(start: usize, data_end: usize) -> Result<Monad, ()> {
 #[inline(always)]
 fn increment_stat(key: u32) {
     if let Some(v) = STATS.get_ptr_mut(&key) {
-        unsafe { *v = (*v).saturating_add(1); }
+        unsafe {
+            *v = (*v).saturating_add(1);
+        }
     } else {
         let _ = STATS.insert(&key, &1u64, 0);
     }

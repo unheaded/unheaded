@@ -51,10 +51,8 @@ use aya_ebpf::{
     programs::TcContext,
 };
 use monad_common::{
-    AnamnesisEvent, ChaosMode, EventType, Monad,
-    MONAD_OPT_TYPE, MONAD_OPT_DATA_LEN, MONAD_SIZE,
-    IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
-    flags,
+    flags, AnamnesisEvent, ChaosMode, EventType, Monad, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -88,26 +86,26 @@ static CONFIG: HashMap<u32, u64> = HashMap::with_max_entries(16, 0);
 static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 
 // ── Stat keys ─────────────────────────────────────────────────────────────────
-const STAT_PACKETS_TOTAL:   u32 = 0;
-const STAT_PACKETS_IPV6:    u32 = 1;
-const STAT_PACKETS_HBH:     u32 = 2;
-const STAT_TARGETS_HIT:     u32 = 3;
-const STAT_MODE_BIT_FLIP:   u32 = 4;
-const STAT_MODE_DELAY:      u32 = 5;
-const STAT_MODE_DUPLICATE:  u32 = 6;
-const STAT_MODE_TRUNCATE:   u32 = 7;
-const STAT_MODE_MARKER:     u32 = 8;
-const STAT_EVENTS_SENT:     u32 = 9;
-const STAT_EVENTS_DROPPED:  u32 = 10;
-const STAT_CLONE_FAILED:    u32 = 11;
+const STAT_PACKETS_TOTAL: u32 = 0;
+const STAT_PACKETS_IPV6: u32 = 1;
+const STAT_PACKETS_HBH: u32 = 2;
+const STAT_TARGETS_HIT: u32 = 3;
+const STAT_MODE_BIT_FLIP: u32 = 4;
+const STAT_MODE_DELAY: u32 = 5;
+const STAT_MODE_DUPLICATE: u32 = 6;
+const STAT_MODE_TRUNCATE: u32 = 7;
+const STAT_MODE_MARKER: u32 = 8;
+const STAT_EVENTS_SENT: u32 = 9;
+const STAT_EVENTS_DROPPED: u32 = 10;
+const STAT_CLONE_FAILED: u32 = 11;
 
 // ── Config keys ───────────────────────────────────────────────────────────────
-const CFG_HOP_ID:         u32 = 0;
+const CFG_HOP_ID: u32 = 0;
 const CFG_EGRESS_IFINDEX: u32 = 4;
 
 // ── Packet layout constants ───────────────────────────────────────────────────
-const ETH_HLEN:   usize = 14;
-const ETH_P_IPV6: u16   = 0x86DD;
+const ETH_HLEN: usize = 14;
+const ETH_P_IPV6: u16 = 0x86DD;
 
 /// Byte offset of the Monad data within a fully formed Kingdom packet.
 ///
@@ -131,7 +129,7 @@ const MONAD_FLIP_LAST_BYTE: usize = MONAD_SIZE - 3; // = 17
 pub fn yaldabaoth_tc(mut ctx: TcContext) -> i32 {
     match try_yaldabaoth(&mut ctx) {
         Ok(action) => action,
-        Err(_)     => TC_ACT_OK as i32,
+        Err(_) => TC_ACT_OK as i32,
     }
 }
 
@@ -154,8 +152,8 @@ fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
     increment_stat(STAT_PACKETS_HBH);
 
     // ── Verify Monad option type / data length ────────────────────────────────
-    let hbh_offset  = ETH_HLEN + IPV6_FIXED_HDR_LEN;
-    let opt_type: u8     = ctx.load(hbh_offset + 2).map_err(|_| ())?;
+    let hbh_offset = ETH_HLEN + IPV6_FIXED_HDR_LEN;
+    let opt_type: u8 = ctx.load(hbh_offset + 2).map_err(|_| ())?;
     let opt_data_len: u8 = ctx.load(hbh_offset + 3).map_err(|_| ())?;
 
     if opt_type != MONAD_OPT_TYPE || opt_data_len != MONAD_OPT_DATA_LEN {
@@ -166,17 +164,17 @@ fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
     // ── Extract Flow Label from IPv6 header ───────────────────────────────────
     // IPv6 vtf field is at offset ETH_HLEN (byte 14 in the packet).
     // Load as big-endian u32: version(4) + traffic_class(8) + flow_label(20).
-    let vtf: u32     = ctx.load(ETH_HLEN).map_err(|_| ())?;
-    let flow_label   = u32::from_be(vtf) & 0x000F_FFFF;
+    let vtf: u32 = ctx.load(ETH_HLEN).map_err(|_| ())?;
+    let flow_label = u32::from_be(vtf) & 0x000F_FFFF;
 
     // ── Check CHAOS_TARGETS map ───────────────────────────────────────────────
     let target = match unsafe { CHAOS_TARGETS.get(&flow_label) } {
         Some(t) => *t,
-        None    => return Ok(TC_ACT_OK as i32), // flow not enrolled for chaos
+        None => return Ok(TC_ACT_OK as i32), // flow not enrolled for chaos
     };
     increment_stat(STAT_TARGETS_HIT);
 
-    let mode  = (target & 0xFF) as u8;
+    let mode = (target & 0xFF) as u8;
     let param = (target >> 32) as u32;
 
     // ── Load current Monad ────────────────────────────────────────────────────
@@ -197,28 +195,24 @@ fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
 
 #[inline(always)]
 fn apply_chaos(
-    ctx:        &mut TcContext,
-    monad:      &mut Monad,
-    mode:       u8,
-    param:      u32,
+    ctx: &mut TcContext,
+    monad: &mut Monad,
+    mode: u8,
+    param: u32,
     _flow_label: u32,
 ) -> Result<(), ()> {
     if mode == ChaosMode::BitFlip as u8 {
         apply_bit_flip(ctx, monad)?;
         increment_stat(STAT_MODE_BIT_FLIP);
-
     } else if mode == ChaosMode::Delay as u8 {
         apply_delay(ctx, monad, param)?;
         increment_stat(STAT_MODE_DELAY);
-
     } else if mode == ChaosMode::Duplicate as u8 {
         apply_duplicate(ctx, monad)?;
         increment_stat(STAT_MODE_DUPLICATE);
-
     } else if mode == ChaosMode::Truncate as u8 {
         apply_truncate(ctx, monad)?;
         increment_stat(STAT_MODE_TRUNCATE);
-
     } else {
         // ChaosMode::ChaosMarker (0x05) or unknown — CHAOS flag only.
         apply_marker(ctx, monad)?;
@@ -232,13 +226,13 @@ fn apply_chaos(
 /// Checksum is NOT recomputed — the verifier (hop-ebpf) must detect the error.
 #[inline(always)]
 fn apply_bit_flip(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
-    let rand     = unsafe { bpf_get_prandom_u32() };
-    let mask     = (rand & 0xFF) as u8;
-    let mask     = if mask == 0 { 0x55 } else { mask }; // ensure non-zero flip
+    let rand = unsafe { bpf_get_prandom_u32() };
+    let mask = (rand & 0xFF) as u8;
+    let mask = if mask == 0 { 0x55 } else { mask }; // ensure non-zero flip
 
     // Target byte: pick from the 17-byte mutable region [1..=17].
-    let range  = (MONAD_FLIP_LAST_BYTE - MONAD_FLIP_FIRST_BYTE + 1) as u32; // 17
-    let rel    = ((rand >> 8) % range) as usize;
+    let range = (MONAD_FLIP_LAST_BYTE - MONAD_FLIP_FIRST_BYTE + 1) as u32; // 17
+    let rel = ((rand >> 8) % range) as usize;
     let target = MONAD_FLIP_FIRST_BYTE + rel;
 
     let pkt_off = MONAD_PKT_OFFSET + target;
@@ -249,7 +243,8 @@ fn apply_bit_flip(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
     // We write CHAOS flag directly to packet — byte 7 of Monad (flags field).
     let flags_off = MONAD_PKT_OFFSET + 7; // OFF_FLAGS = 0x07
     let cur_flags: u8 = ctx.load(flags_off).map_err(|_| ())?;
-    ctx.store(flags_off, &(cur_flags | flags::CHAOS), 0).map_err(|_| ())?;
+    ctx.store(flags_off, &(cur_flags | flags::CHAOS), 0)
+        .map_err(|_| ())?;
 
     // Update our in-memory Monad copy for the event (reflects chaos state).
     let mut bytes = monad.to_bytes();
@@ -282,9 +277,7 @@ fn apply_duplicate(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
         // bpf_clone_redirect: send a copy of the packet to `ifindex`.
         // Returns 0 on success, negative on error.  We ignore the error —
         // failing to duplicate is non-fatal for the original packet.
-        let rc = unsafe {
-            aya_ebpf::helpers::bpf_clone_redirect(ctx.skb.skb, ifindex, 0)
-        };
+        let rc = unsafe { aya_ebpf::helpers::bpf_clone_redirect(ctx.skb.skb, ifindex, 0) };
         if rc != 0 {
             increment_stat(STAT_CLONE_FAILED);
         }
@@ -307,7 +300,8 @@ fn apply_truncate(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
     // Set CHAOS flag (byte 7 of Monad) — but we've already zeroed 8+, so set it.
     let flags_off = MONAD_PKT_OFFSET + 7;
     let cur_flags: u8 = ctx.load(flags_off).map_err(|_| ())?;
-    ctx.store(flags_off, &(cur_flags | flags::CHAOS), 0).map_err(|_| ())?;
+    ctx.store(flags_off, &(cur_flags | flags::CHAOS), 0)
+        .map_err(|_| ())?;
 
     // Update in-memory copy for event.
     let mut bytes = monad.to_bytes();
@@ -358,14 +352,16 @@ fn write_monad_tc(ctx: &mut TcContext, pkt_offset: usize, m: &Monad) -> Result<(
 fn cfg(key: u32) -> u64 {
     match unsafe { CONFIG.get(&key) } {
         Some(v) => *v,
-        None    => 0,
+        None => 0,
     }
 }
 
 #[inline(always)]
 fn increment_stat(key: u32) {
     if let Some(v) = STATS.get_ptr_mut(&key) {
-        unsafe { *v = (*v).saturating_add(1); }
+        unsafe {
+            *v = (*v).saturating_add(1);
+        }
     } else {
         let _ = STATS.insert(&key, &1u64, 0);
     }
@@ -375,15 +371,12 @@ fn increment_stat(key: u32) {
 
 #[inline(always)]
 fn emit_event(event_type: u8, hop_id: u8, flow_label: u32, monad: &Monad) {
-    let now   = unsafe { bpf_ktime_get_ns() };
+    let now = unsafe { bpf_ktime_get_ns() };
     let event = AnamnesisEvent {
-        timestamp_ns:  now,
+        timestamp_ns: now,
         event_type,
         hop_id,
-        flow_label_lo: [
-            ((flow_label >> 8) & 0xFF) as u8,
-            ( flow_label       & 0xFF) as u8,
-        ],
+        flow_label_lo: [((flow_label >> 8) & 0xFF) as u8, (flow_label & 0xFF) as u8],
         monad: *monad,
     };
 

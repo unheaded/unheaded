@@ -106,14 +106,14 @@ pub struct XdpEngine {
 
 impl XdpEngine {
     /// Create a new XDP engine bound to interface and queue.
-    pub fn new(
-        iface: &str,
-        queue: u32,
-        frame_count: u32,
-    ) -> Result<Self, &'static str> {
+    pub fn new(iface: &str, queue: u32, frame_count: u32) -> Result<Self, &'static str> {
         let config = XskConfig {
             frame_size: DEFAULT_FRAME_SIZE,
-            frame_count: if frame_count > 0 { frame_count } else { DEFAULT_FRAME_COUNT },
+            frame_count: if frame_count > 0 {
+                frame_count
+            } else {
+                DEFAULT_FRAME_COUNT
+            },
             headroom: 0,
             flags: 0,
         };
@@ -171,13 +171,14 @@ impl XdpEngine {
         self.socket.complete_cycle(&mut self.umem);
 
         // Build descriptors
-        let descs: Vec<XskDesc> = packets.iter().map(|pkt| {
-            XskDesc {
+        let descs: Vec<XskDesc> = packets
+            .iter()
+            .map(|pkt| XskDesc {
                 addr: pkt.addr,
                 len: pkt.len,
                 options: 0,
-            }
-        }).collect();
+            })
+            .collect();
 
         let sent = self.socket.send(&descs) as usize;
 
@@ -302,9 +303,7 @@ impl EventLoop {
     /// Create event loop for the given socket fd.
     pub fn new(socket_fd: RawFd) -> Result<Self, &'static str> {
         // epoll_create1(EPOLL_CLOEXEC=0x80000)
-        let epoll_fd = unsafe {
-            libc_epoll_create1(0x80000)
-        };
+        let epoll_fd = unsafe { libc_epoll_create1(0x80000) };
         if epoll_fd < 0 {
             return Err("epoll_create1 failed");
         }
@@ -322,7 +321,10 @@ impl EventLoop {
             return Err("epoll_ctl ADD failed");
         }
 
-        Ok(EventLoop { epoll_fd, socket_fd })
+        Ok(EventLoop {
+            epoll_fd,
+            socket_fd,
+        })
     }
 
     /// Wait for events with timeout (milliseconds).

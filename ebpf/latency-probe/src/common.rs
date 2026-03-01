@@ -27,11 +27,11 @@ pub struct LatencyKey {
 #[repr(C)]
 #[derive(Clone, Copy, Default, Debug)]
 pub struct LatencyEntry {
-    pub rtt_ns: u64,           // Most recent RTT sample
-    pub min_rtt_ns: u64,       // Minimum observed RTT
-    pub max_rtt_ns: u64,       // Maximum observed RTT
-    pub samples: u64,          // Number of RTT samples
-    pub last_update_ns: u64,   // ktime_get_ns() of last update
+    pub rtt_ns: u64,         // Most recent RTT sample
+    pub min_rtt_ns: u64,     // Minimum observed RTT
+    pub max_rtt_ns: u64,     // Maximum observed RTT
+    pub samples: u64,        // Number of RTT samples
+    pub last_update_ns: u64, // ktime_get_ns() of last update
 }
 
 /// Size of LatencyKey in bytes.
