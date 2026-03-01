@@ -13,3 +13,4 @@ af-xdp-common = { path = "../af-xdp-common" }
 [workspace]
 
 [lib]
+crate-type = ["lib", "cdylib", "staticlib"]

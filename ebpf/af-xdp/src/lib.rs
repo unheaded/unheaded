@@ -6,6 +6,7 @@
 // via raw syscalls through std::arch::asm!
 
 pub mod engine;
+pub mod ffi;
 pub mod ring;
 pub mod syscall;
 pub mod umem;
@@ -13,6 +14,7 @@ pub mod xsk;
 
 pub use af_xdp_common as common;
 pub use engine::{XdpEngine, PacketBuf, EngineStats, EventLoop, SignalHandler};
+pub use ffi::{AfxdpHandle, AfxdpStats};
 pub use ring::Ring;
 pub use umem::Umem;
 pub use xsk::XskSocket;

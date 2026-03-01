@@ -170,7 +170,12 @@ const (
 	BPF_MAP_TYPE_DEVMAP           = 14 // Device map for XDP redirect
 	BPF_MAP_TYPE_SOCKMAP          = 15 // Socket map
 	BPF_MAP_TYPE_CPUMAP           = 16 // CPU map for XDP redirect
-	BPF_MAP_TYPE_XSKMAP           = 17 // AF_XDP socket map
+	// BPF_MAP_TYPE_XSKMAP support for AF_XDP socket attachment.
+	// Maps socket file descriptors to XSKMAP entries for packet redirection.
+	// Usage: XSKMAP[queue_id] = socket_fd
+	// eBPF: bpf_redirect_map(&XSKMAP, queue_id, 0) returns XDP_REDIRECT
+	// See: ebpf/xdp-redirect/src/main.rs and pkg/afxdp/
+	BPF_MAP_TYPE_XSKMAP           = 17
 	BPF_MAP_TYPE_SOCKHASH         = 18 // Socket hash map
 	BPF_MAP_TYPE_CGROUP_STORAGE   = 19 // Per-cgroup storage
 	BPF_MAP_TYPE_REUSEPORT_SOCKARRAY = 20
