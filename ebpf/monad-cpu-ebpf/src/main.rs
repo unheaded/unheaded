@@ -691,7 +691,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     // Manual hop counter since XDP_TX bypasses kernel IP stack (no hop_limit decrement).
     let hop_count_ptr = (monad_start + 3) as *mut u8;
     let current_hop = unsafe { core::ptr::read_volatile(hop_count_ptr) };
-    if current_hop >= 255 {
+    if current_hop == 255 {
         return Ok(xdp_action::XDP_DROP); // exhausted — drop, inject fresh packet
     }
     unsafe { core::ptr::write_volatile(hop_count_ptr, current_hop.wrapping_add(1)) };

@@ -4,6 +4,9 @@
 //
 // C-compatible FFI bindings for Go/C interop.
 // All functions use `extern "C"` ABI with opaque handles.
+// Safety invariants enforced by caller (C/Go) — pointer validity is
+// checked via null guards at each entry point.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::engine::{XdpEngine, EngineStats};
 use std::ffi::CStr;

@@ -2,8 +2,7 @@
 # Overrides parent ebpf/.cargo/config.toml settings
 
 [build]
-# Host target — do NOT set bpfel-unknown-none
+target = "x86_64-unknown-linux-gnu"
 
-# Override parent's build-std = ["core"] with full std set for host target
-[unstable]
-build-std = ["std", "core", "alloc"]
+[target.x86_64-unknown-linux-gnu]
+rustflags = []

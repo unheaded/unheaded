@@ -245,6 +245,35 @@ pub mod deploy_ring {
     pub const DEVELOPMENT: u8 = 0x04;
 }
 
+// ── AF_XDP flow flags ───────────────────────────────────────────────────────
+
+/// Flow state flags shared between shield-ebpf, packet-marker, and af-xdp-engine.
+/// These bits are set atomically in the per-flow FLOW_STATE map.
+pub mod flow_flags {
+    /// Flow entered the AF_XDP zero-copy fast path (shield redirect).
+    /// Cleared when the flow returns to the standard kernel path.
+    pub const AF_XDP_PATH: u8 = 0x08;
+
+    /// Flow has an active trace ID and is eligible for AF_XDP redirect.
+    pub const TRACED_AF_XDP: u8 = 0x10;
+}
+
+/// Redirect action values logged in Anamnesis events and stats.
+pub mod redirect_action {
+    /// No redirect — standard kernel path.
+    pub const NO_REDIRECT: u8 = 0;
+    /// Redirected to AF_XDP socket for zero-copy delivery.
+    pub const AF_XDP: u8 = 1;
+    /// Fell through to kernel stack (AF_XDP enabled but no socket bound).
+    pub const KERNEL_STACK: u8 = 2;
+}
+
+/// Check whether a flow state flags byte indicates AF_XDP path.
+#[inline]
+pub const fn is_af_xdp_path(flow_flags: u8) -> bool {
+    flow_flags & flow_flags::AF_XDP_PATH != 0
+}
+
 // ── CRC-16/CCITT ─────────────────────────────────────────────────────────────
 
 /// CRC-16/CCITT (polynomial 0x1021, initial value 0xFFFF).

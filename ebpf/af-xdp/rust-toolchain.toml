@@ -1,0 +1,4 @@
+# Userspace crate — uses stable Rust (no eBPF nightly features needed)
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

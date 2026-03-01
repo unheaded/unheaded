@@ -14,3 +14,10 @@ af-xdp-common = { path = "../af-xdp-common" }
 
 [lib]
 crate-type = ["lib", "cdylib", "staticlib"]
+
+# Userspace crate — override eBPF-style aggressive profiles
+[profile.dev]
+lto = false
+
+[profile.release]
+lto = "thin"
