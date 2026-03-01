@@ -13,6 +13,8 @@ members = [
     "hop-ebpf",
     "yaldabaoth-ebpf",
     "monad-cpu-ebpf",
+    # --- AF_XDP Zero-Copy Packet I/O ---
+    "af-xdp-common",
 ]
 
 [workspace.package]
