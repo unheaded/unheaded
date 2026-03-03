@@ -155,7 +155,7 @@ func TestBug24_ScreenMapBounds(t *testing.T) {
 	// Verify SCREEN_MAP has exactly 64000 entries (pixel indices 0-63999)
 	// by reading the last valid and first invalid index.
 
-	// Last valid: pixel 63999
+	// Last valid: pixel 15999
 	lastKey := make([]byte, 4)
 	binary.LittleEndian.PutUint32(lastKey, ScreenSize-1)
 

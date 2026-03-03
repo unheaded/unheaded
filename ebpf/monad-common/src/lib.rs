@@ -1108,6 +1108,8 @@ pub mod mbc_opcodes {
     pub const SARR: u8 = 0x38;
     /// `dst = (int64(dst) * int64(src)) >> 32` (upper 32 bits of signed multiply)
     pub const MULH: u8 = 0x39;
+    /// `dst = (uint64(dst) * uint64(src)) >> 32` (upper 32 bits of unsigned multiply)
+    pub const MULHU: u8 = 0x3A;
 
     // ── Register operations ────────────────────────────────────
     /// `dst = src`
@@ -1179,20 +1181,33 @@ pub mod mbc_syscalls {
 }
 
 /// Screen / I/O memory map constants for the Doom-over-IPv6 PoC.
+///
+/// Memory layout (must match linker_doom.ld + doomgeneric_monad_patched.c):
+///   0x00000000 – 0x00019080  .rodata  (102 528 bytes)
+///   0x00019080 – 0x00027B24  .data    ( 60 068 bytes)
+///   0x00027B24 – 0x00063330  .bss     (243 724 bytes)
+///   0x00068000               KBD I/O  (1 word)
+///   0x00070000 – 0x00073E80  Screen   ( 16 000 bytes, 160×100)
+///   0x000F0000 – 0x0010FFFC  Debug    (128 KiB)
+///   0x00110000 – 0x00510000  WAD      (~4 MB, doom1.wad)
+///   0x00520000 – 0x01520000  Heap     ( 16 MB, bump allocator)
+///   0x03F00000               Stack    (growing down)
 pub mod mbc_mmap {
     /// Base address of general RAM in `ram_map`.
     pub const RAM_BASE: u32 = 0x0000_0000;
-    /// Size of general RAM (0xC000 = 49152 bytes = 48 KiB).
-    pub const RAM_SIZE: u32 = 0x0000_C000;
+    /// Size of general RAM below the screen I/O hole.
+    pub const RAM_SIZE: u32 = 0x0007_0000;
     /// Base address of the screen I/O region in `ram_map`.
     /// Maps to `screen_map[0..64000]` (320x200 pixels, 8-bit palette indices).
-    pub const SCREEN_BASE: u32 = 0x0000_C000;
+    /// Must match SCREEN_BASE in doomgeneric_monad_patched.c.
+    pub const SCREEN_BASE: u32 = 0x0007_0000;
     /// Size of screen I/O region (320×200 = 64000 bytes).
     pub const SCREEN_SIZE: u32 = 64_000;
     /// Address of the keyboard I/O word (1 u32: `scancode << 1 | pressed`).
-    pub const KBD_ADDR: u32 = 0x0000_FFFF;
-    /// Base address of the WAD data in `ram_map` (loaded by Wotan).
-    pub const WAD_BASE: u32 = 0x0001_0000;
+    /// Placed in the gap between .bss end (0x63330) and screen (0x70000).
+    pub const KBD_ADDR: u32 = 0x0006_8000;
+    /// Base address of the WAD data in `ram_map` (loaded by doom-loader).
+    pub const WAD_BASE: u32 = 0x0011_0000;
     /// Maximum WAD size (4 MB — sufficient for doom1.wad).
     pub const WAD_MAX_SIZE: u32 = 4 * 1024 * 1024;
 }
@@ -1756,7 +1771,7 @@ mod tests {
     }
 
     #[test]
-    fn mbc_mmap_screen_fits_doom_320x200() {
+    fn mbc_mmap_screen_fits_doom_160x100() {
         assert_eq!(mbc_mmap::SCREEN_SIZE, 320 * 200);
     }
 

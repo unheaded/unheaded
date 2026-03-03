@@ -617,10 +617,10 @@ check_demo_verdict() {
             key hex 00 00 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
         pixel_100=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
             key hex 64 00 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
-        pixel_32000=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
-            key hex 00 7d 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
+        pixel_8000=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
+            key hex 40 1f 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
 
-        echo -e "    ${DIM}SCREEN_MAP samples: [0]=${pixel_0:-??} [100]=${pixel_100:-??} [32000]=${pixel_32000:-??}${NC}"
+        echo -e "    ${DIM}SCREEN_MAP samples: [0]=${pixel_0:-??} [100]=${pixel_100:-??} [8000]=${pixel_8000:-??}${NC}"
 
         # For gradient, pixel 100 = (100 + 0) & 0xFF = 100 (0x64)
         # For checkerboard, values alternate between 1 and 15
@@ -675,7 +675,7 @@ main() {
             echo ""
             echo "Modes:"
             echo "  test           Run the 6-instruction arithmetic test (default)"
-            echo "  gradient       Load demos/mbc/gradient.bin (320×200 color gradient)"
+            echo "  gradient       Load demos/mbc/gradient.bin (160×100 color gradient)"
             echo "  checkerboard   Load demos/mbc/checkerboard.bin (8×8 checkerboard)"
             echo "  --file <path>  Load any .bin/.mbc binary file"
             echo ""
@@ -727,7 +727,7 @@ main() {
     # 6. Print trace and verdict
     case "${mode}" in
         gradient|checkerboard)
-            # Wait longer for screen-writing programs (they loop 64000 times)
+            # Wait longer for screen-writing programs (they loop 16000 times)
             log_step "Waiting for program to complete (2s for screen fill)..."
             sleep 2
             check_demo_verdict "${mode}"

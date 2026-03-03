@@ -8,7 +8,7 @@
 // with the running MBC CPU.
 //
 // Endpoints:
-//   - GET  /doom/screen — read 320x200 framebuffer, returns raw binary or base64 JSON
+//   - GET  /doom/screen — read 160x100 framebuffer, returns raw binary or base64 JSON
 //   - GET  /doom/status — read CPU state, returns JSON
 //   - POST /doom/input  — accept keyboard state JSON, write to KBD map
 package doom
@@ -24,12 +24,12 @@ import (
 )
 
 // ScreenWidth is the Doom framebuffer width in pixels.
-const ScreenWidth = 320
+const ScreenWidth = 160
 
 // ScreenHeight is the Doom framebuffer height in pixels.
-const ScreenHeight = 200
+const ScreenHeight = 100
 
-// ScreenBytes is the total framebuffer size (320 * 200 = 64000 bytes).
+// ScreenBytes is the total framebuffer size (160 * 100 = 16000 bytes).
 const ScreenBytes = ScreenWidth * ScreenHeight
 
 // DoomHandler provides HTTP handlers for the Doom-over-IPv6 dashboard.
@@ -95,7 +95,7 @@ type InputRequest struct {
 //   - format=raw (default): returns raw binary (application/octet-stream)
 //   - format=base64: returns base64-encoded JSON with width/height metadata
 //
-// The screen buffer is read from screenMap as 64000 bytes starting at index 0.
+// The screen buffer is read from screenMap as 16000 bytes starting at index 0.
 func (h *DoomHandler) HandleScreen(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -235,9 +235,9 @@ func (h *DoomHandler) HandleInput(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// readScreenBuffer reads the full 64000-byte screen buffer from the screenMap.
+// readScreenBuffer reads the full 16000-byte screen buffer from the screenMap.
 // The BPF map stores screen data as contiguous bytes. We read it in 4-byte chunks
-// indexed by sequential u32 keys (0, 1, 2, ..., 15999).
+// indexed by sequential u32 keys (0, 1, 2, ..., 3999).
 func (h *DoomHandler) readScreenBuffer() ([]byte, error) {
 	// Try reading the whole buffer as a single entry at key 0 first.
 	// This works if the map is an array with a single large value.
@@ -249,7 +249,7 @@ func (h *DoomHandler) readScreenBuffer() ([]byte, error) {
 		return data[:ScreenBytes], nil
 	}
 
-	// Fallback: read 4 bytes at a time (16000 entries for 64000 bytes)
+	// Fallback: read 4 bytes at a time (4000 entries for 16000 bytes)
 	buf := make([]byte, 0, ScreenBytes)
 	chunkCount := ScreenBytes / 4
 	for i := 0; i < chunkCount; i++ {

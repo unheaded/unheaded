@@ -3,7 +3,7 @@
 
 // Package main implements doom-bridge: Fenrir's Eye service for Unheaded.
 //
-// Fenrir's Eye reads screen framebuffer (SCREEN_MAP @ 320x200 palette) and CPU state
+// Fenrir's Eye reads screen framebuffer (SCREEN_MAP @ 160x100 palette) and CPU state
 // from pinned eBPF maps (via raw BPF syscalls). Applies Doom palette
 // (256 colors -> RGB), and pushes frames via WebSocket to browser clients.
 // Handles keyboard input (KBD_MAP writes) and metadata streaming (CPU stats).
@@ -22,6 +22,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"flag"
@@ -182,10 +183,10 @@ func main() {
 	var httpHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
 
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", b.port),
-		Handler:      httpHandler,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:           fmt.Sprintf(":%d", b.port),
+		Handler:        httpHandler,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   0, // Disabled: WebSocket connections are long-lived
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
@@ -450,6 +451,9 @@ func (b *bridge) pingLoop(c *client) {
 }
 
 // screenLoop polls the SCREEN_MAP at ~60fps and broadcasts frames to all clients.
+// Uses double-read verification to eliminate screen tearing: reads SCREEN_MAP
+// twice and only sends the frame if both reads match (CPU is not mid-write).
+// When reads differ, the previously cached clean frame is sent instead.
 func (b *bridge) screenLoop(stop chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -459,50 +463,96 @@ func (b *bridge) screenLoop(stop chan struct{}, wg *sync.WaitGroup) {
 	localFrameCount := uint64(0)
 
 	// Pre-allocate frame buffer to avoid per-frame allocations.
-	const screenSize = 320 * 200
+	// Uses package-level screenSize (320*200 = 64000).
 	frame := make([]byte, 1+screenSize)
 	frame[0] = tagScreen
+
+	// Cached clean frame for tearing protection.
+	cachedPixels := make([]byte, screenSize)
+	hasCached := false
+	staleCount := 0 // frames since last cache update
 
 	for {
 		select {
 		case <-stop:
 			return
 		case <-ticker.C:
-			var pixels []byte
-			var err error
-
 			if b.dryRun || b.screenMap == nil {
-				pixels = generateDryRunScreen(localFrameCount)
-			} else if b.batchSupported {
-				pixels, err = readScreenBatch(b.screenMap)
-				if err != nil {
-					logf("WARN", "Screen batch read error", "err", err)
-					pixels, err = readScreenIndividual(b.screenMap)
-					if err != nil {
-						logf("ERROR", "Screen read failed", "err", err)
-						atomic.AddInt64(&b.errorCount, 1)
-						continue
-					}
-				}
+				pixels := generateDryRunScreen(localFrameCount)
+				copy(frame[1:], pixels)
 			} else {
-				pixels, err = readScreenIndividual(b.screenMap)
+				// Double-read tearing protection with staleness fallback.
+				// At 320x200 (64000 bytes), copy_fb_to_screen takes ~26.7ms
+				// per frame at 12M insns/sec. The bridge polls at 60fps (~16ms).
+				// ~27% of reads catch mid-write. When mid-write detected,
+				// serve the cached frame. After 30 stale frames (~500ms),
+				// force accept read1 to prevent stuck display.
+				read1, err := b.readScreen()
 				if err != nil {
-					logf("ERROR", "Screen read error", "err", err)
+					logf("ERROR", "Screen read failed", "err", err)
 					atomic.AddInt64(&b.errorCount, 1)
 					continue
 				}
-			}
 
-			// Copy palette indices into pre-allocated frame.
-			copy(frame[1:], pixels)
+				staleCount++
+				if hasCached && bytes.Equal(read1, cachedPixels) {
+					// Fast path: frame unchanged, send cache.
+					copy(frame[1:], cachedPixels)
+				} else {
+					// Frame changed — verify with second read.
+					read2, err := b.readScreen()
+					if err != nil {
+						copy(frame[1:], read1)
+						copy(cachedPixels, read1)
+						hasCached = true
+						staleCount = 0
+					} else if bytes.Equal(read1, read2) {
+						// Verified: both reads match, clean new frame.
+						copy(frame[1:], read1)
+						copy(cachedPixels, read1)
+						hasCached = true
+						staleCount = 0
+					} else if staleCount > 30 {
+						// Cache too stale (>500ms). Accept read1 even though
+						// it might be mid-write — some tearing is better than
+						// a completely frozen display.
+						copy(frame[1:], read1)
+						copy(cachedPixels, read1)
+						hasCached = true
+						staleCount = 0
+					} else if hasCached {
+						// Reads differ — CPU mid-write, send cached clean frame.
+						copy(frame[1:], cachedPixels)
+					} else {
+						// No cache yet — best effort.
+						copy(frame[1:], read1)
+						copy(cachedPixels, read1)
+						hasCached = true
+						staleCount = 0
+					}
+				}
+			}
 
 			b.broadcastBinary(frame)
 			localFrameCount++
 			atomic.AddInt64(&b.frameCount, 1)
-			atomic.AddInt64(&b.byteCount, int64(1+len(pixels)))
+			atomic.AddInt64(&b.byteCount, int64(1+screenSize))
 		}
 	}
 }
+
+// readScreen reads the SCREEN_MAP using the best available method.
+func (b *bridge) readScreen() ([]byte, error) {
+	if b.batchSupported {
+		pixels, err := readScreenBatch(b.screenMap)
+		if err != nil {
+			return readScreenIndividual(b.screenMap)
+		}
+		return pixels, nil
+	}
+	return readScreenIndividual(b.screenMap)
+}
+
 
 // statsLoop polls STATS and CPU_MAP at ~2fps and broadcasts as JSON.
 func (b *bridge) statsLoop(stop chan struct{}, wg *sync.WaitGroup) {

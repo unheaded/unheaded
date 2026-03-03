@@ -287,6 +287,98 @@ func injectFast(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count int, shut
 	return sent, time.Since(start)
 }
 
+// mmsghdr matches the kernel struct mmsghdr layout for sendmmsg.
+type mmsghdr struct {
+	Hdr    unix.Msghdr
+	MsgLen uint32
+	_pad   [4]byte // alignment padding on 64-bit
+}
+
+// injectSendmmsg sends packets using the sendmmsg(2) syscall for minimal
+// per-packet overhead. One syscall dispatches an entire batch of identical
+// packets, reducing kernel entry/exit cost by the batch factor.
+// count=0 means infinite (run until SIGINT/SIGTERM).
+func injectSendmmsg(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batchSize, reportEvery int, shutdown *atomic.Bool) (uint64, time.Duration) {
+	start := time.Now()
+	var sent uint64
+	infinite := count == 0
+
+	// Build the raw sockaddr_ll in wire format for msg_name.
+	// struct sockaddr_ll: family(2) + protocol(2) + ifindex(4) + hatype(2) + pkttype(1) + halen(1) + addr(8)
+	var rawAddr [20]byte
+	binary.LittleEndian.PutUint16(rawAddr[0:2], unix.AF_PACKET)
+	binary.BigEndian.PutUint16(rawAddr[2:4], unix.ETH_P_IPV6)
+	binary.LittleEndian.PutUint32(rawAddr[4:8], uint32(sll.Ifindex))
+	// hatype, pkttype, halen, addr left as zero — sufficient for sendmsg on AF_PACKET
+
+	// Pre-allocate iovec and mmsghdr arrays. All entries share the same packet
+	// buffer and sockaddr since every message is identical.
+	iovecs := make([]unix.Iovec, batchSize)
+	pktCopy := make([]byte, len(pkt))
+	copy(pktCopy, pkt)
+	pktPtr := &pktCopy[0]
+	pktLen := uint64(len(pktCopy))
+
+	for i := range iovecs {
+		iovecs[i].Base = pktPtr
+		iovecs[i].SetLen(int(pktLen))
+	}
+
+	msgs := make([]mmsghdr, batchSize)
+	addrPtr := unsafe.Pointer(&rawAddr[0])
+	for i := range msgs {
+		msgs[i].Hdr.Name = (*byte)(addrPtr)
+		msgs[i].Hdr.Namelen = uint32(len(rawAddr))
+		msgs[i].Hdr.Iov = &iovecs[i]
+		msgs[i].Hdr.Iovlen = 1
+	}
+
+	reportBatches := reportEvery / batchSize
+	if reportBatches < 1 {
+		reportBatches = 1
+	}
+	batches := 0
+
+	for (infinite || sent < uint64(count)) && !shutdown.Load() {
+		batch := batchSize
+		if !infinite {
+			remaining := int(uint64(count) - sent)
+			if batch > remaining {
+				batch = remaining
+			}
+		}
+
+		// sendmmsg(fd, msgs, batch, 0)
+		n, _, errno := syscall.Syscall6(
+			unix.SYS_SENDMMSG,
+			uintptr(fd),
+			uintptr(unsafe.Pointer(&msgs[0])),
+			uintptr(batch),
+			0, 0, 0,
+		)
+		if errno != 0 {
+			if errno == syscall.EAGAIN || errno == syscall.ENOBUFS {
+				// Buffer full — brief yield then retry.
+				time.Sleep(10 * time.Microsecond)
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "sendmmsg: %v (sent %d)\n", errno, sent)
+			break
+		}
+		sent += uint64(n)
+		batches++
+
+		if reportBatches > 0 && batches%reportBatches == 0 {
+			elapsed := time.Since(start).Seconds()
+			pps := float64(sent) / elapsed
+			insns := sent * 256 * 255
+			fmt.Printf("  %d pkt (%.0f pkt/s, ~%.1fB insns)\n",
+				sent, pps, float64(insns)/1e9)
+		}
+	}
+	return sent, time.Since(start)
+}
+
 func main() {
 	count := flag.Int("count", 1000, "Number of packets to inject (0 = infinite, run until Ctrl+C)")
 	batchSize := flag.Int("batch", 100, "Packets per burst (burst mode only)")
@@ -294,7 +386,7 @@ func main() {
 	srcMACStr := flag.String("src-mac", "02:42:ac:11:00:02", "Source MAC address")
 	dstMACStr := flag.String("dst-mac", "02:42:ac:11:00:03", "Destination MAC address")
 	flowLabel := flag.Uint("flow-label", DefaultFlowLabel, "IPv6 flow label (identifies Doom instance)")
-	mode := flag.String("mode", "burst", "Injection mode: steady, burst, fast")
+	mode := flag.String("mode", "burst", "Injection mode: steady, burst, fast, sendmmsg")
 	delayUS := flag.Int("delay", 3000, "Inter-packet delay in microseconds (steady mode only)")
 	burstSleep := flag.Int("burst-sleep", 50, "Drain pause between bursts in microseconds (burst mode)")
 	rateHz := flag.Int("rate", 0, "Injection rate in Hz (overrides --delay, sets mode to steady)")
@@ -394,6 +486,8 @@ func main() {
 		fmt.Printf("  Burst sleep: %d us\n", *burstSleep)
 	case "fast":
 		fmt.Printf("  Delay:      0 (max throughput)\n")
+	case "sendmmsg":
+		fmt.Printf("  Batch size: %d (sendmmsg)\n", *batchSize)
 	}
 	fmt.Printf("  Report:     every %d packets\n", *reportEvery)
 	fmt.Println()
@@ -409,8 +503,10 @@ func main() {
 		sent, elapsed = injectBurst(fd, sll, pkt, *count, *batchSize, *burstSleep, *reportEvery, &shutdown)
 	case "fast":
 		sent, elapsed = injectFast(fd, sll, pkt, *count, &shutdown)
+	case "sendmmsg":
+		sent, elapsed = injectSendmmsg(fd, sll, pkt, *count, *batchSize, *reportEvery, &shutdown)
 	default:
-		fmt.Fprintf(os.Stderr, "ERROR: unknown mode %q (use: steady, burst, fast)\n", *mode)
+		fmt.Fprintf(os.Stderr, "ERROR: unknown mode %q (use: steady, burst, fast, sendmmsg)\n", *mode)
 		os.Exit(1)
 	}
 

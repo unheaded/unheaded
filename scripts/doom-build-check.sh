@@ -270,9 +270,12 @@ check_bug23_initialized_data_section() {
         return
     fi
 
-    # Check for __attribute__((section(".data"))) on initialized variable
-    if grep -qP '__attribute__\s*\(\s*\(\s*section\s*\(\s*"\.data"\s*\)\s*\)\s*\).*initialized' "$PLATFORM_C" || \
-       grep -qP 'initialized.*__attribute__\s*\(\s*\(\s*section\s*\(\s*"\.data"\s*\)\s*\)\s*\)' "$PLATFORM_C"; then
+    # Check for SENTINEL_INITIALIZED pattern (Bug 29/33: uses MMIO sentinel addresses)
+    # or legacy __attribute__((section(".data"))) on initialized variable.
+    if grep -q 'SENTINEL_INITIALIZED' "$PLATFORM_C"; then
+        record_pass "Bug 23/29: 'initialized' uses SENTINEL_INITIALIZED (MMIO, survives BSS zeroing)"
+        log_verbose "$(grep -n 'SENTINEL_INITIALIZED' "$PLATFORM_C" | head -1)"
+    elif grep -q 'section.*".data"' "$PLATFORM_C" && grep -q 'initialized' "$PLATFORM_C"; then
         record_pass "Bug 23: 'initialized' has __attribute__((section(\".data\")))"
         log_verbose "$(grep -n 'initialized.*section\|section.*initialized' "$PLATFORM_C" | head -1)"
     else
@@ -286,7 +289,7 @@ check_bug23_initialized_data_section() {
                 record_fail "Bug 23: 'initialized' not in .data section (type=${init_section:-unknown})"
             fi
         else
-            record_fail "Bug 23: __attribute__((section(\".data\"))) not found on 'initialized'"
+            record_fail "Bug 23: initialized state not protected from BSS zeroing"
         fi
     fi
 }

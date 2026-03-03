@@ -18,8 +18,8 @@
 //! - x1 (ra) → r14
 //! - x2 (sp) → r15
 //! - x3-x15 → r1-r13
-//! - x16 → r2 (spill-shadowed onto tp; load/store RAM[0])
-//! - x17 → r1 (spill-shadowed onto gp; load/store RAM[4])
+//! - x16 → r2 (spill-shadowed onto tp; load/store RAM[byte 0x64000])
+//! - x17 → r1 (spill-shadowed onto gp; load/store RAM[byte 0x64004])
 //! - x18-x31 → unsupported (use -ffixed-x18 ... -ffixed-x31)
 
 use monad_common::{mbc_opcodes as op, MbcInsn};
@@ -148,17 +148,21 @@ impl Translator {
             let x17_is_dst = has_rd_reg && rv_rd == 17;
 
             // Spill load: fetch x16/x17 values from RAM into shadow registers.
-            // x16 → r2 via RAM[0], x17 → r1 via RAM[4].
-            // Uses r0 as address base (must be 0).
+            // x16 → r2 via RAM[byte 0x64000] (word 0x19000)
+            // x17 → r1 via RAM[byte 0x64004] (word 0x19001)
+            // Address 0x64000 sits in the gap between .bss end (0x63938) and
+            // WAD/heap, avoiding the collision with .rodata at byte 0 (Bug 32).
             if x16_is_src {
-                translator.emit(op::MOVI, 0, 0, 0); // r0 = 0
-                translator.emit(op::LD, 2, 0, 0);   // r2 = RAM[0] (x16 spill)
-                translator.emit(op::MOVI, 0, 0, 0); // restore r0
+                translator.emit(op::MOVI, 0, 0, 0x4000);        // r0 = 0x4000
+                translator.emit(op::LOAD_IMM32, 0, 0, 0x0006);  // r0 = 0x00064000
+                translator.emit(op::LD, 2, 0, 0);               // r2 = RAM[0x64000>>2]
+                translator.emit(op::MOVI, 0, 0, 0);             // restore r0
             }
             if x17_is_src {
-                translator.emit(op::MOVI, 0, 0, 0); // r0 = 0
-                translator.emit(op::LD, 1, 0, 4);   // r1 = RAM[4] (x17 spill)
-                translator.emit(op::MOVI, 0, 0, 0); // restore r0
+                translator.emit(op::MOVI, 0, 0, 0x4004);        // r0 = 0x4004
+                translator.emit(op::LOAD_IMM32, 0, 0, 0x0006);  // r0 = 0x00064004
+                translator.emit(op::LD, 1, 0, 0);               // r1 = RAM[0x64004>>2]
+                translator.emit(op::MOVI, 0, 0, 0);             // restore r0
             }
 
             if let Err(e) = translator.translate_insn(*word, rv32i_byte_pc) {
@@ -166,15 +170,18 @@ impl Translator {
             }
 
             // Spill store: write shadow registers back to RAM if x16/x17 was destination.
+            // Same safe addresses as spill load above (Bug 32 fix).
             if x16_is_dst {
-                translator.emit(op::MOVI, 0, 0, 0); // r0 = 0
-                translator.emit(op::ST, 0, 2, 0);   // RAM[0] = r2 (x16 spill)
-                translator.emit(op::MOVI, 0, 0, 0); // restore r0
+                translator.emit(op::MOVI, 0, 0, 0x4000);        // r0 = 0x4000
+                translator.emit(op::LOAD_IMM32, 0, 0, 0x0006);  // r0 = 0x00064000
+                translator.emit(op::ST, 0, 2, 0);               // RAM[0x64000>>2] = r2
+                translator.emit(op::MOVI, 0, 0, 0);             // restore r0
             }
             if x17_is_dst {
-                translator.emit(op::MOVI, 0, 0, 0); // r0 = 0
-                translator.emit(op::ST, 0, 1, 4);   // RAM[4] = r1 (x17 spill)
-                translator.emit(op::MOVI, 0, 0, 0); // restore r0
+                translator.emit(op::MOVI, 0, 0, 0x4004);        // r0 = 0x4004
+                translator.emit(op::LOAD_IMM32, 0, 0, 0x0006);  // r0 = 0x00064004
+                translator.emit(op::ST, 0, 1, 0);               // RAM[0x64004>>2] = r1
+                translator.emit(op::MOVI, 0, 0, 0);             // restore r0
             }
         }
         // Sentinel: map the "one past last" RV32I word to the end of MBC output.
@@ -572,10 +579,10 @@ impl Translator {
                         self.guard_zero_dst(rd);
                     }
                     (3, 0x01) => {
-                        // MULHU — approximate as signed MULH (close enough for Doom).
+                        // MULHU — unsigned high multiply (used by __divdi3 → FixedDiv).
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.guard_zero_src(rs2, mbc_rs2);
-                        self.emit_r_type_op(op::MULH, mbc_rd, mbc_rs1, mbc_rs2, true);
+                        self.emit_r_type_op(op::MULHU, mbc_rd, mbc_rs1, mbc_rs2, true);
                         self.guard_zero_dst(rd);
                     }
                     _ => {

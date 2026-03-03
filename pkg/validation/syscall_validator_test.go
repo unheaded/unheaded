@@ -206,7 +206,7 @@ func TestSyscallValidator_MemoryBoundsCheck(t *testing.T) {
 		Source:        "doom-engine",
 		SyscallNumber: SYS_DRAW_FRAME,
 		MemoryAddr:    0x100000, // Framebuffer base
-		MemorySize:    320 * 200,
+		MemorySize:    160 * 100,
 		Timestamp:     time.Now(),
 	}
 

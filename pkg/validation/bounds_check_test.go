@@ -17,7 +17,7 @@ func TestValidateMemoryRange_Valid(t *testing.T) {
 	}{
 		{"zero size", 0x100, 0, DefaultMaxMemoryAddr},
 		{"start of memory", 0, 100, DefaultMaxMemoryAddr},
-		{"framebuffer base", 0x100000, 320 * 200, DefaultMaxMemoryAddr},
+		{"framebuffer base", 0x100000, 160 * 100, DefaultMaxMemoryAddr},
 		{"near end", DefaultMaxMemoryAddr - 100, 100, DefaultMaxMemoryAddr},
 		{"single word", 0x500000, 1, DefaultMaxMemoryAddr},
 		{"exact end", 0, DefaultMaxMemoryAddr, DefaultMaxMemoryAddr},

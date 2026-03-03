@@ -61,13 +61,13 @@ func TestDoomState_UpdateScreen(t *testing.T) {
 func TestDoomState_UpdateScreen_Oversized(t *testing.T) {
 	ds := &DoomState{}
 	// Should not panic with oversized data
-	data := make([]byte, 70000)
-	data[63999] = 0xFF
+	data := make([]byte, 20000)
+	data[15999] = 0xFF
 	ds.UpdateScreen(data)
 
 	snap := ds.snapshot()
-	if snap.Screen[63999] != 0xFF {
-		t.Errorf("Screen[63999] = %d, want 0xFF", snap.Screen[63999])
+	if snap.Screen[15999] != 0xFF {
+		t.Errorf("Screen[15999] = %d, want 0xFF", snap.Screen[15999])
 	}
 }
 
@@ -114,7 +114,7 @@ func TestHandleDoomScreen_Base64(t *testing.T) {
 	}
 
 	// Put test pattern in screen
-	data := make([]byte, 64000)
+	data := make([]byte, 16000)
 	data[0] = 0xAA
 	data[100] = 0xBB
 	s.doomState.UpdateScreen(data)
@@ -142,8 +142,8 @@ func TestHandleDoomScreen_Base64(t *testing.T) {
 	if err != nil {
 		t.Fatalf("base64 decode: %v", err)
 	}
-	if len(decoded) != 64000 {
-		t.Errorf("decoded len = %d, want 64000", len(decoded))
+	if len(decoded) != 16000 {
+		t.Errorf("decoded len = %d, want 16000", len(decoded))
 	}
 	if decoded[0] != 0xAA {
 		t.Errorf("decoded[0] = 0x%02X, want 0xAA", decoded[0])
@@ -155,7 +155,7 @@ func TestHandleDoomScreen_Raw(t *testing.T) {
 		doomState: &DoomState{},
 	}
 
-	data := make([]byte, 64000)
+	data := make([]byte, 16000)
 	data[0] = 0xCC
 	s.doomState.UpdateScreen(data)
 
@@ -166,8 +166,8 @@ func TestHandleDoomScreen_Raw(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
-	if w.Body.Len() != 64000 {
-		t.Errorf("body len = %d, want 64000", w.Body.Len())
+	if w.Body.Len() != 16000 {
+		t.Errorf("body len = %d, want 16000", w.Body.Len())
 	}
 	if w.Body.Bytes()[0] != 0xCC {
 		t.Errorf("body[0] = 0x%02X, want 0xCC", w.Body.Bytes()[0])

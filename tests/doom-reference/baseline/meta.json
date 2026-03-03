@@ -1,0 +1,60 @@
+{
+  "name": "baseline",
+  "timestamp": "2026-03-03T00:26:46+0000",
+  "build_hash": "867686674f939618d34a824920cec230ff3615db85629085dfdd58e231724686",
+  "screen": {
+    "width": 320,
+    "height": 200,
+    "size": 64000,
+    "nonzero_pct": 94.67,
+    "nonzero_count": 60589,
+    "top_indices": [
+      {
+        "index": 0,
+        "count": 3411
+      },
+      {
+        "index": 47,
+        "count": 2777
+      },
+      {
+        "index": 183,
+        "count": 2578
+      },
+      {
+        "index": 2,
+        "count": 2210
+      },
+      {
+        "index": 184,
+        "count": 1874
+      },
+      {
+        "index": 182,
+        "count": 1736
+      },
+      {
+        "index": 187,
+        "count": 1732
+      },
+      {
+        "index": 186,
+        "count": 1713
+      },
+      {
+        "index": 185,
+        "count": 1614
+      },
+      {
+        "index": 163,
+        "count": 1569
+      }
+    ]
+  },
+  "cpu": {
+    "pc": 72211,
+    "sp": 66060196,
+    "halted": 0,
+    "insn_count": 65655552
+  }
+}

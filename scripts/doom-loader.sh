@@ -18,10 +18,10 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Paths
 BPFFS_ROOT="/sys/fs/bpf/unheaded/doom-ring"
 MAP_PIN_DIR="${BPFFS_ROOT}/maps"
-DOOM_DIR="${PROJECT_ROOT}/doom/doomgeneric/doomgeneric"
+DOOM_DIR="${PROJECT_ROOT}/doom"
 DOOM_MBC="${DOOM_DIR}/doom.mbc"
 DOOM_ELF="${DOOM_DIR}/doom.elf"
-DOOM_WAD="${PROJECT_ROOT}/doom/doom1.wad"
+DOOM_WAD="${HOME}/tmp/DOOM_wads/doom1.wad"
 DOOM_DATA="${DOOM_DIR}/doom_data.bin"
 
 # Go doom-loader binary (replaces Python doom-loader-core.py)

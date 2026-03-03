@@ -164,8 +164,8 @@ func TestD5_SyscallWithMalformedArguments(t *testing.T) {
 		{"high_bit", 0x80000000, 0x80000000},
 		{"alternating_10", 0xAAAAAAAA, 0xAAAAAAAA},
 		{"alternating_01", 0x55555555, 0x55555555},
-		{"screen_base", 0x0000C000, 0x00000000},     // SCREEN_BASE
-		{"screen_end", 0x0000C000 + 64000, 0x00000000}, // Past screen
+		{"screen_base", 0x00070000, 0x00000000},     // SCREEN_BASE
+		{"screen_end", 0x00070000 + 64000, 0x00000000}, // Past screen
 		{"wad_base", 0x00010000, 0x00000000},         // WAD_BASE
 		{"ram_end", 0x00FFFFFF, 0x00000000},           // Near RAM_MAP end
 		{"beyond_ram", 0x01000000, 0x00000000},        // Beyond RAM_MAP
@@ -291,7 +291,7 @@ func TestD5_SleepOverflow(t *testing.T) {
 // pointers that are out of bounds.
 func TestD5_DrawFrameOOBAddress(t *testing.T) {
 	const (
-		screenBase = uint32(0x0000C000)
+		screenBase = uint32(0x00070000)
 		screenSize = uint32(64000)
 		screenEnd  = screenBase + screenSize
 		ramMax     = uint32(16_777_216) // RAM_MAP max_entries

@@ -8,7 +8,7 @@
 // and CPU state data without requiring a running doom-bridge instance.
 //
 // Endpoints:
-//   GET  /api/v1/doom/screen — Returns screen framebuffer (64000 bytes base64 or raw)
+//   GET  /api/v1/doom/screen — Returns screen framebuffer (16000 bytes base64 or raw)
 //   GET  /api/v1/doom/cpu    — Returns CPU state as JSON
 //   POST /api/v1/doom/input  — Accepts keyboard input
 package server
@@ -39,8 +39,8 @@ type DoomState struct {
 	Ticks      uint64   `json:"ticks"`
 	LastUpdate time.Time `json:"last_update"`
 
-	// Screen buffer (320x200 = 64000 bytes, palette-indexed)
-	Screen [64000]byte `json:"-"`
+	// Screen buffer (160x100 = 16000 bytes, palette-indexed)
+	Screen [16000]byte `json:"-"`
 
 	// Keyboard state
 	LastKey     uint16 `json:"last_key"`
@@ -67,8 +67,8 @@ func (ds *DoomState) UpdateScreen(data []byte) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	n := len(data)
-	if n > 64000 {
-		n = 64000
+	if n > 16000 {
+		n = 16000
 	}
 	copy(ds.Screen[:n], data[:n])
 	ds.LastUpdate = time.Now()
@@ -85,7 +85,7 @@ func (ds *DoomState) snapshot() DoomState {
 // handleDoomScreen serves the screen framebuffer.
 // GET /api/v1/doom/screen
 //   ?format=base64 (default) — returns JSON { "screen": "<base64>" }
-//   ?format=raw — returns raw 64000 bytes as application/octet-stream
+//   ?format=raw — returns raw 16000 bytes as application/octet-stream
 func (s *Server) handleDoomScreen(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -97,7 +97,7 @@ func (s *Server) handleDoomScreen(w http.ResponseWriter, r *http.Request) {
 
 	if format == "raw" {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Length", "64000")
+		w.Header().Set("Content-Length", "16000")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(snap.Screen[:])
 		return
