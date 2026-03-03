@@ -10,110 +10,107 @@ import (
 
 // Doom internal keycodes (from i_input.c doomkeys.h)
 const (
-	KeyFireCode   = 0xA3  // KEY_FIRE
-	KeyUseCode    = 0xA2  // KEY_USE
-	KeyRshiftCode = 0xB6  // KEY_RSHIFT (run)
-	KeyStrafeCode = 0xA4  // KEY_STRAFE
+	KeyFireCode   = 0xA3 // KEY_FIRE
+	KeyUseCode    = 0xA2 // KEY_USE
+	KeyRshiftCode = 0xB6 // KEY_RSHIFT (run)
+	KeyStrafeCode = 0xA4 // KEY_STRAFE
 
-	KeyUparrow   = 0xAD  // KEY_UPARROW
-	KeyDownarrow = 0xAF  // KEY_DOWNARROW
-	KeyLeftarrow = 0xAC  // KEY_LEFTARROW
+	KeyUparrow    = 0xAD // KEY_UPARROW
+	KeyDownarrow  = 0xAF // KEY_DOWNARROW
+	KeyLeftarrow  = 0xAC // KEY_LEFTARROW
 	KeyRightarrow = 0xAE // KEY_RIGHTARROW
 )
 
-// KeyStateBitmap tracks all 256 possible Doom key states simultaneously.
-// Each bit represents one Doom internal keycode (0-255). A bit set to 1 means
-// the key is pressed; set to 0 means released.
-//
-// The bitmap is flushed to BPF KBD_MAP[0] as a 40-byte value:
-//   - Bytes 0-31: 256-bit state bitmap (32 bytes)
-//   - Bytes 32-39: 64-bit sequence counter (little-endian)
-//
-// The sequence counter helps the kernel detect dirty state changes.
-// Each call to Flush() increments this counter if the bitmap changed.
+// KBD_MAP event queue: 8 slots of u32, each encoding one key event.
+// Format per slot: (key_code << 1) | pressed_flag
+// BPF scans slots 0-7, consumes first non-zero, clears it.
+const kbdSlots = 8
+
+// KeyStateBitmap tracks keyboard events and flushes them to BPF KBD_MAP.
+// It now uses the event queue protocol matching the BPF SYS_GET_KEY handler:
+// each key press/release is written as a u32 to KBD_MAP[slot].
 type KeyStateBitmap struct {
 	mu       sync.Mutex
-	bitmap   [32]byte    // 256-bit key state (32 bytes)
-	sequence uint64      // Incremented on changes
-	lastSent [32]byte    // Last flushed bitmap
+	events   []keyEvent // Pending events
+	nextSlot uint32     // Next slot to write (0-7 circular)
+	bitmap   [32]byte   // 256-bit key state (for State() query)
+	sequence uint64
+	lastSent [32]byte
+}
+
+type keyEvent struct {
+	code    uint8
+	pressed bool
 }
 
 // NewKeyStateBitmap creates and returns a new, empty key state bitmap.
 func NewKeyStateBitmap() *KeyStateBitmap {
-	return &KeyStateBitmap{
-		sequence: 0,
-	}
+	return &KeyStateBitmap{}
 }
 
-// SetKey updates the state of a single key (Doom internal keycode 0-255).
-// If pressed is true, the key bit is set; if false, it is cleared.
-// This does NOT update KBD_MAP immediately; call Flush() to do that.
+// SetKey records a key press/release event.
 func (ks *KeyStateBitmap) SetKey(code uint8, pressed bool) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
+	// Update bitmap for state queries
 	byteIdx := code / 8
 	bitIdx := code % 8
-
 	if pressed {
-		// Set the bit
 		ks.bitmap[byteIdx] |= (1 << bitIdx)
 	} else {
-		// Clear the bit
 		ks.bitmap[byteIdx] &= ^(1 << bitIdx)
 	}
+
+	// Queue the event for BPF flush
+	ks.events = append(ks.events, keyEvent{code: code, pressed: pressed})
 }
 
-// Flush writes the current key state bitmap to BPF KBD_MAP[0].
-// The write includes the 32-byte state bitmap and an 8-byte sequence counter.
-// Returns an error if the BPF map write fails.
-// If IsDirty() is false, this may be optimized to skip the write.
+// Flush writes pending key events to BPF KBD_MAP slots.
+// Each event is written as a u32: (key_code << 1) | pressed_flag.
+// Uses circular slot allocation (0-7).
 func (ks *KeyStateBitmap) Flush(kbdMap *BPFMap) error {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
-	// Check if bitmap changed since last flush
-	changed := false
-	for i := 0; i < 32; i++ {
-		if ks.bitmap[i] != ks.lastSent[i] {
-			changed = true
-			break
+	if len(ks.events) == 0 {
+		return nil
+	}
+
+	for _, ev := range ks.events {
+		// Encode: (key_code << 1) | pressed_flag
+		var pressed uint32
+		if ev.pressed {
+			pressed = 1
 		}
+		val := (uint32(ev.code) << 1) | pressed
+
+		// Write to KBD_MAP[nextSlot]
+		key := make([]byte, 4)
+		binary.LittleEndian.PutUint32(key, ks.nextSlot)
+
+		value := make([]byte, 4)
+		binary.LittleEndian.PutUint32(value, val)
+
+		if err := kbdMap.UpdateElem(key, value); err != nil {
+			return err
+		}
+
+		ks.nextSlot = (ks.nextSlot + 1) % kbdSlots
 	}
 
-	if !changed {
-		return nil // No change, skip the write
-	}
-
-	// Build 40-byte KBD_MAP value: [32 bytes state] + [8 bytes sequence LE]
-	value := make([]byte, 40)
-	copy(value[0:32], ks.bitmap[:])
-	binary.LittleEndian.PutUint64(value[32:40], ks.sequence)
-
-	// Write to BPF map with key [0] (single-slot keyboard map)
-	key := []byte{0}
-	if err := kbdMap.UpdateElem(key, value); err != nil {
-		return err
-	}
-
-	// Remember what we just flushed
+	ks.events = ks.events[:0] // Clear pending events
 	copy(ks.lastSent[:], ks.bitmap[:])
 	ks.sequence++
 
 	return nil
 }
 
-// IsDirty returns true if the bitmap has changed since the last Flush.
+// IsDirty returns true if there are pending events.
 func (ks *KeyStateBitmap) IsDirty() bool {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
-
-	for i := 0; i < 32; i++ {
-		if ks.bitmap[i] != ks.lastSent[i] {
-			return true
-		}
-	}
-	return false
+	return len(ks.events) > 0
 }
 
 // State returns a copy of the current 32-byte bitmap (for testing/debugging).
@@ -127,7 +124,6 @@ func (ks *KeyStateBitmap) State() [32]byte {
 func (ks *KeyStateBitmap) IsKeyPressed(code uint8) bool {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
-
 	byteIdx := code / 8
 	bitIdx := code % 8
 	return (ks.bitmap[byteIdx] & (1 << bitIdx)) != 0

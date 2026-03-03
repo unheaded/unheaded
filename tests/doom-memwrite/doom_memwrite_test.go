@@ -21,11 +21,11 @@ import (
 const (
 	// ScreenBase is the start of the screen I/O region in the MBC address space.
 	// Maps to SCREEN_MAP[0..64000] (320x200 pixels, 8-bit palette indices).
-	// Source: ebpf/monad-common/src/lib.rs:1201
+	// Source: ebpf/monad-common/src/lib.rs:1203
 	ScreenBase = 0x0007_0000
 
 	// ScreenSize is the size of the screen framebuffer (320x200 = 64000 bytes).
-	// Source: ebpf/monad-common/src/lib.rs:1203
+	// Source: ebpf/monad-common/src/lib.rs:1205
 	ScreenSize = 64_000
 
 	// ScreenEnd is the first byte address past the screen region.
@@ -71,7 +71,7 @@ func TestScreenConstants(t *testing.T) {
 	})
 
 	t.Run("screen_size_matches_rust_constant", func(t *testing.T) {
-		// ebpf/monad-common/src/lib.rs:1203
+		// ebpf/monad-common/src/lib.rs:1205
 		// pub const SCREEN_SIZE: u32 = 64_000;
 		const rustScreenSize = 64_000
 		if ScreenSize != rustScreenSize {

@@ -437,7 +437,7 @@ const (
 	ChaosTargetsMaxEntries        = 4096
 	ROMMapMaxEntries              = 262144   // 1 MiB of instructions.
 	RAMMapMaxEntries              = 2097152  // 8 MiB word-addressed.
-	ScreenMapMaxEntries           = 64000    // 320×200 framebuffer.
+	ScreenMapMaxEntries           = 16000    // 160×100 framebuffer.
 	CPUMapMaxEntries              = 256      // Per-flow CPU instances.
 	L1CacheMaxEntries             = 256      // 256 cache lines × 64 bytes.
 	StatsMaxEntries               = 32

@@ -118,6 +118,15 @@ func loadROM(args []string) error {
 		return err
 	}
 
+	// Support positional args: doom-loader rom <map_path> <file>
+	positional := fs.Args()
+	if *file == "" && len(positional) >= 2 {
+		*mapPath = positional[0]
+		*file = positional[1]
+	} else if *file == "" && len(positional) == 1 {
+		*file = positional[0]
+	}
+
 	if *file == "" {
 		return fmt.Errorf("--file is required")
 	}
@@ -140,6 +149,18 @@ func loadRAM(args []string) error {
 		return err
 	}
 
+	// Support positional args: doom-loader ram <map_path> <file> [base_addr]
+	positional := fs.Args()
+	if *file == "" && len(positional) >= 2 {
+		*mapPath = positional[0]
+		*file = positional[1]
+		if len(positional) >= 3 {
+			*base = positional[2]
+		}
+	} else if *file == "" && len(positional) == 1 {
+		*file = positional[0]
+	}
+
 	if *file == "" {
 		return fmt.Errorf("--file is required")
 	}
@@ -154,14 +175,27 @@ func loadRAM(args []string) error {
 		return err
 	}
 
-	// RAM uses per-byte addressing with a base offset.
-	// Each entry: key=4-byte LE addr, value=1 byte.
-	pairs := make([]kvPair, len(data))
-	for i := 0; i < len(data); i++ {
-		addr := uint32(baseAddr) + uint32(i)
+	// RAM_MAP is Array<u32> with word addressing (byte_addr >> 2).
+	// Pack 4 consecutive bytes into a u32 word and write at word address.
+	// Pad the last word with zeros if data length isn't a multiple of 4.
+	padded := data
+	if rem := len(data) % 4; rem != 0 {
+		padded = make([]byte, len(data)+4-rem)
+		copy(padded, data)
+	}
+	numWords := len(padded) / 4
+	baseWord := uint32(baseAddr) >> 2
+
+	fmt.Printf("RAM: %d bytes → %d words starting at word addr 0x%X (byte addr 0x%X)\n",
+		len(data), numWords, baseWord, baseAddr)
+
+	pairs := make([]kvPair, numWords)
+	for i := 0; i < numWords; i++ {
+		wordAddr := baseWord + uint32(i)
+		value := padded[i*4 : (i+1)*4]
 		pairs[i] = kvPair{
-			key:   uint32Key(addr),
-			value: []byte{data[i]},
+			key:   uint32Key(wordAddr),
+			value: value,
 		}
 	}
 
@@ -177,6 +211,15 @@ func loadRV2MBC(args []string) error {
 		return err
 	}
 
+	// Support positional args: doom-loader rv2mbc <map_path> <file>
+	positional := fs.Args()
+	if *file == "" && len(positional) >= 2 {
+		*mapPath = positional[0]
+		*file = positional[1]
+	} else if *file == "" && len(positional) == 1 {
+		*file = positional[0]
+	}
+
 	if *file == "" {
 		return fmt.Errorf("--file is required")
 	}
@@ -186,7 +229,9 @@ func loadRV2MBC(args []string) error {
 		return err
 	}
 
-	return batchLoadMap(*mapPath, data, 8)
+	// RV2MBC_MAP is Array<u32>: index=RV word address, value=MBC PC index.
+	// File format: flat array of u32 LE values, 4 bytes per entry.
+	return batchLoadMap(*mapPath, data, 4)
 }
 
 func initCPU(args []string) error {
@@ -196,6 +241,12 @@ func initCPU(args []string) error {
 
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	// Support positional args: doom-loader cpu <map_path> [--instance XX]
+	positional := fs.Args()
+	if len(positional) >= 1 {
+		*mapPath = positional[0]
 	}
 
 	instanceByte, err := strconv.ParseUint(*instance, 16, 8)
@@ -208,8 +259,9 @@ func initCPU(args []string) error {
 	cpu.Regs[15] = defaultSP
 	state := bpf.EncodeCpuState(cpu)
 
-	// CPU_MAP is keyed by a single-byte instance ID.
-	key := []byte{byte(instanceByte)}
+	// CPU_MAP is keyed by u32 (eBPF HashMap<u32, MbcCpuState>).
+	key := make([]byte, 4)
+	binary.LittleEndian.PutUint32(key, uint32(instanceByte))
 
 	fmt.Printf("CPU state initializing for instance 0x%02X:\n", instanceByte)
 	fmt.Printf("  PC: 0x%08X\n", cpu.PC)

@@ -3,12 +3,11 @@
 
 #include <stdint.h>
 
-// Screen dimensions
+// Screen dimensions (full DOOM resolution)
 #define DOOMGENERIC_RESX 320
 #define DOOMGENERIC_RESY 200
 
-// Framebuffer: 320x200 32-bit ARGB pixels
-// (Doom renders in ARGB, the MBC VM converts to 8-bit palette via STB)
+// Framebuffer: 320x200 8-bit palette-indexed pixels (CMAP256 mode)
 extern uint32_t* DG_ScreenBuffer;
 
 // Platform functions (implemented in doomgeneric_monad.c)

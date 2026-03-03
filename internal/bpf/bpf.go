@@ -150,7 +150,9 @@ func (m *Map) UpdateElem(keyBytes, valueBytes []byte) error {
 	return nil
 }
 
-// LookupBatch reads multiple elements from the BPF map in a single syscall.
+// LookupBatch reads multiple elements from the BPF map using iterated batch
+// syscalls. The kernel may return fewer entries than requested per call, so
+// this function loops until all entries are read or the map is exhausted.
 // Returns (keys, values, count, error). On partial success returns what was read.
 func (m *Map) LookupBatch(count uint32, keySize, valueSize int) ([]byte, []byte, uint32, error) {
 	if m == nil || m.fd < 0 {
@@ -160,9 +162,10 @@ func (m *Map) LookupBatch(count uint32, keySize, valueSize int) ([]byte, []byte,
 	keys := make([]byte, int(count)*keySize)
 	values := make([]byte, int(count)*valueSize)
 	var inBatch, outBatch uint64
-	readCount := count
+	totalRead := uint32(0)
+	firstCall := true
 
-	attr := struct {
+	type batchAttr struct {
 		inBatch   uint64
 		outBatch  uint64
 		keys      uint64
@@ -171,21 +174,50 @@ func (m *Map) LookupBatch(count uint32, keySize, valueSize int) ([]byte, []byte,
 		mapFd     uint32
 		elemFlags uint64
 		flags     uint64
-	}{
-		inBatch:  uint64(uintptr(unsafe.Pointer(&inBatch))),
-		outBatch: uint64(uintptr(unsafe.Pointer(&outBatch))),
-		keys:     uint64(uintptr(unsafe.Pointer(&keys[0]))),
-		values:   uint64(uintptr(unsafe.Pointer(&values[0]))),
-		count:    readCount,
-		mapFd:    uint32(m.fd),
 	}
 
-	_, _, errno := unix.Syscall(unix.SYS_BPF, bpfMapLookupBatch, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
-	// ENOENT means we read everything (end of map). That is success.
-	if errno != 0 && errno != unix.ENOENT {
-		return nil, nil, 0, fmt.Errorf("BPF_MAP_LOOKUP_BATCH: %w", errno)
+	for totalRead < count {
+		remaining := count - totalRead
+		kOff := int(totalRead) * keySize
+		vOff := int(totalRead) * valueSize
+
+		var inPtr uint64
+		if firstCall {
+			inPtr = uint64(uintptr(unsafe.Pointer(&inBatch)))
+		} else {
+			inPtr = uint64(uintptr(unsafe.Pointer(&outBatch)))
+		}
+
+		attr := batchAttr{
+			inBatch:  inPtr,
+			outBatch: uint64(uintptr(unsafe.Pointer(&outBatch))),
+			keys:     uint64(uintptr(unsafe.Pointer(&keys[kOff]))),
+			values:   uint64(uintptr(unsafe.Pointer(&values[vOff]))),
+			count:    remaining,
+			mapFd:    uint32(m.fd),
+		}
+
+		_, _, errno := unix.Syscall(unix.SYS_BPF, bpfMapLookupBatch, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
+		if errno == unix.ENOENT {
+			// End of map — add what was read and return.
+			totalRead += attr.count
+			break
+		}
+		if errno != 0 {
+			if totalRead > 0 {
+				// Partial success — return what we have.
+				break
+			}
+			return nil, nil, 0, fmt.Errorf("BPF_MAP_LOOKUP_BATCH: %w", errno)
+		}
+		if attr.count == 0 {
+			break // No progress — avoid infinite loop.
+		}
+		totalRead += attr.count
+		firstCall = false
 	}
-	return keys, values, attr.count, nil
+
+	return keys, values, totalRead, nil
 }
 
 // DecodeCpuState decodes raw bytes into a CpuState struct.

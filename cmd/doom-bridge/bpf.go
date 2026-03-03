@@ -222,7 +222,7 @@ func paletteIndex8ToRGB(idx uint8) [3]byte {
 	}
 }
 
-// screenBufferToRGBA converts a 320x200 palette-indexed screen buffer
+// screenBufferToRGBA converts a palette-indexed screen buffer
 // to RGBA format suitable for HTML5 canvas rendering.
 func screenBufferToRGBA(pixels []byte) []byte {
 	sz := screenWidth * screenHeight
