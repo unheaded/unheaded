@@ -51,9 +51,7 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 	}
 
 	if keys := os.Getenv("AUTH_API_KEYS"); keys != "" {
-		for _, k := range splitNonEmpty(keys, ",") {
-			cfg.APIKeys = append(cfg.APIKeys, k)
-		}
+		cfg.APIKeys = append(cfg.APIKeys, splitNonEmpty(keys, ",")...)
 	}
 
 	return cfg
