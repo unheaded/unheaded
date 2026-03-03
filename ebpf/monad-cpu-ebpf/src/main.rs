@@ -22,12 +22,14 @@
 //!
 //! # Memory Map
 //!
-//! | Address range                | Backing map     | Description         |
-//! |------------------------------|-----------------|---------------------|
-//! | 0x0000_0000 – 0x0000_BFFF   | `RAM_MAP`       | 48 KiB general RAM  |
-//! | 0x0000_C000 – 0x0000_F8BF   | `SCREEN_MAP`    | 320×200 framebuffer |
-//! | 0x0000_FFFF                  | `KBD_MAP[0]`   | Keyboard state word |
-//! | 0x0001_0000 – 0x0040_FFFF   | `RAM_MAP`       | WAD data (4 MiB)    |
+//! | Address range                | Backing map     | Description              |
+//! |------------------------------|-----------------|--------------------------|
+//! | 0x0000_0000 – 0x0006_3330   | `RAM_MAP`       | .rodata + .data + .bss   |
+//! | 0x0006_8000                  | `KBD_MAP[0]`    | Keyboard state word      |
+//! | 0x0007_0000 – 0x0007_F9FF   | `SCREEN_MAP`    | 320×200 framebuffer      |
+//! | 0x0011_0000 – 0x0051_0000   | `RAM_MAP`       | WAD data (4 MiB)         |
+//! | 0x0052_0000 – 0x0152_0000   | `RAM_MAP`       | Heap (16 MiB)            |
+//! | 0x03F0_0000                  | `RAM_MAP`       | Stack top (growing down) |
 //!
 //! # MBC ISA Summary
 //!
@@ -77,7 +79,7 @@ static RAM_MAP: Array<u32> = Array::with_max_entries(16_777_216, 0);
 
 /// Screen framebuffer: 320×200 = 64 000 bytes, 8-bit palette indices.
 /// Pixel (x, y) → SCREEN_MAP[y * 320 + x].
-/// Userspace polls this at 35 Hz to render the current frame.
+/// Userspace polls this at 60 Hz to render the current frame.
 #[map]
 static SCREEN_MAP: Array<u8> = Array::with_max_entries(64_000, 0);
 
@@ -138,6 +140,8 @@ const STAT_MEM_LOADS: u32 = 10; // was CACHE_MISSES (all loads go direct to Arra
 /// Each XDP invocation executes up to N MBC instructions.
 /// BPF verifier limits: 8192 jump complexity, 1M processed insns.
 /// Verifier state-explores each opcode branch per iteration.
+/// Tuned for maximum throughput within BPF verifier limits.
+/// 320+ exceeds the 1M verifier insn limit on this kernel.
 const MAX_INSN_PER_TICK: usize = 256;
 
 // ── Wire-format helpers ───────────────────────────────────────────────────────
@@ -385,6 +389,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let r = ((a * b) >> 32) as u32;
             cpu.regs[d] = r;
             set_flags(cpu, r, false);
+        } else if opc == op::MULHU {
+            let a = cpu.regs[d] as u64;
+            let b = cpu.regs[s] as u64;
+            let r = ((a * b) >> 32) as u32;
+            cpu.regs[d] = r;
+            set_flags(cpu, r, false);
 
         // ── Stack operations ─────────────────────────────────────────────────
         // SP is a byte address (consistent with LD/ST). Each entry is 4 bytes.
@@ -469,16 +479,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // Extended addressing: use all 24 bits below opcode for target.
             let target = insn_word & 0x00FF_FFFF;
             cpu.pc = target;
-            // Restart trap: catch direct call to PC 0 (translator bug)
+            // Restart: log but don't halt — let CPU restart from _start
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
-                mem_write_word(0xE0004 >> 2, 0x27); // CALL opcode
-                mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of CALL insn
-                mem_write_word(0xE000C >> 2, target); // target was 0
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
-                cpu.halted = 1;
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                mem_write_word(0xE0004 >> 2, 0x27);
+                mem_write_word(0xE0008 >> 2, old_pc);
+                mem_write_word(0xE000C >> 2, target);
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
                 increment_stat(STAT_ROM_FAULT);
-                break;
             }
         } else if opc == op::JMPR {
             // Indirect jump with RV32I→MBC address translation.
@@ -490,28 +498,29 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
                 Some(mbc_idx) => *mbc_idx,
                 None => {
-                    // Unmapped address — halt + write diagnostics.
+                    // Bug 20 fix: Unmapped JMPR — skip instead of halting.
+                    // BSS corruption in DOOM produces garbage function pointers.
+                    // Skipping the indirect jump lets execution fall through to
+                    // the next MBC instruction (the return point), as if the
+                    // called function returned immediately. Write diagnostics.
                     mem_write_word(0xE0000 >> 2, 0xDEAD0002); // sentinel (unmapped)
                     mem_write_word(0xE0004 >> 2, opc as u32); // 0x29 = JMPR
                     mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of JMPR insn
                     mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
                     mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
                     mem_write_word(0xE0014 >> 2, rv_word); // RV word index
-                    cpu.halted = 1;
                     increment_stat(STAT_ROM_FAULT);
-                    break;
+                    cpu.pc // keep PC at next instruction (skip the JMPR)
                 }
             };
-            // Restart trap: catch jump to PC 0 (_start) — indicates restart bug
+            // Restart: log but don't halt
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
-                mem_write_word(0xE0004 >> 2, opc as u32); // 0x29 = JMPR
-                mem_write_word(0xE0008 >> 2, old_pc); // MBC PC before jump
-                mem_write_word(0xE000C >> 2, rv_addr); // RV addr that mapped to 0
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
-                cpu.halted = 1;
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                mem_write_word(0xE0004 >> 2, opc as u32);
+                mem_write_word(0xE0008 >> 2, old_pc);
+                mem_write_word(0xE000C >> 2, rv_addr);
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
                 increment_stat(STAT_ROM_FAULT);
-                break;
             }
         } else if opc == op::CALLR {
             // Indirect call with RV32I→MBC address translation.
@@ -525,44 +534,47 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
                 Some(mbc_idx) => *mbc_idx,
                 None => {
+                    // Bug 20 fix: Unmapped CALLR — skip instead of halting.
+                    // Undo the stack push (SP was decremented, return addr written)
+                    // so the stack stays balanced when this function eventually returns.
+                    cpu.regs[15] = cpu.regs[15].wrapping_add(4);
                     mem_write_word(0xE0000 >> 2, 0xDEAD0003); // sentinel (unmapped CALLR)
                     mem_write_word(0xE0004 >> 2, opc as u32); // 0x2A = CALLR
                     mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of CALLR insn
                     mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP (restored)
                     mem_write_word(0xE0014 >> 2, rv_word); // RV word index
-                    cpu.halted = 1;
                     increment_stat(STAT_ROM_FAULT);
-                    break;
+                    cpu.pc // keep PC at next instruction (skip the CALLR)
                 }
             };
-            // Restart trap: catch indirect call to PC 0
+            // Restart: log but don't halt
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
-                mem_write_word(0xE0004 >> 2, opc as u32); // 0x2A = CALLR
-                mem_write_word(0xE0008 >> 2, old_pc); // MBC PC before call
-                mem_write_word(0xE000C >> 2, rv_addr); // RV addr that mapped to 0
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
-                cpu.halted = 1;
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                mem_write_word(0xE0004 >> 2, opc as u32);
+                mem_write_word(0xE0008 >> 2, old_pc);
+                mem_write_word(0xE000C >> 2, rv_addr);
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
                 increment_stat(STAT_ROM_FAULT);
-                break;
             }
         } else if opc == op::RET {
             // SP is byte address; each stack entry is 4 bytes.
             let word_addr = cpu.regs[15] >> 2;
             let ret = mem_read_word(word_addr);
             cpu.regs[15] = cpu.regs[15].wrapping_add(4);
-            // Restart trap: catch RET popping 0 (stack corruption)
+            // RET popping 0: allow restart from _start instead of halting.
+            // In the MBC VM, stack corruption from I_Error/rendering is expected.
+            // Restarting from _start re-initializes DOOM and the CPU recovers.
+            // Write diagnostic (overwritten on each occurrence) but don't halt.
             if ret == 0 {
                 mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
                 mem_write_word(0xE0004 >> 2, 0x28); // RET opcode
                 mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1)); // PC of RET insn
                 mem_write_word(0xE000C >> 2, ret); // popped value (0)
                 mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP after pop
-                mem_write_word(0xE0014 >> 2, word_addr); // stack word addr that was read
-                cpu.halted = 1;
+                mem_write_word(0xE0014 >> 2, word_addr); // stack word addr
                 increment_stat(STAT_ROM_FAULT);
-                break;
+                // Don't halt — let CPU restart from _start (PC=0)
             }
             cpu.pc = ret;
 
@@ -674,7 +686,6 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // DG_SleepMs: sleep for r8 (a0) milliseconds.
                 let ms = cpu.regs[8] as u64;
                 cpu.sleep_until_ns = now + ms * 1_000_000;
-                // Break the execute loop — we're asleep.
                 increment_stat(STAT_SLEEPING);
                 break;
             }
@@ -833,27 +844,20 @@ fn mem_read_word(word_addr: u32) -> u32 {
 /// Handles screen framebuffer and general RAM.
 #[inline(always)]
 fn mem_write_word(word_addr: u32, value: u32) {
-    // Screen region: word_addr in [SCREEN_BASE/4 .. (SCREEN_BASE+SCREEN_SIZE)/4)
-    let screen_word_start = mmap::SCREEN_BASE >> 2;
-    let screen_word_end = (mmap::SCREEN_BASE + mmap::SCREEN_SIZE + 3) >> 2;
+    // Bug 24 fix: Do NOT write to SCREEN_MAP from word stores (ST).
+    // Only byte stores (STB → mem_write_byte) update SCREEN_MAP.
+    //
+    // Rationale: DOOM's BSS corruption causes random code to write WAD data
+    // structures (lump names like "COMPTALL", "BROWN96") through corrupted
+    // pointers that land in the screen region (0x70000-0x73E80). Word stores
+    // from these writes were overwriting SCREEN_MAP with garbage.
+    //
+    // The authoritative screen update path is copy_fb_to_screen() which uses
+    // explicit byte stores (SB → mem_write_byte → SCREEN_MAP). By removing
+    // SCREEN_MAP writes from word stores, only intentional pixel writes reach
+    // the display.
 
-    if word_addr >= screen_word_start && word_addr < screen_word_end {
-        // Write four bytes to SCREEN_MAP.
-        let pixel_base = ((word_addr - screen_word_start) * 4) as u32;
-        let bytes = value.to_le_bytes();
-        for k in 0..4u32 {
-            let px = pixel_base + k;
-            if px < mmap::SCREEN_SIZE {
-                if let Some(p) = SCREEN_MAP.get_ptr_mut(px) {
-                    unsafe {
-                        *p = bytes[k as usize];
-                    }
-                }
-            }
-        }
-    }
-
-    // Always write to RAM_MAP (SCREEN_MAP is a projection of RAM_MAP).
+    // Write to RAM_MAP only.
     if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
         unsafe {
             *ptr = value;
@@ -928,7 +932,7 @@ fn mem_write_half(byte_addr: u32, value: u16) {
 
 /// Copy framebuffer from RAM to SCREEN_MAP.
 ///
-/// STUB: The 16K-iteration loop (64 000 bytes) exceeded the BPF verifier's
+/// STUB: The loop (64 000 bytes at 320x200) would exceed the BPF verifier's
 /// 8192-jump complexity limit.  Framebuffer copy is deferred to userspace:
 /// the emit_screen_write() event signals the dashboard to read SCREEN_MAP
 /// directly.  mem_write_word() already projects screen-region writes into

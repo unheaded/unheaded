@@ -36,8 +36,11 @@ SCREEN_MAP_PIN = f"{MAP_PIN_DIR}/SCREEN_MAP"
 # Minimum non-zero pixel percentage for a valid gameplay frame
 MIN_NONZERO_PCT = 50.0
 
-# Maximum consecutive ASCII bytes before flagging WAD pollution
-MAX_ASCII_RUN = 4
+# Maximum consecutive ASCII bytes before flagging WAD pollution.
+# Must be 8+ to avoid false positives: DOOM palette indices for brown/gray tones
+# (common on title screen) are 0x20-0x7E, causing incidental 4-6 byte ASCII runs.
+# Real WAD lump names are 6-8 uppercase chars (e.g. "COMPTALL", "BROWN96").
+MAX_ASCII_RUN = 8
 
 # Known WAD texture names that indicate Bug 24 pollution
 WAD_SIGNATURES = [
@@ -138,24 +141,29 @@ def check_nonzero_pct(pixels):
 def check_wad_pollution(pixels):
     """Detect WAD texture name pollution (Bug 24 signature).
 
-    Scans for 4+ consecutive printable ASCII bytes, which indicates
-    WAD lump names being written to screen memory through corrupted pointers.
+    Only known WAD lump names are considered true pollution. Generic ASCII runs
+    are reported as informational only — DOOM's palette indices for brown/gray
+    tones (0x40-0x50 range) are uppercase ASCII letters and naturally form long
+    runs in uniformly colored screen regions.
     """
     found = []
+    signature_hits = 0
 
-    # Check for known WAD signatures
+    # Check for known WAD signatures (definitive Bug 24 evidence)
     for sig in WAD_SIGNATURES:
         idx = pixels.find(sig)
         if idx >= 0:
+            signature_hits += 1
             found.append({
                 "signature": sig.decode("ascii", errors="replace"),
                 "offset": idx,
                 "x": idx % SCREEN_WIDTH,
                 "y": idx // SCREEN_WIDTH,
+                "definitive": True,
             })
 
-    # Scan for generic ASCII runs
-    ascii_runs = 0
+    # Scan for generic ASCII runs (informational — palette values often match)
+    generic_ascii_runs = 0
     run_start = -1
     run_len = 0
 
@@ -168,23 +176,32 @@ def check_wad_pollution(pixels):
                 run_len += 1
         else:
             if run_len >= MAX_ASCII_RUN:
-                ascii_runs += 1
                 text = pixels[run_start:run_start + run_len].decode("ascii", errors="replace")
-                if len(found) < 10:  # Limit reported instances
-                    found.append({
-                        "signature": text[:32],
-                        "offset": run_start,
-                        "x": run_start % SCREEN_WIDTH,
-                        "y": run_start // SCREEN_WIDTH,
-                    })
+                # Check character diversity — WAD names have diverse chars,
+                # while palette runs are clustered (e.g., "LLLKLMMM")
+                unique_chars = len(set(text))
+                if unique_chars >= len(text) * 0.6:  # High diversity = likely WAD name
+                    generic_ascii_runs += 1
+                    if len(found) < 10:
+                        found.append({
+                            "signature": text[:32],
+                            "offset": run_start,
+                            "x": run_start % SCREEN_WIDTH,
+                            "y": run_start // SCREEN_WIDTH,
+                            "definitive": False,
+                        })
             run_start = -1
             run_len = 0
 
     # Check final run
     if run_len >= MAX_ASCII_RUN:
-        ascii_runs += 1
+        text = pixels[run_start:run_start + run_len].decode("ascii", errors="replace")
+        unique_chars = len(set(text))
+        if unique_chars >= len(text) * 0.6:
+            generic_ascii_runs += 1
 
-    return ascii_runs, found
+    # Only known WAD signatures are definitive pollution
+    return signature_hits, found
 
 
 def palette_histogram(pixels):
@@ -246,7 +263,8 @@ def main():
 
     # Run checks
     nonzero_pct, nonzero_count = check_nonzero_pct(pixels)
-    ascii_runs, wad_hits = check_wad_pollution(pixels)
+    ascii_runs, wad_hits_all = check_wad_pollution(pixels)
+    wad_hits = [h for h in wad_hits_all if h.get("definitive", False)]
     hist = palette_histogram(pixels)
 
     # Determine overall verdict

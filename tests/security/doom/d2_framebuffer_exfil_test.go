@@ -233,7 +233,7 @@ func TestD2_ScreenDataLeakageRate(t *testing.T) {
 // can read screen contents even if SCREEN_MAP is protected.
 func TestD2_RAMMapScreenRegionOverlap(t *testing.T) {
 	const (
-		screenBase = 0x0000_C000 // mbc_mmap::SCREEN_BASE
+		screenBase = 0x0007_0000 // mbc_mmap::SCREEN_BASE
 		screenSize = 64000       // mbc_mmap::SCREEN_SIZE (320x200)
 		ramEntries = 16_777_216  // RAM_MAP max_entries
 	)

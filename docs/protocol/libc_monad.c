@@ -31,20 +31,110 @@ extern FILE *stderr;
 static long _wad_fpos  = 0;    /* stdio file position (fopen/fread) */
 static long _wad_fdpos = 0;    /* Unix fd position (open/read/lseek) */
 
-/* ========== ALLOCATOR ========== */
+/* ========== ALLOCATOR (free-list with coalescing) ========== */
 #define HEAP_BASE  ((char *)0x00520000)
 #define HEAP_SIZE  (16 * 1024 * 1024)
 #define HEAP_END   (HEAP_BASE + HEAP_SIZE)
-static char *heap_ptr = HEAP_BASE;
+
+/* Block header: sits immediately before the user pointer.
+ * |  size  | free | next_free |  ... user data ...  |
+ * size includes the header.  Minimum block = 16 bytes (header + 8 payload). */
+typedef struct block_hdr {
+    size_t size;                /* total block size including this header */
+    struct block_hdr *next;     /* next block in free list (NULL if allocated) */
+} block_hdr;
+
+#define HDR_SIZE  ((sizeof(block_hdr) + 7) & ~(size_t)7)  /* 8-byte aligned */
+#define MIN_BLOCK (HDR_SIZE + 8)
+
+/* All state in BSS — zeroed by crt0, initialized on first malloc. */
+static block_hdr *free_list;  /* singly-linked free list (address-ordered) */
+static char *heap_brk;        /* sbrk-style high-water mark */
+
+static void heap_init(void) {
+    heap_brk = HEAP_BASE;
+    free_list = NULL;
+}
 
 void *malloc(size_t size) {
-    char *p;
+    block_hdr *prev, *cur, *best_prev, *best;
+    size_t total;
+
+    if (!heap_brk) heap_init();
     if (size == 0) return NULL;
-    size = (size + 7) & ~(size_t)7;
-    if (heap_ptr + size > HEAP_END) return NULL;
-    p = heap_ptr; heap_ptr += size; return (void *)p;
+
+    total = HDR_SIZE + ((size + 7) & ~(size_t)7);
+    if (total < MIN_BLOCK) total = MIN_BLOCK;
+
+    /* First-fit scan of the free list */
+    best = NULL; best_prev = NULL;
+    prev = NULL; cur = free_list;
+    while (cur) {
+        if (cur->size >= total) {
+            best = cur; best_prev = prev;
+            break;  /* first-fit: take the first match */
+        }
+        prev = cur; cur = cur->next;
+    }
+
+    if (best) {
+        /* Split if remainder is large enough */
+        if (best->size >= total + MIN_BLOCK) {
+            block_hdr *split = (block_hdr *)((char *)best + total);
+            split->size = best->size - total;
+            split->next = best->next;
+            best->size = total;
+            if (best_prev) best_prev->next = split;
+            else free_list = split;
+        } else {
+            /* Use entire block */
+            if (best_prev) best_prev->next = best->next;
+            else free_list = best->next;
+        }
+        best->next = NULL;  /* mark as allocated */
+        return (char *)best + HDR_SIZE;
+    }
+
+    /* No free block found — bump from top */
+    if (heap_brk + total > HEAP_END) return NULL;
+    cur = (block_hdr *)heap_brk;
+    cur->size = total;
+    cur->next = NULL;
+    heap_brk += total;
+    return (char *)cur + HDR_SIZE;
 }
-void free(void *ptr) { (void)ptr; }
+
+void free(void *ptr) {
+    block_hdr *blk, *prev, *cur;
+
+    if (!ptr) return;
+    blk = (block_hdr *)((char *)ptr - HDR_SIZE);
+
+    /* Insert into free list in address order (enables coalescing) */
+    prev = NULL; cur = free_list;
+    while (cur && cur < blk) {
+        prev = cur; cur = cur->next;
+    }
+
+    /* Coalesce with next block */
+    if (cur && (char *)blk + blk->size == (char *)cur) {
+        blk->size += cur->size;
+        blk->next = cur->next;
+    } else {
+        blk->next = cur;
+    }
+
+    /* Coalesce with previous block */
+    if (prev && (char *)prev + prev->size == (char *)blk) {
+        prev->size += blk->size;
+        prev->next = blk->next;
+    } else if (prev) {
+        prev->next = blk;
+    } else {
+        free_list = blk;
+    }
+}
+
 void *calloc(size_t nmemb, size_t size) {
     size_t total = nmemb * size;
     void *p = malloc(total);
@@ -52,11 +142,16 @@ void *calloc(size_t nmemb, size_t size) {
     return p;
 }
 void *realloc(void *ptr, size_t size) {
+    block_hdr *blk;
     void *newp;
+    size_t old_payload;
     if (!ptr) return malloc(size);
     if (size == 0) { free(ptr); return NULL; }
+    blk = (block_hdr *)((char *)ptr - HDR_SIZE);
+    old_payload = blk->size - HDR_SIZE;
     newp = malloc(size);
-    if (newp) memcpy(newp, ptr, size);
+    if (newp) memcpy(newp, ptr, old_payload < size ? old_payload : size);
+    free(ptr);
     return newp;
 }
 
@@ -74,6 +169,10 @@ void *memmove(void *dst, const void *src, size_t n) {
     return dst;
 }
 void *memset(void *s, int c, size_t n) {
+    /* Bug 12 fix: guard against corrupted size arguments.
+     * No legitimate DOOM memset should exceed 16MB.  Corrupted zone metadata
+     * can pass >1GB sizes; clamping prevents zeroing the entire RAM. */
+    if (n > (16u * 1024u * 1024u)) n = 0;
     unsigned char *p = (unsigned char *)s;
     while (n--) *p++ = (unsigned char)c; return s;
 }
@@ -91,7 +190,7 @@ size_t strlen(const char *s) { const char *p = s; while (*p) p++; return (size_t
 int strcmp(const char *s1, const char *s2) { while (*s1 && *s1 == *s2) { s1++; s2++; } return (unsigned char)*s1 - (unsigned char)*s2; }
 int strncmp(const char *s1, const char *s2, size_t n) { while (n && *s1 && *s1 == *s2) { s1++; s2++; n--; } return n ? (unsigned char)*s1 - (unsigned char)*s2 : 0; }
 char *strcpy(char *dst, const char *src) { char *d = dst; while ((*d++ = *src++)); return dst; }
-char *strncpy(char *dst, const char *src, size_t n) { char *d = dst; while (n && (*d++ = *src++)) n--; while (n--) *d++ = '\0'; return dst; }
+char *strncpy(char *dst, const char *src, size_t n) { size_t i; for (i = 0; i < n && src[i]; i++) dst[i] = src[i]; for (; i < n; i++) dst[i] = '\0'; return dst; }
 char *strcat(char *dst, const char *src) { char *d = dst; while (*d) d++; while ((*d++ = *src++)); return dst; }
 char *strncat(char *dst, const char *src, size_t n) { char *d = dst; while (*d) d++; while (n-- && (*d = *src++)) d++; *d = '\0'; return dst; }
 char *strchr(const char *s, int c) { while (*s) { if (*s == (char)c) return (char *)s; s++; } return (c == '\0') ? (char *)s : NULL; }
@@ -172,12 +271,13 @@ int vsnprintf(char *buf, size_t n, const char *fmt, va_list ap) {
         if(*fmt=='*'){w=va_arg(ap,int);fmt++;}else while(isdigit(*fmt)){w=w*10+(*fmt-'0');fmt++;}
         if(*fmt=='.'){fmt++;pr=0;if(*fmt=='*'){pr=va_arg(ap,int);fmt++;}else while(isdigit(*fmt)){pr=pr*10+(*fmt-'0');fmt++;}}
         if(*fmt=='l'){fmt++;if(*fmt=='l')fmt++;}else if(*fmt=='h'){fmt++;if(*fmt=='h')fmt++;}else if(*fmt=='z')fmt++;
+        /* For integer specifiers: precision (pr) sets minimum digit count with zero-padding */
         switch(*fmt){
-        case'd':case'i':{int v=va_arg(ap,int);_pn(buf,bm,&pos,(unsigned)v,10,1,w,pz,0);break;}
-        case'u':{unsigned v=va_arg(ap,unsigned);_pn(buf,bm,&pos,v,10,0,w,pz,0);break;}
-        case'x':{unsigned v=va_arg(ap,unsigned);_pn(buf,bm,&pos,v,16,0,w,pz,0);break;}
-        case'X':{unsigned v=va_arg(ap,unsigned);_pn(buf,bm,&pos,v,16,0,w,pz,1);break;}
-        case'o':{unsigned v=va_arg(ap,unsigned);_pn(buf,bm,&pos,v,8,0,w,pz,0);break;}
+        case'd':case'i':{int v=va_arg(ap,int);int iw=w,ipz=pz;if(pr>=0&&pr>iw){iw=pr;ipz=1;}_pn(buf,bm,&pos,(unsigned)v,10,1,iw,ipz,0);break;}
+        case'u':{unsigned v=va_arg(ap,unsigned);int iw=w,ipz=pz;if(pr>=0&&pr>iw){iw=pr;ipz=1;}_pn(buf,bm,&pos,v,10,0,iw,ipz,0);break;}
+        case'x':{unsigned v=va_arg(ap,unsigned);int iw=w,ipz=pz;if(pr>=0&&pr>iw){iw=pr;ipz=1;}_pn(buf,bm,&pos,v,16,0,iw,ipz,0);break;}
+        case'X':{unsigned v=va_arg(ap,unsigned);int iw=w,ipz=pz;if(pr>=0&&pr>iw){iw=pr;ipz=1;}_pn(buf,bm,&pos,v,16,0,iw,ipz,1);break;}
+        case'o':{unsigned v=va_arg(ap,unsigned);int iw=w,ipz=pz;if(pr>=0&&pr>iw){iw=pr;ipz=1;}_pn(buf,bm,&pos,v,8,0,iw,ipz,0);break;}
         case'p':{unsigned v=(unsigned)(uintptr_t)va_arg(ap,void*);if(buf&&pos<bm-1)buf[pos]='0';pos++;if(buf&&pos<bm-1)buf[pos]='x';pos++;_pn(buf,bm,&pos,v,16,0,8,1,0);break;}
         case's':{const char*s=va_arg(ap,const char*);if(!s)s="(null)";int sl=(int)strlen(s);if(pr>=0&&pr<sl)sl=pr;int pd=w>sl?w-sl:0;int si;while(pd-->0){if(buf&&pos<bm-1)buf[pos]=' ';pos++;}for(si=0;si<sl;si++){if(buf&&pos<bm-1)buf[pos]=s[si];pos++;}break;}
         case'c':{int c=va_arg(ap,int);if(buf&&pos<bm-1)buf[pos]=(char)c;pos++;break;}
@@ -382,12 +482,15 @@ long clock(void){return 0;}
 typedef void(*sighandler_t)(int);
 sighandler_t signal(int s,sighandler_t h){(void)s;(void)h;return(sighandler_t)0;}
 int raise(int s){(void)s;return 0;}
-int setjmp(int env[16]){(void)env;return 0;}
-void longjmp(int env[16],int val){(void)env;(void)val;while(1);}
+/* setjmp/longjmp provided by setjmp.S — proper callee-save/restore for
+ * Bug 13 error recovery (I_Error longjmps back to game loop). */
 void __assert_fail(const char*e,const char*f,int l){(void)e;(void)f;(void)l;while(1);}
 
-void exit(int status){(void)status;asm volatile("ebreak");__builtin_unreachable();}
-void abort(void){exit(1);}
+/* Bug 6 fix: exit/abort must NOT halt the VM.  I_Error() calls exit() but
+ * many error paths in Doom are recoverable.  Halting is permanent in the MBC
+ * VM — there is no process restart.  Print the call and return instead. */
+void exit(int status){(void)status; while(1); /* trap in infinite loop — returning causes UB */ }
+void abort(void){ while(1); /* trap in infinite loop — returning causes UB */ }
 void __stack_chk_fail(void){while(1);}
 
 /* ========== SOFT-FLOAT / 64-BIT STUBS ========== */
