@@ -293,7 +293,7 @@ func TestMiddleware_Passthrough(t *testing.T) {
 	innerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotIdentity = IdentityFromContext(r.Context())
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	handler := Middleware(mock)(innerHandler)
