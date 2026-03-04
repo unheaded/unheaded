@@ -112,7 +112,12 @@ func (sc *safeChannel) closeCh() {
 
 // send attempts to send a message on ch, returning false if the channel is
 // closed or the context is cancelled. Prevents send-on-closed-channel panic.
-func (sc *safeChannel) send(ctx context.Context, msg *Message) bool {
+func (sc *safeChannel) send(ctx context.Context, msg *Message) (sent bool) {
+	defer func() {
+		if recover() != nil {
+			sent = false
+		}
+	}()
 	select {
 	case <-sc.done:
 		return false

@@ -36,6 +36,8 @@ services:
       - '--storage.tsdb.retention.time=15d'
       - '--web.enable-admin-api'
       - '--web.enable-lifecycle'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks: [monitoring]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]

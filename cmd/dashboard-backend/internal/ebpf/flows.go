@@ -120,8 +120,8 @@ func (fg *FlowGraph) IngestFlow(e *FlowEvent) {
 	flow.BytesIn = e.FlowState.BytesIn
 	flow.BytesOut = e.FlowState.BytesOut
 
-	// Remove closed/expired flows
-	if e.EventType == FlowExpired || flow.State == StateClosed {
+	// Remove closed flows; expired flows keep their last state for TTL display
+	if flow.State == StateClosed {
 		delete(fg.flows, key)
 	}
 }

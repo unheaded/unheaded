@@ -30,7 +30,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
+	"strings"
 	"flag"
 	"fmt"
 	"net/http"
@@ -734,7 +736,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	if *enablePacketMarker {
 		readerConfig := DefaultTraceReaderConfig()
 		readerConfig.ReadInterval = *readInterval
-		traceReader := NewTraceReader(loader, &WotanPublisher{addr: *wotanAddr, batchSize: *batchSize, batchTime: *batchTimeout}, readerConfig)
+		traceReader := NewTraceReader(loader, NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout), readerConfig)
 		state.TraceReader = traceReader
 
 		go traceReader.Run(ctx)
@@ -755,15 +757,55 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	// Start FlowReader (flow_tracker TC maps)
 	if *enableFlowTracker && programs[1].Loaded {
 		flowConfig := DefaultFlowReaderConfig()
-		wotanPub := &WotanPublisher{addr: *wotanAddr, batchSize: *batchSize, batchTime: *batchTimeout}
+		wotanPub := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
 		flowReader := NewFlowReader(loader, wotanPub, flowConfig)
 
 		go flowReader.Run(ctx)
 
-		// Feed flow events into publisher
+		// Feed flow events into publisher (dashboard-compatible format)
 		go func() {
 			for ev := range flowReader.Events() {
-				payload, err := json.Marshal(ev)
+				// Serialize in dashboard-backend FlowEvent format
+				dashEvent := struct {
+					TimestampNs uint64 `json:"timestamp_ns"`
+					FlowKey     struct {
+						SrcAddr  string `json:"src_addr"`
+						DstAddr  string `json:"dst_addr"`
+						SrcPort  uint16 `json:"src_port"`
+						DstPort  uint16 `json:"dst_port"`
+						Protocol uint8  `json:"protocol"`
+					} `json:"flow_key"`
+					FlowState struct {
+						TraceID    struct{ High, Low uint64 } `json:"trace_id"`
+						StartNs    uint64                     `json:"start_ns"`
+						LastSeenNs uint64                     `json:"last_seen_ns"`
+						PacketsIn  uint64                     `json:"packets_in"`
+						PacketsOut uint64                     `json:"packets_out"`
+						BytesIn    uint64                     `json:"bytes_in"`
+						BytesOut   uint64                     `json:"bytes_out"`
+						State      string                     `json:"state"`
+					} `json:"flow_state"`
+					EventType string `json:"event_type"`
+				}{
+					TimestampNs: ev.TimestampNS,
+					EventType:   ev.EventTypeName(),
+				}
+				dashEvent.FlowKey.SrcAddr = ev.Key.SrcIP().String()
+				dashEvent.FlowKey.DstAddr = ev.Key.DstIP().String()
+				dashEvent.FlowKey.SrcPort = ev.Key.SrcPort
+				dashEvent.FlowKey.DstPort = ev.Key.DstPort
+				dashEvent.FlowKey.Protocol = ev.Key.Protocol
+				dashEvent.FlowState.TraceID.High = binary.BigEndian.Uint64(ev.State.TraceID[0:8])
+				dashEvent.FlowState.TraceID.Low = binary.BigEndian.Uint64(ev.State.TraceID[8:16])
+				dashEvent.FlowState.StartNs = ev.State.StartNS
+				dashEvent.FlowState.LastSeenNs = ev.State.LastSeenNS
+				dashEvent.FlowState.PacketsIn = ev.State.PacketsIn
+				dashEvent.FlowState.PacketsOut = ev.State.PacketsOut
+				dashEvent.FlowState.BytesIn = ev.State.BytesIn
+				dashEvent.FlowState.BytesOut = ev.State.BytesOut
+				dashEvent.FlowState.State = strings.ToLower(ev.State.StateName())
+
+				payload, err := json.Marshal(dashEvent)
 				if err != nil {
 					log.Error().Err(err).Msg("failed to marshal flow event")
 					continue
@@ -778,7 +820,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	// Start LatencyReader (latency_probe kprobe maps)
 	if *enableLatencyProbe && programs[2].Loaded {
 		latencyConfig := DefaultLatencyReaderConfig()
-		wotanPub := &WotanPublisher{addr: *wotanAddr, batchSize: *batchSize, batchTime: *batchTimeout}
+		wotanPub := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
 		latencyReader := NewLatencyReader(loader, wotanPub, latencyConfig)
 
 		go latencyReader.Run(ctx)

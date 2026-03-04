@@ -605,6 +605,13 @@ func (s *Scraper) storeSample(sample MetricSample) {
 	series.AddSample(sample, s.config.MaxSamples)
 }
 
+// IngestSample stores a metric sample directly into the series store,
+// bypassing the scrape loop. Used by the server to inject host metrics
+// so they are queryable via /api/v1/metrics/query.
+func (s *Scraper) IngestSample(sample MetricSample) {
+	s.storeSample(sample)
+}
+
 // storeResult stores a scrape result and triggers callback
 func (s *Scraper) storeResult(result *ScrapeResult) {
 	s.resultsMu.Lock()

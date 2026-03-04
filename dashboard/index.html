@@ -67,7 +67,7 @@
     /* Flow diagram */
     .flow-diagram {
       width: 100%;
-      height: 400px;
+      height: 500px;
       border: var(--border-width-thin) solid var(--color-border);
       border-radius: var(--border-radius-lg);
       background-color: var(--color-bg-secondary);
@@ -76,12 +76,66 @@
       justify-content: center;
       margin-bottom: var(--space-lg);
       position: relative;
+      overflow: hidden;
     }
 
     .flow-diagram-svg {
       width: 100%;
       height: 100%;
     }
+
+    .flow-detail-panel {
+      position: absolute;
+      top: var(--space-md);
+      right: var(--space-md);
+      width: 280px;
+      max-height: 460px;
+      overflow-y: auto;
+      background: rgba(22, 22, 22, 0.95);
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 12px;
+      z-index: 10;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #c9c9c9;
+    }
+    .flow-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: #fff;
+      border-bottom: 1px solid #333;
+      padding-bottom: 6px;
+    }
+    .flow-detail-header button {
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    .flow-detail-header button:hover { color: #aaa; }
+    .flow-detail-body .fd-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .flow-detail-body .fd-label { color: #666; }
+    .flow-detail-body .fd-value { color: #aaa; text-align: right; }
+    .flow-table-wrapper {
+      max-height: 240px;
+      overflow-y: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--border-radius-lg);
+      background: var(--color-bg-secondary);
+    }
+
+    @keyframes flowDash { to { stroke-dashoffset: -24; } }
 
     .flow-counters {
       display: flex;
@@ -477,28 +531,34 @@
       <!-- Packet Flow Tab -->
       <div id="packet-flow" class="tab-panel active">
         <div class="tab-content">
-          <div class="flow-diagram">
-            <svg class="flow-diagram-svg" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
-              <rect width="800" height="400" fill="none"/>
-              <circle cx="100" cy="200" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
-              <text x="100" y="210" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">INGRESS</text>
-              <circle cx="400" cy="150" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
-              <text x="400" y="160" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">XDP</text>
-              <circle cx="400" cy="250" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
-              <text x="400" y="260" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">TC</text>
-              <circle cx="700" cy="200" r="40" fill="none" stroke="var(--color-accent-dim)" stroke-width="1"/>
-              <text x="700" y="210" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.1em">EGRESS</text>
-              <line x1="140" y1="185" x2="360" y2="150" stroke="var(--color-accent-dim)" stroke-width="1" stroke-dasharray="5,5"/>
-              <line x1="140" y1="215" x2="360" y2="250" stroke="var(--color-accent-dim)" stroke-width="1" stroke-dasharray="5,5"/>
-              <line x1="440" y1="150" x2="660" y2="185" stroke="var(--color-accent-dim)" stroke-width="1"/>
-              <line x1="440" y1="250" x2="660" y2="215" stroke="var(--color-accent-dim)" stroke-width="1"/>
-              <text x="250" y="130" font-size="11" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.05em">kingdom mode</text>
-              <text x="550" y="130" font-size="11" font-family="var(--font-mono)" fill="var(--color-text-secondary)" letter-spacing="0.05em">active</text>
+          <div class="flow-diagram" id="flowGraphContainer">
+            <svg id="flowGraphSvg" class="flow-diagram-svg" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <filter id="nodeGlow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                <marker id="arrowEstablished" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6" fill="#4a7a4a"/></marker>
+                <marker id="arrowClosing" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6" fill="#7a6a3a"/></marker>
+                <marker id="arrowOther" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto"><path d="M0,0 L10,3 L0,6" fill="#444"/></marker>
+              </defs>
+              <g id="flowEdges"></g>
+              <g id="flowNodes"></g>
+              <g id="flowLabels"></g>
             </svg>
+            <div id="flowDetail" class="flow-detail-panel" style="display:none;">
+              <div class="flow-detail-header"><span id="flowDetailTitle">--</span><button onclick="document.getElementById('flowDetail').style.display='none'">&times;</button></div>
+              <div id="flowDetailBody" class="flow-detail-body"></div>
+            </div>
           </div>
           <div class="flow-counters">
             <div class="flow-counter">live flows: <span id="liveFlowCount">0</span></div>
-            <div class="flow-counter">packets/sec: <span id="livePacketRate">0</span></div>
+            <div class="flow-counter">total bytes: <span id="livePacketRate">0</span></div>
+          </div>
+          <div id="flowTable" class="flow-table-wrapper" style="margin-top:var(--space-lg);">
+            <table class="data-table" style="font-size:12px;">
+              <thead><tr>
+                <th>source</th><th>destination</th><th>state</th><th>pkts in</th><th>bytes in</th><th>last seen</th>
+              </tr></thead>
+              <tbody id="flowTableBody"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -510,12 +570,12 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>flow label</th>
+                  <th>source</th>
                   <th>timestamp</th>
-                  <th>type</th>
-                  <th>kingdom mode</th>
+                  <th>event type</th>
+                  <th>monad ver</th>
                   <th>latency</th>
-                  <th>action</th>
+                  <th>wotan topic</th>
                 </tr>
               </thead>
               <tbody id="traceTableBody">
@@ -628,245 +688,637 @@
   <script src="/dashboard/js/demo-data.js"></script>
   <script src="/dashboard/js/particles.js"></script>
   <script>
-    window.DEMO_MODE = true;
+    // ── Kingdom Dashboard — Real BPF Data via Wotan Stack ─────────────────
+    // Pipeline: [eBPF Programs (Rust/Aya)] → [trace-collector-go] → [Wotan] → [dashboard-backend] → [here]
+    // Monad wire format: 20 bytes, version 0x01, CRC-16/CCITT-FALSE
 
-    function updateTime() {
-      const now = new Date();
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      document.getElementById('currentTime').textContent = `${hours}:${minutes}:${seconds}`;
-    }
+    const Kingdom = (() => {
+      'use strict';
+      const $ = id => document.getElementById(id);
+      let ws = null;
+      let ebpfActive = false;
 
-    updateTime();
-    setInterval(updateTime, 1000);
+      // ── API fetchers ──────────────────────────────────────────────────
+      async function api(path) {
+        const r = await fetch(path, { signal: AbortSignal.timeout(5000) });
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        return r.json();
+      }
 
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tabName = btn.getAttribute('data-tab');
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById(tabName).classList.add('active');
-      });
-    });
+      // ── Hero bar metrics ──────────────────────────────────────────────
+      async function refreshStats() {
+        try {
+          const stats = await api('/api/v1/stats');
+          const h = stats.health || {};
+          const srv = stats.server || {};
+          $('activeFlows').textContent = h.healthy || 0;
+          $('packetRate').textContent = (srv.ws_connections || 0) + ' ws';
+        } catch { /* backend not ready */ }
+      }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.DEMO_MODE && window.DemoData) {
-        const tbody = document.getElementById('traceTableBody');
-        window.DemoData.traces.forEach(trace => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td><code>${trace.flowLabel}</code></td>
-            <td class="dim">${new Date(trace.timestamp).toLocaleTimeString()}</td>
-            <td>${trace.type}</td>
-            <td>${trace.kingdomMode}</td>
-            <td>${trace.latency}</td>
-            <td><button class="btn-ghost" style="cursor: pointer;">inspect</button></td>
-          `;
-          tbody.appendChild(row);
+      // ── Known host labels ────────────────────────────────────────────
+      const HOST_LABELS = {
+        '192.168.13.1': 'east',
+        '192.168.13.2': 'west',
+        '127.0.0.1':    'localhost',
+        '::1':          'localhost',
+      };
+      const PORT_LABELS = {
+        22: 'ssh', 18000: 'wotan-http', 18001: 'wotan-grpc',
+        20000: 'dashboard', 16670: 'trace-collector', 16671: 'trace-metrics',
+        17000: 'daemon-http', 17001: 'daemon-grpc',
+      };
+      const STATE_COLORS = {
+        established: '#4a7a4a', syn_sent: '#3a4a6a', syn_recv: '#3a4a6a',
+        fin_wait1: '#7a6a3a', fin_wait2: '#7a6a3a', close_wait: '#7a5a3a',
+        last_ack: '#7a5a3a', time_wait: '#555', closing: '#7a3a3a', closed: '#7a3a3a',
+      };
+
+      function stateColor(s) { return STATE_COLORS[s] || '#444'; }
+      function hostLabel(ip) { return HOST_LABELS[ip] || ip; }
+      function portLabel(p) { return PORT_LABELS[p] ? PORT_LABELS[p] : p; }
+      function fmtBytes(b) {
+        if (b > 1e9) return (b/1e9).toFixed(1) + 'G';
+        if (b > 1e6) return (b/1e6).toFixed(1) + 'M';
+        if (b > 1e3) return (b/1e3).toFixed(1) + 'K';
+        return b + '';
+      }
+
+      // ── Flows (from eBPF flow-tracker via Wotan) ──────────────────────
+      async function refreshFlows() {
+        try {
+          const data = await api('/api/v1/flows');
+          const flows = data.active_flows || [];
+          const stats = data.stats || {};
+          const totalBytes = flows.reduce((s,f) => s + (f.bytes_in||0) + (f.bytes_out||0), 0);
+          $('liveFlowCount').textContent = flows.length;
+          $('livePacketRate').textContent = fmtBytes(totalBytes);
+          $('activeFlows').textContent = flows.length;
+          $('packetRate').textContent = fmtBytes(totalBytes) + 'B';
+          if (data.source === 'ebpf') ebpfActive = true;
+
+          renderFlowGraph(flows);
+          renderFlowTable(flows);
+        } catch { /* retry next cycle */ }
+      }
+
+      // ── SVG Flow Graph Renderer ─────────────────────────────────────
+      function renderFlowGraph(flows) {
+        const edgesG = document.getElementById('flowEdges');
+        const nodesG = document.getElementById('flowNodes');
+        const labelsG = document.getElementById('flowLabels');
+        if (!edgesG) return;
+
+        // Collect unique hosts and aggregate edges by host-pair + port
+        const hosts = new Set();
+        const edges = {};  // "src->dst:dport" => { flows, bytes, packets, states, ... }
+        flows.forEach(f => {
+          const k = f.key;
+          hosts.add(k.src_addr);
+          hosts.add(k.dst_addr);
+          const ek = k.src_addr + '->' + k.dst_addr + ':' + k.dst_port;
+          if (!edges[ek]) edges[ek] = { src: k.src_addr, dst: k.dst_addr, port: k.dst_port, count: 0, bytes: 0, packets: 0, states: {} };
+          const e = edges[ek];
+          e.count++;
+          e.bytes += (f.bytes_in || 0) + (f.bytes_out || 0);
+          e.packets += (f.packets_in || 0) + (f.packets_out || 0);
+          e.states[f.state] = (e.states[f.state] || 0) + 1;
         });
 
-        // Load services from API (falls back to demo data if API unavailable)
-        const servicesContainer = document.getElementById('servicesContainer');
-        fetch('/api/v1/services')
-          .then(r => r.json())
-          .then(data => {
-            const services = data.services || [];
-            servicesContainer.innerHTML = '';
-            services.forEach(svc => {
-              const card = document.createElement('div');
-              card.className = 'service-card';
-              const name = svc.name || (svc.config && svc.config.service && svc.config.service.name) || 'unknown';
-              const status = svc.status || 'unknown';
-              const port = (svc.config && svc.config.network && svc.config.network.port) || '--';
-              const protocol = (svc.config && svc.config.network && svc.config.network.protocol) || '--';
-              const tier = (svc.config && svc.config.deployment && svc.config.deployment.tier) || '--';
-              card.innerHTML = `
-                <div class="service-header">
-                  <div class="service-name">${name}</div>
-                  <div class="service-health">${status}</div>
-                </div>
-                <div class="service-details">
-                  <div class="service-detail"><span>port</span><span class="service-detail-value">${port}</span></div>
-                  <div class="service-detail"><span>protocol</span><span class="service-detail-value">${protocol}</span></div>
-                  <div class="service-detail"><span>tier</span><span class="service-detail-value">${tier}</span></div>
-                </div>
-              `;
-              servicesContainer.appendChild(card);
-            });
-            if (services.length === 0) {
-              servicesContainer.innerHTML = '<div style="color: var(--color-text-secondary, #888); text-align: center; padding: 2rem;">No services discovered</div>';
-            }
-          })
-          .catch(() => {
-            // Fallback to demo data
-            if (window.DemoData && window.DemoData.services) {
-              window.DemoData.services.forEach(service => {
-                const card = document.createElement('div');
-                card.className = 'service-card';
-                card.innerHTML = `
-                  <div class="service-header">
-                    <div class="service-name">${service.name}</div>
-                    <div class="service-health">${service.health}</div>
-                  </div>
-                  <div class="service-details">
-                    <div class="service-detail"><span>port</span><span class="service-detail-value">${service.port}</span></div>
-                    <div class="service-detail"><span>protocol</span><span class="service-detail-value">${service.protocol}</span></div>
-                    <div class="service-detail"><span>tier</span><span class="service-detail-value">${service.tier}</span></div>
-                  </div>
-                `;
-                servicesContainer.appendChild(card);
-              });
-            }
+        const hostArr = Array.from(hosts).sort();
+        const svgW = 900, svgH = 500;
+        const cx = svgW / 2, cy = svgH / 2;
+        const nodeR = 40;
+
+        // Position nodes in a circle (or line for 2)
+        const positions = {};
+        if (hostArr.length <= 2) {
+          hostArr.forEach((h, i) => {
+            positions[h] = { x: 200 + i * 500, y: cy };
           });
-
-        // Load infrastructure from API (falls back to demo data if API unavailable)
-        const infContainer = document.getElementById('infrastructureContainer');
-        fetch('/api/v1/infrastructure/containers')
-          .then(r => r.json())
-          .then(data => {
-            const containers = data.containers || [];
-            infContainer.innerHTML = '';
-            containers.forEach(c => {
-              const card = document.createElement('div');
-              card.className = 'container-card';
-              card.innerHTML = `
-                <div class="container-header">
-                  <div class="container-name">${c.name}</div>
-                  <div class="container-status">${c.status || 'unknown'}</div>
-                </div>
-                <div class="container-info">
-                  <div>image: ${c.image || '--'}</div>
-                  <div>tier: ${c.tier || '--'}</div>
-                  <div>port: ${c.port || '--'}</div>
-                  <div>protocol: ${c.protocol || '--'}</div>
-                </div>
-              `;
-              infContainer.appendChild(card);
-            });
-            if (containers.length === 0) {
-              infContainer.innerHTML = '<div style="color: var(--color-text-secondary, #888); text-align: center; padding: 2rem;">No containers detected</div>';
-            }
-          })
-          .catch(() => {
-            // Fallback to demo data
-            if (window.DemoData && window.DemoData.services) {
-              window.DemoData.services.forEach((service, idx) => {
-                const card = document.createElement('div');
-                card.className = 'container-card';
-                const containerId = `container-${String(idx + 1).padStart(3, '0')}`;
-                card.innerHTML = `
-                  <div class="container-header">
-                    <div class="container-name">${containerId}</div>
-                    <div class="container-status">running</div>
-                  </div>
-                  <div class="container-info">
-                    <div>image: ${service.protocol.toLowerCase()}:latest</div>
-                    <div>tier: ${service.tier}</div>
-                    <div>port: ${service.port}</div>
-                    <div>protocol: ${service.protocol}</div>
-                  </div>
-                `;
-                infContainer.appendChild(card);
-              });
-            }
+        } else {
+          const angleStep = (2 * Math.PI) / hostArr.length;
+          const radius = Math.min(svgW, svgH) * 0.3;
+          hostArr.forEach((h, i) => {
+            const a = -Math.PI/2 + i * angleStep;
+            positions[h] = { x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) };
           });
+        }
 
-        // Load AI inference models from API (falls back to demo data)
-        const aiContainer = document.getElementById('aiInferenceContainer');
-        fetch('/api/v1/ai/models')
-          .then(r => r.json())
-          .then(data => {
-            const models = data.models || [];
-            aiContainer.innerHTML = '<div class="ai-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem"></div><div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
-            const summary = aiContainer.querySelector('.ai-summary');
-            const grid = aiContainer.querySelector('.ai-models-grid');
-            const online = models.filter(m => m.status === 'online').length;
-            const totalReqs = models.reduce((s, m) => s + (m.requests || 0), 0);
-            const avgLat = models.length ? Math.round(models.reduce((s, m) => s + (m.latency_p50 || 0), 0) / models.length) : 0;
-            [{l:'Requests (24h)',v:totalReqs},{l:'Avg Latency',v:avgLat+'ms'},{l:'Active Models',v:online+'/'+models.length},{l:'GPU Util',v:'--'}].forEach(item => {
-              const box = document.createElement('div');
-              box.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:1rem;text-align:center';
-              box.innerHTML = '<div style="color:var(--color-text-secondary,#888);font-size:0.75rem;margin-bottom:0.25rem">'+item.l+'</div><div style="font-size:1.5rem;font-weight:600;font-family:var(--font-mono,monospace)">'+item.v+'</div>';
-              summary.appendChild(box);
-            });
-            models.forEach(m => {
-              const card = document.createElement('div');
-              card.className = 'service-card';
-              const statusColor = m.status === 'online' ? '#22c55e' : m.status === 'loading' ? '#eab308' : '#ef4444';
-              card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:'+statusColor+';font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+(m.throughput||'--')+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+(m.latency_p50||'--')+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+(m.latency_p99||'--')+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+(m.requests||0)+'</span></div></div>';
-              grid.appendChild(card);
-            });
-          })
-          .catch(() => {
-            const demoModels = [
-              {name:'deepseek-r1-7b',status:'online',throughput:42,latency_p50:85,latency_p99:220,requests:1247},
-              {name:'qwen-2.5-coder-7b',status:'online',throughput:38,latency_p50:92,latency_p99:245,requests:893},
-              {name:'bge-m3',status:'online',throughput:156,latency_p50:12,latency_p99:28,requests:3450},
-              {name:'qdrant',status:'online',throughput:0,latency_p50:3,latency_p99:8,requests:5200}
-            ];
-            aiContainer.innerHTML = '<div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
-            const grid = aiContainer.querySelector('.ai-models-grid');
-            demoModels.forEach(m => {
-              const card = document.createElement('div');
-              card.className = 'service-card';
-              card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:#22c55e;font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+m.throughput+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+m.latency_p50+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+m.latency_p99+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+m.requests+'</span></div></div>';
-              grid.appendChild(card);
-            });
-          });
+        // Clear existing
+        edgesG.innerHTML = '';
+        nodesG.innerHTML = '';
+        labelsG.innerHTML = '';
 
-        const logStream = document.getElementById('logStream');
-        const logs = [
-          { text: '[INFO] unheaded daemon started', level: 'info' },
-          { text: '[INFO] loading kernel ebpf programs', level: 'info' },
-          { text: '[INFO] attaching xdp hook on eth0', level: 'info' },
-          { text: '[DEBUG] kingdom mode: IDLE', level: 'info' },
-          { text: '[INFO] websocket server listening on :8080', level: 'info' },
-          { text: '[INFO] initial handshake with control plane', level: 'info' },
-          { text: '[DEBUG] flow 0xa3f7e2 ingress packet received', level: 'info' },
-          { text: '[DEBUG] latency sample: 142\u00b5s', level: 'info' },
-          { text: '[INFO] active flows: 12', level: 'info' },
-          { text: '[DEBUG] packet rate: 4521 pps', level: 'info' }
-        ];
-        logStream.innerHTML = logs.map(log =>
-          `<div class="log-line ${log.level}">${log.text}</div>`
-        ).join('');
+        // Edges grouped by host pair for offset
+        const pairOffsets = {};
+        const edgeArr = Object.values(edges).sort((a,b) => b.bytes - a.bytes);
+        const maxBytes = Math.max(1, ...edgeArr.map(e => e.bytes));
 
-        document.getElementById('activeFlows').textContent = window.DemoData.metrics?.activeFlows || '12';
-        document.getElementById('packetRate').textContent = (window.DemoData.metrics?.packetRate || 0).toLocaleString() + '/s';
+        edgeArr.forEach(e => {
+          const p1 = positions[e.src], p2 = positions[e.dst];
+          if (!p1 || !p2) return;
 
-        setInterval(() => {
-          const flowCount = Math.floor(Math.random() * 20 + 5);
-          const pktRate = Math.floor(Math.random() * 10000 + 1000);
-          document.getElementById('activeFlows').textContent = flowCount;
-          document.getElementById('packetRate').textContent = pktRate.toLocaleString() + '/s';
-          document.getElementById('liveFlowCount').textContent = flowCount;
-          document.getElementById('livePacketRate').textContent = pktRate.toLocaleString();
-        }, 2000);
+          const pairKey = [e.src, e.dst].sort().join('<>');
+          if (!pairOffsets[pairKey]) pairOffsets[pairKey] = 0;
+          const offset = pairOffsets[pairKey]++;
 
-        if (window.DemoData.metrics) {
-          document.getElementById('p50Latency').textContent = window.DemoData.metrics.p50 + '\u00b5s';
-          document.getElementById('p95Latency').textContent = window.DemoData.metrics.p95 + '\u00b5s';
-          document.getElementById('p99Latency').textContent = window.DemoData.metrics.p99 + '\u00b5s';
-          document.getElementById('maxLatency').textContent = window.DemoData.metrics.max + '\u00b5s';
+          // Dominant state for color
+          let domState = 'unknown';
+          let domCount = 0;
+          for (const [s, c] of Object.entries(e.states)) {
+            if (c > domCount) { domState = s; domCount = c; }
+          }
+          const color = stateColor(domState);
+          const isEstablished = domState === 'established' || domState === 'syn_sent' || domState === 'syn_recv';
+
+          // Edge thickness based on byte volume (1-6px)
+          const thick = 1 + 5 * (e.bytes / maxBytes);
+
+          // Offset parallel edges
+          const dx = p2.x - p1.x, dy = p2.y - p1.y;
+          const len = Math.sqrt(dx*dx + dy*dy) || 1;
+          const nx = -dy/len, ny = dx/len;
+          const off = (offset - 0.5) * 14;
+
+          // Shorten line to not overlap nodes
+          const shrink = nodeR + 12;
+          const ratio = shrink / len;
+          const x1 = p1.x + dx * ratio + nx * off;
+          const y1 = p1.y + dy * ratio + ny * off;
+          const x2 = p2.x - dx * ratio + nx * off;
+          const y2 = p2.y - dy * ratio + ny * off;
+
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+          line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+          line.setAttribute('stroke', color);
+          line.setAttribute('stroke-width', thick);
+          line.setAttribute('stroke-opacity', isEstablished ? '0.9' : '0.5');
+          if (isEstablished) {
+            line.setAttribute('stroke-dasharray', '8,4');
+            line.style.animation = 'flowDash 1s linear infinite';
+          }
+          const markerId = isEstablished ? 'arrowEstablished' : (domState.includes('wait') || domState.includes('ack') || domState.includes('fin') ? 'arrowClosing' : 'arrowOther');
+          line.setAttribute('marker-end', 'url(#' + markerId + ')');
+
+          // Click to show detail
+          line.style.cursor = 'pointer';
+          line.addEventListener('click', () => showEdgeDetail(e));
+          edgesG.appendChild(line);
+
+          // Edge label (port + count)
+          const mx = (x1+x2)/2, my = (y1+y2)/2;
+          const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          label.setAttribute('x', mx); label.setAttribute('y', my - 4);
+          label.setAttribute('text-anchor', 'middle');
+          label.setAttribute('font-size', '10');
+          label.setAttribute('font-family', 'var(--font-mono)');
+          label.setAttribute('fill', '#666');
+          label.setAttribute('pointer-events', 'none');
+          label.textContent = ':' + portLabel(e.port) + ' (' + e.count + ')';
+          labelsG.appendChild(label);
+        });
+
+        // Nodes
+        hostArr.forEach(h => {
+          const p = positions[h];
+          // Count flows for this host
+          const hostFlows = flows.filter(f => f.key.src_addr === h || f.key.dst_addr === h);
+          const hasEstablished = hostFlows.some(f => f.state === 'established');
+
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
+          circle.setAttribute('r', nodeR);
+          circle.setAttribute('fill', 'rgba(22,22,22,0.8)');
+          circle.setAttribute('stroke', hasEstablished ? '#4a7a4a' : '#333');
+          circle.setAttribute('stroke-width', hasEstablished ? '2' : '1');
+          if (hasEstablished) circle.setAttribute('filter', 'url(#nodeGlow)');
+          circle.style.cursor = 'pointer';
+          circle.addEventListener('click', () => showHostDetail(h, flows));
+          nodesG.appendChild(circle);
+
+          // Host label
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', p.x); text.setAttribute('y', p.y - 6);
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('font-size', '13');
+          text.setAttribute('font-family', 'var(--font-mono)');
+          text.setAttribute('fill', '#c9c9c9');
+          text.setAttribute('pointer-events', 'none');
+          text.setAttribute('letter-spacing', '0.08em');
+          text.textContent = hostLabel(h);
+          labelsG.appendChild(text);
+
+          // IP sublabel
+          const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          sub.setAttribute('x', p.x); sub.setAttribute('y', p.y + 10);
+          sub.setAttribute('text-anchor', 'middle');
+          sub.setAttribute('font-size', '9');
+          sub.setAttribute('font-family', 'var(--font-mono)');
+          sub.setAttribute('fill', '#555');
+          sub.setAttribute('pointer-events', 'none');
+          sub.textContent = h;
+          labelsG.appendChild(sub);
+
+          // Flow count under node
+          const cnt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          cnt.setAttribute('x', p.x); cnt.setAttribute('y', p.y + nodeR + 16);
+          cnt.setAttribute('text-anchor', 'middle');
+          cnt.setAttribute('font-size', '10');
+          cnt.setAttribute('font-family', 'var(--font-mono)');
+          cnt.setAttribute('fill', '#666');
+          cnt.setAttribute('pointer-events', 'none');
+          cnt.textContent = hostFlows.length + ' flows';
+          labelsG.appendChild(cnt);
+        });
+
+        // "No flows" message
+        if (flows.length === 0) {
+          const msg = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          msg.setAttribute('x', cx); msg.setAttribute('y', cy);
+          msg.setAttribute('text-anchor', 'middle');
+          msg.setAttribute('font-size', '14');
+          msg.setAttribute('font-family', 'var(--font-mono)');
+          msg.setAttribute('fill', '#555');
+          msg.textContent = 'waiting for eBPF flow data...';
+          labelsG.appendChild(msg);
         }
       }
-    });
 
-    function connectWebSocket() {
-      try {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-        ws.onopen = () => { console.log('WebSocket connected'); };
-        ws.onmessage = (event) => { console.log('Trace update:', JSON.parse(event.data)); };
-        ws.onerror = (error) => { console.error('WebSocket error:', error); };
-        ws.onclose = () => { console.log('Reconnecting...'); setTimeout(connectWebSocket, 3000); };
-      } catch (e) {
-        console.log('WebSocket not available, using demo mode');
+      function showEdgeDetail(e) {
+        const panel = document.getElementById('flowDetail');
+        const title = document.getElementById('flowDetailTitle');
+        const body = document.getElementById('flowDetailBody');
+        title.textContent = hostLabel(e.src) + ' \u2192 ' + hostLabel(e.dst) + ':' + portLabel(e.port);
+        let html = '';
+        html += '<div class="fd-row"><span class="fd-label">flows</span><span class="fd-value">' + e.count + '</span></div>';
+        html += '<div class="fd-row"><span class="fd-label">bytes</span><span class="fd-value">' + fmtBytes(e.bytes) + '</span></div>';
+        html += '<div class="fd-row"><span class="fd-label">packets</span><span class="fd-value">' + e.packets.toLocaleString() + '</span></div>';
+        html += '<div class="fd-row"><span class="fd-label">port</span><span class="fd-value">' + e.port + ' (' + (PORT_LABELS[e.port]||'') + ')</span></div>';
+        html += '<div class="fd-row" style="margin-top:6px;border-top:1px solid #333;padding-top:6px"><span class="fd-label">states</span><span class="fd-value"></span></div>';
+        for (const [s, c] of Object.entries(e.states).sort((a,b) => b[1]-a[1])) {
+          html += '<div class="fd-row"><span class="fd-label" style="color:' + stateColor(s) + '">' + s + '</span><span class="fd-value">' + c + '</span></div>';
+        }
+        body.innerHTML = html;
+        panel.style.display = 'block';
       }
-    }
-    connectWebSocket();
+
+      function showHostDetail(host, flows) {
+        const panel = document.getElementById('flowDetail');
+        const title = document.getElementById('flowDetailTitle');
+        const body = document.getElementById('flowDetailBody');
+        title.textContent = hostLabel(host) + ' (' + host + ')';
+        const hf = flows.filter(f => f.key.src_addr === host || f.key.dst_addr === host);
+        const states = {};
+        let totalBytes = 0, totalPkts = 0;
+        hf.forEach(f => {
+          states[f.state] = (states[f.state]||0) + 1;
+          totalBytes += (f.bytes_in||0) + (f.bytes_out||0);
+          totalPkts += (f.packets_in||0) + (f.packets_out||0);
+        });
+        let html = '';
+        html += '<div class="fd-row"><span class="fd-label">total flows</span><span class="fd-value">' + hf.length + '</span></div>';
+        html += '<div class="fd-row"><span class="fd-label">total bytes</span><span class="fd-value">' + fmtBytes(totalBytes) + '</span></div>';
+        html += '<div class="fd-row"><span class="fd-label">total packets</span><span class="fd-value">' + totalPkts.toLocaleString() + '</span></div>';
+        html += '<div class="fd-row" style="margin-top:6px;border-top:1px solid #333;padding-top:6px"><span class="fd-label">states</span><span class="fd-value"></span></div>';
+        for (const [s, c] of Object.entries(states).sort((a,b) => b[1]-a[1])) {
+          html += '<div class="fd-row"><span class="fd-label" style="color:' + stateColor(s) + '">' + s + '</span><span class="fd-value">' + c + '</span></div>';
+        }
+        // Top destination ports
+        const ports = {};
+        hf.forEach(f => { ports[f.key.dst_port] = (ports[f.key.dst_port]||0) + 1; });
+        html += '<div class="fd-row" style="margin-top:6px;border-top:1px solid #333;padding-top:6px"><span class="fd-label">top ports</span><span class="fd-value"></span></div>';
+        Object.entries(ports).sort((a,b) => b[1]-a[1]).slice(0,5).forEach(([p,c]) => {
+          html += '<div class="fd-row"><span class="fd-label">:' + portLabel(+p) + '</span><span class="fd-value">' + c + '</span></div>';
+        });
+        body.innerHTML = html;
+        panel.style.display = 'block';
+      }
+
+      // ── Flow Table (top flows by bytes) ──────────────────────────────
+      function renderFlowTable(flows) {
+        const tbody = $('flowTableBody');
+        if (!tbody) return;
+        // Sort by bytes descending, show top 30
+        const sorted = flows.slice().sort((a,b) => (b.bytes_in+b.bytes_out) - (a.bytes_in+a.bytes_out)).slice(0, 30);
+        tbody.innerHTML = '';
+        sorted.forEach(f => {
+          const k = f.key;
+          const row = document.createElement('tr');
+          const stColor = stateColor(f.state);
+          const ago = f.last_seen ? timeSince(f.last_seen) : '--';
+          row.innerHTML =
+            '<td><code>' + k.src_addr + ':' + k.src_port + '</code></td>' +
+            '<td><code>' + k.dst_addr + ':' + portLabel(k.dst_port) + '</code></td>' +
+            '<td style="color:' + stColor + '">' + f.state + '</td>' +
+            '<td>' + (f.packets_in||0).toLocaleString() + '</td>' +
+            '<td>' + fmtBytes(f.bytes_in||0) + '</td>' +
+            '<td class="dim">' + ago + '</td>';
+          tbody.appendChild(row);
+        });
+      }
+
+      function timeSince(iso) {
+        const d = new Date(iso);
+        const s = Math.floor((Date.now() - d.getTime()) / 1000);
+        if (s < 5) return 'now';
+        if (s < 60) return s + 's ago';
+        if (s < 3600) return Math.floor(s/60) + 'm ago';
+        return Math.floor(s/3600) + 'h ago';
+      }
+
+      // ── eBPF events (packet, flow, latency, anamnesis, compute) ───────
+      async function refreshEBPFEvents() {
+        try {
+          const data = await api('/api/v1/ebpf/events?limit=50');
+          const events = data.events || [];
+          if (events.length === 0) return;
+
+          const tbody = $('traceTableBody');
+          tbody.innerHTML = '';
+          events.forEach(env => {
+            const row = document.createElement('tr');
+            const ev = env.data || {};
+            const flowKey = ev.flow_key || {};
+            const mesh = ev.mesh || {};
+            const ts = env.timestamp ? new Date(env.timestamp).toLocaleTimeString() : '--';
+            const monadVer = mesh.version ? '0x' + mesh.version.toString(16).padStart(2, '0') : '--';
+            const latency = ev.latency_ns ? (ev.latency_ns / 1000).toFixed(0) + 'us' : '--';
+            row.innerHTML = `
+              <td><code>${flowKey.src_addr || '--'}:${flowKey.src_port || '--'}</code></td>
+              <td class="dim">${ts}</td>
+              <td>${env.type || '--'}</td>
+              <td>${monadVer}</td>
+              <td>${latency}</td>
+              <td><code>${env.topic || '--'}</code></td>
+            `;
+            tbody.appendChild(row);
+          });
+        } catch { /* retry next cycle */ }
+      }
+
+      // ── eBPF ingestor stats ───────────────────────────────────────────
+      async function refreshEBPFStats() {
+        try {
+          const data = await api('/api/v1/ebpf/stats');
+          if (!data.active) return;
+          ebpfActive = true;
+          const s = data.stats || {};
+          $('activeFlows').textContent = (s.flow_stats || {}).active_flows || 0;
+          $('packetRate').textContent = ((s.packets_ingested || 0) + (s.flows_ingested || 0)).toLocaleString() + '/s';
+        } catch { /* ingestor not active */ }
+      }
+
+      // ── Latency (from latency-probe kprobe via Wotan) ─────────────────
+      async function refreshLatency() {
+        try {
+          const data = await api('/api/v1/latency');
+          const pcts = data.percentiles || {};
+          // Iterate operations and show first available
+          for (const [op, windows] of Object.entries(pcts)) {
+            if (!windows || windows.length === 0) continue;
+            const latest = windows[windows.length - 1] || {};
+            const percs = latest.percentiles || latest;
+            if (percs.p50 !== undefined) $('p50Latency').textContent = (percs.p50 / 1000).toFixed(0) + 'us';
+            if (percs.p95 !== undefined) $('p95Latency').textContent = (percs.p95 / 1000).toFixed(0) + 'us';
+            if (percs.p99 !== undefined) $('p99Latency').textContent = (percs.p99 / 1000).toFixed(0) + 'us';
+            if (percs.max !== undefined) $('maxLatency').textContent = (percs.max / 1000).toFixed(0) + 'us';
+            break;
+          }
+        } catch { /* latency-probe not active */ }
+      }
+
+      // ── Services (from health monitor + Wotan discovery) ──────────────
+      async function refreshServices() {
+        try {
+          const data = await api('/api/v1/services');
+          const services = data.services || [];
+          const container = $('servicesContainer');
+          container.innerHTML = '';
+          if (services.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state__glyph">&diamondsuit;</div><div class="empty-state__title">no services</div><div class="empty-state__sub">waiting for Wotan discovery...</div></div>';
+            return;
+          }
+          services.forEach(svc => {
+            const card = document.createElement('div');
+            card.className = 'service-card';
+            const name = svc.name || 'unknown';
+            const status = svc.status || 'unknown';
+            const port = (svc.config && svc.config.network && svc.config.network.port) || '--';
+            const protocol = (svc.config && svc.config.network && svc.config.network.protocol) || '--';
+            const tier = (svc.config && svc.config.deployment && svc.config.deployment.tier) || '--';
+            const latMs = svc.average_latency_ms || '--';
+            card.innerHTML = `
+              <div class="service-header">
+                <div class="service-name">${name}</div>
+                <div class="service-health">${status}</div>
+              </div>
+              <div class="service-details">
+                <div class="service-detail"><span>port</span><span class="service-detail-value">${port}</span></div>
+                <div class="service-detail"><span>protocol</span><span class="service-detail-value">${protocol}</span></div>
+                <div class="service-detail"><span>tier</span><span class="service-detail-value">${tier}</span></div>
+                <div class="service-detail"><span>latency</span><span class="service-detail-value">${latMs}ms</span></div>
+              </div>
+            `;
+            container.appendChild(card);
+          });
+        } catch { /* retry */ }
+      }
+
+      // ── Infrastructure (containers from Wotan) ────────────────────────
+      async function refreshInfra() {
+        try {
+          const data = await api('/api/v1/infrastructure/containers');
+          const containers = data.containers || [];
+          const container = $('infrastructureContainer');
+          container.innerHTML = '';
+          if (containers.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state__glyph">&hexmark;</div><div class="empty-state__title">infrastructure</div><div class="empty-state__sub">scanning container runtimes...</div></div>';
+            return;
+          }
+          containers.forEach(c => {
+            const card = document.createElement('div');
+            card.className = 'container-card';
+            card.innerHTML = `
+              <div class="container-header">
+                <div class="container-name">${c.name}</div>
+                <div class="container-status">${c.status || 'unknown'}</div>
+              </div>
+              <div class="container-info">
+                <div>image: ${c.image || '--'}</div>
+                <div>tier: ${c.tier || '--'}</div>
+                <div>port: ${c.port || '--'}</div>
+                <div>protocol: ${c.protocol || '--'}</div>
+              </div>
+            `;
+            container.appendChild(card);
+          });
+        } catch { /* retry */ }
+      }
+
+      // ── AI Inference ──────────────────────────────────────────────────
+      async function refreshAI() {
+        try {
+          const data = await api('/api/v1/ai/models');
+          const models = data.models || [];
+          const container = $('aiInferenceContainer');
+          container.innerHTML = '<div class="ai-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem"></div>';
+          const grid = container.querySelector('.ai-models-grid');
+          models.forEach(m => {
+            const card = document.createElement('div');
+            card.className = 'service-card';
+            const sc = m.status === 'online' ? 'var(--status-ok-text)' : m.status === 'loading' ? 'var(--status-warn-text)' : 'var(--status-error-text)';
+            card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:'+sc+';font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+(m.throughput||'--')+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+(m.latency_p50||'--')+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+(m.latency_p99||'--')+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+(m.requests||0)+'</span></div></div>';
+            grid.appendChild(card);
+          });
+        } catch { /* AI services not available */ }
+      }
+
+      // ── Logs (live tail via SSE from Wotan log aggregation) ───────────
+      function connectLogStream() {
+        const logStream = $('logStream');
+        const evtSource = new EventSource('/ws/logs');
+        evtSource.onmessage = (e) => {
+          try {
+            const log = JSON.parse(e.data);
+            const line = document.createElement('div');
+            line.className = 'log-line ' + (log.level || 'info');
+            line.textContent = `[${(log.level || 'INFO').toUpperCase()}] [${log.service || '--'}] ${log.message || log.msg || e.data}`;
+            logStream.appendChild(line);
+            if (logStream.children.length > 500) logStream.removeChild(logStream.firstChild);
+            logStream.scrollTop = logStream.scrollHeight;
+          } catch {
+            const line = document.createElement('div');
+            line.className = 'log-line info';
+            line.textContent = e.data;
+            logStream.appendChild(line);
+          }
+        };
+        evtSource.onerror = () => {
+          evtSource.close();
+          setTimeout(connectLogStream, 5000);
+        };
+      }
+
+      // ── WebSocket stream (real-time from /api/v1/stream) ──────────────
+      // Receives: { type: "metrics"|"health"|"trace"|"event"|"flow", service, timestamp, data }
+      function connectStream() {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${proto}//${location.host}/api/v1/stream`);
+
+        ws.onopen = () => {
+          console.log('[Kingdom] Stream connected to Wotan pipeline');
+          // Request all event types
+          ws.send(JSON.stringify({ types: ['trace', 'flow', 'metrics', 'health', 'event'] }));
+        };
+
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            handleStreamMessage(msg);
+          } catch { /* malformed message */ }
+        };
+
+        ws.onerror = () => {};
+        ws.onclose = () => { setTimeout(connectStream, 3000); };
+      }
+
+      function handleStreamMessage(msg) {
+        switch (msg.type) {
+          case 'flow': {
+            const d = msg.data || {};
+            const flows = d.active_flows || (d.stats || {}).active_flows || 0;
+            $('liveFlowCount').textContent = flows;
+            $('activeFlows').textContent = flows;
+            break;
+          }
+          case 'trace': {
+            // Append trace event to table (live)
+            const tbody = $('traceTableBody');
+            if (tbody.children.length > 100) tbody.removeChild(tbody.lastChild);
+            const row = document.createElement('tr');
+            const d = msg.data || {};
+            const ts = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '--';
+            row.innerHTML = `
+              <td><code>${d.src || '--'}</code></td>
+              <td class="dim">${ts}</td>
+              <td>${d.event_type || '--'}</td>
+              <td>${d.hop_count || '--'} hops</td>
+              <td>${d.rtt_ms ? d.rtt_ms.toFixed(1) + 'ms' : '--'}</td>
+              <td><code>${d.protocol || '--'}</code></td>
+            `;
+            tbody.insertBefore(row, tbody.firstChild);
+            break;
+          }
+          case 'metrics': {
+            const d = msg.data || {};
+            if (d.packets_total) $('packetRate').textContent = d.packets_total.toLocaleString() + ' pkts';
+            break;
+          }
+          case 'health': {
+            // Re-fetch services on health change
+            refreshServices();
+            break;
+          }
+        }
+      }
+
+      // ── Clock ─────────────────────────────────────────────────────────
+      function updateTime() {
+        const now = new Date();
+        $('currentTime').textContent =
+          String(now.getHours()).padStart(2, '0') + ':' +
+          String(now.getMinutes()).padStart(2, '0') + ':' +
+          String(now.getSeconds()).padStart(2, '0');
+      }
+
+      // ── Tab navigation ────────────────────────────────────────────────
+      function setupTabs() {
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const tabName = btn.getAttribute('data-tab');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+          });
+        });
+      }
+
+      // ── Initialize ────────────────────────────────────────────────────
+      function init() {
+        setupTabs();
+        updateTime();
+        setInterval(updateTime, 1000);
+
+        // Initial data load from Kingdom APIs
+        refreshStats();
+        refreshFlows();
+        refreshEBPFEvents();
+        refreshEBPFStats();
+        refreshLatency();
+        refreshServices();
+        refreshInfra();
+        refreshAI();
+
+        // Periodic refresh (every 5s — real data from trace-collector → Wotan → dashboard-backend)
+        setInterval(refreshFlows, 5000);
+        setInterval(refreshEBPFEvents, 3000);
+        setInterval(refreshEBPFStats, 5000);
+        setInterval(refreshLatency, 5000);
+        setInterval(refreshStats, 10000);
+        setInterval(refreshServices, 15000);
+
+        // Live streams
+        connectStream();
+        connectLogStream();
+      }
+
+      return { init };
+    })();
+
+    document.addEventListener('DOMContentLoaded', Kingdom.init);
   </script>
 </body>
 </html>
