@@ -132,7 +132,12 @@
                 </section>
 
                 <section class="section section-gauges">
-                    <h2 class="section-title">System Resources</h2>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+                        <h2 class="section-title" style="margin-bottom:0;">System Resources</h2>
+                        <select id="host-selector" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:0.25rem 0.5rem;font-family:var(--font-mono);font-size:0.75rem;">
+                            <option value="west">west (local)</option>
+                        </select>
+                    </div>
                     <div class="gauges-container">
                         <div class="gauge-wrapper">
                             <canvas id="cpu-gauge" width="120" height="120"></canvas>
@@ -152,6 +157,41 @@
                     </div>
                 </section>
             </div>
+
+            <!-- System Details (from system-summary metrics) -->
+            <section class="section section-system-details" id="section-system-details" style="display:none;">
+                <h2 class="section-title">System Details</h2>
+                <div class="system-details-grid">
+                    <div class="sys-detail-card">
+                        <div class="sys-detail-header">Host</div>
+                        <div class="sys-detail-body" id="sys-host-info">--</div>
+                    </div>
+                    <div class="sys-detail-card">
+                        <div class="sys-detail-header">Load Average</div>
+                        <div class="sys-detail-body" id="sys-load">--</div>
+                    </div>
+                    <div class="sys-detail-card">
+                        <div class="sys-detail-header">Swap</div>
+                        <div class="sys-detail-body" id="sys-swap">--</div>
+                    </div>
+                    <div class="sys-detail-card">
+                        <div class="sys-detail-header">Network Connections</div>
+                        <div class="sys-detail-body" id="sys-netconns">--</div>
+                    </div>
+                    <div class="sys-detail-card">
+                        <div class="sys-detail-header">Processes</div>
+                        <div class="sys-detail-body" id="sys-processes">--</div>
+                    </div>
+                    <div class="sys-detail-card">
+                        <div class="sys-detail-header">Uptime</div>
+                        <div class="sys-detail-body" id="sys-uptime">--</div>
+                    </div>
+                </div>
+                <div id="sys-disk-section" style="margin-top:0.75rem;">
+                    <div class="sys-detail-header" style="margin-bottom:0.5rem;">Disk Usage</div>
+                    <div id="sys-disks"></div>
+                </div>
+            </section>
 
             <!-- Service Health Grid -->
             <section class="section section-services">
@@ -243,7 +283,7 @@
                         <div class="latency-percentiles" id="percentiles-recv"></div>
                     </div>
                     <div class="latency-chart-card">
-                        <h3 class="chart-title">http_request</h3>
+                        <h3 class="chart-title">tcp_accept</h3>
                         <canvas id="latency-chart-http" width="500" height="200"></canvas>
                         <div class="latency-percentiles" id="percentiles-http"></div>
                     </div>
