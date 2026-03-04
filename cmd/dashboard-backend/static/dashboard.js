@@ -28,7 +28,8 @@
             flows: '/api/v1/flows',
             latency: '/api/v1/latency',
             ebpfStats: '/api/v1/ebpf/stats',
-            ebpfEvents: '/api/v1/ebpf/events'
+            ebpfEvents: '/api/v1/ebpf/events',
+            hosts: '/api/v1/hosts'
         },
 
         refreshIntervals: {
@@ -38,7 +39,8 @@
             flows: 3000,
             latency: 3000,
             ebpfStats: 5000,
-            ebpfEvents: 2000
+            ebpfEvents: 2000,
+            hosts: 5000
         },
 
         charts: { maxDataPoints: 60 },
@@ -68,6 +70,8 @@
         ebpfStats: {},
         ebpfEvents: [],
         ebpfActive: false,
+        hosts: [],
+        selectedHost: 'west',
 
         eventStreamPaused: false,
         eventTopicFilter: '',
@@ -109,6 +113,7 @@
         el.statEps = document.getElementById('stat-eps');
         el.statUptime = document.getElementById('stat-uptime');
 
+        el.hostSelector = document.getElementById('host-selector');
         el.cpuGauge = document.getElementById('cpu-gauge');
         el.memoryGauge = document.getElementById('memory-gauge');
         el.goroutinesGauge = document.getElementById('goroutines-gauge');
@@ -131,6 +136,15 @@
         el.eventStreamTotal = document.getElementById('event-stream-total');
         el.eventStreamVisible = document.getElementById('event-stream-visible');
         el.eventStreamRate = document.getElementById('event-stream-rate');
+
+        el.sysDetailsSection = document.getElementById('section-system-details');
+        el.sysHostInfo = document.getElementById('sys-host-info');
+        el.sysLoad = document.getElementById('sys-load');
+        el.sysSwap = document.getElementById('sys-swap');
+        el.sysNetConns = document.getElementById('sys-netconns');
+        el.sysProcesses = document.getElementById('sys-processes');
+        el.sysUptime = document.getElementById('sys-uptime');
+        el.sysDisks = document.getElementById('sys-disks');
 
         el.uptime = document.getElementById('uptime');
         el.serverTime = document.getElementById('server-time');
@@ -157,6 +171,11 @@
             p.classList.toggle('active', p.id === 'page-' + page);
         });
         if (page === 'flows') resizeFlowCanvas();
+        if (page === 'latency' && state.latencyData) {
+            renderLatencySummary(state.latencyData);
+            renderLatencyCharts(state.latencyData);
+            renderLatencyHistory(state.latencyData);
+        }
     }
 
     // ======================================================================
@@ -250,6 +269,7 @@
     function refreshLatency()    { fetchJSON(CONFIG.api.latency,    updateLatencyData); }
     function refreshEBPFStats()  { fetchJSON(CONFIG.api.ebpfStats,  updateEBPFStats); }
     function refreshEBPFEvents() { fetchJSON(CONFIG.api.ebpfEvents, updateEBPFEvents); }
+    function refreshHosts()      { fetchJSON(CONFIG.api.hosts,      updateHostsData); }
 
     // ======================================================================
     // Data Handlers
@@ -278,24 +298,121 @@
 
     function updateStatsData(data) {
         state.stats = data;
-        // Backend /api/v1/stats returns nested: {server:{ws_connections}, health:{healthy, ...}, scraper:{...}}
-        // Extract what we can for gauges
-        var h = data.health || {};
-        var srv = data.server || {};
-        // Use health ratio as a pseudo-CPU metric (% healthy)
-        var totalSvc = h.total_services || 0;
-        var healthySvc = h.healthy || 0;
-        if (totalSvc > 0) state.gauges.cpu = (healthySvc / totalSvc) * 100;
-        // Use scraper series count as pseudo-memory metric
-        var sc = data.scraper || {};
-        state.gauges.memory = Math.min((sc.series_count || 0) / 10, 100);
-        // WebSocket connections for goroutines gauge
-        state.gauges.goroutines = srv.ws_connections || 0;
-        // Direct flat fields override nested (for WS messages with flat data)
+        // Gauges are now driven by /api/v1/hosts (refreshHosts), not stats.
+        // Direct flat fields from WS messages can still override.
         if (data.cpu !== undefined) state.gauges.cpu = data.cpu;
         if (data.memory !== undefined) state.gauges.memory = data.memory;
         if (data.goroutines !== undefined) state.gauges.goroutines = data.goroutines;
+        if (data.cpu !== undefined || data.memory !== undefined || data.goroutines !== undefined) {
+            updateGauges();
+        }
+    }
+
+    function updateHostsData(data) {
+        var hosts = data.hosts || [];
+        state.hosts = hosts;
+        // Populate host selector dropdown
+        if (el.hostSelector && hosts.length > 0) {
+            var current = el.hostSelector.value || state.selectedHost;
+            el.hostSelector.innerHTML = '';
+            hosts.forEach(function(h) {
+                var opt = document.createElement('option');
+                opt.value = h.id;
+                opt.textContent = h.id + (h.id === 'west' ? ' (local)' : '') + (h.online ? '' : ' [offline]');
+                el.hostSelector.appendChild(opt);
+            });
+            el.hostSelector.value = current;
+            if (!el.hostSelector.value && hosts.length > 0) {
+                el.hostSelector.value = hosts[0].id;
+            }
+            state.selectedHost = el.hostSelector.value;
+        }
+        // Update gauges from selected host
+        var selected = null;
+        for (var i = 0; i < hosts.length; i++) {
+            if (hosts[i].id === state.selectedHost) { selected = hosts[i]; break; }
+        }
+        if (selected && selected.online) {
+            state.gauges.cpu = selected.cpu_percent || 0;
+            state.gauges.memory = selected.memory_percent || 0;
+            state.gauges.goroutines = selected.goroutines || 0;
+        }
         updateGauges();
+        renderSystemDetails(selected);
+    }
+
+    function renderSystemDetails(host) {
+        if (!el.sysDetailsSection) return;
+        if (!host || !host.online) {
+            el.sysDetailsSection.style.display = 'none';
+            return;
+        }
+        el.sysDetailsSection.style.display = '';
+
+        // Host info
+        var hostLines = host.hostname || host.id;
+        if (host.kernel) hostLines += '\n' + host.kernel;
+        if (host.addr) hostLines += '\n' + host.addr;
+        setText(el.sysHostInfo, hostLines);
+
+        // Load average
+        var l1 = (host.load_1m || 0).toFixed(2);
+        var l5 = (host.load_5m || 0).toFixed(2);
+        var l15 = (host.load_15m || 0).toFixed(2);
+        setText(el.sysLoad, l1 + ' / ' + l5 + ' / ' + l15 + '\n(1 / 5 / 15 min)');
+
+        // Swap
+        if (host.swap_total > 0) {
+            var swapUsedH = formatBytesLong(host.swap_used || 0);
+            var swapTotalH = formatBytesLong(host.swap_total);
+            var swapPct = (host.swap_percent || 0).toFixed(1);
+            setText(el.sysSwap, swapUsedH + ' / ' + swapTotalH + '\n' + swapPct + '% used');
+        } else {
+            setText(el.sysSwap, 'No swap');
+        }
+
+        // Network connections
+        var nc = host.net_connections || {};
+        setText(el.sysNetConns,
+            'ESTAB: ' + (nc.established || 0) +
+            '\nTIME_WAIT: ' + (nc.time_wait || 0) +
+            '\nCLOSE_WAIT: ' + (nc.close_wait || 0));
+
+        // Processes
+        var zLabel = (host.process_zombie || 0) > 0 ? ' (' + host.process_zombie + ' zombie!)' : '';
+        setText(el.sysProcesses, (host.process_total || 0) + ' total' + zLabel);
+
+        // Uptime
+        setText(el.sysUptime, formatUptime((host.uptime_seconds || 0) * 1000));
+
+        // Disks
+        if (el.sysDisks) {
+            var disks = host.disks || [];
+            if (disks.length === 0) {
+                el.sysDisks.innerHTML = '<span style="color:#8b949e;font-size:0.75rem;">No disk data</span>';
+            } else {
+                var html = '';
+                disks.forEach(function(d) {
+                    var pct = (d.use_percent || 0).toFixed(1);
+                    var color = pct > 89 ? '#ff4757' : pct > 75 ? '#ff9800' : '#00d26a';
+                    html += '<div class="disk-bar-wrap">' +
+                        '<span class="disk-mount">' + esc(d.mount) + '</span>' +
+                        '<div class="disk-bar-track"><div class="disk-bar-fill" style="width:' + pct + '%;background:' + color + ';"></div></div>' +
+                        '<span class="disk-pct">' + pct + '%</span>' +
+                        '<span style="color:#8b949e;min-width:70px;">' + formatBytesLong(d.used_bytes || 0) + '/' + formatBytesLong(d.size_bytes || 0) + '</span>' +
+                        '</div>';
+                });
+                el.sysDisks.innerHTML = html;
+            }
+        }
+    }
+
+    function formatBytesLong(b) {
+        if (b >= 1e12) return (b / 1e12).toFixed(1) + 'T';
+        if (b >= 1e9) return (b / 1e9).toFixed(1) + 'G';
+        if (b >= 1e6) return (b / 1e6).toFixed(1) + 'M';
+        if (b >= 1e3) return (b / 1e3).toFixed(1) + 'K';
+        return b + 'B';
     }
 
     function updateFlowsData(data) {
@@ -318,9 +435,29 @@
 
     function updateLatencyData(data) {
         // Backend returns {percentiles: {...}, stats: {...}} or {message: "...", data: null}
-        // Normalize: wrap percentiles as "operations" for rendering
+        // Each operation in percentiles is an ARRAY of window objects:
+        //   [{window, sample_count, p50_ns, p90_ns, p99_ns, min_ns, max_ns, mean_ns}, ...]
+        // The frontend expects a flat object per operation with p50/p90/p99 in ms.
+        // Pick the 60s window (last entry) and convert ns → ms.
         if (data.percentiles && !data.operations) {
-            data.operations = data.percentiles;
+            var ops = {};
+            Object.keys(data.percentiles).forEach(function(name) {
+                var windows = data.percentiles[name];
+                if (!Array.isArray(windows) || windows.length === 0) return;
+                // Use the widest window (last = 60s)
+                var w = windows[windows.length - 1];
+                ops[name] = {
+                    p50: (w.p50_ns || 0) / 1e6,
+                    p90: (w.p90_ns || 0) / 1e6,
+                    p99: (w.p99_ns || 0) / 1e6,
+                    min: (w.min_ns || 0) / 1e6,
+                    max: (w.max_ns || 0) / 1e6,
+                    mean: (w.mean_ns || 0) / 1e6,
+                    sample_count: w.sample_count || 0,
+                    unit: 'ms'
+                };
+            });
+            data.operations = ops;
         }
         state.latencyData = data;
         if (state.activePage === 'latency') {
@@ -335,14 +472,26 @@
         var stats = data.stats || data;
         state.ebpfStats = stats;
         setText(el.statPackets, formatNumber(stats.packets_ingested || 0));
-        setText(el.statFlows, formatNumber(stats.flows_tracked || 0));
-        setText(el.statLatencySamples, formatNumber(stats.latency_samples || 0));
+        setText(el.statFlows, formatNumber(stats.flows_ingested || 0));
+        setText(el.statLatencySamples, formatNumber(stats.latency_ingested || 0));
         setText(el.statErrors, formatNumber(stats.parse_errors || 0));
         setText(el.statCompute, formatNumber(stats.compute_ingested || 0));
         setText(el.statAnamnesis, formatNumber(stats.anamnesis_ingested || 0));
-        setText(el.statEps, formatNumber(stats.events_per_sec || 0));
-        setText(el.statUptime, formatUptime(stats.uptime_ms || 0));
-        setText(el.ebpfEventsCount, formatNumber(stats.total_events || 0));
+        // Total ingested = sum of all *_ingested counters
+        var totalIngested = (stats.packets_ingested || 0) + (stats.flows_ingested || 0) +
+            (stats.latency_ingested || 0) + (stats.syscall_ingested || 0) +
+            (stats.compute_ingested || 0) + (stats.anamnesis_ingested || 0);
+        // Events/sec: compute from total ingested over uptime
+        var uptimeS = (Date.now() - state.startTime) / 1000;
+        var eps = uptimeS > 0 ? (totalIngested / uptimeS).toFixed(1) : 0;
+        setText(el.statEps, eps);
+        setText(el.statUptime, formatUptime(Date.now() - state.startTime));
+        setText(el.ebpfEventsCount, formatNumber(totalIngested));
+        // Update active flows from flow_stats if available
+        var fs = stats.flow_stats || {};
+        if (fs.active_flows !== undefined) {
+            setText(el.activeFlowsCount, formatNumber(fs.active_flows));
+        }
         // Update eBPF active indicator
         state.ebpfActive = data.active === true;
     }
@@ -498,26 +647,62 @@
     }
 
     // ======================================================================
-    // Flow Graph — Canvas
+    // Flow Graph — Canvas (real eBPF data from /api/v1/flows)
     // ======================================================================
+    var HOST_LABELS = {
+        '192.168.13.1': 'east', '192.168.13.2': 'west',
+        '127.0.0.1': 'localhost', '::1': 'localhost'
+    };
+    var PORT_LABELS = {
+        22: 'ssh', 18000: 'wotan-http', 18001: 'wotan-grpc',
+        20000: 'dashboard', 16670: 'trace-col', 16671: 'trace-metrics',
+        17000: 'daemon', 17001: 'daemon-grpc'
+    };
+    var STATE_COLORS = {
+        established: '#4a7a4a', syn_sent: '#3a5a8a', syn_recv: '#3a5a8a',
+        fin_wait1: '#7a6a3a', fin_wait2: '#7a6a3a', close_wait: '#7a5a3a',
+        last_ack: '#7a5a3a', time_wait: '#555', closing: '#7a3a3a', closed: '#6c757d'
+    };
+    function stateColor(s) { return STATE_COLORS[s] || '#4ecdc4'; }
+    function hostLabel(ip) { return HOST_LABELS[ip] || ip; }
+    function portLabel(p) { return PORT_LABELS[p] || p; }
+
+    // Extract flow key fields (handles nested API format)
+    function fk(f) {
+        var k = f.key || {};
+        return {
+            src: k.src_addr || f.src_ip || f.source || '',
+            dst: k.dst_addr || f.dst_ip || f.destination || '',
+            sp: k.src_port || f.src_port || 0,
+            dp: k.dst_port || f.dst_port || 0,
+            proto: k.protocol || f.protocol || 6
+        };
+    }
+    function fBytes(f) { return (f.bytes_in || 0) + (f.bytes_out || 0) + (f.bytes || 0); }
+    function fPkts(f) { return (f.packets_in || 0) + (f.packets_out || 0) + (f.packets || 0); }
+
     function buildFlowNodes(flows) {
+        // Group by host IP (not port) for meaningful topology
         var nodeMap = {};
         flows.forEach(function(f) {
-            var src = (f.src_ip || f.source || '') + (f.src_port ? ':' + f.src_port : '');
-            var dst = (f.dst_ip || f.destination || '') + (f.dst_port ? ':' + f.dst_port : '');
-            if (src && !nodeMap[src]) nodeMap[src] = { id: src, label: src, conns: 0 };
-            if (dst && !nodeMap[dst]) nodeMap[dst] = { id: dst, label: dst, conns: 0 };
-            if (src) nodeMap[src].conns++;
-            if (dst) nodeMap[dst].conns++;
+            var k = fk(f);
+            if (k.src && !nodeMap[k.src]) nodeMap[k.src] = { id: k.src, label: hostLabel(k.src), conns: 0, bytes: 0, established: false };
+            if (k.dst && !nodeMap[k.dst]) nodeMap[k.dst] = { id: k.dst, label: hostLabel(k.dst), conns: 0, bytes: 0, established: false };
+            if (k.src) { nodeMap[k.src].conns++; nodeMap[k.src].bytes += fBytes(f); }
+            if (k.dst) { nodeMap[k.dst].conns++; nodeMap[k.dst].bytes += fBytes(f); }
+            if (f.state === 'established') {
+                if (k.src) nodeMap[k.src].established = true;
+                if (k.dst) nodeMap[k.dst].established = true;
+            }
         });
-        state.flowNodes = Object.values(nodeMap).slice(0, CONFIG.flow.maxNodes);
+        state.flowNodes = Object.values(nodeMap);
     }
 
     function resizeFlowCanvas() {
         if (!el.flowCanvas) return;
         var wrapper = el.flowCanvas.parentElement;
         el.flowCanvas.width = wrapper.clientWidth;
-        el.flowCanvas.height = wrapper.clientHeight || 500;
+        el.flowCanvas.height = wrapper.clientHeight || 600;
         renderFlowGraph();
     }
 
@@ -531,75 +716,175 @@
         var nodes = state.flowNodes;
         var flows = state.flows;
         if (nodes.length === 0) {
-            ctx.fillStyle = '#6c757d'; ctx.font = '16px -apple-system, sans-serif';
+            ctx.fillStyle = '#6c757d'; ctx.font = '14px monospace';
             ctx.textAlign = 'center';
-            if (state.flowSource === 'synthetic') {
-                ctx.fillText('Synthetic mode — start trace-collector for real eBPF flows', W / 2, H / 2 - 12);
-                ctx.font = '12px -apple-system, sans-serif';
-                ctx.fillText('Waiting for real network flow data...', W / 2, H / 2 + 12);
-            } else {
-                ctx.fillText('No active flows', W / 2, H / 2);
-            }
+            ctx.fillText('Waiting for eBPF flow data...', W / 2, H / 2);
+            ctx.font = '11px monospace'; ctx.fillStyle = '#555';
+            ctx.fillText('trace-collector -> wotan -> dashboard-backend', W / 2, H / 2 + 24);
             return;
         }
 
-        // Circular layout
-        var cx = W / 2, cy = H / 2, radius = Math.min(W, H) * 0.35;
-        var pos = {};
-        nodes.forEach(function(n, i) {
-            var a = (2 * Math.PI * i / nodes.length) - Math.PI / 2;
-            pos[n.id] = { x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) };
-        });
-
-        // Edges
+        // Aggregate edges by host-pair + destination port
+        var edges = {};
         flows.forEach(function(f) {
-            var src = (f.src_ip || f.source || '') + (f.src_port ? ':' + f.src_port : '');
-            var dst = (f.dst_ip || f.destination || '') + (f.dst_port ? ':' + f.dst_port : '');
-            var p1 = pos[src], p2 = pos[dst];
+            var k = fk(f);
+            var ek = k.src + '->' + k.dst + ':' + k.dp;
+            if (!edges[ek]) edges[ek] = { src: k.src, dst: k.dst, port: k.dp, count: 0, bytes: 0, pkts: 0, states: {} };
+            var e = edges[ek];
+            e.count++;
+            e.bytes += fBytes(f);
+            e.pkts += fPkts(f);
+            e.states[f.state || 'unknown'] = (e.states[f.state || 'unknown'] || 0) + 1;
+        });
+        var edgeArr = Object.values(edges).sort(function(a,b) { return b.bytes - a.bytes; });
+        var maxEdgeBytes = Math.max(1, edgeArr.length > 0 ? edgeArr[0].bytes : 1);
+
+        // Layout: position nodes
+        var cx = W / 2, cy = H / 2;
+        var pos = {};
+        if (nodes.length <= 2) {
+            nodes.forEach(function(n, i) { pos[n.id] = { x: W * 0.25 + i * W * 0.5, y: cy }; });
+        } else {
+            var radius = Math.min(W, H) * 0.32;
+            nodes.forEach(function(n, i) {
+                var a = (2 * Math.PI * i / nodes.length) - Math.PI / 2;
+                pos[n.id] = { x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) };
+            });
+        }
+
+        var nodeR = Math.max(28, Math.min(45, 40 - nodes.length));
+
+        // Draw edges (grouped by host-pair, offset parallel edges by port)
+        var pairOffsets = {};
+        edgeArr.slice(0, 30).forEach(function(e) {
+            var p1 = pos[e.src], p2 = pos[e.dst];
             if (!p1 || !p2) return;
 
-            var proto = (f.protocol || 'tcp').toLowerCase();
-            var st = (f.state || '').toLowerCase();
-            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            var pairKey = [e.src, e.dst].sort().join('<>');
+            if (!pairOffsets[pairKey]) pairOffsets[pairKey] = 0;
+            var off = pairOffsets[pairKey]++;
 
-            if (st === 'new') ctx.strokeStyle = '#ffd700';
-            else if (st === 'closing' || st === 'closed') ctx.strokeStyle = '#6c757d';
-            else if (st === 'error') ctx.strokeStyle = '#ff6b6b';
-            else if (proto === 'udp') ctx.strokeStyle = '#00d26a';
-            else ctx.strokeStyle = '#4ecdc4';
+            // Dominant state
+            var domState = '', domCount = 0;
+            for (var s in e.states) { if (e.states[s] > domCount) { domState = s; domCount = e.states[s]; } }
+            var color = stateColor(domState);
+            var isActive = domState === 'established' || domState === 'syn_sent' || domState === 'syn_recv';
 
-            var bytes = f.bytes || f.byte_count || 1;
-            ctx.lineWidth = Math.max(1, Math.min(6, Math.log2(bytes / 100)));
-            ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1.0;
+            // Edge width by bytes (1.5 - 7px)
+            var thick = 1.5 + 5.5 * (e.bytes / maxEdgeBytes);
+
+            // Perpendicular offset for parallel edges
+            var dx = p2.x - p1.x, dy = p2.y - p1.y;
+            var len = Math.sqrt(dx*dx + dy*dy) || 1;
+            var nx = -dy/len, ny = dx/len;
+            var shift = (off - 1) * 12;
+
+            // Shorten to not overlap nodes
+            var shrink = nodeR + 10;
+            var r = shrink / len;
+            var x1 = p1.x + dx * r + nx * shift;
+            var y1 = p1.y + dy * r + ny * shift;
+            var x2 = p2.x - dx * r + nx * shift;
+            var y2 = p2.y - dy * r + ny * shift;
+
+            // Draw line
+            ctx.save();
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = thick;
+            ctx.globalAlpha = isActive ? 0.9 : 0.45;
+            if (isActive) ctx.setLineDash([8, 4]);
+            ctx.stroke();
+            ctx.restore();
+
+            // Arrow
+            var aLen = 8;
+            var ax = dx / len, ay = dy / len;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - aLen * ax + aLen * 0.4 * nx, y2 - aLen * ay + aLen * 0.4 * ny);
+            ctx.lineTo(x2 - aLen * ax - aLen * 0.4 * nx, y2 - aLen * ay - aLen * 0.4 * ny);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.globalAlpha = isActive ? 0.9 : 0.5;
+            ctx.fill();
+            ctx.restore();
+
+            // Edge label
+            var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+            ctx.save();
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#777';
+            ctx.fillText(':' + portLabel(e.port) + ' (' + e.count + ')', mx, my - 5);
+            ctx.restore();
         });
 
-        // Nodes
+        // Draw nodes
         nodes.forEach(function(n) {
             var p = pos[n.id]; if (!p) return;
-            var r = Math.max(6, Math.min(16, 4 + n.conns * 2));
-            ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
-            ctx.fillStyle = '#1e2746'; ctx.fill();
-            ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.fillStyle = '#adb5bd'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
-            var label = n.label.length > 20 ? n.label.slice(0, 18) + '..' : n.label;
-            ctx.fillText(label, p.x, p.y + r + 14);
+
+            // Glow for active hosts
+            if (n.established) {
+                ctx.save();
+                ctx.beginPath(); ctx.arc(p.x, p.y, nodeR + 6, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(74,122,74,0.15)';
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Node circle
+            ctx.beginPath(); ctx.arc(p.x, p.y, nodeR, 0, 2 * Math.PI);
+            ctx.fillStyle = '#111'; ctx.fill();
+            ctx.strokeStyle = n.established ? '#4a7a4a' : '#333';
+            ctx.lineWidth = n.established ? 2.5 : 1.5;
+            ctx.stroke();
+
+            // Host label
+            ctx.fillStyle = '#ddd'; ctx.font = 'bold 13px monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(n.label, p.x, p.y - 5);
+
+            // IP sublabel
+            if (n.label !== n.id) {
+                ctx.fillStyle = '#555'; ctx.font = '9px monospace';
+                ctx.fillText(n.id, p.x, p.y + 9);
+            }
+
+            // Flow count below node
+            ctx.fillStyle = '#666'; ctx.font = '10px monospace';
+            ctx.fillText(n.conns + ' flows | ' + formatBytes(n.bytes), p.x, p.y + nodeR + 14);
         });
+
+        // Source indicator
+        ctx.save();
+        ctx.font = '10px monospace'; ctx.fillStyle = '#444'; ctx.textAlign = 'left';
+        ctx.fillText('source: ' + state.flowSource + ' | ' + flows.length + ' active flows', 10, H - 10);
+        ctx.restore();
     }
 
     function renderFlowTable(flows) {
         if (!el.flowTableBody) return;
+        // Sort by bytes descending
+        var sorted = flows.slice().sort(function(a,b) { return fBytes(b) - fBytes(a); });
         var html = '';
-        flows.slice(0, 50).forEach(function(f) {
-            var src = (f.src_ip || f.source || '?') + (f.src_port ? ':' + f.src_port : '');
-            var dst = (f.dst_ip || f.destination || '?') + (f.dst_port ? ':' + f.dst_port : '');
+        sorted.slice(0, 50).forEach(function(f) {
+            var k = fk(f);
+            var st = f.state || 'unknown';
+            var age = '--';
+            if (f.last_seen) {
+                var s = Math.floor((Date.now() - new Date(f.last_seen).getTime()) / 1000);
+                age = s < 5 ? 'now' : s < 60 ? s + 's' : Math.floor(s/60) + 'm';
+            }
             html += '<tr>' +
-                '<td>' + esc(src) + '</td>' +
-                '<td>' + esc(dst) + '</td>' +
-                '<td>' + esc((f.protocol || 'tcp').toUpperCase()) + '</td>' +
-                '<td>' + formatNumber(f.packets || f.packet_count || 0) + '</td>' +
-                '<td>' + formatBytes(f.bytes || f.byte_count || 0) + '</td>' +
-                '<td>' + esc(f.state || 'active') + '</td>' +
-                '<td>' + (f.age_ms ? formatDuration(f.age_ms) : '--') + '</td>' +
+                '<td>' + esc(k.src + ':' + k.sp) + '</td>' +
+                '<td>' + esc(k.dst + ':' + portLabel(k.dp)) + '</td>' +
+                '<td>' + esc(k.proto === 6 ? 'TCP' : k.proto === 17 ? 'UDP' : 'P' + k.proto) + '</td>' +
+                '<td>' + formatNumber(fPkts(f)) + '</td>' +
+                '<td>' + formatBytes(fBytes(f)) + '</td>' +
+                '<td style="color:' + stateColor(st) + '">' + esc(st) + '</td>' +
+                '<td>' + age + '</td>' +
                 '</tr>';
         });
         el.flowTableBody.innerHTML = html;
@@ -648,7 +933,7 @@
             'tcp_connect': 'latency-chart-connect',
             'tcp_send': 'latency-chart-send',
             'tcp_recv': 'latency-chart-recv',
-            'http_request': 'latency-chart-http'
+            'tcp_accept': 'latency-chart-http'
         };
         Object.keys(mapping).forEach(function(opName) {
             var canvas = document.getElementById(mapping[opName]);
@@ -892,6 +1177,15 @@
         setupEventStream();
         connectWebSocket();
 
+        // Host selector change handler
+        if (el.hostSelector) {
+            el.hostSelector.addEventListener('change', function() {
+                state.selectedHost = this.value;
+                // Re-apply gauges from cached host data
+                updateHostsData({ hosts: state.hosts });
+            });
+        }
+
         refreshHealth();
         refreshServices();
         refreshStats();
@@ -899,6 +1193,7 @@
         refreshLatency();
         refreshEBPFStats();
         refreshEBPFEvents();
+        refreshHosts();
 
         setInterval(refreshHealth, CONFIG.refreshIntervals.health);
         setInterval(refreshServices, CONFIG.refreshIntervals.services);
@@ -907,6 +1202,7 @@
         setInterval(refreshLatency, CONFIG.refreshIntervals.latency);
         setInterval(refreshEBPFStats, CONFIG.refreshIntervals.ebpfStats);
         setInterval(refreshEBPFEvents, CONFIG.refreshIntervals.ebpfEvents);
+        setInterval(refreshHosts, CONFIG.refreshIntervals.hosts);
         setInterval(updateTimestamp, 1000);
 
         updateGauges();
