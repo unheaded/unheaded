@@ -105,6 +105,9 @@ var (
 	// Eventually move to a main config file and/or UI-based configuration.
 	servicesFile = flag.String("services-file", "", "Path to services endpoint file (name=host:port per line)")
 	vizDir       = flag.String("viz-dir", "", "Path to advanced visualizations directory (dashboard/), served under /viz/")
+
+	// VictoriaMetrics direct push (Approach C)
+	vmURL = flag.String("vm-url", "", "VictoriaMetrics base URL for direct metric push (e.g. http://localhost:8428)")
 )
 
 func main() {
@@ -224,6 +227,7 @@ func main() {
 		ServiceEndpoints: serviceEndpoints,
 		StaticFS:         dashboardFS,
 		VizDir:          *vizDir,
+		VMUrl:           *vmURL,
 	}
 
 	// Create eBPF ingestor if gRPC address is provided (or from WOTAN_GRPC_ADDR env)

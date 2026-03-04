@@ -65,6 +65,10 @@ Layer 0: Infrastructure (LXD, host OS)
 - **WEST:** Online and running (test cluster, full feature validation)
 - **EAST:** In preparation (4-core, 8GB DDR3 — staging environment)
 
+**Operational Notes:**
+- **sudo required:** Docker commands (`docker compose`) require `sudo` on the dev machine.
+- **P2P link:** EAST host is reachable as `govan@east` via point-to-point WireGuard tunnel (192.168.13.1 ↔ 192.168.13.2). SSH: `ssh govan@east`.
+
 ### Port Allocation — "The Doom Range" (16666-26666)
 
 All Unheaded services use high ports to avoid conflicts with common dev tools.

@@ -127,6 +127,13 @@ scrape_configs:
         labels:
           service: "unheaded-daemon"
 
+  # Dashboard backend (host metrics + service metrics)
+  - job_name: dashboard_backend
+    static_configs:
+      - targets: ['host.docker.internal:20000']
+        labels:
+          service: "dashboard-backend"
+
 remote_write:
   - url: 'http://[fd00:dead:beef::1]:8428/api/v1/write'
     queue_config:

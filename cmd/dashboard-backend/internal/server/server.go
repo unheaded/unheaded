@@ -82,6 +82,11 @@ type Config struct {
 	// VizDir is the path to the advanced visualization directory (dashboard/).
 	// When set, files are served under /viz/. Defaults to "" (disabled).
 	VizDir string
+
+	// VMUrl is the VictoriaMetrics import URL for direct push (Approach C).
+	// When non-empty, host metrics are POSTed directly to VictoriaMetrics.
+	// Example: "http://localhost:8428"
+	VMUrl string
 }
 
 // DefaultConfig returns default server configuration
@@ -234,6 +239,21 @@ type Server struct {
 	httpDuration    *metrics.HistogramVec
 	wsConnections   *metrics.Gauge
 	streamClients   *metrics.Gauge
+
+	// Host system metrics (Approach A: exposed on /metrics for Prometheus scrape)
+	hostCPU            *metrics.GaugeVec
+	hostMemUsed        *metrics.GaugeVec
+	hostMemTotal       *metrics.GaugeVec
+	hostSwapUsed       *metrics.GaugeVec
+	hostLoad1          *metrics.GaugeVec
+	hostLoad5          *metrics.GaugeVec
+	hostLoad15         *metrics.GaugeVec
+	hostGoroutines     *metrics.GaugeVec
+	hostUptime         *metrics.GaugeVec
+	hostDiskUsed       *metrics.GaugeVec
+	hostDiskTotal      *metrics.GaugeVec
+	hostNetEstablished *metrics.GaugeVec
+	hostProcesses      *metrics.GaugeVec
 
 	// Service config management
 	configLoader  *discovery.ServiceConfigLoader
@@ -533,6 +553,34 @@ func (s *Server) initMetrics() {
 		nil,
 	)
 	s.metricsRegistry.MustRegister(s.streamClients)
+
+	// Host system metrics (Approach A)
+	s.hostCPU = metrics.NewGaugeVec("host_cpu_percent", "CPU usage percent", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostCPU)
+	s.hostMemUsed = metrics.NewGaugeVec("host_memory_used_bytes", "Memory used bytes", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostMemUsed)
+	s.hostMemTotal = metrics.NewGaugeVec("host_memory_total_bytes", "Memory total bytes", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostMemTotal)
+	s.hostSwapUsed = metrics.NewGaugeVec("host_swap_used_bytes", "Swap used bytes", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostSwapUsed)
+	s.hostLoad1 = metrics.NewGaugeVec("host_load_1m", "1-minute load average", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostLoad1)
+	s.hostLoad5 = metrics.NewGaugeVec("host_load_5m", "5-minute load average", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostLoad5)
+	s.hostLoad15 = metrics.NewGaugeVec("host_load_15m", "15-minute load average", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostLoad15)
+	s.hostGoroutines = metrics.NewGaugeVec("host_goroutines", "Go runtime goroutines", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostGoroutines)
+	s.hostUptime = metrics.NewGaugeVec("host_uptime_seconds", "System uptime", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostUptime)
+	s.hostDiskUsed = metrics.NewGaugeVec("host_disk_used_bytes", "Disk used bytes", nil, []string{"host", "mount"})
+	s.metricsRegistry.MustRegister(s.hostDiskUsed)
+	s.hostDiskTotal = metrics.NewGaugeVec("host_disk_total_bytes", "Disk total bytes", nil, []string{"host", "mount"})
+	s.metricsRegistry.MustRegister(s.hostDiskTotal)
+	s.hostNetEstablished = metrics.NewGaugeVec("host_net_established", "Established TCP connections", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostNetEstablished)
+	s.hostProcesses = metrics.NewGaugeVec("host_processes_total", "Total processes", nil, []string{"host"})
+	s.metricsRegistry.MustRegister(s.hostProcesses)
 }
 
 // setupRoutes configures HTTP routes
@@ -727,6 +775,10 @@ func (s *Server) Start(ctx context.Context) error {
 	// Start metrics updater
 	s.wg.Add(1)
 	go s.updateMetrics(ctx)
+
+	// Start host metrics collector (Approaches A+B+C)
+	s.wg.Add(1)
+	go s.collectHostMetrics(ctx)
 
 	// Start HTTP server
 	s.wg.Add(1)
@@ -2362,6 +2414,229 @@ type NetConnections struct {
 	Established int `json:"established"`
 	TimeWait    int `json:"time_wait"`
 	CloseWait   int `json:"close_wait"`
+}
+
+// collectHostMetrics runs every 15s, reading system metrics from /proc (local)
+// and remote /metrics endpoints (remote hosts). It feeds three storage paths:
+//   - Approach A: updates Prometheus GaugeVec (scraped via /metrics)
+//   - Approach B: injects samples into scraper series store
+//   - Approach C: pushes directly to VictoriaMetrics (when --vm-url is set)
+func (s *Server) collectHostMetrics(ctx context.Context) {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	// Collect immediately on start, then every 15s
+	s.doCollectHostMetrics(ctx)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.shutdown:
+			return
+		case <-ticker.C:
+			s.doCollectHostMetrics(ctx)
+		}
+	}
+}
+
+// doCollectHostMetrics performs a single collection cycle for all hosts.
+func (s *Server) doCollectHostMetrics(ctx context.Context) {
+	now := time.Now()
+	var vmLines []string // Prometheus text lines for VM push
+
+	for _, h := range s.hosts {
+		labels := metrics.Labels{"host": h.ID}
+
+		if h.MetricsURL == "" {
+			// Local host — read from /proc
+			cpuPct := readLocalCPUPercent()
+			memInfo := readLocalMemInfo()
+			load1, load5, load15 := readLocalLoadAvg()
+			uptime := readSystemUptime()
+			goroutines := float64(runtime.NumGoroutine())
+			disks := readLocalDisks()
+			netConns := readLocalNetConnections()
+			procTotal, _ := readLocalProcessCounts()
+
+			// Approach A: update Prometheus gauges
+			s.hostCPU.WithLabels(labels).Set(cpuPct)
+			s.hostMemUsed.WithLabels(labels).Set(float64(memInfo.memUsed))
+			s.hostMemTotal.WithLabels(labels).Set(float64(memInfo.memTotal))
+			s.hostSwapUsed.WithLabels(labels).Set(float64(memInfo.swapUsed))
+			s.hostLoad1.WithLabels(labels).Set(load1)
+			s.hostLoad5.WithLabels(labels).Set(load5)
+			s.hostLoad15.WithLabels(labels).Set(load15)
+			s.hostGoroutines.WithLabels(labels).Set(goroutines)
+			s.hostUptime.WithLabels(labels).Set(uptime)
+			s.hostNetEstablished.WithLabels(labels).Set(float64(netConns.Established))
+			s.hostProcesses.WithLabels(labels).Set(float64(procTotal))
+
+			for _, d := range disks {
+				diskLabels := metrics.Labels{"host": h.ID, "mount": d.Mount}
+				s.hostDiskUsed.WithLabels(diskLabels).Set(float64(d.UsedBytes))
+				s.hostDiskTotal.WithLabels(diskLabels).Set(float64(d.SizeBytes))
+			}
+
+			// Approach B: inject into scraper series store
+			hostSamples := []struct {
+				name  string
+				value float64
+				extra map[string]string
+			}{
+				{"host_cpu_percent", cpuPct, nil},
+				{"host_memory_used_bytes", float64(memInfo.memUsed), nil},
+				{"host_memory_total_bytes", float64(memInfo.memTotal), nil},
+				{"host_swap_used_bytes", float64(memInfo.swapUsed), nil},
+				{"host_load_1m", load1, nil},
+				{"host_load_5m", load5, nil},
+				{"host_load_15m", load15, nil},
+				{"host_goroutines", goroutines, nil},
+				{"host_uptime_seconds", uptime, nil},
+				{"host_net_established", float64(netConns.Established), nil},
+				{"host_processes_total", float64(procTotal), nil},
+			}
+			for _, hs := range hostSamples {
+				sampleLabels := map[string]string{"host": h.ID}
+				for k, v := range hs.extra {
+					sampleLabels[k] = v
+				}
+				s.scraper.IngestSample(scraper.MetricSample{
+					Name:      hs.name,
+					Value:     hs.value,
+					Labels:    sampleLabels,
+					Timestamp: now,
+					Service:   "system",
+				})
+			}
+			for _, d := range disks {
+				s.scraper.IngestSample(scraper.MetricSample{
+					Name:      "host_disk_used_bytes",
+					Value:     float64(d.UsedBytes),
+					Labels:    map[string]string{"host": h.ID, "mount": d.Mount},
+					Timestamp: now,
+					Service:   "system",
+				})
+				s.scraper.IngestSample(scraper.MetricSample{
+					Name:      "host_disk_total_bytes",
+					Value:     float64(d.SizeBytes),
+					Labels:    map[string]string{"host": h.ID, "mount": d.Mount},
+					Timestamp: now,
+					Service:   "system",
+				})
+			}
+
+			// Approach C: build VM push lines
+			if s.config.VMUrl != "" {
+				vmLines = append(vmLines,
+					fmt.Sprintf(`host_cpu_percent{host="%s"} %g`, h.ID, cpuPct),
+					fmt.Sprintf(`host_memory_used_bytes{host="%s"} %g`, h.ID, float64(memInfo.memUsed)),
+					fmt.Sprintf(`host_memory_total_bytes{host="%s"} %g`, h.ID, float64(memInfo.memTotal)),
+					fmt.Sprintf(`host_swap_used_bytes{host="%s"} %g`, h.ID, float64(memInfo.swapUsed)),
+					fmt.Sprintf(`host_load_1m{host="%s"} %g`, h.ID, load1),
+					fmt.Sprintf(`host_load_5m{host="%s"} %g`, h.ID, load5),
+					fmt.Sprintf(`host_load_15m{host="%s"} %g`, h.ID, load15),
+					fmt.Sprintf(`host_goroutines{host="%s"} %g`, h.ID, goroutines),
+					fmt.Sprintf(`host_uptime_seconds{host="%s"} %g`, h.ID, uptime),
+					fmt.Sprintf(`host_net_established{host="%s"} %g`, h.ID, float64(netConns.Established)),
+					fmt.Sprintf(`host_processes_total{host="%s"} %g`, h.ID, float64(procTotal)),
+				)
+				for _, d := range disks {
+					vmLines = append(vmLines,
+						fmt.Sprintf(`host_disk_used_bytes{host="%s",mount="%s"} %g`, h.ID, d.Mount, float64(d.UsedBytes)),
+						fmt.Sprintf(`host_disk_total_bytes{host="%s",mount="%s"} %g`, h.ID, d.Mount, float64(d.SizeBytes)),
+					)
+				}
+			}
+		} else {
+			// Remote host — fetch /metrics and parse
+			fetchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			body, err := fetchURL(fetchCtx, h.MetricsURL)
+			cancel()
+			if err != nil {
+				s.log.Debug().Err(err).Str("host", h.ID).Msg("failed to fetch remote host metrics")
+				continue
+			}
+
+			pm := parsePrometheusText(body)
+			goroutines := pm["go_goroutines"]
+			var uptimeVal float64
+			if v, ok := pm["process_start_time_seconds"]; ok {
+				uptimeVal = float64(now.Unix()) - v
+			}
+			memTotal := pm["go_memstats_sys_bytes"]
+			memUsed := pm["go_memstats_alloc_bytes"]
+
+			s.hostCPU.WithLabels(labels).Set(0) // no /proc on remote
+			s.hostMemUsed.WithLabels(labels).Set(memUsed)
+			s.hostMemTotal.WithLabels(labels).Set(memTotal)
+			s.hostGoroutines.WithLabels(labels).Set(goroutines)
+			s.hostUptime.WithLabels(labels).Set(uptimeVal)
+
+			remoteSamples := []struct {
+				name  string
+				value float64
+			}{
+				{"host_memory_used_bytes", memUsed},
+				{"host_memory_total_bytes", memTotal},
+				{"host_goroutines", goroutines},
+				{"host_uptime_seconds", uptimeVal},
+			}
+			for _, rs := range remoteSamples {
+				s.scraper.IngestSample(scraper.MetricSample{
+					Name:      rs.name,
+					Value:     rs.value,
+					Labels:    map[string]string{"host": h.ID},
+					Timestamp: now,
+					Service:   "system",
+				})
+			}
+
+			if s.config.VMUrl != "" {
+				vmLines = append(vmLines,
+					fmt.Sprintf(`host_memory_used_bytes{host="%s"} %g`, h.ID, memUsed),
+					fmt.Sprintf(`host_memory_total_bytes{host="%s"} %g`, h.ID, memTotal),
+					fmt.Sprintf(`host_goroutines{host="%s"} %g`, h.ID, goroutines),
+					fmt.Sprintf(`host_uptime_seconds{host="%s"} %g`, h.ID, uptimeVal),
+				)
+			}
+		}
+	}
+
+	// Approach C: push to VictoriaMetrics
+	if s.config.VMUrl != "" && len(vmLines) > 0 {
+		s.pushToVictoriaMetrics(ctx, vmLines)
+	}
+}
+
+// pushToVictoriaMetrics sends metrics directly to VictoriaMetrics via the
+// /api/v1/import/prometheus endpoint (Approach C).
+func (s *Server) pushToVictoriaMetrics(ctx context.Context, lines []string) {
+	url := strings.TrimRight(s.config.VMUrl, "/") + "/api/v1/import/prometheus"
+	body := strings.Join(lines, "\n") + "\n"
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(body))
+	if err != nil {
+		s.log.Warn().Err(err).Msg("failed to create VM push request")
+		return
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		s.log.Debug().Err(err).Msg("VM push failed")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		s.log.Warn().
+			Int("status", resp.StatusCode).
+			Str("body", string(respBody)).
+			Msg("VM push returned non-2xx")
+	}
 }
 
 // handleHosts returns system metrics for known Kingdom hosts.
