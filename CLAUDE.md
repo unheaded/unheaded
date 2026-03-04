@@ -67,7 +67,7 @@ Layer 0: Infrastructure (LXD, host OS)
 
 **Operational Notes:**
 - **sudo required:** Docker commands (`docker compose`) require `sudo` on the dev machine.
-- **P2P link (planned):** EAST will be reachable as `govan@east` via point-to-point link (192.168.13.1 ↔ 192.168.13.2). WireGuard not yet configured.
+- **P2P link:** EAST is reachable as `govan@east` via direct point-to-point connection (192.168.13.1 ↔ 192.168.13.2). SSH: `ssh govan@east`.
 
 ### Port Allocation — "The Doom Range" (16666-26666)
 
