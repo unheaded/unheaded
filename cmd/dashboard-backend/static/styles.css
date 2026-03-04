@@ -1561,6 +1561,68 @@ body {
     }
 }
 
+/* System Details Grid */
+.system-details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.sys-detail-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+}
+
+.sys-detail-header {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.sys-detail-body {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    white-space: pre-line;
+}
+
+.disk-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+.disk-bar-track {
+    flex: 1;
+    height: 6px;
+    background: #1e2746;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.disk-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.disk-mount {
+    min-width: 80px;
+    color: var(--text-secondary);
+}
+
+.disk-pct {
+    min-width: 40px;
+    text-align: right;
+}
+
 /* High contrast mode support */
 @media (prefers-contrast: high) {
     :root {

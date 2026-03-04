@@ -12,6 +12,7 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,9 +20,12 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"unheaded/pkg/auth"
@@ -182,6 +186,14 @@ type SystemHealthStatus struct {
 	Checks         map[string]interface{} `json:"checks,omitempty"`
 }
 
+// KingdomHost represents a known host in the Kingdom infrastructure.
+type KingdomHost struct {
+	ID         string `json:"id"`
+	Addr       string `json:"addr"`
+	Type       string `json:"type"`        // "bare-metal", "docker", "lxd", "nixos"
+	MetricsURL string `json:"metrics_url"` // e.g. "http://192.168.13.1:16671/metrics"
+}
+
 // Server is the main dashboard backend server
 type Server struct {
 	config *Config
@@ -229,6 +241,10 @@ type Server struct {
 
 	// Doom compute state (populated by compute.* events from ingestor)
 	doomState *DoomState
+
+	// Kingdom host registry for /api/v1/hosts
+	hosts     []KingdomHost
+	startedAt time.Time
 
 	// Static file system for embedded dashboard UI
 	staticFS http.FileSystem
@@ -395,7 +411,12 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
 		configLoader:      cfgLoader,
 		doomState:         &DoomState{},
-		shutdown:          make(chan struct{}),
+		hosts: []KingdomHost{
+			{ID: "west", Addr: "192.168.13.2", Type: "bare-metal", MetricsURL: ""},
+			{ID: "east", Addr: "192.168.13.1", Type: "bare-metal", MetricsURL: "http://192.168.13.1:18000/metrics"},
+		},
+		startedAt: time.Now(),
+		shutdown:  make(chan struct{}),
 	}
 
 	// Seed the log buffer with startup events
@@ -555,6 +576,9 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/latency", s.handleLatency)
 	s.mux.HandleFunc("/api/v1/ebpf/stats", s.handleEBPFStats)
 	s.mux.HandleFunc("/api/v1/ebpf/events", s.handleEBPFEvents)
+
+	// Host metrics endpoint
+	s.mux.HandleFunc("/api/v1/hosts", s.handleHosts)
 
 	// Service config management endpoints (S47)
 	s.mux.HandleFunc("/api/v1/services/config/", s.handleServiceConfig)
@@ -2321,6 +2345,463 @@ func (s *Server) handleInfraContainers(w http.ResponseWriter, r *http.Request) {
 // GetConfigLoader returns the service config loader.
 func (s *Server) GetConfigLoader() *discovery.ServiceConfigLoader {
 	return s.configLoader
+}
+
+// DiskInfo represents a single filesystem mount.
+type DiskInfo struct {
+	Mount      string  `json:"mount"`
+	Filesystem string  `json:"filesystem"`
+	SizeBytes  uint64  `json:"size_bytes"`
+	UsedBytes  uint64  `json:"used_bytes"`
+	AvailBytes uint64  `json:"avail_bytes"`
+	UsePercent float64 `json:"use_percent"`
+}
+
+// NetConnections summarizes TCP connection states.
+type NetConnections struct {
+	Established int `json:"established"`
+	TimeWait    int `json:"time_wait"`
+	CloseWait   int `json:"close_wait"`
+}
+
+// handleHosts returns system metrics for known Kingdom hosts.
+func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	type HostInfo struct {
+		ID            string  `json:"id"`
+		Addr          string  `json:"addr"`
+		Type          string  `json:"type"`
+		Online        bool    `json:"online"`
+		CPUPercent    float64 `json:"cpu_percent"`
+		MemoryTotal   uint64  `json:"memory_total"`
+		MemoryUsed    uint64  `json:"memory_used"`
+		MemoryPercent float64 `json:"memory_percent"`
+		Load1m        float64 `json:"load_1m"`
+		Load5m        float64 `json:"load_5m"`
+		Load15m       float64 `json:"load_15m"`
+		Goroutines    int     `json:"goroutines"`
+		UptimeSeconds float64 `json:"uptime_seconds"`
+		// Extended system metrics (from system-summary)
+		SwapTotal      uint64         `json:"swap_total"`
+		SwapUsed       uint64         `json:"swap_used"`
+		SwapPercent    float64        `json:"swap_percent"`
+		Disks          []DiskInfo     `json:"disks"`
+		NetConns       NetConnections `json:"net_connections"`
+		ProcessTotal   int            `json:"process_total"`
+		ProcessZombie  int            `json:"process_zombie"`
+		Hostname       string         `json:"hostname"`
+		Kernel         string         `json:"kernel"`
+	}
+
+	hosts := make([]HostInfo, 0, len(s.hosts))
+
+	for _, h := range s.hosts {
+		info := HostInfo{
+			ID:   h.ID,
+			Addr: h.Addr,
+			Type: h.Type,
+		}
+
+		if h.MetricsURL == "" {
+			// Local host — read from /proc directly
+			info.Online = true
+			info.Goroutines = runtime.NumGoroutine()
+			info.UptimeSeconds = readSystemUptime()
+			info.Hostname, _ = os.Hostname()
+
+			// Kernel
+			if data, err := os.ReadFile("/proc/version"); err == nil {
+				fields := strings.Fields(string(data))
+				if len(fields) >= 3 {
+					info.Kernel = fields[2]
+				}
+			}
+
+			// CPU from /proc/stat
+			info.CPUPercent = readLocalCPUPercent()
+
+			// Memory + swap from /proc/meminfo
+			memInfo := readLocalMemInfo()
+			info.MemoryTotal = memInfo.memTotal
+			info.MemoryUsed = memInfo.memUsed
+			info.MemoryPercent = memInfo.memPercent
+			info.SwapTotal = memInfo.swapTotal
+			info.SwapUsed = memInfo.swapUsed
+			info.SwapPercent = memInfo.swapPercent
+
+			// Load from /proc/loadavg
+			info.Load1m, info.Load5m, info.Load15m = readLocalLoadAvg()
+
+			// Disk usage
+			info.Disks = readLocalDisks()
+
+			// Network connections
+			info.NetConns = readLocalNetConnections()
+
+			// Process counts
+			info.ProcessTotal, info.ProcessZombie = readLocalProcessCounts()
+		} else {
+			// Remote host — try to fetch Prometheus metrics
+			info.Online = false
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			body, err := fetchURL(ctx, h.MetricsURL)
+			cancel()
+			if err == nil {
+				info.Online = true
+				pm := parsePrometheusText(body)
+				if v, ok := pm["go_goroutines"]; ok {
+					info.Goroutines = int(v)
+				}
+				if v, ok := pm["process_start_time_seconds"]; ok {
+					info.UptimeSeconds = float64(time.Now().Unix()) - v
+				}
+				if v, ok := pm["go_memstats_sys_bytes"]; ok {
+					info.MemoryTotal = uint64(v)
+				}
+				if v, ok := pm["go_memstats_alloc_bytes"]; ok {
+					info.MemoryUsed = uint64(v)
+				}
+				if info.MemoryTotal > 0 {
+					info.MemoryPercent = float64(info.MemoryUsed) / float64(info.MemoryTotal) * 100
+				}
+			}
+		}
+
+		hosts = append(hosts, info)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"hosts": hosts,
+	})
+}
+
+// readLocalCPUPercent reads aggregate CPU usage from /proc/stat.
+// Returns percentage of non-idle CPU time.
+func readLocalCPUPercent() float64 {
+	f, err := os.Open("/proc/stat")
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "cpu ") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 8 {
+			return 0
+		}
+		var vals [7]float64
+		for i := 0; i < 7 && i+1 < len(fields); i++ {
+			v, _ := strconv.ParseFloat(fields[i+1], 64)
+			vals[i] = v
+		}
+		// user, nice, system, idle, iowait, irq, softirq
+		total := vals[0] + vals[1] + vals[2] + vals[3] + vals[4] + vals[5] + vals[6]
+		idle := vals[3] + vals[4]
+		if total == 0 {
+			return 0
+		}
+		return (total - idle) / total * 100
+	}
+	return 0
+}
+
+// memInfoResult holds parsed /proc/meminfo values.
+type memInfoResult struct {
+	memTotal   uint64
+	memUsed    uint64
+	memPercent float64
+	swapTotal  uint64
+	swapUsed   uint64
+	swapPercent float64
+}
+
+// readLocalMemInfo reads memory and swap from /proc/meminfo.
+func readLocalMemInfo() memInfoResult {
+	var r memInfoResult
+	f, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return r
+	}
+	defer f.Close()
+
+	var memTotal, memAvail, swapTotal, swapFree uint64
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 2 {
+			continue
+		}
+		key := strings.TrimSuffix(fields[0], ":")
+		val, err := strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			continue
+		}
+		switch key {
+		case "MemTotal":
+			memTotal = val * 1024
+		case "MemAvailable":
+			memAvail = val * 1024
+		case "SwapTotal":
+			swapTotal = val * 1024
+		case "SwapFree":
+			swapFree = val * 1024
+		}
+	}
+
+	r.memTotal = memTotal
+	if memTotal > 0 && memAvail <= memTotal {
+		r.memUsed = memTotal - memAvail
+		r.memPercent = float64(r.memUsed) / float64(memTotal) * 100
+	}
+	r.swapTotal = swapTotal
+	if swapTotal > 0 && swapFree <= swapTotal {
+		r.swapUsed = swapTotal - swapFree
+		r.swapPercent = float64(r.swapUsed) / float64(swapTotal) * 100
+	}
+	return r
+}
+
+// readLocalLoadAvg reads 1/5/15 minute load averages from /proc/loadavg.
+func readLocalLoadAvg() (load1, load5, load15 float64) {
+	data, err := os.ReadFile("/proc/loadavg")
+	if err != nil {
+		return 0, 0, 0
+	}
+	fields := strings.Fields(strings.TrimSpace(string(data)))
+	if len(fields) >= 1 {
+		load1, _ = strconv.ParseFloat(fields[0], 64)
+	}
+	if len(fields) >= 2 {
+		load5, _ = strconv.ParseFloat(fields[1], 64)
+	}
+	if len(fields) >= 3 {
+		load15, _ = strconv.ParseFloat(fields[2], 64)
+	}
+	return
+}
+
+// readSystemUptime reads system uptime from /proc/uptime in seconds.
+func readSystemUptime() float64 {
+	data, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return 0
+	}
+	fields := strings.Fields(strings.TrimSpace(string(data)))
+	if len(fields) < 1 {
+		return 0
+	}
+	v, _ := strconv.ParseFloat(fields[0], 64)
+	return v
+}
+
+// syscallStatfs is an alias for syscall.Statfs_t.
+type syscallStatfs = syscall.Statfs_t
+
+// statfs calls syscall.Statfs.
+func statfs(path string, stat *syscallStatfs) error {
+	return syscall.Statfs(path, stat)
+}
+
+// readLocalDisks reads disk usage for real filesystems via /proc/mounts + Statfs.
+func readLocalDisks() []DiskInfo {
+	f, err := os.Open("/proc/mounts")
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	seen := make(map[string]bool)
+	var disks []DiskInfo
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 2 {
+			continue
+		}
+		device := fields[0]
+		mount := fields[1]
+		fstype := ""
+		if len(fields) >= 3 {
+			fstype = fields[2]
+		}
+		// Skip virtual filesystems
+		if fstype == "tmpfs" || fstype == "devtmpfs" || fstype == "sysfs" ||
+			fstype == "proc" || fstype == "cgroup" || fstype == "cgroup2" ||
+			fstype == "overlay" || fstype == "devpts" || fstype == "securityfs" ||
+			fstype == "debugfs" || fstype == "tracefs" || fstype == "hugetlbfs" ||
+			fstype == "mqueue" || fstype == "pstore" || fstype == "configfs" ||
+			fstype == "fusectl" || fstype == "binfmt_misc" || fstype == "autofs" ||
+			fstype == "efivarfs" || fstype == "bpf" || fstype == "nsfs" ||
+			fstype == "fuse.portal" || fstype == "fuse.gvfsd-fuse" || fstype == "ramfs" {
+			continue
+		}
+		if !strings.HasPrefix(device, "/dev/") {
+			continue
+		}
+		// Skip snap/loop mounts
+		if strings.HasPrefix(device, "/dev/loop") {
+			continue
+		}
+		if seen[device] {
+			continue
+		}
+		seen[device] = true
+
+		var stat syscallStatfs
+		if err := statfs(mount, &stat); err != nil {
+			continue
+		}
+		total := stat.Blocks * uint64(stat.Bsize)
+		free := stat.Bavail * uint64(stat.Bsize)
+		used := total - (stat.Bfree * uint64(stat.Bsize))
+		var pct float64
+		if total > 0 {
+			pct = float64(used) / float64(total) * 100
+		}
+		disks = append(disks, DiskInfo{
+			Mount:      mount,
+			Filesystem: device,
+			SizeBytes:  total,
+			UsedBytes:  used,
+			AvailBytes: free,
+			UsePercent: pct,
+		})
+	}
+	return disks
+}
+
+// readLocalNetConnections counts TCP connection states from /proc/net/tcp and /proc/net/tcp6.
+func readLocalNetConnections() NetConnections {
+	var nc NetConnections
+	for _, path := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		scanner := bufio.NewScanner(f)
+		scanner.Scan() // skip header
+		for scanner.Scan() {
+			fields := strings.Fields(scanner.Text())
+			if len(fields) < 4 {
+				continue
+			}
+			// Field 3 is connection state in hex
+			switch fields[3] {
+			case "01": // ESTABLISHED
+				nc.Established++
+			case "06": // TIME_WAIT
+				nc.TimeWait++
+			case "08": // CLOSE_WAIT
+				nc.CloseWait++
+			}
+		}
+		f.Close()
+	}
+	return nc
+}
+
+// readLocalProcessCounts counts total processes and zombies from /proc.
+func readLocalProcessCounts() (total, zombie int) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return 0, 0
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		// Only numeric directories are PIDs
+		if len(e.Name()) == 0 || e.Name()[0] < '0' || e.Name()[0] > '9' {
+			continue
+		}
+		total++
+		// Check status for zombie
+		statPath := "/proc/" + e.Name() + "/stat"
+		data, err := os.ReadFile(statPath)
+		if err != nil {
+			continue
+		}
+		// Format: pid (comm) state ...
+		// Find the closing paren to get state
+		s := string(data)
+		idx := strings.LastIndexByte(s, ')')
+		if idx == -1 || idx+2 >= len(s) {
+			continue
+		}
+		state := strings.TrimSpace(s[idx+1 : idx+3])
+		if state == "Z" {
+			zombie++
+		}
+	}
+	return
+}
+
+// fetchURL fetches the body of a URL with the given context.
+func fetchURL(ctx context.Context, url string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
+// parsePrometheusText parses simple Prometheus exposition text into metric name → value.
+// Only handles simple metrics (no labels). For metrics with labels, the first occurrence wins.
+func parsePrometheusText(text string) map[string]float64 {
+	result := make(map[string]float64)
+	scanner := bufio.NewScanner(strings.NewReader(text))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) == 0 || line[0] == '#' {
+			continue
+		}
+		// Strip labels if present: metric_name{...} value
+		name := line
+		valueStr := ""
+		if idx := strings.IndexByte(line, '{'); idx != -1 {
+			name = line[:idx]
+			end := strings.IndexByte(line, '}')
+			if end == -1 {
+				continue
+			}
+			valueStr = strings.TrimSpace(line[end+1:])
+		} else {
+			parts := strings.Fields(line)
+			if len(parts) < 2 {
+				continue
+			}
+			name = parts[0]
+			valueStr = parts[1]
+		}
+		if _, exists := result[name]; exists {
+			continue
+		}
+		v, err := strconv.ParseFloat(valueStr, 64)
+		if err != nil {
+			continue
+		}
+		result[name] = v
+	}
+	return result
 }
 
 // buildDashboardAuthenticators constructs authenticators from the auth config.
