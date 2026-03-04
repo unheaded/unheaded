@@ -635,7 +635,7 @@ services:
       SERVICES_FILE: "/etc/unheaded/services.txt"
     volumes:
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
-    command: ["/app/dashboard-backend", "--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--viz-dir", "/app/viz", "--ws-allowed-origins", "*"]
+    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--ws-allowed-origins", "*"]
     ports:
       - "20000:20000"
     networks:
