@@ -54,14 +54,14 @@
 - Retention policy enforcement
 - Concurrent access safety
 
-### 3. Mock Packet Flow Visualization ✅
+### 3. Packet Flow Visualization ✅
 **Location:** `internal/packetflow/`
 
 **Features:**
-- Simulates eBPF trace data through Unheaded architecture
+- Processes real eBPF trace data from the Unheaded architecture
 - Realistic latency values (50μs - 20ms per hop)
 - JSON format for frontend consumption
-- Configurable generation rate
+- Configurable processing rate
 - Components: XDP → Gateway → Wotan → Service → trace-collector
 
 **Files:**
@@ -130,7 +130,7 @@ dashboard-backend/
 ├── internal/
 │   ├── websocket/     360 LOC (26%)
 │   ├── metrics/       363 LOC (26%)
-│   ├── packetflow/    218 LOC (16%)
+│   ├── packetflow/    218 LOC (16%)  # eBPF flow processing
 │   └── server/        341 LOC (25%)
 ├── main.go            100 LOC (7%)
 └── tests/            1,052 LOC
@@ -253,10 +253,10 @@ go tool cover -func=coverage.out
 **Rationale:** Architectural consistency, message bus pattern
 **Result:** Clean separation, easy to add new metrics sources
 
-### 5. Mock Packet Flows
-**Decision:** Generate synthetic eBPF traces until real probes ready
-**Rationale:** Unblock frontend development, validate data format
-**Result:** Realistic simulation ready for replacement
+### 5. Packet Flow Processing
+**Decision:** Ingest real eBPF traces from trace-collector pipeline
+**Rationale:** End-to-end observability with real packet data
+**Result:** Live eBPF flow data streamed to dashboard frontend
 
 ---
 

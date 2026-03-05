@@ -34,6 +34,20 @@ const (
 	Monad        = 19004
 	Sophia       = 19005
 	Cuirass      = 19006
+	KeyMgmt      = 19007
+	PQCVerifier  = 19008
+
+	// Monad CPU Application Services (19010-19019)
+	Firewall     = 19010
+	Canary       = 19011
+	Chaos        = 19012
+	QoS          = 19013
+	BackupMgr    = 19014
+	Compliance   = 19015
+	NFV          = 19016
+	VersionSvc   = 19017
+	Anomaly      = 19018
+	TelemetryAgg = 19019
 
 	// Applications (20000-20999)
 	DashboardBackend = 20000

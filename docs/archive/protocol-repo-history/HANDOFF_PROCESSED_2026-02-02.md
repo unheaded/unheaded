@@ -220,8 +220,8 @@ Kanban E2E smoke test - manual verification required
 ### Priority 3: Frontend Polish
 Dashboard advancement: 70% → 85%
 
-### Blocked: eBPF Work
-Awaiting B1 resolution (Linux/eBPF dev environment from Muck)
+### eBPF Work — RESOLVED
+B1 resolved — Linux/eBPF dev environment operational on WEST bare metal
 
 ---
 

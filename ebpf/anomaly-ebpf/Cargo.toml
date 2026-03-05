@@ -1,0 +1,15 @@
+[package]
+name        = "anomaly-ebpf"
+description = "Unheaded Protocol ML anomaly detection — quantized decision tree inference at XDP"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "anomaly-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true

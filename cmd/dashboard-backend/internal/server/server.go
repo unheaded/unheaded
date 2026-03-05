@@ -34,7 +34,6 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/health"
 	"unheaded/cmd/dashboard-backend/internal/logs"
 	internalMetrics "unheaded/cmd/dashboard-backend/internal/metrics"
-	"unheaded/cmd/dashboard-backend/internal/packetflow"
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
 	"unheaded/pkg/discovery"
@@ -67,8 +66,6 @@ type Config struct {
 	ScraperConfig     *scraper.Config
 	HealthConfig      *health.Config
 	EventsConfig      *events.Config
-	PacketFlowConfig  *packetflow.Config
-
 	// Service endpoint overrides (name → "host:port")
 	ServiceEndpoints map[string]string
 
@@ -136,14 +133,6 @@ func (c *Config) Validate() error {
 		c.EventsConfig.WotanAddr = c.WotanAddr
 		c.EventsConfig.ServiceName = c.ServiceName
 	}
-	if c.PacketFlowConfig == nil {
-		c.PacketFlowConfig = &packetflow.Config{
-			Interval:       100 * time.Millisecond,
-			MaxFlows:       50,
-			TraceIDPattern: "trace-%d",
-		}
-	}
-
 	return nil
 }
 
@@ -213,8 +202,6 @@ type Server struct {
 	scraper       *scraper.Scraper
 	healthMonitor *health.Monitor
 	eventStreamer *events.Streamer
-	flowGenerator *packetflow.Generator
-
 	// Enhanced aggregation
 	metricsAggregator *internalMetrics.Aggregator
 	traceCollector    TraceCollector    // Optional: set via SetTraceCollector
@@ -389,12 +376,6 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		return nil, fmt.Errorf("create event streamer: %w", err)
 	}
 
-	// Create packet flow generator
-	flowGenerator, err := packetflow.NewGenerator(config.PacketFlowConfig)
-	if err != nil {
-		return nil, fmt.Errorf("create packet flow generator: %w", err)
-	}
-
 	// Create internal metrics aggregator
 	metricsAggConfig := &internalMetrics.Config{
 		RetentionPeriod: 1 * time.Hour,
@@ -421,7 +402,6 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		scraper:           metricsScraper,
 		healthMonitor:     healthMonitor,
 		eventStreamer:     eventStreamer,
-		flowGenerator:     flowGenerator,
 		metricsAggregator: metricsAggregator,
 		ebpfIngestor:      config.EBPFIngestor,
 		traceBuffer:       NewTraceBuffer(1000),
@@ -744,24 +724,17 @@ func (s *Server) Start(ctx context.Context) error {
 		s.log.Warn().Err(err).Msg("event streamer start failed, continuing without wotan")
 	}
 
-	// Start packet flow generator
-	flowCh, err := s.flowGenerator.Start(ctx)
-	if err != nil {
-		return fmt.Errorf("start flow generator: %w", err)
-	}
-
 	// Start eBPF ingestor if configured
 	if s.ebpfIngestor != nil {
 		if err := s.ebpfIngestor.Start(ctx); err != nil {
-			s.log.Warn().Err(err).Msg("ebpf ingestor start failed, continuing with synthetic flows")
+			s.log.Warn().Err(err).Msg("ebpf ingestor start failed")
 		} else {
 			s.log.Info().Msg("ebpf ingestor started — real eBPF events active")
 		}
 	}
 
 	// Start broadcasters
-	s.wg.Add(4)
-	go s.broadcastFlows(ctx, flowCh)
+	s.wg.Add(3)
 	go s.broadcastHealthUpdates(ctx)
 	go s.broadcastEvents(ctx)
 	go s.broadcastTraceEvents(ctx)
@@ -791,44 +764,6 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.log.Info().Msg("dashboard backend started")
 	return nil
-}
-
-// broadcastFlows broadcasts packet flows to WebSocket clients
-func (s *Server) broadcastFlows(ctx context.Context, flowCh <-chan *packetflow.PacketFlow) {
-	defer s.wg.Done()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.shutdown:
-			return
-		case flow := <-flowCh:
-			if flow == nil {
-				return
-			}
-
-			// Broadcast to main WebSocket
-			data, err := json.Marshal(map[string]interface{}{
-				"type": "packet_flow",
-				"data": flow,
-			})
-			if err != nil {
-				s.log.Error().Err(err).Msg("marshal packet flow failed")
-				continue
-			}
-			s.wsServer.Broadcast(data)
-
-			// Also broadcast to stream subscribers
-			streamMsg := &StreamMessage{
-				Type:      "flow",
-				Service:   "trace-collector",
-				Timestamp: flow.Timestamp,
-				Data:      flow,
-			}
-			s.broadcastToStream(streamMsg)
-		}
-	}
 }
 
 // broadcastHealthUpdates broadcasts health status changes
@@ -1326,12 +1261,11 @@ func (s *Server) handleFlows(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fallback: synthetic flow info
+	// eBPF ingestor not active
+	w.WriteHeader(http.StatusServiceUnavailable)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"source":       "synthetic",
-		"ws_endpoint":  "/ws",
-		"description":  "Connect to /ws for real-time packet flow updates. Start trace-collector for real eBPF data.",
-		"flow_rate_ms": s.config.PacketFlowConfig.Interval.Milliseconds(),
+		"error":  "ebpf ingestor not active",
+		"detail": "Start trace-collector with --wotan-grpc-addr to enable eBPF flow data.",
 	})
 }
 

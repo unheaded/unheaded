@@ -419,7 +419,6 @@ unheaded-vllm-start /models/deepseek-r1-7b
 - Review `pkg/waf/response/response.go:237` XSS fix
 
 ### P2 — Post-Alpha
-- eBPF awakening — needs Linux + bpftool + kernel headers
 - Load testing harness (target: 1000 req/s)
 - Service breakout to individual repos
 - Multi-node clustering

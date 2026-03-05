@@ -14,7 +14,7 @@
 
 ### Age 1: The Alpha Ascension (🔄 IN PROGRESS)
 
-**Progress:** ~98% — all services operational, S36 four pillars complete (ports, gRPC-first, logging, discovery), eBPF blocked on bare metal
+**Progress:** ~98% — all services operational, S36 four pillars complete (ports, gRPC-first, logging, discovery), eBPF operational on bare metal
 
 ### Age 2: The Beta Trials (🔄 IN PROGRESS)
 
@@ -233,7 +233,7 @@ THE CIRCLE NEVER BREAKS.
 
 **ETA:** Feb 3, 2026
 **Owner:** The Architect's rust-touched agents
-**Risk:** Medium — blocked on bare metal Linux environment
+**Risk:** Medium — operational on WEST bare metal
 **Progress:** 55%
 **Status:** in progress (code written, untested on hardware)
 
@@ -374,7 +374,7 @@ THE CIRCLE NEVER BREAKS.
 **Owner:** Captain + Timeguru + the assembled Court
 **Risk:** Medium — depends on eBPF bare metal verification
 **Progress:** 10%
-**Status:** planned (S36 four pillars COMPLETE, blocked on eBPF verification + public deployment)
+**Status:** planned (S36 four pillars COMPLETE, eBPF operational, awaiting public deployment)
 
 **Tasks:**
 - [ ] Kanban Frontend COMPLETE (P0 Epic above)

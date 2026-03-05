@@ -1,0 +1,15 @@
+[package]
+name        = "firewall-ebpf"
+description = "Unheaded Protocol stateful XDP firewall — connection tracking and policy enforcement"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "firewall-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true

@@ -2994,9 +2994,9 @@ git add -A && git commit -m "docs(s37): documentation cleanup — product→appl
 2. Read `docs/battle-plans/S38-EBPF-PRODUCTION-BATTLE-PLAN.md`
 3. Begin executing S38 Phase 0 immediately
 
-If S38 is blocked (requires bare metal Linux with kernel BPF support), SKIP S38 and proceed:
+S38 is no longer blocked (bare metal Linux with kernel BPF support now available on WEST):
 
-1. Report: "S38 BLOCKED — requires bare metal. Proceeding to S39."
+1. Report: "S38 UNBLOCKED — bare metal available. Executing S38."
 2. Read `docs/battle-plans/S39-INDUSTRIALIZATION-BATTLE-PLAN.md`
 3. Begin executing S39 Phase 0 immediately
 

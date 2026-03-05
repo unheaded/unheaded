@@ -13,6 +13,18 @@ members = [
     "hop-ebpf",
     "yaldabaoth-ebpf",
     "monad-cpu-ebpf",
+    # --- Monad CPU Applications ---
+    "firewall-ebpf",
+    "maglev-ebpf",
+    "canary-ebpf",
+    "qos-ebpf",
+    "failover-ebpf",
+    "compliance-ebpf",
+    "nfv-ebpf",
+    "version-ebpf",
+    "anomaly-ebpf",
+    # --- Post-Quantum Cryptographic Authentication ---
+    "pqc-common",
     # --- AF_XDP Zero-Copy Packet I/O ---
     "af-xdp-common",
     "xdp-redirect",

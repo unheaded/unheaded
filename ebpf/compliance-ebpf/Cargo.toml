@@ -1,0 +1,15 @@
+[package]
+name        = "compliance-ebpf"
+description = "Unheaded Protocol zero-trust compliance enforcement — wire-level policy checking"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "compliance-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true

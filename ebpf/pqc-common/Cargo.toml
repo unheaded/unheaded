@@ -1,0 +1,9 @@
+[package]
+name        = "pqc-common"
+description = "Unheaded PQC authentication shared BPF types (draft-bellis-unheaded-pqc-authentication-00)"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[dependencies]
+monad-common.workspace = true
