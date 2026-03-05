@@ -1,0 +1,31 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sTrustedRegistries
+metadata:
+  name: must-use-trusted-registry
+spec:
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    excludedNamespaces: ["kube-system", "gatekeeper-system", "argocd"]
+  parameters:
+    registries:
+    - "unheaded/"
+    - "ghcr.io/unheaded/"
+    - "docker.io/library/"
+    - "registry.k8s.io/"
+    - "quay.io/cilium/"
+    - "quay.io/argoproj/"
+    - "hashicorp/"
+    - "secrets-store-csi-driver/"
+    - "quay.io/prometheus/"
+    - "grafana/"
+    - "otel/"
+    - "docker.io/grafana/"
+    - "prom/"
+    - "quay.io/prometheus-operator/"
+    - "quay.io/kiwigrid/"
+    - "quay.io/brancz/"
+    - "ghcr.io/"
+    - "docker.io/"
+    - "fairwinds/"

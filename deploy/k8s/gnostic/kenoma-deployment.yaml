@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kenoma
+  namespace: unheaded-gnostic
+  labels: { app: kenoma, tier: gnostic, component: actual-state }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: kenoma }
+  template:
+    metadata:
+      labels: { app: kenoma, tier: gnostic }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "2112" }
+    spec:
+      serviceAccountName: kenoma
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+      - name: kenoma
+        image: unheaded/kenoma:latest
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "512Mi", cpu: "500m" }
+        securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+        ports:
+        - { containerPort: 8080, name: http }
+        - { containerPort: 9090, name: grpc }
+        - { containerPort: 2112, name: metrics }

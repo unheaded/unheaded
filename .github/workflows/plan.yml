@@ -1,0 +1,37 @@
+name: "Terraform Plan + Policy"
+on:
+  pull_request:
+    paths:
+    - "deploy/tofu/**"
+    - "deploy/k8s/**"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        layer: [networking, compute, identity, observability, ebpf]
+    steps:
+    - uses: actions/checkout@v4
+    - uses: opentofu/setup-opentofu@v1
+    - uses: gruntwork-io/terragrunt-action@v2
+
+    - name: Format Check
+      run: tofu fmt -check -recursive deploy/tofu/
+
+    - name: Validate
+      run: |
+        cd deploy/tofu/environments/dev/${{ matrix.layer }}
+        terragrunt validate
+
+    - name: Policy Check (OPA)
+      run: |
+        cd deploy/tofu/environments/dev/${{ matrix.layer }}
+        terragrunt plan -out=tfplan
+        terragrunt show -json tfplan > plan.json
+        conftest test plan.json -p ../../../policies/
+
+    - name: Plan
+      run: |
+        cd deploy/tofu/environments/dev/${{ matrix.layer }}
+        terragrunt plan -no-color

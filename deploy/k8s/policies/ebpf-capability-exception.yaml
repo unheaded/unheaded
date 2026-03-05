@@ -1,0 +1,10 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDenyPrivileged
+metadata:
+  name: deny-privileged-except-ebpf
+spec:
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    excludedNamespaces: ["unheaded-ebpf", "kube-system", "gatekeeper-system"]

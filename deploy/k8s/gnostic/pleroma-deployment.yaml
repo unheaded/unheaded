@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pleroma
+  namespace: unheaded-gnostic
+  labels: { app: pleroma, tier: gnostic, component: desired-state }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: pleroma }
+  template:
+    metadata:
+      labels: { app: pleroma, tier: gnostic }
+    spec:
+      serviceAccountName: pleroma
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+      - name: pleroma
+        image: unheaded/pleroma:latest
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "250m" }
+        securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+        ports:
+        - { containerPort: 8080, name: http }
+        - { containerPort: 9090, name: grpc }

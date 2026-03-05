@@ -1,0 +1,10 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredResources
+metadata:
+  name: must-have-resource-limits
+spec:
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    namespaces: ["unheaded-armory", "unheaded-gnostic", "unheaded-court", "unheaded-presentation", "unheaded-ebpf"]

@@ -1,0 +1,51 @@
+syntax = "proto3";
+package unheaded.ebpf.v1;
+option go_package = "unheaded/pkg/proto/ebpf/v1";
+
+service EbpfTelemetry {
+  rpc StreamEvents(StreamEventsRequest) returns (stream TelemetryEvent);
+  rpc GetStats(StatsRequest) returns (StatsResponse);
+}
+
+message StreamEventsRequest {
+  repeated string event_types = 1;
+  uint32 rate_limit_per_sec = 2;
+}
+
+message TelemetryEvent {
+  uint64 timestamp_ns = 1;
+  EventType type = 2;
+  string source_pod = 3;
+  string dest_pod = 4;
+  uint32 source_port = 5;
+  uint32 dest_port = 6;
+  uint32 protocol = 7;
+  Verdict verdict = 8;
+  uint64 bytes = 9;
+  uint64 latency_ns = 10;
+  // ZERO payload — metadata only (Sacred Principle)
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_PACKET = 1;
+  EVENT_TYPE_TCP_CONNECT = 2;
+  EVENT_TYPE_TCP_CLOSE = 3;
+  EVENT_TYPE_DNS_QUERY = 4;
+  EVENT_TYPE_POLICY_VERDICT = 5;
+}
+
+enum Verdict {
+  VERDICT_UNSPECIFIED = 0;
+  VERDICT_ALLOW = 1;
+  VERDICT_DENY = 2;
+  VERDICT_DROP = 3;
+}
+
+message StatsRequest {}
+message StatsResponse {
+  uint64 total_events = 1;
+  uint64 events_per_second = 2;
+  uint64 drops = 3;
+  map<string, uint64> events_by_type = 4;
+}

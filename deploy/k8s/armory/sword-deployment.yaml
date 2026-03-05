@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sword
+  namespace: unheaded-armory
+  labels:
+    app: sword
+    tier: armory
+    component: deploy-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sword
+  template:
+    metadata:
+      labels:
+        app: sword
+        tier: armory
+    spec:
+      serviceAccountName: sword
+      priorityClassName: unheaded-standard
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: sword
+        image: unheaded/sword:latest
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "512Mi", cpu: "500m" }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: grpc
+        livenessProbe:
+          httpGet: { path: /healthz, port: http }
+        readinessProbe:
+          httpGet: { path: /readyz, port: http }

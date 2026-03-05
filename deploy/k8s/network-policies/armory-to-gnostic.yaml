@@ -1,0 +1,20 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-armory-to-gnostic
+  namespace: unheaded-gnostic
+spec:
+  endpointSelector:
+    matchLabels:
+      tier: gnostic
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        tier: armory
+        io.kubernetes.pod.namespace: unheaded-armory
+    toPorts:
+    - ports:
+      - port: "9090"
+        protocol: TCP
+      rules:
+        l7proto: grpc

@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-backend
+  namespace: unheaded-presentation
+  labels:
+    app: dashboard-backend
+    tier: presentation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dashboard-backend
+  template:
+    metadata:
+      labels:
+        app: dashboard-backend
+        tier: presentation
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2112"
+    spec:
+      serviceAccountName: dashboard-backend
+      priorityClassName: unheaded-standard
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: dashboard
+        image: unheaded/dashboard-backend:latest
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "512Mi", cpu: "500m" }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8081
+          name: websocket
+        - containerPort: 9090
+          name: grpc
+        - containerPort: 2112
+          name: metrics
+        env:
+        - name: WS_ALLOWED_ORIGINS
+          value: "http://localhost:3000,https://dashboard.unheaded.dev"
+        - name: BUSBOY_GRPC_ADDR
+          value: "busboy.unheaded-court:9090"
+        livenessProbe:
+          httpGet: { path: /healthz, port: http }
+        readinessProbe:
+          httpGet: { path: /readyz, port: http }
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: dashboard-backend

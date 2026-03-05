@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: void-collector-config
+  namespace: unheaded-ebpf
+data:
+  config.yaml: |
+    rate_limiting:
+      global_max_events_per_sec: 100
+      per_topic_limits:
+        ebpf.packet_flow: 100
+        ebpf.tcp_latency: 50
+        ebpf.policy_verdict: 100
+        ebpf.dns_query: 50
+      burst_size: 200
+      drop_policy: "newest"
+    ring_buffer:
+      size_bytes: 16777216
+      watermark_bytes: 8388608
+    grpc:
+      busboy_address: "busboy.unheaded-court:9090"
+      reconnect_backoff_ms: 1000
+      max_reconnect_backoff_ms: 30000

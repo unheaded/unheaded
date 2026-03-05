@@ -1,0 +1,27 @@
+name: "SBOM + Vulnerability Scan"
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        format: spdx-json
+        output-file: sbom.spdx.json
+    - name: Scan SBOM for vulnerabilities
+      uses: anchore/scan-action@v4
+      with:
+        sbom: sbom.spdx.json
+        fail-build: true
+        severity-cutoff: high
+    - name: Upload SBOM
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom
+        path: sbom.spdx.json
