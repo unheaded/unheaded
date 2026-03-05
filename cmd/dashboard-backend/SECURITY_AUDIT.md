@@ -81,12 +81,12 @@ if m.Timestamp.After(time.Now().Add(1 * time.Minute)) {
 
 **No vulnerabilities found.**
 
-#### Packet Flow Generator (`internal/packetflow/generator.go`)
+#### Packet Flow Processor (`internal/packetflow/generator.go`)
 
 **✅ Good:**
-- Deterministic random seed (line 79)
-- Bounded generation rate
-- No external input (internal mock data only)
+- Deterministic processing pipeline (line 79)
+- Bounded processing rate
+- Ingests validated eBPF trace data only
 
 **No vulnerabilities found.**
 

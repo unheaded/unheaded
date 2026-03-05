@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+#
+# Kingdom Shutdown — ensures clean Unheaded teardown on stop/halt/reboot
+
+[Unit]
+Description=Unheaded Kingdom Shutdown (clean teardown on stop/reboot)
+Documentation=https://github.com/unheaded/unheaded
+After=network-online.target
+Before=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/opt/unheaded/bin/kingdom-shutdown.sh --force
+
+[Install]
+WantedBy=multi-user.target

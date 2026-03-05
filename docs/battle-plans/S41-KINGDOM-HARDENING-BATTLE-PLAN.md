@@ -1371,9 +1371,9 @@ anamnesis.*         — Anamnesis events (NEEDS BRIDGE)
 2. Read `docs/battle-plans/S42-DOOM-POC-BATTLE-PLAN.md`
 3. Begin executing S42 Phase 0 immediately
 
-If S42 is blocked (requires bare metal Linux with kernel BPF support for ring namespaces), execute all non-BPF phases (dashboard, Go tooling, Rust MBC, docs) and SKIP BPF-dependent phases:
+If S42 has issues (bare metal Linux with kernel BPF support now available on WEST), execute all phases including BPF-dependent ones:
 
-1. Report: "S42 partially blocked — executing non-BPF phases"
+1. Report: "S42 partially blocked — executing non-BPF phases" (Note: BPF environment resolved)
 2. Execute all phases that DON'T require `sudo` or network namespaces
 3. Document skipped phases in handoff doc
 4. Continue to next available battle plan

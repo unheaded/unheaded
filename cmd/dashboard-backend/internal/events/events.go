@@ -488,7 +488,8 @@ func (s *Streamer) disconnect() {
 	}
 }
 
-// streamMessages streams messages from subscribed topics
+// streamMessages streams messages from subscribed topics.
+// Blocks until all topic goroutines exit (connection lost or context cancelled).
 func (s *Streamer) streamMessages(ctx context.Context) {
 	// Capture client under lock to avoid racing with disconnect().
 	s.connMu.RLock()
@@ -498,13 +499,17 @@ func (s *Streamer) streamMessages(ctx context.Context) {
 		return
 	}
 
+	var streamWg sync.WaitGroup
 	for _, topic := range s.config.Topics {
 		s.wg.Add(1)
+		streamWg.Add(1)
 		go func(t string) {
 			defer s.wg.Done()
+			defer streamWg.Done()
 			s.streamTopicWith(ctx, client, t)
 		}(topic)
 	}
+	streamWg.Wait()
 }
 
 // streamTopicWith streams messages from a single topic using the given client.

@@ -11,3 +11,4 @@ authors.workspace    = true
 aya-ebpf.workspace     = true
 aya-log-ebpf.workspace = true
 monad-common.workspace = true
+pqc-common             = { path = "../pqc-common" }

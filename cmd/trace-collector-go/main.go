@@ -72,7 +72,6 @@ var (
 	batchTimeout = flag.Duration("batch-timeout", 50*time.Millisecond, "Publish batch timeout")
 	bufSize      = flag.Int("buf-size", 8192, "Event channel buffer size")
 	logJSON      = flag.Bool("log-json", false, "Use JSON log format")
-	demoMode     = flag.Bool("demo", false, "Generate synthetic events (no BPF required)")
 
 	// Unified BPF loader flags
 	iface              = flag.String("interface", "lo", "Network interface to attach BPF programs")
@@ -484,51 +483,6 @@ func anamnesisToFlowJSON(ev *ebpf.AnamnesisEvent) []byte {
 	return data
 }
 
-// ── Demo mode event generator ───────────────────────────────────────────
-
-func demoEventGenerator(ctx context.Context) <-chan []byte {
-	ch := make(chan []byte, 1024)
-	go func() {
-		defer close(ch)
-		tick := time.NewTicker(time.Millisecond)
-		defer tick.Stop()
-
-		var seq uint64
-		types := []ebpf.EventType{ebpf.EventBirth, ebpf.EventHop, ebpf.EventHop, ebpf.EventDeath}
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-tick.C:
-				flowLabel := uint16(seq / 4)
-				evType := types[seq%4]
-				ev := ebpf.AnamnesisEvent{
-					TimestampNs: uint64(time.Now().UnixNano()),
-					EventType:   evType,
-					HopID:       uint8(seq%4 + 1),
-					FlowLabelLo: flowLabel,
-					Monad: ebpf.MonadState{
-						Version:      ebpf.MonadVersion,
-						SrcServiceID: 0x0A,
-						DstServiceID: 0x0B,
-						HopCount:     uint8(seq % 4),
-						FlowAction:   0x01,
-						CircuitState: 0x01,
-						Flags:        ebpf.FlagTraced,
-						DeployRing:   0x01,
-					},
-				}
-				ev.Monad.RecomputeChecksum()
-				buf := ev.Encode()
-				ch <- buf[:]
-				seq++
-			}
-		}
-	}()
-	return ch
-}
-
 // ── Legacy health check handler (Anamnesis mode) ────────────────────────
 
 type healthHandler struct {
@@ -917,7 +871,6 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 		Str("http_addr", *httpAddr).
 		Int("max_rate", *maxRate).
 		Int("batch_size", *batchSize).
-		Bool("demo", *demoMode).
 		Msg("trace-collector-go starting in anamnesis mode")
 
 	// Create components
@@ -933,27 +886,13 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	correlator := NewFlowCorrelator(60 * time.Second)
 	limiter := NewRateLimiter(*maxRate)
 
-	// Get event source
-	var rawCh <-chan []byte
-	var reader *ebpf.AnamnesisReader
-
-	if *demoMode {
-		log.Info().Msg("running in demo mode with synthetic events")
-		rawCh = demoEventGenerator(ctx)
-	} else {
-		var err error
-		reader, err = ebpf.OpenPinnedAnamnesisReader(ctx, *ringPath, *bufSize)
-		if err != nil {
-			log.Fatal().Err(err).Str("path", *ringPath).Msg("failed to open ring buffer")
-		}
-		log.Info().Str("path", *ringPath).Msg("ring buffer opened")
+	// Get event source from BPF ring buffer
+	reader, err := ebpf.OpenPinnedAnamnesisReader(ctx, *ringPath, *bufSize)
+	if err != nil {
+		log.Fatal().Err(err).Str("path", *ringPath).Msg("failed to open ring buffer")
 	}
+	log.Info().Str("path", *ringPath).Msg("ring buffer opened")
 
-	// If using the ring buffer reader, events come from Poll()
-	// If demo mode, we create a reader from the raw channel
-	if reader == nil {
-		reader = ebpf.NewAnamnesisReader(rawCh, *bufSize)
-	}
 	events := reader.Poll(ctx)
 
 	// Start HTTP server for health/metrics

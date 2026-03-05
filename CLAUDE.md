@@ -698,7 +698,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 **Success Criteria:**
 - [x] All services communicating via Wotan
 - [x] Kanban app displays timeline from timeguru
-- [ ] eBPF traces end-to-end packet flow (blocked: Linux environment)
+- [x] eBPF traces end-to-end packet flow
 - [x] Dashboard visualizes traces in real-time (packet-flow + metrics)
 - [ ] Publicly accessible (optional auth)
 - [ ] Sub-50ms latency (packet → browser)
@@ -718,7 +718,6 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - S36 Four Pillars: Port Authority, gRPC-First Transport, Log Aggregation, Service Discovery
 
 **Remaining:**
-- eBPF programs (blocked on Linux dev environment)
 - Production deployment testing
 - E2E smoke test with all services running
 

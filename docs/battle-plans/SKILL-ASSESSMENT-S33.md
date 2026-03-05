@@ -1089,7 +1089,7 @@ Mar 8:
 **WS3 GO/NO-GO: GO**
 - Independent of WS1
 - Depends on hardware availability
-- Execution blocked pending Linux environment; planning can proceed
+- Linux environment resolved (WEST bare metal); execution can proceed
 
 **Confidence:** 90% (only risk: XDP bounce cycle hypothesis in WS3; will be known by Day 1)
 

@@ -1,0 +1,15 @@
+[package]
+name        = "qos-ebpf"
+description = "Unheaded Protocol adaptive QoS with CoDel AQM — token bucket rate limiting and active queue management"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "qos-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true

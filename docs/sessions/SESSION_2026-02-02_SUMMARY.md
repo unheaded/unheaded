@@ -275,7 +275,7 @@ All packages compile without errors.
 1. **Kanban E2E Smoke Test** - Manual verification pending
 2. **Dashboard Real Data** - Connect to running services
 3. **Real LXD Integration** - Replace mock when environment ready
-4. **eBPF Awakening** - Blocked on Linux dev environment (B1)
+4. **eBPF Awakening** - Resolved (operational on WEST bare metal)
 
 ### Non-Blocking Nice-to-Haves
 

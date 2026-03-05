@@ -85,7 +85,7 @@ Run ScanCode + FOSSology + ORT against codebase. Tools downloaded to `~/tmp/`. O
 
 ### 4. Bare Metal eBPF — THE Core Differentiator
 
-The Doom PoC proved the eBPF toolchain works end-to-end (Rust/Aya → BPF → map pinning → XDP → userspace). Now port proven patterns to production programs: `packet_marker.bpf`, `flow_tracker.bpf`, `latency_probe.bpf`. Blocked on bare metal Linux environment.
+The Doom PoC proved the eBPF toolchain works end-to-end (Rust/Aya → BPF → map pinning → XDP → userspace). Now port proven patterns to production programs: `packet_marker.bpf`, `flow_tracker.bpf`, `latency_probe.bpf`. Now operational on WEST bare metal Linux environment.
 
 **Battle plan**: `docs/battle-plans/S34-MULTI-AGENT-BATTLE-PLAN.md` — Phases 6-9
 

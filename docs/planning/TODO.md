@@ -15,7 +15,7 @@
 - 🟡 = P2 — Fix before GA
 - 🟢 = P3 — Polish
 - 📦 = Missing implementation
-- ⏸️ = Blocked (needs Linux/eBPF env)
+- ⏸️ = Resolved (Linux/eBPF env now available)
 
 ---
 

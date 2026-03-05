@@ -1,0 +1,15 @@
+[package]
+name        = "failover-ebpf"
+description = "Unheaded Protocol self-healing network failover — health scoring and automatic failover"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "failover-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true
