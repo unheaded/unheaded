@@ -1,0 +1,21 @@
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+systemReserved:
+  memory: "1536Mi"
+  cpu: "500m"
+  ephemeral-storage: "1Gi"
+kubeReserved:
+  memory: "512Mi"
+  cpu: "250m"
+  ephemeral-storage: "1Gi"
+evictionHard:
+  memory.available: "200Mi"
+  nodefs.available: "10%"
+  imagefs.available: "15%"
+evictionSoft:
+  memory.available: "500Mi"
+evictionSoftGracePeriod:
+  memory.available: "30s"
+maxPods: 110
+containerLogMaxSize: "50Mi"
+containerLogMaxFiles: 3

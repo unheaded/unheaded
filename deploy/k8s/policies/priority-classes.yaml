@@ -1,0 +1,15 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: unheaded-critical
+value: 1000000
+globalDefault: false
+description: "Critical Unheaded system components — Cuirass, Greaves (DNS), Shield"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: unheaded-standard
+value: 100000
+globalDefault: true
+description: "Standard Unheaded workloads"

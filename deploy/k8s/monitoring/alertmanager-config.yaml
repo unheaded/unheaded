@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-unheaded
+  namespace: unheaded-system
+stringData:
+  alertmanager.yaml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'platform-team'
+      routes:
+      - match:
+          severity: critical
+        receiver: 'platform-critical'
+        repeat_interval: 1h
+    receivers:
+    - name: 'platform-team'
+      webhook_configs:
+      - url: 'http://dashboard-backend.unheaded-presentation:8080/api/alerts'
+    - name: 'platform-critical'
+      webhook_configs:
+      - url: 'http://dashboard-backend.unheaded-presentation:8080/api/alerts/critical'

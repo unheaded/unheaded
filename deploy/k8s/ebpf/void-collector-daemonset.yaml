@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: whispering-void-collector
+  namespace: unheaded-ebpf
+  labels:
+    app: void-collector
+    tier: ebpf
+spec:
+  selector:
+    matchLabels:
+      app: void-collector
+  template:
+    metadata:
+      labels:
+        app: void-collector
+        tier: ebpf
+    spec:
+      serviceAccountName: void-collector
+      hostNetwork: true
+      hostPID: false
+      priorityClassName: unheaded-critical
+      containers:
+      - name: collector
+        image: unheaded/void-collector:latest
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          privileged: false
+          capabilities:
+            add: ["BPF", "PERFMON", "NET_ADMIN"]
+            drop: ["ALL"]
+        volumeMounts:
+        - name: bpf-maps
+          mountPath: /sys/fs/bpf
+        - name: debugfs
+          mountPath: /sys/kernel/debug
+          readOnly: true
+        ports:
+        - containerPort: 9091
+          name: grpc
+        - containerPort: 2112
+          name: metrics
+      volumes:
+      - name: bpf-maps
+        hostPath:
+          path: /sys/fs/bpf
+      - name: debugfs
+        hostPath:
+          path: /sys/kernel/debug
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists

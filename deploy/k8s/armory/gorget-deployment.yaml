@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gorget
+  namespace: unheaded-armory
+  labels:
+    app: gorget
+    tier: armory
+    component: secret-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gorget
+  template:
+    metadata:
+      labels:
+        app: gorget
+        tier: armory
+    spec:
+      serviceAccountName: gorget
+      priorityClassName: unheaded-critical
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: gorget
+        image: unheaded/gorget:latest
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "250m" }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: grpc
+        livenessProbe:
+          httpGet: { path: /healthz, port: http }
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet: { path: /readyz, port: http }
+          initialDelaySeconds: 5
+          periodSeconds: 10

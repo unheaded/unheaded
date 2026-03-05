@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shield-pdb
+  namespace: unheaded-armory
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: shield
