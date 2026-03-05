@@ -1,0 +1,10 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireSeccomp
+metadata:
+  name: must-have-seccomp
+spec:
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    excludedNamespaces: ["kube-system", "gatekeeper-system", "unheaded-ebpf"]

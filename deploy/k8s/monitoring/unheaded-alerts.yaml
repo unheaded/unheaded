@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: unheaded-alerts
+  namespace: unheaded-system
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+  - name: unheaded.service
+    rules:
+    - alert: ServiceDown
+      expr: up{namespace=~"unheaded-.*"} == 0
+      for: 2m
+      labels: { severity: critical, team: platform }
+      annotations:
+        summary: "Service down in {{ $labels.namespace }}"
+    - alert: HighErrorRate
+      expr: sum(rate(http_requests_total{status=~"5..",namespace=~"unheaded-.*"}[5m])) by (service) / sum(rate(http_requests_total{namespace=~"unheaded-.*"}[5m])) by (service) > 0.05
+      for: 5m
+      labels: { severity: warning, team: platform }
+    - alert: HighLatency
+      expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=~"unheaded-.*"}[5m])) by (le, service)) > 2
+      for: 5m
+      labels: { severity: warning, team: platform }
+  - name: unheaded.ebpf
+    rules:
+    - alert: EbpfCollectorDown
+      expr: up{job="void-collector"} == 0
+      for: 2m
+      labels: { severity: critical, team: platform }
+    - alert: EbpfHighDropRate
+      expr: rate(ebpf_events_dropped_total[5m]) > 10
+      for: 5m
+      labels: { severity: warning, team: platform }
+  - name: unheaded.drift
+    rules:
+    - alert: InfrastructureDriftDetected
+      expr: kenoma_drift_resources_total > 0
+      for: 5m
+      labels: { severity: warning, team: platform }
+    - alert: StateReconciliationFailed
+      expr: kenoma_reconciliation_errors_total > 0
+      for: 10m
+      labels: { severity: critical, team: platform }

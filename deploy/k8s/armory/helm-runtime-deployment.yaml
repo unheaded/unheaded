@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helm-runtime
+  namespace: unheaded-armory
+  labels:
+    app: helm-runtime
+    tier: armory
+    component: container-runtime
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: helm-runtime
+  template:
+    metadata:
+      labels:
+        app: helm-runtime
+        tier: armory
+    spec:
+      serviceAccountName: helm-runtime
+      priorityClassName: unheaded-critical
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: helm-runtime
+        image: unheaded/helm-runtime:latest
+        resources:
+          requests: { memory: "256Mi", cpu: "200m" }
+          limits: { memory: "1Gi", cpu: "1000m" }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: grpc
+        livenessProbe:
+          httpGet: { path: /healthz, port: http }
+        readinessProbe:
+          httpGet: { path: /readyz, port: http }

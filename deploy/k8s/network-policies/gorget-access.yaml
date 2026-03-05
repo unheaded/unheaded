@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: gorget-ingress
+  namespace: unheaded-armory
+spec:
+  endpointSelector:
+    matchLabels:
+      app: gorget
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        tier: armory
+    toPorts:
+    - ports:
+      - port: "9090"
+        protocol: TCP

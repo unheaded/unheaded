@@ -1,0 +1,18 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ebpf-to-dashboard
+  namespace: unheaded-presentation
+spec:
+  endpointSelector:
+    matchLabels:
+      app: dashboard-backend
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        tier: ebpf
+        io.kubernetes.pod.namespace: unheaded-ebpf
+    toPorts:
+    - ports:
+      - port: "9090"
+        protocol: TCP

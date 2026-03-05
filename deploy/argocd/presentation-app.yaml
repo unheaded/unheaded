@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unheaded-presentation
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/unheaded/unheaded.git
+    targetRevision: HEAD
+    path: deploy/k8s/presentation
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: unheaded-presentation
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

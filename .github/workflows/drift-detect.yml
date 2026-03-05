@@ -1,0 +1,31 @@
+name: "Nightly Drift Detection"
+on:
+  schedule:
+  - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: opentofu/setup-opentofu@v1
+    - uses: gruntwork-io/terragrunt-action@v2
+
+    - name: Detect Drift
+      id: drift
+      run: bash scripts/drift-detect.sh
+      continue-on-error: true
+
+    - name: Open Issue on Drift
+      if: steps.drift.outcome == 'failure'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: 'Infrastructure Drift Detected ' + new Date().toISOString().split('T')[0],
+            labels: ['drift', 'platform', 'automated'],
+            body: 'Nightly drift detection found configuration drift. See workflow run for details.'
+          })

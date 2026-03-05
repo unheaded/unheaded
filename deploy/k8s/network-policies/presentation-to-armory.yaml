@@ -1,0 +1,18 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-presentation-to-armory
+  namespace: unheaded-armory
+spec:
+  endpointSelector:
+    matchLabels:
+      tier: armory
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        tier: presentation
+        io.kubernetes.pod.namespace: unheaded-presentation
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hubble-export-config
+  namespace: unheaded-ebpf
+data:
+  export.yaml: |
+    fieldMask:
+      - time
+      - source.namespace
+      - source.labels
+      - destination.namespace
+      - destination.labels
+      - l4.TCP.destination_port
+      - verdict
+      - drop_reason
+      - Type
+    # ZERO payload capture — Sacred Principle
+    # Metadata only: src/dst/port/verdict

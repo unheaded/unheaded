@@ -1,0 +1,27 @@
+{
+  "dashboard": {
+    "title": "Node Health & PLEG Monitor",
+    "tags": ["unheaded", "node", "pleg"],
+    "panels": [
+      {
+        "title": "PLEG Relist Duration P99",
+        "type": "timeseries",
+        "targets": [{ "expr": "histogram_quantile(0.99, rate(kubelet_pleg_relist_duration_seconds_bucket[5m]))" }],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "thresholds": [{ "value": 10, "color": "red", "label": "DANGER" }]
+      },
+      {
+        "title": "Node Memory Pressure",
+        "type": "timeseries",
+        "targets": [{ "expr": "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100" }],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      },
+      {
+        "title": "DaemonSet Memory Usage",
+        "type": "timeseries",
+        "targets": [{ "expr": "sum(container_memory_working_set_bytes{namespace=~\"unheaded-.*\"}) by (pod) * on(pod) group_left() kube_pod_owner{owner_kind=\"DaemonSet\"}" }],
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 }
+      }
+    ]
+  }
+}

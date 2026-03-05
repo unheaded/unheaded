@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: armory-services
+  namespace: unheaded-armory
+  labels:
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      tier: armory
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gnostic-services
+  namespace: unheaded-gnostic
+  labels:
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      tier: gnostic
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics

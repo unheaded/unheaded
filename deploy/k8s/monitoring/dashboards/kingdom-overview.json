@@ -1,0 +1,47 @@
+{
+  "dashboard": {
+    "title": "Unheaded Kingdom Overview",
+    "tags": ["unheaded", "overview"],
+    "panels": [
+      {
+        "title": "Service Health Matrix",
+        "type": "stat",
+        "targets": [{ "expr": "up{namespace=~\"unheaded-.*\"}" }],
+        "gridPos": { "h": 4, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "title": "Request Rate by Tier",
+        "type": "timeseries",
+        "targets": [{ "expr": "sum(rate(http_requests_total{namespace=~\"unheaded-.*\"}[5m])) by (namespace)" }],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }
+      },
+      {
+        "title": "P99 Latency by Service",
+        "type": "timeseries",
+        "targets": [{ "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=~\"unheaded-.*\"}[5m])) by (le, service))" }],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }
+      },
+      {
+        "title": "eBPF Events/sec",
+        "type": "stat",
+        "targets": [{ "expr": "sum(rate(ebpf_events_total[1m]))" }],
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 }
+      },
+      {
+        "title": "Cilium Policy Drops",
+        "type": "timeseries",
+        "targets": [{ "expr": "sum(rate(cilium_drop_count_total[5m])) by (reason)" }],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+      },
+      {
+        "title": "Pod Resource Usage vs Limits",
+        "type": "timeseries",
+        "targets": [
+          { "expr": "sum(container_memory_working_set_bytes{namespace=~\"unheaded-.*\"}) by (pod)" },
+          { "expr": "sum(kube_pod_container_resource_limits{resource=\"memory\",namespace=~\"unheaded-.*\"}) by (pod)" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }
+      }
+    ]
+  }
+}

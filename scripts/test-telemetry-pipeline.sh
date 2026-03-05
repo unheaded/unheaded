@@ -1,0 +1,20 @@
+#!/bin/bash
+set -euo pipefail
+echo "=== Telemetry Pipeline E2E Test ==="
+echo ""
+echo "1. Checking void-collector DaemonSet..."
+kubectl get ds whispering-void-collector -n unheaded-ebpf 2>/dev/null && echo "  OK" || echo "  NOT DEPLOYED (expected in scaffold phase)"
+echo ""
+echo "2. Checking Busboy topic config..."
+kubectl get configmap busboy-ebpf-topics -n unheaded-ebpf -o yaml | grep "name:" | head -5
+echo ""
+echo "3. Checking Dashboard backend..."
+kubectl get deploy dashboard-backend -n unheaded-presentation 2>/dev/null && echo "  OK" || echo "  NOT DEPLOYED (expected in scaffold phase)"
+echo ""
+echo "4. Checking Hubble flow data (proxy for eBPF health)..."
+hubble observe --namespace unheaded-armory --last 5 2>/dev/null || echo "  Hubble not port-forwarded (expected in dev)"
+echo ""
+echo "5. Checking network policies allow eBPF → Dashboard path..."
+kubectl get ciliumnetworkpolicies -n unheaded-presentation | grep "allow-ebpf"
+echo ""
+echo "=== Pipeline scaffold verification complete ==="

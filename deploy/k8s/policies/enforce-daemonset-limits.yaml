@@ -1,0 +1,10 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireDaemonSetResources
+metadata:
+  name: daemonsets-must-have-limits
+spec:
+  match:
+    kinds:
+    - apiGroups: ["apps"]
+      kinds: ["DaemonSet"]
+    excludedNamespaces: ["kube-system"]

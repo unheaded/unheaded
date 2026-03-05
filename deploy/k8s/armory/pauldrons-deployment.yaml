@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pauldrons
+  namespace: unheaded-armory
+  labels:
+    app: pauldrons
+    tier: armory
+    component: load-balancer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pauldrons
+  template:
+    metadata:
+      labels:
+        app: pauldrons
+        tier: armory
+    spec:
+      serviceAccountName: pauldrons
+      priorityClassName: unheaded-critical
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: pauldrons
+        image: unheaded/pauldrons:latest
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "512Mi", cpu: "500m" }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: grpc
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: pauldrons
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pauldrons
+  namespace: unheaded-armory
+  labels:
+    app: pauldrons
+    tier: armory
+spec:
+  type: LoadBalancer
+  selector:
+    app: pauldrons
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  - name: https
+    port: 443
+    targetPort: 8443

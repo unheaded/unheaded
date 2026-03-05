@@ -1,0 +1,17 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequireseccomp
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireSeccomp
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+      package k8srequireseccomp
+      violation[{"msg": msg}] {
+        not input.review.object.spec.securityContext.seccompProfile
+        msg := "Pod must have a seccompProfile (RuntimeDefault or Localhost)"
+      }

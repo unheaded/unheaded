@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pleg-health
+  namespace: unheaded-system
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+  - name: kubelet.pleg
+    rules:
+    - alert: PLEGRelistDurationHigh
+      expr: histogram_quantile(0.99, rate(kubelet_pleg_relist_duration_seconds_bucket[5m])) > 10
+      for: 5m
+      labels:
+        severity: critical
+        team: platform
+      annotations:
+        summary: "PLEG relist duration p99 > 10s on {{ \$labels.node }}"
+        description: "Kubelet PLEG is stalling — risk of NodeNotReady cascade. Check DaemonSet resource consumption."
+        runbook_url: "https://wiki.unheaded.dev/runbooks/pleg-stall"
+    - alert: KubeletNotReady
+      expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+      for: 2m
+      labels:
+        severity: critical
+        team: platform
+      annotations:
+        summary: "Node {{ \$labels.node }} NotReady for > 2 minutes"
+        description: "Node is unhealthy. Check kubelet logs, PLEG health, and memory pressure."
