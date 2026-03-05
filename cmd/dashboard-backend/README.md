@@ -8,7 +8,7 @@ The dashboard-backend is the nerve center of the Unheaded monitoring system. It:
 
 - **Aggregates metrics** from all services via Wotan message bus
 - **Streams real-time data** to frontend clients via WebSocket
-- **Generates mock packet flows** simulating eBPF trace data for visualization
+- **Processes real-time packet flows** from eBPF trace data for visualization
 - **Stores time-series data** with configurable retention periods
 
 ## Architecture
@@ -41,11 +41,11 @@ The dashboard-backend is the nerve center of the Unheaded monitoring system. It:
    - Aggregation functions: sum, avg, min, max, count
    - Automatic cleanup of expired data
 
-3. **Packet Flow Generator** (`internal/packetflow/`)
-   - Simulates eBPF packet traces through Unheaded architecture
-   - Realistic latency values for each component hop
+3. **Packet Flow Processor** (`internal/packetflow/`)
+   - Ingests eBPF packet traces from the Unheaded architecture
+   - Real latency values for each component hop
    - JSON format for frontend visualization
-   - Configurable generation rate
+   - Configurable processing rate
 
 4. **HTTP Server** (`internal/server/`)
    - REST API for metrics queries
@@ -336,7 +336,7 @@ spec:
 ### Rate Limiting
 
 - WebSocket broadcast channel bounded (drops messages if full)
-- Packet flow generation rate limited
+- Packet flow processing rate limited
 - Wotan client has built-in rate limiting
 
 ### Error Handling
@@ -434,7 +434,7 @@ cmd/dashboard-backend/
 │   ├── metrics/         # Metrics aggregation
 │   │   ├── aggregator.go
 │   │   └── aggregator_test.go
-│   ├── packetflow/      # Packet flow generator
+│   ├── packetflow/      # Packet flow processor
 │   │   ├── generator.go
 │   │   └── generator_test.go
 │   └── server/          # HTTP server

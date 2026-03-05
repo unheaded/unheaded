@@ -1902,4 +1902,33 @@ mod tests {
     fn reg_sp_alias_is_15() {
         assert_eq!(REG_SP, 15);
     }
+
+    #[test]
+    fn flag_pqc_active_combines_sampled_and_custom() {
+        assert_eq!(FLAG_PQC_ACTIVE, flags::SAMPLED | flags::CUSTOM);
+        assert_eq!(FLAG_PQC_ACTIVE, 0x0A);
+    }
+
+    #[test]
+    fn is_pqc_active_checks() {
+        assert!(!is_pqc_active(0x00));
+        assert!(!is_pqc_active(flags::SAMPLED));
+        assert!(!is_pqc_active(flags::CUSTOM));
+        assert!(is_pqc_active(flags::SAMPLED | flags::CUSTOM));
+        assert!(is_pqc_active(0xFF));
+    }
+}
+
+// ── PQC Authentication (draft-bellis-unheaded-pqc-authentication-00) ────────
+
+/// PQC active flag combination: SAMPLED | CUSTOM
+/// When both S (0x08) and CUSTOM (0x02) flags are set, the Monad scratch
+/// bytes carry the 12-byte PQC value (SigRef + KeyRef + HashPfx + SeqNum).
+pub const FLAG_PQC_ACTIVE: u8 = flags::SAMPLED | flags::CUSTOM;
+
+/// Check if PQC authentication is active for a Monad packet.
+/// Returns true when both SAMPLED and CUSTOM flags are set in the flags byte.
+#[inline]
+pub fn is_pqc_active(flags: u8) -> bool {
+    flags & FLAG_PQC_ACTIVE == FLAG_PQC_ACTIVE
 }

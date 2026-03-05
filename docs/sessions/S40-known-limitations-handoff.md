@@ -9,7 +9,7 @@
 
 ## What Was Done
 
-Addressed all 6 Known Limitations from the prior session's pipeline work. The full kernel-to-dashboard pipeline is now operational end-to-end in demo mode.
+Addressed all 6 Known Limitations from the prior session's pipeline work. The full kernel-to-dashboard pipeline is now operational end-to-end in demo mode. (Note: eBPF is no longer blocked — operational on WEST bare metal.)
 
 ### 1. Dashboard GUI Not Served (commit `14566eb`)
 

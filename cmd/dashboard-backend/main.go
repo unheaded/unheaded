@@ -49,7 +49,6 @@ import (
 	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
-	"unheaded/cmd/dashboard-backend/internal/packetflow"
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
@@ -91,10 +90,6 @@ var (
 
 	// WebSocket settings
 	maxConnections = flag.Int("max-connections", 100, "Maximum WebSocket connections")
-
-	// Packet flow settings
-	flowInterval = flag.Duration("flow-interval", 100*time.Millisecond, "Packet flow generation interval")
-	maxFlows     = flag.Int("max-flows", 50, "Maximum concurrent flows")
 
 	// WebSocket allowed origins for LAN access
 	wsAllowedOrigins = flag.String("ws-allowed-origins", "", "Comma-separated WebSocket allowed origins (empty=localhost only)")
@@ -216,12 +211,6 @@ func main() {
 			BufferSize:        1000,
 			RetentionPeriod:   1 * time.Hour,
 			ReconnectInterval: 5 * time.Second,
-		},
-
-		PacketFlowConfig: &packetflow.Config{
-			Interval:       *flowInterval,
-			MaxFlows:       *maxFlows,
-			TraceIDPattern: "trace-%d",
 		},
 
 		ServiceEndpoints: serviceEndpoints,

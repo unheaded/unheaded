@@ -62,7 +62,7 @@ ws.onmessage = (event) => {
   console.log('Packet flow:', data);
 };
 
-// You'll receive packet flows every 100ms
+// You'll receive packet flows as eBPF traces arrive
 ```
 
 ---
@@ -114,7 +114,7 @@ config := &server.Config{
     },
 
     PacketFlowConfig: &packetflow.Config{
-        Interval:       100 * time.Millisecond, // Generation rate
+        Interval:       100 * time.Millisecond, // Processing interval
         MaxFlows:       50,
         TraceIDPattern: "trace-%d",
     },

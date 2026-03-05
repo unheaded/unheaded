@@ -523,7 +523,7 @@ The Great Code Storm sessions (Jan 29-Feb 1) delivered unprecedented velocity:
 | Sophia Service | NEW | ~700 |
 
 ### What Remains
-- [ ] **eBPF Awakening:** Blocked on Linux dev environment (B1)
+- [x] **eBPF Awakening:** Operational on WEST bare metal
 - [ ] **Kanban E2E Smoke Test:** Manual verification pending
 - [ ] **Dashboard Frontend Polish:** 70% → 85%
 - [ ] **Real LXD Integration:** Ready to start when env available
@@ -1409,7 +1409,7 @@ Feb 8: 🎉 ALPHA LAUNCH - Self-Hosted Demo
 
 | Component | Before Storm | After Storm | Target (Feb 8) | Status |
 |-----------|--------------|-------------|----------------|--------|
-| **Whispering Void (eBPF)** | 55% | 55% | 90% | ⏳ Blocked on Linux env |
+| **Whispering Void (eBPF)** | 55% | 55% | 90% | ✅ Operational |
 | **Cuirass (Control Plane)** | 75% | 75% | 80% | ✅ Near complete |
 | **Hauberk (Service Mesh)** | 40% | **85%** 🆕 | 90% | ✅ Forged |
 | **Pauldrons (Load Balancer)** | 0% | **90%** 🆕 | 90% | ✅ Forged |

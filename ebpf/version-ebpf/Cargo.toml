@@ -1,0 +1,15 @@
+[package]
+name        = "version-ebpf"
+description = "Unheaded Protocol version translation — transparent protocol version bridging at XDP and TC"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "version-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true

@@ -38,16 +38,11 @@ rm -f /tmp/trace-collector*.log 2>/dev/null
 rm -f /tmp/wotan_events.log 2>/dev/null
 echo "   Trace logs cleared"
 
-# 4. Full reset: stop and restart all services
+# 4. Full reset: stop all services via kingdom-shutdown
 if [[ "$FULL_RESET" == "true" ]]; then
     echo "4. Full reset: stopping all services..."
-    pkill -f "trace-collector-go" 2>/dev/null || true
-    pkill -f "kanban-app" 2>/dev/null || true
-    pkill -f "dashboard-backend" 2>/dev/null || true
-    pkill -f "unheaded-daemon" 2>/dev/null || true
-    pkill -f "wotan" 2>/dev/null || true
-    sleep 3
-    echo "   All services stopped"
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    bash "$SCRIPT_DIR/scripts/kingdom-shutdown.sh" --force --keep-bpf
     echo "   Run ./demo-start.sh to restart"
 fi
 

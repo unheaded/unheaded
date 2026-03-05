@@ -1,0 +1,15 @@
+[package]
+name        = "nfv-ebpf"
+description = "Unheaded Protocol network function chaining — tail-call composable XDP pipeline"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "nfv-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true

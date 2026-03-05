@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+#
+# Kingdom Startup — start Unheaded Docker containers on boot
+
+[Unit]
+Description=Unheaded Kingdom Startup (start containers on boot)
+Documentation=https://github.com/unheaded/unheaded
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/unheaded/bin/kingdom-startup.sh --force --docker-only
+
+[Install]
+WantedBy=multi-user.target

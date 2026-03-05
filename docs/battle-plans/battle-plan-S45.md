@@ -226,7 +226,7 @@ eBPF: Runs on both — gaming box traces AI inference, bare metal traces service
 **Milestone Status Update**:
 | Milestone | Previous % | Actual % | Notes |
 |-----------|-----------|----------|-------|
-| Whispering Void (eBPF) | 55% | 55% | Blocked on bare metal |
+| Whispering Void (eBPF) | 55% | 55% | Operational on WEST bare metal |
 | Cuirass (control plane) | 75% | 80% | IaC + observability frameworks added |
 | Royal Court (services) | 85% | 90% | 25 services operational |
 | Citadels Rise (containers) | 75% | 80% | Helm chart + TestableRuntime added |

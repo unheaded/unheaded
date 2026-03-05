@@ -208,7 +208,7 @@ grep -A2 "monad\|sophia" services/gateway/cmd/main.go
 ## P3 - BLOCKED (Awaiting Dependencies)
 
 ### 9. eBPF Awakening (Whispering Void)
-*Blocked on: B1 - Linux/eBPF dev environment*
+*B1 resolved — Linux/eBPF dev environment operational on WEST bare metal*
 *Owner: Muck | Impact: HIGH*
 
 **Status:** 55% complete, 7,196 Rust LOC

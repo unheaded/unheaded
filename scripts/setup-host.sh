@@ -385,6 +385,33 @@ EOF
     log_success "Systemd service created (not started yet)"
 }
 
+# Setup kingdom startup and shutdown services
+setup_kingdom_shutdown() {
+    log_info "Setting up kingdom startup/shutdown services..."
+
+    # Determine source directory (script location relative to project root)
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local project_root
+    project_root="$(cd "$script_dir/.." && pwd)"
+
+    # Copy scripts
+    cp "$project_root/scripts/kingdom-shutdown.sh" /opt/unheaded/bin/kingdom-shutdown.sh
+    chmod +x /opt/unheaded/bin/kingdom-shutdown.sh
+    cp "$project_root/scripts/kingdom-startup.sh" /opt/unheaded/bin/kingdom-startup.sh
+    chmod +x /opt/unheaded/bin/kingdom-startup.sh
+
+    # Install systemd units
+    cp "$project_root/systemd/kingdom-shutdown.service" /etc/systemd/system/kingdom-shutdown.service
+    cp "$project_root/systemd/kingdom-startup.service" /etc/systemd/system/kingdom-startup.service
+
+    systemctl daemon-reload
+    systemctl enable kingdom-shutdown
+    systemctl enable kingdom-startup
+
+    log_success "Kingdom startup/shutdown services installed and enabled"
+}
+
 # Check virtualization environment
 check_virt() {
     log_info "Checking virtualization environment..."
@@ -477,6 +504,7 @@ main() {
     setup_user
     setup_directories
     setup_systemd
+    setup_kingdom_shutdown
 
     print_summary
 }

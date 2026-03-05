@@ -1,0 +1,15 @@
+[package]
+name        = "maglev-ebpf"
+description = "Unheaded Protocol Maglev consistent hash load balancer — XDP forwarding with sticky sessions"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "maglev-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+aya-log-ebpf.workspace = true
+monad-common.workspace = true

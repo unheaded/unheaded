@@ -546,7 +546,7 @@ These tasks harden the NixOS container definitions. Parallelizable.
 
 ## PHASE G: eBPF — THE WHISPERING VOID (LINUX ENV REQUIRED)
 
-These tasks are BLOCKED on B1 (Linux/eBPF dev environment). Execute when unblocked.
+B1 resolved — Linux/eBPF dev environment now operational on WEST bare metal.
 
 ---
 
@@ -761,7 +761,7 @@ These tasks are BLOCKED on B1 (Linux/eBPF dev environment). Execute when unblock
 ### Wave 5 (Security & Docs — parallel)
 `TASK-060` `TASK-062` `TASK-080` `TASK-081` `TASK-082` `TASK-083`
 
-### Wave 6 (eBPF — BLOCKED on B1)
+### Wave 6 (eBPF — B1 RESOLVED)
 `TASK-070` `TASK-071` `TASK-072` `TASK-073` `TASK-074`
 
 ### Wave 7 (Age 2 Prep — post-alpha)
