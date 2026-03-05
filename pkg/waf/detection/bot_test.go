@@ -503,7 +503,7 @@ func TestGetClientIP(t *testing.T) {
 		{
 			name:       "RemoteAddr only",
 			remoteAddr: "1.2.3.4:12345",
-			expectedIP: "1.2.3.4:12345",
+			expectedIP: "1.2.3.4",
 		},
 		{
 			name:       "X-Forwarded-For single",
@@ -522,6 +522,24 @@ func TestGetClientIP(t *testing.T) {
 			remoteAddr: "127.0.0.1:12345",
 			xri:        "1.2.3.4",
 			expectedIP: "1.2.3.4",
+		},
+		{
+			name:       "XFF ignored from external IP (spoofing attempt)",
+			remoteAddr: "8.8.8.8:12345",
+			xff:        "192.168.1.1",
+			expectedIP: "8.8.8.8",
+		},
+		{
+			name:       "XRI ignored from external IP (spoofing attempt)",
+			remoteAddr: "8.8.8.8:12345",
+			xri:        "192.168.1.1",
+			expectedIP: "8.8.8.8",
+		},
+		{
+			name:       "XFF trusted from private IP (10.x)",
+			remoteAddr: "10.10.10.100:12345",
+			xff:        "203.0.113.50",
+			expectedIP: "203.0.113.50",
 		},
 	}
 
