@@ -8,6 +8,7 @@ package detection
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"regexp"
 	"sort"
@@ -728,19 +729,24 @@ func (fs *FingerprintStore) Get(hash string) *BrowserFingerprint {
 // Helper functions
 
 func getClientIP(req *http.Request) string {
-	// Check X-Forwarded-For first
-	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
+	// Use RemoteAddr as primary (cannot be spoofed by clients).
+	// Only trust X-Forwarded-For / X-Real-IP from internal proxies.
+	remoteIP := req.RemoteAddr
+	if host, _, err := net.SplitHostPort(remoteIP); err == nil {
+		remoteIP = host
 	}
 
-	// Check X-Real-IP
-	if xri := req.Header.Get("X-Real-IP"); xri != "" {
-		return xri
+	if ip := net.ParseIP(remoteIP); ip != nil && (ip.IsPrivate() || ip.IsLoopback()) {
+		if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			return strings.TrimSpace(parts[0])
+		}
+		if xri := req.Header.Get("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
+		}
 	}
 
-	// Fall back to RemoteAddr
-	return req.RemoteAddr
+	return remoteIP
 }
 
 func containsHeader(headers []string, name string) bool {

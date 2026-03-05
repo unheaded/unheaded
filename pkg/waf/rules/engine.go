@@ -7,6 +7,7 @@ package rules
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -179,14 +180,10 @@ func (e *Engine) extractRequestData(req *http.Request) *requestData {
 		UserAgent: req.UserAgent(),
 	}
 
-	// Extract client IP
-	data.IP = req.RemoteAddr
-	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		data.IP = strings.TrimSpace(parts[0])
-	} else if xri := req.Header.Get("X-Real-IP"); xri != "" {
-		data.IP = xri
-	}
+	// Extract client IP — use RemoteAddr as primary (cannot be spoofed).
+	// Only trust X-Forwarded-For / X-Real-IP when RemoteAddr is a private
+	// (internal proxy) IP, preventing IP spoofing via crafted headers.
+	data.IP = extractSecureClientIP(req)
 
 	// Read body (limited)
 	if req.Body != nil {
@@ -295,4 +292,29 @@ func (e *Engine) RemoveRule(id string) bool {
 		}
 	}
 	return false
+}
+
+// extractSecureClientIP returns the client IP using RemoteAddr as primary source.
+// X-Forwarded-For and X-Real-IP are only trusted when the direct peer is
+// an internal (private/loopback) IP — i.e. traffic arrived through our own proxy.
+func extractSecureClientIP(req *http.Request) string {
+	remoteIP := req.RemoteAddr
+	if host, _, err := net.SplitHostPort(remoteIP); err == nil {
+		remoteIP = host
+	}
+
+	// Only trust forwarded headers from internal proxies
+	if ip := net.ParseIP(remoteIP); ip != nil && (ip.IsPrivate() || ip.IsLoopback()) {
+		if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
+			if idx := strings.Index(xff, ","); idx != -1 {
+				return strings.TrimSpace(xff[:idx])
+			}
+			return strings.TrimSpace(xff)
+		}
+		if xri := req.Header.Get("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
+		}
+	}
+
+	return remoteIP
 }

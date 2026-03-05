@@ -678,27 +678,9 @@ func (exc *ExceptionRule) matchesUserAgent(ua string) bool {
 // Helper functions
 
 func getClientKey(req *http.Request) string {
-	// Try X-Forwarded-For first
-	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
-		for i := 0; i < len(xff); i++ {
-			if xff[i] == ',' {
-				return trimSpace(xff[:i])
-			}
-		}
-		return trimSpace(xff)
-	}
-	// Try X-Real-IP
-	if xri := req.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-	// Fall back to RemoteAddr
-	addr := req.RemoteAddr
-	for i := len(addr) - 1; i >= 0; i-- {
-		if addr[i] == ':' {
-			return addr[:i]
-		}
-	}
-	return addr
+	// Use the secure extraction that prefers RemoteAddr over spoofable headers.
+	// extractSecureClientIP is defined in engine.go (same package).
+	return extractSecureClientIP(req)
 }
 
 func trimSpace(s string) string {

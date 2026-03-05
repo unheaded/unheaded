@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"sync"
@@ -164,8 +165,8 @@ type Client struct {
 	controlClient *http.Client // short timeout for Subscribe, Publish (5s)
 	streamClient  *http.Client // long timeout for GetMessages, polling (30s)
 	grpcAddr   string       // gRPC endpoint for streaming (empty = HTTP-only mode)
-	grpcClient *GRPCClient  // Lazy-initialized gRPC client
-	grpcMu     sync.Mutex   // guards grpcClient initialization (allows retry on failure)
+	grpcClient *GRPCClient   // Lazy-initialized gRPC client
+	grpcMu     sync.RWMutex // guards grpcClient initialization (allows retry on failure)
 
 	// Transport state — gRPC primary, HTTP fallback
 	transport     TransportState // current active transport
@@ -264,8 +265,10 @@ func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
 	if err := c.ProbeGRPC(); err == nil {
 		c.transport = TransportGRPC
 		c.grpcHealthy = true
+	} else {
+		// Probe failed — stay on HTTP in degraded mode, but log so operators know
+		log.Printf("[WARN] wotan_client: gRPC probe failed at startup, running in degraded HTTP mode (addr=%s, err=%v)", grpcAddr, err)
 	}
-	// If probe fails, stay on HTTP — no error returned, just degraded mode
 
 	return c, nil
 }
@@ -291,19 +294,30 @@ func (c *Client) ProbeGRPC() error {
 	_ = grpcCl // connection was established successfully
 
 	c.transportMu.Lock()
+	wasUnhealthy := !c.grpcHealthy
 	c.grpcHealthy = true
 	c.transport = TransportGRPC
 	c.transportMu.Unlock()
+
+	if wasUnhealthy {
+		log.Printf("[INFO] wotan_client: gRPC recovered, promoted to primary transport (addr=%s)", c.grpcAddr)
+	}
 
 	return nil
 }
 
 // degradeToHTTP switches streaming to HTTP polling (circuit-breaker trip).
+// Logs a warning on the first degradation so operators can see the transition.
 func (c *Client) degradeToHTTP() {
 	c.transportMu.Lock()
-	defer c.transportMu.Unlock()
+	wasHealthy := c.grpcHealthy
 	c.grpcHealthy = false
 	c.transport = TransportHTTP
+	c.transportMu.Unlock()
+
+	if wasHealthy {
+		log.Printf("[WARN] wotan_client: gRPC unhealthy, degraded to HTTP polling (addr=%s)", c.grpcAddr)
+	}
 }
 
 // Close closes the client and all subscriptions.
@@ -618,13 +632,22 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 	return sc.ch, nil
 }
 
-// getOrCreateGRPCClient lazily initializes the gRPC client.
-// Uses double-check locking: the fast path reads grpcClient without a lock;
-// if nil, the mutex is acquired and grpcClient is checked again before
+// getOrCreateGRPCClient lazily initializes the gRPC client using true
+// double-check locking. The fast path reads grpcClient under a read lock;
+// only if nil is the write lock acquired and grpcClient checked again before
 // creating a new connection. Unlike sync.Once, this allows retrying if the
 // initial connection failed (e.g., Wotan was temporarily unreachable).
 func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
-	// Fast path: client already created (no lock required)
+	// First check (read lock) — fast path for existing client
+	c.grpcMu.RLock()
+	if c.grpcClient != nil {
+		cl := c.grpcClient
+		c.grpcMu.RUnlock()
+		return cl, nil
+	}
+	c.grpcMu.RUnlock()
+
+	// Second check (write lock) — verify another goroutine didn't create it
 	c.grpcMu.Lock()
 	defer c.grpcMu.Unlock()
 
@@ -632,13 +655,13 @@ func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
 		return c.grpcClient, nil
 	}
 
-	// Slow path: create the gRPC client under lock
+	// Still nil — create the gRPC client under write lock
 	client, err := NewGRPCClient(c.grpcAddr)
 	if err != nil {
 		return nil, fmt.Errorf("create gRPC client: %w", err)
 	}
 	c.grpcClient = client
-	return c.grpcClient, nil
+	return client, nil
 }
 
 // backoff calculates exponential backoff: min(pollBackoffMin * 2^failures, pollBackoffMax).
