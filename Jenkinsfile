@@ -162,6 +162,41 @@ pipeline {
         }
       }
     }
+
+    stage('License Check') {
+      steps {
+        script {
+          echo "=== Running license compliance checks ==="
+          sh '''
+            go install github.com/google/go-licenses@latest
+            go-licenses check ./... --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC
+            echo "✓ Go license check passed"
+          '''
+          echo "=== Running GPL boundary verification ==="
+          sh '''
+            chmod +x scripts/verify-gpl-boundary.sh
+            scripts/verify-gpl-boundary.sh
+          '''
+        }
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: 'sbom-results/gpl-boundary-report.txt', allowEmptyArchive: true
+        }
+      }
+    }
+
+    stage('Deploy') {
+      when {
+        branch 'main'
+      }
+      steps {
+        script {
+          echo "=== Deploying Unheaded Kingdom ==="
+          sh 'make deploy'
+        }
+      }
+    }
   }
 
   post {

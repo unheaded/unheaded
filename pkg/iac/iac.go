@@ -175,6 +175,14 @@ type Renderer interface {
 
 	// RenderAll produces IaC artifacts for multiple services.
 	RenderAll(configs []ServiceConfig) (*RenderOutput, error)
+
+	// Validate checks that a rendered output is structurally valid for
+	// this backend (e.g. required fields present, syntax plausible).
+	Validate(config ServiceConfig) error
+
+	// Diff compares two service configs and returns a human-readable
+	// summary of what would change in the rendered output.
+	Diff(current, desired ServiceConfig) (string, error)
 }
 
 // NewRenderer creates a renderer for the given backend.

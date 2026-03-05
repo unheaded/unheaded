@@ -3,7 +3,8 @@
        build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
        test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
        deploy-restart sbom license-check \
-       doom-smoke doom-build-check
+       doom-smoke doom-build-check \
+       ci-local ci-security sbom-verify
 
 # Build configuration
 BINARY_DIR := bin
@@ -358,6 +359,26 @@ license-check: ## Check Go and Rust dependencies for permitted licenses
 		cd ebpf && cargo license --all-features > /dev/null && echo "✓ Rust licenses OK" || true; \
 		cd ..; \
 	fi
+
+ci-local: ## Run full CI pipeline locally
+	@echo "Running local CI pipeline..."
+	@chmod +x scripts/ci-local.sh
+	scripts/ci-local.sh
+
+ci-security: ## Run security scans only (gosec + govulncheck + GPL boundary)
+	@echo "Running security scans..."
+	@which gosec > /dev/null || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@v2.21.0)
+	gosec ./...
+	@which govulncheck > /dev/null || (echo "Installing govulncheck..." && go install golang.org/x/vuln/cmd/govulncheck@latest)
+	govulncheck ./...
+	@chmod +x scripts/verify-gpl-boundary.sh
+	scripts/verify-gpl-boundary.sh
+	@echo "✓ All security scans passed"
+
+sbom-verify: ## Run GPL boundary verification
+	@echo "Running GPL boundary verification..."
+	@chmod +x scripts/verify-gpl-boundary.sh
+	scripts/verify-gpl-boundary.sh
 
 deps: ## Download dependencies
 	@echo "Downloading Go dependencies..."

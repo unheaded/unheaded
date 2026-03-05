@@ -1,0 +1,45 @@
+name: GPL Boundary Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gpl-boundary:
+    name: GPL/AGPL Boundary Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install license tools
+        run: |
+          go install github.com/google/go-licenses@latest
+          cargo install cargo-license || true
+
+      - name: Run GPL boundary verification
+        run: |
+          chmod +x scripts/verify-gpl-boundary.sh
+          scripts/verify-gpl-boundary.sh
+
+      - name: Upload GPL boundary report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gpl-boundary-report
+          path: sbom-results/gpl-boundary-report.txt
+          retention-days: 30
