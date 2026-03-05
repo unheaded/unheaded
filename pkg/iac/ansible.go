@@ -50,6 +50,27 @@ func (r *AnsibleRenderer) RenderAll(configs []ServiceConfig) (*RenderOutput, err
 	return out, nil
 }
 
+func (r *AnsibleRenderer) Validate(config ServiceConfig) error {
+	if err := config.Validate(); err != nil {
+		return err
+	}
+	out, err := r.Render(config)
+	if err != nil {
+		return fmt.Errorf("validate render: %w", err)
+	}
+	return ValidateRenderedOutput(out, config)
+}
+
+func (r *AnsibleRenderer) Diff(current, desired ServiceConfig) (string, error) {
+	if err := current.Validate(); err != nil {
+		return "", fmt.Errorf("current config invalid: %w", err)
+	}
+	if err := desired.Validate(); err != nil {
+		return "", fmt.Errorf("desired config invalid: %w", err)
+	}
+	return DiffConfigs(current, desired), nil
+}
+
 func (r *AnsibleRenderer) renderTasks(config ServiceConfig) string {
 	binary := config.Binary
 	if binary == "" {

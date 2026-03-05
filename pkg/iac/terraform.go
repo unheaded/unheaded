@@ -49,6 +49,27 @@ func (r *TerraformRenderer) RenderAll(configs []ServiceConfig) (*RenderOutput, e
 	return out, nil
 }
 
+func (r *TerraformRenderer) Validate(config ServiceConfig) error {
+	if err := config.Validate(); err != nil {
+		return err
+	}
+	out, err := r.Render(config)
+	if err != nil {
+		return fmt.Errorf("validate render: %w", err)
+	}
+	return ValidateRenderedOutput(out, config)
+}
+
+func (r *TerraformRenderer) Diff(current, desired ServiceConfig) (string, error) {
+	if err := current.Validate(); err != nil {
+		return "", fmt.Errorf("current config invalid: %w", err)
+	}
+	if err := desired.Validate(); err != nil {
+		return "", fmt.Errorf("desired config invalid: %w", err)
+	}
+	return DiffConfigs(current, desired), nil
+}
+
 func (r *TerraformRenderer) renderMain(config ServiceConfig) string {
 	s := fmt.Sprintf(`# Terraform module for %s service
 
