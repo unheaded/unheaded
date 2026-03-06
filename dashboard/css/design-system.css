@@ -135,6 +135,43 @@
   --nav-height:     48px;
   --sidebar-width:  220px;
   --tab-bar-height: 40px;
+
+  /* Compatibility aliases — maps HTML variable names to design tokens */
+  --color-bg-secondary:    var(--bg-secondary);
+  --color-bg-tertiary:     var(--bg-card);
+  --color-text-primary:    var(--text-primary);
+  --color-text-heading:    var(--text-heading);
+  --color-text-secondary:  var(--text-dim);
+  --color-border:          var(--border-subtle);
+  --color-accent:          var(--status-info-text);
+  --color-accent-dim:      var(--status-info);
+  --color-error:           var(--status-error-text);
+  --font-size-xs:          var(--text-xs);
+  --font-size-sm:          var(--text-sm);
+  --font-size-md:          var(--text-md);
+  --font-size-lg:          var(--text-lg);
+  --font-size-3xl:         var(--text-3xl);
+  --space-xs:              var(--space-1);
+  --space-sm:              var(--space-2);
+  --space-md:              var(--space-4);
+  --space-lg:              var(--space-6);
+  --space-xl:              var(--space-8);
+  --space-2xl:             var(--space-10);
+  --space-3xl:             var(--space-16);
+  --border-radius-sm:      var(--radius-sm);
+  --border-radius-md:      var(--radius-md);
+  --border-radius-lg:      var(--radius-lg);
+  --border-width-thin:     1px;
+  --transition-normal:     var(--transition-base);
+  --z-base:                1;
+  --z-modal:               1000;
+  --color-border-light:    var(--border-card);
+  --color-text-dim:        var(--text-dim);
+  --color-text-ghost:      var(--text-ghost);
+  --font-size-2xl:         var(--text-2xl);
+  --font-size-xl:          var(--text-xl);
+  --shadow-sm:             var(--shadow-card);
+  --shadow-xl:             var(--shadow-elevated);
 }
 
 /* ═══════════════════════════════════════════════
