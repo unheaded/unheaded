@@ -44,6 +44,7 @@ import (
 	"syscall"
 	"time"
 
+	ciliumebpf "github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -664,14 +665,30 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 		}
 	}
 
+	// Latency probe: use direct cilium/ebpf loader for proper multi-kprobe support.
+	// The standard loader only attaches one kprobe; we need all 6 (3 enter + 3 exit).
+	var latencyKprobeLoader *LatencyKprobeLoader
+	var directLatencyMap interface{ Iterate() *ciliumebpf.MapIterator }
 	if *enableLatencyProbe {
 		progPath := fmt.Sprintf("%s/latency-probe", elfBase)
-		if err := loader.Load(progPath); err != nil {
-			log.Error().Err(err).Str("path", progPath).Msg("failed to load latency_probe")
+		kl, lmap, err := LoadLatencyKprobes(progPath)
+		if err != nil {
+			log.Error().Err(err).Str("path", progPath).Msg("failed to load latency kprobes via cilium/ebpf")
+			// Fall back to standard loader
+			if err := loader.Load(progPath); err != nil {
+				log.Error().Err(err).Str("path", progPath).Msg("failed to load latency_probe (fallback)")
+			} else {
+				programs[2].Loaded = true
+				programsLoaded.WithLabelValues("latency_probe").Set(1)
+				log.Info().Msg("latency_probe loaded (fallback, single kprobe)")
+			}
 		} else {
+			latencyKprobeLoader = kl
+			directLatencyMap = lmap
 			programs[2].Loaded = true
+			// Already attached by LoadLatencyKprobes
 			programsLoaded.WithLabelValues("latency_probe").Set(1)
-			log.Info().Msg("latency_probe loaded")
+			log.Info().Msg("latency_probe loaded via cilium/ebpf (all kprobes attached)")
 		}
 	}
 
@@ -773,25 +790,89 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 
 	// Start LatencyReader (latency_probe kprobe maps)
 	if *enableLatencyProbe && programs[2].Loaded {
-		latencyConfig := DefaultLatencyReaderConfig()
-		wotanPub := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
-		latencyReader := NewLatencyReader(loader, wotanPub, latencyConfig)
+		if directLatencyMap != nil {
+			// Use direct cilium/ebpf map reader for proper kprobe data
+			wotanPub := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
+			go func() {
+				ticker := time.NewTicker(200 * time.Millisecond)
+				defer ticker.Stop()
+				log.Info().Msg("direct latency map reader started (cilium/ebpf)")
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						iter := directLatencyMap.Iterate()
+						var key, value []byte
+						for iter.Next(&key, &value) {
+							lk, err := DecodeLatencyKey(key)
+							if err != nil {
+								continue
+							}
+							le, err := DecodeLatencyEntry(value)
+							if err != nil {
+								continue
+							}
 
-		go latencyReader.Run(ctx)
-
-		// Feed latency samples into publisher
-		go func() {
-			for sample := range latencyReader.Samples() {
-				payload, err := json.Marshal(sample)
-				if err != nil {
-					log.Error().Err(err).Msg("failed to marshal latency sample")
-					continue
+							// Convert BPF map entry to dashboard LatencyEvent format.
+							// The map aggregates RTT per flow; we emit the latest RTT
+							// as an individual event the dashboard can ingest.
+							// Use current wall-clock time (not ktime) so the dashboard
+							// latency histogram windows don't immediately expire the samples.
+							evt := map[string]interface{}{
+								"timestamp_ns": uint64(time.Now().UnixNano()),
+								"latency_ns":   le.RTTNS,
+								"operation":    "tcp_send",
+								"pid":          uint32(0),
+								"tid":          uint32(0),
+								"trace_id":     map[string]uint64{"high": 0, "low": 0},
+								"flow_key": map[string]interface{}{
+									"src_addr": lk.SrcIPAddr().String(),
+									"dst_addr": lk.DstIPAddr().String(),
+									"src_port": lk.SrcPort,
+									"dst_port": lk.DstPort,
+									"protocol": lk.Protocol,
+								},
+								"min_rtt_ns":  le.MinRTTNS,
+								"max_rtt_ns":  le.MaxRTTNS,
+								"samples":     le.Samples,
+							}
+							payload, err := json.Marshal(evt)
+							if err != nil {
+								continue
+							}
+							wotanPub.PublishRaw(ctx, "traces.latency", payload)
+							publisher.PublishLatencyEvent(payload)
+						}
+					}
 				}
-				publisher.PublishLatencyEvent(payload)
-			}
-		}()
+			}()
+			log.Info().Msg("latency reader started (direct cilium/ebpf map)")
+		} else {
+			// Fallback: use standard loader's map reader
+			latencyConfig := DefaultLatencyReaderConfig()
+			wotanPub := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
+			latencyReader := NewLatencyReader(loader, wotanPub, latencyConfig)
 
-		log.Info().Msg("latency reader started for latency_probe")
+			go latencyReader.Run(ctx)
+
+			go func() {
+				for sample := range latencyReader.Samples() {
+					payload, err := json.Marshal(sample)
+					if err != nil {
+						log.Error().Err(err).Msg("failed to marshal latency sample")
+						continue
+					}
+					publisher.PublishLatencyEvent(payload)
+				}
+			}()
+
+			log.Info().Msg("latency reader started for latency_probe (fallback)")
+		}
+	}
+	// Ensure kprobe loader is cleaned up on exit
+	if latencyKprobeLoader != nil {
+		defer latencyKprobeLoader.Close()
 	}
 
 	// Start correlator GC
