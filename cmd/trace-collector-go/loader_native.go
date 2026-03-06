@@ -110,10 +110,69 @@ func (n *NativeBPFLoader) Load(programPath string) error {
 		Type: progType,
 	}
 
-	// Set attach targets based on program type
+	// For kprobe programs (latency-probe), load each function with its
+	// correct kernel attach target. The Aya ELF contains multiple kprobe/kretprobe
+	// functions that must each attach to different kernel functions.
+	if progType == ebpf.TypeKProbe {
+		kprobeTargets := []struct {
+			funcName   string
+			attachTo   string
+			isRetProbe bool
+		}{
+			{"tcp_sendmsg_enter", "tcp_sendmsg", false},
+			{"tcp_sendmsg_exit", "tcp_sendmsg", true},
+			{"tcp_recvmsg_enter", "tcp_recvmsg", false},
+			{"tcp_recvmsg_exit", "tcp_recvmsg", true},
+			{"tcp_connect_enter", "tcp_v4_connect", false},
+			{"tcp_connect_exit", "tcp_v4_connect", true},
+		}
+
+		// Load the ELF once with a dummy attach target — the loader parses
+		// the ELF and splits multi-function sections into individual programs.
+		spec.AttachTo = "tcp_sendmsg"
+		log.Info().
+			Str("name", name).
+			Str("path", programPath).
+			Str("type", string(progType)).
+			Msg("loading BPF program")
+
+		if err := n.loader.Load(n.ctx, spec); err != nil {
+			return fmt.Errorf("load %s: %w", name, err)
+		}
+
+		// Now set attach targets for each individual kprobe function.
+		for _, kt := range kprobeTargets {
+			attachType := "kprobe"
+			if kt.isRetProbe {
+				attachType = "kretprobe"
+			}
+			if err := n.loader.SetAttachTarget(n.ctx, kt.funcName, kt.attachTo); err != nil {
+				log.Warn().Err(err).
+					Str("func", kt.funcName).
+					Str("attach_to", kt.attachTo).
+					Str("type", attachType).
+					Msg("failed to set kprobe attach target (function may not exist in ELF)")
+			} else {
+				log.Info().
+					Str("func", kt.funcName).
+					Str("attach_to", kt.attachTo).
+					Str("type", attachType).
+					Msg("kprobe attach target set")
+			}
+		}
+
+		n.programs[name] = &nativeProgram{
+			name:     name,
+			specName: specName,
+			progType: progType,
+			path:     programPath,
+		}
+		log.Info().Str("name", name).Msg("latency_probe loaded")
+		return nil
+	}
+
+	// Set attach targets for non-kprobe program types
 	switch progType {
-	case ebpf.TypeKProbe:
-		spec.AttachTo = "tcp_rcv_established"
 	case ebpf.TypeTracepoint:
 		spec.AttachTo = "tcp/tcp_probe"
 	}
@@ -162,6 +221,27 @@ func (n *NativeBPFLoader) AttachXDP(iface string) error {
 				log.Error().Err(err).Str("name", name).Msg("failed to set attach target")
 				continue
 			}
+		}
+
+		// For kprobe programs (latency_probe), attach each individual function
+		if prog.progType == ebpf.TypeKProbe {
+			kprobeFuncs := []string{
+				"tcp_sendmsg_enter", "tcp_sendmsg_exit",
+				"tcp_recvmsg_enter", "tcp_recvmsg_exit",
+				"tcp_connect_enter", "tcp_connect_exit",
+			}
+			allAttached := true
+			for _, fn := range kprobeFuncs {
+				if err := n.loader.Attach(n.ctx, fn); err != nil {
+					log.Warn().Err(err).Str("func", fn).Msg("failed to attach kprobe function")
+					allAttached = false
+				} else {
+					log.Info().Str("func", fn).Str("iface", iface).Msg("BPF program attached")
+				}
+			}
+			prog.attached = allAttached
+			log.Info().Str("name", name).Str("type", "kprobe").Str("iface", iface).Msg("BPF program attached")
+			continue
 		}
 
 		if err := n.loader.Attach(n.ctx, prog.specName); err != nil {

@@ -397,6 +397,7 @@ dependencies = [
  "aya-ebpf",
  "aya-log-ebpf",
  "monad-common",
+ "pqc-common",
 ]
 
 [[package]]
