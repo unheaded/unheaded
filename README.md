@@ -3,8 +3,7 @@
 A mapped data bus over IPv6 Hop-by-Hop Options, with configuration
 management automation for immutable infrastructure.
 
-You bring the application. Unheaded provides everything else:
-packet-level observability, service mesh, control plane, security
+Unheaded provides packet-level observability, service mesh, control plane, security
 baseline, and a protocol that turns every packet into a 20-byte
 register file executing eBPF programs at wire speed.
 
