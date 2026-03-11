@@ -1,7 +1,7 @@
-# S-CHAMPION BATTLE PLAN — 10 Phases, 340 Steps
+# S-ZHEN BATTLE PLAN — 10 Phases, 340 Steps
 
 **Date**: 2026-03-11
-**Sprint**: S-CHAMPION — Local LLM/RAG → RAFT Pipeline for Unheaded
+**Sprint**: S-ZHEN — Local LLM/RAG → RAFT Pipeline for Unheaded
 **Prerequisite**: WEST bare metal online, AMD RX 7700 XT, ~/tmp/unheaded/ populated, 1GB fiber internet (125MB/s)
 **Target**: Local RAG demo-ready by Sunday Mar 15. RAFT data ingestion pipeline running by Tuesday Mar 17 job fair.
 **Estimated Duration**: 24-30 hours across 7 days (Wed-Tue)
@@ -36,7 +36,7 @@
 | 3 | Ring 1 Corpus Preparation | 96-130 | 2hrs | Phase 2 complete | Critical path |
 | 4 | Embedding & Vector Store (FAISS) | 131-165 | 3hrs | Phase 3 complete + Phase 2.5 downloads | Critical path |
 | 5 | RAG Pipeline (llama-index) | 166-205 | 3hrs | Phase 4 complete | Critical path |
-| 6 | Champion Web UI | 206-240 | 2hrs | Phase 5 complete | Critical path |
+| 6 | Zhen Web UI | 206-240 | 2hrs | Phase 5 complete | Critical path |
 | 7 | Integration & Smoke Testing | 241-280 | 3hrs | Phase 6 complete | Critical path |
 | 8 | Demo Polish & Job Fair Prep | 281-305 | 2hrs | Phase 7 complete | Critical path |
 | 9 | RAFT Data Ingestion Pipeline | 306-340 | 4hrs (Mon-Tue) | Phase 8 complete + Phase 2.5 downloads | Independent |
@@ -46,7 +46,7 @@
 - **Thu Mar 12 morning**: Phase 2 (inference engine) + Phase 3 (Ring 1 corpus) + **Phase 2.5 downloads finishing**
 - **Thu-Fri**: Phase 4 (embeddings) + Phase 5 (RAG pipeline)
 - **Sat Mar 14**: Phase 6 (Web UI) + Phase 7 (integration testing)
-- **Sun Mar 15**: Phase 8 (demo polish) — **CHAMPION ONLINE FOR JOB FAIR PRESENTATION**
+- **Sun Mar 15**: Phase 8 (demo polish) — **ZHEN ONLINE FOR JOB FAIR PRESENTATION**
 - **Mon Mar 16**: Phase 9 prep (RAFT data prep)
 - **Tue Mar 17**: RAFT data ingestion pipeline running — **JOB FAIR PRESENTATION**
 
@@ -163,7 +163,7 @@ curl http://localhost:20100/v1/completions \
 - [V] Server running on port 20100 (check with `netstat -tlnp | grep 20100`)
 - [V] Model loaded (curl /v1/models returns model name)
 - [V] Inference responds within 5 seconds
-- [C] Commit: "feat(champion): Phase 2 inference server operational"
+- [C] Commit: "feat(zhen): Phase 2 inference server operational"
 
 ---
 
@@ -171,15 +171,15 @@ curl http://localhost:20100/v1/completions \
 
 **CRITICAL: This phase runs IN PARALLEL with Phases 3-5. Start downloads Wed evening, check completion Thu morning.**
 
-**Goal**: Download and extract 440GB corpus (Wikipedia, Stack Overflow, GitHub, Linux kernel, ArXiv) to /mnt/hdd/champion/
+**Goal**: Download and extract 440GB corpus (Wikipedia, Stack Overflow, GitHub, Linux kernel, ArXiv) to /mnt/hdd/zhen/
 
 ### Step-by-Step Detailed Commands
 
 #### Step 76: Create Download Infrastructure
 ```bash
 # [B][W] Create base download directory
-mkdir -p /mnt/hdd/champion/{wikipedia,stackoverflow,github,kernel,arxiv}
-cd /mnt/hdd/champion
+mkdir -p /mnt/hdd/zhen/{wikipedia,stackoverflow,github,kernel,arxiv}
+cd /mnt/hdd/zhen
 
 # [B][W] Create monitoring script
 cat > download-monitor.sh << 'MONITOR_EOF'
@@ -201,8 +201,8 @@ while true; do
   echo "ArXiv:"
   ls -lh arxiv/*.tar.gz 2>/dev/null | wc -l | xargs echo "  Files:"
 
-  echo "Total /mnt/hdd/champion:"
-  du -sh /mnt/hdd/champion/
+  echo "Total /mnt/hdd/zhen:"
+  du -sh /mnt/hdd/zhen/
   echo ""
   sleep 30
 done
@@ -210,7 +210,7 @@ MONITOR_EOF
 chmod +x download-monitor.sh
 
 # [B] Start monitoring in background (optional but helpful)
-./download-monitor.sh &> /tmp/champion-downloads.log &
+./download-monitor.sh &> /tmp/zhen-downloads.log &
 ```
 
 #### Step 77-79: Start Wikipedia Download (Background)
@@ -218,7 +218,7 @@ chmod +x download-monitor.sh
 # [B] Download Wikipedia dump (English, articles)
 # This is ~22GB compressed, ~90GB decompressed
 # USE -c flag for resumable downloads (critical for 1GB connection)
-cd /mnt/hdd/champion/wikipedia
+cd /mnt/hdd/zhen/wikipedia
 
 wget -c \
   "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2" \
@@ -231,7 +231,7 @@ echo "Wikipedia download PID: $!"
 ```bash
 # [B] Download Stack Overflow data from Internet Archive
 # Six major sites: stackoverflow, serverfault, unix.stackexchange, security.stackexchange, networkengineering, superuser
-cd /mnt/hdd/champion/stackoverflow
+cd /mnt/hdd/zhen/stackoverflow
 
 # Create list of sites
 SITES=(
@@ -248,7 +248,7 @@ for site in "${SITES[@]}"; do
   echo "Starting download: $site"
   wget -c \
     "https://archive.org/download/stackexchange/${site}.7z" \
-    -P /mnt/hdd/champion/stackoverflow/ &
+    -P /mnt/hdd/zhen/stackoverflow/ &
   sleep 1  # Stagger to avoid overwhelming connection
 done
 
@@ -259,7 +259,7 @@ echo "All Stack Overflow downloads started"
 ```bash
 # [B] Clone critical infrastructure repos (shallow clone, depth=1 for speed)
 # These repos focus on: Kubernetes, container runtimes, networking, messaging, observability
-cd /mnt/hdd/champion/github
+cd /mnt/hdd/zhen/github
 
 REPOS=(
   "kubernetes/kubernetes"
@@ -292,7 +292,7 @@ wait
 ```bash
 # [B] Clone Linux kernel (shallow, depth=1)
 # This is the core OS code, critical for infrastructure understanding
-cd /mnt/hdd/champion/kernel
+cd /mnt/hdd/zhen/kernel
 
 git clone --depth 1 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git &
 
@@ -302,7 +302,7 @@ echo "Linux kernel clone started, this takes several minutes..."
 #### Step 88-90: Set Up ArXiv Paper Fetcher
 ```bash
 # [B] Create ArXiv fetcher script (for ML/systems papers)
-cat > /mnt/hdd/champion/arxiv-fetcher.py << 'ARXIV_EOF'
+cat > /mnt/hdd/zhen/arxiv-fetcher.py << 'ARXIV_EOF'
 #!/usr/bin/env python3
 """
 Fetches ArXiv papers in categories:
@@ -320,10 +320,10 @@ categories = [
 ]
 
 # Create directory structure
-os.makedirs("/mnt/hdd/champion/arxiv", exist_ok=True)
+os.makedirs("/mnt/hdd/zhen/arxiv", exist_ok=True)
 
 for category in categories:
-    category_dir = f"/mnt/hdd/champion/arxiv/{category}"
+    category_dir = f"/mnt/hdd/zhen/arxiv/{category}"
     os.makedirs(category_dir, exist_ok=True)
 
     # Fetch top papers from last 12 months
@@ -339,8 +339,8 @@ for category in categories:
 print("ArXiv fetcher setup complete")
 ARXIV_EOF
 
-chmod +x /mnt/hdd/champion/arxiv-fetcher.py
-python3 /mnt/hdd/champion/arxiv-fetcher.py
+chmod +x /mnt/hdd/zhen/arxiv-fetcher.py
+python3 /mnt/hdd/zhen/arxiv-fetcher.py
 ```
 
 #### Step 91-92: Install Extraction Tools
@@ -362,42 +362,42 @@ echo "Extraction tools installed"
 #### Step 93-94: Monitor Download Progress
 ```bash
 # [B] Create detailed progress check
-cat > /mnt/hdd/champion/check-progress.sh << 'PROGRESS_EOF'
+cat > /mnt/hdd/zhen/check-progress.sh << 'PROGRESS_EOF'
 #!/bin/bash
 echo "=== KILLER COMBO DOWNLOAD PROGRESS ==="
 echo ""
 echo "Wikipedia:"
-if [ -f /mnt/hdd/champion/wikipedia/*.bz2 ]; then
-  du -sh /mnt/hdd/champion/wikipedia/*.bz2 | awk '{print "  Downloaded: " $1}'
+if [ -f /mnt/hdd/zhen/wikipedia/*.bz2 ]; then
+  du -sh /mnt/hdd/zhen/wikipedia/*.bz2 | awk '{print "  Downloaded: " $1}'
 else
   echo "  Status: Initializing..."
 fi
 echo ""
 
 echo "Stack Overflow:"
-SO_COUNT=$(ls /mnt/hdd/champion/stackoverflow/*.7z 2>/dev/null | wc -l)
+SO_COUNT=$(ls /mnt/hdd/zhen/stackoverflow/*.7z 2>/dev/null | wc -l)
 echo "  Downloaded: $SO_COUNT / 6 files"
-for file in /mnt/hdd/champion/stackoverflow/*.7z; do
+for file in /mnt/hdd/zhen/stackoverflow/*.7z; do
   [ -f "$file" ] && du -sh "$file" | awk '{print "    " $2 ": " $1}'
 done
 echo ""
 
 echo "GitHub Repositories:"
-REPO_COUNT=$(find /mnt/hdd/champion/github -maxdepth 1 -type d -not -name github | wc -l)
+REPO_COUNT=$(find /mnt/hdd/zhen/github -maxdepth 1 -type d -not -name github | wc -l)
 echo "  Cloned: $REPO_COUNT / 12 repositories"
-du -sh /mnt/hdd/champion/github 2>/dev/null | awk '{print "  Total: " $1}'
+du -sh /mnt/hdd/zhen/github 2>/dev/null | awk '{print "  Total: " $1}'
 echo ""
 
 echo "Linux Kernel:"
-if [ -d /mnt/hdd/champion/kernel/linux ]; then
-  du -sh /mnt/hdd/champion/kernel/linux | awk '{print "  Downloaded: " $1}'
+if [ -d /mnt/hdd/zhen/kernel/linux ]; then
+  du -sh /mnt/hdd/zhen/kernel/linux | awk '{print "  Downloaded: " $1}'
 else
   echo "  Status: Initializing..."
 fi
 echo ""
 
-echo "Total /mnt/hdd/champion Usage:"
-du -sh /mnt/hdd/champion
+echo "Total /mnt/hdd/zhen Usage:"
+du -sh /mnt/hdd/zhen
 echo ""
 
 # Show running wget/git processes
@@ -405,7 +405,7 @@ echo "Active downloads:"
 ps aux | grep -E "wget|git clone" | grep -v grep || echo "  None (completed or pending)"
 PROGRESS_EOF
 
-chmod +x /mnt/hdd/champion/check-progress.sh
+chmod +x /mnt/hdd/zhen/check-progress.sh
 ./check-progress.sh
 ```
 
@@ -415,8 +415,8 @@ chmod +x /mnt/hdd/champion/check-progress.sh
 echo "=== PHASE 2.5 EXIT GATE ==="
 
 # Check Wikipedia download
-if [ -f /mnt/hdd/champion/wikipedia/enwiki-latest-pages-articles.xml.bz2 ]; then
-  WIK_SIZE=$(du -b /mnt/hdd/champion/wikipedia/*.bz2 | awk '{print $1}')
+if [ -f /mnt/hdd/zhen/wikipedia/enwiki-latest-pages-articles.xml.bz2 ]; then
+  WIK_SIZE=$(du -b /mnt/hdd/zhen/wikipedia/*.bz2 | awk '{print $1}')
   WIK_EXPECTED=$((20 * 1024 * 1024 * 1024))  # ~20GB
   if [ $WIK_SIZE -gt $((WIK_EXPECTED - 2 * 1024 * 1024 * 1024)) ]; then
     echo "✓ Wikipedia: Complete or nearly complete"
@@ -428,22 +428,22 @@ else
 fi
 
 # Check Stack Overflow
-SO_FILES=$(ls /mnt/hdd/champion/stackoverflow/*.7z 2>/dev/null | wc -l)
+SO_FILES=$(ls /mnt/hdd/zhen/stackoverflow/*.7z 2>/dev/null | wc -l)
 echo "✓ Stack Overflow: $SO_FILES/6 files downloaded"
 
 # Check GitHub
-REPOS=$(find /mnt/hdd/champion/github -maxdepth 1 -type d -not -name github | wc -l)
+REPOS=$(find /mnt/hdd/zhen/github -maxdepth 1 -type d -not -name github | wc -l)
 echo "✓ GitHub: $REPOS/12 repositories cloned"
 
 # Check kernel
-if [ -d /mnt/hdd/champion/kernel/linux ]; then
+if [ -d /mnt/hdd/zhen/kernel/linux ]; then
   echo "✓ Linux kernel: Cloned"
 else
   echo "⚠ Linux kernel: Cloning in progress"
 fi
 
 # Total size
-TOTAL=$(du -sh /mnt/hdd/champion | awk '{print $1}')
+TOTAL=$(du -sh /mnt/hdd/zhen | awk '{print $1}')
 echo ""
 echo "Total corpus downloaded: $TOTAL"
 
@@ -459,7 +459,7 @@ echo "Remaining /mnt/hdd: $((REMAINING / 1024 / 1024))GB"
 - [V] GitHub: At least 8/12 repos cloned
 - [V] Linux kernel: Clone started
 - [V] Extraction tools installed (p7zip-full, wikiextractor, bzip2)
-- [V] Monitoring script running in background (`/mnt/hdd/champion/check-progress.sh`)
+- [V] Monitoring script running in background (`/mnt/hdd/zhen/check-progress.sh`)
 
 **NOTE**: This phase runs overnight. Check progress Thu morning before proceeding to Phase 4.
 
@@ -612,7 +612,7 @@ wc -l ~/tmp/unheaded/raft/corpus/ring1.jsonl
 - [V] Corpus file exists: ~/tmp/unheaded/raft/corpus/ring1.jsonl
 - [V] Contains 20K+ chunks
 - [V] Each chunk is valid JSON (check first and last lines)
-- [C] Commit: "feat(champion): Phase 3 Ring 1 corpus prepared"
+- [C] Commit: "feat(zhen): Phase 3 Ring 1 corpus prepared"
 
 ---
 
@@ -754,7 +754,7 @@ ls -lh ~/tmp/unheaded/raft/index/
 - [V] Index file: ring1.index (>100MB)
 - [V] ID map: ring1_ids.json
 - [V] Index loads without error
-- [C] Commit: "feat(champion): Phase 4 embeddings and FAISS index created"
+- [C] Commit: "feat(zhen): Phase 4 embeddings and FAISS index created"
 
 ---
 
@@ -944,13 +944,13 @@ cat ~/tmp/unheaded/raft/test_results.json | head -30
 - [V] RAG pipeline retrieves relevant chunks
 - [V] Mistral generates coherent responses
 - [V] Test results saved: ~/tmp/unheaded/raft/test_results.json
-- [C] Commit: "feat(champion): Phase 5 RAG pipeline operational"
+- [C] Commit: "feat(zhen): Phase 5 RAG pipeline operational"
 
 ---
 
-## PHASE 6: CHAMPION WEB UI (2 hours, Steps 206-240)
+## PHASE 6: ZHEN WEB UI (2 hours, Steps 206-240)
 
-**Goal**: Build web interface for Champion RAG demo.
+**Goal**: Build web interface for Zhen RAG demo.
 
 ### Summary
 Create Flask web app with chat interface, integrate RAG pipeline, add Unheaded branding and styling.
@@ -961,10 +961,10 @@ Create Flask web app with chat interface, integrate RAG pipeline, add Unheaded b
 pip install flask flask-cors
 
 # [B][W] Create web app
-cat > ~/tmp/unheaded/raft/champion_app.py << 'WEBAPP_EOF'
+cat > ~/tmp/unheaded/raft/zhen_app.py << 'WEBAPP_EOF'
 #!/usr/bin/env python3
 """
-Champion RAG Demo Web App
+Zhen RAG Demo Web App
 """
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -974,7 +974,7 @@ import sys
 
 # Import RAG pipeline
 sys.path.insert(0, str(Path.home() / 'tmp' / 'unheaded' / 'raft' / 'scripts'))
-from champion_rag import RAGPipeline
+from zhen_rag import RAGPipeline
 
 app = Flask(__name__)
 CORS(app)
@@ -1033,7 +1033,7 @@ def index():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Champion - Unheaded RAG Demo</title>
+        <title>Zhen - Unheaded RAG Demo</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
@@ -1142,7 +1142,7 @@ def index():
     </head>
     <body>
         <header>
-            <h1>⚔️ CHAMPION</h1>
+            <h1>⚔️ ZHEN</h1>
             <p class="subtitle">Local RAG for Unheaded Infrastructure</p>
         </header>
         <main>
@@ -1199,7 +1199,7 @@ def index():
             });
 
             // Welcome message
-            addMessage('Welcome to Champion! Ask me anything about Unheaded infrastructure.', false);
+            addMessage('Welcome to Zhen! Ask me anything about Unheaded infrastructure.', false);
         </script>
     </body>
     </html>
@@ -1210,11 +1210,11 @@ if __name__ == '__main__':
 WEBAPP_EOF
 
 # [B] Note: Copy RAG script properly for Flask import
-cp ~/tmp/unheaded/raft/scripts/03_rag_pipeline.py ~/tmp/unheaded/raft/scripts/champion_rag.py
+cp ~/tmp/unheaded/raft/scripts/03_rag_pipeline.py ~/tmp/unheaded/raft/scripts/zhen_rag.py
 
 # [B] Start web app in background
 cd ~/tmp/unheaded/raft
-python3 champion_app.py &> /tmp/champion-webapp.log &
+python3 zhen_app.py &> /tmp/zhen-webapp.log &
 sleep 2
 
 # [B][V] Test web app
@@ -1226,13 +1226,13 @@ curl http://localhost:20101/health
 - [V] /health endpoint returns ok
 - [V] Web UI accessible at http://localhost:20101
 - [V] Chat interface functional
-- [C] Commit: "feat(champion): Phase 6 web UI complete"
+- [C] Commit: "feat(zhen): Phase 6 web UI complete"
 
 ---
 
 ## PHASE 7: INTEGRATION & SMOKE TESTING (3 hours, Steps 241-280)
 
-**Goal**: End-to-end testing of entire Champion system.
+**Goal**: End-to-end testing of entire Zhen system.
 
 ### Summary
 Test inference server, RAG pipeline, web UI, verify all components working together, load testing.
@@ -1243,7 +1243,7 @@ Test inference server, RAG pipeline, web UI, verify all components working toget
 cat > ~/tmp/unheaded/raft/scripts/04_integration_tests.py << 'TEST_EOF'
 #!/usr/bin/env python3
 """
-Integration tests for Champion RAG system
+Integration tests for Zhen RAG system
 """
 import requests
 import json
@@ -1306,7 +1306,7 @@ def test_web_ui():
     try:
         resp = requests.get('http://localhost:20101/', timeout=5)
         assert resp.status_code == 200
-        assert 'Champion' in resp.text
+        assert 'Zhen' in resp.text
 
         print("  ✓ Web UI accessible")
         return True
@@ -1336,7 +1336,7 @@ def test_load_basic():
         return False
 
 def main():
-    print("\n=== CHAMPION INTEGRATION TESTS ===\n")
+    print("\n=== ZHEN INTEGRATION TESTS ===\n")
 
     results = {
         'inference_server': test_inference_server(),
@@ -1351,7 +1351,7 @@ def main():
     print(f"{passed}/{total} tests passed")
 
     if passed == total:
-        print("\n✓ ALL TESTS PASSED - Champion is ready!")
+        print("\n✓ ALL TESTS PASSED - Zhen is ready!")
         return 0
     else:
         print("\n✗ Some tests failed - debug required")
@@ -1371,7 +1371,7 @@ python3 ~/tmp/unheaded/raft/scripts/04_integration_tests.py
 - [V] Web UI test: PASS
 - [V] Load test: 5+ successful queries
 - [V] All tests passed
-- [C] Commit: "feat(champion): Phase 7 integration tests passing"
+- [C] Commit: "feat(zhen): Phase 7 integration tests passing"
 
 ---
 
@@ -1386,7 +1386,7 @@ Optimize performance, add demo questions, create demo script, prepare talking po
 ```bash
 # [B][W] Create demo questions file
 cat > ~/tmp/unheaded/raft/demo_questions.txt << 'DEMO_EOF'
-===== CHAMPION DEMO QUESTIONS =====
+===== ZHEN DEMO QUESTIONS =====
 
 GETTING STARTED:
 1. What is Unheaded?
@@ -1422,10 +1422,10 @@ DEMO_EOF
 
 # [B][W] Create demo script
 cat > ~/tmp/unheaded/raft/DEMO_SCRIPT.md << 'SCRIPT_EOF'
-# CHAMPION DEMO SCRIPT — Job Fair 2026-03-17
+# ZHEN DEMO SCRIPT — Job Fair 2026-03-17
 
 ## Opening (30 seconds)
-"Welcome to Champion, a local RAG system that understands the entire Unheaded codebase. Every one of Unheaded's 385,000 lines of code is embedded in this vector database, and Champion can answer complex questions about architecture, implementation, and operations."
+"Welcome to Zhen, a local RAG system that understands the entire Unheaded codebase. Every one of Unheaded's 385,000 lines of code is embedded in this vector database, and Zhen can answer complex questions about architecture, implementation, and operations."
 
 ## Live Demo (5 minutes)
 1. Ask: "What is Unheaded?" → Show how it retrieves architecture docs and explains the 6 layers
@@ -1440,13 +1440,13 @@ cat > ~/tmp/unheaded/raft/DEMO_SCRIPT.md << 'SCRIPT_EOF'
 - 1GB fiber internet allows parallel download of 440GB corpus
 
 ## Closing (1 minute)
-"Champion brings the entire Unheaded infrastructure into a conversational interface. By next Tuesday, we're ingesting 503K chunks across all Killer Combo data sources. This is the beginning of RAFT: Retrieval-Augmented Fine-Tuning, where models learn the entire stack."
+"Zhen brings the entire Unheaded infrastructure into a conversational interface. By next Tuesday, we're ingesting 503K chunks across all Killer Combo data sources. This is the beginning of RAFT: Retrieval-Augmented Fine-Tuning, where models learn the entire stack."
 
 SCRIPT_EOF
 
 # [B][W] Create demo checklist
 cat > ~/tmp/unheaded/raft/DEMO_CHECKLIST.md << 'CHECKLIST_EOF'
-# CHAMPION DEMO CHECKLIST — Pre-Demo (Sunday, before presentation)
+# ZHEN DEMO CHECKLIST — Pre-Demo (Sunday, before presentation)
 
 ## System Checks (15 min)
 - [ ] Inference server running: `curl http://localhost:20100/v1/models`
@@ -1474,7 +1474,7 @@ cat > ~/tmp/unheaded/raft/DEMO_CHECKLIST.md << 'CHECKLIST_EOF'
 
 ## If Something Breaks
 1. Inference server crashes: Restart with `pkill -f llama.cpp; [restart command]`
-2. Web UI hangs: Restart Flask with `pkill -f champion_app.py; [restart command]`
+2. Web UI hangs: Restart Flask with `pkill -f zhen_app.py; [restart command]`
 3. FAISS corrupted: Rebuild index with `python3 02_embeddings.py`
 4. Network issues: Fall back to pre-recorded demo video (have backup ready)
 
@@ -1489,7 +1489,7 @@ ls -lh ~/tmp/unheaded/raft/demo* ~/tmp/unheaded/raft/DEMO*
 - [V] Demo script written and reviewed
 - [V] Demo checklist created
 - [V] All systems tested
-- [C] Commit: "feat(champion): Phase 8 demo polish complete"
+- [C] Commit: "feat(zhen): Phase 8 demo polish complete"
 
 ---
 
@@ -1504,7 +1504,7 @@ ls -lh ~/tmp/unheaded/raft/demo* ~/tmp/unheaded/raft/DEMO*
 #### Step 306-310: Extract & Process Wikipedia
 ```bash
 # [B] Set up Wikipedia processing
-cd /mnt/hdd/champion/wikipedia
+cd /mnt/hdd/zhen/wikipedia
 
 # [B] Check if Wikipedia is fully downloaded
 ls -lh enwiki-latest-pages-articles.xml.bz2
@@ -1573,8 +1573,8 @@ def process_wiki_to_jsonl(wiki_text_dir, output_file):
     return chunk_count
 
 if __name__ == '__main__':
-    xml_file = Path('/mnt/hdd/champion/wikipedia/enwiki-latest-pages-articles.xml')
-    wiki_text_dir = Path('/mnt/hdd/champion/wikipedia/extracted')
+    xml_file = Path('/mnt/hdd/zhen/wikipedia/enwiki-latest-pages-articles.xml')
+    wiki_text_dir = Path('/mnt/hdd/zhen/wikipedia/extracted')
     output_file = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'wikipedia.jsonl'
 
     if xml_file.exists():
@@ -1645,7 +1645,7 @@ def process_so_posts(extract_dir, output_file, min_score=3):
     return chunk_count
 
 def main():
-    so_dir = Path('/mnt/hdd/champion/stackoverflow')
+    so_dir = Path('/mnt/hdd/zhen/stackoverflow')
     output_file = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'stackoverflow.jsonl'
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1713,7 +1713,7 @@ def extract_source_code(repo_dir, extensions={'.go', '.rs', '.c', '.h'}):
     return chunks
 
 def main():
-    github_dir = Path('/mnt/hdd/champion/github')
+    github_dir = Path('/mnt/hdd/zhen/github')
     output_file = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'github.jsonl'
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1793,7 +1793,7 @@ def extract_kernel_code(kernel_dir, extensions={'.c', '.h', '.rs'}):
     return chunks
 
 def main():
-    kernel_dir = Path('/mnt/hdd/champion/kernel/linux')
+    kernel_dir = Path('/mnt/hdd/zhen/kernel/linux')
     output_file = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'kernel.jsonl'
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1964,14 +1964,14 @@ FULL_EMBED_EOF
 python3 ~/tmp/unheaded/raft/scripts/10_full_embeddings.py &
 ```
 
-#### Step 336-338: Update Champion to Use Full Index
+#### Step 336-338: Update Zhen to Use Full Index
 ```bash
 # [B][W] Update RAG pipeline to use full index
-cat > ~/tmp/unheaded/raft/scripts/champion_rag_full.py << 'RAG_FULL_EOF'
+cat > ~/tmp/unheaded/raft/scripts/zhen_rag_full.py << 'RAG_FULL_EOF'
 #!/usr/bin/env python3
 """
 RAG Pipeline (Full Index Version)
-Same as champion_rag.py but uses full corpus index
+Same as zhen_rag.py but uses full corpus index
 """
 # Copy from previous version, but with:
 #  - index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index_full'
@@ -1979,7 +1979,7 @@ Same as champion_rag.py but uses full corpus index
 RAG_FULL_EOF
 
 # [B] Update webapp to use full index (when ready)
-# cp ~/tmp/unheaded/raft/scripts/champion_rag_full.py ~/tmp/unheaded/raft/scripts/champion_rag.py
+# cp ~/tmp/unheaded/raft/scripts/zhen_rag_full.py ~/tmp/unheaded/raft/scripts/zhen_rag.py
 ```
 
 #### Step 339: Verification & Performance Baseline
@@ -2056,7 +2056,7 @@ curl -s http://localhost:20101/health | jq .
 # [C] Final commit
 cd ~/tmp/unheaded
 git add -A
-git commit -m "feat(champion): Phase 9 RAFT pipeline complete - 500K+ chunks ingested"
+git commit -m "feat(zhen): Phase 9 RAFT pipeline complete - 500K+ chunks ingested"
 ```
 
 ### Exit Gate for Phase 9
@@ -2067,9 +2067,9 @@ git commit -m "feat(champion): Phase 9 RAFT pipeline complete - 500K+ chunks ing
 - [V] Linux kernel processed (key subsystems)
 - [V] All corpora combined: full_corpus.jsonl (~500K chunks)
 - [V] Full FAISS index built and verified
-- [V] Champion updated to use full index
+- [V] Zhen updated to use full index
 - [V] Verification script passes all checks
-- [C] Commit: "feat(champion): Phase 9 RAFT pipeline complete"
+- [C] Commit: "feat(zhen): Phase 9 RAFT pipeline complete"
 
 ---
 
@@ -2138,11 +2138,11 @@ python3 ~/tmp/unheaded/raft/scripts/03_rag_pipeline.py
 **Recovery**:
 ```bash
 # Resume downloads (wget -c flag resumes)
-cd /mnt/hdd/champion/wikipedia
+cd /mnt/hdd/zhen/wikipedia
 wget -c "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2"
 
 # Check progress
-du -sh /mnt/hdd/champion/wikipedia/*.bz2
+du -sh /mnt/hdd/zhen/wikipedia/*.bz2
 ```
 
 ### Failure Mode 5: Inference Server Unresponsive (Deadlock)
@@ -2189,12 +2189,12 @@ cd ~/tmp/unheaded/llama.cpp/build
 
 ## APPENDIX C: QUICK REFERENCE
 
-### Port Allocation (Champion Services)
+### Port Allocation (Zhen Services)
 
 | Port | Service | Protocol |
 |------|---------|----------|
 | 20100 | llama.cpp inference | HTTP/REST |
-| 20101 | Champion web UI | HTTP |
+| 20101 | Zhen web UI | HTTP |
 | 20102-20106 | Reserved | Future |
 
 ### Service Start/Stop Commands
@@ -2211,13 +2211,13 @@ pkill -f "llama.cpp.*server"
 # Web UI
 # Start:
 cd ~/tmp/unheaded/raft
-python3 champion_app.py &
+python3 zhen_app.py &
 
 # Stop:
-pkill -f "champion_app"
+pkill -f "zhen_app"
 
 # Monitor downloads
-/mnt/hdd/champion/check-progress.sh
+/mnt/hdd/zhen/check-progress.sh
 ```
 
 ### Key File Paths
@@ -2230,7 +2230,7 @@ pkill -f "champion_app"
 | FAISS Index (Ring 1) | ~/tmp/unheaded/raft/index/ring1.index |
 | FAISS Index (Full) | ~/tmp/unheaded/raft/index_full/full_corpus.index |
 | Scripts | ~/tmp/unheaded/raft/scripts/ |
-| Downloads | /mnt/hdd/champion/ |
+| Downloads | /mnt/hdd/zhen/ |
 
 ### Model Specifications
 
@@ -2307,19 +2307,19 @@ rocm-smi --showtemp
 ## FORGE STAMP
 
 ```
-*S-CHAMPION Battle Plan — Forged 2026-03-11*
-*10 Phases. 340 Steps. The Champion rises — RAG by Sunday, RAFT by Tuesday.*
+*S-ZHEN Battle Plan — Forged 2026-03-11*
+*10 Phases. 340 Steps. The Zhen rises — RAG by Sunday, RAFT by Tuesday.*
 *From 385K lines of code to a mind that knows every one.*
 *1GB fiber. 440GB corpus. One AMD GPU. LET'S GO.*
 ```
 
 **Status**: BATTLE PLAN COMPLETE — Ready for deployment
 **Sprint Dates**: Wed Mar 11 - Tue Mar 17, 2026
-**Milestone 1**: Champion online for job fair presentation (Sun Mar 15)
+**Milestone 1**: Zhen online for job fair presentation (Sun Mar 15)
 **Milestone 2**: RAFT pipeline ingesting Killer Combo (Tue Mar 17)
 
 ---
 
 *Last Updated: 2026-03-11*
 *Version: 1.0 — Complete Battle Plan*
-*Agent: Claude Code (S-CHAMPION Campaign)*
+*Agent: Claude Code (S-ZHEN Campaign)*

@@ -1,4 +1,4 @@
-# UNHEADED-CHAMPION: RAFT Implementation Specification
+# UNHEADED-ZHEN: RAFT Implementation Specification
 
 ## Master of the Unheaded Universe — A Domain-Specific LLM
 
@@ -246,7 +246,7 @@ Phase 7: SERVE + EVALUATE
 
 **Implementation** (Python):
 ```python
-# scripts/champion/01_prepare_corpus.py
+# scripts/zhen/01_prepare_corpus.py
 
 import os
 import json
@@ -262,7 +262,7 @@ from langchain.text_splitter import (
 )
 
 REPO_ROOT = Path(os.path.expanduser("~/tmp/unheaded"))
-OUTPUT_DIR = Path("/mnt/hdd/champion/corpus")
+OUTPUT_DIR = Path("/mnt/hdd/zhen/corpus")
 
 # Ring classification
 RING_1_PATTERNS = [
@@ -323,7 +323,7 @@ def classify_ring(filepath: str) -> int:
     """Assign ring. All Unheaded repo content = Ring 1."""
     # Everything from ~/tmp/unheaded/ is Ring 1 (domain core)
     # Rings 2-4 are assigned by the multi-source pipeline
-    # (see champion-corpus-expansion.md)
+    # (see zhen-corpus-expansion.md)
     return 1
 
 def chunk_file(filepath: Path) -> List[Dict]:
@@ -416,7 +416,7 @@ if __name__ == "__main__":
 
 **Implementation**:
 ```python
-# scripts/champion/02_build_index.py
+# scripts/zhen/02_build_index.py
 
 import json
 import numpy as np
@@ -424,8 +424,8 @@ import faiss
 from sentence_transformers import SentenceTransformer
 from pathlib import Path
 
-CORPUS_PATH = Path("/mnt/hdd/champion/corpus/corpus.jsonl")
-INDEX_DIR = Path("/mnt/ssd/champion/index")
+CORPUS_PATH = Path("/mnt/hdd/zhen/corpus/corpus.jsonl")
+INDEX_DIR = Path("/mnt/ssd/zhen/index")
 EMBED_MODEL = "BAAI/bge-small-en-v1.5"
 EMBED_DIM = 384
 
@@ -500,7 +500,7 @@ if __name__ == "__main__":
 
 **Generation Script**:
 ```python
-# scripts/champion/03_generate_qa.py
+# scripts/zhen/03_generate_qa.py
 
 """
 QA Generation using a teacher model.
@@ -516,8 +516,8 @@ import json
 import os
 from pathlib import Path
 
-CORPUS_PATH = Path("/mnt/hdd/champion/corpus/corpus.jsonl")
-QA_OUTPUT = Path("/mnt/hdd/champion/qa_pairs.jsonl")
+CORPUS_PATH = Path("/mnt/hdd/zhen/corpus/corpus.jsonl")
+QA_OUTPUT = Path("/mnt/hdd/zhen/qa_pairs.jsonl")
 
 # QA generation prompt template
 QA_PROMPT = """You are generating training data for a domain-specific LLM.
@@ -623,7 +623,7 @@ For each QA pair:
 
 **Implementation**:
 ```python
-# scripts/champion/04_build_raft_dataset.py
+# scripts/zhen/04_build_raft_dataset.py
 
 """
 RAFT Dataset Builder
@@ -640,10 +640,10 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 
 # Paths
-QA_PATH = Path("/mnt/hdd/champion/qa_pairs.jsonl")
-INDEX_PATH = Path("/mnt/ssd/champion/index/unheaded.faiss")
-META_PATH = Path("/mnt/ssd/champion/index/chunks_meta.jsonl")
-OUTPUT_PATH = Path("/mnt/hdd/champion/raft_dataset.jsonl")
+QA_PATH = Path("/mnt/hdd/zhen/qa_pairs.jsonl")
+INDEX_PATH = Path("/mnt/ssd/zhen/index/unheaded.faiss")
+META_PATH = Path("/mnt/ssd/zhen/index/chunks_meta.jsonl")
+OUTPUT_PATH = Path("/mnt/hdd/zhen/raft_dataset.jsonl")
 
 # RAFT Hyperparameters
 P_ORACLE = 0.70        # 70% of examples include the oracle document
@@ -653,7 +653,7 @@ MAX_CONTEXT_TOKENS = 3072  # Max tokens for all documents combined
 
 # Prompt template for RAFT training
 RAFT_TEMPLATE = """<|system|>
-You are the Unheaded Champion — the master of all knowledge about the Unheaded
+You are the Unheaded Zhen — the master of all knowledge about the Unheaded
 Kingdom infrastructure project. Answer questions using the provided documents.
 Cite relevant passages using ##begin_quote## and ##end_quote## markers.
 If the documents don't contain the answer, use your knowledge but note the uncertainty.
@@ -837,7 +837,7 @@ if __name__ == "__main__":
 
 **QLoRA Configuration**:
 ```python
-# scripts/champion/05_train_qlora.py
+# scripts/zhen/05_train_qlora.py
 
 """
 QLoRA RAFT Training on RX 7700 XT (12GB VRAM)
@@ -866,8 +866,8 @@ from trl import SFTTrainer
 # ============================================================================
 
 MODEL_ID = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-OUTPUT_DIR = "/mnt/ssd/champion/checkpoints"
-FINAL_DIR = "/mnt/hdd/champion/models/unheaded-champion-v1"
+OUTPUT_DIR = "/mnt/ssd/zhen/checkpoints"
+FINAL_DIR = "/mnt/hdd/zhen/models/unheaded-zhen-v1"
 
 # 4-bit quantization config
 bnb_config = BitsAndBytesConfig(
@@ -933,7 +933,7 @@ training_args = TrainingArguments(
 
     # Monitoring
     report_to="tensorboard",
-    logging_dir="/mnt/hdd/champion/logs",
+    logging_dir="/mnt/hdd/zhen/logs",
 
     # Reproducibility
     seed=42,
@@ -966,8 +966,8 @@ def train():
 
     print("Loading RAFT dataset...")
     dataset = load_dataset("json", data_files={
-        "train": "/mnt/hdd/champion/raft_train.jsonl",
-        "validation": "/mnt/hdd/champion/raft_val.jsonl",
+        "train": "/mnt/hdd/zhen/raft_train.jsonl",
+        "validation": "/mnt/hdd/zhen/raft_val.jsonl",
     })
 
     print("Starting training...")
@@ -1013,14 +1013,14 @@ Tight but viable. Gradient checkpointing is the key — trades ~30% compute spee
 
 ```bash
 #!/bin/bash
-# scripts/champion/06_merge_and_quantize.sh
+# scripts/zhen/06_merge_and_quantize.sh
 
 set -euo pipefail
 
 BASE_MODEL="meta-llama/Meta-Llama-3.1-8B-Instruct"
-ADAPTER_DIR="/mnt/hdd/champion/models/unheaded-champion-v1"
-MERGED_DIR="/mnt/hdd/champion/models/unheaded-champion-v1-merged"
-GGUF_DIR="/mnt/ssd/champion/models"
+ADAPTER_DIR="/mnt/hdd/zhen/models/unheaded-zhen-v1"
+MERGED_DIR="/mnt/hdd/zhen/models/unheaded-zhen-v1-merged"
+GGUF_DIR="/mnt/ssd/zhen/models"
 
 echo "=== Phase 6a: Merge LoRA adapters into base model ==="
 python3 -c "
@@ -1048,19 +1048,19 @@ echo "=== Phase 6b: Convert to GGUF (for Ollama/llama.cpp) ==="
 # Using llama.cpp's convert script
 python3 llama.cpp/convert_hf_to_gguf.py \
     "$MERGED_DIR" \
-    --outfile "$GGUF_DIR/unheaded-champion-v1-Q4_K_M.gguf" \
+    --outfile "$GGUF_DIR/unheaded-zhen-v1-Q4_K_M.gguf" \
     --outtype q4_k_m
 
 echo "=== Phase 6c: Create Ollama Modelfile ==="
 cat > "$GGUF_DIR/Modelfile" << 'MODELFILE'
-FROM ./unheaded-champion-v1-Q4_K_M.gguf
+FROM ./unheaded-zhen-v1-Q4_K_M.gguf
 
 PARAMETER temperature 0.3
 PARAMETER top_p 0.9
 PARAMETER repeat_penalty 1.1
 PARAMETER num_ctx 4096
 
-SYSTEM """You are the Unheaded Champion — the master of all knowledge about the
+SYSTEM """You are the Unheaded Zhen — the master of all knowledge about the
 Unheaded Kingdom infrastructure project. You are an expert on the Monad wire format,
 Sophia dictionaries, Wotan memory model, eBPF Shield pipeline, all 23 services,
 NixOS deployment, Kingdom lore, and the complete 465K+ LOC codebase.
@@ -1071,10 +1071,10 @@ MODELFILE
 
 echo "=== Phase 6d: Register with Ollama ==="
 cd "$GGUF_DIR"
-ollama create unheaded-champion -f Modelfile
+ollama create unheaded-zhen -f Modelfile
 
 echo "=== DONE ==="
-echo "Run: ollama run unheaded-champion"
+echo "Run: ollama run unheaded-zhen"
 echo "Or via vLLM: vllm serve $MERGED_DIR --dtype float16 --max-model-len 4096"
 ```
 
@@ -1093,14 +1093,14 @@ echo "Or via vLLM: vllm serve $MERGED_DIR --dtype float16 --max-model-len 4096"
 **Evaluation Benchmark** — The Unheaded Exam:
 
 ```python
-# scripts/champion/07_evaluate.py
+# scripts/zhen/07_evaluate.py
 
 """
-Evaluate unheaded-champion against baselines:
+Evaluate unheaded-zhen against baselines:
 1. Base Llama-3.1-8B (no training, no RAG)
 2. Base + RAG (retrieval only, no fine-tuning)
 3. Base + DSF (fine-tuning only, no retrieval)
-4. Unheaded Champion (RAFT = fine-tuning + retrieval)
+4. Unheaded Zhen (RAFT = fine-tuning + retrieval)
 """
 
 EVAL_QUESTIONS = [
@@ -1174,7 +1174,7 @@ EVAL_QUESTIONS = [
 
 ### Hypothesis
 
-**H1**: RAFT-trained unheaded-champion will score ≥20% higher than pure RAG on Unheaded-specific questions, particularly on wire format and protocol questions requiring precise byte-level knowledge.
+**H1**: RAFT-trained unheaded-zhen will score ≥20% higher than pure RAG on Unheaded-specific questions, particularly on wire format and protocol questions requiring precise byte-level knowledge.
 
 **H2**: RAFT will show the largest improvement gap on "cross-domain" questions that require synthesizing information from multiple sources (e.g., "How does Shield feed Anamnesis?").
 
@@ -1182,7 +1182,7 @@ EVAL_QUESTIONS = [
 
 ### Predictions
 
-| Metric | Base (no RAG) | RAG Only | DSF Only | RAFT (Champion) |
+| Metric | Base (no RAG) | RAG Only | DSF Only | RAFT (Zhen) |
 |--------|---------------|----------|----------|-----------------|
 | Wire Format Exact Match | <5% | ~40% | ~60% | **~85%** |
 | Architecture F1 | ~10% | ~50% | ~55% | **~80%** |
@@ -1218,7 +1218,7 @@ EVAL_QUESTIONS = [
 
 ```bash
 #!/bin/bash
-# scripts/champion/train-champion.sh
+# scripts/zhen/train-zhen.sh
 # Master orchestrator for the full RAFT pipeline
 
 set -euo pipefail
@@ -1228,17 +1228,17 @@ export PYTORCH_ROCM_ARCH=gfx1101
 export HF_HOME="/mnt/hdd/huggingface"
 export HF_HUB_ENABLE_HF_TRANSFER=1
 
-CHAMPION_DIR="/mnt/hdd/champion"
+ZHEN_DIR="/mnt/hdd/zhen"
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  UNHEADED CHAMPION — RAFT Training Pipeline             ║"
+echo "║  UNHEADED ZHEN — RAFT Training Pipeline             ║"
 echo "║  Target: Llama-3.1-8B-Instruct + QLoRA + RAFT           ║"
 echo "║  GPU: AMD RX 7700 XT (12GB) — gfx1101                   ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 
-mkdir -p "$CHAMPION_DIR"/{corpus,index,models,logs}
-mkdir -p /mnt/ssd/champion/{index,models,checkpoints}
+mkdir -p "$ZHEN_DIR"/{corpus,index,models,logs}
+mkdir -p /mnt/ssd/zhen/{index,models,checkpoints}
 
 echo ""
 echo "=== PHASE 1/7: Corpus Preparation ==="
@@ -1273,10 +1273,10 @@ python3 "$SCRIPTS_DIR/07_evaluate.py"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  CHAMPION TRAINING COMPLETE                              ║"
+echo "║  ZHEN TRAINING COMPLETE                              ║"
 echo "║                                                          ║"
-echo "║  Run: ollama run unheaded-champion                       ║"
-echo "║  API: vllm serve /mnt/hdd/champion/models/merged         ║"
+echo "║  Run: ollama run unheaded-zhen                       ║"
+echo "║  API: vllm serve /mnt/hdd/zhen/models/merged         ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 ```
 
@@ -1298,13 +1298,13 @@ echo "╚═══════════════════════�
 ## 10. FUTURE EVOLUTION
 
 ### v2: Live Index Updates
-Per Lewis et al. (2020) Section 4.5 "Index hot-swapping": RAG's non-parametric memory can be replaced without retraining. As Unheaded evolves (new commits, new specs), rebuild the FAISS index and the Champion instantly knows the new code — no retraining needed.
+Per Lewis et al. (2020) Section 4.5 "Index hot-swapping": RAG's non-parametric memory can be replaced without retraining. As Unheaded evolves (new commits, new specs), rebuild the FAISS index and the Zhen instantly knows the new code — no retraining needed.
 
-### v3: Multi-Modal Champion
+### v3: Multi-Modal Zhen
 Add code-specific embeddings (CodeBERT/StarEncoder) alongside text embeddings for better code retrieval.
 
 ### v4: Agent Mode
-Connect Champion to tools: `git log`, `grep`, `go test`, `cargo test`. RAFT-trained model + tool use = autonomous Unheaded developer agent.
+Connect Zhen to tools: `git log`, `grep`, `go test`, `cargo test`. RAFT-trained model + tool use = autonomous Unheaded developer agent.
 
 ### v5: Distributed Training
 When you upgrade to 24GB+ GPU, retrain at higher rank (r=64/128) with larger context (8K/16K tokens) for even deeper domain understanding.
