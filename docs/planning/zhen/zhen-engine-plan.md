@@ -1,12 +1,12 @@
-# Champion Engine — High-Level Implementation Plan
+# Zhen Engine — High-Level Implementation Plan
 
 ## Custom Inference Server: Rust Engine + Go Management Plane
 
 **Date**: 2026-03-11
 **Status**: HIGH-LEVEL PLAN — Feed to agent for verbose battle plan when ready
-**Sprint**: Post-Demo (after S-CHAMPION RAG demo is live)
+**Sprint**: Post-Demo (after S-ZHEN RAG demo is live)
 **Hardware Target**: AMD RX 7700 XT (12GB VRAM), 16GB DDR5, 1TB NVMe, 2TB HDD, B650 AM5
-**Prerequisite**: S-CHAMPION battle plan Phases 0-8 complete (RAG demo operational)
+**Prerequisite**: S-ZHEN battle plan Phases 0-8 complete (RAG demo operational)
 
 ---
 
@@ -23,7 +23,7 @@ engine also eliminates the dependency on Ollama's release cycle and architectura
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     Champion Engine (Rust)                          │
+│                     Zhen Engine (Rust)                          │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────────┐ │
 │  │ GGUF Loader │  │ Inference    │  │ PagedAttention KV Cache    │ │
 │  │ zero-copy   │  │ candle/GGML  │  │ continuous batching        │ │
@@ -37,13 +37,13 @@ engine also eliminates the dependency on Ollama's release cycle and architectura
         ↕ Unix socket / gRPC
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│                  Champion Manager (Go)                               │
+│                  Zhen Manager (Go)                               │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────────┐ │
 │  │ Model       │  │ REST/gRPC    │  │ Health Checks              │ │
 │  │ Registry    │  │ API Gateway  │  │ Liveness + Readiness       │ │
 │  └─────────────┘  └──────────────┘  └────────────────────────────┘ │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────────┐ │
-│  │ Download    │  │ Wotan        │  │ wotan-ctl champion         │ │
+│  │ Download    │  │ Wotan        │  │ wotan-ctl zhen         │ │
 │  │ Manager     │  │ Integration  │  │ CLI subcommand             │ │
 │  └─────────────┘  └──────────────┘  └────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
@@ -59,12 +59,12 @@ direct ROCm/HIP FFI, mmap zero-copy model loading, arena allocators for KV cache
 
 | Service | Port | Protocol | Description |
 |---------|------|----------|-------------|
-| champion-engine | 20100 | gRPC | Rust inference engine (internal) |
-| champion-embedding | 20101 | HTTP | Embedding API (sentence-transformers) |
-| champion-rag | 20102 | HTTP/gRPC | RAG pipeline API |
-| champion-ui | 20103 | HTTP | Web UI (chat interface) |
-| champion-manager | 20104 | HTTP/gRPC | Go management plane |
-| champion-metrics | 20105 | HTTP | Prometheus /metrics endpoint |
+| zhen-engine | 20100 | gRPC | Rust inference engine (internal) |
+| zhen-embedding | 20101 | HTTP | Embedding API (sentence-transformers) |
+| zhen-rag | 20102 | HTTP/gRPC | RAG pipeline API |
+| zhen-ui | 20103 | HTTP | Web UI (chat interface) |
+| zhen-manager | 20104 | HTTP/gRPC | Go management plane |
+| zhen-metrics | 20105 | HTTP | Prometheus /metrics endpoint |
 
 ---
 
@@ -103,11 +103,11 @@ direct ROCm/HIP FFI, mmap zero-copy model loading, arena allocators for KV cache
 - Install/verify ROCm 6.x SDK (amdgpu driver, rocm-hip-sdk, hipcc)
 - Verify `rocminfo` shows gfx1101 (RDNA3 / RX 7700 XT)
 - Install Rust nightly (candle requires nightly for some CUDA/HIP features)
-- Scaffold `champion-engine/` crate with workspace Cargo.toml
+- Scaffold `zhen-engine/` crate with workspace Cargo.toml
 - Verify `hipcc` can compile and run a trivial kernel on the 7700 XT
 - Install protobuf compiler (tonic codegen dependency)
 
-**Exit gate**: `cargo build` succeeds on empty champion-engine crate, `hipcc` sample runs on GPU.
+**Exit gate**: `cargo build` succeeds on empty zhen-engine crate, `hipcc` sample runs on GPU.
 
 ### Phase 1: GGUF Loader
 
@@ -140,7 +140,7 @@ future RAFT adapter merging. Fork or rewrite based on complexity assessment.
 
 **Path B: llama-cpp-rs backend (Rust FFI to C++)**
 - Thin Rust wrapper around battle-tested llama.cpp
-- ROCm/HIP already works on RX 7700 XT (proven in S-CHAMPION Phase 2)
+- ROCm/HIP already works on RX 7700 XT (proven in S-ZHEN Phase 2)
 - Pro: known working, mature. Con: FFI boundary, C++ dependency
 
 **Recommendation**: Start with Path B (llama-cpp-rs) for immediate functionality,
@@ -198,7 +198,7 @@ naive contiguous allocation. No OOM on 12GB card.
 **Key tasks**:
 - Define protobuf service:
   ```protobuf
-  service ChampionEngine {
+  service ZhenEngine {
     rpc Generate(GenerateRequest) returns (stream GenerateResponse);
     rpc Tokenize(TokenizeRequest) returns (TokenizeResponse);
     rpc Health(HealthRequest) returns (HealthResponse);
@@ -223,13 +223,13 @@ Prometheus metrics endpoint returns valid scrape data.
 **Goal**: Model lifecycle management, API gateway, Unheaded ecosystem integration.
 
 **Key tasks**:
-- Scaffold `cmd/wotan-ctl/champion.go` subcommand group:
-  - `wotan-ctl champion status` — engine health, loaded model, VRAM usage
-  - `wotan-ctl champion load <model>` — trigger model load via gRPC
-  - `wotan-ctl champion pull <model>` — download from HuggingFace
-  - `wotan-ctl champion list` — show local model registry
-  - `wotan-ctl champion bench` — run quick benchmark (tokens/sec)
-- Model registry: `~/.champion/models/` with manifest.json per model
+- Scaffold `cmd/wotan-ctl/zhen.go` subcommand group:
+  - `wotan-ctl zhen status` — engine health, loaded model, VRAM usage
+  - `wotan-ctl zhen load <model>` — trigger model load via gRPC
+  - `wotan-ctl zhen pull <model>` — download from HuggingFace
+  - `wotan-ctl zhen list` — show local model registry
+  - `wotan-ctl zhen bench` — run quick benchmark (tokens/sec)
+- Model registry: `~/.zhen/models/` with manifest.json per model
 - Download manager: resume-capable HTTP downloads with progress, checksum verify
 - REST API gateway (port 20104):
   - `POST /api/v1/generate` — proxies to Rust engine gRPC
@@ -240,10 +240,10 @@ Prometheus metrics endpoint returns valid scrape data.
   - `POST /api/generate` — Ollama-compatible endpoint
   - `POST /api/chat` — Ollama-compatible chat endpoint
   - Enables drop-in replacement for tools expecting Ollama
-- Systemd service file: `champion-manager.service`
-- Wotan registration: announce champion services on system.discovery topic
+- Systemd service file: `zhen-manager.service`
+- Wotan registration: announce zhen services on system.discovery topic
 
-**Exit gate**: `wotan-ctl champion status` shows engine health. REST API serves
+**Exit gate**: `wotan-ctl zhen status` shows engine health. REST API serves
 generation requests proxied to Rust engine. Model download + load cycle works end to end.
 
 ### Phase 6: eBPF Token Tracing
@@ -272,24 +272,24 @@ Trace-collector receives Anamnesis events. Dashboard shows token waterfall.
 
 ### Phase 7: Wotan Integration
 
-**Goal**: Champion Engine as a first-class Wotan service — message bus connectivity,
+**Goal**: Zhen Engine as a first-class Wotan service — message bus connectivity,
 shared memory ring, Kingdom Mode compliance.
 
 **Key tasks**:
 - Implement Wotan gRPC client in Go manager (subscribe/publish topics)
-- Champion-specific Wotan topics:
-  - `champion.inference.request` — incoming generation requests via bus
-  - `champion.inference.response` — streaming token responses via bus
-  - `champion.inference.metrics` — periodic metrics broadcast
-  - `champion.model.status` — model load/unload events
-- `/dev/shm/champion-ring` — shared memory ring buffer for zero-copy token transfer
+- Zhen-specific Wotan topics:
+  - `zhen.inference.request` — incoming generation requests via bus
+  - `zhen.inference.response` — streaming token responses via bus
+  - `zhen.inference.metrics` — periodic metrics broadcast
+  - `zhen.model.status` — model load/unload events
+- `/dev/shm/zhen-ring` — shared memory ring buffer for zero-copy token transfer
   between Rust engine and Go manager (avoid gRPC serialization for local traffic)
-- Monad protocol bridge: tag Champion inference packets with Monad headers
-  (flow action = CHAMPION_INFERENCE, service ID registered in Kingdom)
+- Monad protocol bridge: tag Zhen inference packets with Monad headers
+  (flow action = ZHEN_INFERENCE, service ID registered in Kingdom)
 - Kingdom Mode awareness: respect pause/resume/drain commands from wotan-ctl
 
 **Exit gate**: Send inference request via Wotan topic, receive streaming response.
-`wotan-ctl status` shows Champion service registered and healthy.
+`wotan-ctl status` shows Zhen service registered and healthy.
 
 ### Phase 8: Continuous Batching
 
@@ -316,7 +316,7 @@ versus sequential processing.
 ### Phase 9: RAG Pipeline Migration
 
 **Goal**: Move RAG from Python FastAPI prototype to native Go service backed by
-Champion Engine gRPC.
+Zhen Engine gRPC.
 
 **Key tasks**:
 - Port embedding service: Go wrapper around sentence-transformers (Python sidecar or
@@ -325,7 +325,7 @@ Champion Engine gRPC.
 - RAG orchestration in Go:
   1. Receive query → embed → search FAISS → retrieve top-k chunks
   2. Construct prompt with retrieved context
-  3. Call Champion Engine gRPC Generate (streaming)
+  3. Call Zhen Engine gRPC Generate (streaming)
   4. Stream response tokens back to client
 - REST API on port 20102:
   - `POST /api/v1/ask` — RAG query with streaming response
@@ -339,7 +339,7 @@ Champion Engine gRPC.
 
 ### Phase 10: Dashboard + Observability
 
-**Goal**: Real-time Champion monitoring integrated with Kingdom dashboard.
+**Goal**: Real-time Zhen monitoring integrated with Kingdom dashboard.
 
 **Key tasks**:
 - Grafana dashboard panels (or custom Unheaded dashboard):
@@ -349,7 +349,7 @@ Champion Engine gRPC.
   - Active requests gauge
   - Model info card (name, quant, context length)
   - Token trace waterfall (from eBPF Phase 6)
-- Prometheus scrape config for champion-metrics (port 20105)
+- Prometheus scrape config for zhen-metrics (port 20105)
 - Alert rules:
   - VRAM > 90% for > 30s
   - TTFT > 5s (degraded inference)
@@ -426,8 +426,8 @@ BlackMage sign-off.
 
 - Rust engine: `cargo build --release` with ROCm/HIP feature flag
 - Go manager: standard `go build` within unheaded workspace
-- Systemd units: `champion-engine.service`, `champion-manager.service`
-- NixOS module: `services.champion.enable = true` (future)
+- Systemd units: `zhen-engine.service`, `zhen-manager.service`
+- NixOS module: `services.zhen.enable = true` (future)
 
 ---
 
@@ -435,7 +435,7 @@ BlackMage sign-off.
 
 ### Hardware Scaling
 
-| Upgrade | Impact on Champion Engine |
+| Upgrade | Impact on Zhen Engine |
 |---------|--------------------------|
 | +32GB DDR5 (→48-64GB) | Larger FAISS indexes, RAFT training batches, no swap |
 | +2TB NVMe | Dedicated model/dataset drive, faster checkpoint I/O |
@@ -444,7 +444,7 @@ BlackMage sign-off.
 
 ### Software Roadmap
 
-1. **RAFT Integration** — After RAG demo, plug QLoRA training loop into Champion
+1. **RAFT Integration** — After RAG demo, plug QLoRA training loop into Zhen
    Engine. Train adapter → merge → hot-swap model without restart.
 2. **Speculative Decoding** — Use small draft model (1.5B) to predict tokens,
    verify with 7B model. 2-3x speedup on acceptance.
@@ -487,6 +487,6 @@ When expanding this plan into a verbose battle plan:
 
 ---
 
-*Champion Engine Plan — Drafted 2026-03-11*
+*Zhen Engine Plan — Drafted 2026-03-11*
 *11 Phases. Rust forges the blade. Go wields it. eBPF traces its arc.*
 *The Kingdom's own inference engine. No dependencies. No compromises.*
