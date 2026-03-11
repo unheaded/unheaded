@@ -22,11 +22,13 @@ require (
 	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.44.3
+	github.com/unheaded/doomgeneric v0.0.0
 )
 
 replace (
 	unheaded/pkg/telemetry => ./pkg/telemetry
 	unheaded/pkg/wotan-client => ./pkg/wotan-client
+	github.com/unheaded/doomgeneric => ../projects/doomgeneric/unheaded
 )
 
 require (

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"unheaded/internal/doom"
+	"github.com/unheaded/doomgeneric/pkg/doom"
 )
 
 // newDoomCmd creates the doom subcommand group.
