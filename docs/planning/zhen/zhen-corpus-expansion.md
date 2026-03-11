@@ -1,4 +1,4 @@
-# UNHEADED-CHAMPION: Expanded Corpus Architecture
+# UNHEADED-ZHEN: Expanded Corpus Architecture
 
 ## Addendum to RAFT Spec — Multi-Source Knowledge Ingestion
 
@@ -9,7 +9,7 @@
 
 ## 1. FOUR-RING CORPUS ARCHITECTURE
 
-The Champion doesn't just know Unheaded — it knows the **entire knowledge foundation** underneath it. Four concentric rings, innermost = highest priority.
+The Zhen doesn't just know Unheaded — it knows the **entire knowledge foundation** underneath it. Four concentric rings, innermost = highest priority.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -19,7 +19,7 @@ The Champion doesn't just know Unheaded — it knows the **entire knowledge foun
 │  Source code (857K LOC) + Protocol specs + Skills + Lore + ADRs     │
 │  + Your research notes/dumps + Session handoffs                     │
 │  WEIGHT: 50% of training examples                                   │
-│  PRIORITY: Highest — this is what makes Champion unique             │
+│  PRIORITY: Highest — this is what makes Zhen unique             │
 └─────────────────────────────────────────────────────────────────────┘
                               ↓ builds on
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -64,7 +64,7 @@ The uploaded zip (`free-programming-books-main.zip`) is the **EbookFoundation/fr
 
 **It is NOT**: The actual books. It's the index. We use it as a **download manifest**.
 
-### 2.1 Relevant Categories for Champion
+### 2.1 Relevant Categories for Zhen
 
 **RING 2 — Stack-Critical** (must download):
 
@@ -98,12 +98,12 @@ The uploaded zip (`free-programming-books-main.zip`) is the **EbookFoundation/fr
 ```python
 #!/usr/bin/env python3
 """
-scripts/champion/00_build_book_manifest.py
+scripts/zhen/00_build_book_manifest.py
 
 Parses free-programming-books index and generates a download manifest
-of books relevant to the Unheaded Champion's knowledge domain.
+of books relevant to the Unheaded Zhen's knowledge domain.
 
-Output: /mnt/hdd/champion/books/manifest.json
+Output: /mnt/hdd/zhen/books/manifest.json
 """
 
 import re
@@ -111,7 +111,7 @@ import json
 from pathlib import Path
 
 BOOKS_DIR = Path("/tmp/fpb/free-programming-books-main")
-OUTPUT = Path("/mnt/hdd/champion/books/manifest.json")
+OUTPUT = Path("/mnt/hdd/zhen/books/manifest.json")
 
 # Keywords that indicate relevance to Unheaded's stack
 STACK_KEYWORDS = {
@@ -234,7 +234,7 @@ if __name__ == "__main__":
 ┌──────────────────────────────────────────────────────────────────┐
 │                    STORAGE LAYOUT                                 │
 │                                                                   │
-│  /mnt/hdd/champion/books/                                        │
+│  /mnt/hdd/zhen/books/                                        │
 │  ├── manifest.json          # What to download                   │
 │  ├── raw/                   # Original downloads (PDF/HTML/epub) │
 │  │   ├── ring_2/            # Stack-critical books               │
@@ -253,7 +253,7 @@ if __name__ == "__main__":
 ```python
 #!/usr/bin/env python3
 """
-scripts/champion/00b_download_and_extract_books.py
+scripts/zhen/00b_download_and_extract_books.py
 
 Downloads books from manifest, extracts text, handles multiple formats.
 Respects rate limits. Resumable (skips already-downloaded).
@@ -265,8 +265,8 @@ import subprocess
 import time
 from pathlib import Path
 
-RAW_DIR = Path("/mnt/hdd/champion/books/raw")
-TEXT_DIR = Path("/mnt/hdd/champion/books/text")
+RAW_DIR = Path("/mnt/hdd/zhen/books/raw")
+TEXT_DIR = Path("/mnt/hdd/zhen/books/text")
 
 def download_book(entry: dict) -> Path:
     """Download a single book. Returns path to raw file."""
@@ -354,7 +354,7 @@ def extract_text(raw_path: Path, ring: int) -> Path:
 def process_manifest():
     """Download and extract all books from manifest."""
     manifest = json.loads(
-        Path("/mnt/hdd/champion/books/manifest.json").read_text()
+        Path("/mnt/hdd/zhen/books/manifest.json").read_text()
     )
 
     for ring_key in ["ring_2", "ring_3"]:
@@ -483,7 +483,7 @@ Any markdown notes, research dumps, chat exports, or design docs you've written 
 ```python
 #!/usr/bin/env python3
 """
-scripts/champion/01_prepare_corpus.py (UPDATED)
+scripts/zhen/01_prepare_corpus.py (UPDATED)
 
 Multi-source corpus preparation with three-ring architecture.
 """
@@ -510,60 +510,60 @@ SOURCES = {
     },
     # Ring 2: Technical Foundation (stack-relevant)
     "books_stack": {
-        "path": Path("/mnt/hdd/champion/books/text/ring_2"),
+        "path": Path("/mnt/hdd/zhen/books/text/ring_2"),
         "ring": 2,
         "description": "Go, Rust, Linux, eBPF, networking, security books",
     },
     "official_docs": {
-        "path": Path("/mnt/hdd/champion/official_docs"),
+        "path": Path("/mnt/hdd/zhen/official_docs"),
         "ring": 2,
         "description": "Go stdlib, Rust book, aya-rs, NixOS manual, BPF docs",
     },
     "github_go_rust": {
-        "path": Path("/mnt/hdd/champion/github_repos"),
+        "path": Path("/mnt/hdd/zhen/github_repos"),
         "ring": 2,  # Go/Rust repos = Ring 2, infra = Ring 3
         "description": "KILLER COMBO: k8s, moby, prometheus, tokio, aya, cilium",
     },
     "linux_kernel": {
-        "path": Path("/mnt/hdd/champion/linux_kernel/linux"),
+        "path": Path("/mnt/hdd/zhen/linux_kernel/linux"),
         "ring": 2,
         "description": "KILLER COMBO: Linux kernel source + eBPF subsystem + docs",
     },
     # Ring 3: General Engineering (broad CS/SRE)
     "books_general": {
-        "path": Path("/mnt/hdd/champion/books/text/ring_3"),
+        "path": Path("/mnt/hdd/zhen/books/text/ring_3"),
         "ring": 3,
         "description": "Algorithms, distributed systems, SRE, testing, databases",
     },
     "arxiv_cs": {
-        "path": Path("/mnt/hdd/champion/arxiv_cs/text"),
+        "path": Path("/mnt/hdd/zhen/arxiv_cs/text"),
         "ring": 3,
         "description": "KILLER COMBO: eBPF, QUIC, BBR, PQC, RAFT, LoRA papers",
     },
     # Ring 4: Complete Library (ALL books + ALL RFCs)
     "books_all": {
-        "path": Path("/mnt/hdd/champion/books/text/ring_4"),
+        "path": Path("/mnt/hdd/zhen/books/text/ring_4"),
         "ring": 4,
         "description": "ALL free-programming-books across all languages",
     },
     "rfcs_all": {
-        "path": Path("/mnt/hdd/champion/rfcs"),
+        "path": Path("/mnt/hdd/zhen/rfcs"),
         "ring": 4,
         "description": "ALL IETF RFCs — complete standards corpus",
     },
     "wikipedia": {
-        "path": Path("/mnt/hdd/champion/wikipedia/text"),
+        "path": Path("/mnt/hdd/zhen/wikipedia/text"),
         "ring": 4,
         "description": "KILLER COMBO: Full English Wikipedia dump",
     },
     "stackoverflow": {
-        "path": Path("/mnt/hdd/champion/stackoverflow"),
+        "path": Path("/mnt/hdd/zhen/stackoverflow"),
         "ring": 4,
         "description": "KILLER COMBO: SO + ServerFault + Unix.SE (score >= 3)",
     },
 }
 
-OUTPUT_DIR = Path("/mnt/hdd/champion/corpus")
+OUTPUT_DIR = Path("/mnt/hdd/zhen/corpus")
 
 def prepare_multi_source_corpus():
     """Process all sources into unified chunked corpus."""
@@ -630,11 +630,11 @@ if __name__ == "__main__":
 
 ### 2TB HDD Budget — Alpha (Killer Combo)
 
-**ALPHA IMPLEMENTATION** focuses on the 5 highest-value sources that make Champion
+**ALPHA IMPLEMENTATION** focuses on the 5 highest-value sources that make Zhen
 terrifyingly knowledgeable. Everything else is documented in the roadmap for later phases.
 
 ```
-/mnt/hdd/champion/
+/mnt/hdd/zhen/
 │
 │  ── RING 1: DOMAIN CORE ──────────────────────────────────
 ├── unheaded/              (symlink → ~/tmp/unheaded)
@@ -683,7 +683,7 @@ FREE:                      ~895 GB (breathing room for experiments)
 
 ### The Killer Combo — Alpha Priority
 
-These 5 sources alone (~440GB) transform Champion from a domain expert into a
+These 5 sources alone (~440GB) transform Zhen from a domain expert into a
 **systems engineering omniscient**:
 
 | Source | Size | Ring | Why It's Killer |
@@ -698,10 +698,10 @@ These 5 sources alone (~440GB) transform Champion from a domain expert into a
 
 ```bash
 #!/bin/bash
-# scripts/champion/00c_download_killer_combo.sh
+# scripts/zhen/00c_download_killer_combo.sh
 set -euo pipefail
 
-CHAMPION_DIR="/mnt/hdd/champion"
+ZHEN_DIR="/mnt/hdd/zhen"
 
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║  KILLER COMBO — Alpha Corpus Download                    ║"
@@ -713,8 +713,8 @@ echo "╚═══════════════════════�
 # ================================================================
 echo ""
 echo "=== [1/5] Wikipedia English dump ==="
-mkdir -p "$CHAMPION_DIR/wikipedia"
-cd "$CHAMPION_DIR/wikipedia"
+mkdir -p "$ZHEN_DIR/wikipedia"
+cd "$ZHEN_DIR/wikipedia"
 
 # Download latest article dump (bz2 compressed XML)
 wget -c "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2"
@@ -736,8 +736,8 @@ echo "  Wikipedia: DONE"
 # ================================================================
 echo ""
 echo "=== [2/5] Stack Overflow + ServerFault + Unix.SE dumps ==="
-mkdir -p "$CHAMPION_DIR/stackoverflow"
-cd "$CHAMPION_DIR/stackoverflow"
+mkdir -p "$ZHEN_DIR/stackoverflow"
+cd "$ZHEN_DIR/stackoverflow"
 
 # Stack Exchange data dumps from archive.org
 # Focus on the sites most relevant to our stack
@@ -796,8 +796,8 @@ echo "  Stack Overflow: DONE"
 # ================================================================
 echo ""
 echo "=== [3/5] GitHub targeted repo clones ==="
-mkdir -p "$CHAMPION_DIR/github_repos"
-cd "$CHAMPION_DIR/github_repos"
+mkdir -p "$ZHEN_DIR/github_repos"
+cd "$ZHEN_DIR/github_repos"
 
 # Go ecosystem (Ring 2 — directly relevant to Unheaded)
 declare -a GO_REPOS=(
@@ -861,8 +861,8 @@ echo "  GitHub repos: DONE"
 # ================================================================
 echo ""
 echo "=== [4/5] Linux kernel source + docs ==="
-mkdir -p "$CHAMPION_DIR/linux_kernel"
-cd "$CHAMPION_DIR/linux_kernel"
+mkdir -p "$ZHEN_DIR/linux_kernel"
+cd "$ZHEN_DIR/linux_kernel"
 
 if [ ! -d "linux" ]; then
     git clone --depth 1 "https://github.com/torvalds/linux.git"
@@ -875,8 +875,8 @@ echo "  Linux kernel: DONE"
 # ================================================================
 echo ""
 echo "=== [5/5] ArXiv CS papers (selected topics) ==="
-mkdir -p "$CHAMPION_DIR/arxiv_cs"
-cd "$CHAMPION_DIR/arxiv_cs"
+mkdir -p "$ZHEN_DIR/arxiv_cs"
+cd "$ZHEN_DIR/arxiv_cs"
 
 # Use arxiv bulk data access for selected categories
 # cs.NI (Networking), cs.DC (Distributed Computing), cs.CR (Cryptography),
@@ -888,7 +888,7 @@ cd "$CHAMPION_DIR/arxiv_cs"
 
 cat > fetch_papers.py << 'PYEOF'
 """
-Fetch ArXiv papers relevant to Unheaded Champion's domain.
+Fetch ArXiv papers relevant to Unheaded Zhen's domain.
 Uses ArXiv API with targeted search queries.
 Downloads PDFs, extracts text with pdftotext.
 """
@@ -900,11 +900,11 @@ import time
 import os
 from pathlib import Path
 
-OUTPUT_DIR = Path("/mnt/hdd/champion/arxiv_cs")
+OUTPUT_DIR = Path("/mnt/hdd/zhen/arxiv_cs")
 TEXT_DIR = OUTPUT_DIR / "text"
 TEXT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Targeted queries — papers Champion MUST know
+# Targeted queries — papers Zhen MUST know
 QUERIES = [
     # Networking & Protocols
     ("eBPF XDP packet processing", 100),
@@ -922,7 +922,7 @@ QUERIES = [
     ("TLS 1.3 security analysis", 30),
     ("eBPF security verification", 30),
     ("zero trust network architecture", 30),
-    # ML/AI (meta — Champion knows how it was built)
+    # ML/AI (meta — Zhen knows how it was built)
     ("retrieval augmented generation RAG", 50),
     ("LoRA low-rank adaptation fine-tuning", 30),
     ("RAFT retrieval augmented fine-tuning", 20),
@@ -1028,7 +1028,7 @@ echo "║  KILLER COMBO DOWNLOAD COMPLETE                          ║"
 echo "║  Run Phase 1 corpus preparation next                     ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 
-du -sh "$CHAMPION_DIR"/{wikipedia,stackoverflow,github_repos,linux_kernel,arxiv_cs} 2>/dev/null
+du -sh "$ZHEN_DIR"/{wikipedia,stackoverflow,github_repos,linux_kernel,arxiv_cs} 2>/dev/null
 ```
 
 ---
@@ -1082,7 +1082,7 @@ REMAINING:                ~324 GB (checkpoints, experiments, future)
 
 ---
 
-## 9. WHAT GETS FED TO CHAMPION (ALPHA)
+## 9. WHAT GETS FED TO ZHEN (ALPHA)
 
 ### Alpha Corpus Map:
 
@@ -1140,6 +1140,6 @@ The beauty: **training time STILL barely changes.** 503K chunks vs 138K chunks =
 
 ---
 
-*Addendum to unheaded-champion-raft-spec.md*
+*Addendum to unheaded-zhen-raft-spec.md*
 *Scientist + Developer fusion, 2026-02-27*
 *Alpha focus: THE KILLER COMBO*
