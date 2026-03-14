@@ -10,7 +10,6 @@ import (
 	"encoding/binary"
 	"math"
 	"math/rand"
-	"sync/atomic"
 
 	bpfpkg "unheaded/internal/bpf"
 )
@@ -33,8 +32,6 @@ var openBPFMap = bpfpkg.OpenMap
 // decodeCpuState decodes raw bytes into a CpuState struct.
 var decodeCpuState = bpfpkg.DecodeCpuState
 
-// Atomic write index for round-robin KBD_MAP slot selection (0-7).
-var kbdWriteIdx atomic.Uint32
 
 // readScreenBatch reads the entire SCREEN_MAP using batch lookup.
 // Returns 64000 bytes of pixel data (320x200, 8-bit palette indices).
@@ -101,26 +98,6 @@ func readCpuMap(cpuMap *BPFMap) (*CpuState, error) {
 	return decodeCpuState(val), nil
 }
 
-// writeKbdMap writes a key event to KBD_MAP using round-robin slot selection.
-// 8 slots (0-7) allow multiple simultaneous key events.
-// Encoding: (scancode << 1) | pressed_flag
-func writeKbdMap(kbdMap *BPFMap, scancode uint16, pressed bool) error {
-	slot := kbdWriteIdx.Add(1) % 8
-
-	keyBuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(keyBuf, slot)
-
-	var pressedBit uint32
-	if pressed {
-		pressedBit = 1
-	}
-	value := (uint32(scancode) << 1) | pressedBit
-
-	valBuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(valBuf, value)
-
-	return kbdMap.UpdateElem(keyBuf, valBuf)
-}
 
 // ---------------------------------------------------------------------------
 // Doom Palette and Screen Buffer Conversion

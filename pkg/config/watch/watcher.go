@@ -69,6 +69,11 @@ type Watcher struct {
 
 // NewWatcher creates a new file watcher.
 func NewWatcher(path string) (*Watcher, error) {
+	return NewWatcherWithOptions(path)
+}
+
+// NewWatcherWithOptions creates a new file watcher with options.
+func NewWatcherWithOptions(path string, opts ...WatcherOption) (*Watcher, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("absolute path: %w", err)
@@ -82,6 +87,11 @@ func NewWatcher(path string) (*Watcher, error) {
 		interval: 500 * time.Millisecond,
 	}
 
+	// Apply options before starting the goroutine.
+	for _, opt := range opts {
+		opt(w)
+	}
+
 	// Get initial file info
 	info, err := os.Stat(absPath)
 	if err == nil {
@@ -89,20 +99,6 @@ func NewWatcher(path string) (*Watcher, error) {
 	}
 
 	go w.watch()
-
-	return w, nil
-}
-
-// NewWatcherWithOptions creates a new file watcher with options.
-func NewWatcherWithOptions(path string, opts ...WatcherOption) (*Watcher, error) {
-	w, err := NewWatcher(path)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, opt := range opts {
-		opt(w)
-	}
 
 	return w, nil
 }
@@ -553,9 +549,11 @@ func NewMultiWatcher(paths []string) (*MultiWatcher, error) {
 func (mw *MultiWatcher) aggregate() {
 	mw.mu.Lock()
 	mw.running = true
+	watchers := make([]*Watcher, len(mw.watchers))
+	copy(watchers, mw.watchers)
 	mw.mu.Unlock()
 
-	for _, w := range mw.watchers {
+	for _, w := range watchers {
 		go func(watcher *Watcher) {
 			for {
 				select {

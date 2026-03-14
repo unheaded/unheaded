@@ -574,12 +574,6 @@ func ipToUint32(ip net.IP) uint32 {
 	return binary.BigEndian.Uint32(ip4)
 }
 
-func uint32ToIP(n uint32) net.IP {
-	ip := make(net.IP, 4)
-	binary.BigEndian.PutUint32(ip, n)
-	return ip
-}
-
 func toUpperASCII(s string) string {
 	result := make([]byte, len(s))
 	for i := 0; i < len(s); i++ {

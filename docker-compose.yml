@@ -264,6 +264,10 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_ROOT_URL: "http://localhost:3001"
+    volumes:
+      - ./config/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./config/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/unheaded-kingdom-dashboard.json:/var/lib/grafana/dashboards/unheaded-kingdom.json:ro
     ports:
       - "3001:3000"  # 3001 to avoid conflict with Fiber on :3000
     networks:

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"unheaded/pkg/alerting"
 )
 
@@ -226,7 +228,7 @@ func templateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"toUpper":     strings.ToUpper,
 		"toLower":     strings.ToLower,
-		"title":       strings.Title,
+		"title":       cases.Title(language.English).String,
 		"join":        strings.Join,
 		"formatTime":  formatTime,
 		"severityIcon": severityIcon,

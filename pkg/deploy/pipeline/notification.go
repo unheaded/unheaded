@@ -11,10 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"text/template"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Notification errors.
@@ -1081,7 +1083,7 @@ func (m *NotificationManager) formatDefaultTitle(notification *Notification) str
 	case NotifyApprovalRequired:
 		return fmt.Sprintf("Approval Required: %s", notification.Service)
 	default:
-		return fmt.Sprintf("%s: %s", strings.Title(string(notification.Type)), notification.Service)
+		return fmt.Sprintf("%s: %s", cases.Title(language.English).String(string(notification.Type)), notification.Service)
 	}
 }
 

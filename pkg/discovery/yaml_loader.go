@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
 )
 
@@ -317,7 +319,7 @@ func validatePortTier(tier string, port int) error {
 func applyDefaults(cfg *ServiceConfig) {
 	// Service defaults
 	if cfg.Service.DisplayName == "" {
-		cfg.Service.DisplayName = strings.Title(strings.ReplaceAll(cfg.Service.Name, "-", " "))
+		cfg.Service.DisplayName = cases.Title(language.English).String(strings.ReplaceAll(cfg.Service.Name, "-", " "))
 	}
 	if cfg.Service.Version == "" {
 		cfg.Service.Version = "0.1.0"
