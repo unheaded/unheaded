@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -243,6 +244,7 @@ func NewTrailArchiver(trail *AuditTrail, store ArchiveStore, retention time.Dura
 // InMemoryArchiveStore implements ArchiveStore with in-memory storage.
 type InMemoryArchiveStore struct {
 	mu       sync.RWMutex
+	counter  atomic.Int64
 	archives map[string][]*TrailEntry
 	metadata map[string]ArchiveMetadata
 }
@@ -259,7 +261,7 @@ func (s *InMemoryArchiveStore) Store(ctx context.Context, entries []*TrailEntry,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	archiveID := fmt.Sprintf("ARCH-%d", time.Now().UnixNano())
+	archiveID := fmt.Sprintf("ARCH-%d-%d", time.Now().UnixNano(), s.counter.Add(1))
 	metadata.ArchiveID = archiveID
 	metadata.ArchivedAt = time.Now()
 

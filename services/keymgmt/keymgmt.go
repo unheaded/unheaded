@@ -340,7 +340,11 @@ func (s *Service) GetKey(keyID string) (*KeyRecord, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	r, ok := s.keys[keyID]
-	return r, ok
+	if !ok {
+		return nil, false
+	}
+	copy := *r
+	return &copy, true
 }
 
 // GetKeyByRef retrieves a key record by KeyRef.

@@ -116,7 +116,11 @@ func main() {
 	}
 
 	// Log aggregation publisher — forwards structured logs to Wotan
-	logPublisher := logagg.NewPublisher("timeguru", nil) // nil transport — publisher disabled until transport.Connect() is used
+	var logConn transport.Connection
+	if wotan != nil {
+		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+	}
+	logPublisher := logagg.NewPublisher("timeguru", logConn)
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Initialize HTTP handler
