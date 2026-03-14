@@ -4,6 +4,7 @@
 package keymgmt
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -11,9 +12,13 @@ import (
 )
 
 func newTestService() *Service {
-	log := logger.New(logger.Config{Level: logger.InfoLevel})
+	return newTestServiceWithGrace(500 * time.Millisecond)
+}
+
+func newTestServiceWithGrace(grace time.Duration) *Service {
+	log := logger.New(io.Discard)
 	cfg := DefaultConfig()
-	cfg.GracePeriod = 100 * time.Millisecond // Fast for tests
+	cfg.GracePeriod = grace
 	return NewService(log, nil, cfg)
 }
 
@@ -54,7 +59,7 @@ func TestGenerateKeyLimit(t *testing.T) {
 }
 
 func TestRotateKey(t *testing.T) {
-	svc := newTestService()
+	svc := newTestServiceWithGrace(300 * time.Millisecond)
 
 	old, err := svc.GenerateKey(0x01, 0x01, 500)
 	if err != nil {
@@ -66,13 +71,16 @@ func TestRotateKey(t *testing.T) {
 		t.Fatalf("RotateKey failed: %v", err)
 	}
 
-	// Old key should be rotating
+	// Snapshot status via GetKey (must read before grace timer fires)
 	oldRec, _ := svc.GetKey(old.ID)
-	if oldRec.Status != KeyRotating {
-		t.Errorf("old key status = %v, want Rotating", oldRec.Status)
+	status := oldRec.Status
+	replacedBy := oldRec.ReplacedBy
+
+	if status != KeyRotating {
+		t.Errorf("old key status = %v, want Rotating", status)
 	}
-	if oldRec.ReplacedBy != newRec.ID {
-		t.Errorf("old.ReplacedBy = %s, want %s", oldRec.ReplacedBy, newRec.ID)
+	if replacedBy != newRec.ID {
+		t.Errorf("old.ReplacedBy = %s, want %s", replacedBy, newRec.ID)
 	}
 
 	// New key should be active
@@ -80,8 +88,8 @@ func TestRotateKey(t *testing.T) {
 		t.Errorf("new key status = %v, want Active", newRec.Status)
 	}
 
-	// Wait for grace period
-	time.Sleep(200 * time.Millisecond)
+	// Wait for grace period to elapse
+	time.Sleep(400 * time.Millisecond)
 
 	oldRec, _ = svc.GetKey(old.ID)
 	if oldRec.Status != KeyExpired {
