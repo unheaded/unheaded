@@ -21,8 +21,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -151,17 +149,3 @@ func wotanPublishLatency(iterations int) error {
 	return nil
 }
 
-// parsePingRTT extracts the average RTT from ping output.
-// Format: "rtt min/avg/max/mdev = 0.123/0.456/0.789/0.012 ms"
-func parsePingRTT(output string) (time.Duration, error) {
-	re := regexp.MustCompile(`= [\d.]+/([\d.]+)/[\d.]+/[\d.]+ ms`)
-	matches := re.FindStringSubmatch(output)
-	if len(matches) < 2 {
-		return 0, fmt.Errorf("could not parse RTT from ping output")
-	}
-	ms, err := strconv.ParseFloat(matches[1], 64)
-	if err != nil {
-		return 0, fmt.Errorf("parse RTT float: %w", err)
-	}
-	return time.Duration(ms * float64(time.Millisecond)), nil
-}

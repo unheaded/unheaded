@@ -264,23 +264,8 @@ func (ws *WikiServer) handleReady(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, `{"status":"ready","service":"%s","wiki_dir":"%s"}`, serviceName, ws.wikiDir)
 }
 
-func main() {
-	port := flag.Int("port", 20002, "HTTP server port")
-	wikiDir := flag.String("wiki-dir", "./docs/wiki", "Path to wiki markdown directory")
-	flag.Parse()
-
-	logf("INFO", "starting wiki-server",
-		"version", serviceVersion,
-		"port", *port,
-		"wiki_dir", *wikiDir,
-	)
-
-	ws, err := NewWikiServer(*wikiDir)
-	if err != nil {
-		logf("FATAL", "failed to create wiki server", "err", err)
-		os.Exit(1)
-	}
-
+// setupMux creates the HTTP mux with all routes for the wiki server.
+func setupMux(ws *WikiServer) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Root redirects to wiki.
@@ -299,19 +284,56 @@ func main() {
 	mux.HandleFunc("/health", ws.handleHealth)
 	mux.HandleFunc("/ready", ws.handleReady)
 
-	// Auth middleware (activated via AUTH_ENABLED=true)
-	authCfg := auth.LoadServiceAuthConfig("wiki-server")
-	var httpHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
+	return mux
+}
 
-	server := &http.Server{
-		Addr:              fmt.Sprintf(":%d", *port),
-		Handler:           httpHandler,
+// wrapAuth applies authentication middleware to the given handler.
+func wrapAuth(handler http.Handler) http.Handler {
+	authCfg := auth.LoadServiceAuthConfig("wiki-server")
+	return auth.WrapHandler(handler, auth.SetupMiddleware(authCfg))
+}
+
+// buildHandler creates the full HTTP handler stack for the wiki server.
+func buildHandler(wikiDir string) (http.Handler, error) {
+	ws, err := NewWikiServer(wikiDir)
+	if err != nil {
+		return nil, err
+	}
+	mux := setupMux(ws)
+	return wrapAuth(mux), nil
+}
+
+// newServer creates an http.Server with standard timeouts.
+func newServer(port int, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              fmt.Sprintf(":%d", port),
+		Handler:           handler,
 		ReadTimeout:       10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
+}
+
+func main() {
+	port := flag.Int("port", 20002, "HTTP server port")
+	wikiDir := flag.String("wiki-dir", "./docs/wiki", "Path to wiki markdown directory")
+	flag.Parse()
+
+	logf("INFO", "starting wiki-server",
+		"version", serviceVersion,
+		"port", *port,
+		"wiki_dir", *wikiDir,
+	)
+
+	httpHandler, err := buildHandler(*wikiDir)
+	if err != nil {
+		logf("FATAL", "failed to create wiki server", "err", err)
+		os.Exit(1)
+	}
+
+	server := newServer(*port, httpHandler)
 
 	// Graceful shutdown.
 	done := make(chan os.Signal, 1)

@@ -12,6 +12,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
+	"os"
 	"sync"
 	"time"
 )
@@ -133,15 +135,19 @@ func (c *Client) Initialize(ctx context.Context) error {
 
 	// Generate or load account key
 	if c.config.KeyFile != "" {
-		// TODO: Load key from file
+		key, err := loadKeyFromFile(c.config.KeyFile)
+		if err != nil {
+			return fmt.Errorf("load ACME key from %s: %w", c.config.KeyFile, err)
+		}
+		c.accountKey = key
+	} else {
+		// Generate new key
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			return err
+		}
+		c.accountKey = key
 	}
-
-	// Generate new key
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return err
-	}
-	c.accountKey = key
 
 	// Register account
 	if err := c.registerAccount(ctx); err != nil {
@@ -150,6 +156,35 @@ func (c *Client) Initialize(ctx context.Context) error {
 
 	c.initialized = true
 	return nil
+}
+
+// loadKeyFromFile reads a PEM-encoded ECDSA private key from disk.
+func loadKeyFromFile(path string) (*ecdsa.PrivateKey, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("no PEM block found in %s", path)
+	}
+
+	key, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		// Try PKCS#8 as fallback
+		pk, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err2 != nil {
+			return nil, fmt.Errorf("parse key: %w", err)
+		}
+		ecKey, ok := pk.(*ecdsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("key in %s is not ECDSA", path)
+		}
+		return ecKey, nil
+	}
+
+	return key, nil
 }
 
 // registerAccount registers an ACME account.

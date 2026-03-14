@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -478,32 +477,3 @@ func encodeEntry(seq uint64, data []byte) []byte {
 	return buf
 }
 
-// decodeEntry decodes an entry from storage.
-func decodeEntry(buf []byte) (seq uint64, data []byte, err error) {
-	if len(buf) < entryHeaderSize {
-		return 0, nil, ErrCorruptedEntry
-	}
-
-	seq = binary.BigEndian.Uint64(buf[0:8])
-	length := binary.BigEndian.Uint32(buf[8:12])
-	crc := binary.BigEndian.Uint32(buf[12:16])
-
-	if len(buf) < int(entryHeaderSize+length) {
-		return 0, nil, ErrCorruptedEntry
-	}
-
-	data = buf[entryHeaderSize : entryHeaderSize+length]
-
-	// Verify CRC
-	if crc32.ChecksumIEEE(data) != crc {
-		return 0, nil, ErrCorruptedEntry
-	}
-
-	return seq, data, nil
-}
-
-// parseSegmentName extracts the timestamp from a segment filename.
-func parseSegmentName(name string) (int64, error) {
-	name = strings.TrimSuffix(name, ".wal")
-	return strconv.ParseInt(name, 10, 64)
-}

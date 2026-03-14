@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // RegisterBuiltinFunctions registers additional built-in functions.
@@ -140,7 +143,7 @@ func funcTitle(args ...string) (string, error) {
 	if len(args) < 1 {
 		return "", nil
 	}
-	return strings.Title(args[0]), nil
+	return cases.Title(language.English).String(args[0]), nil
 }
 
 func funcTrimPrefix(args ...string) (string, error) {
