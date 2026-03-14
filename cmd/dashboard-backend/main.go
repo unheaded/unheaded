@@ -150,7 +150,11 @@ func main() {
 		Msg("transport config initialized")
 
 	// Log aggregation publisher — forwards structured logs to Wotan
-	_ = logagg.NewPublisher("dashboard-backend", nil) // nil transport — publisher disabled until zerolog is adopted
+	var logConn transport.Connection
+	if *wotanAddr != "" {
+		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+	}
+	_ = logagg.NewPublisher("dashboard-backend", logConn)
 
 	// Load service endpoint overrides
 	serviceEndpoints, err := loadServiceEndpoints(*servicesFile)

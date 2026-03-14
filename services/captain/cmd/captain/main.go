@@ -64,7 +64,11 @@ func run() error {
 	defer wotan.Close()
 
 	// Log aggregation publisher — forwards structured logs to Wotan
-	_ = logagg.NewPublisher("captain", nil) // nil transport — publisher disabled until zerolog is adopted
+	var logConn transport.Connection
+	if wotan != nil {
+		logConn, _ = transport.Connect(ctx, transportCfg) // best-effort; nil on failure
+	}
+	_ = logagg.NewPublisher("captain", logConn)
 
 	// Subscribe to critical alerts
 	if _, err := wotan.Subscribe(ctx, "alerts.critical", "captain"); err != nil {

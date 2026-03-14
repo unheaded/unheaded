@@ -117,9 +117,6 @@ func main() {
 		Str("git_commit", GitCommit).
 		Msg("starting Monad service - The Supreme Orchestrator")
 
-	// Log aggregation publisher — forwards structured logs to Wotan
-	_ = logagg.NewPublisher("monad", nil) // nil transport — publisher disabled until zerolog is adopted
-
 	// Connect to Wotan
 	wotan, err := wotanClient.NewClient(*wotanAddr)
 	if err != nil {
@@ -135,9 +132,9 @@ func main() {
 			Msg("Wotan client created")
 
 		// Subscribe to monad operations topic
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_, subscribeErr := wotan.Subscribe(ctx, "monad.operations", "monad-service")
-		cancel()
+		subCtx, subCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		_, subscribeErr := wotan.Subscribe(subCtx, "monad.operations", "monad-service")
+		subCancel()
 		if subscribeErr != nil {
 			log.Warn().
 				Err(subscribeErr).
@@ -146,6 +143,13 @@ func main() {
 			log.Info().Msg("subscribed to monad.operations topic")
 		}
 	}
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	var logConn transport.Connection
+	if wotan != nil {
+		logConn, _ = transport.Connect(ctx, transportCfg) // best-effort; nil on failure
+	}
+	_ = logagg.NewPublisher("monad", logConn)
 
 	// Create Monad service
 	monadService := monad.NewService(log, wotan)
