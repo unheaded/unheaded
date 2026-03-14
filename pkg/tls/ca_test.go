@@ -270,6 +270,351 @@ func TestCA_VerifyCert_BadPEM(t *testing.T) {
 	}
 }
 
+func TestNewServerTLSConfig(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "test-svc"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	cfg, err := NewServerTLSConfig(ServerConfig{
+		CertPEM:           sc.CertPEM,
+		KeyPEM:            sc.KeyPEM,
+		CAPEM:             ca.CertPEM(),
+		RequireClientCert: true,
+	})
+	if err != nil {
+		t.Fatalf("NewServerTLSConfig: %v", err)
+	}
+	if cfg.MinVersion != 0x0304 { // TLS 1.3
+		t.Errorf("MinVersion = %x, want TLS 1.3", cfg.MinVersion)
+	}
+	if cfg.ClientAuth != 4 { // RequireAndVerifyClientCert
+		t.Errorf("ClientAuth = %d, want RequireAndVerifyClientCert", cfg.ClientAuth)
+	}
+}
+
+func TestNewServerTLSConfig_NoMTLS(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "test-svc"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	cfg, err := NewServerTLSConfig(ServerConfig{
+		CertPEM:           sc.CertPEM,
+		KeyPEM:            sc.KeyPEM,
+		RequireClientCert: false,
+	})
+	if err != nil {
+		t.Fatalf("NewServerTLSConfig: %v", err)
+	}
+	if cfg.ClientAuth != 0 { // NoClientCert
+		t.Errorf("ClientAuth = %d, want NoClientCert", cfg.ClientAuth)
+	}
+}
+
+func TestNewServerTLSConfig_InvalidCert(t *testing.T) {
+	_, err := NewServerTLSConfig(ServerConfig{
+		CertPEM: []byte("bad"),
+		KeyPEM:  []byte("bad"),
+	})
+	if err == nil {
+		t.Error("expected error for invalid cert/key")
+	}
+}
+
+func TestNewServerTLSConfig_InvalidCA(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "test-svc"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	_, err = NewServerTLSConfig(ServerConfig{
+		CertPEM:           sc.CertPEM,
+		KeyPEM:            sc.KeyPEM,
+		CAPEM:             []byte("not a cert"),
+		RequireClientCert: true,
+	})
+	if err == nil {
+		t.Error("expected error for invalid CA PEM")
+	}
+}
+
+func TestNewTLSServer(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "test-svc"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	srv, err := NewTLSServer(":0", nil, ServerConfig{
+		CertPEM: sc.CertPEM,
+		KeyPEM:  sc.KeyPEM,
+		CAPEM:   ca.CertPEM(),
+	})
+	if err != nil {
+		t.Fatalf("NewTLSServer: %v", err)
+	}
+	if srv.TLSConfig == nil {
+		t.Error("expected TLSConfig to be set")
+	}
+	if srv.ReadHeaderTimeout == 0 {
+		t.Error("expected ReadHeaderTimeout to be set")
+	}
+}
+
+func TestNewClientTLSConfig(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "test-client"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	cfg, err := NewClientTLSConfig(ClientConfig{
+		CertPEM: sc.CertPEM,
+		KeyPEM:  sc.KeyPEM,
+		CAPEM:   ca.CertPEM(),
+	})
+	if err != nil {
+		t.Fatalf("NewClientTLSConfig: %v", err)
+	}
+	if cfg.MinVersion != 0x0304 {
+		t.Errorf("MinVersion = %x, want TLS 1.3", cfg.MinVersion)
+	}
+	if len(cfg.Certificates) != 1 {
+		t.Errorf("expected 1 client cert, got %d", len(cfg.Certificates))
+	}
+	if cfg.RootCAs == nil {
+		t.Error("expected RootCAs to be set")
+	}
+}
+
+func TestNewClientTLSConfig_NoCert(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+
+	cfg, err := NewClientTLSConfig(ClientConfig{
+		CAPEM: ca.CertPEM(),
+	})
+	if err != nil {
+		t.Fatalf("NewClientTLSConfig: %v", err)
+	}
+	if len(cfg.Certificates) != 0 {
+		t.Errorf("expected no client certs, got %d", len(cfg.Certificates))
+	}
+}
+
+func TestNewClientTLSConfig_InvalidCert(t *testing.T) {
+	_, err := NewClientTLSConfig(ClientConfig{
+		CertPEM: []byte("bad"),
+		KeyPEM:  []byte("bad"),
+	})
+	if err == nil {
+		t.Error("expected error for invalid client cert")
+	}
+}
+
+func TestNewClientTLSConfig_InvalidCA(t *testing.T) {
+	_, err := NewClientTLSConfig(ClientConfig{
+		CAPEM: []byte("not a cert"),
+	})
+	if err == nil {
+		t.Error("expected error for invalid CA PEM")
+	}
+}
+
+func TestNewTLSHTTPClient(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "test-client"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	client, err := NewTLSHTTPClient(ClientConfig{
+		CertPEM: sc.CertPEM,
+		KeyPEM:  sc.KeyPEM,
+		CAPEM:   ca.CertPEM(),
+	})
+	if err != nil {
+		t.Fatalf("NewTLSHTTPClient: %v", err)
+	}
+	if client.Timeout != 30*time.Second {
+		t.Errorf("Timeout = %v, want 30s", client.Timeout)
+	}
+}
+
+func TestNewTLSHTTPClient_CustomTimeout(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "test-client"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	client, err := NewTLSHTTPClient(ClientConfig{
+		CertPEM: sc.CertPEM,
+		KeyPEM:  sc.KeyPEM,
+		CAPEM:   ca.CertPEM(),
+		Timeout: 5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewTLSHTTPClient: %v", err)
+	}
+	if client.Timeout != 5*time.Second {
+		t.Errorf("Timeout = %v, want 5s", client.Timeout)
+	}
+}
+
+func TestNewServerTransportCredentials(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "grpc-svc"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	creds, err := NewServerTransportCredentials(ServerConfig{
+		CertPEM: sc.CertPEM,
+		KeyPEM:  sc.KeyPEM,
+		CAPEM:   ca.CertPEM(),
+	})
+	if err != nil {
+		t.Fatalf("NewServerTransportCredentials: %v", err)
+	}
+	if creds == nil {
+		t.Error("expected non-nil credentials")
+	}
+	info := creds.Info()
+	if info.SecurityProtocol != "tls" {
+		t.Errorf("SecurityProtocol = %q, want tls", info.SecurityProtocol)
+	}
+}
+
+func TestNewClientTransportCredentials(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "grpc-client"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+
+	creds, err := NewClientTransportCredentials(ClientConfig{
+		CertPEM: sc.CertPEM,
+		KeyPEM:  sc.KeyPEM,
+		CAPEM:   ca.CertPEM(),
+	})
+	if err != nil {
+		t.Fatalf("NewClientTransportCredentials: %v", err)
+	}
+	if creds == nil {
+		t.Error("expected non-nil credentials")
+	}
+}
+
+func TestServerTLSConfigToCredentials(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+	sc, err := ca.IssueCert(CertRequest{ServiceName: "svc"})
+	if err != nil {
+		t.Fatalf("IssueCert: %v", err)
+	}
+	cfg, err := NewServerTLSConfig(ServerConfig{
+		CertPEM: sc.CertPEM,
+		KeyPEM:  sc.KeyPEM,
+	})
+	if err != nil {
+		t.Fatalf("NewServerTLSConfig: %v", err)
+	}
+
+	creds := ServerTLSConfigToCredentials(cfg)
+	if creds == nil {
+		t.Error("expected non-nil credentials")
+	}
+}
+
+func TestClientTLSConfigToCredentials(t *testing.T) {
+	ca, err := NewCA()
+	if err != nil {
+		t.Fatalf("NewCA: %v", err)
+	}
+
+	cfg, err := NewClientTLSConfig(ClientConfig{
+		CAPEM: ca.CertPEM(),
+	})
+	if err != nil {
+		t.Fatalf("NewClientTLSConfig: %v", err)
+	}
+
+	creds := ClientTLSConfigToCredentials(cfg)
+	if creds == nil {
+		t.Error("expected non-nil credentials")
+	}
+}
+
+func TestLoadServiceTLSConfig_Disabled(t *testing.T) {
+	// Without env vars, TLS should be disabled
+	cfg := LoadServiceTLSConfig()
+	if cfg.Enabled {
+		t.Error("expected Enabled=false when env not set")
+	}
+	if !cfg.RequireClientCert {
+		t.Error("expected RequireClientCert=true by default")
+	}
+}
+
+func TestMaybeWrapServer_Disabled(t *testing.T) {
+	srv, tlsEnabled, err := MaybeWrapServer(":0", nil)
+	if err != nil {
+		t.Fatalf("MaybeWrapServer: %v", err)
+	}
+	if tlsEnabled {
+		t.Error("expected tlsEnabled=false")
+	}
+	if srv == nil {
+		t.Error("expected non-nil server")
+	}
+}
+
+func TestMaybeCreateClient_Disabled(t *testing.T) {
+	client, err := MaybeCreateClient()
+	if err != nil {
+		t.Fatalf("MaybeCreateClient: %v", err)
+	}
+	if client == nil {
+		t.Error("expected non-nil client")
+	}
+}
+
 func TestCA_IssueCert_DuplicateSANs(t *testing.T) {
 	ca, err := NewCA()
 	if err != nil {
