@@ -531,8 +531,21 @@
     }
 
     function addEvent(data) {
-        state.events.unshift(data);
+        // Normalize event for stream display
+        var ev = {
+            type: data.type || data.event_type || 'event',
+            event_type: data.type || data.event_type || 'event',
+            topic: data.topic || 'system.events',
+            data: data.data || data,
+            timestamp: data.timestamp || new Date().toISOString(),
+            summary: data.message || data.summary || JSON.stringify(data.data || data).slice(0, 120)
+        };
+        state.events.unshift(ev);
         if (state.events.length > CONFIG.events.maxItems) state.events.pop();
+        state.eventStreamTotal++;
+        if (!state.eventStreamPaused && state.activePage === 'events') {
+            appendEventStreamItems([ev]);
+        }
     }
 
     function addFlowEvent(flowData) {
