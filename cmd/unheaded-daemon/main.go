@@ -377,7 +377,11 @@ func main() {
 	healthSrv := transport.NewHealthServer("unheaded-daemon")
 
 	// Log aggregation publisher — forwards structured logs to Wotan
-	_ = logagg.NewPublisher("unheaded-daemon", nil) // nil transport — publisher disabled until zerolog is adopted
+	var logConn transport.Connection
+	if cfg.WotanAddr != "" {
+		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+	}
+	_ = logagg.NewPublisher("unheaded-daemon", logConn)
 
 	// Service discovery — best-effort registration (nil conn until transport is wired)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())

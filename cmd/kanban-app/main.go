@@ -1235,7 +1235,11 @@ func main() {
 	healthSrv := transport.NewHealthServer("kanban-app")
 
 	// Log aggregation publisher — forwards structured logs to Wotan
-	_ = logagg.NewPublisher("kanban-app", nil) // nil transport — publisher disabled until zerolog is adopted
+	var logConn transport.Connection
+	if cfg.WotanAddr != "" {
+		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+	}
+	_ = logagg.NewPublisher("kanban-app", logConn)
 
 	// Service discovery — best-effort registration (nil conn until transport is wired)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
