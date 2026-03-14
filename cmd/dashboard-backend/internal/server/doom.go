@@ -75,11 +75,26 @@ func (ds *DoomState) UpdateScreen(data []byte) {
 }
 
 // snapshot returns a copy of the current state under read lock.
+// Returns a new DoomState with all fields copied (excluding the mutex).
 func (ds *DoomState) snapshot() DoomState {
 	ds.mu.RLock()
 	defer ds.mu.RUnlock()
-	// Copy everything. Screen is a fixed-size array so it's value-copied.
-	return *ds
+	var s DoomState
+	s.PC = ds.PC
+	s.Regs = ds.Regs
+	s.Flags = ds.Flags
+	s.Halted = ds.Halted
+	s.Stalled = ds.Stalled
+	s.InsnCount = ds.InsnCount
+	s.CacheHits = ds.CacheHits
+	s.CacheMisses = ds.CacheMisses
+	s.Packets = ds.Packets
+	s.Ticks = ds.Ticks
+	s.LastUpdate = ds.LastUpdate
+	s.Screen = ds.Screen
+	s.LastKey = ds.LastKey
+	s.KeyPressed = ds.KeyPressed
+	return s
 }
 
 // handleDoomScreen serves the screen framebuffer.
