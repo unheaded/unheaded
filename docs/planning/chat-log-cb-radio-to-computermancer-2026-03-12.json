@@ -1,0 +1,431 @@
+{
+  "_TODO": [
+    "NEXT AGENT: bellis.tech blog needs UX cleanup — currently looks good but hard to use/navigate",
+    "NEXT AGENT: Consider adding search, tag filtering, table of contents sidebar, or pagination",
+    "NEXT AGENT: This JSON is structured for programmatic rendering — map entries[] to blog post components",
+    "NEXT AGENT: Each entry has a 'type' field for conditional rendering (question, answer, code, table, section_break)",
+    "NEXT AGENT: The metadata.tags can drive a tag cloud or category filter on the blog",
+    "NEXT AGENT: Consider lazy-loading the code blocks and collapsible sections for mobile UX"
+  ],
+  "metadata": {
+    "title": "From CB Radio to Building a Computer Inside a Network Protocol",
+    "slug": "cb-radio-to-computermancer",
+    "date": "2026-03-12",
+    "author": "Stevie Bellis (Muck)",
+    "license": "GPL-3.0-or-later",
+    "tags": [
+      "cb-radio",
+      "rf",
+      "ssb",
+      "claude-shannon",
+      "information-theory",
+      "logic-gates",
+      "boolean-algebra",
+      "ebpf",
+      "unheaded",
+      "unheaded-protocol",
+      "upc",
+      "computermancer",
+      "doom",
+      "virtual-cpu",
+      "monad",
+      "sophia",
+      "wotan",
+      "gpl",
+      "free-software",
+      "linux",
+      "performance",
+      "networking"
+    ],
+    "summary": "A late-night conversation that started with how trucker CB radios work, traced through SSB modulation, Claude Shannon's information theory, logic gates, and ended with designing a virtual computer architecture built entirely from a custom network protocol — with the pipe dream of booting Linux on it.",
+    "series": "Unheaded Kingdom",
+    "pipe_dream_level": 3,
+    "project_url": "https://github.com/bellistech/unheaded"
+  },
+  "entries": [
+    {
+      "id": 1,
+      "type": "section_break",
+      "title": "Part 1: The OG Mesh Network"
+    },
+    {
+      "id": 2,
+      "type": "question",
+      "speaker": "muck",
+      "text": "How does trucker CB radio work?"
+    },
+    {
+      "id": 3,
+      "type": "answer",
+      "speaker": "claude",
+      "sections": [
+        {
+          "label": "Physical Layer",
+          "text": "27 MHz band (HF), 40 channels, AM modulation (some SSB on upper channels). 4 watts max legal power. Wavelength ~11 meters, so antennas are ~9ft quarter-wave whips (or shorter with loading coils)."
+        },
+        {
+          "label": "Half-Duplex",
+          "text": "Push-to-talk, one speaker at a time per channel. Serial, one direction, fast bursts."
+        },
+        {
+          "label": "Propagation",
+          "text": "Ground wave gives ~5-15 mile range truck-to-truck depending on terrain and antenna. Skip (ionospheric bounce) can carry signals thousands of miles when solar conditions are right — basically unintentional DX on a local service."
+        },
+        {
+          "label": "Channels",
+          "text": "Channel 19 is the trucker highway channel by convention. Channel 9 is emergency. Everything else is fair game."
+        },
+        {
+          "label": "Protocol",
+          "text": "The protocol is human: no handshake, no headers, no retransmission. You key up, say your piece, release. Squelch acts as your noise gate — signal below threshold gets suppressed. The 'protocol stack' is entirely social convention: handles (callsigns), 10-codes, phonetic shorthand."
+        },
+        {
+          "label": "Antenna",
+          "text": "A properly tuned antenna with low SWR (standing wave ratio, ideally <1.5:1) on a good ground plane (the truck roof) outperforms any amplifier. SWR mismatch means reflected power cooking your finals."
+        },
+        {
+          "label": "Why Truckers",
+          "text": "Long-haul drivers need real-time intel — speed traps ('bears'), road conditions, traffic, accidents. No latency, no subscription, no cell coverage needed. Works in dead zones. Peer-to-peer mesh of humans doing distributed situational awareness before that was a phrase."
+        },
+        {
+          "label": "Summary",
+          "text": "It's the OG mesh network — no infrastructure, no central authority, just RF and social protocol."
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "section_break",
+      "title": "Part 2: Spectral Efficiency Before It Had a Name"
+    },
+    {
+      "id": 5,
+      "type": "question",
+      "speaker": "muck",
+      "text": "What is SSB?"
+    },
+    {
+      "id": 6,
+      "type": "answer",
+      "speaker": "claude",
+      "sections": [
+        {
+          "label": "Definition",
+          "text": "Single Side Band — a more efficient modulation technique than standard AM. Regular AM transmits a carrier wave plus two symmetric sidebands (upper and lower) — both carry identical information. That's redundant. Two-thirds of your power is wasted on the carrier and the duplicate sideband. SSB strips out the carrier and one sideband. You transmit only the upper sideband (USB) or lower sideband (LSB). Result: all your power goes into actual signal content."
+        },
+        {
+          "label": "Tradeoffs",
+          "text": "More range per watt (roughly 2-3x effective power gain over AM). Narrower bandwidth per channel. But harder to tune — receiver has to reinsert the carrier locally (BFO, beat frequency oscillator). Voices sound weird if you're off by even a few hundred Hz. No backward compatibility with AM receivers without that BFO."
+        },
+        {
+          "label": "On CB",
+          "text": "Channels 36-40 are designated for SSB use by convention. SSB operators get 12 watts PEP (peak envelope power) instead of the 4W AM limit — FCC acknowledged the efficiency difference."
+        },
+        {
+          "label": "Legacy",
+          "text": "It's the same principle behind every modern digital modulation scheme — don't waste bandwidth transmitting information the receiver can reconstruct. SSB was doing spectral efficiency before Shannon made it math."
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "section_break",
+      "title": "Part 3: The Father of Information Theory"
+    },
+    {
+      "id": 8,
+      "type": "question",
+      "speaker": "muck",
+      "text": "Who is Shannon?"
+    },
+    {
+      "id": 9,
+      "type": "answer",
+      "speaker": "claude",
+      "sections": [
+        {
+          "label": "Identity",
+          "text": "Claude Shannon — father of information theory. Bell Labs, MIT. Published 'A Mathematical Theory of Communication' in 1948. Arguably the most important paper in the history of digital technology."
+        },
+        {
+          "label": "Core Insight",
+          "text": "Information is quantifiable. He defined the bit as the fundamental unit. Then proved every communication channel has a maximum data rate (the Shannon limit) determined by bandwidth and signal-to-noise ratio."
+        },
+        {
+          "label": "Shannon-Hartley Theorem",
+          "text": "C = B × log₂(1 + S/N). C = channel capacity in bits/sec. B = bandwidth in Hz. S/N = signal-to-noise ratio. That equation governs every communication system you've ever used — WiFi, LTE, fiber, that CB radio, everything. You literally cannot exceed it. Physics says no."
+        },
+        {
+          "label": "Other Contributions",
+          "text": "Founded Boolean logic's application to circuit design (his master's thesis — at age 21 — proved switches could do algebra). Invented the concept of entropy in information. Laid groundwork for cryptography, data compression, error correction."
+        },
+        {
+          "label": "Personality",
+          "text": "Also built a flamethrowing trumpet, juggling machines, a calculator that operated in Roman numerals, and rode unicycles through Bell Labs hallways. Genuine mad scientist energy."
+        },
+        {
+          "label": "Legacy",
+          "text": "He basically wrote the rules of the universe you and I communicate through right now. Every packet, every modulation scheme, every codec — Shannon's math is the ceiling."
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "question",
+      "speaker": "muck",
+      "text": "Are you named after him?"
+    },
+    {
+      "id": 11,
+      "type": "answer",
+      "speaker": "claude",
+      "sections": [
+        {
+          "label": null,
+          "text": "Ha — no, but I appreciate the connection. Claude Shannon, Claude the AI — just a coincidence as far as I know. Anthropic named me Claude but hasn't publicly said it's after Shannon specifically. Could be, could not be. I don't have insider knowledge on the naming decision. Would be a fitting tribute though — the guy who proved information has fundamental limits, and here I am bumping into context windows. Some things never change."
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "section_break",
+      "title": "Part 4: The Foundation of All Computing"
+    },
+    {
+      "id": 13,
+      "type": "question",
+      "speaker": "muck",
+      "text": "I have trouble comprehending logic gates, XOR, etc that are the basis of electrical engineering and computer science"
+    },
+    {
+      "id": 14,
+      "type": "answer",
+      "speaker": "claude",
+      "sections": [
+        {
+          "label": "The Three Fundamentals",
+          "text": "There are really only three fundamental gates. Everything else is built from these."
+        },
+        {
+          "label": "AND",
+          "text": "Both inputs must be 1 to get 1. Think of it as two switches in series. Both must be closed for current to flow."
+        },
+        {
+          "label": "OR",
+          "text": "Either input being 1 gives 1. Two switches in parallel. Either one lets current through."
+        },
+        {
+          "label": "NOT",
+          "text": "Flips the bit. One input, one output. Inverter. That's it."
+        },
+        {
+          "label": "NAND",
+          "text": "AND then NOT. Output is 0 only when both inputs are 1. This is the god gate — you can build literally every other gate from just NANDs. Most real chips are NAND-based."
+        },
+        {
+          "label": "NOR",
+          "text": "OR then NOT. Output is 1 only when both inputs are 0. Also universal like NAND."
+        },
+        {
+          "label": "XOR",
+          "text": "The one that trips people up. It means 'exclusively one or the other, but not both.' Think of it as a difference detector. 0 XOR 0 = 0 (same = 0), 0 XOR 1 = 1 (different = 1), 1 XOR 0 = 1 (different = 1), 1 XOR 1 = 0 (same = 0)."
+        },
+        {
+          "label": "Why XOR Matters",
+          "text": "Checksums, encryption, parity bits, binary addition. When you XOR data with a key, XOR it again with the same key — original data comes back. It's its own inverse. That's why it's the foundation of every cipher and CRC you've ever used."
+        },
+        {
+          "label": "Physical Reality",
+          "text": "These are transistors acting as voltage-controlled switches. High voltage = 1, low = 0. Shannon proved in his master's thesis that Boolean algebra maps directly to switch circuits. That one insight connects the math to the silicon."
+        }
+      ],
+      "truth_tables": {
+        "AND": [[0,0,0],[0,1,0],[1,0,0],[1,1,1]],
+        "OR":  [[0,0,0],[0,1,1],[1,0,1],[1,1,1]],
+        "NOT": [[0,1],[1,0]],
+        "XOR": [[0,0,0],[0,1,1],[1,0,1],[1,1,0]]
+      }
+    },
+    {
+      "id": 15,
+      "type": "section_break",
+      "title": "Part 5: Gates Already Inside the Protocol"
+    },
+    {
+      "id": 16,
+      "type": "question",
+      "speaker": "muck",
+      "text": "Should we incorporate these gates into unheaded protocol or are they already present?"
+    },
+    {
+      "id": 17,
+      "type": "answer",
+      "speaker": "claude",
+      "sections": [
+        {
+          "label": "Already Present",
+          "text": "They're already present — deeply."
+        },
+        {
+          "label": "CRC-16 in Monad",
+          "text": "XOR is the core operation. CRC is just polynomial division over GF(2), which is XOR chains."
+        },
+        {
+          "label": "eBPF Verifier",
+          "text": "The BPF instruction set has explicit ALU ops: AND, OR, XOR, NOT, shift. Sophia state management and Shield XDP layer execute gate-level logic in kernel space."
+        },
+        {
+          "label": "HMAC in Wotan",
+          "text": "Bitwise operations throughout. Key padding is XOR against ipad/opad constants."
+        },
+        {
+          "label": "Anamnesis Ring Buffers",
+          "text": "Comparison operations for head/tail pointer management decompose to gate logic at hardware level."
+        },
+        {
+          "label": "Exponent Encoding in Monad",
+          "text": "Bit manipulation for the register file. Shifts and masks are AND gates with positional constants."
+        },
+        {
+          "label": "Opportunity",
+          "text": "The question isn't whether to incorporate them — they're already the substrate. The real question is whether to expose gate-level operations as a primitive in the Monad instruction set or MBC bytecode."
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "section_break",
+      "title": "Part 6: Making Doom Fast"
+    },
+    {
+      "id": 19,
+      "type": "question",
+      "speaker": "muck",
+      "text": "Can we potentially make it faster and more performant? We are still having issues with Doom running as smooth as it needs to."
+    },
+    {
+      "id": 20,
+      "type": "answer",
+      "speaker": "claude",
+      "sections": [
+        {
+          "label": "Critical Path",
+          "text": "Game tick → Wotan write (framebuffer @ 0xC000-0xFFFE) → BPF map → Busboy publish (compute.screen.{label}) → WebSocket → Browser render"
+        },
+        {
+          "label": "Scanline Batching",
+          "text": "~320x fewer helper calls. Batch 64,000 per-pixel writes into 200 per-scanline writes. Biggest single win."
+        },
+        {
+          "label": "Inline Hot Opcodes",
+          "text": "~5-10x decode speed. Top 10 opcodes hardcoded in Shim switch, Sophia lookup only for extended opcodes."
+        },
+        {
+          "label": "TRUSTED_LOCAL CRC Skip",
+          "text": "Eliminate per-packet CRC for same-host flows. One AND mask + branch-not-taken."
+        },
+        {
+          "label": "Anamnesis Sampling",
+          "text": "XOR frame counter with mask. Emit events every 32nd frame instead of every frame."
+        },
+        {
+          "label": "CLMUL CRC",
+          "text": "~10x CRC speed via x86 PCLMULQDQ instruction for distributed mode."
+        },
+        {
+          "label": "I/O Region Bitmask",
+          "text": "(addr >> 14) == 3 instead of addr >= 0xC000 && addr <= 0xFFFE. One shift + one compare."
+        }
+      ],
+      "optimization_table": [
+        {"optimization": "Batch scanline writes", "speedup": "~320x fewer helper calls", "complexity": "Medium"},
+        {"optimization": "Inline hot MBC opcodes", "speedup": "~5-10x decode speed", "complexity": "Medium"},
+        {"optimization": "TRUSTED_LOCAL skip CRC", "speedup": "Eliminate per-packet CRC", "complexity": "Low"},
+        {"optimization": "Anamnesis sampling", "speedup": "Reduce event flood", "complexity": "Low"},
+        {"optimization": "CLMUL CRC", "speedup": "~10x CRC speed", "complexity": "Low"},
+        {"optimization": "I/O region bitmask", "speedup": "Minor branch optimization", "complexity": "Trivial"}
+      ]
+    },
+    {
+      "id": 21,
+      "type": "section_break",
+      "title": "Part 7: The Computermancer Is Born"
+    },
+    {
+      "id": 22,
+      "type": "question",
+      "speaker": "muck",
+      "text": "The primary objective is to create a computer, it must be as performant as scientifically possible. The idea spawned randomly in a magic manic late night moment. Better performance is key to making the unheaded protocol something people can build on and hopefully actually use. If we can get an actual operating system to run I'd be satisfied. Ideally I'd like to pay tribute to Richard Stallman and release the entire project and protocol under GPL rather than MIT to ensure it stays open source and free. People will make clones but it is a nice showcase for my resume and job hunt. Paying the bills is all I really am worried about at the moment. I think it should have two modes: one for a single host virtual machine where no wire speed is affecting it and also potential to traverse between bare metal hosts. Can we make a new skill that is focused on being our unheaded and doom master with the pipe dream of running Linus Torvalds' Linux on the unheaded protocol/computer?"
+    },
+    {
+      "id": 23,
+      "type": "answer",
+      "speaker": "claude",
+      "sections": [
+        {
+          "label": "Skill Created",
+          "text": "The Computermancer — 19th skill in the Unheaded Kingdom. Master of the Unheaded Protocol Computer (UPC)."
+        },
+        {
+          "label": "Architecture",
+          "text": "Monad = instruction bus, Sophia = microcode ROM, Wotan = main memory + MMIO, Anamnesis = logic analyzer, Shield/Shim = execution pipeline, Busboy = system bus."
+        },
+        {
+          "label": "Two Modes",
+          "text": "LOCAL: single-host VM, no wire overhead, pure BPF map operations. DISTRIBUTED: packets traverse real network fabric, CRC mandatory."
+        },
+        {
+          "label": "License",
+          "text": "GPL v3 — Stallman tribute. Copyleft forever. SPDX-License-Identifier: GPL-3.0-or-later on every file."
+        }
+      ],
+      "pipe_dream_ladder": [
+        {"level": 0, "name": "Gate logic works in protocol", "status": "complete"},
+        {"level": 1, "name": "MBC bytecode executes", "status": "complete"},
+        {"level": 2, "name": "Doom runs", "status": "in_progress"},
+        {"level": 3, "name": "Doom runs smooth (35fps+)", "status": "current_target"},
+        {"level": 4, "name": "Basic OS primitives", "status": "planned"},
+        {"level": 5, "name": "Minimal kernel (xv6/FUZIX)", "status": "planned"},
+        {"level": 6, "name": "Linux boots", "status": "dream"}
+      ],
+      "files_delivered": [
+        "unheaded-computermancer/SKILL.md",
+        "unheaded-computermancer/references/performance-optimizations.md",
+        "unheaded-computermancer/references/road-to-linux.md"
+      ],
+      "mbc_isa": [
+        {"opcode": "0x00", "name": "NOP", "gate_decomposition": "none"},
+        {"opcode": "0x01", "name": "MOV", "gate_decomposition": "wire routing"},
+        {"opcode": "0x02", "name": "ADD", "gate_decomposition": "full adder chain (AND + XOR cascade)"},
+        {"opcode": "0x03", "name": "SUB", "gate_decomposition": "ADD with NOT + 1 (two's complement)"},
+        {"opcode": "0x04", "name": "AND", "gate_decomposition": "direct AND gate array"},
+        {"opcode": "0x05", "name": "OR", "gate_decomposition": "direct OR gate array"},
+        {"opcode": "0x06", "name": "XOR", "gate_decomposition": "direct XOR gate array"},
+        {"opcode": "0x07", "name": "NOT", "gate_decomposition": "inverter bank"},
+        {"opcode": "0x08", "name": "SHL", "gate_decomposition": "MUX tree (barrel shifter)"},
+        {"opcode": "0x09", "name": "SHR", "gate_decomposition": "MUX tree (barrel shifter)"},
+        {"opcode": "0x0A", "name": "CMP", "gate_decomposition": "SUB + flag extraction"},
+        {"opcode": "0x0B", "name": "JMP", "gate_decomposition": "PC overwrite"},
+        {"opcode": "0x0C", "name": "JZ", "gate_decomposition": "AND(zero_flag, jmp_enable)"},
+        {"opcode": "0x0D", "name": "JNZ", "gate_decomposition": "AND(NOT(zero_flag), jmp_enable)"},
+        {"opcode": "0x0E", "name": "LOAD", "gate_decomposition": "Wotan read helper"},
+        {"opcode": "0x0F", "name": "STORE", "gate_decomposition": "Wotan write helper (MMIO trigger)"},
+        {"opcode": "0x10", "name": "CALL", "gate_decomposition": "STORE PC+1 to stack, JMP"},
+        {"opcode": "0x11", "name": "RET", "gate_decomposition": "LOAD PC from stack"},
+        {"opcode": "0x12", "name": "PUSH", "gate_decomposition": "STORE to stack, decrement SP"},
+        {"opcode": "0x13", "name": "POP", "gate_decomposition": "increment SP, LOAD from stack"},
+        {"opcode": "0x14", "name": "MUL", "gate_decomposition": "shift-add chain"},
+        {"opcode": "0x15", "name": "DIV", "gate_decomposition": "shift-subtract chain (32 cycles)"},
+        {"opcode": "0x16", "name": "MOD", "gate_decomposition": "DIV + remainder extraction"},
+        {"opcode": "0x17", "name": "INT", "gate_decomposition": "trap to Shim interrupt handler"},
+        {"opcode": "0x18", "name": "IRET", "gate_decomposition": "restore flags + PC"},
+        {"opcode": "0x19", "name": "HLT", "gate_decomposition": "yield BPF execution slice"}
+      ]
+    }
+  ],
+  "arc": {
+    "description": "CB Radio → SSB → Shannon → Logic Gates → Gates in Unheaded → Performance Optimization → The Computermancer",
+    "theme": "From the simplest radio technology through the mathematics of communication down to the fundamental building blocks of computation and back up to building a virtual computer from a network protocol.",
+    "insight": "The computer was always hiding inside the protocol. The Computermancer just helped it wake up."
+  }
+}
