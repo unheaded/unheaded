@@ -1206,6 +1206,451 @@ func TestConcurrentStrategyAccess(t *testing.T) {
 	}
 }
 
+// TestStrategyExecutorAbort tests the Abort method.
+func TestStrategyExecutorAbort(t *testing.T) {
+	executor := NewStrategyExecutor(nil, nil, nil, nil, nil)
+
+	t.Run("abort non-existent execution", func(t *testing.T) {
+		err := executor.Abort("nonexistent")
+		if err == nil {
+			t.Error("expected error for non-existent execution")
+		}
+	})
+
+	t.Run("abort existing execution", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		execution := &StrategyExecution{
+			ID:    "test-exec-1",
+			State: ExecutionStateRunning,
+			Config: &StrategyConfig{
+				Type: StrategyRolling,
+			},
+			Progress: &StrategyProgress{},
+			cancel:   cancel,
+			done:     make(chan struct{}),
+		}
+		executor.mu.Lock()
+		executor.executions[execution.ID] = execution
+		executor.mu.Unlock()
+
+		err := executor.Abort("test-exec-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if execution.State != ExecutionStateAborted {
+			t.Errorf("expected state aborted, got %s", execution.State)
+		}
+		if execution.CompletedAt.IsZero() {
+			t.Error("expected CompletedAt to be set")
+		}
+		_ = ctx
+	})
+
+	t.Run("abort with nil cancel", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:    "test-exec-2",
+			State: ExecutionStateRunning,
+			Config: &StrategyConfig{
+				Type: StrategyRolling,
+			},
+			Progress: &StrategyProgress{},
+			done:     make(chan struct{}),
+		}
+		executor.mu.Lock()
+		executor.executions[execution.ID] = execution
+		executor.mu.Unlock()
+
+		err := executor.Abort("test-exec-2")
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// TestStrategyExecutorResume tests the Resume method.
+func TestStrategyExecutorResume(t *testing.T) {
+	executor := NewStrategyExecutor(nil, nil, nil, nil, nil)
+
+	t.Run("resume non-existent execution", func(t *testing.T) {
+		err := executor.Resume("nonexistent")
+		if err == nil {
+			t.Error("expected error for non-existent execution")
+		}
+	})
+
+	t.Run("resume non-paused execution", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:       "test-exec-3",
+			State:    ExecutionStateRunning,
+			Config:   &StrategyConfig{Type: StrategyRolling},
+			Progress: &StrategyProgress{},
+		}
+		executor.mu.Lock()
+		executor.executions[execution.ID] = execution
+		executor.mu.Unlock()
+
+		err := executor.Resume("test-exec-3")
+		if err == nil {
+			t.Error("expected error for non-paused execution")
+		}
+	})
+
+	t.Run("resume paused execution", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:       "test-exec-4",
+			State:    ExecutionStatePaused,
+			Config:   &StrategyConfig{Type: StrategyRolling},
+			Progress: &StrategyProgress{},
+		}
+		executor.mu.Lock()
+		executor.executions[execution.ID] = execution
+		executor.mu.Unlock()
+
+		err := executor.Resume("test-exec-4")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if execution.State != ExecutionStateRunning {
+			t.Errorf("expected state running, got %s", execution.State)
+		}
+	})
+}
+
+// TestStrategyExecutorPromote tests the Promote method.
+func TestStrategyExecutorPromote(t *testing.T) {
+	executor := NewStrategyExecutor(nil, nil, nil, nil, nil)
+
+	t.Run("promote non-existent execution", func(t *testing.T) {
+		err := executor.Promote("nonexistent")
+		if err == nil {
+			t.Error("expected error for non-existent execution")
+		}
+	})
+
+	t.Run("promote non-canary execution", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:       "test-exec-5",
+			State:    ExecutionStateRunning,
+			Config:   &StrategyConfig{Type: StrategyRolling},
+			Progress: &StrategyProgress{},
+		}
+		executor.mu.Lock()
+		executor.executions[execution.ID] = execution
+		executor.mu.Unlock()
+
+		err := executor.Promote("test-exec-5")
+		if err == nil {
+			t.Error("expected error for non-canary execution")
+		}
+	})
+
+	t.Run("promote canary execution", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:       "test-exec-6",
+			State:    ExecutionStateRunning,
+			Config:   &StrategyConfig{Type: StrategyCanary},
+			Progress: &StrategyProgress{},
+		}
+		executor.mu.Lock()
+		executor.executions[execution.ID] = execution
+		executor.mu.Unlock()
+
+		err := executor.Promote("test-exec-6")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if execution.State != ExecutionStatePromoting {
+			t.Errorf("expected state promoting, got %s", execution.State)
+		}
+	})
+}
+
+// TestStrategyExecutorStatus tests the Status method.
+func TestStrategyExecutorStatus(t *testing.T) {
+	executor := NewStrategyExecutor(nil, nil, nil, nil, nil)
+
+	t.Run("status non-existent execution", func(t *testing.T) {
+		_, err := executor.Status("nonexistent")
+		if err == nil {
+			t.Error("expected error for non-existent execution")
+		}
+	})
+
+	t.Run("status existing execution", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:       "test-exec-7",
+			State:    ExecutionStateRunning,
+			Config:   &StrategyConfig{Type: StrategyRolling},
+			Progress: &StrategyProgress{Message: "Running"},
+		}
+		executor.mu.Lock()
+		executor.executions[execution.ID] = execution
+		executor.mu.Unlock()
+
+		got, err := executor.Status("test-exec-7")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.State != ExecutionStateRunning {
+			t.Errorf("expected state running, got %s", got.State)
+		}
+	})
+}
+
+// TestStrategyExecutorFailExecution tests the failExecution method.
+func TestStrategyExecutorFailExecution(t *testing.T) {
+	executor := NewStrategyExecutor(nil, nil, nil, nil, nil)
+
+	var mu sync.Mutex
+	var receivedEvent *StrategyEvent
+	var wg sync.WaitGroup
+	wg.Add(1)
+	executor.SetEventCallback(func(event *StrategyEvent) {
+		mu.Lock()
+		receivedEvent = event
+		mu.Unlock()
+		wg.Done()
+	})
+
+	execution := &StrategyExecution{
+		ID:           "test-exec-8",
+		DeploymentID: "d1",
+		State:        ExecutionStateRunning,
+		Config:       &StrategyConfig{Type: StrategyRolling},
+		Progress:     &StrategyProgress{},
+		StartedAt:    time.Now(),
+	}
+
+	executor.failExecution(execution, errors.New("deployment failed"))
+
+	if execution.State != ExecutionStateFailed {
+		t.Errorf("expected state failed, got %s", execution.State)
+	}
+	if execution.Error != "deployment failed" {
+		t.Errorf("expected error message, got %s", execution.Error)
+	}
+	if execution.CompletedAt.IsZero() {
+		t.Error("expected CompletedAt to be set")
+	}
+	if execution.Progress.Phase != "failed" {
+		t.Errorf("expected phase failed, got %s", execution.Progress.Phase)
+	}
+
+	wg.Wait()
+	mu.Lock()
+	if receivedEvent == nil || receivedEvent.Type != "strategy_failed" {
+		t.Error("expected strategy_failed event")
+	}
+	mu.Unlock()
+}
+
+// TestStrategyExecutorSendNotifications tests the sendNotifications method.
+func TestStrategyExecutorSendNotifications(t *testing.T) {
+	notifier := &MockStrategyNotifier{}
+	executor := NewStrategyExecutor(nil, nil, nil, notifier, nil)
+
+	t.Run("nil notifications config", func(t *testing.T) {
+		execution := &StrategyExecution{
+			Config:   &StrategyConfig{Type: StrategyRolling},
+			Progress: &StrategyProgress{},
+		}
+		// Should not panic
+		executor.sendNotifications(context.Background(), execution, "start")
+	})
+
+	t.Run("notifications disabled", func(t *testing.T) {
+		execution := &StrategyExecution{
+			Config: &StrategyConfig{
+				Type: StrategyRolling,
+				Notifications: &NotificationConfig{
+					Enabled: false,
+				},
+			},
+			Progress: &StrategyProgress{},
+		}
+		executor.sendNotifications(context.Background(), execution, "start")
+	})
+
+	t.Run("sends start notification", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:           "exec-notif-1",
+			DeploymentID: "d1",
+			Config: &StrategyConfig{
+				Type: StrategyRolling,
+				Notifications: &NotificationConfig{
+					Enabled: true,
+					OnStart: true,
+				},
+			},
+			Progress: &StrategyProgress{},
+		}
+		executor.sendNotifications(context.Background(), execution, "start")
+	})
+
+	t.Run("sends success notification", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:           "exec-notif-2",
+			DeploymentID: "d2",
+			Config: &StrategyConfig{
+				Type: StrategyRolling,
+				Notifications: &NotificationConfig{
+					Enabled:   true,
+					OnSuccess: true,
+				},
+			},
+			Progress: &StrategyProgress{},
+		}
+		executor.sendNotifications(context.Background(), execution, "success")
+	})
+
+	t.Run("sends failure notification", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:           "exec-notif-3",
+			DeploymentID: "d3",
+			Config: &StrategyConfig{
+				Type: StrategyRolling,
+				Notifications: &NotificationConfig{
+					Enabled:   true,
+					OnFailure: true,
+				},
+			},
+			Progress: &StrategyProgress{},
+			Error:    "deployment failed",
+		}
+		executor.sendNotifications(context.Background(), execution, "failure")
+	})
+
+	t.Run("sends pause notification", func(t *testing.T) {
+		execution := &StrategyExecution{
+			ID:           "exec-notif-4",
+			DeploymentID: "d4",
+			Config: &StrategyConfig{
+				Type: StrategyRolling,
+				Notifications: &NotificationConfig{
+					Enabled: true,
+					OnPause: true,
+				},
+			},
+			Progress: &StrategyProgress{},
+		}
+		executor.sendNotifications(context.Background(), execution, "pause")
+	})
+}
+
+// TestStrategyExecuteBlueGreen tests blue-green strategy execution via Execute.
+func TestStrategyExecuteBlueGreen(t *testing.T) {
+	traffic := NewMockStrategyTrafficManager()
+	health := &MockStrategyHealthChecker{healthy: true}
+	instances := NewMockStrategyInstanceManager()
+	executor := NewStrategyExecutor(traffic, health, nil, nil, instances)
+
+	config := &StrategyConfig{
+		Type:    StrategyBlueGreen,
+		Timeout: 10 * time.Second,
+		BlueGreen: &BlueGreenConfig{
+			KeepBlueInstances: false,
+		},
+	}
+
+	params := &ExecutionParams{
+		ServiceName:    "svc",
+		CurrentVersion: "v1",
+		TargetVersion:  "v2",
+		Replicas:       2,
+	}
+
+	execution, err := executor.Execute(context.Background(), "deploy-bg", config, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for completion
+	select {
+	case <-execution.done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("execution timed out")
+	}
+
+	if execution.State != ExecutionStateCompleted {
+		t.Errorf("expected completed, got %s (error: %s)", execution.State, execution.Error)
+	}
+}
+
+// TestStrategyExecuteCanary tests canary strategy execution via Execute.
+func TestStrategyExecuteCanary(t *testing.T) {
+	traffic := NewMockStrategyTrafficManager()
+	instances := NewMockStrategyInstanceManager()
+	executor := NewStrategyExecutor(traffic, nil, nil, nil, instances)
+
+	config := &StrategyConfig{
+		Type:    StrategyCanary,
+		Timeout: 30 * time.Second,
+		Canary: &CanaryConfig{
+			CanaryReplicas: 1,
+			Steps: []CanaryStepConfig{
+				{Weight: 50, Duration: 0},
+				{Weight: 100, Duration: 0},
+			},
+		},
+	}
+
+	params := &ExecutionParams{
+		ServiceName:    "svc",
+		CurrentVersion: "v1",
+		TargetVersion:  "v2",
+		Replicas:       2,
+	}
+
+	execution, err := executor.Execute(context.Background(), "deploy-canary", config, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-execution.done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("execution timed out")
+	}
+
+	if execution.State != ExecutionStateCompleted {
+		t.Errorf("expected completed, got %s (error: %s)", execution.State, execution.Error)
+	}
+}
+
+// TestStrategyExecuteRecreate tests recreate strategy execution via Execute.
+func TestStrategyExecuteRecreate(t *testing.T) {
+	instances := NewMockStrategyInstanceManager()
+	executor := NewStrategyExecutor(nil, nil, nil, nil, instances)
+
+	config := &StrategyConfig{
+		Type:    StrategyRecreate,
+		Timeout: 10 * time.Second,
+	}
+
+	params := &ExecutionParams{
+		ServiceName:    "svc",
+		CurrentVersion: "v1",
+		TargetVersion:  "v2",
+		Replicas:       3,
+	}
+
+	execution, err := executor.Execute(context.Background(), "deploy-recreate", config, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-execution.done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("execution timed out")
+	}
+
+	if execution.State != ExecutionStateCompleted {
+		t.Errorf("expected completed, got %s (error: %s)", execution.State, execution.Error)
+	}
+}
+
 // BenchmarkDefaultStrategyConfig benchmarks default strategy config creation.
 func BenchmarkDefaultStrategyConfig(b *testing.B) {
 	for i := 0; i < b.N; i++ {

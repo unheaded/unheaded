@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ---------------------------------------------------------------------------
@@ -535,4 +536,568 @@ func searchString(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// ---------------------------------------------------------------------------
+// TestDefaultSLOThreshold
+// ---------------------------------------------------------------------------
+
+func TestDefaultSLOThreshold(t *testing.T) {
+	slo := DefaultSLOThreshold()
+	if slo == nil {
+		t.Fatal("DefaultSLOThreshold returned nil")
+	}
+	if slo.MaxErrorRatePPM != 5000 {
+		t.Errorf("MaxErrorRatePPM = %d, want 5000", slo.MaxErrorRatePPM)
+	}
+	if slo.MaxLatencyP99MS != 500.0 {
+		t.Errorf("MaxLatencyP99MS = %f, want 500.0", slo.MaxLatencyP99MS)
+	}
+	if slo.MinThroughputPPS != 10.0 {
+		t.Errorf("MinThroughputPPS = %f, want 10.0", slo.MinThroughputPPS)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestDefaultConfig
+// ---------------------------------------------------------------------------
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg == nil {
+		t.Fatal("DefaultConfig returned nil")
+	}
+	if cfg.WotanTopic != "monad.canary.metrics" {
+		t.Errorf("WotanTopic = %q, want %q", cfg.WotanTopic, "monad.canary.metrics")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestGetDeployment
+// ---------------------------------------------------------------------------
+
+func TestGetDeployment(t *testing.T) {
+	svc := newTestService(t)
+	addTestDeployment(t, svc, "svc-get", "v2", "v1", StateProbing, 5)
+
+	t.Run("existing deployment", func(t *testing.T) {
+		d, ok := svc.GetDeployment("svc-get")
+		if !ok {
+			t.Fatal("expected to find deployment")
+		}
+		if d.ServiceID != "svc-get" {
+			t.Errorf("ServiceID = %q, want %q", d.ServiceID, "svc-get")
+		}
+	})
+
+	t.Run("nonexistent deployment", func(t *testing.T) {
+		_, ok := svc.GetDeployment("nonexistent")
+		if ok {
+			t.Error("expected not to find nonexistent deployment")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestListDeployments
+// ---------------------------------------------------------------------------
+
+func TestListDeployments(t *testing.T) {
+	svc := newTestService(t)
+
+	t.Run("empty list", func(t *testing.T) {
+		list := svc.ListDeployments()
+		if len(list) != 0 {
+			t.Errorf("expected 0 deployments, got %d", len(list))
+		}
+	})
+
+	t.Run("populated list", func(t *testing.T) {
+		addTestDeployment(t, svc, "svc-1", "v2", "v1", StateProbing, 5)
+		addTestDeployment(t, svc, "svc-2", "v3", "v2", StateRamp, 40)
+		list := svc.ListDeployments()
+		if len(list) != 2 {
+			t.Errorf("expected 2 deployments, got %d", len(list))
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestStats
+// ---------------------------------------------------------------------------
+
+func TestStats(t *testing.T) {
+	svc := newTestService(t)
+	addTestDeployment(t, svc, "s1", "v2", "v1", StateProbing, 5)
+	addTestDeployment(t, svc, "s2", "v3", "v2", StateRamp, 40)
+	addTestDeployment(t, svc, "s3", "v4", "v3", StateStable, 100)
+	addTestDeployment(t, svc, "s4", "v5", "v4", StateRollback, 0)
+
+	stats := svc.Stats()
+	if stats["total_deployments"] != 4 {
+		t.Errorf("total_deployments = %v, want 4", stats["total_deployments"])
+	}
+	if stats["probing_deployments"] != 1 {
+		t.Errorf("probing_deployments = %v, want 1", stats["probing_deployments"])
+	}
+	if stats["ramp_deployments"] != 1 {
+		t.Errorf("ramp_deployments = %v, want 1", stats["ramp_deployments"])
+	}
+	if stats["stable_deployments"] != 1 {
+		t.Errorf("stable_deployments = %v, want 1", stats["stable_deployments"])
+	}
+	if stats["rollback_deployments"] != 1 {
+		t.Errorf("rollback_deployments = %v, want 1", stats["rollback_deployments"])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestWotanDrops
+// ---------------------------------------------------------------------------
+
+func TestWotanDrops(t *testing.T) {
+	svc := newTestService(t)
+
+	if drops := svc.WotanDrops(); drops != 0 {
+		t.Errorf("initial WotanDrops = %d, want 0", drops)
+	}
+
+	// publishEvent with nil wotan should increment drops
+	svc.publishEvent(context.Background(), "test.topic", map[string]interface{}{"key": "value"})
+	if drops := svc.WotanDrops(); drops != 1 {
+		t.Errorf("after publish WotanDrops = %d, want 1", drops)
+	}
+
+	svc.publishEvent(context.Background(), "test.topic", map[string]interface{}{"key": "value2"})
+	if drops := svc.WotanDrops(); drops != 2 {
+		t.Errorf("after second publish WotanDrops = %d, want 2", drops)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPCreateCanaryValidation
+// ---------------------------------------------------------------------------
+
+func TestHTTPCreateCanaryValidation(t *testing.T) {
+	svc := newTestService(t)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	tests := []struct {
+		name       string
+		body       string
+		wantStatus int
+	}{
+		{
+			name:       "missing service_id",
+			body:       `{"canary_version":"v2","stable_version":"v1"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing canary_version",
+			body:       `{"service_id":"svc","stable_version":"v1"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing stable_version",
+			body:       `{"service_id":"svc","canary_version":"v2"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid JSON",
+			body:       `not json`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "valid with default split",
+			body:       `{"service_id":"svc-default","canary_version":"v2","stable_version":"v1"}`,
+			wantStatus: http.StatusCreated,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/canaries", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d; body: %s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+		})
+	}
+
+	// Test duplicate creation (conflict)
+	t.Run("duplicate service_id returns conflict", func(t *testing.T) {
+		body := `{"service_id":"svc-default","canary_version":"v3","stable_version":"v2"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/canaries", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusConflict {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusConflict)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPCanariesMethodNotAllowed
+// ---------------------------------------------------------------------------
+
+func TestHTTPCanariesMethodNotAllowed(t *testing.T) {
+	svc := newTestService(t)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/canaries", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("PUT /api/v1/canaries status = %d, want 405", rec.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPGetCanaryByID
+// ---------------------------------------------------------------------------
+
+func TestHTTPGetCanaryByID(t *testing.T) {
+	svc := newTestService(t)
+	addTestDeployment(t, svc, "svc-get-http", "v2", "v1", StateProbing, 5)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("existing canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/canaries/svc-get-http", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		var d CanaryDeployment
+		if err := json.NewDecoder(rec.Body).Decode(&d); err != nil {
+			t.Fatalf("decode error: %v", err)
+		}
+		if d.ServiceID != "svc-get-http" {
+			t.Errorf("ServiceID = %q, want %q", d.ServiceID, "svc-get-http")
+		}
+	})
+
+	t.Run("nonexistent canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/canaries/nonexistent", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", rec.Code)
+		}
+	})
+
+	t.Run("unknown action", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/canaries/svc-get-http/unknown", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", rec.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPGetCanaryMetrics
+// ---------------------------------------------------------------------------
+
+func TestHTTPGetCanaryMetrics(t *testing.T) {
+	svc := newTestService(t)
+	addTestDeployment(t, svc, "svc-metrics", "v2", "v1", StateProbing, 5)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("metrics for existing canary (no stored comparison)", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/canaries/svc-metrics/metrics", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		var mc MetricsComparison
+		if err := json.NewDecoder(rec.Body).Decode(&mc); err != nil {
+			t.Fatalf("decode error: %v", err)
+		}
+		if mc.ServiceID != "svc-metrics" {
+			t.Errorf("ServiceID = %q, want %q", mc.ServiceID, "svc-metrics")
+		}
+		if !mc.Healthy {
+			t.Error("expected Healthy=true for default metrics")
+		}
+	})
+
+	t.Run("metrics for nonexistent canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/canaries/nonexistent/metrics", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", rec.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPPromoteCanary
+// ---------------------------------------------------------------------------
+
+func TestHTTPPromoteCanary(t *testing.T) {
+	svc := newTestService(t)
+	addTestDeployment(t, svc, "svc-promote", "v2", "v1", StateRamp, 50)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("promote existing canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/canaries/svc-promote/promote", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		d, ok := svc.GetDeployment("svc-promote")
+		if !ok {
+			t.Fatal("deployment not found after promote")
+		}
+		if d.State != StateStable {
+			t.Errorf("State = %s, want STABLE", d.State)
+		}
+		if d.TrafficSplitPct != 100 {
+			t.Errorf("TrafficSplitPct = %d, want 100", d.TrafficSplitPct)
+		}
+		if d.CompletedAt == nil {
+			t.Error("CompletedAt should be set after promote")
+		}
+	})
+
+	t.Run("promote nonexistent canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/canaries/nonexistent/promote", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", rec.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPRollbackCanary
+// ---------------------------------------------------------------------------
+
+func TestHTTPRollbackCanary(t *testing.T) {
+	svc := newTestService(t)
+	addTestDeployment(t, svc, "svc-rollback", "v2", "v1", StateRamp, 50)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("rollback existing canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/canaries/svc-rollback/rollback", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		d, ok := svc.GetDeployment("svc-rollback")
+		if !ok {
+			t.Fatal("deployment not found after rollback")
+		}
+		if d.State != StateRollback {
+			t.Errorf("State = %s, want ROLLBACK", d.State)
+		}
+		if d.TrafficSplitPct != 0 {
+			t.Errorf("TrafficSplitPct = %d, want 0", d.TrafficSplitPct)
+		}
+		if d.RollbackReason != "manual_rollback" {
+			t.Errorf("RollbackReason = %q, want %q", d.RollbackReason, "manual_rollback")
+		}
+	})
+
+	t.Run("rollback nonexistent canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/canaries/nonexistent/rollback", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", rec.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPAbortCanary
+// ---------------------------------------------------------------------------
+
+func TestHTTPAbortCanary(t *testing.T) {
+	svc := newTestService(t)
+	addTestDeployment(t, svc, "svc-abort", "v2", "v1", StateRamp, 50)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("abort existing canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/canaries/svc-abort", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNoContent {
+			t.Errorf("status = %d, want 204", rec.Code)
+		}
+
+		_, ok := svc.GetDeployment("svc-abort")
+		if ok {
+			t.Error("deployment should have been removed after abort")
+		}
+	})
+
+	t.Run("abort nonexistent canary", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/canaries/nonexistent", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", rec.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestEvaluateAll
+// ---------------------------------------------------------------------------
+
+func TestEvaluateAll(t *testing.T) {
+	cfg := &Config{
+		EvalInterval:    1 * time.Millisecond,
+		ProbeDuration:   1 * time.Millisecond,
+		RampInterval:    1 * time.Hour, // long ramp so we stay in RAMP
+		RampStepPct:     10,
+		InitialSplitPct: 5,
+	}
+	svc := newTestServiceWithConfig(t, cfg)
+
+	// Add deployments in various states
+	d1 := addTestDeployment(t, svc, "eval-probing", "v2", "v1", StateProbing, 5)
+	d1.ProbeStartTime = time.Now().Add(-1 * time.Hour)
+
+	addTestDeployment(t, svc, "eval-stable", "v2", "v1", StateStable, 100)
+	addTestDeployment(t, svc, "eval-rollback", "v2", "v1", StateRollback, 0)
+
+	svc.evaluateAll(context.Background())
+
+	// Probing should have transitioned to RAMP
+	d1After, _ := svc.GetDeployment("eval-probing")
+	if d1After.State != StateRamp {
+		t.Errorf("eval-probing State = %s, want RAMP", d1After.State)
+	}
+
+	// Stable and Rollback should remain unchanged (skipped)
+	dStable, _ := svc.GetDeployment("eval-stable")
+	if dStable.State != StateStable {
+		t.Errorf("eval-stable State = %s, want STABLE (should be skipped)", dStable.State)
+	}
+	dRollback, _ := svc.GetDeployment("eval-rollback")
+	if dRollback.State != StateRollback {
+		t.Errorf("eval-rollback State = %s, want ROLLBACK (should be skipped)", dRollback.State)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPMetricsContent
+// ---------------------------------------------------------------------------
+
+func TestHTTPMetricsContent(t *testing.T) {
+	svc := newTestService(t)
+	addTestDeployment(t, svc, "m1", "v2", "v1", StateProbing, 5)
+	addTestDeployment(t, svc, "m2", "v3", "v2", StateRamp, 50)
+	addTestDeployment(t, svc, "m3", "v4", "v3", StateStable, 100)
+	addTestDeployment(t, svc, "m4", "v5", "v4", StateRollback, 0)
+
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	for _, expected := range []string{
+		`canary_deployments_active 4`,
+		`canary_deployments_by_state{state="PROBING"} 1`,
+		`canary_deployments_by_state{state="RAMP"} 1`,
+		`canary_deployments_by_state{state="STABLE"} 1`,
+		`canary_deployments_by_state{state="ROLLBACK"} 1`,
+		`canary_wotan_drops_total 0`,
+	} {
+		if !contains(body, expected) {
+			t.Errorf("metrics missing %q", expected)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHandleCriticalAlert
+// ---------------------------------------------------------------------------
+
+func TestHandleCriticalAlert(t *testing.T) {
+	svc := newTestService(t)
+
+	// nil message should not panic
+	svc.handleCriticalAlert(context.Background(), nil)
+
+	// non-nil message should not panic
+	msg := &wotanClient.Message{
+		MessageID: "test-123",
+		Topic:     "alerts.critical",
+	}
+	svc.handleCriticalAlert(context.Background(), msg)
+}
+
+// ---------------------------------------------------------------------------
+// TestPublishEventNilWotan
+// ---------------------------------------------------------------------------
+
+func TestPublishEventNilWotan(t *testing.T) {
+	svc := newTestService(t)
+
+	// With nil wotan, publishEvent should increment drops and not panic
+	for i := 0; i < 5; i++ {
+		svc.publishEvent(context.Background(), "test.topic", map[string]interface{}{
+			"iteration": i,
+		})
+	}
+
+	if drops := svc.WotanDrops(); drops != 5 {
+		t.Errorf("WotanDrops = %d, want 5", drops)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPEmptyServiceIDInPath
+// ---------------------------------------------------------------------------
+
+func TestHTTPEmptyServiceIDInPath(t *testing.T) {
+	svc := newTestService(t)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	// The path /api/v1/canaries/ with no service ID should return 400
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/canaries/", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
 }

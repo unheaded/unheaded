@@ -4,6 +4,7 @@
 package qos
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -331,5 +332,493 @@ func TestHealthEndpoints(t *testing.T) {
 				t.Errorf("expected status 200 for %s, got %d", endpoint, w.Code)
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestWotanDrops
+// ---------------------------------------------------------------------------
+
+func TestWotanDrops(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+
+	if drops := svc.WotanDrops(); drops != 0 {
+		t.Errorf("initial WotanDrops = %d, want 0", drops)
+	}
+
+	// publishPolicyUpdate with nil wotan increments drops
+	svc.publishPolicyUpdate("test-svc", &QoSPolicy{
+		ServiceID: "test-svc",
+		Weight:    1,
+	})
+
+	if drops := svc.WotanDrops(); drops != 1 {
+		t.Errorf("WotanDrops = %d, want 1", drops)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestPublishStatsSnapshot
+// ---------------------------------------------------------------------------
+
+func TestPublishStatsSnapshot(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+
+	t.Run("no stats - no publish", func(t *testing.T) {
+		before := svc.WotanDrops()
+		svc.publishStatsSnapshot(context.Background())
+		after := svc.WotanDrops()
+		// With no stats, nothing should be published
+		if after != before {
+			t.Errorf("WotanDrops changed from %d to %d with no stats", before, after)
+		}
+	})
+
+	t.Run("with stats and nil wotan - increments drops", func(t *testing.T) {
+		svc.UpdateStats(&QueueStats{
+			ServiceID: "svc-a",
+			Packets:   100,
+		})
+		before := svc.WotanDrops()
+		svc.publishStatsSnapshot(context.Background())
+		after := svc.WotanDrops()
+		if after != before+1 {
+			t.Errorf("WotanDrops = %d, want %d", after, before+1)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPMetrics
+// ---------------------------------------------------------------------------
+
+func TestHTTPMetrics(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+	_ = svc.SetPolicy(&QoSPolicy{
+		ServiceID: "svc-a",
+		Weight:    1,
+	})
+	svc.UpdateStats(&QueueStats{
+		ServiceID: "svc-a",
+		Packets:   5000,
+		Drops:     100,
+	})
+
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	body := w.Body.String()
+	for _, expected := range []string{
+		"unheaded_qos_policies_total 1",
+		"unheaded_qos_services_monitored 1",
+		"unheaded_qos_packets_total 5000",
+		"unheaded_qos_drops_total 100",
+		"unheaded_qos_wotan_drops_total",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("metrics missing %q in:\n%s", expected, body)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPStatsByService
+// ---------------------------------------------------------------------------
+
+func TestHTTPStatsByService(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+	svc.UpdateStats(&QueueStats{
+		ServiceID:  "svc-x",
+		Packets:    200,
+		LatencyP99: 5.5,
+	})
+
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("existing service stats", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/svc-x", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200", w.Code)
+		}
+
+		var st QueueStats
+		if err := json.NewDecoder(w.Body).Decode(&st); err != nil {
+			t.Fatalf("decode error: %v", err)
+		}
+		if st.Packets != 200 {
+			t.Errorf("Packets = %d, want 200", st.Packets)
+		}
+	})
+
+	t.Run("nonexistent service stats", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/nonexistent", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", w.Code)
+		}
+	})
+
+	t.Run("method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/stats/svc-x", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("status = %d, want 405", w.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPStatsAll
+// ---------------------------------------------------------------------------
+
+func TestHTTPStatsAll(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+	svc.UpdateStats(&QueueStats{ServiceID: "svc-1", Packets: 100})
+	svc.UpdateStats(&QueueStats{ServiceID: "svc-2", Packets: 200})
+
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("GET returns all stats sorted", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/stats", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+
+		var resp map[string]interface{}
+		json.NewDecoder(w.Body).Decode(&resp)
+		total := int(resp["total"].(float64))
+		if total != 2 {
+			t.Errorf("total = %d, want 2", total)
+		}
+	})
+
+	t.Run("POST not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/stats", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("status = %d, want 405", w.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPCongestion
+// ---------------------------------------------------------------------------
+
+func TestHTTPCongestion(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+	_ = svc.SetPolicy(&QoSPolicy{
+		ServiceID:       "svc-c1",
+		Weight:          2,
+		TargetLatencyMS: 5,
+	})
+	_ = svc.SetPolicy(&QoSPolicy{
+		ServiceID:       "svc-c2",
+		Weight:          3,
+		TargetLatencyMS: 10,
+	})
+	svc.UpdateStats(&QueueStats{
+		ServiceID:  "svc-c1",
+		LatencyP99: 3.0,
+	})
+	svc.UpdateStats(&QueueStats{
+		ServiceID:  "svc-c2",
+		LatencyP99: 60.0, // > 5x target of 10ms
+	})
+
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("GET returns congestion info", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/congestion", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+
+		var resp map[string]interface{}
+		json.NewDecoder(w.Body).Decode(&resp)
+		total := int(resp["total"].(float64))
+		if total != 2 {
+			t.Errorf("total = %d, want 2", total)
+		}
+	})
+
+	t.Run("POST not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/congestion", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("status = %d, want 405", w.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPPolicyByServiceGet
+// ---------------------------------------------------------------------------
+
+func TestHTTPPolicyByServiceGet(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+	_ = svc.SetPolicy(&QoSPolicy{
+		ServiceID: "get-svc",
+		Weight:    4,
+		Class:     10,
+	})
+
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	t.Run("GET existing policy", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/policy/get-svc", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+		var p QoSPolicy
+		json.NewDecoder(w.Body).Decode(&p)
+		if p.Weight != 4 {
+			t.Errorf("Weight = %d, want 4", p.Weight)
+		}
+	})
+
+	t.Run("GET nonexistent policy", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/policy/nonexistent", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", w.Code)
+		}
+	})
+
+	t.Run("DELETE not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/policy/get-svc", nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("status = %d, want 405", w.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPPolicyPostValidation
+// ---------------------------------------------------------------------------
+
+func TestHTTPPolicyPostValidation(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	tests := []struct {
+		name       string
+		body       string
+		wantStatus int
+	}{
+		{
+			name:       "invalid JSON",
+			body:       `not json`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid weight",
+			body:       `{"weight": 0}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "negative rate limit",
+			body:       `{"weight": 5, "rate_limit_mbps": -1.0}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "valid policy",
+			body:       `{"weight": 5, "rate_limit_mbps": 100.0}`,
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/test-validate", strings.NewReader(tt.body))
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d; body: %s", w.Code, tt.wantStatus, w.Body.String())
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPPoliciesMethodNotAllowed
+// ---------------------------------------------------------------------------
+
+func TestHTTPPoliciesMethodNotAllowed(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want 405", w.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestPolicyValidation
+// ---------------------------------------------------------------------------
+
+func TestPolicyValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		policy  QoSPolicy
+		wantErr bool
+	}{
+		{
+			name:    "valid policy",
+			policy:  QoSPolicy{ServiceID: "svc", Weight: 1},
+			wantErr: false,
+		},
+		{
+			name:    "empty service_id",
+			policy:  QoSPolicy{ServiceID: "", Weight: 1},
+			wantErr: true,
+		},
+		{
+			name:    "weight zero",
+			policy:  QoSPolicy{ServiceID: "svc", Weight: 0},
+			wantErr: true,
+		},
+		{
+			name:    "weight 17",
+			policy:  QoSPolicy{ServiceID: "svc", Weight: 17},
+			wantErr: true,
+		},
+		{
+			name:    "negative rate limit",
+			policy:  QoSPolicy{ServiceID: "svc", Weight: 1, RateLimitMbps: -1.0},
+			wantErr: true,
+		},
+		{
+			name:    "weight 16 (max valid)",
+			policy:  QoSPolicy{ServiceID: "svc", Weight: 16},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.policy.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestCongestionDetectionEdgeCases
+// ---------------------------------------------------------------------------
+
+func TestCongestionDetectionEdgeCases(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+
+	t.Run("no stats for service", func(t *testing.T) {
+		_ = svc.SetPolicy(&QoSPolicy{
+			ServiceID:       "no-stats",
+			Weight:          1,
+			TargetLatencyMS: 5,
+		})
+		info := svc.DetectCongestionExported("no-stats")
+		if info.CircuitState != CircuitClosed {
+			t.Errorf("expected CLOSED, got %s", info.CircuitState)
+		}
+	})
+
+	t.Run("zero target latency uses default", func(t *testing.T) {
+		_ = svc.SetPolicy(&QoSPolicy{
+			ServiceID:       "zero-target",
+			Weight:          1,
+			TargetLatencyMS: 0,
+		})
+		// After validate, TargetLatencyMS should be DefaultTargetMS
+		svc.UpdateStats(&QueueStats{
+			ServiceID:  "zero-target",
+			LatencyP99: 30.0, // > 5x default 5ms = 25ms
+		})
+		info := svc.DetectCongestionExported("zero-target")
+		if info.CircuitState != CircuitOpen {
+			t.Errorf("expected OPEN, got %s", info.CircuitState)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPStatsByServiceEmptyID
+// ---------------------------------------------------------------------------
+
+func TestHTTPStatsByServiceEmptyID(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHTTPPolicyByServiceEmptyID
+// ---------------------------------------------------------------------------
+
+func TestHTTPPolicyByServiceEmptyID(t *testing.T) {
+	svc := NewService(newTestLogger(), nil)
+	mux := http.NewServeMux()
+	svc.registerRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/policy/", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
 	}
 }
