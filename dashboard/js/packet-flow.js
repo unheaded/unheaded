@@ -16,10 +16,10 @@ const PacketFlowViz = (function() {
     // Configuration
     // ========================================================================
     const CONFIG = {
-        // WebSocket settings - dashboard-backend (Go, port 8080)
-        wsUrl: 'ws://localhost:8080/ws',
-        // Trace-collector WebSocket (Rust/eBPF, port 9091) for real eBPF traces
-        traceCollectorWsUrl: 'ws://localhost:9091',
+        // WebSocket settings - relative to current host (auto-detects port)
+        wsUrl: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws',
+        // Trace-collector WebSocket — falls back to same host /ws if no dedicated collector
+        traceCollectorWsUrl: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/traces',
         reconnectBaseDelay: 1000,
         reconnectMaxDelay: 30000,
         reconnectMultiplier: 1.5,
