@@ -511,8 +511,36 @@ var PacketFlowDiagram = (function() {
             }
         }
 
-        // Re-render links to reflect traffic changes
-        renderLinks();
+        // Update link styles in-place (no DOM rebuild)
+        updateLinkStyles();
+    }
+
+    // Throttled link style update — modifies existing SVG attributes instead
+    // of rebuilding all SVG elements (was renderLinks() every 50ms = DOM thrashing)
+    function updateLinkStyles() {
+        var linkGroup = document.getElementById('pfd-links');
+        if (!linkGroup) return;
+
+        var lines = linkGroup.querySelectorAll('.pfd-link');
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            var key = line.getAttribute('data-link');
+            if (!key) continue;
+
+            var traffic = state.trafficCounts[key] || 0;
+            var latency = state.latencyMap[key] || 0;
+            var strokeWidth = Math.max(1, Math.min(6, 1 + traffic * 0.5));
+            var strokeColor = getLatencyColor(latency, traffic > 0);
+
+            line.setAttribute('stroke', strokeColor);
+            line.setAttribute('stroke-width', strokeWidth);
+
+            if (traffic > 0) {
+                line.classList.add('active');
+            } else {
+                line.classList.remove('active');
+            }
+        }
     }
 
     function spawnParticle(sourceId, targetId, color) {

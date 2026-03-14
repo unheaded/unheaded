@@ -538,8 +538,31 @@
     function addFlowEvent(flowData) {
         // Single flow event from WS — merge into state.flows
         if (!flowData) return;
-        state.flows.push(flowData);
-        if (state.flows.length > CONFIG.flow.maxFlows) state.flows.shift();
+
+        // Convert packet_flow format (hops-based) to flow format (src/dst-based)
+        if (flowData.hops && flowData.hops.length >= 2) {
+            for (var i = 0; i < flowData.hops.length - 1; i++) {
+                var src = flowData.hops[i].component || 'unknown';
+                var dst = flowData.hops[i + 1].component || 'unknown';
+                var hopLatency = flowData.hops[i].latency || (flowData.total_time || 0) / flowData.hops.length;
+                state.flows.push({
+                    source: src, destination: dst,
+                    src_ip: src, dst_ip: dst,
+                    state: flowData.status_code === 200 ? 'established' : 'closed',
+                    bytes_in: Math.max(64, Math.floor(hopLatency / 1000)),
+                    bytes_out: Math.max(64, Math.floor(hopLatency / 1000)),
+                    packets_in: 1, packets_out: 1,
+                    protocol: 6,
+                    trace_id: flowData.trace_id,
+                    method: flowData.method || 'GET',
+                    path: flowData.path || '/'
+                });
+            }
+        } else {
+            state.flows.push(flowData);
+        }
+
+        while (state.flows.length > CONFIG.flow.maxFlows) state.flows.shift();
         buildFlowNodes(state.flows);
         setText(el.flowGraphCount, state.flows.length);
         setText(el.activeFlowsCount, state.flows.length);
