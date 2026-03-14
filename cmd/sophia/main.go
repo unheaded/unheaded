@@ -772,7 +772,7 @@ func main() {
 
 	// Health server
 	healthSrv := transport.NewHealthServer("sophia")
-	_ = transportCfg // used for future transport.Connect()
+	// transportCfg used below for log aggregation transport.Connect()
 
 	// Setup logging using Kingdom's native logger
 	logConfig := logger.DefaultConfig()
@@ -796,9 +796,6 @@ func main() {
 		Str("git_commit", GitCommit).
 		Msg("Sophia awakens - wisdom flows through the Kingdom")
 
-	// Log aggregation publisher — forwards structured logs to Wotan
-	_ = logagg.NewPublisher("sophia", nil) // nil transport — publisher disabled until zerolog is adopted
-
 	// Connect to Wotan
 	var wotanInstance *wotanClient.Client
 	wotanEnabled := os.Getenv("WOTAN_ENABLED") != "false"
@@ -821,6 +818,13 @@ func main() {
 	} else {
 		log.Warn().Msg("Wotan disabled, running standalone")
 	}
+
+	// Log aggregation publisher — forwards structured logs to Wotan
+	var logConn transport.Connection
+	if wotanInstance != nil {
+		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+	}
+	_ = logagg.NewPublisher("sophia", logConn)
 
 	// Create Sophia service configuration
 	sophiaConfig := sophia.DefaultConfig()

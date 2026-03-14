@@ -1147,7 +1147,11 @@ func main() {
 	healthSrv := transport.NewHealthServer("trace-collector")
 
 	// Log aggregation publisher — forwards structured logs to Wotan
-	logPublisher := logagg.NewPublisher("trace-collector", nil) // nil transport — publisher disabled until transport.Connect() is used
+	var logConn transport.Connection
+	if *wotanAddr != "" {
+		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+	}
+	logPublisher := logagg.NewPublisher("trace-collector", logConn)
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create context with signal handling
