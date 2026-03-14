@@ -4,13 +4,19 @@
 package nfv
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ---------------------------------------------------------------------------
@@ -344,5 +350,490 @@ func TestChainTimestamps(t *testing.T) {
 	}
 	if got.UpdatedAt.Before(before) || got.UpdatedAt.After(after) {
 		t.Error("UpdatedAt not within expected range")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// HTTP handler tests
+// ---------------------------------------------------------------------------
+
+func TestHandleHealth(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var body map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&body)
+	if body["status"] != "healthy" {
+		t.Errorf("expected status 'healthy', got %v", body["status"])
+	}
+	if body["service"] != "nfv" {
+		t.Errorf("expected service 'nfv', got %v", body["service"])
+	}
+}
+
+func TestHandleReady(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var body map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&body)
+	if body["ready"] != true {
+		t.Errorf("expected ready true, got %v", body["ready"])
+	}
+}
+
+func TestHandleMetrics(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	// Populate some data
+	svc.CreateChain(ctx, makeChain(0, "m-chain", 2))
+	svc.RegisterFunction("xdp_test", 42)
+	svc.RecordStats(&ChainStats{ChainID: 0, PacketsProcessed: 500, Drops: 3})
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "nfv_chains_total 1") {
+		t.Error("expected nfv_chains_total 1 in metrics")
+	}
+	if !strings.Contains(body, "nfv_functions_total 1") {
+		t.Error("expected nfv_functions_total 1 in metrics")
+	}
+	if !strings.Contains(body, "nfv_packets_processed_total 500") {
+		t.Error("expected nfv_packets_processed_total 500 in metrics")
+	}
+	if !strings.Contains(body, "nfv_drops_total 3") {
+		t.Error("expected nfv_drops_total 3 in metrics")
+	}
+	ct := rec.Header().Get("Content-Type")
+	if ct != "text/plain; version=0.0.4" {
+		t.Errorf("expected prometheus content-type, got %q", ct)
+	}
+}
+
+func TestHandleChainsHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET /api/v1/chains empty", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chains", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 0 {
+			t.Errorf("expected 0 chains, got %v", body["count"])
+		}
+	})
+
+	t.Run("POST /api/v1/chains create", func(t *testing.T) {
+		chainJSON := `{"chain_id":1,"name":"http-chain","functions":[{"name":"f1","priority":0,"prog_fd":10,"required":true}]}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chains", strings.NewReader(chainJSON))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d; body: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("POST /api/v1/chains invalid body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chains", strings.NewReader("not json"))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST /api/v1/chains invalid chain_id", func(t *testing.T) {
+		chainJSON := `{"chain_id":100,"name":"bad-chain","functions":[]}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chains", strings.NewReader(chainJSON))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST /api/v1/chains empty name", func(t *testing.T) {
+		chainJSON := `{"chain_id":2,"name":"","functions":[]}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chains", strings.NewReader(chainJSON))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST /api/v1/chains too many functions", func(t *testing.T) {
+		funcs := make([]FunctionRef, MaxFunctionsPerChain+1)
+		for i := range funcs {
+			funcs[i] = FunctionRef{Name: fmt.Sprintf("f%d", i)}
+		}
+		chain := ChainDefinition{ChainID: 3, Name: "too-many", Functions: funcs}
+		body, _ := json.Marshal(chain)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chains", bytes.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("PUT /api/v1/chains method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/chains", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET /api/v1/chains after create", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chains", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) < 1 {
+			t.Errorf("expected at least 1 chain after create")
+		}
+	})
+}
+
+func TestHandleChainByIDHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+	svc.CreateChain(ctx, makeChain(5, "by-id-chain", 2))
+	svc.RecordStats(&ChainStats{ChainID: 5, PacketsProcessed: 100, Drops: 1})
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET existing chain", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chains/5", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var chain ChainDefinition
+		json.NewDecoder(rec.Body).Decode(&chain)
+		if chain.Name != "by-id-chain" {
+			t.Errorf("expected 'by-id-chain', got %q", chain.Name)
+		}
+	})
+
+	t.Run("GET non-existent chain", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chains/99", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET invalid chain_id", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chains/abc", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET chain telemetry", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chains/5/telemetry", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var stats ChainStats
+		json.NewDecoder(rec.Body).Decode(&stats)
+		if stats.PacketsProcessed != 100 {
+			t.Errorf("expected 100 packets, got %d", stats.PacketsProcessed)
+		}
+	})
+
+	t.Run("GET telemetry for chain without stats", func(t *testing.T) {
+		svc.CreateChain(ctx, makeChain(10, "no-stats-chain", 1))
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chains/10/telemetry", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var stats ChainStats
+		json.NewDecoder(rec.Body).Decode(&stats)
+		if stats.PacketsProcessed != 0 {
+			t.Errorf("expected 0 packets for missing stats, got %d", stats.PacketsProcessed)
+		}
+	})
+
+	t.Run("GET telemetry for non-existent chain", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chains/99/telemetry", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rec.Code)
+		}
+	})
+
+	t.Run("DELETE chain", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/chains/5", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+	})
+
+	t.Run("DELETE non-existent chain", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/chains/99", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rec.Code)
+		}
+	})
+
+	t.Run("PATCH chain method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/v1/chains/5", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleFunctionsHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	svc.RegisterFunction("xdp_filter", 42)
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET /api/v1/functions", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/functions", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 1 {
+			t.Errorf("expected 1 function, got %v", body["count"])
+		}
+	})
+
+	t.Run("POST /api/v1/functions method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/functions", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleFunctionReloadHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	// Create chain with a function to reload
+	chain := makeChain(0, "reload-chain", 2)
+	svc.CreateChain(ctx, chain)
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("POST reload new function", func(t *testing.T) {
+		body := `{"name":"new_func","prog_fd":55}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/functions/reload", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var resp map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&resp)
+		if resp["status"] != "reloaded" {
+			t.Errorf("expected status 'reloaded', got %v", resp["status"])
+		}
+	})
+
+	t.Run("POST reload existing chain function", func(t *testing.T) {
+		body := `{"name":"func_0","prog_fd":999}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/functions/reload", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+
+		// Verify chain function was updated
+		got, _ := svc.GetChain(0)
+		for _, fn := range got.Functions {
+			if fn.Name == "func_0" && fn.ProgFD != 999 {
+				t.Errorf("expected prog_fd 999 after reload, got %d", fn.ProgFD)
+			}
+		}
+	})
+
+	t.Run("POST reload invalid body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/functions/reload", strings.NewReader("bad"))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST reload empty name", func(t *testing.T) {
+		body := `{"name":"","prog_fd":10}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/functions/reload", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET reload method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/functions/reload", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestAggregateStats(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	svc.CreateChain(ctx, makeChain(0, "agg-chain", 1))
+	svc.RecordStats(&ChainStats{ChainID: 0, PacketsProcessed: 500})
+
+	// Should not panic or error
+	svc.aggregateStats()
+}
+
+func TestHandleCriticalAlert(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	// nil message should not panic
+	svc.handleCriticalAlert(nil)
+
+	// valid message
+	svc.handleCriticalAlert(&wotanClient.Message{
+		MessageID: "alert-1",
+		Topic:     "alerts.critical",
+	})
+}
+
+func TestPublishEventMultipleDrops(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	for i := 0; i < 5; i++ {
+		svc.publishEvent(ctx, "test.topic", map[string]interface{}{"i": i})
+	}
+	if svc.WotanDrops() != 5 {
+		t.Errorf("expected 5 wotan drops, got %d", svc.WotanDrops())
+	}
+}
+
+func TestStatsAggregationLoopCancellation(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		svc.statsAggregationLoop(ctx)
+		close(done)
+	}()
+
+	cancel()
+	select {
+	case <-done:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("statsAggregationLoop did not exit after context cancel")
+	}
+}
+
+func TestListenForAlertsNilWotan(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	// Should return immediately when wotan is nil
+	done := make(chan struct{})
+	go func() {
+		svc.listenForAlerts(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("listenForAlerts did not return for nil wotan")
 	}
 }

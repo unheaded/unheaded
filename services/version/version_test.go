@@ -5,11 +5,16 @@ package version
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ---------------------------------------------------------------------------
@@ -307,5 +312,519 @@ func TestRuleKey(t *testing.T) {
 	key := ruleKey("v1", "v2")
 	if key != "v1->v2" {
 		t.Errorf("expected 'v1->v2', got %q", key)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// HTTP handler tests
+// ---------------------------------------------------------------------------
+
+func TestHandleHealth(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var body map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&body)
+	if body["status"] != "healthy" {
+		t.Errorf("expected status 'healthy', got %v", body["status"])
+	}
+	if body["service"] != "version" {
+		t.Errorf("expected service 'version', got %v", body["service"])
+	}
+}
+
+func TestHandleReady(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var body map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&body)
+	if body["ready"] != true {
+		t.Errorf("expected ready true, got %v", body["ready"])
+	}
+}
+
+func TestHandleMetrics(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	svc.AddTranslationRule(makeRule("v1", "v2"))
+	svc.UpdateServiceVersion(ctx, "timeguru", "1.0.0", 0x0F)
+	svc.RecordTranslation("v1", 100.0)
+	svc.RecordTranslationError()
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "version_translation_rules_total 1") {
+		t.Error("expected version_translation_rules_total 1 in metrics")
+	}
+	if !strings.Contains(body, "version_services_total 1") {
+		t.Error("expected version_services_total 1 in metrics")
+	}
+	if !strings.Contains(body, "version_translations_total 1") {
+		t.Error("expected version_translations_total 1 in metrics")
+	}
+	if !strings.Contains(body, "version_translation_errors_total 1") {
+		t.Error("expected version_translation_errors_total 1 in metrics")
+	}
+	ct := rec.Header().Get("Content-Type")
+	if ct != "text/plain; version=0.0.4" {
+		t.Errorf("expected prometheus content-type, got %q", ct)
+	}
+}
+
+func TestHandleTranslationRulesHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET empty rules", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/translations/rules", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 0 {
+			t.Errorf("expected 0 rules, got %v", body["count"])
+		}
+	})
+
+	t.Run("POST create rule", func(t *testing.T) {
+		ruleJSON := `{"src_version":"v1","dst_version":"v2","field_mask":65280,"crc_recalc":true}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/translations/rules", strings.NewReader(ruleJSON))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d; body: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("POST invalid body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/translations/rules", strings.NewReader("bad"))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST missing versions", func(t *testing.T) {
+		ruleJSON := `{"src_version":"","dst_version":"v2"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/translations/rules", strings.NewReader(ruleJSON))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("PUT method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/translations/rules", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET rules after create", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/translations/rules", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) < 1 {
+			t.Errorf("expected at least 1 rule after create")
+		}
+	})
+}
+
+func TestHandleTranslationRuleByVersionsHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	svc.AddTranslationRule(makeRule("v1", "v2"))
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET existing rule", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/translations/rules/v1/v2", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var rule TranslationRule
+		json.NewDecoder(rec.Body).Decode(&rule)
+		if rule.SrcVersion != "v1" || rule.DstVersion != "v2" {
+			t.Errorf("expected v1->v2, got %s->%s", rule.SrcVersion, rule.DstVersion)
+		}
+	})
+
+	t.Run("GET non-existent rule", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/translations/rules/v99/v100", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET invalid path (missing dst)", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/translations/rules/v1", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("DELETE rule", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/translations/rules/v1/v2", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+	})
+
+	t.Run("DELETE non-existent rule", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/translations/rules/v99/v100", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rec.Code)
+		}
+	})
+
+	t.Run("PATCH method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/v1/translations/rules/v1/v2", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleServiceVersionsHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+	svc.UpdateServiceVersion(ctx, "timeguru", "1.0.0", 0x0F)
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET service versions", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/services/versions", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 1 {
+			t.Errorf("expected 1 service, got %v", body["count"])
+		}
+	})
+
+	t.Run("POST method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/services/versions", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleServiceByIDHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("POST update service version", func(t *testing.T) {
+		body := `{"version":"2.0.0","capabilities":255}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/services/timeguru/version", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d; body: %s", rec.Code, rec.Body.String())
+		}
+		var info ServiceVersionInfo
+		json.NewDecoder(rec.Body).Decode(&info)
+		if info.CurrentVersion != "2.0.0" {
+			t.Errorf("expected version '2.0.0', got %q", info.CurrentVersion)
+		}
+	})
+
+	t.Run("POST missing version", func(t *testing.T) {
+		body := `{"version":"","capabilities":1}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/services/timeguru/version", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST invalid body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/services/timeguru/version", strings.NewReader("bad"))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST invalid path (no version subpath)", func(t *testing.T) {
+		body := `{"version":"1.0.0"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/services/timeguru/other", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/services/timeguru/version", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleTranslationStats(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	svc.RecordTranslation("v1", 100.0)
+	svc.RecordTranslation("v2", 200.0)
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET stats", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/translations/stats", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var stats TranslationStats
+		json.NewDecoder(rec.Body).Decode(&stats)
+		if stats.TotalTranslations != 2 {
+			t.Errorf("expected 2 translations, got %d", stats.TotalTranslations)
+		}
+	})
+
+	t.Run("POST method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/translations/stats", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleHeatmapHTTP(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	svc.AddHeatmapEntry(VersionHeatmapEntry{
+		Timestamp:   time.Now(),
+		Version:     "v1",
+		PacketCount: 100,
+	})
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET heatmap", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/translations/heatmap", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 1 {
+			t.Errorf("expected 1 entry, got %v", body["count"])
+		}
+	})
+
+	t.Run("POST method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/translations/heatmap", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestGenerateHeatmapSnapshot(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	// Record translations to populate version stats
+	svc.RecordTranslation("v1", 10.0)
+	svc.RecordTranslation("v1", 20.0)
+	svc.RecordTranslation("v2", 30.0)
+
+	svc.generateHeatmapSnapshot()
+
+	entries := svc.GetHeatmap()
+	if len(entries) < 2 {
+		t.Errorf("expected at least 2 heatmap entries, got %d", len(entries))
+	}
+}
+
+func TestHandleCriticalAlert(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	// nil message should not panic
+	svc.handleCriticalAlert(nil)
+
+	// valid message
+	svc.handleCriticalAlert(&wotanClient.Message{
+		MessageID: "alert-1",
+		Topic:     "alerts.critical",
+	})
+}
+
+func TestListenForAlertsNilWotan(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	done := make(chan struct{})
+	go func() {
+		svc.listenForAlerts(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("listenForAlerts did not return for nil wotan")
+	}
+}
+
+func TestStatsAggregationLoopCancellation(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		svc.statsAggregationLoop(ctx)
+		close(done)
+	}()
+
+	cancel()
+	select {
+	case <-done:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("statsAggregationLoop did not exit after context cancel")
+	}
+}
+
+func TestPublishEventMultipleDrops(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	for i := 0; i < 5; i++ {
+		svc.publishEvent(ctx, "test.topic", map[string]interface{}{"i": i})
+	}
+	if svc.WotanDrops() != 5 {
+		t.Errorf("expected 5 wotan drops, got %d", svc.WotanDrops())
+	}
+}
+
+func TestTranslationStatsRunningAverage(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	svc.RecordTranslation("v1", 100.0)
+	svc.RecordTranslation("v1", 200.0)
+
+	stats := svc.GetTranslationStats()
+	// Running average of 100 and 200 should be 150
+	if stats.AvgLatencyUS < 149.9 || stats.AvgLatencyUS > 150.1 {
+		t.Errorf("expected avg latency ~150, got %f", stats.AvgLatencyUS)
+	}
+}
+
+func TestHeatmapBounding(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	// Add more than 1000 entries to test bounding
+	for i := 0; i < 1010; i++ {
+		svc.AddHeatmapEntry(VersionHeatmapEntry{
+			Timestamp:   time.Now(),
+			Version:     "v1",
+			PacketCount: uint64(i),
+		})
+	}
+
+	// Trigger snapshot which enforces the 1000 bound
+	svc.generateHeatmapSnapshot()
+
+	entries := svc.GetHeatmap()
+	if len(entries) > 1000 {
+		t.Errorf("expected heatmap bounded to 1000, got %d", len(entries))
 	}
 }

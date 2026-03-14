@@ -5,12 +5,18 @@ package anomaly
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"math"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ---------------------------------------------------------------------------
@@ -464,4 +470,649 @@ func TestServiceStats(t *testing.T) {
 	if stats["model_type"].(string) != "decision_tree" {
 		t.Errorf("expected model_type 'decision_tree'")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// HTTP handler tests
+// ---------------------------------------------------------------------------
+
+func TestHandleHealth(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var body map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&body)
+	if body["status"] != "healthy" {
+		t.Errorf("expected status 'healthy', got %v", body["status"])
+	}
+	if body["service"] != "anomaly" {
+		t.Errorf("expected service 'anomaly', got %v", body["service"])
+	}
+}
+
+func TestHandleReady(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var body map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&body)
+	if body["ready"] != true {
+		t.Errorf("expected ready true, got %v", body["ready"])
+	}
+}
+
+func TestHandleMetrics(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	svc.RecordFlowScore(makeFlowScore("10.0.0.1", "10.0.0.2", 50, "svc-a"))
+	svc.SetBaseline(&ServiceBaseline{ServiceID: "svc-a"})
+	svc.SetThreshold(&AdaptiveThreshold{ServiceID: "svc-a", Threshold: 50.0})
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "anomaly_tracked_flows 1") {
+		t.Error("expected anomaly_tracked_flows 1 in metrics")
+	}
+	if !strings.Contains(body, "anomaly_baselines_total 1") {
+		t.Error("expected anomaly_baselines_total 1 in metrics")
+	}
+	if !strings.Contains(body, "anomaly_thresholds_total 1") {
+		t.Error("expected anomaly_thresholds_total 1 in metrics")
+	}
+	ct := rec.Header().Get("Content-Type")
+	if ct != "text/plain; version=0.0.4" {
+		t.Errorf("expected prometheus content-type, got %q", ct)
+	}
+}
+
+func TestHandleTopAnomalies(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	svc.RecordFlowScore(makeFlowScore("10.0.0.1", "10.0.0.2", 90, "svc-a"))
+	svc.RecordFlowScore(makeFlowScore("10.0.0.3", "10.0.0.4", 50, "svc-b"))
+	svc.RecordFlowScore(makeFlowScore("10.0.0.5", "10.0.0.6", 70, "svc-a"))
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET all", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/top", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 3 {
+			t.Errorf("expected 3 flows, got %v", body["count"])
+		}
+	})
+
+	t.Run("GET with limit", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/top?limit=1", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 1 {
+			t.Errorf("expected 1 flow with limit=1, got %v", body["count"])
+		}
+	})
+
+	t.Run("GET filtered by service_id", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/top?service_id=svc-b", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 1 {
+			t.Errorf("expected 1 flow for svc-b, got %v", body["count"])
+		}
+	})
+
+	t.Run("POST method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/top", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleHeatmap(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	svc.RecordFlowScore(makeFlowScore("10.0.0.1", "10.0.0.2", 30, "svc-a"))
+	svc.RecordFlowScore(makeFlowScore("10.0.0.3", "10.0.0.4", 60, "svc-b"))
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET heatmap", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/heatmap", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) < 1 {
+			t.Errorf("expected at least 1 heatmap cell, got %v", body["count"])
+		}
+	})
+
+	t.Run("POST method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/heatmap", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleHeatmapEmptyServiceID(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	// Flow with empty service_id should map to "unknown"
+	score := makeFlowScore("10.0.0.1", "10.0.0.2", 40, "")
+	svc.RecordFlowScore(score)
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/heatmap", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestHandleBaseline(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	svc.SetBaseline(&ServiceBaseline{ServiceID: "svc-a", EntropyMean: 25.0})
+	svc.SetThreshold(&AdaptiveThreshold{ServiceID: "svc-a", Threshold: 35.0})
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET existing baseline", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/baseline/svc-a", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["baseline"] == nil {
+			t.Error("expected baseline in response")
+		}
+		if body["threshold"] == nil {
+			t.Error("expected threshold in response")
+		}
+	})
+
+	t.Run("GET baseline without threshold", func(t *testing.T) {
+		svc.SetBaseline(&ServiceBaseline{ServiceID: "svc-nothresh", EntropyMean: 10.0})
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/baseline/svc-nothresh", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["threshold"] != nil {
+			t.Error("expected no threshold for svc-nothresh")
+		}
+	})
+
+	t.Run("GET non-existent baseline", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/baseline/non-existent", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET baseline empty service_id", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/baseline/", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/baseline/svc-a", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleModelConfig(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET model config", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/model-config", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var config ModelConfig
+		json.NewDecoder(rec.Body).Decode(&config)
+		if config.Type != "decision_tree" {
+			t.Errorf("expected type 'decision_tree', got %q", config.Type)
+		}
+	})
+
+	t.Run("POST method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/model-config", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleModelUpdate(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("POST update model", func(t *testing.T) {
+		body := `{"type":"decision_tree","depth":10,"node_count":200,"training_accuracy":0.98,"version":"2.0.0"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/model", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var config ModelConfig
+		json.NewDecoder(rec.Body).Decode(&config)
+		if config.Version != "2.0.0" {
+			t.Errorf("expected version '2.0.0', got %q", config.Version)
+		}
+	})
+
+	t.Run("POST with default type", func(t *testing.T) {
+		body := `{"depth":5,"version":"2.1.0"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/model", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var config ModelConfig
+		json.NewDecoder(rec.Body).Decode(&config)
+		if config.Type != "decision_tree" {
+			t.Errorf("expected default type 'decision_tree', got %q", config.Type)
+		}
+	})
+
+	t.Run("POST missing version", func(t *testing.T) {
+		body := `{"type":"decision_tree","depth":5}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/model", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST invalid body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/model", strings.NewReader("bad"))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/model", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleThresholdOverride(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("POST override threshold", func(t *testing.T) {
+		body := `{"threshold":75.0}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/threshold/svc-a", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+
+		th, ok := svc.GetThreshold("svc-a")
+		if !ok {
+			t.Fatal("expected threshold to exist after override")
+		}
+		if th.Threshold != 75.0 {
+			t.Errorf("expected threshold 75.0, got %f", th.Threshold)
+		}
+	})
+
+	t.Run("POST empty service_id", func(t *testing.T) {
+		body := `{"threshold":10.0}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/threshold/", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("POST invalid body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/threshold/svc-a", strings.NewReader("bad"))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GET method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/threshold/svc-a", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestHandleAlerts(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	// Generate alerts by recording high-score flows
+	for i := 0; i < 5; i++ {
+		svc.RecordFlowScore(makeFlowScore(
+			fmt.Sprintf("10.0.%d.1", i),
+			fmt.Sprintf("10.0.%d.2", i),
+			85+i, "svc-alert",
+		))
+	}
+
+	mux := http.NewServeMux()
+	svc.RegisterRoutes(mux)
+
+	t.Run("GET alerts", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/alerts", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) < 1 {
+			t.Errorf("expected at least 1 alert")
+		}
+	})
+
+	t.Run("GET alerts with limit", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/anomalies/alerts?limit=2", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		var body map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&body)
+		if body["count"].(float64) != 2 {
+			t.Errorf("expected 2 alerts with limit=2, got %v", body["count"])
+		}
+	})
+
+	t.Run("POST method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/anomalies/alerts", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
+}
+
+func TestLearnBaselinesFromFlows(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	svc.RecordFlowScore(makeFlowScore("10.0.0.1", "10.0.0.2", 30, "svc-a"))
+	svc.RecordFlowScore(makeFlowScore("10.0.0.3", "10.0.0.4", 50, "svc-a"))
+	svc.RecordFlowScore(makeFlowScore("10.0.0.5", "10.0.0.6", 60, "svc-b"))
+
+	svc.learnBaselinesFromFlows()
+
+	baseA, ok := svc.GetBaseline("svc-a")
+	if !ok {
+		t.Fatal("expected baseline for svc-a")
+	}
+	if baseA.SampleCount != 2 {
+		t.Errorf("expected 2 samples for svc-a, got %d", baseA.SampleCount)
+	}
+
+	baseB, ok := svc.GetBaseline("svc-b")
+	if !ok {
+		t.Fatal("expected baseline for svc-b")
+	}
+	if baseB.SampleCount != 1 {
+		t.Errorf("expected 1 sample for svc-b, got %d", baseB.SampleCount)
+	}
+}
+
+func TestLearnBaselinesEmptyServiceID(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	svc.RecordFlowScore(makeFlowScore("10.0.0.1", "10.0.0.2", 30, ""))
+
+	svc.learnBaselinesFromFlows()
+
+	_, ok := svc.GetBaseline("unknown")
+	if !ok {
+		t.Fatal("expected baseline for 'unknown' service (empty service_id)")
+	}
+}
+
+func TestPushThresholdsToBPF(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	// No thresholds - should not increment drops
+	svc.pushThresholdsToBPF(ctx)
+	if svc.WotanDrops() != 0 {
+		t.Errorf("expected 0 drops for empty thresholds, got %d", svc.WotanDrops())
+	}
+
+	// With thresholds and nil wotan - should increment drops
+	svc.SetThreshold(&AdaptiveThreshold{ServiceID: "svc-a", Threshold: 50.0})
+	svc.pushThresholdsToBPF(ctx)
+	if svc.WotanDrops() != 1 {
+		t.Errorf("expected 1 drop after push, got %d", svc.WotanDrops())
+	}
+}
+
+func TestHandleCriticalAlert(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	// nil message should not panic
+	svc.handleCriticalAlert(nil)
+
+	// valid message
+	svc.handleCriticalAlert(&wotanClient.Message{
+		MessageID: "alert-1",
+		Topic:     "alerts.critical",
+	})
+}
+
+func TestListenForAlertsNilWotan(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	done := make(chan struct{})
+	go func() {
+		svc.listenForAlerts(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("listenForAlerts did not return for nil wotan")
+	}
+}
+
+func TestBaselineLearningLoopCancellation(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		svc.baselineLearningLoop(ctx)
+		close(done)
+	}()
+
+	cancel()
+	select {
+	case <-done:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("baselineLearningLoop did not exit after context cancel")
+	}
+}
+
+func TestThresholdUpdateLoopCancellation(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		svc.thresholdUpdateLoop(ctx)
+		close(done)
+	}()
+
+	cancel()
+	select {
+	case <-done:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("thresholdUpdateLoop did not exit after context cancel")
+	}
+}
+
+func TestPublishEventMultipleDrops(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	for i := 0; i < 5; i++ {
+		svc.publishEvent(ctx, "test.topic", map[string]interface{}{"i": i})
+	}
+	if svc.WotanDrops() != 5 {
+		t.Errorf("expected 5 wotan drops, got %d", svc.WotanDrops())
+	}
+}
+
+func TestGetBaseline(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+
+	t.Run("set and get", func(t *testing.T) {
+		svc.SetBaseline(&ServiceBaseline{
+			ServiceID:      "svc-x",
+			PacketSizeMean: 100.0,
+			EntropyMean:    20.0,
+		})
+		b, ok := svc.GetBaseline("svc-x")
+		if !ok {
+			t.Fatal("expected baseline to exist")
+		}
+		if b.PacketSizeMean != 100.0 {
+			t.Errorf("expected packet_size_mean 100.0, got %f", b.PacketSizeMean)
+		}
+		if b.LastUpdated.IsZero() {
+			t.Error("expected LastUpdated to be set")
+		}
+	})
+
+	t.Run("get non-existent", func(t *testing.T) {
+		_, ok := svc.GetBaseline("non-existent")
+		if ok {
+			t.Error("expected baseline not to exist")
+		}
+	})
 }

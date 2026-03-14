@@ -560,6 +560,275 @@ func TestConcurrentCreateExperiment(t *testing.T) {
 }
 
 // ============================================================================
+// Service Lifecycle Tests
+// ============================================================================
+
+func TestServiceStop(t *testing.T) {
+	cfg := &Config{
+		DryRunMode:               true,
+		DefaultDuration:          10 * time.Second,
+		SafetyCheckInterval:      50 * time.Millisecond,
+		MaxConcurrentExperiments: 5,
+	}
+	svc := NewService(nil, nil, cfg)
+	svc.Start(context.Background())
+	ctx := context.Background()
+
+	// Create and run an experiment
+	exp := &Experiment{
+		Name:   "stop-lifecycle",
+		Type:   ExpTypeNetworkDelay,
+		Target: Target{Type: TargetService},
+	}
+	created, _ := svc.CreateExperiment(ctx, exp)
+	_ = svc.RunExperiment(ctx, created.ID)
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop should cancel running experiments
+	err := svc.Stop()
+	if err != nil {
+		t.Fatalf("Stop failed: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify experiment was cancelled
+	result, _ := svc.GetExperiment(created.ID)
+	if result.Status != StatusAborted {
+		t.Errorf("expected status Aborted after stop, got %s", result.Status)
+	}
+}
+
+func TestServiceStopNoRunning(t *testing.T) {
+	svc := NewService(nil, nil, nil)
+	err := svc.Stop()
+	if err != nil {
+		t.Fatalf("Stop with no running experiments failed: %v", err)
+	}
+}
+
+func TestWotanDrops(t *testing.T) {
+	svc := NewService(nil, nil, nil)
+
+	// Initial drops should be 0
+	if svc.WotanDrops() != 0 {
+		t.Errorf("expected 0 drops initially, got %d", svc.WotanDrops())
+	}
+
+	// publishEvent with nil wotan should increment drops
+	svc.publishEvent(context.Background(), "test.event", map[string]interface{}{"key": "value"})
+
+	if svc.WotanDrops() != 1 {
+		t.Errorf("expected 1 drop after publish with nil wotan, got %d", svc.WotanDrops())
+	}
+}
+
+func TestRunExperimentWithSteadyState(t *testing.T) {
+	cfg := &Config{
+		DryRunMode:               true,
+		DefaultDuration:          50 * time.Millisecond,
+		SafetyCheckInterval:      20 * time.Millisecond,
+		MaxConcurrentExperiments: 5,
+	}
+	svc := NewService(nil, nil, cfg)
+	svc.Start(context.Background())
+	ctx := context.Background()
+
+	exp := &Experiment{
+		Name: "steady-state-run",
+		Type: ExpTypeNetworkDelay,
+		Target: Target{Type: TargetService},
+		SteadyState: &SteadyState{
+			Hypothesis: "System stays healthy",
+			Probes: []Probe{
+				{Name: "health", Type: ProbeHTTP, Provider: "http"},
+			},
+			Tolerance: 5.0,
+			Timeout:   1 * time.Second,
+		},
+		Schedule: &Schedule{
+			Duration: 30 * time.Millisecond,
+		},
+	}
+
+	created, _ := svc.CreateExperiment(ctx, exp)
+	err := svc.RunExperiment(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	result, _ := svc.GetExperiment(created.ID)
+	if result.Status != StatusCompleted {
+		t.Errorf("expected completed, got %s", result.Status)
+	}
+	if result.Results == nil {
+		t.Fatal("expected results to be set")
+	}
+	if !result.Results.HypothesisValid {
+		t.Error("expected hypothesis to be valid")
+	}
+	if len(result.Results.SteadyStateProbes) == 0 {
+		t.Error("expected steady state probes in results")
+	}
+}
+
+func TestRunExperimentWithRollback(t *testing.T) {
+	cfg := &Config{
+		DryRunMode:               true,
+		DefaultDuration:          50 * time.Millisecond,
+		SafetyCheckInterval:      20 * time.Millisecond,
+		EnableAutoRollback:       true,
+		MaxConcurrentExperiments: 5,
+	}
+	svc := NewService(nil, nil, cfg)
+	svc.Start(context.Background())
+	ctx := context.Background()
+
+	exp := &Experiment{
+		Name: "rollback-test",
+		Type: ExpTypeNetworkDelay,
+		Target: Target{Type: TargetService},
+		Rollback: &Rollback{
+			Automatic: true,
+			State:     map[string]interface{}{"original": "state"},
+		},
+		Schedule: &Schedule{
+			Duration: 30 * time.Millisecond,
+		},
+	}
+
+	created, _ := svc.CreateExperiment(ctx, exp)
+	err := svc.RunExperiment(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	result, _ := svc.GetExperiment(created.ID)
+	if result.Status != StatusCompleted {
+		t.Errorf("expected completed, got %s", result.Status)
+	}
+}
+
+func TestStatsWithResults(t *testing.T) {
+	cfg := &Config{
+		DryRunMode:               true,
+		DefaultDuration:          50 * time.Millisecond,
+		SafetyCheckInterval:      20 * time.Millisecond,
+		MaxConcurrentExperiments: 5,
+	}
+	svc := NewService(nil, nil, cfg)
+	svc.Start(context.Background())
+	ctx := context.Background()
+
+	exp := &Experiment{
+		Name: "stats-result",
+		Type: ExpTypeNetworkDelay,
+		Target: Target{Type: TargetService},
+		Schedule: &Schedule{Duration: 20 * time.Millisecond},
+	}
+
+	created, _ := svc.CreateExperiment(ctx, exp)
+	_ = svc.RunExperiment(ctx, created.ID)
+	time.Sleep(150 * time.Millisecond)
+
+	stats := svc.Stats()
+	successful := stats["successful"].(int)
+	if successful < 1 {
+		t.Errorf("expected at least 1 successful, got %d", successful)
+	}
+}
+
+func TestCreateExperimentWithExplicitID(t *testing.T) {
+	svc := NewService(nil, nil, nil)
+	exp := &Experiment{
+		ID:     "custom-id",
+		Name:   "custom",
+		Type:   ExpTypeNetworkDelay,
+		Target: Target{Type: TargetService},
+	}
+	created, _ := svc.CreateExperiment(context.Background(), exp)
+	if created.ID != "custom-id" {
+		t.Errorf("expected custom-id, got %s", created.ID)
+	}
+}
+
+func TestExperimentTypeConstants(t *testing.T) {
+	types := []ExperimentType{
+		ExpTypeNetworkDelay, ExpTypeNetworkLoss, ExpTypeNetworkPartition,
+		ExpTypeCPUStress, ExpTypeMemoryStress, ExpTypeDiskStress,
+		ExpTypeProcessKill, ExpTypeContainerKill, ExpTypeNodeDrain,
+		ExpTypeDNSFailure, ExpTypeTimeSkew, ExpTypeHTTPError,
+		ExpTypeLatencySpike, ExpTypeResourceExhaust, ExpTypeCustom,
+	}
+	for _, et := range types {
+		if et == "" {
+			t.Error("experiment type should not be empty")
+		}
+	}
+}
+
+func TestExperimentStatusConstants(t *testing.T) {
+	statuses := []ExperimentStatus{
+		StatusDraft, StatusScheduled, StatusRunning, StatusPaused,
+		StatusCompleted, StatusAborted, StatusFailed,
+	}
+	for _, s := range statuses {
+		if s == "" {
+			t.Error("status should not be empty")
+		}
+	}
+}
+
+func TestTargetTypeConstants(t *testing.T) {
+	types := []TargetType{TargetService, TargetContainer, TargetNode, TargetNetwork, TargetPod}
+	for _, tt := range types {
+		if tt == "" {
+			t.Error("target type should not be empty")
+		}
+	}
+}
+
+func TestProbeTypeConstants(t *testing.T) {
+	types := []ProbeType{ProbeHTTP, ProbeMetric, ProbeProcess, ProbeCustom}
+	for _, pt := range types {
+		if pt == "" {
+			t.Error("probe type should not be empty")
+		}
+	}
+}
+
+func TestSafetyActionConstants(t *testing.T) {
+	actions := []SafetyAction{ActionAbort, ActionPause, ActionAlert, ActionRollback}
+	for _, a := range actions {
+		if a == "" {
+			t.Error("safety action should not be empty")
+		}
+	}
+}
+
+func TestFindingSeverityConstants(t *testing.T) {
+	severities := []FindingSeverity{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow, SeverityInfo}
+	for _, s := range severities {
+		if s == "" {
+			t.Error("finding severity should not be empty")
+		}
+	}
+}
+
+func TestScheduleTypeConstants(t *testing.T) {
+	types := []ScheduleType{ScheduleOnce, ScheduleRecurring, ScheduleContinuous, ScheduleGameDay}
+	for _, st := range types {
+		if st == "" {
+			t.Error("schedule type should not be empty")
+		}
+	}
+}
+
+// ============================================================================
 // Benchmarks
 // ============================================================================
 
