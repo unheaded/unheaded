@@ -1,0 +1,21 @@
+config MBC
+	bool
+	select ARCH_NO_SWAP
+	select GENERIC_ATOMIC64
+	select GENERIC_IRQ_SHOW
+	select HAVE_ARCH_HASH
+	select NO_IOPORT_MAP
+	select OF if ARCH_MBC_DT
+	select ARCH_HAS_SYNC_DMA_FOR_DEVICE if HAS_DMA
+
+config MMU
+	bool "MMU support"
+	default n
+	help
+	  UPC supports software MMU via BPF TLB maps.
+	  For uClinux/nommu operation, say N.
+
+config CPU_MBC
+	bool
+	default y
+	select GENERIC_CALIBRATE_DELAY
