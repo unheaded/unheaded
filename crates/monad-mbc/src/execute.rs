@@ -646,6 +646,34 @@ impl Cpu {
                         } else {
                             self.state.regs[0] = (-(lsys::EIO as i32)) as u32;
                         }
+                    } else if syscall_nr == lsys::SYS_FORK {
+                        // ── SYS_FORK(2): Create child process (Level 4c scheduler) ──
+                        if self.state.num_processes >= intr::MAX_PROCESSES {
+                            self.state.regs[0] = (-11i32) as u32; // EAGAIN
+                        } else {
+                            let child_pid = self.state.num_processes as usize;
+                            // Save child state: copy parent's regs + PC + flags + SP + brk
+                            let mut child_state = [0u32; 20];
+                            for r in 0..16 {
+                                child_state[r] = self.state.regs[r];
+                            }
+                            child_state[16] = self.state.pc;
+                            child_state[17] = self.state.flags as u32;
+                            child_state[18] = self.state.regs[REG_SP as usize];
+                            child_state[19] = self.state.program_break;
+                            // Child gets 0 in r0
+                            child_state[0] = 0;
+                            self.proc_table[child_pid] = child_state;
+                            self.state.num_processes += 1;
+                            // Parent gets child_pid in r0
+                            self.state.regs[0] = child_pid as u32;
+                        }
+                    } else if syscall_nr == lsys::SYS_SCHED_YIELD {
+                        // ── SYS_SCHED_YIELD(158): Voluntary context switch (Level 4c) ──
+                        if self.state.num_processes > 1 {
+                            self.scheduler_context_switch();
+                        }
+                        self.state.regs[0] = 0;
                     } else {
                         // Unknown syscall: return -ENOSYS
                         self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
@@ -699,6 +727,54 @@ impl Cpu {
         }
 
         Ok(())
+    }
+
+    /// Perform a round-robin context switch (Level 4c scheduler).
+    ///
+    /// Saves current process state to proc_table, advances to next runnable
+    /// process, and loads its state.
+    pub fn scheduler_context_switch(&mut self) {
+        let old_pid = self.state.current_pid as usize;
+        let num = self.state.num_processes as usize;
+        if num <= 1 {
+            return;
+        }
+
+        // 1. Save current process state
+        let mut save = [0u32; 20];
+        for r in 0..16 {
+            save[r] = self.state.regs[r];
+        }
+        save[16] = self.state.pc;
+        save[17] = self.state.flags as u32;
+        save[18] = self.state.regs[REG_SP as usize];
+        save[19] = self.state.program_break;
+        self.proc_table[old_pid] = save;
+
+        // 2. Find next runnable process (round-robin, skip halted)
+        let mut next_pid = (old_pid + 1) % num;
+        for _ in 0..4 {
+            if next_pid < num && (self.halted_mask & (1 << next_pid)) == 0 {
+                break;
+            }
+            next_pid = (next_pid + 1) % num;
+        }
+
+        if next_pid == old_pid {
+            return; // no other runnable process
+        }
+
+        // 3. Load next process state
+        let load = self.proc_table[next_pid];
+        for r in 0..16 {
+            self.state.regs[r] = load[r];
+        }
+        self.state.pc = load[16];
+        self.state.flags = load[17] as u8;
+        self.state.program_break = load[19];
+
+        // 4. Update current_pid
+        self.state.current_pid = next_pid as u8;
     }
 }
 

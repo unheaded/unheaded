@@ -26,7 +26,7 @@ func TestAnamnesisEventSize_CoreMaps(t *testing.T) {
 	}
 }
 
-// TestMbcCpuStateSize_CoreMaps verifies the CPU state is exactly 104 bytes.
+// TestMbcCpuStateSize_CoreMaps verifies the CPU state is exactly 128 bytes.
 func TestMbcCpuStateSize_CoreMaps(t *testing.T) {
 	got := unsafe.Sizeof(MbcCpuState{})
 	if got != MbcCpuStateSize {

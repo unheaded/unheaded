@@ -214,7 +214,7 @@ func disassembleMBC(insn uint32) string {
 
 // CpuState represents the CPU state stored in BPF cpu_map.
 // Field order must match MbcCpuState in ebpf/monad-common/src/lib.rs.
-// Total size: 120 bytes.
+// Total size: 128 bytes.
 type CpuState struct {
 	Regs              [16]uint32
 	PC                uint32
@@ -233,14 +233,18 @@ type CpuState struct {
 	TickCounter       uint32
 	ProgramBreak      uint32
 	ExitCode          uint32
+	CurrentPID        uint8    // Level 4c scheduler: current process ID (0-3).
+	NumProcesses      uint8    // Level 4c scheduler: number of active processes.
+	Pad3              [6]uint8 // Alignment padding.
 }
 
 // defaultCpuState returns a default CPU state for a given flow label.
 func defaultCpuState(flowLabel uint64) CpuState {
 	cpu := CpuState{}
-	cpu.Regs[15] = 0xFFFF_0000   // SP default (register 15 is stack pointer)
-	cpu.PC = 0                   // Start at instruction 0
+	cpu.Regs[15] = 0xFFFF_0000     // SP default (register 15 is stack pointer)
+	cpu.PC = 0                     // Start at instruction 0
 	cpu.Flags = 0
 	cpu.ProgramBreak = 0x0040_0000 // Default heap start (4 MiB)
+	cpu.NumProcesses = 1           // Single process by default (Level 4c)
 	return cpu
 }

@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// TestCpuStateSize verifies the Go CpuState struct is exactly 104 bytes,
+// TestCpuStateSize verifies the Go CpuState struct is exactly 128 bytes,
 // matching the Rust MbcCpuState #[repr(C)] layout.
 func TestCpuStateSize(t *testing.T) {
 	size := unsafe.Sizeof(CpuState{})
@@ -17,10 +17,10 @@ func TestCpuStateSize(t *testing.T) {
 	}
 }
 
-// TestCpuStateSizeConst verifies the CpuStateSize constant is 120.
+// TestCpuStateSizeConst verifies the CpuStateSize constant is 128.
 func TestCpuStateSizeConst(t *testing.T) {
-	if CpuStateSize != 120 {
-		t.Fatalf("CpuStateSize = %d, want 120", CpuStateSize)
+	if CpuStateSize != 128 {
+		t.Fatalf("CpuStateSize = %d, want 128", CpuStateSize)
 	}
 }
 
@@ -51,6 +51,9 @@ func TestCpuStateFieldOffsets(t *testing.T) {
 		{"TickCounter", uintptr(unsafe.Pointer(&cpu.TickCounter)) - base, 108},
 		{"ProgramBreak", uintptr(unsafe.Pointer(&cpu.ProgramBreak)) - base, 112},
 		{"ExitCode", uintptr(unsafe.Pointer(&cpu.ExitCode)) - base, 116},
+		{"CurrentPID", uintptr(unsafe.Pointer(&cpu.CurrentPID)) - base, 120},
+		{"NumProcesses", uintptr(unsafe.Pointer(&cpu.NumProcesses)) - base, 121},
+		{"Pad3", uintptr(unsafe.Pointer(&cpu.Pad3)) - base, 122},
 	}
 
 	for _, tt := range tests {
