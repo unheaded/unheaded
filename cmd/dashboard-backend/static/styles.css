@@ -1468,12 +1468,82 @@ body {
 .event-stream-item.type-latency .event-stream-type { color: var(--gold); }
 .event-stream-item.type-syscall .event-stream-type { color: #ff6b6b; }
 
+.event-stream-item .event-stream-service {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #96b5b4;
+    background: rgba(150, 181, 180, 0.12);
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.event-stream-item .event-stream-host {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #a3be8c;
+    background: rgba(163, 190, 140, 0.12);
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
 .event-stream-item .event-stream-message {
     flex: 1;
     color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.event-controls-2nd {
+    margin-top: 0;
+}
+
+.service-select {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.875rem;
+    font-family: var(--font-mono);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color var(--transition-fast);
+    cursor: pointer;
+    min-width: 150px;
+}
+
+.service-select:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px var(--gold-muted);
+}
+
+.service-select option {
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.host-input {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.875rem;
+    font-family: var(--font-mono);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color var(--transition-fast);
+    min-width: 160px;
+}
+
+.host-input::placeholder {
+    color: var(--text-muted);
+}
+
+.host-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px var(--gold-muted);
 }
 
 /* Responsive adjustments */

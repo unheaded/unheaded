@@ -2030,6 +2030,7 @@ func (s *Server) serviceFlowGenerator(ctx context.Context) {
 				s.broadcastToStream(streamMsg)
 
 				// Also broadcast as an event so the Events page shows activity
+				hostName, _ := os.Hostname()
 				eventMsg := map[string]interface{}{
 					"type": "event",
 					"data": map[string]interface{}{
@@ -2038,8 +2039,11 @@ func (s *Server) serviceFlowGenerator(ctx context.Context) {
 						"source":    "service-flow-generator",
 						"timestamp": start.Format(time.RFC3339Nano),
 						"message":   fmt.Sprintf("GET /health %s → %dms", tgt.name, latency.Milliseconds()),
+						"service":   tgt.name,
+						"host":      hostName,
 						"data": map[string]interface{}{
 							"service":    tgt.name,
+							"host":       hostName,
 							"method":     "GET",
 							"path":       "/health",
 							"status":     statusCode,

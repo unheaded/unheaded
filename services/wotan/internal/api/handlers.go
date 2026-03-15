@@ -27,8 +27,9 @@ type Server struct {
 	AdminAPIKey            string // API key for admin endpoints
 
 	// Topic pub/sub state (initialized by InitTopics)
-	topicSeqs *topicSeqCounter
-	topicSubs *topicSubscribers
+	topicSeqs   *topicSeqCounter
+	topicSubs   *topicSubscribers
+	TopicConfig *TopicConfig // Auto-approval allowlist for topic subscribers
 }
 
 // NewServer creates a new API server
