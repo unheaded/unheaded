@@ -3,10 +3,16 @@
 // Generates rootfs.img — a UNFS filesystem image for MBC Linux boot.
 //
 // Contents:
-//   /init         — PID 1 init process (from arch/mbc/boot/init/init.upcf)
-//   /bin/sh       — interactive shell  (from demos/mbc/shell/shell.upcf)
-//   /dev/console  — console device node (type=device)
-//   /etc/hostname — hostname file ("mbc-linux\n")
+//   /init           — PID 1 init process (from arch/mbc/boot/init/init.upcf)
+//   /bin/sh         — interactive shell  (from demos/mbc/shell/shell.upcf)
+//   /bin/echo       — echo command       (from arch/mbc/userspace/echo/echo.upcf)
+//   /bin/cat        — cat command         (from arch/mbc/userspace/cat/cat.upcf)
+//   /bin/ls         — list files          (from arch/mbc/userspace/ls/ls.upcf)
+//   /bin/ps         — process status      (from arch/mbc/userspace/ps/ps.upcf)
+//   /bin/uname      — system info         (from arch/mbc/userspace/uname/uname.upcf)
+//   /bin/uptime     — uptime              (from arch/mbc/userspace/uptime/uptime.upcf)
+//   /dev/console    — console device node (type=device)
+//   /etc/hostname   — hostname file ("mbc-linux\n")
 //
 // The image is a raw UNFS filesystem suitable for use as a ramdisk root.
 // Boot with: --ramdisk rootfs.img --args "root=/dev/ram0"
@@ -59,64 +65,131 @@ type inode struct {
 	Reserved   [8]byte
 }
 
-func main() {
-	// Locate project root (we expect to be run from the project root)
-	initPath := filepath.Join("arch", "mbc", "boot", "init", "init.upcf")
-	shellPath := filepath.Join("demos", "mbc", "shell", "shell.upcf")
-	outputPath := filepath.Join("arch", "mbc", "boot", "rootfs.img")
+// rootfsEntry describes a file to add to the root filesystem.
+type rootfsEntry struct {
+	fsPath   string // path in the filesystem (e.g. "/bin/echo")
+	diskPath string // path on disk to read binary from (empty for non-file entries)
+	mode     uint32
+	fileType uint32
+	data     []byte // inline data (for hostname, etc.)
+	hint     string // build hint if file is missing
+}
 
-	// Read init binary
-	initBin, err := os.ReadFile(initPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error reading init: %v\n", err)
-		fmt.Fprintf(os.Stderr, "hint: run 'cd arch/mbc/boot/init && go run build.go' first\n")
-		os.Exit(1)
+func main() {
+	// Define all filesystem entries
+	entries := []rootfsEntry{
+		{
+			fsPath:   "/init",
+			diskPath: filepath.Join("arch", "mbc", "boot", "init", "init.upcf"),
+			mode:     0o755,
+			fileType: unfsTypeFile,
+			hint:     "cd arch/mbc/boot/init && go run build.go",
+		},
+		{
+			fsPath:   "/bin/sh",
+			diskPath: filepath.Join("demos", "mbc", "shell", "shell.upcf"),
+			mode:     0o755,
+			fileType: unfsTypeFile,
+			hint:     "cd demos/mbc/shell && go run build.go",
+		},
+		{
+			fsPath:   "/bin/echo",
+			diskPath: filepath.Join("arch", "mbc", "userspace", "echo", "echo.upcf"),
+			mode:     0o755,
+			fileType: unfsTypeFile,
+			hint:     "cd arch/mbc/userspace/echo && go run build.go",
+		},
+		{
+			fsPath:   "/bin/cat",
+			diskPath: filepath.Join("arch", "mbc", "userspace", "cat", "cat.upcf"),
+			mode:     0o755,
+			fileType: unfsTypeFile,
+			hint:     "cd arch/mbc/userspace/cat && go run build.go",
+		},
+		{
+			fsPath:   "/bin/ls",
+			diskPath: filepath.Join("arch", "mbc", "userspace", "ls", "ls.upcf"),
+			mode:     0o755,
+			fileType: unfsTypeFile,
+			hint:     "cd arch/mbc/userspace/ls && go run build.go",
+		},
+		{
+			fsPath:   "/bin/ps",
+			diskPath: filepath.Join("arch", "mbc", "userspace", "ps", "ps.upcf"),
+			mode:     0o755,
+			fileType: unfsTypeFile,
+			hint:     "cd arch/mbc/userspace/ps && go run build.go",
+		},
+		{
+			fsPath:   "/bin/uname",
+			diskPath: filepath.Join("arch", "mbc", "userspace", "uname", "uname.upcf"),
+			mode:     0o755,
+			fileType: unfsTypeFile,
+			hint:     "cd arch/mbc/userspace/uname && go run build.go",
+		},
+		{
+			fsPath:   "/bin/uptime",
+			diskPath: filepath.Join("arch", "mbc", "userspace", "uptime", "uptime.upcf"),
+			mode:     0o755,
+			fileType: unfsTypeFile,
+			hint:     "cd arch/mbc/userspace/uptime && go run build.go",
+		},
+		{
+			fsPath:   "/dev/console",
+			mode:     0o666,
+			fileType: unfsTypeDevice,
+		},
+		{
+			fsPath:   "/etc/hostname",
+			mode:     0o644,
+			fileType: unfsTypeFile,
+			data:     []byte("mbc-linux\n"),
+		},
 	}
 
-	// Read shell binary
-	shellBin, err := os.ReadFile(shellPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error reading shell: %v\n", err)
-		fmt.Fprintf(os.Stderr, "hint: run 'cd demos/mbc/shell && go run build.go' first\n")
-		os.Exit(1)
+	// Read all binary files from disk
+	for i := range entries {
+		e := &entries[i]
+		if e.diskPath == "" {
+			continue // device node or inline data
+		}
+		bin, err := os.ReadFile(e.diskPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", e.fsPath, err)
+			if e.hint != "" {
+				fmt.Fprintf(os.Stderr, "hint: run '%s' first\n", e.hint)
+			}
+			os.Exit(1)
+		}
+		e.data = bin
 	}
 
 	fmt.Printf("Building UNFS root filesystem:\n")
-	fmt.Printf("  /init         %d bytes (from %s)\n", len(initBin), initPath)
-	fmt.Printf("  /bin/sh       %d bytes (from %s)\n", len(shellBin), shellPath)
-	fmt.Printf("  /dev/console  device node\n")
-	fmt.Printf("  /etc/hostname 10 bytes\n")
+	for _, e := range entries {
+		size := len(e.data)
+		src := e.diskPath
+		if src == "" && e.fileType == unfsTypeDevice {
+			src = "device node"
+		} else if src == "" {
+			src = "inline"
+		}
+		fmt.Printf("  %-16s %6d bytes  (from %s)\n", e.fsPath, size, src)
+	}
 	fmt.Println()
 
 	// Format empty filesystem
 	fs := formatFilesystem()
 
-	// Add /init
-	if _, err := addFile(fs, "/init", initBin, 0o755, unfsTypeFile); err != nil {
-		fmt.Fprintf(os.Stderr, "error adding /init: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Add /bin/sh
-	if _, err := addFile(fs, "/bin/sh", shellBin, 0o755, unfsTypeFile); err != nil {
-		fmt.Fprintf(os.Stderr, "error adding /bin/sh: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Add /dev/console (device node, no data)
-	if _, err := addFile(fs, "/dev/console", nil, 0o666, unfsTypeDevice); err != nil {
-		fmt.Fprintf(os.Stderr, "error adding /dev/console: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Add /etc/hostname
-	hostname := []byte("mbc-linux\n")
-	if _, err := addFile(fs, "/etc/hostname", hostname, 0o644, unfsTypeFile); err != nil {
-		fmt.Fprintf(os.Stderr, "error adding /etc/hostname: %v\n", err)
-		os.Exit(1)
+	// Add all entries
+	for _, e := range entries {
+		if _, err := addFile(fs, e.fsPath, e.data, e.mode, e.fileType); err != nil {
+			fmt.Fprintf(os.Stderr, "error adding %s: %v\n", e.fsPath, err)
+			os.Exit(1)
+		}
 	}
 
 	// Write filesystem image to disk
+	outputPath := filepath.Join("arch", "mbc", "boot", "rootfs.img")
 	imgBytes := fsToBytes(fs)
 	if err := os.WriteFile(outputPath, imgBytes, 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "error writing %s: %v\n", outputPath, err)
