@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # ebpf-exporter.nix — eBPF BPF map → Prometheus metrics bridge
 # Reads BPF ring buffer / maps from Shield+Monad programs
 # Exposes on :9435/metrics

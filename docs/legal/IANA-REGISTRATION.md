@@ -108,7 +108,7 @@ The Unheaded protocol will follow a **4-phase approach** to transition from expe
 
 ### Authors
 
-- Steven Bellis (stevie@bellis.tech)
+- Stevie Bellis (stevie@bellis.tech)
 - [Future contributors to be added]
 
 ### Abstract
@@ -332,7 +332,7 @@ Beyond IPv6 extension header types, the Unheaded protocol may require registrati
 ### IANA Registration Inquiries
 
 **Primary Contact**:
-- Name: Steven Bellis
+- Name: Stevie Bellis
 - Email: stevie@bellis.tech
 - Organization: Unheaded Kingdom Protocol Project
 
@@ -387,4 +387,4 @@ Beyond IPv6 extension header types, the Unheaded protocol may require registrati
 
 **Last Updated**: 2026-02-25  
 **Sprint**: S52 Legal Sprint  
-**Maintained By**: Steven Bellis (stevie@bellis.tech)
+**Maintained By**: Stevie Bellis (stevie@bellis.tech)

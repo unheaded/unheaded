@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package runtime provides a Container Runtime Interface for Unheaded Kingdom.
 // It implements container lifecycle management, image handling, process execution,

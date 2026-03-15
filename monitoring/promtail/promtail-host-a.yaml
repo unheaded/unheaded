@@ -1,7 +1,7 @@
 # Promtail configuration - Log shipper for Forge (host-a)
 # Collects logs from systemd, FRR, Suricata, Docker, and Unheaded services
 # Unheaded Kingdom infrastructure
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 server:
   http_listen_port: 9080

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package tassets provides data layer and storage management capabilities.
 // Tassets the Data Layer is the Kingdom's foundation - storing all data securely.

@@ -2,7 +2,7 @@
 AGENT 8: SURICATA DOCKER, LXD, AND RULE FILES
 ================================================================================
 Date: 2026-02-26
-License: MIT, Copyright (c) 2024-2026 Steven Bellis
+License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 Working Directory: /sessions/vibrant-adoring-maxwell/mnt/tmp/unheaded/
 
 ================================================================================
@@ -324,7 +324,7 @@ LICENSE AND COPYRIGHT
 ================================================================================
 
 All files created under MIT License:
-Copyright (c) 2024-2026 Steven Bellis
+Copyright (c) 2024-2026 Stevie Bellis
 
 Suricata itself is licensed under GPL-2.0 and is located at ~/tmp/suricata/
 Unheaded Kingdom infrastructure (non-GPL services) integrate via EVE JSON boundary

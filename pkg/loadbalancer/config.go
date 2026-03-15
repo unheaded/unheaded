@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package loadbalancer provides THE PAULDRONS - the Kingdom's load balancing layer.
 // Pauldrons are shoulder armor that distribute the weight of the Kingdom's traffic

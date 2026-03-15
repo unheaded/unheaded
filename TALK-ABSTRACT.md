@@ -37,7 +37,7 @@ We'll deploy our full stack across two bare metal servers and demonstrate:
 
 ## Speaker Bio
 
-Steven Bellis — Building infrastructure automation that traces every packet from kernel to dashboard. Creator of the Monad wire protocol and the Wotan message bus. Believer that if you can't observe it, you can't trust it.
+Stevie Bellis — Building infrastructure automation that traces every packet from kernel to dashboard. Creator of the Monad wire protocol and the Wotan message bus. Believer that if you can't observe it, you can't trust it.
 
 ## Technical Requirements
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/cloud-init/ebpf.yaml
 # Cloud-init user-data — eBPF container initialization
 # Installs libbpf, bpftool, mounts bpffs, configures BPF environment

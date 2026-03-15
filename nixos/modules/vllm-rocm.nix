@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # vllm-rocm.nix — vLLM inference server + AMD ROCm (Host-A / Forge only)
 # Hardware: AMD RX 7700 XT (gfx1101 / RDNA3), 12GB VRAM
 # Model: DeepSeek-R1-7B-Q4 (~4.2GB VRAM)

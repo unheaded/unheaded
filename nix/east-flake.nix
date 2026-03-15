@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # east-flake.nix — Lightweight NixOS configuration for EAST bare metal bootstrap
 #
 # Target hardware: 4-core CPU, 8GB DDR3 RAM, single NIC

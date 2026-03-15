@@ -1,6 +1,6 @@
 # Prometheus alert rules - Monad protocol and infrastructure health
 # Unheaded Kingdom infrastructure
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 groups:
   - name: monad

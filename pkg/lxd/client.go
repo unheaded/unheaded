@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package lxd provides LXD orchestration for the Unheaded control plane
 // THE CITADEL FORGES - Where NixOS containers are born and managed

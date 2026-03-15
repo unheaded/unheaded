@@ -2,7 +2,7 @@
 # Stub configuration - requires receiver setup before production
 #
 # Unheaded Kingdom infrastructure
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 global:
   resolve_timeout: 5m

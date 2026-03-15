@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Campaign: LICH-D3 — Keyboard Injection
 // Objective: Verify that keyboard input (KBD_MAP) cannot be injected by

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package wal provides a Write-Ahead Log implementation for the Kingdom.
 // The WAL ensures durability by writing all changes to a log before applying them.

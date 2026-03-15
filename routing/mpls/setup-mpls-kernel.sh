@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Kernel MPLS setup — BARE METAL ONLY
 # This script enables MPLS kernel forwarding.
 # DO NOT run in VM or container (kernel modules required).

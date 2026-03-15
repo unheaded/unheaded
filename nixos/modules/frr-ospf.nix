@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # FRR OSPFv3 NixOS module — Alternate Routing Option A
 # Activate: services.unheaded.frr-ospf.enable = true
 # CRITICAL: DO NOT use simultaneously with frr.nix (BGP EVPN)

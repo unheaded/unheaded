@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package mesh provides THE HAUBERK - the service mesh implementation for the Unheaded Kingdom.
 // It provides service discovery, load balancing, circuit breaking, retry logic,

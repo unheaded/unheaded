@@ -177,7 +177,7 @@ Created and managed by systemd.tmpfiles.rules
 ## License
 
 All files: SPDX-License-Identifier: MIT
-Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 ## Architecture Notes
 
