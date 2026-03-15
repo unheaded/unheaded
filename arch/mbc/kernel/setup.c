@@ -4,7 +4,7 @@
  *
  * Called early in boot to configure architecture-specific state.
  * Reads boot parameters from the UPC bootloader, initializes
- * memory regions, and prints the UPC banner.
+ * memory regions, sets up initrd, and prints the UPC banner.
  */
 
 #include <linux/init.h>
@@ -13,6 +13,9 @@
 
 #include <asm/setup.h>
 #include <asm/unistd.h>
+
+/* Defined in initramfs.c */
+extern void setup_initrd(struct mbc_boot_params *params);
 
 static struct mbc_boot_params *boot_params;
 
@@ -28,6 +31,9 @@ void __init setup_arch(char **cmdline_p)
 			boot_params->mem_size / 1024);
 		strlcpy(boot_command_line, boot_params->cmdline,
 			COMMAND_LINE_SIZE);
+
+		/* Set up initrd if the bootloader provided one */
+		setup_initrd(boot_params);
 	} else {
 		pr_warn("UPC: no valid boot params (magic=%08lx)\n",
 			boot_params->magic);
