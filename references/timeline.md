@@ -91,6 +91,47 @@ All 10 services operational. Dashboard, Kanban, eBPF tracing, Wotan message bus,
 - 📋 RAFT fine-tuning (QLoRA on Mistral-7B with 616 QA pairs)
 - 📋 Zhen Engine (custom Rust inference + Go management plane)
 
+#### P1 Bugs Remaining (4)
+- 🔴 #20: Nix network layer missing TLS/VXLAN/gateway config
+- 🔴 #36: Log forwarding commented out
+- 🔴 #29: No structured logging in kanban-app middleware
+- 🔴 Kanban E2E smoke test (manual verification pending)
+
+#### Protocol Spec Pending Work
+- 📋 TLV Extension Container integration test
+- 📋 Ring Path Counter (M8) eBPF hook
+- 📋 Extended Memory heap management
+- 📋 bpf_wotan_prefetch helper definition
+- 📋 GOAWAY Frame graceful shutdown signaling
+- 📋 L3 WAL implementation (critical, currently stub/TODO)
+
+#### Doom Performance Pending
+- 📋 Increase burst rate (500 → 1000-5000+ packets/burst)
+- 📋 Fix auto-restart .data section reload on CPU reset
+- 📋 Multi-hop ring utilization (6 hops = 6x insns/packet)
+- 📋 6 unpushed Doom commits awaiting merge
+
+#### Research Items Pending
+- 📋 Inverse Mask deep exploration (BlackMage + Developer + Architect + Scientist)
+- 📋 IPv6 Header-Space Transport ("Packet-as-Message") — 64K computer concept
+- 📋 Future backend integrations (ELK, Splunk, Datadog adapters)
+
+---
+
+### Audit Summary (March 15, 2026)
+
+**28 pending items across the Kingdom:**
+
+| Category | Count | Status |
+|----------|-------|--------|
+| BLOCKED (external deps) | 2 | FN-DSA + HQC awaiting Go libraries |
+| READY (can start now) | 16 | DB wiring, RAFT training, WireGuard, specs, SBOM, CI/CD |
+| DEFERRED (intentional) | 8 | Inverse Mask, backend adapters, compliance templates |
+| FUTURE (roadmap) | 3 | Linux on UPC, public release, multi-tenant |
+| MISSED | 0 | All work tracked |
+
+---
+
 ### Age 3: The Public Release (📋 PLANNED)
 
 First public release. SBOM complete, CI/CD hardened, demo video, README polished. Protocol specs submitted to IETF.
@@ -105,4 +146,5 @@ Enterprise features, global distribution, marketplace.
 
 ---
 
-*Synced: 2026-03-15 15:30:00 UTC*
+*Synced: 2026-03-15 16:00:00 UTC*
+*Audit: 28 pending items, 0 missed — full audit in docs explorer output*
