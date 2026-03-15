@@ -2,7 +2,7 @@
 """Phase 9 — RAFT QA Pair Generation from Ring 1 corpus.
 
 Generates question-answer pairs by sending corpus chunks to Mistral-7B,
-then retrieves oracle + distractor chunks via FAISS for RAFT training.
+then retrieves source document + distractor chunks via FAISS for RAFT training.
 
 Usage:
     source ~/.venv/zhen/bin/activate
@@ -293,11 +293,11 @@ def main():
                 print(f"  [{i+1}/{total}] SKIP {source_file} — {err}")
             continue
 
-        # Retrieve top-5 chunks for RAFT oracle/distractor pattern
+        # Retrieve top-5 chunks for RAFT source/distractor pattern
         retrieved = retrieve_chunks(qa["question"], index, id_map, corpus_lookup, embedding_model)
 
-        # Determine oracle and distractors
-        # The oracle is the chunk we used to generate the question
+        # Determine source document and distractors
+        # The source document is the chunk we used to generate the question
         distractor_chunks = []
         for r in retrieved:
             if r["chunk_id"] != chunk_id:
@@ -311,8 +311,8 @@ def main():
         record = {
             "question": qa["question"],
             "answer": qa["answer"],
-            "oracle_chunk_id": chunk_id,
-            "oracle_content": content[:2000],  # truncate for storage
+            "source_chunk_id": chunk_id,
+            "source_content": content[:2000],  # truncate for storage
             "distractor_chunks": distractor_chunks[:4],  # at most 4 distractors
             "source_file": source_file,
         }

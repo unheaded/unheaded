@@ -208,7 +208,7 @@ func getInitialTasks() []Task {
 		// SUPPORT SERVICES
 		// =====================================================================
 		{ID: "svc-wotan", Title: "Wotan (Message Bus)", Description: "Pub/sub message bus. HTTP+gRPC dual transport. 13,504 LOC.", Status: "done", Type: "feature", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-50 * d), UpdatedAt: now.Add(-2 * d)},
-		{ID: "svc-timeguru", Title: "Timeguru (Timeline Oracle)", Description: "Project timeline tracking, sync to JSON/YAML/TOML/MD.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 80, CreatedAt: now.Add(-18 * d), UpdatedAt: now},
+		{ID: "svc-timeguru", Title: "Timeguru (Timeline Seer)", Description: "Project timeline tracking, sync to JSON/YAML/TOML/MD.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 80, CreatedAt: now.Add(-18 * d), UpdatedAt: now},
 		{ID: "svc-gateway", Title: "Gateway (API Gateway)", Description: "Unified API ingress, auth, rate limiting.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 60, CreatedAt: now.Add(-16 * d), UpdatedAt: now},
 		{ID: "svc-cape", Title: "Cape (Auth/Identity)", Description: "Authentication, authorization, identity management.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 50, CreatedAt: now.Add(-14 * d), UpdatedAt: now},
 		{ID: "svc-cloak", Title: "Cloak (Secrets Manager)", Description: "SOPS + age secrets management, rotation, audit.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 45, CreatedAt: now.Add(-12 * d), UpdatedAt: now},

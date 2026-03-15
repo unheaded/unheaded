@@ -3,7 +3,7 @@
 07_prepare_training.py - Prepare RAFT QA pairs for QLoRA fine-tuning.
 
 Loads raft_dataset.jsonl and converts each entry into Mistral instruct format
-training examples with oracle context + distractor chunks. Splits into
+training examples with source context + distractor chunks. Splits into
 train (90%) and eval (10%) sets.
 
 Usage:
@@ -28,7 +28,7 @@ EVAL_OUTPUT = TRAINING_DIR / "eval.jsonl"
 # Config
 TRAIN_RATIO = 0.9
 SEED = 42
-NUM_DISTRACTORS = 2  # Number of distractor chunks to include alongside oracle
+NUM_DISTRACTORS = 2  # Number of distractor chunks to include alongside source
 
 SYSTEM_PROMPT = (
     "You are Zhen, the AI champion of Unheaded. "
@@ -53,13 +53,13 @@ def load_dataset(path: Path) -> list[dict]:
 
 
 def build_context(entry: dict) -> str:
-    """Build context string from oracle content + random distractor chunks."""
+    """Build context string from source content + random distractor chunks."""
     chunks = []
 
-    # Add oracle content
-    oracle = entry.get("oracle_content", "")
-    if oracle:
-        chunks.append(oracle)
+    # Add source content
+    source_doc = entry.get("source_content", "")
+    if source_doc:
+        chunks.append(source_doc)
 
     # Add distractor chunks (pick NUM_DISTRACTORS randomly)
     distractors = entry.get("distractor_chunks", [])
@@ -72,7 +72,7 @@ def build_context(entry: dict) -> str:
             if content:
                 chunks.append(content)
 
-    # Shuffle so oracle position varies
+    # Shuffle so source document position varies
     random.shuffle(chunks)
 
     return "\n\n".join(chunks)
@@ -99,7 +99,7 @@ def entry_to_training_example(entry: dict) -> dict:
         "text": text,
         "question": question,
         "source_file": entry.get("source_file", ""),
-        "oracle_chunk_id": entry.get("oracle_chunk_id", ""),
+        "source_chunk_id": entry.get("source_chunk_id", ""),
     }
 
 

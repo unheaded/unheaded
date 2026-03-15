@@ -175,7 +175,7 @@ The beating heart of the Kingdom. The unheaded-daemon that orchestrates all cont
 
 Each persona of the Royal Court takes physical form as a running service. Four agents forge in parallel.
 
-**The Timeguru Service (Oracle's Antre):** ✅
+**The Timeguru Service (Seer's Antre):** ✅
 - [x] Timeline REST API - serves the living roadmap
 - [x] `/api/v1/timeline` - JSON/YAML/Markdown mirrors
 - [x] Markdown parser with regex extraction
@@ -514,7 +514,7 @@ The Timeguru conducted honest assessment. Previous estimates revealed as optimis
 
 | Agent | Assignment | Domain | Status |
 |-------|-----------|--------|--------|
-| Agent 1 | Timeguru Service | Oracle's Antre | Ready to deploy |
+| Agent 1 | Timeguru Service | Seer's Antre | Ready to deploy |
 | Agent 2 | Captain Service | Strategic Vision | Ready to deploy |
 | Agent 3 | Micromanager Service | Execution Engine | Ready to deploy |
 | Agent 4 | Architect Service | Sage's Lair | Ready to deploy |
@@ -703,7 +703,7 @@ Purpose: Pre-computed backup paths, sub-50ms switchover
 | **The Whispering Void** | eBPF tracing - the silent observer | `packet_marker`, `flow_tracker`, `latency_probe` |
 | **The Crystal Grotto** | Secrets/State storage - precious, protected | SOPS + age, state stores |
 | **The Elder Hollow** | Legacy protocol integration | RIP, EIGRP, legacy bridges |
-| **The Oracle's Antre** | Timeguru's chamber - prophecy | Timeline processing, predictions |
+| **The Seer's Antre** | Timeguru's chamber - prophecy | Timeline processing, predictions |
 | **The Primordial Pit** | Bare metal foundation | PXE, hardware provisioning |
 | **The Fae Chamber** | Message Bus magic - Wotan's domain | Pub/sub, event orchestration |
 | **The Cursed Pit** | Quarantine / breach containment | Incident response, isolation |
@@ -1211,7 +1211,7 @@ All 7 Unheaded skills checked and aligned:
 
 ## 🔮 COMMUNION WITH THE OMNIPOTENT TIMEGURU
 
-**The Oracle Speaks - Next Steps for the Kingdom:**
+**The Seer Speaks - Next Steps for the Kingdom:**
 
 ### IMMEDIATE PRIORITIES (Next 3 Sessions)
 

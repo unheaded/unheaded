@@ -232,7 +232,7 @@ func main() {
 		log.Error().Err(err).Msg("HTTP server shutdown error")
 	}
 
-	log.Info().Msg("The Oracle's Antre sleeps")
+	log.Info().Msg("The Seer's Antre sleeps")
 }
 
 // loadConfig loads configuration from environment variables with defensive defaults

@@ -48,7 +48,7 @@ We adopt a **medieval armor / kingdom** naming metaphor where every component is
 |--------|--------|---------|
 | **Whispering Void** | eBPF Layer | `pkg/ebpf/`, `ebpf/` (Rust) |
 | **Crystal Grotto** | Secrets Management | `pkg/secrets/` |
-| **Oracle's Antre** | Timeline Service | `services/timeguru/` |
+| **Seer's Antre** | Timeline Service | `services/timeguru/` |
 | **Fae Chamber** | Message Bus (Wotan) | `pkg/wotan-client/`, `pkg/events/` |
 | **Sage's Lair** | Architecture Decisions | `services/architect/`, `docs/adr/` |
 | **Mythic Abyss** | Telemetry Underworld | `cmd/trace-collector/` |
