@@ -6,7 +6,7 @@ category: exp
 ipr: trust200902
 area: Internet
 workgroup: Independent Submission
-date: 2026-03-05
+date: 2026-03-15
 stand_alone: yes
 keywords:
   - dictionary
@@ -673,6 +673,176 @@ Security considerations in this memo are aligned with:
    Topic injection attacks, ring buffer memory exhaustion, cross-flow
    memory access, and WAL tampering detection.
 
+# PQC Key Dictionary Integration (NEW in draft-03 update)
+
+## Overview
+
+Sophia provides the key management layer for the post-quantum
+cryptographic (PQC) authentication system defined in
+[UNHEADED-FOUNDATION].  Full PQC signatures and public keys are
+stored in Sophia BPF maps, while the Monad wire format carries only
+12-byte references (see [UNHEADED-FOUNDATION] PQC Authentication
+Value Format).
+
+## PQC Signature Map (PQC_SIG_MAP)
+
+The PQC_SIG_MAP is a BPF hash map keyed by the 32-bit SigRef value
+from the PQC authentication value.
+
+~~~~~
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 65536);
+    __type(key, u32);        // SigRef from PQC value
+    __type(value, struct pqc_sig_entry);
+} pqc_sig_map SEC(".maps");
+
+struct pqc_sig_entry {
+    u8   algo_id;            // PQC algorithm (0x01-0x05)
+    u8   status;             // Verification status
+    u16  key_ref;            // Cross-reference to PQC_KEY_MAP
+    u32  sig_len;            // Signature length in bytes
+    u8   hash_pfx[4];        // SHA-256(signature)[0:4]
+    u8   signature[];        // Variable-length signature data
+};
+~~~~~
+
+## PQC Key Map (PQC_KEY_MAP)
+
+The PQC_KEY_MAP stores public keys indexed by the 16-bit KeyRef
+value.
+
+~~~~~
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 4096);
+    __type(key, u16);        // KeyRef from PQC value
+    __type(value, struct pqc_key_entry);
+} pqc_key_map SEC(".maps");
+
+struct pqc_key_entry {
+    u8   algo_id;            // PQC algorithm identifier
+    u8   key_epoch;          // Key rotation counter
+    u16  reserved;
+    u32  key_len;            // Public key length in bytes
+    u8   fingerprint[32];    // SHA3-256 of public key
+    u8   expires[8];         // Expiry timestamp (Unix ns, BE)
+    u8   pubkey[];           // Variable-length public key data
+};
+~~~~~
+
+## PQC Dictionary Operations
+
+### Signature Lookup
+
+When a BPF program verifies a PQC authentication value:
+
+~~~~~
+1. Extract SigRef (u32) from Monad scratch bytes [0x0E..0x11]
+2. Look up SigRef in pqc_sig_map
+3. Compare hash_pfx with SHA-256(sig_entry.signature)[0:4]
+4. If match: use cached verification status
+5. If miss or mismatch: emit EVENT_ANOMALY, use default policy
+~~~~~
+
+### Key Rotation
+
+Key rotation is managed through the key_epoch counter:
+
+~~~~~
+1. New key published to sophia.pqc.keys.v{N+1} Wotan topic
+2. Subscribers create new pqc_key_map entries with epoch+1
+3. Old keys retained for grace_period (default: 300 seconds)
+4. After grace_period: old key entries deleted
+5. Signatures referencing expired keys receive status=Expired (0x03)
+~~~~~
+
+## PQC Algorithm Support Matrix
+
+~~~~~
+Algo ID   Algorithm    Key Size    Sig Size     Use Case
+-------   ---------    --------    ---------    --------------------------
+0x01      SLH-DSA      32-64 B     7856-49856 B Hash-based (conservative)
+0x02      ML-DSA       1312-2592 B 2420-4627 B  Lattice-based (standard)
+0x03      FN-DSA       897-1793 B  666-1280 B   Lattice-based (compact)
+0x04      ML-KEM       800-1568 B  768-1568 B   Key encapsulation
+0x05      HQC          2249-7245 B 4497-14469 B Code-based (conservative)
+~~~~~
+
+Implementations MUST support at least ML-DSA (0x02) and SHOULD
+support SLH-DSA (0x01) for defense-in-depth.
+
+# UPC Opcode Dictionary for Sophia-Driven Instruction Decode (NEW in draft-03 update)
+
+## Overview
+
+The UPC compute engine uses Sophia dictionaries for instruction decode,
+enabling runtime-reconfigurable instruction semantics.  Instead of
+hardcoding opcode meanings, the MBC ISA opcodes are mapped through a
+Sophia dictionary that provides human-readable names, execution
+metadata, and instruction class information.
+
+## Opcode Dictionary Structure
+
+The opcode dictionary is a Sophia sub-dictionary (root key 0x10,
+"code" category) that maps 8-bit opcodes to instruction metadata.
+
+~~~~~
+Root entry 0x10 -> "code" -> sub-dict #16
+  Sub-dict #16[0x00] -> {name: "NOP", class: "control", cycles: 1}
+  Sub-dict #16[0x01] -> {name: "ADD", class: "arithmetic", cycles: 1}
+  Sub-dict #16[0x30] -> {name: "LD", class: "memory", cycles: 2}
+  Sub-dict #16[0x40] -> {name: "SYSCALL", class: "system", cycles: 0}
+~~~~~
+
+## Instruction Class Types
+
+~~~~~
+Class          Value   Description
+-----------    -----   ------------------------------------------
+arithmetic     0x01    ALU operations (ADD, SUB, MUL, DIV, etc.)
+logical        0x02    Bitwise operations (AND, OR, XOR, NOT, shifts)
+stack          0x03    Stack operations (PUSH, POP)
+register       0x04    Register operations (MOV, MOVI, CMP)
+branch         0x05    Control flow (JMP, JZ, CALL, RET, etc.)
+memory         0x06    Memory access (LD, ST, LDB, STB, etc.)
+atomic         0x07    Atomic operations (CLI, STI, XCHG, CAS)
+system         0x08    System operations (SYSCALL, HALT)
+interrupt      0x09    Interrupt handling (INT, IRET)
+extended       0x0A    Extended operations (LOAD_IMM32, ADDI, etc.)
+~~~~~
+
+## BPF Map Representation
+
+~~~~~
+struct sophia_opcode_entry {
+    u8   opcode;              // MBC opcode value
+    u8   insn_class;          // Instruction class (0x01-0x0A)
+    u8   base_cycles;         // Base cycle count (1-4)
+    u8   flags;               // Bit 0: modifies flags
+                              // Bit 1: reads memory
+                              // Bit 2: writes memory
+                              // Bit 3: modifies PC
+    u8   name[24];            // Null-terminated mnemonic
+    u32  reserved;            // Reserved (MUST be zero)
+};  // Total: 32 bytes per entry (matches SophiaEntry size)
+~~~~~
+
+## Sophia-Driven Decode in BPF
+
+During instruction execution, the MBC CPU MAY look up the opcode
+in the Sophia opcode dictionary for:
+
+1. **Instruction tracing**: Emit human-readable instruction name in
+   Anamnesis events instead of raw opcode values
+2. **Dynamic dispatch**: Runtime-reconfigurable instruction behavior
+   via dictionary updates (experimental)
+3. **Profiling**: Per-instruction-class cycle counting and metrics
+4. **Validation**: Verify opcode is in the valid set before execution
+
+Implementations MAY cache opcode dictionary entries in a per-CPU
+BPF array map for fast lookup (~50 ns vs. ~150 ns for hash lookup).
+
 # IANA Considerations
 
 ## Sophia Root Key Registry
@@ -767,7 +937,19 @@ The following changes are made in draft-03:
    namespace partitioning, QPACK decompression bomb mitigation, and
    dynamic table poisoning.
 
-7. **Updated Date**: Changed date from 2026-02-27 to 2026-03-05.
+7. **PQC Key Dictionary Integration (NEW)**: Added PQC_SIG_MAP and
+   PQC_KEY_MAP BPF map definitions for storing full post-quantum
+   signatures and public keys.  Defines signature lookup, key rotation
+   protocol, and algorithm support matrix covering SLH-DSA, ML-DSA,
+   FN-DSA, ML-KEM, and HQC.
+
+8. **UPC Opcode Dictionary (NEW)**: Added Sophia-driven instruction
+   decode for the MBC ISA.  Defines opcode dictionary structure
+   (root key 0x10, "code" category), 10 instruction class types,
+   32-byte BPF map entry format, and Sophia-driven decode use cases
+   (tracing, dynamic dispatch, profiling, validation).
+
+9. **Updated Date**: Changed date from 2026-03-05 to 2026-03-15.
 
 All changes in draft-03 are purely additive. No existing dictionary
 format, wire encoding, or processing rule from draft-02 is modified
