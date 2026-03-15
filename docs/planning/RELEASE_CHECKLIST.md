@@ -3,8 +3,8 @@
 ## Pre-Release Verification (Completed)
 
 ### Licensing & Compliance (Phase 1-2)
-- [x] LICENSE file (MIT) created and reviewed
-- [x] LICENSE-PROTOCOLS file (MIT/Apache-2.0) created for specs
+- [x] LICENSE file (GPL-3.0) created and reviewed
+- [x] LICENSE-PROTOCOLS file (GPL-3.0/Apache-2.0) created for specs
 - [x] doom/LICENSE (GPL 2.0) established with clear boundary
 - [x] License headers added to 21 key source files
 - [x] SBOM generated (manual scan + Go module analysis)
@@ -34,9 +34,8 @@
 - [x] Release checklist complete (this file)
 
 ## Distribution Rights
-- **Main Codebase:** MIT (internal use allowed; commercial service restricted)
-- **Conversion Date:** 2029-12-31 (automatic conversion to Apache 2.0)
-- **Protocol Specs:** MIT (unrestricted implementation encouraged)
+- **Main Codebase:** GPL-3.0 (free software; copyleft applies)
+- **Protocol Specs:** GPL-3.0/Apache 2.0 (dual-licensed for ecosystem adoption)
 - **DOOM Engine:** GPL 2.0 (fully compliant, isolated from main code)
 
 ## Post-Release Tasks

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 // Package benchmark provides a benchmarking framework for Unheaded performance testing.
 // It wraps Go's standard testing patterns with structured result collection,

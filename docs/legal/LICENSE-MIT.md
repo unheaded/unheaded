@@ -1,42 +1,41 @@
-# Unheaded License: MIT
+# Unheaded License: GPL-3.0
 
-Unheaded is MIT licensed. Simple as it gets.
+Unheaded is licensed under the GNU General Public License v3.0.
 
-## What MIT Means
+## What GPL-3.0 Means
 
 ```
 Copyright (c) 2024-2026 Steven Bellis
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
 ```
 
-**You can**: use it commercially, modify it, distribute it, sublicense it, use it privately.
-**You must**: include the copyright notice and this license in copies.
-**You cannot**: hold the author liable.
+**You can**: use it, modify it, distribute it, study the source code.
+**You must**: distribute source code with any distribution, license derivatives under GPL-3.0, include copyright notice.
+**You cannot**: hold the author liable, sublicense under a different license, restrict recipients' rights.
 
-That's the whole thing.
+## Why GPL
 
-## Why MIT
+This project makes infrastructure observable from packet zero. That visibility should be
+guaranteed for everyone who uses it. GPL ensures that modifications and improvements flow
+back to the community. If you build on Unheaded, everyone benefits.
 
-This project started as a wild idea — what if every packet carried its own trace? What if
-the network itself was the telemetry system? The ideas matter. Spread them. Build on them.
-Break things and share what you learn.
-
-No commercial moat. No "Permitted Users" definition. No change-date countdown. Just code.
+The protocol is the moat. The code is the commons.
 
 ## Protocol Specifications
 
-Protocol specs in `docs/protocol/` are also MIT (see `LICENSE-PROTOCOLS`). The intent is
-for anyone to implement the Monad/Sophia/Wotan wire formats in any language, any runtime,
-any network. Protocol interoperability matters more than exclusivity.
+Protocol specs in `docs/protocol/` are dual-licensed GPL-3.0 + Apache 2.0 (see `LICENSE-PROTOCOLS`).
+The Apache 2.0 alternative exists so anyone can implement the Monad/Sophia/Wotan wire formats
+in any language, any runtime, any network — even in proprietary software. Protocol
+interoperability matters more than exclusivity.
 
 ## DOOM Component
 
@@ -44,9 +43,15 @@ The DOOM source code in `/doom/doomgeneric/` is GPL v2.0 (id Software). It is is
 the main codebase — the Go/Rust binary communicates with DOOM exclusively via BPF maps. No
 linking. No compilation merge. The GPL boundary is the BPF map interface.
 
+## Third-Party Dependencies
+
+Third-party dependencies retain their original licenses (MIT, Apache 2.0, BSD, etc.).
+See `THIRD_PARTY.md` for the full inventory. The GPL-3.0 license applies only to
+Unheaded's own code.
+
 ## SPDX Identifier
 
-All Go source files carry: `SPDX-License-Identifier: MIT`
+All Go source files carry: `SPDX-License-Identifier: GPL-3.0-or-later`
 
 ## Questions
 

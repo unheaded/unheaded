@@ -3,13 +3,13 @@
 **Project:** Unheaded Infrastructure  
 **Audit Date:** 2026-02-25  
 **Audit Status:** PASSED  
-**Project License:** MIT (Boilerplate Software License 1.1)
+**Project License:** GPL-3.0 (GNU General Public License v3.0)
 
 ---
 
 ## Executive Summary
 
-All 17 direct dependencies and 39 total unique modules in the Unheaded Go codebase are licensed under **permissive or copyleft-compatible open source licenses**. There are **no GPL or proprietary license conflicts** with MIT.
+All 17 direct dependencies and 39 total unique modules in the Unheaded Go codebase are licensed under **permissive or copyleft-compatible open source licenses**. There are **no license conflicts** with the project's GPL-3.0 license.
 
 ---
 
@@ -17,7 +17,7 @@ All 17 direct dependencies and 39 total unique modules in the Unheaded Go codeba
 
 ### Permissive Licenses (MIT, Apache 2.0, BSD)
 
-The vast majority of dependencies use permissive licenses that impose no copyleft obligations and are fully compatible with MIT:
+The vast majority of dependencies use permissive licenses that impose no copyleft obligations and are fully compatible with the project's GPL-3.0 license:
 
 #### MIT License
 
@@ -99,11 +99,11 @@ The vast majority of dependencies use permissive licenses that impose no copylef
 
 ---
 
-## Compatibility Matrix with MIT
+## Compatibility Matrix with GPL-3.0
 
-**MIT Compatibility Rules:**
+**GPL-3.0 Compatibility Rules:**
 - Permissive licenses (MIT, Apache 2.0, BSD): ✅ **COMPATIBLE**
-- Copyleft licenses (GPL, AGPL, SSPL): ❌ **NOT COMPATIBLE** (with GPL exception below)
+- Copyleft licenses (GPL-2.0, LGPL): ✅ **COMPATIBLE** (GPL-3.0 is compatible with most copyleft)
 - Public domain: ✅ **COMPATIBLE**
 
 ### Audit Results
@@ -136,7 +136,7 @@ The DOOM subsystem is **GPLv2 licensed** but maintained in a **separate reposito
 
 - ✅ **No GPL linking:** Go code does not link to or include DOOM code
 - ✅ **Data protocol only:** Communication is via BPF map syscalls (analogous to user-space/kernel boundary)
-- ✅ **No derivative work obligations:** The main Unheaded codebase remains purely MIT
+- ✅ **GPL compatibility:** The main Unheaded codebase is GPL-3.0, which is compatible with the DOOM subsystem's GPLv2
 - ✅ **Audit recommendation:** GPL separation is **architecturally enforced and compliant**
 
 ---
@@ -149,8 +149,8 @@ The DOOM subsystem is **GPLv2 licensed** but maintained in a **separate reposito
 1. All Go dependencies use permissive licenses (MIT, Apache 2.0, BSD)
 2. No GPL, AGPL, or other copyleft licenses present in Go dependency tree
 3. DOOM GPLv2 code is architecturally isolated (separate VM, data-level interface only)
-4. MIT license obligations can be met without modification to dependencies
-5. No downstream license restrictions imposed on consumers
+4. GPL-3.0 license obligations are met (source code available, copyleft preserved)
+5. Permissive dependencies are compatible with GPL-3.0 distribution
 
 ---
 
@@ -171,7 +171,7 @@ This audit was performed by:
 2. **License Database Cross-Check:** Verifying each module's declared license against known open source databases
 3. **Copyleft Pattern Detection:** Scanning for GPL, AGPL, SSPL, and other copyleft indicators
 4. **Architectural Boundary Review:** Confirming GPL isolation for DOOM subsystem
-5. **MIT Compatibility Assessment:** Validating all licenses against MIT terms
+5. **GPL-3.0 Compatibility Assessment:** Validating all licenses against GPL-3.0 terms
 
 ---
 
@@ -186,7 +186,7 @@ This audit was performed by:
 
 ### For Downstream Consumers
 
-1. **License Compliance:** Respect MIT terms in `/LICENSE`
+1. **License Compliance:** Respect GPL-3.0 terms in `/LICENSE`
 2. **Attribution:** Provide attribution as per individual dependency licenses (mostly automatic via package managers)
 3. **DOOM Boundary:** If using DOOM subsystem, understand that it is GPLv2 and managed separately
 4. **No Proprietary Claims:** This project is free software; no proprietary code is included

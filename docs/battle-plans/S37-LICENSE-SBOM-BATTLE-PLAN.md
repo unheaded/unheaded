@@ -19,7 +19,7 @@
 
 **Key Decisions (from S35):**
 - **Primary License:** BSL 1.1 (Business Source License) for main codebase (short-term)
-- **Protocol License:** Permissive (MIT/Apache-2.0) for `docs/protocol/` specification files
+- **Protocol License:** Dual (GPL-3.0/Apache-2.0) for `docs/protocol/` specification files
 - **Doom Boundary:** GPL-2.0 must remain isolated in `doom/` subdirectory
 - **Conversion Path:** BSL → permissive at stable release OR Kubernetes-scale adoption milestone
 - **Go Module:** `unheaded` (no GitHub path yet; private repo)
@@ -498,7 +498,7 @@ See /doom/LICENSE for details.
 
 **Q: What about /docs/protocol/?**
 A: Protocol specifications in /docs/protocol/ are licensed separately under a
-Permissive License (MIT/Apache-2.0). See /docs/protocol/LICENSE-PROTOCOLS for details.
+Dual License (GPL-3.0/Apache-2.0). See /docs/protocol/LICENSE-PROTOCOLS for details.
 
 ---
 
@@ -548,9 +548,9 @@ terms to encourage adoption, implementation, and ecosystem development.
 
 ---
 
-## MIT License (Primary) + Apache 2.0 (Alternative)
+## GPL-3.0 License (Primary) + Apache 2.0 (Alternative)
 
-### MIT License Text (Primary License)
+### GPL-3.0 License (Primary License)
 
 Copyright (c) 2026 Unheaded Project Contributors
 
@@ -579,7 +579,7 @@ SOFTWARE.
 Full text available at: https://www.apache.org/licenses/LICENSE-2.0.txt
 
 You may choose to use the protocol specifications under the Apache 2.0 license
-instead of MIT. Apache 2.0 provides explicit patent grant language and may be
+instead of GPL-3.0. Apache 2.0 provides explicit patent grant language and may be
 preferred in certain jurisdictions.
 
 ---
@@ -642,7 +642,7 @@ ls -lh "$HOME/tmp/unheaded/LICENSE-PROTOCOLS"
 ```
 
 **Success Criteria:**
-- LICENSE-PROTOCOLS created with MIT + Apache 2.0 dual licensing
+- LICENSE-PROTOCOLS created with GPL-3.0 + Apache 2.0 dual licensing
 - Rationale section explains separation from main BSL 1.1
 - Clear guidance on protocol implementations
 
@@ -702,7 +702,7 @@ Copyright (c) 2026 Unheaded Project Contributors
 ### What Is NOT GPL 2.0 Licensed
 
 - Code in the main repository outside /doom/ is licensed under BSL 1.1
-- Protocol specifications in /docs/protocol/ are MIT/Apache 2.0
+- Protocol specifications in /docs/protocol/ are GPL-3.0/Apache 2.0
 - Dependencies listed in /LICENSES/ follow their own licenses
 - Any Unheaded code that does NOT link to or depend on DOOM engine
 
@@ -821,7 +821,7 @@ echo "✓ License headers updated in sample source files"
 
 **Success Criteria:**
 - At least 10-15 source files have license headers
-- Headers reference all three license types (BSL 1.1, MIT/Apache, GPL 2.0)
+- Headers reference all three license types (GPL-3.0, GPL-3.0/Apache for specs, GPL 2.0 for DOOM)
 - No file corruption (syntax still valid)
 
 **Time: ~30m**
@@ -838,10 +838,10 @@ git add LICENSE LICENSE-PROTOCOLS doom/LICENSE $(git diff --name-only | grep -E 
 git commit -m "S37 Phase 1: BSL 1.1 licensing and GPL 2.0 boundary
 
 - Created LICENSE (BSL 1.1) for main codebase with 4-year Change Date
-- Created LICENSE-PROTOCOLS (MIT/Apache-2.0) for protocol specs
+- Created LICENSE-PROTOCOLS (GPL-3.0/Apache-2.0) for protocol specs
 - Established GPL 2.0 boundary in doom/LICENSE with compliance framework
 - Added license headers to sample source files (cmd/, pkg/, crates/, ebpf/)
-- Separated licensing concerns: BSL (code), MIT (specs), GPL (engine)
+- Separated licensing concerns: GPL-3.0 (code), GPL-3.0/Apache (specs), GPL-2.0 (engine)
 - Ready for Phase 2: SBOM scanning and integration"
 ```
 
@@ -858,7 +858,7 @@ git commit -m "S37 Phase 1: BSL 1.1 licensing and GPL 2.0 boundary
 
 **Gate Conditions (ALL must pass):**
 - [X] LICENSE file present (BSL 1.1)
-- [X] LICENSE-PROTOCOLS file present (MIT/Apache-2.0)
+- [X] LICENSE-PROTOCOLS file present (GPL-3.0/Apache-2.0)
 - [X] doom/LICENSE present (GPL 2.0)
 - [X] License headers added to sample source files
 - [X] `git log -1` shows Phase 1 commit
@@ -1125,9 +1125,9 @@ This document consolidates findings from three independent SBOM tools:
 - Change License: Apache 2.0
 - Status: ✓ All source code headers updated
 
-### Protocol Specifications (MIT/Apache-2.0)
+### Protocol Specifications (GPL-3.0/Apache-2.0)
 
-- License: MIT (primary) or Apache-2.0 (alternative)
+- License: GPL-3.0 (primary) or Apache-2.0 (alternative)
 - Scope: /docs/protocol/ directory only
 - Status: ✓ Separate LICENSE-PROTOCOLS file created
 
@@ -1166,7 +1166,7 @@ All third-party licenses are documented in:
 | ISC | ? | ✓ Compatible | Permissive variant |
 | GPL-2.0 | Limited | ⚠ Isolated | Only in /doom/ subdirectory |
 | AGPL-3.0 | 0 | ✓ None | No AGPL dependencies found |
-| GPL-3.0 | 0 | ✓ None | No GPL-3.0 dependencies in main code |
+| GPL-3.0 | Project | ✓ Project License | Main codebase is GPL-3.0 |
 
 ## Scanning Tool Outputs
 
@@ -2514,7 +2514,7 @@ cat > "$HOME/tmp/unheaded/RELEASE_CHECKLIST.md" << 'CHECKLIST'
 
 ### Licensing & Compliance (Phase 1-2)
 - [x] LICENSE file (BSL 1.1) created and reviewed
-- [x] LICENSE-PROTOCOLS file (MIT/Apache-2.0) created for specs
+- [x] LICENSE-PROTOCOLS file (GPL-3.0/Apache-2.0) created for specs
 - [x] doom/LICENSE (GPL 2.0) established with clear boundary
 - [x] License headers added to key source files
 - [x] SBOM generated (ScanCode, FOSSology, ORT)
@@ -2552,7 +2552,7 @@ The Unheaded project is ready for public release with the following characterist
 ### Distribution Rights
 - **Main Codebase:** BSL 1.1 (private use allowed; commercial service restricted)
 - **Conversion Date:** 2029-12-31 (automatic conversion to Apache 2.0)
-- **Protocol Specs:** MIT (unrestricted implementation encouraged)
+- **Protocol Specs:** GPL-3.0/Apache 2.0 (dual-licensed for ecosystem adoption)
 - **DOOM Engine:** GPL 2.0 (fully compliant, isolated from main code)
 
 ### Public Availability
@@ -2625,7 +2625,7 @@ PHASES COMPLETED:
 
 DELIVERABLES:
   - LICENSE (BSL 1.1) with 4-year Change Date
-  - LICENSE-PROTOCOLS (MIT/Apache-2.0 for specs)
+  - LICENSE-PROTOCOLS (GPL-3.0/Apache-2.0 for specs)
   - doom/LICENSE (GPL 2.0 with isolation boundary)
   - SBOM via ScanCode, FOSSology, ORT (in LICENSES/sbom-reports/)
   - DOOM audio support scaffolding (audio_init.c/h)
@@ -2786,7 +2786,7 @@ git push --force-all
 
 ### Licensing Artifacts
 - [ ] LICENSE (BSL 1.1)
-- [ ] LICENSE-PROTOCOLS (MIT/Apache-2.0)
+- [ ] LICENSE-PROTOCOLS (GPL-3.0/Apache-2.0)
 - [ ] doom/LICENSE (GPL 2.0)
 - [ ] License headers on key source files
 
@@ -2890,7 +2890,7 @@ scancode --json LICENSES/sbom-reports/scancode-sbom.json .
 ║  Date:         2026-02-24                                 ║
 ║                                                           ║
 ║  Deliverables: 3 LICENSE files + SBOM + DOOM fork        ║
-║  Compliance:   BSL 1.1 + MIT + GPL-2.0 (isolated)        ║
+║  Compliance:   GPL-3.0 + GPL-3.0/Apache (specs) + GPL-2.0 (isolated)  ║
 ║  Verification: Full build/test passing + audit complete  ║
 ║  Next Step:    Push to public repo; announce release      ║
 ╠═══════════════════════════════════════════════════════════╣

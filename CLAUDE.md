@@ -744,7 +744,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - Performance benchmarking (sub-50ms target)
 
 **S35 Strategic Decisions (Feb 24, 2026):**
-- **License**: MIT short-term → permissive (MIT/Apache/GNU) at stable release or K8s-scale. Protocol specs separately permissive-licensed.
+- **License**: GPL-3.0. Protocol specs dual-licensed GPL-3.0/Apache 2.0 for ecosystem adoption.
 - **Doom**: Fork official id-Software/DOOM (with sound), replace doomgeneric. Move out of repo before going public.
 - **SBOM**: Run ScanCode + FOSSology + ORT against codebase. Must complete before going public.
 - **Backends**: All observability + IaC adapters DEFERRED not killed. Anti-lock-in is core principle. Ship Prometheus + zerolog first.
@@ -1014,12 +1014,11 @@ See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
 - **Result**: Production-ready auth framework, zero security debt, ready for commercial licensing
 
 ### Wave 2 Complete: Legal & Compliance (S52)
-- **SPDX Headers**: 838 Go files tagged with SPDX-License-Identifier
-  - MIT License (short-term)
-  - Apache 2.0 conversion clause documented
+- **SPDX Headers**: All Go files tagged with SPDX-License-Identifier: GPL-3.0-or-later
+  - GPL-3.0 License
   - 100% coverage, automated CI checks
 - **docs/legal/**:
-  - LICENSE.md: MIT License
+  - LICENSE-MIT.md: GPL-3.0 License documentation
   - IP-INVENTORY.md: Complete IP ownership matrix (original code, forks, integrations)
   - IANA-REGISTRATION.md: Plan for registering UNHEADED_METRIC_V1 (Type 0x2A)
 - **CONTRIBUTOR-GUIDE.md**:
