@@ -38,6 +38,10 @@ pub struct Cpu {
     pub proc_table: [[u32; 20]; 4],
     /// Halted process bitmask (bit i set = process i has exited).
     pub halted_mask: u32,
+    /// Suspended process bitmask (bit i set = process i is suspended via vfork).
+    /// Scheduler skips suspended processes (like halted). Cleared when child
+    /// calls SYS_EXIT or SYS_EXECVE.
+    pub suspended_mask: u32,
     /// Software TLB: 64 entries, direct-mapped. Each entry: [vpn, pfn, flags].
     pub tlb: [[u32; 3]; 64],
 }
@@ -59,6 +63,7 @@ impl Cpu {
             instance_id: 0,
             proc_table: [[0u32; 20]; 4],
             halted_mask: 0,
+            suspended_mask: 0,
             tlb: [[0u32; 3]; 64],
         }
     }
@@ -591,6 +596,38 @@ impl Cpu {
                 self.mem_write_half(addr, self.state.regs[src] as u16);
             }
 
+            // === Atomic operations (Level 6 — single-core safe via CLI/STI) ===
+            op::CLI => {
+                self.state.interrupts_enabled = 0;
+            }
+            op::STI => {
+                self.state.interrupts_enabled = 1;
+            }
+            op::XCHG => {
+                // Atomic exchange: tmp=dst, dst=RAM[src+imm], RAM[src+imm]=tmp
+                let simm = imm as i16 as i32;
+                let addr = self.state.regs[src].wrapping_add(simm as u32);
+                let word_addr = (addr >> 2) as usize;
+                let old = self.mem_read_word(word_addr);
+                self.mem_write_word(word_addr, self.state.regs[dst]);
+                self.state.regs[dst] = old;
+            }
+            op::CAS => {
+                // Compare-and-swap: if RAM[r1]==r0 then RAM[r1]=r2, set Z; r0=old
+                let addr = self.state.regs[1];
+                let expected = self.state.regs[0];
+                let desired = self.state.regs[2];
+                let word_addr = (addr >> 2) as usize;
+                let old = self.mem_read_word(word_addr);
+                if old == expected {
+                    self.mem_write_word(word_addr, desired);
+                    self.state.flags |= mf::Z;
+                } else {
+                    self.state.flags &= !mf::Z;
+                }
+                self.state.regs[0] = old;
+            }
+
             // === System calls ===
             op::SYSCALL => {
                 let syscall_id = self.state.regs[0];
@@ -621,6 +658,8 @@ impl Cpu {
                     let syscall_nr = self.state.regs[0];
                     if syscall_nr == lsys::SYS_EXIT {
                         self.state.exit_code = self.state.regs[1];
+                        // Unsuspend any parent waiting via vfork
+                        self.unsuspend_vfork_parent();
                         self.state.halted = 1;
                         return Err(ExecError::Halted);
                     } else if syscall_nr == lsys::SYS_WRITE {
@@ -732,6 +771,33 @@ impl Cpu {
                             // Parent gets child_pid in r0
                             self.state.regs[0] = child_pid as u32;
                         }
+                    } else if syscall_nr == lsys::SYS_VFORK {
+                        // ── SYS_VFORK(190): Fork + suspend parent (Level 6) ──
+                        // Like SYS_FORK but parent is suspended until child
+                        // calls SYS_EXIT or SYS_EXECVE.
+                        if self.state.num_processes >= intr::MAX_PROCESSES {
+                            self.state.regs[0] = (-11i32) as u32; // EAGAIN
+                        } else {
+                            let parent_pid = self.state.current_pid as usize;
+                            let child_pid = self.state.num_processes as usize;
+                            // Save child state: copy parent's regs + PC + flags + SP + brk
+                            let mut child_state = [0u32; 20];
+                            for r in 0..16 {
+                                child_state[r] = self.state.regs[r];
+                            }
+                            child_state[16] = self.state.pc;
+                            child_state[17] = self.state.flags as u32;
+                            child_state[18] = self.state.regs[REG_SP as usize];
+                            child_state[19] = self.state.program_break;
+                            // Child gets 0 in r0
+                            child_state[0] = 0;
+                            self.proc_table[child_pid] = child_state;
+                            self.state.num_processes += 1;
+                            // Suspend parent until child exits or execve's
+                            self.suspended_mask |= 1 << parent_pid;
+                            // Parent gets child_pid in r0
+                            self.state.regs[0] = child_pid as u32;
+                        }
                     } else if syscall_nr == lsys::SYS_SCHED_YIELD {
                         // ── SYS_SCHED_YIELD(158): Voluntary context switch (Level 4c) ──
                         if self.state.num_processes > 1 {
@@ -840,6 +906,9 @@ impl Cpu {
 
                         // r0 = 0 (success), though the new program won't see it
                         // since all regs were zeroed above
+
+                        // Unsuspend any parent waiting via vfork
+                        self.unsuspend_vfork_parent();
 
                     // ── Trivial FUZIX syscall stubs (Level 5c) ───────────────
                     // UID/GID family: always root (0)
@@ -983,6 +1052,18 @@ impl Cpu {
         Ok(())
     }
 
+    /// Unsuspend the parent process when a vfork child exits or calls execve.
+    ///
+    /// Walks all processes looking for one that is suspended (in `suspended_mask`)
+    /// and clears its suspended bit. In the simple single-parent-per-child model,
+    /// we clear the bit for any suspended process (there's at most one).
+    fn unsuspend_vfork_parent(&mut self) {
+        if self.suspended_mask != 0 {
+            // Clear all suspended bits — the child has exited/exec'd
+            self.suspended_mask = 0;
+        }
+    }
+
     /// Perform a round-robin context switch (Level 4c scheduler).
     ///
     /// Saves current process state to proc_table, advances to next runnable
@@ -1005,10 +1086,11 @@ impl Cpu {
         save[19] = self.state.program_break;
         self.proc_table[old_pid] = save;
 
-        // 2. Find next runnable process (round-robin, skip halted)
+        // 2. Find next runnable process (round-robin, skip halted and suspended)
+        let skip_mask = self.halted_mask | self.suspended_mask;
         let mut next_pid = (old_pid + 1) % num;
         for _ in 0..4 {
-            if next_pid < num && (self.halted_mask & (1 << next_pid)) == 0 {
+            if next_pid < num && (skip_mask & (1 << next_pid)) == 0 {
                 break;
             }
             next_pid = (next_pid + 1) % num;

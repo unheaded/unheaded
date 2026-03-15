@@ -1238,6 +1238,20 @@ pub mod mbc_opcodes {
     /// `IRET` — return from interrupt. Pop PC+flags, re-enable interrupts.
     pub const IRET: u8 = 0x18;
 
+    // ── Atomic operations (Level 6 — single-core safe via CLI/STI) ──
+    /// `CLI` — Clear interrupt flag (disable interrupts).
+    /// Used as the "lock" half of atomic operations on a single-core UPC.
+    pub const CLI: u8 = 0x3B;
+    /// `STI` — Set interrupt flag (enable interrupts).
+    /// Used as the "unlock" half of atomic operations on a single-core UPC.
+    pub const STI: u8 = 0x3C;
+    /// `XCHG dst, [src+imm]` — Atomic exchange.
+    /// `tmp = dst; dst = RAM[src+imm]; RAM[src+imm] = tmp`
+    pub const XCHG: u8 = 0x3D;
+    /// `CAS` — Compare-and-swap.
+    /// `old = RAM[r1]; if old == r0 then RAM[r1] = r2, set Z; r0 = old`
+    pub const CAS: u8 = 0x3E;
+
     // ── System ─────────────────────────────────────────────────
     /// Invoke I/O callback.  `imm16` = syscall number (see `mbc_syscalls`).
     pub const SYSCALL: u8 = 0x40;
@@ -1303,6 +1317,11 @@ pub mod mbc_linux_syscalls {
     pub const SYS_NANOSLEEP: u32 = 162;
     /// `clock_gettime(clk_id, tp)` — get clock time.
     pub const SYS_CLOCK_GETTIME: u32 = 265;
+
+    /// `vfork()` — create child process, suspend parent until child exits/execve.
+    /// Like fork but parent is suspended until child calls SYS_EXIT or SYS_EXECVE.
+    /// Simpler than full vfork (no shared address space) — sufficient for uClinux boot.
+    pub const SYS_VFORK: u32 = 190;
 
     /// Custom: read a 512-byte block from the ramdisk.
     /// r1=block_num, r2=buf_addr (destination in RAM).

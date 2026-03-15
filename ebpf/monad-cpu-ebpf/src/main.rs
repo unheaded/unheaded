@@ -730,6 +730,33 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.cache_hits += 1;
             increment_stat(STAT_MEM_STORES);
 
+        // ── Atomic operations (Level 6 — single-core safe via CLI/STI) ────────
+        } else if opc == op::CLI {
+            cpu.interrupts_enabled = 0;
+        } else if opc == op::STI {
+            cpu.interrupts_enabled = 1;
+        } else if opc == op::XCHG {
+            // Atomic exchange: tmp=dst, dst=RAM[src+imm], RAM[src+imm]=tmp
+            let addr = cpu.regs[s].wrapping_add(simm as u32);
+            let word_addr = addr >> 2;
+            let old = mem_read_word(word_addr);
+            mem_write_word(word_addr, cpu.regs[d]);
+            cpu.regs[d] = old;
+        } else if opc == op::CAS {
+            // Compare-and-swap: if RAM[r1]==r0 then RAM[r1]=r2, set Z; r0=old
+            let addr = cpu.regs[1];
+            let expected = cpu.regs[0];
+            let desired = cpu.regs[2];
+            let word_addr = addr >> 2;
+            let old = mem_read_word(word_addr);
+            if old == expected {
+                mem_write_word(word_addr, desired);
+                cpu.flags |= mf::Z;
+            } else {
+                cpu.flags &= !mf::Z;
+            }
+            cpu.regs[0] = old;
+
         // ── Interrupts ────────────────────────────────────────────────────────
         } else if opc == op::INT {
             let vector = imm as u8;
@@ -742,6 +769,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 if syscall_nr == lsys::SYS_EXIT {
                     // SYS_EXIT(1): halt CPU with exit code from r1.
                     cpu.exit_code = cpu.regs[1];
+                    // Unsuspend any parent waiting via vfork
+                    if let Some(p) = SCHED_STATE.get_ptr_mut(2) {
+                        unsafe { *p = 0; } // clear all suspended bits
+                    }
                     cpu.halted = 1;
                     increment_stat(STAT_HALTED);
                     break;
@@ -849,6 +880,43 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                         increment_stat(STAT_FORKS);
                         // Parent gets child_pid in r0
+                        cpu.regs[0] = child_pid;
+                    }
+                } else if syscall_nr == lsys::SYS_VFORK {
+                    // ── SYS_VFORK(190): Fork + suspend parent (Level 6) ──
+                    // Like SYS_FORK but parent is suspended until child exits/execve.
+                    if cpu.num_processes >= intr::MAX_PROCESSES {
+                        cpu.regs[0] = (-11i32) as u32; // EAGAIN
+                    } else {
+                        let parent_pid = cpu.current_pid as u32;
+                        let child_pid = cpu.num_processes as u32;
+                        let mut child_state = [0u32; 20];
+                        let mut r = 0u32;
+                        while r < 16 {
+                            child_state[r as usize] = cpu.regs[r as usize];
+                            r += 1;
+                        }
+                        child_state[16] = cpu.pc;
+                        child_state[17] = cpu.flags as u32;
+                        child_state[18] = cpu.regs[15]; // SP copy
+                        child_state[19] = cpu.program_break;
+                        child_state[0] = 0; // child gets 0
+                        if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
+                            unsafe { *p = child_state; }
+                        }
+                        cpu.num_processes += 1;
+                        if let Some(p) = SCHED_STATE.get_ptr_mut(1) {
+                            unsafe { *p = cpu.num_processes as u32; }
+                        }
+                        // Suspend parent: set bit in SCHED_STATE[2] (suspended_mask)
+                        let suspended = match SCHED_STATE.get(2) {
+                            Some(v) => *v,
+                            None => 0,
+                        };
+                        if let Some(p) = SCHED_STATE.get_ptr_mut(2) {
+                            unsafe { *p = suspended | (1 << parent_pid); }
+                        }
+                        increment_stat(STAT_FORKS);
                         cpu.regs[0] = child_pid;
                     }
                 } else if syscall_nr == lsys::SYS_SCHED_YIELD {
@@ -1039,6 +1107,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
                     // Reset program break to default
                     cpu.program_break = DEFAULT_PROGRAM_BREAK;
+
+                    // Unsuspend any parent waiting via vfork
+                    if let Some(p) = SCHED_STATE.get_ptr_mut(2) {
+                        unsafe { *p = 0; } // clear all suspended bits
+                    }
 
                     increment_stat(STAT_SYSCALLS);
 
@@ -1410,18 +1483,24 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
         unsafe { *p = save_state; }
     }
 
-    // 2. Find next runnable process (round-robin, skip halted)
+    // 2. Find next runnable process (round-robin, skip halted and suspended)
     // Read halted_mask from SCHED_STATE[3]
     let halted_mask = match SCHED_STATE.get(3) {
         Some(v) => *v,
         None => 0,
     };
+    // Read suspended_mask from SCHED_STATE[2]
+    let suspended_mask = match SCHED_STATE.get(2) {
+        Some(v) => *v,
+        None => 0,
+    };
+    let skip_mask = halted_mask | suspended_mask;
 
     let mut next_pid = (old_pid + 1) % num;
     // Bounded search: try up to 4 candidates
     let mut attempts = 0u32;
     while attempts < 4 {
-        if next_pid < num && (halted_mask & (1 << next_pid)) == 0 {
+        if next_pid < num && (skip_mask & (1 << next_pid)) == 0 {
             break; // found a runnable process
         }
         next_pid = (next_pid + 1) % num;
