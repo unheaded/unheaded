@@ -69,6 +69,12 @@
 #define __NR_enable_mmu		251
 #define __NR_flush_tlb		252
 
-#define __NR_syscalls		48
+/*
+ * __NR_syscalls covers the "classic" POSIX range (0-47) for the
+ * bounds check in entry.S.  The actual syscall_table in
+ * syscall_table.c is sized to TABLE_SIZE (266) to accommodate
+ * UPC-specific and high-numbered Linux syscalls.
+ */
+#define __NR_syscalls		266
 
 #endif /* _ASM_MBC_UNISTD_H */
