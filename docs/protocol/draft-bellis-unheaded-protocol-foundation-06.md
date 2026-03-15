@@ -6,7 +6,7 @@ category: exp
 ipr: trust200902
 area: Internet
 workgroup: Independent Submission
-date: 2026-03-05
+date: 2026-03-15
 stand_alone: yes
 
 keyword:
@@ -1369,6 +1369,389 @@ Initial entries:
   SLH-DSA-SHA2-128s (0x05, 32, FIPS 205)
 ~~~~
 
+## MBC Opcode Numbers (NEW in draft-06 update)
+
+IANA is requested to create a new registry entitled "UPC MBC Opcode
+Numbers" in the "Unheaded Protocol Parameters" registry group.
+
+Registration Policy: Specification Required [RFC8126]
+
+The MBC (Monad Bytecode) ISA defines the instruction set for the
+Unheaded Protocol Computer (UPC), a Turing-complete computational
+model operating within BPF programs.  Each instruction is a 32-bit
+word with the opcode in bits [31:24].
+
+~~~~
+Value   Mnemonic    Description                                   Reference
+-----   --------    -------------------------------------------   ---------
+0x00    NOP         No operation                                  [this document]
+0x01    ADD         dst = dst + src                               [this document]
+0x02    SUB         dst = dst - src                               [this document]
+0x03    MUL         dst = dst * src                               [this document]
+0x04    DIV         dst = dst / src (unsigned)                    [this document]
+0x05    MOD         dst = dst % src (unsigned)                    [this document]
+0x06    NEG         dst = -dst                                    [this document]
+0x07    AND         dst = dst & src                               [this document]
+0x08    OR          dst = dst | src                               [this document]
+0x09    XOR         dst = dst ^ src                               [this document]
+0x0A    NOT         dst = ~dst                                    [this document]
+0x0B    SHL         dst = dst << imm16                            [this document]
+0x0C    SHR         dst = dst >> imm16 (logical)                  [this document]
+0x0D    SAR         dst = dst >> imm16 (arithmetic)               [this document]
+0x0E    MOV         dst = src                                     [this document]
+0x0F    MOVI        dst = zero_extend(imm16)                      [this document]
+0x10    CMP         flags = cmp(dst, src)                         [this document]
+0x17    INT         Software interrupt (push flags+PC, jmp IVT)   [this document]
+0x18    IRET        Return from interrupt (pop PC+flags)          [this document]
+0x1A    PUSH        SP -= 1; ram[SP] = regs[dst]                  [this document]
+0x1B    POP         regs[dst] = ram[SP]; SP += 1                  [this document]
+0x1C    LOAD_IMM32  regs[dst][31:16] = imm16                      [this document]
+0x1D    ADDI        dst = dst + sign_extend(imm16)                [this document]
+0x20    JMP         pc += imm16_signed (unconditional)            [this document]
+0x21    JZ          if Z: pc += imm16_signed                      [this document]
+0x22    JNZ         if !Z: pc += imm16_signed                     [this document]
+0x23    JN          if N: pc += imm16_signed                      [this document]
+0x24    JP          if !N: pc += imm16_signed                     [this document]
+0x25    JC          if C: pc += imm16_signed                      [this document]
+0x26    JNC         if !C: pc += imm16_signed                     [this document]
+0x27    CALL        push(PC+1); pc = imm16                        [this document]
+0x28    RET         Pop PC from stack                              [this document]
+0x29    JMPR        pc = regs[dst] (indirect jump)                [this document]
+0x2A    CALLR       push(PC+1); pc = regs[dst] (indirect call)    [this document]
+0x30    LD          dst = ram[src + imm16] (32-bit load)          [this document]
+0x31    ST          ram[dst + imm16] = src (32-bit store)         [this document]
+0x32    LDB         dst = ram[src + imm16] (byte load)            [this document]
+0x33    STB         ram[dst + imm16] = src & 0xFF (byte store)    [this document]
+0x34    LDH         dst = ram[src + imm16] (16-bit load)          [this document]
+0x35    STH         ram[dst + imm16] = src & 0xFFFF (16-bit store)[this document]
+0x36    SHLR        dst = dst << (src & 31) (register shift)      [this document]
+0x37    SHRR        dst = dst >> (src & 31) (logical, register)   [this document]
+0x38    SARR        dst = dst >> (src & 31) (arithmetic, register)[this document]
+0x39    MULH        dst = (i64(dst)*i64(src))>>32 (signed high)   [this document]
+0x3A    MULHU       dst = (u64(dst)*u64(src))>>32 (unsigned high) [this document]
+0x3B    CLI         Clear interrupt flag (disable interrupts)     [this document]
+0x3C    STI         Set interrupt flag (enable interrupts)        [this document]
+0x3D    XCHG        Atomic exchange: dst <-> ram[src+imm]         [this document]
+0x3E    CAS         Compare-and-swap: if ram==r0 then ram=r2      [this document]
+0x40    SYSCALL     Invoke I/O callback; imm16 = syscall number   [this document]
+0x41-0xFE           Unassigned
+0xFF    HALT        Halt execution; sets halted flag               [this document]
+~~~~
+
+### MBC Instruction Encoding
+
+All MBC instructions use a fixed 32-bit encoding:
+
+~~~~
+ 31       24 23    20 19    16 15                 0
++-----------+-------+-------+---------------------+
+|  Opcode   |  Dst  |  Src  |       Imm16         |
+|  (8 bits) | (4 b) | (4 b) |    (16 bits)        |
++-----------+-------+-------+---------------------+
+~~~~
+
+Dst and Src index into the 16-entry register file (r0-r15).
+Register r15 is the stack pointer (SP).  CPU status flags:
+bit 0 = Zero (Z), bit 1 = Negative (N), bit 2 = Carry (C).
+
+## MBC Syscall Numbers (NEW in draft-06 update)
+
+IANA is requested to create a new registry entitled "UPC MBC Syscall
+Numbers" in the "Unheaded Protocol Parameters" registry group.
+
+Registration Policy: Expert Review [RFC8126]
+
+MBC syscalls are invoked via the SYSCALL instruction (opcode 0x40).
+The syscall number is carried in imm16.  Two syscall classes exist:
+native MBC syscalls (0x01-0x0F) and Linux-compatible syscalls
+(dispatched via INT 0x80 with syscall number in r0).
+
+### Native MBC Syscalls
+
+~~~~
+Value   Name              Description                             Reference
+-----   --------          -----------------------------------     ---------
+0x01    SYS_DRAW_FRAME    Copy pixel buffer to screen_map         [this document]
+0x02    SYS_GET_KEY       Read keyboard state from kbd_map        [this document]
+0x03    SYS_GET_TICKS     Return bpf_ktime_get_ns() / 1000000    [this document]
+0x04    SYS_SLEEP         Set sleep_until = now + r0 * 1000000    [this document]
+0x05-0x0F                 Unassigned (native syscalls)
+~~~~
+
+### Linux-Compatible Syscalls (INT 0x80)
+
+~~~~
+Value   Name              Description                             Reference
+-----   --------          -----------------------------------     ---------
+1       SYS_EXIT          Halt CPU with exit code                 [this document]
+2       SYS_FORK          Create child process (simplified)       [this document]
+3       SYS_READ          Read from file descriptor               [this document]
+4       SYS_WRITE         Write to file descriptor                [this document]
+5       SYS_OPEN          Open a file                             [this document]
+6       SYS_CLOSE         Close a file descriptor                 [this document]
+7       SYS_WAITPID       Wait for child process                  [this document]
+11      SYS_EXECVE        Execute a program                       [this document]
+20      SYS_GETPID        Get process (instance) ID               [this document]
+45      SYS_BRK           Set/query program break (heap end)      [this document]
+54      SYS_IOCTL         Device control                          [this document]
+90      SYS_MMAP          Map memory                              [this document]
+91      SYS_MUNMAP         Unmap memory                           [this document]
+120     SYS_CLONE         Create child process/thread             [this document]
+122     SYS_UNAME         Get system information                  [this document]
+146     SYS_WRITEV        Write scatter/gather                    [this document]
+158     SYS_SCHED_YIELD   Yield the processor                     [this document]
+162     SYS_NANOSLEEP     High-resolution sleep                   [this document]
+190     SYS_VFORK         Create child, suspend parent            [this document]
+265     SYS_CLOCK_GETTIME Get clock time                          [this document]
+~~~~
+
+## UPC Memory Region Types (NEW in draft-06 update)
+
+IANA is requested to create a new registry entitled "UPC Memory
+Region Types" in the "Unheaded Protocol Parameters" registry group.
+
+Registration Policy: Specification Required [RFC8126]
+
+The UPC memory model defines a 32-bit flat address space with
+memory-mapped I/O regions.  Each region has a defined base address,
+size, and access semantics.
+
+~~~~
+Base Address    Size        Name          Description               Reference
+-----------     --------    ----------    ------------------------  ---------
+0x0000_0000     448 KiB     RAM           General-purpose RAM       [this document]
+0x0006_8000     4 bytes     KBD_IO        Keyboard I/O word         [this document]
+0x0007_0000     64 000 B    SCREEN        Screen I/O (320x200 8bpp) [this document]
+0x000F_0000     128 KiB     DEBUG         Debug region              [this document]
+0x0011_0000     4 MiB       WAD           WAD data region           [this document]
+0x0052_0000     16 MiB      HEAP          Heap (bump allocator)     [this document]
+0x03F0_0000     (grows down) STACK        Stack (grows downward)    [this document]
+0x0200_0000*    4 MiB       RAMDISK       Block device (512B blocks)[this document]
+~~~~
+
+*RAMDISK base is in word-addressed space (0x200000 words = 32 MiB byte offset).
+
+### UPC Memory Hierarchy
+
+~~~~
+Level   Name                  Size            Latency       Type
+-----   --------------------  -----------     ----------    ----------
+L0      Monad Register File   20 bytes        ~ns           In-packet
+L1      BPF Map Cache         variable        ~100-200 ns   Per-hop
+L2      Wotan Ring Buffer     configurable    ~1-10 us      Per-flow
+L3      Write-Ahead Log       disk-backed     ~100 us-1 ms  Persistent
+L4      Sophia Dictionaries   BPF maps        ~100-200 ns   Instruction decode
+~~~~
+
+### UPC Interrupt Vector Table
+
+~~~~
+Vector   Name               Description                       Reference
+------   --------           -----------------------------------  ---------
+0x20     VECTOR_TIMER       Timer interrupt (~12 Hz)            [this document]
+0x21     VECTOR_KEYBOARD    Keyboard interrupt                  [this document]
+0x80     VECTOR_SYSCALL     Software syscall interrupt          [this document]
+~~~~
+
+Timer ticks at every 3rd XDP hop (~35 Hz XDP / 3 = ~12 Hz timer).
+Maximum concurrent processes: 4 (Level 4c scheduler).
+
+## UPC Event Types (NEW in draft-06 update)
+
+IANA is requested to create a new registry entitled "UPC Event Types"
+in the "Unheaded Protocol Parameters" registry group.
+
+Registration Policy: Specification Required [RFC8126]
+
+UPC events are emitted to Anamnesis ring buffers by the compute engine.
+
+~~~~
+Value   Name                  Description                       Reference
+-----   --------------------  -----------------------------------  ---------
+0x10    EVENT_COMPUTE_HOP     One MBC instruction executed         [this document]
+0x11    EVENT_CACHE_MISS      L1 cache miss, Wotan staging needed  [this document]
+0x12    EVENT_MEM_WRITE       Dirty page written, Wotan flush      [this document]
+0x13    EVENT_MEM_STAGED      Wotan staged page into L1            [this document]
+0x14    EVENT_SCREEN_WRITE    SYSCALL DG_DrawFrame emitted         [this document]
+0x15    EVENT_KEY_READ        SYSCALL DG_GetKey executed           [this document]
+0x16    EVENT_COMPUTE_HALT    HALT syscall executed                [this document]
+0x17    EVENT_COMPUTE_STALL   Stall (cache miss, sleep)            [this document]
+0x18    EVENT_TTY_WRITE       TTY write (SYS_WRITE to fd 1/2)     [this document]
+0x19    EVENT_CONTEXT_SWITCH  Scheduler context switch             [this document]
+0x1A-0x1F                     Unassigned (compute events)
+~~~~
+
+## PQC Authentication Value Format
+
+The PQC authentication value is a 12-byte structure carried in the
+Monad scratch bytes (offsets 0x0E-0x13) when both the SAMPLED (bit 3)
+and CUSTOM (bit 1) flags are set in the Monad flags field.
+
+~~~~
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                       SigRef (32 bits)                        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|     KeyRef (16 bits)          |       HashPfx[0:1]            |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|       HashPfx[2:3]            |       SeqNum (16 bits)        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~~
+
+Fields:
+
+SigRef:
+: 32-bit index into the Sophia PQC_SIG_MAP BPF map.  References the
+  full post-quantum signature (which may be kilobytes in size).
+
+KeyRef:
+: 16-bit index into the Sophia PQC_KEY_MAP BPF map.  References the
+  corresponding public key.
+
+HashPfx:
+: 4-byte prefix of SHA-256(signature).  Enables fast signature
+  identification without full map lookup.
+
+SeqNum:
+: 16-bit per-flow sequence number for replay protection.  MUST be
+  monotonically increasing within each flow.
+
+### PQC Algorithm Identifiers
+
+~~~~
+Value   Algorithm         Key Size    Standard      Reference
+-----   --------          ---------   ----------    ---------
+0x01    SLH-DSA           variable    FIPS 205      [this document]
+0x02    ML-DSA            variable    FIPS 204      [this document]
+0x03    FN-DSA            variable    FIPS 206      [this document]
+0x04    ML-KEM            variable    FIPS 203      [this document]
+0x05    HQC               variable    FIPS 207      [this document]
+~~~~
+
+### PQC Signature Verification Status
+
+~~~~
+Value   Status           Description                          Reference
+-----   --------         -----------------------------------  ---------
+0x00    Pending          Not yet verified                     [this document]
+0x01    Valid            Verification passed                  [this document]
+0x02    Invalid          Verification failed                  [this document]
+0x03    Expired          Key expired or revoked               [this document]
+0x04    Unsupported      Algorithm not supported              [this document]
+~~~~
+
+### Compliance Tiers (Kingdom Mode K1|K0)
+
+~~~~
+Value   Tier              Description                         Reference
+-----   --------          -----------------------------------  ---------
+0x00    None              No PQC required                     [this document]
+0x01    Standard          At least one PQC signature          [this document]
+0x02    Enhanced          PQC + specific algorithm reqs       [this document]
+0x03    Sovereign         2-of-3 cross-algorithm multi-sig    [this document]
+~~~~
+
+## UPCFlat Binary Format Specification
+
+The UPCFlat binary format is the executable format for UPC programs.
+A UPCFlat binary is a flat memory image loaded directly into the
+ROM_MAP BPF hash map at program start.
+
+### File Header
+
+~~~~
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|    Magic (0x55504346 = "UPCF")                                |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|    Version    |    Flags      |      Entry Point (16 bits)    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                     Text Size (32 bits)                       |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                     Data Size (32 bits)                       |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                     BSS Size (32 bits)                        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                     Stack Size (32 bits)                      |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~~
+
+Magic: 0x55504346 ("UPCF" in ASCII).
+
+Version: Binary format version (currently 0x01).
+
+Flags: Bit 0 = requires MMU.  Bit 1 = uses interrupts.
+Bit 2 = uses block device.  Bits 3-7 reserved (MUST be zero).
+
+Entry Point: Initial PC value (index into text section).
+
+Text Size: Size of the text (code) section in bytes.
+
+Data Size: Size of the initialized data section in bytes.
+
+BSS Size: Size of the zero-initialized data section in bytes.
+
+Stack Size: Requested stack size in bytes.  Default: 0xFFFF_0000.
+
+### Section Layout
+
+~~~~
+Offset              Content
+---------           ----------------------------------
+0x00                UPCFlat header (24 bytes)
+0x18                Text section (.text, MBC instructions)
+0x18 + text_size    Data section (.data, initialized globals)
+~~~~
+
+BSS is not stored in the binary; it is zero-filled at load time.
+The stack grows downward from the address specified by REG_SP_DEFAULT
+(0xFFFF_0000).
+
+## UNFS Filesystem Specification
+
+The Unheaded Network Filesystem (UNFS) is a minimal filesystem for
+UPC programs operating on the ramdisk block device.  UNFS uses fixed-
+size directory entries and contiguous file allocation.
+
+### Superblock (Block 0)
+
+~~~~
+Offset   Size     Field           Description
+------   -----    --------        -----------------------------------
+0x00     4        magic           0x554E4653 ("UNFS")
+0x04     4        total_blocks    Total blocks in filesystem
+0x08     4        free_blocks     Number of free blocks
+0x0C     4        root_inode      Block number of root directory
+0x10     2        block_size      Block size in bytes (512)
+0x12     2        version         Filesystem version (0x01)
+0x14     4        flags           Mount flags (bit 0 = read-only)
+0x18     8        reserved        Reserved (MUST be zero)
+~~~~
+
+### Directory Entry (32 bytes)
+
+~~~~
+Offset   Size     Field           Description
+------   -----    --------        -----------------------------------
+0x00     16       name            Null-terminated filename (15 chars max)
+0x10     4        start_block     First block of file data
+0x14     4        size_bytes      File size in bytes
+0x18     2        flags           Entry flags (bit 0 = directory)
+0x1A     2        permissions     Unix-style permissions (rwxrwxrwx)
+0x1C     4        reserved        Reserved (MUST be zero)
+~~~~
+
+### Design Constraints
+
+- Maximum filename length: 15 characters (null-terminated in 16 bytes)
+- Maximum file size: limited by contiguous block allocation
+- Block size: 512 bytes (matching mbc_block::BLOCK_SIZE)
+- Total blocks: 8192 (matching mbc_block::TOTAL_BLOCKS, 4 MiB ramdisk)
+- No journaling (WAL provides crash recovery at the Wotan level)
+- Contiguous allocation only (no fragmentation handling)
+
 --- back
 
 # Changes from draft-bellis-unheaded-protocol-foundation-05
@@ -1409,10 +1792,44 @@ The following changes are made in draft-06:
    changes to byte offsets, field sizes, field ordering, or total size
    are permitted in version 0x01.
 
-7. **Updated Date**: Changed date from 2026-02-27 to 2026-03-05.
-
-8. **TLV Type Registry Updated**: Added UNHEADED_METRIC_V1 (0x2A) to
+7. **TLV Type Registry Updated**: Added UNHEADED_METRIC_V1 (0x2A) to
    the TLV Type Registry initial entries.
+
+8. **UPC MBC ISA Opcode Registry (NEW)**: Added IANA registry for MBC
+   opcode numbers (0x00-0xFF) with 46 initial entries covering
+   arithmetic, logical, stack, branch, memory, atomic, interrupt,
+   and system operations.  Includes 32-bit instruction encoding format.
+
+9. **UPC MBC Syscall Number Registry (NEW)**: Added IANA registry for
+   MBC syscall numbers with two classes: native MBC syscalls (4 entries,
+   0x01-0x04) and Linux-compatible syscalls via INT 0x80 (20 entries,
+   following i386 ABI numbering).
+
+10. **UPC Memory Region Types Registry (NEW)**: Added IANA registry
+    defining the UPC 32-bit flat address space layout with 8 memory
+    regions (RAM, KBD_IO, SCREEN, DEBUG, WAD, HEAP, STACK, RAMDISK).
+    Includes memory hierarchy (L0-L4) and interrupt vector table.
+
+11. **UPC Event Types Registry (NEW)**: Added IANA registry for UPC
+    compute engine event types (0x10-0x19) emitted to Anamnesis ring
+    buffers, covering instruction execution, cache operations, screen
+    I/O, TTY writes, and scheduler context switches.
+
+12. **PQC Authentication Value Format (NEW)**: Added specification for
+    the 12-byte PQC value carried in Monad scratch bytes (SigRef u32,
+    KeyRef u16, HashPfx [u8;4], SeqNum u16).  Includes algorithm IDs,
+    verification status codes, and compliance tiers.
+
+13. **UPCFlat Binary Format (NEW)**: Added specification for the UPC
+    executable format with 24-byte header (magic 0x55504346, entry
+    point, text/data/BSS/stack sizes) and flat memory image layout.
+
+14. **UNFS Filesystem Specification (NEW)**: Added specification for
+    the Unheaded Network Filesystem with superblock format, 32-byte
+    directory entries, contiguous allocation, and 512-byte blocks on
+    4 MiB ramdisk.
+
+15. **Updated Date**: Changed date from 2026-03-05 to 2026-03-15.
 
 All changes in draft-06 are purely additive. No existing wire format,
 registry entry, processing rule, or normative requirement from draft-05

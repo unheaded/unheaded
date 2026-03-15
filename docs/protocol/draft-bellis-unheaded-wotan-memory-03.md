@@ -6,7 +6,7 @@ category: exp
 ipr: trust200902
 area: Internet
 workgroup: Independent Submission
-date: 2026-03-05
+date: 2026-03-15
 stand_alone: yes
 
 author:
@@ -588,6 +588,313 @@ RECOMMENDED error handling by severity:
 Programs MUST NOT crash on negative returns; they MUST check return
 values and branch accordingly.
 
+# UPC Memory Model Extensions (NEW in draft-03 update)
+
+## Overview
+
+The Unheaded Protocol Computer (UPC) extends the Wotan memory model
+with dedicated BPF map regions for program code, screen I/O, keyboard
+input, and block device emulation.  These extensions enable general-
+purpose computation within the BPF datapath.
+
+## ROM_MAP (Program Code Storage)
+
+The ROM_MAP is a BPF hash map that stores MBC program instructions.
+The program counter (PC) indexes into this map.
+
+~~~~~
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 262144);   // 256K instruction slots
+    __type(key, u32);              // Word-aligned instruction address
+    __type(value, u32);            // 32-bit MBC instruction word
+} rom_map SEC(".maps");
+~~~~~
+
+ROM_MAP is loaded from a UPCFlat binary (see [UNHEADED-FOUNDATION]
+UPCFlat Binary Format) before the first packet is processed.
+ROM_MAP MUST NOT be modified during program execution.
+
+## RAM_MAP (Read-Write Memory)
+
+The RAM_MAP is a BPF hash map that provides the UPC's general-purpose
+read-write memory.  All LD/ST family instructions access this map.
+
+~~~~~
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1048576);  // 1M word slots (4 MiB)
+    __type(key, u32);              // Word-aligned byte address
+    __type(value, u32);            // 32-bit word value
+} ram_map SEC(".maps");
+~~~~~
+
+### Address Space Layout
+
+The RAM_MAP address space follows the layout defined in
+[UNHEADED-FOUNDATION] UPC Memory Region Types:
+
+~~~~~
+Address Range        Size        Region        Description
+-----------          --------    ----------    -------------------------
+0x0000_0000-0x0006_FFFF  448 KiB  RAM         .rodata + .data + .bss
+0x0006_8000          4 bytes     KBD_IO        Keyboard I/O (scancode<<1|pressed)
+0x0007_0000-0x0007_FA00  64 000 B SCREEN      Screen pixels (320x200 8bpp)
+0x000F_0000-0x0010_FFFF  128 KiB  DEBUG       Debug output region
+0x0011_0000-0x0050_FFFF  ~4 MiB   WAD         WAD data (doom1.wad)
+0x0052_0000-0x0152_0000  16 MiB   HEAP        Bump allocator heap
+0x03F0_0000              (grows down) STACK    Stack (r15 = SP)
+~~~~~
+
+## SCREEN_MAP (Video Output)
+
+The SCREEN_MAP stores the pixel framebuffer and is separate from
+RAM_MAP for performance isolation.
+
+~~~~~
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 16000);    // 320x200/4 = 16000 words
+    __type(key, u32);              // Word index
+    __type(value, u32);            // 4 packed pixels (8-bit palette)
+} screen_map SEC(".maps");
+~~~~~
+
+Writes to RAM_MAP addresses in the SCREEN range (0x0007_0000 to
+0x0007_FA00) are intercepted and redirected to SCREEN_MAP.  A
+SYS_DRAW_FRAME syscall (0x01) copies the current pixel buffer
+from RAM_MAP to SCREEN_MAP and emits an EVENT_SCREEN_WRITE (0x14)
+to the Anamnesis ring buffer.
+
+## KBD_MAP (Keyboard Input)
+
+~~~~~
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);              // Always 0
+    __type(value, struct kbd_state);
+} kbd_map SEC(".maps");
+
+struct kbd_state {
+    u32 key;       // Keycode
+    u32 pressed;   // 1 = pressed, 0 = released
+    u64 sequence;  // Monotonically increasing event counter
+};
+~~~~~
+
+The SYS_GET_KEY syscall (0x02) reads from KBD_MAP.  The BPF program
+checks the sequence counter to determine if a new key event has
+occurred since the last read.  Wotan userspace writes key events
+to KBD_MAP via bpf_map_update_elem.
+
+## CPU_MAP (Processor State)
+
+~~~~~
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256);      // Max 256 concurrent flows
+    __type(key, u32);              // IPv6 Flow Label
+    __type(value, struct cpu_state);
+} cpu_map SEC(".maps");
+
+struct cpu_state {
+    u32 regs[16];           // General-purpose registers r0-r15
+    u32 pc;                 // Program counter (ROM_MAP index)
+    u8  flags;              // CPU flags: Z(0), N(1), C(2)
+    u8  stalled;            // 1 if waiting for cache miss
+    u8  halted;             // 1 if HALT executed
+    u8  _pad;
+    u64 sleep_until;        // bpf_ktime_get_ns() wakeup time
+    u64 insn_count;         // Total instructions executed
+    u64 cache_hits;         // L1 cache hits
+    u64 cache_misses;       // L1 cache misses
+    u8  interrupt_pending;  // Non-zero if interrupt waiting
+    u8  interrupt_vector;   // Pending interrupt vector
+    u8  interrupts_enabled; // Non-zero if accepting interrupts
+    u8  _pad2;
+    u32 tick_counter;       // Timer interrupt tick counter
+};
+~~~~~
+
+CPU state persists across packet hops.  Each IPv6 flow label maps
+to an independent CPU instance.  The MBC CPU processes one instruction
+per hop (per-packet computation model).
+
+# WAL Specification (NEW in draft-03 update)
+
+## Overview
+
+The Write-Ahead Log (WAL) provides L3 persistence for Wotan memory.
+It is an append-only log of dirty cache line writes, enabling crash
+recovery by replaying WAL records to reconstruct L2 state.
+
+## WAL Record Format
+
+Each WAL record is exactly 76 bytes:
+
+~~~~~
+ 0                                                              7
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
+|                   Timestamp (8 bytes, LE u64)                 |
+|                  Unix nanoseconds since epoch                 |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
+|                Line Address (4 bytes, LE u32)                 |
+|             Cache-line-aligned byte address                   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
+|                                                               |
+|                  Cache Line Data (64 bytes)                   |
+|              Complete 64-byte cache line content              |
+|                                                               |
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+~~~~~
+
+Total: 8 + 4 + 64 = 76 bytes per record.
+
+## WAL Operation
+
+### Append
+
+When a dirty cache line is evicted from L1 or during periodic
+writeback (default: every 1 ms), the WAL appends a record:
+
+~~~~~
+1. Open WAL file in append mode (O_APPEND | O_WRONLY)
+2. Write 76-byte record (timestamp + address + data)
+3. Call fsync() to ensure durability
+4. Update WAL sequence counter
+~~~~~
+
+Implementations MUST call fsync() after each write to guarantee
+that the record is durable before acknowledging the writeback.
+
+### Recovery
+
+On process restart, WAL records are replayed in order:
+
+~~~~~
+1. Open WAL file in read mode
+2. Read 76-byte records sequentially
+3. For each record:
+   a. Validate record integrity (HMAC-SHA256 per PATCH W4)
+   b. Write cache line data to L2 ring buffer at line_addr
+   c. Mark page as clean
+4. Resume normal operation
+~~~~~
+
+### Compaction
+
+WAL compaction reduces the file size by removing superseded records
+(records where a later record writes to the same address):
+
+~~~~~
+1. Acquire exclusive compaction lock (PATCH W5)
+2. Read all records, building address -> latest_record map
+3. Write retained records to new WAL file
+4. Atomically rename new file over old
+5. Release compaction lock
+~~~~~
+
+Compaction MUST NOT run concurrently with append operations.
+
+## WAL Configuration
+
+~~~~~
+Parameter           Default         Description
+---------           --------        ----------------------------------
+wal_enabled         false           Enable L3 persistence
+wal_path            (none)          WAL file path on disk
+writeback_period    1 ms            Dirty cache flush interval
+wal_max_size        256 MiB         Maximum WAL file size before compaction
+wal_fsync           true            fsync after each write
+~~~~~
+
+# TTY Subsystem (NEW in draft-03 update)
+
+## Overview
+
+The TTY subsystem provides console I/O for UPC programs that use
+standard Unix-style write(2) and read(2) syscalls on file descriptors
+0 (stdin), 1 (stdout), and 2 (stderr).  TTY output is captured by
+the BPF compute engine and forwarded to Wotan as EVENT_TTY_WRITE
+(0x18) events.
+
+## Circular Buffer
+
+Each UPC flow maintains a TTY circular buffer in L2 memory for
+console output accumulation:
+
+~~~~~
+struct tty_buffer {
+    u8   data[4096];     // 4 KiB circular buffer
+    u16  head;           // Write position (next byte to write)
+    u16  tail;           // Read position (next byte to read)
+    u32  total_written;  // Total bytes written (monotonic counter)
+    u32  overflow_count; // Number of bytes dropped due to full buffer
+};
+~~~~~
+
+### Write Operation (SYS_WRITE to fd 1 or 2)
+
+When a UPC program issues SYS_WRITE with fd=1 or fd=2:
+
+~~~~~
+1. Copy bytes from RAM_MAP[buf..buf+count] to tty_buffer.data
+   at the current head position
+2. Advance head = (head + count) % 4096
+3. If head would overtake tail (buffer full):
+   a. Drop oldest bytes by advancing tail
+   b. Increment overflow_count
+4. Increment total_written by count
+5. Emit EVENT_TTY_WRITE (0x18) to Anamnesis ring buffer
+6. Publish tty output to Wotan topic compute.tty.{flow_label}
+~~~~~
+
+### Read Operation (SYS_READ from fd 0)
+
+When a UPC program issues SYS_READ with fd=0:
+
+~~~~~
+1. Check if tail != head (data available)
+2. If data available: copy min(count, available) bytes to
+   RAM_MAP[buf..buf+n]
+3. Advance tail = (tail + n) % 4096
+4. Return number of bytes read in r0
+5. If no data: set r0 = 0 (non-blocking) or stall CPU
+~~~~~
+
+## Event Emission
+
+TTY events are published on the Wotan topic:
+
+~~~~~
+Topic: compute.tty.{flow_label}
+Payload:
+  - timestamp (u64, Unix nanoseconds)
+  - flow_label (u32)
+  - fd (u8, 0=stdin, 1=stdout, 2=stderr)
+  - length (u16, bytes written)
+  - data (variable, TTY output bytes)
+~~~~~
+
+Dashboard subscribers MAY render TTY output in a terminal emulator
+widget for real-time program output monitoring.
+
+## TTY Configuration
+
+~~~~~
+Parameter           Default    Description
+---------           -------    ----------------------------------
+tty_buffer_size     4096       Circular buffer size (bytes)
+tty_emit_events     true       Emit EVENT_TTY_WRITE to Anamnesis
+tty_publish_topic   true       Publish to Wotan compute.tty.*
+tty_max_line_len    256        Max bytes per single write event
+~~~~~
+
 # Security Considerations
 
 ## Topic Injection Attacks
@@ -629,6 +936,46 @@ Exclusive mutex during compaction. See draft-02 Section 3.3.
 ## GOAWAY Frame DoS (PATCH W8)
 
 Frame validation and rate limiting. See draft-02 Section 10.2.
+
+## Normative Error Code Cross-Reference (13 codes)
+
+The following 13 normative error codes are defined across the
+Unheaded Protocol specification family.  This cross-reference table
+provides a single point of lookup:
+
+~~~~~
+Code     Name                       Spec        Section   Level
+------   -------------------------  ----------  --------  --------
+0x0000   UNHD_NO_ERROR              Foundation  18.11     Flow
+0x0001   UNHD_PROTOCOL_ERROR        Foundation  18.11     System
+0x0002   UNHD_INVALID_FRAME         Foundation  18.11     Domain
+0x0003   UNHD_FLOW_CONTROL_ERROR    Foundation  18.11     Domain
+0x0004   UNHD_SETTINGS_TIMEOUT      Foundation  18.11     System
+0x0005   UNHD_STREAM_CLOSED         Foundation  18.11     Flow
+0x0006   UNHD_FRAME_SIZE_ERROR      Foundation  18.11     Domain
+0x0007   UNHD_REFUSED_STREAM        Foundation  18.11     Flow
+0x0008   UNHD_CANCEL                Foundation  18.11     Flow
+0x0009   UNHD_COMPRESSION_ERROR     Foundation  18.11     Domain
+0x000A   UNHD_CONNECT_ERROR         Foundation  18.11     System
+0x000B   UNHD_ENHANCE_YOUR_CALM     Foundation  18.11     System
+0x000C   UNHD_INTERNAL_ERROR        Foundation  18.11     System
+~~~~~
+
+Error codes 0x0000-0x003F are in the Standards Range and can only
+be registered during initialization (Specification Required policy
+per RFC 8126).  Extension codes 0x0040-0x00FF are available for
+protocol extensions.  Codes 0x1F00+ are reserved for testing
+(greasing per the 0x1F*N+0x21 pattern).
+
+### Error Level Definitions
+
+~~~~~
+Level     Description                     Scope
+-------   ----------------------------    ----------------------
+Flow      Error specific to a single flow Affects one stream only
+Domain    Error affecting a domain        Affects one connection
+System    Error affecting the system      Affects all connections
+~~~~~
 
 ## Error Code Information Leakage
 
@@ -728,7 +1075,24 @@ The following changes are made in draft-03:
    consideration for structured error codes potentially revealing
    internal architecture details.
 
-8. **Updated Date**: Changed date from 2026-02-27 to 2026-03-05.
+8. **UPC Memory Model Extensions (NEW)**: Added ROM_MAP, RAM_MAP,
+   SCREEN_MAP, KBD_MAP, and CPU_MAP BPF map definitions with
+   complete structure specifications.  Defines the UPC address space
+   layout, screen I/O redirection, keyboard input protocol, and
+   per-flow CPU state persistence model.
+
+9. **WAL Specification (NEW)**: Added complete Write-Ahead Log
+   specification with 76-byte record format (8-byte timestamp +
+   4-byte address + 64-byte cache line data), append/fsync semantics,
+   crash recovery replay procedure, and compaction protocol with
+   exclusive locking.
+
+10. **TTY Subsystem (NEW)**: Added console I/O subsystem with 4 KiB
+    circular buffer, write/read operations on fd 0/1/2, overflow
+    handling, EVENT_TTY_WRITE emission, and Wotan topic publication
+    on compute.tty.{flow_label}.
+
+11. **Updated Date**: Changed date from 2026-03-05 to 2026-03-15.
 
 All draft-02 content is retained, including security patches W1-W8.
 No existing wire format, processing rule, or normative requirement
