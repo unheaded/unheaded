@@ -4,8 +4,9 @@
 //! in userspace for testing and validation.
 
 use monad_common::{
-    MbcCpuState, MbcInsn, mbc_opcodes as op, mbc_flags as mf, mbc_syscalls as sys,
-    mbc_linux_syscalls as lsys, mbc_interrupts as intr, mbc_mmap as mmap, REG_SP,
+    MbcCpuState, MbcInsn, mbc_block as blk, mbc_opcodes as op, mbc_flags as mf,
+    mbc_syscalls as sys, mbc_linux_syscalls as lsys, mbc_interrupts as intr,
+    mbc_mmap as mmap, REG_SP,
 };
 
 /// Execution errors.
@@ -32,6 +33,11 @@ pub struct Cpu {
     pub tty_output: Vec<u8>,
     /// Instance ID for SYS_GETPID (defaults to 0).
     pub instance_id: u32,
+    /// Process table for Level 4c scheduler: 4 slots of 20 u32s each.
+    /// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break]
+    pub proc_table: [[u32; 20]; 4],
+    /// Halted process bitmask (bit i set = process i has exited).
+    pub halted_mask: u32,
 }
 
 impl Cpu {
@@ -42,13 +48,15 @@ impl Cpu {
 
         Cpu {
             state,
-            ram: vec![0; 0x10000],      // 64K words
+            ram: vec![0; 0x300000],     // 3M words — covers ramdisk at 0x200000 + 1M words
             rom: Vec::new(),
             screen: vec![0; 64000],     // 320x200
             kbd: 0,
             ticks_ms: 0,
             tty_output: Vec::new(),
             instance_id: 0,
+            proc_table: [[0u32; 20]; 4],
+            halted_mask: 0,
         }
     }
 
@@ -594,6 +602,50 @@ impl Cpu {
                         let sleep_ms = secs * 1000 + nsecs / 1_000_000;
                         self.ticks_ms = self.ticks_ms.wrapping_add(sleep_ms);
                         self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_READ_BLOCK {
+                        // SYS_READ_BLOCK(200): r1=block_num, r2=buf_addr (dest in RAM).
+                        // Copy 128 words (512 bytes) from ramdisk to destination buffer.
+                        let block_num = self.state.regs[1];
+                        let buf_addr = self.state.regs[2];
+                        if block_num < blk::TOTAL_BLOCKS {
+                            let src_base = (blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK) as usize;
+                            let dst_base = (buf_addr >> 2) as usize;
+                            for w in 0..128usize {
+                                let val = if src_base + w < self.ram.len() {
+                                    self.ram[src_base + w]
+                                } else {
+                                    0
+                                };
+                                if dst_base + w < self.ram.len() {
+                                    self.ram[dst_base + w] = val;
+                                }
+                            }
+                            self.state.regs[0] = blk::BLOCK_SIZE; // 512 bytes read
+                        } else {
+                            self.state.regs[0] = (-(lsys::EIO as i32)) as u32;
+                        }
+                    } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
+                        // SYS_WRITE_BLOCK(201): r1=block_num, r2=buf_addr (src in RAM).
+                        // Copy 128 words (512 bytes) from source buffer to ramdisk.
+                        let block_num = self.state.regs[1];
+                        let buf_addr = self.state.regs[2];
+                        if block_num < blk::TOTAL_BLOCKS {
+                            let dst_base = (blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK) as usize;
+                            let src_base = (buf_addr >> 2) as usize;
+                            for w in 0..128usize {
+                                let val = if src_base + w < self.ram.len() {
+                                    self.ram[src_base + w]
+                                } else {
+                                    0
+                                };
+                                if dst_base + w < self.ram.len() {
+                                    self.ram[dst_base + w] = val;
+                                }
+                            }
+                            self.state.regs[0] = blk::BLOCK_SIZE; // 512 bytes written
+                        } else {
+                            self.state.regs[0] = (-(lsys::EIO as i32)) as u32;
+                        }
                     } else {
                         // Unknown syscall: return -ENOSYS
                         self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
