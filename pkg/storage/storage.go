@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 
 // Package storage provides THE TASSETS - the thighs that hold the data.

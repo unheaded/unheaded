@@ -23,12 +23,12 @@ bytecode — it does NOT link against or modify the Unheaded main codebase.
 
 ### NOT GPL 2.0 Licensed
 
-- `/cmd/` — Go command-line tools (MIT)
-- `/pkg/` — Go packages (MIT)
-- `/services/` — Service implementations (MIT)
-- `/ebpf/` — eBPF programs (MIT)
-- `/crates/` — Rust crates (MIT)
-- `/docs/protocol/` — Protocol specs (MIT/Apache 2.0)
+- `/cmd/` — Go command-line tools (GPL-3.0)
+- `/pkg/` — Go packages (GPL-3.0)
+- `/services/` — Service implementations (GPL-3.0)
+- `/ebpf/` — eBPF programs (GPL-3.0)
+- `/crates/` — Rust crates (GPL-3.0)
+- `/docs/protocol/` — Protocol specs (GPL-3.0/Apache 2.0)
 
 ### Separation Architecture
 

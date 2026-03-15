@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 
 // Package proxy provides reverse proxy functionality for the API Gateway.
