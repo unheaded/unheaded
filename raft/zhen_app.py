@@ -6,6 +6,8 @@ Port: 20103 (zhen-ui in Doom Range)
 import sys
 import json
 import time
+import uuid
+import logging
 from pathlib import Path
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
@@ -16,6 +18,7 @@ from zhen_rag import RAGPipeline
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
+app.secret_key = 'zhen-session-key-dev'
 
 # Initialize RAG pipeline
 index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
@@ -33,12 +36,65 @@ except Exception as e:
     startup_error = str(e)
     print(f"WARNING: RAG not ready: {e}")
 
+# ---------------------------------------------------------------------------
+# PostgreSQL — optional conversation logging (The Well)
+# ---------------------------------------------------------------------------
+pg_conn = None
+_session_id = str(uuid.uuid4())
+
+def _pg_connect():
+    """Try connecting to Postgres. Returns connection or None."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            dbname='unheaded_app',
+            user='app_zhen',
+            password='zhen_dev',
+            host='localhost',
+            port=5432,
+            connect_timeout=3,
+        )
+        conn.autocommit = True
+        logging.info("[zhen] Connected to The Well (PostgreSQL)")
+        return conn
+    except Exception as e:
+        logging.warning(f"[zhen] The Well not available — conversations will not be persisted: {e}")
+        return None
+
+pg_conn = _pg_connect()
+
+
+def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output=0, elapsed_ms=0):
+    """Insert a conversation row. Silently skips if Postgres is unavailable."""
+    global pg_conn
+    if pg_conn is None:
+        return
+    try:
+        cur = pg_conn.cursor()
+        cur.execute(
+            """INSERT INTO zhen_conversations
+               (session_id, role, content, sources, model, tokens_input, tokens_output, elapsed_ms)
+               VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s)""",
+            (_session_id, role, content, sources, model, tokens_input, tokens_output, elapsed_ms),
+        )
+        cur.close()
+    except Exception as e:
+        logging.warning(f"[zhen] Failed to log conversation: {e}")
+        # Attempt reconnect on next call
+        try:
+            pg_conn.close()
+        except Exception:
+            pass
+        pg_conn = _pg_connect()
+
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
         'status': 'ok' if rag else 'degraded',
         'rag_ready': rag is not None,
+        'well_connected': pg_conn is not None,
+        'session_id': _session_id,
         'error': startup_error,
     })
 
@@ -57,20 +113,31 @@ def query():
         start = time.time()
         result = rag.query(question)
         elapsed = time.time() - start
+        elapsed_ms = int(elapsed * 1000)
+
+        sources_list = [
+            {
+                'id': c['id'],
+                'source': c['source'],
+                'type': c['type'],
+                'preview': c['content'][:200],
+                'distance': c['distance'],
+            }
+            for c in result['retrieved'][:5]
+        ]
+
+        # Log to The Well (optional)
+        _pg_log('user', question)
+        _pg_log('assistant', result['answer'],
+                sources=json.dumps(sources_list),
+                model='mistral-7b',
+                tokens_output=result['tokens_used'],
+                elapsed_ms=elapsed_ms)
 
         return jsonify({
             'question': result['question'],
             'answer': result['answer'],
-            'sources': [
-                {
-                    'id': c['id'],
-                    'source': c['source'],
-                    'type': c['type'],
-                    'preview': c['content'][:200],
-                    'distance': c['distance'],
-                }
-                for c in result['retrieved'][:5]
-            ],
+            'sources': sources_list,
             'tokens_used': result['tokens_used'],
             'elapsed_seconds': round(elapsed, 2),
         })
@@ -307,6 +374,93 @@ def get_skill(name):
             return jsonify({'error': f'Failed to read files.zip: {e}'}), 500
 
     return jsonify({'error': f'Skill not found: {name}'}), 404
+
+
+@app.route('/api/v1/conversations', methods=['GET'])
+def list_conversations():
+    """List recent conversations from The Well."""
+    global pg_conn
+    if pg_conn is None:
+        return jsonify({'error': 'The Well is not connected', 'conversations': []}), 200
+
+    limit = min(int(request.args.get('limit', 50)), 200)
+    try:
+        cur = pg_conn.cursor()
+        cur.execute(
+            """SELECT id, session_id, role, content, sources, model,
+                      tokens_input, tokens_output, elapsed_ms, created_at
+               FROM zhen_conversations
+               ORDER BY created_at DESC
+               LIMIT %s""",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conversations = []
+        for r in rows:
+            conversations.append({
+                'id': r[0],
+                'session_id': r[1],
+                'role': r[2],
+                'content': r[3],
+                'sources': r[4] if r[4] else [],
+                'model': r[5],
+                'tokens_input': r[6],
+                'tokens_output': r[7],
+                'elapsed_ms': r[8],
+                'created_at': r[9].isoformat() if r[9] else None,
+            })
+        return jsonify({'conversations': conversations, 'total': len(conversations)})
+    except Exception as e:
+        logging.warning(f"[zhen] Failed to list conversations: {e}")
+        return jsonify({'error': str(e), 'conversations': []}), 500
+
+
+@app.route('/api/v1/conversations/search', methods=['GET'])
+def search_conversations():
+    """Full-text search over conversations using PostgreSQL tsvector."""
+    global pg_conn
+    if pg_conn is None:
+        return jsonify({'error': 'The Well is not connected', 'results': []}), 200
+
+    q = request.args.get('q', '').strip()
+    if not q:
+        return jsonify({'error': 'q parameter required', 'results': []}), 400
+
+    limit = min(int(request.args.get('limit', 20)), 100)
+    try:
+        cur = pg_conn.cursor()
+        cur.execute(
+            """SELECT id, session_id, role, content, sources, model,
+                      tokens_input, tokens_output, elapsed_ms, created_at,
+                      ts_rank(search_vector, websearch_to_tsquery('english', %s)) AS rank
+               FROM zhen_conversations
+               WHERE search_vector @@ websearch_to_tsquery('english', %s)
+               ORDER BY rank DESC, created_at DESC
+               LIMIT %s""",
+            (q, q, limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        results = []
+        for r in rows:
+            results.append({
+                'id': r[0],
+                'session_id': r[1],
+                'role': r[2],
+                'content': r[3],
+                'sources': r[4] if r[4] else [],
+                'model': r[5],
+                'tokens_input': r[6],
+                'tokens_output': r[7],
+                'elapsed_ms': r[8],
+                'created_at': r[9].isoformat() if r[9] else None,
+                'rank': float(r[10]),
+            })
+        return jsonify({'query': q, 'results': results, 'total': len(results)})
+    except Exception as e:
+        logging.warning(f"[zhen] Failed to search conversations: {e}")
+        return jsonify({'error': str(e), 'results': []}), 500
 
 
 @app.route('/')
