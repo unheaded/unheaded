@@ -109,13 +109,18 @@ func (s *TopicService) StreamTopics(
 	req *chatpb.TopicStreamRequest,
 	stream chatpb.TopicStream_StreamTopicsServer,
 ) error {
-	ctx := stream.Context()
+	streamCtx := stream.Context()
 
 	// Validate request
 	if req.TopicPattern == "" {
-		logger.FromContext(ctx).Warn().Msg("topic_pattern_required")
+		logger.FromContext(streamCtx).Warn().Msg("topic_pattern_required")
 		return status.Error(codes.InvalidArgument, "topic_pattern is required")
 	}
+
+	// Wrap the stream context in a cancellable context so that all spawned
+	// goroutines exit when StreamTopics returns (e.g. on historical send error).
+	ctx, cancel := context.WithCancel(streamCtx)
+	defer cancel()
 
 	// Set default display name
 	displayName := req.DisplayName
@@ -185,13 +190,10 @@ func (s *TopicService) StreamTopics(
 	}
 
 	// Start dynamic watcher goroutine to discover new topics matching the pattern
-	watcherCtx, watcherCancel := context.WithCancel(ctx)
-	defer watcherCancel()
+	go s.watchTopicsForPattern(ctx, memberID, req.TopicPattern, subscriptions, eventChan)
 
-	go s.watchTopicsForPattern(watcherCtx, memberID, req.TopicPattern, subscriptions, eventChan)
-
-	// Replay historical messages if requested
-	if req.SinceSeq > 0 {
+	// Replay historical messages if requested (SinceSeq >= 0 replays from that sequence)
+	if req.SinceSeq >= 0 {
 		for _, topicName := range matchingTopics {
 			rm, err := s.roomManager.Get(topicName)
 			if err != nil {
