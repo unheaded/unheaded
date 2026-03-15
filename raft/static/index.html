@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zhen — Unheaded AI Champion</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a14;
+            --bg-secondary: #0f0f1e;
+            --bg-card: rgba(0,0,0,0.35);
+            --border: #2a2a3a;
+            --text: #c8c8d4;
+            --text-dim: #666;
+            --accent: #ff5c00;
+            --accent-hover: #ff7733;
+            --accent-dim: rgba(255,92,0,0.12);
+            --blue: #0096ff;
+            --blue-dim: rgba(0,140,255,0.08);
+            --green: #4a4;
+            --red: #a44;
+            --font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            background: rgba(0,0,0,0.6);
+            padding: 12px 20px;
+            border-bottom: 2px solid var(--accent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo h1 { color: var(--accent); font-size: 1.5em; letter-spacing: 3px; }
+        .logo .sub { color: var(--text-dim); font-size: 0.7em; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 6px var(--green);
+        }
+        .status-dot.offline { background: var(--red); box-shadow: 0 0 6px var(--red); }
+        .status-text { font-size: 0.7em; color: var(--text-dim); }
+        .stats { font-size: 0.65em; color: var(--text-dim); }
+
+        /* Main layout */
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Chat area */
+        .chat-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+        .messages::-webkit-scrollbar { width: 6px; }
+        .messages::-webkit-scrollbar-track { background: transparent; }
+        .messages::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        .msg {
+            padding: 12px 16px;
+            border-radius: 6px;
+            max-width: 80%;
+            line-height: 1.6;
+            font-size: 0.82em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .msg.user {
+            background: var(--accent-dim);
+            border-left: 3px solid var(--accent);
+            align-self: flex-end;
+        }
+        .msg.zhen {
+            background: var(--blue-dim);
+            border-left: 3px solid var(--blue);
+            align-self: flex-start;
+        }
+        .msg.system {
+            background: rgba(255,255,255,0.03);
+            border-left: 3px solid #333;
+            align-self: center;
+            max-width: 60%;
+            font-size: 0.75em;
+            color: var(--text-dim);
+        }
+        .msg .meta {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .msg .sources {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+        .msg .sources a {
+            color: var(--accent);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .msg .sources a:hover { text-decoration: underline; }
+        .typing-indicator {
+            display: inline-flex;
+            gap: 4px;
+            padding: 4px 0;
+        }
+        .typing-indicator span {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--blue);
+            animation: typing 1.4s infinite;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+            30% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Suggestions */
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 20px;
+            border-top: 1px solid var(--border);
+            background: rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        .suggestions button {
+            padding: 5px 12px;
+            font-size: 0.68em;
+            font-family: var(--font);
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid rgba(255,92,0,0.2);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .suggestions button:hover {
+            background: rgba(255,92,0,0.25);
+            border-color: var(--accent);
+        }
+
+        /* Input */
+        .input-bar {
+            display: flex;
+            gap: 8px;
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            background: rgba(0,0,0,0.3);
+            flex-shrink: 0;
+        }
+        .input-bar input {
+            flex: 1;
+            padding: 10px 14px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 0.82em;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-bar input:focus { border-color: var(--accent); }
+        .input-bar input::placeholder { color: #444; }
+        .input-bar button {
+            padding: 10px 24px;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-weight: 700;
+            font-family: var(--font);
+            font-size: 0.82em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .input-bar button:hover { background: var(--accent-hover); }
+        .input-bar button:disabled { background: #333; color: #666; cursor: wait; }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            border-left: 1px solid var(--border);
+            background: rgba(0,0,0,0.2);
+            padding: 16px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .sidebar h3 {
+            font-size: 0.7em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+        .sidebar .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+        .stat-card .val {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .stat-card .label {
+            font-size: 0.6em;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .history-item {
+            font-size: 0.68em;
+            color: var(--text-dim);
+            padding: 6px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background 0.15s;
+        }
+        .history-item:hover {
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .msg { max-width: 95%; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <h1>ZHEN</h1>
+            <div>
+                <div class="sub">Unheaded AI Champion</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="stats" id="model-info"></div>
+            <div class="status-dot" id="status-dot"></div>
+            <div class="status-text" id="status-text">Connecting...</div>
+        </div>
+    </header>
+
+    <main>
+        <div class="chat-panel">
+            <div class="messages" id="messages"></div>
+            <div class="suggestions" id="suggestions">
+                <button onclick="ask('What is Unheaded?')">What is Unheaded?</button>
+                <button onclick="ask('What are the 6 architectural layers?')">Architecture layers</button>
+                <button onclick="ask('How does eBPF tracing work?')">eBPF tracing</button>
+                <button onclick="ask('What is the Wotan message bus?')">Wotan</button>
+                <button onclick="ask('How does the Monad wire format work?')">Monad protocol</button>
+                <button onclick="ask('What is the Meta Moment?')">Meta Moment</button>
+                <button onclick="ask('What port does each service use?')">Port allocation</button>
+                <button onclick="ask('How does service discovery work?')">Service discovery</button>
+            </div>
+            <div class="input-bar">
+                <input type="text" id="q" placeholder="Ask Zhen about Unheaded..." autocomplete="off" />
+                <button id="btn" onclick="ask()">Ask</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div>
+                <h3>System</h3>
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="val" id="stat-vectors">—</div>
+                        <div class="label">Vectors</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-chunks">—</div>
+                        <div class="label">Chunks</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-queries">0</div>
+                        <div class="label">Queries</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-avg-time">—</div>
+                        <div class="label">Avg (s)</div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h3>Recent Queries</h3>
+                <div class="history-list" id="history"></div>
+            </div>
+        </div>
+    </main>
+
+<script>
+const API = '';  // Same origin
+const msgs = document.getElementById('messages');
+const qInput = document.getElementById('q');
+const btn = document.getElementById('btn');
+const historyEl = document.getElementById('history');
+
+let queryCount = 0;
+let totalTime = 0;
+const queryHistory = [];
+
+function addMsg(text, cls, meta) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + cls;
+    if (cls === 'zhen' && text === '__typing__') {
+        d.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+    } else {
+        d.textContent = text;
+    }
+    if (meta) {
+        const m = document.createElement('div');
+        m.className = 'meta';
+        m.innerHTML = meta;
+        d.appendChild(m);
+    }
+    msgs.appendChild(d);
+    msgs.scrollTop = msgs.scrollHeight;
+    return d;
+}
+
+function updateStats(elapsed) {
+    queryCount++;
+    totalTime += elapsed;
+    document.getElementById('stat-queries').textContent = queryCount;
+    document.getElementById('stat-avg-time').textContent = (totalTime / queryCount).toFixed(1);
+}
+
+function addHistory(q) {
+    queryHistory.unshift(q);
+    if (queryHistory.length > 20) queryHistory.pop();
+    historyEl.innerHTML = queryHistory.map(h =>
+        `<div class="history-item" onclick="ask('${h.replace(/'/g, "\\'")}')">${h}</div>`
+    ).join('');
+}
+
+async function ask(preset) {
+    const question = preset || qInput.value.trim();
+    if (!question) return;
+    qInput.value = '';
+    btn.disabled = true;
+
+    addMsg(question, 'user');
+    addHistory(question);
+    const thinking = addMsg('__typing__', 'zhen');
+
+    try {
+        const r = await fetch(API + '/api/v1/query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({question}),
+        });
+        const data = await r.json();
+        msgs.removeChild(thinking);
+
+        if (data.error) {
+            addMsg('Error: ' + data.error, 'zhen');
+        } else {
+            const sources = data.sources.map(s =>
+                `<a title="${s.preview || ''}">${s.source}</a>`
+            ).join(' | ');
+            addMsg(data.answer, 'zhen',
+                `${data.elapsed_seconds}s | ${data.tokens_used} tok` +
+                (sources ? `<div class="sources">Sources: ${sources}</div>` : '')
+            );
+            updateStats(data.elapsed_seconds);
+        }
+    } catch(e) {
+        msgs.removeChild(thinking);
+        addMsg('Connection error: ' + e.message, 'zhen');
+    }
+    btn.disabled = false;
+    qInput.focus();
+}
+
+qInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !btn.disabled) ask(); });
+
+// Health + stats check
+async function checkHealth() {
+    try {
+        const [health, stats] = await Promise.all([
+            fetch(API + '/health').then(r => r.json()),
+            fetch(API + '/api/v1/stats').then(r => r.json()).catch(() => null),
+        ]);
+        const dot = document.getElementById('status-dot');
+        const text = document.getElementById('status-text');
+        if (health.rag_ready) {
+            dot.className = 'status-dot';
+            text.textContent = 'Online';
+        } else {
+            dot.className = 'status-dot offline';
+            text.textContent = health.error || 'Not ready';
+        }
+        if (stats && !stats.error) {
+            document.getElementById('stat-vectors').textContent = stats.index_vectors.toLocaleString();
+            document.getElementById('stat-chunks').textContent = stats.corpus_chunks.toLocaleString();
+            document.getElementById('model-info').textContent = `${stats.model} | ${stats.index_vectors.toLocaleString()} vectors`;
+        }
+    } catch(e) {
+        document.getElementById('status-dot').className = 'status-dot offline';
+        document.getElementById('status-text').textContent = 'Offline';
+    }
+}
+
+checkHealth();
+setInterval(checkHealth, 30000);
+
+// Welcome
+addMsg("I am Zhen, champion of the Unheaded Kingdom.\n\nI know the architecture, protocols, services, eBPF traces, and Kingdom lore across 385K lines of code.\n\nAsk me anything about Unheaded.", 'zhen');
+</script>
+</body>
+</html>
