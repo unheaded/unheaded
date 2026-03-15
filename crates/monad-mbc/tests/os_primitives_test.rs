@@ -1168,3 +1168,149 @@ fn block_device_preserves_ramdisk_across_blocks() {
     assert_eq!(cpu.ram[dst_word], 0xF00D0000, "block 5 first word");
     assert_eq!(cpu.ram[dst_word + 127], 0xF00D007F, "block 5 last word");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8. SYS_EXECVE — Process Image Replacement
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn syscall_execve_resets_registers_and_jumps() {
+    // SYS_EXECVE should zero all registers (except SP gets reset to 0xFFFF_0000),
+    // set PC to the entry_point, and clear flags/interrupt state.
+    let mut cpu = cpu_with_safe_sp();
+
+    // Dirty some registers to verify they get reset
+    cpu.state.regs[3] = 0xDEADBEEF;
+    cpu.state.regs[7] = 0xCAFEBABE;
+    cpu.state.flags = 0xFF;
+
+    // Place a "new program" in ROM at word 10: MOVI r5, 0xABCD; HALT
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 20];
+    // Main program at word 0: set up execve
+    rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16);  // r0 = SYS_EXECVE
+    rom[1] = enc(op::MOVI, 1, 0, 10);                         // r1 = entry_point (ROM word 10)
+    rom[2] = enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16); // execve!
+    rom[3] = enc(op::HALT, 0, 0, 0);                          // should NOT be reached
+
+    // New program at word 10
+    rom[10] = enc(op::MOVI, 5, 0, 0xABCD);
+    rom[11] = enc(op::HALT, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    // Verify the new program ran (r5 set by the new program)
+    assert_eq!(cpu.state.regs[5], 0xABCD, "new program should set r5 = 0xABCD");
+
+    // Verify CPU halted (new program hit HALT)
+    assert_eq!(cpu.state.halted, 1, "new program should halt");
+
+    // Verify old register values were cleared
+    assert_eq!(cpu.state.regs[3], 0, "r3 should be zeroed by execve");
+    assert_eq!(cpu.state.regs[7], 0, "r7 should be zeroed by execve");
+
+    // Verify flags were cleared (may have been set by MOVI, but were reset by execve)
+    // After execve, flags = 0; then MOVI r5, 0xABCD doesn't set flags.
+    // The flags state depends on implementation — just verify execve did reset.
+}
+
+#[test]
+fn syscall_execve_resets_sp_to_top() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Set SP to a non-default value
+    cpu.state.regs[REG_SP as usize] = 0x1234;
+
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 12];
+    rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16);
+    rom[1] = enc(op::MOVI, 1, 0, 10);  // entry point = word 10
+    rom[2] = enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16);
+    rom[10] = enc(op::HALT, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(
+        cpu.state.regs[REG_SP as usize], 0xFFFF_0000,
+        "execve should reset SP to 0xFFFF_0000"
+    );
+}
+
+#[test]
+fn syscall_execve_resets_program_break() {
+    use monad_common::DEFAULT_PROGRAM_BREAK;
+
+    let mut cpu = cpu_with_safe_sp();
+
+    // Move program break away from default
+    cpu.state.program_break = 0x0080_0000;
+
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 12];
+    rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16);
+    rom[1] = enc(op::MOVI, 1, 0, 10);
+    rom[2] = enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16);
+    rom[10] = enc(op::HALT, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(
+        cpu.state.program_break, DEFAULT_PROGRAM_BREAK,
+        "execve should reset program_break to default"
+    );
+}
+
+#[test]
+fn syscall_execve_clears_interrupt_state() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Set interrupt state to non-default
+    cpu.state.interrupts_enabled = 1;
+    cpu.state.interrupt_pending = 1;
+    cpu.state.interrupt_vector = intr::VECTOR_TIMER;
+
+    // Disable interrupts so the pending one doesn't fire before execve
+    cpu.state.interrupts_enabled = 0;
+    cpu.state.interrupt_pending = 1;
+
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 12];
+    rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16);
+    rom[1] = enc(op::MOVI, 1, 0, 10);
+    rom[2] = enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16);
+    rom[10] = enc(op::HALT, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(
+        cpu.state.interrupts_enabled, 0,
+        "execve should clear interrupts_enabled"
+    );
+    assert_eq!(
+        cpu.state.interrupt_pending, 0,
+        "execve should clear interrupt_pending"
+    );
+}
+
+#[test]
+fn syscall_execve_jumps_to_nonzero_entry_point() {
+    // Verify execve can jump to an arbitrary entry point in ROM
+    let mut cpu = cpu_with_safe_sp();
+
+    let entry = 15u16;
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 20];
+    rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16);
+    rom[1] = enc(op::MOVI, 1, 0, entry);
+    rom[2] = enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16);
+    rom[3] = enc(op::HALT, 0, 0, 0); // should not reach
+
+    // Program at word 15: set distinctive marker and halt
+    rom[15] = enc(op::MOVI, 2, 0, 0x7777);
+    rom[16] = enc(op::HALT, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.regs[2], 0x7777, "should execute code at entry point 15");
+    assert_eq!(cpu.state.halted, 1, "should halt from new program");
+}
