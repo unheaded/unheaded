@@ -812,6 +812,34 @@ impl Cpu {
                         // SYS_FLUSH_TLB(252): invalidate all TLB entries.
                         self.flush_tlb();
                         self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_EXECVE {
+                        // ── SYS_EXECVE(11): Replace current process image ──
+                        // r1 = entry_point (ROM word address to jump to)
+                        // The binary is assumed to already be loaded in ROM
+                        // (by the boot loader or a prior SYS_WRITE_BLOCK + copy).
+                        // execve resets CPU state and jumps to the entry point.
+                        let entry_point = self.state.regs[1];
+
+                        // Reset all general-purpose registers
+                        for i in 0..16 {
+                            self.state.regs[i] = 0;
+                        }
+                        // Reset stack pointer to top of memory
+                        self.state.regs[REG_SP as usize] = 0xFFFF_0000;
+
+                        // Jump to entry point
+                        self.state.pc = entry_point;
+                        self.state.flags = 0;
+
+                        // Reset interrupt state
+                        self.state.interrupts_enabled = 0;
+                        self.state.interrupt_pending = 0;
+
+                        // Reset program break to default
+                        self.state.program_break = monad_common::DEFAULT_PROGRAM_BREAK;
+
+                        // r0 = 0 (success), though the new program won't see it
+                        // since all regs were zeroed above
                     } else {
                         // Unknown syscall: return -ENOSYS
                         self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;

@@ -56,7 +56,8 @@ use monad_common::{
     flags, mbc_block as blk, mbc_flags as mf, mbc_interrupts as intr,
     mbc_linux_syscalls as lsys, mbc_mmap as mmap, mbc_mmu as mmu,
     mbc_opcodes as op, mbc_syscalls as sys,
-    ComputeHopEvent, MbcCpuState, MbcInsn, Monad, EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
+    ComputeHopEvent, MbcCpuState, MbcInsn, Monad, DEFAULT_PROGRAM_BREAK,
+    EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
     EVENT_CONTEXT_SWITCH, EVENT_SCREEN_WRITE, EVENT_TTY_WRITE, IPV6_FIXED_HDR_LEN,
     IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
@@ -173,6 +174,7 @@ const STAT_TLB_HITS: u32 = 18; // TLB hits (Level 4d MMU)
 const STAT_TLB_MISSES: u32 = 19; // TLB misses — page table walk required (Level 4d MMU)
 const STAT_TTY_READS: u32 = 20; // TTY read operations (SYS_READ from fd 0) (Level 5b)
 const STAT_WAITPIDS: u32 = 21; // SYS_WAITPID calls (Level 5b)
+const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -1010,6 +1012,97 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         idx += 1;
                     }
                     cpu.regs[0] = 0;
+                } else if syscall_nr == lsys::SYS_EXECVE {
+                    // ── SYS_EXECVE(11): Replace current process image ──
+                    // r1 = entry_point (ROM word address to jump to).
+                    // Binary is pre-loaded in ROM_MAP by boot loader / parent.
+                    // We just reset CPU state and jump.
+                    let entry_point = cpu.regs[1];
+
+                    // Reset all general-purpose registers
+                    let mut r: u32 = 0;
+                    while r < 16 {
+                        cpu.regs[r as usize] = 0;
+                        r += 1;
+                    }
+                    // Reset stack pointer to top of memory
+                    cpu.regs[15] = 0xFFFF_0000;
+
+                    // Jump to entry point
+                    cpu.pc = entry_point;
+                    cpu.flags = 0;
+
+                    // Reset interrupt state
+                    cpu.interrupts_enabled = 0;
+                    cpu.interrupt_pending = 0;
+
+                    // Reset program break to default
+                    cpu.program_break = DEFAULT_PROGRAM_BREAK;
+
+                    increment_stat(STAT_SYSCALLS);
+
+                // ── Trivial FUZIX syscall stubs (Level 5c) ───────────────
+                // UID/GID family: always root (0)
+                } else if syscall_nr == lsys::SYS_GETUID
+                       || syscall_nr == lsys::SYS_GETGID
+                       || syscall_nr == lsys::SYS_GETEUID
+                       || syscall_nr == lsys::SYS_GETEGID
+                       || syscall_nr == lsys::SYS_SETUID
+                       || syscall_nr == lsys::SYS_SETGID {
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_DUP {
+                    // SYS_DUP(41): r1=oldfd. Return oldfd (stub).
+                    cpu.regs[0] = cpu.regs[1];
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_DUP2 {
+                    // SYS_DUP2(63): r1=oldfd, r2=newfd. Return newfd (stub).
+                    cpu.regs[0] = cpu.regs[2];
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_SIGNAL {
+                    // SYS_SIGNAL(48): r1=signum, r2=handler. Ignore all signals.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_KILL {
+                    // SYS_KILL(37): r1=pid, r2=sig. No-op.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_STAT || syscall_nr == lsys::SYS_FSTAT {
+                    // SYS_STAT(106) / SYS_FSTAT(108): not implemented yet.
+                    cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_LSEEK {
+                    // SYS_LSEEK(19): stub — pretend seek succeeded.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_GETPPID {
+                    // SYS_GETPPID(64): init is always parent.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_UMASK {
+                    // SYS_UMASK(60): r1=mask. Return default 022, ignore the set.
+                    cpu.regs[0] = 0o22;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_SYNC {
+                    // SYS_SYNC(36): no-op, no real filesystem.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_TIMES {
+                    // SYS_TIMES(43): no process accounting.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_IOCTL {
+                    // SYS_IOCTL(54): no-op stub for terminal control.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_PIPE {
+                    // SYS_PIPE(42): not yet implemented.
+                    cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_FCNTL {
+                    // SYS_FCNTL(55): no-op.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_TRIVIAL_SYSCALLS);
                 } else {
                     // Unknown syscall: return -ENOSYS (38) in r0.
                     cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
