@@ -107,10 +107,10 @@ var registry = map[AlgoID]AlgoInfo{
 		Standard:   "FIPS 205",
 		Type:       "signature",
 		Family:     "hash-based",
-		MaxSigSize: 49856, // SLH-DSA-SHA2-128f max sig size
-		MaxKeySize: 64,    // SLH-DSA-SHA2-128f public key size
+		MaxSigSize: 49856, // SLH-DSA-SHA2-256f max sig size
+		MaxKeySize: 64,    // SLH-DSA-SHA2-256f public key size
 		BPFSafe:    true,
-		Available:  false, // circl does not yet have SLH-DSA
+		Available:  true, // circl v1.6.3 provides sign/slhdsa
 	},
 	AlgoMLDSA: {
 		ID:         AlgoMLDSA,

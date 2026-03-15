@@ -22,7 +22,7 @@ func TestRegistryLookupAllAlgorithms(t *testing.T) {
 		bpfSafe   bool
 		available bool
 	}{
-		{AlgoSLHDSA, "SLH-DSA", "FIPS 205", "signature", "hash-based", true, false},
+		{AlgoSLHDSA, "SLH-DSA", "FIPS 205", "signature", "hash-based", true, true},
 		{AlgoMLDSA, "ML-DSA", "FIPS 204", "signature", "lattice", true, true},
 		{AlgoFNDSA, "FN-DSA", "FIPS 206", "signature", "lattice", false, false},
 		{AlgoMLKEM, "ML-KEM", "FIPS 203", "kem", "lattice", true, true},
@@ -521,31 +521,165 @@ func TestMLKEMDecapsulateInvalidKeySize(t *testing.T) {
 
 // --- Stub Algorithm Tests ---
 
-func TestSLHDSAStubReturnsNotAvailable(t *testing.T) {
-	signer := &SLHDSASigner{}
-	_, err := signer.Sign([]byte("test"))
-	if !errors.Is(err, ErrAlgorithmNotAvailable) {
-		t.Errorf("SLHDSASigner.Sign err = %v, want ErrAlgorithmNotAvailable", err)
-	}
-	if pk := signer.PublicKey(); pk != nil {
-		t.Errorf("SLHDSASigner.PublicKey() = %v, want nil", pk)
-	}
-	if id := signer.AlgoID(); id != AlgoSLHDSA {
-		t.Errorf("SLHDSASigner.AlgoID() = %#x, want %#x", id, AlgoSLHDSA)
+// --- SLH-DSA Tests ---
+
+func TestSLHDSAKeyGeneration(t *testing.T) {
+	// Use 128s (smallest signatures) for fast tests.
+	params := []struct {
+		name string
+		ps   ParameterSet
+	}{
+		{"SLH-DSA-SHA2-128s", SLHDSA_SHA2_128s},
+		{"SLH-DSA-SHA2-128f", SLHDSA_SHA2_128f},
 	}
 
-	verifier := &SLHDSAVerifier{}
-	_, err = verifier.Verify([]byte("msg"), []byte("sig"), []byte("pk"))
-	if !errors.Is(err, ErrAlgorithmNotAvailable) {
-		t.Errorf("SLHDSAVerifier.Verify err = %v, want ErrAlgorithmNotAvailable", err)
+	for _, tt := range params {
+		t.Run(tt.name, func(t *testing.T) {
+			kp, signer, err := GenerateSLHDSAKeyPair(tt.ps)
+			if err != nil {
+				t.Fatalf("GenerateSLHDSAKeyPair(%s): %v", tt.name, err)
+			}
+			if kp.AlgoID != AlgoSLHDSA {
+				t.Errorf("AlgoID = %#x, want %#x", kp.AlgoID, AlgoSLHDSA)
+			}
+			if len(kp.PublicKey) == 0 {
+				t.Error("PublicKey is empty")
+			}
+			if len(kp.SecretKey) == 0 {
+				t.Error("SecretKey is empty")
+			}
+			if signer == nil {
+				t.Fatal("signer is nil")
+			}
+			if signer.AlgoID() != AlgoSLHDSA {
+				t.Errorf("signer.AlgoID() = %#x, want %#x", signer.AlgoID(), AlgoSLHDSA)
+			}
+			if signer.ParameterSetID() != tt.ps {
+				t.Errorf("signer.ParameterSetID() = %#x, want %#x", signer.ParameterSetID(), tt.ps)
+			}
+			signerPK := signer.PublicKey()
+			if !bytes.Equal(signerPK, kp.PublicKey) {
+				t.Error("signer.PublicKey() does not match kp.PublicKey")
+			}
+		})
 	}
-	if id := verifier.AlgoID(); id != AlgoSLHDSA {
-		t.Errorf("SLHDSAVerifier.AlgoID() = %#x, want %#x", id, AlgoSLHDSA)
+}
+
+func TestSLHDSAKeyGenInvalidParams(t *testing.T) {
+	_, _, err := GenerateSLHDSAKeyPair(ParameterSet(0xFF))
+	if !errors.Is(err, ErrInvalidParameterSet) {
+		t.Errorf("GenerateSLHDSAKeyPair(0xFF) err = %v, want ErrInvalidParameterSet", err)
+	}
+}
+
+func TestSLHDSASignVerifyRoundTrip(t *testing.T) {
+	// Use SHA2-128s for fast test execution (smallest signatures: 7856 bytes).
+	kp, signer, err := GenerateSLHDSAKeyPair(SLHDSA_SHA2_128s)
+	if err != nil {
+		t.Fatalf("GenerateSLHDSAKeyPair: %v", err)
 	}
 
-	_, err = GenerateSLHDSAKeyPair()
-	if !errors.Is(err, ErrAlgorithmNotAvailable) {
-		t.Errorf("GenerateSLHDSAKeyPair err = %v, want ErrAlgorithmNotAvailable", err)
+	message := []byte("hello, post-quantum hash-based world")
+
+	sig, err := signer.Sign(message)
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	if len(sig) == 0 {
+		t.Fatal("signature is empty")
+	}
+
+	verifier, err := NewSLHDSAVerifier(SLHDSA_SHA2_128s)
+	if err != nil {
+		t.Fatalf("NewSLHDSAVerifier: %v", err)
+	}
+	if verifier.AlgoID() != AlgoSLHDSA {
+		t.Errorf("verifier.AlgoID() = %#x, want %#x", verifier.AlgoID(), AlgoSLHDSA)
+	}
+
+	valid, err := verifier.Verify(message, sig, kp.PublicKey)
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if !valid {
+		t.Error("Verify returned false for valid signature")
+	}
+
+	// Verify with wrong message fails.
+	valid, err = verifier.Verify([]byte("wrong message"), sig, kp.PublicKey)
+	if err != nil {
+		t.Fatalf("Verify(wrong msg): %v", err)
+	}
+	if valid {
+		t.Error("Verify returned true for wrong message")
+	}
+
+	// Verify with corrupted signature fails.
+	badSig := make([]byte, len(sig))
+	copy(badSig, sig)
+	badSig[0] ^= 0xFF
+	valid, err = verifier.Verify(message, badSig, kp.PublicKey)
+	if err != nil {
+		t.Fatalf("Verify(bad sig): %v", err)
+	}
+	if valid {
+		t.Error("Verify returned true for corrupted signature")
+	}
+}
+
+func TestSLHDSAVerifierInvalidParams(t *testing.T) {
+	_, err := NewSLHDSAVerifier(ParameterSet(0xFF))
+	if !errors.Is(err, ErrInvalidParameterSet) {
+		t.Errorf("NewSLHDSAVerifier(0xFF) err = %v, want ErrInvalidParameterSet", err)
+	}
+}
+
+func TestSLHDSAVerifyInvalidKeySize(t *testing.T) {
+	verifier, err := NewSLHDSAVerifier(SLHDSA_SHA2_128s)
+	if err != nil {
+		t.Fatalf("NewSLHDSAVerifier: %v", err)
+	}
+	_, err = verifier.Verify([]byte("msg"), []byte("sig"), []byte("short"))
+	if !errors.Is(err, ErrInvalidKeySize) {
+		t.Errorf("Verify(short key) err = %v, want ErrInvalidKeySize", err)
+	}
+}
+
+func TestSLHDSAParamInfo(t *testing.T) {
+	tests := []struct {
+		ps     ParameterSet
+		name   string
+		wantOK bool
+	}{
+		{SLHDSA_SHA2_128s, "SLH-DSA-SHA2-128s", true},
+		{SLHDSA_SHA2_128f, "SLH-DSA-SHA2-128f", true},
+		{SLHDSA_SHA2_192s, "SLH-DSA-SHA2-192s", true},
+		{SLHDSA_SHA2_192f, "SLH-DSA-SHA2-192f", true},
+		{SLHDSA_SHA2_256s, "SLH-DSA-SHA2-256s", true},
+		{SLHDSA_SHA2_256f, "SLH-DSA-SHA2-256f", true},
+		{ParameterSet(0xFF), "", false},
+	}
+	for _, tt := range tests {
+		name, sigSize, pkSize, skSize, ok := SLHDSAParamInfo(tt.ps)
+		if ok != tt.wantOK {
+			t.Errorf("SLHDSAParamInfo(%#x) ok = %v, want %v", tt.ps, ok, tt.wantOK)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if name != tt.name {
+			t.Errorf("SLHDSAParamInfo(%#x) name = %q, want %q", tt.ps, name, tt.name)
+		}
+		if sigSize <= 0 {
+			t.Errorf("SLHDSAParamInfo(%#x) sigSize = %d, want > 0", tt.ps, sigSize)
+		}
+		if pkSize <= 0 {
+			t.Errorf("SLHDSAParamInfo(%#x) pkSize = %d, want > 0", tt.ps, pkSize)
+		}
+		if skSize <= 0 {
+			t.Errorf("SLHDSAParamInfo(%#x) skSize = %d, want > 0", tt.ps, skSize)
+		}
 	}
 }
 
@@ -562,6 +696,12 @@ func TestFNDSAStubReturnsNotAvailable(t *testing.T) {
 		t.Errorf("FNDSASigner.AlgoID() = %#x, want %#x", id, AlgoFNDSA)
 	}
 
+	_, err = NewFNDSAVerifier(FNDSA512)
+	if !errors.Is(err, ErrAlgorithmNotAvailable) {
+		t.Errorf("NewFNDSAVerifier err = %v, want ErrAlgorithmNotAvailable", err)
+	}
+
+	// Direct verifier still returns not available.
 	verifier := &FNDSAVerifier{}
 	_, err = verifier.Verify([]byte("msg"), []byte("sig"), []byte("pk"))
 	if !errors.Is(err, ErrAlgorithmNotAvailable) {
@@ -571,9 +711,22 @@ func TestFNDSAStubReturnsNotAvailable(t *testing.T) {
 		t.Errorf("FNDSAVerifier.AlgoID() = %#x, want %#x", id, AlgoFNDSA)
 	}
 
-	_, err = GenerateFNDSAKeyPair()
+	_, _, err = GenerateFNDSAKeyPair(FNDSA512)
 	if !errors.Is(err, ErrAlgorithmNotAvailable) {
 		t.Errorf("GenerateFNDSAKeyPair err = %v, want ErrAlgorithmNotAvailable", err)
+	}
+}
+
+func TestFNDSAParamInfo(t *testing.T) {
+	name, sigSize, pkSize, skSize, ok := FNDSAParamInfo(FNDSA512)
+	if !ok {
+		t.Fatal("FNDSAParamInfo(FNDSA512) not found")
+	}
+	if name != "FN-DSA-512" {
+		t.Errorf("name = %q, want FN-DSA-512", name)
+	}
+	if sigSize <= 0 || pkSize <= 0 || skSize <= 0 {
+		t.Errorf("sizes should be > 0: sig=%d pk=%d sk=%d", sigSize, pkSize, skSize)
 	}
 }
 
