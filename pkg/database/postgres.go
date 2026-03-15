@@ -33,6 +33,94 @@ func DefaultConfig() Config {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Multi-database factory configs — The Well v2
+// ---------------------------------------------------------------------------
+
+// AppKanbanConfig returns config for the kanban service (unheaded_app).
+func AppKanbanConfig() Config {
+	return Config{
+		Host:     getEnv("POSTGRES_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnv("APP_KANBAN_USER", "app_kanban"),
+		Password: getEnv("APP_KANBAN_PASSWORD", "kanban_dev"),
+		DBName:   "unheaded_app",
+		SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+	}
+}
+
+// AppTimeGuruConfig returns config for the timeguru service (unheaded_app).
+func AppTimeGuruConfig() Config {
+	return Config{
+		Host:     getEnv("POSTGRES_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnv("APP_TIMEGURU_USER", "app_timeguru"),
+		Password: getEnv("APP_TIMEGURU_PASSWORD", "timeguru_dev"),
+		DBName:   "unheaded_app",
+		SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+	}
+}
+
+// AppZhenConfig returns config for the Zhen AI assistant (unheaded_app).
+func AppZhenConfig() Config {
+	return Config{
+		Host:     getEnv("POSTGRES_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnv("APP_ZHEN_USER", "app_zhen"),
+		Password: getEnv("APP_ZHEN_PASSWORD", "zhen_dev"),
+		DBName:   "unheaded_app",
+		SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+	}
+}
+
+// OpsWriterConfig returns config for services that write operational data (unheaded_ops).
+func OpsWriterConfig() Config {
+	return Config{
+		Host:     getEnv("POSTGRES_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnv("OPS_WRITER_USER", "ops_writer"),
+		Password: getEnv("OPS_WRITER_PASSWORD", "ops_writer_dev"),
+		DBName:   "unheaded_ops",
+		SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+	}
+}
+
+// OpsReaderConfig returns config for services that read operational data (unheaded_ops).
+func OpsReaderConfig() Config {
+	return Config{
+		Host:     getEnv("POSTGRES_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnv("OPS_READER_USER", "ops_reader"),
+		Password: getEnv("OPS_READER_PASSWORD", "ops_reader_dev"),
+		DBName:   "unheaded_ops",
+		SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+	}
+}
+
+// ConfigAdminConfig returns config for services that manage kingdom config (unheaded_config).
+func ConfigAdminConfig() Config {
+	return Config{
+		Host:     getEnv("POSTGRES_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnv("CONFIG_ADMIN_USER", "config_admin"),
+		Password: getEnv("CONFIG_ADMIN_PASSWORD", "config_admin_dev"),
+		DBName:   "unheaded_config",
+		SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+	}
+}
+
+// ConfigReaderConfig returns config for services that read kingdom config (unheaded_config).
+func ConfigReaderConfig() Config {
+	return Config{
+		Host:     getEnv("POSTGRES_HOST", "localhost"),
+		Port:     5432,
+		User:     getEnv("CONFIG_READER_USER", "config_reader"),
+		Password: getEnv("CONFIG_READER_PASSWORD", "config_reader_dev"),
+		DBName:   "unheaded_config",
+		SSLMode:  getEnv("POSTGRES_SSLMODE", "disable"),
+	}
+}
+
 // DSN returns a PostgreSQL connection string.
 func (c Config) DSN() string {
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
