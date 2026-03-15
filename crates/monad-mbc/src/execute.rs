@@ -879,10 +879,13 @@ impl Cpu {
                         self.flush_tlb();
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_EXECVE {
-                        // ── SYS_EXECVE(11): Replace current process image ──
+                        // ── SYS_EXECVE(11): Replace current process image (Level 6) ──
                         // r1 = entry_point (ROM word address to jump to)
-                        // The binary is assumed to already be loaded in ROM
-                        // (by the boot loader or a prior SYS_WRITE_BLOCK + copy).
+                        //
+                        // In the eBPF path, the binary is assumed to already be loaded
+                        // in ROM (by the Go-side bFLT loader via LoadUPCFlat before
+                        // the BPF program runs). Full bFLT parsing happens in userspace
+                        // (pkg/upc.LoadUPCFlat) — here we just reset and jump.
                         // execve resets CPU state and jumps to the entry point.
                         let entry_point = self.state.regs[1];
 

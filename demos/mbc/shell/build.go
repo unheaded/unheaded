@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Generates shell.bin — a minimal interactive shell for the UPC.
+// Generates shell.upcf — a minimal interactive shell for the UPC in UPCFlat
+// (bFLT-like) format.
 //
 // This becomes /bin/sh in the UNFS filesystem. Behavior:
 //   - Prints "> " prompt to stdout (fd 1)
@@ -11,6 +12,10 @@
 //
 // MBC instruction format: [opcode:8][dst:4][src:4][imm16:16]
 // Syscall convention: r0=syscall_nr, r1-r3=args, INT 0x80, result in r0.
+//
+// Output format: UPCFlat binary (.upcf) with separate text and data segments.
+// The text segment contains executable instructions; the data segment holds
+// the prompt string, read buffer, and line buffer. BSS is zero for this binary.
 package main
 
 import (
@@ -170,6 +175,11 @@ func main() {
 	// DATA SECTION
 	// ═══════════════════════════════════════════════════════════════
 	codeWords := len(code)
+
+	// Build data segment separately for UPCFlat output.
+	// In the UPCFlat format, data follows text. The data byte addresses
+	// are computed relative to the start of the flat image (header excluded),
+	// i.e., text comes first so data byte offset = codeWords * 4.
 	dataOffset := uint16(codeWords * 4)
 
 	promptWords := packStringWords(prompt)
@@ -195,33 +205,38 @@ func main() {
 	code[notExitLen] = encode(JNZ, 0, 0, uint16(int16(notExitTarget-(notExitLen+1))))
 	code[notExitCmp] = encode(JNZ, 0, 0, uint16(int16(notExitTarget-(notExitCmp+1))))
 
-	// Append data: prompt, readbuf (1 word), line buffer (64 words)
+	// Build data words: prompt, readbuf (1 word), line buffer (64 words)
 	var dataWords []uint32
 	dataWords = append(dataWords, promptWords...)
-	dataWords = append(dataWords, 0)          // readbuf (1 word)
+	dataWords = append(dataWords, 0)                    // readbuf (1 word)
 	dataWords = append(dataWords, make([]uint32, 64)...) // line buffer
 
-	// Combine
-	bin := append(code, dataWords...)
+	// ═══════════════════════════════════════════════════════════════
+	// OUTPUT: UPCFlat format (.upcf)
+	// ═══════════════════════════════════════════════════════════════
+	upcfBin := createUPCFlat(code, dataWords, 0, 4096)
 
-	// Write output
-	f, err := os.Create("shell.bin")
+	f, err := os.Create("shell.upcf")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 	defer f.Close()
 
-	if err := writeLE32(f, bin); err != nil {
+	if _, err := f.Write(upcfBin); err != nil {
 		fmt.Fprintf(os.Stderr, "write error: %v\n", err)
 		os.Exit(1)
 	}
 
-	totalWords := len(bin)
-	fmt.Printf("Generated shell.bin: %d instructions + %d data words = %d total (%d bytes)\n",
-		codeWords, len(dataWords), totalWords, totalWords*4)
-	fmt.Printf("  Code:       %d instructions (%d bytes)\n", codeWords, codeWords*4)
+	totalWords := codeWords + len(dataWords)
+	fmt.Printf("Generated shell.upcf: %d text + %d data words = %d total (%d bytes payload, %d bytes with header)\n",
+		codeWords, len(dataWords), totalWords, totalWords*4, len(upcfBin))
+	fmt.Printf("  Format:     UPCFlat v1 (bFLT-like)\n")
+	fmt.Printf("  Header:     %d bytes\n", upcFlatHeaderSize)
+	fmt.Printf("  Text:       %d instructions (%d bytes)\n", codeWords, codeWords*4)
 	fmt.Printf("  Data:       %d words (%d bytes)\n", len(dataWords), len(dataWords)*4)
+	fmt.Printf("  BSS:        0 words\n")
+	fmt.Printf("  Stack:      4096 bytes\n")
 	fmt.Printf("  Prompt:     @ 0x%04X  (%d bytes)\n", promptAddr, len(prompt))
 	fmt.Printf("  Read buf:   @ 0x%04X  (4 bytes)\n", readBufAddr)
 	fmt.Printf("  Line buf:   @ 0x%04X  (256 bytes)\n", lineBufAddr)
@@ -244,4 +259,44 @@ func writeLE32(f *os.File, words []uint32) error {
 		}
 	}
 	return nil
+}
+
+// ── UPCFlat format helpers ──────────────────────────────────────────
+// These mirror pkg/upc.CreateUPCFlat but are duplicated here because
+// this is a standalone build tool (package main).
+
+const (
+	upcFlatMagic      = "UPCF"
+	upcFlatVersion    = 1
+	upcFlatHeaderSize = 32
+)
+
+func createUPCFlat(text []uint32, data []uint32, bssWords uint32, stackSize uint32) []byte {
+	totalBytes := upcFlatHeaderSize + (len(text)+len(data))*4
+	out := make([]byte, totalBytes)
+
+	// Header
+	copy(out[0:4], upcFlatMagic)
+	binary.LittleEndian.PutUint32(out[4:8], upcFlatVersion)
+	binary.LittleEndian.PutUint32(out[8:12], 0)                    // entry = 0
+	binary.LittleEndian.PutUint32(out[12:16], uint32(len(text)))   // text size
+	binary.LittleEndian.PutUint32(out[16:20], uint32(len(text)))   // data start
+	binary.LittleEndian.PutUint32(out[20:24], uint32(len(data)))   // data size
+	binary.LittleEndian.PutUint32(out[24:28], bssWords)            // bss size
+	binary.LittleEndian.PutUint32(out[28:32], stackSize)           // stack size
+
+	// Text
+	off := upcFlatHeaderSize
+	for _, w := range text {
+		binary.LittleEndian.PutUint32(out[off:off+4], w)
+		off += 4
+	}
+
+	// Data
+	for _, w := range data {
+		binary.LittleEndian.PutUint32(out[off:off+4], w)
+		off += 4
+	}
+
+	return out
 }
