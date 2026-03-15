@@ -16,6 +16,22 @@ import (
 )
 
 // ============================================================================
+// TASK STORE INTERFACE — abstracts SQLite vs Postgres backends
+// ============================================================================
+
+// TaskStore is the backend-agnostic interface for kanban task persistence.
+// Both the SQLite Store and the Postgres KanbanStore satisfy this interface.
+type TaskStore interface {
+	GetAllTasks() ([]Task, error)
+	GetTask(id string) (*Task, error)
+	SaveTask(task *Task) error
+	DeleteTask(id string) error
+	TaskCount() (int, error)
+	SeedIfEmpty() (int, error)
+	Close() error
+}
+
+// ============================================================================
 // ERRORS
 // ============================================================================
 

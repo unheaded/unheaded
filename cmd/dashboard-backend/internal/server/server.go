@@ -29,6 +29,8 @@ import (
 	"syscall"
 	"time"
 
+	"database/sql"
+
 	"unheaded/pkg/auth"
 	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
@@ -37,6 +39,7 @@ import (
 	internalMetrics "unheaded/cmd/dashboard-backend/internal/metrics"
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
+	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
@@ -208,6 +211,10 @@ type Server struct {
 	traceCollector    TraceCollector    // Optional: set via SetTraceCollector
 	healthAggregator  HealthAggregator  // Optional: set via SetHealthAggregator
 	ebpfIngestor      *ebpfPkg.Ingestor // Optional: set via config when trace-collector active
+
+	// PostgreSQL health persistence (optional — nil when Postgres unavailable)
+	wellDB     *sql.DB
+	wellBridge *database.WotanBridge
 
 	// Trace pipeline buffer (last 1000 events from traces.* topics)
 	traceBuffer *TraceBuffer
@@ -470,6 +477,17 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		serviceLatencies: make(map[string]*latencySamples),
 	}
 
+	// Optional: connect to PostgreSQL (The Well) for health persistence.
+	// If unavailable the dashboard works identically — in-memory only.
+	wellDB, wellErr := database.Connect(context.Background(), database.OpsWriterConfig())
+	if wellErr != nil {
+		log.Warn().Err(wellErr).Msg("Postgres unavailable — health persistence disabled")
+	} else {
+		s.wellDB = wellDB
+		s.wellBridge = database.NewWotanBridge(wellDB)
+		log.Info().Msg("Postgres connected — health persistence enabled (The Well)")
+	}
+
 	// Seed the log buffer with startup events
 	s.seedLogBuffer()
 
@@ -635,6 +653,8 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/events", s.handleEvents)
 	s.mux.HandleFunc("/api/v1/events/summary", s.handleEventsSummary)
 	s.mux.HandleFunc("/api/v1/health", s.handleSystemHealth)
+	s.mux.HandleFunc("/api/v1/health/history", s.handleHealthHistory)
+	s.mux.HandleFunc("/api/v1/health/trends", s.handleHealthTrends)
 	s.mux.HandleFunc("/api/v1/health/", s.handleServiceHealth)
 	s.mux.HandleFunc("/api/v1/flows", s.handleFlows)
 	s.mux.HandleFunc("/api/v1/stats", s.handleStats)
@@ -1291,6 +1311,95 @@ func (s *Server) handleServiceHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"health":  svcHealth,
 		"history": history,
+	})
+}
+
+// handleHealthHistory handles GET /api/v1/health/history?service=X&limit=50
+// Returns status transition events from Postgres. Falls back to 503 when
+// Postgres is not connected.
+func (s *Server) handleHealthHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.wellBridge == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "health persistence unavailable (Postgres not connected)",
+		})
+		return
+	}
+
+	service := r.URL.Query().Get("service")
+	if service == "" {
+		http.Error(w, "service query parameter required", http.StatusBadRequest)
+		return
+	}
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+
+	history, err := s.wellBridge.QueryHealthHistory(r.Context(), service, limit)
+	if err != nil {
+		s.log.Error().Err(err).Str("service", service).Msg("health history query failed")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"service":     service,
+		"transitions": history,
+		"count":       len(history),
+	})
+}
+
+// handleHealthTrends handles GET /api/v1/health/trends?service=X&hours=24
+// Returns hourly health statistics from Postgres. Falls back to 503 when
+// Postgres is not connected.
+func (s *Server) handleHealthTrends(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.wellBridge == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "health persistence unavailable (Postgres not connected)",
+		})
+		return
+	}
+
+	service := r.URL.Query().Get("service")
+	if service == "" {
+		http.Error(w, "service query parameter required", http.StatusBadRequest)
+		return
+	}
+	hours := 24
+	if v := r.URL.Query().Get("hours"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			hours = n
+		}
+	}
+
+	trends, err := s.wellBridge.QueryHealthTrends(r.Context(), service, hours)
+	if err != nil {
+		s.log.Error().Err(err).Str("service", service).Msg("health trends query failed")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"service": service,
+		"hours":   hours,
+		"stats":   trends,
+		"count":   len(trends),
 	})
 }
 
@@ -2318,6 +2427,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		if s.healthAggregator != nil {
 			if err := s.healthAggregator.Close(); err != nil {
 				s.log.Error().Err(err).Msg("health aggregator close error")
+			}
+		}
+
+		// Close Postgres connection (The Well)
+		if s.wellDB != nil {
+			if err := s.wellDB.Close(); err != nil {
+				s.log.Error().Err(err).Msg("postgres (well) close error")
+			} else {
+				s.log.Info().Msg("Postgres (The Well) connection closed")
 			}
 		}
 
