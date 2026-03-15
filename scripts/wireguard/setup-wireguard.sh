@@ -12,8 +12,8 @@ EAST_P2P="192.168.13.1"
 WG_PORT=51820
 WG_IFACE="wg0"
 WG_NETWORK="fd00:dead:beef::/48"
-WEST_WG_ADDR="fd00:dead:beef::2/48"
-EAST_WG_ADDR="fd00:dead:beef::1/48"
+WEST_WG_ADDR="fd00:dead:beef::1/64"
+EAST_WG_ADDR="fd00:dead:beef::2/64"
 KEY_DIR="/tmp/wireguard-keys"
 CONF_DIR="/tmp/wireguard-confs"
 REMOTE_USER="govan"
@@ -68,7 +68,7 @@ check_already_running() {
     if $west_up && $east_up; then
         log "WireGuard already configured on both hosts"
         log "Verifying connectivity..."
-        if ping6 -c 1 -W 2 "fd00:dead:beef::1" >/dev/null 2>&1; then
+        if ping6 -c 1 -W 2 "fd00:dead:beef::2" >/dev/null 2>&1; then
             ok "IPv6 overlay fully operational — nothing to do"
             exit 0
         else
@@ -142,14 +142,14 @@ generate_configs() {
 PrivateKey = ${west_priv}
 Address = ${WEST_WG_ADDR}
 ListenPort = ${WG_PORT}
-PostUp = sysctl -w net.ipv6.conf.all.forwarding=1; sysctl -w net.ipv6.conf.%i.forwarding=1
-PostDown = sysctl -w net.ipv6.conf.all.forwarding=0; sysctl -w net.ipv6.conf.%i.forwarding=0
+PostUp = ip -6 route add fd00:dead:beef::/48 dev %i; sysctl -w net.ipv6.conf.all.forwarding=1; sysctl -w net.ipv6.conf.%i.forwarding=1
+PostDown = ip -6 route del fd00:dead:beef::/48 dev %i; sysctl -w net.ipv6.conf.all.forwarding=0; sysctl -w net.ipv6.conf.%i.forwarding=0
 
 [Peer]
 # EAST
 PublicKey = ${east_pub}
 PresharedKey = ${psk}
-AllowedIPs = fd00:dead:beef::1/128
+AllowedIPs = fd00:dead:beef::2/128, fd00:dead:beef:0:2::/80
 Endpoint = ${EAST_P2P}:${WG_PORT}
 PersistentKeepalive = 25
 EOF
@@ -162,14 +162,14 @@ EOF
 PrivateKey = ${east_priv}
 Address = ${EAST_WG_ADDR}
 ListenPort = ${WG_PORT}
-PostUp = sysctl -w net.ipv6.conf.all.forwarding=1; sysctl -w net.ipv6.conf.%i.forwarding=1
-PostDown = sysctl -w net.ipv6.conf.all.forwarding=0; sysctl -w net.ipv6.conf.%i.forwarding=0
+PostUp = ip -6 route add fd00:dead:beef::/48 dev %i; sysctl -w net.ipv6.conf.all.forwarding=1; sysctl -w net.ipv6.conf.%i.forwarding=1
+PostDown = ip -6 route del fd00:dead:beef::/48 dev %i; sysctl -w net.ipv6.conf.all.forwarding=0; sysctl -w net.ipv6.conf.%i.forwarding=0
 
 [Peer]
 # WEST
 PublicKey = ${west_pub}
 PresharedKey = ${psk}
-AllowedIPs = fd00:dead:beef::2/128
+AllowedIPs = fd00:dead:beef::1/128, fd00:dead:beef:0:1::/80
 Endpoint = ${WEST_P2P}:${WG_PORT}
 PersistentKeepalive = 25
 EOF
@@ -212,14 +212,14 @@ verify_connectivity() {
     log "Testing IPv6 connectivity over WireGuard..."
 
     # WEST → EAST
-    if ping6 -c 3 -W 3 "fd00:dead:beef::1" >/dev/null 2>&1; then
+    if ping6 -c 3 -W 3 "fd00:dead:beef::2" >/dev/null 2>&1; then
         ok "WEST → EAST ping6 successful"
     else
         die "WEST → EAST ping6 FAILED"
     fi
 
     # EAST → WEST
-    if ssh "${REMOTE_USER}@${EAST_P2P}" "ping6 -c 3 -W 3 fd00:dead:beef::2" >/dev/null 2>&1; then
+    if ssh "${REMOTE_USER}@${EAST_P2P}" "ping6 -c 3 -W 3 fd00:dead:beef::1" >/dev/null 2>&1; then
         ok "EAST → WEST ping6 successful"
     else
         die "EAST → WEST ping6 FAILED"
@@ -273,8 +273,8 @@ main() {
 
     log "=========================================="
     log "Deployment complete."
-    log "  WEST: fd00:dead:beef::2"
-    log "  EAST: fd00:dead:beef::1"
+    log "  WEST: fd00:dead:beef::1"
+    log "  EAST: fd00:dead:beef::2"
     log "  Port: ${WG_PORT}/UDP"
     log "=========================================="
 }

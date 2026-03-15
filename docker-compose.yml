@@ -20,6 +20,21 @@ name: unheaded-dev
 # =============================================================================
 # NETWORK FABRIC (Dev approximation of EVPN-VXLAN)
 # =============================================================================
+# WireGuard IPv6 Overlay Integration (S77):
+#   The Kingdom overlay uses fd00:dead:beef::/48 over WireGuard (wg0).
+#   WEST = fd00:dead:beef::1, EAST = fd00:dead:beef::2.
+#
+#   For containers needing cross-host overlay access:
+#     Option A: network_mode: host (simplest, container uses host's wg0)
+#     Option B: Add IPv6 routing via host — overlay routes are installed by
+#               wg-quick PostUp rules. Containers on the 'data' network can
+#               reach fd00:dead:beef::/48 through the host routing table.
+#     Option C: macvlan on wg0 (advanced, per-container overlay addresses)
+#
+#   Docker IPv6 pool narrowed to fd00:dead:beef:0:d::/80 to avoid conflict
+#   with the overlay /48. Update /etc/docker/daemon.json:
+#     { "ipv6": true, "fixed-cidr-v6": "fd00:dead:beef:0:d::/80" }
+# =============================================================================
 networks:
   # Control plane network — service discovery, config, health
   control:

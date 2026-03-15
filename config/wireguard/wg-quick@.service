@@ -1,0 +1,29 @@
+# =============================================================================
+# wg-quick@.service — WireGuard Systemd Unit (Fallback)
+# =============================================================================
+# This is a fallback unit for systems where wg-quick@.service is not installed
+# by the distribution package. Most Linux distributions include this unit with
+# the wireguard-tools package.
+#
+# Preferred method: sudo systemctl enable --now wg-quick@wg0
+# Fallback: copy this file to /etc/systemd/system/wg-quick@.service
+# =============================================================================
+
+[Unit]
+Description=WireGuard via wg-quick(8) for %I
+After=network-online.target nss-lookup.target
+Wants=network-online.target nss-lookup.target
+Documentation=man:wg-quick(8)
+Documentation=man:wg(8)
+Documentation=https://www.wireguard.com/
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/wg-quick up %i
+ExecStop=/usr/bin/wg-quick down %i
+ExecReload=/bin/bash -c 'exec /usr/bin/wg syncconf %i <(wg-quick strip %i)'
+Environment=WG_ENDPOINT_RESOLUTION_RETRIES=infinity
+
+[Install]
+WantedBy=multi-user.target
