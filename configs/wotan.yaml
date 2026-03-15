@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+#
+# Wotan service configuration
+# Controls topic pub/sub behavior including subscriber auto-approval.
+#
+# Usage:
+#   wotan --topic-config configs/wotan.yaml
+#   WOTAN_TOPIC_CONFIG=configs/wotan.yaml wotan
+
+topics:
+  # Subscribers with these display_name values are auto-approved on subscribe.
+  # All other subscribers remain in "pending" status until manually approved
+  # via the admin API (POST /api/v1/admin/approve).
+  #
+  # Use "*" to auto-approve all subscribers (not recommended for production).
+  auto_approve:
+    - "service"          # default display_name for internal services
+    - "timeguru"
+    - "captain"
+    - "architect"
+    - "micromanager"
+    - "monad"
+    - "sophia"
+    - "dashboard"
+    - "kanban"
+    - "daemon"
+    - "trace-collector"
+    - "wiki"

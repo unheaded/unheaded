@@ -17,12 +17,17 @@ import (
 )
 
 // setupTestServerWithTopics creates a server with topic support initialized.
+// Uses wildcard auto-approve ("*") so all existing tests continue to pass.
 func setupTestServerWithTopics() *Server {
 	roomMgr := room.NewManager(100)
 	memberMgr := member.NewManager()
 	msgWotan := wotan.NewWotan()
 	srv := NewServer(roomMgr, memberMgr, msgWotan, 5*time.Minute)
 	srv.AdminAPIKey = testAdminAPIKey
+	// Wildcard auto-approve for backward-compatible test behavior
+	srv.TopicConfig = &TopicConfig{
+		allowSet: map[string]struct{}{"*": {}},
+	}
 	srv.InitTopics()
 	return srv
 }
@@ -595,6 +600,7 @@ func TestPublishTopic_NilWotan(t *testing.T) {
 	memberMgr := member.NewManager()
 	srv := NewServer(roomMgr, memberMgr, nil, 5*time.Minute)
 	srv.AdminAPIKey = testAdminAPIKey
+	srv.TopicConfig = &TopicConfig{allowSet: map[string]struct{}{"*": {}}}
 	srv.InitTopics()
 
 	// Subscribe
@@ -626,6 +632,7 @@ func TestPublishTopic_NilWotan(t *testing.T) {
 func TestPublishTopic_NilTopicSeqs(t *testing.T) {
 	// Server without InitTopics: topicSeqs is nil
 	srv := setupTestServer()
+	srv.TopicConfig = &TopicConfig{allowSet: map[string]struct{}{"*": {}}}
 
 	// Subscribe (creates the member and auto-approves)
 	subBody, _ := json.Marshal(map[string]string{"display_name": "svc"})

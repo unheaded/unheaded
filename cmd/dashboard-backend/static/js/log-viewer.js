@@ -43,6 +43,9 @@ const LogViewer = {
         this.autoScrollToggle = document.getElementById('log-autoscroll');
         this.timeRangeSelect = document.getElementById('log-timerange');
         this.statusEl = document.getElementById('log-status');
+        this.statusBarEl = document.getElementById('log-status-bar');
+        this.liveDot = document.getElementById('live-dot');
+        this.liveDotBar = document.getElementById('live-dot-bar');
         this.countEl = document.getElementById('log-count');
 
         if (!this.output) return;
@@ -180,7 +183,8 @@ const LogViewer = {
         if (!this.output) return;
 
         const line = document.createElement('div');
-        line.className = 'log-line log-level-' + (entry.level || 'info');
+        var lvl = entry.level || 'info';
+        line.className = 'log-line level-' + lvl;
 
         const ts = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '--:--:--';
         const color = this.levelColors[entry.level] || '#ccc';
@@ -216,9 +220,20 @@ const LogViewer = {
      * Update connection status display
      */
     updateStatus(status) {
+        var key = status.split(':')[0];
         if (this.statusEl) {
             this.statusEl.textContent = status;
-            this.statusEl.className = 'log-status log-status-' + status.split(':')[0];
+            this.statusEl.className = 'log-status-' + key;
+        }
+        if (this.statusBarEl) {
+            this.statusBarEl.textContent = status;
+            this.statusBarEl.className = 'log-status-' + key;
+        }
+        if (this.liveDot) {
+            this.liveDot.className = 'live-dot ' + key;
+        }
+        if (this.liveDotBar) {
+            this.liveDotBar.className = 'live-dot ' + key;
         }
     },
 

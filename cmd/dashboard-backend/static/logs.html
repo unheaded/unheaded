@@ -1,317 +1,310 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Unheaded Log Viewer - Real-time aggregated log streaming">
-  <title>Unheaded — Log Viewer</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Unheaded Log Viewer - Real-time aggregated log streaming">
+    <title>Log Viewer | (U)NHEADED</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230a0a0a'/%3E%3Ctext x='50' y='55' text-anchor='middle' dominant-baseline='middle' fill='%234a9eff' font-family='monospace' font-size='40'%3E(u)%3C/text%3E%3C/svg%3E">
+    <style>
+        /* Log viewer layout — full height below header */
+        .log-page {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
 
-  <link rel="stylesheet" href="/static/css/design-system.css">
-  <style>
-    /* Particle canvas — fixed background, non-interactive */
-    #particle-canvas {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: -1;
-      pointer-events: none;
-    }
+        /* Toolbar — matches event-controls pattern */
+        .log-toolbar {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-md) var(--spacing-lg);
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
 
-    /* Log viewer page-specific layout */
-    body {
-      margin-top: 64px;
-      height: calc(100vh - 64px);
-      display: flex;
-      flex-direction: column;
-    }
+        .log-toolbar label {
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
 
-    /* Toolbar */
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: var(--space-md);
-      padding: var(--space-sm) var(--space-lg);
-      background: var(--color-bg-secondary);
-      border-bottom: var(--border-width-thin) solid var(--color-border);
-      flex-wrap: wrap;
-    }
+        .log-toolbar select,
+        .log-toolbar input[type="text"] {
+            padding: var(--spacing-sm) var(--spacing-md);
+            font-size: 0.875rem;
+            font-family: var(--font-mono);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color var(--transition-fast);
+        }
 
-    .toolbar label {
-      font-family: var(--font-body);
-      color: var(--color-text-secondary);
-      font-size: var(--font-size-xs);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
+        .log-toolbar select:focus,
+        .log-toolbar input[type="text"]:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 2px var(--gold-muted);
+        }
 
-    .toolbar select,
-    .toolbar input[type="text"] {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
-      border: var(--border-width-thin) solid var(--color-border);
-      padding: var(--space-xs) var(--space-sm);
-      border-radius: var(--border-radius-sm);
-      font-family: var(--font-mono);
-      font-size: var(--font-size-sm);
-      transition: border-color var(--transition-fast);
-    }
+        .log-toolbar select option {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
 
-    .toolbar select:focus,
-    .toolbar input[type="text"]:focus {
-      outline: none;
-      border-color: var(--color-accent);
-      background: var(--color-bg-tertiary);
-    }
+        .log-toolbar input[type="text"] {
+            min-width: 200px;
+        }
 
-    .toolbar input[type="text"] {
-      width: 220px;
-    }
+        .log-toolbar input[type="text"]::placeholder {
+            color: var(--text-muted);
+        }
 
-    .toolbar .spacer {
-      flex: 1;
-    }
+        .log-toolbar .spacer {
+            flex: 1;
+        }
 
-    .toolbar input[type="checkbox"] {
-      accent-color: var(--color-accent);
-    }
+        .log-toolbar input[type="checkbox"] {
+            accent-color: var(--gold);
+        }
 
-    .toolbar .autoscroll-label {
-      display: flex;
-      align-items: center;
-      gap: var(--space-xs);
-      cursor: pointer;
-    }
+        .log-toolbar .autoscroll-label {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
 
-    /* Log output */
-    #log-output {
-      flex: 1;
-      overflow-y: auto;
-      padding: var(--space-sm) var(--space-lg);
-      font-family: var(--font-mono);
-      font-size: var(--font-size-sm);
-      line-height: 1.6;
-      background: var(--color-bg);
-    }
+        /* Log output area */
+        #log-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--spacing-sm) var(--spacing-lg);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 1.7;
+            background: var(--bg-primary);
+        }
 
-    .log-line {
-      white-space: pre-wrap;
-      word-break: break-all;
-      cursor: pointer;
-      padding: 1px var(--space-xs);
-      border-radius: var(--border-radius-sm);
-      transition: background-color var(--transition-fast);
-    }
+        .log-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+            cursor: pointer;
+            padding: 2px var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            transition: background-color var(--transition-fast);
+            border-left: 2px solid transparent;
+        }
 
-    .log-line:hover {
-      background: var(--color-bg-tertiary);
-    }
+        .log-line:hover {
+            background: var(--bg-hover);
+        }
 
-    .log-ts {
-      color: var(--color-text-ghost);
-    }
+        .log-ts {
+            color: var(--text-muted);
+        }
 
-    .log-service {
-      color: var(--color-accent);
-    }
+        .log-service {
+            color: var(--gold);
+        }
 
-    .log-level-debug {
-      color: var(--color-text-ghost);
-    }
+        .log-level-debug { color: var(--text-muted); }
+        .log-level-info  { color: var(--text-primary); }
+        .log-level-warn  { color: var(--status-degraded); }
+        .log-level-error { color: var(--status-unhealthy); }
+        .log-level-fatal { color: var(--status-unhealthy); font-weight: 700; }
 
-    .log-level-info {
-      color: var(--color-text-primary);
-    }
+        .log-line.level-warn  { border-left-color: var(--status-degraded); }
+        .log-line.level-error { border-left-color: var(--status-unhealthy); }
+        .log-line.level-fatal { border-left-color: var(--status-unhealthy); }
 
-    .log-level-warn {
-      color: var(--color-warning);
-    }
+        .log-msg {
+            color: var(--text-primary);
+        }
 
-    .log-level-error {
-      color: var(--color-error);
-    }
+        .log-fields {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
 
-    .log-level-fatal {
-      color: var(--color-error);
-      font-weight: 700;
-    }
+        /* Status bar */
+        .log-statusbar {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
+            padding: var(--spacing-xs) var(--spacing-lg);
+            background: var(--bg-tertiary);
+            border-top: 1px solid var(--border-color);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
 
-    .log-msg {
-      color: var(--color-text-primary);
-    }
+        .log-statusbar .status-label {
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+        }
 
-    .log-fields {
-      color: var(--color-text-ghost);
-      font-size: var(--font-size-xs);
-    }
+        .log-statusbar .spacer { flex: 1; }
 
-    /* Status bar */
-    .statusbar {
-      display: flex;
-      align-items: center;
-      gap: var(--space-lg);
-      padding: var(--space-xs) var(--space-lg);
-      background: var(--color-bg-secondary);
-      border-top: var(--border-width-thin) solid var(--color-border);
-      font-family: var(--font-mono);
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-    }
+        /* Live indicator dot */
+        .live-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: var(--spacing-xs);
+            vertical-align: middle;
+        }
 
-    .statusbar .status-label {
-      font-family: var(--font-body);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
+        .live-dot.streaming {
+            background-color: var(--status-healthy);
+            animation: pulse 2s ease infinite;
+        }
 
-    /* Live indicator dot */
-    .live-dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      margin-right: var(--space-xs);
-      vertical-align: middle;
-    }
+        .live-dot.connected {
+            background-color: var(--gold);
+        }
 
-    .live-dot.streaming {
-      background-color: var(--color-success);
-      animation: pulse 2s ease infinite;
-    }
+        .live-dot.disconnected {
+            background-color: var(--status-unhealthy);
+        }
 
-    .live-dot.connected {
-      background-color: var(--color-accent);
-    }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
 
-    .live-dot.disconnected {
-      background-color: var(--color-error);
-    }
+        .log-status-streaming   { color: var(--status-healthy); }
+        .log-status-connected   { color: var(--gold); }
+        .log-status-disconnected { color: var(--status-unhealthy); }
+        .log-status-error       { color: var(--status-unhealthy); }
 
-    /* Status text colors */
-    .log-status-streaming {
-      color: var(--color-success);
-    }
-
-    .log-status-connected {
-      color: var(--color-accent);
-    }
-
-    .log-status-disconnected {
-      color: var(--color-error);
-    }
-
-    .log-status-error {
-      color: var(--color-error);
-    }
-
-    .statusbar .spacer {
-      flex: 1;
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      .toolbar {
-        padding: var(--space-sm) var(--space-md);
-        gap: var(--space-sm);
-      }
-
-      .toolbar input[type="text"] {
-        width: 140px;
-      }
-
-      #log-output {
-        padding: var(--space-xs) var(--space-sm);
-        font-size: var(--font-size-xs);
-      }
-
-      .statusbar {
-        padding: var(--space-xs) var(--space-md);
-        gap: var(--space-md);
-        flex-wrap: wrap;
-      }
-    }
-  </style>
+        /* Responsive */
+        @media (max-width: 768px) {
+            .log-toolbar {
+                padding: var(--spacing-sm) var(--spacing-md);
+                gap: var(--spacing-sm);
+            }
+            .log-toolbar input[type="text"] { min-width: 120px; }
+            #log-output {
+                padding: var(--spacing-xs) var(--spacing-sm);
+                font-size: 0.7rem;
+            }
+            .log-statusbar {
+                padding: var(--spacing-xs) var(--spacing-md);
+                gap: var(--spacing-md);
+                flex-wrap: wrap;
+            }
+        }
+    </style>
 </head>
 <body>
-  <!-- Particle background -->
-  <canvas id="particle-canvas"></canvas>
+    <div id="app">
+        <!-- Header — matches main dashboard -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="logo">
+                    <span class="logo-text">(u)nheaded</span>
+                    <span style="color:#333;margin:0 0.5rem;">|</span>
+                    <span style="color:#888;font-size:0.75rem;letter-spacing:0.1em;">log viewer</span>
+                </h1>
+            </div>
+            <div class="header-center">
+                <nav class="nav-tabs">
+                    <a class="nav-tab" href="/" style="text-decoration:none;">Dashboard</a>
+                    <a class="nav-tab active" href="/logs" style="text-decoration:none;">Logs</a>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="connection-status">
+                    <span class="live-dot disconnected" id="live-dot"></span>
+                    <span id="log-status" class="log-status-disconnected" style="font-size:0.8rem;">connecting...</span>
+                </div>
+            </div>
+        </header>
 
-  <!-- Navigation -->
-  <nav class="nav">
-    <a href="/" class="nav-logo"><span>(U)</span>NHEADED</a>
-    <ul class="nav-links">
-      <li><a href="/dashboard" class="nav-link">dashboard</a></li>
-      <li><a href="/kanban" class="nav-link">kanban</a></li>
-      <li><a href="/docs" class="nav-link">docs</a></li>
-      <li><a href="/status" class="nav-link">status</a></li>
-    </ul>
-  </nav>
+        <!-- Log Viewer Page -->
+        <div class="log-page">
+            <!-- Toolbar row 1: Service + Level + Search -->
+            <div class="log-toolbar">
+                <label>Service:</label>
+                <select id="log-service">
+                    <option value="">All Services</option>
+                    <option value="wotan">wotan</option>
+                    <option value="timeguru">timeguru</option>
+                    <option value="architect">architect</option>
+                    <option value="captain">captain</option>
+                    <option value="micromanager">micromanager</option>
+                    <option value="monad">monad</option>
+                    <option value="sophia">sophia</option>
+                    <option value="dashboard-backend">dashboard-backend</option>
+                    <option value="kanban-app">kanban-app</option>
+                    <option value="trace-collector">trace-collector</option>
+                    <option value="unheaded-daemon">unheaded-daemon</option>
+                </select>
 
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <label>Service:</label>
-    <select id="log-service">
-      <option value="">All Services</option>
-      <option value="timeguru">timeguru</option>
-      <option value="captain">captain</option>
-      <option value="architect">architect</option>
-      <option value="micromanager">micromanager</option>
-      <option value="monad">monad</option>
-      <option value="sophia">sophia</option>
-      <option value="dashboard-backend">dashboard-backend</option>
-      <option value="kanban-app">kanban-app</option>
-      <option value="trace-collector">trace-collector</option>
-      <option value="unheaded-daemon">unheaded-daemon</option>
-    </select>
+                <label>Level:</label>
+                <select id="log-level">
+                    <option value="">All Levels</option>
+                    <option value="trace">TRACE</option>
+                    <option value="debug">DEBUG</option>
+                    <option value="info">INFO</option>
+                    <option value="warn">WARN</option>
+                    <option value="error">ERROR</option>
+                    <option value="fatal">FATAL</option>
+                </select>
 
-    <label>Level:</label>
-    <select id="log-level">
-      <option value="">All Levels</option>
-      <option value="trace">TRACE</option>
-      <option value="debug">DEBUG</option>
-      <option value="info">INFO</option>
-      <option value="warn">WARN</option>
-      <option value="error">ERROR</option>
-      <option value="fatal">FATAL</option>
-    </select>
+                <label>Search:</label>
+                <input type="text" id="log-search" placeholder="full-text search...">
 
-    <label>Search:</label>
-    <input type="text" id="log-search" placeholder="full-text search...">
+                <label>Range:</label>
+                <select id="log-timerange">
+                    <option value="5m">Last 5m</option>
+                    <option value="15m" selected>Last 15m</option>
+                    <option value="1h">Last 1h</option>
+                    <option value="24h">Last 24h</option>
+                    <option value="">All Time</option>
+                </select>
 
-    <label>Range:</label>
-    <select id="log-timerange">
-      <option value="5m">Last 5m</option>
-      <option value="15m" selected>Last 15m</option>
-      <option value="1h">Last 1h</option>
-      <option value="24h">Last 24h</option>
-      <option value="">All Time</option>
-    </select>
+                <div class="spacer"></div>
 
-    <div class="spacer"></div>
+                <label class="autoscroll-label">
+                    <input type="checkbox" id="log-autoscroll" checked>
+                    auto-scroll
+                </label>
+            </div>
 
-    <label class="autoscroll-label">
-      <input type="checkbox" id="log-autoscroll" checked>
-      auto-scroll
-    </label>
-  </div>
+            <!-- Log output area -->
+            <div id="log-output"></div>
+        </div>
 
-  <!-- Log output area -->
-  <div id="log-output"></div>
+        <!-- Status bar -->
+        <div class="log-statusbar">
+            <span class="status-label">Status:</span>
+            <span id="log-status-text">
+                <span class="live-dot disconnected" id="live-dot-bar"></span>
+                <span id="log-status-bar" class="log-status-disconnected">connecting...</span>
+            </span>
+            <div class="spacer"></div>
+            <span id="log-count">0 entries</span>
+            <span style="color:var(--text-muted);">Buffer: 10,000 lines</span>
+        </div>
+    </div>
 
-  <!-- Status bar -->
-  <div class="statusbar">
-    <span class="status-label">Status:</span>
-    <span>
-      <span class="live-dot disconnected" id="live-dot"></span>
-      <span id="log-status" class="log-status-disconnected">connecting...</span>
-    </span>
-    <div class="spacer"></div>
-    <span id="log-count">0 entries</span>
-    <span>Buffer: 10,000 lines</span>
-  </div>
-
-  <script src="/static/js/log-viewer.js"></script>
-  <script src="/static/js/particles.js"></script>
+    <script src="/static/js/log-viewer.js"></script>
 </body>
 </html>

@@ -69,6 +69,9 @@ type Config struct {
 	IdleTimeout            time.Duration
 	PendingApprovalTimeout time.Duration
 
+	// Topic config
+	TopicConfigPath string
+
 	// CORS
 	CORSOrigins []string
 }
@@ -112,8 +115,23 @@ func main() {
 
 	log.Info().Msg("initialized_core_managers")
 
+	// Load topic configuration (auto-approval allowlist)
+	topicConfigPath := os.Getenv("WOTAN_TOPIC_CONFIG")
+	if topicConfigPath == "" {
+		topicConfigPath = config.TopicConfigPath
+	}
+	topicCfg, err := api.LoadTopicConfig(topicConfigPath)
+	if err != nil {
+		log.Fatal().Err(err).Str("path", topicConfigPath).Msg("failed to load topic config")
+	}
+	log.Info().
+		Str("config_path", topicConfigPath).
+		Int("auto_approve_count", len(topicCfg.Topics.AutoApprove)).
+		Msg("loaded_topic_config")
+
 	// Create API server
 	apiServer := api.NewServer(roomManager, memberManager, messageWotan, config.PendingApprovalTimeout)
+	apiServer.TopicConfig = topicCfg
 	apiServer.InitTopics() // Enable topic pub/sub (Fae Chamber message bus)
 
 	// Setup rate limiter
@@ -288,6 +306,9 @@ func parseFlags() Config {
 
 	var pendingApprovalTimeout time.Duration
 	flag.DurationVar(&pendingApprovalTimeout, "pending-approval-timeout", 1*time.Hour, "Timeout for pending member approval requests")
+
+	// Topic config flag
+	flag.StringVar(&config.TopicConfigPath, "topic-config", "configs/wotan.yaml", "Path to topic configuration file (auto-approval allowlist)")
 
 	// CORS flags
 	config.CORSOrigins = []string{"*"} // Configure as needed

@@ -76,6 +76,8 @@
         eventStreamPaused: false,
         eventTopicFilter: '',
         eventTypeFilter: 'all',
+        eventServiceFilter: '',
+        eventHostFilter: '',
         eventStreamTotal: 0,
 
         latencyHistory: [],
@@ -131,6 +133,8 @@
         el.latencyHistoryCanvas = document.getElementById('latency-history-canvas');
 
         el.eventTopicInput = document.getElementById('event-topic-input');
+        el.eventServiceSelect = document.getElementById('event-service-select');
+        el.eventHostInput = document.getElementById('event-host-input');
         el.eventPauseBtn = document.getElementById('event-pause-btn');
         el.eventStreamList = document.getElementById('event-stream-list');
         el.eventStreamTotal = document.getElementById('event-stream-total');
@@ -1090,6 +1094,16 @@
                 state.eventTopicFilter = this.value.trim();
             });
         }
+        if (el.eventServiceSelect) {
+            el.eventServiceSelect.addEventListener('change', function() {
+                state.eventServiceFilter = this.value;
+            });
+        }
+        if (el.eventHostInput) {
+            el.eventHostInput.addEventListener('input', function() {
+                state.eventHostFilter = this.value.trim().toLowerCase();
+            });
+        }
         document.querySelectorAll('.event-type-filters button').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.event-type-filters button').forEach(function(b) { b.classList.remove('active'); });
@@ -1104,18 +1118,32 @@
         var filtered = events.filter(function(ev) {
             var type = ev.type || ev.event_type || '';
             if (state.eventTypeFilter !== 'all' && type !== state.eventTypeFilter) return false;
-            if (state.eventTopicFilter) return matchTopic(state.eventTopicFilter, ev.topic || '');
+            if (state.eventTopicFilter && !matchTopic(state.eventTopicFilter, ev.topic || '')) return false;
+            if (state.eventServiceFilter) {
+                var svc = (ev.data && ev.data.service) || ev.service || '';
+                if (!svc) { var parts = (ev.topic || '').split('.'); svc = parts[1] || ''; }
+                if (svc !== state.eventServiceFilter) return false;
+            }
+            if (state.eventHostFilter) {
+                var host = (ev.data && ev.data.host) || ev.host || '';
+                if (host.toLowerCase().indexOf(state.eventHostFilter) === -1) return false;
+            }
             return true;
         });
         filtered.forEach(function(ev) {
             var type = ev.type || ev.event_type || 'packet';
             var time = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
             var msg = ev.message || ev.summary || JSON.stringify(ev.data || ev).slice(0, 120);
+            var svc = (ev.data && ev.data.service) || ev.service || '';
+            if (!svc) { var parts = (ev.topic || '').split('.'); svc = parts[1] || ''; }
+            var host = (ev.data && ev.data.host) || ev.host || '';
             var item = document.createElement('div');
             item.className = 'event-stream-item type-' + type;
             item.innerHTML =
                 '<span class="event-stream-time">' + time + '</span>' +
                 '<span class="event-stream-type">' + esc(type) + '</span>' +
+                (svc ? '<span class="event-stream-service">' + esc(svc) + '</span>' : '') +
+                (host ? '<span class="event-stream-host">' + esc(host) + '</span>' : '') +
                 '<span class="event-stream-message">' + esc(msg) + '</span>';
             el.eventStreamList.insertBefore(item, el.eventStreamList.firstChild);
         });
