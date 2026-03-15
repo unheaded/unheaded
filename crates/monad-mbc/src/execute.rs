@@ -738,6 +738,67 @@ impl Cpu {
                             self.scheduler_context_switch();
                         }
                         self.state.regs[0] = 0;
+                    // ── Level 5b FUZIX-critical syscalls ─────────────────
+                    } else if syscall_nr == lsys::SYS_READ {
+                        // SYS_READ(3): r1=fd, r2=buf_addr, r3=len.
+                        // If fd==0 (stdin), read from kbd input.
+                        let fd = self.state.regs[1];
+                        let buf_addr = self.state.regs[2] as usize;
+                        let len = self.state.regs[3];
+                        if fd == 0 {
+                            // In userspace emulator, read from kbd field.
+                            // Treat kbd as a single pending character (low 8 bits of key code).
+                            if self.kbd != 0 {
+                                let pressed = self.kbd & 1;
+                                if pressed == 1 {
+                                    let ch = ((self.kbd >> 1) & 0xFF) as u8;
+                                    let dst_word = buf_addr >> 2;
+                                    let dst_byte_off = buf_addr & 3;
+                                    if dst_word < self.ram.len() {
+                                        let existing = self.ram[dst_word];
+                                        let mask = !(0xFFu32 << (dst_byte_off * 8));
+                                        let new_val = (existing & mask)
+                                            | ((ch as u32) << (dst_byte_off * 8));
+                                        self.ram[dst_word] = new_val;
+                                    }
+                                    self.kbd = 0; // consume
+                                    self.state.regs[0] = 1; // 1 byte read
+                                } else {
+                                    self.kbd = 0;
+                                    self.state.regs[0] = 0;
+                                }
+                            } else {
+                                // No input available — return 0 bytes.
+                                self.state.regs[0] = 0;
+                            }
+                        } else {
+                            self.state.regs[0] = (-9i32) as u32; // EBADF
+                        }
+                    } else if syscall_nr == lsys::SYS_OPEN {
+                        // SYS_OPEN(5): stub — return fd=3.
+                        self.state.regs[0] = 3;
+                    } else if syscall_nr == lsys::SYS_CLOSE {
+                        // SYS_CLOSE(6): no-op, return 0.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_WAITPID {
+                        // SYS_WAITPID(7): r1=pid. Check if target process halted.
+                        let target_pid = self.state.regs[1];
+                        if target_pid < self.state.num_processes as u32 {
+                            if (self.halted_mask >> target_pid) & 1 != 0 {
+                                // Child exited.
+                                self.state.regs[0] = target_pid;
+                            } else {
+                                // Not exited — yield and retry.
+                                if self.state.num_processes > 1 {
+                                    self.scheduler_context_switch();
+                                }
+                                // Back up PC to re-execute on next tick.
+                                self.state.pc = self.state.pc.wrapping_sub(1);
+                                return Ok(());
+                            }
+                        } else {
+                            self.state.regs[0] = (-10i32) as u32; // ECHILD
+                        }
                     // ── MMU control syscalls (Level 4d) ──────────────────
                     } else if syscall_nr == lsys::SYS_SET_PAGE_DIR {
                         // SYS_SET_PAGE_DIR(250): r1 = physical address of page directory.
