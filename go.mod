@@ -10,9 +10,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/lib/pq v1.10.9
 	github.com/prometheus/client_golang v1.18.0
 	github.com/rs/zerolog v1.31.0
 	github.com/sony/gobreaker v0.5.0
+	github.com/unheaded/doomgeneric v0.0.0
 	github.com/yuin/goldmark v1.7.16
 	golang.org/x/crypto v0.43.0
 	golang.org/x/sys v0.40.0
@@ -22,13 +24,12 @@ require (
 	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.44.3
-	github.com/unheaded/doomgeneric v0.0.0
 )
 
 replace (
+	github.com/unheaded/doomgeneric => ../projects/doomgeneric/unheaded
 	unheaded/pkg/telemetry => ./pkg/telemetry
 	unheaded/pkg/wotan-client => ./pkg/wotan-client
-	github.com/unheaded/doomgeneric => ../projects/doomgeneric/unheaded
 )
 
 require (
