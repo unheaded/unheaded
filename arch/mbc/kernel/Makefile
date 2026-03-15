@@ -1,4 +1,4 @@
 # SPDX-License-Identifier: GPL-2.0
 
 obj-y := setup.o process.o entry.o time.o irq.o syscall_table.o switch.o \
-	 signal.o traps.o
+	 signal.o traps.o initramfs.o board.o head.o
