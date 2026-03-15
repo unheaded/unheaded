@@ -171,6 +171,8 @@ const STAT_FORKS: u32 = 16; // SYS_FORK process creation (Level 4c)
 const STAT_BLOCK_OPS: u32 = 17; // Block device read/write operations (Level 4e)
 const STAT_TLB_HITS: u32 = 18; // TLB hits (Level 4d MMU)
 const STAT_TLB_MISSES: u32 = 19; // TLB misses — page table walk required (Level 4d MMU)
+const STAT_TTY_READS: u32 = 20; // TTY read operations (SYS_READ from fd 0) (Level 5b)
+const STAT_WAITPIDS: u32 = 21; // SYS_WAITPID calls (Level 5b)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -899,6 +901,91 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         increment_stat(STAT_BLOCK_OPS);
                     } else {
                         cpu.regs[0] = (-(lsys::EIO as i32)) as u32;
+                    }
+                // ── Level 5b FUZIX-critical syscalls ─────────────────
+                } else if syscall_nr == lsys::SYS_READ {
+                    // SYS_READ(3): r1=fd, r2=buf_addr, r3=len.
+                    // If fd==0 (stdin), read from KBD_MAP circular queue.
+                    let fd = cpu.regs[1];
+                    let buf_addr = cpu.regs[2];
+                    let len = cpu.regs[3];
+                    if fd == 0 {
+                        // Read keyboard events as bytes from KBD_MAP slots.
+                        // Each non-zero KBD_MAP entry is consumed as one byte
+                        // (low 8 bits of the key code, shifted right 1 to strip
+                        // pressed flag — only deliver key-down events).
+                        let max_read = if len < 8 { len } else { 8 };
+                        let mut read_count: u32 = 0;
+                        let mut slot: u32 = 0;
+                        while slot < 8 && read_count < max_read {
+                            let kv = match KBD_MAP.get(slot) {
+                                Some(v) => *v,
+                                None => 0,
+                            };
+                            if kv != 0 {
+                                // Extract key code (bits 31:1), take low 8 bits as ASCII.
+                                let pressed = kv & 1;
+                                if pressed == 1 {
+                                    let ch = ((kv >> 1) & 0xFF) as u8;
+                                    // Write byte to destination buffer.
+                                    let dst_word = buf_addr.wrapping_add(read_count) >> 2;
+                                    let dst_byte_off = (buf_addr.wrapping_add(read_count) & 3) as u32;
+                                    let existing = mem_read_word(dst_word);
+                                    let mask = !(0xFFu32 << (dst_byte_off * 8));
+                                    let new_val = (existing & mask) | ((ch as u32) << (dst_byte_off * 8));
+                                    mem_write_word(dst_word, new_val);
+                                    read_count += 1;
+                                }
+                                // Consume the event (clear slot).
+                                if let Some(p) = KBD_MAP.get_ptr_mut(slot) {
+                                    unsafe { *p = 0; }
+                                }
+                            }
+                            slot += 1;
+                        }
+                        increment_stat(STAT_TTY_READS);
+                        cpu.regs[0] = read_count;
+                    } else {
+                        // Unsupported fd for read: return -EBADF (9)
+                        cpu.regs[0] = (-9i32) as u32;
+                    }
+                } else if syscall_nr == lsys::SYS_OPEN {
+                    // SYS_OPEN(5): stub — return fd=3 (first available fd).
+                    // No real filesystem yet; any open succeeds with fd 3.
+                    cpu.regs[0] = 3;
+                } else if syscall_nr == lsys::SYS_CLOSE {
+                    // SYS_CLOSE(6): no-op, return 0 (success).
+                    cpu.regs[0] = 0;
+                } else if syscall_nr == lsys::SYS_WAITPID {
+                    // SYS_WAITPID(7): r1=pid to wait for.
+                    // Simplified: check if target process is halted. If not,
+                    // yield and re-check next tick (set sleep to force re-entry).
+                    let target_pid = cpu.regs[1];
+                    if target_pid < cpu.num_processes as u32 {
+                        // Check if the target process has exited by reading its
+                        // state from PROC_TABLE. Convention: slot[17] bit 7 set
+                        // means halted, or we check the halted_mask.
+                        let halted = match SCHED_STATE.get(3) {
+                            Some(v) => *v, // halted_mask (SCHED_STATE[3])
+                            None => 0,
+                        };
+                        if (halted >> target_pid) & 1 != 0 {
+                            // Child has exited — return the pid.
+                            cpu.regs[0] = target_pid;
+                        } else {
+                            // Not exited yet — yield and retry.
+                            // Set a short sleep so we re-check next tick.
+                            increment_stat(STAT_WAITPIDS);
+                            if cpu.num_processes > 1 {
+                                scheduler_context_switch(cpu, flow_label, hop_id);
+                            }
+                            // Back up PC to re-execute this INT 0x80 on next tick.
+                            cpu.pc = cpu.pc.wrapping_sub(1);
+                            break;
+                        }
+                    } else {
+                        // Invalid pid: return -ECHILD (10)
+                        cpu.regs[0] = (-10i32) as u32;
                     }
                 // ── MMU control syscalls (Level 4d) ──────────────────
                 } else if syscall_nr == lsys::SYS_SET_PAGE_DIR {
