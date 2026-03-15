@@ -305,14 +305,12 @@ const (
 
 // === MONAD CPU MAPS (Doom-over-IPv6) ===
 
-// MbcCpuState is the 104-byte CPU state for the MBC virtual machine.
+// MbcCpuState is the 128-byte CPU state for the MBC virtual machine.
 // Matches monad-cpu-ebpf/src/main.rs MbcCpuState.
 // Per Monad spec §12 (computational completeness PoC).
 // Rust source: ebpf/monad-cpu-ebpf/src/main.rs (monad_common::MbcCpuState)
 //
-// Wire layout (104 bytes):
-// Note: 104 bytes, not 80. The original comment had incorrect arithmetic.
-// 64 ([16]uint32) + 4 (PC) + 4 (Flags+Halted+Stalled+_pad) + 4*8 (four uint64) = 104.
+// Wire layout (128 bytes):
 //
 //	Offset  Field           Size    Description
 //	0x00    Registers       64B     [16]u32 (r0-r15)
@@ -325,6 +323,16 @@ const (
 //	0x50    InsnCount       8B      Total instructions executed
 //	0x58    CacheHits       8B      L1 cache hit count
 //	0x60    CacheMisses     8B      L1 cache miss count
+//	0x68    InterruptPending 1B     Interrupt waiting flag
+//	0x69    InterruptVector  1B     Pending interrupt vector
+//	0x6A    InterruptsEnabled 1B    Interrupt enable flag
+//	0x6B    _pad2           1B      Alignment
+//	0x6C    TickCounter     4B      Timer tick counter
+//	0x70    ProgramBreak    4B      Heap end (SYS_BRK)
+//	0x74    ExitCode        4B      Exit code (SYS_EXIT)
+//	0x78    CurrentPID      1B      Current process ID (Level 4c)
+//	0x79    NumProcesses    1B      Active process count (Level 4c)
+//	0x7A    _pad3           6B      Alignment padding
 type MbcCpuState struct {
 	Registers         [16]uint32 // r0-r15 general purpose registers (64 bytes).
 	PC                uint32     // Program counter.
@@ -343,12 +351,16 @@ type MbcCpuState struct {
 	TickCounter       uint32     // Tick counter for timer interrupt generation.
 	ProgramBreak      uint32     // Heap end address for SYS_BRK (Level 4b).
 	ExitCode          uint32     // Exit code from SYS_EXIT (Level 4b).
+	CurrentPID        uint8      // Current process ID (0-3). Level 4c scheduler.
+	NumProcesses      uint8      // Number of active processes. Level 4c scheduler.
+	_pad3             [6]uint8   // Alignment padding.
 }
 
 // MbcCpuStateSize is the exact wire size. Tests verify this.
 // 64 ([16]uint32) + 4 (PC) + 4 (Flags+Halted+Stalled+_pad) + 4*8 (four uint64)
-// + 4 (interrupt fields + _pad2) + 4 (TickCounter) + 4 (ProgramBreak) + 4 (ExitCode) = 120.
-const MbcCpuStateSize = 120
+// + 4 (interrupt fields + _pad2) + 4 (TickCounter) + 4 (ProgramBreak) + 4 (ExitCode)
+// + 2 (CurrentPID + NumProcesses) + 6 (_pad3) = 128.
+const MbcCpuStateSize = 128
 
 // CacheLineKey for Monad CPU L1_CACHE map.
 type CacheLineKey struct {

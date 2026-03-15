@@ -19,8 +19,8 @@ import (
 
 // CpuStateSize is the expected binary size of MbcCpuState.
 // This MUST match the Rust #[repr(C)] struct MbcCpuState in
-// ebpf/monad-common/src/lib.rs (120 bytes).
-const CpuStateSize = 120
+// ebpf/monad-common/src/lib.rs (128 bytes).
+const CpuStateSize = 128
 
 // RegCount is the number of general-purpose registers (r0-r15).
 const RegCount = 16
@@ -62,7 +62,10 @@ const MaxROMBytes = MaxROMInstructions * 4
 //	tick_counter:       u32        = 4 bytes   (offset 108)
 //	program_break:      u32        = 4 bytes   (offset 112)
 //	exit_code:          u32        = 4 bytes   (offset 116)
-//	TOTAL                          = 120 bytes
+//	current_pid:        u8         = 1 byte    (offset 120)
+//	num_processes:      u8         = 1 byte    (offset 121)
+//	_pad3:              [u8; 6]    = 6 bytes   (offset 122)
+//	TOTAL                          = 128 bytes
 type CpuState struct {
 	Regs              [RegCount]uint32 // General purpose registers r0-r15. r15 = SP.
 	PC                uint32           // Program counter (index into rom_map).
@@ -81,6 +84,9 @@ type CpuState struct {
 	TickCounter       uint32           // Tick counter for timer interrupt generation.
 	ProgramBreak      uint32           // Heap end address for SYS_BRK.
 	ExitCode          uint32           // Exit code from SYS_EXIT.
+	CurrentPID        uint8            // Current process ID (0-3). Level 4c scheduler.
+	NumProcesses      uint8            // Number of active processes. Level 4c scheduler.
+	Pad3              [6]uint8         // Alignment padding.
 }
 
 // CPU flag bit positions — must match mbc_flags in monad-common/src/lib.rs.
@@ -127,10 +133,13 @@ func (c *CpuState) MarshalBinary() []byte {
 	binary.LittleEndian.PutUint32(buf[108:112], c.TickCounter)
 	binary.LittleEndian.PutUint32(buf[112:116], c.ProgramBreak)
 	binary.LittleEndian.PutUint32(buf[116:120], c.ExitCode)
+	buf[120] = c.CurrentPID
+	buf[121] = c.NumProcesses
+	copy(buf[122:128], c.Pad3[:])
 	return buf
 }
 
-// UnmarshalCpuState deserializes a 120-byte little-endian buffer into CpuState.
+// UnmarshalCpuState deserializes a 128-byte little-endian buffer into CpuState.
 // Returns an error if the buffer is too small.
 func UnmarshalCpuState(data []byte) (*CpuState, error) {
 	if len(data) < CpuStateSize {
@@ -156,6 +165,9 @@ func UnmarshalCpuState(data []byte) (*CpuState, error) {
 	cpu.TickCounter = binary.LittleEndian.Uint32(data[108:112])
 	cpu.ProgramBreak = binary.LittleEndian.Uint32(data[112:116])
 	cpu.ExitCode = binary.LittleEndian.Uint32(data[116:120])
+	cpu.CurrentPID = data[120]
+	cpu.NumProcesses = data[121]
+	copy(cpu.Pad3[:], data[122:128])
 	return cpu, nil
 }
 

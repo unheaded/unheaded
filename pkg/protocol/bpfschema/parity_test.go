@@ -257,14 +257,15 @@ func TestFlowStateFieldOffsets(t *testing.T) {
 	}
 }
 
-// TestMbcCpuStateSize verifies MbcCpuState is exactly 120 bytes.
+// TestMbcCpuStateSize verifies MbcCpuState is exactly 128 bytes.
 //
 // Rust source: ebpf/monad-common/src/lib.rs
-// Rust layout: #[repr(C)] struct MbcCpuState (120 bytes)
+// Rust layout: #[repr(C)] struct MbcCpuState (128 bytes)
 // 64 ([16]u32) + 4 (pc) + 4 (flags,halted,stalled,pad) + 4*8 (u64s)
-// + 4 (interrupt fields + pad2) + 4 (tick_counter) + 4 (program_break) + 4 (exit_code) = 120.
+// + 4 (interrupt fields + pad2) + 4 (tick_counter) + 4 (program_break) + 4 (exit_code)
+// + 2 (current_pid + num_processes) + 6 (_pad3) = 128.
 func TestMbcCpuStateSize(t *testing.T) {
-	const expected = 120
+	const expected = 128
 	actual := unsafe.Sizeof(MbcCpuState{})
 	if actual != expected {
 		t.Fatalf("MbcCpuState size mismatch: expected %d bytes, got %d bytes", expected, actual)
@@ -315,6 +316,8 @@ func TestMbcCpuStateFieldOffsets(t *testing.T) {
 		{"TickCounter", uintptr(unsafe.Pointer(&c.TickCounter)) - base, 0x6C},
 		{"ProgramBreak", uintptr(unsafe.Pointer(&c.ProgramBreak)) - base, 0x70},
 		{"ExitCode", uintptr(unsafe.Pointer(&c.ExitCode)) - base, 0x74},
+		{"CurrentPID", uintptr(unsafe.Pointer(&c.CurrentPID)) - base, 0x78},
+		{"NumProcesses", uintptr(unsafe.Pointer(&c.NumProcesses)) - base, 0x79},
 	}
 
 	for _, tt := range tests {
@@ -435,7 +438,7 @@ func TestFlowCancelValueFieldOffsets(t *testing.T) {
 //   ✅ AnamnesisEvent (32 bytes) — ebpf/monad-common/src/lib.rs:657-693
 //   ✅ FlowKey (16 bytes) — ebpf/common/src/lib.rs:61-85
 //   ✅ FlowState (72 bytes) — ebpf/common/src/lib.rs:106-118
-//   ✅ MbcCpuState (120 bytes) — ebpf/monad-common/src/lib.rs
+//   ✅ MbcCpuState (128 bytes) — ebpf/monad-common/src/lib.rs
 //   ✅ FlowMigrationTokenValue (48 bytes) — ebpf/flow-tracker/src/main.rs
 //   ✅ FlowCancelValue (24 bytes) — ebpf/flow-tracker/src/main.rs
 //

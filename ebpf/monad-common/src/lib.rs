@@ -2046,6 +2046,7 @@ mod tests {
             EVENT_COMPUTE_HALT,
             EVENT_COMPUTE_STALL,
             EVENT_TTY_WRITE,
+            EVENT_CONTEXT_SWITCH,
         ];
         for i in 0..events.len() {
             for j in (i + 1)..events.len() {
