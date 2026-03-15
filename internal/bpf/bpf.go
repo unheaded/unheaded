@@ -47,7 +47,9 @@ type CpuState struct {
 	ExitCode          uint32     // offset 116: 4 bytes
 	CurrentPID        uint8      // offset 120: 1 byte (Level 4c scheduler)
 	NumProcesses      uint8      // offset 121: 1 byte (Level 4c scheduler)
-	Pad3              [6]uint8   // offset 122: 6 bytes (alignment padding)
+	MmuEnabled        uint8      // offset 122: 1 byte (Level 4d MMU)
+	Pad3              uint8      // offset 123: 1 byte (alignment padding)
+	PageDirBase       uint32     // offset 124: 4 bytes (Level 4d MMU)
 }
 
 // CpuStateSize is the expected binary size of CpuState.
@@ -261,7 +263,9 @@ func DecodeCpuState(data []byte) *CpuState {
 	if len(data) >= CpuStateSize {
 		cpu.CurrentPID = data[120]
 		cpu.NumProcesses = data[121]
-		copy(cpu.Pad3[:], data[122:128])
+		cpu.MmuEnabled = data[122]
+		cpu.Pad3 = data[123]
+		cpu.PageDirBase = binary.LittleEndian.Uint32(data[124:128])
 	}
 	return cpu
 }
@@ -290,6 +294,8 @@ func EncodeCpuState(cpu *CpuState) []byte {
 	binary.LittleEndian.PutUint32(data[116:120], cpu.ExitCode)
 	data[120] = cpu.CurrentPID
 	data[121] = cpu.NumProcesses
-	copy(data[122:128], cpu.Pad3[:])
+	data[122] = cpu.MmuEnabled
+	data[123] = cpu.Pad3
+	binary.LittleEndian.PutUint32(data[124:128], cpu.PageDirBase)
 	return data
 }
