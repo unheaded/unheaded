@@ -22,7 +22,7 @@ All 10 services operational. Dashboard, Kanban, eBPF tracing, Wotan message bus,
 
 ### Age 2: The Beta Trials (🔄 IN PROGRESS)
 
-**Progress:** 55%
+**Progress:** ~65%
 
 #### Completed Epics
 - ✅ S51: Auth Framework (64 tests, Noop/APIKey/JWT/RBAC)
@@ -36,7 +36,7 @@ All 10 services operational. Dashboard, Kanban, eBPF tracing, Wotan message bus,
 
 #### S-ZHEN Sprint (March 15, 2026) — MASSIVE
 - ✅ Mistral-7B inference on GPU via llama.cpp + ROCm (port 20100)
-- ✅ RAG pipeline: 594K vectors indexed (21K Ring 1 + 573K Ring 2-4)
+- ✅ RAG pipeline: 1.52M vectors indexed (594K initial → 1.52M with Wikipedia, StackOverflow, ArXiv)
 - ✅ Web UI with Chat + Search tabs (port 20103)
 - ✅ 616 RAFT QA training pairs generated
 - ✅ QLoRA training pipeline scaffolded
@@ -64,7 +64,7 @@ All 10 services operational. Dashboard, Kanban, eBPF tracing, Wotan message bus,
 - ✅ Level 5: Boot protocol + kernel loader (wotan-ctl boot)
 - ✅ Level 5a: MiniKernel proof of concept (404 bytes, 65 instructions)
 - 📋 Level 5b-5d: Minimal kernel (xv6/FUZIX port)
-- 🌙 Level 6: Linux boots on UPC
+- 🔄 Level 6: Architecture + MBC built (12 weeks, 37 files) — Linux boot target
 
 #### The Well (PostgreSQL)
 - ✅ Multi-database layout: unheaded_app, unheaded_ops, unheaded_config
@@ -80,22 +80,24 @@ All 10 services operational. Dashboard, Kanban, eBPF tracing, Wotan message bus,
 - ✅ Kanban drag-and-drop + layout fix
 - ✅ Road to Linux spec documented
 
+#### Also Completed (March 15, 2026)
+- ✅ SBOM: 553 dependencies audited, GPL boundary clean, SPDX checks integrated
+- ✅ CI/CD: GHA + Jenkins hardened, SPDX checks, pre-commit hook installed
+
 #### Remaining Epics
 - 📋 WireGuard IPv6 overlay (fd00:dead:beef::/48)
 - 📋 Foundation spec draft-06 (IANA integration)
 - 📋 Sophia draft-03 (sub-dictionary types, QPACK compression)
 - 📋 Wotan draft-03 (error code taxonomy)
-- 📋 SBOM generation (pre-public)
-- 📋 CI/CD hardening (GHA + Jenkinsfiles)
 - 📋 Demo video + README polish
 - 📋 RAFT fine-tuning (QLoRA on Mistral-7B with 616 QA pairs)
 - 📋 Zhen Engine (custom Rust inference + Go management plane)
 
-#### P1 Bugs Remaining (4)
-- 🔴 #20: Nix network layer missing TLS/VXLAN/gateway config
-- 🔴 #36: Log forwarding commented out
-- 🔴 #29: No structured logging in kanban-app middleware
-- 🔴 Kanban E2E smoke test (manual verification pending)
+#### P1 Bugs (ALL FIXED — March 15, 2026)
+- ✅ #20: Nix network layer TLS/VXLAN/gateway config — fixed
+- ✅ #36: Log forwarding — re-enabled
+- ✅ #29: Kanban-app middleware structured logging — added
+- ✅ Kanban E2E smoke test — verified
 
 #### Protocol Spec Pending Work
 - 📋 TLV Extension Container integration test
@@ -118,16 +120,17 @@ All 10 services operational. Dashboard, Kanban, eBPF tracing, Wotan message bus,
 
 ---
 
-### Audit Summary (March 15, 2026)
+### Audit Summary (March 15, 2026 — post-session update)
 
-**28 pending items across the Kingdom:**
+**22 pending items across the Kingdom (was 28; 6 resolved this session):**
 
 | Category | Count | Status |
 |----------|-------|--------|
 | BLOCKED (external deps) | 2 | FN-DSA + HQC awaiting Go libraries |
-| READY (can start now) | 16 | DB wiring, RAFT training, WireGuard, specs, SBOM, CI/CD |
+| READY (can start now) | 10 | DB wiring, RAFT training, WireGuard, specs |
 | DEFERRED (intentional) | 8 | Inverse Mask, backend adapters, compliance templates |
-| FUTURE (roadmap) | 3 | Linux on UPC, public release, multi-tenant |
+| FUTURE (roadmap) | 2 | Public release, multi-tenant |
+| RESOLVED (this session) | 6 | SBOM, CI/CD, 4 P1 bugs |
 | MISSED | 0 | All work tracked |
 
 ---
@@ -146,5 +149,5 @@ Enterprise features, global distribution, marketplace.
 
 ---
 
-*Synced: 2026-03-15 16:00:00 UTC*
-*Audit: 28 pending items, 0 missed — full audit in docs explorer output*
+*Synced: 2026-03-15 23:59:00 UTC*
+*Audit: 22 pending items, 0 missed — 6 resolved this session (SBOM, CI/CD, 4 P1 bugs)*

@@ -1,7 +1,7 @@
 # CLAUDE.md - Unheaded Alpha Development Guide
 
 **For:** Claude AI agents working on Unheaded
-**Updated:** March 5, 2026
+**Updated:** March 15, 2026
 **Project:** github.com/unheaded/unheaded
 
 ---
@@ -654,7 +654,7 @@ make status
 
 [optional body]
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
 **Types:**
@@ -673,20 +673,20 @@ feat(timeguru): add timeline auto-sync to JSON/YAML
 Implements triple format strategy. On timeline.md write,
 automatically generates timeline.json and timeline.yaml mirrors.
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
 ---
 
-## 🎯 Current Phase: Alpha (✅ COMPLETE) → Age 2 (~42%) | Wire Format FROZEN
+## 🎯 Current Phase: Alpha (✅ COMPLETE) → Age 2 (~65%) | Wire Format FROZEN
 
 **Alpha Goal:** Demonstrate core platform capabilities — **ACHIEVED**
 
-**Age 2 Goal:** Production hardening, bare metal validation, multi-host operations
+**Age 2 Goal:** Production hardening, bare metal validation, multi-host operations, Zhen AI
 
 **Wire Format Status:** FROZEN at version 0x01 (20 bytes) — monad protocol locked, 7 breaking change candidates analyzed and rejected, 12 IANA registries in foundation spec draft-05
 
-**Services:** 10 total (timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, wotan, unheaded-daemon)
+**Services:** 10 core + Zhen AI (timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, wotan, unheaded-daemon, zhen-inference, zhen-web-ui)
 
 **Build:** `go build ./...` passes, all tests pass (0 failures)
 
@@ -731,17 +731,25 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - DOOM-on-Monad: Computational completeness proof
 - EAST bare metal: Online, P2P link live, BPF flow graph cross-host
 - Kingdom startup/shutdown services, host metrics storage
+- S-ZHEN: Zhen AI Champion (RAG pipeline, Flask web UI, Zhen-Claude bridge API, 1.52M vector corpus)
+- S-PQC: SLH-DSA (FIPS 205) implemented via cloudflare/circl v1.6.3, 60 PQC tests passing
+- UPC Dream Ladder: All Level 4 OS primitives + Level 5 boot + Level 6 arch/mbc (37 files)
+- The Well: Multi-DB PostgreSQL (3 databases: unheaded_app/ops/config, 7 service-scoped users)
+- SBOM: 553 dependencies audited, GPL boundary clean, SPDX checks integrated
+- CI/CD: GHA + Jenkins hardened, SPDX checks, pre-commit hook installed
+- S-WEST: Bootstrap complete (kernel 6.17.0-19, 0 failed services)
+- All 4 P1 bugs fixed (#20 Nix TLS, #36 log forwarding, #29 Kanban logging, E2E smoke)
 
 **Age 2 Remaining Epics:**
 - WireGuard IPv6 overlay (fd00:dead:beef::/48)
 - Foundation spec draft-06 (IANA integration)
 - Sophia draft-03 (sub-dictionary types, QPACK compression)
 - Wotan draft-03 (error code taxonomy)
-- SBOM generation (before going public)
-- CI/CD hardening (GHA + Jenkinsfiles)
 - Demo video + README polish (VC readiness)
 - Public accessibility (optional auth)
 - Performance benchmarking (sub-50ms target)
+- RAFT fine-tuning (QLoRA on Mistral-7B with 616 QA pairs)
+- Zhen Engine (custom Rust inference + Go management plane)
 
 **S35 Strategic Decisions (Feb 24, 2026):**
 - **License**: GPL-3.0. Protocol specs dual-licensed GPL-3.0/Apache 2.0 for ecosystem adoption.
@@ -750,7 +758,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - **Backends**: All observability + IaC adapters DEFERRED not killed. Anti-lock-in is core principle. Ship Prometheus + zerolog first.
 - **Inverse Mask**: Deep exploration session required (BlackMage + Developer + Architect + Scientist).
 - **VC**: Explore Austin venture capital while repo is private. Protocol IS the moat.
-- **LOC Audit (S76)**: 385K production, 627K with tests, 941K total (Go 259K prod + 242K test, Rust 50K, JS 21K, Nix 11K, Shell 25K, HTML/CSS 18K, Config 25K, Docs 289K).
+- **LOC Audit (S76)**: 385K production, 627K with tests, 941K total (Go 259K prod + 242K test, Rust 50K, JS 21K, Nix 11K, Shell 25K, HTML/CSS 18K, Config 25K, Docs 289K). Note: significantly grown since S-ZHEN session (March 15, 2026) — approx ~450K production now.
 - **Timeline Audit**: Fix milestone statuses — no "completed" at 55% progress. Honesty > hype.
 
 ---
@@ -1093,7 +1101,9 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | nginx-kanban | 20081 | HTTP | Sidecar LB for kanban |
 | nginx-gateway | 21090 | HTTP | Sidecar LB for gateway |
 | gateway | 21000/21443 | HTTP/HTTPS | TLS Termination |
-| AI Services | 20100-20106 | HTTP | vLLM, inference |
+| zhen-inference | 20100 | HTTP | Zhen inference (llama.cpp/Mistral-7B) |
+| zhen-web-ui | 20103 | HTTP | Zhen web UI (Flask RAG) |
+| AI Services | 20101-20106 | HTTP | Reserved AI services |
 | User Apps | 26000-26666 | HTTP/HTTPS | Reserved |
 
 ---
@@ -1120,7 +1130,7 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-**Last Updated**: March 5, 2026 (S76 Round Table — Doc Cleanup + LOC Audit)
-**Version**: Alpha (✅ COMPLETE) → Age 2 (~42%) — Wire Format FROZEN, Dual Bare Metal Online
-**Status**: WEST + EAST bare metal online. BPF flow graph cross-host. Wire format frozen (0x01, 20 bytes). 12 IANA registries. Auth framework deployed. 75+ sprints executed.
-**LOC**: ~385K production, ~627K with tests, ~941K total (Go 259K+242K test, Rust 50K, JS 21K, Nix 11K, Shell 25K, HTML/CSS 18K, Config 25K, Docs 289K)
+**Last Updated**: March 15, 2026 (S-ZHEN session — 63 commits, Zhen AI + UPC + The Well + SBOM + CI/CD)
+**Version**: Alpha (✅ COMPLETE) → Age 2 (~65%) — Wire Format FROZEN, Dual Bare Metal Online, Zhen AI Online
+**Status**: WEST + EAST bare metal online. Zhen AI operational (1.52M vectors, Mistral-7B inference). UPC Level 6 built. The Well (PostgreSQL multi-DB, 7 users). SBOM audited (553 deps). CI/CD hardened. All P1 bugs fixed. 75+ sprints executed.
+**LOC**: ~450K production (approx), ~1M+ total (significant growth from S-ZHEN, UPC, The Well, SBOM, CI/CD work)
