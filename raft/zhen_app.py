@@ -162,6 +162,153 @@ def corpus_stats():
     })
 
 
+@app.route('/api/v1/context', methods=['POST'])
+def get_context():
+    """Claude Code calls this to get relevant context before working on a task.
+
+    Request: {"task": "fix the wotan goroutine leak", "k": 10}
+    Response: {"context": [{"source": "...", "content": "...", "relevance": 0.95}, ...]}
+
+    This is the bridge — Claude asks Zhen "what do you know about X?"
+    and Zhen returns the most relevant chunks from the entire corpus.
+    """
+    if not rag:
+        return jsonify({'error': f'RAG not initialized: {startup_error}'}), 503
+
+    data = request.json or {}
+    task = data.get('task', '').strip()
+    if not task:
+        return jsonify({'error': 'task is required'}), 400
+
+    k = min(data.get('k', 10), 50)
+
+    try:
+        results = rag.retrieve(task, k=k)
+        # Convert distance to a 0-1 relevance score (lower distance = higher relevance)
+        max_dist = max((r['distance'] for r in results), default=1.0) or 1.0
+        context = []
+        for r in results:
+            context.append({
+                'source': r['source'],
+                'type': r['type'],
+                'content': r['content'],
+                'relevance': round(1.0 - (r['distance'] / (max_dist * 1.5)), 4),
+            })
+        return jsonify({'task': task, 'k': k, 'context': context})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/skills', methods=['GET'])
+def list_skills():
+    """List all Kingdom skills Zhen knows about.
+    Returns skill names, descriptions, and trigger keywords."""
+    skills_dir = Path.home() / 'tmp' / 'unheaded' / 'skills'
+    skills = []
+
+    # Scan .skill zip files
+    for skill_file in sorted(skills_dir.glob('*.skill')):
+        name = skill_file.stem
+        # Extract front matter description from the skill
+        description = ""
+        triggers = []
+        try:
+            import zipfile
+            with zipfile.ZipFile(skill_file, 'r') as zf:
+                for zname in zf.namelist():
+                    if zname.endswith('SKILL.md'):
+                        text = zf.read(zname).decode('utf-8', errors='ignore')
+                        # Parse YAML front matter
+                        if text.startswith('---'):
+                            end = text.find('---', 3)
+                            if end > 0:
+                                front = text[3:end]
+                                in_desc = False
+                                desc_lines = []
+                                for line in front.split('\n'):
+                                    if line.strip().startswith('description:'):
+                                        val = line.split(':', 1)[1].strip()
+                                        if val and val != '|':
+                                            desc_lines.append(val)
+                                        in_desc = True
+                                    elif in_desc and (line.startswith('  ') or line.startswith('\t')):
+                                        desc_lines.append(line.strip())
+                                    elif in_desc:
+                                        in_desc = False
+                                    if 'Triggers:' in line or 'triggers:' in line.lower():
+                                        trig_text = line.split(':', 1)[1].strip() if ':' in line else ''
+                                        triggers = [t.strip().rstrip('.') for t in trig_text.split(',') if t.strip()]
+                                description = ' '.join(desc_lines).strip()
+                        break
+        except Exception:
+            pass
+
+        skills.append({
+            'name': name,
+            'description': description[:300] if description else f"Kingdom skill: {name}",
+            'triggers': triggers[:20],
+            'file': str(skill_file.name),
+        })
+
+    return jsonify({'skills': skills, 'total': len(skills)})
+
+
+@app.route('/api/v1/skill/<name>', methods=['GET'])
+def get_skill(name):
+    """Return the full content of a specific skill."""
+    skills_dir = Path.home() / 'tmp' / 'unheaded' / 'skills'
+
+    # Try .skill zip file
+    skill_zip = skills_dir / f'{name}.skill'
+    if skill_zip.exists():
+        try:
+            import zipfile
+            with zipfile.ZipFile(skill_zip, 'r') as zf:
+                for zname in zf.namelist():
+                    if zname.endswith('SKILL.md'):
+                        content = zf.read(zname).decode('utf-8', errors='ignore')
+                        return jsonify({
+                            'name': name,
+                            'source': f'skills/{name}.skill',
+                            'content': content,
+                            'size': len(content),
+                        })
+        except Exception as e:
+            return jsonify({'error': f'Failed to read skill zip: {e}'}), 500
+
+    # Try directory with SKILL.md
+    skill_dir = skills_dir / name
+    skill_md = skill_dir / 'SKILL.md'
+    if skill_md.exists():
+        content = skill_md.read_text(encoding='utf-8', errors='ignore')
+        return jsonify({
+            'name': name,
+            'source': f'skills/{name}/SKILL.md',
+            'content': content,
+            'size': len(content),
+        })
+
+    # Try directory with files.zip
+    files_zip = skill_dir / 'files.zip'
+    if files_zip.exists():
+        try:
+            import zipfile
+            with zipfile.ZipFile(files_zip, 'r') as zf:
+                for zname in zf.namelist():
+                    if zname.endswith('SKILL.md'):
+                        content = zf.read(zname).decode('utf-8', errors='ignore')
+                        return jsonify({
+                            'name': name,
+                            'source': f'skills/{name}/files.zip:SKILL.md',
+                            'content': content,
+                            'size': len(content),
+                        })
+        except Exception as e:
+            return jsonify({'error': f'Failed to read files.zip: {e}'}), 500
+
+    return jsonify({'error': f'Skill not found: {name}'}), 404
+
+
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
