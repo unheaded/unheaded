@@ -19,7 +19,10 @@ CORS(app)
 
 # Initialize RAG pipeline
 index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
-corpus_file = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'ring1.jsonl'
+# Load all corpus files (ring1 + ring234)
+corpus_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
+corpus_files = sorted(corpus_dir.glob('ring*.jsonl'))
+corpus_file = corpus_files[0] if corpus_files else corpus_dir / 'ring1.jsonl'
 
 rag = None
 startup_error = None
