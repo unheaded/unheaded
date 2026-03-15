@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+
 package database
 
 // WotanBridge listens on Wotan topics and persists events to PostgreSQL.
@@ -168,4 +170,92 @@ func (b *WotanBridge) HandleHealthReport(ctx context.Context, payload json.RawMe
 
 	err = tx.Commit()
 	return err
+}
+
+// HealthTransition represents a single status change event.
+type HealthTransition struct {
+	ServiceName    string    `json:"service_name"`
+	Host           string    `json:"host"`
+	OldStatus      string    `json:"old_status"`
+	NewStatus      string    `json:"new_status"`
+	ResponseTimeMs int       `json:"response_time_ms"`
+	TransitionAt   time.Time `json:"transition_at"`
+}
+
+// QueryHealthHistory reads recent status transitions for a service.
+func (b *WotanBridge) QueryHealthHistory(ctx context.Context, service string, limit int) ([]HealthTransition, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	rows, err := b.db.QueryContext(ctx,
+		`SELECT service_name, host, old_status, new_status, response_time_ms, transition_at
+		 FROM service_health_transitions
+		 WHERE service_name = $1
+		 ORDER BY transition_at DESC
+		 LIMIT $2`,
+		service, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []HealthTransition
+	for rows.Next() {
+		var t HealthTransition
+		if err := rows.Scan(&t.ServiceName, &t.Host, &t.OldStatus, &t.NewStatus, &t.ResponseTimeMs, &t.TransitionAt); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// HourlyStat represents one row from service_health_hourly.
+type HourlyStat struct {
+	ServiceName      string    `json:"service_name"`
+	Host             string    `json:"host"`
+	Hour             time.Time `json:"hour"`
+	ChecksTotal      int       `json:"checks_total"`
+	ChecksHealthy    int       `json:"checks_healthy"`
+	ChecksDegraded   int       `json:"checks_degraded"`
+	ChecksUnhealthy  int       `json:"checks_unhealthy"`
+	AvgResponseMs    float64   `json:"avg_response_ms"`
+	MaxResponseMs    int       `json:"max_response_ms"`
+	MinResponseMs    int       `json:"min_response_ms"`
+}
+
+// QueryHealthTrends reads hourly health statistics for a service over the
+// requested number of hours (capped at 168 = 1 week).
+func (b *WotanBridge) QueryHealthTrends(ctx context.Context, service string, hours int) ([]HourlyStat, error) {
+	if hours <= 0 || hours > 168 {
+		hours = 24
+	}
+	since := time.Now().UTC().Add(-time.Duration(hours) * time.Hour).Truncate(time.Hour)
+
+	rows, err := b.db.QueryContext(ctx,
+		`SELECT service_name, host, hour,
+		        checks_total, checks_healthy, checks_degraded, checks_unhealthy,
+		        avg_response_ms, max_response_ms, min_response_ms
+		 FROM service_health_hourly
+		 WHERE service_name = $1 AND hour >= $2
+		 ORDER BY hour ASC`,
+		service, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []HourlyStat
+	for rows.Next() {
+		var s HourlyStat
+		if err := rows.Scan(
+			&s.ServiceName, &s.Host, &s.Hour,
+			&s.ChecksTotal, &s.ChecksHealthy, &s.ChecksDegraded, &s.ChecksUnhealthy,
+			&s.AvgResponseMs, &s.MaxResponseMs, &s.MinResponseMs,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }
