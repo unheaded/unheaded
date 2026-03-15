@@ -69,6 +69,60 @@ func readScreenIndividual(screenMap *BPFMap) ([]byte, error) {
 	return pixels, nil
 }
 
+// statFrameReadyKey is STAT_FRAME_READY (key 11) from the eBPF side.
+// The eBPF program increments this counter on every SYS_DRAW_FRAME syscall.
+const statFrameReadyKey = 11
+
+// screenBase is SCREEN_BASE from mbc_mmap (0x0007_0000).
+// Word address = screenBase >> 2 = 0x1C000.
+const screenBase = 0x00070000
+const screenBaseWord = screenBase >> 2
+
+// readStatFrameReady reads the frame-ready counter (STATS key 11).
+func readStatFrameReady(statsMap *BPFMap) (uint64, error) {
+	keyBuf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(keyBuf, statFrameReadyKey)
+	val, err := statsMap.LookupElem(keyBuf, 8)
+	if err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint64(val), nil
+}
+
+// copyRamToScreen bulk-copies the framebuffer from RAM_MAP to SCREEN_MAP.
+// RAM_MAP is word-addressed (u32 per entry). Each word contains 4 pixels
+// in little-endian order. SCREEN_MAP is byte-addressed (u8 per entry).
+// This function reads 16,000 words (64,000 bytes) from RAM_MAP starting at
+// screenBaseWord and writes 64,000 individual bytes to SCREEN_MAP.
+func copyRamToScreen(ramMap, screenMap *BPFMap) error {
+	const wordsPerScreen = screenSize / 4 // 16,000 words
+	keyBuf := make([]byte, 4)
+	valBuf := make([]byte, 1)
+
+	for w := uint32(0); w < wordsPerScreen; w++ {
+		// Read one u32 word from RAM_MAP
+		binary.LittleEndian.PutUint32(keyBuf, screenBaseWord+w)
+		wordBytes, err := ramMap.LookupElem(keyBuf, 4)
+		if err != nil {
+			continue // skip unreadable words
+		}
+		word := binary.LittleEndian.Uint32(wordBytes)
+
+		// Unpack 4 pixels and write to SCREEN_MAP
+		basePx := w * 4
+		for b := uint32(0); b < 4; b++ {
+			px := basePx + b
+			if px >= screenSize {
+				break
+			}
+			valBuf[0] = byte((word >> (b * 8)) & 0xFF)
+			binary.LittleEndian.PutUint32(keyBuf, px)
+			_ = screenMap.UpdateElem(keyBuf, valBuf)
+		}
+	}
+	return nil
+}
+
 // readStatsMap reads the 4 stats counters from the STATS map.
 // Keys: 0=packets_total, 1=cpu_ticks, 2=insns_executed, 3=halted
 func readStatsMap(statsMap *BPFMap) (packets, ticks, insns, halted uint64, err error) {

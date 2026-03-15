@@ -99,9 +99,14 @@ type bridge struct {
 
 	// BPF map handles (nil in dry-run mode)
 	screenMap *BPFMap
+	ramMap    *BPFMap
 	kbdMap    *BPFMap
 	statsMap  *BPFMap
 	cpuMap    *BPFMap
+
+	// Last seen frame-ready counter from STATS[11] (STAT_FRAME_READY).
+	// When this changes, doom-bridge bulk-copies RAM_MAP → SCREEN_MAP.
+	lastFrameReady uint64
 
 	// Bitmap-based keyboard state (supports multi-key)
 	keyState *KeyStateBitmap
@@ -238,6 +243,11 @@ func (b *bridge) openMaps() {
 		logf("WARN", "SCREEN_MAP not available", "err", err)
 	}
 
+	b.ramMap, err = openBPFMap(filepath.Join(b.mapPath, "RAM_MAP"))
+	if err != nil {
+		logf("WARN", "RAM_MAP not available (fb copy disabled)", "err", err)
+	}
+
 	b.kbdMap, err = openBPFMap(filepath.Join(b.mapPath, "KBD_MAP"))
 	if err != nil {
 		logf("WARN", "KBD_MAP not available", "err", err)
@@ -269,6 +279,9 @@ func (b *bridge) openMaps() {
 func (b *bridge) closeMaps() {
 	if b.screenMap != nil {
 		b.screenMap.Close()
+	}
+	if b.ramMap != nil {
+		b.ramMap.Close()
 	}
 	if b.kbdMap != nil {
 		b.kbdMap.Close()
@@ -481,6 +494,17 @@ func (b *bridge) screenLoop(stop chan struct{}, wg *sync.WaitGroup) {
 				pixels := generateDryRunScreen(localFrameCount)
 				copy(frame[1:], pixels)
 			} else {
+				// Poll STAT_FRAME_READY: when the eBPF CPU finishes a frame,
+				// bulk-copy RAM_MAP → SCREEN_MAP in userspace (no verifier limits).
+				if b.ramMap != nil && b.statsMap != nil {
+					if frameReady, err := readStatFrameReady(b.statsMap); err == nil {
+						if frameReady != b.lastFrameReady {
+							b.lastFrameReady = frameReady
+							_ = copyRamToScreen(b.ramMap, b.screenMap)
+						}
+					}
+				}
+
 				// Double-read tearing protection with staleness fallback.
 				// At 320x200 (64000 bytes), copy_fb_to_screen takes ~26.7ms
 				// per frame at 12M insns/sec. The bridge polls at 60fps (~16ms).

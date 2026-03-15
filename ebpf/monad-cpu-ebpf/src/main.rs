@@ -132,6 +132,7 @@ const STAT_SYSCALLS: u32 = 7;
 const STAT_ROM_FAULT: u32 = 8;
 const STAT_MEM_STORES: u32 = 9; // was CACHE_HITS (misleading — cache is disabled)
 const STAT_MEM_LOADS: u32 = 10; // was CACHE_MISSES (all loads go direct to Array)
+const STAT_FRAME_READY: u32 = 11; // Incremented by SYS_DRAW_FRAME; userspace polls to trigger bulk FB copy
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -647,7 +648,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let syscall_nr = cpu.regs[1];
             if syscall_nr == sys::SYS_DRAW_FRAME {
                 // DG_DrawFrame: framebuffer at SCREEN_BASE.
-                emit_screen_write(flow_label, mmap::SCREEN_BASE, hop_id);
+                // Increment frame-ready counter so userspace (doom-bridge) can detect
+                // new frames and bulk-copy RAM_MAP → SCREEN_MAP without BPF verifier limits.
+                increment_stat(STAT_FRAME_READY);
+                // Emit ring buffer event only every 32nd frame to reduce event pressure.
+                let frame_count = match STATS.get(&STAT_FRAME_READY) {
+                    Some(v) => *v,
+                    None => 1,
+                };
+                if (frame_count & 0x1F) == 0 {
+                    emit_screen_write(flow_label, mmap::SCREEN_BASE, hop_id);
+                }
                 copy_fb_to_screen(mmap::SCREEN_BASE);
             } else if syscall_nr == sys::SYS_GET_KEY {
                 // DG_GetKey: r8 (a0) = key code, r9 (a1) = pressed.
