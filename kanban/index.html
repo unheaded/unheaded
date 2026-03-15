@@ -8,6 +8,46 @@
 
   <link rel="stylesheet" href="/dashboard/css/design-system.css">
   <style>
+    /* Particle canvas (styled in kanban.css, inlined here) */
+    #particle-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.4;
+    }
+
+    /* Nav compat — kanban uses dash-case, design-system uses BEM */
+    .nav-logo {
+      font-size: var(--font-size-sm, 0.875rem);
+      color: var(--color-text-dim, #888);
+      letter-spacing: 0.2em;
+      text-transform: lowercase;
+      text-decoration: none;
+    }
+    .nav-logo span { color: var(--color-accent, #ff5c00); }
+    .nav-links {
+      display: flex;
+      gap: var(--space-lg, 1.5rem);
+      list-style: none;
+      margin-left: auto;
+    }
+    .nav-link {
+      font-size: var(--font-size-sm, 0.875rem);
+      color: var(--color-text-dim, #888);
+      letter-spacing: 0.1em;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-link:hover, .nav-link.active { color: var(--color-text-primary, #f4f4f5); }
+
+    /* Utility classes */
+    .max-w-7xl { max-width: 80rem; }
+    .mx-auto { margin-left: auto; margin-right: auto; }
+
     main {
       margin-top: 64px;
       padding: var(--space-2xl);
@@ -43,9 +83,19 @@
 
     .kanban-board {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: repeat(4, 1fr);
       gap: var(--space-lg);
       margin-bottom: var(--space-2xl);
+    }
+    @media (max-width: 900px) {
+      .kanban-board {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 500px) {
+      .kanban-board {
+        grid-template-columns: 1fr;
+      }
     }
 
     .kanban-column {
@@ -102,6 +152,7 @@
       border-radius: var(--border-radius-md);
       padding: var(--space-md);
       cursor: move;
+      -webkit-user-drag: element;
       transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
       display: flex;
       flex-direction: column;
@@ -613,7 +664,13 @@
       draggedTask = this.getAttribute('data-task-id');
       this.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', draggedTask);
+      e.dataTransfer.setData('text/plain', String(draggedTask));
+      e.dataTransfer.setData('text', String(draggedTask));
+      // Safari needs a drag image explicitly set
+      if (e.dataTransfer.setDragImage) {
+        e.dataTransfer.setDragImage(this, 20, 20);
+      }
+      console.log('DRAG START: task', draggedTask);
     }
 
     function handleDragEnd(e) {
@@ -623,23 +680,31 @@
 
     function handleDragOver(e) {
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
-      this.classList.add('drag-over');
+      // Find the column-body (could be triggered on a child card)
+      const col = e.currentTarget;
+      col.classList.add('drag-over');
     }
 
     function handleDragLeave(e) {
-      if (e.target === this) {
-        this.classList.remove('drag-over');
+      const col = e.currentTarget;
+      // Only remove if we're actually leaving the column, not entering a child
+      if (!col.contains(e.relatedTarget)) {
+        col.classList.remove('drag-over');
       }
     }
 
     function handleDrop(e) {
       e.preventDefault();
-      this.classList.remove('drag-over');
+      e.stopPropagation();
+      const col = e.currentTarget;
+      col.classList.remove('drag-over');
 
-      const taskId = parseInt(draggedTask);
-      const newStatus = this.getAttribute('data-status');
+      const taskId = parseInt(draggedTask || e.dataTransfer.getData('text/plain'));
+      const newStatus = col.getAttribute('data-status');
       const task = tasks.find(t => t.id === taskId);
+      console.log('DROP: task', taskId, 'to', newStatus, 'found:', !!task);
 
       if (task && task.status !== newStatus) {
         task.status = newStatus;
