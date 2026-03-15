@@ -175,6 +175,60 @@ jobs:
         with:
           sarif_file: gosec-results.sarif
 
+  rust-check:
+    name: Rust Check (monad-mbc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/monad-mbc/target
+          key: ${{ runner.os }}-cargo-monad-mbc-${{ hashFiles('crates/monad-mbc/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-monad-mbc-
+
+      - name: Check
+        run: cargo check --manifest-path crates/monad-mbc/Cargo.toml
+
+      - name: Clippy
+        run: cargo clippy --manifest-path crates/monad-mbc/Cargo.toml -- -D warnings
+
+      - name: Format check
+        run: cargo fmt --manifest-path crates/monad-mbc/Cargo.toml -- --check
+
+      - name: Test
+        run: cargo test --manifest-path crates/monad-mbc/Cargo.toml
+
+  spdx-check:
+    name: SPDX License Headers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Verify all Go files have SPDX headers
+        run: |
+          missing=$(find . -name "*.go" -not -path "./.git/*" -not -path "./vendor/*" \
+            -exec grep -L "SPDX-License-Identifier" {} + 2>/dev/null | head -20)
+          if [ -n "$missing" ]; then
+            echo "::error::Files missing SPDX-License-Identifier header:"
+            echo "$missing"
+            count=$(echo "$missing" | wc -l)
+            echo "::error::Total files missing headers: $count"
+            exit 1
+          fi
+          echo "All Go files have SPDX headers"
+
   license-check:
     name: License Compliance
     runs-on: ubuntu-latest
@@ -192,3 +246,38 @@ jobs:
         run: |
           go install github.com/google/go-licenses@latest
           go-licenses check ./... --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC
+
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [go-build, go-lint, rust-check, spdx-check, gosec, govulncheck, license-check]
+    if: always()
+    steps:
+      - name: Check all required jobs passed
+        run: |
+          echo "go-build: ${{ needs.go-build.result }}"
+          echo "go-lint: ${{ needs.go-lint.result }}"
+          echo "rust-check: ${{ needs.rust-check.result }}"
+          echo "spdx-check: ${{ needs.spdx-check.result }}"
+          echo "gosec: ${{ needs.gosec.result }}"
+          echo "govulncheck: ${{ needs.govulncheck.result }}"
+          echo "license-check: ${{ needs.license-check.result }}"
+          failed=0
+          for result in \
+            "${{ needs.go-build.result }}" \
+            "${{ needs.go-lint.result }}" \
+            "${{ needs.rust-check.result }}" \
+            "${{ needs.spdx-check.result }}" \
+            "${{ needs.gosec.result }}" \
+            "${{ needs.govulncheck.result }}" \
+            "${{ needs.license-check.result }}"; do
+            if [ "$result" != "success" ]; then
+              failed=1
+            fi
+          done
+          if [ "$failed" -eq 1 ]; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi
+          echo "All CI checks passed"
