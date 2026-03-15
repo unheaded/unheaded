@@ -61,6 +61,9 @@ networks:
 # VOLUMES (persistent dev data)
 # =============================================================================
 volumes:
+  postgres-data:
+    labels:
+      kingdom.component: "the-well"
   clickhouse-data:
     labels:
       kingdom.component: "logging"
@@ -185,6 +188,37 @@ services:
         limits:
           memory: 512M
           cpus: "1.0"
+
+  # --- The Well: PostgreSQL (Kingdom Persistent Memory) ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: unheaded-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: unheaded
+      POSTGRES_USER: unheaded
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unheaded_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - data
+    labels:
+      kingdom.armor: "the-well"
+      kingdom.role: "persistent-memory"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unheaded"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
 
   # --- Logging: ClickHouse (fast ingest, SQL queries) ---
   clickhouse:
