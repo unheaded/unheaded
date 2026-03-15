@@ -17,10 +17,10 @@ func TestCpuStateSize(t *testing.T) {
 	}
 }
 
-// TestCpuStateSizeConst verifies the CpuStateSize constant is 104.
+// TestCpuStateSizeConst verifies the CpuStateSize constant is 120.
 func TestCpuStateSizeConst(t *testing.T) {
-	if CpuStateSize != 104 {
-		t.Fatalf("CpuStateSize = %d, want 104", CpuStateSize)
+	if CpuStateSize != 120 {
+		t.Fatalf("CpuStateSize = %d, want 120", CpuStateSize)
 	}
 }
 
@@ -44,6 +44,13 @@ func TestCpuStateFieldOffsets(t *testing.T) {
 		{"InsnCount", uintptr(unsafe.Pointer(&cpu.InsnCount)) - base, 80},
 		{"CacheHits", uintptr(unsafe.Pointer(&cpu.CacheHits)) - base, 88},
 		{"CacheMisses", uintptr(unsafe.Pointer(&cpu.CacheMisses)) - base, 96},
+		{"InterruptPending", uintptr(unsafe.Pointer(&cpu.InterruptPending)) - base, 104},
+		{"InterruptVector", uintptr(unsafe.Pointer(&cpu.InterruptVector)) - base, 105},
+		{"InterruptsEnabled", uintptr(unsafe.Pointer(&cpu.InterruptsEnabled)) - base, 106},
+		{"Pad2", uintptr(unsafe.Pointer(&cpu.Pad2)) - base, 107},
+		{"TickCounter", uintptr(unsafe.Pointer(&cpu.TickCounter)) - base, 108},
+		{"ProgramBreak", uintptr(unsafe.Pointer(&cpu.ProgramBreak)) - base, 112},
+		{"ExitCode", uintptr(unsafe.Pointer(&cpu.ExitCode)) - base, 116},
 	}
 
 	for _, tt := range tests {

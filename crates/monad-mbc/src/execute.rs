@@ -5,7 +5,7 @@
 
 use monad_common::{
     MbcCpuState, MbcInsn, mbc_opcodes as op, mbc_flags as mf, mbc_syscalls as sys,
-    mbc_mmap as mmap, REG_SP,
+    mbc_linux_syscalls as lsys, mbc_interrupts as intr, mbc_mmap as mmap, REG_SP,
 };
 
 /// Execution errors.
@@ -28,6 +28,10 @@ pub struct Cpu {
     pub screen: Vec<u8>, // 320x200 = 64000 bytes
     pub kbd: u32,
     pub ticks_ms: u32,
+    /// TTY output buffer — collects SYS_WRITE output to fd 1/2 (Level 4f).
+    pub tty_output: Vec<u8>,
+    /// Instance ID for SYS_GETPID (defaults to 0).
+    pub instance_id: u32,
 }
 
 impl Cpu {
@@ -43,6 +47,8 @@ impl Cpu {
             screen: vec![0; 64000],     // 320x200
             kbd: 0,
             ticks_ms: 0,
+            tty_output: Vec::new(),
+            instance_id: 0,
         }
     }
 
@@ -536,25 +542,82 @@ impl Cpu {
 
             // === Interrupts ===
             op::INT => {
-                // Software interrupt: push flags + PC, disable interrupts, jump to IVT.
                 let vector = (imm & 0xFF) as u8;
-                // Push flags (SP is byte address, 4 bytes per entry)
-                self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
-                let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
-                if sp_flags < self.ram.len() {
-                    self.ram[sp_flags] = self.state.flags as u32;
+                if vector == intr::VECTOR_SYSCALL {
+                    // ── INT 0x80: Linux-compatible syscall dispatch (Level 4b) ──
+                    // Convention: r0 = syscall number, r1-r3 = args.
+                    let syscall_nr = self.state.regs[0];
+                    if syscall_nr == lsys::SYS_EXIT {
+                        self.state.exit_code = self.state.regs[1];
+                        self.state.halted = 1;
+                        return Err(ExecError::Halted);
+                    } else if syscall_nr == lsys::SYS_WRITE {
+                        let fd = self.state.regs[1];
+                        let buf_addr = self.state.regs[2];
+                        let len = self.state.regs[3];
+                        if fd == 1 || fd == 2 {
+                            let max_write = if len < 256 { len } else { 256 };
+                            let mut written: u32 = 0;
+                            let mut b: u32 = 0;
+                            while b < max_write {
+                                let byte_val = self.mem_read_byte(buf_addr.wrapping_add(b) as usize);
+                                self.tty_output.push(byte_val);
+                                written += 1;
+                                b += 1;
+                            }
+                            self.state.regs[0] = written;
+                        } else {
+                            self.state.regs[0] = (-9i32) as u32; // EBADF
+                        }
+                    } else if syscall_nr == lsys::SYS_BRK {
+                        let new_brk = self.state.regs[1];
+                        if new_brk == 0 {
+                            self.state.regs[0] = self.state.program_break;
+                        } else {
+                            self.state.program_break = new_brk;
+                            self.state.regs[0] = new_brk;
+                        }
+                    } else if syscall_nr == lsys::SYS_GETPID {
+                        self.state.regs[0] = self.instance_id;
+                    } else if syscall_nr == lsys::SYS_CLOCK_GETTIME {
+                        let tp_addr = self.state.regs[1] as usize;
+                        // In userspace, use ticks_ms as time source
+                        let secs = self.ticks_ms / 1000;
+                        let nsecs = (self.ticks_ms % 1000) * 1_000_000;
+                        self.mem_write_word(tp_addr >> 2, secs);
+                        self.mem_write_word((tp_addr + 4) >> 2, nsecs);
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_NANOSLEEP {
+                        let req_addr = self.state.regs[1] as usize;
+                        let secs = self.mem_read_word(req_addr >> 2);
+                        let nsecs = self.mem_read_word((req_addr + 4) >> 2);
+                        let sleep_ms = secs * 1000 + nsecs / 1_000_000;
+                        self.ticks_ms = self.ticks_ms.wrapping_add(sleep_ms);
+                        self.state.regs[0] = 0;
+                    } else {
+                        // Unknown syscall: return -ENOSYS
+                        self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                    }
+                } else {
+                    // Non-0x80 software interrupt: standard IVT dispatch.
+                    // Push flags (SP is byte address, 4 bytes per entry)
+                    self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
+                    let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                    if sp_flags < self.ram.len() {
+                        self.ram[sp_flags] = self.state.flags as u32;
+                    }
+                    // Push PC (already advanced = return address)
+                    self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
+                    let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                    if sp_pc < self.ram.len() {
+                        self.ram[sp_pc] = self.state.pc;
+                    }
+                    // Disable interrupts
+                    self.state.interrupts_enabled = 0;
+                    // Jump to IVT handler
+                    let ivt_addr = ((vector as u32) * 4) >> 2;
+                    self.state.pc = self.mem_read_word(ivt_addr as usize);
                 }
-                // Push PC (already advanced = return address)
-                self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
-                let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
-                if sp_pc < self.ram.len() {
-                    self.ram[sp_pc] = self.state.pc;
-                }
-                // Disable interrupts
-                self.state.interrupts_enabled = 0;
-                // Jump to IVT handler
-                let ivt_addr = ((vector as u32) * 4) >> 2;
-                self.state.pc = self.mem_read_word(ivt_addr as usize);
             }
             op::IRET => {
                 // Return from interrupt: pop PC + flags, re-enable interrupts.

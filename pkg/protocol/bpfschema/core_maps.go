@@ -326,21 +326,29 @@ const (
 //	0x58    CacheHits       8B      L1 cache hit count
 //	0x60    CacheMisses     8B      L1 cache miss count
 type MbcCpuState struct {
-	Registers     [16]uint32 // r0-r15 general purpose registers (64 bytes).
-	PC            uint32     // Program counter.
-	Flags         uint8      // CPU flags: bit 0=Z, bit 1=N, bit 2=C.
-	Halted        uint8      // 1 if HALT instruction executed.
-	Stalled       uint8      // 1 if waiting for cache miss (D-003).
-	_pad          uint8      // Alignment padding.
-	SleepUntilNs  uint64     // bpf_ktime_get_ns() sleep target.
-	InsnCount     uint64     // Total instructions executed (for IPS stats).
-	CacheHits     uint64     // L1 cache hits.
-	CacheMisses   uint64     // L1 cache misses.
+	Registers         [16]uint32 // r0-r15 general purpose registers (64 bytes).
+	PC                uint32     // Program counter.
+	Flags             uint8      // CPU flags: bit 0=Z, bit 1=N, bit 2=C.
+	Halted            uint8      // 1 if HALT instruction executed.
+	Stalled           uint8      // 1 if waiting for cache miss (D-003).
+	_pad              uint8      // Alignment padding.
+	SleepUntilNs      uint64     // bpf_ktime_get_ns() sleep target.
+	InsnCount         uint64     // Total instructions executed (for IPS stats).
+	CacheHits         uint64     // L1 cache hits.
+	CacheMisses       uint64     // L1 cache misses.
+	InterruptPending  uint8      // Non-zero when interrupt waiting.
+	InterruptVector   uint8      // Vector number of pending interrupt.
+	InterruptsEnabled uint8      // Non-zero when CPU accepts interrupts.
+	_pad2             uint8      // Alignment padding.
+	TickCounter       uint32     // Tick counter for timer interrupt generation.
+	ProgramBreak      uint32     // Heap end address for SYS_BRK (Level 4b).
+	ExitCode          uint32     // Exit code from SYS_EXIT (Level 4b).
 }
 
 // MbcCpuStateSize is the exact wire size. Tests verify this.
-// 64 ([16]uint32) + 4 (PC) + 4 (Flags+Halted+Stalled+_pad) + 4*8 (four uint64) = 104.
-const MbcCpuStateSize = 104
+// 64 ([16]uint32) + 4 (PC) + 4 (Flags+Halted+Stalled+_pad) + 4*8 (four uint64)
+// + 4 (interrupt fields + _pad2) + 4 (TickCounter) + 4 (ProgramBreak) + 4 (ExitCode) = 120.
+const MbcCpuStateSize = 120
 
 // CacheLineKey for Monad CPU L1_CACHE map.
 type CacheLineKey struct {
