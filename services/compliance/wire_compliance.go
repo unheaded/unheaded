@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package compliance provides wire-level policy enforcement and audit capabilities.
 // Wire Compliance is the Kingdom's regulatory framework - ensuring service-to-service

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # bird.nix — BIRD Internet Routing Daemon module for host-b Outpost
 # Lightweight iBGP peer + BFD + radv (IPv6 Router Advertisement)
 { config, pkgs, lib, ... }:

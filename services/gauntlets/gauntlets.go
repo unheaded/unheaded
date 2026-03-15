@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package gauntlets provides CLI and API interface capabilities.
 // Gauntlets the CLI & API is the Kingdom's grip - unified command interface.

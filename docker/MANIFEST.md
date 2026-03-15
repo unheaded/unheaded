@@ -174,7 +174,7 @@ All images include standard labels:
 
 All files include:
 - SPDX-License-Identifier: MIT
-- Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+- Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 - Proper header comments documenting purpose
 
 ## Next Steps

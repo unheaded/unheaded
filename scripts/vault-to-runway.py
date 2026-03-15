@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # ═══════════════════════════════════════════════════════════════════════════
 # vault-to-runway.py — MAD SCIENTIST MODEL TIERING
 #

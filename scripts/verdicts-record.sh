@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # verdicts-record.sh — Record hypothesis verdicts after QA testing
 # Usage: ./verdicts-record.sh [--batch --h1 PASS --h1-value "measured: ..."]
 # Records verdicts to /var/lib/unheaded/verdicts/YYYY-MM-DD.json

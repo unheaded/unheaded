@@ -4,7 +4,7 @@
 
 - **Conference**: eBPF Summit 2026
 - **Duration**: 30 minutes
-- **Speaker**: Steven Bellis (@stevenrbellis)
+- **Speaker**: Stevie Bellis (@stevenrbellis)
 - **Audience Level**: Advanced (SRE, Platform Engineers, Systems Programmers)
 - **GitHub**: stevenrbellis/unheaded
 - **Email**: stevie@bellis.tech
@@ -255,7 +255,7 @@ We also cover RFC compliance (8200, 6437, 3168), real-world router tolerance, IA
   The Packet IS the Telemetry
   Embedding Distributed Traces in IPv6 Headers at Wire Speed
   
-  Steven Bellis | eBPF Summit 2026
+  Stevie Bellis | eBPF Summit 2026
   stevenrbellis/unheaded
   ```
 - **Tagline**: *"Every packet is a heartbeat."*
@@ -405,7 +405,7 @@ We also cover RFC compliance (8200, 6437, 3168), real-world router tolerance, IA
 - **Prometheus**: https://prometheus.io/ (metrics baseline)
 
 ### Contact & Community
-- **Speaker**: Steven Bellis (@stevenrbellis on GitHub, Twitter)
+- **Speaker**: Stevie Bellis (@stevenrbellis on GitHub, Twitter)
 - **Email**: stevie@bellis.tech
 - **Slack**: [Unheaded community Slack, if applicable]
 

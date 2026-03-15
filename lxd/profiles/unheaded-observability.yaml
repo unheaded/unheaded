@@ -1,6 +1,6 @@
 # Unheaded Kingdom — Observability Profile
 # For monitoring and logging services
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 name: unheaded-observability
 description: Unheaded observability profile — bind-mounts log dirs, resource limits

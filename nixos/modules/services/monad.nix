@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # monad.nix — Monad register service (20-byte IPv6 HbH extension header)
 { config, pkgs, lib, ... }:
 

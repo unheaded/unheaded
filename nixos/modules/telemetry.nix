@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # telemetry.nix — Full observability stack for Unheaded Kingdom
 # Includes: node_exporter, Prometheus, VictoriaMetrics, Loki, Grafana
 { config, pkgs, lib, ... }:

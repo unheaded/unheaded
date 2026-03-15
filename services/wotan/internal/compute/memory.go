@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package compute implements the Wotan Memory Service for the Doom-over-IPv6
 // compute architecture. It manages the L2 byte-addressable store and

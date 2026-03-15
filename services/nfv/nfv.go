@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package nfv provides NFV (Network Function Virtualization) chain management.
 // The NFV Chain Manager orchestrates BPF function chaining, managing up to 64

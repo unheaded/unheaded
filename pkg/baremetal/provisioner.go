@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package baremetal provides bare metal provisioning for the Unheaded Kingdom infrastructure.
 // THE SABATONS - the foundation upon which all else stands.

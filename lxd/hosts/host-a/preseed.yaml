@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/hosts/host-a/preseed.yaml
 # LXD host-a (Forge) initialization preseed
 # Usage: sudo lxd init --preseed < preseed.yaml

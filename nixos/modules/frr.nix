@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # frr.nix — Free Range Routing (FRR) module for host-a Forge
 # BGP EVPN-VXLAN overlay + IS-IS underlay + BFD fast-failover
 { config, pkgs, lib, ... }:

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package logagg provides centralized log aggregation for Unheaded services.
 // Services publish structured logs to Wotan topics (logs.<service>.<level>).

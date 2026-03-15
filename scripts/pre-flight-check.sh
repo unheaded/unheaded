@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # pre-flight-check.sh — Pre-deployment prerequisite checks
 # Usage: sudo ./pre-flight-check.sh [--strict]
 # Checks all prerequisites before starting bare metal deployment

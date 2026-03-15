@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # scripts/east-bootstrap.sh — EAST bare metal bootstrap (4-core/8GB DDR3)
 #
 # REFERENCE DOCS (all in ~/tmp/unheaded/):

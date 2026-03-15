@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package selfheal provides self-healing network infrastructure with circuit breakers.
 // Self-Heal the Restoration Engine is the Kingdom's immune system - continuously

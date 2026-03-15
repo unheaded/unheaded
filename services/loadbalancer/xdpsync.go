@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package loadbalancer provides XDP-accelerated load balancing with Maglev
 // consistent hashing. The XDPSync service manages backends, health state,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package cuirass provides control plane and IDP orchestration capabilities.
 // Cuirass the Control Plane is the Kingdom's heart - managing all services.

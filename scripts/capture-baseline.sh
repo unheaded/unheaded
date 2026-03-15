@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # capture-baseline.sh — Capture system baseline before Unheaded deployment
 # Usage: sudo ./capture-baseline.sh [--host-role forge|outpost] [--output-dir DIR]
 # Produces: JSON + text snapshots of CPU, RAM, disk, net, kernel, eBPF capabilities
