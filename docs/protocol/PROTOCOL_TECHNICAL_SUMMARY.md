@@ -1,11 +1,11 @@
 # Protocol Technical Summary
 
-**Status**: Age 1 specification finalized (RFC v1.0-draft)
-**Last Updated**: February 27, 2026 (S72 Phase 4 — Protocol Cross-References)
+**Status**: Age 2 specification advancement (IANA integration, UPC extensions)
+**Last Updated**: March 15, 2026 (S77 Phase 5 — Protocol Spec Advancement)
 **Source Documents**:
-- draft-bellis-unheaded-protocol-foundation-05.md (Monad)
-- draft-bellis-unheaded-sophia-dictionary-02.md (Sophia)
-- draft-bellis-unheaded-wotan-memory-02.md (Wotan)
+- draft-bellis-unheaded-protocol-foundation-06.md (Monad + IANA + UPC)
+- draft-bellis-unheaded-sophia-dictionary-03.md (Sophia + PQC + QPACK)
+- draft-bellis-unheaded-wotan-memory-03.md (Wotan + Error Taxonomy + WAL + TTY)
 - the-first-packet.md (narrative foundation)
 
 ---

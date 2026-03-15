@@ -193,3 +193,37 @@ All 8 normative security patches (W1-W8) are fully retained:
 ## Wire Format Status
 
 **FROZEN at v0x01 (20 bytes).** No changes in any of the three new drafts. The UNHEADED_METRIC_V1 extension (Foundation draft-06) is carried as a separate HbH option TLV and does not modify the Monad register file layout.
+
+---
+
+## S77 Phase 5 Update (March 15, 2026)
+
+All three drafts updated from 2026-03-05 to 2026-03-15. Changes below are purely additive.
+
+### Foundation draft-06 Additions
+
+| # | Section | Description |
+|---|---------|-------------|
+| 8 | MBC Opcode Numbers | IANA registry with 46 opcodes (NOP through HALT), 32-bit instruction encoding format |
+| 9 | MBC Syscall Numbers | Native MBC syscalls (4 entries) + Linux-compatible INT 0x80 syscalls (20 entries) |
+| 10 | UPC Memory Region Types | 8 memory regions (RAM, KBD_IO, SCREEN, DEBUG, WAD, HEAP, STACK, RAMDISK), memory hierarchy L0-L4, interrupt vector table |
+| 11 | UPC Event Types | 10 compute engine event types (0x10-0x19) for Anamnesis |
+| 12 | PQC Auth Value Format | 12-byte PQC value (SigRef/KeyRef/HashPfx/SeqNum), algorithm IDs, verification status, compliance tiers |
+| 13 | UPCFlat Binary Format | 24-byte header + flat memory image, magic 0x55504346 |
+| 14 | UNFS Filesystem | Superblock, 32-byte directory entries, contiguous allocation on 4 MiB ramdisk |
+
+### Sophia draft-03 Additions
+
+| # | Section | Description |
+|---|---------|-------------|
+| 7 | PQC Key Dictionary | PQC_SIG_MAP and PQC_KEY_MAP BPF map definitions, signature lookup, key rotation protocol, algorithm support matrix |
+| 8 | UPC Opcode Dictionary | Sophia-driven instruction decode, 10 instruction class types, 32-byte BPF map entry, decode use cases |
+
+### Wotan draft-03 Additions
+
+| # | Section | Description |
+|---|---------|-------------|
+| 8 | UPC Memory Model | ROM_MAP, RAM_MAP, SCREEN_MAP, KBD_MAP, CPU_MAP BPF maps with full struct definitions |
+| 9 | WAL Specification | 76-byte record format, append/fsync semantics, recovery replay, compaction with exclusive locking |
+| 10 | TTY Subsystem | 4 KiB circular buffer, write/read on fd 0/1/2, EVENT_TTY_WRITE emission, Wotan topic publication |
+| 11 | Error Code Cross-Ref | 13 normative error codes with cross-references between Foundation and Wotan specs |
