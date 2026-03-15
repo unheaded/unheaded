@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -437,4 +438,122 @@ func TestBroadcastUpdate_NoClients(t *testing.T) {
 
 	// Broadcast with no clients - should not panic
 	server.broadcastUpdate("test", map[string]string{"data": "value"})
+}
+
+// ============================================================================
+// E2E SMOKE TEST — P1 #4
+// ============================================================================
+// Validates the full task lifecycle: create → list → verify → delete.
+// Uses httptest.NewServer so the full middleware stack is exercised.
+// ============================================================================
+
+func TestE2E_TaskLifecycle(t *testing.T) {
+	server := createTestServer(t)
+
+	// Build the full handler stack (mirrors Server.Start)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/tasks", server.handleTasks)
+	mux.HandleFunc("/api/v1/tasks/", server.handleTaskByID)
+	mux.HandleFunc("/api/v1/health", server.handleHealth)
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	client := ts.Client()
+
+	// ---- Step 1: Health check ----
+	resp, err := client.Get(ts.URL + "/api/v1/health")
+	if err != nil {
+		t.Fatalf("health check failed: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected health 200, got %d", resp.StatusCode)
+	}
+
+	// ---- Step 2: Create a task via POST /api/v1/tasks ----
+	taskPayload := `{"id":"e2e-test-001","title":"E2E Smoke Test Task","status":"todo","description":"Created by E2E test"}`
+	createResp, err := client.Post(
+		ts.URL+"/api/v1/tasks",
+		"application/json",
+		strings.NewReader(taskPayload),
+	)
+	if err != nil {
+		t.Fatalf("POST /api/v1/tasks failed: %v", err)
+	}
+	createResp.Body.Close()
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d", createResp.StatusCode)
+	}
+
+	// ---- Step 3: List tasks via GET /api/v1/tasks and verify ----
+	listResp, err := client.Get(ts.URL + "/api/v1/tasks")
+	if err != nil {
+		t.Fatalf("GET /api/v1/tasks failed: %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", listResp.StatusCode)
+	}
+
+	var listResult struct {
+		Tasks []struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"tasks"`
+		Count int `json:"count"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&listResult); err != nil {
+		t.Fatalf("failed to decode task list: %v", err)
+	}
+
+	found := false
+	for _, task := range listResult.Tasks {
+		if task.ID == "e2e-test-001" {
+			found = true
+			if task.Title != "E2E Smoke Test Task" {
+				t.Errorf("task title mismatch: got %q", task.Title)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("created task e2e-test-001 not found in GET /api/v1/tasks (count=%d)", listResult.Count)
+	}
+
+	// ---- Step 4: Delete the task via DELETE /api/v1/tasks/{id} ----
+	delReq, err := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/tasks/e2e-test-001", nil)
+	if err != nil {
+		t.Fatalf("failed to create DELETE request: %v", err)
+	}
+	delResp, err := client.Do(delReq)
+	if err != nil {
+		t.Fatalf("DELETE /api/v1/tasks/e2e-test-001 failed: %v", err)
+	}
+	delResp.Body.Close()
+	if delResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on DELETE, got %d", delResp.StatusCode)
+	}
+
+	// ---- Step 5: Verify task is gone ----
+	verifyResp, err := client.Get(ts.URL + "/api/v1/tasks")
+	if err != nil {
+		t.Fatalf("GET /api/v1/tasks (post-delete) failed: %v", err)
+	}
+	defer verifyResp.Body.Close()
+
+	var verifyResult struct {
+		Tasks []struct {
+			ID string `json:"id"`
+		} `json:"tasks"`
+	}
+	if err := json.NewDecoder(verifyResp.Body).Decode(&verifyResult); err != nil {
+		t.Fatalf("failed to decode post-delete task list: %v", err)
+	}
+
+	for _, task := range verifyResult.Tasks {
+		if task.ID == "e2e-test-001" {
+			t.Error("task e2e-test-001 still present after DELETE")
+		}
+	}
 }
