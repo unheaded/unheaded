@@ -212,6 +212,15 @@
     };
 
     # =========================================================================
+    # TODO(P1 #20): VXLAN overlay and TLS gateway config are not yet
+    # implemented in the Nix network layer.  This is a known gap tracked
+    # in docs/planning/TODO.md.  The VXLAN overlay (fd00:dead:beef::/48)
+    # and per-service TLS termination should be added once the VXLAN
+    # implementation lands (see nix/modules/tls.nix for certificate infra
+    # that is already in place).
+    # =========================================================================
+
+    # =========================================================================
     # MONITORING
     # =========================================================================
     # Expose network metrics for Prometheus

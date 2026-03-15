@@ -31,6 +31,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"unheaded/pkg/auth"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
@@ -443,8 +445,9 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 			Str("path", r.URL.Path).
 			Int("status", wrapped.status).
 			Dur("duration", time.Since(start)).
+			Str("remote_addr", r.RemoteAddr).
 			Str("request_id", getRequestID(r.Context())).
-			Msg("HTTP request")
+			Msg("request")
 	})
 }
 
@@ -1263,7 +1266,17 @@ func main() {
 	if cfg.WotanAddr != "" {
 		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
 	}
-	_ = logagg.NewPublisher("kanban-app", logConn)
+	logPublisher := logagg.NewPublisher("kanban-app", logConn)
+	if logPublisher.Enabled() {
+		log.AddHook(logger.HookFunc(func(entry *logger.Entry) error {
+			// Adapt custom logger Entry to zerolog hook call.
+			// The Publisher.Run method handles Wotan forwarding on a
+			// best-effort, non-blocking basis.
+			logPublisher.Run(nil, entryLevelToZerolog(entry.Level), entry.Message)
+			return nil
+		}))
+		log.Info().Msg("Log forwarding to Wotan enabled via logagg publisher")
+	}
 
 	// Service discovery — best-effort registration (nil conn until transport is wired)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
@@ -1487,4 +1500,27 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// entryLevelToZerolog maps the custom logger.Level to zerolog.Level
+// so the logagg.Publisher can forward entries at the correct severity.
+func entryLevelToZerolog(level logger.Level) zerolog.Level {
+	switch level {
+	case logger.TraceLevel:
+		return zerolog.TraceLevel
+	case logger.DebugLevel:
+		return zerolog.DebugLevel
+	case logger.InfoLevel:
+		return zerolog.InfoLevel
+	case logger.WarnLevel:
+		return zerolog.WarnLevel
+	case logger.ErrorLevel:
+		return zerolog.ErrorLevel
+	case logger.FatalLevel:
+		return zerolog.FatalLevel
+	case logger.PanicLevel:
+		return zerolog.PanicLevel
+	default:
+		return zerolog.InfoLevel
+	}
 }
