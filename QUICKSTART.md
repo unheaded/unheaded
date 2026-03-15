@@ -429,9 +429,5 @@ unheaded-vllm-start /models/deepseek-r1-7b
 | [`CLAUDE.md`](CLAUDE.md) | Development standards, architecture, coding guidelines |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 6-layer architecture deep dive |
 | [`references/timeline.md`](references/timeline.md) | Living roadmap (canonical source of truth) |
-| [`docs/HANDOFF_2026-02-09_S10.md`](docs/HANDOFF_2026-02-09_S10.md) | Latest session status |
+| [`docs/UPC_REFERENCE_MANUAL.md`](docs/UPC_REFERENCE_MANUAL.md) | Unheaded Protocol Computer |
 | [`scripts/README.md`](scripts/README.md) | Deployment script documentation |
-
----
-
-*The Knight dons the full armor. No exposed joints. No gaps.*
