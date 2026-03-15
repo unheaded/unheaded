@@ -1,6 +1,6 @@
 # Unheaded Kingdom — Grafana Container
 # Visualization and dashboarding platform
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 name: grafana
 description: "Unheaded Grafana visualization container"

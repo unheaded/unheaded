@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package shield provides WAF, DDoS protection, and Zero Trust gateway capabilities.
 // Shield the WAF is the Kingdom's edge defense - protecting all ingress traffic.

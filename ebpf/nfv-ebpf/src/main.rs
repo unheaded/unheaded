@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 //! Unheaded Protocol — NFV eBPF Program (App 10: Network Function Chaining)
 //!

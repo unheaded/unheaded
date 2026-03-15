@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package secrets provides THE CRYSTAL GROTTO - the Unheaded Kingdom's secrets management.
 // This is where precious infrastructure secrets are protected, encrypted, and rotated.

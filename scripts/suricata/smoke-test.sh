@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Suricata smoke test — validates binary features WITHOUT starting daemon
 # Usage: ./scripts/suricata/smoke-test.sh [path-to-suricata-binary]
 

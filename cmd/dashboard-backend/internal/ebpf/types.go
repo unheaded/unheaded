@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package ebpf provides eBPF event ingestion for the dashboard backend.
 // It parses events published by trace-collector via Wotan and maintains

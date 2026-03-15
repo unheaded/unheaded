@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Host-A: The Forge — Full Unheaded stack + vLLM/ROCm + OPNsense firewall VM
 # nixos-rebuild switch to apply
 { config, pkgs, lib, ... }:

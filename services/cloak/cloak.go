@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package cloak provides user-facing dashboard capabilities.
 // Cloak the User Dashboard is the Kingdom's outer garment - what users see and interact with.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package proxy provides the sidecar proxy for the service mesh.
 // THE HAUBERK - TCP/HTTP listeners for the Unheaded Kingdom.

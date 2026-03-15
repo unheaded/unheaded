@@ -431,7 +431,7 @@ lxc exec vllm-deepseek -- rocminfo | grep gfx1101
 ## License & Attribution
 
 **SPDX-License-Identifier:** MIT  
-**Copyright:** (c) 2024-2026 Steven Bellis. All rights reserved.
+**Copyright:** (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 All files in `/sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/lxd/` include proper SPDX headers and attribution.
 

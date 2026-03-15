@@ -5,7 +5,7 @@
 #
 # To use: Load this as a secondary config file or merge with main loki.yaml
 # Unheaded Kingdom infrastructure
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 # This is a limits_config override for security-critical log streams
 # In practice, use Loki's per-tenant override mechanism or embed in main config:

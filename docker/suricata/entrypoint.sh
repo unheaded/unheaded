@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Suricata entrypoint — IDS mode on ${SURICATA_INTERFACE:-eth1}
 # EVE JSON tailed to stdout for Docker log aggregation + written to file for anamnesis
 

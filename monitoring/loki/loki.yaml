@@ -1,6 +1,6 @@
 # Loki v3 configuration - Log aggregation
 # Unheaded Kingdom infrastructure
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 auth_enabled: false
 

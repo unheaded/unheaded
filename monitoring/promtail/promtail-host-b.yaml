@@ -2,7 +2,7 @@
 # Collects logs from systemd, BIRD, IPFire nftables, Suricata, Docker, and Unheaded services
 # Remote write to host-a Loki via WireGuard
 # Unheaded Kingdom infrastructure
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 server:
   http_listen_port: 9080

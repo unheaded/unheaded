@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Suricata IDS/IPS NixOS module — GPL-2.0 isolation boundary: EVE JSON REST API
 # Source: ~/tmp/suricata/ (built from source on bare metal — NOT in this module)
 { config, lib, pkgs, ... }:
@@ -70,7 +70,7 @@ in {
       "suricata/rules/unheaded-monad.rules".text = ''
         # Monad Protocol Signatures — sid 9000001-9000099
         # SPDX-License-Identifier: MIT
-        # Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+        # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
         #
         # CRITICAL: Suricata must NOT strip or modify IPv6 HbH extension headers.
         # decode-events: no for hopopt is set in suricata.yaml.

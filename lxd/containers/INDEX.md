@@ -299,4 +299,4 @@ This allows consistent configuration across 30 containers while customizing as n
 
 **Version:** 1.0
 **Created:** 2026-02-26
-**License:** MIT (Copyright 2024-2026 Steven Bellis)
+**License:** MIT (Copyright 2024-2026 Stevie Bellis)

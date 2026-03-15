@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package auth — JWT authentication with HMAC-SHA256.
 // No external JWT libraries — uses crypto/hmac + crypto/sha256 from stdlib.

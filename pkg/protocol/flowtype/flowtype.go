@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package flowtype provides typed flow classification for the Unheaded protocol.
 // It implements H6 finding: Flow type classification with control, data, and prefetch types.

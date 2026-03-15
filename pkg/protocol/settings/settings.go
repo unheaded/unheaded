@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package settings provides capability negotiation for the Unheaded protocol.
 // It implements H4 finding: Settings negotiation using varint key-value pairs.

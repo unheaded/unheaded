@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/networks/unheaded-bridge.yaml
 # LXD network: unheaded bridge (IPv4 + IPv6 dual-stack)
 # Apply: lxc network create unheaded < networks/unheaded-bridge.yaml

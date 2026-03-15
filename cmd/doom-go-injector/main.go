@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package main implements a high-performance packet injector for the Doom-over-IPv6
 // compute ring. It replaces the Python inject.py with AF_PACKET raw socket injection

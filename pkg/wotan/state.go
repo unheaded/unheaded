@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package wotan provides the PQC state region for Wotan's protocol RAM.
 // The PQC state occupies addresses 0xFF00-0xFF27 (40 bytes) and tracks

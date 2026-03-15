@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package audit provides comprehensive audit logging for the Unheaded Kingdom infrastructure.
 // It implements tamper-evident logging with multiple storage backends, async processing,

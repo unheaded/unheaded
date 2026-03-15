@@ -5,7 +5,7 @@ Unheaded is licensed under the GNU General Public License v3.0.
 ## What GPL-3.0 Means
 
 ```
-Copyright (c) 2024-2026 Steven Bellis
+Copyright (c) 2024-2026 Stevie Bellis
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

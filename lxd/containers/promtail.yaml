@@ -1,6 +1,6 @@
 # Unheaded Kingdom — Promtail Container
 # Log shipping and forwarding agent
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 name: promtail
 description: "Unheaded Promtail log shipping container"

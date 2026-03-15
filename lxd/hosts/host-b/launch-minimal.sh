@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/hosts/host-b/launch-minimal.sh
 # Launch 6 core Unheaded services + telemetry agents on host-b (Outpost)
 # Minimal configuration suitable for consumer-grade hardware

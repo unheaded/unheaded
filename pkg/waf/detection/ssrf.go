@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package detection provides SSRF detection for THE SHIELD WAF
 // TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference

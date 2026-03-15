@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/hosts/host-a/init.sh
 # LXD host-a (Forge) bootstrap script
 # Usage: sudo ./init.sh

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package telemetry provides the telemetry aggregation service for the
 // Unheaded Kingdom. It subscribes to per-hop and per-path telemetry

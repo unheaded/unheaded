@@ -310,7 +310,7 @@ curl -s http://localhost:16667/api/v1/config | jq .demo_mode  # Should be true
 Unheaded Alpha Demo
 github.com/stevenrbellis/unheaded
 
-Steven Bellis
+Stevie Bellis
 stevie@bellis.tech
 
 The packet IS the telemetry.
@@ -495,7 +495,7 @@ Docs: https://github.com/stevenrbellis/unheaded/wiki
 RFC Alignment: https://github.com/stevenrbellis/unheaded/docs/RFC-ALIGNMENT.md
 
 CONTACT:
-Steven Bellis (stevenrbellis@github.com)
+Stevie Bellis (stevenrbellis@github.com)
 stevie@bellis.tech
 
 Licensed under Busl 1.1.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # ipfire-vm.nix — IPFire 2.29 QEMU VM on host-b (Outpost)
 # Deploy as WAN firewall with internal LAN bridge to unheaded services
 # NOTE: IPFire boots to installer on first run; requires initial configuration

@@ -262,7 +262,7 @@ wc -l lxd/*/*.yaml lxd/*.md lxd/deploy.sh
 All YAML files include:
 ```
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 ```
 
 ---
@@ -287,4 +287,4 @@ This session created **reusable, generic profiles and templates** that the servi
 ## License
 
 SPDX-License-Identifier: MIT  
-Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.

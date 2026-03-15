@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Routing option selector — switches between BGP-EVPN, OSPFv3, IS-IS, MPLS
 # Usage: ./scripts/routing/select-routing.sh <bgp-evpn|ospf|isis|mpls>
 # Effect: symlinks /etc/frr/frr.conf → appropriate config, validates, prints restart command

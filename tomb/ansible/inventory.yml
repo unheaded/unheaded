@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # tomb/ansible/inventory.yml -- Tomb of Knowledge VM inventory
 #
 # The Tomb VM is an air-gapped Kali Linux QEMU VM reachable from

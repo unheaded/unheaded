@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package kenoma provides actual state observation and drift detection.
 // In Gnostic philosophy, Kenoma is the void - the deficient material world that falls short of the divine.

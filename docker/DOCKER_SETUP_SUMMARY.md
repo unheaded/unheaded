@@ -287,7 +287,7 @@ This Docker infrastructure is production-ready:
 
 SPDX-License-Identifier: MIT
 
-Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 This Docker infrastructure is provided as-is under the MIT License. All source files include proper SPDX license headers.
 

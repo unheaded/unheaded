@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package events provides event streaming integration with Wotan message bus.
 // It subscribes to relevant topics and maintains an event buffer for the dashboard.

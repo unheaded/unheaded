@@ -1,7 +1,7 @@
 # Prometheus agent configuration - Secondary host (Outpost, host-b)
 # Minimal scrape config with remote_write to host-a via WireGuard
 # Unheaded Kingdom infrastructure
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 global:
   scrape_interval: 30s

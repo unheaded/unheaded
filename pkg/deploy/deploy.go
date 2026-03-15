@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package deploy provides the Deployment Engine for the Unheaded Kingdom.
 // This is THE SWORD - offensive operations, CI/CD, and deployment automation.

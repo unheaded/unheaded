@@ -335,7 +335,7 @@ All configuration files created for the Unheaded Kingdom project.
 
 ```
 SPDX-License-Identifier: MIT
-Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 ```
 
 ---

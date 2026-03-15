@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # tomb/provision.sh — Master provisioning script for the Tomb of Knowledge
 #
 # Deploys 5 layers into an air-gapped Kali Linux QEMU VM via SSH.

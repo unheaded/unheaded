@@ -347,5 +347,5 @@ To implement HA:
 ## SPDX License
 
 All configuration files are licensed under MIT License:
-Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 

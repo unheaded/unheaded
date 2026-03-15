@@ -2,7 +2,7 @@
 # Deploy on host-a alongside existing services
 # Usage: docker compose -f monitoring/docker-compose.yml up -d
 #
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 version: "3.9"
 

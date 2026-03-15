@@ -1,6 +1,6 @@
 # Unheaded Kingdom — Loki Container
 # Log aggregation and querying
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 name: loki
 description: "Unheaded Loki log aggregation container"

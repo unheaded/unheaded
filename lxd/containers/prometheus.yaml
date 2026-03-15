@@ -1,6 +1,6 @@
 # Unheaded Kingdom — Prometheus Container
 # Metrics collection and time-series database
-# License: MIT, Copyright (c) 2024-2026 Steven Bellis
+# License: MIT, Copyright (c) 2024-2026 Stevie Bellis
 
 name: prometheus
 description: "Unheaded Prometheus metrics container"
