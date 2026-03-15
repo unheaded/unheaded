@@ -1,297 +1,136 @@
 # Unheaded
 
-A mapped data bus over IPv6 Hop-by-Hop Options, with configuration
-management automation for immutable infrastructure.
+**Production-ready infrastructure in hours, not months.**
 
-Unheaded provides packet-level observability, service mesh, control plane, security
-baseline, and a protocol that turns every packet into a 20-byte
-register file executing eBPF programs at wire speed.
+Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. You bring your app ("the head"), we provide everything else.
 
-Interchangeable container runtimes (LXD, containerd, NixOS, Docker)
-and IaC backends (Ansible, Terraform, Puppet, Kubernetes, Chef, Salt).
-Three-platform deployment (NixOS + Docker + LXD) with BGP EVPN underlay.
-Your tools, our state model.
+## What It Does
 
-## Status
+- **eBPF-based observability** from Layer 2 to Layer 7 -- every packet traced from wire to browser
+- **Immutable infrastructure** across LXD, containerd, NixOS, and Docker
+- **Zero user data access** -- architectural isolation enforced, not promised
+- **Service mesh** on the Wotan message bus (gRPC streaming, pub/sub, protocol RAM)
+- **Declarative everything** -- version-controlled configs, interchangeable IaC backends
+- **Self-hosting proof** -- Unheaded builds and tracks itself (the Meta Moment)
+- **Post-quantum cryptography** -- ML-DSA, ML-KEM, SLH-DSA (FIPS 203/204/205)
 
-Age 1 (Alpha) ~98%. Age 2 (Beta IaC) ~40%.
+## The Unheaded Protocol Computer
 
-~260K production LOC (220K Go, 16K Rust, 13K JS, 5K Nix, 7K scripts)
-plus 203K test LOC (~93% test-to-production ratio). 25 services, 37+
-packages, 8 eBPF programs (16K LOC Rust/Aya), 16 protocol packages (Go).
+The Monad wire format is not just metadata -- it is a computational substrate.
 
-Age 2 IaC shipped: NixOS modules + Docker Compose + LXD profiles across
-three deployment platforms. Firewall ingress/egress (OPNsense + IPFire),
-routing fabric (BGP EVPN default; OSPFv3/IS-IS+SR-MPLS/MPLS LDP alternate),
-Suricata IDS (GPL-2.0 isolated), full observability stack
-(Prometheus/Loki/VictoriaMetrics/Grafana/Alertmanager). Bare metal
-live validation pending (S70+).
+Every IPv6 packet carries a 20-byte Monad register file (5 x u32) in the Hop-by-Hop Options header. At each hop, an eBPF program reads and writes the registers. The packet *is* the working memory of a distributed computation.
 
-Core protocol specified in three Internet-Drafts (IETF Experimental track):
+We built a complete virtual CPU inside eBPF XDP that boots Linux.
 
-- [draft-bellis-unheaded-protocol-foundation-04](docs/protocol/draft-bellis-unheaded-protocol-foundation-04.md) — Monad wire format
-- [draft-bellis-unheaded-sophia-dictionary-01](docs/protocol/draft-bellis-unheaded-sophia-dictionary-01.md) — Sophia BPF dictionaries
-- [draft-bellis-unheaded-wotan-memory-01](docs/protocol/draft-bellis-unheaded-wotan-memory-01.md) — Wotan memory model
-
-## The Protocol
-
-The Unheaded Protocol encodes a 20-byte Monad (5 × u32 register file)
-in the IPv6 Hop-by-Hop Options extension header (next-header 0x00,
-HOPOPT). At each hop, an eBPF Shim reads and writes the Monad. The
-packet is the working memory of a distributed computation.
-
-Key properties:
-
-    Monad:       20 bytes, 5 registers (R0-R4), CRC-16/CCITT integrity
-    Encoding:    Exponent-encoded fields via Sophia dictionaries
-    Processing:  Per-hop eBPF (XDP/TC), O(1) per packet
-    Scope:       Limited Domain [RFC 8799] — every hop is controlled
-    HbH type:    0x3E (option type), len=18, MUST NOT be stripped
-    Heritage:    ARINC 429 → I2C → CAN Bus → BGP → BPF → IPv6 → Unheaded
-
-With Kingdom Mode (optional, requires EVPN-VXLAN), deterministic
-IPv6 address bits are reclaimed as Extended Register Space:
-
-    /8 mode:   208 bits reclaimed (26 bytes)  — 16.7M hosts
-    /12 mode:  216 bits reclaimed (27 bytes)  — 1M hosts
-    /16 mode:  224 bits reclaimed (28 bytes)  — 65K hosts
-
-    Formula:   reclaimed = 2 * (128 - host_bits)
-
-Combined with the Monad, a /16 deployment carries 48 bytes of
-computational register state per packet with zero wire overhead.
-
-Post-quantum identity binding (ML-KEM-768, ML-DSA-65 per FIPS
-203/204) is integrated via Sophia key store. Zero additional wire bytes.
-
-Full specification: [docs/protocol/](docs/protocol/)
+See the [UPC Reference Manual](docs/UPC_REFERENCE_MANUAL.md) for the full architecture.
 
 ## Architecture
 
-    BARE METAL / VM (host-a: Forge, host-b: Outpost)
-    ├── OPNsense 26.1.2 (BSD-2-Clause) / IPFire 2.29 (GPL-3.0)
-    ├── FRR (BGP EVPN AS65001) / BIRD (BGP AS65002)
-    ├── WireGuard tunnel fd00:dead:beef::/48, MTU=1380
-    ├── EVPN-VXLAN VNIs 10001/10002/10100, BFD 300ms
-    ├── unheaded-daemon          control plane, drift detection
-    ├── eBPF programs            XDP packet marking, flow tracking, latency
-    └── services (containers, VMs, or bare metal processes)
-        ├── wotan                message bus (gRPC streaming, pub/sub)
-        ├── shield               ingress/egress boundary (Monad stamp/strip)
-        ├── sophia               dictionary service (BPF map management)
-        ├── monad                register file processor
-        ├── anamnesis            event ring buffer, trace correlation
-        ├── kenoma / pleroma     outer/inner domain separation
-        ├── trace-collector      eBPF → Wotan bridge (Rust)
-        ├── dashboard-backend    metrics aggregator, WebSocket
-        ├── kanban-app           self-hosting proof
-        ├── gateway              HTTP/3, QUIC, gRPC-Web
-        └── yaldabaoth           chaos injection (controlled fault testing)
+```
+Layer 5  User Interface       Dashboard, Kanban (self-hosting proof)
+Layer 4  Application Services timeguru, captain, micromanager, architect
+Layer 3  Infrastructure Svcs  wotan, trace-collector, gateway
+Layer 2  Control Plane        unheaded-daemon (drift detection, reconciliation)
+Layer 1  Data Plane           8 eBPF programs (XDP/TC, Rust/Aya)
+Layer 0  Infrastructure       LXD / Docker / NixOS / bare metal
+```
 
-Routing options (switchable via scripts/routing/select-routing.sh):
+Two bare-metal hosts (WEST + EAST) connected via WireGuard IPv6 overlay (`fd00:dead:beef::/48`) with BGP EVPN underlay (VXLAN VNIs). Cross-host BPF flow graph operational.
 
-    bgp-evpn    BGP EVPN (default) — full L2 extension, VXLAN VNIs
-    ospf        OSPFv3 Option A    — simple, no AS numbers
-    isis        IS-IS+SR-MPLS      — segment routing, level-2-only
-    mpls        MPLS LDP           — full TE, label-switched paths
+## Quick Start
 
-IDS: Suricata (GPL-2.0) isolated via EVE JSON file I/O + BPF fd
-sharing. Custom Monad rules SID 9000001-9000099. pkg/anamnesis/
-bridges EVE JSON events to Wotan topic security.suricata.alert.
+```bash
+# Prerequisites: Linux (kernel 5.15+), Go 1.24+, Docker
 
-## Repository Layout
+# Build
+go build ./...
 
-    unheaded/
-    ├── cmd/                     service binaries
-    │   ├── unheaded-daemon/     control plane agent
-    │   ├── protocol-api/        Monad/Sophia/Wotan wire handlers
-    │   ├── monad/               register file processor
-    │   ├── sophia/              dictionary management
-    │   ├── trace-collector/     eBPF → Wotan bridge (Rust)
-    │   ├── dashboard-backend/   metrics (Go + WebSocket)
-    │   ├── kanban-app/          self-hosting demo
-    │   ├── routing-health/      HTTP :8080 /health /ready /metrics
-    │   ├── ebpf-exporter/       eBPF metrics → Prometheus
-    │   ├── ebpf-loader/         BPF program lifecycle
-    │   ├── ebpf-collector/      BPF map reader
-    │   └── unheaded-cli/        operator CLI
-    │
-    ├── services/                microservice definitions (25 services)
-    │   ├── wotan/               message bus
-    │   ├── shield/              ingress/egress
-    │   ├── sophia/              dictionaries
-    │   ├── anamnesis/           event tracing
-    │   ├── yaldabaoth/          chaos injection
-    │   └── ...
-    │
-    ├── ebpf/                    eBPF programs (Rust, aya framework)
-    │   ├── packet-marker/       trace ID injection at XDP
-    │   ├── flow-tracker/        connection state tracking
-    │   ├── latency-probe/       RTT measurement
-    │   ├── hop-ebpf/            per-hop Monad processing
-    │   ├── shield-ebpf/         ingress/egress stamping
-    │   ├── monad-cpu-ebpf/      register file computation
-    │   └── ...
-    │
-    ├── pkg/                     shared Go packages (37+ packages)
-    │   ├── protocol/            16 RFC cross-pollination packages
-    │   │   ├── encoding/        varint (RFC 9000), exponent, CRC-16, TLV
-    │   │   ├── registry/        generic IANA-style Registry[K,V]
-    │   │   ├── bpfschema/       BPF map key/value structs
-    │   │   └── ...              amplification, migration, integrity, dos
-    │   ├── metrics/             Collector interface, baremetal/lxd/docker/nixos
-    │   ├── anamnesis/           EVE JSON → 64-byte RingEntry → Wotan
-    │   ├── iac/                 6 IaC renderer backends
-    │   ├── observability/       8 observability adapter backends
-    │   ├── transport/           gRPC-first with HTTP fallback
-    │   ├── discovery/           four-layer service discovery
-    │   ├── logagg/              log aggregation, 10K-line ring buffer
-    │   ├── auth/                JWT, mTLS, RBAC (skeleton)
-    │   └── ...
-    │
-    ├── nixos/                   NixOS deployment (one supported runtime)
-    │   ├── flake.nix            Nix flake entry point
-    │   ├── hosts/               host-a (Forge) + host-b (Outpost) configs
-    │   ├── modules/             per-subsystem NixOS modules
-    │   │   ├── firewall-bridge.nix    br-unheaded, HbH passthrough nftables
-    │   │   ├── frr.nix / bird.nix     routing daemons
-    │   │   ├── suricata.nix           IDS (decode-events: no)
-    │   │   ├── observability.nix      Prometheus/Loki/Grafana/VictoriaMetrics
-    │   │   ├── wireguard.nix          WireGuard fd00:dead:beef::/48
-    │   │   ├── opnsense-vm.nix        OPNsense QEMU via libvirtd
-    │   │   ├── ipfire-vm.nix          IPFire QEMU via libvirtd
-    │   │   └── services/              25 per-service .nix modules
-    │   └── tests/               NixOS test modules (nixosTest framework)
-    │
-    ├── docker/                  Docker Compose deployment
-    │   ├── hosts/               host-a + host-b docker-compose.yml
-    │   ├── suricata/            Dockerfile + suricata.yaml (decode-events: no)
-    │   └── routing/             FRR + BIRD containerized routing daemons
-    │
-    ├── lxd/                     LXD container/VM deployment
-    │   ├── profiles/            base, eBPF, GPU, firewall profiles
-    │   ├── containers/          per-service YAML definitions
-    │   └── hosts/               init + launch scripts
-    │
-    ├── routing/                 routing daemon configs
-    │   ├── frr/                 BGP EVPN + IS-IS + BFD (FRR, host-a)
-    │   ├── bird/                BGP + BFD + radv (BIRD, host-b)
-    │   ├── ospf/                OSPFv3 alternate (Option A)
-    │   ├── isis/                IS-IS+SR-MPLS alternate (Option B)
-    │   ├── mpls/                MPLS LDP alternate (Option C)
-    │   └── suricata/rules/      Monad IDS signatures SID 9000001-9000099
-    │
-    ├── monitoring/              observability stack configs
-    │   ├── prometheus/          scrape configs (25 services + routing)
-    │   ├── loki/                30d retention, 90d for security streams
-    │   ├── promtail/            host-a + host-b log shipping
-    │   ├── victoriametrics/     long-term metrics storage
-    │   ├── alertmanager/        alert routing + Monad HbH drop rate rules
-    │   ├── grafana/dashboards/  infrastructure, containers, routing, firewall, eBPF
-    │   └── docker-compose.yml   full observability stack
-    │
-    ├── scripts/                 operational automation
-    │   ├── routing/             select-routing.sh (live switcher)
-    │   └── firewall/            setup-opnsense.sh, setup-ipfire.sh, health-check.sh
-    │
-    ├── docs/                    documentation
-    │   ├── protocol/            Internet-Drafts, patches, error registry
-    │   ├── network/             topology, HbH passthrough rules, routing options
-    │   ├── legal/               SURICATA_GPL_ISOLATION.md, IP-INVENTORY.md
-    │   ├── security/            lich-campaigns.md, dark-grimoire-addendum.md
-    │   ├── sessions/            session handoffs + battle plans
-    │   └── adr/                 architecture decision records
-    │
-    └── references/              timeline.md (living roadmap)
+# Run with Docker Compose
+docker compose up -d
+
+# Verify all services
+for port in 17000 18000 19000 19001 19002 19003 19004 19005 20000 20001; do
+  curl -sf "http://localhost:$port/health" && echo " :$port OK" || echo " :$port UNREACHABLE"
+done
+
+# Open the dashboard
+xdg-open http://localhost:20000
+```
+
+See [QUICKSTART.md](QUICKSTART.md) for the full walkthrough.
+
+## Services
+
+| Service | Port | Role |
+|---------|------|------|
+| unheaded-daemon | 17000 | Control plane, drift detection |
+| wotan | 18000/18001 | Message bus (HTTP/gRPC) |
+| timeguru | 19000 | Timeline tracking |
+| architect | 19001 | Infrastructure design |
+| captain | 19002 | Strategy service |
+| micromanager | 19003 | Task execution |
+| monad | 19004 | Register file processor |
+| sophia | 19005 | BPF dictionary management |
+| dashboard | 20000 | Metrics, packet-flow visualization |
+| kanban | 20001 | Self-hosting proof (the Meta Moment) |
+
+## The Protocol
+
+The Monad encodes 20 bytes (5 registers, CRC-16/CCITT) in IPv6 Hop-by-Hop Options. With Kingdom Mode (EVPN-VXLAN), deterministic address bits are reclaimed as extended register space -- up to 48 bytes of computational state per packet with zero wire overhead.
+
+Core specification in three Internet-Drafts (IETF Experimental track):
+
+- [Monad Wire Format](docs/protocol/draft-bellis-unheaded-protocol-foundation-04.md) -- register file encoding
+- [Sophia Dictionaries](docs/protocol/draft-bellis-unheaded-sophia-dictionary-01.md) -- BPF map management
+- [Wotan Memory Model](docs/protocol/draft-bellis-unheaded-wotan-memory-01.md) -- distributed protocol RAM
+
+## Security
+
+- **Post-quantum cryptography**: ML-KEM-768, ML-DSA-65, SLH-DSA (FIPS 203/204/205) via cloudflare/circl
+- **4-tier compliance**: NONE, STANDARD, HARDENED, SOVEREIGN
+- **eBPF tracing from packet zero**: every packet marked at XDP, correlated end-to-end
+- **Container hardening**: seccomp, capabilities, read-only filesystems, default-deny networking
+- **IDS**: Suricata with custom Monad rules (SID 9000001-9000099), GPL-2.0 process-isolated
+- **Authentication**: Pluggable (Noop/APIKey/JWT), RBAC, audit logging
+
+## AI: Zhen
+
+Local RAG system with 1.52M indexed knowledge chunks. Mistral-7B inference via llama.cpp. No data leaves the network.
+
+- **Web UI**: port 20103
+- **Inference API**: port 20100
+- **Capabilities**: Codebase search, protocol Q&A, architecture exploration
 
 ## Technology
 
-    Go 1.24          services, control plane, CLI
-    Rust             eBPF programs (aya), trace-collector
-    Linux 5.15+      minimum kernel (BPF, XDP, TC, MPLS)
-    gRPC             inter-service transport (Wotan)
-    eBPF (XDP/TC)    packet processing, tracing, chaos
-    EVPN-VXLAN       L2 overlay fabric (VNIs 10001/10002/10100)
-    BGP / IS-IS      control plane routing (FRR host-a, BIRD host-b)
-    WireGuard        east-west encrypted tunnel fd00:dead:beef::/48
-    Suricata         IDS, GPL-2.0 isolated via EVE JSON boundary
-    HTTP/3 + QUIC    external gateway
-    Prometheus       metrics collection + alerting
-    Loki             log aggregation
-    VictoriaMetrics  long-term metrics storage
-    NixOS            declarative host configuration (one supported runtime)
+| Component | Stack |
+|-----------|-------|
+| Services | Go 1.24 |
+| eBPF programs | Rust (Aya framework) |
+| Frontend | Vanilla JS |
+| Transport | gRPC-first, HTTP fallback |
+| Routing | BGP EVPN (default), OSPFv3, IS-IS+SR-MPLS, MPLS LDP |
+| Tunnel | WireGuard (fd00:dead:beef::/48) |
+| Observability | Prometheus, Loki, VictoriaMetrics, Grafana |
+| IaC backends | Ansible, Terraform, Puppet, Kubernetes, Chef, Salt |
 
-Runtime-agnostic: bare metal, LXD, Docker, Podman, systemd-nspawn,
-Firecracker, or any Linux environment with BPF support. NixOS is
-provided as one declarative option.
+## Codebase
 
-## Build
+~450K lines of production code. ~1M+ total with tests and documentation.
 
-Requires: Linux (kernel 5.15+), Go 1.24+, Rust nightly,
-root or sudo for eBPF loading.
-
-    make build          # build all Go services
-    make ebpf           # build eBPF programs (Rust)
-    make containers     # build container images
-    make test           # run test suite
-    make dev            # local development (docker-compose)
-
-## Deploy
-
-    # observability stack (no root required)
-    docker compose -f monitoring/docker-compose.yml up -d
-
-    # routing health probe
-    ./bin/routing-health --addr :8080
-
-    # full bare metal (Linux 5.15+, root required)
-    sudo ./scripts/setup-host.sh
-    make build && make ebpf
-    sudo ./scripts/load-ebpf.sh
-    sudo nixos-rebuild switch --flake ./nixos#host-a   # NixOS only
-
-    # routing selection
-    sudo scripts/routing/select-routing.sh bgp-evpn|ospf|isis|mpls
-
-## Protocol Documents
-
-    docs/protocol/draft-bellis-unheaded-protocol-foundation-04.md   Monad wire format
-    docs/protocol/draft-bellis-unheaded-sophia-dictionary-01.md     Sophia BPF dictionaries
-    docs/protocol/draft-bellis-unheaded-wotan-memory-01.md          Wotan memory model
-    docs/network/FIREWALL_TOPOLOGY.md                               Host-a/b topology, addressing
-    docs/network/MONAD_HBH_FIREWALL_RULES.md                        HbH passthrough per platform
-    docs/network/ALTERNATE_ROUTING_OPTIONS.md                       Routing option comparison
-    docs/legal/SURICATA_GPL_ISOLATION.md                            GPL-2.0 isolation boundary
-    docs/security/dark-grimoire-addendum.md                         Attack surface taxonomy
-    pkg/protocol/PATTERN_MATRIX.md                                  RFC→Package→BPF map matrix
-
-## References
-
-    RFC 8200    IPv6 Specification (Monad HbH container)
-    RFC 9673    IPv6 Hop-by-Hop Options Processing
-    RFC 9669    BPF Instruction Set Architecture (Sophia/Shim)
-    RFC 9000    QUIC Transport (varint, amplification, migration patterns)
-    RFC 9114    HTTP/3 (error codes, settings, GOAWAY, stream types)
-    RFC 8949    CBOR (Sophia dictionary serialization)
-    RFC 8126    IANA Considerations (registry management)
-    RFC 8799    Limited Domains and Internet Protocols
-    RFC 9197    IOAM Data Fields
-    RFC 3031    MPLS Architecture (label stack outer, IPv6+HbH inner)
-    RFC 5308    IS-IS for IPv6 (TLV 236 routing)
-    FIPS 203    ML-KEM (Kyber) Key Encapsulation
-    FIPS 204    ML-DSA (Dilithium) Digital Signatures
+- 25 services, 37+ packages, 8 eBPF programs
+- 16 protocol packages (Go), 16K lines eBPF (Rust/Aya)
+- Three deployment platforms: NixOS, Docker Compose, LXD
+- Four routing options: BGP EVPN, OSPFv3, IS-IS+SR-MPLS, MPLS LDP
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+GPL-3.0-or-later. See [LICENSE](./LICENSE).
 
-Protocol specifications: MIT — see LICENSE-PROTOCOLS.
+Protocol specifications dual-licensed GPL-3.0/Apache-2.0 for ecosystem adoption.
 
-Suricata (GPL-2.0) is process-isolated; see
-[docs/legal/SURICATA_GPL_ISOLATION.md](docs/legal/SURICATA_GPL_ISOLATION.md).
+Suricata (GPL-2.0) is process-isolated. See [GPL Isolation Boundary](docs/legal/SURICATA_GPL_ISOLATION.md).
 
-## Contact
+## Author
 
-    Stevie Bellis <stevie@bellis.tech>
-    stevenrbellis@gmail.com
-    https://github.com/stevenrbellis
+Stevie Bellis -- stevie@bellis.tech
