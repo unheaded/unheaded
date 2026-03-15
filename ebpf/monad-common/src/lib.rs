@@ -899,6 +899,8 @@ pub const EVENT_COMPUTE_HALT: u8 = 0x16;
 pub const EVENT_COMPUTE_STALL: u8 = 0x17;
 /// Compute engine event type: TTY write (console output via SYS_WRITE to fd 1/2).
 pub const EVENT_TTY_WRITE: u8 = 0x18;
+/// Compute engine event type: scheduler context switch (Level 4c).
+pub const EVENT_CONTEXT_SWITCH: u8 = 0x19;
 
 /// Emitted by monad-cpu-ebpf via BPF ring buffer on every instruction executed.
 /// Also used for CACHE_MISS events (with instruction=0).
@@ -1007,6 +1009,12 @@ pub struct MbcCpuState {
     pub program_break: u32,
     /// Exit code from SYS_EXIT (stored when halted via exit syscall).
     pub exit_code: u32,
+    /// Current process ID (0-3, max 4 processes). Level 4c scheduler.
+    pub current_pid: u8,
+    /// Number of active processes (1 = no scheduling). Level 4c scheduler.
+    pub num_processes: u8,
+    /// Padding for 8-byte alignment after scheduler fields.
+    pub _pad3: [u8; 6],
 }
 
 /// Default initial program break address (4 MiB).
@@ -1032,6 +1040,9 @@ impl Default for MbcCpuState {
             tick_counter: 0,
             program_break: DEFAULT_PROGRAM_BREAK,
             exit_code: 0,
+            current_pid: 0,
+            num_processes: 1,
+            _pad3: [0; 6],
         }
     }
 }
@@ -1272,6 +1283,8 @@ pub mod mbc_linux_syscalls {
     pub const SYS_MMAP: u32 = 90;
     /// `munmap(addr, len)` — unmap memory.
     pub const SYS_MUNMAP: u32 = 91;
+    /// `fork()` — create child process (simplified clone for Level 4c scheduler).
+    pub const SYS_FORK: u32 = 2;
     /// `clone(flags, stack, ptid, tls, ctid)` — create child process/thread.
     pub const SYS_CLONE: u32 = 120;
     /// `uname(buf)` — get system information.
@@ -1285,8 +1298,36 @@ pub mod mbc_linux_syscalls {
     /// `clock_gettime(clk_id, tp)` — get clock time.
     pub const SYS_CLOCK_GETTIME: u32 = 265;
 
+    /// Custom: read a 512-byte block from the ramdisk.
+    /// r1=block_num, r2=buf_addr (destination in RAM).
+    pub const SYS_READ_BLOCK: u32 = 200;
+    /// Custom: write a 512-byte block to the ramdisk.
+    /// r1=block_num, r2=buf_addr (source in RAM).
+    pub const SYS_WRITE_BLOCK: u32 = 201;
+
     /// ENOSYS errno value — returned for unimplemented syscalls.
     pub const ENOSYS: u32 = 38;
+    /// EIO errno value — returned for I/O errors (e.g., invalid block number).
+    pub const EIO: u32 = 5;
+}
+
+/// Block device emulation constants (Level 4e — ramdisk).
+///
+/// Provides a simple block device using Wotan extended memory (RAM_MAP) as a
+/// ramdisk. 4MB region with 512-byte blocks, accessed via SYS_READ_BLOCK /
+/// SYS_WRITE_BLOCK syscalls.
+pub mod mbc_block {
+    /// Ramdisk base address in RAM_MAP (word-addressed).
+    /// 0x200000 words = 8MB offset in word space = 32MB byte offset.
+    pub const RAMDISK_BASE_WORD: u32 = 0x200000;
+    /// Ramdisk size in bytes.
+    pub const RAMDISK_SIZE: u32 = 4 * 1024 * 1024; // 4MB
+    /// Block size in bytes.
+    pub const BLOCK_SIZE: u32 = 512;
+    /// Total number of blocks in the ramdisk.
+    pub const TOTAL_BLOCKS: u32 = RAMDISK_SIZE / BLOCK_SIZE; // 8192 blocks
+    /// Words per block (512 bytes / 4 bytes per word).
+    pub const WORDS_PER_BLOCK: u32 = BLOCK_SIZE / 4; // 128 words
 }
 
 /// Interrupt vector numbers for the MBC CPU.
@@ -1299,6 +1340,8 @@ pub mod mbc_interrupts {
     pub const VECTOR_SYSCALL: u8 = 0x80;
     /// Number of ticks between timer interrupts (at 35 Hz XDP, every 3rd tick ~ 12 Hz).
     pub const TIMER_TICK_DIVISOR: u32 = 3;
+    /// Maximum number of processes supported by the Level 4c scheduler.
+    pub const MAX_PROCESSES: u8 = 4;
 }
 
 /// Screen / I/O memory map constants for the Doom-over-IPv6 PoC.

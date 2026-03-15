@@ -53,11 +53,11 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, mbc_flags as mf, mbc_interrupts as intr, mbc_linux_syscalls as lsys,
-    mbc_mmap as mmap, mbc_opcodes as op, mbc_syscalls as sys,
+    flags, mbc_block as blk, mbc_flags as mf, mbc_interrupts as intr,
+    mbc_linux_syscalls as lsys, mbc_mmap as mmap, mbc_opcodes as op, mbc_syscalls as sys,
     ComputeHopEvent, MbcCpuState, MbcInsn, Monad, EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
-    EVENT_SCREEN_WRITE, EVENT_TTY_WRITE, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
-    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    EVENT_CONTEXT_SWITCH, EVENT_SCREEN_WRITE, EVENT_TTY_WRITE, IPV6_FIXED_HDR_LEN,
+    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -131,6 +131,17 @@ static TTY_MAP: Array<u8> = Array::with_max_entries(4096, 0);
 #[map]
 static TTY_HEAD: Array<u32> = Array::with_max_entries(1, 0);
 
+/// Process table: 4 slots, each stores saved CPU state for context switch (Level 4c).
+/// Key = process_id (0-3), Value = saved register set (20 u32s = 80 bytes).
+/// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break]
+#[map]
+static PROC_TABLE: Array<[u32; 20]> = Array::with_max_entries(4, 0);
+
+/// Scheduler state: [0]=current_pid, [1]=num_processes, [2]=scheduler_enabled, [3]=halted_mask.
+/// halted_mask: bit i set means process i has exited/halted.
+#[map]
+static SCHED_STATE: Array<u32> = Array::with_max_entries(4, 0);
+
 // ── Stat keys ─────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_CPU_TICKS: u32 = 1;
@@ -148,6 +159,9 @@ const STAT_FRAME_READY: u32 = 11; // Incremented by SYS_DRAW_FRAME; userspace po
 const STAT_TIMER_INTERRUPTS: u32 = 12; // Timer interrupt deliveries
 const STAT_LINUX_SYSCALLS: u32 = 13; // Linux-compatible INT 0x80 syscalls
 const STAT_TTY_WRITES: u32 = 14; // TTY write operations (SYS_WRITE to fd 1/2)
+const STAT_CONTEXT_SWITCHES: u32 = 15; // Scheduler context switches (Level 4c)
+const STAT_FORKS: u32 = 16; // SYS_FORK process creation (Level 4c)
+const STAT_BLOCK_OPS: u32 = 17; // Block device read/write operations (Level 4e)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -291,6 +305,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         cpu.interrupt_vector = intr::VECTOR_TIMER;
         cpu.tick_counter = 0;
         increment_stat(STAT_TIMER_INTERRUPTS);
+
+        // ── Level 4c: Scheduler context switch on timer ──────────────────
+        // When num_processes > 1, the timer interrupt triggers a round-robin
+        // context switch. Save current process state, load next runnable.
+        if cpu.num_processes > 1 {
+            scheduler_context_switch(cpu, flow_label, hop_id);
+        }
     }
 
     // ── Execute loop ──────────────────────────────────────────────────────────
@@ -774,6 +795,95 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[0] = 0; // success
                     increment_stat(STAT_SLEEPING);
                     break;
+                } else if syscall_nr == lsys::SYS_FORK {
+                    // ── SYS_FORK(2): Create child process (Level 4c scheduler) ──
+                    // Copy current registers to next PROC_TABLE slot.
+                    // Parent gets child_pid in r0, child gets 0 in r0.
+                    if cpu.num_processes >= intr::MAX_PROCESSES {
+                        // No room — return -EAGAIN (11)
+                        cpu.regs[0] = (-11i32) as u32;
+                    } else {
+                        let child_pid = cpu.num_processes as u32;
+                        // Save child state: copy parent's regs + PC + flags + SP + brk
+                        let mut child_state = [0u32; 20];
+                        let mut r = 0u32;
+                        while r < 16 {
+                            child_state[r as usize] = cpu.regs[r as usize];
+                            r += 1;
+                        }
+                        child_state[16] = cpu.pc; // child resumes at same PC
+                        child_state[17] = cpu.flags as u32;
+                        child_state[18] = cpu.regs[15]; // SP copy
+                        child_state[19] = cpu.program_break;
+                        // Child gets 0 in r0 (fork return value)
+                        child_state[0] = 0;
+                        // Write child state to PROC_TABLE
+                        if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
+                            unsafe { *p = child_state; }
+                        }
+                        cpu.num_processes += 1;
+                        // Update SCHED_STATE[1] = num_processes
+                        if let Some(p) = SCHED_STATE.get_ptr_mut(1) {
+                            unsafe { *p = cpu.num_processes as u32; }
+                        }
+                        increment_stat(STAT_FORKS);
+                        // Parent gets child_pid in r0
+                        cpu.regs[0] = child_pid;
+                    }
+                } else if syscall_nr == lsys::SYS_SCHED_YIELD {
+                    // ── SYS_SCHED_YIELD(158): Voluntary context switch (Level 4c) ──
+                    if cpu.num_processes > 1 {
+                        scheduler_context_switch(cpu, flow_label, hop_id);
+                    }
+                    cpu.regs[0] = 0; // success
+                } else if syscall_nr == lsys::SYS_READ_BLOCK {
+                    // SYS_READ_BLOCK(200): r1=block_num, r2=buf_addr (dest in RAM).
+                    // Copy 128 words (512 bytes) from ramdisk to destination buffer.
+                    let block_num = cpu.regs[1];
+                    let buf_addr = cpu.regs[2];
+                    if block_num < blk::TOTAL_BLOCKS {
+                        let src_base = blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK;
+                        let dst_base = buf_addr >> 2;
+                        let mut w: u32 = 0;
+                        while w < 128 {
+                            let val = match RAM_MAP.get(src_base + w) {
+                                Some(v) => *v,
+                                None => 0,
+                            };
+                            if let Some(ptr) = RAM_MAP.get_ptr_mut(dst_base + w) {
+                                unsafe { *ptr = val; }
+                            }
+                            w += 1;
+                        }
+                        cpu.regs[0] = blk::BLOCK_SIZE; // 512 bytes read
+                        increment_stat(STAT_BLOCK_OPS);
+                    } else {
+                        cpu.regs[0] = (-(lsys::EIO as i32)) as u32;
+                    }
+                } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
+                    // SYS_WRITE_BLOCK(201): r1=block_num, r2=buf_addr (src in RAM).
+                    // Copy 128 words (512 bytes) from source buffer to ramdisk.
+                    let block_num = cpu.regs[1];
+                    let buf_addr = cpu.regs[2];
+                    if block_num < blk::TOTAL_BLOCKS {
+                        let dst_base = blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK;
+                        let src_base = buf_addr >> 2;
+                        let mut w: u32 = 0;
+                        while w < 128 {
+                            let val = match RAM_MAP.get(src_base + w) {
+                                Some(v) => *v,
+                                None => 0,
+                            };
+                            if let Some(ptr) = RAM_MAP.get_ptr_mut(dst_base + w) {
+                                unsafe { *ptr = val; }
+                            }
+                            w += 1;
+                        }
+                        cpu.regs[0] = blk::BLOCK_SIZE; // 512 bytes written
+                        increment_stat(STAT_BLOCK_OPS);
+                    } else {
+                        cpu.regs[0] = (-(lsys::EIO as i32)) as u32;
+                    }
                 } else {
                     // Unknown syscall: return -ENOSYS (38) in r0.
                     cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
@@ -989,6 +1099,117 @@ fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
             flow_label,
             pc: 0,
             instruction: bytes_written, // Reuse instruction field for byte count
+            regs: [0; 16],
+            flags: 0,
+            cache_hit: 0,
+            miss_addr: 0,
+        };
+        unsafe {
+            core::ptr::write(entry.as_mut_ptr(), event);
+            entry.submit(0);
+        }
+    }
+}
+
+// ── Level 4c: Round-Robin Scheduler ──────────────────────────────────────────
+
+/// Perform a round-robin context switch.
+///
+/// 1. Save current process state (regs + PC + flags + SP + brk) to PROC_TABLE
+/// 2. Advance to next runnable process (skip halted ones)
+/// 3. Load that process's state from PROC_TABLE
+/// 4. Update current_pid in cpu state and SCHED_STATE
+///
+/// All loops bounded to MAX_PROCESSES (4) for BPF verifier.
+#[inline(always)]
+fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) {
+    let old_pid = cpu.current_pid as u32;
+    let num = cpu.num_processes as u32;
+
+    // Guard: need at least 2 processes
+    if num <= 1 {
+        return;
+    }
+
+    // 1. Save current process state to PROC_TABLE[current_pid]
+    let mut save_state = [0u32; 20];
+    let mut r = 0u32;
+    while r < 16 {
+        save_state[r as usize] = cpu.regs[r as usize];
+        r += 1;
+    }
+    save_state[16] = cpu.pc;
+    save_state[17] = cpu.flags as u32;
+    save_state[18] = cpu.regs[15]; // SP copy
+    save_state[19] = cpu.program_break;
+
+    if let Some(p) = PROC_TABLE.get_ptr_mut(old_pid) {
+        unsafe { *p = save_state; }
+    }
+
+    // 2. Find next runnable process (round-robin, skip halted)
+    // Read halted_mask from SCHED_STATE[3]
+    let halted_mask = match SCHED_STATE.get(3) {
+        Some(v) => *v,
+        None => 0,
+    };
+
+    let mut next_pid = (old_pid + 1) % num;
+    // Bounded search: try up to 4 candidates
+    let mut attempts = 0u32;
+    while attempts < 4 {
+        if next_pid < num && (halted_mask & (1 << next_pid)) == 0 {
+            break; // found a runnable process
+        }
+        next_pid = (next_pid + 1) % num;
+        attempts += 1;
+    }
+
+    // If all processes halted (or only self runnable), stay on current
+    if next_pid == old_pid {
+        return;
+    }
+
+    // 3. Load next process state from PROC_TABLE[next_pid]
+    let load_state = match PROC_TABLE.get(next_pid) {
+        Some(s) => *s,
+        None => return, // safety: shouldn't happen
+    };
+
+    let mut r2 = 0u32;
+    while r2 < 16 {
+        cpu.regs[r2 as usize] = load_state[r2 as usize];
+        r2 += 1;
+    }
+    cpu.pc = load_state[16];
+    cpu.flags = load_state[17] as u8;
+    // load_state[18] is SP copy — already in regs[15] from the load above
+    cpu.program_break = load_state[19];
+
+    // 4. Update current_pid
+    cpu.current_pid = next_pid as u8;
+
+    // Update SCHED_STATE[0] = new current_pid
+    if let Some(p) = SCHED_STATE.get_ptr_mut(0) {
+        unsafe { *p = next_pid; }
+    }
+
+    increment_stat(STAT_CONTEXT_SWITCHES);
+    emit_context_switch(flow_label, old_pid, next_pid, hop_id);
+}
+
+/// Emit a CONTEXT_SWITCH event to the ring buffer (Level 4c scheduler).
+#[inline(always)]
+fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) {
+    if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
+        let event = ComputeHopEvent {
+            timestamp_ns: unsafe { bpf_ktime_get_ns() },
+            event_type: EVENT_CONTEXT_SWITCH,
+            hop_id,
+            _pad: [0; 2],
+            flow_label,
+            pc: from_pid,              // reuse pc field for source pid
+            instruction: to_pid,       // reuse instruction field for dest pid
             regs: [0; 16],
             flags: 0,
             cache_hit: 0,
