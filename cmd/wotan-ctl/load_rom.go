@@ -235,7 +235,9 @@ type CpuState struct {
 	ExitCode          uint32
 	CurrentPID        uint8    // Level 4c scheduler: current process ID (0-3).
 	NumProcesses      uint8    // Level 4c scheduler: number of active processes.
-	Pad3              [6]uint8 // Alignment padding.
+	MmuEnabled        uint8    // MMU enabled (0=flat, 1=paging). Level 4d.
+	Pad3              uint8    // Alignment padding.
+	PageDirBase       uint32   // Page directory base address. Level 4d.
 }
 
 // defaultCpuState returns a default CPU state for a given flow label.

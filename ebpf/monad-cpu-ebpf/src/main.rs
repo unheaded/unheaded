@@ -54,7 +54,8 @@ use aya_ebpf::{
 };
 use monad_common::{
     flags, mbc_block as blk, mbc_flags as mf, mbc_interrupts as intr,
-    mbc_linux_syscalls as lsys, mbc_mmap as mmap, mbc_opcodes as op, mbc_syscalls as sys,
+    mbc_linux_syscalls as lsys, mbc_mmap as mmap, mbc_mmu as mmu,
+    mbc_opcodes as op, mbc_syscalls as sys,
     ComputeHopEvent, MbcCpuState, MbcInsn, Monad, EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
     EVENT_CONTEXT_SWITCH, EVENT_SCREEN_WRITE, EVENT_TTY_WRITE, IPV6_FIXED_HDR_LEN,
     IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
@@ -142,6 +143,12 @@ static PROC_TABLE: Array<[u32; 20]> = Array::with_max_entries(4, 0);
 #[map]
 static SCHED_STATE: Array<u32> = Array::with_max_entries(4, 0);
 
+/// Software TLB: 64 entries, direct-mapped by virtual page number (Level 4d).
+/// Key = index (vpn & 63), Value = [vpn, pfn, flags] (3 u32s = 12 bytes).
+/// Used by translate_address() for fast virtual-to-physical translation.
+#[map]
+static TLB_MAP: Array<[u32; 3]> = Array::with_max_entries(64, 0);
+
 // ── Stat keys ─────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_CPU_TICKS: u32 = 1;
@@ -162,6 +169,8 @@ const STAT_TTY_WRITES: u32 = 14; // TTY write operations (SYS_WRITE to fd 1/2)
 const STAT_CONTEXT_SWITCHES: u32 = 15; // Scheduler context switches (Level 4c)
 const STAT_FORKS: u32 = 16; // SYS_FORK process creation (Level 4c)
 const STAT_BLOCK_OPS: u32 = 17; // Block device read/write operations (Level 4e)
+const STAT_TLB_HITS: u32 = 18; // TLB hits (Level 4d MMU)
+const STAT_TLB_MISSES: u32 = 19; // TLB misses — page table walk required (Level 4d MMU)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -650,11 +659,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = ret;
 
         // ── Memory ────────────────────────────────────────────────────────────
-        // All memory accesses go directly to RAM_MAP (BPF Array, O(1)).
-        // L1 cache is disabled — Array is faster than LruHashMap.
+        // All memory accesses go through translate_address() for MMU support
+        // (Level 4d). When mmu_enabled == 0, translate_address returns the
+        // address unchanged — ONE branch per access in Doom mode (acceptable).
         } else if opc == op::LD {
             // dst = RAM[src + simm16]  (32-bit word load)
-            let addr = cpu.regs[s].wrapping_add(simm as u32);
+            let raw_addr = cpu.regs[s].wrapping_add(simm as u32);
+            let addr = translate_address(&cpu, raw_addr);
             let word_addr = addr >> 2;
             let val = match RAM_MAP.get(word_addr) {
                 Some(v) => *v,
@@ -665,14 +676,16 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             increment_stat(STAT_MEM_LOADS);
         } else if opc == op::ST {
             // RAM[dst + simm16] = src  (32-bit word store)
-            let addr = cpu.regs[d].wrapping_add(simm as u32);
+            let raw_addr = cpu.regs[d].wrapping_add(simm as u32);
+            let addr = translate_address(&cpu, raw_addr);
             let val = cpu.regs[s];
             mem_write_word(addr >> 2, val);
             cpu.cache_hits += 1; // mem_stores counter (legacy field name)
             increment_stat(STAT_MEM_STORES);
         } else if opc == op::LDB {
             // dst = zero_extend(RAM[src + simm16])  (byte load)
-            let addr = cpu.regs[s].wrapping_add(simm as u32);
+            let raw_addr = cpu.regs[s].wrapping_add(simm as u32);
+            let addr = translate_address(&cpu, raw_addr);
             let word_addr = addr >> 2;
             let byte_shift = (addr & 3) * 8;
             let word = match RAM_MAP.get(word_addr) {
@@ -684,14 +697,16 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             increment_stat(STAT_MEM_LOADS);
         } else if opc == op::STB {
             // RAM[dst + simm16] = src & 0xFF  (byte store)
-            let addr = cpu.regs[d].wrapping_add(simm as u32);
+            let raw_addr = cpu.regs[d].wrapping_add(simm as u32);
+            let addr = translate_address(&cpu, raw_addr);
             let val = (cpu.regs[s] & 0xFF) as u8;
             mem_write_byte(addr, val);
             cpu.cache_hits += 1;
             increment_stat(STAT_MEM_STORES);
         } else if opc == op::LDH {
             // dst = zero_extend(RAM[src + simm16])  (16-bit halfword load)
-            let addr = cpu.regs[s].wrapping_add(simm as u32);
+            let raw_addr = cpu.regs[s].wrapping_add(simm as u32);
+            let addr = translate_address(&cpu, raw_addr);
             let word_addr = addr >> 2;
             let half_shift = (addr & 2) * 8;
             let word = match RAM_MAP.get(word_addr) {
@@ -703,7 +718,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             increment_stat(STAT_MEM_LOADS);
         } else if opc == op::STH {
             // RAM[dst + simm16] = src & 0xFFFF  (16-bit halfword store)
-            let addr = cpu.regs[d].wrapping_add(simm as u32);
+            let raw_addr = cpu.regs[d].wrapping_add(simm as u32);
+            let addr = translate_address(&cpu, raw_addr);
             let val = (cpu.regs[s] & 0xFFFF) as u16;
             mem_write_half(addr, val);
             cpu.cache_hits += 1;
@@ -884,6 +900,29 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     } else {
                         cpu.regs[0] = (-(lsys::EIO as i32)) as u32;
                     }
+                // ── MMU control syscalls (Level 4d) ──────────────────
+                } else if syscall_nr == lsys::SYS_SET_PAGE_DIR {
+                    // SYS_SET_PAGE_DIR(250): r1 = physical address of page directory.
+                    cpu.page_dir_base = cpu.regs[1];
+                    cpu.regs[0] = 0;
+                } else if syscall_nr == lsys::SYS_ENABLE_MMU {
+                    // SYS_ENABLE_MMU(251): enable paging.
+                    cpu.mmu_enabled = 1;
+                    cpu.regs[0] = 0;
+                } else if syscall_nr == lsys::SYS_FLUSH_TLB {
+                    // SYS_FLUSH_TLB(252): invalidate all TLB entries.
+                    let mut idx: u32 = 0;
+                    while idx < 64 {
+                        if let Some(p) = TLB_MAP.get_ptr_mut(idx) {
+                            unsafe {
+                                (*p)[0] = 0;
+                                (*p)[1] = 0;
+                                (*p)[2] = 0;
+                            }
+                        }
+                        idx += 1;
+                    }
+                    cpu.regs[0] = 0;
                 } else {
                     // Unknown syscall: return -ENOSYS (38) in r0.
                     cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
@@ -1226,6 +1265,68 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 
 /// Update Z, N, C flags from an ALU result.
 #[inline(always)]
+/// Translate a virtual address to a physical address using two-level page tables
+/// and a direct-mapped software TLB (Level 4d MMU).
+///
+/// When `cpu.mmu_enabled == 0`, returns `vaddr` unchanged (flat addressing, Doom mode).
+/// When enabled, checks the 64-entry TLB first (O(1) array lookup), then walks
+/// the two-level page table on miss (2 bounded RAM_MAP reads — verifier-safe).
+///
+/// BPF verifier: this function is #[inline(always)] to avoid call overhead.
+/// The page table walk is bounded (2 reads), TLB access is 1 Array lookup.
+#[inline(always)]
+fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
+    if cpu.mmu_enabled == 0 {
+        return vaddr; // Flat mode — no translation (Doom, backward compat)
+    }
+
+    let vpn = vaddr >> 12;
+    let offset = vaddr & 0xFFF;
+    let tlb_idx = vpn & 63; // Direct-mapped
+
+    // Check TLB
+    if let Some(entry) = TLB_MAP.get(tlb_idx) {
+        if entry[0] == vpn && (entry[2] & mmu::PTE_PRESENT) != 0 {
+            // TLB hit
+            increment_stat(STAT_TLB_HITS);
+            return (entry[1] << 12) | offset;
+        }
+    }
+
+    // TLB miss — walk page tables
+    increment_stat(STAT_TLB_MISSES);
+    let pde_idx = vaddr >> 22;
+    let pte_idx = (vaddr >> 12) & 0x3FF;
+
+    // Read page directory entry
+    let pd_word_addr = (cpu.page_dir_base >> 2) + pde_idx;
+    let pde = mem_read_word(pd_word_addr);
+    if (pde & mmu::PTE_PRESENT) == 0 {
+        return vaddr; // Page fault — return unmapped (handle gracefully)
+    }
+
+    // Read page table entry
+    let pt_base = pde & mmu::PTE_PFN_MASK;
+    let pt_word_addr = (pt_base >> 2) + pte_idx;
+    let pte = mem_read_word(pt_word_addr);
+    if (pte & mmu::PTE_PRESENT) == 0 {
+        return vaddr; // Page fault
+    }
+
+    let pfn = (pte & mmu::PTE_PFN_MASK) >> 12;
+
+    // Update TLB
+    if let Some(p) = TLB_MAP.get_ptr_mut(tlb_idx) {
+        unsafe {
+            (*p)[0] = vpn;
+            (*p)[1] = pfn;
+            (*p)[2] = pte;
+        }
+    }
+
+    (pfn << 12) | offset
+}
+
 fn set_flags(cpu: &mut MbcCpuState, result: u32, carry: bool) {
     cpu.flags = 0;
     if result == 0 {

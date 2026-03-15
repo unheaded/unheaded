@@ -332,7 +332,9 @@ const (
 //	0x74    ExitCode        4B      Exit code (SYS_EXIT)
 //	0x78    CurrentPID      1B      Current process ID (Level 4c)
 //	0x79    NumProcesses    1B      Active process count (Level 4c)
-//	0x7A    _pad3           6B      Alignment padding
+//	0x7A    MmuEnabled      1B      MMU enabled flag (Level 4d)
+//	0x7B    _pad3           1B      Alignment padding
+//	0x7C    PageDirBase     4B      Page directory base address (Level 4d)
 type MbcCpuState struct {
 	Registers         [16]uint32 // r0-r15 general purpose registers (64 bytes).
 	PC                uint32     // Program counter.
@@ -353,13 +355,15 @@ type MbcCpuState struct {
 	ExitCode          uint32     // Exit code from SYS_EXIT (Level 4b).
 	CurrentPID        uint8      // Current process ID (0-3). Level 4c scheduler.
 	NumProcesses      uint8      // Number of active processes. Level 4c scheduler.
-	_pad3             [6]uint8   // Alignment padding.
+	MmuEnabled        uint8      // MMU enabled (0=flat, 1=paging). Level 4d.
+	_pad3             uint8      // Alignment padding.
+	PageDirBase       uint32     // Page directory base address. Level 4d.
 }
 
 // MbcCpuStateSize is the exact wire size. Tests verify this.
 // 64 ([16]uint32) + 4 (PC) + 4 (Flags+Halted+Stalled+_pad) + 4*8 (four uint64)
 // + 4 (interrupt fields + _pad2) + 4 (TickCounter) + 4 (ProgramBreak) + 4 (ExitCode)
-// + 2 (CurrentPID + NumProcesses) + 6 (_pad3) = 128.
+// + 2 (CurrentPID + NumProcesses) + 1 (MmuEnabled) + 1 (_pad3) + 4 (PageDirBase) = 128.
 const MbcCpuStateSize = 128
 
 // CacheLineKey for Monad CPU L1_CACHE map.

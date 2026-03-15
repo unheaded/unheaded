@@ -263,7 +263,7 @@ func TestFlowStateFieldOffsets(t *testing.T) {
 // Rust layout: #[repr(C)] struct MbcCpuState (128 bytes)
 // 64 ([16]u32) + 4 (pc) + 4 (flags,halted,stalled,pad) + 4*8 (u64s)
 // + 4 (interrupt fields + pad2) + 4 (tick_counter) + 4 (program_break) + 4 (exit_code)
-// + 2 (current_pid + num_processes) + 6 (_pad3) = 128.
+// + 2 (current_pid + num_processes) + 1 (mmu_enabled) + 1 (_pad3) + 4 (page_dir_base) = 128.
 func TestMbcCpuStateSize(t *testing.T) {
 	const expected = 128
 	actual := unsafe.Sizeof(MbcCpuState{})
@@ -292,6 +292,11 @@ func TestMbcCpuStateSize(t *testing.T) {
 //   0x6C: tick_counter (u32, 4 bytes)
 //   0x70: program_break (u32, 4 bytes)
 //   0x74: exit_code (u32, 4 bytes)
+//   0x78: current_pid (u8, 1 byte)
+//   0x79: num_processes (u8, 1 byte)
+//   0x7A: mmu_enabled (u8, 1 byte)
+//   0x7B: _pad3 (u8, 1 byte)
+//   0x7C: page_dir_base (u32, 4 bytes)
 func TestMbcCpuStateFieldOffsets(t *testing.T) {
 	c := MbcCpuState{}
 	base := uintptr(unsafe.Pointer(&c))
@@ -318,6 +323,8 @@ func TestMbcCpuStateFieldOffsets(t *testing.T) {
 		{"ExitCode", uintptr(unsafe.Pointer(&c.ExitCode)) - base, 0x74},
 		{"CurrentPID", uintptr(unsafe.Pointer(&c.CurrentPID)) - base, 0x78},
 		{"NumProcesses", uintptr(unsafe.Pointer(&c.NumProcesses)) - base, 0x79},
+		{"MmuEnabled", uintptr(unsafe.Pointer(&c.MmuEnabled)) - base, 0x7A},
+		{"PageDirBase", uintptr(unsafe.Pointer(&c.PageDirBase)) - base, 0x7C},
 	}
 
 	for _, tt := range tests {

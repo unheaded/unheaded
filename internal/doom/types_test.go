@@ -53,7 +53,9 @@ func TestCpuStateFieldOffsets(t *testing.T) {
 		{"ExitCode", uintptr(unsafe.Pointer(&cpu.ExitCode)) - base, 116},
 		{"CurrentPID", uintptr(unsafe.Pointer(&cpu.CurrentPID)) - base, 120},
 		{"NumProcesses", uintptr(unsafe.Pointer(&cpu.NumProcesses)) - base, 121},
-		{"Pad3", uintptr(unsafe.Pointer(&cpu.Pad3)) - base, 122},
+		{"MmuEnabled", uintptr(unsafe.Pointer(&cpu.MmuEnabled)) - base, 122},
+		{"Pad3", uintptr(unsafe.Pointer(&cpu.Pad3)) - base, 123},
+		{"PageDirBase", uintptr(unsafe.Pointer(&cpu.PageDirBase)) - base, 124},
 	}
 
 	for _, tt := range tests {

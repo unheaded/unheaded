@@ -1013,8 +1013,12 @@ pub struct MbcCpuState {
     pub current_pid: u8,
     /// Number of active processes (1 = no scheduling). Level 4c scheduler.
     pub num_processes: u8,
-    /// Padding for 8-byte alignment after scheduler fields.
-    pub _pad3: [u8; 6],
+    /// MMU enabled flag (0 = flat addressing / Doom mode, 1 = paging active). Level 4d.
+    pub mmu_enabled: u8,
+    /// Padding for alignment before page_dir_base.
+    pub _pad3: u8,
+    /// Physical address of page directory (base of two-level page table). Level 4d.
+    pub page_dir_base: u32,
 }
 
 /// Default initial program break address (4 MiB).
@@ -1042,7 +1046,9 @@ impl Default for MbcCpuState {
             exit_code: 0,
             current_pid: 0,
             num_processes: 1,
-            _pad3: [0; 6],
+            mmu_enabled: 0,
+            _pad3: 0,
+            page_dir_base: 0,
         }
     }
 }
@@ -1309,6 +1315,14 @@ pub mod mbc_linux_syscalls {
     pub const ENOSYS: u32 = 38;
     /// EIO errno value — returned for I/O errors (e.g., invalid block number).
     pub const EIO: u32 = 5;
+
+    /// Custom: set page directory base address for MMU (Level 4d).
+    /// r1 = physical address of page directory.
+    pub const SYS_SET_PAGE_DIR: u32 = 250;
+    /// Custom: enable MMU paging (cpu.mmu_enabled = 1) (Level 4d).
+    pub const SYS_ENABLE_MMU: u32 = 251;
+    /// Custom: flush all TLB entries (invalidate software TLB) (Level 4d).
+    pub const SYS_FLUSH_TLB: u32 = 252;
 }
 
 /// Block device emulation constants (Level 4e — ramdisk).
@@ -1374,6 +1388,44 @@ pub mod mbc_mmap {
     pub const WAD_BASE: u32 = 0x0011_0000;
     /// Maximum WAD size (4 MB — sufficient for doom1.wad).
     pub const WAD_MAX_SIZE: u32 = 4 * 1024 * 1024;
+}
+
+/// MMU / Paging emulation constants (Level 4d — virtual memory).
+///
+/// Two-level 32-bit page table with software TLB:
+/// ```text
+/// Virtual address (32-bit):
+///   [31:22] = Page Directory Index (10 bits, 1024 entries)
+///   [21:12] = Page Table Index    (10 bits, 1024 entries)
+///   [11:0]  = Page Offset         (12 bits, 4KB pages)
+/// ```
+pub mod mbc_mmu {
+    /// Number of TLB entries (direct-mapped by VPN & 63).
+    pub const TLB_SIZE: u32 = 64;
+    /// Page size in bytes (4 KiB).
+    pub const PAGE_SIZE: u32 = 4096;
+    /// Shift to extract page number from virtual address.
+    pub const PAGE_SHIFT: u32 = 12;
+    /// Shift to extract page directory index from virtual address.
+    pub const PDE_SHIFT: u32 = 22;
+    /// Mask for page table index (bits [21:12] after >> 12).
+    pub const PTE_MASK: u32 = 0x3FF;
+    /// Mask for page offset (bits [11:0]).
+    pub const OFFSET_MASK: u32 = 0xFFF;
+
+    /// Page table entry flag: page is present in memory.
+    pub const PTE_PRESENT: u32 = 1 << 11;
+    /// Page table entry flag: page is writable.
+    pub const PTE_WRITE: u32 = 1 << 10;
+    /// Page table entry flag: page is accessible from user mode.
+    pub const PTE_USER: u32 = 1 << 9;
+    /// Page table entry flag: page has been accessed (read).
+    pub const PTE_ACCESSED: u32 = 1 << 8;
+    /// Page table entry flag: page has been written (dirty).
+    pub const PTE_DIRTY: u32 = 1 << 7;
+
+    /// Mask to extract the page frame number from a page table entry (bits [31:12]).
+    pub const PTE_PFN_MASK: u32 = 0xFFFFF000;
 }
 
 // ── Ring buffer sizing helpers ────────────────────────────────────────────────
