@@ -381,31 +381,31 @@ func TestAllTiersCrossAlgorithm(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStubAlgorithmsReturnNotAvailable(t *testing.T) {
-	t.Run("SLH-DSA/keygen", func(t *testing.T) {
-		_, err := pqc.GenerateSLHDSAKeyPair()
-		if !errors.Is(err, pqc.ErrAlgorithmNotAvailable) {
-			t.Fatalf("expected ErrAlgorithmNotAvailable, got: %v", err)
+	t.Run("SLH-DSA/keygen-sign-verify", func(t *testing.T) {
+		kp, signer, err := pqc.GenerateSLHDSAKeyPair(pqc.SLHDSA_SHA2_128s)
+		if err != nil {
+			t.Fatalf("GenerateSLHDSAKeyPair: %v", err)
 		}
-	})
-
-	t.Run("SLH-DSA/sign", func(t *testing.T) {
-		s := &pqc.SLHDSASigner{}
-		_, err := s.Sign([]byte("test"))
-		if !errors.Is(err, pqc.ErrAlgorithmNotAvailable) {
-			t.Fatalf("expected ErrAlgorithmNotAvailable, got: %v", err)
+		msg := []byte("integration test message for SLH-DSA")
+		sig, err := signer.Sign(msg)
+		if err != nil {
+			t.Fatalf("SLH-DSA Sign: %v", err)
 		}
-	})
-
-	t.Run("SLH-DSA/verify", func(t *testing.T) {
-		v := &pqc.SLHDSAVerifier{}
-		_, err := v.Verify([]byte("msg"), []byte("sig"), []byte("pk"))
-		if !errors.Is(err, pqc.ErrAlgorithmNotAvailable) {
-			t.Fatalf("expected ErrAlgorithmNotAvailable, got: %v", err)
+		verifier, err := pqc.NewSLHDSAVerifier(pqc.SLHDSA_SHA2_128s)
+		if err != nil {
+			t.Fatalf("NewSLHDSAVerifier: %v", err)
+		}
+		valid, err := verifier.Verify(msg, sig, kp.PublicKey)
+		if err != nil {
+			t.Fatalf("SLH-DSA Verify: %v", err)
+		}
+		if !valid {
+			t.Fatal("SLH-DSA signature should be valid")
 		}
 	})
 
 	t.Run("FN-DSA/keygen", func(t *testing.T) {
-		_, err := pqc.GenerateFNDSAKeyPair()
+		_, _, err := pqc.GenerateFNDSAKeyPair(pqc.FNDSA512)
 		if !errors.Is(err, pqc.ErrAlgorithmNotAvailable) {
 			t.Fatalf("expected ErrAlgorithmNotAvailable, got: %v", err)
 		}
@@ -1701,8 +1701,30 @@ func realCryptoVerify(algoID uint8, message, signature, pubKey []byte) (bool, er
 		return verifier.Verify(message, signature, pubKey)
 
 	case pqc.AlgoSLHDSA:
-		v := &pqc.SLHDSAVerifier{}
-		return v.Verify(message, signature, pubKey)
+		// Determine SLH-DSA parameter set from signature length.
+		slhParams := []pqc.ParameterSet{
+			pqc.SLHDSA_SHA2_128s, pqc.SLHDSA_SHA2_128f,
+			pqc.SLHDSA_SHA2_192s, pqc.SLHDSA_SHA2_192f,
+			pqc.SLHDSA_SHA2_256s, pqc.SLHDSA_SHA2_256f,
+		}
+		var slhPS pqc.ParameterSet
+		found := false
+		for _, p := range slhParams {
+			_, sigSz, _, _, ok := pqc.SLHDSAParamInfo(p)
+			if ok && len(signature) == sigSz {
+				slhPS = p
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false, pqc.ErrInvalidSignatureSize
+		}
+		slhVerifier, err := pqc.NewSLHDSAVerifier(slhPS)
+		if err != nil {
+			return false, err
+		}
+		return slhVerifier.Verify(message, signature, pubKey)
 
 	case pqc.AlgoFNDSA:
 		v := &pqc.FNDSAVerifier{}
