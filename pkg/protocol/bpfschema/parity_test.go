@@ -257,26 +257,14 @@ func TestFlowStateFieldOffsets(t *testing.T) {
 	}
 }
 
-// TestMbcCpuStateSize verifies MbcCpuState is exactly 104 bytes.
+// TestMbcCpuStateSize verifies MbcCpuState is exactly 120 bytes.
 //
-// Rust source: ebpf/monad-common/src/lib.rs:913-944
-// Rust layout: #[repr(C)] struct MbcCpuState (104 bytes)
-// Note: the original comment claimed 80 due to an arithmetic error.
-// Correct: 64 ([16]u32) + 4 (pc) + 1+1+1+1 (flags,halted,stalled,pad) + 4*8 (u64s) = 104.
-//
-// MbcCpuState is the CPU state for the Monad Bytecode (MBC) virtual machine,
-// used by the Doom-over-IPv6 proof-of-concept. It includes:
-//   - 16 general-purpose registers (r0-r15, 64 bytes)
-//   - Program counter (4 bytes)
-//   - CPU flags (1 byte: Z, N, C bits)
-//   - Halted flag (1 byte)
-//   - Stalled flag (1 byte)
-//   - Alignment padding (1 byte)
-//   - Sleep-until timestamp (8 bytes)
-//   - Instruction counter (8 bytes)
-//   - L1 cache statistics (16 bytes: hits + misses)
+// Rust source: ebpf/monad-common/src/lib.rs
+// Rust layout: #[repr(C)] struct MbcCpuState (120 bytes)
+// 64 ([16]u32) + 4 (pc) + 4 (flags,halted,stalled,pad) + 4*8 (u64s)
+// + 4 (interrupt fields + pad2) + 4 (tick_counter) + 4 (program_break) + 4 (exit_code) = 120.
 func TestMbcCpuStateSize(t *testing.T) {
-	const expected = 104
+	const expected = 120
 	actual := unsafe.Sizeof(MbcCpuState{})
 	if actual != expected {
 		t.Fatalf("MbcCpuState size mismatch: expected %d bytes, got %d bytes", expected, actual)
@@ -285,7 +273,7 @@ func TestMbcCpuStateSize(t *testing.T) {
 
 // TestMbcCpuStateFieldOffsets verifies each field is at the correct byte offset.
 //
-// Rust offsets (from MbcCpuState in monad-common/src/lib.rs:922-943):
+// Rust offsets (from MbcCpuState in monad-common/src/lib.rs):
 //   0x00: regs ([u32; 16], 64 bytes)
 //   0x40: pc (u32, 4 bytes)
 //   0x44: flags (u8, 1 byte)
@@ -296,6 +284,13 @@ func TestMbcCpuStateSize(t *testing.T) {
 //   0x50: insn_count (u64, 8 bytes)
 //   0x58: cache_hits (u64, 8 bytes)
 //   0x60: cache_misses (u64, 8 bytes)
+//   0x68: interrupt_pending (u8, 1 byte)
+//   0x69: interrupt_vector (u8, 1 byte)
+//   0x6A: interrupts_enabled (u8, 1 byte)
+//   0x6B: _pad2 (u8, 1 byte)
+//   0x6C: tick_counter (u32, 4 bytes)
+//   0x70: program_break (u32, 4 bytes)
+//   0x74: exit_code (u32, 4 bytes)
 func TestMbcCpuStateFieldOffsets(t *testing.T) {
 	c := MbcCpuState{}
 	base := uintptr(unsafe.Pointer(&c))
@@ -314,6 +309,12 @@ func TestMbcCpuStateFieldOffsets(t *testing.T) {
 		{"InsnCount", uintptr(unsafe.Pointer(&c.InsnCount)) - base, 0x50},
 		{"CacheHits", uintptr(unsafe.Pointer(&c.CacheHits)) - base, 0x58},
 		{"CacheMisses", uintptr(unsafe.Pointer(&c.CacheMisses)) - base, 0x60},
+		{"InterruptPending", uintptr(unsafe.Pointer(&c.InterruptPending)) - base, 0x68},
+		{"InterruptVector", uintptr(unsafe.Pointer(&c.InterruptVector)) - base, 0x69},
+		{"InterruptsEnabled", uintptr(unsafe.Pointer(&c.InterruptsEnabled)) - base, 0x6A},
+		{"TickCounter", uintptr(unsafe.Pointer(&c.TickCounter)) - base, 0x6C},
+		{"ProgramBreak", uintptr(unsafe.Pointer(&c.ProgramBreak)) - base, 0x70},
+		{"ExitCode", uintptr(unsafe.Pointer(&c.ExitCode)) - base, 0x74},
 	}
 
 	for _, tt := range tests {
@@ -434,7 +435,7 @@ func TestFlowCancelValueFieldOffsets(t *testing.T) {
 //   ✅ AnamnesisEvent (32 bytes) — ebpf/monad-common/src/lib.rs:657-693
 //   ✅ FlowKey (16 bytes) — ebpf/common/src/lib.rs:61-85
 //   ✅ FlowState (72 bytes) — ebpf/common/src/lib.rs:106-118
-//   ✅ MbcCpuState (104 bytes) — ebpf/monad-common/src/lib.rs:913-944
+//   ✅ MbcCpuState (120 bytes) — ebpf/monad-common/src/lib.rs
 //   ✅ FlowMigrationTokenValue (48 bytes) — ebpf/flow-tracker/src/main.rs
 //   ✅ FlowCancelValue (24 bytes) — ebpf/flow-tracker/src/main.rs
 //

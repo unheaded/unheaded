@@ -19,8 +19,8 @@ import (
 
 // CpuStateSize is the expected binary size of MbcCpuState.
 // This MUST match the Rust #[repr(C)] struct MbcCpuState in
-// ebpf/monad-common/src/lib.rs (104 bytes).
-const CpuStateSize = 104
+// ebpf/monad-common/src/lib.rs (120 bytes).
+const CpuStateSize = 120
 
 // RegCount is the number of general-purpose registers (r0-r15).
 const RegCount = 16
@@ -45,28 +45,42 @@ const MaxROMBytes = MaxROMInstructions * 4
 //
 // Field order and sizes MUST match the Rust #[repr(C)] layout exactly:
 //
-//	regs:          [u32; 16]  = 64 bytes  (offset 0)
-//	pc:            u32        = 4 bytes   (offset 64)
-//	flags:         u8         = 1 byte    (offset 68)
-//	halted:        u8         = 1 byte    (offset 69)
-//	stalled:       u8         = 1 byte    (offset 70)
-//	_pad:          u8         = 1 byte    (offset 71)
-//	sleep_until_ns: u64       = 8 bytes   (offset 72)
-//	insn_count:    u64        = 8 bytes   (offset 80)
-//	cache_hits:    u64        = 8 bytes   (offset 88)
-//	cache_misses:  u64        = 8 bytes   (offset 96)
-//	TOTAL                     = 104 bytes
+//	regs:               [u32; 16]  = 64 bytes  (offset 0)
+//	pc:                 u32        = 4 bytes   (offset 64)
+//	flags:              u8         = 1 byte    (offset 68)
+//	halted:             u8         = 1 byte    (offset 69)
+//	stalled:            u8         = 1 byte    (offset 70)
+//	_pad:               u8         = 1 byte    (offset 71)
+//	sleep_until_ns:     u64        = 8 bytes   (offset 72)
+//	insn_count:         u64        = 8 bytes   (offset 80)
+//	cache_hits:         u64        = 8 bytes   (offset 88)
+//	cache_misses:       u64        = 8 bytes   (offset 96)
+//	interrupt_pending:  u8         = 1 byte    (offset 104)
+//	interrupt_vector:   u8         = 1 byte    (offset 105)
+//	interrupts_enabled: u8         = 1 byte    (offset 106)
+//	_pad2:              u8         = 1 byte    (offset 107)
+//	tick_counter:       u32        = 4 bytes   (offset 108)
+//	program_break:      u32        = 4 bytes   (offset 112)
+//	exit_code:          u32        = 4 bytes   (offset 116)
+//	TOTAL                          = 120 bytes
 type CpuState struct {
-	Regs        [RegCount]uint32 // General purpose registers r0-r15. r15 = SP.
-	PC          uint32           // Program counter (index into rom_map).
-	Flags       uint8            // Status flags: bit 0=Z, bit 1=N, bit 2=C.
-	Halted      uint8            // 1 if HALT instruction executed.
-	Stalled     uint8            // 1 if waiting for cache miss to be serviced.
-	Pad         uint8            // Padding byte for alignment.
-	SleepUntil  uint64           // bpf_ktime_get_ns() value; sleep if < now.
-	InsnCount   uint64           // Total instructions executed (for IPS stats).
-	CacheHits   uint64           // L1 cache hits.
-	CacheMisses uint64           // L1 cache misses.
+	Regs              [RegCount]uint32 // General purpose registers r0-r15. r15 = SP.
+	PC                uint32           // Program counter (index into rom_map).
+	Flags             uint8            // Status flags: bit 0=Z, bit 1=N, bit 2=C.
+	Halted            uint8            // 1 if HALT instruction executed.
+	Stalled           uint8            // 1 if waiting for cache miss to be serviced.
+	Pad               uint8            // Padding byte for alignment.
+	SleepUntil        uint64           // bpf_ktime_get_ns() value; sleep if < now.
+	InsnCount         uint64           // Total instructions executed (for IPS stats).
+	CacheHits         uint64           // L1 cache hits.
+	CacheMisses       uint64           // L1 cache misses.
+	InterruptPending  uint8            // Non-zero when interrupt waiting.
+	InterruptVector   uint8            // Vector number of pending interrupt.
+	InterruptsEnabled uint8            // Non-zero when CPU accepts interrupts.
+	Pad2              uint8            // Padding for alignment.
+	TickCounter       uint32           // Tick counter for timer interrupt generation.
+	ProgramBreak      uint32           // Heap end address for SYS_BRK.
+	ExitCode          uint32           // Exit code from SYS_EXIT.
 }
 
 // CPU flag bit positions — must match mbc_flags in monad-common/src/lib.rs.
@@ -91,7 +105,7 @@ type KeyboardState struct {
 // KeyboardStateSize is the binary size of KeyboardState.
 const KeyboardStateSize = 16
 
-// MarshalBinary serializes CpuState to a 104-byte little-endian representation.
+// MarshalBinary serializes CpuState to a 120-byte little-endian representation.
 func (c *CpuState) MarshalBinary() []byte {
 	buf := make([]byte, CpuStateSize)
 	for i := 0; i < RegCount; i++ {
@@ -106,10 +120,17 @@ func (c *CpuState) MarshalBinary() []byte {
 	binary.LittleEndian.PutUint64(buf[80:88], c.InsnCount)
 	binary.LittleEndian.PutUint64(buf[88:96], c.CacheHits)
 	binary.LittleEndian.PutUint64(buf[96:104], c.CacheMisses)
+	buf[104] = c.InterruptPending
+	buf[105] = c.InterruptVector
+	buf[106] = c.InterruptsEnabled
+	buf[107] = c.Pad2
+	binary.LittleEndian.PutUint32(buf[108:112], c.TickCounter)
+	binary.LittleEndian.PutUint32(buf[112:116], c.ProgramBreak)
+	binary.LittleEndian.PutUint32(buf[116:120], c.ExitCode)
 	return buf
 }
 
-// UnmarshalCpuState deserializes a 104-byte little-endian buffer into CpuState.
+// UnmarshalCpuState deserializes a 120-byte little-endian buffer into CpuState.
 // Returns an error if the buffer is too small.
 func UnmarshalCpuState(data []byte) (*CpuState, error) {
 	if len(data) < CpuStateSize {
@@ -128,6 +149,13 @@ func UnmarshalCpuState(data []byte) (*CpuState, error) {
 	cpu.InsnCount = binary.LittleEndian.Uint64(data[80:88])
 	cpu.CacheHits = binary.LittleEndian.Uint64(data[88:96])
 	cpu.CacheMisses = binary.LittleEndian.Uint64(data[96:104])
+	cpu.InterruptPending = data[104]
+	cpu.InterruptVector = data[105]
+	cpu.InterruptsEnabled = data[106]
+	cpu.Pad2 = data[107]
+	cpu.TickCounter = binary.LittleEndian.Uint32(data[108:112])
+	cpu.ProgramBreak = binary.LittleEndian.Uint32(data[112:116])
+	cpu.ExitCode = binary.LittleEndian.Uint32(data[116:120])
 	return cpu, nil
 }
 

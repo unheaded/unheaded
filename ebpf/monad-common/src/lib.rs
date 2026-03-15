@@ -897,6 +897,8 @@ pub const EVENT_KEY_READ: u8 = 0x15;
 pub const EVENT_COMPUTE_HALT: u8 = 0x16;
 /// Compute engine event type: stall (cache miss, sleep).
 pub const EVENT_COMPUTE_STALL: u8 = 0x17;
+/// Compute engine event type: TTY write (console output via SYS_WRITE to fd 1/2).
+pub const EVENT_TTY_WRITE: u8 = 0x18;
 
 /// Emitted by monad-cpu-ebpf via BPF ring buffer on every instruction executed.
 /// Also used for CACHE_MISS events (with instruction=0).
@@ -967,7 +969,7 @@ pub const MBC_REG_COUNT: usize = 16;
 /// Includes L1 cache statistics for memory hierarchy visibility.
 /// See doom-over-ipv6-plan.md Phase D3/D4 for the full execution model.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MbcCpuState {
     /// General purpose registers r0–r15 (32-bit each).  r15 = SP.
     pub regs: [u32; MBC_REG_COUNT],
@@ -1000,6 +1002,38 @@ pub struct MbcCpuState {
     pub _pad2: u8,
     /// Tick counter for timer interrupt generation.
     pub tick_counter: u32,
+    /// Program break address (heap end) for SYS_BRK.
+    /// Default: 0x0040_0000 (4 MiB — above .text/.data/.bss, start of heap).
+    pub program_break: u32,
+    /// Exit code from SYS_EXIT (stored when halted via exit syscall).
+    pub exit_code: u32,
+}
+
+/// Default initial program break address (4 MiB).
+pub const DEFAULT_PROGRAM_BREAK: u32 = 0x0040_0000;
+
+impl Default for MbcCpuState {
+    fn default() -> Self {
+        Self {
+            regs: [0; MBC_REG_COUNT],
+            pc: 0,
+            flags: 0,
+            halted: 0,
+            stalled: 0,
+            _pad: 0,
+            sleep_until_ns: 0,
+            insn_count: 0,
+            cache_hits: 0,
+            cache_misses: 0,
+            interrupt_pending: 0,
+            interrupt_vector: 0,
+            interrupts_enabled: 0,
+            _pad2: 0,
+            tick_counter: 0,
+            program_break: DEFAULT_PROGRAM_BREAK,
+            exit_code: 0,
+        }
+    }
 }
 
 /// MBC CPU flags — stored in `MbcCpuState.flags`.
@@ -1206,6 +1240,53 @@ pub mod mbc_syscalls {
     pub const SYS_GET_TICKS: u32 = 0x03;
     /// `DG_SleepMs(ms)` — set `sleep_until = now + r0 * 1_000_000`.
     pub const SYS_SLEEP: u32 = 0x04;
+}
+
+/// Linux-compatible syscall numbers for INT 0x80 dispatch (Level 4b).
+///
+/// These follow the i386 ABI syscall numbering so that MBC programs compiled
+/// from C with a Linux-compatible libc can issue standard syscalls via INT 0x80
+/// with the syscall number in r0 and arguments in r1-r3.
+pub mod mbc_linux_syscalls {
+    /// `exit(status)` — halt CPU with exit code.
+    pub const SYS_EXIT: u32 = 1;
+    /// `read(fd, buf, count)` — read from file descriptor.
+    pub const SYS_READ: u32 = 3;
+    /// `write(fd, buf, count)` — write to file descriptor.
+    pub const SYS_WRITE: u32 = 4;
+    /// `open(path, flags, mode)` — open a file.
+    pub const SYS_OPEN: u32 = 5;
+    /// `close(fd)` — close a file descriptor.
+    pub const SYS_CLOSE: u32 = 6;
+    /// `waitpid(pid, status, options)` — wait for child process.
+    pub const SYS_WAITPID: u32 = 7;
+    /// `execve(path, argv, envp)` — execute a program.
+    pub const SYS_EXECVE: u32 = 11;
+    /// `getpid()` — get process (instance) ID.
+    pub const SYS_GETPID: u32 = 20;
+    /// `brk(addr)` — set/query program break (heap end).
+    pub const SYS_BRK: u32 = 45;
+    /// `ioctl(fd, request, arg)` — device control.
+    pub const SYS_IOCTL: u32 = 54;
+    /// `mmap(addr, len, prot, flags, fd, offset)` — map memory.
+    pub const SYS_MMAP: u32 = 90;
+    /// `munmap(addr, len)` — unmap memory.
+    pub const SYS_MUNMAP: u32 = 91;
+    /// `clone(flags, stack, ptid, tls, ctid)` — create child process/thread.
+    pub const SYS_CLONE: u32 = 120;
+    /// `uname(buf)` — get system information.
+    pub const SYS_UNAME: u32 = 122;
+    /// `writev(fd, iov, iovcnt)` — write scatter/gather.
+    pub const SYS_WRITEV: u32 = 146;
+    /// `sched_yield()` — yield the processor.
+    pub const SYS_SCHED_YIELD: u32 = 158;
+    /// `nanosleep(req, rem)` — high-resolution sleep.
+    pub const SYS_NANOSLEEP: u32 = 162;
+    /// `clock_gettime(clk_id, tp)` — get clock time.
+    pub const SYS_CLOCK_GETTIME: u32 = 265;
+
+    /// ENOSYS errno value — returned for unimplemented syscalls.
+    pub const ENOSYS: u32 = 38;
 }
 
 /// Interrupt vector numbers for the MBC CPU.
@@ -1921,6 +2002,7 @@ mod tests {
             EVENT_KEY_READ,
             EVENT_COMPUTE_HALT,
             EVENT_COMPUTE_STALL,
+            EVENT_TTY_WRITE,
         ];
         for i in 0..events.len() {
             for j in (i + 1)..events.len() {
