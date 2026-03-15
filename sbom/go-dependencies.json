@@ -1,0 +1,625 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "unheaded-go-dependencies",
+  "documentNamespace": "https://github.com/unheaded/unheaded/sbom/go",
+  "creationInfo": {
+    "created": "2026-03-15T00:00:00Z",
+    "creators": [
+      "Tool: go-list-m-json",
+      "Organization: Unheaded"
+    ]
+  },
+  "summary": {
+    "totalDependencies": 99,
+    "directDependencies": 21,
+    "indirectDependencies": 78,
+    "licenseSummary": {
+      "BSD-3-Clause": 40,
+      "MIT": 29,
+      "Apache-2.0": 22,
+      "BSD-2-Clause": 4,
+      "ISC": 1,
+      "MPL-2.0": 1,
+      "GPL-2.0": 1,
+      "MIT AND Apache-2.0": 1
+    }
+  },
+  "packages": [
+    {
+      "module": "cel.dev/expr",
+      "version": "v0.15.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "cloud.google.com/go/compute/metadata",
+      "version": "v0.3.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/BurntSushi/toml",
+      "version": "v1.6.0",
+      "indirect": false,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/alecthomas/kingpin/v2",
+      "version": "v2.3.2",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/alecthomas/units",
+      "version": "v0.0.0-20211218093645-b94a6e3cc137",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/beorn7/perks",
+      "version": "v1.0.1",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/bwesterb/go-ristretto",
+      "version": "v1.2.3",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/census-instrumentation/opencensus-proto",
+      "version": "v0.4.1",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/cespare/xxhash/v2",
+      "version": "v2.3.0",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/cilium/ebpf",
+      "version": "v0.20.0",
+      "indirect": false,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/cloudflare/circl",
+      "version": "v1.6.3",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/cncf/xds/go",
+      "version": "v0.0.0-20240423153145-555b57ec207b",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/coreos/go-systemd/v22",
+      "version": "v22.5.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/davecgh/go-spew",
+      "version": "v1.1.1",
+      "indirect": true,
+      "license": "ISC"
+    },
+    {
+      "module": "github.com/dustin/go-humanize",
+      "version": "v1.0.1",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/envoyproxy/go-control-plane",
+      "version": "v0.12.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/envoyproxy/protoc-gen-validate",
+      "version": "v1.0.4",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/fsnotify/fsnotify",
+      "version": "v1.7.0",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/go-kit/log",
+      "version": "v0.2.1",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/go-logfmt/logfmt",
+      "version": "v0.5.1",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/go-quicktest/qt",
+      "version": "v1.101.1-0.20240301121107-c6c8733fa1e6",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/godbus/dbus/v5",
+      "version": "v5.0.4",
+      "indirect": true,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "module": "github.com/golang/glog",
+      "version": "v1.2.1",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/golang/protobuf",
+      "version": "v1.5.4",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/google/go-cmp",
+      "version": "v0.6.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/google/pprof",
+      "version": "v0.0.0-20250317173921-a4b03ec1a45e",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/google/uuid",
+      "version": "v1.6.0",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/gorilla/mux",
+      "version": "v1.8.1",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/gorilla/websocket",
+      "version": "v1.5.3",
+      "indirect": false,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "module": "github.com/hashicorp/golang-lru/v2",
+      "version": "v2.0.7",
+      "indirect": true,
+      "license": "MPL-2.0"
+    },
+    {
+      "module": "github.com/josharian/native",
+      "version": "v1.1.0",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/jpillora/backoff",
+      "version": "v1.0.0",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/jsimonetti/rtnetlink/v2",
+      "version": "v2.0.1",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/json-iterator/go",
+      "version": "v1.1.12",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/julienschmidt/httprouter",
+      "version": "v1.3.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/kr/pretty",
+      "version": "v0.3.1",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/kr/text",
+      "version": "v0.2.0",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/lib/pq",
+      "version": "v1.10.9",
+      "indirect": false,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/mattn/go-colorable",
+      "version": "v0.1.13",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/mattn/go-isatty",
+      "version": "v0.0.20",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/matttproud/golang_protobuf_extensions/v2",
+      "version": "v2.0.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/mdlayher/netlink",
+      "version": "v1.7.2",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/mdlayher/socket",
+      "version": "v0.4.1",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/modern-go/concurrent",
+      "version": "v0.0.0-20180306012644-bacd9c7ef1dd",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/modern-go/reflect2",
+      "version": "v1.0.2",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/mwitkow/go-conntrack",
+      "version": "v0.0.0-20190716064945-2f068394615f",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/ncruces/go-strftime",
+      "version": "v1.0.0",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/pkg/errors",
+      "version": "v0.9.1",
+      "indirect": true,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "module": "github.com/pmezard/go-difflib",
+      "version": "v1.0.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/prometheus/client_golang",
+      "version": "v1.18.0",
+      "indirect": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/prometheus/client_model",
+      "version": "v0.5.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/prometheus/common",
+      "version": "v0.45.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/prometheus/procfs",
+      "version": "v0.12.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "github.com/remyoudompheng/bigfft",
+      "version": "v0.0.0-20230129092748-24d4a6f8daec",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/rogpeppe/go-internal",
+      "version": "v1.12.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/rs/xid",
+      "version": "v1.5.0",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/rs/zerolog",
+      "version": "v1.31.0",
+      "indirect": false,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/sony/gobreaker",
+      "version": "v0.5.0",
+      "indirect": false,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/stretchr/objx",
+      "version": "v0.1.0",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/stretchr/testify",
+      "version": "v1.3.0",
+      "indirect": true,
+      "license": "MIT"
+    },
+    {
+      "module": "github.com/unheaded/doomgeneric",
+      "version": "v0.0.0",
+      "indirect": false,
+      "license": "GPL-2.0"
+    },
+    {
+      "module": "github.com/xhit/go-str2duration/v2",
+      "version": "v2.1.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "github.com/yuin/goldmark",
+      "version": "v1.7.16",
+      "indirect": false,
+      "license": "MIT"
+    },
+    {
+      "module": "golang.org/x/crypto",
+      "version": "v0.43.0",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/exp",
+      "version": "v0.0.0-20251023183803-a4bb9ffd2546",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/mod",
+      "version": "v0.29.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/net",
+      "version": "v0.46.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/oauth2",
+      "version": "v0.20.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/sync",
+      "version": "v0.17.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.40.0",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/term",
+      "version": "v0.36.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/text",
+      "version": "v0.30.0",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/time",
+      "version": "v0.5.0",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/tools",
+      "version": "v0.38.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/tools/go/expect",
+      "version": "v0.1.1-deprecated",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/tools/go/packages/packagestest",
+      "version": "v0.1.1-deprecated",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/xerrors",
+      "version": "v0.0.0-20191204190536-9bdfabe68543",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "google.golang.org/appengine",
+      "version": "v1.6.7",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "google.golang.org/genproto/googleapis/api",
+      "version": "v0.0.0-20240528184218-531527333157",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "google.golang.org/genproto/googleapis/rpc",
+      "version": "v0.0.0-20240528184218-531527333157",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "google.golang.org/grpc",
+      "version": "v1.65.0",
+      "indirect": false,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "google.golang.org/protobuf",
+      "version": "v1.34.1",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "gopkg.in/check.v1",
+      "version": "v1.0.0-20201130134442-10cb98267c6c",
+      "indirect": true,
+      "license": "BSD-2-Clause"
+    },
+    {
+      "module": "gopkg.in/yaml.v2",
+      "version": "v2.4.0",
+      "indirect": true,
+      "license": "Apache-2.0"
+    },
+    {
+      "module": "gopkg.in/yaml.v3",
+      "version": "v3.0.1",
+      "indirect": false,
+      "license": "MIT AND Apache-2.0"
+    },
+    {
+      "module": "modernc.org/cc/v4",
+      "version": "v4.27.1",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/ccgo/v4",
+      "version": "v4.30.1",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/fileutil",
+      "version": "v1.3.40",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/gc/v2",
+      "version": "v2.6.5",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/gc/v3",
+      "version": "v3.1.1",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/goabi0",
+      "version": "v0.2.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/libc",
+      "version": "v1.67.6",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/mathutil",
+      "version": "v1.7.1",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/memory",
+      "version": "v1.11.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/opt",
+      "version": "v0.1.4",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/sortutil",
+      "version": "v1.2.1",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/sqlite",
+      "version": "v1.44.3",
+      "indirect": false,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/strutil",
+      "version": "v1.2.1",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "modernc.org/token",
+      "version": "v1.1.0",
+      "indirect": true,
+      "license": "BSD-3-Clause"
+    }
+  ]
+}
