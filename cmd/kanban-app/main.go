@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
@@ -73,7 +74,7 @@ type Task struct {
 type Server struct {
 	config          Config
 	httpServer      *http.Server
-	store           *Store           // SQLite L1 persistence
+	store           TaskStore        // SQLite or Postgres persistence
 	tasks           []Task           // DEPRECATED: Use store or taskManager instead
 	tasksMu         sync.RWMutex
 	sseClients      map[chan []byte]bool
@@ -86,7 +87,7 @@ type Server struct {
 }
 
 // NewServer creates a new kanban server with standalone timeline polling.
-// Initializes SQLite store for persistence. Falls back to in-memory if store fails.
+// Initializes task store: prefers Postgres, falls back to SQLite, then in-memory.
 func NewServer(cfg Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
@@ -96,23 +97,46 @@ func NewServer(cfg Config) *Server {
 		cancel:     cancel,
 	}
 
-	// Initialize SQLite L1 persistence
-	dbPath := cfg.DataDir + "/kanban.db"
-	if cfg.DataDir == "" {
-		dbPath = "./data/kanban.db"
-	}
-	store, err := NewStore(dbPath)
-	if err != nil {
-		log.Error().Err(err).Str("path", dbPath).Msg("failed to initialize SQLite store — falling back to in-memory")
-		s.tasks = getInitialTasks()
+	// Try Postgres first
+	pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
+	if pgErr == nil {
+		pgStore, pgStoreErr := NewPgStore(pgDB)
+		if pgStoreErr == nil {
+			s.store = pgStore
+			if _, err := pgStore.SeedIfEmpty(); err != nil {
+				log.Warn().Err(err).Msg("Postgres seed failed — falling back to SQLite")
+				pgStore.Close()
+				s.store = nil
+			} else {
+				log.Info().Msg("Postgres connected — kanban tasks persisted to The Well (standalone mode)")
+			}
+		} else {
+			log.Warn().Err(pgStoreErr).Msg("Postgres schema init failed — falling back to SQLite")
+			pgDB.Close()
+		}
 	} else {
-		s.store = store
-		// Seed on first run (Genesis Event), no-op on subsequent starts
-		if _, err := store.SeedIfEmpty(); err != nil {
-			log.Error().Err(err).Msg("failed to seed store — falling back to in-memory")
-			s.store = nil
-			store.Close()
+		log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite")
+	}
+
+	// SQLite fallback
+	if s.store == nil {
+		dbPath := cfg.DataDir + "/kanban.db"
+		if cfg.DataDir == "" {
+			dbPath = "./data/kanban.db"
+		}
+		store, err := NewStore(dbPath)
+		if err != nil {
+			log.Error().Err(err).Str("path", dbPath).Msg("failed to initialize SQLite store — falling back to in-memory")
 			s.tasks = getInitialTasks()
+		} else {
+			s.store = store
+			// Seed on first run (Genesis Event), no-op on subsequent starts
+			if _, err := store.SeedIfEmpty(); err != nil {
+				log.Error().Err(err).Msg("failed to seed store — falling back to in-memory")
+				s.store = nil
+				store.Close()
+				s.tasks = getInitialTasks()
+			}
 		}
 	}
 
@@ -124,7 +148,7 @@ func NewServer(cfg Config) *Server {
 }
 
 // NewServerWithTaskManager creates a server with Wotan integration and shared Store.
-func NewServerWithTaskManager(cfg Config, tm *TaskManager, store *Store) *Server {
+func NewServerWithTaskManager(cfg Config, tm *TaskManager, store TaskStore) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		config:      cfg,
@@ -1331,16 +1355,35 @@ func main() {
 			healthSrv.SetGRPCStatus(false)
 			server = NewServer(cfg)
 		} else {
-			// Initialize SQLite L1 store (shared between TaskManager and Server)
-			dbPath := cfg.DataDir + "/kanban.db"
-			if cfg.DataDir == "" {
-				dbPath = "./data/kanban.db"
+			// Initialize task store: prefer Postgres, fall back to SQLite.
+			var kanbanStore TaskStore
+
+			pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
+			if pgErr != nil {
+				log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite fallback")
+			} else {
+				pgStore, pgStoreErr := NewPgStore(pgDB)
+				if pgStoreErr != nil {
+					log.Warn().Err(pgStoreErr).Msg("Postgres schema init failed — trying SQLite fallback")
+					pgDB.Close()
+				} else {
+					kanbanStore = pgStore
+					log.Info().Msg("Postgres connected — kanban tasks persisted to The Well")
+				}
 			}
-			var kanbanStore *Store
-			kanbanStore, err = NewStore(dbPath)
-			if err != nil {
-				log.Warn().Err(err).Str("path", dbPath).Msg("SQLite store init failed — TaskManager will run in-memory only")
-				kanbanStore = nil
+
+			if kanbanStore == nil {
+				// SQLite fallback
+				dbPath := cfg.DataDir + "/kanban.db"
+				if cfg.DataDir == "" {
+					dbPath = "./data/kanban.db"
+				}
+				sqliteStore, sqliteErr := NewStore(dbPath)
+				if sqliteErr != nil {
+					log.Warn().Err(sqliteErr).Str("path", dbPath).Msg("SQLite store init failed — TaskManager will run in-memory only")
+				} else {
+					kanbanStore = sqliteStore
+				}
 			}
 
 			// Create TaskManager with broadcast function and Store
@@ -1372,7 +1415,7 @@ func main() {
 					server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
 					log.Info().
 						Str("transport", transportName).
-						Msg("Wotan integration enabled with SQLite L1 persistence")
+						Msg("Wotan integration enabled with persistent store")
 				}
 			}
 		}

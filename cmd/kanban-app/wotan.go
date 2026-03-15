@@ -55,7 +55,7 @@ type WotanClient interface {
 // TaskManager handles task operations with Wotan integration
 type TaskManager struct {
 	client WotanClient
-	store  *Store // SQLite L1 persistence — the memory
+	store  TaskStore // SQLite or Postgres persistence — the memory
 	tasks  map[string]*Task
 	mu     sync.RWMutex
 
@@ -74,9 +74,9 @@ type TaskManager struct {
 	broadcast func(eventType string, data interface{})
 }
 
-// NewTaskManager creates a task manager with Wotan client and optional SQLite store.
+// NewTaskManager creates a task manager with Wotan client and optional task store.
 // If store is nil, TaskManager works in-memory only (no persistence across restarts).
-func NewTaskManager(client WotanClient, broadcast func(string, interface{}), store *Store) (*TaskManager, error) {
+func NewTaskManager(client WotanClient, broadcast func(string, interface{}), store TaskStore) (*TaskManager, error) {
 	if client == nil {
 		return nil, ErrNilClient
 	}
