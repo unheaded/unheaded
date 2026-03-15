@@ -232,7 +232,7 @@ Simpler but wastes work. At ~5,600 pkt/s with 6-hop ring, conflict rate would be
    □ Every WAL operation → Exclusive lock during compaction?
    ```
 
-6. **Add "Computational Completeness Attack Surface"** — Section 12 of the Monad spec creates a Turing-complete system. The Black Mage needs a dedicated assessment of what this means adversarially: arbitrary code execution via packet injection, ROM poisoning, memory oracle attacks, timing oracle attacks.
+6. **Add "Computational Completeness Attack Surface"** — Section 12 of the Monad spec creates a Turing-complete system. The Black Mage needs a dedicated assessment of what this means adversarially: arbitrary code execution via packet injection, ROM poisoning, memory side-channel attacks, timing side-channel attacks.
 
 7. **Update severity counts in "Current Project State"** — The metrics are outdated. Should reflect the ~45 findings from this assessment.
 
@@ -441,7 +441,7 @@ RFC 9000 Section 21 identifies 11 attack classes. Cross-referencing with Unheade
 | Request forgery (cross-protocol) | Monad could be confused with other HbH opts | M6 |
 | Stream commitment attack | Sophia dict allocation unbounded | S2 |
 | Peer DoS via resource exhaustion | Wotan memory exhaustion per-flow | W2 |
-| Stateless reset oracle | No reset mechanism exists | Q8 |
+| Stateless reset side-channel | No reset mechanism exists | Q8 |
 | Replay attack | CRC-16 provides no replay protection | M3, Q1 |
 | Retry token forgery | Shield has no tokens | Q6 |
 | Version downgrade | "Drop unknown" is safe but blocks evolution | M8 |
@@ -844,7 +844,7 @@ All 11 QUIC attack classes PLUS 6 HTTP/3-specific attack classes mapped to Unhea
 | Request forgery | QUIC §21 | HbH option confusion | H11 reserved field check |
 | Stream commitment | QUIC §21 | Sophia unbounded | H5.3 size limits |
 | Resource exhaustion | QUIC §21 | Wotan per-flow unbounded | H5.2 BPF map limits |
-| Stateless reset oracle | QUIC §21 | No reset mechanism | Q8 + H7 GOAWAY |
+| Stateless reset side-channel | QUIC §21 | No reset mechanism | Q8 + H7 GOAWAY |
 | Replay attack | QUIC §21 | CRC-16 no replay protection | Q1 HMAC |
 | Retry token forgery | QUIC §21 | No tokens | Q6 HMAC tokens |
 | Version downgrade | QUIC §21 | Drop unknown (safe) | Q9 version negotiation |

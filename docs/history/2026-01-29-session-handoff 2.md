@@ -188,7 +188,7 @@ cat cmd/dashboard-backend/main.go
 | Control Plane | Crystal Grotto | unheaded-daemon, state management |
 | Message Bus | Fae Chamber | Wotan, pub/sub |
 | eBPF | Whispering Void | packet_marker, flow_tracker |
-| Timeline | Oracle's Antre | Timeguru service |
+| Timeline | Seer's Antre | Timeguru service |
 | ADRs | Sage's Lair | Architect service |
 
 ### Key Directories

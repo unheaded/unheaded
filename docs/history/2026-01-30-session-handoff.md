@@ -325,7 +325,7 @@ Full details in: `/Users/govan/tmp/unheaded/SECURITY-AUDIT-2026-01-30.md`
 │   └── alerting/             # Alerting system
 ├── services/
 │   ├── gateway/              # THE SHIELD gateway
-│   ├── timeguru/             # Oracle's Antre
+│   ├── timeguru/             # Seer's Antre
 │   ├── captain/              # Strategic Vision
 │   ├── architect/            # Sage's Lair
 │   └── micromanager/         # Execution Engine

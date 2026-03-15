@@ -28,7 +28,7 @@ This directory contains Go fuzzing targets for the Unheaded protocol's encoding 
 - 128 (min two-byte)
 - All significant boundaries up to 2^64-1
 
-**Oracle checks:**
+**Validation checks:**
 - Roundtrip identity: Decode(Encode(x)) == x
 - Continuation bits correct (high bit for non-final bytes)
 - Final byte has no continuation bit
@@ -58,7 +58,7 @@ This directory contains Go fuzzing targets for the Unheaded protocol's encoding 
 - 1, 10, 100, 1000000
 - 2147483647 (i32::MAX)
 
-**Oracle checks:**
+**Validation checks:**
 - Roundtrip identity: Decode(Encode(x)) == x
 - Encoding is exactly 4 bytes
 - Sign preservation
@@ -90,7 +90,7 @@ This directory contains Go fuzzing targets for the Unheaded protocol's encoding 
 - Repeated patterns (0xAA, 0x55)
 - Text messages
 
-**Oracle checks:**
+**Validation checks:**
 - Reproducibility: CRC(data) always returns same value
 - Single-bit sensitivity: CRC(data XOR 0x01) != CRC(data)
 - Length sensitivity: CRC(data) != CRC(data + 0x00)
@@ -125,7 +125,7 @@ This directory contains Go fuzzing targets for the Unheaded protocol's encoding 
 - Binary data
 - Large values (256+ bytes)
 
-**Oracle checks:**
+**Validation checks:**
 - Type preservation: DecodedType == OriginalType
 - Value preservation: DecodedValue == OriginalValue
 - Length accuracy: len(DecodedValue) == ExpectedLength

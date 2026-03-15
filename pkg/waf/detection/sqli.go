@@ -444,7 +444,7 @@ func NewSQLiDetector(strict bool) *SQLiDetector {
 		`(?i)openrowset`,
 		`(?i)opendatasource`,
 
-		// Oracle specific
+		// Database-specific
 		`(?i)utl_http`,
 		`(?i)utl_file`,
 		`(?i)dbms_pipe`,

@@ -97,7 +97,7 @@ func main() {
 - Timeline tracking and milestone management
 - Maintains timeline.md with JSON/YAML mirrors
 - REST API: GET/POST /api/v1/timeline
-- **Hollow**: Oracle's Antre
+- **Hollow**: Seer's Antre
 
 ### captain
 - **Domain**: Vision & Strategy
