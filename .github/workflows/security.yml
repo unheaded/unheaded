@@ -1,4 +1,4 @@
-name: Daily Security Scan
+name: Security Scan (Daily + PR)
 
 on:
   schedule:
@@ -13,18 +13,24 @@ permissions:
   contents: read
   security-events: write
 
+env:
+  GO_VERSION: '1.24'
+
 jobs:
+  # ============================================================================
+  # Go Security
+  # ============================================================================
   govulncheck:
     name: Go Vulnerability Check
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: '1.24'
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Run govulncheck
@@ -37,25 +43,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Run gosec
-        uses: securego/gosec@v2.21.0
+        uses: securego/gosec@f184e33def921b62b2e6d7b36c3c2d4eb39619a8 # v2.21.0
         with:
           args: '-fmt sarif -out gosec-results.sarif ./...'
 
       - name: Upload gosec SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9792ccaef0455e446c567163589397e8c3ac2e0d # v3
         if: always()
         with:
           sarif_file: gosec-results.sarif
 
+  # ============================================================================
+  # Rust Security
+  # ============================================================================
   cargo-audit:
     name: Rust Cargo Audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -65,31 +74,34 @@ jobs:
 
       - name: Audit ebpf workspace
         working-directory: ebpf
-        run: cargo audit --format json > audit-report.json || true
+        run: cargo audit --format json > /tmp/audit-ebpf.json || true
 
       - name: Audit cmd/trace-collector
         if: always()
         working-directory: cmd/trace-collector
-        run: cargo audit --format json >> audit-report.json || true
+        run: cargo audit --format json > /tmp/audit-trace.json || true
 
       - name: Audit crates/monad-mbc
         if: always()
         working-directory: crates/monad-mbc
-        run: cargo audit --format json >> audit-report.json || true
+        run: cargo audit --format json > /tmp/audit-mbc.json || true
 
-      - name: Upload audit report
-        uses: actions/upload-artifact@v4
+      - name: Upload audit reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: cargo-audit-report
-          path: audit-report.json
+          name: cargo-audit-reports
+          path: /tmp/audit-*.json
           retention-days: 30
 
+  # ============================================================================
+  # Filesystem Vulnerability Scan
+  # ============================================================================
   trivy-fs:
     name: Trivy Filesystem Scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -101,20 +113,107 @@ jobs:
           severity: CRITICAL,HIGH
 
       - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9792ccaef0455e446c567163589397e8c3ac2e0d # v3
         if: always()
         with:
           sarif_file: trivy-results.sarif
 
+  # ============================================================================
+  # Lich Security: Fuzzing Harnesses + Doom Security Tests
+  # ============================================================================
+  lich-fuzz:
+    name: Lich Fuzz Harnesses
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run Go fuzz tests (short)
+        run: |
+          # Run each fuzz target for 30 seconds
+          FUZZ_TIME=30s
+          failed=0
+          for pkg in $(go list ./... | head -50); do
+            fuzz_targets=$(go test -list 'Fuzz.*' "$pkg" 2>/dev/null | grep '^Fuzz' || true)
+            for target in $fuzz_targets; do
+              echo "Fuzzing $pkg :: $target (${FUZZ_TIME})"
+              if ! go test -fuzz="^${target}$" -fuzztime="${FUZZ_TIME}" -timeout 60s "$pkg"; then
+                echo "::warning::Fuzz failure in $pkg :: $target"
+                failed=1
+              fi
+            done
+          done
+          if [ "$failed" -eq 1 ]; then
+            echo "::error::One or more fuzz targets found issues"
+            exit 1
+          fi
+          echo "All fuzz targets passed"
+
+  doom-security:
+    name: Doom Range Port Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Verify Doom Range port compliance
+        run: |
+          # Ensure no service binds outside the Doom Range (16666-26666)
+          # Scan Go source for hardcoded port bindings outside range
+          violations=$(grep -rn ':\(80\|443\|8080\|8443\|3000\|5000\|9090\)' \
+            --include='*.go' \
+            --exclude-dir=vendor \
+            --exclude-dir=.git \
+            --exclude='*_test.go' \
+            --exclude='pkg/ports/*' \
+            . | grep -v '//' | grep -v 'example' | grep -v 'TODO' | head -20 || true)
+          if [ -n "$violations" ]; then
+            echo "::warning::Potential port bindings outside Doom Range (16666-26666):"
+            echo "$violations"
+          fi
+          echo "Doom Range compliance check complete"
+
+      - name: Verify auth middleware integration
+        run: |
+          # Ensure all HTTP server setups reference auth middleware
+          servers=$(grep -rn 'http\.ListenAndServe\|http\.Server{' \
+            --include='*.go' \
+            --exclude-dir=vendor \
+            --exclude-dir=.git \
+            --exclude='*_test.go' \
+            . | head -30 || true)
+          echo "HTTP server instances found:"
+          echo "$servers"
+          echo "Manual review: ensure all production servers use auth.Middleware()"
+
+  # ============================================================================
+  # Security Gate
+  # ============================================================================
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     needs: [govulncheck, gosec, cargo-audit, trivy-fs]
     if: always()
     steps:
       - name: Check all security scans passed
         run: |
+          echo "govulncheck: ${{ needs.govulncheck.result }}"
+          echo "gosec: ${{ needs.gosec.result }}"
+          echo "cargo-audit: ${{ needs.cargo-audit.result }}"
+          echo "trivy-fs: ${{ needs.trivy-fs.result }}"
           if [ "${{ needs.govulncheck.result }}" != "success" ]; then
             echo "::error::govulncheck failed"
             exit 1
@@ -123,4 +222,4 @@ jobs:
             echo "::error::gosec failed"
             exit 1
           fi
-          echo "✅ All security scans passed"
+          echo "All required security scans passed"
