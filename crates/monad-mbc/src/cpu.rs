@@ -55,6 +55,11 @@ impl Cpu {
             insn_count: 0,
             cache_hits: 0,
             cache_misses: 0,
+            interrupt_pending: 0,
+            interrupt_vector: 0,
+            interrupts_enabled: 0,
+            _pad2: 0,
+            tick_counter: 0,
         };
         
         // Initialize stack pointer to default value
@@ -274,12 +279,13 @@ mod tests {
     use super::*;
 
     // Compile-time assertion: MbcCpuState = 16×u32 regs + u32 pc + u8×4 (flags/halted/stalled/pad)
-    //   + u64 sleep_until_ns + u64 insn_count + u64 cache_hits + u64 cache_misses = 104 bytes
-    const _: [u8; 104] = [0u8; std::mem::size_of::<MbcCpuState>()];
+    //   + u64 sleep_until_ns + u64 insn_count + u64 cache_hits + u64 cache_misses
+    //   + u8×4 (interrupt_pending/vector/enabled/_pad2) + u32 tick_counter = 112 bytes
+    const _: [u8; 112] = [0u8; std::mem::size_of::<MbcCpuState>()];
 
     #[test]
     fn test_mbccpustate_size() {
-        assert_eq!(std::mem::size_of::<MbcCpuState>(), 104);
+        assert_eq!(std::mem::size_of::<MbcCpuState>(), 112);
     }
 
     #[test]
