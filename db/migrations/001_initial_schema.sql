@@ -75,22 +75,6 @@ CREATE TABLE IF NOT EXISTS service_health (
     UNIQUE(service_name, host)
 );
 
--- ═══ LOG AGGREGATION ═══
-CREATE TABLE IF NOT EXISTS service_logs (
-    id BIGSERIAL PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT NOW(),
-    service VARCHAR(50) NOT NULL,
-    level VARCHAR(10) NOT NULL DEFAULT 'info',
-    message TEXT NOT NULL,
-    fields JSONB DEFAULT '{}',
-    trace_id VARCHAR(64) DEFAULT '',
-    host VARCHAR(50) DEFAULT 'west'
-);
-
-CREATE INDEX idx_logs_timestamp ON service_logs(timestamp DESC);
-CREATE INDEX idx_logs_service ON service_logs(service);
-CREATE INDEX idx_logs_level ON service_logs(level);
-
 -- ═══ ZHEN CONVERSATIONS ═══
 CREATE TABLE IF NOT EXISTS zhen_conversations (
     id SERIAL PRIMARY KEY,
