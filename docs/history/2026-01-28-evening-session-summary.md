@@ -45,7 +45,7 @@ Complete containerization setup for the entire Kingdom.
 
 **Docker Targets:**
 - `wotan` - Fae Chamber (Message Bus)
-- `timeguru` - Oracle's Antre (Timeline)
+- `timeguru` - Seer's Antre (Timeline)
 - `captain` - Commander's Quarters (Vision)
 - `architect` - Sage's Lair (ADRs)
 - `micromanager` - War Room (Tasks)
@@ -67,7 +67,7 @@ Added new build targets and Docker commands:
 ```makefile
 # New service builds
 make build-wotan      # Fae Chamber
-make build-timeguru    # Oracle's Antre
+make build-timeguru    # Seer's Antre
 make build-captain     # Commander's Quarters
 make build-architect   # Sage's Lair
 make build-micromanager # War Room
@@ -234,7 +234,7 @@ make run-timeguru
 | Control Plane | Crystal Grotto | unheaded-daemon, state management |
 | Message Bus | Fae Chamber | Wotan, pub/sub |
 | eBPF | Whispering Void | packet_marker, flow_tracker |
-| Timeline | Oracle's Antre | Timeguru service |
+| Timeline | Seer's Antre | Timeguru service |
 | ADRs | Sage's Lair | Architect service |
 | Deep Telemetry | Mythic Abyss | trace-collector |
 

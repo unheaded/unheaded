@@ -296,7 +296,7 @@ Backend exists, frontend scaffold exists. Wire together.
 │   │   └── trace-collector/       # Rust (Cargo project)
 │   ├── services/
 │   │   ├── gateway/               # THE SHIELD (NEW)
-│   │   ├── timeguru/              # Oracle's Antre
+│   │   ├── timeguru/              # Seer's Antre
 │   │   ├── captain/               # Strategic Vision
 │   │   ├── architect/             # Sage's Lair
 │   │   └── micromanager/          # Execution Engine
@@ -395,7 +395,7 @@ go test ./pkg/...     # All new packages
 | Bare Metal | SABATONS | `pkg/baremetal/` |
 | Gateway | THE SHIELD | `services/gateway/` |
 | CLI | THE GAUNTLETS | `cmd/unheaded-cli/` |
-| Timeline | Oracle's Antre | `services/timeguru/` |
+| Timeline | Seer's Antre | `services/timeguru/` |
 
 ### Skill Alignment
 All 7 Unheaded skills verified aligned (per Timeguru session):

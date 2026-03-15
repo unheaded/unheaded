@@ -104,7 +104,7 @@ Hollows are the deep magic beneath the visible infrastructure:
 | **Whispering Void** | The eBPF Tracer | Silent, omniscient | XDP, TC, kprobe, tracepoint programs |
 | **Crystal Grotto** | The Secrets Vault | Shining, precious | SOPS + age, state stores, encryption |
 | **Elder Hollow** | The Legacy Bridge | Ancient, wise | RIP, EIGRP, legacy protocol adapters |
-| **Oracle's Antre** | The Timeline Chamber | Prophetic, mysterious | Timeguru processing, predictions |
+| **Seer's Antre** | The Timeline Chamber | Prophetic, mysterious | Timeguru processing, predictions |
 | **Primordial Pit** | The Hardware Foundation | Raw, foundational | PXE, hardware provisioning, IPMI |
 | **Fae Chamber** | The Message Bus | Magical, dancing | Pub/sub, event orchestration, Wotan's domain |
 | **Cursed Pit** | The Quarantine Zone | Dangerous, contained | Incident response, breach containment |

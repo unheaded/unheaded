@@ -126,7 +126,7 @@ THE ARCANE HOLLOWS (Hidden Layer)
     │   └── trace-collector/       # Rust eBPF bridge
     ├── services/
     │   ├── gateway/               # THE SHIELD gateway
-    │   ├── timeguru/              # Oracle's Antre
+    │   ├── timeguru/              # Seer's Antre
     │   ├── captain/               # Strategic Vision
     │   ├── architect/             # Sage's Lair
     │   └── micromanager/          # Execution Engine

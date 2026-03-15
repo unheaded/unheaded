@@ -91,7 +91,7 @@ This session established the **Arcane Hollows** - a mystical layer representing 
 | 🌑 The Whispering Void | eBPF tracing | Vambraces |
 | 💎 The Crystal Grotto | Secrets/State | Cuirass, Tassets |
 | 🕯️ The Elder Hollow | Legacy protocols | Hauberk |
-| 🔮 The Oracle's Antre | Timeguru processing | Timeguru |
+| 🔮 The Seer's Antre | Timeguru processing | Timeguru |
 | ⚫ The Primordial Pit | Bare metal | Sabatons |
 | 🧚 The Fae Chamber | Message bus (Wotan) | All services |
 | ☠️ The Cursed Pit | Quarantine | Shield |

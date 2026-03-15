@@ -9,7 +9,7 @@ User brings their app ("the head"), we provide everything else ("unheaded").
 | Service | Port | Role |
 |---------|------|------|
 | Wotan | 18000 | Message bus (Fae Chamber) |
-| Timeguru | 19000 | Timeline tracking (Oracle's Antre) |
+| Timeguru | 19000 | Timeline tracking (Seer's Antre) |
 | Architect | 19001 | ADR service (Sage's Lair) |
 | Captain | 19002 | Strategy service (Commander's Quarters) |
 | Micromanager | 19003 | Task execution (War Room) |

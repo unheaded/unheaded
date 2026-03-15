@@ -97,7 +97,7 @@ description: |
 | 👑 **Captain** | Vision & Strategy | WHY & WHERE | Commander's Quarters |
 | 🏗️ **Architect** | Technical Design | HOW | The Sage's Lair |
 | 📋 **Micromanager** | Execution & QA | WHAT & WHEN | The War Room |
-| ⌛ **Timeguru** | Timeline Tracking | WHEN/WAS/WILL | Oracle's Antre |
+| ⌛ **Timeguru** | Timeline Tracking | WHEN/WAS/WILL | Seer's Antre |
 | 💻 **Developer** | Code & TDD | BUILD | The Forge |
 | 🍽️ **Wotan** | Coordination | GLUE | The Fae Chamber |
 | 📅 **Calendar** | Time Capture | SCHEDULE | Temporal Archive |
@@ -369,7 +369,7 @@ Gauntlets the CLI & API (Single Source of Truth)
 | 🌑 **Whispering Void** | Whispering Void the eBPF Tracer | `packet_marker`, `flow_tracker`, `latency_probe` | Vambraces |
 | 💎 **Crystal Grotto** | Crystal Grotto the Secrets Vault | SOPS + age, state stores, envelope encryption | Cuirass, Tassets |
 | 🕯️ **Elder Hollow** | Elder Hollow the Legacy Bridge | RIP, EIGRP, legacy protocol adapters | Hauberk |
-| 🔮 **Oracle's Antre** | Oracle's Antre the Timeline Chamber | Timeguru processing, predictions, prophecy | Timeguru |
+| 🔮 **Seer's Antre** | Seer's Antre the Timeline Chamber | Timeguru processing, predictions, prophecy | Timeguru |
 | ⚫ **Primordial Pit** | Primordial Pit the Hardware Foundation | PXE, hardware provisioning, IPMI | Sabatons |
 | 🧚 **Fae Chamber** | Fae Chamber the Message Bus | Pub/sub, event orchestration, Wotan's domain | Wotan, All Services |
 | ☠️ **Cursed Pit** | Cursed Pit the Quarantine Zone | Incident response, breach containment, isolation | Shield |
@@ -381,7 +381,7 @@ Gauntlets the CLI & API (Single Source of Truth)
 **Mystical & Magical:**
 - Crystal Grotto - Shining, precious, protected
 - Fae Chamber - Where fairies (messages) dance
-- Oracle's Antre - Place of prophecy and foresight
+- Seer's Antre - Place of prophecy and foresight
 
 **Forbidden & Dangerous:**
 - Cursed Pit - Dark magic, breach containment
@@ -601,7 +601,7 @@ Convergence: < 50ms link failure, < 100ms node failure
 | ADR repository | Sage's Lair the ADR Vault |
 | Deep telemetry | Mythic Abyss the Deep Telemetry |
 | Legacy protocols | Elder Hollow the Legacy Bridge |
-| Timeline service | Oracle's Antre the Timeline Chamber |
+| Timeline service | Seer's Antre the Timeline Chamber |
 | Control plane | Cuirass the Control Plane |
 | WAF/Gateway | Shield the WAF |
 | Service mesh | Hauberk the Service Mesh |
@@ -637,7 +637,7 @@ Target: February 8, 2026
 ACTIVE SERVICES (8):
 ━━━━━━━━━━━━━━━━━━━━
 • Fae Chamber the Message Bus - Messages dance
-• Oracle's Antre the Timeline Chamber - Timeline lives
+• Seer's Antre the Timeline Chamber - Timeline lives
 • Monad the Composition Engine - The One unifies
 • Sophia the Knowledge Service - Wisdom flows
 • Cuirass the Control Plane - Heart beats

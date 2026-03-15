@@ -420,7 +420,7 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 |--------|--------|---------|--------|
 | 🌑 **Whispering Void** | eBPF | `pkg/ebpf/`, `ebpf/` (Rust) | 55% |
 | 💎 **Crystal Grotto** | Secrets | `pkg/secrets/` | 90% |
-| 🔮 **Oracle's Antre** | Timeline | `services/timeguru/` | 85% |
+| 🔮 **Seer's Antre** | Timeline | `services/timeguru/` | 85% |
 | 🧚 **Fae Chamber** | Messages | `pkg/wotan-client/`, `pkg/events/` | 95% |
 | 📚 **Sage's Lair** | ADRs | `services/architect/`, `docs/adr/` | 80% |
 | 🌀 **Mythic Abyss** | Telemetry | `cmd/trace-collector/` | 60% |
