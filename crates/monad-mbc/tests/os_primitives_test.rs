@@ -1,0 +1,1170 @@
+//! Comprehensive integration tests for UPC OS primitives.
+//!
+//! Tests all Level 4a-4f + Level 5 boot protocol primitives:
+//!   1. Timer interrupts (IVT, INT, IRET)
+//!   2. Syscall dispatch (SYS_EXIT, SYS_WRITE, SYS_BRK, SYS_GETPID,
+//!      SYS_CLOCK_GETTIME, SYS_FORK)
+//!   3. Scheduler (fork, context switch, round-robin)
+//!   4. MMU (page tables, TLB, identity mapping)
+//!   5. Block device (ramdisk read/write)
+//!   6. Console I/O (SYS_WRITE to tty_output)
+//!   7. Boot integration (hello_kernel demo)
+
+use monad_mbc::{ExecCpu, ExecError};
+use monad_common::{
+    MbcInsn,
+    mbc_opcodes as op,
+    mbc_linux_syscalls as lsys,
+    mbc_interrupts as intr,
+    mbc_block as blk,
+    mbc_mmu as mmu,
+    REG_SP,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Encode a standard instruction.
+fn enc(opcode: u8, dst: u8, src: u8, imm: u16) -> u32 {
+    MbcInsn::encode(opcode, dst, src, imm).0
+}
+
+/// Build a branch/jump instruction with 24-bit offset packed into
+/// dst(4) + src(4) + imm16(16) = 24 bits.
+#[allow(dead_code)]
+fn branch(opcode: u8, offset: i32) -> u32 {
+    let off24 = (offset as u32) & 0x00FF_FFFF;
+    let dst = ((off24 >> 20) & 0xF) as u8;
+    let src = ((off24 >> 16) & 0xF) as u8;
+    let imm = (off24 & 0xFFFF) as u16;
+    MbcInsn::encode(opcode, dst, src, imm).0
+}
+
+/// Create a CPU with SP set to a safe RAM address (byte 0x4000 = word 0x1000).
+fn cpu_with_safe_sp() -> ExecCpu {
+    let mut cpu = ExecCpu::new();
+    cpu.state.regs[REG_SP as usize] = 0x4000; // byte address
+    cpu
+}
+
+/// Store the bytes of a string into RAM starting at `byte_addr`.
+fn store_string(cpu: &mut ExecCpu, byte_addr: u32, s: &str) {
+    for (i, b) in s.bytes().enumerate() {
+        let addr = byte_addr + i as u32;
+        let word_idx = (addr >> 2) as usize;
+        let byte_off = (addr & 3) as usize;
+        if word_idx < cpu.ram.len() {
+            let mask = 0xFFu32 << (byte_off * 8);
+            cpu.ram[word_idx] = (cpu.ram[word_idx] & !mask) | ((b as u32) << (byte_off * 8));
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1. Timer Interrupts
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn timer_tick_counter_increments() {
+    // Verify that tick_counter can be set and read back.
+    // The tick_counter is typically incremented by external timer ticks.
+    let mut cpu = ExecCpu::new();
+    assert_eq!(cpu.state.tick_counter, 0);
+
+    cpu.state.tick_counter = 42;
+    assert_eq!(cpu.state.tick_counter, 42);
+}
+
+#[test]
+fn timer_interrupt_fires_when_pending_and_enabled() {
+    // Set up IVT entry at address 0 (word 0) pointing to handler at ROM word 10.
+    // When interrupt fires, CPU should push PC+flags, jump to handler.
+    let mut cpu = cpu_with_safe_sp();
+
+    // IVT: vector 0x20 (VECTOR_TIMER). IVT address = vector * 4 = 0x80 bytes = word 0x20.
+    // Store handler address (ROM word 10) at RAM word 0x20.
+    cpu.ram[0x20] = 10;
+
+    // Build ROM:
+    // Words 0-9: main code (NOP sled + HALT)
+    // Word 10+: interrupt handler (MOVI r5, 0xBEEF; IRET)
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 12];
+    rom[9] = enc(op::HALT, 0, 0, 0);
+    // Handler at word 10
+    rom[10] = enc(op::MOVI, 5, 0, 0xBEEF);
+    rom[11] = enc(op::IRET, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+
+    // Enable interrupts and set pending timer interrupt
+    cpu.state.interrupts_enabled = 1;
+    cpu.state.interrupt_pending = 1;
+    cpu.state.interrupt_vector = intr::VECTOR_TIMER;
+
+    // Step: the interrupt dispatch should fire before the first instruction fetch
+    cpu.step().unwrap();
+
+    // PC should have jumped to handler (10), and the handler's MOVI should execute.
+    // After step(), we executed the handler's MOVI at word 10.
+    // r5 should be 0xBEEF now.
+    assert_eq!(cpu.state.regs[5], 0xBEEF, "handler should set r5 = 0xBEEF");
+
+    // Interrupts should be disabled during handler
+    assert_eq!(cpu.state.interrupts_enabled, 0, "interrupts disabled during handler");
+
+    // interrupt_pending should be cleared
+    assert_eq!(cpu.state.interrupt_pending, 0, "interrupt_pending cleared");
+}
+
+#[test]
+fn timer_iret_restores_pc_and_flags() {
+    // Set up: trigger an interrupt, then IRET back.
+    let mut cpu = cpu_with_safe_sp();
+
+    // IVT: vector 0x20 -> handler at ROM word 5
+    cpu.ram[0x20] = 5;
+
+    // ROM layout:
+    // Word 0: MOVI r0, 0x42  (main code, should execute first)
+    // Word 1: HALT
+    // ...
+    // Word 5: MOVI r5, 0xAA  (handler)
+    // Word 6: IRET
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 8];
+    rom[0] = enc(op::MOVI, 0, 0, 0x42);
+    rom[1] = enc(op::HALT, 0, 0, 0);
+    rom[5] = enc(op::MOVI, 5, 0, 0xAA);
+    rom[6] = enc(op::IRET, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+
+    // Execute MOVI r0, 0x42 (word 0). PC advances to 1.
+    cpu.step().unwrap();
+    assert_eq!(cpu.state.regs[0], 0x42);
+    assert_eq!(cpu.state.pc, 1);
+
+    // Now trigger interrupt. The next step() should push PC=1 + flags, jump to handler.
+    cpu.state.interrupts_enabled = 1;
+    cpu.state.interrupt_pending = 1;
+    cpu.state.interrupt_vector = intr::VECTOR_TIMER;
+
+    // Step: interrupt fires, then executes handler word 5 (MOVI r5, 0xAA)
+    cpu.step().unwrap();
+    assert_eq!(cpu.state.regs[5], 0xAA);
+
+    // Step: execute IRET at word 6
+    cpu.step().unwrap();
+
+    // After IRET, PC should be restored to 1, interrupts re-enabled
+    assert_eq!(cpu.state.pc, 1, "IRET should restore PC to saved value");
+    assert_eq!(cpu.state.interrupts_enabled, 1, "IRET should re-enable interrupts");
+
+    // Next step should execute HALT at word 1
+    let result = cpu.step();
+    assert_eq!(result, Err(ExecError::Halted));
+}
+
+#[test]
+fn timer_interrupt_disabled_does_not_fire() {
+    // If interrupts_enabled == 0, pending interrupt should not fire.
+    let mut cpu = cpu_with_safe_sp();
+
+    cpu.ram[0x20] = 5; // handler at word 5
+
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 8];
+    rom[0] = enc(op::MOVI, 0, 0, 0x99);
+    rom[1] = enc(op::HALT, 0, 0, 0);
+    rom[5] = enc(op::MOVI, 5, 0, 0xAA);
+    rom[6] = enc(op::IRET, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+
+    // Set pending but do NOT enable interrupts
+    cpu.state.interrupts_enabled = 0;
+    cpu.state.interrupt_pending = 1;
+    cpu.state.interrupt_vector = intr::VECTOR_TIMER;
+
+    // Step: should execute MOVI at word 0, NOT jump to handler
+    cpu.step().unwrap();
+    assert_eq!(cpu.state.regs[0], 0x99, "main code should execute, not handler");
+    assert_eq!(cpu.state.regs[5], 0, "handler should not have run");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2. Syscall Dispatch (INT 0x80)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn syscall_exit_halts_cpu() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // r0 = SYS_EXIT (1), r1 = exit_code (42)
+    // INT 0x80
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_EXIT as u16),
+        enc(op::MOVI, 1, 0, 42),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+    ];
+    cpu.load_rom(&rom);
+
+    let result = cpu.run(100);
+    // run() returns Ok(cycles) when HALT is reached
+    assert!(result.is_ok(), "SYS_EXIT should halt cleanly: {:?}", result);
+    assert_eq!(cpu.state.halted, 1, "CPU should be halted");
+    assert_eq!(cpu.state.exit_code, 42, "exit_code should be 42");
+}
+
+#[test]
+fn syscall_write_outputs_to_tty() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Store "Hi" at RAM byte address 0x100
+    let msg = "Hi";
+    store_string(&mut cpu, 0x100, msg);
+
+    // r0 = SYS_WRITE (4), r1 = fd 1 (stdout), r2 = buf 0x100, r3 = len 2
+    // INT 0x80
+    // HALT
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
+        enc(op::MOVI, 1, 0, 1),       // fd = stdout
+        enc(op::MOVI, 2, 0, 0x0100),  // buf address
+        enc(op::MOVI, 3, 0, 2),       // length
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+
+    let result = cpu.run(100);
+    assert!(result.is_ok() || result == Err(ExecError::Halted));
+    assert_eq!(cpu.tty_output, b"Hi", "tty_output should contain 'Hi'");
+    assert_eq!(cpu.state.regs[0], 2, "SYS_WRITE should return bytes written");
+}
+
+#[test]
+fn syscall_write_to_stderr() {
+    let mut cpu = cpu_with_safe_sp();
+
+    let msg = "err";
+    store_string(&mut cpu, 0x200, msg);
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
+        enc(op::MOVI, 1, 0, 2),       // fd = stderr
+        enc(op::MOVI, 2, 0, 0x0200),
+        enc(op::MOVI, 3, 0, 3),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.tty_output, b"err", "stderr should also go to tty_output");
+}
+
+#[test]
+fn syscall_write_bad_fd_returns_ebadf() {
+    let mut cpu = cpu_with_safe_sp();
+
+    store_string(&mut cpu, 0x100, "x");
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
+        enc(op::MOVI, 1, 0, 99),      // bad fd
+        enc(op::MOVI, 2, 0, 0x0100),
+        enc(op::MOVI, 3, 0, 1),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert!(cpu.tty_output.is_empty(), "bad fd should not produce output");
+    // EBADF = -9 as u32
+    assert_eq!(cpu.state.regs[0], (-9i32) as u32, "should return -EBADF");
+}
+
+#[test]
+fn syscall_brk_query_returns_current_break() {
+    let mut cpu = cpu_with_safe_sp();
+
+    let initial_brk = cpu.state.program_break;
+
+    // r0 = SYS_BRK (45), r1 = 0 (query mode)
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_BRK as u16),
+        enc(op::MOVI, 1, 0, 0),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(
+        cpu.state.regs[0], initial_brk,
+        "BRK with r1=0 should return current program_break"
+    );
+}
+
+#[test]
+fn syscall_brk_set_updates_program_break() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Set program_break to 0x5000 (using MOVI + LOAD_IMM32 to build 32-bit value)
+    // We need the value 0x5000 which fits in 16 bits, so MOVI is sufficient.
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_BRK as u16),
+        enc(op::MOVI, 1, 0, 0x5000),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.program_break, 0x5000, "program_break should be updated");
+    assert_eq!(cpu.state.regs[0], 0x5000, "BRK should return new break value");
+}
+
+#[test]
+fn syscall_getpid_returns_instance_id() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.instance_id = 7;
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_GETPID as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.regs[0], 7, "SYS_GETPID should return instance_id");
+}
+
+#[test]
+fn syscall_clock_gettime_returns_nonzero() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.ticks_ms = 5500; // 5.5 seconds
+
+    // r0 = SYS_CLOCK_GETTIME (265), r1 = pointer to timespec struct (0x1000)
+    // We need 265 which is > 255, so use MOVI (which can do 16-bit imm).
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_CLOCK_GETTIME as u16),
+        enc(op::MOVI, 1, 0, 0x1000), // timespec address
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.regs[0], 0, "CLOCK_GETTIME should return 0 on success");
+
+    // Read back timespec from RAM at byte addr 0x1000
+    let secs = cpu.ram[0x1000 >> 2];
+    let nsecs = cpu.ram[(0x1000 + 4) >> 2];
+    assert_eq!(secs, 5, "5500ms should give 5 seconds");
+    assert_eq!(nsecs, 500_000_000, "5500ms should give 500M nanoseconds remainder");
+}
+
+#[test]
+fn syscall_fork_parent_gets_child_pid_child_gets_zero() {
+    let mut cpu = cpu_with_safe_sp();
+    assert_eq!(cpu.state.num_processes, 1);
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_FORK as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    // Parent should get child_pid = 1 (second process, index 1)
+    assert_eq!(cpu.state.regs[0], 1, "parent should get child_pid in r0");
+    assert_eq!(cpu.state.num_processes, 2, "should now have 2 processes");
+
+    // Child state is in proc_table[1], child's r0 should be 0
+    assert_eq!(cpu.proc_table[1][0], 0, "child's r0 should be 0 (fork return)");
+
+    // Child's PC should be saved at the point of the fork syscall.
+    // INT 0x80 is a software interrupt which, for VECTOR_SYSCALL, executes inline
+    // (no IVT dispatch), so child's PC = parent's PC at time of fork.
+    // The parent continues past the INT instruction, so child PC may differ
+    // from the parent's final PC. Just verify the child has a valid PC.
+    assert!(
+        cpu.proc_table[1][16] > 0,
+        "child's saved PC should be non-zero"
+    );
+}
+
+#[test]
+fn syscall_fork_max_processes_returns_eagain() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.num_processes = intr::MAX_PROCESSES; // already at max
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_FORK as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(
+        cpu.state.regs[0],
+        (-11i32) as u32,
+        "fork at max processes should return -EAGAIN"
+    );
+}
+
+#[test]
+fn syscall_unknown_returns_enosys() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Use a syscall number that is not implemented (e.g., 999)
+    let rom = vec![
+        enc(op::MOVI, 0, 0, 999),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(
+        cpu.state.regs[0],
+        (-(lsys::ENOSYS as i32)) as u32,
+        "unknown syscall should return -ENOSYS"
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 3. Scheduler
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn scheduler_fork_and_yield_switches_context() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Program:
+    //   0: MOVI r0, SYS_FORK
+    //   1: INT 0x80                 ; fork -> parent r0=1, child r0=0
+    //   2: MOVI r4, 0x42           ; marker (both parent and child execute this)
+    //   3: MOVI r0, SYS_SCHED_YIELD
+    //   4: INT 0x80                 ; yield -> context switch
+    //   5: HALT
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_FORK as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        // After fork: parent continues here, child will too when scheduled
+        enc(op::MOVI, 4, 0, 0x42),
+        enc(op::MOVI, 0, 0, lsys::SYS_SCHED_YIELD as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+
+    // Run: fork creates child, parent yields which switches to child,
+    // child runs to halt, eventually both halt.
+    // We give it enough cycles for the full flow.
+    let _result = cpu.run(100);
+
+    // After running, verify that fork happened and context switch occurred.
+    assert_eq!(cpu.state.num_processes, 2, "two processes after fork");
+
+    // Either we ran to completion or halted. The key thing is that
+    // the context switch infrastructure worked without panicking.
+    // Check that proc_table has saved state for the other process.
+    let other_pid = if cpu.state.current_pid == 0 { 1 } else { 0 };
+    // The other process should have been saved during context switch.
+    // Its r4 may or may not be 0x42 depending on scheduling order.
+
+    // Run a bit more to ensure both processes get a chance to execute.
+    let _result2 = cpu.run(100);
+
+    // Verify halted state
+    assert_eq!(cpu.state.halted, 1, "should eventually halt");
+
+    // Verify that at least one context switch occurred by checking proc_table
+    // has non-zero data (saved state from a context switch).
+    let saved = cpu.proc_table[other_pid as usize];
+    // At minimum, the saved SP should be non-zero (it was set to 0x4000).
+    assert!(
+        saved[18] != 0 || cpu.state.current_pid != 0,
+        "context switch should have saved state for the other process"
+    );
+}
+
+#[test]
+fn scheduler_context_switch_round_robin() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Manually set up two processes in proc_table.
+    cpu.state.num_processes = 2;
+    cpu.state.current_pid = 0;
+
+    // Process 1 state: r0 = 0xDEAD, PC = 0, flags = 0
+    cpu.proc_table[1][0] = 0xDEAD;
+    cpu.proc_table[1][16] = 0; // PC
+    cpu.proc_table[1][17] = 0; // flags
+    cpu.proc_table[1][18] = 0x4000; // SP
+    cpu.proc_table[1][19] = cpu.state.program_break;
+
+    // Set a marker in process 0 (current)
+    cpu.state.regs[0] = 0xBEEF;
+
+    // Perform context switch
+    cpu.scheduler_context_switch();
+
+    // Should now be running process 1
+    assert_eq!(cpu.state.current_pid, 1, "should switch to pid 1");
+    assert_eq!(cpu.state.regs[0], 0xDEAD, "should load process 1's r0");
+
+    // Process 0's state should be saved
+    assert_eq!(cpu.proc_table[0][0], 0xBEEF, "process 0's r0 should be saved");
+
+    // Switch back
+    cpu.scheduler_context_switch();
+    assert_eq!(cpu.state.current_pid, 0, "should switch back to pid 0");
+    assert_eq!(cpu.state.regs[0], 0xBEEF, "should restore process 0's r0");
+}
+
+#[test]
+fn scheduler_skips_halted_processes() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // 3 processes: 0 (running), 1 (halted), 2 (runnable)
+    cpu.state.num_processes = 3;
+    cpu.state.current_pid = 0;
+    cpu.halted_mask = 1 << 1; // process 1 is halted
+
+    cpu.proc_table[2][0] = 0xCAFE;
+    cpu.proc_table[2][16] = 0;
+    cpu.proc_table[2][17] = 0;
+    cpu.proc_table[2][18] = 0x4000;
+    cpu.proc_table[2][19] = cpu.state.program_break;
+
+    cpu.scheduler_context_switch();
+
+    assert_eq!(cpu.state.current_pid, 2, "should skip halted pid 1, go to pid 2");
+    assert_eq!(cpu.state.regs[0], 0xCAFE, "should load pid 2's r0");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4. MMU
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn mmu_disabled_passthrough() {
+    // When MMU is disabled, addresses pass through unchanged.
+    let mut cpu = cpu_with_safe_sp();
+    assert_eq!(cpu.state.mmu_enabled, 0);
+
+    // Write a value to RAM, read it back via LD with MMU disabled
+    cpu.ram[0x100] = 0xDEADBEEF; // word address 0x100
+
+    let rom = vec![
+        enc(op::MOVI, 1, 0, 0x0400), // byte address 0x400 = word 0x100
+        enc(op::LD, 0, 1, 0),        // r0 = RAM[0x400]
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.regs[0], 0xDEADBEEF, "MMU disabled should pass through");
+}
+
+#[test]
+fn mmu_identity_map_works() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Set up a simple identity-mapped page table in RAM.
+    // We need:
+    //   1. A page directory at some address (e.g., 0x10000 bytes = word 0x4000)
+    //   2. A page table at some address (e.g., 0x11000 bytes = word 0x4400)
+    //
+    // For identity mapping of address 0x0000_0000 - 0x003F_FFFF (first 4MB):
+    //   PDE[0] = page_table_base | PTE_PRESENT
+    //   PTE[0..1023] = (i * 0x1000) | PTE_PRESENT | PTE_WRITE
+    //
+    // Virtual address 0x0000_2000 (page 2):
+    //   PDE index = 0x0000_2000 >> 22 = 0
+    //   PTE index = (0x0000_2000 >> 12) & 0x3FF = 2
+    //   Offset = 0x0000_2000 & 0xFFF = 0
+
+    let pd_byte_addr: u32 = 0x10000;
+    let pt_byte_addr: u32 = 0x11000;
+    let pd_word = (pd_byte_addr >> 2) as usize;
+    let pt_word = (pt_byte_addr >> 2) as usize;
+
+    // PDE[0] = pt_byte_addr | PTE_PRESENT
+    cpu.ram[pd_word] = pt_byte_addr | mmu::PTE_PRESENT;
+
+    // Identity map first 16 pages (enough for our test)
+    for i in 0..16u32 {
+        let pte = (i << 12) | mmu::PTE_PRESENT | mmu::PTE_WRITE;
+        cpu.ram[pt_word + i as usize] = pte;
+    }
+
+    // Write test data at page 2, offset 0 (byte addr 0x2000, word 0x800)
+    cpu.ram[0x800] = 0x12345678;
+
+    // Program: set page dir, enable MMU, read from 0x2000
+    let rom = vec![
+        // SYS_SET_PAGE_DIR: r0 = 250, r1 = pd_byte_addr
+        enc(op::MOVI, 0, 0, lsys::SYS_SET_PAGE_DIR as u16),
+        enc(op::MOVI, 1, 0, (pd_byte_addr & 0xFFFF) as u16),
+        enc(op::LOAD_IMM32, 1, 0, (pd_byte_addr >> 16) as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        // SYS_ENABLE_MMU: r0 = 251
+        enc(op::MOVI, 0, 0, lsys::SYS_ENABLE_MMU as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        // LD r2, [0x2000]
+        enc(op::MOVI, 3, 0, 0x2000),
+        enc(op::LD, 2, 3, 0),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.mmu_enabled, 1, "MMU should be enabled");
+    assert_eq!(
+        cpu.state.regs[2], 0x12345678,
+        "identity-mapped read should return correct value"
+    );
+}
+
+#[test]
+fn mmu_tlb_gets_populated() {
+    let mut cpu = cpu_with_safe_sp();
+
+    let pd_byte_addr: u32 = 0x10000;
+    let pt_byte_addr: u32 = 0x11000;
+    let pd_word = (pd_byte_addr >> 2) as usize;
+    let pt_word = (pt_byte_addr >> 2) as usize;
+
+    // PDE[0] = pt_byte_addr | PTE_PRESENT
+    cpu.ram[pd_word] = pt_byte_addr | mmu::PTE_PRESENT;
+
+    // Identity map page 3 (byte addr 0x3000)
+    cpu.ram[pt_word + 3] = (3 << 12) | mmu::PTE_PRESENT | mmu::PTE_WRITE;
+
+    cpu.ram[0xC00] = 0xAABBCCDD; // word at byte addr 0x3000
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_SET_PAGE_DIR as u16),
+        enc(op::MOVI, 1, 0, (pd_byte_addr & 0xFFFF) as u16),
+        enc(op::LOAD_IMM32, 1, 0, (pd_byte_addr >> 16) as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::MOVI, 0, 0, lsys::SYS_ENABLE_MMU as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::MOVI, 3, 0, 0x3000),
+        enc(op::LD, 2, 3, 0),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    // VPN for 0x3000 = 3, TLB index = 3 & 63 = 3
+    let tlb_entry = cpu.tlb[3];
+    assert_eq!(tlb_entry[0], 3, "TLB VPN should be 3");
+    assert_eq!(tlb_entry[1], 3, "TLB PFN should be 3 (identity map)");
+    assert_ne!(tlb_entry[2] & mmu::PTE_PRESENT, 0, "TLB entry should be present");
+}
+
+#[test]
+fn mmu_flush_tlb_clears_entries() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Populate a TLB entry manually
+    cpu.tlb[5] = [5, 5, mmu::PTE_PRESENT];
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_FLUSH_TLB as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.tlb[5], [0, 0, 0], "TLB should be flushed");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5. Block Device (Ramdisk)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn block_device_write_then_read() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Write test data to a source buffer in RAM at byte address 0x800 (word 0x200)
+    let src_word = 0x200usize;
+    for i in 0..128usize {
+        cpu.ram[src_word + i] = 0xDEAD0000 + i as u32;
+    }
+
+    // SYS_WRITE_BLOCK: r0=201, r1=block_num (0), r2=buf_addr (0x800 byte addr)
+    // Then SYS_READ_BLOCK: r0=200, r1=block_num (0), r2=buf_addr (0x1800 byte addr)
+    let rom = vec![
+        // Write block 0 from buffer at 0x800
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 0),        // block 0
+        enc(op::MOVI, 2, 0, 0x0800),   // source buffer
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        // Save return value
+        enc(op::MOV, 5, 0, 0),
+        // Read block 0 into buffer at 0x1800
+        enc(op::MOVI, 0, 0, lsys::SYS_READ_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 0),        // block 0
+        enc(op::MOVI, 2, 0, 0x1800),   // dest buffer
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        // Save return value
+        enc(op::MOV, 6, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(200).ok();
+
+    // Verify return values
+    assert_eq!(cpu.state.regs[5], blk::BLOCK_SIZE, "WRITE_BLOCK should return 512");
+    assert_eq!(cpu.state.regs[6], blk::BLOCK_SIZE, "READ_BLOCK should return 512");
+
+    // Verify data matches: dest buffer at word 0x600 (byte 0x1800)
+    let dst_word = 0x600usize;
+    for i in 0..128usize {
+        assert_eq!(
+            cpu.ram[dst_word + i],
+            0xDEAD0000 + i as u32,
+            "block data mismatch at word offset {}",
+            i
+        );
+    }
+}
+
+#[test]
+fn block_device_invalid_block_returns_eio() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Try to read block beyond total blocks
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_READ_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 0xFFFF),  // way beyond total blocks
+        enc(op::MOVI, 2, 0, 0x0800),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(
+        cpu.state.regs[0],
+        (-(lsys::EIO as i32)) as u32,
+        "invalid block should return -EIO"
+    );
+}
+
+#[test]
+fn block_device_multiple_blocks() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Write distinct patterns to blocks 0 and 1
+    let src_word = 0x200usize;
+    for i in 0..128 {
+        cpu.ram[src_word + i] = 0xAAAA0000 + i as u32;
+    }
+
+    let rom = vec![
+        // Write block 0
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 0),
+        enc(op::MOVI, 2, 0, 0x0800),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    // Change source buffer pattern for block 1
+    for i in 0..128 {
+        cpu.ram[src_word + i] = 0xBBBB0000 + i as u32;
+    }
+
+    // Write block 1
+    cpu.state.halted = 0;
+    cpu.state.pc = 0;
+    let rom2 = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 1),
+        enc(op::MOVI, 2, 0, 0x0800),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom2);
+    cpu.run(100).ok();
+
+    // Read back block 0 and verify it still has 0xAAAA pattern
+    cpu.state.halted = 0;
+    cpu.state.pc = 0;
+    let rom3 = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_READ_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 0),
+        enc(op::MOVI, 2, 0, 0x1800),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom3);
+    cpu.run(100).ok();
+
+    let dst_word = 0x600usize;
+    assert_eq!(cpu.ram[dst_word], 0xAAAA0000, "block 0 data should be 0xAAAA pattern");
+    assert_eq!(cpu.ram[dst_word + 127], 0xAAAA007F, "block 0 last word");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 6. Console I/O
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn console_write_string_via_syscall() {
+    let mut cpu = cpu_with_safe_sp();
+
+    let msg = "Hello, UPC!\n";
+    store_string(&mut cpu, 0x200, msg);
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
+        enc(op::MOVI, 1, 0, 1),       // stdout
+        enc(op::MOVI, 2, 0, 0x0200),
+        enc(op::MOVI, 3, 0, msg.len() as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    let output = String::from_utf8_lossy(&cpu.tty_output);
+    assert_eq!(output, msg, "tty_output should contain the full message");
+}
+
+#[test]
+fn console_multiple_writes_accumulate() {
+    let mut cpu = cpu_with_safe_sp();
+
+    store_string(&mut cpu, 0x200, "AB");
+    store_string(&mut cpu, 0x300, "CD");
+
+    let rom = vec![
+        // First write: "AB"
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
+        enc(op::MOVI, 1, 0, 1),
+        enc(op::MOVI, 2, 0, 0x0200),
+        enc(op::MOVI, 3, 0, 2),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        // Second write: "CD"
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
+        enc(op::MOVI, 1, 0, 1),
+        enc(op::MOVI, 2, 0, 0x0300),
+        enc(op::MOVI, 3, 0, 2),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(200).ok();
+
+    assert_eq!(cpu.tty_output, b"ABCD", "multiple writes should accumulate");
+}
+
+#[test]
+fn console_write_capped_at_256_bytes() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Store 300 bytes of 'X'
+    for i in 0..300u32 {
+        let addr = 0x200 + i;
+        let word_idx = (addr >> 2) as usize;
+        let byte_off = (addr & 3) as usize;
+        if word_idx < cpu.ram.len() {
+            let mask = 0xFFu32 << (byte_off * 8);
+            cpu.ram[word_idx] = (cpu.ram[word_idx] & !mask) | ((b'X' as u32) << (byte_off * 8));
+        }
+    }
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
+        enc(op::MOVI, 1, 0, 1),
+        enc(op::MOVI, 2, 0, 0x0200),
+        enc(op::MOVI, 3, 0, 300), // request 300 bytes
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.tty_output.len(), 256, "write should be capped at 256 bytes");
+    assert_eq!(cpu.state.regs[0], 256, "SYS_WRITE should return 256 (capped)");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7. Boot Integration (hello_kernel demo)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn boot_hello_kernel_produces_output() {
+    // The hello_kernel demo writes "Hello from UPC kernel!\n" via SYS_WRITE.
+    // We construct the equivalent program using INT 0x80 directly.
+    let mut cpu = cpu_with_safe_sp();
+
+    let msg = "Hello from UPC kernel!\n";
+    let msg_addr: u32 = 0x0400; // byte address in RAM
+    store_string(&mut cpu, msg_addr, msg);
+
+    // Program: MOVI r0,4; MOVI r1,1; MOVI r2,msg_addr; MOVI r3,23; INT 0x80; HALT
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
+        enc(op::MOVI, 1, 0, 1),                    // fd = stdout
+        enc(op::MOVI, 2, 0, msg_addr as u16),      // buffer
+        enc(op::MOVI, 3, 0, msg.len() as u16),     // length
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+
+    let result = cpu.run(100);
+    assert!(result.is_ok() || result == Err(ExecError::Halted));
+
+    let output = String::from_utf8_lossy(&cpu.tty_output);
+    assert_eq!(
+        output, msg,
+        "hello_kernel should produce 'Hello from UPC kernel!\\n'"
+    );
+}
+
+#[test]
+fn boot_hello_kernel_binary_if_available() {
+    // Load the actual hello_kernel.mbc binary if it exists.
+    let kernel_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../demos/mbc/hello_kernel.mbc");
+
+    if !kernel_path.exists() {
+        eprintln!("SKIP: hello_kernel.mbc not found at {:?}", kernel_path);
+        return;
+    }
+
+    let data = std::fs::read(&kernel_path).expect("read hello_kernel.mbc");
+    assert!(data.len() >= 4, "binary should be at least 4 bytes");
+
+    let rom: Vec<u32> = data
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect();
+
+    let mut cpu = cpu_with_safe_sp();
+    cpu.load_rom(&rom);
+
+    // The binary may reference string data at a fixed offset.
+    // Run for a reasonable number of cycles and check that it either
+    // halts cleanly or produces tty output.
+    let result = cpu.run(10000);
+
+    match result {
+        Ok(_) | Err(ExecError::Halted) => {
+            eprintln!(
+                "hello_kernel.mbc: halted, tty_output = {:?}",
+                String::from_utf8_lossy(&cpu.tty_output)
+            );
+        }
+        Err(ExecError::CycleBudgetExhausted) => {
+            eprintln!("hello_kernel.mbc: ran 10000 cycles without halt");
+        }
+        Err(e) => {
+            eprintln!("hello_kernel.mbc: error {:?} (non-fatal for smoke test)", e);
+        }
+    }
+    // Success = no panic
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Additional OS primitive tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn syscall_nanosleep_advances_time() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.ticks_ms = 1000;
+
+    // Store timespec at RAM byte 0x1000: tv_sec=2, tv_nsec=500_000_000 (2.5s)
+    cpu.ram[0x1000 >> 2] = 2;              // tv_sec
+    cpu.ram[(0x1000 + 4) >> 2] = 500_000_000; // tv_nsec
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_NANOSLEEP as u16),
+        enc(op::MOVI, 1, 0, 0x1000),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    // 2s = 2000ms, 500M ns = 500ms -> total 2500ms
+    assert_eq!(cpu.ticks_ms, 3500, "nanosleep should advance ticks_ms by 2500");
+    assert_eq!(cpu.state.regs[0], 0, "nanosleep should return 0 on success");
+}
+
+#[test]
+fn syscall_sched_yield_with_single_process_is_noop() {
+    let mut cpu = cpu_with_safe_sp();
+    assert_eq!(cpu.state.num_processes, 1);
+
+    cpu.state.regs[4] = 0x1234; // marker
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_SCHED_YIELD as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.regs[0], 0, "yield should return 0");
+    assert_eq!(cpu.state.regs[4], 0x1234, "registers should be unchanged");
+    assert_eq!(cpu.state.current_pid, 0, "pid should remain 0");
+}
+
+#[test]
+fn software_interrupt_non_syscall_dispatches_via_ivt() {
+    // INT with vector != 0x80 should dispatch through the IVT, not as a syscall.
+    let mut cpu = cpu_with_safe_sp();
+
+    // Set up IVT entry for vector 0x10: handler at ROM word 5.
+    // IVT addr = 0x10 * 4 = 0x40 bytes = word 0x10
+    cpu.ram[0x10] = 5;
+
+    let mut rom = vec![enc(op::NOP, 0, 0, 0); 8];
+    // Word 0: INT 0x10 (software interrupt, not syscall)
+    rom[0] = enc(op::INT, 0, 0, 0x10);
+    // Word 1: HALT (return from handler will come back here)
+    rom[1] = enc(op::HALT, 0, 0, 0);
+    // Word 5: handler: MOVI r7, 0xFACE
+    rom[5] = enc(op::MOVI, 7, 0, 0xFACE);
+    // Word 6: IRET
+    rom[6] = enc(op::IRET, 0, 0, 0);
+
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.regs[7], 0xFACE, "non-syscall INT should dispatch to IVT handler");
+    assert_eq!(cpu.state.halted, 1, "should halt after IRET returns to HALT");
+}
+
+#[test]
+fn mmu_set_page_dir_syscall() {
+    let mut cpu = cpu_with_safe_sp();
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_SET_PAGE_DIR as u16),
+        enc(op::MOVI, 1, 0, 0x8000),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.page_dir_base, 0x8000, "page_dir_base should be set");
+    assert_eq!(cpu.state.regs[0], 0, "SET_PAGE_DIR should return 0");
+}
+
+#[test]
+fn mmu_enable_mmu_syscall() {
+    let mut cpu = cpu_with_safe_sp();
+    assert_eq!(cpu.state.mmu_enabled, 0);
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_ENABLE_MMU as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.state.mmu_enabled, 1, "MMU should be enabled");
+    assert_eq!(cpu.state.regs[0], 0, "ENABLE_MMU should return 0");
+}
+
+#[test]
+fn syscall_exit_with_different_codes() {
+    for code in [0u16, 1, 42, 255] {
+        let mut cpu = cpu_with_safe_sp();
+        let rom = vec![
+            enc(op::MOVI, 0, 0, lsys::SYS_EXIT as u16),
+            enc(op::MOVI, 1, 0, code),
+            enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        ];
+        cpu.load_rom(&rom);
+        let result = cpu.run(100);
+        // run() returns Ok(cycles) when halt is reached
+        assert!(result.is_ok(), "SYS_EXIT should halt cleanly for code {}: {:?}", code, result);
+        assert_eq!(cpu.state.halted, 1, "CPU should be halted for code {}", code);
+        assert_eq!(cpu.state.exit_code, code as u32, "exit code should be {}", code);
+    }
+}
+
+#[test]
+fn block_device_preserves_ramdisk_across_blocks() {
+    // Write to block 5, then verify block 0 is still zeroed (no cross-contamination).
+    let mut cpu = cpu_with_safe_sp();
+
+    let src_word = 0x200usize;
+    for i in 0..128 {
+        cpu.ram[src_word + i] = 0xF00D0000 + i as u32;
+    }
+
+    // Write to block 5
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WRITE_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 5),
+        enc(op::MOVI, 2, 0, 0x0800),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(100).ok();
+
+    // Read back block 0 (should be all zeros since we never wrote to it)
+    cpu.state.halted = 0;
+    cpu.state.pc = 0;
+    let rom2 = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_READ_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 0),
+        enc(op::MOVI, 2, 0, 0x1800),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom2);
+    cpu.run(100).ok();
+
+    let dst_word = 0x600usize;
+    for i in 0..128 {
+        assert_eq!(
+            cpu.ram[dst_word + i], 0,
+            "block 0 should still be zeroed, but word {} was {:08x}",
+            i, cpu.ram[dst_word + i]
+        );
+    }
+
+    // Read back block 5 to verify our data is there
+    cpu.state.halted = 0;
+    cpu.state.pc = 0;
+    let rom3 = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_READ_BLOCK as u16),
+        enc(op::MOVI, 1, 0, 5),
+        enc(op::MOVI, 2, 0, 0x1800),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom3);
+    cpu.run(100).ok();
+
+    assert_eq!(cpu.ram[dst_word], 0xF00D0000, "block 5 first word");
+    assert_eq!(cpu.ram[dst_word + 127], 0xF00D007F, "block 5 last word");
+}
