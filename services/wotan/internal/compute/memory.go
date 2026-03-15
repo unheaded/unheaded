@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"os"
 	"sync"
 	"time"
 
@@ -544,7 +545,12 @@ func (dwh *DirtyWritebackHandler) FlushDirtyPages() (*MemFlushedEvent, error) {
 				pageCount++
 			}
 
-			// TODO: If WAL enabled, append to WAL file.
+			// Append to WAL for crash recovery when enabled.
+			if dwh.config.WALEnabled && dwh.config.WALPath != "" {
+				if err := walAppend(dwh.config.WALPath, lineAddr, lineData[:]); err != nil {
+					log.Error().Err(err).Uint32("line_addr", lineAddr).Msg("wal_append_failed")
+				}
+			}
 		}
 	}
 
@@ -745,4 +751,51 @@ func ParseCacheWriteEvent(payload string) (CacheWriteEvent, error) {
 	var event CacheWriteEvent
 	err := json.Unmarshal([]byte(payload), &event)
 	return event, err
+}
+
+// ---------------------------------------------------------------------------
+// WAL (Write-Ahead Log) — L3 persistence
+// ---------------------------------------------------------------------------
+//
+// WAL record format (fixed 76 bytes per record):
+//
+//   [8 bytes] timestamp   — Unix nanoseconds (little-endian uint64)
+//   [4 bytes] lineAddr    — cache-line-aligned byte address (little-endian uint32)
+//   [64 bytes] data       — cache line contents
+//
+// The WAL is append-only. On recovery, records are replayed in order to
+// reconstruct L2 state. Truncation/compaction is not yet implemented.
+
+const walRecordSize = 8 + 4 + 64 // 76 bytes
+
+// walAppend appends a single dirty cache line to the WAL file.
+// The file is opened in append mode and synced after each write to ensure
+// durability. For high-throughput workloads a buffered writer with periodic
+// fsync would be preferable, but correctness comes first.
+func walAppend(path string, lineAddr uint32, data []byte) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var record [walRecordSize]byte
+
+	// Timestamp.
+	binary.LittleEndian.PutUint64(record[0:8], uint64(time.Now().UnixNano()))
+
+	// Line address.
+	binary.LittleEndian.PutUint32(record[8:12], lineAddr)
+
+	// Cache line data (up to 64 bytes).
+	n := len(data)
+	if n > 64 {
+		n = 64
+	}
+	copy(record[12:12+n], data[:n])
+
+	if _, err := f.Write(record[:]); err != nil {
+		return err
+	}
+	return f.Sync()
 }

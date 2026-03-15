@@ -5,7 +5,10 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
+
+	"github.com/cilium/ebpf"
 )
 
 // Backend abstracts BPF map operations so services can run against
@@ -114,8 +117,7 @@ func (m *MockBackend) IterateMap(mapName string, fn func(key, value []byte) erro
 // ---------------------------------------------------------------------------
 
 // BPFBackend reads and writes pinned BPF maps via /sys/fs/bpf.
-// This is a compile-time stub; the real implementation will use
-// cilium/ebpf to open and manipulate pinned maps.
+// It uses cilium/ebpf to open pinned maps at PinPath/<mapName>.
 type BPFBackend struct {
 	PinPath string // e.g. /sys/fs/bpf/unheaded
 }
@@ -128,23 +130,74 @@ func NewBPFBackend(pinPath string) *BPFBackend {
 func (b *BPFBackend) Mode() string { return "bpf" }
 
 func (b *BPFBackend) ReadMap(mapName string, key []byte) ([]byte, error) {
-	// TODO: open pinned map at b.PinPath/<mapName>, lookup key
-	return nil, fmt.Errorf("bpf: ReadMap not implemented (map=%s, pin=%s)", mapName, b.PinPath)
+	pinPath := filepath.Join(b.PinPath, mapName)
+	m, err := ebpf.LoadPinnedMap(pinPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("load pinned map %s: %w", mapName, err)
+	}
+	defer m.Close()
+
+	var value []byte
+	if err := m.Lookup(key, &value); err != nil {
+		return nil, fmt.Errorf("lookup key in %s: %w", mapName, err)
+	}
+	return value, nil
 }
 
 func (b *BPFBackend) WriteMap(mapName string, key, value []byte) error {
-	// TODO: open pinned map at b.PinPath/<mapName>, update key
-	return fmt.Errorf("bpf: WriteMap not implemented (map=%s, pin=%s)", mapName, b.PinPath)
+	pinPath := filepath.Join(b.PinPath, mapName)
+	m, err := ebpf.LoadPinnedMap(pinPath, nil)
+	if err != nil {
+		return fmt.Errorf("load pinned map %s: %w", mapName, err)
+	}
+	defer m.Close()
+
+	if err := m.Update(key, value, ebpf.UpdateAny); err != nil {
+		return fmt.Errorf("update key in %s: %w", mapName, err)
+	}
+	return nil
 }
 
 func (b *BPFBackend) DeleteMap(mapName string, key []byte) error {
-	// TODO: open pinned map at b.PinPath/<mapName>, delete key
-	return fmt.Errorf("bpf: DeleteMap not implemented (map=%s, pin=%s)", mapName, b.PinPath)
+	pinPath := filepath.Join(b.PinPath, mapName)
+	m, err := ebpf.LoadPinnedMap(pinPath, nil)
+	if err != nil {
+		return fmt.Errorf("load pinned map %s: %w", mapName, err)
+	}
+	defer m.Close()
+
+	if err := m.Delete(key); err != nil {
+		return fmt.Errorf("delete key in %s: %w", mapName, err)
+	}
+	return nil
 }
 
 func (b *BPFBackend) IterateMap(mapName string, fn func(key, value []byte) error) error {
-	// TODO: open pinned map, iterate all entries
-	return fmt.Errorf("bpf: IterateMap not implemented (map=%s, pin=%s)", mapName, b.PinPath)
+	pinPath := filepath.Join(b.PinPath, mapName)
+	m, err := ebpf.LoadPinnedMap(pinPath, nil)
+	if err != nil {
+		return fmt.Errorf("load pinned map %s: %w", mapName, err)
+	}
+	defer m.Close()
+
+	iter := m.Iterate()
+	var key, value []byte
+	for iter.Next(&key, &value) {
+		// Copy key and value so the callback gets stable slices;
+		// cilium/ebpf reuses the underlying buffers across iterations.
+		k := make([]byte, len(key))
+		copy(k, key)
+		v := make([]byte, len(value))
+		copy(v, value)
+
+		if err := fn(k, v); err != nil {
+			return err
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("iterate %s: %w", mapName, err)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
