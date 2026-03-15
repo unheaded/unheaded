@@ -23,10 +23,16 @@ class RAGPipeline:
 
         # Load FAISS index
         print("Loading FAISS index...")
-        self.index = faiss.read_index(str(self.index_dir / 'ring1.index'))
+        # Use active.index symlink (points to ring1 or combined)
+        active_index = self.index_dir / 'active.index'
+        index_path = active_index if active_index.exists() else self.index_dir / 'ring1.index'
+        self.index = faiss.read_index(str(index_path))
+        print(f"  Index: {index_path.name} → {index_path.resolve().name}")
 
         # Load ID map (can be list or dict depending on how it was saved)
-        with open(self.index_dir / 'ring1_ids.json', 'r') as f:
+        active_ids = self.index_dir / 'active_ids.json'
+        ids_path = active_ids if active_ids.exists() else self.index_dir / 'ring1_ids.json'
+        with open(ids_path, 'r') as f:
             raw_ids = json.load(f)
             if isinstance(raw_ids, list):
                 self.id_map = {str(i): v for i, v in enumerate(raw_ids)}
@@ -34,16 +40,50 @@ class RAGPipeline:
                 self.id_map = raw_ids
 
         # Load corpus for content retrieval
+        # Ring 1 (Unheaded code): load full content for RAG answers
+        # Ring 2-4: only load metadata (source/type) — content too large for RAM
         print("Loading corpus...")
         self.corpus = {}
-        with open(self.corpus_file, 'r') as f:
-            for line in f:
-                chunk = json.loads(line)
-                self.corpus[chunk['id']] = {
-                    'content': chunk['content'],
-                    'source': chunk.get('source', ''),
-                    'type': chunk.get('type', 'unknown'),
-                }
+        corpus_dir = self.corpus_file.parent
+
+        # Ring 1: full content
+        ring1_path = corpus_dir / 'ring1.jsonl'
+        if ring1_path.exists():
+            count = 0
+            with open(ring1_path, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    try:
+                        chunk = json.loads(line)
+                        if 'content' in chunk:
+                            self.corpus[chunk['id']] = {
+                                'content': chunk['content'],
+                                'source': chunk.get('source', ''),
+                                'type': chunk.get('type', 'unknown'),
+                            }
+                            count += 1
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+            print(f"  Ring 1: {count:,} chunks (full content)")
+
+        # Ring 2-4: metadata only from combined_corpus.jsonl
+        combined_meta = self.index_dir / 'combined_corpus.jsonl'
+        if combined_meta.exists():
+            count = 0
+            with open(combined_meta, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    try:
+                        chunk = json.loads(line)
+                        cid = chunk.get('id', '')
+                        if cid and cid not in self.corpus:
+                            self.corpus[cid] = {
+                                'content': f"[Source: {chunk.get('source', 'unknown')}]",
+                                'source': chunk.get('source', ''),
+                                'type': chunk.get('type', 'unknown'),
+                            }
+                            count += 1
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+            print(f"  Ring 2-4: {count:,} chunks (metadata only)")
 
         print(f"RAG Pipeline ready: {len(self.id_map)} vectors, {len(self.corpus)} chunks")
 
