@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Device tree source for the Unheaded Protocol Computer (UPC)
+ *
+ * This is a minimal DTS for the MBC architecture, describing
+ * the base UPC hardware: CPU, RAM, timer, and keyboard.
+ * Used when CONFIG_ARCH_MBC_DT is enabled.
+ */
+
+/dts-v1/;
+
+/ {
+	compatible = "unheaded,upc";
+	model = "Unheaded Protocol Computer";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			compatible = "unheaded,mbc";
+			device_type = "cpu";
+			reg = <0>;
+			clock-frequency = <0>;	/* virtual — no fixed clock */
+		};
+	};
+
+	memory@0 {
+		device_type = "memory";
+		/* 16 MB default — actual size from boot params */
+		reg = <0x00000000 0x01000000>;
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		timer@0 {
+			compatible = "unheaded,mbc-timer";
+			interrupts = <0x20>;
+		};
+
+		keyboard@0 {
+			compatible = "unheaded,mbc-kbd";
+			interrupts = <0x21>;
+		};
+
+		ramdisk@400000 {
+			compatible = "unheaded,mbc-ramdisk";
+			reg = <0x00400000 0x00400000>;	/* 4 MB */
+		};
+	};
+
+	chosen {
+		bootargs = "";
+		stdout-path = "tty0";
+	};
+};
