@@ -119,6 +119,46 @@ def stats():
     })
 
 
+@app.route('/api/v1/corpus/stats', methods=['GET'])
+def corpus_stats():
+    """Corpus statistics — chunks per ring, total vectors, index file size"""
+    if not rag:
+        return jsonify({'error': 'RAG not initialized'}), 503
+
+    corpus_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
+    index_file = index_dir / 'ring1.index'
+
+    # Count chunks per ring by scanning corpus files
+    rings = {}
+    for f in sorted(corpus_dir.glob('*.jsonl')):
+        ring_name = f.stem  # e.g. "ring1", "ring234"
+        count = 0
+        try:
+            with open(f) as fh:
+                for line in fh:
+                    if line.strip():
+                        count += 1
+        except Exception:
+            pass
+        rings[ring_name] = count
+
+    # Index file size
+    index_size_bytes = 0
+    try:
+        index_size_bytes = index_file.stat().st_size
+    except Exception:
+        pass
+
+    return jsonify({
+        'chunks_per_ring': rings,
+        'total_chunks': sum(rings.values()),
+        'total_vectors': rag.index.ntotal,
+        'index_dimension': rag.index.d,
+        'index_file_size_bytes': index_size_bytes,
+        'index_file_size_mb': round(index_size_bytes / (1024 * 1024), 2),
+    })
+
+
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
