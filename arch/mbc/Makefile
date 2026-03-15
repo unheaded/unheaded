@@ -10,3 +10,4 @@ KBUILD_CFLAGS	+= -DCONFIG_MBC
 
 core-y		+= arch/mbc/kernel/
 core-y		+= arch/mbc/mm/
+core-y		+= arch/mbc/boot/
