@@ -1316,6 +1316,46 @@ pub mod mbc_linux_syscalls {
     /// EIO errno value — returned for I/O errors (e.g., invalid block number).
     pub const EIO: u32 = 5;
 
+    // ── Trivial FUZIX syscall stubs (Level 5c) ────────────────────────────
+    /// `lseek(fd, offset, whence)` — reposition file offset.
+    pub const SYS_LSEEK: u32 = 19;
+    /// `setuid(uid)` — set user ID (no-op, always root).
+    pub const SYS_SETUID: u32 = 23;
+    /// `getuid()` — get user ID (always 0 = root).
+    pub const SYS_GETUID: u32 = 24;
+    /// `sync()` — flush filesystem buffers (no-op).
+    pub const SYS_SYNC: u32 = 36;
+    /// `kill(pid, sig)` — send signal (no-op).
+    pub const SYS_KILL: u32 = 37;
+    /// `dup(oldfd)` — duplicate file descriptor.
+    pub const SYS_DUP: u32 = 41;
+    /// `pipe(pipefd)` — create pipe (not yet implemented).
+    pub const SYS_PIPE: u32 = 42;
+    /// `times(buf)` — get process times (stub).
+    pub const SYS_TIMES: u32 = 43;
+    /// `setgid(gid)` — set group ID (no-op, always root).
+    pub const SYS_SETGID: u32 = 46;
+    /// `getgid()` — get group ID (always 0 = root).
+    pub const SYS_GETGID: u32 = 47;
+    /// `signal(signum, handler)` — set signal handler (ignored).
+    pub const SYS_SIGNAL: u32 = 48;
+    /// `geteuid()` — get effective user ID (always 0 = root).
+    pub const SYS_GETEUID: u32 = 49;
+    /// `getegid()` — get effective group ID (always 0 = root).
+    pub const SYS_GETEGID: u32 = 50;
+    /// `fcntl(fd, cmd, ...)` — file descriptor control (no-op).
+    pub const SYS_FCNTL: u32 = 55;
+    /// `umask(mask)` — set file creation mask (returns default 022).
+    pub const SYS_UMASK: u32 = 60;
+    /// `dup2(oldfd, newfd)` — duplicate file descriptor to newfd.
+    pub const SYS_DUP2: u32 = 63;
+    /// `getppid()` — get parent process ID (always 0 = init).
+    pub const SYS_GETPPID: u32 = 64;
+    /// `stat(path, buf)` — get file status (not yet implemented).
+    pub const SYS_STAT: u32 = 106;
+    /// `fstat(fd, buf)` — get file status by fd (not yet implemented).
+    pub const SYS_FSTAT: u32 = 108;
+
     /// Custom: set page directory base address for MMU (Level 4d).
     /// r1 = physical address of page directory.
     pub const SYS_SET_PAGE_DIR: u32 = 250;

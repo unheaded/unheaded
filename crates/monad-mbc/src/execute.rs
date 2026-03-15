@@ -840,6 +840,55 @@ impl Cpu {
 
                         // r0 = 0 (success), though the new program won't see it
                         // since all regs were zeroed above
+
+                    // ── Trivial FUZIX syscall stubs (Level 5c) ───────────────
+                    // UID/GID family: always root (0)
+                    } else if syscall_nr == lsys::SYS_GETUID
+                           || syscall_nr == lsys::SYS_GETGID
+                           || syscall_nr == lsys::SYS_GETEUID
+                           || syscall_nr == lsys::SYS_GETEGID
+                           || syscall_nr == lsys::SYS_SETUID
+                           || syscall_nr == lsys::SYS_SETGID {
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_DUP {
+                        // SYS_DUP(41): r1=oldfd. Return oldfd (stub).
+                        self.state.regs[0] = self.state.regs[1];
+                    } else if syscall_nr == lsys::SYS_DUP2 {
+                        // SYS_DUP2(63): r1=oldfd, r2=newfd. Return newfd (stub).
+                        self.state.regs[0] = self.state.regs[2];
+                    } else if syscall_nr == lsys::SYS_SIGNAL {
+                        // SYS_SIGNAL(48): r1=signum, r2=handler. Ignore all signals.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_KILL {
+                        // SYS_KILL(37): r1=pid, r2=sig. No-op.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_STAT || syscall_nr == lsys::SYS_FSTAT {
+                        // SYS_STAT(106) / SYS_FSTAT(108): not implemented yet.
+                        self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                    } else if syscall_nr == lsys::SYS_LSEEK {
+                        // SYS_LSEEK(19): stub — pretend seek succeeded.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_GETPPID {
+                        // SYS_GETPPID(64): init is always parent.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_UMASK {
+                        // SYS_UMASK(60): r1=mask. Return default 022, ignore the set.
+                        self.state.regs[0] = 0o22;
+                    } else if syscall_nr == lsys::SYS_SYNC {
+                        // SYS_SYNC(36): no-op, no real filesystem.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_TIMES {
+                        // SYS_TIMES(43): no process accounting.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_IOCTL {
+                        // SYS_IOCTL(54): no-op stub for terminal control.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_PIPE {
+                        // SYS_PIPE(42): not yet implemented.
+                        self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                    } else if syscall_nr == lsys::SYS_FCNTL {
+                        // SYS_FCNTL(55): no-op.
+                        self.state.regs[0] = 0;
                     } else {
                         // Unknown syscall: return -ENOSYS
                         self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
