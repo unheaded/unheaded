@@ -80,6 +80,7 @@ Use "wotan-ctl <command> --help" for more information about a command.`,
 	root.SubCommands["load-mem"] = newLoadMemCmd()
 	root.SubCommands["doom"] = newDoomCmd()
 	root.SubCommands["boot"] = newBootCmd()
+	root.SubCommands["mkfs"] = newMkfsCmd()
 
 	return root
 }
