@@ -857,14 +857,29 @@ impl Cpu {
                         // SYS_DUP2(63): r1=oldfd, r2=newfd. Return newfd (stub).
                         self.state.regs[0] = self.state.regs[2];
                     } else if syscall_nr == lsys::SYS_SIGNAL {
-                        // SYS_SIGNAL(48): r1=signum, r2=handler. Ignore all signals.
-                        self.state.regs[0] = 0;
+                        // SYS_SIGNAL(48): r1=signum, r2=handler_addr.
+                        // Store handler in signal table, return old handler.
+                        let signum = self.state.regs[1];
+                        let handler = self.state.regs[2];
+                        if signum < lsys::SIGNAL_MAX_SLOTS {
+                            let slot_word = ((lsys::SIGNAL_TABLE_BASE >> 2) + signum) as usize;
+                            let old_handler = self.mem_read_word(slot_word);
+                            self.mem_write_word(slot_word, handler);
+                            self.state.regs[0] = old_handler;
+                        } else {
+                            self.state.regs[0] = 0;
+                        }
                     } else if syscall_nr == lsys::SYS_KILL {
                         // SYS_KILL(37): r1=pid, r2=sig. No-op.
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_STAT || syscall_nr == lsys::SYS_FSTAT {
-                        // SYS_STAT(106) / SYS_FSTAT(108): not implemented yet.
-                        self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                        // SYS_STAT(106) / SYS_FSTAT(108): return minimal stat struct.
+                        let buf = self.state.regs[2];
+                        let buf_word = (buf >> 2) as usize;
+                        self.mem_write_word(buf_word, 0o100644);     // st_mode (regular file)
+                        self.mem_write_word(buf_word + 1, 4096);     // st_size
+                        self.mem_write_word(buf_word + 2, 512);      // st_blksize
+                        self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_LSEEK {
                         // SYS_LSEEK(19): stub — pretend seek succeeded.
                         self.state.regs[0] = 0;
@@ -881,14 +896,38 @@ impl Cpu {
                         // SYS_TIMES(43): no process accounting.
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_IOCTL {
-                        // SYS_IOCTL(54): no-op stub for terminal control.
+                        // SYS_IOCTL(54): r1=fd, r2=request, r3=argp.
+                        // TIOCGWINSZ (0x5413): write terminal size to argp.
+                        // TCGETS (0x5401): return termios (success stub).
+                        // Everything else: return 0 (success).
+                        if self.state.regs[2] == 0x5413 {
+                            let argp = self.state.regs[3];
+                            // struct winsize: rows(u16) | cols(u16) packed into one word
+                            self.mem_write_word((argp >> 2) as usize, 24 | (80 << 16)); // 24 rows, 80 cols
+                        }
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_PIPE {
-                        // SYS_PIPE(42): not yet implemented.
-                        self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                        // SYS_PIPE(42): r1=pipefd[2] array address.
+                        // Allocate stub fd numbers (10=read, 11=write). No actual pipe buffer.
+                        let pipefd_addr = self.state.regs[1];
+                        self.mem_write_word((pipefd_addr >> 2) as usize, 10);       // read end
+                        self.mem_write_word(((pipefd_addr >> 2) + 1) as usize, 11); // write end
+                        self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_FCNTL {
                         // SYS_FCNTL(55): no-op.
                         self.state.regs[0] = 0;
+
+                    // ── Moderate FUZIX syscalls (Level 5d) ──────────────
+                    } else if syscall_nr == lsys::SYS_ACCESS {
+                        // SYS_ACCESS(33): r1=pathname, r2=mode.
+                        // Always return 0 (file exists and is accessible).
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_CHDIR {
+                        // SYS_CHDIR(12): stub — always succeed, no real filesystem.
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_TIME {
+                        // SYS_TIME(13): return seconds from ticks_ms.
+                        self.state.regs[0] = self.ticks_ms / 1000;
                     } else {
                         // Unknown syscall: return -ENOSYS
                         self.state.regs[0] = (-(lsys::ENOSYS as i32)) as u32;

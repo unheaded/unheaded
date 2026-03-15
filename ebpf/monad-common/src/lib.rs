@@ -1356,6 +1356,20 @@ pub mod mbc_linux_syscalls {
     /// `fstat(fd, buf)` — get file status by fd (not yet implemented).
     pub const SYS_FSTAT: u32 = 108;
 
+    // ── Moderate FUZIX syscall stubs (Level 5d) ─────────────────────────────
+    /// `chdir(path)` — change working directory (stub, always succeeds).
+    pub const SYS_CHDIR: u32 = 12;
+    /// `time(tloc)` — get time in seconds since boot.
+    pub const SYS_TIME: u32 = 13;
+    /// `access(path, mode)` — check file permissions (stub, always succeeds).
+    pub const SYS_ACCESS: u32 = 33;
+
+    /// Signal handler table base address in RAM (byte address).
+    /// 64 slots × 4 bytes = 256 bytes at 0xF0000–0xF00FF.
+    pub const SIGNAL_TABLE_BASE: u32 = 0xF0000;
+    /// Maximum number of signal slots.
+    pub const SIGNAL_MAX_SLOTS: u32 = 64;
+
     /// Custom: set page directory base address for MMU (Level 4d).
     /// r1 = physical address of page directory.
     pub const SYS_SET_PAGE_DIR: u32 = 250;
