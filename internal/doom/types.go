@@ -64,7 +64,9 @@ const MaxROMBytes = MaxROMInstructions * 4
 //	exit_code:          u32        = 4 bytes   (offset 116)
 //	current_pid:        u8         = 1 byte    (offset 120)
 //	num_processes:      u8         = 1 byte    (offset 121)
-//	_pad3:              [u8; 6]    = 6 bytes   (offset 122)
+//	mmu_enabled:        u8         = 1 byte    (offset 122)
+//	_pad3:              u8         = 1 byte    (offset 123)
+//	page_dir_base:      u32        = 4 bytes   (offset 124)
 //	TOTAL                          = 128 bytes
 type CpuState struct {
 	Regs              [RegCount]uint32 // General purpose registers r0-r15. r15 = SP.
@@ -86,7 +88,9 @@ type CpuState struct {
 	ExitCode          uint32           // Exit code from SYS_EXIT.
 	CurrentPID        uint8            // Current process ID (0-3). Level 4c scheduler.
 	NumProcesses      uint8            // Number of active processes. Level 4c scheduler.
-	Pad3              [6]uint8         // Alignment padding.
+	MmuEnabled        uint8            // MMU enabled (0=flat, 1=paging). Level 4d.
+	Pad3              uint8            // Alignment padding.
+	PageDirBase       uint32           // Page directory base address. Level 4d.
 }
 
 // CPU flag bit positions — must match mbc_flags in monad-common/src/lib.rs.
@@ -135,7 +139,9 @@ func (c *CpuState) MarshalBinary() []byte {
 	binary.LittleEndian.PutUint32(buf[116:120], c.ExitCode)
 	buf[120] = c.CurrentPID
 	buf[121] = c.NumProcesses
-	copy(buf[122:128], c.Pad3[:])
+	buf[122] = c.MmuEnabled
+	buf[123] = c.Pad3
+	binary.LittleEndian.PutUint32(buf[124:128], c.PageDirBase)
 	return buf
 }
 
@@ -167,7 +173,9 @@ func UnmarshalCpuState(data []byte) (*CpuState, error) {
 	cpu.ExitCode = binary.LittleEndian.Uint32(data[116:120])
 	cpu.CurrentPID = data[120]
 	cpu.NumProcesses = data[121]
-	copy(cpu.Pad3[:], data[122:128])
+	cpu.MmuEnabled = data[122]
+	cpu.Pad3 = data[123]
+	cpu.PageDirBase = binary.LittleEndian.Uint32(data[124:128])
 	return cpu, nil
 }
 

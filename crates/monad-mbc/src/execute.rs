@@ -6,7 +6,7 @@
 use monad_common::{
     MbcCpuState, MbcInsn, mbc_block as blk, mbc_opcodes as op, mbc_flags as mf,
     mbc_syscalls as sys, mbc_linux_syscalls as lsys, mbc_interrupts as intr,
-    mbc_mmap as mmap, REG_SP,
+    mbc_mmap as mmap, mbc_mmu as mmu, REG_SP,
 };
 
 /// Execution errors.
@@ -38,6 +38,8 @@ pub struct Cpu {
     pub proc_table: [[u32; 20]; 4],
     /// Halted process bitmask (bit i set = process i has exited).
     pub halted_mask: u32,
+    /// Software TLB: 64 entries, direct-mapped. Each entry: [vpn, pfn, flags].
+    pub tlb: [[u32; 3]; 64],
 }
 
 impl Cpu {
@@ -57,6 +59,7 @@ impl Cpu {
             instance_id: 0,
             proc_table: [[0u32; 20]; 4],
             halted_mask: 0,
+            tlb: [[0u32; 3]; 64],
         }
     }
 
@@ -115,6 +118,59 @@ impl Cpu {
         self.state.insn_count = self.state.insn_count.wrapping_add(1);
 
         Ok(())
+    }
+
+    // ── MMU / address translation (Level 4d) ────────────────────────────────
+
+    /// Translate a virtual address to a physical address using the software TLB
+    /// and two-level page table walk. Returns the address unchanged when MMU is
+    /// disabled (flat addressing mode / Doom compatibility).
+    fn translate_address(&mut self, vaddr: u32) -> u32 {
+        if self.state.mmu_enabled == 0 {
+            return vaddr;
+        }
+
+        let vpn = vaddr >> 12;
+        let offset = vaddr & 0xFFF;
+        let tlb_idx = (vpn & 63) as usize;
+
+        // Check TLB
+        let entry = self.tlb[tlb_idx];
+        if entry[0] == vpn && (entry[2] & mmu::PTE_PRESENT) != 0 {
+            // TLB hit
+            return (entry[1] << 12) | offset;
+        }
+
+        // TLB miss — walk page tables
+        let pde_idx = (vaddr >> 22) as usize;
+        let pte_idx = ((vaddr >> 12) & 0x3FF) as usize;
+
+        // Read page directory entry
+        let pd_word_addr = (self.state.page_dir_base >> 2) as usize + pde_idx;
+        let pde = self.mem_read_word(pd_word_addr);
+        if (pde & mmu::PTE_PRESENT) == 0 {
+            return vaddr; // Page fault — return unmapped
+        }
+
+        // Read page table entry
+        let pt_base = pde & mmu::PTE_PFN_MASK;
+        let pt_word_addr = (pt_base >> 2) as usize + pte_idx;
+        let pte = self.mem_read_word(pt_word_addr);
+        if (pte & mmu::PTE_PRESENT) == 0 {
+            return vaddr; // Page fault
+        }
+
+        let pfn = (pte & mmu::PTE_PFN_MASK) >> 12;
+
+        // Update TLB
+        self.tlb[tlb_idx] = [vpn, pfn, pte];
+
+        (pfn << 12) | offset
+    }
+
+    /// Flush all TLB entries (called by SYS_FLUSH_TLB).
+    fn flush_tlb(&mut self) {
+        self.tlb = [[0u32; 3]; 64];
     }
 
     // ── Memory helpers (mirror BPF mem_read_word / mem_write_word) ───────────
@@ -502,28 +558,36 @@ impl Cpu {
             }
 
             // === Memory operations (using mem helpers for screen/KBD projection) ===
+            // All addresses go through translate_address() for MMU support (Level 4d).
+            // When mmu_enabled == 0, translate_address returns address unchanged.
             op::LD => {
-                let addr = self.state.regs[src].wrapping_add(imm as i16 as u32) as usize;
+                let raw_addr = self.state.regs[src].wrapping_add(imm as i16 as u32);
+                let addr = self.translate_address(raw_addr) as usize;
                 self.state.regs[dst] = self.mem_read_word(addr >> 2);
             }
             op::ST => {
-                let addr = self.state.regs[dst].wrapping_add(imm as i16 as u32) as usize;
+                let raw_addr = self.state.regs[dst].wrapping_add(imm as i16 as u32);
+                let addr = self.translate_address(raw_addr) as usize;
                 self.mem_write_word(addr >> 2, self.state.regs[src]);
             }
             op::LDB => {
-                let addr = self.state.regs[src].wrapping_add(imm as i16 as u32) as usize;
+                let raw_addr = self.state.regs[src].wrapping_add(imm as i16 as u32);
+                let addr = self.translate_address(raw_addr) as usize;
                 self.state.regs[dst] = self.mem_read_byte(addr) as u32;
             }
             op::STB => {
-                let addr = self.state.regs[dst].wrapping_add(imm as i16 as u32) as usize;
+                let raw_addr = self.state.regs[dst].wrapping_add(imm as i16 as u32);
+                let addr = self.translate_address(raw_addr) as usize;
                 self.mem_write_byte(addr, self.state.regs[src] as u8);
             }
             op::LDH => {
-                let addr = self.state.regs[src].wrapping_add(imm as i16 as u32) as usize;
+                let raw_addr = self.state.regs[src].wrapping_add(imm as i16 as u32);
+                let addr = self.translate_address(raw_addr) as usize;
                 self.state.regs[dst] = self.mem_read_half(addr) as u32;
             }
             op::STH => {
-                let addr = self.state.regs[dst].wrapping_add(imm as i16 as u32) as usize;
+                let raw_addr = self.state.regs[dst].wrapping_add(imm as i16 as u32);
+                let addr = self.translate_address(raw_addr) as usize;
                 self.mem_write_half(addr, self.state.regs[src] as u16);
             }
 
@@ -673,6 +737,19 @@ impl Cpu {
                         if self.state.num_processes > 1 {
                             self.scheduler_context_switch();
                         }
+                        self.state.regs[0] = 0;
+                    // ── MMU control syscalls (Level 4d) ──────────────────
+                    } else if syscall_nr == lsys::SYS_SET_PAGE_DIR {
+                        // SYS_SET_PAGE_DIR(250): r1 = physical address of page directory.
+                        self.state.page_dir_base = self.state.regs[1];
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_ENABLE_MMU {
+                        // SYS_ENABLE_MMU(251): enable paging.
+                        self.state.mmu_enabled = 1;
+                        self.state.regs[0] = 0;
+                    } else if syscall_nr == lsys::SYS_FLUSH_TLB {
+                        // SYS_FLUSH_TLB(252): invalidate all TLB entries.
+                        self.flush_tlb();
                         self.state.regs[0] = 0;
                     } else {
                         // Unknown syscall: return -ENOSYS

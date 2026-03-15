@@ -64,7 +64,9 @@ impl Cpu {
             exit_code: 0,
             current_pid: 0,
             num_processes: 1,
-            _pad3: [0; 6],
+            mmu_enabled: 0,
+            _pad3: 0,
+            page_dir_base: 0,
         };
         
         // Initialize stack pointer to default value
