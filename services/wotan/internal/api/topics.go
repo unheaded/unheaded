@@ -120,7 +120,14 @@ func (s *Server) InitTopics() {
 }
 
 // SubscribeTopic handles POST /api/v1/topics/{topic}/subscribe
-// Auto-approves internal service subscribers (no admin gate for topic pub/sub).
+//
+// Subscribers whose display_name appears in the auto-approve allowlist
+// (configs/wotan.yaml → topics.auto_approve) are approved immediately.
+// All other subscribers are created with status "pending" and must be
+// approved via the admin API (POST /api/v1/admin/approve).
+//
+// TODO(BlackMage): Harden auto-approval with API key / mTLS identity
+// verification. display_name is currently self-reported and untrusted.
 func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -149,19 +156,30 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	// Create or get the room backing this topic
 	s.RoomManager.GetOrCreate(topic, topic)
 
-	// Create a member and auto-approve (internal service pub/sub)
+	// Create a pending member
 	newMember := s.MemberManager.RequestJoin(topic, req.DisplayName, "", s.PendingApprovalTimeout)
-	if err := s.MemberManager.Approve(newMember.ID, "topic-auto-approve"); err != nil {
-		log.Error().Err(err).Str("topic", topic).Msg("failed to auto-approve topic subscriber")
-		writeError(w, http.StatusInternalServerError, "subscription failed")
-		return
+
+	// Auto-approve only if display_name is in the allowlist
+	status := "pending"
+	if s.TopicConfig != nil && s.TopicConfig.IsAutoApproved(req.DisplayName) {
+		if err := s.MemberManager.Approve(newMember.ID, "topic-auto-approve"); err != nil {
+			log.Error().Err(err).Str("topic", topic).Msg("failed to auto-approve topic subscriber")
+			writeError(w, http.StatusInternalServerError, "subscription failed")
+			return
+		}
+		status = "approved"
+	} else {
+		log.Info().
+			Str("topic", topic).
+			Str("display_name", req.DisplayName).
+			Msg("topic_subscriber_pending_approval")
 	}
 
 	sub := &TopicSubscriber{
 		SubscriberID: newMember.ID.String(),
 		Topic:        topic,
 		DisplayName:  req.DisplayName,
-		Status:       "approved",
+		Status:       status,
 		RequestedAt:  time.Now(),
 	}
 
@@ -174,6 +192,7 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 		Str("topic", topic).
 		Str("subscriber_id", sub.SubscriberID).
 		Str("display_name", req.DisplayName).
+		Str("status", status).
 		Msg("topic_subscriber_created")
 
 	w.Header().Set("Content-Type", "application/json")

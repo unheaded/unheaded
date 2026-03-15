@@ -25,8 +25,8 @@
                     <button class="nav-tab" data-page="flows">Flow Graph</button>
                     <button class="nav-tab" data-page="latency">Latency</button>
                     <button class="nav-tab" data-page="events">Events</button>
-                    <a class="nav-tab nav-link" href="/viz/doom.html" target="_blank">Doom</a>
-                    <a class="nav-tab nav-link" href="/viz/logs.html" target="_blank">Logs</a>
+                    <a class="nav-tab nav-link" href="/doom.html" target="_blank">Doom</a>
+                    <a class="nav-tab nav-link" href="/logs" target="_blank">Logs</a>
                 </nav>
             </div>
             <div class="header-right">
@@ -318,6 +318,23 @@
                             <button class="filter-btn" data-type="syscall">Syscall</button>
                         </div>
                         <button class="pause-btn" id="event-pause-btn">Pause</button>
+                    </div>
+                    <div class="event-controls event-controls-2nd">
+                        <div class="event-service-filter">
+                            <select id="event-service-select" class="service-select">
+                                <option value="">All Services</option>
+                                <option value="wotan">wotan</option>
+                                <option value="timeguru">timeguru</option>
+                                <option value="architect">architect</option>
+                                <option value="captain">captain</option>
+                                <option value="micromanager">micromanager</option>
+                                <option value="monad">monad</option>
+                                <option value="sophia">sophia</option>
+                            </select>
+                        </div>
+                        <div class="event-host-filter">
+                            <input type="text" id="event-host-input" class="host-input" placeholder="Filter by host (e.g. east)">
+                        </div>
                     </div>
                 </div>
             </section>
