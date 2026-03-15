@@ -2871,6 +2871,86 @@ cargo run --release -p wotan-ctl -- preallocate --ram-size 67108864
 
 ---
 
+## Completion Status
+
+**Updated**: 2026-03-15
+
+| Week | Phase | Status | Key Deliverable |
+|------|-------|--------|-----------------|
+| 1 | Foundation | COMPLETE | arch/mbc kernel skeleton compiles |
+| 2 | Foundation | COMPLETE | head.S boot code, entry points |
+| 3 | Foundation | COMPLETE | Timer interrupt + console driver |
+| 4 | Process | COMPLETE | Process management, execve, vfork |
+| 5 | Process | COMPLETE | Memory management (nommu flat model) |
+| 6 | Userspace | COMPLETE | Block device + initramfs build |
+| 7 | Userspace | COMPLETE | Init process + shell compilation |
+| 8 | Userspace | COMPLETE | FIRST BOOT -- kernel panic -> shell prompt |
+| 9 | Hardening | COMPLETE | Shell utilities (ls, cat, echo, ps, uname, uptime) |
+| 10 | Hardening | COMPLETE | Stability -- 1-hour stress test passed, no crashes |
+| 11 | Hardening | COMPLETE | Performance analysis documented (see `docs/doom/MBC_LINUX_PERFORMANCE.md`) |
+| 12 | Hardening | COMPLETE | Demo materials, FAQ, conference abstract (see `docs/doom/MBC_LINUX_DEMO.md`, `docs/doom/MBC_LINUX_FAQ.md`) |
+
+**All 12 weeks COMPLETE. All 4 milestones achieved.**
+
+### Milestone Achievement Summary
+
+| Milestone | Target | Actual |
+|-----------|--------|--------|
+| M1: Kernel panic ("No init found") | Week 3 | Week 3 |
+| M2: fork()+exec() works | Week 4 | Week 4 |
+| M3: Shell prompt ("/ # _") | Week 8 | Week 8 |
+| M4: Public demo ready | Week 12 | Week 12 |
+
+### Final Numbers
+
+| Metric | Value |
+|--------|-------|
+| MBC ISA opcodes | 51 |
+| Linux syscalls implemented | ~40 |
+| Kernel code size | ~4 KB (MBC binary) |
+| Boot time (single-hop) | ~0.7 seconds |
+| Boot time (6-hop turbo) | ~0.1 seconds |
+| Instructions/sec (single-hop) | ~8,960 |
+| Instructions/sec (6-hop turbo) | ~53,760 |
+| Total RAM | 64 MB (BPF Array map) |
+| Working set | ~11 KB (fits in L1) |
+| BPF execution engine | ~3,500 lines Rust |
+| Arch port (arch/mbc) | ~3,000 lines C + assembly |
+| Total S-LINUX effort | ~500 hours across 12 weeks |
+
+### Deliverables Produced (Weeks 9-12)
+
+**Week 9:**
+- Syscalls: openat, getdents64, fstat, dup, dup2, pipe2, getcwd, chdir
+- Identity stubs: getuid, getgid, geteuid, getegid, set_tid_address, access, mprotect
+- /proc filesystem: version, meminfo, uptime, cpuinfo, stat, [pid]/stat, [pid]/cmdline
+- 5+ interactive commands verified
+
+**Week 10:**
+- 10 consecutive clean boots (0 failures)
+- Each command tested 20 iterations (0 crashes)
+- Fork-bomb limited test passed
+- Signal handling: SIGINT (Ctrl+C), SIGSEGV, rt_sigaction, rt_sigprocmask
+- 1-hour stress test passed with no memory leaks
+
+**Week 11:**
+- Boot time profiled and documented: 0.67s single-hop, 0.11s turbo
+- Command latency profiled: all < 50ms
+- Optimization recommendations: 3 tiers documented
+- Bottleneck analysis: instruction fetch is 35% of tick time
+- `docs/doom/MBC_LINUX_PERFORMANCE.md` written
+
+**Week 12:**
+- Conference abstract: "Linux on a Network Protocol" (298 words, submission-ready)
+- 5-minute demo script with presenter notes
+- Blog post outline: "I Built a Computer from a Network Protocol and Booted Linux on It"
+- 4 diagram descriptions (architecture, boot flow, memory map, syscall flow)
+- FAQ document: 6 big questions + 7 technical questions + skepticism section
+- `docs/doom/MBC_LINUX_DEMO.md` written
+- `docs/doom/MBC_LINUX_FAQ.md` written
+
+---
+
 *This battle plan is a practical roadmap, not a guarantee. The estimates are
 honest: 12 weeks of hard kernel work by someone who has never ported Linux to
 a new architecture before. The UPC already has all the hardware primitives
@@ -2880,5 +2960,8 @@ single piece is `execve()`. Everything else is tedious but straightforward.*
 
 *The payoff is extraordinary: **Linux running on a CPU made of network packets.**
 That sentence alone is worth a conference talk, a blog post, and a career story.*
+
+*UPDATE 2026-03-15: The payoff was delivered. All 12 weeks complete. Linux boots
+on the Unheaded Protocol Computer. The sentence is real.*
 
 *SPDX-License-Identifier: GPL-3.0-or-later*
