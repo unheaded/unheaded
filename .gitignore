@@ -210,3 +210,23 @@ doom-loader
 
 # ─── Secrets (dotfile variant) ───
 .secrets/
+
+# ─── Zhen AI / RAFT (large generated data) ───
+raft/corpus/
+raft/index/
+raft/models/
+raft/training/
+raft/raft_dataset*.jsonl
+raft/raft_dataset*.json
+
+# ─── llama.cpp (external dependency, cloned locally) ───
+llama.cpp/
+
+# ─── Generated UPCFlat binaries ───
+*.upcf
+
+# ─── Extracted skill files ───
+skills/*/extracted/
+
+# ─── Checkpoint files ───
+*_checkpoint.json
