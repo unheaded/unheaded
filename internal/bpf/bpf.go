@@ -26,7 +26,7 @@ const (
 
 // CpuState represents the CPU state stored in BPF cpu_map.
 // Field order and padding must match MbcCpuState in ebpf/monad-common/src/lib.rs.
-// Total size: 120 bytes.
+// Total size: 128 bytes.
 type CpuState struct {
 	Regs              [16]uint32 // offset 0:   64 bytes (16 x u32)
 	PC                uint32     // offset 64:  4 bytes
@@ -45,10 +45,13 @@ type CpuState struct {
 	TickCounter       uint32     // offset 108: 4 bytes
 	ProgramBreak      uint32     // offset 112: 4 bytes
 	ExitCode          uint32     // offset 116: 4 bytes
+	CurrentPID        uint8      // offset 120: 1 byte (Level 4c scheduler)
+	NumProcesses      uint8      // offset 121: 1 byte (Level 4c scheduler)
+	Pad3              [6]uint8   // offset 122: 6 bytes (alignment padding)
 }
 
 // CpuStateSize is the expected binary size of CpuState.
-const CpuStateSize = 120
+const CpuStateSize = 128
 
 // Map represents a handle to a pinned BPF map.
 type Map struct {
@@ -255,6 +258,11 @@ func DecodeCpuState(data []byte) *CpuState {
 	cpu.TickCounter = binary.LittleEndian.Uint32(data[108:112])
 	cpu.ProgramBreak = binary.LittleEndian.Uint32(data[112:116])
 	cpu.ExitCode = binary.LittleEndian.Uint32(data[116:120])
+	if len(data) >= CpuStateSize {
+		cpu.CurrentPID = data[120]
+		cpu.NumProcesses = data[121]
+		copy(cpu.Pad3[:], data[122:128])
+	}
 	return cpu
 }
 
@@ -280,5 +288,8 @@ func EncodeCpuState(cpu *CpuState) []byte {
 	binary.LittleEndian.PutUint32(data[108:112], cpu.TickCounter)
 	binary.LittleEndian.PutUint32(data[112:116], cpu.ProgramBreak)
 	binary.LittleEndian.PutUint32(data[116:120], cpu.ExitCode)
+	data[120] = cpu.CurrentPID
+	data[121] = cpu.NumProcesses
+	copy(data[122:128], cpu.Pad3[:])
 	return data
 }

@@ -62,6 +62,9 @@ impl Cpu {
             tick_counter: 0,
             program_break: monad_common::DEFAULT_PROGRAM_BREAK,
             exit_code: 0,
+            current_pid: 0,
+            num_processes: 1,
+            _pad3: [0; 6],
         };
         
         // Initialize stack pointer to default value
@@ -283,12 +286,13 @@ mod tests {
     // Compile-time assertion: MbcCpuState = 16×u32 regs + u32 pc + u8×4 (flags/halted/stalled/pad)
     //   + u64 sleep_until_ns + u64 insn_count + u64 cache_hits + u64 cache_misses
     //   + u8×4 (interrupt_pending/vector/enabled/_pad2) + u32 tick_counter
-    //   + u32 program_break + u32 exit_code = 120 bytes
-    const _: [u8; 120] = [0u8; std::mem::size_of::<MbcCpuState>()];
+    //   + u32 program_break + u32 exit_code + u8 current_pid + u8 num_processes
+    //   + [u8; 6] _pad3 = 128 bytes
+    const _: [u8; 128] = [0u8; std::mem::size_of::<MbcCpuState>()];
 
     #[test]
     fn test_mbccpustate_size() {
-        assert_eq!(std::mem::size_of::<MbcCpuState>(), 120);
+        assert_eq!(std::mem::size_of::<MbcCpuState>(), 128);
     }
 
     #[test]
