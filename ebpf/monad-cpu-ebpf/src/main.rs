@@ -175,6 +175,7 @@ const STAT_TLB_MISSES: u32 = 19; // TLB misses — page table walk required (Lev
 const STAT_TTY_READS: u32 = 20; // TTY read operations (SYS_READ from fd 0) (Level 5b)
 const STAT_WAITPIDS: u32 = 21; // SYS_WAITPID calls (Level 5b)
 const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
+const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: ioctl, signal, stat, pipe, etc.)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -1060,17 +1061,32 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[0] = cpu.regs[2];
                     increment_stat(STAT_TRIVIAL_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_SIGNAL {
-                    // SYS_SIGNAL(48): r1=signum, r2=handler. Ignore all signals.
-                    cpu.regs[0] = 0;
-                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                    // SYS_SIGNAL(48): r1=signum, r2=handler_addr.
+                    // Store handler in signal table, return old handler.
+                    let signum = cpu.regs[1];
+                    let handler = cpu.regs[2];
+                    if signum < lsys::SIGNAL_MAX_SLOTS {
+                        let slot_word = (lsys::SIGNAL_TABLE_BASE >> 2) + signum;
+                        let old_handler = mem_read_word(slot_word);
+                        mem_write_word(slot_word, handler);
+                        cpu.regs[0] = old_handler;
+                    } else {
+                        cpu.regs[0] = 0;
+                    }
+                    increment_stat(STAT_MODERATE_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_KILL {
                     // SYS_KILL(37): r1=pid, r2=sig. No-op.
                     cpu.regs[0] = 0;
                     increment_stat(STAT_TRIVIAL_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_STAT || syscall_nr == lsys::SYS_FSTAT {
-                    // SYS_STAT(106) / SYS_FSTAT(108): not implemented yet.
-                    cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
-                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                    // SYS_STAT(106) / SYS_FSTAT(108): return minimal stat struct.
+                    let buf = cpu.regs[2];
+                    let buf_word = buf >> 2;
+                    mem_write_word(buf_word, 0o100644);     // st_mode (regular file)
+                    mem_write_word(buf_word + 1, 4096);     // st_size
+                    mem_write_word(buf_word + 2, 512);      // st_blksize
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_MODERATE_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_LSEEK {
                     // SYS_LSEEK(19): stub — pretend seek succeeded.
                     cpu.regs[0] = 0;
@@ -1092,17 +1108,45 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[0] = 0;
                     increment_stat(STAT_TRIVIAL_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_IOCTL {
-                    // SYS_IOCTL(54): no-op stub for terminal control.
+                    // SYS_IOCTL(54): r1=fd, r2=request, r3=argp.
+                    // TIOCGWINSZ (0x5413): write terminal size to argp.
+                    // TCGETS (0x5401): return termios (success stub).
+                    // Everything else: return 0 (success).
+                    if cpu.regs[2] == 0x5413 {
+                        let argp = cpu.regs[3];
+                        // struct winsize: rows(u16) | cols(u16) packed into one word
+                        mem_write_word(argp >> 2, 24 | (80 << 16)); // 24 rows, 80 cols
+                    }
                     cpu.regs[0] = 0;
-                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                    increment_stat(STAT_MODERATE_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_PIPE {
-                    // SYS_PIPE(42): not yet implemented.
-                    cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
-                    increment_stat(STAT_TRIVIAL_SYSCALLS);
+                    // SYS_PIPE(42): r1=pipefd[2] array address.
+                    // Allocate stub fd numbers (10=read, 11=write). No actual pipe buffer.
+                    let pipefd_addr = cpu.regs[1];
+                    mem_write_word(pipefd_addr >> 2, 10);       // read end
+                    mem_write_word((pipefd_addr >> 2) + 1, 11); // write end
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_MODERATE_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_FCNTL {
                     // SYS_FCNTL(55): no-op.
                     cpu.regs[0] = 0;
                     increment_stat(STAT_TRIVIAL_SYSCALLS);
+
+                // ── Moderate FUZIX syscalls (Level 5d) ──────────────────
+                } else if syscall_nr == lsys::SYS_ACCESS {
+                    // SYS_ACCESS(33): r1=pathname, r2=mode.
+                    // Always return 0 (file exists and is accessible).
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_MODERATE_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_CHDIR {
+                    // SYS_CHDIR(12): stub — always succeed, no real filesystem.
+                    cpu.regs[0] = 0;
+                    increment_stat(STAT_MODERATE_SYSCALLS);
+                } else if syscall_nr == lsys::SYS_TIME {
+                    // SYS_TIME(13): return seconds since boot (ktime_ns / 1e9).
+                    let now = unsafe { bpf_ktime_get_ns() };
+                    cpu.regs[0] = (now / 1_000_000_000) as u32;
+                    increment_stat(STAT_MODERATE_SYSCALLS);
                 } else {
                     // Unknown syscall: return -ENOSYS (38) in r0.
                     cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
