@@ -26,22 +26,29 @@ const (
 
 // CpuState represents the CPU state stored in BPF cpu_map.
 // Field order and padding must match MbcCpuState in ebpf/monad-common/src/lib.rs.
-// Total size: 104 bytes.
+// Total size: 120 bytes.
 type CpuState struct {
-	Regs        [16]uint32 // offset 0:  64 bytes (16 x u32)
-	PC          uint32     // offset 64: 4 bytes
-	Flags       uint8      // offset 68: 1 byte
-	Halted      uint8      // offset 69: 1 byte
-	Stalled     uint8      // offset 70: 1 byte
-	Pad         uint8      // offset 71: 1 byte
-	SleepUntil  uint64     // offset 72: 8 bytes
-	InsnCount   uint64     // offset 80: 8 bytes
-	CacheHits   uint64     // offset 88: 8 bytes
-	CacheMisses uint64     // offset 96: 8 bytes
+	Regs              [16]uint32 // offset 0:   64 bytes (16 x u32)
+	PC                uint32     // offset 64:  4 bytes
+	Flags             uint8      // offset 68:  1 byte
+	Halted            uint8      // offset 69:  1 byte
+	Stalled           uint8      // offset 70:  1 byte
+	Pad               uint8      // offset 71:  1 byte
+	SleepUntil        uint64     // offset 72:  8 bytes
+	InsnCount         uint64     // offset 80:  8 bytes
+	CacheHits         uint64     // offset 88:  8 bytes
+	CacheMisses       uint64     // offset 96:  8 bytes
+	InterruptPending  uint8      // offset 104: 1 byte
+	InterruptVector   uint8      // offset 105: 1 byte
+	InterruptsEnabled uint8      // offset 106: 1 byte
+	Pad2              uint8      // offset 107: 1 byte
+	TickCounter       uint32     // offset 108: 4 bytes
+	ProgramBreak      uint32     // offset 112: 4 bytes
+	ExitCode          uint32     // offset 116: 4 bytes
 }
 
 // CpuStateSize is the expected binary size of CpuState.
-const CpuStateSize = 104
+const CpuStateSize = 120
 
 // Map represents a handle to a pinned BPF map.
 type Map struct {
@@ -241,6 +248,13 @@ func DecodeCpuState(data []byte) *CpuState {
 	cpu.InsnCount = binary.LittleEndian.Uint64(data[80:88])
 	cpu.CacheHits = binary.LittleEndian.Uint64(data[88:96])
 	cpu.CacheMisses = binary.LittleEndian.Uint64(data[96:104])
+	cpu.InterruptPending = data[104]
+	cpu.InterruptVector = data[105]
+	cpu.InterruptsEnabled = data[106]
+	cpu.Pad2 = data[107]
+	cpu.TickCounter = binary.LittleEndian.Uint32(data[108:112])
+	cpu.ProgramBreak = binary.LittleEndian.Uint32(data[112:116])
+	cpu.ExitCode = binary.LittleEndian.Uint32(data[116:120])
 	return cpu
 }
 
@@ -259,5 +273,12 @@ func EncodeCpuState(cpu *CpuState) []byte {
 	binary.LittleEndian.PutUint64(data[80:88], cpu.InsnCount)
 	binary.LittleEndian.PutUint64(data[88:96], cpu.CacheHits)
 	binary.LittleEndian.PutUint64(data[96:104], cpu.CacheMisses)
+	data[104] = cpu.InterruptPending
+	data[105] = cpu.InterruptVector
+	data[106] = cpu.InterruptsEnabled
+	data[107] = cpu.Pad2
+	binary.LittleEndian.PutUint32(data[108:112], cpu.TickCounter)
+	binary.LittleEndian.PutUint32(data[112:116], cpu.ProgramBreak)
+	binary.LittleEndian.PutUint32(data[116:120], cpu.ExitCode)
 	return data
 }

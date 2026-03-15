@@ -53,10 +53,11 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, mbc_flags as mf, mbc_interrupts as intr, mbc_mmap as mmap, mbc_opcodes as op, mbc_syscalls as sys,
+    flags, mbc_flags as mf, mbc_interrupts as intr, mbc_linux_syscalls as lsys,
+    mbc_mmap as mmap, mbc_opcodes as op, mbc_syscalls as sys,
     ComputeHopEvent, MbcCpuState, MbcInsn, Monad, EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
-    EVENT_SCREEN_WRITE, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE,
-    MONAD_SIZE,
+    EVENT_SCREEN_WRITE, EVENT_TTY_WRITE, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -119,6 +120,17 @@ static RV2MBC_MAP: Array<u32> = Array::with_max_entries(65_536, 0);
 #[map]
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
 
+/// TTY output buffer: 4 KB circular buffer for console I/O (Level 4f).
+/// SYS_WRITE to fd 1 (stdout) or fd 2 (stderr) writes bytes here.
+/// Userspace (doom-bridge) polls TTY_HEAD to detect new output.
+#[map]
+static TTY_MAP: Array<u8> = Array::with_max_entries(4096, 0);
+
+/// TTY write head position (circular, wraps at 4096).
+/// Single entry: index 0 = current write position.
+#[map]
+static TTY_HEAD: Array<u32> = Array::with_max_entries(1, 0);
+
 // ── Stat keys ─────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_CPU_TICKS: u32 = 1;
@@ -134,6 +146,8 @@ const STAT_MEM_STORES: u32 = 9; // was CACHE_HITS (misleading — cache is disab
 const STAT_MEM_LOADS: u32 = 10; // was CACHE_MISSES (all loads go direct to Array)
 const STAT_FRAME_READY: u32 = 11; // Incremented by SYS_DRAW_FRAME; userspace polls to trigger bulk FB copy
 const STAT_TIMER_INTERRUPTS: u32 = 12; // Timer interrupt deliveries
+const STAT_LINUX_SYSCALLS: u32 = 13; // Linux-compatible INT 0x80 syscalls
+const STAT_TTY_WRITES: u32 = 14; // TTY write operations (SYS_WRITE to fd 1/2)
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -676,19 +690,108 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
         // ── Interrupts ────────────────────────────────────────────────────────
         } else if opc == op::INT {
-            // Software interrupt: push flags + PC, disable interrupts, jump to IVT.
             let vector = imm as u8;
-            // Push flags
-            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
-            mem_write_word(cpu.regs[15] >> 2, cpu.flags as u32);
-            // Push PC (already advanced past INT instruction = return address)
-            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
-            mem_write_word(cpu.regs[15] >> 2, cpu.pc);
-            // Disable interrupts
-            cpu.interrupts_enabled = 0;
-            // Jump to handler
-            let ivt_addr = (vector as u32) * 4;
-            cpu.pc = mem_read_word(ivt_addr >> 2);
+            if vector == intr::VECTOR_SYSCALL {
+                // ── INT 0x80: Linux-compatible syscall dispatch (Level 4b) ────
+                // Convention: r0 = syscall number, r1-r3 = args.
+                // PC is NOT pushed (this is a synchronous call, not an interrupt).
+                increment_stat(STAT_LINUX_SYSCALLS);
+                let syscall_nr = cpu.regs[0];
+                if syscall_nr == lsys::SYS_EXIT {
+                    // SYS_EXIT(1): halt CPU with exit code from r1.
+                    cpu.exit_code = cpu.regs[1];
+                    cpu.halted = 1;
+                    increment_stat(STAT_HALTED);
+                    break;
+                } else if syscall_nr == lsys::SYS_WRITE {
+                    // SYS_WRITE(4): r1=fd, r2=buf_addr, r3=len.
+                    // If fd==1 (stdout) or fd==2 (stderr), write to TTY_MAP.
+                    let fd = cpu.regs[1];
+                    let buf_addr = cpu.regs[2];
+                    let len = cpu.regs[3];
+                    if fd == 1 || fd == 2 {
+                        // Get current TTY head position
+                        let head = match TTY_HEAD.get(0) {
+                            Some(v) => *v,
+                            None => 0,
+                        };
+                        let mut written: u32 = 0;
+                        let mut h = head;
+                        // Bounded loop: write up to 256 bytes per syscall (BPF verifier limit)
+                        let max_write = if len < 256 { len } else { 256 };
+                        let mut b: u32 = 0;
+                        while b < max_write {
+                            let byte_val = mem_read_byte(buf_addr.wrapping_add(b));
+                            let tty_idx = h % 4096;
+                            if let Some(p) = TTY_MAP.get_ptr_mut(tty_idx) {
+                                unsafe { *p = byte_val; }
+                            }
+                            h = h.wrapping_add(1);
+                            written += 1;
+                            b += 1;
+                        }
+                        // Update TTY head
+                        if let Some(p) = TTY_HEAD.get_ptr_mut(0) {
+                            unsafe { *p = h; }
+                        }
+                        increment_stat(STAT_TTY_WRITES);
+                        // Emit ring buffer event so userspace can pick up output
+                        emit_tty_write(flow_label, written, hop_id);
+                        // Return bytes written in r0
+                        cpu.regs[0] = written;
+                    } else {
+                        // Unsupported fd: return -9 (EBADF)
+                        cpu.regs[0] = (-9i32) as u32;
+                    }
+                } else if syscall_nr == lsys::SYS_BRK {
+                    // SYS_BRK(45): r1=new_brk. If 0, return current break.
+                    let new_brk = cpu.regs[1];
+                    if new_brk == 0 {
+                        cpu.regs[0] = cpu.program_break;
+                    } else {
+                        cpu.program_break = new_brk;
+                        cpu.regs[0] = new_brk;
+                    }
+                } else if syscall_nr == lsys::SYS_GETPID {
+                    // SYS_GETPID(20): return instance_id in r0.
+                    cpu.regs[0] = instance;
+                } else if syscall_nr == lsys::SYS_CLOCK_GETTIME {
+                    // SYS_CLOCK_GETTIME(265): write ktime_ns to RAM at r1.
+                    // Writes a simplified timespec: {u32 seconds, u32 nanoseconds}
+                    let tp_addr = cpu.regs[1];
+                    let secs = (now / 1_000_000_000) as u32;
+                    let nsecs = (now % 1_000_000_000) as u32;
+                    mem_write_word(tp_addr >> 2, secs);
+                    mem_write_word((tp_addr.wrapping_add(4)) >> 2, nsecs);
+                    cpu.regs[0] = 0; // success
+                } else if syscall_nr == lsys::SYS_NANOSLEEP {
+                    // SYS_NANOSLEEP(162): read timespec from RAM at r1, set sleep.
+                    let req_addr = cpu.regs[1];
+                    let secs = mem_read_word(req_addr >> 2) as u64;
+                    let nsecs = mem_read_word((req_addr.wrapping_add(4)) >> 2) as u64;
+                    let sleep_ns = secs * 1_000_000_000 + nsecs;
+                    cpu.sleep_until_ns = now + sleep_ns;
+                    cpu.regs[0] = 0; // success
+                    increment_stat(STAT_SLEEPING);
+                    break;
+                } else {
+                    // Unknown syscall: return -ENOSYS (38) in r0.
+                    cpu.regs[0] = (-(lsys::ENOSYS as i32)) as u32;
+                }
+            } else {
+                // Non-0x80 software interrupt: standard IVT dispatch.
+                // Push flags
+                cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+                mem_write_word(cpu.regs[15] >> 2, cpu.flags as u32);
+                // Push PC (already advanced past INT instruction = return address)
+                cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+                mem_write_word(cpu.regs[15] >> 2, cpu.pc);
+                // Disable interrupts
+                cpu.interrupts_enabled = 0;
+                // Jump to handler
+                let ivt_addr = (vector as u32) * 4;
+                cpu.pc = mem_read_word(ivt_addr >> 2);
+            }
         } else if opc == op::IRET {
             // Return from interrupt: pop PC + flags, re-enable interrupts.
             // Pop PC from stack
@@ -862,6 +965,30 @@ fn emit_compute_halt(flow_label: u32, insn_count: u64, hop_id: u8) {
             flow_label,
             pc: 0,
             instruction: (insn_count & 0xFFFF_FFFF) as u32,
+            regs: [0; 16],
+            flags: 0,
+            cache_hit: 0,
+            miss_addr: 0,
+        };
+        unsafe {
+            core::ptr::write(entry.as_mut_ptr(), event);
+            entry.submit(0);
+        }
+    }
+}
+
+/// Emit a TTY_WRITE event to the ring buffer (Level 4f console I/O).
+#[inline(always)]
+fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
+    if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
+        let event = ComputeHopEvent {
+            timestamp_ns: unsafe { bpf_ktime_get_ns() },
+            event_type: EVENT_TTY_WRITE,
+            hop_id,
+            _pad: [0; 2],
+            flow_label,
+            pc: 0,
+            instruction: bytes_written, // Reuse instruction field for byte count
             regs: [0; 16],
             flags: 0,
             cache_hit: 0,
