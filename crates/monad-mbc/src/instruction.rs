@@ -54,6 +54,8 @@ pub fn is_valid_opcode(opcode: u8) -> bool {
         op::CALL | op::RET | op::JMPR | op::CALLR |
         // Memory operations
         op::LD | op::ST | op::LDB | op::STB | op::LDH | op::STH |
+        // Atomic operations (Level 6)
+        op::CLI | op::STI | op::XCHG | op::CAS |
         // System operations
         op::SYSCALL | op::HALT
     )
@@ -630,7 +632,7 @@ mod tests {
         let invalid_opcodes: Vec<u8> = vec![
             0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1E, 0x1F,
             0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
-            0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
+            0x3A, 0x3F,
             0x41, 0x42, 0x50, 0xFE,
         ];
 

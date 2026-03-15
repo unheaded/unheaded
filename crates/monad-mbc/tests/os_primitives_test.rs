@@ -1314,3 +1314,100 @@ fn syscall_execve_jumps_to_nonzero_entry_point() {
     assert_eq!(cpu.state.regs[2], 0x7777, "should execute code at entry point 15");
     assert_eq!(cpu.state.halted, 1, "should halt from new program");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Level 6: Atomic Operations (CLI/STI/XCHG/CAS)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_cli_sti() {
+    let mut cpu = cpu_with_safe_sp();
+    // Start with interrupts enabled
+    cpu.state.interrupts_enabled = 1;
+
+    cpu.load_rom(&[
+        enc(op::CLI, 0, 0, 0),    // 0: disable interrupts
+        enc(op::HALT, 0, 0, 0),   // 1: halt
+    ]);
+    cpu.step().unwrap();
+    assert_eq!(cpu.state.interrupts_enabled, 0, "CLI should disable interrupts");
+
+    // Reset and test STI
+    cpu.state.pc = 0;
+    cpu.state.halted = 0;
+    cpu.state.interrupts_enabled = 0;
+    cpu.load_rom(&[
+        enc(op::STI, 0, 0, 0),    // 0: enable interrupts
+        enc(op::HALT, 0, 0, 0),   // 1: halt
+    ]);
+    cpu.step().unwrap();
+    assert_eq!(cpu.state.interrupts_enabled, 1, "STI should enable interrupts");
+}
+
+#[test]
+fn test_xchg() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Set up: r0 = 0xDEAD, RAM[word 0x100] = 0xBEEF
+    cpu.state.regs[0] = 0xDEAD;
+    cpu.state.regs[1] = 0x400; // byte address (word addr = 0x100)
+    cpu.ram[0x100] = 0xBEEF;
+
+    // XCHG r0, [r1+0]: swap r0 with RAM[r1]
+    cpu.load_rom(&[
+        enc(op::XCHG, 0, 1, 0),   // 0: atomic exchange
+        enc(op::HALT, 0, 0, 0),    // 1: halt
+    ]);
+    cpu.step().unwrap();
+
+    assert_eq!(cpu.state.regs[0], 0xBEEF, "XCHG should load old RAM value into dst reg");
+    assert_eq!(cpu.ram[0x100], 0xDEAD, "XCHG should store old reg value into RAM");
+}
+
+#[test]
+fn test_cas_success() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Set up for successful CAS:
+    // r0 = expected (0x1234), r1 = address (byte), r2 = desired (0x5678)
+    // RAM[word] = 0x1234 (matches expected)
+    cpu.state.regs[0] = 0x1234;       // expected
+    cpu.state.regs[1] = 0x800;        // byte address (word addr = 0x200)
+    cpu.state.regs[2] = 0x5678;       // desired
+    cpu.ram[0x200] = 0x1234;          // current value == expected
+    cpu.state.flags = 0;
+
+    cpu.load_rom(&[
+        enc(op::CAS, 0, 0, 0),    // 0: compare-and-swap
+        enc(op::HALT, 0, 0, 0),   // 1: halt
+    ]);
+    cpu.step().unwrap();
+
+    assert_eq!(cpu.ram[0x200], 0x5678, "CAS success: RAM should be updated to desired");
+    assert_eq!(cpu.state.regs[0], 0x1234, "CAS success: r0 should contain old value");
+    assert_ne!(cpu.state.flags & 0x01, 0, "CAS success: Z flag should be set");
+}
+
+#[test]
+fn test_cas_failure() {
+    let mut cpu = cpu_with_safe_sp();
+
+    // Set up for failed CAS:
+    // r0 = expected (0x1234), r1 = address (byte), r2 = desired (0x5678)
+    // RAM[word] = 0xAAAA (does NOT match expected)
+    cpu.state.regs[0] = 0x1234;       // expected
+    cpu.state.regs[1] = 0x800;        // byte address (word addr = 0x200)
+    cpu.state.regs[2] = 0x5678;       // desired
+    cpu.ram[0x200] = 0xAAAA;          // current value != expected
+    cpu.state.flags = 0x01;           // start with Z set
+
+    cpu.load_rom(&[
+        enc(op::CAS, 0, 0, 0),    // 0: compare-and-swap
+        enc(op::HALT, 0, 0, 0),   // 1: halt
+    ]);
+    cpu.step().unwrap();
+
+    assert_eq!(cpu.ram[0x200], 0xAAAA, "CAS failure: RAM should be unchanged");
+    assert_eq!(cpu.state.regs[0], 0xAAAA, "CAS failure: r0 should contain actual old value");
+    assert_eq!(cpu.state.flags & 0x01, 0, "CAS failure: Z flag should be clear");
+}
