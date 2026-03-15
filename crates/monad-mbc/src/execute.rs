@@ -58,6 +58,30 @@ impl Cpu {
             return Err(ExecError::Halted);
         }
 
+        // Interrupt dispatch: if an interrupt is pending and enabled, service it
+        // before fetching the next instruction.
+        if self.state.interrupt_pending != 0 && self.state.interrupts_enabled != 0 {
+            // Push flags to stack
+            self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
+            let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
+            if sp_flags < self.ram.len() {
+                self.ram[sp_flags] = self.state.flags as u32;
+            }
+            // Push PC to stack
+            self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
+            let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
+            if sp_pc < self.ram.len() {
+                self.ram[sp_pc] = self.state.pc;
+            }
+            // Disable interrupts
+            self.state.interrupts_enabled = 0;
+            // Jump to IVT handler
+            let ivt_addr = ((self.state.interrupt_vector as u32) * 4) >> 2;
+            self.state.pc = self.mem_read_word(ivt_addr as usize);
+            // Clear pending
+            self.state.interrupt_pending = 0;
+        }
+
         // Fetch instruction
         let pc = self.state.pc as usize;
         if pc >= self.rom.len() {
@@ -508,6 +532,44 @@ impl Cpu {
                     }
                     _ => return Err(ExecError::InvalidSyscall(syscall_id)),
                 }
+            }
+
+            // === Interrupts ===
+            op::INT => {
+                // Software interrupt: push flags + PC, disable interrupts, jump to IVT.
+                let vector = (imm & 0xFF) as u8;
+                // Push flags (SP is byte address, 4 bytes per entry)
+                self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
+                let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                if sp_flags < self.ram.len() {
+                    self.ram[sp_flags] = self.state.flags as u32;
+                }
+                // Push PC (already advanced = return address)
+                self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
+                let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                if sp_pc < self.ram.len() {
+                    self.ram[sp_pc] = self.state.pc;
+                }
+                // Disable interrupts
+                self.state.interrupts_enabled = 0;
+                // Jump to IVT handler
+                let ivt_addr = ((vector as u32) * 4) >> 2;
+                self.state.pc = self.mem_read_word(ivt_addr as usize);
+            }
+            op::IRET => {
+                // Return from interrupt: pop PC + flags, re-enable interrupts.
+                let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                if sp_pc < self.ram.len() {
+                    self.state.pc = self.ram[sp_pc];
+                }
+                self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_add(4);
+                let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                if sp_flags < self.ram.len() {
+                    self.state.flags = self.ram[sp_flags] as u8;
+                }
+                self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_add(4);
+                // Re-enable interrupts
+                self.state.interrupts_enabled = 1;
             }
 
             // === Halt ===

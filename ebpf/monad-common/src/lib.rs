@@ -837,6 +837,16 @@ pub struct CpuState {
     pub cache_hits: u64,
     /// L1 cache misses.
     pub cache_misses: u64,
+    /// Non-zero when an interrupt is waiting to be serviced.
+    pub interrupt_pending: u8,
+    /// Vector number of the pending interrupt (e.g. 0x20 = timer).
+    pub interrupt_vector: u8,
+    /// Non-zero when the CPU will accept interrupts (interrupt-enable flag).
+    pub interrupts_enabled: u8,
+    /// Padding for alignment.
+    pub _pad2: u8,
+    /// Tick counter for timer interrupt generation.
+    pub tick_counter: u32,
 }
 
 /// Keyboard state written by Wotan, read by BPF SYSCALL 0x02.
@@ -980,6 +990,16 @@ pub struct MbcCpuState {
     pub cache_hits: u64,
     /// L1 cache misses.
     pub cache_misses: u64,
+    /// Non-zero when an interrupt is waiting to be serviced.
+    pub interrupt_pending: u8,
+    /// Vector number of the pending interrupt (e.g. 0x20 = timer).
+    pub interrupt_vector: u8,
+    /// Non-zero when the CPU will accept interrupts (interrupt-enable flag).
+    pub interrupts_enabled: u8,
+    /// Padding for alignment.
+    pub _pad2: u8,
+    /// Tick counter for timer interrupt generation.
+    pub tick_counter: u32,
 }
 
 /// MBC CPU flags — stored in `MbcCpuState.flags`.
@@ -990,6 +1010,8 @@ pub mod mbc_flags {
     pub const N: u8 = 0x02;
     /// Carry flag (C): set on unsigned overflow/borrow.
     pub const C: u8 = 0x04;
+    /// Interrupt enable flag (IF): set when interrupts are enabled.
+    pub const IF: u8 = 0x08;
 }
 
 /// MBC instruction word (32-bit fixed-width encoding).
@@ -1159,6 +1181,12 @@ pub mod mbc_opcodes {
     /// `ram_map[dst + imm16] = src & 0xFFFF`  (16-bit store)
     pub const STH: u8 = 0x35;
 
+    // ── Interrupts ──────────────────────────────────────────────
+    /// `INT imm8` — software interrupt. Push flags+PC, jump to IVT[imm].
+    pub const INT: u8 = 0x17;
+    /// `IRET` — return from interrupt. Pop PC+flags, re-enable interrupts.
+    pub const IRET: u8 = 0x18;
+
     // ── System ─────────────────────────────────────────────────
     /// Invoke I/O callback.  `imm16` = syscall number (see `mbc_syscalls`).
     pub const SYSCALL: u8 = 0x40;
@@ -1178,6 +1206,18 @@ pub mod mbc_syscalls {
     pub const SYS_GET_TICKS: u32 = 0x03;
     /// `DG_SleepMs(ms)` — set `sleep_until = now + r0 * 1_000_000`.
     pub const SYS_SLEEP: u32 = 0x04;
+}
+
+/// Interrupt vector numbers for the MBC CPU.
+pub mod mbc_interrupts {
+    /// Timer interrupt vector (~100 Hz for scheduler). IVT offset = 0x20 * 4 = 0x80.
+    pub const VECTOR_TIMER: u8 = 0x20;
+    /// Keyboard interrupt vector. IVT offset = 0x21 * 4 = 0x84.
+    pub const VECTOR_KEYBOARD: u8 = 0x21;
+    /// Software syscall interrupt (INT 0x80). IVT offset = 0x80 * 4 = 0x200.
+    pub const VECTOR_SYSCALL: u8 = 0x80;
+    /// Number of ticks between timer interrupts (at 35 Hz XDP, every 3rd tick ~ 12 Hz).
+    pub const TIMER_TICK_DIVISOR: u32 = 3;
 }
 
 /// Screen / I/O memory map constants for the Doom-over-IPv6 PoC.
@@ -1828,8 +1868,10 @@ mod tests {
 
     #[test]
     fn cpu_state_size() {
-        // CpuState is 16*4 + 4 + 1 + 1 + 1 + 1 + 8 + 8 + 8 + 8 = 80 bytes
-        assert_eq!(core::mem::size_of::<CpuState>(), 80);
+        // CpuState: 16*4(regs) + 4(pc) + 4(flags+stalled+halted+_pad)
+        //   + 8(sleep_until) + 8(insn_count) + 8(cache_hits) + 8(cache_misses)
+        //   + 4(interrupt_pending+vector+enabled+_pad2) + 4(tick_counter) = 112 bytes
+        assert_eq!(core::mem::size_of::<CpuState>(), 112);
     }
 
     #[test]

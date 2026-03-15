@@ -53,7 +53,7 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, mbc_flags as mf, mbc_mmap as mmap, mbc_opcodes as op, mbc_syscalls as sys,
+    flags, mbc_flags as mf, mbc_interrupts as intr, mbc_mmap as mmap, mbc_opcodes as op, mbc_syscalls as sys,
     ComputeHopEvent, MbcCpuState, MbcInsn, Monad, EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
     EVENT_SCREEN_WRITE, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE,
     MONAD_SIZE,
@@ -133,6 +133,7 @@ const STAT_ROM_FAULT: u32 = 8;
 const STAT_MEM_STORES: u32 = 9; // was CACHE_HITS (misleading — cache is disabled)
 const STAT_MEM_LOADS: u32 = 10; // was CACHE_MISSES (all loads go direct to Array)
 const STAT_FRAME_READY: u32 = 11; // Incremented by SYS_DRAW_FRAME; userspace polls to trigger bulk FB copy
+const STAT_TIMER_INTERRUPTS: u32 = 12; // Timer interrupt deliveries
 
 // ── Tuning constants ──────────────────────────────────────────────────────────
 
@@ -263,11 +264,45 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         cpu.sleep_until_ns = 0;
     }
 
+    // ── Timer interrupt trigger ─────────────────────────────────────────────
+    // Increment tick counter each XDP invocation. Every TIMER_TICK_DIVISOR
+    // ticks (~12 Hz at 35 Hz XDP rate), fire a timer interrupt — but only
+    // if interrupts are enabled and no interrupt is already pending.
+    cpu.tick_counter = cpu.tick_counter.wrapping_add(1);
+    if cpu.tick_counter >= intr::TIMER_TICK_DIVISOR
+        && cpu.interrupts_enabled != 0
+        && cpu.interrupt_pending == 0
+    {
+        cpu.interrupt_pending = 1;
+        cpu.interrupt_vector = intr::VECTOR_TIMER;
+        cpu.tick_counter = 0;
+        increment_stat(STAT_TIMER_INTERRUPTS);
+    }
+
     // ── Execute loop ──────────────────────────────────────────────────────────
     let mut i = 0usize;
     while i < MAX_INSN_PER_TICK {
         if cpu.halted != 0 {
             break;
+        }
+
+        // ── Interrupt dispatch (before fetch) ────────────────────────────────
+        // If an interrupt is pending and interrupts are enabled, push flags
+        // and PC onto the stack, disable interrupts, and jump to the IVT handler.
+        if cpu.interrupt_pending != 0 && cpu.interrupts_enabled != 0 {
+            // Push flags to stack
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+            mem_write_word(cpu.regs[15] >> 2, cpu.flags as u32);
+            // Push PC to stack
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+            mem_write_word(cpu.regs[15] >> 2, cpu.pc);
+            // Disable interrupts
+            cpu.interrupts_enabled = 0;
+            // Jump to IVT handler
+            let ivt_addr = (cpu.interrupt_vector as u32) * 4;
+            cpu.pc = mem_read_word(ivt_addr >> 2);
+            // Clear pending
+            cpu.interrupt_pending = 0;
         }
 
         // Fetch
@@ -638,6 +673,34 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             mem_write_half(addr, val);
             cpu.cache_hits += 1;
             increment_stat(STAT_MEM_STORES);
+
+        // ── Interrupts ────────────────────────────────────────────────────────
+        } else if opc == op::INT {
+            // Software interrupt: push flags + PC, disable interrupts, jump to IVT.
+            let vector = imm as u8;
+            // Push flags
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+            mem_write_word(cpu.regs[15] >> 2, cpu.flags as u32);
+            // Push PC (already advanced past INT instruction = return address)
+            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
+            mem_write_word(cpu.regs[15] >> 2, cpu.pc);
+            // Disable interrupts
+            cpu.interrupts_enabled = 0;
+            // Jump to handler
+            let ivt_addr = (vector as u32) * 4;
+            cpu.pc = mem_read_word(ivt_addr >> 2);
+        } else if opc == op::IRET {
+            // Return from interrupt: pop PC + flags, re-enable interrupts.
+            // Pop PC from stack
+            let word_addr = cpu.regs[15] >> 2;
+            cpu.pc = mem_read_word(word_addr);
+            cpu.regs[15] = cpu.regs[15].wrapping_add(4);
+            // Pop flags from stack
+            let word_addr2 = cpu.regs[15] >> 2;
+            cpu.flags = mem_read_word(word_addr2) as u8;
+            cpu.regs[15] = cpu.regs[15].wrapping_add(4);
+            // Re-enable interrupts
+            cpu.interrupts_enabled = 1;
 
         // ── System ────────────────────────────────────────────────────────────
         } else if opc == op::SYSCALL {
