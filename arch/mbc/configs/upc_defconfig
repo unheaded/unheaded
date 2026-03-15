@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0
 #
-# UPC default configuration — minimal nommu boot
+# UPC default configuration — bootable MBC Linux
 #
-# This is the baseline defconfig for the Unheaded Protocol Computer
-# running the MBC (Monad Bytecode) architecture.  It targets a nommu
-# environment with a 4 MB ramdisk root filesystem.
+# This is the defconfig for the Unheaded Protocol Computer running
+# the MBC (Monad Bytecode) architecture.  It targets a nommu
+# environment with a 4 MB ramdisk root filesystem (UNFS).
+#
+# Week 8: kernel boots to /init -> /bin/sh prompt.
 #
 
 # Architecture
@@ -17,6 +19,8 @@ CONFIG_EMBEDDED=y
 CONFIG_EXPERT=y
 CONFIG_PRINTK=y
 CONFIG_BUG=y
+CONFIG_MULTIUSER=y
+CONFIG_SYSVIPC=n
 
 # Timer
 CONFIG_HZ=12
@@ -27,11 +31,15 @@ CONFIG_HIGH_RES_TIMERS=n
 CONFIG_TTY=y
 CONFIG_SERIAL_MBC=y
 CONFIG_SERIAL_MBC_CONSOLE=y
+CONFIG_CONSOLE_LOGLEVEL_DEFAULT=7
 
 # Block device
 CONFIG_BLOCK=y
 CONFIG_BLK_DEV=y
 CONFIG_BLK_DEV_MBC_RAMDISK=y
+CONFIG_BLK_DEV_RAM=y
+CONFIG_BLK_DEV_RAM_COUNT=1
+CONFIG_BLK_DEV_RAM_SIZE=4096
 
 # initrd / initramfs
 CONFIG_BLK_DEV_INITRD=y
@@ -40,14 +48,31 @@ CONFIG_INITRAMFS_SOURCE=""
 # File systems
 CONFIG_ROMFS_FS=y
 CONFIG_ROMFS_BACKED_BY_BLOCK=y
+CONFIG_UNFS_FS=y
 
 # nommu-specific
 CONFIG_BINFMT_FLAT=y
 CONFIG_BINFMT_FLAT_NO_DATA_START_OFFSET=y
+CONFIG_BINFMT_UPCFLAT=y
+
+# Process management
+CONFIG_FORK=y
+CONFIG_EXECVE=y
+CONFIG_WAITPID=y
+CONFIG_SIGNALS=y
 
 # Memory
 CONFIG_FLATMEM=y
 CONFIG_FLAT_NODE_MEM_MAP=y
+CONFIG_NOMMU_INITIAL_TRIM_EXCESS=1
+
+# Init
+CONFIG_DEFAULT_INIT="/init"
+CONFIG_DEFAULT_HOSTNAME="mbc-linux"
+
+# Kernel command line
+CONFIG_CMDLINE_BOOL=y
+CONFIG_CMDLINE="console=ttyMBC0 root=/dev/ram0"
 
 # Disable features not available on UPC
 # CONFIG_SWAP is not set
@@ -60,3 +85,5 @@ CONFIG_FLAT_NODE_MEM_MAP=y
 # CONFIG_USB_SUPPORT is not set
 # CONFIG_WIRELESS is not set
 # CONFIG_INPUT is not set
+# CONFIG_COREDUMP is not set
+# CONFIG_FUTEX is not set
