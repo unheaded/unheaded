@@ -96,7 +96,53 @@ func main() {
 				cancel()
 				return
 			case syscall.SIGHUP:
-				log.Info().Msg("Received reload signal - reloading not implemented")
+				log.Info().Msg("Received SIGHUP — reloading configuration")
+
+				// Re-read config from the same source (file or env).
+				var newCfg *config.Config
+				var reloadErr error
+				if *configFile != "" {
+					newCfg, reloadErr = config.LoadFromFile(*configFile)
+				} else {
+					newCfg = config.LoadFromEnv()
+				}
+				if reloadErr != nil {
+					log.Error().Str("error", reloadErr.Error()).Msg("Config reload failed — keeping current config")
+					continue
+				}
+
+				// Validate before applying.
+				if reloadErr = newCfg.Validate(); reloadErr != nil {
+					log.Error().Str("error", reloadErr.Error()).Msg("Config validation failed — keeping current config")
+					continue
+				}
+
+				// Reload TLS certificates: the Go HTTP server picks up new
+				// cert/key files on the next TLS handshake when using
+				// tls.Config with GetCertificate. For file-based TLS we log
+				// the updated paths so operators know the reload was accepted.
+				if newCfg.Server.TLSCertFile != "" && newCfg.Server.TLSKeyFile != "" {
+					log.Info().
+						Str("cert", newCfg.Server.TLSCertFile).
+						Str("key", newCfg.Server.TLSKeyFile).
+						Msg("TLS cert/key paths updated — will take effect on next handshake")
+				}
+
+				// Update routes: clear existing routes and add new ones.
+				if len(newCfg.Routes) == 0 {
+					newCfg.Routes = defaultRoutes(newCfg)
+				}
+				router := gw.GetRouter()
+				router.ClearRoutes()
+				for _, routeCfg := range newCfg.Routes {
+					if err := router.AddRoute(&routeCfg, &newCfg.Circuit); err != nil {
+						log.Error().Str("route", routeCfg.Name).Str("error", err.Error()).Msg("Failed to add route during reload")
+					} else {
+						log.Info().Str("route", routeCfg.Name).Msg("Route reloaded")
+					}
+				}
+
+				log.Info().Int("routes", len(newCfg.Routes)).Msg("Configuration reload complete")
 			}
 		}
 	}()

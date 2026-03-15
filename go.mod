@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/cilium/ebpf v0.20.0
-	github.com/cloudflare/circl v1.6.1
+	github.com/cloudflare/circl v1.6.3
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1

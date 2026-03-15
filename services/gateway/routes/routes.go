@@ -152,6 +152,19 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	route.Proxy.ServeHTTP(w, req)
 }
 
+// ClearRoutes closes all existing routes and resets the router's route table.
+// This is used during SIGHUP config reload to swap in a fresh set of routes.
+func (r *Router) ClearRoutes() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, route := range r.routes {
+		route.Proxy.Close()
+	}
+	r.routes = make([]*Route, 0)
+	r.routeMap = make(map[string]*Route)
+}
+
 // Close closes all routes.
 func (r *Router) Close() error {
 	r.mu.Lock()
