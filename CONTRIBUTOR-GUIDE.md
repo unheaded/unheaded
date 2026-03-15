@@ -17,14 +17,14 @@ We welcome contributions from developers, protocol designers, security researche
 
 ## 2. Developer Certificate of Origin (DCO)
 
-Unheaded is MIT licensed. No CLA required. We use the **Developer Certificate of Origin (DCO)** — a lightweight sign-off confirming you have the right to contribute your code.
+Unheaded is GPL-3.0 licensed. No CLA required. We use the **Developer Certificate of Origin (DCO)** — a lightweight sign-off confirming you have the right to contribute your code.
 
 ### What the DCO Says
 
 By adding a `Signed-off-by` line to your commits, you certify:
 
-1. The contribution was created in whole or in part by you and you have the right to submit it under the MIT License.
-2. The contribution is based upon previous work that, to the best of your knowledge, is covered under an appropriate open source license and you have the right to submit that work with modifications under the MIT License.
+1. The contribution was created in whole or in part by you and you have the right to submit it under the GPL-3.0 License.
+2. The contribution is based upon previous work that, to the best of your knowledge, is covered under an appropriate open source license and you have the right to submit that work with modifications under the GPL-3.0 License.
 3. The contribution was provided directly to you by some other person who certified (1) or (2) and you have not modified it.
 
 Full DCO text: https://developercertificate.org

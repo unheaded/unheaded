@@ -15,29 +15,24 @@ terms to encourage adoption, implementation, and ecosystem development.
 
 ---
 
-## MIT License (Primary) + Apache 2.0 (Alternative)
+## GPL-3.0 (Primary) + Apache 2.0 (Alternative)
 
-### MIT License Text (Primary License)
+### GPL-3.0 License (Primary License)
 
-Copyright (c) 2026 Unheaded Project Contributors
+Copyright (c) 2024-2026 Steven Bellis
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ---
 
@@ -46,14 +41,14 @@ SOFTWARE.
 Full text available at: https://www.apache.org/licenses/LICENSE-2.0.txt
 
 You may choose to use the protocol specifications under the Apache 2.0 license
-instead of MIT. Apache 2.0 provides explicit patent grant language and may be
-preferred in certain jurisdictions.
+instead of GPL-3.0. Apache 2.0 provides explicit patent grant language and may be
+preferred in certain jurisdictions or for proprietary implementations.
 
 ---
 
 ## Rationale for Permissive Licensing
 
-Protocol specifications are licensed separately from the BSL 1.1 main codebase
+Protocol specifications are licensed separately under dual GPL-3.0/Apache-2.0
 for the following reasons:
 
 1. **Ecosystem Adoption:** Open protocols require open specifications. Permissive
@@ -65,8 +60,8 @@ for the following reasons:
 3. **Interoperability:** Other projects and organizations should be able to
    implement the Unheaded protocol without licensing concerns.
 
-4. **Separation of Concerns:** Business license restrictions on the main codebase
-   do not apply to the protocol itself.
+4. **Separation of Concerns:** The Apache 2.0 alternative allows protocol adoption
+   in projects that may have GPL compatibility concerns.
 
 ---
 
@@ -81,8 +76,8 @@ for the following reasons:
 - **Attribution:** You must include the original copyright notice in any
   substantial reproductions.
 
-- **Compatibility:** The protocol specifications can be used in conjunction with
-  GPL, BSL, and other licensed code without conflict.
+- **Compatibility:** The Apache 2.0 alternative ensures the protocol specifications
+  can be used in conjunction with any licensed code without conflict.
 
 ---
 
@@ -98,6 +93,6 @@ The protocol specifications follow IETF draft standards naming conventions:
 
 ## Related Licenses
 
-- **Main Codebase:** BSL 1.1 (see /LICENSE)
+- **Main Codebase:** GPL-3.0 (see /LICENSE)
 - **DOOM Engine:** GPL 2.0+ (see /doom/LICENSE)
 - **Dependencies:** See /LICENSES/THIRD_PARTY.md and /LICENSES/sbom-go-modules.txt

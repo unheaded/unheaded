@@ -12,10 +12,10 @@
 This document describes all third-party dependencies used by the Unheaded Kingdom project and defines the GPL boundary for the DOOM subsystem.
 
 The codebase consists of:
-- **Proprietary Unheaded code:** Licensed under MIT (see `/LICENSE`)
+- **Unheaded code:** Licensed under GPL-3.0 (see `/LICENSE`)
 - **DOOM subsystem:** GPL v2.0, architecturally isolated and NOT linked into the main codebase
 - **Third-party dependencies:** Go modules, Rust crates, and JavaScript libraries with permissive licenses
-- **Protocol specifications:** Published under MIT/Apache 2.0 to encourage ecosystem adoption
+- **Protocol specifications:** Published under GPL-3.0/Apache 2.0 to encourage ecosystem adoption
 
 ---
 

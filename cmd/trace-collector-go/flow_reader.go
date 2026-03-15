@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 
 // flow_reader.go — FlowReader periodically reads the FLOW_MAP from the

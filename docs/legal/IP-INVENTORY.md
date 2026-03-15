@@ -8,8 +8,8 @@
 
 ## Table of Contents
 
-1. [Proprietary IP (MIT)](#proprietary-ip-bsl-11)
-2. [Protocol Specifications (MIT / Apache 2.0)](#protocol-specifications-mit--apache-20)
+1. [Proprietary IP (GPL-3.0)](#proprietary-ip-gpl-30)
+2. [Protocol Specifications (GPL-3.0 / Apache 2.0)](#protocol-specifications-gpl-30--apache-20)
 3. [Open Source Components](#open-source-components)
 4. [Trademarks](#trademarks)
 5. [Trade Secrets](#trade-secrets)
@@ -18,17 +18,17 @@
 
 ---
 
-## Proprietary IP (MIT)
+## Proprietary IP (GPL-3.0)
 
-The following intellectual property is owned by Unheaded Kingdom and licensed under the **MIT License (MIT)**. See `/LICENSE` for full terms.
+The following intellectual property is owned by Unheaded Kingdom and licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See `/LICENSE` for full terms.
 
-MIT grants you the right to use this software for non-production purposes freely. Production use requires a license agreement. After 4 years from the release date, the license converts to Apache 2.0, allowing unlimited use.
+GPL-3.0 grants you the right to use, modify, and distribute this software freely, provided that derivative works are also licensed under GPL-3.0 and source code is made available.
 
 ### Core Protocol & Architecture
 
 #### Monad Protocol
 
-**Status:** Proprietary (MIT), planned public specification (draft-bellis-unheaded-monad-header)
+**Status:** Proprietary (GPL-3.0), planned public specification (draft-bellis-unheaded-monad-header)
 
 The **Monad Protocol** is a packet-level protocol header format for in-band signaling of data plane control information across networks. It is the conceptual foundation of the Unheaded Kingdom's entire ecosystem.
 
@@ -56,7 +56,7 @@ The **Monad Protocol** is a packet-level protocol header format for in-band sign
 
 #### Sophia Dictionary System
 
-**Status:** Proprietary (MIT)
+**Status:** Proprietary (GPL-3.0)
 
 The **Sophia Dictionary** is the Unheaded Kingdom's symbolic metadata system. It maps protocol state changes to descriptive records that can be rendered in multiple formats (JSON, YAML, Markdown).
 
@@ -74,7 +74,7 @@ The **Sophia Dictionary** is the Unheaded Kingdom's symbolic metadata system. It
 
 #### Wotan Memory Model
 
-**Status:** Proprietary (MIT)
+**Status:** Proprietary (GPL-3.0)
 
 The **Wotan** subsystem provides unified memory abstraction for distributed flow state. It features:
 
@@ -98,7 +98,7 @@ The **Wotan** subsystem provides unified memory abstraction for distributed flow
 
 #### Anamnesis Event System
 
-**Status:** Proprietary (MIT)
+**Status:** Proprietary (GPL-3.0)
 
 **Anamnesis** is the event collection, correlation, and remediation framework. It consumes raw network telemetry and produces actionable events.
 
@@ -118,7 +118,7 @@ The **Wotan** subsystem provides unified memory abstraction for distributed flow
 
 #### Shield eBPF Pipeline
 
-**Status:** Proprietary (MIT)
+**Status:** Proprietary (GPL-3.0)
 
 **Shield** is the packet processing pipeline in the kernel space. It inspects, marks, tracks, and samples packets for observability and enforcement.
 
@@ -139,7 +139,7 @@ The **Wotan** subsystem provides unified memory abstraction for distributed flow
 
 #### Monad Bytecode (MBC) ISA
 
-**Status:** Proprietary (MIT), candidate for defensive publication
+**Status:** Proprietary (GPL-3.0), candidate for defensive publication
 
 The **Monad Bytecode (MBC)** is a 43-opcode instruction set architecture designed for efficient execution in constrained kernel eBPF environments.
 
@@ -161,7 +161,7 @@ The **Monad Bytecode (MBC)** is a 43-opcode instruction set architecture designe
 
 #### unheaded-daemon Orchestration Engine
 
-**Status:** Proprietary (MIT)
+**Status:** Proprietary (GPL-3.0)
 
 The **unheaded-daemon** is the core orchestrator that launches, manages, and coordinates all subsystems (Monad packet processing, Wotan state, Anamnesis events, Shield eBPF pipeline).
 
@@ -182,7 +182,7 @@ The **unheaded-daemon** is the core orchestrator that launches, manages, and coo
 
 #### The Lich: Automated Adversary Framework
 
-**Status:** Proprietary (MIT)
+**Status:** Proprietary (GPL-3.0)
 
 **The Lich** is an automated adversary simulation and attack injection framework. It can:
 - Inject synthetic network events (with Monad headers)
@@ -206,7 +206,7 @@ The **unheaded-daemon** is the core orchestrator that launches, manages, and coo
 
 #### Kingdom Mode (System Identity)
 
-**Status:** Proprietary (MIT)
+**Status:** Proprietary (GPL-3.0)
 
 **Kingdom Mode** is a system identity and governance model. Each Unheaded installation can be deployed in one of several modes:
 
@@ -230,9 +230,9 @@ Kingdom Mode affects:
 
 ---
 
-## Protocol Specifications (MIT / Apache 2.0)
+## Protocol Specifications (GPL-3.0 / Apache 2.0)
 
-The Unheaded Kingdom intentionally publishes some protocol specifications under **permissive licenses (MIT / Apache 2.0)**. This enables ecosystem adoption and prevents third-party submarine patents.
+The Unheaded Kingdom intentionally publishes some protocol specifications under **dual licenses (GPL-3.0 / Apache 2.0)**. This enables ecosystem adoption and prevents third-party submarine patents.
 
 ### Published (or Planned to be Published) Specifications
 
@@ -240,7 +240,7 @@ The Unheaded Kingdom intentionally publishes some protocol specifications under 
 
 **Status:** Planned for publication (IETF Internet-Draft)
 
-**License:** MIT / Apache-2.0 (to be selected)
+**License:** GPL-3.0 / Apache-2.0 (to be selected)
 
 The **Monad Protocol Header** specification describes the 20-byte fixed header format, TLV option encoding, and CRC checksum scheme. This will be submitted to the IETF as an Internet-Draft to establish the Monad Protocol as an open standard.
 
@@ -256,7 +256,7 @@ The **Monad Protocol Header** specification describes the 20-byte fixed header f
 
 **Status:** Planned for publication (IETF Internet-Draft)
 
-**License:** MIT / Apache-2.0 (to be selected)
+**License:** GPL-3.0 / Apache-2.0 (to be selected)
 
 The **UNHEADED_METRIC_V1** specification defines the optional Monad TLV option format for embedding observability metadata directly in packet headers. It includes:
 
@@ -274,7 +274,7 @@ The **UNHEADED_METRIC_V1** specification defines the optional Monad TLV option f
 
 **Status:** Published in `/LICENSE-PROTOCOLS`
 
-**License:** MIT
+**License:** GPL-3.0
 
 A foundational declaration that "protocol specifications published under LICENSE-PROTOCOLS are intentionally permissive to enable ecosystem adoption."
 
@@ -300,7 +300,7 @@ The Unheaded Kingdom incorporates the **doomgeneric** portable DOOM source port 
 **Key points:**
 - GPL v2 code is **confined to the `doom/` directory only**
 - The GPL code is **compiled to MBC bytecode** and runs inside the **eBPF VM sandbox**
-- There is **no linking, compilation merging, or shared address space** with the MIT codebase
+- There is **no linking, compilation merging, or shared address space** with the GPL-3.0 codebase
 - The boundary is enforced by the Linux kernel's eBPF VM sandbox
 - The GPL v2 license **does not apply to any code outside the `doom/` directory**
 
@@ -356,7 +356,7 @@ Include:
 
 ## Trade Secrets
 
-The following information is protected as trade secrets under the MIT license and applicable law:
+The following information is protected as trade secrets under the GPL-3.0 license and applicable law:
 
 | Category | Description | Confidentiality Level |
 |----------|-------------|----------------------|
@@ -370,7 +370,7 @@ The following information is protected as trade secrets under the MIT license an
 
 1. **Access control:** Trade secret information is available only to authorized Unheaded Kingdom maintainers and licensees under NDA.
 2. **Documentation:** Kept in private repositories or encrypted documents. Public documentation abstracts away secret details.
-3. **Source code:** Proprietary algorithms are implemented in closed-source binaries or obfuscated source (for MIT code).
+3. **Source code:** Proprietary algorithms are implemented in closed-source binaries or obfuscated source (for GPL-3.0 code).
 
 ### Disclosure Risk
 
@@ -391,9 +391,9 @@ The Unheaded Kingdom has **not filed any patents** on the core technology. This 
    - Trade secrets can be maintained indefinitely with reasonable security measures.
    - For protocol and infrastructure software, trade secrets offer better protection.
 
-2. **MIT provides business protection.**
-   - The license restricts production use for 4 years, creating a moat.
-   - After 4 years, conversion to Apache 2.0 is automatic (no perpetual control needed).
+2. **GPL-3.0 provides business protection.**
+   - The copyleft requirement ensures modifications are shared back.
+   - The license ensures the code remains open and community-driven.
 
 3. **Publishing protocol specs prevents submarine patents.**
    - By publishing Monad, UNHEADED_METRIC_V1, and other specs under permissive licenses, we establish prior art.
@@ -420,7 +420,7 @@ We are **considering defensive publication** of the **MBC ISA** to prevent third
 
 ### Liability
 
-The Unheaded Kingdom makes **no representation or warranty** regarding patent infringement. See `/LICENSE` (MIT) for liability limitations.
+The Unheaded Kingdom makes **no representation or warranty** regarding patent infringement. See `/LICENSE` (GPL-3.0) for liability limitations.
 
 ---
 
@@ -465,18 +465,18 @@ Portions of the Unheaded Kingdom codebase were generated or improved with assist
 
 | Asset | Type | License | Status | Location |
 |-------|------|---------|--------|----------|
-| Monad Protocol | Proprietary IP | MIT | Core differentiator | /docs/protocol/ |
-| Sophia Dictionary | Proprietary IP | MIT | Core differentiator | /internal/sophia/ |
-| Wotan Memory Model | Proprietary IP | MIT | Core differentiator | /cmd/wotan/ |
-| Anamnesis Event System | Proprietary IP | MIT | Core differentiator | /cmd/trace-collector/ |
-| Shield eBPF Pipeline | Proprietary IP | MIT | Core differentiator | /ebpf-programs/ |
-| MBC ISA | Proprietary IP | MIT | Core differentiator | /specs/ |
-| unheaded-daemon | Proprietary IP | MIT | Core differentiator | /cmd/unheaded-daemon/ |
-| The Lich | Proprietary IP | MIT | Testing framework | /cmd/lich/ |
-| Kingdom Mode | Proprietary IP | MIT | Governance model | /internal/kingdom-mode/ |
-| draft-bellis-unheaded-monad-header | Protocol Spec | MIT/Apache 2.0 | Public spec (planned) | /docs/protocol/ |
-| draft-bellis-unheaded-metric-header-00 | Protocol Spec | MIT/Apache 2.0 | Public spec (planned) | /docs/protocol/ |
-| LICENSE-PROTOCOLS | Permissive | MIT | Public declaration | /LICENSE-PROTOCOLS |
+| Monad Protocol | Proprietary IP | GPL-3.0 | Core differentiator | /docs/protocol/ |
+| Sophia Dictionary | Proprietary IP | GPL-3.0 | Core differentiator | /internal/sophia/ |
+| Wotan Memory Model | Proprietary IP | GPL-3.0 | Core differentiator | /cmd/wotan/ |
+| Anamnesis Event System | Proprietary IP | GPL-3.0 | Core differentiator | /cmd/trace-collector/ |
+| Shield eBPF Pipeline | Proprietary IP | GPL-3.0 | Core differentiator | /ebpf-programs/ |
+| MBC ISA | Proprietary IP | GPL-3.0 | Core differentiator | /specs/ |
+| unheaded-daemon | Proprietary IP | GPL-3.0 | Core differentiator | /cmd/unheaded-daemon/ |
+| The Lich | Proprietary IP | GPL-3.0 | Testing framework | /cmd/lich/ |
+| Kingdom Mode | Proprietary IP | GPL-3.0 | Governance model | /internal/kingdom-mode/ |
+| draft-bellis-unheaded-monad-header | Protocol Spec | GPL-3.0/Apache 2.0 | Public spec (planned) | /docs/protocol/ |
+| draft-bellis-unheaded-metric-header-00 | Protocol Spec | GPL-3.0/Apache 2.0 | Public spec (planned) | /docs/protocol/ |
+| LICENSE-PROTOCOLS | Dual License | GPL-3.0/Apache 2.0 | Public declaration | /LICENSE-PROTOCOLS |
 | DOOM subsystem | Open Source | GPL v2.0 | Isolated | /doom/doomgeneric/ |
 | Doom1.wad | Shareware | id Software | Game data | /doom/doom1.wad (not in repo) |
 | Unheaded, The Unheaded Kingdom, Monad Protocol, etc. | Trademarks | Unregistered | Claimed | All products |

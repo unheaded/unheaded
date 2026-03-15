@@ -1,13 +1,13 @@
 # Suricata GPL-2.0 Isolation Boundary Documentation
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 
 ## Overview
 
 Suricata (https://suricata.io) is licensed under the GNU General Public License, version 2.0 (GPL-2.0).
-The Unheaded Kingdom codebase is licensed under the MIT License. This document defines the
-legal isolation boundary between the two codebases, ensuring MIT-licensed Unheaded code
-does not trigger GPL copyleft obligations.
+The Unheaded Kingdom codebase is licensed under the GPL-3.0 License. This document defines the
+legal isolation boundary between the two codebases, ensuring clear separation between
+GPL-3.0-licensed Unheaded code and GPL-2.0-licensed Suricata code.
 
 ## Isolation Principle
 
@@ -31,11 +31,11 @@ The LGPL FAQ (applicable by analogy) and FSF guidance both confirm that the outp
 GPL program is not automatically GPL. The bridge is clearly a separate, independently
 developed work that happens to consume Suricata's output.
 
-**SPDX boundary**: `pkg/anamnesis/suricata.go` — SPDX-License-Identifier: MIT. Zero GPL code.
+**SPDX boundary**: `pkg/anamnesis/suricata.go` — SPDX-License-Identifier: GPL-3.0-or-later. Zero Suricata GPL-2.0 code.
 
 ## Interaction Point 2: BPF Map Sharing
 
-**How it works**: The Shield eBPF program (MIT-licensed) pins BPF maps to `/sys/fs/bpf/unheaded/`.
+**How it works**: The Shield eBPF program (GPL-3.0-licensed) pins BPF maps to `/sys/fs/bpf/unheaded/`.
 The Suricata AF_PACKET eBPF bypass (GPL-2.0 Suricata code) reads from these maps to determine
 which flows to bypass. The maps are shared via the Linux BPF virtual filesystem.
 
@@ -47,7 +47,7 @@ eBPF program is a derivative of the other — they share data through the kernel
 source-level linking. This is identical in principle to two processes sharing POSIX shared
 memory via `mmap(2)`.
 
-**SPDX boundary**: Shield eBPF programs — SPDX-License-Identifier: MIT (GPL-2.0 kernel
+**SPDX boundary**: Shield eBPF programs — SPDX-License-Identifier: GPL-3.0-or-later (GPL-2.0 kernel
 headers included via GPL-2.0-WITH-Linux-syscall-note exception, which is standard).
 
 ## Interaction Point 3: Unix Socket Command Interface
@@ -73,11 +73,11 @@ source code. Suricata is installed from:
 - LXD: Separate `lxd/containers/suricata.yaml` defines an isolated system container
 
 In all cases, the GPL obligation applies to the Suricata binary/container only, not to
-any MIT-licensed Unheaded component.
+any GPL-3.0-licensed Unheaded component.
 
 ## Conclusion
 
-The Unheaded Kingdom's MIT license is unaffected by the Suricata GPL-2.0 license.
+The Unheaded Kingdom's GPL-3.0 license is unaffected by the Suricata GPL-2.0 license.
 The three interaction points documented above (EVE JSON file, BPF map sharing via syscall,
 Unix socket IPC) all operate at well-recognized process/OS-level boundaries that do not
 trigger GPL copyleft propagation. This isolation is by design and must be maintained.

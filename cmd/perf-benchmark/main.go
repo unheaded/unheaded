@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 // perf-benchmark is the Unheaded performance benchmarking harness.
 // It measures latency across the P2P link, WireGuard overlay, HTTP services,
