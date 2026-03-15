@@ -9,8 +9,8 @@ set -euo pipefail
 ###############################################################################
 WEST_P2P="192.168.13.2"
 EAST_P2P="192.168.13.1"
-WEST_WG="fd00:dead:beef::2"
-EAST_WG="fd00:dead:beef::1"
+WEST_WG="fd00:dead:beef::1"
+EAST_WG="fd00:dead:beef::2"
 WG_IFACE="wg0"
 REMOTE_USER="govan"
 PING_COUNT=10
