@@ -355,7 +355,7 @@ Estimated performance: ~1/10th native speed minimum.
 But it would BOOT. And that's the point.
 
 The showcase: "I built a computer from a network protocol and booted Linux on it."
-That's the resume line. That's the conversation starter. That's the proof of concept.
+That's the proof of concept. That's the conversation starter. That's computational completeness demonstrated.
 
 GPL ensures anyone can study how. Fork it. Improve it. The protocol is free.
 

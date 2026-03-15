@@ -3,7 +3,7 @@
 **Date**: 2026-03-11
 **Sprint**: S-ZHEN — Local LLM/RAG → RAFT Pipeline for Unheaded
 **Prerequisite**: WEST bare metal online, AMD RX 7700 XT, ~/tmp/unheaded/ populated, 1GB fiber internet (125MB/s)
-**Target**: Local RAG demo-ready by Sunday Mar 15. RAFT data ingestion pipeline running by Tuesday Mar 17 job fair.
+**Target**: Local RAG demo-ready by Sunday Mar 15. RAFT data ingestion pipeline running by Tuesday Mar 17.
 **Estimated Duration**: 24-30 hours across 7 days (Wed-Tue)
 **Agent Strategy**: Phases 0-2 sequential, Phase 2.5 parallel with all, Phases 3-4 parallelizable, Phases 5-8 sequential, Phase 9 independent
 **Commit Cadence**: Every 4 steps
@@ -1497,7 +1497,7 @@ ls -lh ~/tmp/unheaded/raft/demo* ~/tmp/unheaded/raft/DEMO*
 
 **Goal**: Ingest Killer Combo corpus (440GB), prepare expanded embeddings, rebuild FAISS index for full retrieval.
 
-**Timeline**: Runs Monday Mar 16 - Tuesday Mar 17 (while job fair happening)
+**Timeline**: Runs Monday Mar 16 - Tuesday Mar 17
 
 ### Step-by-Step Detailed Commands
 
@@ -2315,7 +2315,7 @@ rocm-smi --showtemp
 
 **Status**: BATTLE PLAN COMPLETE — Ready for deployment
 **Sprint Dates**: Wed Mar 11 - Tue Mar 17, 2026
-**Milestone 1**: Zhen online for job fair presentation (Sun Mar 15)
+**Milestone 1**: Zhen online (Sun Mar 15)
 **Milestone 2**: RAFT pipeline ingesting Killer Combo (Tue Mar 17)
 
 ---
