@@ -1,0 +1,3118 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "unheaded-rust-dependencies",
+  "documentNamespace": "https://github.com/unheaded/unheaded/sbom/rust",
+  "creationInfo": {
+    "created": "2026-03-15T00:00:00Z",
+    "creators": [
+      "Tool: cargo-lock-parser",
+      "Organization: Unheaded"
+    ]
+  },
+  "summary": {
+    "totalExternalCrates": 346,
+    "workspaceCrates": [
+      "af-xdp",
+      "af-xdp-common",
+      "anomaly-ebpf",
+      "canary-ebpf",
+      "collector",
+      "compliance-ebpf",
+      "ebpf-common",
+      "ebpf-loader",
+      "ebpf-programs",
+      "failover-ebpf",
+      "firewall-ebpf",
+      "flow-tracker",
+      "hop-ebpf",
+      "latency-probe",
+      "maglev-ebpf",
+      "monad-common",
+      "monad-cpu-ebpf",
+      "monad-mbc",
+      "monad-mbc-fuzz",
+      "nfv-ebpf",
+      "packet-marker",
+      "pqc-common",
+      "qos-ebpf",
+      "shield-ebpf",
+      "syscall-tracer",
+      "trace-collector",
+      "unheaded-common",
+      "version-ebpf",
+      "xdp-redirect",
+      "yaldabaoth-ebpf"
+    ],
+    "licenseSummary": {
+      "MIT OR Apache-2.0 (assumed)": 231,
+      "MIT OR Apache-2.0": 79,
+      "MIT": 27,
+      "Apache-2.0": 8,
+      "Unlicense OR MIT": 1
+    },
+    "lockFiles": [
+      "cmd/ebpf-collector/Cargo.lock",
+      "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+      "cmd/ebpf-loader/Cargo.lock",
+      "cmd/trace-collector/Cargo.lock",
+      "crates/monad-mbc/Cargo.lock",
+      "crates/monad-mbc/fuzz/Cargo.lock",
+      "ebpf/Cargo.lock",
+      "ebpf/af-xdp/Cargo.lock"
+    ]
+  },
+  "packages": [
+    {
+      "crate": "adler2",
+      "version": "2.0.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aho-corasick",
+      "version": "1.1.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "allocator-api2",
+      "version": "0.2.21",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "anstream",
+      "version": "0.6.21",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "anstyle",
+      "version": "1.0.13",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "anstyle-parse",
+      "version": "0.2.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "anstyle-query",
+      "version": "1.1.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "anstyle-wincon",
+      "version": "3.0.11",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "anyhow",
+      "version": "1.0.101",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "arbitrary",
+      "version": "1.4.2",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "assert_matches",
+      "version": "1.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "async-stream",
+      "version": "0.3.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "async-stream-impl",
+      "version": "0.3.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "async-trait",
+      "version": "0.1.89",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "atomic-waker",
+      "version": "1.1.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "autocfg",
+      "version": "1.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "axum",
+      "version": "0.7.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "axum",
+      "version": "0.6.20",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "axum-core",
+      "version": "0.4.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "axum-core",
+      "version": "0.3.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya",
+      "version": "0.13.1",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-build",
+      "version": "0.1.3",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-ebpf",
+      "version": "0.1.1",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-ebpf-bindings",
+      "version": "0.1.2",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-ebpf-cty",
+      "version": "0.2.3",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-ebpf-macros",
+      "version": "0.1.2",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-log",
+      "version": "0.2.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-log-common",
+      "version": "0.1.15",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-log-ebpf",
+      "version": "0.1.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-log-ebpf-macros",
+      "version": "0.1.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-log-parser",
+      "version": "0.1.13",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "aya-obj",
+      "version": "0.2.1",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "base64",
+      "version": "0.22.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "base64",
+      "version": "0.21.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bitflags",
+      "version": "2.11.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bitflags",
+      "version": "2.10.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bitflags",
+      "version": "1.3.2",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "block-buffer",
+      "version": "0.10.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "block2",
+      "version": "0.6.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "byteorder",
+      "version": "1.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "bytes",
+      "version": "1.11.1",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "camino",
+      "version": "1.2.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cargo-platform",
+      "version": "0.3.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cargo_metadata",
+      "version": "0.23.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cc",
+      "version": "1.2.56",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cc",
+      "version": "1.2.55",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cfg-if",
+      "version": "1.0.4",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cfg_aliases",
+      "version": "0.2.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "clap",
+      "version": "4.5.59",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "clap",
+      "version": "4.5.57",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "clap_builder",
+      "version": "4.5.59",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "clap_builder",
+      "version": "4.5.57",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "clap_derive",
+      "version": "4.5.55",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "clap_lex",
+      "version": "1.0.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "clap_lex",
+      "version": "0.7.7",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "colorchoice",
+      "version": "1.0.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "core-error",
+      "version": "0.0.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "cpufeatures",
+      "version": "0.2.17",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crc32fast",
+      "version": "1.5.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crossbeam",
+      "version": "0.8.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crossbeam-channel",
+      "version": "0.5.15",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crossbeam-deque",
+      "version": "0.8.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crossbeam-epoch",
+      "version": "0.9.18",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crossbeam-queue",
+      "version": "0.3.12",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crossbeam-utils",
+      "version": "0.8.21",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "crypto-common",
+      "version": "0.1.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ctrlc",
+      "version": "3.5.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "data-encoding",
+      "version": "2.10.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "digest",
+      "version": "0.10.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "dispatch2",
+      "version": "0.3.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "displaydoc",
+      "version": "0.2.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "either",
+      "version": "1.15.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "env_filter",
+      "version": "1.0.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "env_filter",
+      "version": "0.1.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "env_logger",
+      "version": "0.11.9",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "env_logger",
+      "version": "0.11.8",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "equivalent",
+      "version": "1.0.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "errno",
+      "version": "0.3.14",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "fastrand",
+      "version": "2.3.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "find-msvc-tools",
+      "version": "0.1.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "fixedbitset",
+      "version": "0.5.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "fixedbitset",
+      "version": "0.4.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "flate2",
+      "version": "1.1.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "fnv",
+      "version": "1.0.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "foldhash",
+      "version": "0.1.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "form_urlencoded",
+      "version": "1.2.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-channel",
+      "version": "0.3.32",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-channel",
+      "version": "0.3.31",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-core",
+      "version": "0.3.32",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-core",
+      "version": "0.3.31",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-macro",
+      "version": "0.3.31",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-sink",
+      "version": "0.3.32",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-sink",
+      "version": "0.3.31",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-task",
+      "version": "0.3.32",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-task",
+      "version": "0.3.31",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-util",
+      "version": "0.3.32",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "futures-util",
+      "version": "0.3.31",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "generic-array",
+      "version": "0.14.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "getrandom",
+      "version": "0.2.17",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "getrandom",
+      "version": "0.4.1",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "getrandom",
+      "version": "0.3.4",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "goblin",
+      "version": "0.8.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "h2",
+      "version": "0.4.13",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "h2",
+      "version": "0.3.27",
+      "license": "MIT",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hashbrown",
+      "version": "0.12.3",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hashbrown",
+      "version": "0.15.5",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hashbrown",
+      "version": "0.16.1",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "heck",
+      "version": "0.5.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hostname",
+      "version": "0.3.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "http",
+      "version": "1.4.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "http",
+      "version": "0.2.12",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "http-body",
+      "version": "1.0.1",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "http-body",
+      "version": "0.4.6",
+      "license": "MIT",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "http-body-util",
+      "version": "0.1.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "httparse",
+      "version": "1.10.1",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "httpdate",
+      "version": "1.0.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hyper",
+      "version": "1.8.1",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hyper",
+      "version": "0.14.32",
+      "license": "MIT",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hyper-timeout",
+      "version": "0.5.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hyper-timeout",
+      "version": "0.4.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "hyper-util",
+      "version": "0.1.20",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "icu_collections",
+      "version": "2.1.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "icu_locale_core",
+      "version": "2.1.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "icu_normalizer",
+      "version": "2.1.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "icu_normalizer_data",
+      "version": "2.1.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "icu_properties",
+      "version": "2.1.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "icu_properties_data",
+      "version": "2.1.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "icu_provider",
+      "version": "2.1.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "id-arena",
+      "version": "2.3.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "idna",
+      "version": "1.1.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "idna_adapter",
+      "version": "1.2.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "indexmap",
+      "version": "1.9.3",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "indexmap",
+      "version": "2.13.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "is_terminal_polyfill",
+      "version": "1.70.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "itertools",
+      "version": "0.14.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "itertools",
+      "version": "0.12.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "itoa",
+      "version": "1.0.17",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "jiff",
+      "version": "0.2.20",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "jiff",
+      "version": "0.2.19",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "jiff-static",
+      "version": "0.2.20",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "jiff-static",
+      "version": "0.2.19",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "jobserver",
+      "version": "0.1.34",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "lazy_static",
+      "version": "1.5.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "leb128fmt",
+      "version": "0.1.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "libc",
+      "version": "0.2.182",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "libc",
+      "version": "0.2.181",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "libc",
+      "version": "0.2.180",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "libfuzzer-sys",
+      "version": "0.4.12",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "linux-raw-sys",
+      "version": "0.11.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "litemap",
+      "version": "0.8.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "lock_api",
+      "version": "0.4.14",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "log",
+      "version": "0.4.29",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "match_cfg",
+      "version": "0.1.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "matchers",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "matchit",
+      "version": "0.7.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "memchr",
+      "version": "2.8.0",
+      "license": "Unlicense OR MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "memmap2",
+      "version": "0.9.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "mime",
+      "version": "0.3.17",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "miniz_oxide",
+      "version": "0.8.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "mio",
+      "version": "1.1.1",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "multimap",
+      "version": "0.10.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "nix",
+      "version": "0.30.1",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "nix",
+      "version": "0.27.1",
+      "license": "MIT",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "nu-ansi-term",
+      "version": "0.50.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "num_enum",
+      "version": "0.7.5",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "num_enum_derive",
+      "version": "0.7.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "objc2",
+      "version": "0.6.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "objc2-encode",
+      "version": "4.1.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "object",
+      "version": "0.36.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "once_cell",
+      "version": "1.21.3",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "once_cell_polyfill",
+      "version": "1.70.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "parking_lot",
+      "version": "0.12.5",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "parking_lot_core",
+      "version": "0.9.12",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "percent-encoding",
+      "version": "2.3.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "petgraph",
+      "version": "0.7.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "petgraph",
+      "version": "0.6.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "pin-project",
+      "version": "1.1.10",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "pin-project-internal",
+      "version": "1.1.10",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "pin-project-lite",
+      "version": "0.2.16",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "pin-utils",
+      "version": "0.1.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "plain",
+      "version": "0.2.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "portable-atomic",
+      "version": "1.13.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "portable-atomic-util",
+      "version": "0.2.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "potential_utf",
+      "version": "0.1.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ppv-lite86",
+      "version": "0.2.21",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prettyplease",
+      "version": "0.2.37",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "proc-macro2",
+      "version": "1.0.106",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "proc-macro2-diagnostics",
+      "version": "0.10.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prometheus",
+      "version": "0.13.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prost",
+      "version": "0.13.5",
+      "license": "Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prost",
+      "version": "0.12.6",
+      "license": "Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prost-build",
+      "version": "0.13.5",
+      "license": "Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prost-build",
+      "version": "0.12.6",
+      "license": "Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prost-derive",
+      "version": "0.13.5",
+      "license": "Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prost-derive",
+      "version": "0.12.6",
+      "license": "Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prost-types",
+      "version": "0.13.5",
+      "license": "Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "prost-types",
+      "version": "0.12.6",
+      "license": "Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "protobuf",
+      "version": "2.28.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "quote",
+      "version": "1.0.44",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "r-efi",
+      "version": "5.3.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rand",
+      "version": "0.8.5",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rand_chacha",
+      "version": "0.3.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rand_core",
+      "version": "0.6.4",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "redox_syscall",
+      "version": "0.5.18",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "regex",
+      "version": "1.12.3",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "regex-automata",
+      "version": "0.4.14",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "regex-syntax",
+      "version": "0.8.9",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ring",
+      "version": "0.17.14",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustix",
+      "version": "1.1.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustls",
+      "version": "0.23.36",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustls",
+      "version": "0.21.12",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustls-pemfile",
+      "version": "1.0.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustls-pki-types",
+      "version": "1.14.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustls-webpki",
+      "version": "0.103.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustls-webpki",
+      "version": "0.101.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "rustversion",
+      "version": "1.0.22",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "scopeguard",
+      "version": "1.2.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "scroll",
+      "version": "0.12.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "scroll_derive",
+      "version": "0.12.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "sct",
+      "version": "0.7.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "semver",
+      "version": "1.0.27",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "serde",
+      "version": "1.0.228",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "serde_core",
+      "version": "1.0.228",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "serde_derive",
+      "version": "1.0.228",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "serde_json",
+      "version": "1.0.149",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "serde_spanned",
+      "version": "0.6.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "sha1",
+      "version": "0.10.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "sharded-slab",
+      "version": "0.1.7",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "shlex",
+      "version": "1.3.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "signal-hook-registry",
+      "version": "1.4.8",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "simd-adler32",
+      "version": "0.3.8",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "slab",
+      "version": "0.4.12",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "smallvec",
+      "version": "1.15.1",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "socket2",
+      "version": "0.5.10",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "socket2",
+      "version": "0.6.2",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "stable_deref_trait",
+      "version": "1.2.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "strsim",
+      "version": "0.11.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "subtle",
+      "version": "2.6.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "syn",
+      "version": "2.0.116",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/monad-mbc/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "syn",
+      "version": "2.0.114",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "syn",
+      "version": "2.0.117",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "sync_wrapper",
+      "version": "1.0.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "sync_wrapper",
+      "version": "0.1.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "synstructure",
+      "version": "0.13.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tempfile",
+      "version": "3.25.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tempfile",
+      "version": "3.24.0",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "thiserror",
+      "version": "1.0.69",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "thiserror",
+      "version": "2.0.18",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "thiserror-impl",
+      "version": "1.0.69",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "thiserror-impl",
+      "version": "2.0.18",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "thread_local",
+      "version": "1.1.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tinystr",
+      "version": "0.8.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tokio",
+      "version": "1.49.0",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tokio-io-timeout",
+      "version": "1.2.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tokio-macros",
+      "version": "2.6.0",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tokio-rustls",
+      "version": "0.24.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tokio-stream",
+      "version": "0.1.18",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tokio-tungstenite",
+      "version": "0.21.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tokio-util",
+      "version": "0.7.18",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "toml",
+      "version": "0.8.23",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "toml_datetime",
+      "version": "0.6.11",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "toml_edit",
+      "version": "0.22.27",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "toml_write",
+      "version": "0.1.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tonic",
+      "version": "0.12.3",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tonic",
+      "version": "0.10.2",
+      "license": "MIT",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tonic-build",
+      "version": "0.12.3",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tonic-build",
+      "version": "0.10.2",
+      "license": "MIT",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tower",
+      "version": "0.4.13",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tower",
+      "version": "0.5.3",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tower-layer",
+      "version": "0.3.3",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tower-service",
+      "version": "0.3.3",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tracing",
+      "version": "0.1.44",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tracing-attributes",
+      "version": "0.1.31",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tracing-core",
+      "version": "0.1.36",
+      "license": "MIT",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tracing-log",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tracing-serde",
+      "version": "0.2.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tracing-subscriber",
+      "version": "0.3.22",
+      "license": "MIT",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "try-lock",
+      "version": "0.2.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "tungstenite",
+      "version": "0.21.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "typenum",
+      "version": "1.19.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "unicode-ident",
+      "version": "1.0.24",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "crates/monad-mbc/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "unicode-ident",
+      "version": "1.0.23",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/ebpf-loader/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "unicode-ident",
+      "version": "1.0.22",
+      "license": "MIT OR Apache-2.0",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "unicode-xid",
+      "version": "0.2.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "untrusted",
+      "version": "0.9.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "ureq",
+      "version": "2.12.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "url",
+      "version": "2.5.8",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "utf-8",
+      "version": "0.7.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "utf8_iter",
+      "version": "1.0.4",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "utf8parse",
+      "version": "0.2.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "valuable",
+      "version": "0.1.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "version_check",
+      "version": "0.9.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "want",
+      "version": "0.3.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wasi",
+      "version": "0.11.1+wasi-snapshot-preview1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wasip2",
+      "version": "1.0.2+wasi-0.2.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wasip3",
+      "version": "0.4.0+wasi-0.3.0-rc-2026-01-06",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wasm-encoder",
+      "version": "0.244.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wasm-metadata",
+      "version": "0.244.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wasmparser",
+      "version": "0.244.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "webpki-roots",
+      "version": "0.26.11",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "webpki-roots",
+      "version": "1.0.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "winapi",
+      "version": "0.3.9",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "winapi-i686-pc-windows-gnu",
+      "version": "0.4.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "winapi-x86_64-pc-windows-gnu",
+      "version": "0.4.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-link",
+      "version": "0.2.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-sys",
+      "version": "0.52.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-sys",
+      "version": "0.60.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-sys",
+      "version": "0.61.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-loader/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-targets",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows-targets",
+      "version": "0.53.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_aarch64_gnullvm",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_aarch64_gnullvm",
+      "version": "0.53.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_aarch64_msvc",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_aarch64_msvc",
+      "version": "0.53.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_i686_gnu",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_i686_gnu",
+      "version": "0.53.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_i686_gnullvm",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_i686_gnullvm",
+      "version": "0.53.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_i686_msvc",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_i686_msvc",
+      "version": "0.53.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_x86_64_gnu",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_x86_64_gnu",
+      "version": "0.53.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_x86_64_gnullvm",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_x86_64_gnullvm",
+      "version": "0.53.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_x86_64_msvc",
+      "version": "0.52.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "windows_x86_64_msvc",
+      "version": "0.53.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "winnow",
+      "version": "0.7.14",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wit-bindgen",
+      "version": "0.51.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock",
+        "crates/monad-mbc/fuzz/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wit-bindgen-core",
+      "version": "0.51.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wit-bindgen-rust",
+      "version": "0.51.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wit-bindgen-rust-macro",
+      "version": "0.51.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wit-component",
+      "version": "0.244.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "wit-parser",
+      "version": "0.244.0",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "writeable",
+      "version": "0.6.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "yoke",
+      "version": "0.8.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "yoke-derive",
+      "version": "0.8.1",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zerocopy",
+      "version": "0.8.39",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zerocopy-derive",
+      "version": "0.8.39",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zerofrom",
+      "version": "0.1.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zerofrom-derive",
+      "version": "0.1.6",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zeroize",
+      "version": "1.8.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zerotrie",
+      "version": "0.2.3",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zerovec",
+      "version": "0.11.5",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zerovec-derive",
+      "version": "0.11.2",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/trace-collector/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zmij",
+      "version": "1.0.21",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/ebpf-collector/Cargo.lock",
+        "cmd/ebpf-collector/ebpf-programs/Cargo.lock"
+      ]
+    },
+    {
+      "crate": "zmij",
+      "version": "1.0.19",
+      "license": "MIT OR Apache-2.0 (assumed)",
+      "found_in": [
+        "cmd/trace-collector/Cargo.lock",
+        "ebpf/Cargo.lock"
+      ]
+    }
+  ]
+}

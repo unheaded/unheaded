@@ -131,8 +131,7 @@ htmlcov/
 .nox/
 *-results.txt
 
-# ─── SBOM output ───
-sbom/
+# ─── SBOM output (old scan results) ───
 sbom-results/
 
 # ─── Docker ───
