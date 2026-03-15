@@ -83,6 +83,12 @@ pub fn disasm_insn(word: u32, addr: u32) -> String {
         op::LDH => format!("LDH  r{}, [r{}+{}]", dst, src, imm),
         op::STH => format!("STH  [r{}+{}], r{}", dst, imm, src),
 
+        // Atomic operations (Level 6)
+        op::CLI => "CLI".to_string(),
+        op::STI => "STI".to_string(),
+        op::XCHG => format!("XCHG r{}, [r{}+{}]", dst, src, imm),
+        op::CAS => "CAS  r0, [r1], r2".to_string(),
+
         op::SYSCALL => {
             // Show named aliases for common syscall numbers
             match imm_u {
