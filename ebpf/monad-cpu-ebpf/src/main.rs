@@ -184,9 +184,13 @@ const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: io
 /// Each XDP invocation executes up to N MBC instructions.
 /// BPF verifier limits: 8192 jump complexity, 1M processed insns.
 /// Verifier state-explores each opcode branch per iteration.
-/// Tuned for maximum throughput within BPF verifier limits.
-/// 320+ exceeds the 1M verifier insn limit on this kernel.
-const MAX_INSN_PER_TICK: usize = 256;
+/// Each iteration costs ~3900 verifier states (many opcode branches + map ops).
+/// 256 → exceeds 1M verifier insn limit (opcode branches × iterations × inner loops).
+/// 64 → ~250K verifier insns (safe margin for complex opcode handlers).
+/// Compensate with higher tick rate from injector (2000+ Hz).
+/// Computermancer: throughput = MAX_INSN_PER_TICK × tick_rate. At 2000 Hz:
+/// 64 × 2000 = 128K insns/sec (sufficient for Doom at ~100K insns/frame × 35 fps).
+const MAX_INSN_PER_TICK: usize = 16;
 
 // ── Wire-format helpers ───────────────────────────────────────────────────────
 
@@ -555,17 +559,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 cpu.pc = cpu.pc.wrapping_add(branch_offset as u32);
             }
         } else if opc == op::CALL {
-            // Push PC (already incremented = return address) to stack.
-            // SP is byte address; each stack entry is 4 bytes.
-            let old_pc = cpu.pc.wrapping_sub(1); // PC of this CALL instruction
-            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
-            let word_addr = cpu.regs[15] >> 2;
-            mem_write_word(word_addr, cpu.pc);
-            // Extended addressing: use all 24 bits below opcode for target.
+            // Link register semantics (RV32I ABI compatible):
+            // Store return address (current PC, already incremented) in r14 (LR).
+            // The compiled code's prologue handles saving r14 to the stack.
+            // No stack manipulation here — that's the compiler's job.
+            //
+            // This matches RV32I `jal x1, target`: x1=PC+4, PC=target.
+            // x1(ra) maps to MBC r14.
+            cpu.regs[14] = cpu.pc; // LR = return address
             let target = insn_word & 0x00FF_FFFF;
             cpu.pc = target;
-            // Restart: log but don't halt — let CPU restart from _start
             if cpu.pc == 0 {
+                let old_pc = cpu.pc.wrapping_sub(1);
                 mem_write_word(0xE0000 >> 2, 0xDEAD0001);
                 mem_write_word(0xE0004 >> 2, 0x27);
                 mem_write_word(0xE0008 >> 2, old_pc);
@@ -609,31 +614,29 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
         } else if opc == op::CALLR {
             // Indirect call with RV32I→MBC address translation.
-            // SP is byte address; each stack entry is 4 bytes.
-            let old_pc = cpu.pc.wrapping_sub(1); // PC of this CALLR instruction
-            cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
-            let word_addr = cpu.regs[15] >> 2;
-            mem_write_word(word_addr, cpu.pc);
+            // Link register semantics: store return address in r14 (LR).
+            // No stack manipulation — the compiler's prologue handles ra save.
+            //
+            // This matches RV32I `jalr x1, 0(rs1)`: x1=PC+4, PC=regs[rs1].
+            // x1(ra) maps to MBC r14.
+            let old_pc = cpu.pc.wrapping_sub(1);
+            cpu.regs[14] = cpu.pc; // LR = return address
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
                 Some(mbc_idx) => *mbc_idx,
                 None => {
-                    // Bug 20 fix: Unmapped CALLR — skip instead of halting.
-                    // Undo the stack push (SP was decremented, return addr written)
-                    // so the stack stays balanced when this function eventually returns.
-                    cpu.regs[15] = cpu.regs[15].wrapping_add(4);
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0003); // sentinel (unmapped CALLR)
-                    mem_write_word(0xE0004 >> 2, opc as u32); // 0x2A = CALLR
-                    mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of CALLR insn
-                    mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP (restored)
-                    mem_write_word(0xE0014 >> 2, rv_word); // RV word index
+                    // Unmapped CALLR — skip (no stack to undo now).
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0003);
+                    mem_write_word(0xE0004 >> 2, opc as u32);
+                    mem_write_word(0xE0008 >> 2, old_pc);
+                    mem_write_word(0xE000C >> 2, rv_addr);
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                    mem_write_word(0xE0014 >> 2, rv_word);
                     increment_stat(STAT_ROM_FAULT);
-                    cpu.pc // keep PC at next instruction (skip the CALLR)
+                    cpu.pc // skip
                 }
             };
-            // Restart: log but don't halt
             if cpu.pc == 0 {
                 mem_write_word(0xE0000 >> 2, 0xDEAD0001);
                 mem_write_word(0xE0004 >> 2, opc as u32);
@@ -643,23 +646,22 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 increment_stat(STAT_ROM_FAULT);
             }
         } else if opc == op::RET {
-            // SP is byte address; each stack entry is 4 bytes.
-            let word_addr = cpu.regs[15] >> 2;
-            let ret = mem_read_word(word_addr);
-            cpu.regs[15] = cpu.regs[15].wrapping_add(4);
-            // RET popping 0: allow restart from _start instead of halting.
-            // In the MBC VM, stack corruption from I_Error/rendering is expected.
-            // Restarting from _start re-initializes DOOM and the CPU recovers.
-            // Write diagnostic (overwritten on each occurrence) but don't halt.
+            // Link register return: jump to address in r14 (LR).
+            // The compiled code's epilogue restores r14 from the stack
+            // before executing RET, so r14 always holds the correct
+            // return address.
+            //
+            // This matches RV32I `jalr x0, 0(x1)`: PC = x1(ra).
+            // x1(ra) maps to MBC r14.
+            let ret = cpu.regs[14];
             if ret == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001); // sentinel
-                mem_write_word(0xE0004 >> 2, 0x28); // RET opcode
-                mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1)); // PC of RET insn
-                mem_write_word(0xE000C >> 2, ret); // popped value (0)
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP after pop
-                mem_write_word(0xE0014 >> 2, word_addr); // stack word addr
+                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                mem_write_word(0xE0004 >> 2, 0x28);
+                mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1));
+                mem_write_word(0xE000C >> 2, ret);
+                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                mem_write_word(0xE0014 >> 2, cpu.regs[14]);
                 increment_stat(STAT_ROM_FAULT);
-                // Don't halt — let CPU restart from _start (PC=0)
             }
             cpu.pc = ret;
 
@@ -790,8 +792,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         };
                         let mut written: u32 = 0;
                         let mut h = head;
-                        // Bounded loop: write up to 256 bytes per syscall (BPF verifier limit)
-                        let max_write = if len < 256 { len } else { 256 };
+                        // Bounded loop: write up to 16 bytes per syscall (BPF verifier friendly)
+                        let max_write = if len < 16 { len } else { 16 };
                         let mut b: u32 = 0;
                         while b < max_write {
                             let byte_val = mem_read_byte(buf_addr.wrapping_add(b));
@@ -927,14 +929,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[0] = 0; // success
                 } else if syscall_nr == lsys::SYS_READ_BLOCK {
                     // SYS_READ_BLOCK(200): r1=block_num, r2=buf_addr (dest in RAM).
-                    // Copy 128 words (512 bytes) from ramdisk to destination buffer.
+                    // Copy 16 words per tick (verifier-friendly). Full 128-word block
+                    // completes over 8 ticks using r3 as progress counter.
+                    // Computermancer: DMA-style chunked transfer — 16 words/tick avoids
+                    // verifier blowup from 128-iteration inner loop.
                     let block_num = cpu.regs[1];
                     let buf_addr = cpu.regs[2];
+                    let progress = cpu.regs[3]; // word offset within block (0..128)
                     if block_num < blk::TOTAL_BLOCKS {
-                        let src_base = blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK;
-                        let dst_base = buf_addr >> 2;
+                        let src_base = blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK + progress;
+                        let dst_base = (buf_addr >> 2) + progress;
                         let mut w: u32 = 0;
-                        while w < 128 {
+                        while w < 16 {
                             let val = match RAM_MAP.get(src_base + w) {
                                 Some(v) => *v,
                                 None => 0,
@@ -944,21 +950,32 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             }
                             w += 1;
                         }
-                        cpu.regs[0] = blk::BLOCK_SIZE; // 512 bytes read
-                        increment_stat(STAT_BLOCK_OPS);
+                        let next_progress = progress + 16;
+                        if next_progress >= 128 {
+                            // Block complete
+                            cpu.regs[0] = blk::BLOCK_SIZE; // 512 bytes read
+                            cpu.regs[3] = 0;
+                            increment_stat(STAT_BLOCK_OPS);
+                        } else {
+                            // More chunks needed — re-execute this syscall next tick
+                            cpu.regs[3] = next_progress;
+                            cpu.pc = cpu.pc.wrapping_sub(1); // back up PC to re-execute
+                            break; // yield this tick
+                        }
                     } else {
                         cpu.regs[0] = (-(lsys::EIO as i32)) as u32;
                     }
                 } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
                     // SYS_WRITE_BLOCK(201): r1=block_num, r2=buf_addr (src in RAM).
-                    // Copy 128 words (512 bytes) from source buffer to ramdisk.
+                    // Chunked: 16 words per tick, r3 = progress counter.
                     let block_num = cpu.regs[1];
                     let buf_addr = cpu.regs[2];
+                    let progress = cpu.regs[3];
                     if block_num < blk::TOTAL_BLOCKS {
-                        let dst_base = blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK;
-                        let src_base = buf_addr >> 2;
+                        let dst_base = blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK + progress;
+                        let src_base = (buf_addr >> 2) + progress;
                         let mut w: u32 = 0;
-                        while w < 128 {
+                        while w < 16 {
                             let val = match RAM_MAP.get(src_base + w) {
                                 Some(v) => *v,
                                 None => 0,
@@ -968,8 +985,16 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             }
                             w += 1;
                         }
-                        cpu.regs[0] = blk::BLOCK_SIZE; // 512 bytes written
-                        increment_stat(STAT_BLOCK_OPS);
+                        let next_progress = progress + 16;
+                        if next_progress >= 128 {
+                            cpu.regs[0] = blk::BLOCK_SIZE; // 512 bytes written
+                            cpu.regs[3] = 0;
+                            increment_stat(STAT_BLOCK_OPS);
+                        } else {
+                            cpu.regs[3] = next_progress;
+                            cpu.pc = cpu.pc.wrapping_sub(1);
+                            break;
+                        }
                     } else {
                         cpu.regs[0] = (-(lsys::EIO as i32)) as u32;
                     }
@@ -1069,8 +1094,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[0] = 0;
                 } else if syscall_nr == lsys::SYS_FLUSH_TLB {
                     // SYS_FLUSH_TLB(252): invalidate all TLB entries.
-                    let mut idx: u32 = 0;
-                    while idx < 64 {
+                    // Chunked: 8 entries per tick (verifier friendly). r3 = progress.
+                    let progress = cpu.regs[3];
+                    let mut idx: u32 = progress;
+                    let end = if progress + 8 < 64 { progress + 8 } else { 64 };
+                    while idx < end {
                         if let Some(p) = TLB_MAP.get_ptr_mut(idx) {
                             unsafe {
                                 (*p)[0] = 0;
@@ -1080,6 +1108,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                         idx += 1;
                     }
+                    if end < 64 {
+                        cpu.regs[3] = end;
+                        cpu.pc = cpu.pc.wrapping_sub(1);
+                        break;
+                    }
+                    cpu.regs[3] = 0;
                     cpu.regs[0] = 0;
                 } else if syscall_nr == lsys::SYS_EXECVE {
                     // ── SYS_EXECVE(11): Replace current process image ──
@@ -1264,7 +1298,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // new frames and bulk-copy RAM_MAP → SCREEN_MAP without BPF verifier limits.
                 increment_stat(STAT_FRAME_READY);
                 // Emit ring buffer event only every 32nd frame to reduce event pressure.
-                let frame_count = match STATS.get(&STAT_FRAME_READY) {
+                let frame_count = match unsafe { STATS.get(&STAT_FRAME_READY) } {
                     Some(v) => *v,
                     None => 1,
                 };
