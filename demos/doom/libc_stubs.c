@@ -440,7 +440,12 @@ FILE *stderr = (FILE *)2;
 #define DEBUG_MSG_ADDR ((volatile char *)0x007BF000)
 #define DEBUG_MSG_MAX  256
 
+static int debug_msg_written = 0;
 static void debug_write_string(const char *s) {
+    // Only capture the first error message (skip the "\n" that follows)
+    if (debug_msg_written) return;
+    if (s[0] == '\n' && s[1] == '\0') return; // skip bare newlines
+    debug_msg_written = 1;
     volatile char *dst = DEBUG_MSG_ADDR;
     int i = 0;
     while (s[i] && i < DEBUG_MSG_MAX - 1) {
