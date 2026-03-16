@@ -2,14 +2,23 @@
 """
 Zhen Web App — RAG Demo for Unheaded Infrastructure
 Port: 20103 (zhen-ui in Doom Range)
+
+Features:
+- Hybrid inference: local Mistral-7B + Claude API handoff
+- Model selector (auto/mistral/opus/sonnet/haiku)
+- File upload (text injected into prompt)
+- File generation (downloadable responses)
+- Memory system (remember/forget good answers)
+- Teach endpoint (grow corpus without restart)
 """
+import io
 import sys
 import json
 import time
 import uuid
 import logging
 from pathlib import Path
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, send_file
 from flask_cors import CORS
 
 # Add scripts dir to path for RAG import
@@ -43,6 +52,29 @@ except Exception as e:
 pg_conn = None
 _session_id = str(uuid.uuid4())
 
+# In-memory conversation history per client session (max 10 turns per session, max 100 sessions)
+_conversation_histories = {}  # session_id -> [{'role': 'user'|'assistant', 'content': '...'}, ...]
+_MAX_HISTORY_TURNS = 10
+_MAX_SESSIONS = 100
+
+def _get_history(session_id):
+    """Get conversation history for a session."""
+    return _conversation_histories.get(session_id, [])
+
+def _add_to_history(session_id, role, content):
+    """Add a turn to conversation history, maintaining size limits."""
+    if session_id not in _conversation_histories:
+        # Evict oldest session if at capacity
+        if len(_conversation_histories) >= _MAX_SESSIONS:
+            oldest = next(iter(_conversation_histories))
+            del _conversation_histories[oldest]
+        _conversation_histories[session_id] = []
+    history = _conversation_histories[session_id]
+    history.append({'role': role, 'content': content})
+    # Keep only the last N turns
+    if len(history) > _MAX_HISTORY_TURNS * 2:  # *2 because user+assistant = 2 entries per turn
+        _conversation_histories[session_id] = history[-_MAX_HISTORY_TURNS * 2:]
+
 def _pg_connect():
     """Try connecting to Postgres. Returns connection or None."""
     try:
@@ -63,6 +95,30 @@ def _pg_connect():
         return None
 
 pg_conn = _pg_connect()
+
+# Ensure zhen_memories table exists
+def _ensure_memories_table():
+    global pg_conn
+    if pg_conn is None:
+        return
+    try:
+        cur = pg_conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS zhen_memories (
+                id BIGSERIAL PRIMARY KEY,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                embedding BYTEA,
+                source VARCHAR(100) DEFAULT 'user',
+                model VARCHAR(50),
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        cur.close()
+    except Exception as e:
+        logging.warning(f"[zhen] Failed to create zhen_memories table: {e}")
+
+_ensure_memories_table()
 
 
 def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output=0, elapsed_ms=0):
@@ -89,6 +145,44 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
         pg_conn = _pg_connect()
 
 
+def _search_memories(question, threshold=0.9):
+    """Search zhen_memories for a cached answer using embedding similarity."""
+    global pg_conn
+    if pg_conn is None or rag is None:
+        return None
+    try:
+        cur = pg_conn.cursor()
+        cur.execute("SELECT id, question, answer, embedding, model FROM zhen_memories ORDER BY created_at DESC LIMIT 200")
+        rows = cur.fetchall()
+        cur.close()
+        if not rows:
+            return None
+
+        # Embed the query
+        import numpy as np
+        q_emb = rag.embedding_model.encode(question, convert_to_numpy=True).astype('float32')
+
+        best_match = None
+        best_sim = 0.0
+        for row in rows:
+            mem_id, mem_q, mem_a, mem_emb_bytes, mem_model = row
+            if mem_emb_bytes is None:
+                continue
+            mem_emb = np.frombuffer(mem_emb_bytes, dtype='float32')
+            # Cosine similarity
+            sim = float(np.dot(q_emb, mem_emb) / (np.linalg.norm(q_emb) * np.linalg.norm(mem_emb) + 1e-8))
+            if sim > best_sim:
+                best_sim = sim
+                best_match = {'id': mem_id, 'question': mem_q, 'answer': mem_a, 'model': mem_model, 'similarity': sim}
+
+        if best_match and best_match['similarity'] >= threshold:
+            return best_match
+        return None
+    except Exception as e:
+        logging.warning(f"[zhen] Memory search failed: {e}")
+        return None
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
@@ -110,9 +204,35 @@ def query():
     if not question:
         return jsonify({'error': 'Question required'}), 400
 
+    file_content = data.get('file_content', None)
+    client_session = data.get('session_id', 'default')
+
     try:
+        # Check memories first
+        memory = _search_memories(question)
+        if memory:
+            _pg_log('user', question)
+            _pg_log('assistant', memory['answer'],
+                    model=f"memory:{memory.get('model', 'cached')}",
+                    elapsed_ms=0)
+            # Still add to history so follow-ups work
+            _add_to_history(client_session, 'user', question)
+            _add_to_history(client_session, 'assistant', memory['answer'])
+            return jsonify({
+                'question': question,
+                'answer': memory['answer'],
+                'sources': [],
+                'tokens_used': 0,
+                'elapsed_seconds': 0.0,
+                'model': f"memory (similarity: {memory['similarity']:.2f})",
+                'from_memory': True,
+                'memory_id': memory['id'],
+            })
+
+        history = _get_history(client_session)
+
         start = time.time()
-        result = rag.query(question)
+        result = rag.query(question, file_content=file_content, history=history)
         elapsed = time.time() - start
         elapsed_ms = int(elapsed * 1000)
 
@@ -127,11 +247,17 @@ def query():
             for c in result['retrieved'][:5]
         ]
 
+        result_model = result.get('model', 'mistral-7b')
+
+        # Track conversation history for follow-ups
+        _add_to_history(client_session, 'user', question)
+        _add_to_history(client_session, 'assistant', result['answer'])
+
         # Log to The Well (optional)
         _pg_log('user', question)
         _pg_log('assistant', result['answer'],
                 sources=json.dumps(sources_list),
-                model='mistral-7b',
+                model=result_model,
                 tokens_output=result['tokens_used'],
                 elapsed_ms=elapsed_ms)
 
@@ -141,6 +267,7 @@ def query():
             'sources': sources_list,
             'tokens_used': result['tokens_used'],
             'elapsed_seconds': round(elapsed, 2),
+            'model': result_model,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -187,6 +314,7 @@ def stats():
         'corpus_chunks': len(rag.corpus),
         'model': 'all-MiniLM-L6-v2',
         'inference_url': rag.inference_url,
+        'local_max_tokens': rag.local_max_tokens,
     })
 
 
@@ -196,12 +324,12 @@ def corpus_stats():
     if not rag:
         return jsonify({'error': 'RAG not initialized'}), 503
 
-    corpus_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
+    corpus_dir_path = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
     index_file = index_dir / 'ring1.index'
 
     # Count chunks per ring by scanning corpus files
     rings = {}
-    for f in sorted(corpus_dir.glob('*.jsonl')):
+    for f in sorted(corpus_dir_path.glob('*.jsonl')):
         ring_name = f.stem  # e.g. "ring1", "ring234"
         count = 0
         try:
@@ -232,14 +360,7 @@ def corpus_stats():
 
 @app.route('/api/v1/context', methods=['POST'])
 def get_context():
-    """Claude Code calls this to get relevant context before working on a task.
-
-    Request: {"task": "fix the wotan goroutine leak", "k": 10}
-    Response: {"context": [{"source": "...", "content": "...", "relevance": 0.95}, ...]}
-
-    This is the bridge — Claude asks Zhen "what do you know about X?"
-    and Zhen returns the most relevant chunks from the entire corpus.
-    """
+    """Claude Code calls this to get relevant context before working on a task."""
     if not rag:
         return jsonify({'error': f'RAG not initialized: {startup_error}'}), 503
 
@@ -252,7 +373,6 @@ def get_context():
 
     try:
         results = rag.retrieve(task, k=k)
-        # Convert distance to a 0-1 relevance score (lower distance = higher relevance)
         max_dist = max((r['distance'] for r in results), default=1.0) or 1.0
         context = []
         for r in results:
@@ -269,15 +389,12 @@ def get_context():
 
 @app.route('/api/v1/skills', methods=['GET'])
 def list_skills():
-    """List all Kingdom skills Zhen knows about.
-    Returns skill names, descriptions, and trigger keywords."""
+    """List all Kingdom skills Zhen knows about."""
     skills_dir = Path.home() / 'tmp' / 'unheaded' / 'skills'
     skills = []
 
-    # Scan .skill zip files
     for skill_file in sorted(skills_dir.glob('*.skill')):
         name = skill_file.stem
-        # Extract front matter description from the skill
         description = ""
         triggers = []
         try:
@@ -286,7 +403,6 @@ def list_skills():
                 for zname in zf.namelist():
                     if zname.endswith('SKILL.md'):
                         text = zf.read(zname).decode('utf-8', errors='ignore')
-                        # Parse YAML front matter
                         if text.startswith('---'):
                             end = text.find('---', 3)
                             if end > 0:
@@ -326,7 +442,6 @@ def get_skill(name):
     """Return the full content of a specific skill."""
     skills_dir = Path.home() / 'tmp' / 'unheaded' / 'skills'
 
-    # Try .skill zip file
     skill_zip = skills_dir / f'{name}.skill'
     if skill_zip.exists():
         try:
@@ -344,7 +459,6 @@ def get_skill(name):
         except Exception as e:
             return jsonify({'error': f'Failed to read skill zip: {e}'}), 500
 
-    # Try directory with SKILL.md
     skill_dir = skills_dir / name
     skill_md = skill_dir / 'SKILL.md'
     if skill_md.exists():
@@ -356,7 +470,6 @@ def get_skill(name):
             'size': len(content),
         })
 
-    # Try directory with files.zip
     files_zip = skill_dir / 'files.zip'
     if files_zip.exists():
         try:
@@ -464,259 +577,132 @@ def search_conversations():
         return jsonify({'error': str(e), 'results': []}), 500
 
 
+# ---------------------------------------------------------------------------
+# New endpoints: Remember, Forget, Teach, Generate-File
+# ---------------------------------------------------------------------------
+
+@app.route('/api/v1/remember', methods=['POST'])
+def remember():
+    """Mark an answer as worth remembering for future queries."""
+    global pg_conn
+    if pg_conn is None:
+        return jsonify({'error': 'The Well is not connected — cannot persist memories'}), 503
+
+    data = request.json or {}
+    question = data.get('question', '').strip()
+    answer = data.get('answer', '').strip()
+    model = data.get('model', '')
+
+    if not question or not answer:
+        return jsonify({'error': 'question and answer required'}), 400
+
+    try:
+        import numpy as np
+        # Embed the question for future similarity matching
+        embedding = rag.embedding_model.encode(question, convert_to_numpy=True).astype('float32')
+        emb_bytes = embedding.tobytes()
+
+        cur = pg_conn.cursor()
+        cur.execute(
+            """INSERT INTO zhen_memories (question, answer, embedding, source, model)
+               VALUES (%s, %s, %s, 'user', %s)
+               RETURNING id""",
+            (question, answer, emb_bytes, model),
+        )
+        mem_id = cur.fetchone()[0]
+        cur.close()
+
+        return jsonify({'status': 'remembered', 'memory_id': mem_id})
+    except Exception as e:
+        logging.warning(f"[zhen] Failed to remember: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/forget', methods=['POST'])
+def forget():
+    """Remove a memory by ID."""
+    global pg_conn
+    if pg_conn is None:
+        return jsonify({'error': 'The Well is not connected'}), 503
+
+    data = request.json or {}
+    memory_id = data.get('memory_id')
+    if not memory_id:
+        return jsonify({'error': 'memory_id required'}), 400
+
+    try:
+        cur = pg_conn.cursor()
+        cur.execute("DELETE FROM zhen_memories WHERE id = %s", (memory_id,))
+        cur.close()
+        return jsonify({'status': 'forgotten', 'memory_id': memory_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/teach', methods=['POST'])
+def teach():
+    """Submit text for Zhen to learn. Chunks, embeds, and adds to live FAISS index."""
+    if not rag:
+        return jsonify({'error': 'RAG not initialized'}), 503
+
+    data = request.json or {}
+    text = data.get('text', '').strip()
+    source = data.get('source', 'user')
+
+    if not text:
+        return jsonify({'error': 'text required'}), 400
+
+    if len(text) > 100000:
+        return jsonify({'error': 'Text too long (max 100K chars)'}), 400
+
+    try:
+        result = rag.add_to_corpus(text, source=source)
+        return jsonify({
+            'status': 'learned',
+            'chunks_added': result['added'],
+            'chunk_previews': result.get('chunks', []),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/generate-file', methods=['POST'])
+def generate_file():
+    """Generate a downloadable file from content.
+
+    Request: {"filename": "hello.go", "content": "package main..."}
+    Response: file download
+    """
+    data = request.json or {}
+    filename = data.get('filename', 'output.txt').strip()
+    content = data.get('content', '')
+
+    if not content:
+        return jsonify({'error': 'content required'}), 400
+
+    # Sanitize filename (no path traversal)
+    filename = Path(filename).name
+    if not filename:
+        filename = 'output.txt'
+
+    buf = io.BytesIO(content.encode('utf-8'))
+    buf.seek(0)
+
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='text/plain',
+    )
+
+
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
 
 
-HTML_UI = '''<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zhen — Unheaded AI Champion</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'JetBrains Mono', monospace;
-            background: linear-gradient(135deg, #0a0a14 0%, #0f0f1e 50%, #1a1a2e 100%);
-            color: #c8c8d4;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        header {
-            background: rgba(0,0,0,0.6);
-            padding: 18px 24px;
-            border-bottom: 2px solid #ff5c00;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .logo { display: flex; align-items: center; gap: 12px; }
-        .logo h1 { color: #ff5c00; font-size: 1.8em; letter-spacing: 2px; }
-        .logo .subtitle { color: #666; font-size: 0.75em; }
-        .status { font-size: 0.7em; color: #4a4; }
-        .status.offline { color: #a44; }
-        main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding: 16px;
-            max-width: 960px;
-            margin: 0 auto;
-            width: 100%;
-        }
-        .chat {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: rgba(0,0,0,0.35);
-            border: 1px solid #333;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .msg {
-            padding: 12px 16px;
-            border-radius: 6px;
-            max-width: 85%;
-            line-height: 1.5;
-            font-size: 0.85em;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        .msg.user {
-            background: rgba(255,92,0,0.12);
-            border-left: 3px solid #ff5c00;
-            align-self: flex-end;
-            text-align: right;
-        }
-        .msg.zhen {
-            background: rgba(0,140,255,0.08);
-            border-left: 3px solid #0096ff;
-            align-self: flex-start;
-        }
-        .msg .meta {
-            font-size: 0.7em;
-            color: #555;
-            margin-top: 8px;
-        }
-        .msg .sources {
-            font-size: 0.7em;
-            color: #666;
-            margin-top: 6px;
-            border-top: 1px solid #222;
-            padding-top: 6px;
-        }
-        .msg .sources span { color: #ff5c00; }
-        .input-bar {
-            display: flex;
-            gap: 8px;
-            padding: 12px 16px;
-            border-top: 1px solid #333;
-            background: rgba(0,0,0,0.3);
-        }
-        input[type=text] {
-            flex: 1;
-            padding: 10px 14px;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid #444;
-            border-radius: 5px;
-            color: #e0e0e0;
-            font-family: inherit;
-            font-size: 0.85em;
-        }
-        input:focus { outline: none; border-color: #ff5c00; }
-        button {
-            padding: 10px 24px;
-            background: #ff5c00;
-            color: #000;
-            border: none;
-            border-radius: 5px;
-            font-weight: 700;
-            font-family: inherit;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button:hover { background: #ff7733; }
-        button:disabled { background: #444; color: #888; cursor: wait; }
-        .typing { color: #666; font-style: italic; }
-        .suggestions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            padding: 8px 16px;
-            border-top: 1px solid #222;
-            background: rgba(0,0,0,0.2);
-        }
-        .suggestions button {
-            padding: 4px 10px;
-            font-size: 0.7em;
-            background: rgba(255,92,0,0.15);
-            color: #ff5c00;
-            border: 1px solid #ff5c0044;
-        }
-        .suggestions button:hover { background: rgba(255,92,0,0.3); }
-    </style>
-</head>
-<body>
-    <header>
-        <div class="logo">
-            <h1>ZHEN</h1>
-            <div>
-                <div class="subtitle">Unheaded AI Champion</div>
-                <div class="status" id="status">Connecting...</div>
-            </div>
-        </div>
-    </header>
-    <main>
-        <div class="chat">
-            <div class="messages" id="messages"></div>
-            <div class="suggestions" id="suggestions">
-                <button onclick="ask('What is Unheaded?')">What is Unheaded?</button>
-                <button onclick="ask('What are the core services?')">Core services</button>
-                <button onclick="ask('How does eBPF tracing work?')">eBPF tracing</button>
-                <button onclick="ask('What is the Wotan message bus?')">Wotan</button>
-                <button onclick="ask('How does the Monad wire format work?')">Monad protocol</button>
-                <button onclick="ask('What is the Meta Moment?')">Meta Moment</button>
-            </div>
-            <div class="input-bar">
-                <input type="text" id="q" placeholder="Ask Zhen about Unheaded..." autocomplete="off" />
-                <button id="btn" onclick="ask()">Ask</button>
-            </div>
-        </div>
-    </main>
-<script>
-const msgs = document.getElementById('messages');
-const qInput = document.getElementById('q');
-const btn = document.getElementById('btn');
-const statusEl = document.getElementById('status');
-
-function addMsg(text, cls, meta) {
-    const d = document.createElement('div');
-    d.className = 'msg ' + cls;
-    d.textContent = text;
-    if (meta) {
-        const m = document.createElement('div');
-        m.className = 'meta';
-        m.innerHTML = meta;
-        d.appendChild(m);
-    }
-    msgs.appendChild(d);
-    msgs.scrollTop = msgs.scrollHeight;
-    return d;
-}
-
-async function ask(preset) {
-    const question = preset || qInput.value.trim();
-    if (!question) return;
-    qInput.value = '';
-    btn.disabled = true;
-
-    addMsg(question, 'user');
-    const thinking = addMsg('Thinking...', 'zhen typing');
-
-    try {
-        const r = await fetch('/api/v1/query', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({question}),
-        });
-        const data = await r.json();
-        msgs.removeChild(thinking);
-
-        if (data.error) {
-            addMsg('Error: ' + data.error, 'zhen');
-        } else {
-            let sourcesHtml = data.sources.map(s =>
-                '<span>' + s.source + '</span>'
-            ).join(', ');
-            addMsg(data.answer, 'zhen',
-                `${data.elapsed_seconds}s | ${data.tokens_used} tokens<div class="sources">Sources: ${sourcesHtml}</div>`
-            );
-        }
-    } catch(e) {
-        msgs.removeChild(thinking);
-        addMsg('Connection error: ' + e.message, 'zhen');
-    }
-    btn.disabled = false;
-    qInput.focus();
-}
-
-qInput.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
-
-// Health check
-fetch('/health').then(r => r.json()).then(d => {
-    if (d.rag_ready) {
-        statusEl.textContent = 'Online';
-        statusEl.className = 'status';
-    } else {
-        statusEl.textContent = 'RAG: ' + (d.error || 'not ready');
-        statusEl.className = 'status offline';
-    }
-}).catch(() => {
-    statusEl.textContent = 'Offline';
-    statusEl.className = 'status offline';
-});
-
-// Welcome
-addMsg("I am Zhen, champion of the Unheaded Kingdom.\\n\\nI know every line of the 385K-LOC codebase — architecture, protocols, services, eBPF traces, and Kingdom lore.\\n\\nAsk me anything.", 'zhen');
-</script>
-</body>
-</html>'''
-
-
 if __name__ == '__main__':
     print(f"Zhen Web UI starting on port 20103...")
     print(f"RAG status: {'ready' if rag else 'NOT READY — ' + str(startup_error)}")
+    print(f"Local context window: {rag.local_max_tokens if rag else 'N/A'} tokens")
     app.run(host='0.0.0.0', port=20103, debug=False)

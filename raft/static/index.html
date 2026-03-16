@@ -28,6 +28,8 @@
             --blue-dim: rgba(106,138,170,0.08);
             --green: #4a7a4a;
             --red: #7a3a3a;
+            --purple: #8a6aaa;
+            --purple-dim: rgba(138,106,170,0.08);
             --font-mono: 'JetBrains Mono', 'Space Grotesk', 'Fira Code', monospace;
             --font-heading: 'Space Grotesk', 'JetBrains Mono', system-ui, -apple-system, sans-serif;
         }
@@ -116,6 +118,7 @@
             font-size: 0.82em;
             white-space: pre-wrap;
             word-wrap: break-word;
+            position: relative;
         }
         .msg.user {
             background: var(--accent-dim);
@@ -126,6 +129,22 @@
             background: var(--blue-dim);
             border-left: 2px solid var(--blue);
             align-self: flex-start;
+        }
+        .msg.zhen.claude-opus {
+            border-left-color: var(--purple);
+            background: var(--purple-dim);
+        }
+        .msg.zhen.claude-sonnet {
+            border-left-color: #7aaa6a;
+            background: rgba(122,170,106,0.08);
+        }
+        .msg.zhen.claude-haiku {
+            border-left-color: #aa8a6a;
+            background: rgba(170,138,106,0.08);
+        }
+        .msg.zhen.from-memory {
+            border-left-color: var(--green);
+            background: rgba(74,122,74,0.08);
         }
         .msg.zhen pre {
             background: rgba(0,0,0,0.4);
@@ -164,6 +183,10 @@
             margin-top: 8px;
             padding-top: 6px;
             border-top: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
         }
         .msg .sources {
             font-size: 0.75em;
@@ -176,6 +199,50 @@
             cursor: pointer;
         }
         .msg .sources a:hover { text-decoration: underline; }
+
+        /* Model badge */
+        .model-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+        .model-badge.mistral { background: rgba(106,138,170,0.2); color: var(--blue); }
+        .model-badge.opus { background: rgba(138,106,170,0.2); color: var(--purple); }
+        .model-badge.sonnet { background: rgba(122,170,106,0.2); color: #7aaa6a; }
+        .model-badge.haiku { background: rgba(170,138,106,0.2); color: #aa8a6a; }
+        .model-badge.memory { background: rgba(74,122,74,0.2); color: var(--green); }
+
+        /* Remember / Download buttons in messages */
+        .msg-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .msg-actions button {
+            padding: 2px 8px;
+            font-size: 0.7em;
+            font-family: var(--font-mono);
+            background: var(--bg-card);
+            color: var(--text-dim);
+            border: 1px solid var(--border-card);
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .msg-actions button:hover {
+            background: var(--bg-hover);
+            color: var(--text);
+            border-color: var(--border-active);
+        }
+        .msg-actions button.remembered {
+            background: rgba(74,122,74,0.2);
+            color: var(--green);
+            border-color: var(--green);
+        }
+
         .typing-indicator {
             display: inline-flex;
             gap: 4px;
@@ -193,6 +260,36 @@
             0%, 60%, 100% { opacity: 0.3; }
             30% { opacity: 1; }
         }
+
+        /* File upload area */
+        .file-upload-area {
+            display: none;
+            padding: 8px 20px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+            flex-shrink: 0;
+        }
+        .file-upload-area.active { display: flex; align-items: center; gap: 8px; }
+        .file-upload-area .file-info {
+            flex: 1;
+            font-size: 0.72em;
+            color: var(--text-dim);
+        }
+        .file-upload-area .file-name {
+            color: var(--accent);
+            font-weight: 700;
+        }
+        .file-upload-area .remove-file {
+            padding: 2px 6px;
+            font-size: 0.7em;
+            background: var(--bg-card);
+            color: var(--text-dim);
+            border: 1px solid var(--border-card);
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+        }
+        .file-upload-area .remove-file:hover { color: var(--red); border-color: var(--red); }
 
         /* Suggestions */
         .suggestions {
@@ -229,7 +326,7 @@
             background: var(--bg-secondary);
             flex-shrink: 0;
         }
-        .input-bar input {
+        .input-bar input[type=text] {
             flex: 1;
             padding: 10px 14px;
             background: var(--bg-primary);
@@ -241,8 +338,8 @@
             outline: none;
             transition: border-color 0.25s ease;
         }
-        .input-bar input:focus { border-color: var(--border-active); }
-        .input-bar input::placeholder { color: var(--text-ghost); }
+        .input-bar input[type=text]:focus { border-color: var(--border-active); }
+        .input-bar input[type=text]::placeholder { color: var(--text-ghost); }
         .input-bar button {
             padding: 10px 24px;
             background: var(--accent);
@@ -257,6 +354,18 @@
         }
         .input-bar button:hover { background: var(--accent-hover); }
         .input-bar button:disabled { background: var(--border); color: var(--text-dim); cursor: wait; }
+        .input-bar .upload-btn {
+            padding: 10px 12px;
+            background: var(--bg-card);
+            color: var(--text-dim);
+            border: 1px solid var(--border-card);
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.82em;
+            transition: all 0.2s;
+        }
+        .input-bar .upload-btn:hover { color: var(--text); border-color: var(--border-active); }
 
         /* Sidebar */
         .sidebar {
@@ -424,6 +533,29 @@
             letter-spacing: 0.1em;
         }
 
+        /* Hidden file input */
+        #file-input { display: none; }
+
+        /* Drop zone overlay */
+        .drop-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(255,92,0,0.05);
+            border: 2px dashed var(--accent);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .drop-overlay.active {
+            display: flex;
+        }
+        .drop-overlay span {
+            font-size: 1.2em;
+            color: var(--accent);
+            letter-spacing: 0.2em;
+        }
+
         @media (max-width: 768px) {
             .sidebar { display: none; }
             .msg { max-width: 95%; }
@@ -431,6 +563,9 @@
     </style>
 </head>
 <body>
+    <div class="drop-overlay" id="drop-overlay"><span>DROP FILE</span></div>
+    <input type="file" id="file-input" accept=".txt,.md,.py,.js,.go,.rs,.toml,.yaml,.yml,.json,.sh,.html,.css,.sql,.c,.h,.cpp,.java,.ts,.tsx,.jsx,.rb,.php,.lua,.nix,.conf,.cfg,.ini,.xml,.csv,.log" />
+
     <header>
         <div class="logo">
             <h1>ZHEN</h1>
@@ -469,7 +604,16 @@
                     <div class="search-empty">Enter a query to search the codebase.</div>
                 </div>
             </div>
+            <!-- File upload indicator -->
+            <div class="file-upload-area" id="file-upload-area">
+                <div class="file-info">
+                    Attached: <span class="file-name" id="file-name"></span>
+                    <span id="file-size"></span>
+                </div>
+                <button class="remove-file" onclick="removeFile()">Remove</button>
+            </div>
             <div class="input-bar">
+                <button class="upload-btn" onclick="document.getElementById('file-input').click()" title="Upload file">+</button>
                 <input type="text" id="q" placeholder="Ask Zhen about Unheaded..." autocomplete="off" />
                 <button id="btn" onclick="handleSubmit()">Ask</button>
             </div>
@@ -516,6 +660,62 @@ let queryCount = 0;
 let totalTime = 0;
 const queryHistory = [];
 let currentTab = 'chat';
+let uploadedFile = null;  // {name, content}
+const sessionId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
+
+// --- File upload ---
+document.getElementById('file-input').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function() {
+        uploadedFile = { name: file.name, content: reader.result };
+        document.getElementById('file-name').textContent = file.name;
+        document.getElementById('file-size').textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+        document.getElementById('file-upload-area').classList.add('active');
+    };
+    reader.readAsText(file);
+    e.target.value = '';  // Reset so same file can be re-uploaded
+});
+
+function removeFile() {
+    uploadedFile = null;
+    document.getElementById('file-upload-area').classList.remove('active');
+}
+
+// --- Drag and drop ---
+const dropOverlay = document.getElementById('drop-overlay');
+let dragCounter = 0;
+
+document.addEventListener('dragenter', function(e) {
+    e.preventDefault();
+    dragCounter++;
+    dropOverlay.classList.add('active');
+});
+document.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropOverlay.classList.remove('active');
+    }
+});
+document.addEventListener('dragover', function(e) { e.preventDefault(); });
+document.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dragCounter = 0;
+    dropOverlay.classList.remove('active');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function() {
+        uploadedFile = { name: file.name, content: reader.result };
+        document.getElementById('file-name').textContent = file.name;
+        document.getElementById('file-size').textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+        document.getElementById('file-upload-area').classList.add('active');
+    };
+    reader.readAsText(file);
+});
 
 // --- Tab switching ---
 function switchTab(tab) {
@@ -563,13 +763,47 @@ function renderMarkdown(text) {
     return html;
 }
 
-// --- Chat (existing) ---
-function addMsg(text, cls, meta) {
+// --- Detect downloadable file blocks ---
+function extractDownloadBlocks(text) {
+    const regex = /```download:([^\n]+)\n([\s\S]*?)```/g;
+    const blocks = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        blocks.push({ filename: match[1].trim(), content: match[2].trim() });
+    }
+    return blocks;
+}
+
+// --- Model badge helper ---
+function modelBadge(model) {
+    if (!model) return '';
+    const m = model.toLowerCase();
+    if (m.includes('opus')) return '<span class="model-badge opus">OPUS</span>';
+    if (m.includes('sonnet')) return '<span class="model-badge sonnet">SONNET</span>';
+    if (m.includes('haiku')) return '<span class="model-badge haiku">HAIKU</span>';
+    if (m.includes('memory')) return '<span class="model-badge memory">MEMORY</span>';
+    if (m.includes('mistral')) return '<span class="model-badge mistral">MISTRAL</span>';
+    return `<span class="model-badge mistral">${model.toUpperCase()}</span>`;
+}
+
+// --- Model CSS class for message styling ---
+function modelMsgClass(model) {
+    if (!model) return '';
+    const m = model.toLowerCase();
+    if (m.includes('opus')) return ' claude-opus';
+    if (m.includes('sonnet')) return ' claude-sonnet';
+    if (m.includes('haiku')) return ' claude-haiku';
+    if (m.includes('memory')) return ' from-memory';
+    return '';
+}
+
+// --- Chat ---
+function addMsg(text, cls, meta, extra) {
     const d = document.createElement('div');
     d.className = 'msg ' + cls;
-    if (cls === 'zhen' && text === '__typing__') {
+    if (cls.includes('zhen') && text === '__typing__') {
         d.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
-    } else if (cls === 'zhen') {
+    } else if (cls.includes('zhen')) {
         d.innerHTML = renderMarkdown(text);
     } else {
         d.textContent = text;
@@ -579,6 +813,9 @@ function addMsg(text, cls, meta) {
         m.className = 'meta';
         m.innerHTML = meta;
         d.appendChild(m);
+    }
+    if (extra) {
+        d.appendChild(extra);
     }
     msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
@@ -596,8 +833,50 @@ function addHistory(q) {
     queryHistory.unshift(q);
     if (queryHistory.length > 20) queryHistory.pop();
     historyEl.innerHTML = queryHistory.map(h =>
-        `<div class="history-item" onclick="ask('${h.replace(/'/g, "\\'")}')">${h}</div>`
+        `<div class="history-item" onclick="ask('${h.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">${h}</div>`
     ).join('');
+}
+
+// --- Download file ---
+async function downloadFile(filename, content) {
+    try {
+        const r = await fetch(API + '/api/v1/generate-file', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ filename, content }),
+        });
+        if (!r.ok) throw new Error('Download failed');
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch(e) {
+        alert('Download failed: ' + e.message);
+    }
+}
+
+// --- Remember answer ---
+async function rememberAnswer(question, answer, model, btnEl) {
+    try {
+        const r = await fetch(API + '/api/v1/remember', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ question, answer, model }),
+        });
+        const data = await r.json();
+        if (data.status === 'remembered') {
+            btnEl.textContent = 'Remembered';
+            btnEl.classList.add('remembered');
+            btnEl.disabled = true;
+        } else {
+            alert('Failed: ' + (data.error || 'unknown'));
+        }
+    } catch(e) {
+        alert('Remember failed: ' + e.message);
+    }
 }
 
 async function ask(preset) {
@@ -607,15 +886,26 @@ async function ask(preset) {
     qInput.value = '';
     btn.disabled = true;
 
-    addMsg(question, 'user');
+    // Build file content string if file is attached
+    let fileContent = null;
+    if (uploadedFile) {
+        fileContent = `--- Uploaded file: ${uploadedFile.name} ---\n${uploadedFile.content}\n---`;
+        addMsg(question + `\n\n[Attached: ${uploadedFile.name}]`, 'user');
+        removeFile();
+    } else {
+        addMsg(question, 'user');
+    }
     addHistory(question);
     const thinking = addMsg('__typing__', 'zhen');
 
     try {
+        const body = { question, session_id: sessionId };
+        if (fileContent) body.file_content = fileContent;
+
         const r = await fetch(API + '/api/v1/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({question}),
+            body: JSON.stringify(body),
         });
         const data = await r.json();
         msgs.removeChild(thinking);
@@ -623,13 +913,41 @@ async function ask(preset) {
         if (data.error) {
             addMsg('Error: ' + data.error, 'zhen');
         } else {
-            const sources = data.sources.map(s =>
-                `<a title="${s.preview || ''}">${s.source}</a>`
+            const model = data.model || 'mistral-7b';
+            const badge = modelBadge(model);
+            const extraCls = modelMsgClass(model);
+
+            const sources = (data.sources || []).map(s =>
+                `<a title="${(s.preview || '').replace(/"/g, '&quot;')}">${s.source}</a>`
             ).join(' | ');
-            addMsg(data.answer, 'zhen',
-                `${data.elapsed_seconds}s | ${data.tokens_used} tok` +
-                (sources ? `<div class="sources">Sources: ${sources}</div>` : '')
-            );
+
+            // Check for download blocks
+            const downloads = extractDownloadBlocks(data.answer);
+
+            // Build action buttons
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'msg-actions';
+
+            // Remember button (skip if from memory)
+            if (!data.from_memory) {
+                const remBtn = document.createElement('button');
+                remBtn.textContent = 'Remember';
+                remBtn.onclick = function() { rememberAnswer(question, data.answer, model, remBtn); };
+                actionsDiv.appendChild(remBtn);
+            }
+
+            // Download buttons
+            for (const dl of downloads) {
+                const dlBtn = document.createElement('button');
+                dlBtn.textContent = 'Download: ' + dl.filename;
+                dlBtn.onclick = function() { downloadFile(dl.filename, dl.content); };
+                actionsDiv.appendChild(dlBtn);
+            }
+
+            const metaHtml = `${badge} ${data.elapsed_seconds}s | ${data.tokens_used} tok` +
+                (sources ? `<div class="sources">Sources: ${sources}</div>` : '');
+
+            addMsg(data.answer, 'zhen' + extraCls, metaHtml, actionsDiv);
             updateStats(data.elapsed_seconds);
         }
     } catch(e) {
@@ -725,7 +1043,7 @@ checkHealth();
 setInterval(checkHealth, 30000);
 
 // Welcome
-addMsg("I am Zhen (真爱), champion of the Unheaded Kingdom.\n\n594K knowledge chunks indexed: Unheaded codebase, 16 GitHub repos, Linux kernel, 9,739 RFCs, 1,649 research papers, official docs, and more.\n\nAsk me anything.", 'zhen');
+addMsg("I am Zhen (真爱), champion of the Unheaded Kingdom.\n\n594K knowledge chunks indexed: Unheaded codebase, 16 GitHub repos, Linux kernel, 9,739 RFCs, 1,649 research papers, official docs, and more.\n\nLocal Mistral-7B inference. Drag-and-drop files to include in your query.\n\nAsk me anything.", 'zhen');
 </script>
 </body>
 </html>
