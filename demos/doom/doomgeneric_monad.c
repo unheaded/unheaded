@@ -20,9 +20,11 @@
 #define SYS_GET_TICKS   0x03
 #define SYS_SLEEP       0x04
 
-// doomgeneric.c defines DG_ScreenBuffer and allocates it via malloc in doomgeneric_Create.
-// We reference it here for the framebuffer flush.
-extern pixel_t* DG_ScreenBuffer;
+// Static screen buffer — avoids relying on malloc from doomgeneric_Create
+// which can fail if Z_Init errors are made non-fatal.
+// doomgeneric.c also defines DG_ScreenBuffer; we override with ours.
+static uint32_t static_screen_buffer[320 * 200];
+pixel_t* DG_ScreenBuffer = (pixel_t*)static_screen_buffer;
 
 // doomgeneric entry points
 void doomgeneric_Create(int argc, char **argv);
@@ -55,19 +57,49 @@ static uint8_t argb_to_palette(uint32_t argb) {
     return (uint8_t)(((r * 77 + g * 150 + b * 29) >> 8));
 }
 
+// Doom's I_VideoBuffer — palette-indexed pixels rendered by the engine.
+extern unsigned char *I_VideoBuffer;
+
+// Static video buffer — ensures I_VideoBuffer is valid even if Z_Malloc fails.
+static unsigned char static_ivb[320 * 200];
+
+// Doom globals we need to initialize early
+extern int setsizeneeded;
+extern int screenvisible;
+extern int setblocks;
+extern int detailLevel;
+
 void DG_Init(void) {
+    // Initialize I_VideoBuffer early — before D_DoomMain's I_InitGraphics.
+    if (!I_VideoBuffer) {
+        I_VideoBuffer = static_ivb;
+    }
+    // Force these so the game loop renders even if full init fails:
+    screenvisible = 1;   // Enable D_Display in game loop
+    setsizeneeded = 1;   // Trigger R_ExecuteSetViewSize → R_InitBuffer
+    setblocks = 10;      // Full-screen view (0 = nothing, 10 = full, 11 = full+no status bar)
+    detailLevel = 0;     // High detail
     // Clear screen
     for (int i = 0; i < DOOMGENERIC_RESX * DOOMGENERIC_RESY; i++) {
         SCREEN_BASE[i] = 0;
     }
 }
 
+// ylookup table used by renderer — if NULL, fix it
+extern unsigned char *ylookup[];
+
 void DG_DrawFrame(void) {
-    // Computermancer: scanline batching — convert and write 200 scanlines
-    // instead of 64K individual pixel writes
-    uint32_t *buf = (uint32_t *)DG_ScreenBuffer;
-    for (int i = 0; i < DOOMGENERIC_RESX * DOOMGENERIC_RESY; i++) {
-        SCREEN_BASE[i] = argb_to_palette(buf[i]);
+    // Fix ylookup if renderer never initialized it
+    if (I_VideoBuffer && ylookup[0] == 0) {
+        for (int i = 0; i < DOOMGENERIC_RESY; i++) {
+            ylookup[i] = I_VideoBuffer + i * DOOMGENERIC_RESX;
+        }
+    }
+    // Copy palette-indexed pixels directly from I_VideoBuffer to SCREEN_MAP.
+    if (I_VideoBuffer) {
+        for (int i = 0; i < DOOMGENERIC_RESX * DOOMGENERIC_RESY; i++) {
+            SCREEN_BASE[i] = I_VideoBuffer[i];
+        }
     }
     // Signal the BPF VM that a frame is ready
     mbc_syscall(SYS_DRAW_FRAME);
