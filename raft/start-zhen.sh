@@ -4,13 +4,17 @@ set -e
 
 echo "=== Starting Zhen AI Champion ==="
 
+# Context window size — benchmark found zero degradation up to 32K on 7700 XT
+# 16384 chosen for 4.8 GB VRAM headroom under concurrent load
+CONTEXT_SIZE="${ZHEN_CONTEXT_SIZE:-16384}"
+
 # 1. Start inference server (llama.cpp with ROCm)
-echo "[1/2] Starting llama-server on port 20100..."
+echo "[1/2] Starting llama-server on port 20100 (context: $CONTEXT_SIZE)..."
 cd ~/tmp/unheaded/llama.cpp/build
 export LD_LIBRARY_PATH="$(pwd)/src:$(pwd)/ggml/src:$(pwd)/ggml/src/ggml-hip:$(pwd)/ggml/src/ggml-cpu:$LD_LIBRARY_PATH"
 nohup ./bin/llama-server \
   -m ~/tmp/unheaded/raft/models/mistral-7b-instruct-q5_k_m.gguf \
-  -ngl 40 -c 2048 --port 20100 \
+  -ngl 40 -c "$CONTEXT_SIZE" --port 20100 \
   &> /tmp/llama-server.log &
 echo "  PID: $!"
 
@@ -27,6 +31,10 @@ done
 # 2. Start Zhen Web UI + RAG
 echo "[2/2] Starting Zhen Web UI on port 20103..."
 source ~/.venv/zhen/bin/activate
+
+# Pass local max tokens matching context size
+export ZHEN_LOCAL_MAX_TOKENS="$CONTEXT_SIZE"
+
 cd ~/tmp/unheaded/raft
 nohup python3 zhen_app.py &> /tmp/zhen-webapp.log &
 echo "  PID: $!"
