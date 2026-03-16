@@ -127,6 +127,29 @@
             border-left: 2px solid var(--blue);
             align-self: flex-start;
         }
+        .msg.zhen pre {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+        .msg.zhen code {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.88em;
+        }
+        .msg.zhen :not(pre) > code {
+            background: rgba(255,92,0,0.15);
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        .msg.zhen pre code {
+            background: none;
+            padding: 0;
+        }
+        .msg.zhen strong { color: var(--accent); }
+        .msg.zhen em { color: var(--blue); }
         .msg.system {
             background: rgba(255,255,255,0.03);
             border-left: 2px solid var(--border);
@@ -520,12 +543,34 @@ function handleSubmit() {
     }
 }
 
+// --- Markdown rendering (lightweight) ---
+function renderMarkdown(text) {
+    // Escape HTML first
+    let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Fenced code blocks: ```lang\n...\n```
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        const cls = lang ? ` class="language-${lang}"` : '';
+        return `<pre><code${cls}>${code.trim()}</code></pre>`;
+    });
+    // Inline code: `...`
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Bold: **...**
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic: *...*
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Line breaks
+    html = html.replace(/\n/g, '<br>');
+    return html;
+}
+
 // --- Chat (existing) ---
 function addMsg(text, cls, meta) {
     const d = document.createElement('div');
     d.className = 'msg ' + cls;
     if (cls === 'zhen' && text === '__typing__') {
         d.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+    } else if (cls === 'zhen') {
+        d.innerHTML = renderMarkdown(text);
     } else {
         d.textContent = text;
     }
