@@ -248,8 +248,14 @@ load_bpf_programs() {
         --pid-file "$pid_file" \
         2>&1 | while IFS= read -r line; do echo "  [hop0] $line"; done &
 
-    # Wait for loader to start, create maps, attach XDP
-    sleep 0.5
+    # Wait for loader to start, create maps, verify, JIT, and attach XDP.
+    # BPF verifier can take 4-5 seconds for complex programs like monad_cpu.
+    local wait_total=0
+    while [[ ! -f "$pid_file" ]] && [[ $wait_total -lt 10 ]]; do
+        sleep 1
+        wait_total=$((wait_total + 1))
+        log_info "Waiting for BPF verifier... (${wait_total}s)"
+    done
 
     if [[ -f "$pid_file" ]]; then
         local pid0
@@ -257,17 +263,12 @@ load_bpf_programs() {
         if kill -0 "$pid0" 2>/dev/null; then
             log_info "Hop 0: monad_cpu attached on ${ns0}/${veth0} (PID ${pid0})"
         else
-            log_error "Hop 0: loader exited prematurely"
+            log_error "Hop 0: loader exited prematurely (verifier rejection?)"
             return 1
         fi
     else
-        sleep 0.5
-        if [[ -f "$pid_file" ]]; then
-            log_info "Hop 0: monad_cpu attached on ${ns0}/${veth0} (PID $(cat "$pid_file"))"
-        else
-            log_error "Hop 0: loader failed to start (no PID file)"
-            return 1
-        fi
+        log_error "Hop 0: loader failed to start within 10s (no PID file)"
+        return 1
     fi
 
     # ── Get the program ID for the loaded monad_cpu ──────────────────────
