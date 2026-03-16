@@ -545,9 +545,10 @@ static struct mbc_file *get_file(FILE *stream) {
 }
 
 int fclose(FILE *stream) {
-    struct mbc_file *f = get_file(stream);
-    if (!f) return EOF;
-    f->in_use = 0;
+    // No-op: the WAD is memory-mapped and stays open for the entire session.
+    // Closing is dangerous because corrupted FILE* handles from Z_Malloc'd
+    // structs can hit the get_file fallback and close the WAD slot.
+    (void)stream;
     return 0;
 }
 
