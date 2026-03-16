@@ -554,7 +554,16 @@ int fclose(FILE *stream) {
 
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) {
     struct mbc_file *f = get_file(stream);
-    if (!f) return 0;
+    if (!f) {
+        // Fallback: if FILE* is invalid, use file slot 0 (the WAD).
+        // This handles cases where W_StdC_Read's fstream field is corrupted
+        // but the WAD is still the only open file.
+        if (file_table[0].in_use) {
+            f = &file_table[0];
+        } else {
+            return 0;
+        }
+    }
 
     size_t total = size * nmemb;
     size_t avail = (f->pos < f->size) ? (f->size - f->pos) : 0;
@@ -571,9 +580,22 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
     return 0;
 }
 
+static int fseek_call_count = 0;
 int fseek(FILE *stream, long offset, int whence) {
     struct mbc_file *f = get_file(stream);
-    if (!f) return -1;
+    // Log last 4 fseeks to debug area 0x7BF600
+    if (fseek_call_count < 32) {
+        volatile uint32_t *d = (volatile uint32_t *)(0x007BF600 + fseek_call_count * 12);
+        d[0] = (uint32_t)offset;
+        d[1] = (uint32_t)whence;
+        d[2] = f ? (uint32_t)f->pos : 0xDEAD;
+        fseek_call_count++;
+    }
+    if (!f) {
+        // Fallback to WAD (slot 0) for corrupted FILE* handles
+        if (file_table[0].in_use) f = &file_table[0];
+        else return -1;
+    }
 
     long newpos;
     switch (whence) {
