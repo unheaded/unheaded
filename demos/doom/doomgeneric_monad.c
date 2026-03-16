@@ -11,7 +11,8 @@
 
 // Screen buffer at MBC memory-mapped address SCREEN_BASE
 // 320x200 8-bit palette indices
-#define SCREEN_BASE ((volatile uint8_t*)0x007C0000)
+// Must match mbc_mmap::SCREEN_BASE in monad-common (0x70000)
+#define SCREEN_BASE ((volatile uint8_t*)0x00070000)
 
 // MBC syscall numbers
 #define SYS_DRAW_FRAME  0x01
