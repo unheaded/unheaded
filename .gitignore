@@ -42,7 +42,7 @@ coverage.html
 *.prof
 *.pprof
 
-# ─── Compiled service binaries (top-level) ───
+# ─── Compiled service binaries (top-level and any depth) ───
 /kanban-app
 /wotan
 /wotan-ctl
@@ -65,7 +65,10 @@ coverage.html
 /pleroma
 /shield
 /yaldabaoth
-# Binaries built inside cmd/ subdirectories
+/chaos-controller
+/busboy
+# Go binaries in subdirectories (extensionless ELF)
+ebpf/trace-collector-go
 cmd/*/kanban-app
 cmd/*/dashboard-backend
 cmd/*/trace-collector
@@ -76,6 +79,11 @@ cmd/*/doom-go-injector
 cmd/*/doom
 # Runtime data directories (SQLite DBs, temp files)
 cmd/*/data/
+
+# ─── Large data files (PDFs, dictionaries, archives) ───
+data/champion/
+*.pdf
+docs/archive/skill-updates/uploads-dir/
 
 # ─── Rust / Cargo ───
 target/
