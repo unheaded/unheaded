@@ -40,50 +40,101 @@ class RAGPipeline:
                 self.id_map = raw_ids
 
         # Load corpus for content retrieval
-        # Ring 1 (Unheaded code): load full content for RAG answers
-        # Ring 2-4: only load metadata (source/type) — content too large for RAM
+        # Strategy: load ring_all.jsonl (combined corpus with full content)
+        # Falls back to ring1 + metadata if ring_all doesn't exist
         print("Loading corpus...")
         self.corpus = {}
         corpus_dir = self.corpus_file.parent
 
-        # Ring 1: full content
-        ring1_path = corpus_dir / 'ring1.jsonl'
-        if ring1_path.exists():
+        ring_all = corpus_dir / 'ring_all.jsonl'
+        if ring_all.exists():
             count = 0
-            with open(ring1_path, 'r', encoding='utf-8', errors='ignore') as f:
-                for line in f:
-                    try:
-                        chunk = json.loads(line)
-                        if 'content' in chunk:
-                            self.corpus[chunk['id']] = {
-                                'content': chunk['content'],
-                                'source': chunk.get('source', ''),
-                                'type': chunk.get('type', 'unknown'),
-                            }
-                            count += 1
-                    except (json.JSONDecodeError, KeyError):
-                        continue
-            print(f"  Ring 1: {count:,} chunks (full content)")
-
-        # Ring 2-4: metadata only from combined_corpus.jsonl
-        combined_meta = self.index_dir / 'combined_corpus.jsonl'
-        if combined_meta.exists():
-            count = 0
-            with open(combined_meta, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(ring_all, 'r', encoding='utf-8', errors='ignore') as f:
                 for line in f:
                     try:
                         chunk = json.loads(line)
                         cid = chunk.get('id', '')
-                        if cid and cid not in self.corpus:
+                        content = chunk.get('content', '')
+                        if cid and content:
                             self.corpus[cid] = {
-                                'content': f"[Source: {chunk.get('source', 'unknown')}]",
+                                'content': content,
                                 'source': chunk.get('source', ''),
                                 'type': chunk.get('type', 'unknown'),
                             }
                             count += 1
                     except (json.JSONDecodeError, KeyError):
                         continue
-            print(f"  Ring 2-4: {count:,} chunks (metadata only)")
+            print(f"  All rings: {count:,} chunks (full content)")
+
+            # Wikipedia: build line-offset index for on-demand lookup.
+            # 29GB corpus is too large for RAM. Instead, index byte offsets
+            # per chunk ID, then seek+read on retrieval.
+            wiki_path = corpus_dir / 'wikipedia.jsonl'
+            wiki_idx_path = corpus_dir / 'wikipedia_offsets.json'
+            if wiki_path.exists():
+                self.wiki_path = wiki_path
+                if wiki_idx_path.exists():
+                    print("  Loading Wikipedia offset index...")
+                    with open(wiki_idx_path) as f:
+                        self.wiki_offsets = json.load(f)
+                    print(f"  Wikipedia: {len(self.wiki_offsets):,} chunks indexed (on-demand)")
+                else:
+                    print("  Building Wikipedia offset index (one-time)...")
+                    self.wiki_offsets = {}
+                    with open(wiki_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        offset = 0
+                        for line in f:
+                            try:
+                                cid = json.loads(line).get('id', '')
+                                if cid:
+                                    self.wiki_offsets[cid] = offset
+                            except (json.JSONDecodeError, KeyError):
+                                pass
+                            offset += len(line.encode('utf-8'))
+                    with open(wiki_idx_path, 'w') as f:
+                        json.dump(self.wiki_offsets, f)
+                    print(f"  Wikipedia: {len(self.wiki_offsets):,} chunks indexed (saved)")
+            else:
+                self.wiki_path = None
+                self.wiki_offsets = {}
+        else:
+            # Fallback: Ring 1 full content + Ring 2-4 metadata
+            ring1_path = corpus_dir / 'ring1.jsonl'
+            if ring1_path.exists():
+                count = 0
+                with open(ring1_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    for line in f:
+                        try:
+                            chunk = json.loads(line)
+                            if 'content' in chunk:
+                                self.corpus[chunk['id']] = {
+                                    'content': chunk['content'],
+                                    'source': chunk.get('source', ''),
+                                    'type': chunk.get('type', 'unknown'),
+                                }
+                                count += 1
+                        except (json.JSONDecodeError, KeyError):
+                            continue
+                print(f"  Ring 1: {count:,} chunks (full content)")
+
+            combined_meta = self.index_dir / 'combined_corpus.jsonl'
+            if combined_meta.exists():
+                count = 0
+                with open(combined_meta, 'r', encoding='utf-8', errors='ignore') as f:
+                    for line in f:
+                        try:
+                            chunk = json.loads(line)
+                            cid = chunk.get('id', '')
+                            if cid and cid not in self.corpus:
+                                self.corpus[cid] = {
+                                    'content': f"[Source: {chunk.get('source', 'unknown')}]",
+                                    'source': chunk.get('source', ''),
+                                    'type': chunk.get('type', 'unknown'),
+                                }
+                                count += 1
+                        except (json.JSONDecodeError, KeyError):
+                            continue
+                print(f"  Ring 2-4: {count:,} chunks (metadata only)")
 
         print(f"RAG Pipeline ready: {len(self.id_map)} vectors, {len(self.corpus)} chunks")
 
@@ -99,7 +150,9 @@ class RAGPipeline:
             if idx < 0:
                 continue
             chunk_id = self.id_map.get(str(idx), self.id_map.get(str(int(idx))))
-            if chunk_id and chunk_id in self.corpus:
+            if not chunk_id:
+                continue
+            if chunk_id in self.corpus:
                 data = self.corpus[chunk_id]
                 retrieved.append({
                     'id': chunk_id,
@@ -108,7 +161,34 @@ class RAGPipeline:
                     'type': data['type'],
                     'distance': float(distance),
                 })
+            elif chunk_id in getattr(self, 'wiki_offsets', {}):
+                # On-demand Wikipedia lookup: seek to byte offset, read line
+                data = self._fetch_wiki_chunk(chunk_id)
+                if data:
+                    retrieved.append({
+                        'id': chunk_id,
+                        'content': data['content'],
+                        'source': data['source'],
+                        'type': 'wikipedia',
+                        'distance': float(distance),
+                    })
         return retrieved
+
+    def _fetch_wiki_chunk(self, chunk_id):
+        """Fetch a single Wikipedia chunk by seeking to its byte offset."""
+        if not self.wiki_path or chunk_id not in self.wiki_offsets:
+            return None
+        try:
+            with open(self.wiki_path, 'r', encoding='utf-8', errors='ignore') as f:
+                f.seek(self.wiki_offsets[chunk_id])
+                line = f.readline()
+                chunk = json.loads(line)
+                return {
+                    'content': chunk.get('content', ''),
+                    'source': chunk.get('source', ''),
+                }
+        except Exception:
+            return None
 
     def generate(self, query, context_chunks):
         """Generate response using Mistral with retrieved context"""
