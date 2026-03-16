@@ -1,0 +1,22 @@
+{
+  "experiment": "context_window_benchmark",
+  "model": "mistral-7b-instruct-q5_k_m.gguf",
+  "quantization": "Q5_K_M",
+  "gpu": "AMD RX 7700 XT (12GB VRAM)",
+  "ram": "16GB DDR5",
+  "gpu_layers": 40,
+  "timestamp": "2026-03-16T18:20:00",
+  "results": [
+    {"context_size": 2048,  "avg_tok_s": 58.3, "vram_mb": 5400, "success_rate": 1.0},
+    {"context_size": 4096,  "avg_tok_s": 59.7, "vram_mb": 5870, "success_rate": 1.0},
+    {"context_size": 8192,  "avg_tok_s": 59.4, "vram_mb": 6371, "success_rate": 1.0},
+    {"context_size": 16384, "avg_tok_s": 59.5, "vram_mb": 7417, "success_rate": 1.0},
+    {"context_size": 32768, "avg_tok_s": 59.7, "vram_mb": 9477, "success_rate": 1.0}
+  ],
+  "recommendation": {
+    "context_size": 16384,
+    "reason": "Full speed (59.5 tok/s, 102% of baseline), 4.8 GB VRAM headroom for stability. 32K works but only 2.8 GB headroom — risky under concurrent load.",
+    "alternative": "32768 if single-user and max context is needed"
+  },
+  "finding": "Zero speed degradation across all tested context sizes. KV cache scales linearly in VRAM (~125 MB per 1K context tokens) but generation throughput is constant at ~60 tok/s. The -c 2048 default was leaving 10 GB of VRAM unused."
+}

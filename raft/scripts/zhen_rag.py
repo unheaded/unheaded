@@ -2,8 +2,11 @@
 """
 Zhen RAG Pipeline — Retrieval-Augmented Generation for Unheaded
 Combines FAISS retrieval with Mistral-7B inference via llama.cpp
+and Claude API handoff for prompts exceeding local context window.
 """
 import json
+import os
+import time
 import requests
 import faiss
 import numpy as np
@@ -16,6 +19,9 @@ class RAGPipeline:
         self.inference_url = inference_url
         self.index_dir = Path(index_dir)
         self.corpus_file = Path(corpus_file)
+
+        # Context window config (updated by benchmark experiment)
+        self.local_max_tokens = int(os.environ.get('ZHEN_LOCAL_MAX_TOKENS', '2048'))
 
         # Load embedding model
         print("Loading embedding model...")
@@ -136,7 +142,14 @@ class RAGPipeline:
                             continue
                 print(f"  Ring 2-4: {count:,} chunks (metadata only)")
 
+        # Memory store (loaded from DB on first access)
+        self._memories = []
+
         print(f"RAG Pipeline ready: {len(self.id_map)} vectors, {len(self.corpus)} chunks")
+
+    def estimate_tokens(self, text):
+        """Rough token estimate: ~4 chars per token for English."""
+        return len(text) // 4 + 50  # +50 for system prompt overhead
 
     def retrieve(self, query, k=5):
         """Retrieve top-k chunks from FAISS index"""
@@ -190,23 +203,83 @@ class RAGPipeline:
         except Exception:
             return None
 
-    def generate(self, query, context_chunks):
-        """Generate response using Mistral with retrieved context"""
+    def generate(self, query, context_chunks, file_content=None, history=None):
+        """Generate response using local Mistral-7B via llama.cpp.
+
+        Args:
+            query: The user question
+            context_chunks: Retrieved RAG context
+            file_content: Optional file content appended to the prompt
+            history: List of prior turns [{'role': 'user'|'assistant', 'content': '...'}, ...]
+        """
+        # Use more chunks when context window allows
+        max_chunks = 3 if self.local_max_tokens <= 2048 else 5
+        chunk_limit = 1500 if self.local_max_tokens <= 2048 else 2500
+
         context = "\n\n---\n\n".join([
-            f"[Source: {c['source']}]\n{c['content'][:1500]}"
-            for c in context_chunks[:3]
+            f"[Source: {c['source']}]\n{c['content'][:chunk_limit]}"
+            for c in context_chunks[:max_chunks]
         ])
 
-        prompt = f"""<s>[INST] You are Zhen (真爱), the AI champion of the Unheaded Kingdom.
+        if file_content:
+            context += f"\n\n---\n\n[Uploaded file content]\n{file_content}"
+
+        system = """You are Zhen (真爱), the AI champion of the Unheaded Kingdom.
 You are an expert on Unheaded's architecture, services, protocols, and codebase.
 You also have knowledge from technical documentation, RFCs, research papers, GitHub repositories, and Wikipedia.
 Use the following retrieved context to answer accurately.
 If the context contains relevant information, use it. If not, answer from general knowledge but note the source.
+When the user refers to previous answers (e.g. "elaborate on 2 and 4", "tell me more about that"), use the conversation history."""
 
-CONTEXT:
-{context}
+        # Build Mistral multi-turn prompt
+        # Correct format: <s>[INST] sys+ctx+Q1 [/INST] A1</s>[INST] Q2 [/INST] A2</s>[INST] Q3 [/INST]
+        if history:
+            # Build history pairs, trimmed to budget
+            history_budget = int(self.local_max_tokens * 1.5)  # chars
+            pairs = []  # [(user_msg, assistant_msg), ...]
+            i = 0
+            while i < len(history) - 1:
+                if history[i]['role'] == 'user' and history[i+1]['role'] == 'assistant':
+                    pairs.append((history[i]['content'], history[i+1]['content']))
+                    i += 2
+                else:
+                    i += 1
 
-QUESTION: {query} [/INST]"""
+            # Include as many recent pairs as fit
+            included_pairs = []
+            total_len = 0
+            for user_msg, asst_msg in reversed(pairs):
+                pair_len = len(user_msg) + len(asst_msg) + 30  # overhead for tags
+                if total_len + pair_len > history_budget:
+                    break
+                included_pairs.insert(0, (user_msg, asst_msg))
+                total_len += pair_len
+
+            if included_pairs:
+                # First turn includes system + context
+                first_user, first_asst = included_pairs[0]
+                prompt = f"<s>[INST] {system}\n\nCONTEXT:\n{context}\n\nQUESTION: {first_user} [/INST]{first_asst}</s>"
+
+                # Middle turns
+                for user_msg, asst_msg in included_pairs[1:]:
+                    prompt += f"[INST] {user_msg} [/INST]{asst_msg}</s>"
+
+                # Current question
+                prompt += f"[INST] {query} [/INST]"
+            else:
+                # History exists but too long to include — fall through to no-history path
+                prompt = f"<s>[INST] {system}\n\nCONTEXT:\n{context}\n\nQUESTION: {query} [/INST]"
+        else:
+            prompt = f"<s>[INST] {system}\n\nCONTEXT:\n{context}\n\nQUESTION: {query} [/INST]"
+
+        # Final truncation safety net
+        estimated_tokens = self.estimate_tokens(prompt)
+        if estimated_tokens > self.local_max_tokens * 0.85:
+            budget = int(self.local_max_tokens * 3.2)
+            if len(prompt) > budget:
+                # Rebuild with shorter context
+                context = context[:int(budget * 0.4)] + "\n[...truncated to fit context window]"
+                prompt = f"<s>[INST] {system}\n\nCONTEXT:\n{context}\n\nQUESTION: {query} [/INST]"
 
         try:
             response = requests.post(
@@ -226,25 +299,79 @@ QUESTION: {query} [/INST]"""
                 return {
                     'answer': result['choices'][0]['text'].strip(),
                     'tokens_used': result.get('usage', {}).get('completion_tokens', 0),
+                    'model': 'mistral-7b',
                 }
             else:
-                return {'answer': f"Inference error: {response.status_code}", 'tokens_used': 0}
+                return {'answer': f"Inference error: {response.status_code}", 'tokens_used': 0, 'model': 'mistral-7b'}
 
         except requests.exceptions.ConnectionError:
-            return {'answer': "Error: Inference server not reachable on port 20100", 'tokens_used': 0}
+            return {'answer': "Error: Inference server not reachable on port 20100", 'tokens_used': 0, 'model': 'mistral-7b'}
         except requests.exceptions.Timeout:
-            return {'answer': "Error: Inference timed out (60s)", 'tokens_used': 0}
+            return {'answer': "Error: Inference timed out (60s)", 'tokens_used': 0, 'model': 'mistral-7b'}
 
-    def query(self, question):
+    def query(self, question, file_content=None, history=None):
         """Full RAG query: retrieve + generate"""
         retrieved = self.retrieve(question, k=5)
-        result = self.generate(question, retrieved)
+        result = self.generate(question, retrieved, file_content=file_content, history=history)
         return {
             'question': question,
             'retrieved': retrieved,
             'answer': result['answer'],
-            'tokens_used': result['tokens_used'],
+            'tokens_used': result.get('tokens_used', 0),
+            'model': result.get('model', 'mistral-7b'),
         }
+
+    def add_to_corpus(self, text, source="user"):
+        """Add new text to the corpus and FAISS index (teach endpoint).
+
+        Chunks the text, embeds it, and adds to the live FAISS index.
+        No restart needed — FAISS supports index.add().
+        """
+        # Simple chunking: split by double newlines, then by size
+        chunks = []
+        for para in text.split('\n\n'):
+            para = para.strip()
+            if not para:
+                continue
+            # Split long paragraphs into ~500 char chunks
+            while len(para) > 500:
+                # Find a good split point
+                split_at = para.rfind('. ', 0, 500)
+                if split_at < 100:
+                    split_at = 500
+                chunks.append(para[:split_at + 1].strip())
+                para = para[split_at + 1:].strip()
+            if para:
+                chunks.append(para)
+
+        if not chunks:
+            return {'added': 0}
+
+        # Embed chunks
+        embeddings = self.embedding_model.encode(chunks, convert_to_numpy=True)
+        embeddings = embeddings.astype('float32')
+
+        # Add to FAISS index
+        start_idx = self.index.ntotal
+        self.index.add(embeddings)
+
+        # Add to corpus and id_map
+        corpus_dir = self.corpus_file.parent
+        added = 0
+        with open(corpus_dir / 'ring_all.jsonl', 'a', encoding='utf-8') as f:
+            for i, chunk_text in enumerate(chunks):
+                cid = f"taught_{source}_{int(time.time())}_{i}"
+                idx = start_idx + i
+                self.id_map[str(idx)] = cid
+                self.corpus[cid] = {
+                    'content': chunk_text,
+                    'source': f'taught:{source}',
+                    'type': 'taught',
+                }
+                f.write(json.dumps({'id': cid, 'content': chunk_text, 'source': f'taught:{source}', 'type': 'taught'}) + '\n')
+                added += 1
+
+        return {'added': added, 'chunks': [c[:100] + '...' if len(c) > 100 else c for c in chunks]}
 
 
 def main():
@@ -267,7 +394,7 @@ def main():
         print(f"Q: {result['question']}")
         print(f"Sources: {[r['source'] for r in result['retrieved'][:3]]}")
         print(f"A: {result['answer'][:300]}...")
-        print(f"Tokens: {result['tokens_used']}")
+        print(f"Tokens: {result['tokens_used']} | Model: {result['model']}")
 
 
 if __name__ == '__main__':
