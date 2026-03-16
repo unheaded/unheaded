@@ -22,10 +22,11 @@ app.secret_key = 'zhen-session-key-dev'
 
 # Initialize RAG pipeline
 index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
-# Load all corpus files (ring1 + ring234)
+# Load combined corpus (all rings + wikipedia + stackoverflow + skills)
 corpus_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
-corpus_files = sorted(corpus_dir.glob('ring*.jsonl'))
-corpus_file = corpus_files[0] if corpus_files else corpus_dir / 'ring1.jsonl'
+corpus_file = corpus_dir / 'ring_all.jsonl'
+if not corpus_file.exists():
+    corpus_file = corpus_dir / 'ring1.jsonl'  # fallback
 
 rag = None
 startup_error = None
