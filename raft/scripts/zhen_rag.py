@@ -192,22 +192,10 @@ class RAGPipeline:
 
     def generate(self, query, context_chunks):
         """Generate response using Mistral with retrieved context"""
-        # Truncate context to fit in 2048 token context window:
-        # ~200 tokens system prompt + ~300 tokens query budget + ~500 tokens response
-        # = ~1000 tokens for context ≈ 3000 characters
-        max_context_chars = 3000
-        context_parts = []
-        chars_used = 0
-        for c in context_chunks[:3]:
-            part = f"[Source: {c['source']}]\n{c['content'][:800]}"
-            if chars_used + len(part) > max_context_chars:
-                remaining = max_context_chars - chars_used
-                if remaining > 100:
-                    context_parts.append(part[:remaining])
-                break
-            context_parts.append(part)
-            chars_used += len(part)
-        context = "\n\n---\n\n".join(context_parts)
+        context = "\n\n---\n\n".join([
+            f"[Source: {c['source']}]\n{c['content'][:1500]}"
+            for c in context_chunks[:3]
+        ])
 
         prompt = f"""<s>[INST] You are Zhen (真爱), the AI champion of the Unheaded Kingdom.
 You are an expert on Unheaded's architecture, services, protocols, and codebase.
