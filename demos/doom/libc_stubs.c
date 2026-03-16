@@ -491,7 +491,8 @@ int sscanf(const char *str, const char *fmt, ...) { (void)str; (void)fmt; return
 #define WAD_BASE     0x00800000
 #define WAD_MAX_SIZE 4196020  // doom1.wad exact size (4,196,020 bytes)
 
-// We support at most 4 open "files" (Doom typically opens 1 WAD)
+// File table for memory-mapped WAD access.
+// Doom opens one WAD file; multiple fopen/fclose cycles reuse slots.
 #define MAX_FILES 4
 
 struct mbc_file {
@@ -499,14 +500,9 @@ struct mbc_file {
     const uint8_t *base;
     size_t size;
     size_t pos;
-    int is_wad;
 };
 
 static struct mbc_file file_table[MAX_FILES];
-
-// WAD size is stored at the start of the WAD header (bytes 4-7 = numlumps, 8-11 = infotableofs)
-// We use WAD_MAX_SIZE as the reported size; the actual WAD will be smaller.
-static size_t wad_file_size = WAD_MAX_SIZE;
 
 FILE *fopen(const char *path, const char *mode) {
     (void)mode;
@@ -519,30 +515,33 @@ FILE *fopen(const char *path, const char *mode) {
         if (strcasecmp(ext, ".wad") == 0) is_wad = 1;
     }
 
-    if (!is_wad) {
-        // Only WAD files are accessible on bare-metal
-        return (FILE *)0;
-    }
+    if (!is_wad) return (FILE *)0;
 
     // Find free slot
     for (int i = 0; i < MAX_FILES; i++) {
         if (!file_table[i].in_use) {
             file_table[i].in_use = 1;
             file_table[i].base = (const uint8_t *)WAD_BASE;
-            file_table[i].size = wad_file_size;
+            file_table[i].size = WAD_MAX_SIZE;
             file_table[i].pos = 0;
-            file_table[i].is_wad = 1;
-            return (FILE *)(uintptr_t)(i + 100); // offset to avoid NULL/stdin/stdout/stderr
+            return (FILE *)(uintptr_t)(i + 100);
         }
     }
     return (FILE *)0;
 }
 
 static struct mbc_file *get_file(FILE *stream) {
-    int idx = (int)(uintptr_t)stream - 100;
-    if (idx < 0 || idx >= MAX_FILES) return (struct mbc_file *)0;
-    if (!file_table[idx].in_use) return (struct mbc_file *)0;
-    return &file_table[idx];
+    uintptr_t h = (uintptr_t)stream;
+    // Handle corrupted FILE* from Z_Malloc'd structs:
+    // Any non-NULL, non-stdio handle maps to file slot 0 (the WAD).
+    if (h <= 2) return (struct mbc_file *)0;
+    int idx = (int)h - 100;
+    if (idx >= 0 && idx < MAX_FILES && file_table[idx].in_use) {
+        return &file_table[idx];
+    }
+    // Fallback: if FILE* is corrupted, use slot 0 if it's the WAD
+    if (file_table[0].in_use) return &file_table[0];
+    return (struct mbc_file *)0;
 }
 
 int fclose(FILE *stream) {
@@ -554,16 +553,7 @@ int fclose(FILE *stream) {
 
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) {
     struct mbc_file *f = get_file(stream);
-    if (!f) {
-        // Fallback: if FILE* is invalid, use file slot 0 (the WAD).
-        // This handles cases where W_StdC_Read's fstream field is corrupted
-        // but the WAD is still the only open file.
-        if (file_table[0].in_use) {
-            f = &file_table[0];
-        } else {
-            return 0;
-        }
-    }
+    if (!f) return 0;
 
     size_t total = size * nmemb;
     size_t avail = (f->pos < f->size) ? (f->size - f->pos) : 0;
@@ -580,22 +570,9 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
     return 0;
 }
 
-static int fseek_call_count = 0;
 int fseek(FILE *stream, long offset, int whence) {
     struct mbc_file *f = get_file(stream);
-    // Log last 4 fseeks to debug area 0x7BF600
-    if (fseek_call_count < 32) {
-        volatile uint32_t *d = (volatile uint32_t *)(0x007BF600 + fseek_call_count * 12);
-        d[0] = (uint32_t)offset;
-        d[1] = (uint32_t)whence;
-        d[2] = f ? (uint32_t)f->pos : 0xDEAD;
-        fseek_call_count++;
-    }
-    if (!f) {
-        // Fallback to WAD (slot 0) for corrupted FILE* handles
-        if (file_table[0].in_use) f = &file_table[0];
-        else return -1;
-    }
+    if (!f) return -1;
 
     long newpos;
     switch (whence) {
