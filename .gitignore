@@ -69,6 +69,7 @@ coverage.html
 /busboy
 # Go binaries in subdirectories (extensionless ELF)
 ebpf/trace-collector-go
+cmd/doom-injector-c/injector
 cmd/*/kanban-app
 cmd/*/dashboard-backend
 cmd/*/trace-collector

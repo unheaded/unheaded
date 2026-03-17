@@ -12,6 +12,7 @@ Features:
 - Teach endpoint (grow corpus without restart)
 """
 import io
+import os
 import sys
 import json
 import time
@@ -80,11 +81,11 @@ def _pg_connect():
     try:
         import psycopg2
         conn = psycopg2.connect(
-            dbname='unheaded_app',
-            user='app_zhen',
-            password='zhen_dev',
-            host='localhost',
-            port=5432,
+            dbname=os.environ.get('ZHEN_DB_NAME', 'unheaded_app'),
+            user=os.environ.get('ZHEN_DB_USER', 'app_zhen'),
+            password=os.environ.get('ZHEN_DB_PASSWORD', ''),
+            host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
+            port=int(os.environ.get('ZHEN_DB_PORT', '5432')),
             connect_timeout=3,
         )
         conn.autocommit = True
