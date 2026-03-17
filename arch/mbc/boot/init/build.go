@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//go:build ignore
+
 // Generates init.upcf — the /init binary for MBC Linux in UPCFlat format.
 //
 // This is PID 1: the first userspace process.  It prints a boot banner,
