@@ -1,8 +1,8 @@
 # Third-Party Dependencies and GPL Boundary
 
 **Project:** Unheaded Kingdom
-**Last updated:** 2026-02-27
-**Main license:** MIT (see `/LICENSE`)
+**Last updated:** 2026-03-17 (S78 Round Table audit)
+**Main license:** GPL-3.0-or-later (see `/LICENSE`)
 **Canonical third-party inventory location:** This file
 
 ---
@@ -27,11 +27,11 @@ The DOOM subsystem demonstrates **computational completeness** of the Monad Prot
 
 ### GPL Isolation Architecture
 
-The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the Linux kernel's eBPF VM sandbox. The rest of the Unheaded codebase (MIT) is completely separate. **There is no linking, compilation merging, or shared address space.**
+The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the Linux kernel's eBPF VM sandbox. The rest of the Unheaded codebase (GPL-3.0-or-later) is completely separate. **There is no linking, compilation merging, or shared address space.**
 
 ```
 +--------------------------------------------------+
-|  Unheaded Platform (MIT / MIT / Apache 2.0) |
+|  Unheaded Platform (GPL-3.0 / GPL-3.0 / Apache 2.0) |
 |  Go binaries, Rust binaries, JS frontend        |
 |                                                  |
 |  cmd/doom-bridge   cmd/doom-loader               |
@@ -63,7 +63,7 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 
 5. **Independent compilation.** DOOM is compiled by a Rust translator (`monad-mbc`). Go/Rust tools are compiled by their respective compilers. The two toolchains never intersect.
 
-**Result:** The GPL v2 license applies exclusively to the files in the `doom/` directory. The main codebase (MIT) has no GPL obligations.
+**Result:** The GPL v2 license applies exclusively to the files in the `doom/` directory. The main codebase (GPL-3.0-or-later) has no GPL v2 obligations from DOOM.
 
 ### GPL v2 Licensed Components (inside the boundary)
 
@@ -90,7 +90,7 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 
 ### NOT GPL Licensed (outside the boundary)
 
-All code outside the `doom/` directory is **original Unheaded work** licensed under MIT. These components do NOT derive from, link to, or include any GPL-licensed code. They communicate with DOOM solely through BPF map syscalls (a data protocol boundary, analogous to user-space programs communicating with the GPL Linux kernel).
+All code outside the `doom/` directory is **original Unheaded work** licensed under GPL-3.0-or-later. These components do NOT derive from, link to, or include any GPL-licensed code. They communicate with DOOM solely through BPF map syscalls (a data protocol boundary, analogous to user-space programs communicating with the GPL Linux kernel).
 
 | Path | Description | License |
 |------|-------------|---------|
@@ -110,7 +110,7 @@ All code outside the `doom/` directory is **original Unheaded work** licensed un
 
 ## Go Dependencies (17 Direct)
 
-All Go dependencies use permissive licenses compatible with MIT.
+All Go dependencies use permissive licenses compatible with GPL-3.0.
 
 ### Direct Dependencies Table
 
@@ -219,7 +219,7 @@ No npm packages in the shipped dashboard. Configuration and protocol handlers ar
 
 ## License Compatibility Summary
 
-| License Type | Count | Compatible with MIT? | Notes |
+| License Type | Count | Compatible with GPL-3.0? | Notes |
 |--------------|-------|--------------------------|-------|
 | MIT | 14 | Yes | Permissive, can be used in proprietary software |
 | BSD-3-Clause | 12 | Yes | Permissive, attribution required |
@@ -263,7 +263,7 @@ cargo license          # Generate license report (requires: cargo install cargo-
 
 ## References
 
-- `/LICENSE` — MIT (main codebase)
+- `/LICENSE` — GPL-3.0-or-later (main codebase)
 - `/doom/LICENSE` — GPL v2 boundary documentation
 - `/doom/doomgeneric/LICENSE` — GPL v2 full text (upstream)
 - `/LICENSES/THIRD_PARTY.md` — Detailed third-party attributions with full license texts
