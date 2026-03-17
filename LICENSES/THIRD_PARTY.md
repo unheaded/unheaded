@@ -3,9 +3,11 @@
 The Unheaded Kingdom project uses the following third-party packages.
 All attributions and licenses are listed below as required.
 
-**Last audited:** 2026-02-24 (go.mod, Cargo.toml scan)
-**Go module:** `unheaded` — 17 direct + 14 indirect dependencies
+**Last audited:** 2026-03-17 (go.mod, Cargo.toml scan — S78 Round Table)
+**Go module:** `unheaded` (Go 1.24) — 24 direct + 14 indirect dependencies
 **Rust crates:** trace-collector (28 deps), monad-mbc (3 deps), shield/WAF (10 deps), ebpf-loader (5 deps)
+**Python:** raft/ (FAISS, Flask, sentence-transformers, llama-cpp-python)
+**New since last audit:** cloudflare/circl v1.6.3 (PQC), modernc.org/sqlite v1.44.3, yuin/goldmark v1.7.16, lib/pq v1.10.9
 
 ---
 
