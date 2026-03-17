@@ -17,5 +17,5 @@ dependency "compute" {
 inputs = {
   environment            = "dev"
   retention_days         = 7
-  grafana_admin_password = "changeme-dev"
+  grafana_admin_password = get_env("GRAFANA_ADMIN_PASSWORD", "changeme-dev")
 }
