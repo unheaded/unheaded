@@ -31,7 +31,7 @@ Layer 5  User Interface       Dashboard, Kanban (self-hosting proof)
 Layer 4  Application Services timeguru, captain, micromanager, architect
 Layer 3  Infrastructure Svcs  wotan, trace-collector, gateway
 Layer 2  Control Plane        unheaded-daemon (drift detection, reconciliation)
-Layer 1  Data Plane           8 eBPF programs (XDP/TC, Rust/Aya)
+Layer 1  Data Plane           23 eBPF programs (XDP/TC, Rust/Aya)
 Layer 0  Infrastructure       LXD / Docker / NixOS / bare metal
 ```
 
@@ -80,9 +80,10 @@ The Monad encodes 20 bytes (5 registers, CRC-16/CCITT) in IPv6 Hop-by-Hop Option
 
 Core specification in three Internet-Drafts (IETF Experimental track):
 
-- [Monad Wire Format](docs/protocol/draft-bellis-unheaded-protocol-foundation-04.md) -- register file encoding
-- [Sophia Dictionaries](docs/protocol/draft-bellis-unheaded-sophia-dictionary-01.md) -- BPF map management
-- [Wotan Memory Model](docs/protocol/draft-bellis-unheaded-wotan-memory-01.md) -- distributed protocol RAM
+- [Monad Wire Format](docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md) -- register file encoding
+- [Sophia Dictionaries](docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md) -- BPF map management
+- [Wotan Memory Model](docs/protocol/draft-bellis-unheaded-wotan-memory-03.md) -- distributed protocol RAM
+- [PQC Authentication](docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md) -- post-quantum auth
 
 ## Security
 
@@ -116,12 +117,19 @@ Local RAG system with 1.52M indexed knowledge chunks. Mistral-7B inference via l
 
 ## Codebase
 
-~450K lines of production code. ~1M+ total with tests and documentation.
+| Metric | Count |
+|--------|-------|
+| Production LOC | 415K |
+| Total LOC (with tests + docs) | 1,137K |
+| Go production | 267K |
+| Rust (eBPF + tools) | 53K |
+| Active services | 34 |
+| eBPF programs | 23 |
+| Internet-Drafts | 4 |
+| PQC test cases | 60 |
+| Dependencies audited | 553 |
 
-- 25 services, 37+ packages, 8 eBPF programs
-- 16 protocol packages (Go), 16K lines eBPF (Rust/Aya)
-- Three deployment platforms: NixOS, Docker Compose, LXD
-- Four routing options: BGP EVPN, OSPFv3, IS-IS+SR-MPLS, MPLS LDP
+Three deployment platforms: NixOS, Docker Compose, LXD. Four routing options: BGP EVPN, OSPFv3, IS-IS+SR-MPLS, MPLS LDP.
 
 ## License
 

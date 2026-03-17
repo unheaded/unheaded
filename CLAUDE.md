@@ -1,7 +1,7 @@
 # CLAUDE.md - Unheaded Alpha Development Guide
 
 **For:** Claude AI agents working on Unheaded
-**Updated:** March 15, 2026
+**Updated:** March 17, 2026
 **Project:** github.com/unheaded/unheaded
 
 ---
@@ -758,7 +758,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - **Backends**: All observability + IaC adapters DEFERRED not killed. Anti-lock-in is core principle. Ship Prometheus + zerolog first.
 - **Inverse Mask**: Deep exploration session required (BlackMage + Developer + Architect + Scientist).
 - **VC**: Explore Austin venture capital while repo is private. Protocol IS the moat.
-- **LOC Audit (S76)**: 385K production, 627K with tests, 941K total (Go 259K prod + 242K test, Rust 50K, JS 21K, Nix 11K, Shell 25K, HTML/CSS 18K, Config 25K, Docs 289K). Note: significantly grown since S-ZHEN session (March 15, 2026) — approx ~450K production now.
+- **LOC Audit (S78, March 17, 2026)**: 415K production, 753K with tests, 1,137K total. Breakdown: Go 267K prod + 337K test = 604K, Rust 53K (30K eBPF + 23K other), Python 15K, JS 21K, Shell 27K, Nix 11K, HTML/CSS 20K, Config 40K, Docs 345K, Proto+SQL 1K. 34 active services (zero stubs). 23 eBPF programs.
 - **Timeline Audit**: Fix milestone statuses — no "completed" at 55% progress. Honesty > hype.
 
 ---
@@ -1130,7 +1130,7 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-**Last Updated**: March 15, 2026 (S-ZHEN session — 63 commits, Zhen AI + UPC + The Well + SBOM + CI/CD)
-**Version**: Alpha (✅ COMPLETE) → Age 2 (~65%) — Wire Format FROZEN, Dual Bare Metal Online, Zhen AI Online
+**Last Updated**: March 17, 2026 (S78 Round Table — LOC audit verified, public release planning)
+**Version**: Alpha (✅ COMPLETE) → Age 2 (~65%) — Wire Format FROZEN, Dual Bare Metal Online, Zhen AI Online, Public Release Imminent
 **Status**: WEST + EAST bare metal online. Zhen AI operational (1.52M vectors, Mistral-7B inference). UPC Level 6 built. The Well (PostgreSQL multi-DB, 7 users). SBOM audited (553 deps). CI/CD hardened. All P1 bugs fixed. 75+ sprints executed.
-**LOC**: ~450K production (approx), ~1M+ total (significant growth from S-ZHEN, UPC, The Well, SBOM, CI/CD work)
+**LOC**: 415K production, 753K with tests, 1,137K total (verified count March 17, 2026). 34 services, 23 eBPF programs.
