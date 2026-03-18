@@ -110,7 +110,7 @@
 | 1 | §5.1 | L1 cache line metadata (tag/valid/dirty/lru) in Go heap, not BPF map | Significant |
 | 2 | §5.1 | No per-flow BPF map key (flat word-addr only) | Significant |
 | 3 | §6.1 | L2 is flat []byte, not 80-byte structured ring entries | Major |
-| 4 | §7 | L3 WAL entirely unimplemented (stub/TODO) | Critical |
+| 4 | §7 | L3 WAL entirely unimplemented (stub only) | Critical |
 | 5 | §7.2 | WAL recovery on restart — absent | Critical |
 | 6 | §7.3 | WAL compaction — absent | Critical |
 | 7 | §4 | MMIO address map (0xC000-0xFFFF) not routed | Major |
