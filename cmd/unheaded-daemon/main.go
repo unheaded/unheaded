@@ -99,8 +99,11 @@ type Daemon struct {
 	// LXD client for container operations
 	lxdClient LXDClient
 
-	// eBPF loader (mock for now)
-	// ebpfLoader ebpf.Loader
+	// eBPF Loader: intentionally disabled in the control plane.
+	// Real eBPF loading requires kernel support (see internal/ebpf/loader.go).
+	// When RealLoader is complete, enable here:
+	//   ebpfLoader, err := ebpf.NewLoader(ebpf.LoaderConfig{...})
+	//   if err != nil { log.Warn().Err(err).Msg("eBPF loader failed (optional)") }
 
 	// Transport
 	transportCfg transport.Config
@@ -136,7 +139,16 @@ type LXDClient interface {
 	ListContainers() map[string]*ContainerState
 }
 
-// MockLXDClient is a mock implementation of LXDClient for testing
+// MockLXDClient is a development-mode implementation of LXDClient.
+//
+// All container operations are tracked in memory only (no persistence).
+// Production deployments should use the real LXD client from pkg/lxd,
+// which connects to the actual LXD socket and manages real containers.
+//
+// To enable real LXD in production:
+//  1. Import: unheaded/pkg/lxd
+//  2. Initialize: lxdClient, err := lxd.NewClient(cfg.LXDSocket)
+//  3. Replace NewMockLXDClient() with the real client
 type MockLXDClient struct {
 	mu         sync.RWMutex
 	containers map[string]*ContainerState
@@ -780,7 +792,7 @@ func (d *Daemon) handleReady(w http.ResponseWriter, r *http.Request) {
 		"services": map[string]bool{
 			"state_manager": true,
 			"lxd_client":    lxdReady,
-			"ebpf_loader":   false, // TODO: implement
+			"ebpf_loader":   false, // disabled until RealLoader is implemented
 		},
 	})
 }
