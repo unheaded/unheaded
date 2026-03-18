@@ -2,7 +2,7 @@
 
 **Production-ready infrastructure in hours, not months.**
 
-Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. You bring your app ("the head"), we provide everything else.
+Unheaded is a configuration management automation platform delivering complete backend infrastructure for an internet facing application. Supply the head ("an application"), unheaded provides everything else.
 
 ## What It Does
 
