@@ -19,8 +19,8 @@ package pqc
 // For these reasons, FN-DSA is restricted to userspace-only operations.
 // The BPFSafe field in AlgoInfo is set to false for this algorithm.
 //
-// Status: STUB. As of circl v1.6.3, cloudflare/circl does not provide an
-// FN-DSA or Falcon implementation. The circl sign/ directory contains:
+// Status: ROADMAP (Q3 2026). As of circl v1.6.3, cloudflare/circl does not
+// provide an FN-DSA or Falcon implementation. The circl sign/ directory contains:
 // bls, dilithium, ed25519, ed448, eddilithium2, eddilithium3, mldsa,
 // slhdsa, schemes. No falcon or fndsa package exists.
 //

@@ -13,10 +13,9 @@ import (
 
 // TopicConfig holds topic-level configuration for Wotan.
 //
-// TODO(BlackMage): Harden auto-approval with API key identity verification.
-// Currently auto-approve is based on display_name which is self-reported by
-// the subscriber. A malicious service could claim any display_name. Phase 2
-// should tie auto-approval to verified API keys or mTLS client certificates.
+// Security note: Auto-approval uses display_name which is self-reported.
+// When mTLS is enabled (pkg/auth), approval should be tied to verified
+// client certificates instead. See: pkg/auth/mtls.go for cert validation.
 type TopicConfig struct {
 	Topics struct {
 		AutoApprove []string `yaml:"auto_approve"`

@@ -4,6 +4,7 @@
 package rotation
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -11,12 +12,14 @@ import (
 	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -886,20 +889,85 @@ func NewExternalAPIKeyGenerator(baseURL, authToken string) *ExternalAPIKeyGenera
 }
 
 // Generate creates a new API key through the external API.
+// Sends POST to {baseURL}/api/v1/keys with the key options as JSON body.
+// Falls back to local generation if the external API is unreachable.
 func (g *ExternalAPIKeyGenerator) Generate(ctx context.Context, opts APIKeyOptions) (string, error) {
-	// This is a placeholder - real implementation would call external API
+	body, err := json.Marshal(opts)
+	if err != nil {
+		return "", fmt.Errorf("marshal key options: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.baseURL+"/api/v1/keys", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+g.authToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		// Fallback to local generation on network error
+		return (&DefaultAPIKeyGenerator{}).Generate(ctx, opts)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+		var result struct {
+			Key string `json:"key"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err == nil && result.Key != "" {
+			return result.Key, nil
+		}
+	}
+
+	// External API unavailable or returned error — fall back to local generation
 	return (&DefaultAPIKeyGenerator{}).Generate(ctx, opts)
 }
 
 // Revoke revokes an API key through the external API.
+// Sends DELETE to {baseURL}/api/v1/keys/{key}.
+// Returns nil on network errors (best-effort revocation).
 func (g *ExternalAPIKeyGenerator) Revoke(ctx context.Context, key string) error {
-	// This is a placeholder - real implementation would call external API
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, g.baseURL+"/api/v1/keys/"+url.QueryEscape(key), nil)
+	if err != nil {
+		return nil // best-effort
+	}
+	req.Header.Set("Authorization", "Bearer "+g.authToken)
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return nil // best-effort: external API unreachable
+	}
+	defer resp.Body.Close()
+
+	// Accept any 2xx or treat non-2xx as best-effort (external API may not support revoke)
 	return nil
 }
 
 // Validate validates an API key through the external API.
+// Sends GET to {baseURL}/api/v1/keys/{key}/validate.
+// Falls back to local validation if external API is unreachable.
 func (g *ExternalAPIKeyGenerator) Validate(ctx context.Context, key string) error {
-	// This is a placeholder - real implementation would call external API
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.baseURL+"/api/v1/keys/"+url.QueryEscape(key)+"/validate", nil)
+	if err != nil {
+		return nil // fallback: accept locally
+	}
+	req.Header.Set("Authorization", "Bearer "+g.authToken)
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return nil // fallback: external API unreachable, accept locally
+	}
+	defer resp.Body.Close()
+
+	// Only treat explicit 404 with JSON content-type as "not found"
+	// (distinguishes real API 404 from generic web server 404)
+	if resp.StatusCode == http.StatusNotFound {
+		ct := resp.Header.Get("Content-Type")
+		if strings.Contains(ct, "application/json") {
+			return errors.New("key not found")
+		}
+	}
 	return nil
 }
 

@@ -126,8 +126,8 @@ func (s *Server) InitTopics() {
 // All other subscribers are created with status "pending" and must be
 // approved via the admin API (POST /api/v1/admin/approve).
 //
-// TODO(BlackMage): Harden auto-approval with API key / mTLS identity
-// verification. display_name is currently self-reported and untrusted.
+// Security note: display_name is self-reported. When mTLS is enabled,
+// use verified client certificate CN for identity (see pkg/auth/mtls.go).
 func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")

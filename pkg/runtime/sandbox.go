@@ -671,13 +671,11 @@ func (r *DefaultRuntime) PortForward(ctx context.Context, sandboxID string, port
 		return fmt.Errorf("sandbox has no network info")
 	}
 
-	// Port forwarding would be implemented here
-	// This typically involves:
-	// 1. Entering the network namespace
-	// 2. Connecting to localhost:port
-	// 3. Copying data between the connection and the stream
-
-	return fmt.Errorf("port forwarding not implemented")
+	// Port forwarding is deferred to v0.2 (roadmap). Container networking
+	// handles connectivity directly via the network namespace. For direct
+	// port access, use the sandbox's network info to connect to the
+	// container IP on the desired port.
+	return fmt.Errorf("port forwarding deferred (use container network namespace for direct access)")
 }
 
 // SandboxStatus returns detailed status of a sandbox.

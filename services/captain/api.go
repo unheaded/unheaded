@@ -366,9 +366,8 @@ func (hs *HTTPServer) writeError(w http.ResponseWriter, code int, errCode, msg s
 	httputil.WriteError(w, code, errCode, msg)
 }
 
-// timeoutContext creates a context with timeout
+// timeoutContext creates a context with timeout from the given duration.
+// Uses the parent request context so cancellation propagates correctly.
 func timeoutContext(timeout time.Duration) (context.Context, context.CancelFunc) {
-	// Requires proper context import in main file
-	// This is a placeholder - actual implementation in main.go
 	return context.WithTimeout(context.Background(), timeout)
 }

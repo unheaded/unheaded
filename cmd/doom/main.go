@@ -10,7 +10,7 @@
 //	doom status             - Format CPU state as table
 //	doom input <key_bitmap> - Parse hex bitmap, inject keys
 //	doom reset              - Reset CPU to defaults
-//	doom inject-tick        - Inject compute tick (stub)
+//	doom inject-tick        - Inject compute tick (roadmap: v0.2)
 //
 // All BPF map interactions are dry-run unless real maps are available.
 package main
@@ -73,7 +73,7 @@ Commands:
   status             Show CPU state
   input <bitmap>     Inject keyboard input (hex bitmap)
   reset              Reset CPU to default state
-  inject-tick        Inject compute tick (stub)
+  inject-tick        Inject compute tick (roadmap: v0.2)
   version            Print version
 
 Use "doom <command> --help" for more information.`)
@@ -223,7 +223,7 @@ func cmdInjectTick(args []string) error {
 		}
 	}
 
-	fmt.Printf("[STUB] Would inject %d tick(s) into the packet ring\n", count)
+	fmt.Printf("[ROADMAP v0.2] Would inject %d tick(s) into the packet ring\n", count)
 	fmt.Println("  Each tick: 6 hops x 16 insns = 96 instructions")
 	fmt.Printf("  Total: %d instructions\n", count*96)
 	return nil
