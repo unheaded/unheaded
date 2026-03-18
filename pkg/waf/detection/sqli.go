@@ -2,7 +2,8 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package detection provides attack detection patterns for THE SHIELD WAF
-// TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference
+// Architecture: Go reference implementation with planned Rust acceleration for hot paths.
+// See docs/WAF_ARCHITECTURE.md for the two-tier migration strategy.
 package detection
 
 import (
@@ -12,7 +13,9 @@ import (
 )
 
 // SQLiDetector detects SQL injection attacks using pattern matching and tokenization
-// TODO: Port to Rust with SIMD-accelerated pattern matching for 10x performance
+// Performance: Uses compiled regexp patterns in Go reference implementation.
+// Rust acceleration planned with SIMD-accelerated pattern matching (target: 10x throughput).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type SQLiDetector struct {
 	patterns     []*regexp.Regexp
 	keywords     map[string]int // SQL keywords with severity weights
@@ -23,7 +26,9 @@ type SQLiDetector struct {
 }
 
 // SQLTokenizer performs lexical analysis on potential SQL injection payloads
-// TODO: Rust rebuild should use nom parser combinator for zero-copy tokenization
+// Performance: Rune-by-rune lexer with string allocation in Go reference implementation.
+// Rust acceleration planned with nom parser combinators for zero-copy tokenization.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type SQLTokenizer struct {
 	sqlKeywords   map[string]TokenType
 	sqlOperators  map[string]TokenType
@@ -119,7 +124,9 @@ func NewSQLTokenizer() *SQLTokenizer {
 }
 
 // Tokenize performs lexical analysis on the input string
-// TODO: Rust version should return zero-copy slices into original input
+// Performance: Allocates new strings per token in Go reference implementation.
+// Rust acceleration planned with zero-copy slices (&str) into original input buffer.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (t *SQLTokenizer) Tokenize(input string) []Token {
 	tokens := make([]Token, 0, 32)
 	normalized := strings.ToLower(input)
@@ -316,7 +323,9 @@ func (t *SQLTokenizer) Tokenize(input string) []Token {
 }
 
 // NewSQLiDetector creates a new SQL injection detector
-// TODO: Rust rebuild should use Aho-Corasick for multi-pattern matching
+// Performance: Uses compiled regexp slice for pattern matching in Go.
+// Rust acceleration planned with Aho-Corasick multi-pattern automaton.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func NewSQLiDetector(strict bool) *SQLiDetector {
 	patterns := []string{
 		// UNION-based injection
@@ -516,7 +525,9 @@ func (d *SQLiDetector) Detect(input string) bool {
 }
 
 // DetectWithDetails returns detailed detection results
-// TODO: Rust version should include byte-level position information
+// Performance: Returns string-level matches in Go reference implementation.
+// Rust acceleration planned with byte-level position tracking for precise reporting.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *SQLiDetector) DetectWithDetails(input string) *DetectionResult {
 	result := &DetectionResult{
 		Type:    "sqli",
@@ -557,7 +568,9 @@ func (d *SQLiDetector) DetectWithDetails(input string) *DetectionResult {
 }
 
 // analyzeTokens analyzes token sequence for SQL injection patterns
-// TODO: Rust version should use state machine for O(n) analysis
+// Performance: Iterates token slice with nested lookups in Go reference implementation.
+// Rust acceleration planned with state machine for guaranteed O(n) analysis.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *SQLiDetector) analyzeTokens(tokens []Token) int {
 	risk := 0
 
@@ -666,7 +679,9 @@ func (d *SQLiDetector) getDangerousTokenPatterns(tokens []Token) []string {
 }
 
 // normalize normalizes the input for detection
-// TODO: Rust version should work on bytes directly with SIMD
+// Performance: Multi-pass string replacement in Go reference implementation.
+// Rust acceleration planned with SIMD byte-level transforms (memchr + vectorized decode).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *SQLiDetector) normalize(input string) string {
 	result := input
 

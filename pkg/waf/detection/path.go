@@ -2,7 +2,8 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package detection provides path traversal detection for THE SHIELD WAF
-// TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference
+// Architecture: Go reference implementation with planned Rust acceleration for hot paths.
+// See docs/WAF_ARCHITECTURE.md for the two-tier migration strategy.
 package detection
 
 import (
@@ -11,7 +12,9 @@ import (
 )
 
 // PathTraversalDetector detects path traversal attacks with encoding bypass protection
-// TODO: Port to Rust with SIMD-accelerated path normalization for 10x performance
+// Performance: Uses multi-pass string decoding in Go reference implementation.
+// Rust acceleration planned with SIMD path normalization (target: 10x throughput).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type PathTraversalDetector struct {
 	patterns          []*regexp.Regexp
 	sensitiveFiles    map[string]int  // File patterns to risk scores
@@ -37,7 +40,9 @@ type PathToken struct {
 }
 
 // NewPathTraversalDetector creates a new path traversal detector (replaces TraversalDetector)
-// TODO: Rust rebuild should use trie-based path matching for O(n) detection
+// Performance: Uses compiled regexp slice for pattern matching in Go.
+// Rust acceleration planned with trie-based path matching for O(n) detection.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func NewPathTraversalDetector(strict bool) *PathTraversalDetector {
 	patterns := []string{
 		// Basic traversal patterns
@@ -425,7 +430,9 @@ func (d *PathTraversalDetector) Detect(input string) bool {
 }
 
 // DetectWithDetails returns detailed detection results
-// TODO: Rust version should include byte-level position information
+// Performance: Returns string-level matches in Go reference implementation.
+// Rust acceleration planned with byte-level position tracking for precise reporting.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *PathTraversalDetector) DetectWithDetails(input string) *DetectionResult {
 	result := &DetectionResult{
 		Type:    "traversal",
@@ -553,7 +560,9 @@ func (d *PathTraversalDetector) analyzeSensitiveFiles(path string) int {
 }
 
 // normalizeMultiLayer decodes multiple encoding layers
-// TODO: Rust version should be iterative with max depth limit
+// Performance: Multi-pass string replacement with iteration cap in Go.
+// Rust acceleration planned with iterative single-pass byte scanner and configurable depth limit.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *PathTraversalDetector) normalizeMultiLayer(input string) string {
 	result := input
 	maxIterations := 5 // Prevent infinite loops

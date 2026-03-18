@@ -2,7 +2,8 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package waf provides anomaly scoring for THE SHIELD WAF
-// TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference
+// Architecture: Go reference implementation with planned Rust acceleration for hot paths.
+// See docs/WAF_ARCHITECTURE.md for the two-tier migration strategy.
 package waf
 
 import (
@@ -16,7 +17,8 @@ import (
 )
 
 // ScoringEngine combines multiple detection signals into a final anomaly score
-// TODO: Port to Rust with machine learning model integration
+// Future: Rust acceleration planned with ML model integration (tract/candle inference).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type ScoringEngine struct {
 	// Weights for different detection types
 	weights       map[string]float64
@@ -40,7 +42,9 @@ type ScoringEngine struct {
 }
 
 // BaselineTracker tracks normal behavior baselines per endpoint
-// TODO: Rust rebuild should use streaming statistics algorithms
+// Performance: Uses in-memory slices with periodic recalculation.
+// Rust acceleration planned with streaming statistics (online mean/variance).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type BaselineTracker struct {
 	endpoints     map[string]*EndpointBaseline
 	mu            sync.RWMutex
@@ -65,7 +69,9 @@ type EndpointBaseline struct {
 }
 
 // AttackCorrelator correlates multiple attack signals
-// TODO: Rust rebuild should use graph-based correlation
+// Performance: Uses map-based tracking per source IP.
+// Rust acceleration planned with petgraph-based correlation for richer attack graphs.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type AttackCorrelator struct {
 	recentAttacks map[string]*AttackContext
 	mu            sync.RWMutex
@@ -169,7 +175,9 @@ func NewAttackCorrelator(windowSize time.Duration) *AttackCorrelator {
 }
 
 // Score calculates the anomaly score for a request
-// TODO: Rust version should support async signal gathering
+// Performance: Signal gathering is synchronous in Go reference implementation.
+// Rust acceleration planned with async signal gathering via tokio tasks.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (e *ScoringEngine) Score(ctx context.Context, req *http.Request, signals map[string]*SignalData) *ScoringResult {
 	e.mu.RLock()
 	defer e.mu.RUnlock()

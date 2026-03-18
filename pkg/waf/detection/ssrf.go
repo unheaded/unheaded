@@ -2,7 +2,8 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package detection provides SSRF detection for THE SHIELD WAF
-// TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference
+// Architecture: Go reference implementation with planned Rust acceleration for hot paths.
+// See docs/WAF_ARCHITECTURE.md for the two-tier migration strategy.
 package detection
 
 import (
@@ -16,7 +17,9 @@ import (
 )
 
 // SSRFDetector detects Server-Side Request Forgery attacks with DNS rebinding protection
-// TODO: Port to Rust with async DNS resolution and connection tracking
+// Performance: Uses synchronous DNS resolution and regex patterns in Go.
+// Rust acceleration planned with async DNS (trust-dns) and connection tracking.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type SSRFDetector struct {
 	patterns          []*regexp.Regexp
 	privateNetworks   []*net.IPNet
@@ -28,7 +31,9 @@ type SSRFDetector struct {
 }
 
 // DNSCache provides DNS caching for rebinding attack protection
-// TODO: Rust rebuild should use lock-free data structures
+// Performance: Uses sync.RWMutex-guarded map in Go reference implementation.
+// Rust acceleration planned with lock-free concurrent data structures (crossbeam).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type DNSCache struct {
 	entries map[string]*DNSCacheEntry
 	ttl     time.Duration
@@ -92,7 +97,9 @@ func (c *DNSCache) Clear() {
 }
 
 // NewSSRFDetector creates a new SSRF detector
-// TODO: Rust rebuild should use Aho-Corasick for multi-pattern matching
+// Performance: Uses compiled regexp slice for pattern matching in Go.
+// Rust acceleration planned with Aho-Corasick multi-pattern automaton.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func NewSSRFDetector(strict bool) *SSRFDetector {
 	patterns := []string{
 		// Localhost variations - comprehensive
@@ -380,7 +387,9 @@ func (d *SSRFDetector) Detect(input string) bool {
 }
 
 // DetectWithDetails returns detailed detection results
-// TODO: Rust version should include async DNS resolution
+// Performance: Uses synchronous pattern matching and URL analysis in Go.
+// Rust acceleration planned with async DNS resolution for non-blocking detection.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *SSRFDetector) DetectWithDetails(input string) *DetectionResult {
 	result := &DetectionResult{
 		Type:    "ssrf",
@@ -748,7 +757,9 @@ func (d *SSRFDetector) ValidateURL(rawURL string) (bool, string) {
 
 // ResolveAndValidate resolves a hostname and validates the IP
 // This provides DNS rebinding protection by checking resolved IPs
-// TODO: Rust version should use async DNS resolution
+// Performance: Uses blocking net.LookupIP in Go reference implementation.
+// Rust acceleration planned with async DNS resolution (trust-dns).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *SSRFDetector) ResolveAndValidate(hostname string) ([]net.IP, bool, string) {
 	// Check cache first
 	if cached := d.dnsCache.Get(hostname); cached != nil {
