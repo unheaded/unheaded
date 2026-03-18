@@ -24,7 +24,7 @@ Subcommands:
   status        Show current CPU state
   input         Inject keyboard input
   reset         Reset CPU to default state
-  inject-tick   Inject a compute tick (stub)
+  inject-tick   Inject a compute tick (roadmap: v0.2)
 
 Use "wotan-ctl doom <command> --help" for more information.`,
 		Usage:       "wotan-ctl doom <command> [flags]",
@@ -312,7 +312,7 @@ Examples:
 	}
 }
 
-// newDoomInjectTickCmd creates the "doom inject-tick" subcommand (stub).
+// newDoomInjectTickCmd creates the "doom inject-tick" subcommand (roadmap: v0.2).
 func newDoomInjectTickCmd() *Command {
 	var (
 		mapPinPath string
@@ -344,7 +344,7 @@ Examples:
 				return err
 			}
 
-			fmt.Printf("[STUB] Would inject %d tick(s) into the packet ring\n", count)
+			fmt.Printf("[ROADMAP v0.2] Would inject %d tick(s) into the packet ring\n", count)
 			fmt.Println("  Each tick: 6 hops x 16 insns = 96 instructions")
 			fmt.Printf("  Total: %d instructions\n", count*96)
 			fmt.Println()

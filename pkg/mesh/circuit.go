@@ -929,12 +929,13 @@ type RateLimiterMetrics struct {
 
 // HealthChecker performs active health checking on endpoints.
 type HealthChecker struct {
-	config   *HealthCheckConfig
-	mu       sync.RWMutex
-	health   map[string]*endpointHealth
-	stopCh   chan struct{}
-	wg       sync.WaitGroup
-	running  bool
+	config             *HealthCheckConfig
+	mu                 sync.RWMutex
+	health             map[string]*endpointHealth
+	serviceToEndpoints map[string][]string // service name -> endpoint IDs
+	stopCh             chan struct{}
+	wg                 sync.WaitGroup
+	running            bool
 }
 
 // HealthCheckConfig configures the health checker.
@@ -976,9 +977,10 @@ func NewHealthChecker(config *HealthCheckConfig) *HealthChecker {
 	}
 
 	return &HealthChecker{
-		config: config,
-		health: make(map[string]*endpointHealth),
-		stopCh: make(chan struct{}),
+		config:             config,
+		health:             make(map[string]*endpointHealth),
+		serviceToEndpoints: make(map[string][]string),
+		stopCh:             make(chan struct{}),
 	}
 }
 
@@ -993,6 +995,20 @@ func (hc *HealthChecker) AddEndpoint(endpoint *Endpoint) {
 			healthy:  true, // Assume healthy until proven otherwise
 		}
 	}
+
+	// Track service-to-endpoint mapping if endpoint has service tag
+	if svc, ok := endpoint.Tags["service"]; ok && svc != "" {
+		found := false
+		for _, eid := range hc.serviceToEndpoints[svc] {
+			if eid == endpoint.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			hc.serviceToEndpoints[svc] = append(hc.serviceToEndpoints[svc], endpoint.ID)
+		}
+	}
 }
 
 // RemoveEndpoint removes an endpoint from health checking.
@@ -1002,10 +1018,20 @@ func (hc *HealthChecker) RemoveEndpoint(endpointID string) {
 	delete(hc.health, endpointID)
 }
 
-// RemoveService removes all endpoints for a service.
+// RemoveService removes all endpoints associated with a service from health checking.
 func (hc *HealthChecker) RemoveService(serviceName string) {
-	// This is a placeholder - in production would filter by service
-	// For now, do nothing as we'd need service info stored per endpoint
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+
+	endpoints, ok := hc.serviceToEndpoints[serviceName]
+	if !ok {
+		return
+	}
+
+	for _, eid := range endpoints {
+		delete(hc.health, eid)
+	}
+	delete(hc.serviceToEndpoints, serviceName)
 }
 
 // IsHealthy returns whether an endpoint is healthy.
