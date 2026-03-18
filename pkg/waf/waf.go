@@ -3,7 +3,8 @@
 
 // Package waf provides a Web Application Firewall implementation
 // using only Go standard library - THE SHIELD of the Unheaded Kingdom
-// TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference
+// Architecture: Go reference implementation with planned Rust acceleration for hot paths.
+// See docs/WAF_ARCHITECTURE.md for the two-tier migration strategy.
 package waf
 
 import (
@@ -79,7 +80,8 @@ type WAF interface {
 }
 
 // Config holds WAF configuration
-// TODO: Port config to Rust with hot-reload support
+// Future: Rust acceleration layer will add hot-reload support via mmap'd config.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type Config struct {
 	// Detection settings
 	EnableSQLi      bool
@@ -138,7 +140,9 @@ func DefaultConfig() *Config {
 }
 
 // Shield is the main WAF implementation - THE SHIELD
-// TODO: Port to Rust with zero-copy request processing
+// Performance: Request processing currently copies data via strings.Builder.
+// Rust acceleration planned with zero-copy request parsing via byte slices.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type Shield struct {
 	config *Config
 
@@ -185,7 +189,9 @@ type Logger interface {
 }
 
 // Metrics holds WAF metrics
-// TODO: Port to Rust with atomic counters
+// Performance: Currently uses sync.RWMutex for counter protection.
+// Rust acceleration planned with lock-free atomic counters (crossbeam).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type Metrics struct {
 	TotalRequests     int64
 	BlockedRequests   int64
@@ -230,7 +236,8 @@ func (m *Metrics) IncrementAllowed() {
 }
 
 // NewShield creates a new WAF Shield instance
-// TODO: Port to Rust with builder pattern
+// Future: Rust acceleration layer will use builder pattern for compile-time config validation.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func NewShield(config *Config) *Shield {
 	if config == nil {
 		config = DefaultConfig()
@@ -419,7 +426,9 @@ func (s *Shield) loadDefaultRules() {
 }
 
 // Process processes an HTTP request and returns a decision
-// TODO: Port to Rust with parallel detection and early termination
+// Performance: Detection runs sequentially in Go. Rust acceleration planned with
+// parallel detection via rayon and early termination on high-confidence matches.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (s *Shield) Process(ctx context.Context, req *http.Request) (*Decision, error) {
 	s.metrics.IncrementTotal()
 
