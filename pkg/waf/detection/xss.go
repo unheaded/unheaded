@@ -2,7 +2,8 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package detection provides XSS detection for THE SHIELD WAF
-// TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference
+// Architecture: Go reference implementation with planned Rust acceleration for hot paths.
+// See docs/WAF_ARCHITECTURE.md for the two-tier migration strategy.
 package detection
 
 import (
@@ -12,7 +13,9 @@ import (
 )
 
 // XSSDetector detects Cross-Site Scripting attacks with comprehensive pattern coverage
-// TODO: Port to Rust with SIMD-accelerated HTML parsing for 10x performance
+// Performance: Uses regex-based HTML analysis in Go reference implementation.
+// Rust acceleration planned with SIMD HTML5 parser (target: 10x throughput).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type XSSDetector struct {
 	patterns       []*regexp.Regexp
 	eventHandlers  map[string]bool
@@ -24,7 +27,9 @@ type XSSDetector struct {
 }
 
 // HTMLTokenizer performs lightweight HTML tokenization for XSS detection
-// TODO: Rust rebuild should use proper HTML5 spec-compliant parser
+// Performance: Uses regex-based tag extraction in Go reference implementation.
+// Rust acceleration planned with HTML5 spec-compliant parser (lol_html or custom).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type HTMLTokenizer struct {
 	tagPatterns map[string]*regexp.Regexp
 }
@@ -67,7 +72,9 @@ func NewHTMLTokenizer() *HTMLTokenizer {
 }
 
 // Tokenize parses HTML and returns tokens
-// TODO: Rust version should be streaming parser with zero allocations
+// Performance: Allocates token slice per call in Go reference implementation.
+// Rust acceleration planned with streaming parser and zero heap allocations.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (t *HTMLTokenizer) Tokenize(input string) []HTMLToken {
 	tokens := make([]HTMLToken, 0, 32)
 	pos := 0
@@ -189,7 +196,9 @@ func (t *HTMLTokenizer) parseTag(tag string, start int) HTMLToken {
 }
 
 // NewXSSDetector creates a new XSS detector
-// TODO: Rust rebuild should use Aho-Corasick for multi-pattern matching
+// Performance: Uses compiled regexp slice for pattern matching in Go.
+// Rust acceleration planned with Aho-Corasick multi-pattern automaton.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func NewXSSDetector(strict bool) *XSSDetector {
 	patterns := []string{
 		// Script tags - various forms
@@ -507,7 +516,9 @@ func (d *XSSDetector) Detect(input string) bool {
 }
 
 // DetectWithDetails returns detailed detection results
-// TODO: Rust version should include byte-level position information
+// Performance: Returns string-level matches in Go reference implementation.
+// Rust acceleration planned with byte-level position tracking for precise reporting.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *XSSDetector) DetectWithDetails(input string) *DetectionResult {
 	result := &DetectionResult{
 		Type:    "xss",
@@ -551,7 +562,9 @@ func (d *XSSDetector) DetectWithDetails(input string) *DetectionResult {
 }
 
 // analyzeHTMLTokens analyzes HTML tokens for XSS patterns
-// TODO: Rust version should use state machine for O(n) analysis
+// Performance: Iterates token slice with map lookups in Go reference implementation.
+// Rust acceleration planned with state machine for guaranteed O(n) analysis.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *XSSDetector) analyzeHTMLTokens(tokens []HTMLToken) int {
 	risk := 0
 
@@ -659,7 +672,9 @@ func (d *XSSDetector) getDangerousElements(tokens []HTMLToken) []string {
 }
 
 // normalize normalizes the input for detection
-// TODO: Rust version should work on bytes directly with SIMD
+// Performance: Multi-pass string replacement in Go reference implementation.
+// Rust acceleration planned with SIMD byte-level transforms (memchr + vectorized decode).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *XSSDetector) normalize(input string) string {
 	result := input
 
@@ -826,7 +841,8 @@ func (d *XSSDetector) HasDangerousAttribute(attrs map[string]string) bool {
 
 // SanitizeBasic performs basic HTML sanitization by removing dangerous elements
 // NOTE: This is NOT a full sanitizer - use a proper library for production
-// TODO: Rust rebuild should include high-performance sanitizer
+// Future: Rust acceleration planned with high-performance sanitizer (ammonia crate).
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 func (d *XSSDetector) SanitizeBasic(input string) string {
 	result := input
 

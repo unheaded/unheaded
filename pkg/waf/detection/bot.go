@@ -2,7 +2,8 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package detection provides bot detection for THE SHIELD WAF
-// TODO: Marked for Rust rebuild for performance - this Go implementation serves as reference
+// Architecture: Go reference implementation with planned Rust acceleration for hot paths.
+// See docs/WAF_ARCHITECTURE.md for the two-tier migration strategy.
 package detection
 
 import (
@@ -18,7 +19,9 @@ import (
 )
 
 // BotDetector detects bot traffic using fingerprinting and behavioral analysis
-// TODO: Port to Rust with machine learning models for advanced detection
+// Future: Rust acceleration planned with ML model inference (tract/candle) for
+// advanced bot classification beyond pattern matching.
+// See docs/WAF_ARCHITECTURE.md for migration strategy.
 type BotDetector struct {
 	// Pattern-based detection
 	knownBotPatterns    []*regexp.Regexp
@@ -36,7 +39,9 @@ type BotDetector struct {
 }
 
 // BehaviorTracker tracks client behavior patterns
-// TODO: Rust rebuild should use probabilistic data structures (HyperLogLog, Bloom filters)
+// Performance: Uses exact maps for client tracking in Go reference implementation.
+// Rust acceleration planned with probabilistic data structures (HyperLogLog, Bloom filters)
+// for memory-efficient tracking at scale. See docs/WAF_ARCHITECTURE.md for migration strategy.
 type BehaviorTracker struct {
 	clients     map[string]*ClientBehavior
 	mu          sync.RWMutex
@@ -97,7 +102,8 @@ type BotResult struct {
 }
 
 // NewBotDetector creates a new bot detector
-// TODO: Rust rebuild should load models from external files
+// Future: Rust acceleration planned with external model loading (ONNX/safetensors)
+// for pluggable ML-based bot classification. See docs/WAF_ARCHITECTURE.md for migration strategy.
 func NewBotDetector(strict bool) *BotDetector {
 	// Known bot patterns (user agent)
 	botPatterns := []string{
