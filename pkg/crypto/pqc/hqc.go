@@ -15,8 +15,8 @@ package pqc
 //   - HQC-128: NIST security level 1 (pk ~2249 bytes, ct ~4481 bytes)
 //   - HQC-192: NIST security level 3 (pk ~4522 bytes, ct ~6882 bytes)
 //
-// Status: STUB. As of circl v1.6.3, cloudflare/circl does not provide an
-// HQC implementation. The circl kem/ directory contains: frodo, hybrid,
+// Status: ROADMAP (Q3 2026). As of circl v1.6.3, cloudflare/circl does not
+// provide an HQC implementation. The circl kem/ directory contains: frodo, hybrid,
 // kyber, mlkem, schemes, sike, xwing. No hqc package exists.
 //
 // Alternative Go libraries considered:
