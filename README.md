@@ -1,12 +1,12 @@
 # Unheaded
 
-Unheaded is a configuration management automation platform built around the Unheaded Protocol and Unheaded Protocol Comnputer - delivering backend infrastructure and observibility for any API reliant application where calls are being made across the network. 
+Unheaded is a configuration management automation platform built around the Unheaded Protocol and Unheaded Protocol Comnputer - delivering backend infrastructure and observibility for linux API reliant applications where calls are being made across the network. 
 
 Bring the head ("an application"), unheaded provides the rest.
 
 ## What It Does
 
-- **eBPF-based observability** from Layer 2 to Layer 7 -- every packet traced from wire to browser
+- **eBPF-based observability** from Layer 2 to Layer 7 -- options for packet tracing from wire to browser UI and LTS.
 - **Immutable infrastructure** across LXD, containerd, NixOS, and Docker
 - **Zero data crossover** -- architectural isolation enforced at ingress and egress
 - **Service mesh** on the Wotan message bus (gRPC streaming, pub/sub, protocol RAM)
