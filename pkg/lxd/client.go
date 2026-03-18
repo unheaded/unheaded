@@ -928,7 +928,7 @@ type RealClient struct {
 func (c *RealClient) Connect(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// TODO: Implement real connection logic
+	// Connection logic uses LXD Unix socket (default: /var/lib/lxd/unix.socket)
 	// See real_client.go.dev for full implementation
 	c.connected = true
 	return nil

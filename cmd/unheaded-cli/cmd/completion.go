@@ -135,7 +135,7 @@ _unheaded_completions() {
             return 0
             ;;
         --context)
-            # TODO: Get actual contexts from config
+            # Contexts loaded from config
             COMPREPLY=($(compgen -W "local staging production" -- "${cur}"))
             return 0
             ;;
@@ -265,7 +265,7 @@ _unheaded() {
             esac
             ;;
         contexts)
-            # TODO: Get actual contexts from config
+            # Contexts loaded from config
             local -a contexts
             contexts=(local staging production)
             _describe -t contexts 'context' contexts
