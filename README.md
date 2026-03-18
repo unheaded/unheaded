@@ -1,6 +1,6 @@
 # Unheaded
 
-Unheaded is a configuration management automation platform built around the Unheaded Protocol and Unheaded Protocol Comnputer - delivering complete backend infrastructure and observibility for applications. Supply the head ("an application"), unheaded provides everything else.
+Unheaded is a configuration management automation platform built around the Unheaded Protocol and Unheaded Protocol Comnputer - delivering backend infrastructure and observibility for any API reliant application. Bring the head ("an application"), unheaded provides everything else.
 
 ## What It Does
 
