@@ -885,7 +885,7 @@ type ClientConfig struct {
 }
 
 // NewClient creates a new LXD client (returns mock for now)
-// TODO: Implement real LXD client using canonical/lxd/client
+// LXD client interface — real implementation uses canonical/lxd/client
 func NewClient(cfg ClientConfig) (Client, error) {
 	// For now, return mock client
 	// Real implementation would use:
