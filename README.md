@@ -1,24 +1,26 @@
 # Unheaded
 
-Unheaded is a configuration management automation platform built around the Unheaded Protocol and Unheaded Protocol Comnputer - delivering backend infrastructure and observibility for any API reliant application. Bring the head ("an application"), unheaded provides everything else.
+Unheaded is a configuration management automation platform built around the Unheaded Protocol and Unheaded Protocol Comnputer - delivering backend infrastructure and observibility for any API reliant application where calls are being made across the network. 
+
+Bring the head ("an application"), unheaded provides the rest.
 
 ## What It Does
 
 - **eBPF-based observability** from Layer 2 to Layer 7 -- every packet traced from wire to browser
 - **Immutable infrastructure** across LXD, containerd, NixOS, and Docker
-- **Zero user data access** -- architectural isolation enforced, not promised
+- **Zero data crossover** -- architectural isolation enforced at ingress and egress
 - **Service mesh** on the Wotan message bus (gRPC streaming, pub/sub, protocol RAM)
-- **Declarative everything** -- version-controlled configs, interchangeable IaC backends
-- **Self-hosting proof** -- Unheaded builds and tracks itself (the Meta Moment)
+- **Declarative everything** -- version-controlled configs, interchangeable IaC backends, Zhen AI or similar serving as config mirror and secondary enforcement
+- **Self-hosting proof** -- Zhen AI utilizes kaban board with SQL backend as source of truth and persistance of timeline for the Unheaded Kingdom
 - **Post-quantum cryptography** -- ML-DSA, ML-KEM, SLH-DSA (FIPS 203/204/205)
 
 ## The Unheaded Protocol Computer
 
-The Monad wire format is not just metadata -- it is a computational substrate.
+The Monad wire format is a computational substrate.
 
 Every IPv6 packet carries a 20-byte Monad register file (5 x u32) in the Hop-by-Hop Options header. At each hop, an eBPF program reads and writes the registers. The packet *is* the working memory of a distributed computation.
 
-We built a complete virtual CPU inside eBPF XDP that boots Linux.
+Rust eBPF XDP program acts as a CPU emulator, a 45-opcode ISA as a BPF verifier-compliant interpreter.
 
 See the [UPC Reference Manual](docs/UPC_REFERENCE_MANUAL.md) for the full architecture.
 
