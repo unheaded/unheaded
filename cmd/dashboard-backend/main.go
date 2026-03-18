@@ -94,10 +94,8 @@ var (
 	// WebSocket allowed origins for LAN access
 	wsAllowedOrigins = flag.String("ws-allowed-origins", "", "Comma-separated WebSocket allowed origins (empty=localhost only)")
 
-	// Service endpoint overrides
-	// TODO: Default to 127.0.0.1 endpoints instead of LXD IPs. --services-file
-	// should remain as an override option, but defaults should be localhost.
-	// Eventually move to a main config file and/or UI-based configuration.
+	// Service endpoint overrides — defaults to 127.0.0.1 (localhost).
+	// Use --services-file to override with LXD IPs or other endpoints.
 	servicesFile = flag.String("services-file", "", "Path to services endpoint file (name=host:port per line)")
 	vizDir       = flag.String("viz-dir", "", "Path to advanced visualizations directory (dashboard/), served under /viz/")
 
