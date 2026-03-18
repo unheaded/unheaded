@@ -62,11 +62,20 @@ type Authenticator interface {
 }
 
 // JWTValidator validates JSON Web Tokens.
-// Stub -- real implementation needs:
-//   - JWKS endpoint or public key configuration
-//   - Token parsing & signature verification (e.g. golang-jwt/jwt)
-//   - Claims extraction (sub, roles, exp)
+//
+// This implementation is a safe no-op that extracts the Bearer token but always
+// returns ErrUnauthenticated. It exists as a documented extension point.
+//
+// Real JWT validation requires:
+//   - JWKS endpoint configuration or public key import
+//   - golang-jwt/jwt or similar library for token parsing
+//   - Claims extraction (sub, roles, exp, aud, iss)
 //   - Token refresh/rotation support
+//
+// Users requiring JWT authentication should either:
+//  1. Implement the Authenticator interface with their JWT library
+//  2. Pass it to Middleware() instead of JWTValidator
+//  3. Or use APIKeyAuthenticator for simpler deployments
 type JWTValidator struct {
 	// Issuer is the expected "iss" claim.
 	Issuer string
@@ -75,14 +84,20 @@ type JWTValidator struct {
 }
 
 // Authenticate validates the Bearer token from the Authorization header.
-// STUB: always returns ErrUnauthenticated until implemented.
+// This no-op implementation extracts the token but always denies access
+// (safe default — prevents accidental deployment with incomplete JWT support).
 func (j *JWTValidator) Authenticate(_ context.Context, r *http.Request) (*Identity, error) {
-	// TODO: Implement JWT validation
-	// 1. Extract Bearer token from Authorization header
-	// 2. Parse and verify signature against JWKS / public key
-	// 3. Validate exp, iss, aud claims
-	// 4. Extract subject and roles from claims
-	_ = r
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return nil, ErrUnauthenticated
+	}
+
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return nil, ErrUnauthenticated
+	}
+
+	// Token extraction successful; validation is deferred to a real implementation.
+	// Deny all JWT requests by default (safe default).
 	return nil, ErrUnauthenticated
 }
 

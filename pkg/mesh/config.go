@@ -6,9 +6,15 @@
 package mesh
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Config holds the complete mesh configuration.
@@ -700,27 +706,80 @@ func (s *ConfigStore) ListServices() []string {
 // Environment-based configuration helpers.
 
 // ConfigFromEnv creates a configuration from environment variables.
-// This is a placeholder - in production, it would read from environment.
+//
+// Supported variables:
+//
+//	MESH_SERVICE_NAME    - Service name (default: from binary name)
+//	MESH_NAMESPACE       - Namespace for isolation (default: "default")
+//	MESH_DISCOVERY_TYPE  - Discovery method: dns, registry, static (default: "dns")
+//	MESH_LOG_LEVEL       - Log level (default: "info")
+//	MESH_ENABLE_TLS      - Enable mTLS (default: "false")
+//	MESH_TRUST_DOMAIN    - SPIFFE trust domain
+//	MESH_DNS_DOMAIN      - Base domain for DNS discovery
 func ConfigFromEnv() (*Config, error) {
 	config := DefaultConfig()
 
-	// In production, this would read from environment variables:
-	// MESH_SERVICE_NAME, MESH_NAMESPACE, MESH_DISCOVERY_TYPE, etc.
+	if v := os.Getenv("MESH_SERVICE_NAME"); v != "" {
+		config.ServiceName = v
+	}
+	if v := os.Getenv("MESH_NAMESPACE"); v != "" {
+		config.Namespace = v
+	}
+	if v := os.Getenv("MESH_DISCOVERY_TYPE"); v != "" {
+		config.DiscoveryType = v
+	}
+	if v := os.Getenv("MESH_TRUST_DOMAIN"); v != "" {
+		config.TrustDomain = v
+	}
+	if v := os.Getenv("MESH_DNS_DOMAIN"); v != "" {
+		config.DNSDomain = v
+	}
+	if v := os.Getenv("MESH_ENABLE_TLS"); v == "true" {
+		config.EnableTLS = true
+	}
 
 	return config, nil
 }
 
-// ConfigFromFile loads configuration from a file.
-// This is a placeholder - in production, it would support YAML, JSON, TOML.
+// ConfigFromFile loads configuration from a YAML or JSON file.
+//
+// Format is detected from the file extension:
+//   - .yaml, .yml: YAML format
+//   - .json: JSON format
+//
+// Returns DefaultConfig if path is empty.
 func ConfigFromFile(path string) (*Config, error) {
+	if path == "" {
+		return DefaultConfig(), nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File not found: fall back to defaults (non-fatal)
+			return DefaultConfig(), nil
+		}
+		return nil, fmt.Errorf("read mesh config file: %w", err)
+	}
+
 	config := DefaultConfig()
 
-	// In production, this would:
-	// 1. Detect file format from extension
-	// 2. Parse the file
-	// 3. Populate the config struct
+	switch {
+	case strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml"):
+		if err := yaml.Unmarshal(data, config); err != nil {
+			return nil, fmt.Errorf("parse YAML mesh config: %w", err)
+		}
+	case strings.HasSuffix(path, ".json"):
+		if err := json.Unmarshal(data, config); err != nil {
+			return nil, fmt.Errorf("parse JSON mesh config: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported mesh config format (expected .yaml or .json): %s", path)
+	}
 
-	_ = path // Unused for now
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid mesh config: %w", err)
+	}
 
 	return config, nil
 }

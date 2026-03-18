@@ -705,11 +705,17 @@ type LoaderConfig struct {
 	Debug      bool   // Enable debug output
 }
 
-// NewLoader creates a new eBPF loader (returns mock for now)
-// TODO: Implement real eBPF loader using cilium/ebpf
+// NewLoader creates an eBPF loader.
+//
+// Currently returns MockLoader (no-op) since real kernel loading via
+// cilium/ebpf is not yet integrated. This is safe: the mock tracks
+// programs in memory without touching the kernel.
+//
+// When real eBPF loading is needed:
+//  1. Add cilium/ebpf dependency
+//  2. Implement RealLoader that calls ebpf.LoadCollection()
+//  3. Swap this factory to return RealLoader
+//  4. Ensure CAP_BPF + CAP_PERFMON capabilities on the process
 func NewLoader(cfg LoaderConfig) (Loader, error) {
-	// For now, return mock loader
-	// Real implementation would use:
-	// import "github.com/cilium/ebpf"
 	return NewMockLoader(), nil
 }

@@ -591,12 +591,16 @@ func NewTransparentProxy(config *Config) *TransparentProxy {
 	}
 }
 
-// GetOriginalDst gets the original destination from a redirected connection.
-// This requires platform-specific implementation using SO_ORIGINAL_DST.
+// GetOriginalDst retrieves the original destination of a redirected connection.
+//
+// On Linux, this uses SO_ORIGINAL_DST (getsockopt) to retrieve the address
+// from a netfilter/iptables REDIRECT or TPROXY rule. Requires:
+//   - Linux kernel with netfilter support
+//   - iptables REDIRECT rule pointing traffic to the proxy port
+//
+// On non-Linux platforms, returns an error (SO_ORIGINAL_DST is Linux-specific).
+// Alternatives for non-Linux: PF on BSD, IPFW on macOS, or application-layer
+// redirect via DNS/HTTP X-Forwarded-For headers.
 func (tp *TransparentProxy) GetOriginalDst(conn net.Conn) (string, error) {
-	// This is a simplified version. In production, you'd use:
-	// - syscall.GetsockoptIPv6Mreq for IPv6
-	// - syscall.GetsockoptIPMreq for IPv4
-	// With SO_ORIGINAL_DST option
-	return "", errors.New("not implemented - requires syscall")
+	return getOriginalDst(conn)
 }
