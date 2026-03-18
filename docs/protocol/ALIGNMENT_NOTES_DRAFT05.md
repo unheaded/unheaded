@@ -22,8 +22,8 @@ The Monad Foundation specification defines the 20-byte protocol metadata registe
 | Sophia Dictionary System | services/sophia/, monad-sophia/src/ | Aligned | Exponent field lookups working; dict distribution via Wotan |
 | Anamnesis Ring Buffer Events | pkg/observability/anamnesis.go | Complete | 64-byte event struct, per-CPU buffers, EVE JSON transform |
 | BPF Map Implementation | ebpf/maps.c | Complete | admissions_policy, rate_limit_buckets, egress_policy all pinned |
-| TLV Extension Container | ebpf/tlv.c | TODO | draft-05 defines format; needs integration test |
-| TLV Type Registry (M6 Extension) | docs/protocol/EXTENSIONS.md | TODO | Registry started, Ring Path Counter (M8) needs eBPF hook |
+| TLV Extension Container | ebpf/tlv.c | Planned | draft-05 defines format; needs integration test. See roadmap. |
+| TLV Type Registry (M6 Extension) | docs/protocol/EXTENSIONS.md | Planned | Registry started, Ring Path Counter (M8) needs eBPF hook. See roadmap. |
 | Event Types (0x00-0x05) | pkg/observability/event_types.go | Complete | BIRTH, COMPUTED, DEATH, ANOMALY, CHAOS, ROLLBACK all defined |
 | Ring Buffer Configuration | services/wotan/ring_config.go | Complete | Per-CPU sizing, retention, overflow handling |
 | BPF Helper Functions | ebpf/helpers.c | Complete | bpf_wotan_read, bpf_wotan_write, bpf_wotan_cas (bounds check enabled) |
@@ -81,11 +81,11 @@ The Wotan specification defines the memory hierarchy, ring buffer structure, per
 | Memory Hierarchy (L1 → L2 → L3) | services/wotan/hierarchy.go | Complete | Miss rate targets <5%, latency SLAs enforced |
 | Data Memory Region (0x00000000-0x0000BFFF) | ebpf/memory/data.c | Complete | Per-flow state allocation |
 | I/O Memory Region (0x0000C000-0x0000FFFE) | ebpf/memory/io.c | Complete | MMIO write addresses for async offloading |
-| Extended Memory (0x00010000-0x00FFFFFF) | ebpf/memory/extended.c | TODO | Large allocations; needs heap management |
+| Extended Memory (0x00010000-0x00FFFFFF) | ebpf/memory/extended.c | Planned | Large allocations; needs heap management. See roadmap. |
 | Cache Line Structure (Composite Key) | ebpf/wotan_key.c | Complete | (flow_label, addr) composite addressing |
 | L1 Cache Composite Key (PATCH W2) | ebpf/wotan_key.c | Complete | 64-bit flow_label + 16-bit offset = 80-bit key |
 | Cache Line Size Configuration | services/wotan/cache_line.go | Complete | 64-byte lines, configurable via BPF map |
-| Prefetch Model (bpf_wotan_prefetch) | ebpf/helpers.c | TODO | Helper function definition needed |
+| Prefetch Model (bpf_wotan_prefetch) | ebpf/helpers.c | Planned | Helper function definition needed. See roadmap. |
 | Cache Miss Handling | services/wotan/miss_handler.go | Complete | Stall mechanism via MMIO, latency limited |
 | Write-Back Policy (Buffered Write) | services/wotan/writeback.go | Complete | TTL-based flush, configured per-flow |
 | LRU Eviction | ebpf/wotan_lru.c | Complete | Counter overflow handling, version tagging |
@@ -99,11 +99,11 @@ The Wotan specification defines the memory hierarchy, ring buffer structure, per
 | WAL Recovery on Restart | services/wotan/wal_recovery.go | Complete | Replay from last seqno, gap detection |
 | WAL Compaction (PATCH W5) | services/wotan/compaction.go | Aligned | Reduces storage; version counter incremented |
 | SETTINGS Exchange (PATCH W7) | services/wotan/settings.go | Aligned | eBPF program configuration handshake |
-| GOAWAY Frame (PATCH W8) | services/wotan/goaway.go | TODO | Graceful shutdown signaling for ring buffers |
+| GOAWAY Frame (PATCH W8) | services/wotan/goaway.go | Planned | Graceful shutdown signaling for ring buffers. See roadmap. |
 | Topic Naming Convention | services/wotan/topics.go | Complete | anamnesis.*, compute.screen.*, compute.input.* |
 | Memory-Mapped I/O Addresses | ebpf/memory/mmio.go | Complete | 0x0000C000-0x0000FFFE range for async writes |
 | Screen Topic (compute.screen.{flow_label}) | services/wotan/topics/screen.go | Complete | eBPF → userspace computation results |
-| Input Topic (compute.input.{flow_label}) | services/wotan/topics/input.go | TODO | Userspace → eBPF computation inputs |
+| Input Topic (compute.input.{flow_label}) | services/wotan/topics/input.go | Planned | Userspace to eBPF computation inputs. See roadmap. |
 | Dictionary Topic (sophia.dictionary.v{N}) | services/wotan/topics/dictionary.go | Complete | Sophia dictionary distribution channel |
 | Anamnesis Topics (anamnesis.{event_type}) | services/wotan/topics/anamnesis.go | Complete | Ring buffer event streaming |
 | Cache Miss Event Structure | pkg/observability/miss_event.go | Complete | Timestamp, flow_label, addr, evicted_value |
@@ -112,7 +112,7 @@ The Wotan specification defines the memory hierarchy, ring buffer structure, per
 | Program Memory (ROM via Sophia) | ebpf/program_memory.c | Complete | BPF program code stored in Sophia dictionary |
 | Data Memory (RAM via Wotan Ring) | ebpf/data_memory.c | Complete | Per-flow heap, 1 MB quota per program |
 | Stack (top-of-RAM) | ebpf/stack.c | Complete | Configurable stack depth |
-| Heap (configurable region) | ebpf/heap.c | TODO | Needs allocation tracker |
+| Heap (configurable region) | ebpf/heap.c | Planned | Needs allocation tracker. See roadmap. |
 | Ring Buffer Capacity and Layout | services/wotan/capacity.go | Complete | Head/tail pointers, wrap-around handling |
 | Oldest-First Eviction (Overflow) | services/wotan/eviction.go | Complete | LRU order, timestamp-based ordering |
 | Lock-Free Read Path | services/wotan/lockfree.go | Complete | BPF ringbuf consumer interface |
@@ -173,8 +173,8 @@ The Wotan specification defines the memory hierarchy, ring buffer structure, per
 | M2 | Multiple HbH Header Detection | ebpf/parser.c | Complete |
 | M4 | Wotan Bounds Checking | ebpf/helpers.c | Complete |
 | M5 | Version Field Validation | ebpf/xdp_ingress.c | Complete |
-| M6 | TLV Extension Container Format | ebpf/tlv.c | TODO |
-| M8 | Ring Path Counter Extension | ebpf/extensions.c | TODO |
+| M6 | TLV Extension Container Format | ebpf/tlv.c | Planned |
+| M8 | Ring Path Counter Extension | ebpf/extensions.c | Planned |
 
 ### S1-S8: Sophia Dictionary Patches
 
@@ -197,7 +197,7 @@ The Wotan specification defines the memory hierarchy, ring buffer structure, per
 | W5 | Compaction Policy | services/wotan/compaction.go | Aligned |
 | W6 | Cache Miss Rate Limiting | services/wotan/rate_limit.go | Complete |
 | W7 | SETTINGS Exchange Protocol | services/wotan/settings.go | Aligned |
-| W8 | GOAWAY Frame Signaling | services/wotan/goaway.go | TODO |
+| W8 | GOAWAY Frame Signaling | services/wotan/goaway.go | Planned |
 | W9 | Triple-Role Isolation | services/wotan/triple_role.go | Complete |
 
 ---

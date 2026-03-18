@@ -212,7 +212,7 @@ All codes cross-referenced with RFC security patches (M1-M8, S1-S8, W1-W9).
 
 ---
 
-### Age 2 (Roadmap — RFC v2.0 TBD)
+### Age 2 (Roadmap — RFC v2.0 Planned)
 
 **Transport**: IPv6 native
 **Metadata**: 20 bits in IPv6 Flow Label field (ZERO overhead)

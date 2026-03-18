@@ -1,46 +1,29 @@
-# Welcome to the Unheaded Kingdom
+# Unheaded Documentation
 
 **Production-ready infrastructure in hours, not months.**
 
-User brings their app ("the head"), we provide everything else ("unheaded").
+Unheaded is a configuration management automation platform built on eBPF-based observability, declarative infrastructure, and a novel IPv6 protocol extension for per-packet metadata. User brings their app ("the head"), we provide everything else.
 
-## Running Services
+## Directory Guide
 
-| Service | Port | Role |
-|---------|------|------|
-| Wotan | 18000 | Message bus (Fae Chamber) |
-| Timeguru | 19000 | Timeline tracking (Seer's Antre) |
-| Architect | 19001 | ADR service (Sage's Lair) |
-| Captain | 19002 | Strategy service (Commander's Quarters) |
-| Micromanager | 19003 | Task execution (War Room) |
-| Dashboard | 16667 | System overview |
-| Kanban | 16668 | Meta moment (self-hosting proof) |
-| Wiki | 20002 | You are here |
-| Grafana | 3001 | Metrics dashboards |
-| VictoriaMetrics | 8428 | Time-series storage |
-| Traefik | 80/443 | Gateway |
+| Directory | Contents |
+|-----------|----------|
+| `protocol/` | Unheaded protocol specifications (Monad, Sophia, Wotan), IANA registry drafts, and alignment notes |
+| `architecture/` | System architecture diagrams and component breakdowns |
+| `adr/` | Architecture Decision Records |
+| `research/` | Technical research (IPv6 metrics, eBPF performance, protocol design space) |
+| `security/` | Security audit reports, fuzzing campaign setup, threat models |
+| `compliance/` | Regulatory and license compliance documentation |
+| `legal/` | IP inventory, licensing, contributor agreements |
+| `runbooks/` | Operational runbooks for deployment and incident response |
+| `bare-metal/` | Bare metal host provisioning and configuration |
+| `infrastructure/` | Network design, service topology, monitoring setup |
+| `archive/` | Historical documents preserved for reference |
+| `internal/` | Internal development docs (session handoffs, sprint plans). See `INTERNAL.md` |
 
-## Architecture
+## Key Documents
 
-```
-Layer 5: User Interface (Dashboard, Kanban, Wiki)
-Layer 4: Application Services (timeguru, captain, micromanager, architect)
-Layer 3: Infrastructure Services (wotan, trace-collector, gateway)
-Layer 2: Control Plane (unheaded-daemon)
-Layer 1: Data Plane (eBPF programs)
-Layer 0: Infrastructure (LXD, Docker, NixOS)
-```
-
-## Core Principles
-
-- **eBPF-based observability** from packet zero
-- **Zero user data access** by architectural design
-- **Interchangeable backends** for IaC, observability, and containers
-- **Declarative everything** in version control
-- **Self-hosting proof** (The Meta Moment)
-
-## Quick Links
-
-- [Architecture](ARCHITECTURE)
-- [Phylactery](PHYLACTERY)
-- [Gemini](GEMINI)
+- [ARCHITECTURE.md](ARCHITECTURE.md) -- Full system architecture
+- [VISION.md](VISION.md) -- Project vision and roadmap
+- [protocol/](protocol/) -- Protocol specifications and drafts
+- [EXTERNAL_DEPENDENCIES.md](EXTERNAL_DEPENDENCIES.md) -- Third-party dependency inventory
