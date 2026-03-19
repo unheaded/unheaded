@@ -397,4 +397,47 @@ The unheaded-sentinel skill has been created as the Kingdom's blue team counterp
 
 ---
 
-**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, and PQC dependency licensing assessment. Pre-public blocker: Amber IP audit.
+## TODO: CVE Poller — Automated Vulnerability Feed
+
+**Priority**: Age 2b / Age 3
+**Owner**: Sentinel + Architect + Developer
+
+A dedicated CVE polling service that runs on a configurable schedule (default: weekly, configurable to daily/hourly/custom cron). Feeds into the Daily Adversarial Loop.
+
+**What it does**:
+- Polls NIST NVD API on schedule for new CVEs matching Kingdom dependency fingerprint
+- Polls CISA KEV catalog for newly exploited vulnerabilities
+- Polls Go vulnerability database (`vuln.go.dev`) for Go-specific advisories
+- Polls RustSec advisory database for Rust/Cargo advisories
+- Polls Linux kernel security mailing list for kernel-level CVEs affecting eBPF
+- Cross-references against SBOM (LICENSES/sbom-reports/) to determine Kingdom exposure
+- Generates a triage report: CRITICAL (patch now) / HIGH (patch this sprint) / MEDIUM (backlog) / LOW (monitor)
+- Publishes findings to Wotan topic `sentinel.cve.{severity}` for downstream consumption
+- Stores historical CVE assessments in Anamnesis for trend analysis
+
+**Architecture**:
+- Go binary: `cmd/cve-poller/main.go`
+- Configurable via YAML/env: poll interval, feed sources, SBOM path, severity thresholds
+- MCP connectors for external feeds (NVD API key, CISA KEV endpoint)
+- gRPC API for on-demand polling (`cve-poller poll --now`)
+- Systemd timer or Kubernetes CronJob for scheduled execution
+- Dashboard widget: CVE exposure timeline, patch posture trend, time-to-patch metrics
+
+**Schedule options**:
+- `weekly` (default) — Sunday 02:00 UTC, good for most environments
+- `daily` — 03:00 UTC, recommended for production-facing deployments
+- `hourly` — for high-security environments (FedRAMP, defense)
+- Custom cron expression via config
+
+**Integration points**:
+- Sentinel: primary consumer — uses CVE data for defense posture
+- BlackMage: receives CVE list for daily adversarial exploitation attempts
+- MoatGhost: uses CVE exposure data for compliance reporting (NIST 800-53 RA-5, PCI-DSS 6.1)
+- Gleipnir: config convergence can auto-apply patches if policy allows
+- Dashboard: CVE exposure widget with drill-down
+
+**Prerequisite**: SBOM must be current (Phase 6 of S74 battle plan regenerates it)
+
+---
+
+**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, CVE poller service TODO documented, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, and PQC dependency licensing assessment. Pre-public blocker: Amber IP audit.
