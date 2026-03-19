@@ -239,3 +239,11 @@ skills/*/extracted/
 
 # ─── Checkpoint files ───
 *_checkpoint.json
+
+# ─── IETF / xml2rfc build artifacts ───
+ietf-submission/.refcache/
+ietf-submission/*.txt
+ietf-submission/*.html
+ietf-submission/*_err.txt
+docs/protocol/xml/*.txt
+raft/experiments/
