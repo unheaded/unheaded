@@ -39,7 +39,7 @@
 17. **eBPF packet tracing dashboards** — attach markers to packets, trace flow L2-L7, in-house visualization (the core promise)
 18. **Compliance templates** — FEDRAMP, NIST 800-53, SOC2, PCI-DSS, HIPAA — automated audit evidence generation
 19. **4-hour production deploy** — the north star: config → production-ready infrastructure in 4 hours
-20. **Multi-cloud orchestration** — AWS, GCP, Azure, bare metal from single NixOS-based config
+20. **Multi-cloud orchestration** — major cloud providers and bare metal from single NixOS-based config
 21. **VXLAN + BGP network fabric** — full L2-L7 network stack inside NixOS LXD containers
 22. **IDP/SIEM/SOC/NOC integration** — internal developer platform with security operations center
 23. **Zero trust architecture** — mTLS everywhere, eBPF-enforced network policies, identity-aware proxy

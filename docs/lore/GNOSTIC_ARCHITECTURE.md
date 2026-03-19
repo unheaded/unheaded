@@ -47,15 +47,15 @@ The mapping is not forced — it is natural:
 
 | Concept | Gnostic Tradition | Infrastructure Tradition | Existing Art |
 |---------|------------------|------------------------|-------------|
-| Ideal vs. actual | Pleroma vs. Kenoma | Desired state vs. drift | Kubernetes, Puppet, Chef |
+| Ideal vs. actual | Pleroma vs. Kenoma | Desired state vs. drift | Kubernetes, configuration management tools |
 | Atomic data unit | Monad (indivisible unity) | Register file, packet header | CPU registers, ARINC 429 |
 | Knowledge layer | Sophia (wisdom) | Dictionary, schema, encoding | BPF maps, CBOR, Protobuf |
 | Memory / history | Anamnesis (remembrance) | Event sourcing, audit log | Kafka, EventStore, WAL |
 | Adversarial testing | Yaldabaoth (chaos agent) | Chaos engineering | Netflix Simian Army, Litmus |
 
-Kubernetes uses "desired state" and "actual state." Puppet uses "catalog" and
-"facts." We use "Pleroma" and "Kenoma." The pattern is identical — the vocabulary
-is more memorable.
+Kubernetes uses "desired state" and "actual state." Traditional IaC tools use
+"catalog" and "facts." We use "Pleroma" and "Kenoma." The pattern is identical —
+the vocabulary is more memorable.
 
 ## Technical Mapping Details
 

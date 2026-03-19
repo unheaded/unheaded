@@ -35,7 +35,7 @@
 <keyword>XDP</keyword>
 
 <abstract>
-<t>This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 45-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.</t>
+<t>This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 48-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.</t>
 </abstract>
 
 <note title="Status of This Memo">
@@ -218,7 +218,7 @@ Offset | Field       | Size  | Description
 </section>
 
 <section anchor="instruction-set" title="Instruction Set">
-<t>MBC provides 45 distinct opcodes, organized by functional category.</t>
+<t>MBC provides 48 distinct opcodes, organized by functional category.</t>
 
 <section anchor="arithmetic" title="Arithmetic Instructions">
 <t>Arithmetic instructions operate on two 32-bit operands (src, dst) and update the flags register.</t>
@@ -1015,7 +1015,7 @@ Address | Vector | Purpose
 <section anchor="safety-constraints" title="Safety Constraints">
 
 <section anchor="opcode-whitelist" title="Opcode Whitelist">
-<t>Only the 45 defined opcodes are valid in MBC programs. Opcodes 0x00, 0xFE are reserved and MUST NOT be used. All other opcode values are undefined and will cause a trap if executed. An MBC loader MUST validate that all instructions in a program use only defined opcodes before loading.</t>
+<t>Only the 48 defined opcodes are valid in MBC programs. Opcodes 0x00, 0xFE are reserved and MUST NOT be used. All other opcode values are undefined and will cause a trap if executed. An MBC loader MUST validate that all instructions in a program use only defined opcodes before loading.</t>
 </section>
 
 <section anchor="division-by-zero" title="Division by Zero Behavior">

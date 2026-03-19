@@ -17,7 +17,10 @@ S36 proved it: **detailed stepped plans with exact bash commands, verification g
 6. **Commit every 4-5 steps** — never lose more than 15 minutes of work
 7. **Stuck protocol** — skip after 3x time, commit before skip, log everything
 
-### Template for New Battle Plans
+### Template for New Battle Plans (v2)
+
+> **Template version**: v2 (2026-03-19). Canonical source: `references/WARMONGER-BATTLE-PLAN-TEMPLATE.md`
+> v2 adds: VARIABLES block, PREFLIGHT HYPOTHESES, KNOWN FAILURES BASELINE, PARALLEL MATRIX, per-phase Definition of Done, SECURITY REVIEW GATE, COMPLIANCE GATE, POST-EXECUTION phase, resilient tool installation, `[DECIDE]`/`[ESCALATE]` tags (replacing `[BLOCKED]` for decisions).
 
 ```markdown
 # S[N] [TITLE] BATTLE PLAN — [X] Phases, [Y]+ Steps
@@ -26,21 +29,49 @@ S36 proved it: **detailed stepped plans with exact bash commands, verification g
 **Sprint**: S[N] — [description]
 **Prerequisite**: S[N-1] complete. Build passes. Tests pass.
 **Target**: [what "done" looks like]
-**Estimated Duration**: [X-Y hours]
 **Commit Cadence**: Every [4-5] steps
 **Stuck Protocol**: Skip after 3x time or 2 failed debug attempts
 
-## LEGEND
-[B][V][D][W][R][S][P][C] tags...
+### Multi-Agent Time Estimates
+| Mode | Agents | Duration | Critical Path |
+|------|--------|----------|---------------|
+| Solo | 1 | [X-Y hours] | [chain] |
+| Pair | 2 | [X-Y hours] | [chain] |
+| Swarm | 4 | [X-Y hours] | [chain] |
 
-## PHASE 0: FOUNDATION (Steps 1-N)
-...verify environment, baseline build/test...
+## VARIABLES
+$PROJECT_ROOT, $SPRINT_ID, $SPEC_DIR, $AUDIT_DOC — no hardcoded paths.
+
+## LEGEND
+[B][V][D][W][R][S][P][P:N][SEQ][C][ENV][BUILD][TEST][CODE][DESIGN]
+[STUCK][BLOCKED][DECIDE][ESCALATE][PREFLIGHT][REGEN][AUDIT-UPDATE]
+[DOC-UPDATE][SECURITY][COMPLIANCE][VM-SCAN][BARE-METAL]
+
+## PREFLIGHT HYPOTHESES
+Verify every assumption before execution. Scientist lens.
+
+## KNOWN FAILURES BASELINE
+Record pre-existing test failures. NEW failures = regression.
+
+## PARALLEL MATRIX
+Dependency graph + phase assignment + critical path per agent mode.
+
+## PHASE 0: INTELLIGENCE & PREFLIGHT (Steps 1-N)
+...resolve $PROJECT_ROOT, verify hypotheses, establish baseline...
 
 ## PHASE 1-N: [WORK PHASES]
 ...every step numbered, every [B] has a [V], exit gates...
+...every phase has Definition of Done (Micromanager gate)...
+...[DECIDE] for autonomous decisions, [ESCALATE] for human-required...
 
-## FINAL PHASE: INTEGRATION VERIFICATION
-...full build, full test, audit, commit...
+## SECURITY REVIEW GATE
+Trust boundary + listener + input + secret leak detection. BlackMage lens.
+
+## COMPLIANCE GATE
+New deps + license audit + SPDX headers + SBOM impact. Sentinel lens.
+
+## POST-EXECUTION (mandatory final phase)
+[REGEN] + [AUDIT-UPDATE] + [DOC-UPDATE] + baseline comparison + handoff.
 
 ## AUTO-CHAIN
 When complete, read docs/battle-plans/S[N+1]-*.md and continue.
@@ -56,7 +87,7 @@ When complete, read docs/battle-plans/S[N+1]-*.md and continue.
 - Expand `configs/` into a full cascading config system
 - Timeguru becomes the config server — ports, proxies, networking, all config variables
 - YAML/JSON/TOML definitions organized by domain
-- Our own take on Puppet/Ansible/Terraform/Salt/Chef
+- Our own take on existing IaC platforms (Ansible, Terraform, and others)
 - Config rendering: generate docker-compose, NixOS configs, nginx configs from single source
 **Estimated**: ~150 steps, 4-5 phases
 

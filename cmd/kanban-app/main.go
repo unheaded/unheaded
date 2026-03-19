@@ -248,7 +248,7 @@ func getInitialTasks() []Task {
 		// =====================================================================
 		// WISHLIST — future exploration items
 		// =====================================================================
-		{ID: "wish-multi-cloud", Title: "Multi-Cloud Orchestration", Description: "Deploy across AWS, GCP, Azure, bare metal from single config.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
+		{ID: "wish-multi-cloud", Title: "Multi-Cloud Orchestration", Description: "Deploy across major cloud providers and bare metal from single config.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
 		{ID: "wish-self-healing", Title: "Self-Healing Infrastructure", Description: "Yaldabaoth chaos + Pleroma/Kenoma reconciliation = auto-recovery.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
 		{ID: "wish-bazaar", Title: "Unheaded Bazaar", Description: "Community-contributed armor pieces, compliance templates, eBPF probes. The Bazaar where the kingdom trades.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
 		{ID: "wish-nixos-fleet", Title: "NixOS Container Fleet", Description: "Full L2-L7 network stack inside NixOS LXD containers on Debian bare metal.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},

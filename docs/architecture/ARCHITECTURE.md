@@ -103,7 +103,7 @@ Unheaded is a configuration management automation platform that delivers product
 │ ┌────────────────────────────────────────────────────────────┐ │
 │ │ Host OS (any Linux distro)                                 │ │
 │ │ • Kernel 5.8+ (eBPF support)                               │ │
-│ │ • Supports: Bare metal, AWS, Azure, GCP, Oracle, VMware   │ │
+│ │ • Supports: Bare metal, major cloud providers, VMware      │ │
 │ └────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────┘
 ```

@@ -52,7 +52,7 @@ configs/
   observability/      # metrics, logging, tracing endpoints
 ```
 
-Each YAML/JSON/TOML file is a runbook/instruction set — this IS our own take on Puppet/Ansible/Terraform/Salt/Chef. The Unheaded way.
+Each YAML/JSON/TOML file is a runbook/instruction set — this IS our own take on existing IaC platforms (Ansible, Terraform, and others). The Unheaded way.
 
 ### Package Breakout to Separate Repos
 Formal breakout of major packages to their own repos (like unheaded-wiki already is):

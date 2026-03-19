@@ -178,12 +178,12 @@ These drafts are living documents. They are updated as the implementation evolve
 
 **Infrastructure**:
 - 25 microservices deployed in production
-- Kubernetes clusters (tested on GKE, EKS, AKS, bare-metal K3s)
-- Bare-metal deployments (Intel Xeon, AWS EC2, even gaming desktops)
+- Kubernetes clusters (tested on major managed Kubernetes services and bare-metal K3s)
+- Bare-metal deployments (Intel Xeon, cloud VMs, even gaming desktops)
 - One unified Helm chart for all deployment topologies
 
 **Deployment Targets**:
-- Cloud: AWS, Azure, GCP, DigitalOcean
+- Cloud: major cloud providers
 - On-premises: bare-metal Kubernetes, systemd-managed services
 - Gaming: PC hardware with Linux kernel 6.0+
 
@@ -197,7 +197,7 @@ These drafts are living documents. They are updated as the implementation evolve
 
 **July 2026**: Production SLA commitments and support contracts
 
-**Q3 2026**: Integration with major cloud providers (native Unheaded support in AWS, Azure, GCP management consoles)
+**Q3 2026**: Integration with major cloud providers (native Unheaded support in cloud management consoles)
 
 ## Why This Matters
 

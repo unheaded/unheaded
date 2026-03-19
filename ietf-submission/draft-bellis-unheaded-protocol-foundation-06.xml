@@ -2361,7 +2361,7 @@ are permitted in version 0x01.</t>
   <t><strong>TLV Type Registry Updated</strong>: Added UNHEADED_METRIC_V1 (0x2A) to
 the TLV Type Registry initial entries.</t>
   <t><strong>UPC MBC ISA Opcode Registry (NEW)</strong>: Added IANA registry for MBC
-opcode numbers (0x00-0xFF) with 46 initial entries covering
+opcode numbers (0x00-0xFF) with 48 initial entries covering
 arithmetic, logical, stack, branch, memory, atomic, interrupt,
 and system operations.  Includes 32-bit instruction encoding format.</t>
   <t><strong>UPC MBC Syscall Number Registry (NEW)</strong>: Added IANA registry for
