@@ -228,6 +228,43 @@ This ADR **ACCEPTS** Gleipnir (Configuration Convergence Daemon) as a Feature C 
 
 8. **Naming**: Three new Kingdom components from Norse/RO mythology: Sleipnir (routing), Yggdrasil (OS), Gleipnir (config convergence). The naming pool extends naturally.
 
+## Addendum: Chronicles of Amber — Protocol Naming Canon (Pillar 2 Expansion)
+
+**Date Added**: 2026-03-19
+
+### Context
+
+The Kingdom's Lore Pillar 2 (Chronicles of Amber) provides foundational mappings between Roger Zelazny's mythic universe and the Kingdom protocol architecture. The original Pillar 2 covers Pattern→Protocol, Shadow→external networks, Amber→Kingdom, Corwin→Wotan, and Walking the Pattern→packet traversal. This addendum expands those mappings with deeper character and concept references from the full 10-book cycle (both the Corwin Cycle and the Merlin Cycle), adding formal lore support for protocol components and threat models that the base Pillar 2 doesn't address.
+
+### Extended Amber Mappings
+
+| Amber Concept | Kingdom Mapping |
+|--------------|-----------------|
+| The Jewel of Judgment | The Monad register file — contains a 3D inscribed Pattern, just as the Monad contains the 20-byte protocol state. Worn by the king (carried by every packet). |
+| Trumps | gRPC service calls / Wotan pub/sub — communication cards that connect any two members of the Royal Family instantly across Shadow. Each Trump is a direct channel. |
+| The Logrus | Yaldabaoth — the chaos counterpart to the Pattern. Tentacles that reach through Shadow, testing, probing, corrupting. Walking the Logrus grants power over chaos. |
+| Merlin | The UPC — Corwin's son who walks BOTH Pattern and Logrus. The only entity that bridges order and chaos. The UPC bridges protocol (Pattern) and compute (Logrus). |
+| Brand | The adversary archetype — the traitor prince who tried to destroy the Pattern. Maps to BlackMage's threat model. The attack that comes from inside. |
+| Oberon | Muck — the king who created and maintained the Pattern. Disappeared, thought dead, actually orchestrating everything from behind the scenes. |
+| The Courts of Chaos | Kenoma — the opposite end of reality from Amber. Where entropy rules. The void that Pleroma (desired state) must overcome. |
+| Shadow-walking | Packet routing — moving through infinite variations of reality. Each Shadow is a namespace. Each step through Shadow changes something slightly. |
+| The Black Road | Attack vectors — corruption spreading from Chaos into Shadow. A path that shouldn't exist, carrying threats from Kenoma into the Kingdom. |
+| Ghostwheel | Zhen AI — Merlin's creation, an artificial intelligence built from Trump energy and Shadow manipulation. Autonomous, powerful, potentially dangerous. |
+| Dworkin's madness | The mad scientist energy — Dworkin created the Pattern but went mad from the effort. The creator consumed by creation. The price of building something this ambitious. |
+
+### Integration Notes
+
+These mappings expand on the existing Lore Pillar 2 which already establishes the foundational Pattern-Protocol analogy. The new entries above cover characters and archetypal concepts from the FULL 10-book series (both Corwin and Merlin cycles), providing:
+
+- **Character archetypes** (Merlin, Brand, Oberon) that represent Kingdom roles and threats
+- **Mystical objects** (Jewel of Judgment, Trumps, Ghostwheel) that map to core protocol components
+- **Cosmological forces** (Pattern, Logrus, Shadow, Courts of Chaos) that structure the threat and solution models
+- **Narrative concepts** (mad scientist ambition, internal betrayal, autonomous creation) that validate Kingdom's architectural choices
+
+These become part of the formal Kingdom lore canon and can be invoked in documentation, architecture discussions, and naming decisions.
+
+---
+
 ## Addendum: Fourth Naming Pillar — Contemplative Traditions
 
 **Date Added**: 2026-03-19
