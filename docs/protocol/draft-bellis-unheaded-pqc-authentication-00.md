@@ -6,7 +6,7 @@
 
    This document specifies a post-quantum cryptographic (PQC)
    authentication mechanism for the Unheaded Protocol Foundation
-   [draft-bellis-unheaded-protocol-foundation-04].  It defines a
+   [draft-bellis-unheaded-protocol-foundation-06].  It defines a
    multi-algorithm, dual-layer, tiered authentication architecture
    integrating three NIST PQC digital signature standards — FIPS 205
    (SLH-DSA) [FIPS205], FIPS 204 (ML-DSA) [FIPS204], and FIPS 206
@@ -128,6 +128,45 @@
        ENHANCED, SOVEREIGN) enable graduated deployment from development
        environments (zero overhead) to government-grade multi-algorithm
        cross-verification.
+
+## 1a. Algorithm Coverage
+
+   This specification covers five NIST post-quantum cryptographic
+   standards.  Two are MANDATORY for all PQC-enabled deployments;
+   three are OPTIONAL and provide algorithm diversity or key
+   establishment capabilities.
+
+   Mandatory Algorithms (REQUIRED for Tier STANDARD and above):
+
+   SLH-DSA (FIPS 205):  Stateless hash-based digital signature
+      algorithm.  REQUIRED as the baseline signature standard.
+      Hash-based construction with no lattice assumptions.  Fully
+      eBPF-native (integer-only operations).  Twelve parameter sets
+      (algo_id 0x01-0x0C) spanning NIST Levels 1, 3, and 5.
+
+   ML-DSA (FIPS 204):  Module-lattice-based digital signature
+      algorithm.  REQUIRED for Tier ENHANCED and above.  Lattice-based
+      construction with integer NTT modular arithmetic.  Fully
+      eBPF-native.  Three parameter sets (algo_id 0x10-0x12) spanning
+      NIST Levels 2, 3, and 5.
+
+   Optional Algorithms (MAY be implemented):
+
+   ML-KEM (FIPS 203):  Module-lattice-based key-encapsulation
+      mechanism.  Used for Shield-to-Shield tunnel key establishment
+      (Section 16), NOT for per-packet authentication.  Three
+      parameter sets (algo_id 0x80-0x82).  RECOMMENDED as primary KEM.
+
+   FN-DSA (FIPS 206):  FFT over NTRU-lattice-based digital signature
+      algorithm.  Provides smallest signatures (666-1,280 bytes) but
+      requires userspace signing daemon due to IEEE-754 floating-point
+      constraint.  Two parameter sets (algo_id 0x20-0x21).  Carries
+      additional side-channel risk (Section 18.11).
+
+   HQC (FIPS 207):  Hamming quasi-cyclic key-encapsulation mechanism.
+      Code-based KEM providing non-lattice diversity for key
+      establishment.  Two parameter sets (algo_id 0x90-0x91).  SHOULD
+      be available as backup if lattice assumptions are compromised.
 
 ## 2. Requirements Language
 
@@ -1517,17 +1556,17 @@
               FIPS 207, 2025 (In development).
 
    [MONAD]    Bellis, S., "The Unheaded Protocol Foundation",
-              draft-bellis-unheaded-protocol-foundation-04,
-              February 2026.
+              draft-bellis-unheaded-protocol-foundation-06,
+              March 2026.
 
    [SOPHIA]   Bellis, S., "Sophia Dictionary Specification for
               the Unheaded Protocol",
-              draft-bellis-unheaded-sophia-dictionary-00,
-              February 2026.
+              draft-bellis-unheaded-sophia-dictionary-03,
+              March 2026.
 
    [WOTAN]    Bellis, S., "Wotan Memory Model for the Unheaded
-              Protocol", draft-bellis-unheaded-wotan-memory-00,
-              February 2026.
+              Protocol", draft-bellis-unheaded-wotan-memory-03,
+              March 2026.
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,
