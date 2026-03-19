@@ -57,7 +57,7 @@ This document specifies the Shim pipeline for the Unheaded Protocol Computer (UP
 
 # Introduction
 
-The Shim is the execution engine of the Unheaded Protocol Computer (UPC), responsible for translating and executing Monad Bytecode (MBC) programs within eBPF runtime contexts. It forms the critical bridge between the declarative instruction set defined by the MBC ISA and the native eBPF verifier and execution model of the Linux kernel.
+The Shim is the execution engine of the Unheaded Protocol Computer (UPC), responsible for translating and executing Monad Bytecode (MBC) programs within eBPF runtime contexts. It maps the instruction set defined by the MBC ISA to the eBPF verifier and execution model of the Linux kernel.
 
 The Shim operates within a four-stage pipeline:
 
@@ -462,7 +462,7 @@ Tick packet generation rates vary by operational mode:
 - LOCAL mode (single-hop loopback): 35 Hz (28 ms between ticks)
 - DISTRIBUTED mode (multi-hop propagation): ~1 kHz (1 ms between ticks, governed by network propagation)
 
-Tick rate is controlled by application logic, not the Shim itself. The Shim simply processes each arriving tick packet up to its 256-instruction limit.
+Tick rate is controlled by application logic, not the Shim. The Shim processes each arriving tick packet up to its 256-instruction limit.
 
 # Memory-Mapped I/O
 
@@ -549,7 +549,7 @@ Constraints:
 
 # Dream Ladder Feature Stratification
 
-The Shim defines conformance levels that implementations must support, organized as a stratified ladder.
+The Shim defines conformance levels that implementations MUST support.
 
 ## Conformance Levels
 
@@ -595,7 +595,7 @@ Memory-mapped I/O layer providing:
 - TTY console at 0x7F000
 - All Level 0-2 features
 
-Conformance: Implementations SHOULD support Level 2a. Level 2a enables interactive applications (games, demos, interactive programs).
+Conformance: Implementations SHOULD support Level 2a. Level 2a is required for framebuffer output, keyboard input, and console I/O.
 
 ### Level 3: Interrupts and Exceptions (Optional)
 
@@ -644,7 +644,7 @@ When a tick packet arrives, the Shim MUST:
 3. If CRC is invalid: emit an Anomaly event to COMPUTE_EVENTS map and DO NOT execute MBC
 4. If CRC is valid: proceed to stage 4 execution
 
-This ensures corrupted state never affects program execution.
+Corrupted state MUST NOT affect program execution.
 
 ## Post-Execution Recomputation
 
@@ -654,7 +654,7 @@ After MBC execution completes (whether via HALT or 256-instruction limit), the S
 2. Write the updated Monad state with new CRC into the outgoing packet's HbH option
 3. Return XDP_TX to transmit the packet
 
-This ensures correct state propagates to the next hop.
+Correct state MUST propagate to the next hop.
 
 ## Anomaly Event Format
 
