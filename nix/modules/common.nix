@@ -115,7 +115,7 @@
     };
 
     # Rsyslog for forwarding to central log aggregator
-    services.rsyslog = {
+    services.rsyslogd = {
       enable = true;
       extraConfig = ''
         # JSON template for structured logs
