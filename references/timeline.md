@@ -156,12 +156,14 @@ Comprehensive architectural vision document.
 
 - ✅ ADR-69420: Sleipnir (Kingdom BGP) + Yggdrasil (Unheaded OS)
 - ✅ ADR-69420: Gleipnir (Config Convergence) + Fourth Naming Pillar (Contemplative Traditions)
+- ✅ ADR-69420: Chronicles of Amber Pillar 2 expansion (Jewel of Judgment, Trumps, Logrus, Merlin, Ghostwheel mappings)
 
 #### Infrastructure & Misc (March 17-19, 2026)
 
 - ✅ WireGuard IPv6 overlay design + configs (fd00:dead:beef::/48)
 - ✅ Demo video script polish
 - ✅ LAUNCH_READINESS.md report generated
+- ✅ The First Packet fiction updated — 6 new chapters (Merlin's Choice, Dream Ladder, Internet-Drafts, Adversaries, Ghostwheel, Hour Before Dawn)
 
 ---
 
