@@ -19,7 +19,31 @@
 - **Action**: Reach out, thank them specifically, let them know what shipped and how their input mattered.
 - **Vibe**: Gratitude. Good ideas deserve credit.
 
+### Reach Out: Cloudflare Contact — Open Source Sponsorship
+- **Context**: Already using cloudflare/circl for all 3 production PQC algorithms. Not a cold pitch.
+- **Pitch angle**: Building on their library, producing IETF Internet-Drafts that reference their work. Cloudflare cares about eBPF, PQC, QUIC/HTTP/3 — all core to Unheaded.
+- **Ask**: Open source sponsorship / developer program / Workers/R2/D1 credits.
+- **Note**: Worst they say is no. Best case, developer advocate routes to sponsorship program.
+
+### Dev Machine Task: OSS License Code Audit
+- **What**: Run comprehensive code audit on dev machine verifying all OSS dependencies listed in LICENSES/THIRD_PARTY.md are actually used, correctly attributed, and license-compliant.
+- **How**: `go mod verify`, `cargo audit`, cross-reference SBOM against actual imports, check for any unlisted deps.
+- **Why**: Pre-public due diligence. The SBOM exists but hasn't been verified against runtime imports.
+- **Where**: Run on west (dev machine) — needs full build environment.
+
+### Dev Machine Task: FN-DSA Upgrade (pornin/go-fn-dsa)
+- **What**: Replace FN-DSA stub with real implementation using pornin/go-fn-dsa (pure Go, Unlicense, spec author).
+- **Why**: Library exists NOW. No reason to ship a stub when the real thing is available.
+- **License**: Unlicense (public domain) — GPL-3.0 compatible, assessed clear.
+
+### Dev Machine Task: HQC Scaffold (liboqs-go)
+- **What**: Scaffold HQC implementation using liboqs-go (MIT, CGo required).
+- **Why**: Library exists NOW. Architecture decision: accept CGo dep or keep as stub.
+- **License**: MIT — GPL-3.0 compatible, assessed clear. Static linking required.
+
 ## Session Notes
-- Yesterday's Cowork session was MASSIVE — RFC fixes, 2 new drafts, ADR-69420, timeline sync, PQC audit, Amber lore expansion, IP audit scoped
-- IETF submission and GitHub flip are next
-- IP/trademark audit of Amber refs is a pre-public blocker (scoped, 1-2 hours)
+- Yesterday's Cowork session was MASSIVE — RFC fixes, 2 new drafts, ADR-69420, timeline sync, PQC audit, Amber lore expansion, IP audit completed
+- Amber IP audit: **CLEAR TO SHIP** — zero Zelazny names in code/binaries/IETF drafts, fair use for lore docs
+- IETF submission and GitHub flip are next — BOTH ARE BROWSER-ONLY TASKS
+- VC language scrubbed from all public docs — this is The Free Kingdom, GPL copyleft
+- PQC licensing assessed clear: go-fn-dsa (Unlicense), liboqs-go (MIT), circl (BSD-3)
