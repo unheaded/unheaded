@@ -75,7 +75,7 @@ Success criteria: Barebone deployment guide published. Trace propagation end-to-
 
 **Age 3 — Hardening: Production-Ready** (Jul 2026)
 
-Security audit complete. Integration with cloud provider consoles (AWS, Azure, GCP). Helm charts passing Artifact Hub validation. Zero security issues in third-party audits. Community deployments in the wild.
+Security audit complete. Integration with major cloud provider consoles. Helm charts passing Artifact Hub validation. Zero security issues in third-party audits. Community deployments in the wild.
 
 Success criteria: Deployment guide battle-tested. Security audit clean. Conference talks at KubeCon and eBPF Summit. Others are using it.
 

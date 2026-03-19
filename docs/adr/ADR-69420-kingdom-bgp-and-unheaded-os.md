@@ -127,9 +127,9 @@ Both features are **NOT blocking public launch** and will be communicated to cus
 
 ### Context
 
-Unheaded supports multiple container runtimes (LXD, containerd, Docker), multiple IaC backends (Ansible, Terraform, Puppet, Salt, Chef, Kubernetes), and multiple log/observability pipelines (Prometheus, Loki, VictoriaMetrics, Grafana, Anamnesis). Each has its own config format, state representation, and drift model. Today, converting between them is manual — a Puppet manifest doesn't automatically produce an equivalent Ansible playbook, a Docker Compose file doesn't generate matching LXD profiles, and log pipeline configs don't stay in sync when endpoints change.
+Unheaded supports multiple container runtimes (LXD, containerd, Docker), multiple IaC backends, and multiple log/observability pipelines. Each has its own config format, state representation, and drift model. Today, converting between them is manual — one backend's manifest doesn't automatically produce an equivalent artifact for another, a Docker Compose file doesn't generate matching LXD profiles, and log pipeline configs don't stay in sync when endpoints change.
 
-This is the same problem Puppet's catalog compiler solves: declare desired state once, compile it to whatever backend needs it. But Puppet assumes Puppet is the source of truth. We need something runtime-agnostic — a converter daemon that reads canonical Kingdom config (the "desired state" already in the repo) and emits target-specific artifacts on a schedule.
+This is the same problem traditional catalog compilers solve: declare desired state once, compile it to whatever backend needs it. But existing tools assume they are the source of truth. We need something runtime-agnostic — a converter daemon that reads canonical Kingdom config (the "desired state" already in the repo) and emits target-specific artifacts on a schedule.
 
 ### Design: Gleipnir (Config Convergence Daemon)
 

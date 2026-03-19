@@ -80,7 +80,7 @@ This specification defines:
 The Shim pipeline operates in conjunction with several related specifications:
 
 - {{foundation}} defines the Monad wire format (20-byte fixed header carried in IPv6 Hop-by-Hop options), which encodes register state and control flags at each hop
-- {{mbc-isa}} specifies the MBC instruction set architecture (45 opcodes, 4-register architecture, 32-bit words)
+- {{mbc-isa}} specifies the MBC instruction set architecture (48 opcodes, 4-register architecture, 32-bit words)
 - {{sophia}} defines dictionary lookup semantics used during MBC execution
 - {{wotan-memory}} specifies the BPF map memory model backing the Shim's RAM_MAP and ROM_MAP structures
 
@@ -214,7 +214,7 @@ Verification enforces security and correctness constraints before a program is l
 
 ## Opcode Whitelist
 
-Only 45 opcodes are valid. The verifier MUST reject any program containing an opcode not in the following list:
+Only 48 opcodes are valid. The verifier MUST reject any program containing an opcode not in the following list:
 
 ```
 Valid opcodes:
@@ -539,7 +539,7 @@ Conformance: All implementations MUST support Level 0.
 
 Instruction execution layer providing:
 
-- Full MBC instruction set (45 opcodes)
+- Full MBC instruction set (48 opcodes)
 - 4-register architecture (r0-r15)
 - 32-bit word operations
 - Arithmetic, logic, and control flow instructions (no memory operations)

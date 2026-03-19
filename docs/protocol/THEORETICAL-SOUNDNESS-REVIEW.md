@@ -138,11 +138,11 @@ The eBPF verifier enforces:
 #### 2. MBC Instruction Budget
 
 From the spec:
-- **45 total opcodes**
+- **48 total opcodes**
 - Each MBC instruction maps to **1-4 BPF instructions** (estimated)
 - A single MBC program can be **at most a few KB** in size
 
-**Worst case (45 opcodes × 4 BPF instructions each = 180 BPF instructions per MBC instruction = unbounded)**
+**Worst case (48 opcodes × 4 BPF instructions each = 192 BPF instructions per MBC instruction = unbounded)**
 
 #### 3. Loop Problem
 
@@ -1072,7 +1072,7 @@ Sleep/wakeup safety:
 
 > "MBC is optimized for execution within eBPF verifier constraints—specifically the 256-instruction limit per eBPF program execution."
 
-And: "45 opcodes" in the ISA.
+And: "48 opcodes" in the ISA.
 
 ### Theoretical Analysis
 

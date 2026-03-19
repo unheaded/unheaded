@@ -31,7 +31,7 @@ All 10 verification checks PASSED:
 
 | # | Check | Expected Location | Result |
 |---|-------|-------------------|--------|
-| 1 | "46-opcode" / "46 opcode" / "46 distinct opcode" | MBC-ISA-00, Shim-00 | PASS — Found in both (6 matches total) |
+| 1 | "48-opcode" / "48 opcode" / "48 distinct opcode" | MBC-ISA-00, Shim-00 | PASS — Found in both (6 matches total) |
 | 2 | "0x00-0x11" / "18 bytes" (CRC scope) | Foundation-06 | PASS — Found (8 matches) |
 | 3 | "Version Rollback" | Sophia-03 | PASS — Found (Section heading) |
 | 4 | "Conformance Levels" / "Dream Ladder" | Shim-00 | PASS — Found (7 matches) |
@@ -62,10 +62,10 @@ The following 16 findings were identified and resolved in earlier phases of the 
 6. **Sophia-03:** QPACK compression integration documented
 7. **Wotan-03:** Error code taxonomy with RESERVED entries 5-7
 8. **Wotan-03:** Distributed memory model consistency guarantees specified
-9. **MBC-ISA-00:** 46-opcode count confirmed and documented consistently
+9. **MBC-ISA-00:** 48-opcode count confirmed and documented consistently
 10. **MBC-ISA-00:** Version 1.0 (v1.0 / 0x01) declared
 11. **Shim-00:** Dream Ladder conformance levels (0-6) fully stratified
-12. **Shim-00:** 46-opcode cross-reference to MBC-ISA-00 verified
+12. **Shim-00:** 48-opcode cross-reference to MBC-ISA-00 verified
 13. **PQC-00:** Algorithm Coverage section with SLH-DSA, ML-DSA, ML-KEM
 14. **PQC-00:** Implementation Status section documenting cloudflare/circl integration
 15. **Cross-spec:** All inter-document references updated to latest versions

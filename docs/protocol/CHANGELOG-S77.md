@@ -204,7 +204,7 @@ All three drafts updated from 2026-03-05 to 2026-03-15. Changes below are purely
 
 | # | Section | Description |
 |---|---------|-------------|
-| 8 | MBC Opcode Numbers | IANA registry with 46 opcodes (NOP through HALT), 32-bit instruction encoding format |
+| 8 | MBC Opcode Numbers | IANA registry with 48 opcodes (NOP through HALT), 32-bit instruction encoding format |
 | 9 | MBC Syscall Numbers | Native MBC syscalls (4 entries) + Linux-compatible INT 0x80 syscalls (20 entries) |
 | 10 | UPC Memory Region Types | 8 memory regions (RAM, KBD_IO, SCREEN, DEBUG, WAD, HEAP, STACK, RAMDISK), memory hierarchy L0-L4, interrupt vector table |
 | 11 | UPC Event Types | 10 compute engine event types (0x10-0x19) for Anamnesis |

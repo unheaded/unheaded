@@ -89,7 +89,7 @@ sudo ./scripts/setup-host.sh
 - Configures networking
 - Sets up eBPF environment
 - Creates systemd service
-- Works on: bare metal, AWS, Azure, GCP, Oracle, VMware, QEMU
+- Works on: bare metal, major cloud providers, VMware, QEMU
 
 **Time:** ~5-10 minutes
 

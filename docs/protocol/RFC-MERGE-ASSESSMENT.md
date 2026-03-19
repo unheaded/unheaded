@@ -24,7 +24,7 @@ The 6 Internet-Drafts should **remain as 6 separate documents**, following estab
 | 1 | Foundation-06 | 1,860 | 35-40 | Wire format, Monad register, IANA registries |
 | 2 | Sophia-03 | 977 | 18-22 | Dictionary encoding, semantic layer, BPF maps |
 | 3 | Wotan-03 | 1,109 | 20-25 | Memory model, cache hierarchy, per-flow state |
-| 4 | MBC-ISA-00 | 1,085 | 20-25 | Instruction set, 45 opcodes, 32-bit encoding |
+| 4 | MBC-ISA-00 | 1,085 | 20-25 | Instruction set, 48 opcodes, 32-bit encoding |
 | 5 | Shim-00 | 775 | 15-18 | Execution pipeline, 4-stage loading, tick packets |
 | 6 | PQC-Auth-00 | 1,633 | 30-35 | Post-quantum authentication, FIPS 203-207 |
 | | **Total** | **6,839** | **138-165** | |
@@ -87,7 +87,7 @@ The 6 Unheaded drafts exhibit **clear architectural boundaries**:
 - **Foundation-06**: Defines wire format, packet header, IANA registries
 - **Sophia-03**: Semantic layer (dictionary lookup), independent encoding format
 - **Wotan-03**: Memory model (per-flow state), independent helper interface
-- **MBC-ISA-00**: Instruction set (45 opcodes), can exist without Shim
+- **MBC-ISA-00**: Instruction set (48 opcodes), can exist without Shim
 - **Shim-00**: Execution pipeline (assembly → loading → execution), depends on MBC
 - **PQC-Auth-00**: Authentication mechanism (orthogonal to wire format)
 
@@ -233,7 +233,7 @@ RFC XXXX+2: Wotan Memory Protocol
 #### **Tier 3: Computational Layer (Extends Sophia + Foundation)**
 ```
 RFC XXXX+3: MBC Instruction Set Architecture
-  Defines: 45 opcodes, 32-bit encoding, 16 registers
+  Defines: 48 opcodes, 32-bit encoding, 16 registers
   Normative refs: Foundation (RFC XXXX), Sophia (RFC XXXX+1)
   Purpose: Bytecode that executes on Monad packets
   Depends on: Sophia for instruction semantics (e.g., opcode 0x42 = "lookup service name")

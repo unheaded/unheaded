@@ -1800,7 +1800,7 @@ The following changes are made in draft-06:
    the TLV Type Registry initial entries.
 
 8. **UPC MBC ISA Opcode Registry (NEW)**: Added IANA registry for MBC
-   opcode numbers (0x00-0xFF) with 46 initial entries covering
+   opcode numbers (0x00-0xFF) with 48 initial entries covering
    arithmetic, logical, stack, branch, memory, atomic, interrupt,
    and system operations.  Includes 32-bit instruction encoding format.
 
