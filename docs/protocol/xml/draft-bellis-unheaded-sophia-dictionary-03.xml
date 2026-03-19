@@ -116,7 +116,7 @@ procedures.</t>
 
 <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
 "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-document are to be interpreted as described in BCP 14 <xref target="RFC8174">RFC2119</xref>
+document are to be interpreted as described in BCP 14 <xref target="RFC2119">RFC2119</xref> <xref target="RFC8174">RFC8174</xref>
 when, and only when, they appear in all capitals, as shown here.</t>
 
 </section>
@@ -169,6 +169,12 @@ This memo uses "BPF" not "eBPF" per RFC 9669 conventions.</t>
   <dd>
     <t>Header compression format defined in RFC 9204, adapted in this
 specification for Sophia dictionary entry compression. (NEW in draft-03)</t>
+  </dd>
+  <dt>Anamnesis:</dt>
+  <dd>
+    <t>The event sourcing subsystem that emits and logs system events
+(such as instruction traces, anomalies, and profiling metrics) for observability
+and debugging purposes.</t>
   </dd>
 </dl>
 
@@ -941,7 +947,7 @@ BPF array map for fast lookup (~50 ns vs. ~150 ns for hash lookup).</t>
 
 <section anchor="sophia-root-key-registry"><name>Sophia Root Key Registry</name>
 
-<t>IANA should establish a new registry:</t>
+<t>IANA SHOULD establish a new registry:</t>
 
 <figure><artwork><![CDATA[
 Registry Name:  Unheaded Sophia Root Dictionary Keys
@@ -971,7 +977,7 @@ Initial entries:
 </section>
 <section anchor="sophia-sub-dictionary-type-registry-new-in-draft-03"><name>Sophia Sub-Dictionary Type Registry (NEW in draft-03)</name>
 
-<t>IANA should establish a new registry:</t>
+<t>IANA SHOULD establish a new registry:</t>
 
 <figure><artwork><![CDATA[
 Registry Name:  Unheaded Sophia Sub-Dictionary Types

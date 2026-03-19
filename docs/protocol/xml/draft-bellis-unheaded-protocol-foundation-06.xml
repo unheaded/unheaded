@@ -154,8 +154,8 @@ per-flow state beyond the 20-byte Monad.</t>
 <section anchor="requirements-language"><name>Requirements Language</name>
 
 <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-document are to be interpreted as described in BCP 14 <xref target="RFC8174">RFC2119</xref> when, and only when, they appear in all capitals, as shown
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this
+document are to be interpreted as described in BCP 14 <xref target="RFC2119"></xref> <xref target="RFC8174"></xref> when, and only when, they appear in all capitals, as shown
 here.</t>
 
 </section>
@@ -319,7 +319,7 @@ Offset  Size  Field               Type        Description
 0x0C    1     src_prefix_lo       raw uint8   Source routing prefix low octet
 0x0D    1     dst_prefix_lo       raw uint8   Destination routing prefix low octet
 0x0E    4     scratch[0-3]        raw uint8   Scratch registers (4 bytes)
-0x12    2     checksum            raw uint16  CRC-16/CCITT over bytes 0x00-0x11
+0x12    2     checksum            raw uint16  CRC-16/CCITT over bytes 0x00-0x13 (with checksum zeroed)
 ------  ----  ------------------  ----------  ---------------------------------
 Total: 20 bytes (0x14)
 ]]></artwork></figure>
@@ -430,8 +430,8 @@ Shield MUST zero scratch bytes at ingress unless CUSTOM is set.</t>
   </dd>
   <dt>checksum:</dt>
   <dd>
-    <t>A 16-bit CRC-16/CCITT checksum computed over the first 18 bytes
-(0x00-0x11) of the Monad. See Section 5.4.</t>
+    <t>A 16-bit CRC-16/CCITT checksum computed over all 20 bytes
+(0x00-0x13) of the Monad with the checksum field (0x12-0x13) zeroed during computation. See Section 5.4.</t>
   </dd>
 </dl>
 
@@ -464,7 +464,7 @@ behavior:</t>
 | C | Y | T | E | S | M |CUST| R |
 +---+---+---+---+---+---+---+---+
 
-C (0x80):  CHAOS — Chaos injection active (Yaldabaoth)
+C (0x80):  CHAOS — Chaos injection active (Yaldabaoth, the chaos injection subsystem)
 Y (0x40):  CANARY — Canary deployment path
 T (0x20):  TRACED — Full trace active (all hops emit to Anamnesis)
 E (0x10):  ENCRYPT — Payload encrypted (intra-Kingdom TLS)
@@ -535,7 +535,7 @@ version, flags, flow_label, latency_hint, and reserved fields.</t>
 
 <t>Shield MUST compute the checksum when creating a packet at ingress.
 Each hop MUST verify the checksum before processing. Each hop MUST
-recompute the checksum after modifying any field in offsets 0x00-0x11.
+recompute the checksum after modifying any field in offsets 0x00-0x13.
 The checksum field itself (offset 0x12-0x13) MUST NOT be included in
 the checksum computation (set to zero during computation).</t>
 
@@ -784,7 +784,7 @@ Protocol Parameters registry group.</t>
 
 <section anchor="overview-1"><name>Overview</name>
 
-<t>The Unheaded Protocol defines 12 IANA registries (see Section 18).
+<t>The Unheaded Protocol defines 12 IANA registries (see <xref target="iana-considerations"></xref>).
 New allocations within these registries follow the registration
 procedures specified for each registry (Standards Action, Specification
 Required, Expert Review, or First Come First Served per RFC 8126).</t>
@@ -1037,7 +1037,7 @@ ensure wire format integrity:</t>
 mismatch.</t>
   <t><strong>Size Check</strong>: Monad option Len field MUST be &gt;= 20. Drop on
 mismatch.</t>
-  <t><strong>Checksum Check</strong>: CRC-16/CCITT over bytes 0x00-0x11 MUST match
+  <t><strong>Checksum Check</strong>: CRC-16/CCITT over all 20 bytes (0x00-0x13 with checksum field zeroed) MUST match
 bytes 0x12-0x13. Drop or flag on mismatch.</t>
   <t><strong>Flags Check</strong>: Bit 0 (RSVD) MUST be zero. Flag anomaly if set.</t>
   <t><strong>HbH Count Check</strong>: Exactly zero or one Hop-by-Hop extension
@@ -1256,7 +1256,7 @@ in the "Unheaded Protocol Parameters" registry group.</t>
 <figure><artwork><![CDATA[
 Bit   Name      Description                                     Reference
 ---   --------  ------------------------------------------      ---------
-7     CHAOS     Chaos injection active (Yaldabaoth)              [this document]
+7     CHAOS     Chaos injection active (Yaldabaoth, the chaos injection subsystem)  [this document]
 6     CANARY    Canary deployment path marker                    [this document]
 5     TRACED    Full trace active (all hops emit to Anamnesis)   [this document]
 4     ENCRYPT   Payload encrypted (intra-Kingdom TLS)            [this document]
@@ -1951,7 +1951,34 @@ Email: stevie@bellis.tech</t>
   <seriesInfo name="RFC" value="9114"/>
   <seriesInfo name="DOI" value="10.17487/RFC9114"/>
 </reference>
-
+<reference anchor="RFC6437">
+  <front>
+    <title>IPv6 Flow Label Specification</title>
+    <author fullname="S. Amante" initials="S." surname="Amante"/>
+    <author fullname="B. Carpenter" initials="B." surname="Carpenter"/>
+    <author fullname="S. Jiang" initials="S." surname="Jiang"/>
+    <author fullname="J. Rajahalme" initials="J." surname="Rajahalme"/>
+    <date month="November" year="2011"/>
+    <abstract>
+      <t>This document specifies the IPv6 Flow Label field and consolidates the flow label semantics information previously scattered in separate RFCs. The flow label is used by a source to label sequences of packets for which it requests special handling by the IPv6 network. This document obsoletes RFCs 3697.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="6437"/>
+  <seriesInfo name="DOI" value="10.17487/RFC6437"/>
+</reference>
+<reference anchor="RFC8949">
+  <front>
+    <title>Concise Binary Object Representation (CBOR)</title>
+    <author fullname="C. Bormann" initials="C." surname="Bormann"/>
+    <author fullname="P. Hoffman" initials="P." surname="Hoffman"/>
+    <date month="December" year="2020"/>
+    <abstract>
+      <t>The Concise Binary Object Representation (CBOR) is a data format whose design goals include the possibility of extremely small code size, fairly small message size, and extensibility without version negotiation. These characteristics make it different from earlier binary serializations such as ASN.1. CBOR was inspired by MessagePack, JSON, and ASN.1. This document obsoletes RFC 7049.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="8949"/>
+  <seriesInfo name="DOI" value="10.17487/RFC8949"/>
+</reference>
 
 
     </references>
@@ -2028,6 +2055,19 @@ Email: stevie@bellis.tech</t>
   </front>
   <seriesInfo name="RFC" value="4193"/>
   <seriesInfo name="DOI" value="10.17487/RFC4193"/>
+</reference>
+<reference anchor="RFC4303">
+  <front>
+    <title>IP Encapsulating Security Payload (ESP)</title>
+    <author fullname="S. Kent" initials="S." surname="Kent"/>
+    <date month="December" year="2005"/>
+    <abstract>
+      <t>This document describes an IP Encapsulating Security Payload (ESP) protocol, which provides origin authentication, integrity checking, and confidentiality to IP datagrams. These services are provided at the IP layer, above the IP header and before any higher layer protocols.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="STD" value="41"/>
+  <seriesInfo name="RFC" value="4303"/>
+  <seriesInfo name="DOI" value="10.17487/RFC4303"/>
 </reference>
 <reference anchor="RFC8126">
   <front>

@@ -36,29 +36,18 @@ normative:
       Internet-Draft: draft-bellis-unheaded-sophia-dictionary-03
 
 informative:
-  RFC0768:
-  RFC0791:
-  RFC0792:
-  RFC0793:
   RFC8799:
-  RFC9180:
-  FIPS203:
-    title: "Module-Lattice-Based Key-Encapsulation Mechanism Standard"
-    author:
-      org: National Institute of Standards and Technology
-    date: 2024-08
-    target: https://csrc.nist.gov/pubs/fips/203/final
 
 --- abstract
 
 Wotan is the memory and I/O bus for the Unheaded Protocol, providing
 addressable per-flow storage for BPF programs executing within the
-Limited Domain [RFC8799].
+Limited Domain.
 
 The Wotan protocol specifies the BPF helper interface for memory access,
-the address space layout for per-flow data structures, a three-level
-cache hierarchy (L1 BPF hash maps, L2 per-flow ring buffers, L3
-persistent Write-Ahead Log), and the topic-based I/O model for
+the address space layout for per-flow data structures, a five-level
+cache hierarchy (L0 Monad, L1 BPF hash maps, L2 per-flow ring buffers, L3
+persistent Write-Ahead Log, L4 Sophia dictionaries), and the topic-based I/O model for
 interaction with userspace services.
 
 This memo defines the memory model, helper functions, address space,
@@ -112,9 +101,10 @@ This document is part of the Unheaded Protocol specification family:
 # Terminology and Language
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174]
-when, and only when, they appear in all capitals, as shown here.
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document are to be interpreted as described in
+BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+capitals, as shown here.
 
 The following terms are used:
 

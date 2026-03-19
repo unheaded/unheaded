@@ -44,7 +44,9 @@ pi:
 normative:
   RFC2119:
   RFC8174:
+  RFC6437:
   RFC8200:
+  RFC8949:
   RFC9669:
   RFC9673:
   RFC9000:
@@ -57,6 +59,7 @@ informative:
   RFC0793:
   RFC1918:
   RFC4193:
+  RFC4303:
   RFC8126:
   RFC8300:
   RFC8754:
@@ -214,10 +217,10 @@ per-flow state beyond the 20-byte Monad.
 # Requirements Language
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-document are to be interpreted as described in BCP 14 [RFC2119]
-[RFC8174] when, and only when, they appear in all capitals, as shown
-here.
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document are to be interpreted as described in BCP 14
+[RFC2119] [RFC8174] when, and only when, they appear in all capitals, as
+shown here.
 
 # Terminology
 
@@ -358,7 +361,7 @@ Offset  Size  Field               Type        Description
 0x0C    1     src_prefix_lo       raw uint8   Source routing prefix low octet
 0x0D    1     dst_prefix_lo       raw uint8   Destination routing prefix low octet
 0x0E    4     scratch[0-3]        raw uint8   Scratch registers (4 bytes)
-0x12    2     checksum            raw uint16  CRC-16/CCITT over bytes 0x00-0x11
+0x12    2     checksum            raw uint16  CRC-16/CCITT over all 20 bytes (0x00-0x13) with checksum field zeroed
 ------  ----  ------------------  ----------  ---------------------------------
 Total: 20 bytes (0x14)
 ~~~~
@@ -451,8 +454,8 @@ scratch:
   Shield MUST zero scratch bytes at ingress unless CUSTOM is set.
 
 checksum:
-: A 16-bit CRC-16/CCITT checksum computed over the first 18 bytes
-  (0x00-0x11) of the Monad. See Section 5.4.
+: A 16-bit CRC-16/CCITT checksum computed over all 20 bytes
+  (0x00-0x13) of the Monad with the checksum field zeroed. See Section 5.4.
 
 ### Extended Register Option
 
@@ -481,7 +484,7 @@ behavior:
 | C | Y | T | E | S | M |CUST| R |
 +---+---+---+---+---+---+---+---+
 
-C (0x80):  CHAOS — Chaos injection active (Yaldabaoth)
+C (0x80):  CHAOS — Chaos injection active (Yaldabaoth, the chaos injection subsystem)
 Y (0x40):  CANARY — Canary deployment path
 T (0x20):  TRACED — Full trace active (all hops emit to Anamnesis)
 E (0x10):  ENCRYPT — Payload encrypted (intra-Kingdom TLS)
@@ -541,7 +544,7 @@ version, flags, flow_label, latency_hint, and reserved fields.
 
 Shield MUST compute the checksum when creating a packet at ingress.
 Each hop MUST verify the checksum before processing. Each hop MUST
-recompute the checksum after modifying any field in offsets 0x00-0x11.
+recompute the checksum after modifying any field in offsets 0x00-0x13.
 The checksum field itself (offset 0x12-0x13) MUST NOT be included in
 the checksum computation (set to zero during computation).
 
@@ -780,7 +783,7 @@ Protocol Parameters registry group.
 
 ## Overview
 
-The Unheaded Protocol defines 12 IANA registries (see Section 18).
+The Unheaded Protocol defines 12 IANA registries (see Section 11).
 New allocations within these registries follow the registration
 procedures specified for each registry (Standards Action, Specification
 Required, Expert Review, or First Come First Served per RFC 8126).
@@ -1004,8 +1007,9 @@ ensure wire format integrity:
 2. **Size Check**: Monad option Len field MUST be >= 20. Drop on
    mismatch.
 
-3. **Checksum Check**: CRC-16/CCITT over bytes 0x00-0x11 MUST match
-   bytes 0x12-0x13. Drop or flag on mismatch.
+3. **Checksum Check**: CRC-16/CCITT over all 20 bytes (0x00-0x13) with
+   checksum field zeroed MUST match bytes 0x12-0x13. Drop or flag on
+   mismatch.
 
 4. **Flags Check**: Bit 0 (RSVD) MUST be zero. Flag anomaly if set.
 
@@ -1209,7 +1213,7 @@ The flags field occupies offset 0x07 of the Monad register file
 ~~~~
 Bit   Name      Description                                     Reference
 ---   --------  ------------------------------------------      ---------
-7     CHAOS     Chaos injection active (Yaldabaoth)              [this document]
+7     CHAOS     Chaos injection active (Yaldabaoth, the chaos injection subsystem)  [this document]
 6     CANARY    Canary deployment path marker                    [this document]
 5     TRACED    Full trace active (all hops emit to Anamnesis)   [this document]
 4     ENCRYPT   Payload encrypted (intra-Kingdom TLS)            [this document]

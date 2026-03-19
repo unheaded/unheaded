@@ -123,9 +123,10 @@ This document is part of the Unheaded Protocol specification family:
 # Requirements Language
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174]
-when, and only when, they appear in all capitals, as shown here.
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document are to be interpreted as described in BCP 14
+[RFC2119] [RFC8174] when, and only when, they appear in all capitals, as
+shown here.
 
 # Terminology
 
@@ -269,7 +270,7 @@ If a lookup exceeds 8 levels of nesting, the implementation MUST:
 
 1. Abort the lookup
 2. Return an error (SOPHIA_EVT_MISS)
-3. Emit an EVENT_ANOMALY to Anamnesis
+3. Emit an EVENT_ANOMALY to Anamnesis (the event sourcing subsystem)
 4. Use the default value for the field
 
 This prevents infinite loops from circular references in the
@@ -847,7 +848,7 @@ BPF array map for fast lookup (~50 ns vs. ~150 ns for hash lookup).
 
 ## Sophia Root Key Registry
 
-IANA should establish a new registry:
+IANA SHOULD establish a new registry:
 
 ~~~~~
 Registry Name:  Unheaded Sophia Root Dictionary Keys
@@ -876,7 +877,7 @@ Initial entries:
 
 ## Sophia Sub-Dictionary Type Registry (NEW in draft-03)
 
-IANA should establish a new registry:
+IANA SHOULD establish a new registry:
 
 ~~~~~
 Registry Name:  Unheaded Sophia Sub-Dictionary Types

@@ -1,144 +1,48 @@
 # Unheaded
 
-Unheaded is a configuration management automation platform built around the Unheaded Protocol and Unheaded Protocol Comnputer - delivering backend infrastructure and observibility for linux API reliant applications where calls are being made across the network. 
+Unheaded is a configuration management platform that provisions backend infrastructure — service mesh, observability, security, and control plane — from declarative configuration. The Unheaded Protocol enables distributed computation by encoding state in IPv6 headers and processing it at each hop via eBPF.
 
-Bring the head ("an application"), unheaded provides the rest.
+## Building
 
-## What It Does
-
-- **eBPF-based observability** from Layer 2 to Layer 7 -- options for packet tracing from wire to browser UI and LTS.
-- **Immutable infrastructure** across LXD, containerd, NixOS, and Docker
-- **Zero data crossover** -- architectural isolation enforced at ingress and egress
-- **Service mesh** on the Wotan message bus (gRPC streaming, pub/sub, protocol RAM)
-- **Declarative everything** -- version-controlled configs, interchangeable IaC backends, Zhen AI or similar serving as config mirror and secondary enforcement
-- **Self-hosting proof** -- Zhen AI utilizes kaban board with SQL backend as source of truth and persistance of timeline for the Unheaded Kingdom
-- **Post-quantum cryptography** -- ML-DSA, ML-KEM, SLH-DSA (FIPS 203/204/205)
-
-## The Unheaded Protocol Computer
-
-The Monad wire format is a computational substrate.
-
-Every IPv6 packet carries a 20-byte Monad register file (5 x u32) in the Hop-by-Hop Options header. At each hop, an eBPF program reads and writes the registers. The packet *is* the working memory of a distributed computation.
-
-Rust eBPF XDP program acts as a CPU emulator, a 45-opcode ISA as a BPF verifier-compliant interpreter.
-
-See the [UPC Reference Manual](docs/UPC_REFERENCE_MANUAL.md) for the full architecture.
-
-## Architecture
-
-```
-Layer 5  User Interface       Dashboard, Kanban (self-hosting proof)
-Layer 4  Application Services timeguru, captain, micromanager, architect
-Layer 3  Infrastructure Svcs  wotan, trace-collector, gateway
-Layer 2  Control Plane        unheaded-daemon (drift detection, reconciliation)
-Layer 1  Data Plane           23 eBPF programs (XDP/TC, Rust/Aya)
-Layer 0  Infrastructure       LXD / Docker / NixOS / bare metal
-```
-
-Two bare-metal hosts (WEST + EAST) connected via WireGuard IPv6 overlay (`fd00:dead:beef::/48`) with BGP EVPN underlay (VXLAN VNIs). Cross-host BPF flow graph operational.
-
-## Quick Start
+Prerequisites: Linux (kernel 5.15+), Go 1.24+, Rust, Docker.
 
 ```bash
-# Prerequisites: Linux (kernel 5.15+), Go 1.24+, Docker
-
-# Build
 go build ./...
-
-# Run with Docker Compose
 docker compose up -d
-
-# Verify all services
-for port in 17000 18000 19000 19001 19002 19003 19004 19005 20000 20001; do
-  curl -sf "http://localhost:$port/health" && echo " :$port OK" || echo " :$port UNREACHABLE"
-done
-
-# Open the dashboard
-xdg-open http://localhost:20000
 ```
 
 See [QUICKSTART.md](QUICKSTART.md) for the full walkthrough.
 
-## Services
-
-| Service | Port | Role |
-|---------|------|------|
-| unheaded-daemon | 17000 | Control plane, drift detection |
-| wotan | 18000/18001 | Message bus (HTTP/gRPC) |
-| timeguru | 19000 | Timeline tracking |
-| architect | 19001 | Infrastructure design |
-| captain | 19002 | Strategy service |
-| micromanager | 19003 | Task execution |
-| monad | 19004 | Register file processor |
-| sophia | 19005 | BPF dictionary management |
-| dashboard | 20000 | Metrics, packet-flow visualization |
-| kanban | 20001 | Self-hosting proof (the Meta Moment) |
-
 ## The Protocol
 
-The Monad encodes 20 bytes (5 registers, CRC-16/CCITT) in IPv6 Hop-by-Hop Options. With Kingdom Mode (EVPN-VXLAN), deterministic address bits are reclaimed as extended register space -- up to 48 bytes of computational state per packet with zero wire overhead.
+The Monad wire format encodes a 20-byte register file in the IPv6 Hop-by-Hop Options header. At each hop, eBPF code reads and writes registers; the packet becomes distributed working memory. Kingdom Mode (EVPN-VXLAN) extends this to 48 bytes per packet with zero wire overhead. Sophia dictionaries (pinned BPF maps) provide field semantics. The Unheaded Protocol Computer (UPC) is a BPF-compliant CPU emulator in XDP. See [docs/UPC_REFERENCE_MANUAL.md](docs/UPC_REFERENCE_MANUAL.md) for details.
 
-Core specification in three Internet-Drafts (IETF Experimental track):
+Protocol specifications (IETF Experimental track):
 
-- [Monad Wire Format](docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md) -- register file encoding
-- [Sophia Dictionaries](docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md) -- BPF map management
-- [Wotan Memory Model](docs/protocol/draft-bellis-unheaded-wotan-memory-03.md) -- distributed protocol RAM
-- [PQC Authentication](docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md) -- post-quantum auth
+- [draft-bellis-unheaded-protocol-foundation-06](docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md)
+- [draft-bellis-unheaded-sophia-dictionary-03](docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md)
+- [draft-bellis-unheaded-wotan-memory-03](docs/protocol/draft-bellis-unheaded-wotan-memory-03.md)
+- [draft-bellis-unheaded-pqc-authentication-00](docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md)
 
-## Security
+## Architecture
 
-- **Post-quantum cryptography**: ML-KEM-768, ML-DSA-65, SLH-DSA (FIPS 203/204/205) via cloudflare/circl
-- **4-tier compliance**: NONE, STANDARD, HARDENED, SOVEREIGN
-- **eBPF tracing from packet zero**: every packet marked at XDP, correlated end-to-end
-- **Container hardening**: seccomp, capabilities, read-only filesystems, default-deny networking
-- **IDS**: Suricata with custom Monad rules (SID 9000001-9000099), GPL-2.0 process-isolated
-- **Authentication**: Pluggable (Noop/APIKey/JWT), RBAC, audit logging
+```
+Layer 5  Presentation         Dashboard, Kanban
+Layer 4  Application          Service personas (timeguru, captain, architect, etc.)
+Layer 3  Infrastructure       Wotan message bus, trace-collector, gateway
+Layer 2  Control Plane        unheaded-daemon (drift detection, reconciliation)
+Layer 1  Data Plane           eBPF programs (XDP/TC, Rust/Aya)
+Layer 0  Host                 LXD / Docker / NixOS / bare metal
+```
 
-## AI: Zhen
-
-Local RAG system with 1.52M indexed knowledge chunks. Mistral-7B inference via llama.cpp. No data leaves the network.
-
-- **Web UI**: port 20103
-- **Inference API**: port 20100
-- **Capabilities**: Codebase search, protocol Q&A, architecture exploration
-
-## Technology
-
-| Component | Stack |
-|-----------|-------|
-| Services | Go 1.24 |
-| eBPF programs | Rust (Aya framework) |
-| Frontend | Vanilla JS |
-| Transport | gRPC-first, HTTP fallback |
-| Routing | BGP EVPN (default), OSPFv3, IS-IS+SR-MPLS, MPLS LDP |
-| Tunnel | WireGuard (fd00:dead:beef::/48) |
-| Observability | Prometheus, Loki, VictoriaMetrics, Grafana |
-| IaC backends | Ansible, Terraform, Puppet, Kubernetes, Chef, Salt |
-
-## Codebase
-
-| Metric | Count |
-|--------|-------|
-| Production LOC | 415K |
-| Total LOC (with tests + docs) | 1,137K |
-| Go production | 267K |
-| Rust (eBPF + tools) | 53K |
-| Active services | 34 |
-| eBPF programs | 23 |
-| Internet-Drafts | 4 |
-| PQC test cases | 60 |
-| Dependencies audited | 553 |
-
-Three deployment platforms: NixOS, Docker Compose, LXD. Four routing options: BGP EVPN, OSPFv3, IS-IS+SR-MPLS, MPLS LDP.
+Network fabric: WireGuard IPv6 overlay, BGP EVPN with VXLAN. Deployment targets: NixOS, Docker Compose, LXD. See [docs](docs/) for security model, compliance tiers, and architecture details.
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](./LICENSE).
+GPL-3.0-or-later. See [LICENSE](LICENSE).
 
-Protocol specifications dual-licensed GPL-3.0/Apache-2.0 for ecosystem adoption.
-
-Suricata (GPL-2.0) is process-isolated. See [GPL Isolation Boundary](docs/legal/SURICATA_GPL_ISOLATION.md).
+Protocol specifications dual-licensed GPL-3.0-or-later / Apache-2.0. Suricata integration (GPL-2.0) is process-isolated; see [docs/legal/SURICATA_GPL_ISOLATION.md](docs/legal/SURICATA_GPL_ISOLATION.md).
 
 ## Author
 
-Stevie Bellis -- stevie@bellis.tech
+Stevie Bellis — stevie@bellis.tech

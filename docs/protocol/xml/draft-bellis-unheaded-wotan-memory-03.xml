@@ -39,12 +39,11 @@
 
 <t>Wotan is the memory and I/O bus for the Unheaded Protocol, providing
 addressable per-flow storage for BPF programs executing within the
-Limited Domain <xref target="RFC8799"></xref>.</t>
+Limited Domain.</t>
 
 <t>The Wotan protocol specifies the BPF helper interface for memory access,
-the address space layout for per-flow data structures, a three-level
-cache hierarchy (L1 BPF hash maps, L2 per-flow ring buffers, L3
-persistent Write-Ahead Log), and the topic-based I/O model for
+the address space layout for per-flow data structures, a five-level
+cache hierarchy (L0 through L4), and the topic-based I/O model for
 interaction with userspace services.</t>
 
 <t>This memo defines the memory model, helper functions, address space,
@@ -115,7 +114,7 @@ and QPACK compression headers for dictionary entries.</t>
 
 <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
 "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-document are to be interpreted as described in BCP 14 <xref target="RFC8174">RFC2119</xref>
+document are to be interpreted as described in BCP 14 <xref target="RFC2119"/> <xref target="RFC8174"/>
 when, and only when, they appear in all capitals, as shown here.</t>
 
 <t>The following terms are used:</t>
@@ -1180,19 +1179,6 @@ Email: stevie@bellis.tech</t>
   <seriesInfo name="RFC" value="8174"/>
   <seriesInfo name="DOI" value="10.17487/RFC8174"/>
 </reference>
-<reference anchor="RFC9669">
-  <front>
-    <title>BPF Instruction Set Architecture (ISA)</title>
-    <author fullname="D. Thaler" initials="D." role="editor" surname="Thaler"/>
-    <date month="October" year="2024"/>
-    <abstract>
-      <t>eBPF (which is no longer an acronym for anything), also commonly referred to as BPF, is a technology with origins in the Linux kernel that can run untrusted programs in a privileged context such as an operating system kernel. This document specifies the BPF instruction set architecture (ISA).</t>
-    </abstract>
-  </front>
-  <seriesInfo name="RFC" value="9669"/>
-  <seriesInfo name="DOI" value="10.17487/RFC9669"/>
-</reference>
-
 <reference anchor="UNHEADED-FOUNDATION" >
   <front>
     <title>Unheaded: Protocol Foundation</title>
@@ -1219,87 +1205,6 @@ Email: stevie@bellis.tech</t>
 
     <references title='Informative References' anchor="sec-informative-references">
 
-
-
-<reference anchor="RFC0768">
-  <front>
-    <title>User Datagram Protocol</title>
-    <author fullname="J. Postel" initials="J." surname="Postel"/>
-    <date month="August" year="1980"/>
-  </front>
-  <seriesInfo name="STD" value="6"/>
-  <seriesInfo name="RFC" value="768"/>
-  <seriesInfo name="DOI" value="10.17487/RFC0768"/>
-</reference>
-<reference anchor="RFC0791">
-  <front>
-    <title>Internet Protocol</title>
-    <author fullname="J. Postel" initials="J." surname="Postel"/>
-    <date month="September" year="1981"/>
-  </front>
-  <seriesInfo name="STD" value="5"/>
-  <seriesInfo name="RFC" value="791"/>
-  <seriesInfo name="DOI" value="10.17487/RFC0791"/>
-</reference>
-<reference anchor="RFC0792">
-  <front>
-    <title>Internet Control Message Protocol</title>
-    <author fullname="J. Postel" initials="J." surname="Postel"/>
-    <date month="September" year="1981"/>
-  </front>
-  <seriesInfo name="STD" value="5"/>
-  <seriesInfo name="RFC" value="792"/>
-  <seriesInfo name="DOI" value="10.17487/RFC0792"/>
-</reference>
-<reference anchor="RFC0793">
-  <front>
-    <title>Transmission Control Protocol</title>
-    <author fullname="J. Postel" initials="J." surname="Postel"/>
-    <date month="September" year="1981"/>
-  </front>
-  <seriesInfo name="RFC" value="793"/>
-  <seriesInfo name="DOI" value="10.17487/RFC0793"/>
-</reference>
-<reference anchor="RFC8799">
-  <front>
-    <title>Limited Domains and Internet Protocols</title>
-    <author fullname="B. Carpenter" initials="B." surname="Carpenter"/>
-    <author fullname="B. Liu" initials="B." surname="Liu"/>
-    <date month="July" year="2020"/>
-    <abstract>
-      <t>There is a noticeable trend towards network behaviors and semantics that are specific to a particular set of requirements applied within a limited region of the Internet. Policies, default parameters, the options supported, the style of network management, and security requirements may vary between such limited regions. This document reviews examples of such limited domains (also known as controlled environments), notes emerging solutions, and includes a related taxonomy. It then briefly discusses the standardization of protocols for limited domains. Finally, it shows the need for a precise definition of "limited domain membership" and for mechanisms to allow nodes to join a domain securely and to find other members, including boundary nodes.</t>
-      <t>This document is the product of the research of the authors. It has been produced through discussions and consultation within the IETF but is not the product of IETF consensus.</t>
-    </abstract>
-  </front>
-  <seriesInfo name="RFC" value="8799"/>
-  <seriesInfo name="DOI" value="10.17487/RFC8799"/>
-</reference>
-<reference anchor="RFC9180">
-  <front>
-    <title>Hybrid Public Key Encryption</title>
-    <author fullname="R. Barnes" initials="R." surname="Barnes"/>
-    <author fullname="K. Bhargavan" initials="K." surname="Bhargavan"/>
-    <author fullname="B. Lipp" initials="B." surname="Lipp"/>
-    <author fullname="C. Wood" initials="C." surname="Wood"/>
-    <date month="February" year="2022"/>
-    <abstract>
-      <t>This document describes a scheme for hybrid public key encryption (HPKE). This scheme provides a variant of public key encryption of arbitrary-sized plaintexts for a recipient public key. It also includes three authenticated variants, including one that authenticates possession of a pre-shared key and two optional ones that authenticate possession of a key encapsulation mechanism (KEM) private key. HPKE works for any combination of an asymmetric KEM, key derivation function (KDF), and authenticated encryption with additional data (AEAD) encryption function. Some authenticated variants may not be supported by all KEMs. We provide instantiations of the scheme using widely used and efficient primitives, such as Elliptic Curve Diffie-Hellman (ECDH) key agreement, HMAC-based key derivation function (HKDF), and SHA2.</t>
-      <t>This document is a product of the Crypto Forum Research Group (CFRG) in the IRTF.</t>
-    </abstract>
-  </front>
-  <seriesInfo name="RFC" value="9180"/>
-  <seriesInfo name="DOI" value="10.17487/RFC9180"/>
-</reference>
-
-<reference anchor="FIPS203" target="https://csrc.nist.gov/pubs/fips/203/final">
-  <front>
-    <title>Module-Lattice-Based Key-Encapsulation Mechanism Standard</title>
-    <author >
-      <organization>National Institute of Standards and Technology</organization>
-    </author>
-    <date year="2024" month="August"/>
-  </front>
-</reference>
 
 
     </references>
