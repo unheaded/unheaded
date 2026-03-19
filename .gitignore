@@ -13,6 +13,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+TMP_*
+*.bak
 
 # ─── IDE / Editors ───
 .idea/
