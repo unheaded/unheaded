@@ -59,6 +59,18 @@
   - Test DNS query monitoring and blocking
   - Verify device discovery and threat detection
 
+### Dev Machine Task: PQC Draft XML Conversion
+- **What**: Convert `draft-bellis-unheaded-pqc-authentication-00.md` to XML using kramdown-rfc
+- **Why**: PQC is the only draft without XML. Can't submit to IETF datatracker without it.
+- **How**: `kramdown-rfc2629 draft-bellis-unheaded-pqc-authentication-00.md > draft-bellis-unheaded-pqc-authentication-00.xml`
+- **Then**: Validate with `xml2rfc draft-bellis-unheaded-pqc-authentication-00.xml`
+- **Note**: PQC spec has stale cross-references (-04/-00/-00 → -06/-03/-03) that must be fixed FIRST (S74 Phase 1, Step 1)
+
+### Dev Machine Task: Push 8 Local Commits to Origin
+- **What**: West dev machine is 8 commits ahead of origin/main
+- **How**: `git push origin main`
+- **Why**: Sync dev work (S73 P1-P5 + Three Crowns) to GitHub before public flip
+
 ## Session Notes
 - Yesterday's Cowork session was MASSIVE — RFC fixes, 2 new drafts, ADR-69420, timeline sync, PQC audit, Amber lore expansion, IP audit completed
 - Amber IP audit: **CLEAR TO SHIP** — zero Zelazny names in code/binaries/IETF drafts, fair use for lore docs
