@@ -164,6 +164,7 @@ Comprehensive architectural vision document.
 - ✅ Demo video script polish
 - ✅ LAUNCH_READINESS.md report generated
 - ✅ The First Packet fiction updated — 6 new chapters (Merlin's Choice, Dream Ladder, Internet-Drafts, Adversaries, Ghostwheel, Hour Before Dawn)
+- ✅ unheaded-sentinel skill created — blue team defense, Pi-hole, IoT, daily adversarial loop with BlackMage via Zhen AI
 
 ---
 

@@ -383,4 +383,18 @@ IP/trademark audit of Amber references is a **PRE-PUBLIC BLOCKER**. The audit is
 
 ---
 
-**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, and PQC dependency licensing assessment. Pre-public blocker: Amber IP audit.
+## Addendum: Sentinel — Blue Team Defense Skill
+
+**Date Added**: 2026-03-19
+
+The unheaded-sentinel skill has been created as the Kingdom's blue team counterpart to BlackMage (red team). Sentinel owns network monitoring, Pi-hole DNS defense, IoT device inventory, firewall management, CVE triage, and the Daily Adversarial Loop.
+
+**The Daily Adversarial Loop**: Sentinel and BlackMage form an autonomous adversarial pair orchestrated by Zhen AI. Every day, Sentinel pulls fresh CVEs from NIST NVD and CISA KEV via MCP connectors, assesses Kingdom exposure, and hardens defenses. BlackMage then attempts to exploit the new CVEs against the Kingdom. Results are scored, logged to Anamnesis, and reported to MoatGhost. This makes the Kingdom antifragile — constant productive conflict between defense and offense.
+
+**Security Triad**: Sentinel (defend) + BlackMage (attack) + MoatGhost (certify) = complete security coverage.
+
+**Lore**: Named after Heimdall, the Norse watchman who guards Bifrost and can see and hear everything in the Nine Realms. Also resonates with the concept of antifragility — systems that get stronger under stress.
+
+---
+
+**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, and PQC dependency licensing assessment. Pre-public blocker: Amber IP audit.
