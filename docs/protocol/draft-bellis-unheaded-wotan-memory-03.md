@@ -479,12 +479,13 @@ flush on overflow, and L3->L2 recovery on process restart.
 ## Separation of Compute and Memory
 
 The Monad is transient compute state (stateless by design). Wotan is
-persistent state machine storage. This separation allows:
+persistent state machine storage. The separation has the following
+architectural consequences:
 
-- Shim programs to remain stateless with respect to the packet format.
-- External state to be accessed in a controlled, measurable manner.
-- Cache miss latency to be handled without blocking per-hop logic.
-- Memory updates to be tracked in Anamnesis for observability.
+- Shim programs remain stateless with respect to the packet format.
+- External state is accessed through a controlled, measurable interface.
+- Cache miss latency is handled without blocking per-hop processing.
+- Memory updates are tracked in Anamnesis for observability.
 
 # BPF Helper Interface
 

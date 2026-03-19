@@ -113,9 +113,9 @@ informative:
    dictionaries.  After wire-level authentication succeeds, the
    application reads Wotan per-flow PQC state and matches it
    against its own policy (minimum security level, allowed
-   algorithms, key pinning, maximum key age).  This enables
-   enterprise-grade customizable authentication policy without
-   modifying the wire protocol.
+   algorithms, key pinning, maximum key age).  Application-level
+   policy enforcement operates without modification to the wire
+   protocol.
 
    Compliance Tiers:  Four PQC compliance tiers — NONE, STANDARD,
    ENHANCED, and SOVEREIGN — are signaled via Kingdom Mode bits in
@@ -128,7 +128,7 @@ informative:
 
 ### Copyright Notice
 
-   Copyright (c) 2026 Steven R. Bellis.  All rights reserved.
+   Copyright (c) 2026 Stevie Bellis.  All rights reserved.
 
 ### Table of Contents
 
@@ -181,7 +181,7 @@ informative:
    scheme is algorithm-agnostic — the same 12-byte wire layout supports
    all three signature standards.
 
-   This approach provides:
+   The signature-by-reference scheme has the following properties:
 
    (a) Post-quantum packet authentication at the wire level (Layer 1).
 
@@ -194,21 +194,21 @@ informative:
    (d) Configurable verification policy per trust boundary.
 
    (e) Optional application-level policy verification (Layer 2) via
-       Sophia dictionaries, enabling enterprises to define custom
-       authentication requirements without modifying the wire protocol.
+       Sophia dictionaries, allowing per-application authentication
+       requirements without modification to the wire protocol.
 
-   (f) Clean perimeter isolation — Shield strips Monad HbH headers at
-       ingress, so internal kingdom traffic carries zero PQC wire
-       overhead.  Wire-level PQC is exclusively a perimeter concern.
+   (f) Perimeter isolation: Shield strips Monad HbH headers at
+       ingress.  Internal kingdom traffic carries zero PQC wire
+       overhead.  Wire-level PQC operates exclusively at the perimeter.
 
-   (g) Algorithm agility — the algo_id field and signature-by-reference
-       design support all five NIST PQC standards with zero wire format
+   (g) Algorithm agility: the algo_id field and signature-by-reference
+       design support all five NIST PQC standards without wire format
        changes.  New algorithms require only a registry entry and a
        verifier implementation.
 
-   (h) Tiered compliance — four PQC compliance tiers (NONE, STANDARD,
-       ENHANCED, SOVEREIGN) enable graduated deployment from development
-       environments (zero overhead) to government-grade multi-algorithm
+   (h) Tiered compliance: four PQC compliance tiers (NONE, STANDARD,
+       ENHANCED, SOVEREIGN) support graduated deployment from
+       development environments (zero overhead) to multi-algorithm
        cross-verification.
 
 ## 1a. Algorithm Coverage
@@ -261,9 +261,8 @@ informative:
    and compliance tiers (Section 10) are specified for future
    implementation.
 
-   Implementers should treat this document as a design specification
-   subject to revision based on implementation experience.  Feedback
-   on the signature-by-reference design is welcome.
+   Implementers SHOULD treat this document as a design specification
+   subject to revision based on implementation experience.
 
 ## 2. Requirements Language
 
@@ -399,9 +398,8 @@ informative:
       If the flow's PQC state does not satisfy the application's
       policy (e.g., algorithm too weak, key too old, fingerprint
       not pinned), the application MAY reject the flow at the
-      application layer.  This provides defense-in-depth and
-      enables per-application security posture without modifying
-      the wire protocol.
+      application layer.  Per-application security posture is
+      enforced without modification to the wire protocol.
 
 ## 5. Monad Value Layout for PQC Authentication
 
@@ -809,8 +807,8 @@ informative:
    Layer 2: optional (applications opt in via policy dictionary).
    Default policy: OPTIMISTIC.
 
-   RECOMMENDED for: enterprise deployments requiring algorithm
-   flexibility and application-level security policy (SOC2, HIPAA,
+   RECOMMENDED for: deployments requiring algorithm flexibility
+   and application-level security policy enforcement (SOC2, HIPAA,
    FedRAMP).
 
 ### 10.4. Tier SOVEREIGN (K1=1, K0=1)
@@ -1019,16 +1017,16 @@ informative:
        services read Wotan state — not wire headers — to
        determine authentication status.
 
-   4.  This design ensures:
+   4.  The resulting security properties are:
 
        a.  Zero per-packet PQC overhead on internal links.
 
-       b.  Threat surface for PQC-specific attacks (SigRef
-           exhaustion, cache poisoning, timing oracles) is
-           confined to the Shield perimeter.
+       b.  PQC-specific attack surface (SigRef exhaustion, cache
+           poisoning, timing oracles) is confined to the Shield
+           perimeter.
 
        c.  Internal lateral movement cannot exploit PQC wire
-           attack vectors — the headers do not exist.
+           attack vectors because the headers are absent.
 
 ## 14. Application-Level Policy Verification (Layer 2)
 
@@ -1127,7 +1125,8 @@ informative:
 
    Layer 2 operates entirely on Wotan per-flow state and Sophia
    policy dictionaries.  It has NO dependency on Monad wire headers
-   (which have been stripped at Shield ingress).  This means:
+   (which have been stripped at Shield ingress).  The implications
+   are:
 
    (a) Layer 2 can be added or modified without any wire protocol
        changes.
@@ -1138,9 +1137,8 @@ informative:
    (c) Layer 2 is a pure application-space concern.  The
        infrastructure (Shield, XDP, Monad) is unaware of it.
 
-   (d) Enterprise customers can define arbitrarily strict policies
-       without affecting the performance of Layer 1 wire-level
-       authentication.
+   (d) Arbitrarily strict policies MAY be defined without affecting
+       the performance of Layer 1 wire-level authentication.
 
 ### 14.4. Sophia Dictionary Definition Format
 
@@ -1257,8 +1255,8 @@ informative:
 
    The consensus field tracks which algorithms have verified
    successfully.  When popcount(consensus) >= 2, the packet is
-   authenticated.  This ensures that compromise of any single
-   algorithm family does not break authentication.
+   authenticated.  Compromise of any single algorithm family
+   does not break authentication.
 
 ## 16. KEM Integration (Key Establishment)
 
@@ -1459,8 +1457,8 @@ informative:
 ### 18.9. Header Stripping and Perimeter Isolation
 
    The header stripping design confines PQC wire-level attack
-   vectors to the Shield perimeter.  This fundamentally limits
-   the blast radius of several attack classes:
+   vectors to the Shield perimeter, limiting the scope of
+   several attack classes:
 
    (a) SigRef exhaustion (PQC-001): Only external traffic
        carries SigRef values.  Internal lateral movement cannot
@@ -1502,7 +1500,8 @@ informative:
        policies on the same flow.  Application A may accept a
        Level 1 authenticated flow while Application B on the same
        host rejects it for not meeting Level 3 requirements.  This
-       is by design — applications own their security posture.
+       behavior is intentional: each application controls its own
+       security policy independently.
 
    (e) Layer 2 verification adds negligible overhead: Wotan reads
        (~50ns each) plus Sophia policy map lookup (~50-100ns).
@@ -1713,7 +1712,7 @@ informative:
 
    ML-DSA (FIPS 204): Best performance/size ratio.  Lattice-based with
    integer NTT.  Fully eBPF-native.  If lattice assumptions hold, this
-   is the optimal choice for high-throughput deployments.
+   is suitable for high-throughput deployments.
 
    FN-DSA (FIPS 206): Smallest signatures (666-1,280B).  Lattice-based
    with floating-point signing.  Requires userspace signing daemon.
@@ -1765,5 +1764,5 @@ informative:
 
 ### Author's Address
 
-   Steven R. Bellis
-   Email: stevenrbellis@gmail.com
+   Stevie Bellis
+   Email: stevie@bellis.tech

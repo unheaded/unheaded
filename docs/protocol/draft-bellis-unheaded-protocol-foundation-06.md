@@ -120,17 +120,18 @@ The Unheaded Protocol defines a mapped data bus model that
 transforms IPv6 packets into addressable memory by encoding a small
 register file directly in the IPv6 Hop-by-Hop Options extension header.
 
-We introduce a 20-byte Monad (register file) that carries program state
-through the network. At each hop, a BPF program (the Shim) performs
-computation on the Monad. The packet itself becomes the working memory,
-using exponent-encoded fields to pack rich metadata into the IPv6
-option while remaining fully backward-compatible with existing networks.
+The protocol defines a 20-byte Monad (register file) that carries
+program state through the network. At each hop, a BPF program (the
+Shim) performs computation on the Monad. The packet itself becomes the
+working memory, using exponent-encoded fields to pack metadata into
+the IPv6 option while remaining fully backward-compatible with
+existing networks.
 
-To support programs larger than what fits in a single Monad, we
-introduce Wotan, a memory and I/O bus that bridges Monad computation
-to per-flow ring-buffer storage and external topics. This decouples
-the Monad (pure, 20-byte compute) from memory (Wotan's configurable
-data planes).
+To support programs larger than what fits in a single Monad, the
+protocol defines Wotan, a memory and I/O bus that bridges Monad
+computation to per-flow ring-buffer storage and external topics.
+Wotan decouples the 20-byte Monad compute path from per-flow memory
+and configurable data planes.
 
 This memo extends the packet format with two additional capabilities:
 (1) Kingdom Mode Address Reclamation, which recovers up to 224 bits of
@@ -154,10 +155,11 @@ the complete computational model (Turing-complete with memory paging).
 
 Classical networking separates computation from data. Computation
 happens in applications. Data flows through the network as opaque byte
-streams. This creates an expensive impedance mismatch of serialization,
-deserialization, protocol translation, middleware, sidecars, and proxies.
+streams. Bridging the two requires serialization, deserialization,
+protocol translation, middleware, sidecars, and proxies at each
+boundary.
 
-The Unheaded Protocol inverts this model: the packet carries
+The Unheaded Protocol eliminates this separation: the packet carries
 computational state. A 20-byte register file (the Monad) is read and
 written by BPF programs at each hop. The packet functions as working
 storage of a distributed computation that executes at each
@@ -250,8 +252,9 @@ Anamnesis:
 
 Sophia:
 : The exponent dictionary system. BPF hash maps in kernel space,
-  structured tables in userspace. Hot-swappable vocabulary that
-  assigns meaning to exponent-encoded field values.
+  structured tables in userspace. Vocabulary entries are atomically
+  replaceable at runtime and assign meaning to exponent-encoded field
+  values.
 
 Exponent Encoding:
 : A compositional scheme for packing metadata: each field stores a
@@ -280,8 +283,8 @@ the packet before forwarding it to the next hop. At egress, Shield
 removes the option and forwards a clean IPv6 packet to the external
 network.
 
-The Monad's fields are exponent-encoded, allowing rich metadata to be
-packed into 8-bit signed values. Field semantics are defined by Sophia
+The Monad's fields are exponent-encoded, packing metadata into 8-bit
+signed values. Field semantics are defined by Sophia
 [SOPHIA], a dictionary system stored as BPF hash maps. Ring buffers
 (Anamnesis) record packet events at each hop for observability. Per-flow
 state beyond the 20-byte Monad is managed by Wotan [WOTAN].
@@ -566,7 +569,7 @@ integrity protection mechanisms.
 
 ## Overview
 
-Exponent encoding is a compositional scheme for representing rich
+Exponent encoding is a compositional scheme for representing
 metadata in compact form. An exponent-encoded field is a single octet
 interpreted as a signed 8-bit integer (two's complement, range -128 to
 +127).
@@ -724,9 +727,9 @@ to sub-dictionary) costs two hash table hits — still under 100
 nanoseconds on modern hardware.
 
 Dictionary updates propagate cluster-wide in under 10 milliseconds via
-atomic BPF map replacement through Wotan [WOTAN]. This allows
-hot-swapping of service identifiers, QoS policies, and Shim behavior
-without restarting any kernel components.
+atomic BPF map replacement through Wotan [WOTAN]. Service identifiers,
+QoS policies, and Shim behavior are replaced atomically without
+restarting kernel components.
 
 ## Minimum Required Dictionary
 
@@ -969,7 +972,7 @@ immutability is a security property, not merely a versioning decision.
 
 If implementations parse different wire formats under the same version
 number, an attacker can craft packets that are interpreted differently
-by different hops (parser divergence). This enables:
+by different hops (parser divergence). Parser divergence permits:
 
 -  Policy bypass: One hop reads a DROP action where another reads
    FORWARD.
@@ -1849,7 +1852,7 @@ kernel datapath.
 
 The authors of RFC 9669 (BPF ISA), RFC 8799 (Limited Domains), and
 RFC 9673 (Hop-by-Hop Processing Rehabilitation) for the foundational
-protocols that make this design possible.
+protocols upon which this specification builds.
 
 This document was co-authored with assistance from Claude (Anthropic).
 

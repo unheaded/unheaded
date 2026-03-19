@@ -89,14 +89,14 @@ nodes in under 10 milliseconds without packet loss or service interruption.
 The Unheaded Protocol [UNHEADED-FOUNDATION] defines a 20-byte
 register file (the Monad) that travels with every packet.  Each byte in the
 Monad is exponent-encoded: the actual value is reconstructed as base^exponent
-* multiplier.  But where do the base, multiplier, and the semantic meaning of
-each byte position come from?
+* multiplier.  The base, multiplier, and semantic meaning of each byte
+position are defined by the Sophia dictionary system.
 
-The answer is Sophia: a distributed, versioned dictionary system that maps
-byte values to meanings.  Sophia is the semantic layer.  Without it, the
-Monad fields carry no application semantics.  With it, a 0x03 byte value
-resolves to "architect" or "realtime" or "forward" or "open" depending on
-the field position and active dictionary version.
+Sophia is a distributed, versioned dictionary that maps byte values to
+semantic definitions.  Without a loaded Sophia dictionary, the Monad fields
+carry no application semantics.  A 0x03 byte value resolves to "architect"
+or "realtime" or "forward" or "open" depending on the field position and
+active dictionary version.
 
 This memo specifies:
 
@@ -140,8 +140,8 @@ Sub-Dictionary:
 
 Nested Sub-Dictionary:
 : A sub-dictionary that itself contains references to further sub-
-  dictionaries, enabling hierarchical (tree-structured) knowledge
-  representation. (NEW in draft-03)
+  dictionaries, forming hierarchical (tree-structured) knowledge
+  representations. (NEW in draft-03)
 
 Sophia Lookup:
 : A two-level (or deeper for nested sub-dictionaries) hash table
@@ -172,7 +172,7 @@ QPACK:
 
 ## Tree Structure
 
-Sophia dictionaries are trees, not flat tables.  The root level maps
+Sophia dictionaries are organized as trees.  The root level maps
 entry categories to sub-dictionaries.  Each sub-dictionary maps specific
 values within that category to metadata.
 
@@ -195,8 +195,8 @@ The SAME byte 0x03 means:
   [0x03, 0x03] = qos "realtime"
 ~~~~~
 
-This compositional structure provides 256^K total expressible meanings
-with K key positions, using only 2*K bytes on the wire (K bytes per lookup).
+The compositional structure yields 256^K total expressible meanings
+for K key positions, consuming 2*K bytes on the wire (K bytes per lookup).
 
 ## Sub-Dictionary Type System (NEW in draft-03)
 
@@ -278,7 +278,7 @@ If a lookup exceeds 8 levels of nesting, the implementation MUST:
 3. Emit an EVENT_ANOMALY to Anamnesis (the event sourcing subsystem)
 4. Use the default value for the field
 
-This prevents infinite loops from circular references in the
+The depth limit prevents infinite loops from circular references in the
 dictionary graph.
 
 ### Circular Reference Detection
@@ -352,7 +352,7 @@ sophia_dicts[192-255]: Reserved for future use
 
 Nested sub-dictionary indices MUST be in the range [64-191].
 Top-level sub-dictionary indices MUST be in the range [0-63].
-This partitioning prevents accidental conflicts between top-level
+The partitioning prevents accidental conflicts between top-level
 and nested dictionaries.
 
 ## Root Dictionary
@@ -428,23 +428,24 @@ No Rollback Support:
 : Dictionary rollback (reverting to a prior version) is NOT supported.
   To restore a previous dictionary state, operators MUST publish the
   desired dictionary contents as a new version with the next sequential
-  version number. This ensures monotonic version progression and
-  prevents ambiguity in version ordering across cluster nodes.
+  version number.  Monotonic version progression eliminates
+  ambiguity in version ordering across cluster nodes.
 
 Version Comparison:
 : Implementations MUST use modular arithmetic for version comparison.
   Version A is considered "newer" than version B if:
-  (A - B) mod 256 is in the range [1, 128]. This allows correct
-  ordering across the 0xFF-to-0x00 wraparound boundary.
+  (A - B) mod 256 is in the range [1, 128].  Modular comparison
+  preserves correct ordering across the 0xFF-to-0x00 wraparound boundary.
 
 # QPACK Compression Headers for Dictionary Entries (NEW in draft-03)
 
 ## Motivation
 
-Sophia dictionary entries can be large, especially when carrying PQC
-key material (ML-KEM-768 public keys are 1184 bytes, ML-DSA-65 public
-keys are 1952 bytes). Distributing full dictionary entries over Wotan
-topics [WOTAN] at cluster-wide scale incurs significant bandwidth.
+Sophia dictionary entries that carry PQC key material are large:
+ML-KEM-768 public keys are 1184 bytes and ML-DSA-65 public keys are
+1952 bytes.  Distributing uncompressed dictionary entries over Wotan
+topics [WOTAN] at cluster-wide scale incurs bandwidth proportional to
+(entry_count * entry_size * node_count) per update cycle.
 
 QPACK (RFC 9204) is a header compression format designed for HTTP/3
 that provides efficient encoding of key-value pairs with static and
@@ -577,14 +578,14 @@ draft-02 entries. Implementations that do not support QPACK MUST:
 2. If bit 7 = 1: reject entry with error SOPHIA_EVT_DECOMP_FAIL
 3. If bit 7 = 0: process as raw CBOR (draft-02 compatible)
 
-This ensures that draft-02 and draft-03 implementations can coexist
+Draft-02 and draft-03 implementations can therefore coexist
 during rolling upgrades.
 
 # Dictionary Distribution
 
 Sophia dictionaries are distributed to all nodes via the Wotan [WOTAN]
-publish-subscribe topics.  The distribution model ensures atomic,
-cluster-wide updates with zero packet loss.
+publish-subscribe topics.  The distribution model uses atomic BPF map
+replacement (Section 6.3) to update all nodes without packet loss.
 
 ## Wotan Distribution Channel
 
@@ -1001,8 +1002,7 @@ Song Liu) for the infrastructure enabling per-packet computation in the
 kernel datapath.
 
 The authors of RFC 9669 (BPF ISA), RFC 8799 (Limited Domains), and
-RFC 9204 (QPACK) for the foundational protocols that make this design
-possible.
+RFC 9204 (QPACK) for the protocols referenced by this specification.
 
 This document was co-authored with assistance from Claude (Anthropic).
 
