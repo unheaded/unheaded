@@ -7,7 +7,7 @@
 **LOC:** ~385K production, ~941K total
 **WIRE FORMAT:** FROZEN v0x01 (20 bytes)
 **BARE METAL:** WEST + EAST online
-**PROTOCOL SPECS:** 5 XML Internet-Drafts + 1 MD (Foundation-06, Sophia-03, Wotan-03, MBC-ISA-00, Shim-00, PQC-00)
+**PROTOCOL SPECS:** 6 Markdown Internet-Drafts (Foundation-06, Sophia-03, Wotan-03, MBC-ISA-00, Shim-00, PQC-00)
 **IETF SUBMISSION:** Ready for datatracker
 
 ---
