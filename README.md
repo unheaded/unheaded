@@ -45,6 +45,17 @@ GPL-3.0-or-later. See [LICENSE](LICENSE).
 
 Protocol specifications dual-licensed GPL-3.0-or-later / Apache-2.0. Suricata integration (GPL-2.0) is process-isolated; see [docs/legal/SURICATA_GPL_ISOLATION.md](docs/legal/SURICATA_GPL_ISOLATION.md).
 
+## AI-Assisted Development
+
+Unheaded is built with AI pair programming across multiple LLM providers:
+
+- [Claude](https://claude.ai) (Anthropic) — Primary development partner. Architecture, implementation, protocol specs, security review.
+- [Gemini](https://gemini.google.com) (Google) — Research, analysis, cross-referencing.
+- [ChatGPT](https://chatgpt.com) (OpenAI) — Research, drafting, exploration.
+- [Zhen AI](https://github.com/unheaded/unheaded/wiki/Zhen-AI) — In-house RAG pipeline. Mistral-7B via llama.cpp (ROCm), 1.52M FAISS vectors, RAFT-trained on Unheaded codebase + 9,739 RFCs.
+
+All code is human-reviewed and human-approved. The humans make the decisions; the AIs accelerate the work.
+
 ## Author
 
 Stevie Bellis — stevie@bellis.tech

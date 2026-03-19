@@ -14,7 +14,7 @@
 <?rfc compact="yes"?>
 <?rfc subcompact="no"?>
 
-<rfc ipr="trust200902" docName="draft-bellis-unheaded-protocol-foundation-06" category="exp" tocInclude="true" sortRefs="true" symRefs="true">
+<rfc ipr="trust200902" docName="draft-bellis-unheaded-protocol-foundation-06" category="exp" submissionType="independent" tocInclude="true" sortRefs="true" symRefs="true">
   <front>
     <title abbrev="Unheaded Protocol">Unheaded: Protocol Foundation — A Mapped Data Bus over IPv6 Hop-by-Hop Options</title>
 
@@ -28,7 +28,7 @@
       </address>
     </author>
 
-    <date year="2026" month="March" day="15"/>
+    <date year="2026" month="March" day="19"/>
 
     <area>Internet</area>
     <workgroup>Independent Submission</workgroup>

@@ -4,9 +4,10 @@ abbrev: "Unheaded Protocol"
 docname: draft-bellis-unheaded-protocol-foundation-06
 category: exp
 ipr: trust200902
+submissionType: independent
 area: Internet
 workgroup: Independent Submission
-date: 2026-03-15
+date: 2026-03-19
 stand_alone: yes
 
 keyword:
@@ -120,18 +121,17 @@ The Unheaded Protocol defines a mapped data bus model that
 transforms IPv6 packets into addressable memory by encoding a small
 register file directly in the IPv6 Hop-by-Hop Options extension header.
 
-The protocol defines a 20-byte Monad (register file) that carries
-program state through the network. At each hop, a BPF program (the
-Shim) performs computation on the Monad. The packet itself becomes the
-working memory, using exponent-encoded fields to pack metadata into
-the IPv6 option while remaining fully backward-compatible with
-existing networks.
+We introduce a 20-byte Monad (register file) that carries program state
+through the network. At each hop, a BPF program (the Shim) performs
+computation on the Monad. The packet itself becomes the working memory,
+using exponent-encoded fields to pack rich metadata into the IPv6
+option while remaining fully backward-compatible with existing networks.
 
-To support programs larger than what fits in a single Monad, the
-protocol defines Wotan, a memory and I/O bus that bridges Monad
-computation to per-flow ring-buffer storage and external topics.
-Wotan decouples the 20-byte Monad compute path from per-flow memory
-and configurable data planes.
+To support programs larger than what fits in a single Monad, we
+introduce Wotan, a memory and I/O bus that bridges Monad computation
+to per-flow ring-buffer storage and external topics. This decouples
+the Monad (pure, 20-byte compute) from memory (Wotan's configurable
+data planes).
 
 This memo extends the packet format with two additional capabilities:
 (1) Kingdom Mode Address Reclamation, which recovers up to 224 bits of
@@ -155,11 +155,10 @@ the complete computational model (Turing-complete with memory paging).
 
 Classical networking separates computation from data. Computation
 happens in applications. Data flows through the network as opaque byte
-streams. Bridging the two requires serialization, deserialization,
-protocol translation, middleware, sidecars, and proxies at each
-boundary.
+streams. This creates an expensive impedance mismatch of serialization,
+deserialization, protocol translation, middleware, sidecars, and proxies.
 
-The Unheaded Protocol eliminates this separation: the packet carries
+The Unheaded Protocol inverts this model: the packet carries
 computational state. A 20-byte register file (the Monad) is read and
 written by BPF programs at each hop. The packet functions as working
 storage of a distributed computation that executes at each
@@ -252,9 +251,8 @@ Anamnesis:
 
 Sophia:
 : The exponent dictionary system. BPF hash maps in kernel space,
-  structured tables in userspace. Vocabulary entries are atomically
-  replaceable at runtime and assign meaning to exponent-encoded field
-  values.
+  structured tables in userspace. Hot-swappable vocabulary that
+  assigns meaning to exponent-encoded field values.
 
 Exponent Encoding:
 : A compositional scheme for packing metadata: each field stores a
@@ -283,8 +281,8 @@ the packet before forwarding it to the next hop. At egress, Shield
 removes the option and forwards a clean IPv6 packet to the external
 network.
 
-The Monad's fields are exponent-encoded, packing metadata into 8-bit
-signed values. Field semantics are defined by Sophia
+The Monad's fields are exponent-encoded, allowing rich metadata to be
+packed into 8-bit signed values. Field semantics are defined by Sophia
 [SOPHIA], a dictionary system stored as BPF hash maps. Ring buffers
 (Anamnesis) record packet events at each hop for observability. Per-flow
 state beyond the 20-byte Monad is managed by Wotan [WOTAN].
@@ -364,7 +362,7 @@ Offset  Size  Field               Type        Description
 0x0C    1     src_prefix_lo       raw uint8   Source routing prefix low octet
 0x0D    1     dst_prefix_lo       raw uint8   Destination routing prefix low octet
 0x0E    4     scratch[0-3]        raw uint8   Scratch registers (4 bytes)
-0x12    2     checksum            raw uint16  CRC-16/CCITT over bytes 0x00-0x11 (18 bytes), excluding checksum field (0x12-0x13)
+0x12    2     checksum            raw uint16  CRC-16/CCITT over all 20 bytes (0x00-0x13) with checksum field zeroed
 ------  ----  ------------------  ----------  ---------------------------------
 Total: 20 bytes (0x14)
 ~~~~
@@ -457,9 +455,8 @@ scratch:
   Shield MUST zero scratch bytes at ingress unless CUSTOM is set.
 
 checksum:
-: A 16-bit CRC-16/CCITT checksum computed over bytes 0x00-0x11
-  (18 bytes) of the Monad, excluding the checksum field itself
-  (bytes 0x12-0x13). See Section 5.4.
+: A 16-bit CRC-16/CCITT checksum computed over all 20 bytes
+  (0x00-0x13) of the Monad with the checksum field zeroed. See Section 5.4.
 
 ### Extended Register Option
 
@@ -513,8 +510,9 @@ ignore.
 ## Checksum Field
 
 The checksum field (offset 0x12) holds a 16-bit CRC-16/CCITT value
-computed over bytes 0x00-0x11 (18 bytes) of the Monad header,
-excluding the checksum field itself (offsets 0x12-0x13).
+computed over all 20 bytes of the Monad header (offsets 0x00-0x13,
+inclusive), with the checksum field itself (offsets 0x12-0x13) zeroed
+during computation.
 
 CRC-16/CCITT-FALSE Parameters:
 
@@ -537,19 +535,19 @@ Computation Procedure:
 
 The checksum is computed as follows:
 
-1. Compute CRC-16/CCITT over bytes 0x00-0x11 (18 bytes) of the Monad
-   header. The checksum field (bytes 0x12-0x13) is NOT included in the
-   computation input.
-2. Store the resulting 16-bit value at offset 0x12.
+1. Create a working copy of the 20-byte Monad header.
+2. Set bytes 0x12-0x13 (the checksum field) to 0x0000.
+3. Compute CRC-16/CCITT over all 20 bytes of this modified header.
+4. Store the resulting 16-bit value at offset 0x12.
 
 This ensures integrity protection over all Monad fields, including
 version, flags, flow_label, latency_hint, and reserved fields.
 
 Shield MUST compute the checksum when creating a packet at ingress.
 Each hop MUST verify the checksum before processing. Each hop MUST
-recompute the checksum after modifying any field in offsets 0x00-0x11.
-The checksum is computed over bytes 0x00-0x11 (18 bytes) only; the
-checksum field itself (offset 0x12-0x13) is excluded from the input.
+recompute the checksum after modifying any field in offsets 0x00-0x13.
+The checksum field itself (offset 0x12-0x13) MUST NOT be included in
+the checksum computation (set to zero during computation).
 
 If a hop detects a checksum failure, the implementation MUST:
 
@@ -569,7 +567,7 @@ integrity protection mechanisms.
 
 ## Overview
 
-Exponent encoding is a compositional scheme for representing
+Exponent encoding is a compositional scheme for representing rich
 metadata in compact form. An exponent-encoded field is a single octet
 interpreted as a signed 8-bit integer (two's complement, range -128 to
 +127).
@@ -727,9 +725,9 @@ to sub-dictionary) costs two hash table hits — still under 100
 nanoseconds on modern hardware.
 
 Dictionary updates propagate cluster-wide in under 10 milliseconds via
-atomic BPF map replacement through Wotan [WOTAN]. Service identifiers,
-QoS policies, and Shim behavior are replaced atomically without
-restarting kernel components.
+atomic BPF map replacement through Wotan [WOTAN]. This allows
+hot-swapping of service identifiers, QoS policies, and Shim behavior
+without restarting any kernel components.
 
 ## Minimum Required Dictionary
 
@@ -972,7 +970,7 @@ immutability is a security property, not merely a versioning decision.
 
 If implementations parse different wire formats under the same version
 number, an attacker can craft packets that are interpreted differently
-by different hops (parser divergence). Parser divergence permits:
+by different hops (parser divergence). This enables:
 
 -  Policy bypass: One hop reads a DROP action where another reads
    FORWARD.
@@ -1010,9 +1008,9 @@ ensure wire format integrity:
 2. **Size Check**: Monad option Len field MUST be >= 20. Drop on
    mismatch.
 
-3. **Checksum Check**: CRC-16/CCITT over bytes 0x00-0x11 (18 bytes,
-   excluding the checksum field) MUST match bytes 0x12-0x13. Drop or
-   flag on mismatch.
+3. **Checksum Check**: CRC-16/CCITT over all 20 bytes (0x00-0x13) with
+   checksum field zeroed MUST match bytes 0x12-0x13. Drop or flag on
+   mismatch.
 
 4. **Flags Check**: Bit 0 (RSVD) MUST be zero. Flag anomaly if set.
 
@@ -1374,8 +1372,6 @@ Initial entries:
   ML-DSA-65 (0x03, 1952, FIPS 204)
   ML-DSA-87 (0x04, 2592, FIPS 204)
   SLH-DSA-SHA2-128s (0x05, 32, FIPS 205)
-  FN-DSA (0x06, RESERVED, FIPS 206) — Implementation deferred to draft-07
-  HQC (0x07, RESERVED, FIPS 207) — Implementation deferred to draft-07
 ~~~~
 
 ## MBC Opcode Numbers (NEW in draft-06 update)
@@ -1852,7 +1848,7 @@ kernel datapath.
 
 The authors of RFC 9669 (BPF ISA), RFC 8799 (Limited Domains), and
 RFC 9673 (Hop-by-Hop Processing Rehabilitation) for the foundational
-protocols upon which this specification builds.
+protocols that make this design possible.
 
 This document was co-authored with assistance from Claude (Anthropic).
 

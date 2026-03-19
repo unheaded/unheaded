@@ -6,7 +6,7 @@
 
    This document specifies a post-quantum cryptographic (PQC)
    authentication mechanism for the Unheaded Protocol Foundation
-   [draft-bellis-unheaded-protocol-foundation-04].  It defines a
+   [draft-bellis-unheaded-protocol-foundation-06].  It defines a
    multi-algorithm, dual-layer, tiered authentication architecture
    integrating three NIST PQC digital signature standards — FIPS 205
    (SLH-DSA) [FIPS205], FIPS 204 (ML-DSA) [FIPS204], and FIPS 206
@@ -278,11 +278,11 @@
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    SigRef (24 bits)           |    KeyRef     |
+|                    SigRef (24 bits)           | KeyRef[23:16] |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|            KeyRef (continued, 16 bits)        |   HashPfx     |
+|         KeyRef[15:0] (16 bits)                |HashPfx(16 bits)|
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|  HashPfx (cont, 8 bits)      |          SeqNum (32 bits)     |
+|                       SeqNum (32 bits)                        |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
@@ -309,6 +309,12 @@
       lifetime.  Provides replay resistance (see Section 7).
       The signed pseudo-header includes SeqNum; therefore replayed
       packets with stale sequence numbers will fail verification.
+
+   Note: When PQC compliance tiers are active (K1|K0 != 00), the S flag
+   (bit 3 of the flags byte) is repurposed from its SAMPLED semantics
+   (as defined in [MONAD]) to indicate Signed status.  This dual-use is
+   signaled by the Kingdom Mode bits.  See Section 17.2 for the formal
+   Monad Flags Registry update.
 
 ## 6. Sophia PQC Map Structures
 
@@ -1517,17 +1523,17 @@
               FIPS 207, 2025 (In development).
 
    [MONAD]    Bellis, S., "The Unheaded Protocol Foundation",
-              draft-bellis-unheaded-protocol-foundation-04,
-              February 2026.
+              draft-bellis-unheaded-protocol-foundation-06,
+              March 2026.
 
    [SOPHIA]   Bellis, S., "Sophia Dictionary Specification for
               the Unheaded Protocol",
-              draft-bellis-unheaded-sophia-dictionary-00,
-              February 2026.
+              draft-bellis-unheaded-sophia-dictionary-03,
+              March 2026.
 
    [WOTAN]    Bellis, S., "Wotan Memory Model for the Unheaded
-              Protocol", draft-bellis-unheaded-wotan-memory-00,
-              February 2026.
+              Protocol", draft-bellis-unheaded-wotan-memory-03,
+              March 2026.
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,

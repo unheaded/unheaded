@@ -11,7 +11,7 @@ CONTEXT_SIZE="${ZHEN_CONTEXT_SIZE:-16384}"
 # 1. Start inference server (llama.cpp with ROCm)
 echo "[1/2] Starting llama-server on port 20100 (context: $CONTEXT_SIZE)..."
 cd ~/tmp/unheaded/llama.cpp/build
-export LD_LIBRARY_PATH="$(pwd)/src:$(pwd)/ggml/src:$(pwd)/ggml/src/ggml-hip:$(pwd)/ggml/src/ggml-cpu:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$(pwd)/bin:$(pwd)/src:$(pwd)/ggml/src:$(pwd)/ggml/src/ggml-hip:$(pwd)/ggml/src/ggml-cpu:$LD_LIBRARY_PATH"
 nohup ./bin/llama-server \
   -m ~/tmp/unheaded/raft/models/mistral-7b-instruct-q5_k_m.gguf \
   -ngl 40 -c "$CONTEXT_SIZE" --port 20100 \

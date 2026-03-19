@@ -14,7 +14,7 @@ author:
    country: US
    email: stevie@bellis.tech
 
-date: 2026-03-18
+date: 2026-03-19
 
 area: General
 workgroup: Independent Submission
@@ -32,7 +32,7 @@ normative:
  - RFC8174
  - RFC8126
  - RFC8200
- - RFC9669
+ - RFC9669: BPF Instruction Set Architecture (ISA)
 
 informative:
  - RFC9000
@@ -42,10 +42,6 @@ informative:
 This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 48-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.
 
 --- middle
-
-# Version
-
-This document specifies MBC ISA version 1.0 (v1.0). In the Unheaded wire protocol, this version is referenced as 0x01 in the MBC version identifier field. Future revisions of the MBC ISA will increment this version number.
 
 # Introduction
 
@@ -853,29 +849,6 @@ For load/store instructions, the effective address is computed by adding the sig
 
 All memory accesses use byte offsets in the immediate field. The eBPF verifier enforces that all memory accesses are within bounds of allocated eBPF maps or kernel memory buffers.
 
-## Memory Layout
-
-MBC defines a 64KB total addressable memory space (65,536 bytes) with 16-bit addresses.
-
-```
-Address Range         Size          Region
------------------     -----------   ---------------------------
-0x0000 - 0x03FF       1,024 bytes   Stack (grows downward from 0x03FF)
-0x0400 - 0xFFFF       64,512 bytes  Heap / General-Purpose RAM
-```
-
-Stack:
-: The stack occupies addresses 0x0000 through 0x03FF (1,024 bytes). The stack pointer (r15/SP) is initialized to 0x0400 and grows downward toward 0x0000. Stack overflow occurs when SP decrements below 0x0000; this is a runtime error and MUST cause execution to trap.
-
-Heap / General-Purpose RAM:
-: Addresses 0x0400 through 0xFFFF (64,512 bytes) are available for heap allocation and general-purpose data storage.
-
-Address Width:
-: All MBC memory addresses are 16 bits wide, providing a flat 64KB address space.
-
-Alignment:
-: Unaligned access is permitted. Implementations MUST support loads and stores at any byte offset within the addressable range. Performance MAY be improved for naturally-aligned accesses.
-
 ## Alignment Requirements
 
 MBC does not require strict alignment for memory accesses, but performance is improved for naturally-aligned accesses (4-byte words should be 4-byte aligned, etc.). Unaligned access behavior is defined by the underlying eBPF map type and kernel architecture.
@@ -1026,7 +999,7 @@ Initial Assignments:
 - 0x11-0x1B: RESERVED
 - 0x1C: LOAD_IMM32 - Load 32-bit Immediate
 - 0x1D: ADDI - Add Immediate (16-bit sign-extended)
-- 0x1E-0x16: RESERVED
+- 0x1E-0x1F: RESERVED
 - 0x17: INT - Trigger Interrupt
 - 0x18: IRET - Return from Interrupt
 - 0x19: RESERVED

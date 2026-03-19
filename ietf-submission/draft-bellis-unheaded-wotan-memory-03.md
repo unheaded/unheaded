@@ -4,9 +4,10 @@ abbrev: "Wotan Memory Protocol"
 docname: draft-bellis-unheaded-wotan-memory-03
 category: exp
 ipr: trust200902
+submissionType: independent
 area: Internet
 workgroup: Independent Submission
-date: 2026-03-15
+date: 2026-03-19
 stand_alone: yes
 
 author:

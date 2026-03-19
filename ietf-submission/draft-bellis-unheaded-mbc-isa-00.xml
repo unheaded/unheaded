@@ -22,7 +22,7 @@
   </address>
 </author>
 
-<date year="2026" month="3" day="18"/>
+<date year="2026" month="March" day="19"/>
 
 <area>General</area>
 <workgroup>Independent Submission</workgroup>
@@ -1064,7 +1064,7 @@ Address | Vector | Purpose
 <t>0x11-0x1B: RESERVED</t>
 <t>0x1C: LOAD_IMM32 - Load 32-bit Immediate</t>
 <t>0x1D: ADDI - Add Immediate (16-bit sign-extended)</t>
-<t>0x1E-0x16: RESERVED</t>
+<t>0x1E-0x1F: RESERVED</t>
 <t>0x17: INT - Trigger Interrupt</t>
 <t>0x18: IRET - Return from Interrupt</t>
 <t>0x19: RESERVED</t>
@@ -1193,13 +1193,17 @@ Address | Vector | Purpose
 <seriesInfo name="RFC" value="8200"/>
 </reference>
 
-<reference anchor="RFC9669" target="https://www.rfc-editor.org/info/rfc9669">
-<front>
-<title>IANA Considerations for eBPF</title>
-<author initials="T." surname="Vachuska" fullname="Thomas Vachuska"><organization/></author>
-<date year="2024" month="1"/>
-</front>
-<seriesInfo name="RFC" value="9669"/>
+<reference anchor="RFC9669">
+  <front>
+    <title>BPF Instruction Set Architecture (ISA)</title>
+    <author fullname="D. Thaler" initials="D." role="editor" surname="Thaler"/>
+    <date month="October" year="2024"/>
+    <abstract>
+      <t>eBPF (which is no longer an acronym for anything), also commonly referred to as BPF, is a technology with origins in the Linux kernel that can run untrusted programs in a privileged context such as an operating system kernel. This document specifies the BPF instruction set architecture (ISA).</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="9669"/>
+  <seriesInfo name="DOI" value="10.17487/RFC9669"/>
 </reference>
 
 <reference anchor="FOUNDATION" target="https://github.com/unheaded/unheaded">
