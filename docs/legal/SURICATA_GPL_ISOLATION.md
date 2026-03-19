@@ -1,88 +1,118 @@
-# Suricata GPL-2.0 Isolation Boundary Documentation
-# SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
+# Suricata GPL-2.0 Isolation Boundary
 
-## Overview
+SPDX-License-Identifier: GPL-3.0-or-later | Copyright (c) 2024-2026 Stevie Bellis | **Last updated:** 2026-03-19
 
-Suricata (https://suricata.io) is licensed under the GNU General Public License, version 2.0 (GPL-2.0).
-The Unheaded Kingdom codebase is licensed under the GPL-3.0 License. This document defines the
-legal isolation boundary between the two codebases, ensuring clear separation between
-GPL-3.0-licensed Unheaded code and GPL-2.0-licensed Suricata code.
+## License Summary
 
-## Isolation Principle
+| Component | License | SPDX Identifier |
+|-----------|---------|-----------------|
+| Unheaded Kingdom | GPL-3.0-or-later | GPL-3.0-or-later |
+| Suricata IDS/IPS | GPL-2.0-only | GPL-2.0-only |
 
-The GPL-2.0 "derivative work" trigger applies when GPL-licensed code is compiled or linked
-with other code to produce a combined work. The Unheaded Kingdom avoids this by interacting
-with Suricata exclusively through well-defined inter-process communication (IPC) interfaces
-that are analogous to the Linux kernel "system call interface" boundary recognized under
-GPL exceptions.
+Suricata is an **optional** runtime dependency. Removing it does not break any
+Unheaded binary, library, or service. The `services.unheaded.suricata.enable`
+NixOS option defaults to false; the anamnesis bridge gracefully degrades when
+no EVE JSON file exists.
 
-## Interaction Point 1: EVE JSON File / REST API
+## Process Isolation Architecture
 
-**How it works**: Suricata writes structured JSON (EVE format) to `/var/log/suricata/eve.json`.
-The Unheaded `pkg/anamnesis/suricata.go` bridge reads this file using standard OS file I/O
-(inotify watch + sequential read). No Suricata source code is compiled into the bridge.
-No Suricata shared libraries are linked.
+Suricata runs as a **separate operating system process** under its own systemd
+unit, user account (`suricata:suricata`), and filesystem namespace. No Suricata
+source code, object code, or shared libraries are compiled into, linked with, or
+bundled inside any Unheaded binary.
 
-**Legal rationale**: Reading a file produced by a GPL program does not create a derivative work
-of that program. The EVE JSON format is Suricata's documented public output API. This is
-equivalent to reading log files from any other process — no different from `tail -f syslog`.
-The LGPL FAQ (applicable by analogy) and FSF guidance both confirm that the output of a
-GPL program is not automatically GPL. The bridge is clearly a separate, independently
-developed work that happens to consume Suricata's output.
+```
++----------------------------------------------------------+
+|  Unheaded Platform  (GPL-3.0-or-later)                   |
+|  Go + Rust binaries, vanilla JS frontend                 |
+|                                                          |
+|  pkg/anamnesis/suricata.go    nixos/modules/suricata.nix |
+|       |              |                  |                 |
+|  (1) read()     (2) bpf(2)        (3) connect()         |
+|  EVE JSON file   BPF map lookup    Unix socket           |
++------|--------------|--------------------|---------------+
+       |              |                    |
+=======|==============|====================|========= OS / kernel boundary
+       |              |                    |
++------v--------------v--------------------v---------------+
+|  Suricata IDS/IPS  (GPL-2.0-only)                        |
+|  Separate process — PID, UID, mount namespace isolated   |
+|                                                          |
+|  Writes eve.json    Reads BPF maps     Listens on socket |
+|  /var/log/suricata/ /sys/fs/bpf/       /run/suricata/    |
++----------------------------------------------------------+
+```
 
-**SPDX boundary**: `pkg/anamnesis/suricata.go` — SPDX-License-Identifier: GPL-3.0-or-later. Zero Suricata GPL-2.0 code.
+## Communication Channels
 
-## Interaction Point 2: BPF Map Sharing
+### 1. EVE JSON Log Files (Filesystem IPC)
 
-**How it works**: The Shield eBPF program (GPL-3.0-licensed) pins BPF maps to `/sys/fs/bpf/unheaded/`.
-The Suricata AF_PACKET eBPF bypass (GPL-2.0 Suricata code) reads from these maps to determine
-which flows to bypass. The maps are shared via the Linux BPF virtual filesystem.
+Suricata writes structured JSON alerts to `/var/log/suricata/eve.json`. The
+Unheaded bridge (`pkg/anamnesis/suricata.go`) reads this file via standard POSIX
+`read(2)` with inotify notification. No Suricata headers, libraries, or source
+are referenced. The FSF FAQ states that "the output of a program is not, in
+general, covered by the copyright on the code."
 
-**Legal rationale**: BPF maps accessed via the `bpf(2)` system call constitute interaction
-through the standard Linux kernel system call interface. The FSF explicitly recognizes that
-programs interacting through kernel system calls are not derivative works of each other.
-The BPF map is a kernel data structure; neither the Shield eBPF program nor the Suricata
-eBPF program is a derivative of the other — they share data through the kernel, not through
-source-level linking. This is identical in principle to two processes sharing POSIX shared
-memory via `mmap(2)`.
+### 2. BPF Maps (Kernel Syscall Boundary)
 
-**SPDX boundary**: Shield eBPF programs — SPDX-License-Identifier: GPL-3.0-or-later (GPL-2.0 kernel
-headers included via GPL-2.0-WITH-Linux-syscall-note exception, which is standard).
+Shield eBPF programs (GPL-3.0) pin BPF maps to `/sys/fs/bpf/unheaded/`.
+Suricata's AF_PACKET eBPF bypass (GPL-2.0) reads these maps via the `bpf(2)`
+system call. Both programs interact through the kernel's BPF virtual filesystem
+— a kernel-mediated data structure, not source-level linkage.
 
-## Interaction Point 3: Unix Socket Command Interface
+### 3. Unix Domain Sockets (IPC)
 
-**How it works**: Suricata exposes a Unix domain socket (`/run/suricata/suricata.socket`)
-for runtime control. No Unheaded code currently uses this interface, but it may be used
-in future health-check scripts for `routing-health` or similar tooling.
+Suricata exposes a control socket at `/run/suricata/suricata.socket`. Unheaded
+tooling may send JSON commands and receive JSON responses over this socket.
+Socket IPC between separate processes is a textbook GPL isolation boundary.
 
-**Legal rationale**: Communicating with a process via a Unix socket is IPC — a canonical
-example of separate programs running in separate process spaces. FSF guidance, LGPL v2.1
-Section 6, and the broader software industry consensus all recognize process-level IPC
-(pipes, sockets, files) as the definitive GPL isolation boundary. Any Unheaded script
-that sends JSON to the Suricata socket and reads back JSON responses is not a derivative
-work of Suricata.
+## Why This Is NOT a Derivative Work
 
-## Deployment Boundary
+The legal analysis rests on established principles:
 
-Suricata is deployed as a separate OS service (NixOS systemd unit, Docker container,
-or LXD container). The Unheaded build system does NOT compile, link, or bundle Suricata
-source code. Suricata is installed from:
-- NixOS: `pkgs.suricata` (nixpkgs — pre-compiled GPL binary, not statically linked into Unheaded)
-- Docker: Separate `docker/suricata/Dockerfile` produces a standalone container image
-- LXD: Separate `lxd/containers/suricata.yaml` defines an isolated system container
+1. **Separate compilation and execution.** Suricata and Unheaded are compiled by
+   independent toolchains (C vs. Go/Rust), produce independent binaries, and run
+   in separate process address spaces. There is no static or dynamic linking.
 
-In all cases, the GPL obligation applies to the Suricata binary/container only, not to
-any GPL-3.0-licensed Unheaded component.
+2. **Linux kernel + userspace analogy.** The Linux kernel is GPL-2.0. Userspace
+   programs communicate with it via system calls without becoming derivative
+   works. Linus Torvalds codified this in the kernel's
+   `LICENSES/exceptions/Linux-syscall-note`. The Suricata-to-Unheaded boundary
+   is strictly analogous: two GPL programs in separate processes sharing data
+   through kernel-mediated interfaces.
 
-## Conclusion
+3. **FSF guidance on aggregation.** GPL-3.0 Section 5 defines an "aggregate" as
+   separate and independent works not combined to form a larger program.
+   Suricata and Unheaded are separate works on the same system. The FSF FAQ
+   confirms that "mere aggregation" does not trigger copyleft.
 
-The Unheaded Kingdom's GPL-3.0 license is unaffected by the Suricata GPL-2.0 license.
-The three interaction points documented above (EVE JSON file, BPF map sharing via syscall,
-Unix socket IPC) all operate at well-recognized process/OS-level boundaries that do not
-trigger GPL copyleft propagation. This isolation is by design and must be maintained.
+4. **No intimate communication.** The three IPC channels exchange only serialized
+   data (JSON, integer map values). There are no shared in-memory data
+   structures, no function calls across the boundary, and no control flow
+   coupling.
 
-**DO NOT**: import Suricata C headers in any Go or Rust Unheaded source file.
-**DO NOT**: CGo-link against any Suricata shared library (libsuricata.so).
-**DO NOT**: copy Suricata source files or modified versions into the Unheaded repository.
-**DO**: interact exclusively via EVE JSON files, BPF map filesystem (bpf(2) syscall), and Unix socket IPC.
+**References:**
+- GNU GPL FAQ: https://www.gnu.org/licenses/gpl-faq.html
+- GPL-3.0 Section 5 (Aggregation): https://www.gnu.org/licenses/gpl-3.0.html#section5
+- Linux kernel syscall note: `LICENSES/exceptions/Linux-syscall-note`
+- SFLC Practical Guide to GPL Compliance, Section 3.2
+
+## Maintenance Rules
+
+To preserve this boundary, all contributors MUST observe these rules:
+
+- **DO NOT** `#include` or `import` any Suricata header or source file.
+- **DO NOT** link against `libsuricata.so` or any Suricata shared library via CGo or FFI.
+- **DO NOT** copy Suricata source code or modified versions into this repository.
+- **DO** interact exclusively via EVE JSON files, BPF maps (`bpf(2)`), and Unix socket IPC.
+- **DO** keep Suricata optional — all Unheaded functionality must work without it.
+
+## SPDX Boundary Reference
+
+| File | License | Role |
+|------|---------|------|
+| `pkg/anamnesis/suricata.go` | GPL-3.0-or-later | EVE JSON reader (Unheaded code) |
+| `nixos/modules/suricata.nix` | MIT | NixOS service definition (config only) |
+| `docker/suricata/suricata.yaml` | MIT | Docker Suricata config (config only) |
+| `lxd/containers/suricata.yaml` | MIT | LXD container definition (config only) |
+| Suricata binary / source | GPL-2.0-only | External dependency, not in this repo |
