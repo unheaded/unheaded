@@ -1500,6 +1500,149 @@ Continuing to Phase 4 (code alignment)."
 
 ---
 
+## PHASE 6: OSS CODE AUDIT (Dev Machine — west)
+
+**Goal**: Verify all dependencies are used, correctly attributed, and license-compliant using existing toolchain.
+**Prerequisite**: Phase 4 exit gate passed (all tests pass)
+**Time**: 30-45 minutes
+**Agent**: Coordinator (needs dev machine toolchain)
+
+### 6a. Run Existing Security Targets
+
+- [ ] **Step 43** [B]: Run SBOM generation
+  ```bash
+  cd ~/tmp/unheaded && make sbom
+  ```
+
+- [ ] **Step 44** [V]: SBOM generated without errors
+
+- [ ] **Step 45** [B]: Run CI security suite (gosec + govulncheck + GPL boundary)
+  ```bash
+  make ci-security
+  ```
+
+- [ ] **Step 46** [V]: Zero CRITICAL/HIGH findings from govulncheck
+  - If findings → triage: is it a direct dep or transitive? Does it affect production code path?
+
+- [ ] **Step 47** [B]: Verify Go module integrity
+  ```bash
+  go mod verify
+  ```
+
+- [ ] **Step 48** [V]: All modules verified (checksums match go.sum)
+
+- [ ] **Step 49** [B]: Run Rust security audit
+  ```bash
+  cd ebpf && cargo audit 2>&1 | tee /tmp/cargo-audit.txt
+  ```
+
+- [ ] **Step 50** [V]: Zero CRITICAL advisories in cargo audit
+
+- [ ] **Step 51** [C]: **COMMIT CHECKPOINT**
+  ```bash
+  git add -A && git commit -m "[PLAN S74] Steps 43-51: OSS code audit — SBOM + govulncheck + cargo audit clean"
+  ```
+
+### 6b. CycloneDX SBOM + Trivy Scan
+
+- [ ] **Step 52** [B]: Generate CycloneDX SBOM
+  ```bash
+  go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+  cyclonedx-gomod mod -output sbom-cyclonedx.json
+  ```
+
+- [ ] **Step 53** [B]: Run Trivy vulnerability scan
+  ```bash
+  trivy config . --severity HIGH,CRITICAL --exit-code 0 2>&1 | tee /tmp/trivy-report.txt
+  ```
+
+- [ ] **Step 54** [V]: Trivy report has zero HIGH/CRITICAL findings in production deps
+  - If findings → document in SBOM errata, triage for fix or accept
+
+- [ ] **Step 55** [B]: Cross-reference SBOM against THIRD_PARTY.md
+  ```bash
+  # Extract go.sum unique deps
+  awk '{print $1}' go.sum | sort -u > /tmp/actual-deps.txt
+  # Compare against documented deps
+  echo "Actual unique deps: $(wc -l < /tmp/actual-deps.txt)"
+  echo "Documented in THIRD_PARTY.md: $(grep -c '|' LICENSES/THIRD_PARTY.md)"
+  ```
+
+- [ ] **Step 56** [V]: No undocumented production dependencies
+
+- [ ] **Step 57** [C]: **COMMIT CHECKPOINT**
+  ```bash
+  git add -A && git commit -m "[PLAN S74] Steps 52-57: CycloneDX SBOM + Trivy + dependency cross-reference"
+  ```
+
+### Phase 6 Exit Gate
+
+- [ ] **Step 58** [V]: **PHASE 6 EXIT GATE** — OSS audit complete
+  - SBOM generated (both formats)
+  - govulncheck clean
+  - cargo audit clean
+  - Trivy clean
+  - go mod verify passes
+  - All deps documented in THIRD_PARTY.md
+
+---
+
+## PHASE 7: ACADEMIC TONE ENFORCEMENT
+
+**Goal**: Strip all fluff, marketing, and casual language from all 6 specs. Every sentence normative or informative. Doctorate-level precision.
+**Prerequisite**: Phase 5 exit gate passed
+**Time**: 2-3 hours (this is the longest phase — every paragraph reviewed)
+**Agent**: RFC Editor + Coordinator
+
+### Editorial Standards
+
+Every sentence in every spec must pass this filter:
+- Is it normative (uses BCP 14 keywords: MUST, SHOULD, MAY)?
+- Is it informative (provides technical context needed to implement)?
+- Is it verifiable (could an implementer test this claim)?
+- If none of the above → DELETE IT.
+
+Remove:
+- "This enables..." → replace with what the mechanism does
+- "The elegant approach..." → no adjectives that don't carry technical meaning
+- "Interestingly..." → nothing is interesting, only specified
+- "We propose..." → remove first person entirely
+- Any sentence that sounds like a pitch deck
+
+### Steps
+
+- [ ] **Step 59** [R]: Read Foundation-06 end-to-end, flag every non-normative/non-informative sentence
+- [ ] **Step 60** [W]: Edit Foundation-06 — strip fluff, tighten language, add formal definitions where missing
+- [ ] **Step 61** [V]: Foundation-06 passes editorial review (zero casual language, zero marketing)
+
+- [ ] **Step 62** [R][W]: Edit Sophia-03 — same treatment
+- [ ] **Step 63** [R][W]: Edit Wotan-03 — same treatment
+
+- [ ] **Step 64** [C]: **COMMIT CHECKPOINT**
+  ```bash
+  git add docs/protocol/ ietf-submission/ && git commit -m "[PLAN S74] Steps 59-64: Academic tone enforcement — Foundation, Sophia, Wotan"
+  ```
+
+- [ ] **Step 65** [R][W]: Edit MBC-ISA-00 — same treatment
+- [ ] **Step 66** [R][W]: Edit Shim-00 — same treatment
+- [ ] **Step 67** [R][W]: Edit PQC-00 — same treatment (this one likely has the most fluff)
+
+- [ ] **Step 68** [C]: **COMMIT CHECKPOINT**
+  ```bash
+  git add docs/protocol/ ietf-submission/ && git commit -m "[PLAN S74] Steps 65-68: Academic tone enforcement — MBC-ISA, Shim, PQC"
+  ```
+
+### Phase 7 Exit Gate
+
+- [ ] **Step 69** [V]: **PHASE 7 EXIT GATE** — All 6 specs read like IETF academic documents
+  - Zero first-person pronouns
+  - Zero marketing adjectives
+  - Every claim quantified or formalized
+  - Every BCP 14 keyword used correctly
+  - Reviewable by PhD-level network engineers without cringing
+
+---
+
 ## RELATED DOCUMENTS
 
 - `docs/protocol/SPEC-VS-CODE-AUDIT.md` — Detailed audit findings (source of truth)
