@@ -43,6 +43,10 @@ This document defines the MBC (Monad Bytecode) Instruction Set Architecture for 
 
 --- middle
 
+# Version
+
+This document specifies MBC ISA version 1.0 (v1.0). In the Unheaded wire protocol, this version is referenced as 0x01 in the MBC version identifier field. Future revisions of the MBC ISA will increment this version number.
+
 # Introduction
 
 The Unheaded Protocol Computer (UPC) is a computational engine embedded within eBPF XDP programs, executing at the network edge to provide deterministic packet processing for infrastructure automation. The MBC Instruction Set Architecture defines the low-level computation model for the UPC.
@@ -848,6 +852,29 @@ For load/store instructions, the effective address is computed by adding the sig
 - Word instructions (LD, ST): 16-bit signed offset = -32768 to +32767 bytes (each byte)
 
 All memory accesses use byte offsets in the immediate field. The eBPF verifier enforces that all memory accesses are within bounds of allocated eBPF maps or kernel memory buffers.
+
+## Memory Layout
+
+MBC defines a 64KB total addressable memory space (65,536 bytes) with 16-bit addresses.
+
+```
+Address Range         Size          Region
+-----------------     -----------   ---------------------------
+0x0000 - 0x03FF       1,024 bytes   Stack (grows downward from 0x03FF)
+0x0400 - 0xFFFF       64,512 bytes  Heap / General-Purpose RAM
+```
+
+Stack:
+: The stack occupies addresses 0x0000 through 0x03FF (1,024 bytes). The stack pointer (r15/SP) is initialized to 0x0400 and grows downward toward 0x0000. Stack overflow occurs when SP decrements below 0x0000; this is a runtime error and MUST cause execution to trap.
+
+Heap / General-Purpose RAM:
+: Addresses 0x0400 through 0xFFFF (64,512 bytes) are available for heap allocation and general-purpose data storage.
+
+Address Width:
+: All MBC memory addresses are 16 bits wide, providing a flat 64KB address space.
+
+Alignment:
+: Unaligned access is permitted. Implementations MUST support loads and stores at any byte offset within the addressable range. Performance MAY be improved for naturally-aligned accesses.
 
 ## Alignment Requirements
 

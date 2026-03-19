@@ -168,6 +168,21 @@
       establishment.  Two parameter sets (algo_id 0x90-0x91).  SHOULD
       be available as backup if lattice assumptions are compromised.
 
+## 1b. Implementation Status
+
+   This specification has the status EXPERIMENTAL.
+
+   The signature-by-reference scheme described in Section 4 (Phase 1
+   and Phase 2) is specified in this document but is not yet
+   implemented in the Unheaded reference codebase.  The Sophia PQC
+   map structures (Section 6), verification pipeline (Section 8),
+   and compliance tiers (Section 10) are specified for future
+   implementation.
+
+   Implementers should treat this document as a design specification
+   subject to revision based on implementation experience.  Feedback
+   on the signature-by-reference design is welcome.
+
 ## 2. Requirements Language
 
    The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL

@@ -200,6 +200,11 @@ with K key positions, using only 2*K bytes on the wire (K bytes per lookup).
 
 ## Sub-Dictionary Type System (NEW in draft-03)
 
+Implementation of nested sub-dictionaries is OPTIONAL for conformance.
+Implementations that do not support nested sub-dictionaries MUST
+support LEAF (0x00) type entries and MAY ignore BRANCH, COMPOSITE,
+and ALIAS type entries.
+
 ### Overview
 
 Sub-dictionaries in draft-02 were flat: each sub-dictionary entry
