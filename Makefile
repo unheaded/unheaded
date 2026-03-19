@@ -280,6 +280,32 @@ deploy-rollback: ## Rollback to previous Docker image versions
 	docker compose up -d --no-build
 	@echo "Rollback complete. Run 'make deploy-health' to verify."
 
+##@ Operation Three Crowns (Dual-Host Runtime Validation)
+
+three-crowns: ## Run full Operation Three Crowns (Docker + LXD + containerd, both hosts)
+	@bash scripts/three-crowns.sh
+
+three-crowns-docker: ## Run Three Crowns Phase 2 only (Docker runtime)
+	@bash scripts/three-crowns.sh --phase 2
+
+three-crowns-lxd: ## Run Three Crowns Phase 3 only (LXD runtime)
+	@bash scripts/three-crowns.sh --phase 3
+
+three-crowns-nixos: ## Run Three Crowns Phase 3b only (NixOS on LXD)
+	@bash scripts/three-crowns.sh --phase 3b
+
+three-crowns-containerd: ## Run Three Crowns Phase 4 only (containerd runtime)
+	@bash scripts/three-crowns.sh --phase 4
+
+three-crowns-report: ## Print last Three Crowns report
+	@bash scripts/three-crowns.sh --report
+
+three-crowns-dry: ## Dry-run Three Crowns (show what would execute)
+	@bash scripts/three-crowns.sh --dry-run
+
+install-nerdctl: ## Install nerdctl + CNI plugins for containerd
+	@bash scripts/install-nerdctl.sh
+
 setup-host: ## Setup host environment (LXD, networking, etc)
 	@echo "Setting up host..."
 	sudo ./scripts/setup-host.sh
