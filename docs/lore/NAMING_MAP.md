@@ -3,9 +3,9 @@
 Complete mapping of every lore name in the Unheaded codebase to its
 technical component, origin mythology, and rationale.
 
-## Three Pillars of Naming
+## Four Pillars of Naming
 
-Unheaded's naming draws from three mythological traditions, each mapping
+Unheaded's naming draws from four mythological traditions, each mapping
 to a distinct architectural domain:
 
 | Pillar | Tradition | Domain | Example |
@@ -13,6 +13,7 @@ to a distinct architectural domain:
 | **1. Gnostic Cosmology** | Valentinian Gnosticism | State management | Pleroma, Kenoma, Anamnesis, Monad, Sophia |
 | **2. Medieval Armory** | European arms & armor | Infrastructure layers | Cuirass, Hauberk, Shield, Pauldrons, Vambraces |
 | **3. Norse/Wagnerian** | Norse mythology, Wagner's Ring Cycle | Protocol & messaging | Wotan, Mysteltainn, Tyrfing, Nagan |
+| **4. Contemplative Traditions** | Sufi, Taoist, Hindu, Kabbalistic, Christian mysticism, Shamanistic | Age 2/3 operational systems | Sleipnir (BGP), Yggdrasil (OS), Gleipnir (Config) |
 
 ## Pillar 1: Gnostic Cosmology → State Management
 
@@ -98,6 +99,38 @@ this evolution — from humble servant to the all-father of the service mesh.
 This is documented because the skill named "Busboy" still exists as the
 coordination/translation layer. Busboy the skill remembers its origins.
 Wotan the service has ascended.
+
+## Pillar 4: Contemplative Traditions → Age 2/3 Operational Systems
+
+The Fourth Naming Pillar encompasses Age 2/3 long-term vision components,
+drawn from mystical traditions emphasizing cosmic structure and restoration.
+
+| Component | Norse Mythology | Ragnarok Online | Technical Role | Why It Fits |
+|-----------|-----------------|-----------------|---|---|
+| **Sleipnir** | Odin's 8-legged horse (fastest mount) | First Seal (foundation unlock) | BGP routing daemon (8 ECMP paths) | Eight legs = eight equal-cost multipath routes. Speed = fast convergence. The mount that travels all nine realms mirrors routing across all Kingdom clusters. |
+| **Yggdrasil** | World Tree (connects 9 realms) | Full HP/MP restore, sustains cosmos | Hardened Debian base OS image builder | The tree that holds all worlds together mirrors the OS that holds all Kingdom infrastructure together. Full restore (fresh install, fully provisioned, everything healthy). |
+| **Gleipnir** | Magical binding chain (holds Fenrir) | Megingjard (binding component) | Config convergence daemon (daily eventual consistency) | The chain that cannot break represents immutable convergence of configurations across all runtimes, IaC backends, and observability targets. |
+
+### Future Naming Pools (12 documented, 4 currently active)
+
+Unheaded reserves 12 additional thematic naming pools for future Age 2/3 components:
+
+1. **Norse Weapons** (Mysteltainn, Tyrfing, Surtr's sword)
+2. **Wagnerian Operas** (Tristan und Isolde, Parsifal, Lohengrin)
+3. **Greek Atmospheric** (Zephyr, Aeolus, Aether, Helios)
+4. **Hindu Deities** (Indra, Agni, Vayu, Soma) — ACTIVE: 3 mappings
+5. **Hindu Cosmology** (Chakra, Kundalini, Prana)
+6. **Taoist Cosmology** (Qi, Yin-Yang, Wu Wei, Tao)
+7. **Japanese Shinto** (Kami, Torii, Yama, Shimenawa)
+8. **Pagan Earth Traditions** (Stonehenge, Druid groves, sacred wells)
+9. **Shamanistic Journeys** (Axis Mundi, Spirit Guide, Underworld)
+10. **Kabbalistic Tree of Life** (Sephiroth, Paths, En Sof)
+11. **Sufi Mysticism** (Faqir, Dhikr, Annihilation, Unity)
+12. **Christian Mysticism** (Theodicy, Beatific Vision, Theosis)
+
+Each pool has 4-6 reserved terms for future operational components, ensuring
+naming never repeats across domains and maintaining mythological consistency
+as the Kingdom scales.
 
 ## Other Names
 

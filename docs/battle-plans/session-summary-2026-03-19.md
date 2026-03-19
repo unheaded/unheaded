@@ -22,7 +22,7 @@ The Unheaded Kingdom executes one of its most consequential sessions to date. **
 
 **Risk to Vision**: IETF submission workflow is browser-only (XML upload to datatracker). Requires Muck's hands. GitHub public flip also manual (Settings UI). Both scheduled as immediate next-session work.
 
-**VC Context**: Six IETF drafts + 96 commits + three Age 2/3 components named (Norse mythology heritage) = compelling narrative for Austin VC conversations. The "why we're serious" story just got a lot stronger.
+**Open Source Credibility**: Six IETF drafts + 296 commits + three Age 2/3 components named (Norse mythology heritage) = the kind of sustained, principled engineering output that earns trust from the open source community, potential sponsors, and hardware partners. This is a copyleft GPL-3.0 platform built for the community, not an exit.
 
 ---
 

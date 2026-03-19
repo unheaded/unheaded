@@ -1,7 +1,7 @@
 # CLAUDE.md - Unheaded Alpha Development Guide
 
 **For:** Claude AI agents working on Unheaded
-**Updated:** March 17, 2026
+**Updated:** March 19, 2026
 **Project:** github.com/unheaded/unheaded
 
 ---
@@ -51,7 +51,7 @@ Layer 0: Infrastructure (LXD, host OS)
 | Config Management | **Ansible / Terraform / Puppet / Kubernetes / Chef / Salt** | Interchangeable IaC backends, same desired-state model |
 | Observability | **Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios** + more | Interchangeable backends; custom Wotan-native defaults long-term |
 
-**S67 Protocol Foundation:** Monad wire format frozen at v0x01 (20 bytes). Foundation spec draft-05 includes 12 IANA registries: Monad Protocol Version Numbers, Monad Flags Bitfield (C|Y|T|E|S|M|CUST|R), Monad Flow Actions (13 entries), Kingdom Mode Values, plus 8 others for extensibility and interoperability. IPR clearance: RFC 8928/9927 CLEAR.
+**S67 Protocol Foundation:** Monad wire format frozen at v0x01 (20 bytes). Foundation spec draft-06 includes 12 IANA registries: Monad Protocol Version Numbers, Monad Flags Bitfield (C|Y|T|E|S|M|CUST|R), Monad Flow Actions (13 entries), Kingdom Mode Values, plus 8 others for extensibility and interoperability. IPR clearance: RFC 8928/9927 CLEAR. Plus 5 companion specs: Sophia-03 (dictionaries), Wotan-03 (distributed memory), MBC-ISA-00 (instruction set), Shim-00 (execution pipeline), PQC-00 (post-quantum auth).
 
 ### Network Design
 
@@ -684,7 +684,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 
 **Age 2 Goal:** Production hardening, bare metal validation, multi-host operations, Zhen AI
 
-**Wire Format Status:** FROZEN at version 0x01 (20 bytes) — monad protocol locked, 7 breaking change candidates analyzed and rejected, 12 IANA registries in foundation spec draft-05
+**Wire Format Status:** FROZEN at version 0x01 (20 bytes) — monad protocol locked, 7 breaking change candidates analyzed and rejected, 12 IANA registries in foundation spec draft-06
 
 **Services:** 10 core + Zhen AI (timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, wotan, unheaded-daemon, zhen-inference, zhen-web-ui)
 
@@ -1130,7 +1130,7 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-**Last Updated**: March 17, 2026 (S78 Round Table — LOC audit verified, public release planning)
-**Version**: Alpha (✅ COMPLETE) → Age 2 (~65%) — Wire Format FROZEN, Dual Bare Metal Online, Zhen AI Online, Public Release Imminent
-**Status**: WEST + EAST bare metal online. Zhen AI operational (1.52M vectors, Mistral-7B inference). UPC Level 6 built. The Well (PostgreSQL multi-DB, 7 users). SBOM audited (553 deps). CI/CD hardened. All P1 bugs fixed. 75+ sprints executed.
-**LOC**: 415K production, 753K with tests, 1,137K total (verified count March 17, 2026). 34 services, 23 eBPF programs.
+**Last Updated**: March 19, 2026 (Age 3 Launch Sprint — RFC blockers fixed, 2 new Internet-Drafts, ADR-69420 Kingdom BGP/OS)
+**Version**: Alpha (✅ COMPLETE) → Age 2 (✅ COMPLETE) → Age 3 IN PROGRESS — Wire Format FROZEN, Dual Bare Metal Online, Zhen AI Online, Public Launch Ready
+**Status**: WEST + EAST bare metal online. Zhen AI operational (1.52M vectors, Mistral-7B inference). UPC Level 6 built. The Well (PostgreSQL multi-DB). SBOM audited. All P1 bugs fixed. 96 commits March 15-19. RFC blockers cleared across Foundation-06, Sophia-03, Wotan-03. Sleipnir (BGP) + Yggdrasil (Hardened OS) vision documented in ADR-69420.
+**LOC**: ~385K production, ~941K total. 34 services, 23 eBPF programs.

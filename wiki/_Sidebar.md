@@ -20,12 +20,15 @@
 - [[Technical Summary|Protocol-Technical-Summary]]
 - [[Sophia Dictionaries|Sophia-Dictionaries]]
 - [[Wotan Memory|Wotan-Memory-Model]]
-- [[The First Packet|The-First-Packet]]
 - [[MBC ISA|MBC-ISA-Reference]]
+- [[Shim Pipeline|Shim-Pipeline]]
+- [[PQC Authentication|PQC-Authentication]]
+- [[The First Packet|The-First-Packet]]
 - [[Internet-Drafts|Drafts-Index]]
 
 **ADRs**
 - [[ADR Index|ADR-Index]]
+- [[ADR-69420 (Sleipnir + Yggdrasil)|ADR-69420]]
 
 **Security**
 - [[Overview|Security]]

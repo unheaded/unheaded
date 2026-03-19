@@ -714,7 +714,43 @@ This software includes code from the following projects:
 
 We thank the maintainers and contributors of these projects for their work.
 
-**Total dependency count:** 17 direct Go + 14 indirect Go + ~50 Rust crates across 4 binaries.
+---
+
+## Post-Quantum Cryptography Dependencies (Planned)
+
+The following dependencies are planned for integration in Age 2/3 for PQC-native operations:
+
+### cloudflare/circl v1.6.3
+
+**Copyright:** Cloudflare Inc.
+**License:** BSD 3-Clause
+**URL:** https://github.com/cloudflare/circl
+
+Post-quantum cryptographic algorithms: ML-DSA (FIPS 204), ML-KEM (FIPS 203), SLH-DSA (FIPS 205). Provides pure-Go implementations of NIST-standardized PQC algorithms for Kingdom identity and key exchange. Currently integrated (March 2026).
+
+---
+
+### pornin/go-fn-dsa (Future)
+
+**Copyright:** Thomas Pornin
+**License:** MIT
+**URL:** https://github.com/pornin/go-fn-dsa
+
+FN-DSA (FIPS 206) implementation for Go. Planned integration when Rust/eBPF FPU compatibility is resolved (FN-DSA requires extended floating-point operations, incompatible with eBPF context). Target: Age 2b (Q4 2026).
+
+---
+
+### liboqs-go (Future)
+
+**Copyright:** Open Quantum Safe Project
+**License:** MIT
+**URL:** https://github.com/open-quantum-safe/liboqs-go
+
+Go bindings for liboqs (Open Quantum Safe library). Provides HQC (FIPS 207) and other PQC algorithms via CGO bridge. Planned integration for hybrid post-quantum operations. Target: Age 3a (Q4 2026+).
+
+---
+
+**Total dependency count:** 17 direct Go + 14 indirect Go + ~50 Rust crates across 4 binaries. 3 planned PQC libraries.
 
 ---
 
