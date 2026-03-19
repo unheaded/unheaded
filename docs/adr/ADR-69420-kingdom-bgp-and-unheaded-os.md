@@ -440,4 +440,39 @@ A dedicated CVE polling service that runs on a configurable schedule (default: w
 
 ---
 
+## TODO: GPU/ML Fabric Routing (Sleipnir Extension)
+
+**Priority**: Age 3+
+**Owner**: Architect + Sleipnir team
+
+Sleipnir's ECMP multipath routing must handle GPU-to-GPU traffic patterns for AI/ML workloads. When scaling to 100s-1000s of servers with GPUs equal to or greater than WEST's current hardware:
+
+**Requirements**:
+- NCCL (NVIDIA Collective Communications Library) traffic patterns — all-reduce, all-gather, ring topology
+- RDMA over Converged Ethernet (RoCE v2) — lossless fabric, PFC, ECN
+- GPU Direct RDMA — bypass CPU for GPU-to-GPU transfers
+- Mellanox/ConnectX NIC XDP offload — Sleipnir's BPF maps pushed to NIC hardware
+- Absolute service isolation — each service gets its own routing domain in Sleipnir's BPF maps, zero cross-contamination between tenants/services
+- Multipath load balancing aware of GPU topology (NVLink, NVSwitch, PCIe hierarchy)
+
+**Prior art considered**: NVIDIA TENSOR (GPU fabric management), AWS Lightyear (custom silicon for ML training), Google Jupiter (datacenter fabric). Decision: build Kingdom-native because we already own the packet path via eBPF/XDP — external solutions add layers we don't need.
+
+**Architecture**: Sleipnir's Go control plane computes GPU-aware paths. Rust/Aya XDP programs in the data plane read GPU topology from BPF maps and route NCCL collectives along optimal paths. Wotan DISTRIBUTED mode provides cross-node memory coherence for gradient synchronization state.
+
+---
+
+## TODO: 7th Overview RFC (Informational)
+
+**Priority**: Age 3 (after 6 specs submitted)
+**Owner**: RFC Editor + Captain
+
+Per RFC-MERGE-ASSESSMENT.md, the 6 existing specs should remain separate but a 7th informational overview RFC should be written to guide readers:
+- Which specs to read for which use cases
+- Mandatory vs optional components
+- Example deployments (minimal, dictionary-aware, fully programmable)
+- 20 pages estimated
+- Reduces narrative burden on each individual spec
+
+---
+
 **Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, CVE poller service TODO documented, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, and PQC dependency licensing assessment. Pre-public blocker: Amber IP audit.
