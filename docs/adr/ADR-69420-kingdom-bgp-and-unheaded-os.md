@@ -475,4 +475,123 @@ Per RFC-MERGE-ASSESSMENT.md, the 6 existing specs should remain separate but a 7
 
 ---
 
-**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, CVE poller service TODO documented, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, and PQC dependency licensing assessment. Pre-public blocker: Amber IP audit.
+---
+
+## Distribution Strategy: apt/snap Packages + Hosted Code
+
+**Priority**: Age 3 (parallel with public launch)
+**Owner**: Developer + Architect + Captain
+**Added**: 2026-03-19
+
+### Vision
+
+Unheaded ships as **native packages** on every major Debian-based distribution, not just source code on GitHub. Users run `apt install unheaded` or `snap install unheaded` — not `git clone && make && pray`. The install surface covers:
+
+1. **apt repository** (self-hosted + mirrors)
+2. **snap store** (Canonical/Snapcraft)
+3. **Git-hosted source** (GitHub public repo)
+
+### Target Distributions
+
+| Distribution | Version | Package Format | Priority |
+|-------------|---------|---------------|----------|
+| Ubuntu | 22.04 LTS, 24.04 LTS | .deb (apt) + snap | P0 |
+| Debian | 12 (Bookworm), 13 (Trixie) | .deb (apt) | P0 |
+| Linux Mint | 21.x, 22.x | .deb (via Ubuntu base) | P1 |
+| Pop!_OS | 22.04+ | .deb (via Ubuntu base) | P1 |
+| Raspberry Pi OS | Bookworm | .deb (arm64) | P2 |
+| Kali Linux | Rolling | .deb (via Debian base) | P2 |
+
+### Package Architecture
+
+```
+unheaded                     # Meta-package (pulls all components)
+├── unheaded-daemon          # Control plane (systemd service)
+├── unheaded-cli             # CLI tool (uh command)
+├── unheaded-ebpf            # eBPF programs (kernel 5.15+ required)
+├── unheaded-dashboard       # Web dashboard (static assets + backend)
+├── unheaded-wotan           # Wotan message bus
+└── unheaded-doc             # Man pages + documentation
+```
+
+**Architecture targets**: amd64 (primary), arm64 (Raspberry Pi / ARM servers)
+
+### apt Repository
+
+```bash
+# User experience
+curl -fsSL https://pkg.unheaded.dev/gpg | sudo gpg --dearmor -o /usr/share/keyrings/unheaded.gpg
+echo "deb [signed-by=/usr/share/keyrings/unheaded.gpg] https://pkg.unheaded.dev/apt stable main" | \
+  sudo tee /etc/apt/sources.list.d/unheaded.list
+sudo apt update && sudo apt install unheaded
+```
+
+**Repository hosting**: Self-hosted on pkg.unheaded.dev (Yggdrasil OS as dogfood). Backed by S3-compatible storage for CDN distribution. GPG-signed with project key.
+
+**Build pipeline** (extends Yggdrasil Jenkins pipeline from this ADR):
+1. `git tag vX.Y.Z` triggers CI
+2. Go cross-compile (amd64 + arm64)
+3. Rust cross-compile (eBPF programs)
+4. `dpkg-buildpackage` produces .deb files
+5. `reprepro` manages apt repository
+6. GPG sign → upload to pkg.unheaded.dev
+7. Smoke test: fresh Docker container runs `apt install unheaded && unheaded status`
+
+### snap Package
+
+```bash
+# User experience
+sudo snap install unheaded
+```
+
+**Why snap in addition to apt**:
+- Auto-updates (security patches ship without user action)
+- Confinement (AppArmor sandbox, no root sprawl)
+- Cross-distro (one package works on Ubuntu, Fedora, Arch via snapd)
+- Snap Store discovery (new users find us)
+
+**snap.yaml** defines strict confinement with plugs for:
+- `network` + `network-bind` (service mesh)
+- `kernel-module-observe` (eBPF read)
+- `system-observe` (metrics collection)
+- `docker` (container management)
+
+**Limitation**: eBPF loading requires `--classic` confinement or a separate `unheaded-ebpf` snap with elevated privileges. The base `unheaded` snap works without eBPF for users who just want the control plane + dashboard.
+
+### Git + Hosted Code
+
+| Channel | URL | Purpose |
+|---------|-----|---------|
+| GitHub | github.com/unheaded/unheaded | Primary source, issues, PRs, CI |
+| pkg.unheaded.dev | https://pkg.unheaded.dev | apt repo, release artifacts |
+| Snap Store | snapcraft.io/unheaded | snap distribution |
+| Docker Hub | hub.docker.com/r/unheaded/unheaded | Container images |
+
+### Release Cadence
+
+| Channel | Cadence | Audience |
+|---------|---------|----------|
+| `stable` | Monthly | Production users |
+| `edge` | On every main push | Developers, testers |
+| `lts` | Every 6 months | Enterprise, compliance-sensitive |
+
+### Integration with Yggdrasil OS
+
+The Yggdrasil image builder (Feature B of this ADR) consumes the same .deb packages from the apt repository. This creates a virtuous loop:
+- Same packages serve standalone installs AND full OS images
+- Package bugs caught by both user installs and OS builds
+- Yggdrasil = "unheaded pre-installed on hardened Debian" = zero-config deployment
+
+### Success Criteria
+
+- [ ] `apt install unheaded` works on Ubuntu 24.04 LTS from clean install
+- [ ] `snap install unheaded` works from Snap Store
+- [ ] `unheaded status` shows all services healthy after package install
+- [ ] arm64 packages tested on Raspberry Pi 5
+- [ ] Auto-update via snap delivers security patches within 24h of release
+- [ ] pkg.unheaded.dev serves 99.9% uptime
+- [ ] Man pages: `man unheaded`, `man unheaded-daemon`, `man uh`
+
+---
+
+**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, CVE poller service TODO documented, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, PQC dependency licensing assessment, and distribution strategy (apt/snap/git). Pre-public blocker: Amber IP audit.
