@@ -121,6 +121,194 @@ Both features are **NOT blocking public launch** and will be communicated to cus
 - google/gopacket: https://github.com/google/gopacket
 - Debian Policy Manual 4.6
 
+## Addendum: Configuration Convergence Daemon (Feature C)
+
+**Date Added**: 2026-03-19
+
+### Context
+
+Unheaded supports multiple container runtimes (LXD, containerd, Docker), multiple IaC backends (Ansible, Terraform, Puppet, Salt, Chef, Kubernetes), and multiple log/observability pipelines (Prometheus, Loki, VictoriaMetrics, Grafana, Anamnesis). Each has its own config format, state representation, and drift model. Today, converting between them is manual — a Puppet manifest doesn't automatically produce an equivalent Ansible playbook, a Docker Compose file doesn't generate matching LXD profiles, and log pipeline configs don't stay in sync when endpoints change.
+
+This is the same problem Puppet's catalog compiler solves: declare desired state once, compile it to whatever backend needs it. But Puppet assumes Puppet is the source of truth. We need something runtime-agnostic — a converter daemon that reads canonical Kingdom config (the "desired state" already in the repo) and emits target-specific artifacts on a schedule.
+
+### Design: Gleipnir (Config Convergence Daemon)
+
+**Name**: Gleipnir — the unbreakable chain that binds Fenrir in Norse mythology, forged from impossible things (the sound of a cat's footsteps, the beard of a woman, the roots of a mountain). Configuration convergence binds disparate systems together from things that shouldn't be compatible.
+
+Also a Ragnarok Online God Item crafting component — Gleipnir is assembled from the six pieces of Megingjard before the God Item can be created. Configuration convergence assembles disparate config fragments into a unified artifact.
+
+**Architecture**:
+
+```
+                     ┌─────────────────────┐
+                     │  Kingdom Canonical   │
+                     │  Config (YAML/TOML)  │
+                     └──────────┬───────────┘
+                                │
+                     ┌──────────▼───────────┐
+                     │      Gleipnir        │
+                     │  (Go daemon, cron    │
+                     │   or event-driven)   │
+                     └──────────┬───────────┘
+              ┌─────────┬──────┼──────┬──────────┐
+              ▼         ▼      ▼      ▼          ▼
+         ┌────────┐ ┌──────┐ ┌────┐ ┌──────┐ ┌──────┐
+         │ Docker │ │ LXD  │ │ K8s│ │Ansible│ │ NixOS│
+         │Compose │ │ YAML │ │YAML│ │ Play  │ │ .nix │
+         └────────┘ └──────┘ └────┘ └──────┘ └──────┘
+              │         │      │      │          │
+              └─────────┴──────┼──────┴──────────┘
+                               ▼
+                     ┌─────────────────────┐
+                     │  Log/Obs Pipeline   │
+                     │  Config Sync        │
+                     │  (Prom, Loki, VM,   │
+                     │   Grafana, Anamnesis)│
+                     └─────────────────────┘
+```
+
+**Core converters** (each is a Go package implementing a `Converter` interface):
+
+- `container`: Docker Compose ↔ LXD profile ↔ containerd CRI spec ↔ K8s Pod spec
+- `iac`: Ansible playbook ↔ Terraform HCL ↔ Puppet manifest ↔ Salt state ↔ Chef recipe ↔ NixOS module
+- `obs`: Prometheus scrape config ↔ Loki pipeline ↔ VictoriaMetrics config ↔ Grafana datasource/dashboard JSON ↔ Anamnesis event pipeline
+- `network`: WireGuard conf ↔ BIRD config ↔ nftables rules ↔ Sleipnir BPF map seed data
+- `security`: SELinux policy module ↔ AppArmor profile ↔ seccomp JSON ↔ CIS hardening checklist
+
+**Execution model** — like `puppet agent --enable`:
+
+- **Scheduled**: Daily convergence run (default 02:00 local, configurable via cron expression). Reads canonical config, generates all target artifacts, diffs against current deployed state, reports drift.
+- **Event-driven**: Watches canonical config directory via inotify/fsnotify. On change, triggers immediate convergence for affected targets only. Publishes Anamnesis events for each conversion.
+- **On-demand**: `gleipnir converge --target=docker,ansible` or `gleipnir converge --all`. CLI for operators. gRPC API for programmatic access.
+- **Dry-run**: `gleipnir diff` — shows what WOULD change without writing. Like `puppet agent --noop`.
+
+**Drift detection and reporting**:
+
+- Each run produces a convergence report (JSON + human-readable) stored in Wotan.
+- Drift detected = target config doesn't match what Gleipnir would generate from canonical source.
+- Drift severity: INFO (cosmetic, whitespace/comments), WARN (functional difference, non-breaking), CRITICAL (security-relevant, compliance-impacting).
+- Dashboard widget shows convergence status per target per host.
+- Alert on CRITICAL drift via Anamnesis → Wotan pub/sub → operator notification.
+
+**Log pipeline sync** (the daily heartbeat):
+
+- Every convergence run also validates that log endpoints match across all pipelines.
+- If Prometheus scrape targets change, Loki pipelines, VictoriaMetrics remote_write, and Grafana datasources update in lockstep.
+- Produces a `log-topology.json` manifest that maps every service → its log pipeline → its storage backend → its retention policy.
+- This manifest is the audit evidence for SOC2 CC7.2 (system monitoring) and PCI-DSS 10.2 (audit trails).
+
+**Jenkins integration** (the .deb pipeline from Yggdrasil):
+
+- Gleipnir converters run as a Jenkins build step in the Yggdrasil image pipeline.
+- When a new Yggdrasil image is built, Gleipnir ensures all baked-in configs match canonical source.
+- .deb package: `unheaded-gleipnir` installs the daemon, systemd timer, and CLI.
+- apt repo: published alongside other Kingdom packages in the Yggdrasil repository.
+
+### Perspectives
+
+**Architect**: Gleipnir is the missing glue layer. Currently, config consistency is enforced by convention (developers manually keep Docker and LXD configs in sync). That doesn't scale past 10 services. Gleipnir makes the canonical config authoritative and all target configs derived artifacts — same pattern as protobuf generating Go/Rust stubs from .proto files. The converter interface is pluggable: new backends (Nomad, Podman, etc.) are just new `Converter` implementations.
+
+**Developer**: Each converter is a standalone Go package with its own test suite. Input: parsed canonical config struct. Output: target-specific bytes. No shared mutable state. Fuzz every converter with random canonical configs. Property-based testing: `parse(generate(canonical)) == canonical` for round-trip converters. The daemon itself is a thin scheduler around converter invocations — most complexity lives in the converters.
+
+**Micromanager**: Acceptance criteria: (1) `gleipnir converge --all` produces valid configs for every supported target; (2) generated Docker Compose passes `docker compose config` validation; (3) generated Ansible passes `ansible-lint`; (4) drift detection catches a manually-edited target config within one convergence cycle; (5) daily run completes in <60 seconds for 30-service deployment; (6) convergence report is machine-parseable and human-readable.
+
+**BlackMage**: Config converters are high-value attack targets — a poisoned canonical config that generates a backdoored Docker Compose or an SELinux policy with a permissive hole. Every converter output must be validated against a schema before writing. Canonical config must be signed (GPG or PQC) and signature verified before convergence. The daemon runs as a dedicated user with write access only to target config directories — no root, no kernel access.
+
+**Moat Ghost**: Gleipnir's convergence reports ARE compliance evidence. SOC2 CC6.1 (logical access controls — configs match policy), PCI-DSS 2.2 (system hardening — drift detected and remediated), FedRAMP CM-2 (baseline configuration — canonical source is the baseline, drift is deviation). The daily run cadence satisfies continuous monitoring requirements. Archive convergence reports for audit retention (7 years for SOC2, 1 year for PCI).
+
+**Timeguru**: Gleipnir begins in Age 2b (after Sleipnir control plane and Yggdrasil pipeline stabilize). Core converters (container + iac) are 4-6 weeks. Obs and security converters follow in Age 3a. Full pipeline integration (Jenkins + Yggdrasil + daily runs) by Age 3b. Prerequisite: canonical config schema must be frozen before converter development begins.
+
+### Decision
+
+This ADR **ACCEPTS** Gleipnir (Configuration Convergence Daemon) as a Feature C addition to the Age 2/3 roadmap. It bridges the gap between Kingdom's multi-runtime, multi-IaC, multi-observability architecture and the operational reality of keeping configs in sync. Daily convergence runs with drift detection and compliance reporting complete the "declarative everything" promise.
+
+### Updated Consequences
+
+7. **Operational**: Gleipnir eliminates manual config synchronization across container runtimes, IaC backends, and observability pipelines. Drift detection provides continuous assurance that deployed state matches declared intent. Daily convergence reports become audit artifacts.
+
+8. **Naming**: Three new Kingdom components from Norse/RO mythology: Sleipnir (routing), Yggdrasil (OS), Gleipnir (config convergence). The naming pool extends naturally.
+
+## Addendum: Fourth Naming Pillar — Contemplative Traditions
+
+**Date Added**: 2026-03-19
+
+### Context
+
+The Kingdom's naming draws from three pillars: Gnostic Cosmology (state architecture), Chronicles of Amber (protocol foundation), and Medieval Armory / Norse Mythology (infrastructure). A fourth pillar extends the pool into contemplative traditions — specifically Iyengar Yoga and Tibetan Buddhism — adding vocabulary for alignment, balance, observation, and disciplined practice. These traditions map naturally to infrastructure concerns that the Norse/Gnostic pools don't cover well: health checking, graceful degradation, meditative observation, and systematic practice.
+
+### Iyengar Yoga — Alignment and Precision
+
+B.K.S. Iyengar's method is obsessive about alignment, props, sequencing, and holding poses with precision under strain. That's infrastructure.
+
+| Term | Meaning | Kingdom Mapping |
+|------|---------|-----------------|
+| **Tadasana** | Mountain pose — the foundation. Every other pose begins and returns here. Perfect alignment, weight distributed equally. | Base health check / readiness probe. The "am I standing correctly" assertion that every service runs before accepting traffic. `tadasana --check` returns 0 or 1. |
+| **Savasana** | Corpse pose — complete stillness after exertion. Integration. The body absorbs the work. | Graceful shutdown / drain state. A service entering savasana stops accepting new connections, drains in-flight requests, flushes buffers, then exits cleanly. The opposite of `kill -9`. |
+| **Pranayama** | Breath control — rhythmic, disciplined regulation of flow. Inhale, retain, exhale in precise ratios. | Rate limiting / backpressure. The breathing rhythm of the service mesh. Pranayama controls how fast data flows through the system — not by dropping packets but by regulating admission. |
+| **Drishti** | Focused gaze — a single point of visual concentration during a pose. Prevents distraction, maintains balance. | Observability focus. A drishti is a curated dashboard view — not "show me everything" but "show me the one metric that matters for this service right now." Anti-dashboard-sprawl. |
+| **Vinyasa** | Breath-synchronized movement — flowing transitions between poses. Each movement has exactly one breath. | Deployment pipeline cadence. One change per cycle, synchronized with the convergence heartbeat. No batching 47 changes into one deploy. Vinyasa enforces single-change-per-breath discipline. |
+| **Bandha** | Internal lock — muscular engagement that contains and directs energy. Three locks: root (mula), navel (uddiyana), throat (jalandhara). | Security boundaries / containment zones. Mula bandha = network perimeter (root lock). Uddiyana bandha = service mesh mTLS (core lock). Jalandhara bandha = API gateway auth (throat lock). Three locks, three enforcement points. |
+| **Sthira** | Steadiness — the quality of being stable under load without rigidity. | Resilience metric. A service with high sthira handles load spikes without degradation. Measured as p99 latency variance under 2x baseline load. |
+| **Sukha** | Ease — the quality of remaining comfortable and efficient even in difficulty. | Efficiency metric. A service with high sukha uses minimal resources to serve its function. Sthira + Sukha = the ideal service: stable AND efficient. |
+
+### Tibetan Buddhism — Observation, Impermanence, and Compassionate Action
+
+The Dalai Lama's tradition emphasizes clear observation without attachment, acceptance of impermanence, and action motivated by compassion for all beings. These map to monitoring, ephemeral infrastructure, and operator experience.
+
+| Term | Meaning | Kingdom Mapping |
+|------|---------|-----------------|
+| **Vipassana** | Insight meditation — observing reality as it is, without judgment or reaction. Seeing things clearly. | Deep packet inspection / trace analysis mode. Vipassana doesn't filter, doesn't alert, doesn't react — it records and presents raw truth. The audit log that captures everything without editorializing. `vipassana --trace <flow-id>` dumps the complete lifecycle of a request. |
+| **Sangha** | Community — the assembly of practitioners who support each other's practice. | Cluster membership / peer group. A sangha is the set of nodes that form a quorum. Nodes join and leave the sangha; the sangha persists. Maps to Sleipnir's BGP peer group or Wotan's pub/sub subscriber set. |
+| **Dharma** | The teaching / the path / the law of how things are. | Configuration as code. The dharma IS the canonical config — the declared truth about how the system should be. Gleipnir enforces dharma. Drift from dharma triggers alerts. |
+| **Karma** | Action and consequence — every action produces results that ripple forward. | Distributed tracing / causality chain. Every packet action (Monad register write, Sophia lookup, Wotan store) creates karma — a trace event that links cause to effect across the system. The karma chain is the complete causal history of a request. |
+| **Mandala** | Sacred geometric diagram — intricate, layered, and impermanent. Monks spend days creating sand mandalas, then destroy them. | Ephemeral infrastructure. A mandala is a test environment or canary deployment — carefully constructed, fully functional, intentionally destroyed after use. `mandala create --ttl=4h` spins up a complete Kingdom replica that self-destructs. |
+| **Bardo** | The in-between state — the transition between death and rebirth. | Blue-green deployment transition. The bardo is the moment when old version is draining and new version is warming up. Both exist simultaneously. Neither is fully alive. The system is in bardo during every rolling update. |
+| **Tonglen** | Taking and giving — breathing in suffering, breathing out compassion. Transforming pain into healing. | Error budget consumption. Tonglen is the practice of absorbing errors (taking) and emitting clean responses (giving). A circuit breaker in tonglen mode absorbs upstream failures and returns graceful degradation responses instead of propagating cascading failure. |
+| **Tulku** | Reincarnation of a realized being — the same consciousness in a new body. | Stateful service migration. When a service must move between hosts (node failure, rebalancing), the tulku pattern preserves its identity (BPF map state, Wotan subscriptions, Monad circuit) across the transition. The service is reborn on a new node with its karma intact. |
+| **Thangka** | Scroll painting — detailed iconographic representation of the cosmos, deities, and their relationships. | System topology visualization. A thangka is the full-system dependency graph rendered as an interactive map. Every service, every connection, every data flow — painted in detail. The dashboard that shows you the entire Kingdom at once. |
+
+### Integration with Existing Pillars
+
+The contemplative naming pillar does NOT replace Norse/Gnostic/Amber. It extends them into domains where those pools lack precision:
+
+| Domain | Norse/Gnostic | Contemplative |
+|--------|---------------|---------------|
+| Routing | Sleipnir (BGP daemon) | Sangha (peer group) |
+| Health | — | Tadasana (readiness), Sthira/Sukha (quality) |
+| Shutdown | Ragnarok (destruction) | Savasana (graceful integration) |
+| Observability | Anamnesis (event memory) | Vipassana (raw insight), Drishti (focused view), Thangka (topology) |
+| Deployment | — | Vinyasa (cadence), Bardo (transition), Mandala (ephemeral) |
+| Resilience | Shield (protection) | Tonglen (error absorption), Pranayama (backpressure) |
+| Migration | — | Tulku (stateful rebirth) |
+| Config | Gleipnir (convergence) | Dharma (canonical truth) |
+| Causality | — | Karma (trace chain) |
+| Security | Armory (enforcement) | Bandha (containment locks) |
+
+### Cross-Reference: Kanban Naming Wish Pool
+
+The kanban app (`cmd/kanban-app/main.go`, lines 256-267) maintains 12 wish-list items for alternate/additional mythological naming pools. ADR-69420 Pillar 4 formalizes the first two (Iyengar Yoga, Tibetan Buddhism). The remaining pools are documented below for future expansion. Each maps infrastructure components to deities/concepts from that tradition.
+
+| Kanban ID | Tradition | Key Mappings | ADR Status |
+|-----------|-----------|-------------|------------|
+| `wish-norse-naming` | Norse/Ragnarok | Yggdrasil→fabric, Heimdall→gateway, Bifrost→mesh | **PARTIALLY ADOPTED** (Sleipnir, Yggdrasil, Gleipnir in this ADR; Pillar 3 in Lore) |
+| `wish-hindu-naming` | Hindu/Indian/Yoga | Indra→LB, Agni→WAF, Vishnu→reconciler, Shiva→chaos, Dharma→compliance, Karma→events | **PARTIALLY ADOPTED** (Dharma, Karma in Pillar 4 via Buddhism; Hindu pool expands these) |
+| `wish-chinese-naming` | Chinese/Taoism | Pangu→bootstrap, Nuwa→self-heal, Sun Wukong→chaos, Guanyin→observability | FUTURE — Age 3+ |
+| `wish-japanese-naming` | Japanese/Shinto/FF | Amaterasu→observability, Susanoo→chaos, Tsukuyomi→scheduler, Kitsune→mesh | FUTURE — Age 3+ |
+| `wish-pagan-naming` | Pagan/Wiccan/Druidic | Cernunnos→fabric, Brigid→WAF, Morrigan→chaos, Dagda→control plane | FUTURE — Age 3+ |
+| `wish-shaman-naming` | Shamanistic/Animist | Thunderbird→LB, Coyote→chaos, Spider Woman→mesh, Raven→observability | FUTURE — Age 3+ |
+| `wish-jewish-naming` | Jewish/Kabbalistic | Sefirot→mesh, Ein Sof→control plane, Golem→runtime, Tikkun→self-heal | FUTURE — Age 3+ |
+| `wish-islamic-naming` | Islamic/Sufi | Jibril→message bus, Buraq→scheduler, Mizan→LB, Barzakh→isolation | FUTURE — Age 3+ |
+| `wish-christian-naming` | Christian/Biblical | Seraphim→firewall, Logos→control plane, Lazarus→self-heal, Babel→DNS | FUTURE — Age 3+ |
+| `wish-wushu-naming` | Taoist Wu Shu (8 Forms) | 8 ceremonial forms → 8 infra service categories | FUTURE — Age 3+ |
+| `wish-taoist-pantheon-naming` | Taoist Pantheon Deep-Cut | Tai Yi→init, San Qing→trinity arch, Domu→scheduler, Xi Wang Mu→chaos-to-order | FUTURE — Age 3+ |
+| `wish-taoist-alchemy-naming` | Taoist Alchemy & Metaphysics | Neidan→self-tuning, Jing-Chi-Shen→storage/compute/observability, Wu Xing→5-element model | FUTURE — Age 3+ |
+
+**Adoption strategy**: Pillars 1-3 (Gnostic, Amber, Norse/Armory) are the production naming standard. Pillar 4 (Contemplative) is adopted in this ADR. The remaining pools serve as **expansion vocabulary** — drawn from when new components need names and existing pools don't fit. No tradition is excluded; each carries authentic mappings documented in the kanban wish items. When a pool is adopted, it gets the same treatment as Pillar 4: a formal ADR addendum with term-by-term mapping, integration table, and Sacred Law compliance.
+
+### Sacred Law Addition
+
+**Seventh Sacred Law**: *Respect the practice.* Contemplative names carry weight from living traditions. Use them with understanding, not as decoration. A component named Savasana better actually implement graceful shutdown. A component named Vipassana better actually observe without judgment. The name IS the contract. This applies equally to all 12 naming pools — Norse, Hindu, Taoist, Shinto, Pagan, Shamanistic, Kabbalistic, Sufi, Christian, and the contemplative traditions. Every tradition deserves the same respect.
+
 ---
 
-**Document Status**: Complete, no outstanding questions or placeholders. This document captures the full vision and will serve as the authoritative design reference for both features through Age 2-3.
+**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), fourth naming pillar (Contemplative Traditions), and 12-pool naming expansion roadmap cross-referenced with kanban wish items. All Age 2/3, none blocking public launch.
