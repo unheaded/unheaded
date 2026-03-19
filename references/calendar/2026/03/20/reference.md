@@ -7,7 +7,7 @@
 - **Pitch angle**: Unheaded runs eBPF on XDP — AMD/Mellanox NICs are the target hardware. AMD benefits from an open source project that drives adoption of their NIC + GPU stack.
 - **Ask**: Sponsorship / developer grant / stipend to sustain full-time open source development.
 - **Prep**: Have the 6 Internet-Drafts, the GitHub repo (once public), and the IETF submission as credibility artifacts.
-- **Note**: This is post-job-fair follow-up energy. Austin VC conversations also benefit from AMD hardware partnership story.
+- **Note**: This is post-job-fair follow-up energy. Open source sponsorship, not venture capital — sustaining support for a GPL copyleft community project.
 
 ### Reach Out: Old Homie — Hook Them Up as Thanks
 - **Context**: They were there for you. Time to return the favor now that the Kingdom is real and shipping.
