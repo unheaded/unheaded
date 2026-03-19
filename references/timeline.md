@@ -204,11 +204,22 @@ Enterprise features, global distribution, marketplace.
 - Personal references cleaned
 - 1,261 files legal audit completed
 
-**Remaining Work (Low Priority / Future):**
+**PRE-PUBLIC BLOCKERS (Must complete before GitHub flip):**
+- 🔴 IP/Trademark audit: Zelazny/Amber character names in code, binaries, and public docs
+  - Grep Go/Rust source for Amber character names used as identifiers
+  - Audit binary-lore-names.md — compiled binaries named after copyrighted characters
+  - Verify no Amber terms in README, QUICKSTART, or user-facing materials
+  - Verify Internet-Drafts use generic terms, not character names
+  - Review The First Packet fiction — derivative work vs commentary assessment
+  - Zelazny estate is ACTIVE (Zeno Agency, Colbert TV adaptation in development)
+  - Decision: keep internal lore refs, scrub public-facing code/binary names if needed
+- 🔴 PQC dependency licensing verification (go-fn-dsa Unlicense, liboqs-go MIT) — ASSESSED CLEAR
+- 📋 FN-DSA (FIPS 206): pornin/go-fn-dsa available NOW (pure Go, spec author) — upgrade from stub
+- 📋 HQC (FIPS 207): liboqs-go available NOW (MIT, CGo) — scaffold from stub
+
+**Remaining Work (Lower Priority / Future):**
 - 📋 RAFT fine-tuning (QLoRA on Mistral-7B with 616 QA pairs)
 - 📋 Zhen Engine (custom Rust inference + Go management plane)
-- 📋 FN-DSA (FIPS 206): awaiting Go library ecosystem
-- 📋 HQC (FIPS 207): awaiting Go library ecosystem
 - 📋 WireGuard IPv6 overlay implementation (design complete, pending deployment)
 - 📋 Extended Memory heap management
 - 📋 Inverse Mask deep exploration
