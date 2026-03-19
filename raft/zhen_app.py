@@ -28,7 +28,7 @@ from zhen_rag import RAGPipeline
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
-app.secret_key = 'zhen-session-key-dev'
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'zhen-session-key-dev')  # override in production
 
 # Initialize RAG pipeline
 index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
