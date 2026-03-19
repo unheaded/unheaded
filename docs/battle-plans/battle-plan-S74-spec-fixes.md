@@ -1507,83 +1507,194 @@ Continuing to Phase 4 (code alignment)."
 **Time**: 30-45 minutes
 **Agent**: Coordinator (needs dev machine toolchain)
 
-### 6a. Run Existing Security Targets
+### 6a. Install OSS Scanning Toolchain (One-Time Setup)
 
-- [ ] **Step 43** [B]: Run SBOM generation
+- [ ] **Step 43** [B]: Install ScanCode Toolkit (license detection)
   ```bash
-  cd ~/tmp/unheaded && make sbom
+  pip install scancode-toolkit --break-system-packages 2>/dev/null || pip install scancode-toolkit
+  scancode --version
   ```
 
-- [ ] **Step 44** [V]: SBOM generated without errors
-
-- [ ] **Step 45** [B]: Run CI security suite (gosec + govulncheck + GPL boundary)
+- [ ] **Step 44** [B]: Install ORT (OSS Review Toolkit — dependency analysis + license compliance)
   ```bash
-  make ci-security
+  # ORT requires Java 17+
+  java -version 2>&1 | head -1
+  # Install ORT via helper script or pre-built
+  curl -fsSL https://github.com/oss-review-toolkit/ort/releases/latest/download/ort-linux-x64.tar.gz | tar xz -C /usr/local/bin/ 2>/dev/null || echo "ORT: install manually from https://github.com/oss-review-toolkit/ort"
   ```
 
-- [ ] **Step 46** [V]: Zero CRITICAL/HIGH findings from govulncheck
-  - If findings → triage: is it a direct dep or transitive? Does it affect production code path?
+- [ ] **Step 45** [B]: Install Trivy (vulnerability scanner)
+  ```bash
+  curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+  trivy --version
+  ```
 
-- [ ] **Step 47** [B]: Verify Go module integrity
+- [ ] **Step 46** [B]: Install CycloneDX (SBOM generation)
+  ```bash
+  go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+  cyclonedx-gomod version 2>/dev/null || echo "cyclonedx-gomod installed"
+  ```
+
+- [ ] **Step 47** [B]: Install cargo-audit (Rust supply chain)
+  ```bash
+  cargo install cargo-audit
+  cargo audit --version
+  ```
+
+- [ ] **Step 48** [V]: All 5 tools operational
+  ```bash
+  echo "=== Tool Verification ===" && \
+  scancode --version && \
+  trivy --version && \
+  cyclonedx-gomod version 2>/dev/null && echo "cyclonedx: OK" && \
+  cargo audit --version && \
+  govulncheck -version 2>/dev/null || go install golang.org/x/vuln/cmd/govulncheck@latest && \
+  echo "=== All tools ready ==="
+  ```
+  - If any tool fails → [D] install manually, check PATH, check deps
+
+- [ ] **Step 49** [C]: **COMMIT CHECKPOINT** (if any config/script changes needed for tool install)
+  ```bash
+  git add -A && git commit -m "[PLAN S74] Steps 43-49: Install OSS scanning toolchain (ScanCode, ORT, Trivy, CycloneDX, cargo-audit)"
+  ```
+
+### 6b. Regenerate ALL SBOM Reports (S37 Reports Are ANCIENT)
+
+- [ ] **Step 50** [B]: Regenerate Go module list (replaces stale S37 version)
+  ```bash
+  cd ~/tmp/unheaded
+  go list -m all > LICENSES/sbom-reports/go-modules-list.txt
+  echo "Go modules: $(wc -l < LICENSES/sbom-reports/go-modules-list.txt)"
+  ```
+
+- [ ] **Step 51** [B]: Regenerate license file inventory
+  ```bash
+  find . -name "LICENSE*" -not -path "./.git/*" | sort > LICENSES/sbom-reports/licenses-found.txt
+  echo "License files: $(wc -l < LICENSES/sbom-reports/licenses-found.txt)"
+  ```
+
+- [ ] **Step 52** [B]: Run ScanCode full repo scan (license + copyright detection)
+  ```bash
+  scancode --license --copyright --package --json-pp LICENSES/sbom-reports/scancode-report.json ~/tmp/unheaded/ --timeout 300 2>&1 | tail -5
+  ```
+
+- [ ] **Step 53** [V]: ScanCode completed without errors. Review any unknown/custom licenses flagged.
+
+- [ ] **Step 54** [B]: Generate CycloneDX SBOM (SPDX-compatible)
+  ```bash
+  cyclonedx-gomod mod -output LICENSES/sbom-reports/cyclonedx-sbom.json
+  ```
+
+- [ ] **Step 55** [B]: Generate SPDX SBOM (refresh the S37 template)
+  ```bash
+  # If ORT is available, use it for SPDX
+  ort analyze -i ~/tmp/unheaded -o LICENSES/sbom-reports/ -f JSON 2>/dev/null || \
+  echo "ORT not available — using CycloneDX as primary SBOM format"
+  ```
+
+- [ ] **Step 56** [C]: **COMMIT CHECKPOINT**
+  ```bash
+  git add LICENSES/sbom-reports/ && git commit -m "[PLAN S74] Steps 50-56: Regenerate ALL SBOM reports — replace stale S37 data"
+  ```
+
+### 6c. Security Scanning + Vulnerability Triage
+
+- [ ] **Step 57** [B]: Run govulncheck (Go vulnerabilities)
+  ```bash
+  cd ~/tmp/unheaded && govulncheck ./... 2>&1 | tee /tmp/govulncheck-report.txt
+  ```
+
+- [ ] **Step 58** [V]: Zero CRITICAL/HIGH in govulncheck
+  - If findings → triage: direct dep or transitive? Affects production code path?
+
+- [ ] **Step 59** [B]: Run cargo audit (Rust vulnerabilities)
+  ```bash
+  cd ~/tmp/unheaded/ebpf && cargo audit 2>&1 | tee /tmp/cargo-audit-report.txt
+  ```
+
+- [ ] **Step 60** [V]: Zero CRITICAL advisories in cargo audit
+
+- [ ] **Step 61** [B]: Run Trivy (container + config + filesystem scan)
+  ```bash
+  cd ~/tmp/unheaded && trivy fs . --severity HIGH,CRITICAL --exit-code 0 2>&1 | tee /tmp/trivy-report.txt
+  ```
+
+- [ ] **Step 62** [V]: Trivy report — zero HIGH/CRITICAL in production deps
+  - If findings → document in errata, triage fix vs accept
+
+- [ ] **Step 63** [B]: Verify Go module integrity
   ```bash
   go mod verify
   ```
 
-- [ ] **Step 48** [V]: All modules verified (checksums match go.sum)
+- [ ] **Step 64** [V]: All modules verified (checksums match go.sum)
 
-- [ ] **Step 49** [B]: Run Rust security audit
+- [ ] **Step 65** [B]: Run full CI security suite
   ```bash
-  cd ebpf && cargo audit 2>&1 | tee /tmp/cargo-audit.txt
+  make ci-security
   ```
 
-- [ ] **Step 50** [V]: Zero CRITICAL advisories in cargo audit
+- [ ] **Step 66** [V]: CI security passes (gosec + govulncheck + GPL boundary)
 
-- [ ] **Step 51** [C]: **COMMIT CHECKPOINT**
+### 6d. Cross-Reference + Consolidated Report
+
+- [ ] **Step 67** [B]: Cross-reference actual deps against THIRD_PARTY.md
   ```bash
-  git add -A && git commit -m "[PLAN S74] Steps 43-51: OSS code audit — SBOM + govulncheck + cargo audit clean"
-  ```
-
-### 6b. CycloneDX SBOM + Trivy Scan
-
-- [ ] **Step 52** [B]: Generate CycloneDX SBOM
-  ```bash
-  go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
-  cyclonedx-gomod mod -output sbom-cyclonedx.json
-  ```
-
-- [ ] **Step 53** [B]: Run Trivy vulnerability scan
-  ```bash
-  trivy config . --severity HIGH,CRITICAL --exit-code 0 2>&1 | tee /tmp/trivy-report.txt
-  ```
-
-- [ ] **Step 54** [V]: Trivy report has zero HIGH/CRITICAL findings in production deps
-  - If findings → document in SBOM errata, triage for fix or accept
-
-- [ ] **Step 55** [B]: Cross-reference SBOM against THIRD_PARTY.md
-  ```bash
-  # Extract go.sum unique deps
   awk '{print $1}' go.sum | sort -u > /tmp/actual-deps.txt
-  # Compare against documented deps
-  echo "Actual unique deps: $(wc -l < /tmp/actual-deps.txt)"
-  echo "Documented in THIRD_PARTY.md: $(grep -c '|' LICENSES/THIRD_PARTY.md)"
+  echo "=== Dependency Reconciliation ==="
+  echo "Actual unique Go deps: $(wc -l < /tmp/actual-deps.txt)"
+  echo "Documented in THIRD_PARTY.md: $(grep -c '|' LICENSES/THIRD_PARTY.md || echo 0)"
+  echo "License files found: $(wc -l < LICENSES/sbom-reports/licenses-found.txt)"
   ```
 
-- [ ] **Step 56** [V]: No undocumented production dependencies
+- [ ] **Step 68** [V]: No undocumented production dependencies
+  - If mismatch → add missing deps to THIRD_PARTY.md with license info from ScanCode report
 
-- [ ] **Step 57** [C]: **COMMIT CHECKPOINT**
+- [ ] **Step 69** [W]: Update SBOM-CONSOLIDATED.md with fresh findings
   ```bash
-  git add -A && git commit -m "[PLAN S74] Steps 52-57: CycloneDX SBOM + Trivy + dependency cross-reference"
+  cat > LICENSES/sbom-reports/SBOM-CONSOLIDATED.md << 'SBOMEOF'
+  # SBOM Consolidated Report — S74 Refresh
+
+  **Generated**: $(date -u +%Y-%m-%d)
+  **Previous**: S37 (STALE — replaced)
+  **Tools Used**: ScanCode, CycloneDX, Trivy, govulncheck, cargo-audit, ORT
+
+  ## Summary
+  - Go modules: [count from go-modules-list.txt]
+  - Rust crates: [count from Cargo.lock]
+  - License files: [count from licenses-found.txt]
+  - Vulnerabilities: [count from trivy + govulncheck + cargo-audit]
+  - Unknown licenses: [count from ScanCode flagged items]
+
+  ## Reports
+  - scancode-report.json — Full license + copyright scan
+  - cyclonedx-sbom.json — CycloneDX format SBOM
+  - go-modules-list.txt — All Go dependencies
+  - licenses-found.txt — All LICENSE files in repo
+  - /tmp/govulncheck-report.txt — Go vulnerability scan
+  - /tmp/cargo-audit-report.txt — Rust vulnerability scan
+  - /tmp/trivy-report.txt — Filesystem vulnerability scan
+  SBOMEOF
+  ```
+
+- [ ] **Step 70** [C]: **COMMIT CHECKPOINT**
+  ```bash
+  git add LICENSES/ THIRD_PARTY.md && git commit -m "[PLAN S74] Steps 57-70: OSS security scan + SBOM reconciliation — all tools green"
   ```
 
 ### Phase 6 Exit Gate
 
-- [ ] **Step 58** [V]: **PHASE 6 EXIT GATE** — OSS audit complete
-  - SBOM generated (both formats)
-  - govulncheck clean
-  - cargo audit clean
-  - Trivy clean
+- [ ] **Step 71** [V]: **PHASE 6 EXIT GATE** — OSS audit complete
+  - All 5 scanning tools installed and operational
+  - S37 SBOM reports replaced with fresh S74 data
+  - ScanCode full repo scan complete
+  - CycloneDX SBOM generated
+  - govulncheck clean (Go)
+  - cargo audit clean (Rust)
+  - Trivy clean (filesystem)
   - go mod verify passes
   - All deps documented in THIRD_PARTY.md
+  - SBOM-CONSOLIDATED.md refreshed
 
 ---
 
@@ -1611,30 +1722,30 @@ Remove:
 
 ### Steps
 
-- [ ] **Step 59** [R]: Read Foundation-06 end-to-end, flag every non-normative/non-informative sentence
-- [ ] **Step 60** [W]: Edit Foundation-06 — strip fluff, tighten language, add formal definitions where missing
-- [ ] **Step 61** [V]: Foundation-06 passes editorial review (zero casual language, zero marketing)
+- [ ] **Step 72** [R]: Read Foundation-06 end-to-end, flag every non-normative/non-informative sentence
+- [ ] **Step 73** [W]: Edit Foundation-06 — strip fluff, tighten language, add formal definitions where missing
+- [ ] **Step 74** [V]: Foundation-06 passes editorial review (zero casual language, zero marketing)
 
-- [ ] **Step 62** [R][W]: Edit Sophia-03 — same treatment
-- [ ] **Step 63** [R][W]: Edit Wotan-03 — same treatment
+- [ ] **Step 75** [R][W]: Edit Sophia-03 — same treatment
+- [ ] **Step 76** [R][W]: Edit Wotan-03 — same treatment
 
-- [ ] **Step 64** [C]: **COMMIT CHECKPOINT**
+- [ ] **Step 77** [C]: **COMMIT CHECKPOINT**
   ```bash
-  git add docs/protocol/ ietf-submission/ && git commit -m "[PLAN S74] Steps 59-64: Academic tone enforcement — Foundation, Sophia, Wotan"
+  git add docs/protocol/ ietf-submission/ && git commit -m "[PLAN S74] Steps 72-77: Academic tone enforcement — Foundation, Sophia, Wotan"
   ```
 
-- [ ] **Step 65** [R][W]: Edit MBC-ISA-00 — same treatment
-- [ ] **Step 66** [R][W]: Edit Shim-00 — same treatment
-- [ ] **Step 67** [R][W]: Edit PQC-00 — same treatment (this one likely has the most fluff)
+- [ ] **Step 78** [R][W]: Edit MBC-ISA-00 — same treatment
+- [ ] **Step 79** [R][W]: Edit Shim-00 — same treatment
+- [ ] **Step 80** [R][W]: Edit PQC-00 — same treatment (this one likely has the most fluff)
 
-- [ ] **Step 68** [C]: **COMMIT CHECKPOINT**
+- [ ] **Step 81** [C]: **COMMIT CHECKPOINT**
   ```bash
-  git add docs/protocol/ ietf-submission/ && git commit -m "[PLAN S74] Steps 65-68: Academic tone enforcement — MBC-ISA, Shim, PQC"
+  git add docs/protocol/ ietf-submission/ && git commit -m "[PLAN S74] Steps 78-81: Academic tone enforcement — MBC-ISA, Shim, PQC"
   ```
 
 ### Phase 7 Exit Gate
 
-- [ ] **Step 69** [V]: **PHASE 7 EXIT GATE** — All 6 specs read like IETF academic documents
+- [ ] **Step 82** [V]: **PHASE 7 EXIT GATE** — All 6 specs read like IETF academic documents
   - Zero first-person pronouns
   - Zero marketing adjectives
   - Every claim quantified or formalized
