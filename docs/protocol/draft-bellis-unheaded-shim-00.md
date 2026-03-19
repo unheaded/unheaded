@@ -2,7 +2,7 @@
 title: Shim Pipeline Specification for the Unheaded Protocol Computer
 abbrev: UPC Shim Pipeline
 docname: draft-bellis-unheaded-shim-00
-date: 2026-03-18
+date: 2026-03-19
 category: exp
 ipr: trust200902
 submissionType: independent
@@ -26,19 +26,19 @@ normative:
     title: "Protocol Foundation for Unheaded: Monad Wire Format and IANA Registries"
     author:
       name: Stevie Bellis
-    date: 2026-03-18
+    date: 2026-03-19
   mbc-isa:
     target: "https://github.com/unheaded/unheaded/blob/main/docs/protocol/"
     title: "MBC Instruction Set Architecture: A 4-Register, 32-Bit RISC ISA for Distributed Computation"
     author:
       name: Stevie Bellis
-    date: 2026-03-18
+    date: 2026-03-19
   wotan-memory:
     target: "https://github.com/unheaded/unheaded/blob/main/ietf-submission/draft-bellis-unheaded-wotan-memory-03.xml"
     title: "Wotan Memory Model: BPF Map Design for Distributed State"
     author:
       name: Stevie Bellis
-    date: 2026-03-18
+    date: 2026-03-19
 
 informative:
   RFC9000:
@@ -47,7 +47,7 @@ informative:
     title: "Sophia Dictionary: Knowledge Graph and Lookup Semantics for Distributed Programs"
     author:
       name: Stevie Bellis
-    date: 2026-03-18
+    date: 2026-03-19
 
 --- abstract
 
@@ -57,7 +57,7 @@ This document specifies the Shim pipeline for the Unheaded Protocol Computer (UP
 
 # Introduction
 
-The Shim is the execution engine of the Unheaded Protocol Computer (UPC), responsible for translating and executing Monad Bytecode (MBC) programs within eBPF runtime contexts. It maps the instruction set defined by the MBC ISA to the eBPF verifier and execution model of the Linux kernel.
+The Shim is the execution engine of the Unheaded Protocol Computer (UPC), responsible for translating and executing Monad Bytecode (MBC) programs within eBPF runtime contexts. It forms the critical bridge between the declarative instruction set defined by the MBC ISA and the native eBPF verifier and execution model of the Linux kernel.
 
 The Shim operates within a four-stage pipeline:
 
@@ -80,37 +80,9 @@ This specification defines:
 The Shim pipeline operates in conjunction with several related specifications:
 
 - {{foundation}} defines the Monad wire format (20-byte fixed header carried in IPv6 Hop-by-Hop options), which encodes register state and control flags at each hop
-- {{mbc-isa}} specifies the MBC instruction set architecture (48 opcodes, 4-register architecture, 32-bit words)
+- {{mbc-isa}} specifies the MBC instruction set architecture (48 opcodes, 16-register architecture, 32-bit words)
 - {{sophia}} defines dictionary lookup semantics used during MBC execution
 - {{wotan-memory}} specifies the BPF map memory model backing the Shim's RAM_MAP and ROM_MAP structures
-
-# Conformance Levels
-
-This specification defines seven Dream Ladder conformance levels (0-6).  Each level builds on the capabilities of the previous level.  An implementation claiming Level N conformance MUST also conform to all levels 0 through N-1.
-
-Level 0 - Microcode (REQUIRED):
-: Monad wire format (20-byte HbH option), CRC-16/CCITT validation, Sophia dictionary lookups, XDP packet processing model.
-
-Level 1 - Digital (REQUIRED):
-: Full MBC instruction set (48 opcodes), 16-register architecture, 32-bit word operations, arithmetic/logic/control flow, 256-instruction limit per tick.
-
-Level 2 - Mechanical (REQUIRED):
-: RAM_MAP and ROM_MAP (64 MiB + 1 MiB flat address space), LD/ST memory instructions, CPU_MAP for state persistence across ticks.
-
-Level 2a - Memory I/O (RECOMMENDED):
-: Framebuffer (320x200, 8-bit palette) at 0x70000, keyboard input at 0x68000, TTY console at 0x7F000.
-
-Level 3 - Interrupts and Exceptions (OPTIONAL):
-: Hardware interrupt handling via IVT, exception handling and recovery, trap vector dispatch.
-
-Level 4 - Scheduling and Multitasking (OPTIONAL):
-: PROC_TABLE for process state, SCHED_STATE for scheduler decisions, preemptive multitasking, context switching.
-
-Level 5 - Virtual Memory and Syscalls (OPTIONAL):
-: TLB_MAP for virtual memory translation, Linux-compatible syscall interface via INT 0x80, memory protection and isolation.
-
-Level 6 - Architecture and Cross-Compilation (OPTIONAL):
-: MBC assembler and linker toolchain, UPCFlat binary format support, cross-compilation from higher-level languages, UNFS filesystem on ramdisk block device.
 
 # Requirements Language
 
@@ -402,7 +374,7 @@ State is keyed by flow tuple (source IP, destination IP, flow label). Different 
 
 # Tick Packet Protocol
 
-Tick packets are IPv6 packets carrying Monad state and driving distributed computation across hops.
+Tick packets are IPv6 packets carrying Monad state and driving distributed computation across hops, with Shim programs verified against the BPF instruction set defined in {{RFC9669}}.
 
 ## Packet Structure
 
@@ -462,7 +434,7 @@ Tick packet generation rates vary by operational mode:
 - LOCAL mode (single-hop loopback): 35 Hz (28 ms between ticks)
 - DISTRIBUTED mode (multi-hop propagation): ~1 kHz (1 ms between ticks, governed by network propagation)
 
-Tick rate is controlled by application logic, not the Shim. The Shim processes each arriving tick packet up to its 256-instruction limit.
+Tick rate is controlled by application logic, not the Shim itself. The Shim simply processes each arriving tick packet up to its 256-instruction limit.
 
 # Memory-Mapped I/O
 
@@ -549,7 +521,7 @@ Constraints:
 
 # Dream Ladder Feature Stratification
 
-The Shim defines conformance levels that implementations MUST support.
+The Shim defines conformance levels that implementations must support, organized as a stratified ladder.
 
 ## Conformance Levels
 
@@ -568,7 +540,7 @@ Conformance: All implementations MUST support Level 0.
 Instruction execution layer providing:
 
 - Full MBC instruction set (48 opcodes)
-- 4-register architecture (r0-r15)
+- 16-register architecture (r0-r15)
 - 32-bit word operations
 - Arithmetic, logic, and control flow instructions (no memory operations)
 - 256-instruction limit per tick
@@ -595,7 +567,7 @@ Memory-mapped I/O layer providing:
 - TTY console at 0x7F000
 - All Level 0-2 features
 
-Conformance: Implementations SHOULD support Level 2a. Level 2a is required for framebuffer output, keyboard input, and console I/O.
+Conformance: Implementations SHOULD support Level 2a. Level 2a enables interactive applications (games, demos, interactive programs).
 
 ### Level 3: Interrupts and Exceptions (Optional)
 
@@ -644,7 +616,7 @@ When a tick packet arrives, the Shim MUST:
 3. If CRC is invalid: emit an Anomaly event to COMPUTE_EVENTS map and DO NOT execute MBC
 4. If CRC is valid: proceed to stage 4 execution
 
-Corrupted state MUST NOT affect program execution.
+This ensures corrupted state never affects program execution.
 
 ## Post-Execution Recomputation
 
@@ -654,7 +626,7 @@ After MBC execution completes (whether via HALT or 256-instruction limit), the S
 2. Write the updated Monad state with new CRC into the outgoing packet's HbH option
 3. Return XDP_TX to transmit the packet
 
-Correct state MUST propagate to the next hop.
+This ensures correct state propagates to the next hop.
 
 ## Anomaly Event Format
 
@@ -775,11 +747,11 @@ Programs that fail verification MUST NEVER be loaded. No exceptions.
 
 [RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174, May 2017, <https://www.rfc-editor.org/info/rfc8174>.
 
-[RFC8200] Deering, S. and R. Hinden, "Internet Protocol, Version 6 (IPv6) Specification", RFC 8200, DOI 10.17487/RFC8200, July 2011, <https://www.rfc-editor.org/info/rfc8200>.
+[RFC8200] Deering, S. and R. Hinden, "Internet Protocol, Version 6 (IPv6) Specification", RFC 8200, DOI 10.17487/RFC8200, July 2017, <https://www.rfc-editor.org/info/rfc8200>.
 
-[RFC8126] Cotton, M., Leiba, B., and T. Narten, "Guidelines for Writing an IANA Considerations Section in RFCs", BCP 26, RFC 8126, DOI 10.17487/RFC8126, June 2013, <https://www.rfc-editor.org/info/rfc8126>.
+[RFC8126] Cotton, M., Leiba, B., and T. Narten, "Guidelines for Writing an IANA Considerations Section in RFCs", BCP 26, RFC 8126, DOI 10.17487/RFC8126, June 2017, <https://www.rfc-editor.org/info/rfc8126>.
 
-[RFC9669] Westphal, C., Chanda, S., Di Prima, M., and P. Saxena, "QUIC Connection Migration", RFC 9669, DOI 10.17487/RFC9669, November 2024, <https://www.rfc-editor.org/info/rfc9669>.
+[RFC9669] Thaler, D., Ed., "BPF Instruction Set Architecture (ISA)", RFC 9669, DOI 10.17487/RFC9669, October 2024, <https://www.rfc-editor.org/info/rfc9669>.
 
 [foundation] Bellis, S., "Protocol Foundation for Unheaded: Monad Wire Format and IANA Registries", draft-bellis-unheaded-protocol-foundation-06, March 2026.
 

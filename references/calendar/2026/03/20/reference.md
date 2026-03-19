@@ -2,28 +2,19 @@
 
 ## Action Items
 
-### Reach Out: Cavin Weber @ AMD — Funding Conversation
-- **Context**: GPL-marked open source project. Not looking for a fortune — looking for rent, food, bills, expenses covered while building resume/clout with Unheaded.
-- **Pitch angle**: Unheaded runs eBPF on XDP — AMD/Mellanox NICs are the target hardware. AMD benefits from an open source project that drives adoption of their NIC + GPU stack.
-- **Ask**: Sponsorship / developer grant / stipend to sustain full-time open source development.
-- **Prep**: Have the 6 Internet-Drafts, the GitHub repo (once public), and the IETF submission as credibility artifacts.
-- **Note**: This is post-job-fair follow-up energy. Open source sponsorship, not venture capital — sustaining support for a GPL copyleft community project.
+### Reach Out: Hardware Vendor — Open Source Sponsorship
+- **Context**: GPL open source project. Sustaining support for full-time development.
+- **Pitch angle**: Unheaded runs eBPF on XDP — target hardware alignment.
+- **Ask**: Sponsorship / developer grant for open source development.
+- **Prep**: 6 Internet-Drafts, GitHub repo, IETF submission as credibility artifacts.
 
-### Reach Out: Old Homie — Hook Them Up as Thanks
-- **Context**: They were there for you. Time to return the favor now that the Kingdom is real and shipping.
-- **Action**: Reach out, thank them, see how you can hook them up — role, recommendation, connection, recognition. Whatever fits.
-- **Vibe**: Loyalty. The pack takes care of its own.
+### Reach Out: People Who Helped — Thank Them
+- **Action**: Reach out to people who supported the journey. Thank them, see how to return the favor.
+- **Vibe**: Loyalty and gratitude.
 
-### Reach Out: Friend — Thank for Their Insights
-- **Context**: Their insights shaped how this thing was built. That deserves acknowledgment.
-- **Action**: Reach out, thank them specifically, let them know what shipped and how their input mattered.
-- **Vibe**: Gratitude. Good ideas deserve credit.
-
-### Reach Out: Cloudflare Contact — Open Source Sponsorship
-- **Context**: Already using cloudflare/circl for all 3 production PQC algorithms. Not a cold pitch.
-- **Pitch angle**: Building on their library, producing IETF Internet-Drafts that reference their work. Cloudflare cares about eBPF, PQC, QUIC/HTTP/3 — all core to Unheaded.
-- **Ask**: Open source sponsorship / developer program / Workers/R2/D1 credits.
-- **Note**: Worst they say is no. Best case, developer advocate routes to sponsorship program.
+### Reach Out: Library Maintainers — Open Source Sponsorship
+- **Context**: Already using their libraries in production.
+- **Ask**: Open source sponsorship / developer program / infrastructure credits.
 
 ### Dev Machine Task: OSS License Code Audit
 - **What**: Run comprehensive code audit on dev machine verifying all OSS dependencies listed in LICENSES/THIRD_PARTY.md are actually used, correctly attributed, and license-compliant.

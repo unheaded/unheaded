@@ -14,7 +14,7 @@ author:
    country: US
    email: stevie@bellis.tech
 
-date: 2026-03-18
+date: 2026-03-19
 
 area: General
 workgroup: Independent Submission
@@ -32,7 +32,7 @@ normative:
  - RFC8174
  - RFC8126
  - RFC8200
- - RFC9669
+ - RFC9669: BPF Instruction Set Architecture (ISA)
 
 informative:
  - RFC9000
@@ -999,7 +999,7 @@ Initial Assignments:
 - 0x11-0x1B: RESERVED
 - 0x1C: LOAD_IMM32 - Load 32-bit Immediate
 - 0x1D: ADDI - Add Immediate (16-bit sign-extended)
-- 0x1E-0x16: RESERVED
+- 0x1E-0x1F: RESERVED
 - 0x17: INT - Trigger Interrupt
 - 0x18: IRET - Return from Interrupt
 - 0x19: RESERVED

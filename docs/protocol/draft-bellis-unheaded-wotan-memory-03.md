@@ -4,9 +4,10 @@ abbrev: "Wotan Memory Protocol"
 docname: draft-bellis-unheaded-wotan-memory-03
 category: exp
 ipr: trust200902
+submissionType: independent
 area: Internet
 workgroup: Independent Submission
-date: 2026-03-15
+date: 2026-03-19
 stand_alone: yes
 
 author:
@@ -152,9 +153,6 @@ WARNING     1       Degraded but functional      Log, emit metric, continue
 ERROR       2       Operation failed             Log, retry or degrade
 CRITICAL    3       Subsystem failure            Log, alert, isolate
 FATAL       4       Unrecoverable failure        Log, halt, require restart
-RESERVED    5       Reserved for future use      MUST NOT be used
-RESERVED    6       Reserved for future use      MUST NOT be used
-RESERVED    7       Reserved for future use      MUST NOT be used
 ~~~~~
 
 ## Structured Error Code Format
@@ -479,13 +477,12 @@ flush on overflow, and L3->L2 recovery on process restart.
 ## Separation of Compute and Memory
 
 The Monad is transient compute state (stateless by design). Wotan is
-persistent state machine storage. The separation has the following
-architectural consequences:
+persistent state machine storage. This separation allows:
 
-- Shim programs remain stateless with respect to the packet format.
-- External state is accessed through a controlled, measurable interface.
-- Cache miss latency is handled without blocking per-hop processing.
-- Memory updates are tracked in Anamnesis for observability.
+- Shim programs to remain stateless with respect to the packet format.
+- External state to be accessed in a controlled, measurable manner.
+- Cache miss latency to be handled without blocking per-hop logic.
+- Memory updates to be tracked in Anamnesis for observability.
 
 # BPF Helper Interface
 

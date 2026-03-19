@@ -2,7 +2,7 @@
 title: Shim Pipeline Specification for the Unheaded Protocol Computer
 abbrev: UPC Shim Pipeline
 docname: draft-bellis-unheaded-shim-00
-date: 2026-03-18
+date: 2026-03-19
 category: exp
 ipr: trust200902
 submissionType: independent
@@ -26,19 +26,19 @@ normative:
     title: "Protocol Foundation for Unheaded: Monad Wire Format and IANA Registries"
     author:
       name: Stevie Bellis
-    date: 2026-03-18
+    date: 2026-03-19
   mbc-isa:
     target: "https://github.com/unheaded/unheaded/blob/main/docs/protocol/"
     title: "MBC Instruction Set Architecture: A 4-Register, 32-Bit RISC ISA for Distributed Computation"
     author:
       name: Stevie Bellis
-    date: 2026-03-18
+    date: 2026-03-19
   wotan-memory:
     target: "https://github.com/unheaded/unheaded/blob/main/ietf-submission/draft-bellis-unheaded-wotan-memory-03.xml"
     title: "Wotan Memory Model: BPF Map Design for Distributed State"
     author:
       name: Stevie Bellis
-    date: 2026-03-18
+    date: 2026-03-19
 
 informative:
   RFC9000:
@@ -47,7 +47,7 @@ informative:
     title: "Sophia Dictionary: Knowledge Graph and Lookup Semantics for Distributed Programs"
     author:
       name: Stevie Bellis
-    date: 2026-03-18
+    date: 2026-03-19
 
 --- abstract
 
@@ -80,7 +80,7 @@ This specification defines:
 The Shim pipeline operates in conjunction with several related specifications:
 
 - {{foundation}} defines the Monad wire format (20-byte fixed header carried in IPv6 Hop-by-Hop options), which encodes register state and control flags at each hop
-- {{mbc-isa}} specifies the MBC instruction set architecture (48 opcodes, 4-register architecture, 32-bit words)
+- {{mbc-isa}} specifies the MBC instruction set architecture (48 opcodes, 16-register architecture, 32-bit words)
 - {{sophia}} defines dictionary lookup semantics used during MBC execution
 - {{wotan-memory}} specifies the BPF map memory model backing the Shim's RAM_MAP and ROM_MAP structures
 
@@ -374,7 +374,7 @@ State is keyed by flow tuple (source IP, destination IP, flow label). Different 
 
 # Tick Packet Protocol
 
-Tick packets are IPv6 packets carrying Monad state and driving distributed computation across hops.
+Tick packets are IPv6 packets carrying Monad state and driving distributed computation across hops, with Shim programs verified against the BPF instruction set defined in {{RFC9669}}.
 
 ## Packet Structure
 
@@ -540,7 +540,7 @@ Conformance: All implementations MUST support Level 0.
 Instruction execution layer providing:
 
 - Full MBC instruction set (48 opcodes)
-- 4-register architecture (r0-r15)
+- 16-register architecture (r0-r15)
 - 32-bit word operations
 - Arithmetic, logic, and control flow instructions (no memory operations)
 - 256-instruction limit per tick
@@ -747,11 +747,11 @@ Programs that fail verification MUST NEVER be loaded. No exceptions.
 
 [RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174, May 2017, <https://www.rfc-editor.org/info/rfc8174>.
 
-[RFC8200] Deering, S. and R. Hinden, "Internet Protocol, Version 6 (IPv6) Specification", RFC 8200, DOI 10.17487/RFC8200, July 2011, <https://www.rfc-editor.org/info/rfc8200>.
+[RFC8200] Deering, S. and R. Hinden, "Internet Protocol, Version 6 (IPv6) Specification", RFC 8200, DOI 10.17487/RFC8200, July 2017, <https://www.rfc-editor.org/info/rfc8200>.
 
-[RFC8126] Cotton, M., Leiba, B., and T. Narten, "Guidelines for Writing an IANA Considerations Section in RFCs", BCP 26, RFC 8126, DOI 10.17487/RFC8126, June 2013, <https://www.rfc-editor.org/info/rfc8126>.
+[RFC8126] Cotton, M., Leiba, B., and T. Narten, "Guidelines for Writing an IANA Considerations Section in RFCs", BCP 26, RFC 8126, DOI 10.17487/RFC8126, June 2017, <https://www.rfc-editor.org/info/rfc8126>.
 
-[RFC9669] Westphal, C., Chanda, S., Di Prima, M., and P. Saxena, "QUIC Connection Migration", RFC 9669, DOI 10.17487/RFC9669, November 2024, <https://www.rfc-editor.org/info/rfc9669>.
+[RFC9669] Thaler, D., Ed., "BPF Instruction Set Architecture (ISA)", RFC 9669, DOI 10.17487/RFC9669, October 2024, <https://www.rfc-editor.org/info/rfc9669>.
 
 [foundation] Bellis, S., "Protocol Foundation for Unheaded: Monad Wire Format and IANA Registries", draft-bellis-unheaded-protocol-foundation-06, March 2026.
 

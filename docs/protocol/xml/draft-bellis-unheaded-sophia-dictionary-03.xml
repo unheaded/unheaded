@@ -12,7 +12,7 @@
 ]>
 
 
-<rfc ipr="trust200902" docName="draft-bellis-unheaded-sophia-dictionary-03" category="exp">
+<rfc ipr="trust200902" docName="draft-bellis-unheaded-sophia-dictionary-03" category="exp" submissionType="independent">
   <front>
     <title abbrev="Sophia Dictionary Format">Sophia Dictionary Format for the Unheaded Protocol</title>
 
@@ -26,7 +26,7 @@
       </address>
     </author>
 
-    <date year="2026" month="March" day="15"/>
+    <date year="2026" month="March" day="19"/>
 
     <area>Internet</area>
     <workgroup>Independent Submission</workgroup>
