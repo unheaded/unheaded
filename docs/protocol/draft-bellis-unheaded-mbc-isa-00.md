@@ -39,7 +39,7 @@ informative:
 
 --- abstract
 
-This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 45-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.
+This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 46-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.
 
 --- middle
 
@@ -197,7 +197,7 @@ Total size: 128 bytes. This structure is the working memory for each MBC executi
 
 # Instruction Set
 
-MBC provides 45 distinct opcodes, organized by functional category.
+MBC provides 46 distinct opcodes, organized by functional category.
 
 ## Arithmetic Instructions
 
@@ -951,7 +951,7 @@ Vector 0x00 is reserved for division-by-zero exceptions. Additional vectors are 
 
 ## Opcode Whitelist
 
-Only the 45 defined opcodes are valid in MBC programs. Opcodes 0x00, 0xFE are reserved and MUST NOT be used. All other opcode values are undefined and will cause a trap if executed. An MBC loader MUST validate that all instructions in a program use only defined opcodes before loading.
+Only the 46 defined opcodes are valid in MBC programs. Opcodes 0x00, 0xFE are reserved and MUST NOT be used. All other opcode values are undefined and will cause a trap if executed. An MBC loader MUST validate that all instructions in a program use only defined opcodes before loading.
 
 ## Division by Zero Behavior
 

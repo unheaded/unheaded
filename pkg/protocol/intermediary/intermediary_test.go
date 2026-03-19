@@ -50,21 +50,38 @@ func TestValidateMonadValidVersion(t *testing.T) {
 }
 
 func TestValidateMonadInvalidVersion(t *testing.T) {
+	// Per foundation spec: version != 0x01 MUST cause silent drop
+	// (return nil, ErrInvalidVersion).
 	data := make([]byte, 12)
-	data[0] = 0xFF      // invalid version (> 3)
+	data[0] = 0xFF      // invalid version (!= 0x01)
 	data[1] = 0x00      // reserved = 0
 
 	malformations, err := ValidateMonad(data)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+	if err != ErrInvalidVersion {
+		t.Errorf("Expected ErrInvalidVersion, got: %v", err)
+	}
+	if malformations != nil {
+		t.Errorf("Expected nil malformations for silent drop, got %v", malformations)
 	}
 
-	if len(malformations) != 1 {
-		t.Errorf("Expected 1 malformation, got %d", len(malformations))
+	// Also test version 0x00 (reserved, must drop)
+	data[0] = 0x00
+	malformations, err = ValidateMonad(data)
+	if err != ErrInvalidVersion {
+		t.Errorf("Expected ErrInvalidVersion for version 0x00, got: %v", err)
+	}
+	if malformations != nil {
+		t.Errorf("Expected nil malformations for version 0x00, got %v", malformations)
 	}
 
-	if malformations[0] != InvalidVersion {
-		t.Errorf("Expected InvalidVersion, got %s", malformations[0])
+	// Version 0x02 must also be rejected (silent drop)
+	data[0] = 0x02
+	malformations, err = ValidateMonad(data)
+	if err != ErrInvalidVersion {
+		t.Errorf("Expected ErrInvalidVersion for version 0x02, got: %v", err)
+	}
+	if malformations != nil {
+		t.Errorf("Expected nil malformations for version 0x02, got %v", malformations)
 	}
 }
 
@@ -88,17 +105,31 @@ func TestValidateMonadNonZeroReserved(t *testing.T) {
 }
 
 func TestValidateMonadMultipleMalformations(t *testing.T) {
+	// With the strict version check (silent drop on != 0x01),
+	// invalid version returns ErrInvalidVersion before checking
+	// other fields. Test that behavior.
 	data := make([]byte, 12)
-	data[0] = 0xFF      // invalid version
-	data[1] = 0xFF      // reserved != 0
+	data[0] = 0xFF      // invalid version (!= 0x01) -> silent drop
+	data[1] = 0xFF      // reserved != 0 (never reached)
 
 	malformations, err := ValidateMonad(data)
+	if err != ErrInvalidVersion {
+		t.Errorf("Expected ErrInvalidVersion, got: %v", err)
+	}
+	if malformations != nil {
+		t.Errorf("Expected nil malformations for silent drop, got %v", malformations)
+	}
+
+	// Test valid version with non-zero reserved (should return malformation)
+	data[0] = 0x01      // valid version
+	data[1] = 0xFF      // reserved != 0
+
+	malformations, err = ValidateMonad(data)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-
-	if len(malformations) != 2 {
-		t.Errorf("Expected 2 malformations, got %d", len(malformations))
+	if len(malformations) != 1 {
+		t.Errorf("Expected 1 malformation (NonZeroReserved), got %d", len(malformations))
 	}
 }
 
@@ -293,20 +324,28 @@ func TestPacketValidatorRegisterAuthority(t *testing.T) {
 }
 
 func TestValidateMonadAllVersions(t *testing.T) {
-	validVersions := []uint8{0x01, 0x02, 0x03}
+	// Only version 0x01 is valid. All others must return ErrInvalidVersion.
+	data := make([]byte, 12)
+	data[0] = 0x01
+	data[1] = 0x00
 
-	for _, version := range validVersions {
-		data := make([]byte, 12)
+	malformations, err := ValidateMonad(data)
+	if err != nil {
+		t.Errorf("Unexpected error for version 0x01: %v", err)
+	}
+	if len(malformations) != 0 {
+		t.Errorf("Expected no malformations for version 0x01")
+	}
+
+	// Versions 0x02 and 0x03 are now invalid (silent drop)
+	for _, version := range []uint8{0x00, 0x02, 0x03, 0xFF} {
 		data[0] = version
-		data[1] = 0x00
-
-		malformations, err := ValidateMonad(data)
-		if err != nil {
-			t.Errorf("Unexpected error for version %d: %v", version, err)
+		malformations, err = ValidateMonad(data)
+		if err != ErrInvalidVersion {
+			t.Errorf("Expected ErrInvalidVersion for version 0x%02x, got: %v", version, err)
 		}
-
-		if len(malformations) != 0 {
-			t.Errorf("Expected no malformations for version %d", version)
+		if malformations != nil {
+			t.Errorf("Expected nil malformations for version 0x%02x", version)
 		}
 	}
 }

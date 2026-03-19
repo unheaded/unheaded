@@ -6,8 +6,13 @@
 package intermediary
 
 import (
+	"errors"
 	"fmt"
 )
+
+// ErrInvalidVersion is returned when a packet has a version field != 0x01.
+// Per the foundation spec, unknown versions MUST cause immediate silent drop.
+var ErrInvalidVersion = errors.New("invalid protocol version: silent drop")
 
 // MalformedReason represents a specific malformation in a Monad packet.
 type MalformedReason string
@@ -56,9 +61,13 @@ func ValidateMonad(data []byte) ([]MalformedReason, error) {
 	version := data[0]
 	reserved := data[1]
 
-	// Version validation (assuming valid versions are 1-3)
-	if version < 1 || version > 3 {
-		malformations = append(malformations, InvalidVersion)
+	// Version validation: reject any version != 0x01 with silent drop.
+	// Per draft-bellis-unheaded-protocol-foundation-06 Section 5.3:
+	// "if the version field != 0x01, the packet MUST be dropped
+	// immediately (silent drop). No version negotiation, no fallback,
+	// no compatibility shim."
+	if version != 0x01 {
+		return nil, ErrInvalidVersion
 	}
 
 	// Reserved field validation - MUST be zero

@@ -152,6 +152,9 @@ WARNING     1       Degraded but functional      Log, emit metric, continue
 ERROR       2       Operation failed             Log, retry or degrade
 CRITICAL    3       Subsystem failure            Log, alert, isolate
 FATAL       4       Unrecoverable failure        Log, halt, require restart
+RESERVED    5       Reserved for future use      MUST NOT be used
+RESERVED    6       Reserved for future use      MUST NOT be used
+RESERVED    7       Reserved for future use      MUST NOT be used
 ~~~~~
 
 ## Structured Error Code Format

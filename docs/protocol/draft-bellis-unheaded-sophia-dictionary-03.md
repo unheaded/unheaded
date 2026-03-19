@@ -399,6 +399,39 @@ When adding a new entry would exceed either limit:
 
 System-wide dictionary capacity MUST NOT exceed 100 MB.
 
+## Version Rollback Handling
+
+The dictionary version field is an unsigned 8-bit counter (0-255) that
+increments with each dictionary update. The following rules govern
+version counter behavior:
+
+Wraparound:
+: When the version counter reaches 0xFF, the next increment wraps to
+  0x00. This wraparound is valid and expected during normal operation.
+  Implementations MUST treat version 0x00 following version 0xFF as a
+  legitimate successor.
+
+Version Regression:
+: A version is considered regressive if it is lower than the current
+  version AND the difference is not attributable to a single wraparound
+  (i.e., the gap exceeds 128 versions in the forward direction using
+  modular arithmetic). Implementations MUST reject dictionary updates
+  that appear regressive, as they may indicate replay attacks or
+  misconfigured provisioning.
+
+No Rollback Support:
+: Dictionary rollback (reverting to a prior version) is NOT supported.
+  To restore a previous dictionary state, operators MUST publish the
+  desired dictionary contents as a new version with the next sequential
+  version number. This ensures monotonic version progression and
+  prevents ambiguity in version ordering across cluster nodes.
+
+Version Comparison:
+: Implementations MUST use modular arithmetic for version comparison.
+  Version A is considered "newer" than version B if:
+  (A - B) mod 256 is in the range [1, 128]. This allows correct
+  ordering across the 0xFF-to-0x00 wraparound boundary.
+
 # QPACK Compression Headers for Dictionary Entries (NEW in draft-03)
 
 ## Motivation

@@ -361,7 +361,7 @@ Offset  Size  Field               Type        Description
 0x0C    1     src_prefix_lo       raw uint8   Source routing prefix low octet
 0x0D    1     dst_prefix_lo       raw uint8   Destination routing prefix low octet
 0x0E    4     scratch[0-3]        raw uint8   Scratch registers (4 bytes)
-0x12    2     checksum            raw uint16  CRC-16/CCITT over all 20 bytes (0x00-0x13) with checksum field zeroed
+0x12    2     checksum            raw uint16  CRC-16/CCITT over bytes 0x00-0x11 (18 bytes), excluding checksum field (0x12-0x13)
 ------  ----  ------------------  ----------  ---------------------------------
 Total: 20 bytes (0x14)
 ~~~~
@@ -454,8 +454,9 @@ scratch:
   Shield MUST zero scratch bytes at ingress unless CUSTOM is set.
 
 checksum:
-: A 16-bit CRC-16/CCITT checksum computed over all 20 bytes
-  (0x00-0x13) of the Monad with the checksum field zeroed. See Section 5.4.
+: A 16-bit CRC-16/CCITT checksum computed over bytes 0x00-0x11
+  (18 bytes) of the Monad, excluding the checksum field itself
+  (bytes 0x12-0x13). See Section 5.4.
 
 ### Extended Register Option
 
@@ -509,9 +510,8 @@ ignore.
 ## Checksum Field
 
 The checksum field (offset 0x12) holds a 16-bit CRC-16/CCITT value
-computed over all 20 bytes of the Monad header (offsets 0x00-0x13,
-inclusive), with the checksum field itself (offsets 0x12-0x13) zeroed
-during computation.
+computed over bytes 0x00-0x11 (18 bytes) of the Monad header,
+excluding the checksum field itself (offsets 0x12-0x13).
 
 CRC-16/CCITT-FALSE Parameters:
 
@@ -534,19 +534,19 @@ Computation Procedure:
 
 The checksum is computed as follows:
 
-1. Create a working copy of the 20-byte Monad header.
-2. Set bytes 0x12-0x13 (the checksum field) to 0x0000.
-3. Compute CRC-16/CCITT over all 20 bytes of this modified header.
-4. Store the resulting 16-bit value at offset 0x12.
+1. Compute CRC-16/CCITT over bytes 0x00-0x11 (18 bytes) of the Monad
+   header. The checksum field (bytes 0x12-0x13) is NOT included in the
+   computation input.
+2. Store the resulting 16-bit value at offset 0x12.
 
 This ensures integrity protection over all Monad fields, including
 version, flags, flow_label, latency_hint, and reserved fields.
 
 Shield MUST compute the checksum when creating a packet at ingress.
 Each hop MUST verify the checksum before processing. Each hop MUST
-recompute the checksum after modifying any field in offsets 0x00-0x13.
-The checksum field itself (offset 0x12-0x13) MUST NOT be included in
-the checksum computation (set to zero during computation).
+recompute the checksum after modifying any field in offsets 0x00-0x11.
+The checksum is computed over bytes 0x00-0x11 (18 bytes) only; the
+checksum field itself (offset 0x12-0x13) is excluded from the input.
 
 If a hop detects a checksum failure, the implementation MUST:
 
@@ -1007,9 +1007,9 @@ ensure wire format integrity:
 2. **Size Check**: Monad option Len field MUST be >= 20. Drop on
    mismatch.
 
-3. **Checksum Check**: CRC-16/CCITT over all 20 bytes (0x00-0x13) with
-   checksum field zeroed MUST match bytes 0x12-0x13. Drop or flag on
-   mismatch.
+3. **Checksum Check**: CRC-16/CCITT over bytes 0x00-0x11 (18 bytes,
+   excluding the checksum field) MUST match bytes 0x12-0x13. Drop or
+   flag on mismatch.
 
 4. **Flags Check**: Bit 0 (RSVD) MUST be zero. Flag anomaly if set.
 
@@ -1371,6 +1371,8 @@ Initial entries:
   ML-DSA-65 (0x03, 1952, FIPS 204)
   ML-DSA-87 (0x04, 2592, FIPS 204)
   SLH-DSA-SHA2-128s (0x05, 32, FIPS 205)
+  FN-DSA (0x06, RESERVED, FIPS 206) — Implementation deferred to draft-07
+  HQC (0x07, RESERVED, FIPS 207) — Implementation deferred to draft-07
 ~~~~
 
 ## MBC Opcode Numbers (NEW in draft-06 update)
