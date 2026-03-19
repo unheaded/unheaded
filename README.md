@@ -19,10 +19,12 @@ The Monad wire format encodes a 20-byte register file in the IPv6 Hop-by-Hop Opt
 
 Protocol specifications (IETF Experimental track):
 
-- [draft-bellis-unheaded-protocol-foundation-06](docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md)
-- [draft-bellis-unheaded-sophia-dictionary-03](docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md)
-- [draft-bellis-unheaded-wotan-memory-03](docs/protocol/draft-bellis-unheaded-wotan-memory-03.md)
-- [draft-bellis-unheaded-pqc-authentication-00](docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md)
+- [draft-bellis-unheaded-protocol-foundation-06](docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md) — Monad wire format
+- [draft-bellis-unheaded-sophia-dictionary-03](docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md) — BPF map dictionaries
+- [draft-bellis-unheaded-wotan-memory-03](docs/protocol/draft-bellis-unheaded-wotan-memory-03.md) — distributed memory model
+- [draft-bellis-unheaded-mbc-isa-00](docs/protocol/draft-bellis-unheaded-mbc-isa-00.md) — MBC instruction set architecture
+- [draft-bellis-unheaded-shim-00](docs/protocol/draft-bellis-unheaded-shim-00.md) — Shim execution pipeline
+- [draft-bellis-unheaded-pqc-authentication-00](docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md) — post-quantum authentication
 
 ## Architecture
 
