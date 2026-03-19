@@ -1,5 +1,10 @@
 ./LICENSE
 ./LICENSE-PROTOCOLS
 ./LICENSES
+./docs/compliance/LICENSE-AUDIT.md
+./docs/legal/LICENSE-MIT.md
 ./doom/LICENSE
-./doom/doomgeneric/LICENSE
+./llama.cpp/LICENSE
+./llama.cpp/gguf-py/LICENSE
+./llama.cpp/licenses/LICENSE-jsonhpp
+./llama.cpp/vendor/cpp-httplib/LICENSE
