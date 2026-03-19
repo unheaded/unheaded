@@ -346,6 +346,41 @@ The kanban app (`cmd/kanban-app/main.go`, lines 256-267) maintains 12 wish-list 
 
 **Seventh Sacred Law**: *Respect the practice.* Contemplative names carry weight from living traditions. Use them with understanding, not as decoration. A component named Savasana better actually implement graceful shutdown. A component named Vipassana better actually observe without judgment. The name IS the contract. This applies equally to all 12 naming pools — Norse, Hindu, Taoist, Shinto, Pagan, Shamanistic, Kabbalistic, Sufi, Christian, and the contemplative traditions. Every tradition deserves the same respect.
 
+## Addendum: IP/Trademark Audit — Pre-Public Blocker
+
+**Date Added**: 2026-03-19
+
+### Context
+
+The Kingdom draws naming from copyrighted literary works (Chronicles of Amber by Roger Zelazny, died 1995). The Zelazny estate is actively managed by Zeno Agency, with recent illustrated editions (2025) and a TV adaptation in development with Stephen Colbert. This is NOT abandoned IP.
+
+### Risk Assessment (Barrister)
+
+**Character names** (Corwin, Dworkin, Oberon, Brand, Merlin, etc.) are copyrightable as part of their literary expression. Individual names alone are generally not copyrightable, but using them in a way that evokes the original characters' attributes could constitute a derivative work.
+
+**"The Pattern"** is a generic English phrase and unlikely to be trademarked. However, using it as a branded product term in marketing could create confusion.
+
+**Fair use factors favor us**: the use is transformative (metaphor for protocol architecture, not retelling the story), non-commercial (GPL open source), and uses ideas/concepts rather than copyrightable expression. Commentary and criticism are protected.
+
+**Fair use factors against us**: the Amber references are extensive (not minimal), and compiled binaries named after characters could be seen as trading on the work's goodwill.
+
+### Required Actions Before Public Flip
+
+1. **Code audit**: Grep all Go/Rust source for Amber character names used as exported identifiers, struct names, or package names. Internal comments and documentation are lower risk.
+2. **Binary names audit**: Review `docs/lore/binary-lore-names.md`. If compiled binaries distributed to users are named `corwin`, `dworkin`, etc., rename to Kingdom-original names.
+3. **Public docs audit**: Verify README, QUICKSTART, and any user-facing materials don't present Amber terms as Kingdom branding.
+4. **Internet-Draft audit**: Verify IETF submissions use generic protocol terminology, not character names. (Current specs look clean — "Monad", "Sophia", "Wotan" are mythology, not Zelazny.)
+5. **First Packet fiction**: Assess whether the fiction constitutes commentary/appreciation (protected) or derivative work (requires license). Consider adding explicit attribution and fair use notice.
+6. **Lore docs**: Internal lore documentation referencing Amber as inspiration is commentary and likely protected. Add Zelazny attribution/dedication where appropriate.
+
+### MoatGhost Assessment
+
+This is a **compliance gate item** for the public release. The audit must complete before the GitHub visibility flip. Findings should be documented in `docs/legal/AMBER-IP-AUDIT.md` with clear PASS/FAIL/REMEDIATE status for each item above.
+
+### Decision
+
+IP/trademark audit of Amber references is a **PRE-PUBLIC BLOCKER**. The audit is scoped (6 items above), bounded (1-2 hours of grep + review), and must complete before the GitHub public flip. Norse mythology terms (Sleipnir, Yggdrasil, Gleipnir, Wotan) are public domain and require no audit. Gnostic terms (Monad, Sophia, Pleroma, Kenoma) are ancient theology and require no audit. Only Zelazny-specific character names and concepts need review.
+
 ---
 
-**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), fourth naming pillar (Contemplative Traditions), and 12-pool naming expansion roadmap cross-referenced with kanban wish items. All Age 2/3, none blocking public launch.
+**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, and PQC dependency licensing assessment. Pre-public blocker: Amber IP audit.
