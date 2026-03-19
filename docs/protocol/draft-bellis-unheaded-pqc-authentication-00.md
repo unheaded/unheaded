@@ -1,3 +1,85 @@
+---
+title: "Post-Quantum Packet Authentication for the Unheaded Protocol"
+abbrev: "Unheaded PQC Auth"
+docname: draft-bellis-unheaded-pqc-authentication-00
+category: exp
+ipr: trust200902
+area: Internet
+workgroup: Independent Submission
+date: 2026-03-19
+stand_alone: yes
+
+keyword:
+  - post-quantum-cryptography
+  - pqc
+  - authentication
+  - slh-dsa
+  - ml-dsa
+  - ml-kem
+  - fips-205
+  - fips-204
+  - fips-203
+  - unheaded
+  - monad
+
+author:
+  - ins: S. Bellis
+    name: Stevie Bellis
+    org: Unheaded
+    email: stevie@bellis.tech
+    country: US
+
+pi:
+  toc: yes
+  symrefs: yes
+  sortrefs: yes
+  compact: yes
+  subcompact: no
+
+normative:
+  RFC2119:
+  RFC8174:
+  MONAD:
+    title: "Unheaded: Protocol Foundation"
+    author:
+      - ins: S. Bellis
+    seriesinfo:
+      Internet-Draft: draft-bellis-unheaded-protocol-foundation-06
+    date: 2026-03
+  SOPHIA:
+    title: "Sophia: Dictionary Compression for the Unheaded Protocol"
+    author:
+      - ins: S. Bellis
+    seriesinfo:
+      Internet-Draft: draft-bellis-unheaded-sophia-dictionary-03
+    date: 2026-03
+  WOTAN:
+    title: "Wotan: Distributed Memory Model for the Unheaded Protocol"
+    author:
+      - ins: S. Bellis
+    seriesinfo:
+      Internet-Draft: draft-bellis-unheaded-wotan-memory-03
+    date: 2026-03
+
+informative:
+  FIPS203:
+    title: "Module-Lattice-Based Key-Encapsulation Mechanism Standard"
+    author:
+      - org: NIST
+    date: 2024-08
+  FIPS204:
+    title: "Module-Lattice-Based Digital Signature Standard"
+    author:
+      - org: NIST
+    date: 2024-08
+  FIPS205:
+    title: "Stateless Hash-Based Digital Signature Standard"
+    author:
+      - org: NIST
+    date: 2024-08
+
+---
+
 # Post-Quantum Packet Authentication for the Unheaded Protocol
 
 ## draft-bellis-unheaded-pqc-authentication-00
