@@ -41,6 +41,24 @@
 - **Why**: Library exists NOW. Architecture decision: accept CGo dep or keep as stub.
 - **License**: MIT — GPL-3.0 compatible, assessed clear. Static linking required.
 
+### Dev Machine Task: Install unheaded-sentinel skill
+- **What**: Copy skill from `.skills/skills/unheaded-sentinel/` to dev machine
+- **Why**: Sentinel is now the primary blue team defender. Need to test triggers and operations.
+- **How**:
+  - Copy skill directory to local Claude skills path
+  - Test skill invocation with sample prompts: "What's on my network?", "Is this device safe?", "Block this domain"
+- **Configure daily adversarial loop**:
+  - Set up cron job for 03:00 UTC (daily Sentinel → BlackMage adversarial loop)
+  - Zhen AI scheduler integration for coordinated daily runs
+- **Set up MCP connectors**:
+  - NIST NVD API — CVE catalog and scoring
+  - CISA KEV — Known Exploited Vulnerabilities feed
+  - Vendor advisories API connectors for Go, Rust, Linux, NixOS
+- **Test Pi-hole deployment** (if available on dev network):
+  - Verify Docker compose setup with host networking
+  - Test DNS query monitoring and blocking
+  - Verify device discovery and threat detection
+
 ## Session Notes
 - Yesterday's Cowork session was MASSIVE — RFC fixes, 2 new drafts, ADR-69420, timeline sync, PQC audit, Amber lore expansion, IP audit completed
 - Amber IP audit: **CLEAR TO SHIP** — zero Zelazny names in code/binaries/IETF drafts, fair use for lore docs

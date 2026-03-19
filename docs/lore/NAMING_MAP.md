@@ -110,6 +110,7 @@ drawn from mystical traditions emphasizing cosmic structure and restoration.
 | **Sleipnir** | Odin's 8-legged horse (fastest mount) | First Seal (foundation unlock) | BGP routing daemon (8 ECMP paths) | Eight legs = eight equal-cost multipath routes. Speed = fast convergence. The mount that travels all nine realms mirrors routing across all Kingdom clusters. |
 | **Yggdrasil** | World Tree (connects 9 realms) | Full HP/MP restore, sustains cosmos | Hardened Debian base OS image builder | The tree that holds all worlds together mirrors the OS that holds all Kingdom infrastructure together. Full restore (fresh install, fully provisioned, everything healthy). |
 | **Gleipnir** | Magical binding chain (holds Fenrir) | Megingjard (binding component) | Config convergence daemon (daily eventual consistency) | The chain that cannot break represents immutable convergence of configurations across all runtimes, IaC backends, and observability targets. |
+| **Sentinel** | Heimdall (Norse watchman of Bifrost, sees/hears all nine realms) | Lookout tower | Blue team defense skill (network monitoring, CVE triage, daily adversarial loop) | Heimdall guards the boundary between realms — Sentinel guards the Kingdom boundary via network monitoring, firewall management, Pi-hole DNS defense, IoT device inventory, and coordinated adversarial testing with BlackMage. Sees everything (observability) and hears everything (alerting). |
 
 ### Future Naming Pools (12 documented, 4 currently active)
 
