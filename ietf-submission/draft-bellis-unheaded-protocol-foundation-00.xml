@@ -14,7 +14,7 @@
 <?rfc compact="yes"?>
 <?rfc subcompact="no"?>
 
-<rfc ipr="trust200902" docName="draft-bellis-unheaded-protocol-foundation-06" category="exp" submissionType="independent" tocInclude="true" sortRefs="true" symRefs="true">
+<rfc ipr="trust200902" docName="draft-bellis-unheaded-protocol-foundation-00" category="exp" submissionType="independent" tocInclude="true" sortRefs="true" symRefs="true">
   <front>
     <title abbrev="Unheaded Protocol">Unheaded: Protocol Foundation — A Mapped Data Bus over IPv6 Hop-by-Hop Options</title>
 
@@ -2304,7 +2304,7 @@ Email: stevie@bellis.tech</t>
     </author>
     <date year="2026" month="March"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-03"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-00"/>
 </reference>
 <reference anchor="WOTAN" >
   <front>
@@ -2314,7 +2314,7 @@ Email: stevie@bellis.tech</t>
     </author>
     <date year="2026" month="March"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-03"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-00"/>
 </reference>
 
 
