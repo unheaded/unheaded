@@ -1686,7 +1686,7 @@
             <author initials="S." surname="Bellis" fullname="Stevie Bellis"/>
             <date year="2026" month="March"/>
           </front>
-          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-06"/>
+          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-00"/>
         </reference>
 
         <reference anchor="SOPHIA">
@@ -1695,7 +1695,7 @@
             <author initials="S." surname="Bellis" fullname="Stevie Bellis"/>
             <date year="2026" month="March"/>
           </front>
-          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-03"/>
+          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-00"/>
         </reference>
 
         <reference anchor="WOTAN">
@@ -1704,7 +1704,7 @@
             <author initials="S." surname="Bellis" fullname="Stevie Bellis"/>
             <date year="2026" month="March"/>
           </front>
-          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-03"/>
+          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-00"/>
         </reference>
 
         <reference anchor="RFC2119" target="https://www.rfc-editor.org/info/rfc2119">

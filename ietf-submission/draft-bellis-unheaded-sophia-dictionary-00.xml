@@ -12,7 +12,7 @@
 ]>
 
 
-<rfc ipr="trust200902" docName="draft-bellis-unheaded-sophia-dictionary-03" category="exp" submissionType="independent">
+<rfc ipr="trust200902" docName="draft-bellis-unheaded-sophia-dictionary-00" category="exp" submissionType="independent">
   <front>
     <title abbrev="Sophia Dictionary Format">Sophia Dictionary Format for the Unheaded Protocol</title>
 
@@ -1128,7 +1128,7 @@ Email: stevie@bellis.tech</t>
     </author>
     <date year="2026" month="March"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-06"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-00"/>
 </reference>
 <reference anchor="WOTAN" >
   <front>
@@ -1138,7 +1138,7 @@ Email: stevie@bellis.tech</t>
     </author>
     <date year="2026" month="March"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-03"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-00"/>
 </reference>
 
 

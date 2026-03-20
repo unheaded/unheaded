@@ -1212,7 +1212,7 @@ Address | Vector | Purpose
 <author initials="S." surname="Bellis" fullname="Stevie Bellis"><organization>Unheaded</organization></author>
 <date year="2026" month="3"/>
 </front>
-<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-06"/>
+<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-00"/>
 </reference>
 
 <reference anchor="WOTAN" target="https://github.com/unheaded/wotan">
@@ -1221,7 +1221,7 @@ Address | Vector | Purpose
 <author initials="S." surname="Bellis" fullname="Stevie Bellis"><organization>Unheaded</organization></author>
 <date year="2026" month="3"/>
 </front>
-<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-03"/>
+<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-00"/>
 </reference>
 
 </references>
@@ -1244,7 +1244,7 @@ Address | Vector | Purpose
 <author initials="S." surname="Bellis" fullname="Stevie Bellis"><organization>Unheaded</organization></author>
 <date year="2026" month="3"/>
 </front>
-<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-03"/>
+<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-00"/>
 </reference>
 
 <reference anchor="EBPF-IO" target="https://ebpf.io/">
