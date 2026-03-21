@@ -368,7 +368,7 @@ The following information is protected as trade secrets under the GPL-3.0 licens
 
 ### Protection Measures
 
-1. **Access control:** Trade secret information is available only to authorized Unheaded Kingdom maintainers and licensees under NDA.
+1. **Access control:** Trade secret information is available only to authorized Unheaded Kingdom maintainers and licensees under appropriate agreements.
 2. **Documentation:** Kept in private repositories or encrypted documents. Public documentation abstracts away secret details.
 3. **Source code:** Proprietary algorithms are implemented in closed-source binaries or obfuscated source (for GPL-3.0 code).
 
