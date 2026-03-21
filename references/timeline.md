@@ -170,17 +170,16 @@ Comprehensive architectural vision document.
 
 #### Legal Clearance Gates (March 19, 2026) — PRE-PUBLIC-FLIP BLOCKERS
 
-Legal posture established and documented. NDA analysis complete. OSS project cleared.
+Legal posture established and documented. Recent analysis complete. OSS project cleared.
 
-- ✅ Legal: NDA analysis — California governs, no non-compete found, §2870 protects post-employment inventions
+- ✅ Legal: Recent analysis — California governs, no non-compete found, §2870 protects post-employment inventions
 - ✅ Legal: OSS project cleared — FAANG best practices + novel ideas = no confidential info exposure
 - ✅ Legal: Texas satellite office confirmed — TUTSA preempted by CA governing law clause
-- ✅ Legal: Document recorded at references/legal/NDA-ANALYSIS-2026-03-19.md
 - 📋 Legal(P1): Review IETF Note Well patent disclosure obligations against 5 shipped Internet-Drafts
 - 📋 Legal(P1): Draft Contributor License Agreement (CLA) before first external contributor PR
 - 📋 Legal(P1): Document GPL clean-room boundary for UPC/Shim/MBC compute pipeline (SURICATA_GPL_ISOLATION.md flagged missing)
 - 📋 Legal(P2): Evaluate provisional patent viability for unpublished Monad encoding claims
-- 📋 Legal(P2): Link NDA-ANALYSIS-2026-03-19.md from LAUNCH_READINESS.md as formal clearance gate
+- 📋 Legal(P2): Link legal analysis from LAUNCH_READINESS.md as formal clearance gate
 
 **Note**: Items marked 📋 are pre-public-flip legal gates. P1 items must complete before
 any external collaboration or public GitHub visibility. P2 items must complete before

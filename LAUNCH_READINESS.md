@@ -32,17 +32,17 @@ All 9 CRITICAL checks pass (with documented known issues below).
 
 ## LEGAL CLEARANCE GATES (Added 2026-03-19)
 
-NDA analysis complete. OSS project legally cleared. Pre-public-flip legal items:
+Recent analysis complete. OSS project legally cleared. Pre-public-flip legal items:
 
 | # | Gate | Priority | Status | Owner |
 |---|------|----------|--------|-------|
-| L1 | NDA Analysis — OSS project cleared | — | ✅ COMPLETE | Barrister |
+| L1 | Legal Analysis — OSS project cleared | — | ✅ COMPLETE | Barrister |
 | L2 | IETF Note Well patent disclosure review (5 Internet-Drafts) | P1 | 📋 PENDING | Barrister + RFC Editor |
 | L3 | Contributor License Agreement drafted | P1 | 📋 PENDING | Barrister + Developer |
 | L4 | GPL clean-room boundary documented (SURICATA_GPL_ISOLATION.md) | P1 | 📋 PENDING | Architect |
 | L5 | Provisional patent evaluation for unpublished Monad encoding claims | P2 | 📋 PENDING | Barrister |
 
-**Reference**: `references/legal/NDA-ANALYSIS-2026-03-19.md`
+**Reference**: Legal analysis on file (private).
 
 > ⚠️ L2, L3, L4 are pre-external-collaboration gates. Must complete before public GitHub
 > visibility or accepting any external contributor PRs. L5 before commercial/investor engagement.
