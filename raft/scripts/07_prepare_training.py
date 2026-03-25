@@ -20,7 +20,7 @@ from pathlib import Path
 # Paths
 SCRIPT_DIR = Path(__file__).resolve().parent
 RAFT_DIR = SCRIPT_DIR.parent
-DATASET_PATH = RAFT_DIR / "raft_dataset.jsonl"
+DATASET_PATH = RAFT_DIR / "raft_dataset_combined.jsonl"
 TRAINING_DIR = RAFT_DIR / "training"
 TRAIN_OUTPUT = TRAINING_DIR / "train.jsonl"
 EVAL_OUTPUT = TRAINING_DIR / "eval.jsonl"
@@ -57,7 +57,7 @@ def build_context(entry: dict) -> str:
     chunks = []
 
     # Add source content
-    source_doc = entry.get("source_content", "")
+    source_doc = entry.get("source_content", "") or entry.get("oracle_content", "")
     if source_doc:
         chunks.append(source_doc)
 
@@ -99,7 +99,7 @@ def entry_to_training_example(entry: dict) -> dict:
         "text": text,
         "question": question,
         "source_file": entry.get("source_file", ""),
-        "source_chunk_id": entry.get("source_chunk_id", ""),
+        "source_chunk_id": entry.get("source_chunk_id", "") or entry.get("oracle_chunk_id", ""),
     }
 
 

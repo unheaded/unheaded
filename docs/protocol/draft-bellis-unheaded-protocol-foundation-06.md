@@ -485,7 +485,7 @@ behavior:
 | C | Y | T | E | S | M |CUST| R |
 +---+---+---+---+---+---+---+---+
 
-C (0x80):  CHAOS — Chaos injection active (Yaldabaoth, the chaos injection subsystem)
+C (0x80):  CHAOS — Chaos injection active (resilience testing subsystem)
 Y (0x40):  CANARY — Canary deployment path
 T (0x20):  TRACED — Full trace active (all hops emit to Anamnesis)
 E (0x10):  ENCRYPT — Payload encrypted (intra-Kingdom TLS)
@@ -1214,7 +1214,7 @@ The flags field occupies offset 0x07 of the Monad register file
 ~~~~
 Bit   Name      Description                                     Reference
 ---   --------  ------------------------------------------      ---------
-7     CHAOS     Chaos injection active (Yaldabaoth, the chaos injection subsystem)  [this document]
+7     CHAOS     Chaos injection active (resilience testing subsystem)  [this document]
 6     CANARY    Canary deployment path marker                    [this document]
 5     TRACED    Full trace active (all hops emit to Anamnesis)   [this document]
 4     ENCRYPT   Payload encrypted (intra-Kingdom TLS)            [this document]

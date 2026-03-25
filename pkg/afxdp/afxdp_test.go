@@ -7,7 +7,7 @@
 // - CAP_SYS_ADMIN or root privileges
 // - libaf_xdp.a linked (Rust library must be built first)
 
-//go:build linux && cgo
+//go:build linux && cgo && afxdp
 
 package afxdp
 

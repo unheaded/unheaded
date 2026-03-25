@@ -1013,7 +1013,7 @@ Template:       Origin Code (0x00-0x1F), Origin Name, Description,
                 Specification Reference
 Policy:         Specification Required
 
-Initial entries: See Section 3.2 (16 entries, codes 0x00-0x0C)
+Initial entries: See Section 3.2 (13 entries, codes 0x00-0x0C)
 ~~~~~
 
 ## Wotan Error Category Registry (NEW in draft-03)

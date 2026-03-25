@@ -15,6 +15,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -211,8 +212,15 @@ func NewClient(addr string) (*Client, error) {
 		return nil, errors.New("address cannot be empty")
 	}
 
+	var baseURL string
+	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
+		baseURL = strings.TrimRight(addr, "/") + "/api/v1"
+	} else {
+		baseURL = fmt.Sprintf("http://%s/api/v1", addr)
+	}
+
 	return &Client{
-		baseURL:       fmt.Sprintf("http://%s/api/v1", addr),
+		baseURL:       baseURL,
 		controlClient: &http.Client{Timeout: controlPlaneTimeout},
 		streamClient:  &http.Client{Timeout: streamingTimeout},
 		subscribers:   make(map[string]*Subscriber),
@@ -670,7 +678,8 @@ func backoff(failures int) time.Duration {
 		return pollBackoffMin
 	}
 	delay := time.Duration(float64(pollBackoffMin) * math.Pow(2, float64(failures)))
-	if delay > pollBackoffMax {
+	// Guard against int64 overflow (large exponents wrap negative).
+	if delay <= 0 || delay > pollBackoffMax {
 		return pollBackoffMax
 	}
 	return delay

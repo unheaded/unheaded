@@ -327,7 +327,9 @@ func (s *Service) Compare(ctx context.Context, entityID string, entityType Entit
 		drifts[i].EntityType = entityType
 		drifts[i].DesiredStateID = desiredStateID
 		drifts[i].DetectedAt = now
-		drifts[i].Severity = s.assessSeverity(&drifts[i])
+		if drifts[i].Severity == "" {
+			drifts[i].Severity = s.assessSeverity(&drifts[i])
+		}
 		drifts[i].AutoRemediable = s.isAutoRemediable(&drifts[i])
 
 		// Store drift

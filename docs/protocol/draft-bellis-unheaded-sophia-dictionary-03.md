@@ -241,7 +241,8 @@ struct sophia_typed_sub_entry {
     u8   fingerprint[32];     // SHA3-256 of PQC public key (LEAF/COMPOSITE)
     u32  nested_dict_id;      // Nested sub-dict index (BRANCH/COMPOSITE)
     u16  reserved;
-};  // Total: 84 bytes per entry
+    u8   padding[5];           // Alignment padding to 84-byte boundary
+};  // Total: 84 bytes per entry (79 data + 5 padding)
 ~~~~~
 
 ### Lookup Chain for Nested Dictionaries
@@ -361,7 +362,7 @@ Root entries occupy the following key ranges:
 - 0x00: Reserved (MUST NOT be used by any implementation)
 - 0x01-0x0F: Standard categories (see Section 8)
 - 0x10-0xFE: Available for operator assignment
-- 0xFF: Reserved (Yaldabaoth chaos injection)
+- 0xFF: Reserved (chaos injection / vendor-specific testing)
 
 ## Initialization Guarantee
 
@@ -873,7 +874,7 @@ Initial entries:
   0x12: observability (observability entry type)
   0x13: ids (IDS entry type)
   0x14: health (health entry type)
-  0xFF: RESERVED (Yaldabaoth)
+  0xFF: RESERVED (chaos injection / vendor-specific)
 ~~~~~
 
 ## Sophia Sub-Dictionary Type Registry (NEW in draft-03)

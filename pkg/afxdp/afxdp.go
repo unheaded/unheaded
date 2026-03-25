@@ -18,7 +18,7 @@
 // - Buffer pointers remain valid for duration of C call
 // - All buffers are properly sized for C function expectations
 
-//go:build linux && cgo
+//go:build linux && cgo && afxdp
 
 package afxdp
 

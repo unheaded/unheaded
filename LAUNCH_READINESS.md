@@ -18,7 +18,7 @@
 | 407 | Commented Code | PASS | MEDIUM | No large comment blocks in main.go files |
 | 408 | Secrets Sweep | PASS | CRITICAL | All matches are variable names, not literals |
 | 409 | README Links | PASS | MEDIUM | Links resolve |
-| 411 | License Files | PASS* | CRITICAL | LICENSE + LICENSE-PROTOCOLS present. SURICATA_GPL_ISOLATION.md missing (MEDIUM) |
+| 411 | License Files | PASS | CRITICAL | LICENSE + LICENSE-PROTOCOLS + SURICATA_GPL_ISOLATION.md + CLA.md present |
 | 413 | go.mod Tidiness | PASS | CRITICAL | `go mod tidy` produces no changes |
 | 415 | No .env Files | PASS | CRITICAL | No secrets files committed |
 
@@ -37,15 +37,15 @@ Recent analysis complete. OSS project legally cleared. Pre-public-flip legal ite
 | # | Gate | Priority | Status | Owner |
 |---|------|----------|--------|-------|
 | L1 | Legal Analysis — OSS project cleared | — | ✅ COMPLETE | Barrister |
-| L2 | IETF Note Well patent disclosure review (5 Internet-Drafts) | P1 | 📋 PENDING | Barrister + RFC Editor |
-| L3 | Contributor License Agreement drafted | P1 | 📋 PENDING | Barrister + Developer |
-| L4 | GPL clean-room boundary documented (SURICATA_GPL_ISOLATION.md) | P1 | 📋 PENDING | Architect |
+| L2 | IETF Note Well patent disclosure review (6 Internet-Drafts) | P1 | COMPLETE | Barrister + RFC Editor |
+| L3 | Contributor License Agreement drafted (DCO) | P1 | COMPLETE | Barrister + Developer |
+| L4 | GPL clean-room boundary documented (SURICATA_GPL_ISOLATION.md) | P1 | COMPLETE | Architect |
 | L5 | Provisional patent evaluation for unpublished Monad encoding claims | P2 | 📋 PENDING | Barrister |
 
 **Reference**: Legal analysis on file (private).
 
-> ⚠️ L2, L3, L4 are pre-external-collaboration gates. Must complete before public GitHub
-> visibility or accepting any external contributor PRs. L5 before commercial/investor engagement.
+> L2, L3, L4 completed 2026-03-25. See CLA.md, docs/legal/IETF-NOTE-WELL-REVIEW.md,
+> docs/legal/SURICATA_GPL_ISOLATION.md. L5 remains pending before commercial/investor engagement.
 
 ---
 
@@ -58,9 +58,8 @@ Recent analysis complete. OSS project legally cleared. Pre-public-flip legal ite
    - `services/kenoma`: Double-protocol URL bug
    - `cmd/dashboard-backend/internal/server`: Test crash
 
-2. **SURICATA_GPL_ISOLATION.md**: Missing file (license boundary doc)
-   - Non-blocking: Suricata integration is optional
-   - Action: Create in next sprint
+2. **SURICATA_GPL_ISOLATION.md**: RESOLVED (2026-03-25)
+   - docs/legal/SURICATA_GPL_ISOLATION.md complete with rules isolation + binary boundary
 
 ---
 

@@ -468,7 +468,7 @@ func TestPublishEvent_WithWotan_FullFlow(t *testing.T) {
 	// Set up a mock server that supports subscribe + publish
 	var publishCalled bool
 	mux := http.NewServeMux()
-	mux.HandleFunc("/topics/kenoma.test/subscribe", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/topics/kenoma.test/subscribe", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		resp := map[string]interface{}{
 			"subscriber": map[string]interface{}{
@@ -480,7 +480,7 @@ func TestPublishEvent_WithWotan_FullFlow(t *testing.T) {
 		}
 		json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/topics/kenoma.test/publish", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/topics/kenoma.test/publish", func(w http.ResponseWriter, r *http.Request) {
 		publishCalled = true
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -607,7 +607,7 @@ func TestIsAutoRemediable_EnabledButNotModified(t *testing.T) {
 func TestStart_WithWotan_SubscribestoEvents(t *testing.T) {
 	var subscribed bool
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/subscribe", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/topics/state.changed/subscribe", func(w http.ResponseWriter, r *http.Request) {
 		subscribed = true
 		resp := map[string]interface{}{
 			"subscriber_id": "test-sub",
