@@ -1,6 +1,6 @@
 # Suricata GPL-2.0 Isolation Boundary
 
-SPDX-License-Identifier: GPL-3.0-or-later | Copyright (c) 2024-2026 Stevie Bellis | **Last updated:** 2026-03-19
+SPDX-License-Identifier: GPL-3.0-or-later | Copyright (c) 2024-2026 Stevie Bellis | **Last updated:** 2026-03-25
 
 ## License Summary
 
@@ -106,6 +106,51 @@ To preserve this boundary, all contributors MUST observe these rules:
 - **DO NOT** copy Suricata source code or modified versions into this repository.
 - **DO** interact exclusively via EVE JSON files, BPF maps (`bpf(2)`), and Unix socket IPC.
 - **DO** keep Suricata optional — all Unheaded functionality must work without it.
+
+## Custom Suricata Rules — Configuration Data, Not Derivative Works
+
+**Location:** `routing/suricata/rules/unheaded-monad.rules`
+**SPDX Header:** `SPDX-License-Identifier: MIT`
+
+Unheaded ships custom Suricata rule files that detect Monad protocol traffic
+(HbH extension headers, anomalies, replay attacks, scanning). These rules are
+**configuration data**, not derivative works of Suricata, for the following
+reasons:
+
+1. **Rules are input data.** Suricata rule files are structured text consumed
+   by the Suricata engine at runtime, analogous to firewall rules consumed by
+   iptables or SQL queries consumed by a database. The FSF FAQ confirms that
+   data fed into a GPL program does not become a derivative work of that
+   program.
+
+2. **No Suricata source is incorporated.** The `.rules` files contain only
+   Unheaded-authored detection signatures written in Suricata's documented
+   rule language. They do not include, reference, or derive from any Suricata
+   source code.
+
+3. **Independent authorship.** All rules in `unheaded-monad.rules` (SID range
+   9000001-9000099) are original works authored by Stevie Bellis, describing
+   Monad protocol behavior defined in Unheaded's own Internet-Draft
+   specifications.
+
+4. **MIT licensed.** The rules carry an explicit `SPDX-License-Identifier: MIT`
+   header, confirming they are independently licensed and not subject to
+   Suricata's GPL-2.0.
+
+**Analogy:** Writing a `.conf` file for Apache (Apache-2.0 licensed) does not
+make your configuration a derivative work of Apache. The same principle applies
+to Suricata rule files.
+
+## No GPL Code in Unheaded Output Binaries
+
+To be explicit: **no Suricata source code, object code, or GPL-2.0 licensed
+material is compiled into, linked with, or bundled inside any Unheaded output
+binary.** All Unheaded binaries are built from Go and Rust source files carrying
+`SPDX-License-Identifier: GPL-3.0-or-later` headers. The project's SPDX
+compliance is enforced by CI (see `scripts/check-spdx.sh`).
+
+The interaction between Unheaded and Suricata is exclusively through the
+runtime IPC channels documented above (EVE JSON, BPF maps, Unix sockets).
 
 ## SPDX Boundary Reference
 

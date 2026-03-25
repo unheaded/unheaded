@@ -25,6 +25,7 @@ package harnesses
 import (
 	"encoding/binary"
 	"hash/crc32"
+	"math"
 	"testing"
 )
 
@@ -109,7 +110,17 @@ func (st *WALSequenceTracker) Track(seq uint64) {
 	if seq < st.expected {
 		st.reorders++
 	} else if seq > st.expected {
-		st.gaps += int(seq - st.expected)
+		gap := seq - st.expected
+		// Cap gap to avoid int overflow when casting from uint64.
+		if gap > uint64(math.MaxInt) {
+			gap = uint64(math.MaxInt)
+		}
+		// Saturating add: prevent cumulative overflow.
+		if math.MaxInt-st.gaps < int(gap) {
+			st.gaps = math.MaxInt
+		} else {
+			st.gaps += int(gap)
+		}
 	}
 	if seq >= st.expected {
 		st.expected = seq + 1

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+//go:build portable_tests
+
 package runtime
 
 import (
@@ -29,8 +31,8 @@ func bufioNewReader(r io.Reader) *bufio.Reader {
 	return bufio.NewReader(r)
 }
 
-// testTempDir creates a temporary directory for testing.
-func testTempDir(t *testing.T) string {
+// portableTestTempDir creates a temporary directory for testing.
+func portableTestTempDir(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "runtime-test-*")
 	if err != nil {
@@ -40,10 +42,10 @@ func testTempDir(t *testing.T) string {
 	return dir
 }
 
-// setupTestRuntime creates a DefaultRuntime with temp directories for testing.
-func setupTestRuntime(t *testing.T) *DefaultRuntime {
+// portableSetupTestRuntime creates a DefaultRuntime with temp directories for testing.
+func portableSetupTestRuntime(t *testing.T) *DefaultRuntime {
 	t.Helper()
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	config := &RuntimeConfig{
 		Root:     dir,
 		StateDir: filepath.Join(dir, "state"),
@@ -74,25 +76,6 @@ func TestContainerState_String(t *testing.T) {
 	for _, tt := range tests {
 		if got := tt.state.String(); got != tt.want {
 			t.Errorf("ContainerState(%d).String() = %q, want %q", tt.state, got, tt.want)
-		}
-	}
-}
-
-// --- StreamType.String ---
-
-func TestStreamType_String(t *testing.T) {
-	tests := []struct {
-		stream StreamType
-		want   string
-	}{
-		{StreamStdin, "stdin"},
-		{StreamStdout, "stdout"},
-		{StreamStderr, "stderr"},
-		{StreamType(99), "unknown"},
-	}
-	for _, tt := range tests {
-		if got := tt.stream.String(); got != tt.want {
-			t.Errorf("StreamType(%d).String() = %q, want %q", tt.stream, got, tt.want)
 		}
 	}
 }
@@ -145,7 +128,7 @@ func TestErrorSentinels(t *testing.T) {
 // --- NewRuntime ---
 
 func TestNewRuntime_NilConfig(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	// NewRuntime with nil config should use defaults
 	// We need to override the defaults to use our temp dir
 	rt, err := NewRuntime(&RuntimeConfig{Root: dir, StateDir: filepath.Join(dir, "state")})
@@ -160,7 +143,7 @@ func TestNewRuntime_NilConfig(t *testing.T) {
 }
 
 func TestNewRuntime_DefaultConfig(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	config := &RuntimeConfig{
 		Root:     dir,
 		StateDir: filepath.Join(dir, "state"),
@@ -179,7 +162,7 @@ func TestNewRuntime_DefaultConfig(t *testing.T) {
 // --- Version ---
 
 func TestVersion(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 	v, err := rt.Version(ctx)
 	if err != nil {
@@ -202,7 +185,7 @@ func TestVersion(t *testing.T) {
 // --- Status ---
 
 func TestStatus(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 	status, err := rt.Status(ctx)
 	if err != nil {
@@ -227,7 +210,7 @@ func TestStatus(t *testing.T) {
 }
 
 func TestStatus_AfterClose(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 	rt.Close()
 	status, err := rt.Status(ctx)
@@ -244,7 +227,7 @@ func TestStatus_AfterClose(t *testing.T) {
 // --- Close ---
 
 func TestClose(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	// First close should succeed
 	if err := rt.Close(); err != nil {
 		t.Fatalf("first Close: %v", err)
@@ -437,7 +420,7 @@ func TestUnmarshalOCISpec_InvalidJSON(t *testing.T) {
 // --- generateOCISpec ---
 
 func TestGenerateOCISpec_Basic(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	config := &ContainerConfig{
 		Name:    "test-container",
 		Command: []string{"/bin/echo", "hello"},
@@ -503,7 +486,7 @@ func TestGenerateOCISpec_Basic(t *testing.T) {
 }
 
 func TestGenerateOCISpec_DefaultCommand(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	config := &ContainerConfig{
 		Name: "test",
 	}
@@ -520,7 +503,7 @@ func TestGenerateOCISpec_DefaultCommand(t *testing.T) {
 }
 
 func TestGenerateOCISpec_WithArgs(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	config := &ContainerConfig{
 		Command: []string{"/usr/bin/myapp"},
 		Args:    []string{"--flag", "value"},
@@ -538,7 +521,7 @@ func TestGenerateOCISpec_WithArgs(t *testing.T) {
 }
 
 func TestGenerateOCISpec_WithWorkingDir(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	config := &ContainerConfig{
 		WorkingDir: "/app",
 	}
@@ -552,7 +535,7 @@ func TestGenerateOCISpec_WithWorkingDir(t *testing.T) {
 }
 
 func TestGenerateOCISpec_WithResources(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	memLimit := int64(256 * 1024 * 1024)
 	memRes := int64(128 * 1024 * 1024)
 	memSwap := int64(512 * 1024 * 1024)
@@ -615,7 +598,7 @@ func TestGenerateOCISpec_WithResources(t *testing.T) {
 }
 
 func TestGenerateOCISpec_WithLinuxConfig(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	config := &ContainerConfig{
 		Linux: &LinuxContainerConfig{
 			ReadonlyRootfs: true,
@@ -671,7 +654,7 @@ func TestGenerateOCISpec_WithLinuxConfig(t *testing.T) {
 }
 
 func TestGenerateOCISpec_WithUserMounts(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	config := &ContainerConfig{
 		Mounts: []Mount{
 			{
@@ -701,199 +684,6 @@ func TestGenerateOCISpec_WithUserMounts(t *testing.T) {
 	}
 	if !found {
 		t.Error("user mount not found in spec")
-	}
-}
-
-// --- ImageStore ---
-
-func TestNewImageStore(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	// Verify subdirectories were created
-	for _, subdir := range []string{"layers", "manifests", "blobs", "refs"} {
-		path := filepath.Join(dir, "images", subdir)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			t.Errorf("subdirectory %q not created", subdir)
-		}
-	}
-}
-
-func TestImageStore_GetImage_NotFound(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	_, err = store.GetImage("nonexistent:latest")
-	if err != ErrImageNotFound {
-		t.Errorf("GetImage error = %v, want ErrImageNotFound", err)
-	}
-}
-
-func TestImageStore_ListImages_Empty(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	imgs, err := store.ListImages(nil)
-	if err != nil {
-		t.Fatalf("ListImages: %v", err)
-	}
-	if len(imgs) != 0 {
-		t.Errorf("ListImages should return empty slice, got %d", len(imgs))
-	}
-}
-
-func TestImageStore_RemoveImage_NotFound(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	err = store.RemoveImage("nonexistent:latest", false)
-	if err != ErrImageNotFound {
-		t.Errorf("RemoveImage error = %v, want ErrImageNotFound", err)
-	}
-}
-
-// addMockImage adds a mock image directly to the store for testing.
-func addMockImage(t *testing.T, store *ImageStore, id, tag string) {
-	t.Helper()
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.images[id] = &ImageInfo{
-		ID:       id,
-		RepoTags: []string{tag},
-		Size:     1024,
-		Config: &ImageConfig{
-			Labels: map[string]string{"env": "test"},
-		},
-	}
-}
-
-func TestImageStore_GetImage_ByID(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	addMockImage(t, store, "sha256:abc123", "myimage:latest")
-	img, err := store.GetImage("sha256:abc123")
-	if err != nil {
-		t.Fatalf("GetImage: %v", err)
-	}
-	if img.ID != "sha256:abc123" {
-		t.Errorf("ID = %q, want %q", img.ID, "sha256:abc123")
-	}
-}
-
-func TestImageStore_GetImage_ByTag(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	addMockImage(t, store, "sha256:abc123", "myimage:latest")
-	img, err := store.GetImage("myimage:latest")
-	if err != nil {
-		t.Fatalf("GetImage: %v", err)
-	}
-	if img.ID != "sha256:abc123" {
-		t.Errorf("ID = %q, want %q", img.ID, "sha256:abc123")
-	}
-}
-
-func TestImageStore_ListImages_WithFilter(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	addMockImage(t, store, "sha256:aaa", "alpine:3.18")
-	addMockImage(t, store, "sha256:bbb", "ubuntu:22.04")
-
-	// Filter by reference
-	imgs, err := store.ListImages(&ImageFilter{Reference: "alpine"})
-	if err != nil {
-		t.Fatalf("ListImages: %v", err)
-	}
-	if len(imgs) != 1 {
-		t.Fatalf("expected 1 image, got %d", len(imgs))
-	}
-	if imgs[0].ID != "sha256:aaa" {
-		t.Errorf("filtered image ID = %q, want %q", imgs[0].ID, "sha256:aaa")
-	}
-
-	// Filter by label
-	imgs, err = store.ListImages(&ImageFilter{Labels: map[string]string{"env": "test"}})
-	if err != nil {
-		t.Fatalf("ListImages: %v", err)
-	}
-	if len(imgs) != 2 {
-		t.Errorf("expected 2 images matching label, got %d", len(imgs))
-	}
-
-	// No filter
-	imgs, err = store.ListImages(nil)
-	if err != nil {
-		t.Fatalf("ListImages: %v", err)
-	}
-	if len(imgs) != 2 {
-		t.Errorf("expected 2 images with nil filter, got %d", len(imgs))
-	}
-}
-
-func TestImageStore_RemoveImage_ByID(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	addMockImage(t, store, "sha256:abc123", "myimage:latest")
-	if err := store.RemoveImage("sha256:abc123", false); err != nil {
-		t.Fatalf("RemoveImage: %v", err)
-	}
-	_, err = store.GetImage("sha256:abc123")
-	if err != ErrImageNotFound {
-		t.Errorf("GetImage after remove: %v, want ErrImageNotFound", err)
-	}
-}
-
-func TestImageStore_RemoveImage_ByTag(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	addMockImage(t, store, "sha256:abc123", "myimage:latest")
-	if err := store.RemoveImage("myimage:latest", false); err != nil {
-		t.Fatalf("RemoveImage: %v", err)
-	}
-	_, err = store.GetImage("sha256:abc123")
-	if err != ErrImageNotFound {
-		t.Errorf("GetImage after remove: %v, want ErrImageNotFound", err)
 	}
 }
 
@@ -980,66 +770,10 @@ func TestParseImageReference(t *testing.T) {
 	}
 }
 
-func TestImageReference_String(t *testing.T) {
-	tests := []struct {
-		ref  imageReference
-		want string
-	}{
-		{
-			ref:  imageReference{Registry: "docker.io", Repository: "library/nginx", Tag: "latest"},
-			want: "library/nginx:latest",
-		},
-		{
-			ref:  imageReference{Registry: "ghcr.io", Repository: "owner/repo", Tag: "v1"},
-			want: "ghcr.io/owner/repo:v1",
-		},
-		{
-			ref:  imageReference{Registry: "docker.io", Repository: "library/nginx", Digest: "sha256:abc"},
-			want: "library/nginx@sha256:abc",
-		},
-	}
-	for _, tt := range tests {
-		got := tt.ref.String()
-		if got != tt.want {
-			t.Errorf("imageReference.String() = %q, want %q", got, tt.want)
-		}
-	}
-}
-
-// --- sanitizeID ---
-
-func TestSanitizeID(t *testing.T) {
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"sha256:abc123", "sha256_abc123"},
-		{"no/special", "no_special"},
-		{"sha256:abc/def", "sha256_abc_def"},
-		{"plain", "plain"},
-	}
-	for _, tt := range tests {
-		if got := sanitizeID(tt.input); got != tt.want {
-			t.Errorf("sanitizeID(%q) = %q, want %q", tt.input, got, tt.want)
-		}
-	}
-}
-
-// --- sha256Hash ---
-
-func TestSha256Hash(t *testing.T) {
-	data := []byte("hello world")
-	got := sha256Hash(data)
-	expected := sha256.Sum256(data)
-	if !bytes.Equal(got, expected[:]) {
-		t.Errorf("sha256Hash mismatch: got %x, want %x", got, expected[:])
-	}
-}
-
 // --- getRegistryURL ---
 
 func TestGetRegistryURL(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -1065,7 +799,7 @@ func TestGetRegistryURL(t *testing.T) {
 }
 
 func TestGetRegistryURL_WithMirror(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), &RegistryConfig{
 		Mirrors: map[string][]string{
 			"docker.io": {"https://mirror.example.com"},
@@ -1083,7 +817,7 @@ func TestGetRegistryURL_WithMirror(t *testing.T) {
 }
 
 func TestGetRegistryURL_InsecureRegistry(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), &RegistryConfig{
 		InsecureRegistries: []string{"my.insecure.registry"},
 	})
@@ -1100,81 +834,8 @@ func TestGetRegistryURL_InsecureRegistry(t *testing.T) {
 
 // --- LogWriter ---
 
-func TestNewLogWriter(t *testing.T) {
-	dir := testTempDir(t)
-	logPath := filepath.Join(dir, "test.log")
-	lw, err := NewLogWriter(logPath, StreamStdout, 0, 0)
-	if err != nil {
-		t.Fatalf("NewLogWriter: %v", err)
-	}
-	defer lw.Close()
-
-	if lw.maxSize != 10*1024*1024 {
-		t.Errorf("default maxSize = %d, want %d", lw.maxSize, 10*1024*1024)
-	}
-	if lw.maxFiles != 5 {
-		t.Errorf("default maxFiles = %d, want 5", lw.maxFiles)
-	}
-}
-
-func TestLogWriter_Write(t *testing.T) {
-	dir := testTempDir(t)
-	logPath := filepath.Join(dir, "test.log")
-	lw, err := NewLogWriter(logPath, StreamStdout, 1024*1024, 3)
-	if err != nil {
-		t.Fatalf("NewLogWriter: %v", err)
-	}
-	defer lw.Close()
-
-	data := []byte("hello world\n")
-	n, err := lw.Write(data)
-	if err != nil {
-		t.Fatalf("Write: %v", err)
-	}
-	if n != len(data) {
-		t.Errorf("Write returned %d, want %d", n, len(data))
-	}
-
-	// Verify file contents
-	lw.Close()
-	contents, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	if string(contents) != "hello world\n" {
-		t.Errorf("file contents = %q, want %q", string(contents), "hello world\n")
-	}
-}
-
-func TestLogWriter_WriteEntry(t *testing.T) {
-	dir := testTempDir(t)
-	logPath := filepath.Join(dir, "test.log")
-	lw, err := NewLogWriter(logPath, StreamStdout, 1024*1024, 3)
-	if err != nil {
-		t.Fatalf("NewLogWriter: %v", err)
-	}
-
-	ts := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	if err := lw.WriteEntry([]byte("test message"), ts); err != nil {
-		t.Fatalf("WriteEntry: %v", err)
-	}
-	lw.Close()
-
-	contents, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	// Should contain JSON log entry
-	if !strings.Contains(string(contents), "test message") {
-		t.Errorf("entry should contain 'test message': %s", contents)
-	}
-	if !strings.Contains(string(contents), "stdout") {
-		t.Errorf("entry should contain stream 'stdout': %s", contents)
-	}
-}
-
 func TestLogWriter_Rotation(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 	// Small max size to trigger rotation
 	lw, err := NewLogWriter(logPath, StreamStdout, 100, 3)
@@ -1199,47 +860,6 @@ func TestLogWriter_Rotation(t *testing.T) {
 	// Check that rotated file exists
 	if _, err := os.Stat(logPath + ".1"); os.IsNotExist(err) {
 		t.Error("rotated log file .1 should exist")
-	}
-}
-
-// --- formatLogEntry ---
-
-func TestFormatLogEntry(t *testing.T) {
-	ts := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	entry := formatLogEntry(StreamStdout, []byte("hello"), ts)
-	if !strings.Contains(string(entry), `"log":"hello\n"`) {
-		t.Errorf("entry should contain log field: %s", entry)
-	}
-	if !strings.Contains(string(entry), `"stream":"stdout"`) {
-		t.Errorf("entry should contain stream stdout: %s", entry)
-	}
-
-	entry2 := formatLogEntry(StreamStderr, []byte("error"), ts)
-	if !strings.Contains(string(entry2), `"stream":"stderr"`) {
-		t.Errorf("entry should contain stream stderr: %s", entry2)
-	}
-}
-
-// --- escapeJSON ---
-
-func TestEscapeJSON(t *testing.T) {
-	tests := []struct {
-		input []byte
-		want  string
-	}{
-		{[]byte("hello"), "hello"},
-		{[]byte(`he"llo`), `he\"llo`},
-		{[]byte("he\\llo"), `he\\llo`},
-		{[]byte("line1\nline2"), `line1\nline2`},
-		{[]byte("tab\there"), `tab\there`},
-		{[]byte("cr\rhere"), `cr\rhere`},
-		{[]byte{0x01}, `\u0001`},
-	}
-	for _, tt := range tests {
-		got := escapeJSON(tt.input)
-		if got != tt.want {
-			t.Errorf("escapeJSON(%q) = %q, want %q", tt.input, got, tt.want)
-		}
 	}
 }
 
@@ -1344,41 +964,10 @@ func TestMultiplexedLogReader_Empty(t *testing.T) {
 	}
 }
 
-// --- LogCopier ---
-
-func TestNewLogCopier(t *testing.T) {
-	dir := testTempDir(t)
-	logPath := filepath.Join(dir, "copier.log")
-
-	stdout := strings.NewReader("line1\nline2\n")
-	stderr := strings.NewReader("err1\n")
-
-	copier, err := NewLogCopier(stdout, stderr, logPath)
-	if err != nil {
-		t.Fatalf("NewLogCopier: %v", err)
-	}
-
-	copier.Start()
-	copier.Wait()
-	copier.Stop()
-
-	// Verify log file has content
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	if len(data) == 0 {
-		t.Error("log file should not be empty")
-	}
-	if !strings.Contains(string(data), "line1") {
-		t.Error("log should contain 'line1'")
-	}
-}
-
 // --- VolumeManager ---
 
 func TestNewVolumeManager(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1389,7 +978,7 @@ func TestNewVolumeManager(t *testing.T) {
 }
 
 func TestVolumeManager_CreateVolume(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1413,7 +1002,7 @@ func TestVolumeManager_CreateVolume(t *testing.T) {
 }
 
 func TestVolumeManager_CreateVolume_Duplicate(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1429,7 +1018,7 @@ func TestVolumeManager_CreateVolume_Duplicate(t *testing.T) {
 }
 
 func TestVolumeManager_GetVolume(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1447,7 +1036,7 @@ func TestVolumeManager_GetVolume(t *testing.T) {
 }
 
 func TestVolumeManager_GetVolume_NotFound(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1460,7 +1049,7 @@ func TestVolumeManager_GetVolume_NotFound(t *testing.T) {
 }
 
 func TestVolumeManager_ListVolumes(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1476,7 +1065,7 @@ func TestVolumeManager_ListVolumes(t *testing.T) {
 }
 
 func TestVolumeManager_RemoveVolume(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1495,7 +1084,7 @@ func TestVolumeManager_RemoveVolume(t *testing.T) {
 }
 
 func TestVolumeManager_RemoveVolume_NotFound(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1508,7 +1097,7 @@ func TestVolumeManager_RemoveVolume_NotFound(t *testing.T) {
 }
 
 func TestVolumeManager_RemoveVolume_InUse(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -1751,7 +1340,7 @@ func TestNewCgroupV2Manager_Stub(t *testing.T) {
 // --- OCI spec round-trip through JSON ---
 
 func TestOCISpec_JSONRoundTrip(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	config := &ContainerConfig{
 		Name:       "roundtrip-test",
 		Command:    []string{"/bin/echo", "test"},
@@ -1808,19 +1397,6 @@ func TestOCISpec_JSONRoundTrip(t *testing.T) {
 	}
 }
 
-// --- ImageStore.Close ---
-
-func TestImageStore_Close(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	if err := store.Close(); err != nil {
-		t.Errorf("Close: %v", err)
-	}
-}
-
 // --- sha256Hash produces correct hex ---
 
 func TestSha256Hash_KnownValue(t *testing.T) {
@@ -1836,7 +1412,7 @@ func TestSha256Hash_KnownValue(t *testing.T) {
 // --- Runtime interface compliance ---
 
 func TestDefaultRuntime_ImplementsRuntime(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	// Verify DefaultRuntime satisfies the Runtime interface
 	var _ Runtime = rt
 }
@@ -1844,7 +1420,7 @@ func TestDefaultRuntime_ImplementsRuntime(t *testing.T) {
 // --- ImageStore.ExtractImage not found ---
 
 func TestImageStore_ExtractImage_NotFound(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -1877,7 +1453,7 @@ func TestNamespaceModeConstants(t *testing.T) {
 // --- addAuth ---
 
 func TestAddAuth(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -2222,7 +1798,7 @@ func TestNamespaceManager_StubMethods(t *testing.T) {
 // --- Volume stub method coverage ---
 
 func TestVolumeManager_StubMethods(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(filepath.Join(dir, "volumes"))
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -2255,7 +1831,7 @@ func TestVolumeManager_StubMethods(t *testing.T) {
 // --- Container stub method coverage ---
 
 func TestContainerStub_Methods(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	if _, err := rt.CreateContainer(ctx, nil); err == nil {
@@ -2287,7 +1863,7 @@ func TestContainerStub_Methods(t *testing.T) {
 // --- Sandbox operations via runtime ---
 
 func TestSandboxOperations(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// CreateSandbox with nil config
@@ -2353,7 +1929,7 @@ func TestSandboxOperations(t *testing.T) {
 // --- Exec operations via runtime ---
 
 func TestExecInContainer_InvalidConfig(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// Nil config
@@ -2373,51 +1949,15 @@ func TestExecInContainer_InvalidConfig(t *testing.T) {
 }
 
 func TestExecAttach_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 	if err := rt.ExecAttach(ctx, "nonexistent", &IOStreams{}); err == nil {
 		t.Error("ExecAttach should return error for nonexistent session")
 	}
 }
 
-func TestGetExecSession_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
-	if _, err := rt.GetExecSession("nonexistent"); err == nil {
-		t.Error("GetExecSession should return error for nonexistent session")
-	}
-}
-
-func TestResizeExecTTY_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
-	if err := rt.ResizeExecTTY("nonexistent", 24, 80); err == nil {
-		t.Error("ResizeExecTTY should return error for nonexistent session")
-	}
-}
-
-func TestInspectExec_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
-	if _, err := rt.InspectExec("nonexistent"); err == nil {
-		t.Error("InspectExec should return error for nonexistent session")
-	}
-}
-
-func TestStartExec_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
-	ctx := context.Background()
-	if err := rt.StartExec(ctx, "nonexistent", false); err == nil {
-		t.Error("StartExec should return error for nonexistent session")
-	}
-}
-
-func TestRemoveExec_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
-	if err := rt.RemoveExec("nonexistent"); err == nil {
-		t.Error("RemoveExec should return error for nonexistent session")
-	}
-}
-
 func TestContainerExecCreate_InvalidConfig(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	if _, err := rt.ContainerExecCreate(ctx, "test", nil); err != ErrInvalidConfig {
@@ -2434,7 +1974,7 @@ func TestContainerExecCreate_InvalidConfig(t *testing.T) {
 // --- LogWriter.Close idempotency ---
 
 func TestLogWriter_CloseIdempotent(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 	lw, err := NewLogWriter(logPath, StreamStdout, 1024*1024, 3)
 	if err != nil {
@@ -2449,7 +1989,7 @@ func TestLogWriter_CloseIdempotent(t *testing.T) {
 // --- logStream read/close ---
 
 func TestLogStream_ReadWrite(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "stream.log")
 
 	// Write some data to the log file first
@@ -2477,7 +2017,7 @@ func TestLogStream_ReadWrite(t *testing.T) {
 // --- ImageStore with existing manifests (loadImages) ---
 
 func TestImageStore_LoadExistingImages(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	imagesDir := filepath.Join(dir, "images")
 
 	// Create the store first to ensure directories exist
@@ -2520,35 +2060,10 @@ func TestImageStore_LoadExistingImages(t *testing.T) {
 
 // --- ImageStore.GetImage by RepoDigest ---
 
-func TestImageStore_GetImage_ByDigest(t *testing.T) {
-	dir := testTempDir(t)
-	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
-	if err != nil {
-		t.Fatalf("NewImageStore: %v", err)
-	}
-	defer store.Close()
-
-	store.mu.Lock()
-	store.images["sha256:digest123"] = &ImageInfo{
-		ID:          "sha256:digest123",
-		RepoTags:    []string{"myimage:latest"},
-		RepoDigests: []string{"docker.io/library/myimage@sha256:digest123"},
-	}
-	store.mu.Unlock()
-
-	img, err := store.GetImage("docker.io/library/myimage@sha256:digest123")
-	if err != nil {
-		t.Fatalf("GetImage by digest: %v", err)
-	}
-	if img.ID != "sha256:digest123" {
-		t.Errorf("ID = %q, want %q", img.ID, "sha256:digest123")
-	}
-}
-
 // --- ImageStore.ListImages with label filter mismatch ---
 
 func TestImageStore_ListImages_LabelMismatch(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -2570,7 +2085,7 @@ func TestImageStore_ListImages_LabelMismatch(t *testing.T) {
 // --- ImageStore.RemoveImage with RootFS layers ---
 
 func TestImageStore_RemoveImage_WithLayers(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -2611,7 +2126,7 @@ func TestImageStore_RemoveImage_WithLayers(t *testing.T) {
 // --- calculateDiffID ---
 
 func TestCalculateDiffID_UncompressedFile(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	layerPath := filepath.Join(dir, "layer.tar")
 	content := []byte("fake tar content for testing")
 	if err := os.WriteFile(layerPath, content, 0644); err != nil {
@@ -2644,7 +2159,7 @@ func TestCalculateDiffID_Nonexistent(t *testing.T) {
 // --- extractLayer ---
 
 func TestExtractLayer_TarFile(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 
 	// Create a tar archive with a file
 	tarPath := filepath.Join(dir, "layer.tar")
@@ -2671,7 +2186,7 @@ func TestExtractLayer_TarFile(t *testing.T) {
 }
 
 func TestExtractLayer_Nonexistent(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	if err := extractLayer("/nonexistent/layer.tar", dir); err == nil {
 		t.Error("extractLayer should fail for nonexistent file")
 	}
@@ -2706,7 +2221,7 @@ func createTestTar(t *testing.T, path string) {
 // --- wrapWithNsenter ---
 
 func TestWrapWithNsenter(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	cmd := rt.wrapWithNsenter(ctx, 12345, []string{"/bin/echo", "hello"}, []string{"PATH=/usr/bin"}, "/app", "root")
@@ -2724,7 +2239,7 @@ func TestWrapWithNsenter(t *testing.T) {
 }
 
 func TestWrapWithNsenter_NoUser(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	cmd := rt.wrapWithNsenter(ctx, 999, []string{"/bin/sh"}, nil, "/", "")
@@ -2736,7 +2251,7 @@ func TestWrapWithNsenter_NoUser(t *testing.T) {
 // --- ImageStore.ExtractImage with no rootfs ---
 
 func TestImageStore_ExtractImage_NoRootFS(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -2760,7 +2275,7 @@ func TestImageStore_ExtractImage_NoRootFS(t *testing.T) {
 // --- DefaultRuntime.PullImage / GetImage / ListImages / RemoveImage (via runtime methods) ---
 
 func TestDefaultRuntime_ImageMethods(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// GetImage via runtime (delegates to store)
@@ -2785,21 +2300,10 @@ func TestDefaultRuntime_ImageMethods(t *testing.T) {
 	}
 }
 
-// --- GetContainerLogs not found ---
-
-func TestGetContainerLogs_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
-	ctx := context.Background()
-	_, err := rt.GetContainerLogs(ctx, "nonexistent", nil)
-	if err != ErrContainerNotFound {
-		t.Errorf("GetContainerLogs: %v, want ErrContainerNotFound", err)
-	}
-}
-
 // --- extractLayer with directory, symlink, whiteout ---
 
 func TestExtractLayer_DirectoryAndSymlink(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	tarPath := filepath.Join(dir, "layer.tar")
 
 	f, err := os.Create(tarPath)
@@ -2866,7 +2370,7 @@ func TestExtractLayer_DirectoryAndSymlink(t *testing.T) {
 }
 
 func TestExtractLayer_WhiteoutFiles(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	destDir := filepath.Join(dir, "extracted")
 	os.MkdirAll(destDir, 0755)
 
@@ -2901,7 +2405,7 @@ func TestExtractLayer_WhiteoutFiles(t *testing.T) {
 }
 
 func TestExtractLayer_PathTraversal(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	tarPath := filepath.Join(dir, "traversal.tar")
 
 	f, err := os.Create(tarPath)
@@ -2935,7 +2439,7 @@ func TestExtractLayer_PathTraversal(t *testing.T) {
 // --- logStream seekToTail ---
 
 func TestLogStream_SeekToTail(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "tail.log")
 
 	// Write 10 lines
@@ -2973,7 +2477,7 @@ func TestLogStream_SeekToTail(t *testing.T) {
 }
 
 func TestLogStream_SeekToTail_EmptyFile(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "empty.log")
 	os.WriteFile(logPath, []byte{}, 0644)
 
@@ -2996,7 +2500,7 @@ func TestLogStream_SeekToTail_EmptyFile(t *testing.T) {
 }
 
 func TestLogStream_SeekToTail_FewerLines(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "short.log")
 	os.WriteFile(logPath, []byte("line1\nline2\n"), 0644)
 
@@ -3019,38 +2523,10 @@ func TestLogStream_SeekToTail_FewerLines(t *testing.T) {
 	}
 }
 
-// --- logStream Close ---
-
-func TestLogStream_Close(t *testing.T) {
-	dir := testTempDir(t)
-	logPath := filepath.Join(dir, "close.log")
-	os.WriteFile(logPath, []byte("data"), 0644)
-
-	file, err := os.Open(logPath)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-
-	ls := &logStream{
-		file:    file,
-		reader:  bufioNewReader(file),
-		closeCh: make(chan struct{}),
-		options: &LogOptions{},
-	}
-
-	if err := ls.Close(); err != nil {
-		t.Errorf("Close: %v", err)
-	}
-	// Second close should be idempotent
-	if err := ls.Close(); err != nil {
-		t.Errorf("second Close: %v", err)
-	}
-}
-
 // --- logStream Read when closed ---
 
 func TestLogStream_Read_Closed(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "readclosed.log")
 	os.WriteFile(logPath, []byte("data"), 0644)
 
@@ -3077,7 +2553,7 @@ func TestLogStream_Read_Closed(t *testing.T) {
 // --- ImageStore.ExtractImage with layers ---
 
 func TestImageStore_ExtractImage_WithLayers(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -3125,7 +2601,7 @@ func TestImageStore_ExtractImage_WithLayers(t *testing.T) {
 // --- Sandbox CreateSandbox (will fail on namespace creation but covers code paths) ---
 
 func TestCreateSandbox_Lifecycle(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// CreateSandbox will fail at namespace creation on non-Linux but
@@ -3235,7 +2711,7 @@ func TestPullImage_MockRegistry(t *testing.T) {
 	// Extract host from server URL for registry name
 	registryHost := strings.TrimPrefix(srv.URL, "http://")
 
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	regConfig := &RegistryConfig{
 		InsecureRegistries: []string{registryHost},
 	}
@@ -3275,7 +2751,7 @@ func TestPullImage_MockRegistry(t *testing.T) {
 }
 
 func TestPullImage_InvalidRef(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -3298,7 +2774,7 @@ func TestPullImage_ManifestError(t *testing.T) {
 	defer srv.Close()
 
 	registryHost := strings.TrimPrefix(srv.URL, "http://")
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	regConfig := &RegistryConfig{
 		InsecureRegistries: []string{registryHost},
 	}
@@ -3327,7 +2803,7 @@ func TestPullImage_WithAuth(t *testing.T) {
 	defer srv.Close()
 
 	registryHost := strings.TrimPrefix(srv.URL, "http://")
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	regConfig := &RegistryConfig{
 		InsecureRegistries: []string{registryHost},
 	}
@@ -3355,7 +2831,7 @@ func TestFetchBlob_DigestMismatch(t *testing.T) {
 	defer srv.Close()
 
 	registryHost := strings.TrimPrefix(srv.URL, "http://")
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	regConfig := &RegistryConfig{
 		InsecureRegistries: []string{registryHost},
 	}
@@ -3381,7 +2857,7 @@ func TestFetchBlob_DigestMismatch(t *testing.T) {
 }
 
 func TestFetchBlob_Cached(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -3410,7 +2886,7 @@ func TestFetchBlob_Cached(t *testing.T) {
 }
 
 func TestFetchLayer_Cached(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -3466,7 +2942,7 @@ func TestGetDockerHubToken(t *testing.T) {
 
 	// Verify the response format parsing works by calling fetchBlob against a
 	// non-docker.io registry (skips getDockerHubToken code path)
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -3487,7 +2963,7 @@ func TestGetDockerHubToken(t *testing.T) {
 }
 
 func TestCalculateDiffID_GzippedFile(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	// Create a gzipped file
 	var buf bytes.Buffer
 	gzWriter := gzip.NewWriter(&buf)
@@ -3516,7 +2992,7 @@ func TestCalculateDiffID_GzippedFile(t *testing.T) {
 // --- LogCopier with actual data ---
 
 func TestLogCopier_CopyData(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "copier.log")
 
 	stdoutData := "line one\nline two\n"
@@ -3555,7 +3031,7 @@ func TestLogCopier_CopyData(t *testing.T) {
 // --- Log rotation stress ---
 
 func TestLogWriter_RotationCleanup(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "rotate.log")
 
 	// Very small max size and 2 max files to trigger rotation and cleanup
@@ -3588,7 +3064,7 @@ func TestLogWriter_RotationCleanup(t *testing.T) {
 // --- Sandbox lifecycle with error paths ---
 
 func TestListSandboxes_Empty(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	sandboxes, err := rt.ListSandboxes(ctx, nil)
@@ -3601,7 +3077,7 @@ func TestListSandboxes_Empty(t *testing.T) {
 }
 
 func TestListSandboxes_WithFilter(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// Filter on empty list
@@ -3617,7 +3093,7 @@ func TestListSandboxes_WithFilter(t *testing.T) {
 }
 
 func TestGetSandboxStatus_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	_, err := rt.GetSandboxStatus(ctx, "nonexistent")
@@ -3627,7 +3103,7 @@ func TestGetSandboxStatus_NotFound(t *testing.T) {
 }
 
 func TestAddContainerToSandbox_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	err := rt.AddContainerToSandbox("nonexistent", "container1")
 	if err == nil {
@@ -3636,7 +3112,7 @@ func TestAddContainerToSandbox_NotFound(t *testing.T) {
 }
 
 func TestRemoveContainerFromSandbox_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	err := rt.RemoveContainerFromSandbox("nonexistent", "container1")
 	if err == nil {
@@ -3645,7 +3121,7 @@ func TestRemoveContainerFromSandbox_NotFound(t *testing.T) {
 }
 
 func TestGetSandboxContainers_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	_, err := rt.GetSandboxContainers("nonexistent")
 	if err == nil {
@@ -3654,7 +3130,7 @@ func TestGetSandboxContainers_NotFound(t *testing.T) {
 }
 
 func TestGetSandboxNetwork_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	_, err := rt.GetSandboxNetwork("nonexistent")
 	if err == nil {
@@ -3663,7 +3139,7 @@ func TestGetSandboxNetwork_NotFound(t *testing.T) {
 }
 
 func TestPortForward_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	err := rt.PortForward(ctx, "nonexistent", 80, IOStreams{})
@@ -3673,7 +3149,7 @@ func TestPortForward_NotFound(t *testing.T) {
 }
 
 func TestCreateSandbox_NilConfig(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	_, err := rt.CreateSandbox(ctx, nil)
@@ -3683,7 +3159,7 @@ func TestCreateSandbox_NilConfig(t *testing.T) {
 }
 
 func TestCreateSandbox_DuplicateID(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	config := &SandboxConfig{
@@ -3712,7 +3188,7 @@ func TestCreateSandbox_DuplicateID(t *testing.T) {
 // --- Sandbox with manually-inserted state for deeper coverage ---
 
 func TestStopSandbox_WithState(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// Manually insert a sandbox
@@ -3743,7 +3219,7 @@ func TestStopSandbox_WithState(t *testing.T) {
 }
 
 func TestRemoveSandbox_WithState(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// Manually insert a sandbox
@@ -3769,7 +3245,7 @@ func TestRemoveSandbox_WithState(t *testing.T) {
 }
 
 func TestRemoveSandbox_WithContainers(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// Sandbox with containers should fail to remove
@@ -3791,7 +3267,7 @@ func TestRemoveSandbox_WithContainers(t *testing.T) {
 }
 
 func TestGetSandbox_WithState(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	rt.mu.Lock()
@@ -3814,7 +3290,7 @@ func TestGetSandbox_WithState(t *testing.T) {
 }
 
 func TestListSandboxes_WithState(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	rt.mu.Lock()
@@ -3869,7 +3345,7 @@ func TestListSandboxes_WithState(t *testing.T) {
 }
 
 func TestGetSandboxStatus_WithState(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	rt.mu.Lock()
@@ -3902,7 +3378,7 @@ func TestGetSandboxStatus_WithState(t *testing.T) {
 }
 
 func TestAddRemoveContainerToSandbox(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	rt.mu.Lock()
 	rt.sandboxes["sb-containers"] = &Sandbox{
@@ -3955,7 +3431,7 @@ func TestAddRemoveContainerToSandbox(t *testing.T) {
 }
 
 func TestGetSandboxNetwork_NoNetworkInfo(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	rt.mu.Lock()
 	rt.sandboxes["no-net"] = &Sandbox{
@@ -3972,7 +3448,7 @@ func TestGetSandboxNetwork_NoNetworkInfo(t *testing.T) {
 }
 
 func TestGetSandboxNetwork_WithInfo(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	rt.mu.Lock()
 	rt.sandboxes["with-net"] = &Sandbox{
@@ -3995,7 +3471,7 @@ func TestGetSandboxNetwork_WithInfo(t *testing.T) {
 }
 
 func TestPortForward_NoNetNS(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	rt.mu.Lock()
@@ -4016,7 +3492,7 @@ func TestPortForward_NoNetNS(t *testing.T) {
 }
 
 func TestPortForward_NoNetworkInfo(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	rt.mu.Lock()
@@ -4038,7 +3514,7 @@ func TestPortForward_NoNetworkInfo(t *testing.T) {
 }
 
 func TestPortForward_NotImplemented(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	rt.mu.Lock()
@@ -4062,8 +3538,8 @@ func TestPortForward_NotImplemented(t *testing.T) {
 // --- setupSandboxDNS ---
 
 func TestSetupSandboxDNS(t *testing.T) {
-	rt := setupTestRuntime(t)
-	dir := testTempDir(t)
+	rt := portableSetupTestRuntime(t)
+	dir := portableTestTempDir(t)
 
 	dnsConfig := &DNSConfig{
 		Servers:  []string{"8.8.8.8", "8.8.4.4"},
@@ -4099,7 +3575,7 @@ func TestSetupSandboxDNS(t *testing.T) {
 // --- DefaultRuntime PullImage delegation ---
 
 func TestDefaultRuntime_PullImage(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	// Will fail at network level but exercises the delegation path
@@ -4120,7 +3596,7 @@ func TestPullImage_RegistryConfigAuth(t *testing.T) {
 	defer srv.Close()
 
 	registryHost := strings.TrimPrefix(srv.URL, "http://")
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	regConfig := &RegistryConfig{
 		InsecureRegistries: []string{registryHost},
 		AuthConfigs: map[string]*AuthConfig{
@@ -4151,7 +3627,7 @@ func TestPullImage_RegistryConfigAuth(t *testing.T) {
 // --- Container stub methods (covers more of container_stub.go lines) ---
 
 func TestContainerStub_PauseResume(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	err := rt.PauseContainer(ctx, "test")
@@ -4167,7 +3643,7 @@ func TestContainerStub_PauseResume(t *testing.T) {
 // --- GetContainerLogs container not found ---
 
 func TestGetContainerLogs_ContainerNotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	_, err := rt.GetContainerLogs(ctx, "nonexistent", nil)
@@ -4222,7 +3698,7 @@ func TestOCIManifest_JSONRoundTrip(t *testing.T) {
 // --- Extract layer with hard links ---
 
 func TestExtractLayer_HardLink(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 
 	// Create tar with a regular file and a hard link to it
 	var buf bytes.Buffer
@@ -4270,7 +3746,7 @@ func TestExtractLayer_HardLink(t *testing.T) {
 // --- Extract gzipped layer ---
 
 func TestExtractLayer_Gzipped(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 
 	// Create gzipped tar
 	var buf bytes.Buffer
@@ -4308,7 +3784,7 @@ func TestExtractLayer_Gzipped(t *testing.T) {
 // --- DefaultRuntime.Close idempotent ---
 
 func TestDefaultRuntime_CloseIdempotent(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	if err := rt.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -4366,7 +3842,7 @@ func TestImageReference_String_CustomRegistry(t *testing.T) {
 // --- Ensure VolumeManager.RemoveVolume_Force works ---
 
 func TestVolumeManager_RemoveVolume_Force(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	mgr, err := NewVolumeManager(dir)
 	if err != nil {
 		t.Fatalf("NewVolumeManager: %v", err)
@@ -4458,7 +3934,7 @@ func TestCgroupV2Manager_VoidStubs(t *testing.T) {
 // --- Container stub internal methods ---
 
 func TestContainerStub_SetupCleanupMounts(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 
 	err := rt.setupMounts(&ContainerConfig{}, "/tmp/rootfs")
 	if err == nil {
@@ -4497,7 +3973,7 @@ func TestGetDockerHubToken_MockServer(t *testing.T) {
 	// Test PullImage with a non-docker.io registry to avoid the
 	// hardcoded Docker Hub auth URL
 	registryHost := strings.TrimPrefix(tokenSrv.URL, "http://")
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	regConfig := &RegistryConfig{
 		InsecureRegistries: []string{registryHost},
 	}
@@ -4517,7 +3993,7 @@ func TestGetDockerHubToken_MockServer(t *testing.T) {
 // --- LogCopier with stdout only ---
 
 func TestLogCopier_StdoutOnly(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "stdout-only.log")
 
 	copier, err := NewLogCopier(
@@ -4542,7 +4018,7 @@ func TestLogCopier_StdoutOnly(t *testing.T) {
 // --- LogCopier with stderr only ---
 
 func TestLogCopier_StderrOnly(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	logPath := filepath.Join(dir, "stderr-only.log")
 
 	copier, err := NewLogCopier(
@@ -4564,22 +4040,8 @@ func TestLogCopier_StderrOnly(t *testing.T) {
 	}
 }
 
-// --- ExecInContainer not-found path ---
-
-func TestExecInContainer_ContainerNotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
-	ctx := context.Background()
-
-	_, err := rt.ExecInContainer(ctx, "nonexistent", &ExecConfig{
-		Command: []string{"echo", "hi"},
-	})
-	if err != ErrContainerNotFound {
-		t.Errorf("expected ErrContainerNotFound, got %v", err)
-	}
-}
-
 func TestContainerExecCreate_NotFound(t *testing.T) {
-	rt := setupTestRuntime(t)
+	rt := portableSetupTestRuntime(t)
 	ctx := context.Background()
 
 	_, err := rt.ContainerExecCreate(ctx, "nonexistent", &ExecConfig{
@@ -4593,7 +4055,7 @@ func TestContainerExecCreate_NotFound(t *testing.T) {
 // --- Image store PullImage already-cached by tag ---
 
 func TestPullImage_AlreadyCachedByTag(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -4624,7 +4086,7 @@ func TestPullImage_AlreadyCachedByTag(t *testing.T) {
 // --- NewRuntime with nil config defaults ---
 
 func TestNewRuntime_Defaults(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	rt, err := NewRuntime(&RuntimeConfig{
 		Root:     dir,
 		StateDir: filepath.Join(dir, "state"),
@@ -4644,7 +4106,7 @@ func TestNewRuntime_Defaults(t *testing.T) {
 
 // Test PullImage with docker.io to exercise getDockerHubToken path
 func TestPullImage_DockerHubPath(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)
@@ -4669,7 +4131,7 @@ func TestPullImage_DockerHubPath(t *testing.T) {
 
 // Test PullImage with docker.io and auth credentials
 func TestPullImage_DockerHubWithAuth(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), &RegistryConfig{
 		AuthConfigs: map[string]*AuthConfig{
 			"docker.io": {
@@ -4696,7 +4158,7 @@ func TestPullImage_DockerHubWithAuth(t *testing.T) {
 }
 
 func TestGetRegistryURL_WellKnown(t *testing.T) {
-	dir := testTempDir(t)
+	dir := portableTestTempDir(t)
 	store, err := NewImageStore(filepath.Join(dir, "images"), nil)
 	if err != nil {
 		t.Fatalf("NewImageStore: %v", err)

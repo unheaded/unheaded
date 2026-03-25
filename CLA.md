@@ -1,169 +1,131 @@
-# Individual Contributor License Agreement (CLA)
+# Contributor License Agreement (DCO)
 
-**Project:** The Unheaded Kingdom
-**Version:** 1.0
-**Effective:** March 19, 2026
+SPDX-License-Identifier: GPL-3.0-or-later | Copyright (c) 2024-2026 Stevie Bellis | **Last updated:** 2026-03-25
 
----
+## Overview
 
-## Purpose
+Unheaded uses a **Developer Certificate of Origin (DCO)** process, the same
+lightweight approach used by the Linux kernel, Git, and hundreds of other open
+source projects. There is no separate CLA form to sign and no copyright
+assignment required.
 
-This Contributor License Agreement ("Agreement") defines the terms under which
-You may contribute to the Unheaded project. It supplements the Developer
-Certificate of Origin (DCO) already required by the project (see
-[CONTRIBUTOR-GUIDE.md](CONTRIBUTOR-GUIDE.md), Section 2).
+By adding a `Signed-off-by` line to your commit message, you certify that you
+wrote the contribution (or have the right to submit it) and that you agree to
+release it under the project's license.
 
-This is an individual CLA. A separate Corporate CLA will be provided for
-contributions made on behalf of an employer or organization.
-
----
-
-## Definitions
-
-- **"You"** (or **"Contributor"**) means the individual who submits a
-  Contribution to the Project.
-- **"Contribution"** means any original work of authorship, including
-  modifications or additions to existing work, that You submit to the Project
-  in any form (code, documentation, protocol specifications, tests, or other
-  materials).
-- **"Project"** means the Unheaded software and protocol specifications
-  maintained at https://github.com/unheaded/unheaded and related repositories.
-- **"Maintainer"** means the Project's copyright holder, currently Steven Bellis
-  (stevie@bellis.tech).
-
----
-
-## 1. Copyright License Grant
-
-You grant to the Maintainer and to recipients of software distributed by the
-Maintainer a perpetual, worldwide, non-exclusive, no-charge, royalty-free,
-irrevocable copyright license to reproduce, prepare derivative works of,
-publicly display, publicly perform, sublicense, and distribute Your
-Contributions and derivative works thereof.
-
-**Applicable licenses:**
-
-- **Code and implementation:** Licensed under the GNU General Public License
-  v3.0 or later (GPL-3.0-or-later), consistent with the Project's
-  [LICENSE](LICENSE).
-- **Protocol specifications** (files under `docs/protocol/`, `specs/`, and
-  Internet-Draft documents): Dual-licensed under GPL-3.0-or-later and
-  Apache License 2.0, consistent with
-  [IP-INVENTORY.md](docs/legal/IP-INVENTORY.md).
-
-You retain copyright ownership of Your Contributions. This Agreement does not
-transfer ownership; it grants a license.
-
----
-
-## 2. Patent License Grant
-
-You grant to the Maintainer and to recipients of software distributed by the
-Maintainer a perpetual, worldwide, non-exclusive, no-charge, royalty-free,
-irrevocable patent license to make, have made, use, offer to sell, sell,
-import, and otherwise transfer Your Contributions, where such license applies
-only to patent claims licensable by You that are necessarily infringed by Your
-Contribution alone or by combination of Your Contribution with the Project to
-which it was submitted.
-
-If any entity institutes patent litigation against You or any other entity
-(including a cross-claim or counterclaim) alleging that Your Contribution
-constitutes patent infringement, then any patent licenses granted to that
-entity under this Agreement for that Contribution shall terminate as of the
-date such litigation is filed.
-
----
-
-## 3. Right to Submit
-
-You represent that:
-
-(a) Each Contribution is Your original creation and You have the legal right
-to grant the licenses in this Agreement; or
-
-(b) Your Contribution is based on previous work that, to the best of Your
-knowledge, is covered under a compatible open-source license, and You have the
-right to submit that work with modifications under the applicable Project
-license; or
-
-(c) Your Contribution was provided to You by another person who represented
-(a) or (b), and You have not modified it in a way that would change the
-licensing terms.
-
-If any part of Your Contribution is owned by Your employer or another party,
-You represent that You have received permission to make the Contribution on
-behalf of that party, or that the party has waived its rights for the
-Contribution.
-
----
-
-## 4. No Confidential Information
-
-You warrant that Your Contribution does not contain:
-
-(a) Trade secrets or proprietary information of any third party;
-
-(b) Information covered by any non-disclosure agreement (NDA), confidentiality
-agreement, or similar obligation to which You are bound;
-
-(c) Material obtained under terms that would prevent it from being distributed
-under the Project's licenses.
-
-If You become aware that any Contribution You submitted may violate this
-warranty, You agree to promptly notify the Maintainer at stevie@bellis.tech.
-
----
-
-## 5. No Warranty on Contributions
-
-You provide Your Contributions on an "AS IS" basis, WITHOUT WARRANTIES OR
-CONDITIONS OF ANY KIND, either express or implied, including without limitation
-any warranties of merchantability or fitness for a particular purpose.
-
----
-
-## 6. Sign-Off Mechanism
-
-You signify acceptance of this Agreement by including a `Signed-off-by` line
-in Your commit messages, as required by the Project's DCO policy:
+## Developer Certificate of Origin v1.1
 
 ```
-Signed-off-by: Your Legal Name <your@email.com>
+Developer Certificate of Origin
+Version 1.1
+
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+
+Everyone is permitted to copy and distribute verbatim copies of this
+license document, but changing it is not allowed.
+
+
+Developer's Certificate of Origin 1.1
+
+By making a contribution to this project, I certify that:
+
+(a) The contribution was created in whole or in part by me and I
+    have the right to submit it under the open source license
+    indicated in the file; or
+
+(b) The contribution is based upon previous work that, to the best
+    of my knowledge, is covered under an appropriate open source
+    license and I have the right under that license to submit that
+    work with modifications, whether created in whole or in part
+    by me, under the same open source license (unless I am
+    permitted to submit under a different license), as indicated
+    in the file; or
+
+(c) The contribution was provided directly to me by some other
+    person who certified (a), (b) or (c) and I have not modified
+    it.
+
+(d) I understand and agree that this project and the contribution
+    are public and that a record of the contribution (including all
+    personal information I submit with it, including my sign-off) is
+    maintained indefinitely and may be redistributed consistent with
+    this project or the open source license(s) involved.
 ```
 
-This is done by passing the `-s` flag to `git commit`:
+## How to Sign Off
+
+Add a `Signed-off-by` line at the end of every commit message:
+
+```
+feat(wotan): add gRPC reflection support
+
+Enables dynamic service discovery via gRPC reflection API.
+
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+Git can do this automatically with the `-s` flag:
 
 ```bash
-git commit -s -m "feat(scope): description of change"
+git commit -s -m "feat(wotan): add gRPC reflection support"
 ```
 
-By adding a Signed-off-by line, You certify that You have read and agree to
-both the [Developer Certificate of Origin](https://developercertificate.org)
-and this Contributor License Agreement.
+## Requirements
 
-No separate form or signature is required.
+1. **Every commit** in a pull request must carry a valid `Signed-off-by` line.
+2. The name and email must match your Git identity (`user.name` / `user.email`).
+3. Pseudonyms are acceptable if they are consistently used and legally traceable.
 
----
+## Project License
 
-## 7. Miscellaneous
+All contributions are accepted under the project's **GNU General Public
+License v3.0 or later** (GPL-3.0-or-later). See [LICENSE](LICENSE) for the
+full text.
 
-- This Agreement is governed by the laws of the State of Texas, United States.
-- If any provision of this Agreement is found unenforceable, the remaining
-  provisions shall continue in effect.
-- This Agreement constitutes the entire agreement between You and the
-  Maintainer regarding Contributions, and supersedes any prior agreements on
-  the same subject.
-- The Maintainer may update this Agreement. Updated versions will be posted in
-  the Project repository. Contributions made after an update are governed by
-  the new version. Prior Contributions remain governed by the version in effect
-  when they were submitted.
+Protocol specification contributions under `docs/protocol/` are dual-licensed
+**GPL-3.0-or-later / Apache-2.0**. See [LICENSE-PROTOCOLS](LICENSE-PROTOCOLS)
+for details.
 
----
+## Patent Grant
+
+By signing off on a contribution, you also grant a perpetual, worldwide,
+non-exclusive, royalty-free patent license under any patent claims you own or
+control that are necessarily infringed by your contribution, consistent with
+GPL-3.0 Section 11 (Patents).
+
+## Enforcement
+
+Pull requests without valid DCO sign-off will not be merged. A CI check
+validates the `Signed-off-by` trailer on every commit. If you forget, you can
+fix it:
+
+```bash
+# Amend the most recent commit
+git commit --amend -s
+
+# Rebase and sign off all commits in a branch
+git rebase HEAD~N --signoff
+```
+
+## Why DCO Instead of a Heavyweight CLA?
+
+- **Lower barrier to entry.** No forms to sign, no accounts to create.
+- **Proven at scale.** The Linux kernel has used DCO since 2004 with thousands
+  of contributors.
+- **Legally sufficient.** The DCO provides an adequate chain of provenance for
+  GPL-3.0 contributions.
+- **Contributor-friendly.** You retain copyright on your contributions. No
+  assignment to a corporate entity.
 
 ## Questions
 
-Contact: stevie@bellis.tech
+If you have questions about the DCO or contribution process, open a GitHub
+Discussion or email stevie@bellis.tech.
 
 ---
 
-**Last Updated:** March 19, 2026
+*This document is part of the Unheaded legal framework. See also:*
+- *[LICENSE](LICENSE) -- GPL-3.0-or-later*
+- *[LICENSE-PROTOCOLS](LICENSE-PROTOCOLS) -- Dual GPL-3.0/Apache-2.0 for specs*
+- *[CONTRIBUTING.md](CONTRIBUTING.md) -- Full contribution guide*
+- *[docs/legal/](docs/legal/) -- Additional legal documentation*

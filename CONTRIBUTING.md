@@ -35,6 +35,23 @@ go test ./... -short
 cd ebpf && cargo build --release
 ```
 
+## Developer Certificate of Origin (DCO)
+
+All contributions must be signed off under the [Developer Certificate of
+Origin](CLA.md). This is the same lightweight process used by the Linux kernel.
+
+Add a `Signed-off-by` line to every commit using the `-s` flag:
+
+```bash
+git commit -s -m "feat(wotan): add gRPC reflection support"
+```
+
+This certifies you have the right to submit the contribution under the
+project's GPL-3.0-or-later license. See [CLA.md](CLA.md) for the full
+DCO v1.1 text and details.
+
+Pull requests without valid DCO sign-off on every commit will not be merged.
+
 ## Commit Guidelines
 
 Use Conventional Commits format:
@@ -43,6 +60,8 @@ Use Conventional Commits format:
 <type>(<scope>): <subject>
 
 [optional body]
+
+Signed-off-by: Your Name <your.email@example.com>
 ```
 
 **Types:**
@@ -98,4 +117,4 @@ Enables dynamic service discovery via gRPC reflection API.
 
 ---
 
-**Last Updated:** March 17, 2026
+**Last Updated:** March 25, 2026

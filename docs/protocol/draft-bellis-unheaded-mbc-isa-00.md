@@ -39,7 +39,7 @@ informative:
 
 --- abstract
 
-This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 48-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.
+This document defines the MBC (Monad Bytecode) Instruction Set Architecture for the Unheaded Protocol Computer (UPC). MBC is a 50-opcode, 32-bit fixed-width instruction set designed for execution within eBPF XDP programs. It provides computational capabilities for distributed packet processing using the Monad wire format, enabling deterministic network packet classification and transformation at the network edge.
 
 --- middle
 
@@ -197,7 +197,7 @@ Total size: 128 bytes. This structure is the working memory for each MBC executi
 
 # Instruction Set
 
-MBC provides 48 distinct opcodes, organized by functional category.
+MBC provides 50 distinct opcodes, organized by functional category.
 
 ## Arithmetic Instructions
 
@@ -951,7 +951,7 @@ Vector 0x00 is reserved for division-by-zero exceptions. Additional vectors are 
 
 ## Opcode Whitelist
 
-Only the 48 defined opcodes are valid in MBC programs. Opcodes 0x00, 0xFE are reserved and MUST NOT be used. All other opcode values are undefined and will cause a trap if executed. An MBC loader MUST validate that all instructions in a program use only defined opcodes before loading.
+Only the 50 defined opcodes are valid in MBC programs. Opcodes 0x00, 0xFE are reserved and MUST NOT be used. All other opcode values are undefined and will cause a trap if executed. An MBC loader MUST validate that all instructions in a program use only defined opcodes before loading.
 
 ## Division by Zero Behavior
 
@@ -996,15 +996,15 @@ Initial Assignments:
 - 0x0E: MOV - Move Register
 - 0x0F: MOVI - Move Immediate (16-bit sign-extended)
 - 0x10: CMP - Compare
-- 0x11-0x1B: RESERVED
-- 0x1C: LOAD_IMM32 - Load 32-bit Immediate
-- 0x1D: ADDI - Add Immediate (16-bit sign-extended)
-- 0x1E-0x1F: RESERVED
+- 0x11-0x16: RESERVED
 - 0x17: INT - Trigger Interrupt
 - 0x18: IRET - Return from Interrupt
 - 0x19: RESERVED
 - 0x1A: PUSH - Push to Stack
 - 0x1B: POP - Pop from Stack
+- 0x1C: LOAD_IMM32 - Load 32-bit Immediate
+- 0x1D: ADDI - Add Immediate (16-bit sign-extended)
+- 0x1E-0x1F: RESERVED
 - 0x20: JMP - Unconditional Jump
 - 0x21: JZ - Jump if Zero
 - 0x22: JNZ - Jump if Not Zero

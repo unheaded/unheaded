@@ -377,7 +377,10 @@ type Logger struct {
 // New creates a new Logger with the given output.
 func New(w io.Writer) *Logger {
 	config := DefaultConfig()
-	config.Output = w
+	if w != nil {
+		config.Output = w
+	}
+	// config.Output defaults to os.Stdout via DefaultConfig when w is nil.
 	return &Logger{config: config}
 }
 

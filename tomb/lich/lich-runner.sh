@@ -183,7 +183,7 @@ compile_check() {
     log_info "Verifying harness compilation..."
     cd "${REPO_ROOT}"
 
-    if go build ./tomb/lich/harnesses/ 2>"${LOG_DIR}/compile.log"; then
+    if go test -c -o /dev/null ./tomb/lich/harnesses/ 2>"${LOG_DIR}/compile.log"; then
         log_success "All harnesses compile successfully"
     else
         log_error "Compilation failed. Check ${LOG_DIR}/compile.log"
