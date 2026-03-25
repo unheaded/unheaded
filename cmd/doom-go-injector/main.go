@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"os/signal"
@@ -342,7 +343,11 @@ func injectSendmmsg(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batc
 	for (infinite || sent < uint64(count)) && !shutdown.Load() {
 		batch := batchSize
 		if !infinite {
-			remaining := int(uint64(count) - sent)
+			raw := uint64(count) - sent
+			if raw > uint64(math.MaxInt) {
+				raw = uint64(math.MaxInt)
+			}
+			remaining := int(raw)
 			if batch > remaining {
 				batch = remaining
 			}
