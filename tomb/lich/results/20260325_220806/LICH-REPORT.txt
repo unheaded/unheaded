@@ -1,0 +1,97 @@
+=================================================================
+  LICH Adversary Framework — Fuzzing Campaign Report
+=================================================================
+
+Date:       2026-03-25 22:09:48 UTC
+Duration:   10s per target
+Parallel:   4
+Go Version: go version go1.24.0 linux/amd64
+
+-----------------------------------------------------------------
+  Results Summary
+-----------------------------------------------------------------
+
+  [PASS] LICH-001 FuzzMonadWireParse                       Monad wire format parsing
+  [PASS] LICH-001 FuzzMonadWireRoundtrip                   Monad wire format roundtrip
+  [PASS] LICH-002 FuzzMonadCodecVarintStress               Varint codec stress
+  [PASS] LICH-002 FuzzMonadCodecExponentOverflow           Exponent overflow hunting
+  [PASS] LICH-002 FuzzMonadCodecTLVChain                   TLV chain encode/decode
+  [PASS] LICH-002 FuzzMonadCodecTLVSequenceStress          TLV sequence stress
+  [PASS] LICH-002 FuzzMonadCodecCombined                   Combined codec pipeline
+  [PASS] LICH-003 FuzzCRC16CollisionPair                   CRC-16 collision pair search
+  [PASS] LICH-003 FuzzCRC16StealthBitFlip                  CRC-16 stealth bit flip
+  [PASS] LICH-003 FuzzCRC16MonadCollision                  CRC-16 Monad header collision
+  [PASS] LICH-003 FuzzCRC16LengthExtension                 CRC-16 length extension
+  [PASS] LICH-003 FuzzCRC32MPEG2Collision                  CRC-32 collision search
+  [PASS] LICH-004 FuzzMBCParsing                           MBC bytecode parsing
+  [PASS] LICH-004 FuzzMBCValidation                        MBC program validation
+  [PASS] LICH-005 FuzzBPFMapCreateAttr                     BPF map create attributes
+  [PASS] LICH-005 FuzzELFSectionClassifier                 ELF section classification
+  [PASS] LICH-005 FuzzBPFMapKeyValueSerialization          BPF map key/value
+  [PASS] LICH-006 FuzzStateMachineTransitions              State machine transitions
+  [PASS] LICH-006 FuzzGoawayMonotonicity                   GOAWAY monotonicity
+  [PASS] LICH-006 FuzzStateMachineGoawayIntegration        State machine + GOAWAY
+  [PASS] LICH-007 FuzzMBCExecution                         MBC VM execution
+  [PASS] LICH-007 FuzzMBCArithmeticEdgeCases               MBC arithmetic edge cases
+  [PASS] LICH-008 FuzzCacheRingBufferPush                  Ring buffer push
+  [PASS] LICH-008 FuzzCacheRingBufferQuery                 Ring buffer query
+  [PASS] LICH-008 FuzzCacheRingBufferInterleaved           Ring buffer interleaved ops
+  [PASS] LICH-008 FuzzCacheRingBufferCapacityBoundary      Ring buffer capacity boundary
+  [PASS] LICH-009 FuzzFlowIDCollision                      Flow ID collision detection
+  [PASS] LICH-009 FuzzIPv6FlowLabelRoundtrip               IPv6 flow label roundtrip
+  [PASS] LICH-009 FuzzFlowLabelHashDistribution            Flow label hash distribution
+  [PASS] LICH-009 FuzzFlowSequenceMonotonicity             Flow sequence monotonicity
+  [PASS] LICH-010 FuzzWALEntryRoundtrip                    WAL entry roundtrip
+  [PASS] LICH-010 FuzzWALEntryCorruption                   WAL corruption detection
+  [PASS] LICH-010 FuzzWALSequenceGaps                      WAL sequence gap detection
+  [PASS] LICH-010 FuzzWALCRC32Collision                    WAL CRC-32 collision
+  [PASS] LICH-010 FuzzWALEntryChain                        WAL entry chain parsing
+
+-----------------------------------------------------------------
+  Totals: 35 passed, 0 failed, 0 skipped
+-----------------------------------------------------------------
+
+-----------------------------------------------------------------
+  Log Files
+-----------------------------------------------------------------
+
+  -rw-rw-r-- 1 govan govan   0 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/compile.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_001_FuzzMonadWireParse.log
+  -rw-rw-r-- 1 govan govan 510 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_001_FuzzMonadWireRoundtrip.log
+  -rw-rw-r-- 1 govan govan 514 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_002_FuzzMonadCodecCombined.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_002_FuzzMonadCodecExponentOverflow.log
+  -rw-rw-r-- 1 govan govan 510 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_002_FuzzMonadCodecTLVChain.log
+  -rw-rw-r-- 1 govan govan 511 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_002_FuzzMonadCodecTLVSequenceStress.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_002_FuzzMonadCodecVarintStress.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_003_FuzzCRC16CollisionPair.log
+  -rw-rw-r-- 1 govan govan 517 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_003_FuzzCRC16LengthExtension.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_003_FuzzCRC16MonadCollision.log
+  -rw-rw-r-- 1 govan govan 572 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_003_FuzzCRC16StealthBitFlip.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_003_FuzzCRC32MPEG2Collision.log
+  -rw-rw-r-- 1 govan govan 500 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_004_FuzzMBCParsing.log
+  -rw-rw-r-- 1 govan govan 516 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_004_FuzzMBCValidation.log
+  -rw-rw-r-- 1 govan govan 516 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_005_FuzzBPFMapCreateAttr.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_005_FuzzBPFMapKeyValueSerialization.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:08 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_005_FuzzELFSectionClassifier.log
+  -rw-rw-r-- 1 govan govan 499 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_006_FuzzGoawayMonotonicity.log
+  -rw-rw-r-- 1 govan govan 511 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_006_FuzzStateMachineGoawayIntegration.log
+  -rw-rw-r-- 1 govan govan 512 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_006_FuzzStateMachineTransitions.log
+  -rw-rw-r-- 1 govan govan 517 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_007_FuzzMBCArithmeticEdgeCases.log
+  -rw-rw-r-- 1 govan govan 496 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_007_FuzzMBCExecution.log
+  -rw-rw-r-- 1 govan govan 512 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_008_FuzzCacheRingBufferCapacityBoundary.log
+  -rw-rw-r-- 1 govan govan 512 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_008_FuzzCacheRingBufferInterleaved.log
+  -rw-rw-r-- 1 govan govan 512 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_008_FuzzCacheRingBufferPush.log
+  -rw-rw-r-- 1 govan govan 519 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_008_FuzzCacheRingBufferQuery.log
+  -rw-rw-r-- 1 govan govan 511 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_009_FuzzFlowIDCollision.log
+  -rw-rw-r-- 1 govan govan 512 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_009_FuzzFlowLabelHashDistribution.log
+  -rw-rw-r-- 1 govan govan 500 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_009_FuzzFlowSequenceMonotonicity.log
+  -rw-rw-r-- 1 govan govan 511 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_009_FuzzIPv6FlowLabelRoundtrip.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_010_FuzzWALCRC32Collision.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_010_FuzzWALEntryChain.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_010_FuzzWALEntryCorruption.log
+  -rw-rw-r-- 1 govan govan 518 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_010_FuzzWALEntryRoundtrip.log
+  -rw-rw-r-- 1 govan govan 515 Mar 25 22:09 /home/govan/tmp/unheaded/tomb/lich/results/20260325_220806/logs/lich_010_FuzzWALSequenceGaps.log
+
+=================================================================
+  END OF REPORT
+=================================================================
