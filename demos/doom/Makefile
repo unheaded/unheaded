@@ -30,12 +30,12 @@ CFLAGS += -I$(DOOMGENERIC_DIR)
 # Doom build config
 CFLAGS += -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200
 
-LDFLAGS = -Wl,-T,linker.ld -Wl,--gc-sections -Wl,--no-warn-rwx-segments
+LDFLAGS = -Wl,-T,linker.ld -Wl,--gc-sections -Wl,--no-warn-rwx-segments -Wl,--allow-multiple-definition
 # Link libgcc for software div/mul/float (RV32I base has no hardware M extension)
 LIBGCC = $(shell $(CC) -march=rv32i -mabi=ilp32 -print-libgcc-file-name)
 
 TRANSLATOR = ../../crates/monad-mbc/target/release/rv32i-to-mbc
-DOOMGENERIC_DIR = $(HOME)/tmp/doomgeneric/doomgeneric
+DOOMGENERIC_DIR = $(HOME)/tmp/projects/doomgeneric/doomgeneric
 
 OBJDIR = build
 

@@ -39,7 +39,7 @@ BPFFS_ROOT="/sys/fs/bpf/unheaded/doom-ring"
 MAP_PIN_DIR="${BPFFS_ROOT}/maps"
 
 # Ring configuration
-NUM_HOPS=6
+NUM_HOPS=${DOOM_RING_HOPS:-2}
 NS_PREFIX="monad"
 IPV6_PREFIX="fd00:3f:75"   # Kingdom ULA prefix (per draft-bellis-02 §7)
 MTU=1500
