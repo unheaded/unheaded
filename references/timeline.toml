@@ -1,12 +1,13 @@
 version = "1.0.0"
-last_updated = 2026-03-19T00:00:00.000000-05:00
-status = "age-3-in-progress"
+last_updated = 2026-03-25T21:13:26.094633811Z
+status = "alpha"
+milestones = []
 
 [[phases]]
   id = "phase-0"
   name = "The Foundation Stone"
   status = "completed"
-  progress = 100
+  progress = 0
 
 [[phases]]
   id = "phase-1"
@@ -19,42 +20,21 @@ status = "age-3-in-progress"
   name = "The Beta Trials"
   status = "completed"
   progress = 100
-  start_date = 2026-03-01
-  end_date = 2026-03-19
 
 [[phases]]
   id = "phase-3"
-  name = "The Public Release (Age 3)"
-  status = "in-progress"
+  name = "The Public Release (🔄 IN PROGRESS)"
+  status = "completed"
   progress = 85
-  start_date = 2026-03-20
 
-[[milestones]]
-  name = "RFC Blockers Fixed"
-  status = "completed"
-  date = 2026-03-19
-
-[[milestones]]
-  name = "2 New Internet-Drafts (MBC-ISA, Shim)"
-  status = "completed"
-  date = 2026-03-19
-
-[[milestones]]
-  name = "ADR-69420 (Sleipnir, Yggdrasil, Gleipnir)"
-  status = "completed"
-  date = 2026-03-19
-
-[[milestones]]
-  name = "96 Commits Integrated"
-  status = "completed"
-  date = 2026-03-19
-
-[[milestones]]
-  name = "IETF Datatracker Submission"
+[[phases]]
+  id = "phase-4"
+  name = "The MVP Era (📋 PLANNED)"
   status = "planned"
-  date = 2026-03-20
+  progress = 0
 
-[[milestones]]
-  name = "GitHub Public Release"
-  status = "planned"
-  date = 2026-03-20
+[[phases]]
+  id = "phase-5"
+  name = "The Scaling Era (📋 PLANNED)"
+  status = "completed"
+  progress = 0
