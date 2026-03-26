@@ -21,7 +21,7 @@ MAP_PIN_DIR="${BPFFS_ROOT}/maps"
 DOOM_DIR="${PROJECT_ROOT}/doom"
 DOOM_MBC="${DOOM_DIR}/doom.mbc"
 DOOM_ELF="${DOOM_DIR}/doom.elf"
-DOOM_WAD="${HOME}/tmp/DOOM_wads/doom1.wad"
+DOOM_WAD="${DOOM_WAD:-${HOME}/tmp/projects/doom-related/doom1.wad}"
 DOOM_DATA="${DOOM_DIR}/doom_data.bin"
 
 # Go doom-loader binary (replaces Python doom-loader-core.py)
@@ -124,11 +124,11 @@ load_data() {
 }
 
 # ============================================================================
-# WAD LOADER — Load doom1.wad into RAM_MAP at 0x110000
+# WAD LOADER — Load doom1.wad into RAM_MAP at 0x800000 (matches linker.ld WAD_BASE)
 # ============================================================================
 
 load_wad() {
-    log_step "Loading WAD (doom1.wad → RAM_MAP @ 0x110000)..."
+    log_step "Loading WAD (doom1.wad → RAM_MAP @ 0x800000)..."
 
     local ram_pin="${MAP_PIN_DIR}/RAM_MAP"
     if [[ ! -f "$ram_pin" ]]; then
@@ -145,8 +145,8 @@ load_wad() {
     wad_size=$(stat -c%s "$DOOM_WAD")
     log_info "WAD: ${wad_size} bytes"
 
-    # WAD starts at byte address 0x110000 (from linker script)
-    local wad_start_addr=0x110000
+    # WAD starts at byte address 0x800000 (from linker.ld WAD ORIGIN + libc_stubs.c WAD_BASE)
+    local wad_start_addr=0x800000
 
     "$DOOM_LOADER" ram "$ram_pin" "$DOOM_WAD" "$wad_start_addr"
 
