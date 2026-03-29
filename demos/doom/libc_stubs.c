@@ -2,7 +2,7 @@
 // libc_stubs.c — Bare-metal libc for Doom on MBC (Monad Bytecode)
 //
 // Provides minimal C library functions for doomgeneric running in the UPC.
-// WAD data is memory-mapped at WAD_BASE (0x800000) by the BPF map loader.
+// WAD data is memory-mapped at WAD_BASE (0xC00000) by doom-runner.
 // Screen buffer is memory-mapped at SCREEN_BASE (0xC000).
 //
 // Memory layout (matches linker.ld):
@@ -48,11 +48,12 @@ static inline void mbc_halt(void) {
 // Memory allocator — simple bump allocator for Doom's z_zone
 // ============================================================
 
-// Heap boundaries — MUST NOT overlap WAD region (0x800000-0xC00000).
-// Place heap AFTER the WAD: 0xC00000 to 0x1C00000 = 16MB.
-// RAM_MAP has 16M entries (64MB), so this is well within bounds.
-#define HEAP_START_ADDR 0x00C00000
-#define HEAP_END_ADDR   0x01C00000
+// Heap boundaries — matches doom-runner/src/memory.rs (THE source of truth).
+// HEAP: 0x1C0000 to 0xBC0000 = 10MB (BEFORE WAD at 0xC00000).
+// WAD: 0xC00000 to 0x1000000 = 4MB.
+// 10MB is sufficient for Doom's Z_Init (needs ~6MB zone).
+#define HEAP_START_ADDR 0x001C0000
+#define HEAP_END_ADDR   0x00BC0000
 
 static char *heap_ptr = (char *)HEAP_START_ADDR;
 
@@ -560,7 +561,7 @@ int sscanf(const char *str, const char *fmt, ...) { (void)str; (void)fmt; return
 // The WAD file is loaded into MBC memory at WAD_BASE by the doom-loader.
 // We emulate fopen/fread/fseek to read from this memory region.
 
-#define WAD_BASE     0x00800000
+#define WAD_BASE     0x00C00000
 #define WAD_MAX_SIZE 4196020  // doom1.wad exact size (4,196,020 bytes)
 
 // File table for memory-mapped WAD access.

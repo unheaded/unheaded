@@ -12,10 +12,10 @@
 MEMORY
 {
     ROM    (rx)  : ORIGIN = 0x00000000, LENGTH = 1M      /* MBC ROM: code + rodata */
-    RAM    (rw)  : ORIGIN = 0x00100000, LENGTH = 768K    /* MBC RAM: data + bss + stack */
+    RAM    (rw)  : ORIGIN = 0x00100000, LENGTH = 768K    /* MBC RAM: data + bss */
     SCREEN (rw)  : ORIGIN = 0x00070000, LENGTH = 64000   /* Screen: maps to SCREEN_MAP BPF array */
-    WAD    (r)   : ORIGIN = 0x00800000, LENGTH = 4M      /* WAD data (memory-mapped) */
-    HEAP   (rw)  : ORIGIN = 0x00C00000, LENGTH = 16M     /* Heap: AFTER WAD, no overlap */
+    HEAP   (rw)  : ORIGIN = 0x001C0000, LENGTH = 10M     /* Heap: 10MB, BEFORE WAD */
+    WAD    (r)   : ORIGIN = 0x00C00000, LENGTH = 4M      /* WAD: doom-runner loads here */
 }
 
 ENTRY(_start)
@@ -50,4 +50,4 @@ SECTIONS
     } > HEAP
 }
 
-_stack_top = ORIGIN(HEAP) + LENGTH(HEAP);
+_stack_top = ORIGIN(WAD) + LENGTH(WAD); /* 0x1000000 — matches doom-runner STACK_TOP */
