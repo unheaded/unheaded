@@ -29,6 +29,7 @@ pub mod ring;
 pub mod tail_calls;
 
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{bail, Context, Result};
@@ -436,12 +437,24 @@ async fn cmd_run(
     );
     info!("send tick packets to veth interfaces to start MBC execution");
 
-    // Step 7: Keep process alive — BPF maps stay valid as long as Ebpf is alive.
+    // Step 7: Wrap Ebpf in Arc<Mutex<>> and start bridge or hold alive.
     // CRITICAL: if this process exits, kernel GCs the program + maps → all data lost.
-    info!("doom-runner holding BPF program + maps alive — press Ctrl-C to exit");
-    info!("attach XDP and inject packets to start Doom execution");
-    tokio::signal::ctrl_c().await?;
-    info!("shutting down — BPF program + maps will be released");
+    let ebpf = Arc::new(Mutex::new(ebpf));
+
+    if headless {
+        info!("doom-runner: headless mode — holding BPF program + maps alive");
+        info!("attach XDP and inject packets to start Doom execution");
+        tokio::signal::ctrl_c().await?;
+        info!("shutting down — BPF program + maps will be released");
+    } else {
+        info!("doom-runner: starting integrated WebSocket bridge");
+        let bridge_config = bridge::BridgeConfig {
+            listen_addr: bridge_addr,
+            ..Default::default()
+        };
+        bridge::serve(ebpf, &bridge_config).await?;
+        info!("shutting down — BPF program + maps will be released");
+    }
 
     Ok(())
 }
@@ -568,12 +581,15 @@ fn cmd_ring(action: RingAction) -> Result<()> {
 }
 
 /// Bridge server subcommand.
-async fn cmd_bridge(addr: String) -> Result<()> {
-    let config = bridge::BridgeConfig {
-        listen_addr: addr,
-        ..Default::default()
-    };
-    bridge::serve(&config).await
+///
+/// Standalone bridge requires a running eBPF program with pinned maps.
+/// For integrated use, prefer `doom-runner run` which starts the bridge
+/// with direct map access via the Aya Ebpf object.
+async fn cmd_bridge(_addr: String) -> Result<()> {
+    anyhow::bail!(
+        "standalone bridge is no longer supported — use `doom-runner run` instead.\n\
+         The integrated bridge reads maps directly from the Aya Ebpf object."
+    );
 }
 
 /// Print and validate memory layout.
