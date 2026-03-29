@@ -33,7 +33,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{bail, Context, Result};
-use aya::maps::{Array, HashMap as AyaHashMap};
+use aya::maps::{Array, HashMap as AyaHashMap, ProgramArray};
 use aya::programs::Xdp;
 use aya::Ebpf;
 use clap::{Parser, Subcommand};
@@ -201,13 +201,13 @@ async fn main() -> Result<()> {
             wad,
             ebpf_obj,
             hops,
-            chain_depth: _chain_depth,
+            chain_depth,
             bridge_addr,
             skip_ring,
             headless,
         } => {
             cmd_run(
-                doom_mbc, doom_elf, rv2mbc, wad, ebpf_obj, hops,
+                doom_mbc, doom_elf, rv2mbc, wad, ebpf_obj, hops, chain_depth,
                 bridge_addr, skip_ring, headless,
             )
             .await
@@ -229,6 +229,7 @@ async fn cmd_run(
     wad_path: PathBuf,
     ebpf_obj: PathBuf,
     hops: u32,
+    chain_depth: usize,
     bridge_addr: String,
     skip_ring: bool,
     headless: bool,
@@ -285,6 +286,48 @@ async fn cmd_run(
         // The XDP program will be attached after we move to the namespace.
         info!("XDP program loaded — attachment to veth interfaces requires namespace context");
         info!("(the program and maps are now active in the kernel)");
+    }
+
+    // Step 3b: Set up tail call chain for higher throughput
+    // Populate TAIL_CALL_PROGS[0] with monad_cpu's own FD so it can self-tail-call.
+    {
+        let tc_config = tail_calls::TailCallConfig::new(ebpf_obj.display().to_string());
+        let tc_plan = tail_calls::plan(tail_calls::TailCallConfig {
+            chain_depth,
+            ..tc_config
+        })?;
+
+        // Clone the program FD first (immutable borrow), then drop it before
+        // taking the mutable borrow for the prog array map.
+        let prog_fd = {
+            let prog: &Xdp = ebpf
+                .program("monad_cpu")
+                .context("monad_cpu program not found for tail call setup")?
+                .try_into()
+                .context("monad_cpu is not an XDP program")?;
+            prog.fd()
+                .context("monad_cpu has no FD — was it loaded?")?
+                .try_clone()
+                .context("failed to clone monad_cpu FD")?
+        }; // immutable borrow of `ebpf` dropped here
+
+        let mut prog_array = ProgramArray::try_from(
+            ebpf.map_mut("TAIL_CALL_PROGS")
+                .context("TAIL_CALL_PROGS map not found in eBPF program")?,
+        )
+        .context("TAIL_CALL_PROGS is not a ProgramArray")?;
+
+        prog_array
+            .set(0, &prog_fd, 0)
+            .context("failed to set monad_cpu in TAIL_CALL_PROGS[0]")?;
+
+        info!(
+            "tail call chain: TAIL_CALL_PROGS[0] = monad_cpu (self), \
+             {} insns/tick ({} rounds x {} insns)",
+            tc_plan.total_insns_per_tick,
+            tc_plan.config.chain_depth,
+            tail_calls::INSNS_PER_PROGRAM,
+        );
     }
 
     // Step 4: Parse all data files

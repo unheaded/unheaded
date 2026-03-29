@@ -49,7 +49,7 @@ use aya_ebpf::{
     bindings::xdp_action,
     helpers::bpf_ktime_get_ns,
     macros::{map, xdp},
-    maps::{Array, HashMap, LruHashMap, RingBuf},
+    maps::{Array, HashMap, LruHashMap, ProgramArray, RingBuf},
     programs::XdpContext,
 };
 use monad_common::{
@@ -121,6 +121,26 @@ static RV2MBC_MAP: Array<u32> = Array::with_max_entries(65_536, 0);
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
 #[map]
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
+
+/// Tail call program array: self-referencing for multi-round execution.
+/// Userspace (doom-runner) populates index 0 with monad_cpu's own FD.
+/// Each tail call gives a fresh BPF verifier budget (16 insns per round).
+/// At N=16 rounds: 16 × 16 = 256 MBC instructions per packet.
+#[map]
+static TAIL_CALL_PROGS: ProgramArray = ProgramArray::with_max_entries(1, 0);
+
+/// Tail call round counter: tracks how many rounds have executed this packet.
+/// Single entry at index 0.  Reset to 0 after the last round completes.
+/// Max tail call depth in kernel 6.x is 33; we default to 15 additional
+/// rounds (16 total including the initial invocation).
+#[map]
+static TAIL_ROUND: Array<u32> = Array::with_max_entries(1, 0);
+
+/// Maximum additional tail call rounds per packet (0 = no tail calls).
+/// Total rounds = 1 (initial) + MAX_TAIL_CALLS.
+/// At 15: 16 total rounds × 16 insns = 256 insns/packet.
+/// Kernel limit is 33 tail calls, so max value is 32.
+const MAX_TAIL_CALLS: u32 = 15;
 
 /// TTY output buffer: 4 KB circular buffer for console I/O (Level 4f).
 /// SYS_WRITE to fd 1 (stdout) or fd 2 (stderr) writes bytes here.
@@ -218,10 +238,25 @@ const ETH_P_IPV6: u16 = 0x86DD;
 
 #[xdp]
 pub fn monad_cpu(ctx: XdpContext) -> u32 {
-    match try_monad_cpu(&ctx) {
-        Ok(action) => action,
-        Err(_) => xdp_action::XDP_PASS,
+    let action = match try_monad_cpu(&ctx) {
+        Ok(a) => a,
+        Err(_) => return xdp_action::XDP_PASS,
+    };
+
+    // ── Tail call chain (MUST be in entry point, not subprog) ──────────────
+    // Kernel 6.17: "tail_call not allowed in subprogs without BTF"
+    if action == xdp_action::XDP_TX {
+        if let Some(round_ptr) = unsafe { TAIL_ROUND.get_ptr_mut(0) } {
+            let round = unsafe { *round_ptr };
+            if round < MAX_TAIL_CALLS {
+                unsafe { *round_ptr = round + 1 };
+                unsafe { TAIL_CALL_PROGS.tail_call(&ctx, 0).ok() };
+            }
+            unsafe { *round_ptr = 0 };
+        }
     }
+
+    action
 }
 
 #[inline(always)]
@@ -1360,6 +1395,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         increment_stat(STAT_INSNS_EXECUTED);
     }
 
+    // Tail call chain moved to monad_cpu() entry point (required by kernel —
+    // tail_call not allowed in subprogs without BTF).
+
     // Turbo mode: bounce packet on same interface (XDP_TX) for cache-warm execution.
     // Manual hop counter since XDP_TX bypasses kernel IP stack (no hop_limit decrement).
     let hop_count_ptr = (monad_start + 3) as *mut u8;
@@ -1387,6 +1425,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
 /// Emit a CACHE_MISS event to the ring buffer.
 #[allow(dead_code)]
+#[inline(always)]
 fn emit_cache_miss(flow_label: u32, miss_addr: u32, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
@@ -1410,6 +1449,7 @@ fn emit_cache_miss(flow_label: u32, miss_addr: u32, hop_id: u8) {
 }
 
 /// Emit a SCREEN_WRITE event to the ring buffer.
+#[inline(always)]
 #[inline(always)]
 fn emit_screen_write(flow_label: u32, fb_addr: u32, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
@@ -1435,6 +1475,7 @@ fn emit_screen_write(flow_label: u32, fb_addr: u32, hop_id: u8) {
 
 /// Emit a COMPUTE_HALT event to the ring buffer.
 #[inline(always)]
+#[inline(always)]
 fn emit_compute_halt(flow_label: u32, insn_count: u64, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
@@ -1458,6 +1499,7 @@ fn emit_compute_halt(flow_label: u32, insn_count: u64, hop_id: u8) {
 }
 
 /// Emit a TTY_WRITE event to the ring buffer (Level 4f console I/O).
+#[inline(always)]
 #[inline(always)]
 fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
@@ -1491,6 +1533,7 @@ fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
 /// 4. Update current_pid in cpu state and SCHED_STATE
 ///
 /// All loops bounded to MAX_PROCESSES (4) for BPF verifier.
+#[inline(always)]
 #[inline(always)]
 fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) {
     let old_pid = cpu.current_pid as u32;
@@ -1576,6 +1619,7 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
 
 /// Emit a CONTEXT_SWITCH event to the ring buffer (Level 4c scheduler).
 #[inline(always)]
+#[inline(always)]
 fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
@@ -1611,6 +1655,7 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 ///
 /// BPF verifier: this function is #[inline(always)] to avoid call overhead.
 /// The page table walk is bounded (2 reads), TLB access is 1 Array lookup.
+#[inline(always)]
 #[inline(always)]
 fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     if cpu.mmu_enabled == 0 {
@@ -1664,6 +1709,7 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     (pfn << 12) | offset
 }
 
+#[inline(always)]
 fn set_flags(cpu: &mut MbcCpuState, result: u32, carry: bool) {
     cpu.flags = 0;
     if result == 0 {
@@ -1685,6 +1731,7 @@ fn set_flags(cpu: &mut MbcCpuState, result: u32, carry: bool) {
 /// Read a 32-bit word from the MBC address space.
 /// `word_addr` = byte_addr >> 2 for word-aligned operations.
 #[inline(always)]
+#[inline(always)]
 fn mem_read_word(word_addr: u32) -> u32 {
     // KBD register: word address of 0xFFFF/4 = 0x3FFF (nearest word).
     let kbd_word = mmap::KBD_ADDR >> 2;
@@ -1702,6 +1749,7 @@ fn mem_read_word(word_addr: u32) -> u32 {
 
 /// Write a 32-bit word to the MBC address space.
 /// Handles screen framebuffer and general RAM.
+#[inline(always)]
 #[inline(always)]
 fn mem_write_word(word_addr: u32, value: u32) {
     // Bug 24 fix: Do NOT write to SCREEN_MAP from word stores (ST).
@@ -1728,6 +1776,7 @@ fn mem_write_word(word_addr: u32, value: u32) {
 /// Read a single byte from the MBC address space.
 #[allow(dead_code)]
 #[inline(always)]
+#[inline(always)]
 fn mem_read_byte(byte_addr: u32) -> u8 {
     // Screen region: direct SCREEN_MAP read.
     if byte_addr >= mmap::SCREEN_BASE && byte_addr < mmap::SCREEN_BASE + mmap::SCREEN_SIZE {
@@ -1745,6 +1794,7 @@ fn mem_read_byte(byte_addr: u32) -> u8 {
 }
 
 /// Write a single byte to the MBC address space.
+#[inline(always)]
 #[inline(always)]
 fn mem_write_byte(byte_addr: u32, value: u8) {
     // Screen region: direct SCREEN_MAP write.
@@ -1771,6 +1821,7 @@ fn mem_write_byte(byte_addr: u32, value: u8) {
 /// Read a 16-bit halfword from the MBC address space (little-endian).
 #[allow(dead_code)]
 #[inline(always)]
+#[inline(always)]
 fn mem_read_half(byte_addr: u32) -> u16 {
     let word_addr = byte_addr >> 2;
     let half_shift = (byte_addr & 2) * 8; // 0 for low half, 16 for high half
@@ -1779,6 +1830,7 @@ fn mem_read_half(byte_addr: u32) -> u16 {
 }
 
 /// Write a 16-bit halfword to the MBC address space (little-endian).
+#[inline(always)]
 #[inline(always)]
 fn mem_write_half(byte_addr: u32, value: u16) {
     let word_addr = byte_addr >> 2;
@@ -1802,6 +1854,7 @@ fn mem_write_half(byte_addr: u32, value: u16) {
 ///   (a) BPF tail call to a dedicated copy program, or
 ///   (b) Userspace poller that bulk-copies RAM_MAP → SCREEN_MAP on event.
 #[inline(always)]
+#[inline(always)]
 fn copy_fb_to_screen(_fb_ptr: u32) {
     // No-op: verifier cannot handle 16K iterations.
     // Screen writes via mem_write_word/mem_write_byte still work individually.
@@ -1810,6 +1863,7 @@ fn copy_fb_to_screen(_fb_ptr: u32) {
 // ── Monad XDP read ────────────────────────────────────────────────────────────
 
 /// Read 20 Monad bytes from XDP packet memory.
+#[inline(always)]
 #[inline(always)]
 fn read_monad_xdp(start: usize, data_end: usize) -> Result<Monad, ()> {
     if start + MONAD_SIZE > data_end {
@@ -1824,6 +1878,7 @@ fn read_monad_xdp(start: usize, data_end: usize) -> Result<Monad, ()> {
 
 // ── Stats helper ──────────────────────────────────────────────────────────────
 
+#[inline(always)]
 #[inline(always)]
 fn increment_stat(key: u32) {
     if let Some(v) = STATS.get_ptr_mut(&key) {
