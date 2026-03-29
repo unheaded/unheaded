@@ -4,16 +4,17 @@
 //! Service definition will come from proto file — for now, manual impl.
 
 use std::sync::Arc;
-use tonic::{Request, Response, Status};
 use crate::pu::TieredStore;
-use crate::pu::fragment::Fragment;
 use crate::de::embedder::Embedder;
 use crate::ZhenConfig;
 
 /// Core Zhen gRPC service.
 pub struct ZhenService {
+    #[allow(dead_code)]
     store: Arc<TieredStore>,
+    #[allow(dead_code)]
     embedder: Arc<Embedder>,
+    #[allow(dead_code)]
     config: ZhenConfig,
 }
 
@@ -44,10 +45,10 @@ impl ZhenService {
 
 /// Start the gRPC server.
 pub async fn serve(
-    service: ZhenService,
+    _service: ZhenService,
     addr: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let addr = addr.parse()?;
+    let addr: std::net::SocketAddr = addr.parse()?;
 
     tracing::info!(%addr, "zhend gRPC server starting");
 

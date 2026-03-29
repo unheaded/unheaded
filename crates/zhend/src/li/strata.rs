@@ -3,7 +3,6 @@
 //! Tracks how fragments migrate between tiers over time.
 //! Visualizes the "geological cross-section" of a node's knowledge.
 
-use crate::pu::Tier;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 

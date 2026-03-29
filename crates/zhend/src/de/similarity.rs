@@ -37,7 +37,7 @@ pub fn cosine_similarity(a: &[u8], b: &[u8]) -> f32 {
 /// Score and rank fragments by relevance to a context vector.
 ///
 /// Returns (fragment, de_score) pairs sorted by descending De.
-pub fn rank_by_de(context: &[u8], fragments: &[Fragment], top_k: usize) -> Vec<(&Fragment, f32)> {
+pub fn rank_by_de<'a>(context: &[u8], fragments: &'a [Fragment], top_k: usize) -> Vec<(&'a Fragment, f32)> {
     let mut scored: Vec<_> = fragments
         .iter()
         .map(|f| {
