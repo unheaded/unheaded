@@ -27,7 +27,7 @@ pub const BLAKE3_HASH_LEN: usize = 32;
 pub const ZHEN_OPTION_MIN_LEN: usize = 2 + BLAKE3_HASH_LEN;
 
 /// Parsed Zhen HbH option from a packet.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZhenHbhOption {
     /// BLAKE3 hash of the fragment being advertised.
     pub fragment_hash: [u8; 32],
