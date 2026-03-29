@@ -46,7 +46,8 @@ PLATFORM_SRCS = \
 	crt0.S \
 	doomgeneric_monad.c \
 	libc_stubs.c \
-	gcc_runtime.c
+	gcc_runtime.c \
+	w_file_stdc.c
 
 # Upstream doomgeneric engine (from ~/tmp/doomgeneric/)
 # Excludes: platform-specific backends (xlib, sdl, allegro, win, soso, emscripten, linuxvt)
@@ -133,7 +134,6 @@ DOOM_SRCS = \
 	w_main.c \
 	w_wad.c \
 	z_zone.c \
-	w_file_stdc.c \
 	doomgeneric.c
 
 # Object files
