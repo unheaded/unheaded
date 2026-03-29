@@ -75,7 +75,7 @@ pub const HEAP_SIZE: u32 = HEAP_END - HEAP_START; // 10 MiB
 
 /// WAD data region (doom1.wad, memory-mapped into RAM).
 pub const WAD_BASE: u32 = 0x00C0_0000;
-pub const WAD_MAX_SIZE: u32 = 0x0040_0000; // 4 MiB
+pub const WAD_MAX_SIZE: u32 = 0x0040_1000; // 4 MiB + 4K (doom1.wad is 4,196,020 bytes)
 
 /// Stack top (grows downward from RAM ceiling).
 pub const STACK_TOP: u32 = RAM_BASE + RAM_SIZE; // 0x0110_0000
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn wad_region_is_4mb() {
-        assert_eq!(WAD_MAX_SIZE, 4 * 1024 * 1024);
+        assert!(WAD_MAX_SIZE >= 4 * 1024 * 1024); // at least 4MB, plus slack for doom1.wad
     }
 
     #[test]
