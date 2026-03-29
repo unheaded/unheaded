@@ -17,6 +17,7 @@ struct stat {
 #define S_ISREG(m) (1)
 
 int stat(const char *path, struct stat *buf);
+int fstat(int fd, struct stat *buf);
 int mkdir(const char *path, mode_t mode);
 
 #endif

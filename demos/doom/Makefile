@@ -1,201 +1,126 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Doom-over-IPv6 Build Pipeline
-# C -> RV32I ELF -> MBC Bytecode
+# id DOOM 1.10 → RV32I → MBC Bytecode
+# Build pipeline for Doom-over-IPv6 using original id Software source
 #
-# Targets:
-#   doom.mbc          — Full Doom port (doomgeneric + MBC platform layer)
-#   unheaded-doom.mbc — Standalone stubs (doomgeneric_unheaded.c + crt0.S)
-#
-# Computermancer notes:
-#   - RV32I restricted to x0-x15 (MBC has 16 registers)
-#   - WAD is memory-mapped at 0x400000 by doom-loader
-#   - Framebuffer at 0x3C0000 (double-buffer: render to RAM, flush to SCREEN)
+# Source: ~/tmp/projects/DOOM/linuxdoom-1.10/ (pristine, never modified)
+# Platform: demos/doom/ (MBC stubs replacing i_video, i_sound, i_net, i_system)
 
 CC = riscv64-unknown-elf-gcc
-OBJCOPY = riscv64-unknown-elf-objcopy
 SIZE = riscv64-unknown-elf-size
+NM = riscv64-unknown-elf-nm
 
-# Bare-metal RV32I with MBC register constraints
+# Bare-metal RV32I with MBC register constraints (x0-x15 only)
 CFLAGS = -march=rv32i -mabi=ilp32 -nostdlib -nostdinc -static -ffreestanding -fno-builtin -O2
-# Restrict to x0-x15 registers (MBC has 16 registers, maps to Monad 20-byte register file)
 CFLAGS += -ffixed-x16 -ffixed-x17 -ffixed-x18 -ffixed-x19
 CFLAGS += -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23
 CFLAGS += -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27
 CFLAGS += -ffixed-x28 -ffixed-x29 -ffixed-x30 -ffixed-x31
-# Include paths: our stubs first, then GCC builtins, then doomgeneric headers
+
+# Include paths: our stubs first, then GCC builtins, then id DOOM headers
 GCC_INCLUDE = $(shell $(CC) -print-file-name=include)
+IDDOOM_DIR = /home/govan/tmp/projects/DOOM/linuxdoom-1.10
 CFLAGS += -isystem include
 CFLAGS += -isystem $(GCC_INCLUDE)
-CFLAGS += -I$(DOOMGENERIC_DIR)
-# Doom build config
-CFLAGS += -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200
+CFLAGS += -I$(IDDOOM_DIR)
+
+# id DOOM build config: NORMALUNIX enables getenv/access WAD detection
+CFLAGS += -DNORMALUNIX
+
+# id DOOM 1.10 is K&R/C89 — needs implicit int, implicit function decls
+IDDOOM_CFLAGS = $(CFLAGS) -std=gnu89 -Wno-implicit-int -Wno-implicit-function-declaration
+# Our MBC platform code uses C99/C11 features (for-loop declarations, etc.)
+MBC_CFLAGS = $(CFLAGS)
 
 LDFLAGS = -Wl,-T,linker.ld -Wl,--gc-sections -Wl,--no-warn-rwx-segments -Wl,--allow-multiple-definition
-# Link libgcc for software div/mul/float (RV32I base has no hardware M extension)
-LIBGCC = $(shell $(CC) -march=rv32i -mabi=ilp32 -print-libgcc-file-name)
 
 TRANSLATOR = ../../crates/monad-mbc/target/release/rv32i-to-mbc
-DOOMGENERIC_DIR = $(HOME)/tmp/projects/doomgeneric/doomgeneric
 
 OBJDIR = build
 
-# ── Source files ──────────────────────────────────────────────
+# ── id DOOM source files (57 of 62, excluding 5 platform files) ──
 
-# Our MBC platform layer + libc stubs + startup
-PLATFORM_SRCS = \
+IDDOOM_SRCS = \
+	am_map.c d_items.c d_main.c d_net.c doomdef.c doomstat.c dstrings.c \
+	f_finale.c f_wipe.c g_game.c hu_lib.c hu_stuff.c info.c \
+	m_argv.c m_bbox.c m_cheat.c m_fixed.c m_menu.c m_misc.c m_random.c m_swap.c \
+	p_ceilng.c p_doors.c p_enemy.c p_floor.c p_inter.c p_lights.c p_map.c \
+	p_maputl.c p_mobj.c p_plats.c p_pspr.c p_saveg.c p_setup.c p_sight.c \
+	p_spec.c p_switch.c p_telept.c p_tick.c p_user.c \
+	r_bsp.c r_data.c r_draw.c r_main.c r_plane.c r_segs.c r_sky.c r_things.c \
+	s_sound.c sounds.c st_lib.c st_stuff.c tables.c \
+	v_video.c w_wad.c wi_stuff.c z_zone.c
+
+# ── MBC platform stubs (replace i_main.c, i_video.c, i_sound.c, i_net.c, i_system.c) ──
+
+MBC_SRCS = \
+	i_system_mbc.c \
+	i_video_mbc.c \
+	i_sound_mbc.c \
+	i_net_mbc.c
+
+# ── Support files (startup, libc, gcc runtime) ──
+
+SUPPORT_SRCS = \
 	crt0.S \
-	doomgeneric_monad.c \
 	libc_stubs.c \
-	gcc_runtime.c \
-	w_file_stdc.c
+	gcc_runtime.c
 
-# Upstream doomgeneric engine (from ~/tmp/doomgeneric/)
-# Excludes: platform-specific backends (xlib, sdl, allegro, win, soso, emscripten, linuxvt)
-# Excludes: sound backends (i_sdlsound, i_sdlmusic, i_allegrosound, i_allegromusic)
-# Excludes: icon.c (X11 icon data)
-# Excludes: gusconf.c (GUS sound card config)
-# Excludes: mus2mid.c (MIDI conversion - no sound on MBC)
-DOOM_SRCS = \
-	dummy.c \
-	am_map.c \
-	doomdef.c \
-	doomstat.c \
-	dstrings.c \
-	d_event.c \
-	d_items.c \
-	d_iwad.c \
-	d_loop.c \
-	d_main.c \
-	d_mode.c \
-	d_net.c \
-	f_finale.c \
-	f_wipe.c \
-	g_game.c \
-	hu_lib.c \
-	hu_stuff.c \
-	info.c \
-	i_cdmus.c \
-	i_endoom.c \
-	i_joystick.c \
-	i_scale.c \
-	i_sound.c \
-	i_system.c \
-	i_timer.c \
-	i_input.c \
-	i_video.c \
-	memio.c \
-	m_argv.c \
-	m_bbox.c \
-	m_cheat.c \
-	m_config.c \
-	m_controls.c \
-	m_fixed.c \
-	m_menu.c \
-	m_misc.c \
-	m_random.c \
-	p_ceilng.c \
-	p_doors.c \
-	p_enemy.c \
-	p_floor.c \
-	p_inter.c \
-	p_lights.c \
-	p_map.c \
-	p_maputl.c \
-	p_mobj.c \
-	p_plats.c \
-	p_pspr.c \
-	p_saveg.c \
-	p_setup.c \
-	p_sight.c \
-	p_spec.c \
-	p_switch.c \
-	p_telept.c \
-	p_tick.c \
-	p_user.c \
-	r_bsp.c \
-	r_data.c \
-	r_draw.c \
-	r_main.c \
-	r_plane.c \
-	r_segs.c \
-	r_sky.c \
-	r_things.c \
-	sha1.c \
-	sounds.c \
-	statdump.c \
-	st_lib.c \
-	st_stuff.c \
-	s_sound.c \
-	tables.c \
-	v_video.c \
-	wi_stuff.c \
-	w_checksum.c \
-	w_file.c \
-	w_main.c \
-	w_wad.c \
-	z_zone.c \
-	doomgeneric.c
+# ── Object files ──
 
-# Object files
-PLATFORM_OBJS = $(addprefix $(OBJDIR)/, $(addsuffix .o, $(basename $(PLATFORM_SRCS))))
-DOOM_OBJS = $(addprefix $(OBJDIR)/doom_, $(addsuffix .o, $(basename $(DOOM_SRCS))))
-ALL_OBJS = $(PLATFORM_OBJS) $(DOOM_OBJS)
+IDDOOM_OBJS = $(addprefix $(OBJDIR)/iddoom_, $(addsuffix .o, $(basename $(IDDOOM_SRCS))))
+MBC_OBJS = $(addprefix $(OBJDIR)/, $(addsuffix .o, $(basename $(MBC_SRCS))))
+SUPPORT_OBJS = $(addprefix $(OBJDIR)/, $(addsuffix .o, $(basename $(SUPPORT_SRCS))))
+ALL_OBJS = $(SUPPORT_OBJS) $(MBC_OBJS) $(IDDOOM_OBJS)
 
-# ── VPATH for source lookup ──────────────────────────────────
-VPATH = $(DOOMGENERIC_DIR)
+# ── Targets ──
 
-# ── Targets ───────────────────────────────────────────────────
-
-.PHONY: all clean translator stubs
+.PHONY: all clean translator check
 
 all: doom.mbc
-
-stubs: unheaded-doom.mbc
 
 translator:
 	cd ../../crates/monad-mbc && cargo build --release --bin rv32i-to-mbc
 
-# --- Full Doom port ---
 doom.elf: $(ALL_OBJS)
 	@echo "[Link] $@"
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 	@$(SIZE) $@ || true
 
-doom.mbc: doom.elf translator
+doom.mbc: doom.elf
 	@echo "[Translate] RV32I -> MBC"
 	$(TRANSLATOR) $< -o $@ --stats
 
-# --- Standalone unheaded stubs ---
-STUB_SRCS = crt0.S doomgeneric_unheaded.c
-STUB_OBJS = $(addprefix $(OBJDIR)/, $(addsuffix .o, $(basename $(STUB_SRCS))))
+check: doom.elf
+	@echo "=== ELF size ==="
+	$(SIZE) $<
+	@echo "=== Undefined symbols ==="
+	$(NM) $< | grep " U " | head -20 || echo "(none)"
 
-unheaded-doom.elf: $(STUB_OBJS)
-	$(CC) $(CFLAGS) -DSTANDALONE_STUBS $(LDFLAGS) -o $@ $^
-
-unheaded-doom.mbc: unheaded-doom.elf translator
-	$(TRANSLATOR) $< -o $@ --stats
-
-# --- Compilation rules ---
+# ── Build directory ──
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
-$(ALL_OBJS) $(STUB_OBJS): | $(OBJDIR)
+$(ALL_OBJS): | $(OBJDIR)
 
-# Platform sources (from current directory)
+# ── Compilation rules ──
+
+# id DOOM sources (from IDDOOM_DIR, prefixed with iddoom_)
+$(OBJDIR)/iddoom_%.o: $(IDDOOM_DIR)/%.c
+	@echo "[CC] $< (id DOOM)"
+	$(CC) $(IDDOOM_CFLAGS) -c $< -o $@
+
+# MBC platform sources (from current directory)
 $(OBJDIR)/%.o: %.c
-	@echo "[CC] $<"
-	$(CC) $(CFLAGS) -c $< -o $@
+	@echo "[CC] $< (MBC)"
+	$(CC) $(MBC_CFLAGS) -c $< -o $@
 
+# Assembly sources
 $(OBJDIR)/%.o: %.S
 	@echo "[AS] $<"
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Doom engine sources (from doomgeneric directory, prefixed with doom_)
-$(OBJDIR)/doom_%.o: $(DOOMGENERIC_DIR)/%.c
-	@echo "[CC] $< (doom)"
-	$(CC) $(CFLAGS) -c $< -o $@
-
 clean:
 	rm -rf $(OBJDIR)
-	rm -f doom.elf doom.mbc unheaded-doom.elf unheaded-doom.mbc
+	rm -f doom.elf doom.mbc
+
