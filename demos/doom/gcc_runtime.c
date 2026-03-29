@@ -348,8 +348,59 @@ double __divdf3(double a, double b) { return (double)__divsf3((float)a, (float)b
 int __fixdfsi(double a) { return __fixsfsi((float)a); }
 double __floatsidf(int a) { return (double)__floatsisf(a); }
 double __floatunsidf(unsigned int a) { return (double)__floatunsisf(a); }
-float __truncdfsf2(double a) { return (float)a; }
-double __extendsfdf2(float a) { return (double)a; }
+// __truncdfsf2: convert double to float. Bit manipulation, no compiler cast.
+float __truncdfsf2(double a) {
+    union { double d; uint64_t u; } di;
+    union { float f; uint32_t u; } fi;
+    di.d = a;
+    uint32_t sign = (uint32_t)(di.u >> 63) & 1;
+    uint32_t d_exp = (uint32_t)((di.u >> 52) & 0x7FF);
+    uint32_t d_mant = (uint32_t)((di.u >> 29) & 0x7FFFFF);
+    uint32_t f_sign = sign << 31;
+    if (d_exp == 0x7FF) {
+        // Inf or NaN
+        fi.u = f_sign | (0xFF << 23) | d_mant;
+    } else if (d_exp == 0) {
+        fi.u = f_sign; // zero
+    } else {
+        int f_exp = (int)d_exp - 1023 + 127;
+        if (f_exp >= 255) fi.u = f_sign | (0xFF << 23); // overflow → inf
+        else if (f_exp <= 0) fi.u = f_sign; // underflow → zero
+        else fi.u = f_sign | ((uint32_t)f_exp << 23) | d_mant;
+    }
+    return fi.f;
+}
+// __extendsfdf2: convert float (IEEE 754 single) to double (IEEE 754 double).
+// CANNOT use (double)a — compiler generates recursive call to this function.
+// Bit-manipulate: extract sign/exp/mantissa, repack as double.
+double __extendsfdf2(float a) {
+    union { float f; uint32_t u; } fi;
+    union { double d; uint64_t u; } di;
+    fi.f = a;
+    uint32_t sign = (fi.u >> 31) & 1;
+    uint32_t exp = (fi.u >> 23) & 0xFF;
+    uint32_t mant = fi.u & 0x7FFFFF;
+    uint64_t d_sign = (uint64_t)sign << 63;
+    uint64_t d_exp, d_mant;
+    if (exp == 0 && mant == 0) {
+        // Zero
+        di.u = d_sign;
+    } else if (exp == 0xFF) {
+        // Inf or NaN
+        d_exp = (uint64_t)0x7FF << 52;
+        d_mant = (uint64_t)mant << 29;
+        di.u = d_sign | d_exp | d_mant;
+    } else if (exp == 0) {
+        // Denormal — treat as zero for Doom (good enough)
+        di.u = d_sign;
+    } else {
+        // Normal: rebias exponent (float bias=127, double bias=1023)
+        d_exp = (uint64_t)(exp - 127 + 1023) << 52;
+        d_mant = (uint64_t)mant << 29;
+        di.u = d_sign | d_exp | d_mant;
+    }
+    return di.d;
+}
 int __ledf2(double a, double b) { return __lesf2((float)a, (float)b); }
 int __gedf2(double a, double b) { return __gesf2((float)a, (float)b); }
 int __eqdf2(double a, double b) { return __eqsf2((float)a, (float)b); }
