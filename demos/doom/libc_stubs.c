@@ -1076,3 +1076,16 @@ void *__memcpy_chk(void *dest, const void *src, size_t n, size_t destlen) {
     (void)destlen;
     return memcpy(dest, src, n);
 }
+
+// setbuf / getchar / fscanf — needed by d_main.c and m_misc.c
+void setbuf(FILE *stream, char *buf) { (void)stream; (void)buf; }
+int getchar(void) { return EOF; }
+int fscanf(FILE *stream, const char *fmt, ...) {
+    (void)stream; (void)fmt;
+    return 0;
+}
+
+// sndserver_filename — referenced by m_misc.c default table under SNDSERV
+// We don't define SNDSERV but the variable still gets referenced from the
+// defaults array in m_misc.c. Provide it to satisfy the linker.
+char *sndserver_filename = "./sndserver";
