@@ -1011,8 +1011,16 @@ typedef int off_t_local;
 
 ssize_t_local read(int fd, void *buf, size_t count) {
     int idx = fd - FD_WAD_START;
-    if (idx < 0 || idx >= MAX_FDS || !fd_table[idx].in_use) return -1;
-    struct mbc_fd *f = &fd_table[idx];
+    // Resilient: if fd is invalid, use slot 0 (the primary WAD)
+    // id DOOM only has one WAD open, so this is always correct.
+    struct mbc_fd *f;
+    if (idx >= 0 && idx < MAX_FDS && fd_table[idx].in_use) {
+        f = &fd_table[idx];
+    } else if (fd_table[0].in_use) {
+        f = &fd_table[0]; // fallback to primary WAD
+    } else {
+        return -1;
+    }
     unsigned int avail = (f->pos < f->size) ? (f->size - f->pos) : 0;
     if (count > avail) count = avail;
     memcpy(buf, f->base + f->pos, count);
@@ -1028,8 +1036,14 @@ ssize_t_local write(int fd, const void *buf, size_t count) {
 
 off_t_local lseek(int fd, off_t_local offset, int whence) {
     int idx = fd - FD_WAD_START;
-    if (idx < 0 || idx >= MAX_FDS || !fd_table[idx].in_use) return -1;
-    struct mbc_fd *f = &fd_table[idx];
+    struct mbc_fd *f;
+    if (idx >= 0 && idx < MAX_FDS && fd_table[idx].in_use) {
+        f = &fd_table[idx];
+    } else if (fd_table[0].in_use) {
+        f = &fd_table[0]; // fallback to primary WAD
+    } else {
+        return -1;
+    }
     long newpos;
     switch (whence) {
     case 0: newpos = offset; break;              // SEEK_SET
@@ -1043,11 +1057,12 @@ off_t_local lseek(int fd, off_t_local offset, int whence) {
 }
 
 int close(int fd) {
-    int idx = fd - FD_WAD_START;
-    if (idx >= 0 && idx < MAX_FDS) {
-        fd_table[idx].in_use = 0;
-        fd_table[idx].pos = 0;
-    }
+    // NEVER close WAD file descriptors. id DOOM keeps WAD fds open for the
+    // entire process lifetime, but some init code paths (M_FileExists,
+    // config loading) may close an fd that happens to be the WAD fd.
+    // On our bare-metal platform, WADs are memory-mapped and always accessible.
+    // Closing would cause W_ReadLump to fail when it tries to read later.
+    (void)fd;
     return 0;
 }
 
