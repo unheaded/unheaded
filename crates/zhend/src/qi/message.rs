@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::{ZhenError, ZhenResult};
 use super::transport::MAX_MSG_SIZE;
 
+#[cfg(feature = "pq")]
+use crate::crypto::sign::PeerIdentity;
+
 /// Messages exchanged between zhend peers over the gossip transport.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GossipMessage {
@@ -40,6 +43,20 @@ pub enum GossipMessage {
         incarnation: u64,
         /// How many fragments this peer currently holds.
         fragment_count: u64,
+    },
+
+    /// PQ identity offer — "here is my ML-DSA-65 identity, verify me."
+    #[cfg(feature = "pq")]
+    IdentityOffer {
+        /// The sender's PQ peer identity with self-attestation.
+        identity: PeerIdentity,
+    },
+
+    /// PQ identity acknowledgement — "I verified you, here is mine."
+    #[cfg(feature = "pq")]
+    IdentityAck {
+        /// The responder's PQ peer identity with self-attestation.
+        identity: PeerIdentity,
     },
 }
 
@@ -185,5 +202,47 @@ mod tests {
     fn test_garbage_input_rejected() {
         let result = GossipMessage::decode(&[0xFF, 0xFE, 0xFD]);
         assert!(result.is_err());
+    }
+
+    #[cfg(feature = "pq")]
+    mod pq_message_tests {
+        use super::*;
+        use crate::crypto::sign::{PeerIdentity, PqSigningKeypair};
+
+        #[test]
+        fn test_identity_offer_roundtrip() {
+            let kp = PqSigningKeypair::generate();
+            let identity = PeerIdentity::new(&kp, Some("offer-node".into())).unwrap();
+
+            let msg = GossipMessage::IdentityOffer { identity };
+            let encoded = msg.encode().unwrap();
+            let decoded = GossipMessage::decode(&encoded).unwrap();
+
+            match decoded {
+                GossipMessage::IdentityOffer { identity } => {
+                    assert_eq!(identity.name, Some("offer-node".into()));
+                    assert!(identity.verify_self().unwrap(), "decoded identity must verify");
+                }
+                _ => panic!("wrong variant"),
+            }
+        }
+
+        #[test]
+        fn test_identity_ack_roundtrip() {
+            let kp = PqSigningKeypair::generate();
+            let identity = PeerIdentity::new(&kp, Some("ack-node".into())).unwrap();
+
+            let msg = GossipMessage::IdentityAck { identity };
+            let encoded = msg.encode().unwrap();
+            let decoded = GossipMessage::decode(&encoded).unwrap();
+
+            match decoded {
+                GossipMessage::IdentityAck { identity } => {
+                    assert_eq!(identity.name, Some("ack-node".into()));
+                    assert!(identity.verify_self().unwrap(), "decoded identity must verify");
+                }
+                _ => panic!("wrong variant"),
+            }
+        }
     }
 }

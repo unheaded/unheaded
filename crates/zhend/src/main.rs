@@ -133,7 +133,7 @@ async fn main() -> anyhow::Result<()> {
     let gossip_store = Arc::clone(&store);
     let gossip_config = config.clone();
     let gossip_handle = tokio::spawn(async move {
-        let mut engine = GossipEngine::new(gossip_store, gossip_config, gossip_rx);
+        let mut engine = GossipEngine::new(gossip_store, gossip_config, gossip_rx, None);
         if let Err(e) = engine.run().await {
             tracing::error!(error = %e, "qi gossip engine failed");
         }

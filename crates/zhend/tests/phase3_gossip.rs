@@ -61,13 +61,13 @@ async fn test_two_nodes_gossip_fragment() {
 
     let store_a_clone = store_a.clone();
     let engine_a = tokio::spawn(async move {
-        let mut engine = GossipEngine::new(store_a_clone, config_a, shutdown_rx_a);
+        let mut engine = GossipEngine::new(store_a_clone, config_a, shutdown_rx_a, None);
         engine.run().await
     });
 
     let store_b_clone = store_b.clone();
     let engine_b = tokio::spawn(async move {
-        let mut engine = GossipEngine::new(store_b_clone, config_b, shutdown_rx_b);
+        let mut engine = GossipEngine::new(store_b_clone, config_b, shutdown_rx_b, None);
         engine.run().await
     });
 
@@ -132,13 +132,13 @@ async fn test_multiple_fragments_gossip() {
 
     let store_a_clone = store_a.clone();
     let engine_a = tokio::spawn(async move {
-        let mut engine = GossipEngine::new(store_a_clone, config_a, shutdown_rx_a);
+        let mut engine = GossipEngine::new(store_a_clone, config_a, shutdown_rx_a, None);
         engine.run().await
     });
 
     let store_b_clone = store_b.clone();
     let engine_b = tokio::spawn(async move {
-        let mut engine = GossipEngine::new(store_b_clone, config_b, shutdown_rx_b);
+        let mut engine = GossipEngine::new(store_b_clone, config_b, shutdown_rx_b, None);
         engine.run().await
     });
 
@@ -197,13 +197,13 @@ async fn test_bidirectional_gossip() {
 
     let store_a_clone = store_a.clone();
     let engine_a = tokio::spawn(async move {
-        let mut engine = GossipEngine::new(store_a_clone, config_a, shutdown_rx_a);
+        let mut engine = GossipEngine::new(store_a_clone, config_a, shutdown_rx_a, None);
         engine.run().await
     });
 
     let store_b_clone = store_b.clone();
     let engine_b = tokio::spawn(async move {
-        let mut engine = GossipEngine::new(store_b_clone, config_b, shutdown_rx_b);
+        let mut engine = GossipEngine::new(store_b_clone, config_b, shutdown_rx_b, None);
         engine.run().await
     });
 
