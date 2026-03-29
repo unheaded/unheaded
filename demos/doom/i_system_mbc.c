@@ -182,14 +182,14 @@ void I_Error(char *error, ...)
     va_list argptr;
     char buf[256];
 
+    // Write raw format string first (before vsprintf might corrupt it)
+    debug_write(error ? error : "(null)");
+
     va_start(argptr, error);
     vsprintf(buf, error, argptr);
     va_end(argptr);
 
-    // Write to debug region for post-mortem
-    debug_write(buf);
-
-    // Also write to stderr (our fprintf captures it)
+    // Write formatted message
     fprintf(stderr, "Error: %s\n", buf);
 
     if (demorecording)
@@ -211,17 +211,20 @@ extern void D_DoomMain(void);
 int main(void)
 {
     // Set up minimal argc/argv for D_DoomMain
-    // The -file argument tells Doom to load our WAD directly
+    // Let IdentifyVersion find the WAD via getenv("DOOMWADDIR") + access()
+    // Our stubs: getenv("DOOMWADDIR") returns ".", access("./doomu.wad") returns 0
     static char *argv[] = {
         "doom",
-        "-file",
-        "./doomu.wad",
         (char *)0
     };
     extern int myargc;
     extern char **myargv;
 
-    myargc = 3;
+    // Force heap_ptr to HEAP_START (defense against wild writes)
+    extern void debug_breadcrumb(unsigned int);
+    debug_breadcrumb(0x0001);  // main entered
+
+    myargc = 1;
     myargv = argv;
 
     D_DoomMain();

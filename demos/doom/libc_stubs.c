@@ -907,11 +907,13 @@ int isatty(int fd) { (void)fd; return 0; }
 int fileno(void *stream) { (void)stream; return -1; }
 int access(const char *path, int mode) {
     (void)mode;
-    // WAD files are memory-mapped and always accessible.
-    // id DOOM checks access("./doomu.wad", R_OK) to detect retail mode.
-    // Return 0 for any .wad file to make WAD detection work.
-    size_t plen = strlen(path);
-    if (plen >= 4 && strcasecmp(path + plen - 4, ".wad") == 0) return 0;
+    // id DOOM IdentifyVersion checks WAD names in order:
+    //   doom2f.wad, doom2.wad, plutonia.wad, tnt.wad, doomu.wad, doom.wad, doom1.wad
+    // We ONLY match "doomu.wad" (retail Ultimate DOOM) since that's our WAD.
+    // Matching all .wad would cause Doom to think it's commercial/French edition.
+    if (strstr(path, "doomu.wad") != 0) return 0;
+    // Also match .doomrc (config file check)
+    if (strstr(path, ".doomrc") != 0) return -1;  // no config file
     return -1;
 }
 int stat(const char *path, struct stat *buf) {
