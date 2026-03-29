@@ -5,9 +5,6 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-typedef unsigned int mode_t;
-typedef int off_t;
-
 struct stat {
     off_t st_size;
     mode_t st_mode;

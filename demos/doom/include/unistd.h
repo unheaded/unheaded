@@ -3,11 +3,7 @@
 #define _UNISTD_H
 
 #include <stddef.h>
-
-typedef int ssize_t;
-typedef int off_t;
-typedef int pid_t;
-typedef unsigned int uid_t;
+#include <sys/types.h>
 
 int isatty(int fd);
 int fileno(void *stream);
