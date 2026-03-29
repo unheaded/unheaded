@@ -480,13 +480,13 @@ FILE *stderr = (FILE *)2;
 
 // Debug: write I_Error messages to a fixed RAM region so we can read them
 // via bpftool. Address 0x7BF000 (just before screen) = debug string buffer.
-#define DEBUG_MSG_ADDR ((volatile char *)0x007BF000)
+#define DEBUG_MSG_ADDR ((volatile char *)0x03200000)
 #define DEBUG_MSG_MAX  256
 
 // Debug breadcrumb region: 0x7BE000 (256 bytes before debug messages).
 // Each breadcrumb is a 4-byte milestone ID written sequentially.
 // Read with: bpftool map lookup ... key <word_addr_of_0x7BE000>
-#define BREADCRUMB_ADDR ((volatile uint32_t *)0x007BE000)
+#define BREADCRUMB_ADDR ((volatile uint32_t *)0x03201000)
 #define BREADCRUMB_MAX  64
 
 static int breadcrumb_idx = 0;
@@ -924,7 +924,7 @@ int access(const char *path, int mode) {
     static int access_call_count = 0;
     if (access_call_count == 0) {
         // Write path length and last 4 chars to debug region
-        volatile unsigned int *ADBG = (volatile unsigned int *)0x02052000;
+        volatile unsigned int *ADBG = (volatile unsigned int *)0x03202000;
         size_t plen = strlen(path);
         ADBG[0] = (unsigned int)plen;
         if (plen >= 4) {
