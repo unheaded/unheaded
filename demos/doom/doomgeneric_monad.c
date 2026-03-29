@@ -138,7 +138,16 @@ void DG_SleepMs(uint32_t ms) {
 }
 
 // Entry point — called from crt0.S
+// heap_ptr address must match libc_stubs.c HEAP_PTR_ADDR
+#define HEAP_PTR_ADDR ((char **)0x01BF0000)
+#define HEAP_START_ADDR 0x001C0000
+
 int main(void) {
+    // Force-reset heap_ptr to HEAP_START. doom-runner initializes this,
+    // but early MBC execution can corrupt it before main() runs (crt0 stack
+    // operations or data initialization touching this address).
+    *HEAP_PTR_ADDR = (char *)HEAP_START_ADDR;
+
     debug_breadcrumb(0x0001); // main() entered
 
     // -mb 2: request 2MB zone memory. Doom shareware needs ~1.5MB.

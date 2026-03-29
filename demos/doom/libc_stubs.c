@@ -692,6 +692,10 @@ struct mbc_file {
 
 static struct mbc_file file_table[MAX_FILES];
 
+// Track which slot is the "primary" WAD reader (set by last successful fopen).
+// Corrupted FILE* from Z_Malloc'd structs fall back to this slot.
+static int primary_wad_slot = -1;
+
 FILE *fopen(const char *path, const char *mode) {
     (void)mode;
     debug_breadcrumb(0x0030); // fopen attempted
@@ -713,6 +717,7 @@ FILE *fopen(const char *path, const char *mode) {
             file_table[i].base = (const uint8_t *)WAD_BASE;
             file_table[i].size = WAD_MAX_SIZE;
             file_table[i].pos = 0;
+            primary_wad_slot = i;  // last successful open is the primary
             debug_breadcrumb(0x0031); // WAD fopen succeeded
             return (FILE *)(uintptr_t)(i + 100);
         }
@@ -723,23 +728,27 @@ FILE *fopen(const char *path, const char *mode) {
 
 static struct mbc_file *get_file(FILE *stream) {
     uintptr_t h = (uintptr_t)stream;
-    // Handle corrupted FILE* from Z_Malloc'd structs:
-    // Any non-NULL, non-stdio handle maps to file slot 0 (the WAD).
-    if (h <= 2) return (struct mbc_file *)0;
+    if (h <= 2) return (struct mbc_file *)0;  // stdin/stdout/stderr
     int idx = (int)h - 100;
     if (idx >= 0 && idx < MAX_FILES && file_table[idx].in_use) {
         return &file_table[idx];
     }
-    // Fallback: if FILE* is corrupted, use slot 0 if it's the WAD
-    if (file_table[0].in_use) return &file_table[0];
+    // Fallback: corrupted FILE* from Z_Malloc'd structs → use primary WAD slot
+    if (primary_wad_slot >= 0 && file_table[primary_wad_slot].in_use)
+        return &file_table[primary_wad_slot];
     return (struct mbc_file *)0;
 }
 
 int fclose(FILE *stream) {
-    // No-op: the WAD is memory-mapped and stays open for the entire session.
-    // Closing is dangerous because corrupted FILE* handles from Z_Malloc'd
-    // structs can hit the get_file fallback and close the WAD slot.
-    (void)stream;
+    // Close exact-match handles only (no fallback path).
+    // Corrupted FILE* from Z_Malloc'd structs are silently ignored.
+    uintptr_t h = (uintptr_t)stream;
+    if (h <= 2) return 0;  // stdin/stdout/stderr — no-op
+    int idx = (int)h - 100;
+    if (idx >= 0 && idx < MAX_FILES && file_table[idx].in_use) {
+        file_table[idx].in_use = 0;
+        file_table[idx].pos = 0;
+    }
     return 0;
 }
 
