@@ -78,12 +78,13 @@ pub const HEAP_SIZE: u32 = HEAP_END - HEAP_START; // 26 MiB
 /// doom-runner writes HEAP_START to this address on load.
 pub const HEAP_PTR_ADDR: u32 = 0x01BF_0000;
 
-/// WAD data region (doom1.wad, memory-mapped into RAM).
+/// WAD data region (memory-mapped into RAM).
+/// Retail DOOM.WAD = 12,408,292 bytes (~12.4 MiB). Shareware doom1.wad = 4,196,020 bytes.
 pub const WAD_BASE: u32 = 0x01C0_0000;
-pub const WAD_MAX_SIZE: u32 = 0x0040_1000; // 4 MiB + 4K (doom1.wad is 4,196,020 bytes)
+pub const WAD_MAX_SIZE: u32 = 0x0100_0000; // 16 MiB (covers retail DOOM.WAD with headroom)
 
-/// Stack top (grows downward from RAM ceiling).
-pub const STACK_TOP: u32 = 0x0210_0000; // above WAD end
+/// Stack top (grows downward). Must be above WAD_BASE + WAD_MAX_SIZE.
+pub const STACK_TOP: u32 = 0x0310_0000; // 0x1C00000 + 16M + 1M gap
 
 /// Debug scratch region.
 pub const DEBUG_BASE: u32 = 0x00F0_0000;
@@ -217,8 +218,8 @@ mod tests {
     }
 
     #[test]
-    fn wad_region_is_4mb() {
-        assert!(WAD_MAX_SIZE >= 4 * 1024 * 1024); // at least 4MB, plus slack for doom1.wad
+    fn wad_region_is_16mb() {
+        assert_eq!(WAD_MAX_SIZE, 16 * 1024 * 1024); // 16MB for retail DOOM.WAD
     }
 
     #[test]
