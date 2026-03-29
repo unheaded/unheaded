@@ -2,7 +2,7 @@
 // libc_stubs.c — Bare-metal libc for Doom on MBC (Monad Bytecode)
 //
 // Provides minimal C library functions for doomgeneric running in the UPC.
-// WAD data is memory-mapped at WAD_BASE (0x10000) by the BPF map loader.
+// WAD data is memory-mapped at WAD_BASE (0x800000) by the BPF map loader.
 // Screen buffer is memory-mapped at SCREEN_BASE (0xC000).
 //
 // Memory layout (matches linker.ld):
@@ -21,6 +21,7 @@ void *memset(void *s, int c, size_t n);
 int tolower(int c);
 size_t strlen(const char *s);
 int strcasecmp(const char *s1, const char *s2);
+void debug_breadcrumb(uint32_t milestone);
 
 // Types needed before their headers
 typedef struct _FILE FILE;
@@ -48,26 +49,52 @@ static inline void mbc_halt(void) {
 // ============================================================
 
 // Heap boundaries — hardcoded to match linker.ld HEAP region
-// HEAP origin=0x1C0000, length=6MB → end=0x7C0000
+// HEAP origin=0x1C0000, length=16MB → end=0x011C0000
 #define HEAP_START_ADDR 0x001C0000
-#define HEAP_END_ADDR   0x007C0000
+#define HEAP_END_ADDR   0x011C0000
 
 static char *heap_ptr = (char *)HEAP_START_ADDR;
 
 int errno;
 
+static int malloc_first_call = 1;
+
+// Each allocation is prefixed with a size_t header storing the usable size.
+// This lets realloc know how many bytes to copy from the old allocation.
+#define ALLOC_HEADER_SIZE 8  // sizeof(size_t), aligned to 8
+
 void *malloc(size_t size) {
-    // Align to 8 bytes
-    size = (size + 7) & ~7;
+    if (malloc_first_call) {
+        malloc_first_call = 0;
+        debug_breadcrumb(0x00FF); // first malloc
+        // Sanity check: heap_ptr must be in heap range.
+        // If .sdata wasn't loaded, heap_ptr will be 0 → disaster.
+        if (heap_ptr < (char *)HEAP_START_ADDR || heap_ptr >= (char *)HEAP_END_ADDR) {
+            // heap_ptr is garbage — force it to HEAP_START_ADDR.
+            // This is a safety net; the real fix is loading .sdata.
+            debug_breadcrumb(0x00FE); // heap_ptr was corrupt
+            heap_ptr = (char *)HEAP_START_ADDR;
+        }
+    }
+
+    // Align requested size to 8 bytes
+    size_t aligned = (size + 7) & ~7;
+    // Total: header + payload
+    size_t total = ALLOC_HEADER_SIZE + aligned;
+
     char *result = heap_ptr;
-    char *new_ptr = heap_ptr + size;
+    char *new_ptr = heap_ptr + total;
 
     if (new_ptr > (char *)HEAP_END_ADDR || new_ptr < heap_ptr) {
         // Out of memory
+        debug_breadcrumb(0x00FD); // OOM
         return (void *)0;
     }
     heap_ptr = new_ptr;
-    return (void *)result;
+
+    // Store the usable size in the header, then return pointer past header
+    *(size_t *)result = aligned;
+    return (void *)(result + ALLOC_HEADER_SIZE);
 }
 
 void *calloc(size_t nmemb, size_t size) {
@@ -78,11 +105,15 @@ void *calloc(size_t nmemb, size_t size) {
 }
 
 void *realloc(void *ptr, size_t size) {
-    // Bump allocator can't realloc — just allocate new
     void *newp = malloc(size);
     if (newp && ptr) {
-        // Copy old data (conservatively assume old size <= new size)
-        memcpy(newp, ptr, size);
+        // Read old allocation size from header
+        size_t old_size = *(size_t *)((char *)ptr - ALLOC_HEADER_SIZE);
+        // New usable size is stored in new header
+        size_t new_size = *(size_t *)((char *)newp - ALLOC_HEADER_SIZE);
+        // Copy min(old_size, new_size) to avoid reading past old allocation
+        size_t copy_size = old_size < new_size ? old_size : new_size;
+        memcpy(newp, ptr, copy_size);
     }
     return newp;
 }
@@ -440,19 +471,51 @@ FILE *stderr = (FILE *)2;
 #define DEBUG_MSG_ADDR ((volatile char *)0x007BF000)
 #define DEBUG_MSG_MAX  256
 
-static int debug_msg_written = 0;
+// Debug breadcrumb region: 0x7BE000 (256 bytes before debug messages).
+// Each breadcrumb is a 4-byte milestone ID written sequentially.
+// Read with: bpftool map lookup ... key <word_addr_of_0x7BE000>
+#define BREADCRUMB_ADDR ((volatile uint32_t *)0x007BE000)
+#define BREADCRUMB_MAX  64
+
+static int breadcrumb_idx = 0;
+
+// Write a milestone marker to a fixed RAM address for post-mortem diagnosis.
+// Milestones (defined in doomgeneric_monad.c and here):
+//   0x0001 = main() entered
+//   0x0002 = doomgeneric_Create called
+//   0x0010 = DG_Init entered
+//   0x0011 = DG_Init complete
+//   0x0020 = Z_Init entered
+//   0x0021 = Z_Init complete
+//   0x0030 = WAD fopen attempted
+//   0x0031 = WAD fopen succeeded
+//   0x0032 = WAD fopen failed
+//   0x0040 = I_InitGraphics entered
+//   0x0041 = I_InitGraphics complete
+//   0x0050 = D_DoomMain game loop reached
+//   0x00FF = malloc called (first time)
+//   0xDEAD = I_Error / exit with error
+void debug_breadcrumb(uint32_t milestone) {
+    if (breadcrumb_idx >= BREADCRUMB_MAX) return;
+    BREADCRUMB_ADDR[breadcrumb_idx] = milestone;
+    breadcrumb_idx++;
+    // Also write count at index 63 so we know how many breadcrumbs exist
+    BREADCRUMB_ADDR[BREADCRUMB_MAX - 1] = (uint32_t)breadcrumb_idx;
+}
+
+static int debug_msg_count = 0;
 static void debug_write_string(const char *s) {
-    // Only capture the first error message (skip the "\n" that follows)
-    if (debug_msg_written) return;
+    // Capture ALL error messages (up to 4, at 64-byte intervals)
+    if (debug_msg_count >= 4) return;
     if (s[0] == '\n' && s[1] == '\0') return; // skip bare newlines
-    debug_msg_written = 1;
-    volatile char *dst = DEBUG_MSG_ADDR;
+    volatile char *dst = DEBUG_MSG_ADDR + (debug_msg_count * 64);
     int i = 0;
-    while (s[i] && i < DEBUG_MSG_MAX - 1) {
+    while (s[i] && i < 63) {
         dst[i] = s[i];
         i++;
     }
     dst[i] = '\0';
+    debug_msg_count++;
 }
 
 int fprintf(FILE *stream, const char *fmt, ...) {
@@ -468,11 +531,19 @@ int fprintf(FILE *stream, const char *fmt, ...) {
 }
 int vfprintf(FILE *stream, const char *fmt, va_list ap) {
     if (stream == (FILE *)2) { // stderr
+        debug_write_string(fmt);
         char buf[DEBUG_MSG_MAX];
         vsnprintf(buf, sizeof(buf), fmt, ap);
         debug_write_string(buf);
     }
     return 0;
+}
+
+// Also intercept I_Error directly via a wrapper
+// Doom's I_Error calls vfprintf(stderr, ...) then exit(-1)
+// But just in case, also write at function entry
+void __attribute__((used)) _doom_error_hook(const char *msg) {
+    debug_write_string(msg);
 }
 int putchar(int c) { (void)c; return c; }
 int puts(const char *s) { (void)s; return 0; }
@@ -506,6 +577,7 @@ static struct mbc_file file_table[MAX_FILES];
 
 FILE *fopen(const char *path, const char *mode) {
     (void)mode;
+    debug_breadcrumb(0x0030); // fopen attempted
 
     // Check if this looks like a WAD file
     int is_wad = 0;
@@ -524,9 +596,11 @@ FILE *fopen(const char *path, const char *mode) {
             file_table[i].base = (const uint8_t *)WAD_BASE;
             file_table[i].size = WAD_MAX_SIZE;
             file_table[i].pos = 0;
+            debug_breadcrumb(0x0031); // WAD fopen succeeded
             return (FILE *)(uintptr_t)(i + 100);
         }
     }
+    debug_breadcrumb(0x0032); // fopen failed (no free slot)
     return (FILE *)0;
 }
 
@@ -616,9 +690,18 @@ int fflush(FILE *stream) { (void)stream; return 0; }
 // ============================================================
 
 void exit(int status) {
-    (void)status;
+    debug_breadcrumb(status == 0 ? 0x0000 : 0xDEAD);
+    // Write exit status as first 4 bytes of debug region
+    // Using byte-by-byte write which definitely works on MBC
+    volatile char *d = DEBUG_MSG_ADDR;
+    // Write status as decimal string
+    if (status == 0) {
+        d[0] = 'O'; d[1] = 'K'; d[2] = '!'; d[3] = '\0';
+    } else {
+        d[0] = 'E'; d[1] = 'R'; d[2] = 'R'; d[3] = '\0';
+    }
     mbc_halt();
-    while (1) {} // should never reach
+    while (1) {}
 }
 
 void abort(void) {
@@ -646,7 +729,12 @@ void qsort(void *base, size_t nmemb, size_t size,
     }
 }
 
-char *getenv(const char *name) { (void)name; return (char *)0; }
+char *getenv(const char *name) {
+    // Return a safe HOME so Doom doesn't crash constructing config paths.
+    // All file writes are no-ops anyway on bare-metal MBC.
+    if (name && strcmp(name, "HOME") == 0) return "/tmp";
+    return (char *)0;
+}
 int system(const char *command) { (void)command; return -1; }
 
 static unsigned int rand_seed = 1;
@@ -675,9 +763,11 @@ int setjmp(jmp_buf env) {
 void longjmp(jmp_buf env, int val) {
     (void)env;
     (void)val;
-    // On bare-metal MBC, longjmp means I_Error — halt the CPU.
-    mbc_halt();
-    while (1) {}
+    // Write marker so we know longjmp was called
+    volatile char *m = DEBUG_MSG_ADDR + 240;
+    m[0] = 'L'; m[1] = 'J'; m[2] = 'M'; m[3] = 'P';
+    // Don't halt — the I_Error path will call exit() which halts
+    return;
 }
 
 // ============================================================
@@ -686,8 +776,26 @@ void longjmp(jmp_buf env, int val) {
 
 int isatty(int fd) { (void)fd; return 0; }
 int fileno(void *stream) { (void)stream; return -1; }
-int access(const char *path, int mode) { (void)path; (void)mode; return -1; }
-int stat(const char *path, struct stat *buf) { (void)path; (void)buf; return -1; }
+int access(const char *path, int mode) {
+    (void)mode;
+    // WAD files are memory-mapped and always accessible
+    size_t plen = strlen(path);
+    if (plen >= 4 && strcasecmp(path + plen - 4, ".wad") == 0) return 0;
+    return -1;
+}
+int stat(const char *path, struct stat *buf) {
+    // WAD files are memory-mapped; report their size so Doom can find them
+    size_t plen = strlen(path);
+    if (plen >= 4 && strcasecmp(path + plen - 4, ".wad") == 0) {
+        if (buf) {
+            memset(buf, 0, sizeof(struct stat));
+            buf->st_size = WAD_MAX_SIZE;
+            buf->st_mode = 0100644; // regular file
+        }
+        return 0;
+    }
+    return -1;
+}
 int mkdir(const char *path, unsigned int mode) { (void)path; (void)mode; return -1; }
 int open(const char *path, int flags, ...) { (void)path; (void)flags; return -1; }
 
