@@ -12,10 +12,10 @@
 MEMORY
 {
     ROM    (rx)  : ORIGIN = 0x00000000, LENGTH = 1M      /* MBC ROM: code + rodata */
-    RAM    (rw)  : ORIGIN = 0x00100000, LENGTH = 768K    /* MBC RAM: data + bss */
-    HEAP   (rw)  : ORIGIN = 0x001C0000, LENGTH = 6M      /* Heap: Doom needs 4MB min (z_zone) */
-    SCREEN (rw)  : ORIGIN = 0x007C0000, LENGTH = 64000   /* Screen: 320x200 */
+    RAM    (rw)  : ORIGIN = 0x00100000, LENGTH = 768K    /* MBC RAM: data + bss + stack */
+    SCREEN (rw)  : ORIGIN = 0x00070000, LENGTH = 64000   /* Screen: maps to SCREEN_MAP BPF array */
     WAD    (r)   : ORIGIN = 0x00800000, LENGTH = 4M      /* WAD data (memory-mapped) */
+    HEAP   (rw)  : ORIGIN = 0x00C00000, LENGTH = 16M     /* Heap: AFTER WAD, no overlap */
 }
 
 ENTRY(_start)
@@ -50,4 +50,4 @@ SECTIONS
     } > HEAP
 }
 
-_stack_top = ORIGIN(RAM) + LENGTH(RAM);
+_stack_top = ORIGIN(HEAP) + LENGTH(HEAP);
