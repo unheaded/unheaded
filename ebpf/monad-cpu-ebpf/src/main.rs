@@ -405,22 +405,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.halted = 1;
             break;
         }
-        // SP check: translator maps x2(sp)→r15. Check r15, not r2.
-        // Only after STATS[INSNS] > 1000 (past crt0 BSS zeroing).
-        if cpu.regs[15] == 0 {
-            let insns_executed = match unsafe { STATS.get(&STAT_INSNS_EXECUTED) } {
-                Some(v) => *v,
-                None => 0,
-            };
-            if insns_executed > 1000 {
-                let sp_key: u32 = 24;
-                if let Some(ptr) = STATS.get_ptr_mut(&sp_key) {
-                    unsafe { *ptr = ((cpu.pc as u64) << 32) | (prev_pc as u64); }
-                }
-                cpu.halted = 1;
-                break;
-            }
-        }
+        // SP monitor moved to HALT handler (verifier limit prevents per-insn checks).
         prev_pc = cpu.pc;
         let insn_word = match ROM_MAP.get(cpu.pc) {
             Some(w) => *w,
@@ -1412,6 +1397,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::HALT {
             cpu.halted = 1;
             increment_stat(STAT_HALTED);
+            // SP diagnostic: record r15 and PC at halt time
+            let sp_key: u32 = 24;
+            if let Some(ptr) = STATS.get_ptr_mut(&sp_key) {
+                // Pack: high32 = r15 (SP), low32 = PC at halt
+                unsafe { *ptr = ((cpu.regs[15] as u64) << 32) | (cpu.pc as u64); }
+            }
             emit_compute_halt(flow_label, cpu.insn_count, hop_id);
             break;
         }
