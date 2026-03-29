@@ -222,3 +222,65 @@ from the stats dashboard but is actually an undetected crash.
 The eBPF executor needs a PC bounds check: `if PC >= ROM_MAP_ENTRIES, halt
 immediately and record the last valid PC`. This would have caught the corruption
 instantly instead of letting it run for billions of wasted cycles.
+
+---
+
+## id DOOM Port — Session 2026-03-29 (continued)
+
+### Phase 1-3: Build System, Compile, Link — COMPLETE
+
+Commits: d56360a9, efd094b0, 4a16480a
+
+- 62 id DOOM .c files compile for RV32I with restricted registers
+- 4 MBC platform stubs: i_video_mbc.c, i_sound_mbc.c, i_net_mbc.c, i_system_mbc.c
+- POSIX fd table added to libc_stubs.c (open/read/lseek/close for WAD I/O)
+- doom.elf links (237K text, 119K data, 10.3M bss)
+- doom.mbc: 85,454 MBC instructions
+
+### Phase 4: Load and Run — COMPLETE
+
+Commit: b1abb44c
+
+- Retail DOOM.WAD (12.4MB) loaded at 0x1C00000
+- All doom-runner verifications PASS
+- Doom executes 1.8M instructions then halts (clean halt, valid PC)
+- Error: "W_InitFiles: no files found"
+
+### Phase 5: Debugging WAD Detection — IN PROGRESS
+
+**Finding 1: access() returns 0 for ALL .wad but Doom picks wrong WAD**
+IdentifyVersion checks WADs in order. access() returning 0 for all .wad
+caused Doom to think it was French commercial edition. Fixed to only
+match "doomu.wad" for retail.
+
+**Finding 2: access() IS called but .wad extension check never matches**
+7 access() calls, 0 matches. The strcasecmp(last_4_chars, ".wad") fails.
+Reason: strlen(path) returns 0 — the path strings are EMPTY.
+
+**Finding 3: sprintf output goes nowhere**
+IdentifyVersion: `sprintf(doomuwad, "%s/doomu.wad", doomwaddir)` where
+doomwaddir = "." and doomuwad = malloc'd buffer. But the buffer reads
+as all zeros after sprintf writes to it.
+
+**Finding 4: JVM-style dynamic heap implemented**
+Replaced fixed-address heap_ptr (0x1BF0000) with sbrk-based allocator
+using linker symbols __heap_start/__heap_end. Heap is 26MB, initialized
+from BSS. doom-runner does NOT write any special address.
+
+**Current blocker: MBC VM byte store at heap addresses**
+malloc() returns non-NULL (breadcrumb 0x0002 confirms). But sprintf's
+byte stores to the malloc'd buffer appear to not persist — strlen reads 0.
+This suggests the MBC executor's byte store (SB instruction) at addresses
+in the heap region (0x1C0000+) may not write to RAM_MAP correctly.
+
+**Suspected cause:**
+The MBC SW (store word) and SB (store byte) instructions compute a word
+index into RAM_MAP as `byte_addr / 4`. For heap addresses (0x1C0000),
+the word index is 0x1C0000/4 = 0x70000. RAM_MAP has 16M entries, so
+0x70000 is valid. But there might be a byte-within-word addressing bug
+where SB writes to the wrong byte offset within the u32 word.
+
+**Next step:**
+Verify byte store/load roundtrip at heap addresses in the eBPF executor.
+Add a test: write a known byte pattern to a heap address, read it back.
+If it doesn't round-trip, the bug is in the MBC SB/LB instructions.
