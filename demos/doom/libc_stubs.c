@@ -864,7 +864,10 @@ void qsort(void *base, size_t nmemb, size_t size,
 char *getenv(const char *name) {
     if (!name) return (char *)0;
     // DOOMWADDIR: id DOOM uses this to find WAD files
-    if (strcmp(name, "DOOMWADDIR") == 0) return ".";
+    if (strcmp(name, "DOOMWADDIR") == 0) {
+        debug_breadcrumb(0x0090);  // getenv("DOOMWADDIR") called = IdentifyVersion reached
+        return ".";
+    }
     // HOME: Doom uses this for config file paths
     if (strcmp(name, "HOME") == 0) return "/tmp";
     return (char *)0;
@@ -912,13 +915,34 @@ int isatty(int fd) { (void)fd; return 0; }
 int fileno(void *stream) { (void)stream; return -1; }
 int access(const char *path, int mode) {
     (void)mode;
-    // id DOOM IdentifyVersion checks WAD names in order:
-    //   doom2f.wad, doom2.wad, plutonia.wad, tnt.wad, doomu.wad, doom.wad, doom1.wad
-    // We ONLY match "doomu.wad" (retail Ultimate DOOM) since that's our WAD.
-    // Matching all .wad would cause Doom to think it's commercial/French edition.
-    if (strstr(path, "doomu.wad") != 0) return 0;
-    // Also match .doomrc (config file check)
-    if (strstr(path, ".doomrc") != 0) return -1;  // no config file
+    debug_breadcrumb(0x00A1);  // access() called
+
+    // Capture first path's details to debug region for diagnosis
+    static int access_call_count = 0;
+    if (access_call_count == 0) {
+        // Write path length and last 4 chars to debug region
+        volatile unsigned int *ADBG = (volatile unsigned int *)0x02052000;
+        size_t plen = strlen(path);
+        ADBG[0] = (unsigned int)plen;
+        if (plen >= 4) {
+            ADBG[1] = (unsigned char)path[plen-4];
+            ADBG[2] = (unsigned char)path[plen-3];
+            ADBG[3] = (unsigned char)path[plen-2];
+            ADBG[4] = (unsigned char)path[plen-1];
+        }
+        // Also write first 12 chars of path
+        for (int i = 0; i < 12 && path[i]; i++) {
+            ((volatile char *)&ADBG[5])[i] = path[i];
+        }
+    }
+    access_call_count++;
+
+    // Match any .wad file
+    size_t plen = strlen(path);
+    if (plen >= 4 && strcasecmp(path + plen - 4, ".wad") == 0) {
+        debug_breadcrumb(0x00A0);  // matched
+        return 0;
+    }
     return -1;
 }
 int stat(const char *path, struct stat *buf) {
@@ -964,6 +988,7 @@ int open(const char *path, int flags, ...) {
         if (strcasecmp(ext, ".wad") == 0) is_wad = 1;
     }
     if (!is_wad) return -1;
+    debug_breadcrumb(0x00B0);  // open() called for WAD file
 
     // Find free fd slot
     for (int i = 0; i < MAX_FDS; i++) {
