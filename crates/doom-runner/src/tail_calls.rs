@@ -131,38 +131,61 @@ pub fn plan(config: TailCallConfig) -> Result<TailCallPlan> {
     })
 }
 
-/// Load the tail call chain into BPF.
+/// Set up the tail call chain in an already-loaded eBPF object.
 ///
-/// This is a placeholder — the actual implementation requires:
-/// 1. Loading the monad_cpu program N times via Aya
-/// 2. Inserting each loaded program FD into a BPF_MAP_TYPE_PROG_ARRAY
-/// 3. Setting the "chain_depth" value in a config map the eBPF program reads
+/// The monad-cpu-ebpf program uses self-tail-calling: it calls itself
+/// via TAIL_CALL_PROGS[0] up to MAX_TAIL_CALLS times per packet.
+/// Each invocation gets a fresh BPF verifier budget (16 MBC instructions).
 ///
-/// The eBPF side (monad-cpu-ebpf) must be modified to support tail calls
-/// before this function does anything useful.
-pub async fn load_chain(_plan: &TailCallPlan) -> Result<()> {
-    // TODO: Implement once monad-cpu-ebpf has tail call support.
-    //
-    // Rough pseudocode:
-    //
-    // let mut bpf = aya::Ebpf::load_file(&plan.config.ebpf_obj_path)?;
-    // let prog_array: ProgramArray<_, _> = bpf.take_map("TAIL_CALL_PROGS")?.try_into()?;
-    //
-    // for i in 0..plan.config.chain_depth {
-    //     let prog: &mut Xdp = bpf.program_mut(&format!("monad_cpu_{i}"))?.try_into()?;
-    //     prog.load()?;
-    //     prog_array.set(i as u32, prog, 0)?;
-    // }
-    //
-    // // Set chain_depth in the config map
-    // let config_map: Array<_, u32> = bpf.take_map("CHAIN_CONFIG")?.try_into()?;
-    // config_map.set(0, plan.config.chain_depth as u32, 0)?;
+/// This function populates TAIL_CALL_PROGS[0] with monad_cpu's own FD.
+/// Call this AFTER loading and calling `program.load()` on monad_cpu.
+///
+/// Returns the actual chain depth configured.
+pub fn setup_tail_calls(
+    ebpf: &mut aya::Ebpf,
+    plan: &TailCallPlan,
+) -> Result<usize> {
+    use aya::maps::ProgramArray;
+    use aya::programs::Xdp;
+
+    plan.config.validate()?;
+
+    // Clone the program FD first (immutable borrow), then drop it before
+    // taking the mutable borrow for the prog array map.
+    let prog_fd = {
+        let prog: &Xdp = ebpf
+            .program("monad_cpu")
+            .ok_or_else(|| anyhow::anyhow!("monad_cpu program not found"))?
+            .try_into()
+            .map_err(|e| anyhow::anyhow!("monad_cpu is not XDP: {e}"))?;
+
+        prog.fd()
+            .map_err(|e| anyhow::anyhow!("monad_cpu has no FD: {e}"))?
+            .try_clone()
+            .map_err(|e| anyhow::anyhow!("failed to clone monad_cpu FD: {e}"))?
+    }; // immutable borrow of `ebpf` dropped here
+
+    // Populate TAIL_CALL_PROGS[0] = monad_cpu (self-reference)
+    let mut prog_array = ProgramArray::try_from(
+        ebpf.map_mut("TAIL_CALL_PROGS")
+            .ok_or_else(|| anyhow::anyhow!("TAIL_CALL_PROGS map not found"))?,
+    )
+    .map_err(|e| anyhow::anyhow!("TAIL_CALL_PROGS is not a ProgramArray: {e}"))?;
+
+    prog_array
+        .set(0, &prog_fd, 0)
+        .map_err(|e| anyhow::anyhow!("failed to set TAIL_CALL_PROGS[0]: {e}"))?;
 
     info!(
-        "tail call chain loading not yet implemented \
-         (requires monad-cpu-ebpf tail call support)"
+        "tail call chain active: {} rounds x {} insns = {} insns/tick, \
+         ~{} insns/sec at 2 kHz",
+        plan.config.chain_depth,
+        INSNS_PER_PROGRAM,
+        plan.total_insns_per_tick,
+        plan.estimated_throughput_2khz,
     );
-    Ok(())
+
+    Ok(plan.config.chain_depth)
 }
 
 #[cfg(test)]
