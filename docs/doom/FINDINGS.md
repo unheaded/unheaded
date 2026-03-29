@@ -318,3 +318,35 @@ The corruption is in the MBC translator or eBPF executor:
 **CRITICAL NEXT STEP: PC bounds check in eBPF executor.**
 When PC >= ROM_MAP_ENTRIES, halt and record last valid PC + the bad instruction.
 This pinpoints the exact corruption source.
+
+---
+
+## Debug Methodology — What Works (2026-03-29)
+
+The following debug path has been proven effective:
+
+1. **PC bounds check** — verify PC is in valid ROM range FIRST
+   - If invalid: the CPU is executing NOPs, all instruction counts are lies
+   - If valid: the CPU is actually running code, proceed to step 2
+
+2. **SP bounds check** — verify stack pointer (r2 on RV32I) is valid
+   - If SP=0 or in ROM range: stack is corrupt, all function calls are broken
+   - Must check AFTER crt0 runs (first ~50K instructions zero BSS)
+
+3. **Breadcrumb tracing** — debug_breadcrumb(milestone_id) at key init points
+   - Captures execution flow without printf
+   - Read via bpftool map lookup on RAM_MAP
+
+4. **Error message capture** — I_Error writes to debug region
+   - debug_write(buf) at 0x7BF000 in RAM_MAP
+   - Read post-mortem via bpftool
+
+5. **STAT counters** — HALTED, INSNS, ROM_FAULT, MEM_STORES, MEM_LOADS
+   - HALTED absent = still running. HALTED present = crashed or sleeping.
+   - INSNS climbing but no HALTED = verify PC is valid (could be NOP spin)
+
+**WARNING: insn_count field in MbcCpuState does NOT persist across tail calls.**
+Use STATS map (incremented per-instruction) instead.
+
+**WARNING: CPU state sampling can read wrong bytes if struct layout is misunderstood.**
+Always decode the FULL 128-byte CPU_MAP value, not individual offsets.
