@@ -13,5 +13,9 @@ clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+axum = { version = "0.7", features = ["ws"] }
+tokio-tungstenite = "0.24"
+tower-http = { version = "0.5", features = ["fs"] }
+futures-util = "0.3"
 goblin = "0.9"
 byteorder = "1"

@@ -68,22 +68,22 @@ pub const SCREEN_SIZE: u32 = SCREEN_WIDTH * SCREEN_HEIGHT; // 64_000 bytes
 pub const SCREEN_MAP_ENTRIES: u32 = SCREEN_SIZE;
 
 /// Heap region for Doom's Z_Init zone allocator.
-/// 10 MiB is generous — Doom needs ~4-6 MiB minimum.
+/// 26 MiB: Doom pre-Z_Init allocations use ~10MB, Z_Init needs ~3MB more.
 pub const HEAP_START: u32 = 0x001C_0000;
-pub const HEAP_END: u32 = 0x00BC_0000;
-pub const HEAP_SIZE: u32 = HEAP_END - HEAP_START; // 10 MiB
+pub const HEAP_END: u32 = 0x01BC_0000;
+pub const HEAP_SIZE: u32 = HEAP_END - HEAP_START; // 26 MiB
 
 /// Isolated heap_ptr address — lives far from .data to avoid wild pointer corruption.
-/// libc_stubs.c defines: #define HEAP_PTR_ADDR ((char **)0x00BF0000)
+/// libc_stubs.c defines: #define HEAP_PTR_ADDR ((char **)0x01BF0000)
 /// doom-runner writes HEAP_START to this address on load.
-pub const HEAP_PTR_ADDR: u32 = 0x00BF_0000;
+pub const HEAP_PTR_ADDR: u32 = 0x01BF_0000;
 
 /// WAD data region (doom1.wad, memory-mapped into RAM).
-pub const WAD_BASE: u32 = 0x00C0_0000;
+pub const WAD_BASE: u32 = 0x01C0_0000;
 pub const WAD_MAX_SIZE: u32 = 0x0040_1000; // 4 MiB + 4K (doom1.wad is 4,196,020 bytes)
 
 /// Stack top (grows downward from RAM ceiling).
-pub const STACK_TOP: u32 = RAM_BASE + RAM_SIZE; // 0x0110_0000
+pub const STACK_TOP: u32 = 0x0210_0000; // above WAD end
 
 /// Debug scratch region.
 pub const DEBUG_BASE: u32 = 0x00F0_0000;
