@@ -1,0 +1,37 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo lock (binary — include for reproducible builds)
+# Cargo.lock is committed for binaries per Cargo best practices.
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# zhend runtime data (never commit node state)
+/data/
+*.archive
+*.db
+
+# PQ key material (NEVER commit secret keys)
+*.pq_secret
+*.kem_secret
+*.signing_secret
+
+# ONNX models (too large for git)
+*.onnx
+*.onnx.quantized
+
+# Coverage reports
+*.profraw
+*.profdata
+lcov.info
+tarpaulin-report.html

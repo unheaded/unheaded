@@ -1,0 +1,74 @@
+# zhend — Zhen Layer 0 Configuration
+# 真 — The Library that cannot burn.
+#
+# Copy to /etc/zhend/config.toml and edit for your deployment.
+
+[storage]
+# Data directory for all storage tiers (L1/L2/L3).
+data_dir = "/var/lib/zhend"
+
+# L1 → L2 sedimentation threshold. Fragments not accessed within
+# this window migrate from hot (memory) to warm (sled KV).
+# Default: 1 hour.
+l1_to_l2_secs = 3600
+
+# L2 → L3 sedimentation threshold. Warm fragments not accessed
+# within this window migrate to cold (Jing archive).
+# Default: 7 days.
+l2_to_l3_secs = 604800
+
+[network]
+# gRPC listen address (internal Kingdom services).
+grpc_addr = "[::1]:7300"
+
+# QUIC/HTTP3 listen address (external/edge access).
+quic_addr = "[::1]:7301"
+
+# Gossip listen address (UDP, Qi propagation).
+gossip_addr = "[::]:7302"
+
+# Seed peers for initial gossip mesh join.
+# Format: IPv6 address with port.
+seed_peers = [
+    # "[::1]:7302",
+    # "[fd00::2]:7302",
+]
+
+[gossip]
+# Number of random peers to contact per gossip cycle.
+fanout = 3
+
+# Gossip cycle interval in milliseconds.
+interval_ms = 1000
+
+[embedding]
+# Path to ONNX embedding model.
+# Omit or leave empty for no-embedding mode (De disabled).
+# Recommended: all-MiniLM-L6-v2 quantized (~22MB).
+# model = "/var/lib/zhend/models/all-MiniLM-L6-v2.onnx"
+
+# Embedding vector dimensions. Must match model output.
+dims = 384
+
+[crypto]
+# Post-quantum crypto is MANDATORY for fragment encryption.
+# "That which remembers forever must be armored against forever."
+
+# Path to this node's hybrid KEM keypair (ML-KEM-768 + X25519).
+# Generated on first boot if not present.
+# kem_keypair = "/var/lib/zhend/keys/kem.secret"
+
+# Path to this node's ML-DSA-65 signing keypair.
+# Generated on first boot if not present.
+# signing_keypair = "/var/lib/zhend/keys/signing.secret"
+
+# Key rotation interval in days. Old keys are securely destroyed.
+# key_rotation_days = 365
+
+[logging]
+# Log format: "json" for structured, "pretty" for human-readable.
+format = "pretty"
+
+# Log level. Set via RUST_LOG env var for fine-grained control.
+# e.g., RUST_LOG=zhend=debug,zhend::qi=trace
+level = "info"

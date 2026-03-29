@@ -1,0 +1,144 @@
+// Zhen Layer 0 — gRPC Service Definitions
+// GPL-3.0-only
+//
+// 真 — The Library that cannot burn.
+
+syntax = "proto3";
+
+package zhen.v1;
+
+option go_package = "github.com/unheaded/zhend/proto/zhen/v1";
+
+// Core Zhen service — knowledge substrate operations.
+service Zhen {
+  // Submit a new Pu fragment for ingestion.
+  rpc Ingest(IngestRequest) returns (IngestResponse);
+
+  // Surface De-ranked fragments for a given context.
+  rpc Surface(SurfaceRequest) returns (SurfaceResponse);
+
+  // Node health, strata snapshot, gossip stats.
+  rpc Status(StatusRequest) returns (StatusResponse);
+
+  // Initiate a Pilgrimage (deep Jing retrieval). Streams progress.
+  rpc Pilgrimage(PilgrimageRequest) returns (stream PilgrimageUpdate);
+
+  // Gossip sync: exchange fragment digests with a peer.
+  rpc SyncDigests(stream DigestBatch) returns (stream WantBatch);
+}
+
+// --- Ingest ---
+
+message IngestRequest {
+  // Raw payload bytes. BLAKE3 hash computed server-side.
+  bytes payload = 1;
+  // Optional embedding vector (quantized uint8).
+  bytes embedding = 2;
+  // Optional MIME content-type hint.
+  string content_type = 3;
+}
+
+message IngestResponse {
+  // BLAKE3 hash of the ingested fragment.
+  bytes fragment_id = 1;
+  // Whether this was a novel fragment (true) or duplicate (false).
+  bool novel = 2;
+}
+
+// --- Surface (De) ---
+
+message SurfaceRequest {
+  // Context embedding vector for relevance scoring.
+  bytes context_embedding = 1;
+  // Maximum fragments to return.
+  uint32 top_k = 2;
+  // Minimum De (relevance) threshold [0.0, 1.0].
+  float min_de = 3;
+}
+
+message SurfaceResponse {
+  // Fragments ranked by De (descending).
+  repeated ScoredFragment fragments = 1;
+}
+
+message ScoredFragment {
+  bytes fragment_id = 1;
+  bytes payload = 2;
+  float de_score = 3;
+  Tier tier = 4;
+  uint64 access_count = 5;
+}
+
+// --- Status ---
+
+message StatusRequest {}
+
+message StatusResponse {
+  // Node identity.
+  string node_id = 1;
+  // Strata snapshot.
+  StrataSnapshot strata = 2;
+  // Gossip mesh stats.
+  GossipStats gossip = 3;
+  // Uptime in seconds.
+  uint64 uptime_secs = 4;
+  // Whether embedding model is loaded.
+  bool embedder_ready = 5;
+}
+
+message StrataSnapshot {
+  uint64 l1_count = 1;
+  uint64 l2_count = 2;
+  uint64 l3_count = 3;
+  uint64 total_bytes = 4;
+}
+
+message GossipStats {
+  uint32 peer_count = 1;
+  uint32 alive_peers = 2;
+  uint64 digests_sent = 3;
+  uint64 fragments_exchanged = 4;
+}
+
+// --- Pilgrimage ---
+
+message PilgrimageRequest {
+  // BLAKE3 hash of the fragment to seek in Jing.
+  bytes fragment_id = 1;
+}
+
+message PilgrimageUpdate {
+  PilgrimageState state = 1;
+  uint64 entries_scanned = 2;
+  // Set when state == FOUND.
+  bytes payload = 3;
+}
+
+enum PilgrimageState {
+  PILGRIMAGE_STATE_UNSPECIFIED = 0;
+  SCANNING = 1;
+  FOUND = 2;
+  NOT_FOUND_LOCALLY = 3;
+  FAILED = 4;
+}
+
+// --- Gossip Sync ---
+
+message DigestBatch {
+  // BLAKE3 hashes of fragments this node has.
+  repeated bytes fragment_ids = 1;
+}
+
+message WantBatch {
+  // BLAKE3 hashes this node wants (doesn't have).
+  repeated bytes wanted_ids = 1;
+}
+
+// --- Enums ---
+
+enum Tier {
+  TIER_UNSPECIFIED = 0;
+  HOT = 1;   // L1
+  WARM = 2;  // L2
+  COLD = 3;  // L3 (Jing)
+}
