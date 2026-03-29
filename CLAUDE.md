@@ -733,46 +733,22 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - Zhen Layer 0 (crates/zhend/): Anti-fragile gossip knowledge substrate, PQ crypto, 50 tests green
 - EAST bare metal: Online, P2P link live, BPF flow graph cross-host
 
-### Doom-over-IPv6 — See `docs/doom/` for full documentation
+### Doom-over-IPv6 — ALL DOCS IN `docs/doom/`
 
-All Doom technical docs, findings, and runbooks live in `docs/doom/`:
-- `docs/doom/README.md` — Architecture, memory layout, bugs fixed, running instructions
-- `docs/doom/FINDINGS.md` — Session findings, critical bugs, lessons learned
+**MANDATORY: All Doom work MUST be documented in `docs/doom/`.** Before and after every
+Doom session, read and update the docs. Do NOT keep Doom knowledge in CLAUDE.md — it
+goes stale. The docs/ folder is the living record.
 
-### Doom-over-IPv6 Architecture (S75+)
+- `docs/doom/README.md` — Architecture, memory layout, bugs fixed, what works/doesn't
+- `docs/doom/FINDINGS.md` — Session findings, debugging narrative, lessons learned
+- `docs/doom/BATTLE-PLAN.md` — Choose-your-own-adventure paths to playable Doom
+- `docs/doom/RUNBOOK.md` — Step-by-step operational runbook
+- `docs/doom/ARCHITECTURE.md` — Deep technical architecture
+- `docs/doom/NEXT-STEPS.md` — Prioritized roadmap
 
-**Pipeline:** doom.elf (RV32I) → rv32i-to-mbc → doom.mbc → BPF maps → XDP execution → browser
-
-**Critical lesson — Map Alignment Bug:** The shell script loader (`doom-ring.sh`) pins BPF maps, but aya/the kernel creates SEPARATE maps for the XDP program. Data loaded into pinned maps is invisible to the program. **doom-runner (crates/doom-runner/) solves this** by owning both program loading and map creation atomically via Aya.
-
-**Memory Layout (authoritative — doom-runner/src/memory.rs):**
-```
-0x000000-0x056430  ROM (.text + .rodata) → ROM_MAP (262K entries)
-0x070000-0x07FA00  SCREEN (320×200)      → SCREEN_MAP (64K entries)
-0x100000-0x10E97C  RAM (.data + .sdata)  → RAM_MAP
-0x10E97C-0x197B58  BSS                   → RAM_MAP (zeroed by crt0)
-0x800000-0xBFFFFF  WAD (4MB)             → RAM_MAP
-0xC00000-0x1C00000 HEAP (16MB)           → RAM_MAP (bump allocator)
-Stack grows down from HEAP end           → RAM_MAP
-RAM_MAP: 16M entries × 4 bytes = 64MB addressable
-```
-
-**Key constraints:**
-- MAX_INSN_PER_TICK = 16 (kernel 6.17 BPF verifier limit at current program complexity)
-- Tail call chain architecture (N programs × 16 insns = 16N insns/tick) needed for 256+ insns/tick
-- Heap MUST NOT overlap WAD region (was the cause of Z_Init / lump corruption crashes)
-- `.sdata` section MUST be loaded (contains heap_ptr, stdout, critical globals)
-- WAD loaded at 0x800000 (must match libc_stubs.c WAD_BASE)
-
-**Key files:**
-- `crates/doom-runner/` — Aya-based runtime (production path)
-- `demos/doom/libc_stubs.c` — C runtime stubs (malloc, fopen, fread, etc.)
-- `demos/doom/linker.ld` — Memory layout for RV32I compilation
-- `demos/doom/doomgeneric_monad.c` — Platform layer (screen, input)
-- `ebpf/monad-cpu-ebpf/src/main.rs` — XDP MBC executor
-- `ebpf/monad-common/src/lib.rs` — Shared types (MbcCpuState, Monad, mbc_mmap)
-- `scripts/doom-ring.sh` — LEGACY ring setup (being replaced by doom-runner)
-- `scripts/doom-loader.sh` — LEGACY data loader (being replaced by doom-runner)
+**Current blocker:** PC corruption. See `docs/doom/FINDINGS.md`.
+**Source of truth for memory layout:** `crates/doom-runner/src/memory.rs`
+**Source of truth for runtime:** `crates/doom-runner/`
 - Kingdom startup/shutdown services, host metrics storage
 - S-ZHEN: Zhen AI Champion (RAG pipeline, Flask web UI, Zhen-Claude bridge API, 1.52M vector corpus)
 - S-PQC: SLH-DSA (FIPS 205) implemented via cloudflare/circl v1.6.3, 60 PQC tests passing
