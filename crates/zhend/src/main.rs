@@ -168,6 +168,37 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Spawn deep sedimentation loop (L2 → L3 migration).
+    let deep_store = Arc::clone(&store);
+    let deep_interval_secs = config.l2_to_l3_secs;
+    let (deep_tx, mut deep_rx) = mpsc::channel::<()>(1);
+    let deep_handle = tokio::spawn(async move {
+        // Check every 1/10th of threshold, minimum 600s (10 min).
+        let interval = tokio::time::Duration::from_secs(
+            std::cmp::max(deep_interval_secs / 10, 600)
+        );
+
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => {
+                    match deep_store.deep_sediment(deep_interval_secs) {
+                        Ok(n) if n > 0 => {
+                            tracing::info!(migrated = n, "deep sedimentation cycle: L2 → L3");
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::warn!(error = %e, "deep sedimentation cycle failed");
+                        }
+                    }
+                }
+                _ = deep_rx.recv() => {
+                    tracing::info!("deep sedimentation loop shutting down");
+                    break;
+                }
+            }
+        }
+    });
+
     // TODO: spawn gRPC server
     // TODO: spawn QUIC server
     // TODO: spawn Monad bridge listener
@@ -180,9 +211,16 @@ async fn main() -> anyhow::Result<()> {
     tokio::signal::ctrl_c().await?;
     tracing::info!("shutdown signal received — graceful shutdown");
 
+    // Snapshot L1 to disk before shutting down subsystems.
+    match store.snapshot() {
+        Ok(n) => tracing::info!(fragments = n, "L1 snapshot persisted to disk"),
+        Err(e) => tracing::error!(error = %e, "L1 snapshot FAILED — hot fragments may be lost on restart"),
+    }
+
     // Signal all subsystems.
     let _ = gossip_tx.send(()).await;
     let _ = sediment_tx.send(()).await;
+    let _ = deep_tx.send(()).await;
 
     // Wait for subsystems.
     let _ = tokio::time::timeout(
@@ -190,6 +228,7 @@ async fn main() -> anyhow::Result<()> {
         async {
             let _ = gossip_handle.await;
             let _ = sediment_handle.await;
+            let _ = deep_handle.await;
         }
     ).await;
 
