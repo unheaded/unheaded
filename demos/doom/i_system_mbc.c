@@ -227,6 +227,14 @@ int main(void)
     myargc = 1;
     myargv = argv;
 
+    // Test malloc before D_DoomMain
+    void *test = malloc(16);
+    if (test) {
+        debug_breadcrumb(0x0002);  // malloc works
+    } else {
+        debug_breadcrumb(0x00FE);  // malloc BROKEN
+    }
+
     D_DoomMain();
 
     // Should never return
