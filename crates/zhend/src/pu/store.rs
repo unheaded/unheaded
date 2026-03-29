@@ -206,15 +206,39 @@ impl TieredStore {
         Ok(migrated)
     }
 
-    /// Total fragment count across all tiers.
+    /// Total unique fragment count across all tiers.
+    ///
+    /// L3 is append-only, so promoted-then-resedimented fragments may
+    /// appear multiple times. This method deduplicates via a HashSet.
     pub fn count(&self) -> ZhenResult<usize> {
-        let l1_count = self.l1.read().map_err(|e| {
-            ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
-        })?.len();
-        let l2_count = self.l2.len();
-        let l3_count = self.l3.scan_ids()?.len();
+        use std::collections::HashSet;
 
-        Ok(l1_count + l2_count + l3_count)
+        let mut seen = HashSet::new();
+
+        // L1
+        {
+            let l1 = self.l1.read().map_err(|e| {
+                ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
+            })?;
+            for id in l1.keys() {
+                seen.insert(id.clone());
+            }
+        }
+
+        // L2
+        for entry in self.l2.iter() {
+            let (key, _) = entry?;
+            let mut id_bytes = [0u8; 32];
+            id_bytes.copy_from_slice(&key);
+            seen.insert(FragmentId(id_bytes));
+        }
+
+        // L3 (append-only, may contain duplicates)
+        for id in self.l3.scan_ids()? {
+            seen.insert(id);
+        }
+
+        Ok(seen.len())
     }
 
     /// L1 fragment count (hot).
@@ -340,9 +364,14 @@ impl TieredStore {
         Ok(restored)
     }
 
-    /// L3 fragment count (cold/Jing).
+    /// L3 unique fragment count (cold/Jing).
+    ///
+    /// Deduplicates since L3 is append-only and may contain stale entries
+    /// from fragments that were promoted and then re-archived.
     pub fn l3_count(&self) -> ZhenResult<usize> {
-        Ok(self.l3.scan_ids()?.len())
+        use std::collections::HashSet;
+        let ids: HashSet<_> = self.l3.scan_ids()?.into_iter().collect();
+        Ok(ids.len())
     }
 }
 
