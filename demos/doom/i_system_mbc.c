@@ -227,10 +227,47 @@ int main(void)
     myargc = 1;
     myargv = argv;
 
-    // Test malloc before D_DoomMain
-    void *test = malloc(16);
+    // Test malloc + byte store/load at heap address
+    char *test = (char *)malloc(16);
     if (test) {
         debug_breadcrumb(0x0002);  // malloc works
+        // Step 1: verify byte store/load roundtrip
+        test[0] = 'H'; test[1] = 'I'; test[2] = '\0';
+        if (test[0] == 'H' && test[1] == 'I') {
+            debug_breadcrumb(0x0003);  // byte store/load WORKS
+        } else {
+            debug_breadcrumb(0x00FC);  // byte store/load BROKEN
+            // Capture what we read back + the pointer address
+            volatile unsigned int *DBG = (volatile unsigned int *)0x02052000;
+            DBG[0] = (unsigned char)test[0];
+            DBG[1] = (unsigned char)test[1];
+            DBG[2] = (unsigned int)(unsigned long)test;
+        }
+        // Step 2a: verify strcpy at heap address
+        char *buf = (char *)malloc(32);
+        if (buf) {
+            strcpy(buf, "hello");
+            if (strlen(buf) == 5) {
+                debug_breadcrumb(0x0004);  // strcpy works
+            } else {
+                debug_breadcrumb(0x00FB);  // strcpy BROKEN
+            }
+            // Step 2b: verify sprintf at heap address
+            char *sbuf = (char *)malloc(32);
+            if (sbuf) {
+                sprintf(sbuf, "%s/doomu.wad", ".");
+                if (strlen(sbuf) > 0) {
+                    debug_breadcrumb(0x0005);  // sprintf WORKS
+                } else {
+                    debug_breadcrumb(0x00FA);  // sprintf BROKEN
+                    volatile unsigned int *DBG = (volatile unsigned int *)0x02052000;
+                    DBG[0] = strlen(sbuf);
+                    DBG[1] = (unsigned int)(unsigned long)sbuf;
+                    DBG[2] = (unsigned char)sbuf[0];
+                    DBG[3] = (unsigned char)sbuf[1];
+                }
+            }
+        }
     } else {
         debug_breadcrumb(0x00FE);  // malloc BROKEN
     }
