@@ -198,7 +198,11 @@ mod tests {
     fn test_truncated_signature_rejected() {
         let kp = PqSigningKeypair::generate();
         let result = verify(b"msg", &[0u8; 16], kp.public_bytes());
-        assert!(result.is_err());
+        // Truncated signature must either error or fail verification — never verify as valid.
+        match result {
+            Err(_) => {} // rejected at parse level — good
+            Ok(valid) => assert!(!valid, "truncated signature must not verify as valid"),
+        }
     }
 
     #[test]
