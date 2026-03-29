@@ -252,19 +252,30 @@ int main(void)
             } else {
                 debug_breadcrumb(0x00FB);  // strcpy BROKEN
             }
-            // Step 2b: verify sprintf at heap address
-            char *sbuf = (char *)malloc(32);
+            // Step 2b: verify sprintf with different patterns
+            char *sbuf = (char *)malloc(64);
             if (sbuf) {
-                sprintf(sbuf, "%s/doomu.wad", ".");
-                if (strlen(sbuf) > 0) {
-                    debug_breadcrumb(0x0005);  // sprintf WORKS
+                // Test 1: simple format, no args
+                sprintf(sbuf, "abc");
+                volatile unsigned int *DBG = (volatile unsigned int *)0x02052000;
+                DBG[0] = strlen(sbuf);  // should be 3
+                DBG[1] = (unsigned char)sbuf[0]; // 'a'
+                DBG[2] = (unsigned char)sbuf[1]; // 'b'
+                if (strlen(sbuf) == 3) {
+                    debug_breadcrumb(0x0005);  // simple sprintf works
+                    // Test 2: %s format
+                    sprintf(sbuf, "X%sY", ".");
+                    DBG[3] = strlen(sbuf);  // should be 3 "X.Y"
+                    DBG[4] = (unsigned char)sbuf[0]; // 'X'
+                    DBG[5] = (unsigned char)sbuf[1]; // '.'
+                    DBG[6] = (unsigned char)sbuf[2]; // 'Y'
+                    if (strlen(sbuf) == 3) {
+                        debug_breadcrumb(0x0006);  // %s works!
+                    } else {
+                        debug_breadcrumb(0x00F9);  // %s broken
+                    }
                 } else {
-                    debug_breadcrumb(0x00FA);  // sprintf BROKEN
-                    volatile unsigned int *DBG = (volatile unsigned int *)0x02052000;
-                    DBG[0] = strlen(sbuf);
-                    DBG[1] = (unsigned int)(unsigned long)sbuf;
-                    DBG[2] = (unsigned char)sbuf[0];
-                    DBG[3] = (unsigned char)sbuf[1];
+                    debug_breadcrumb(0x00FA);  // simple sprintf broken
                 }
             }
         }

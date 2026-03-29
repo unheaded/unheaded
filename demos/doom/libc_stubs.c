@@ -321,6 +321,9 @@ int abs(int x) { return x < 0 ? -x : x; }
 
 static int mini_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap) {
     char *dst = buf;
+    // Guard against size_t overflow on 32-bit: (size_t)-1 wraps end below buf.
+    // Cap at a reasonable max to prevent pointer arithmetic wraparound.
+    if (size > 0x7FFFFFFF) size = 0x7FFFFFFF;
     char *end = buf + (size ? size - 1 : 0);
 
     while (*fmt) {
