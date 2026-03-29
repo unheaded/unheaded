@@ -49,19 +49,16 @@ static inline void mbc_halt(void) {
 // ============================================================
 
 // Heap boundaries — matches doom-runner/src/memory.rs (THE source of truth).
-// HEAP: 0x1C0000 to 0xBC0000 = 10MB (BEFORE WAD at 0xC00000).
-// WAD: 0xC00000 to 0x1000000 = 4MB.
-// 10MB is sufficient for Doom's Z_Init (needs ~6MB zone).
+// HEAP: 0x1C0000 to 0x1BC0000 = 26MB. Doom pre-Z_Init uses ~10MB, Z_Init needs 3MB more.
+// WAD: 0x1C00000. Stack: 0x2100000.
 #define HEAP_START_ADDR 0x001C0000
-#define HEAP_END_ADDR   0x00BC0000
+#define HEAP_END_ADDR   0x01BC0000
 
-// CRITICAL: heap_ptr lives at a FIXED address (0xBF0000) far from .data.
+// CRITICAL: heap_ptr lives at a FIXED address (0x1BF0000) far from .data.
 // Previously it was a static in .data at ~0x10E714, surrounded by Doom globals.
 // A wild pointer write from Doom code could corrupt it, bypassing malloc bounds.
-// At 0xBF0000 (just below HEAP_END at 0xBC0000... actually above .data, below WAD),
-// no Doom global can accidentally overwrite it.
 // doom-runner initializes this address to HEAP_START_ADDR on load.
-#define HEAP_PTR_ADDR ((char **)0x00BF0000)
+#define HEAP_PTR_ADDR ((char **)0x01BF0000)
 #define heap_ptr (*HEAP_PTR_ADDR)
 
 int errno;
@@ -673,7 +670,7 @@ int sscanf(const char *str, const char *fmt, ...) {
 // The WAD file is loaded into MBC memory at WAD_BASE by the doom-loader.
 // We emulate fopen/fread/fseek to read from this memory region.
 
-#define WAD_BASE     0x00C00000
+#define WAD_BASE     0x01C00000
 #define WAD_MAX_SIZE 4196020  // doom1.wad exact size (4,196,020 bytes)
 
 // File table for memory-mapped WAD access.

@@ -436,19 +436,12 @@ async fn cmd_run(
     );
     info!("send tick packets to veth interfaces to start MBC execution");
 
-    // Step 7: Bridge or headless wait
-    if !headless {
-        let bridge_config = bridge::BridgeConfig {
-            listen_addr: bridge_addr,
-            ..Default::default()
-        };
-        bridge::serve(&bridge_config).await?;
-    } else {
-        info!("headless mode — press Ctrl-C to exit");
-        // Keep ebpf alive (maps stay valid as long as Ebpf is alive)
-        tokio::signal::ctrl_c().await?;
-        info!("shutting down...");
-    }
+    // Step 7: Keep process alive — BPF maps stay valid as long as Ebpf is alive.
+    // CRITICAL: if this process exits, kernel GCs the program + maps → all data lost.
+    info!("doom-runner holding BPF program + maps alive — press Ctrl-C to exit");
+    info!("attach XDP and inject packets to start Doom execution");
+    tokio::signal::ctrl_c().await?;
+    info!("shutting down — BPF program + maps will be released");
 
     Ok(())
 }

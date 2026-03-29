@@ -55,9 +55,5 @@ SECTIONS
     } > HEAP
 }
 
-/* Stack MUST be above WAD end. doom1.wad is ~4,196,020 bytes (ends at ~0x1001014).
- * doom-runner memory.rs defines STACK_TOP = RAM_BASE + RAM_SIZE = 0x1100000.
- * The previous value of 0x1000000 placed the stack INSIDE the WAD region,
- * causing stack frames to corrupt WAD lump data during deep call chains.
- */
-_stack_top = 0x01100000; /* matches doom-runner memory.rs STACK_TOP */
+/* Stack at 0x2100000 — above WAD end (0x2001000). Matches doom-runner memory.rs. */
+_stack_top = 0x02100000;
