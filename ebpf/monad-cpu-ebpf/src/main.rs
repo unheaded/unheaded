@@ -405,8 +405,23 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.halted = 1;
             break;
         }
-        // SP check disabled — insn_count field may not persist across tail calls
-        // TODO: re-enable once insn_count tracking is verified
+        // SP check: use STATS[INSNS_EXECUTED] (persists across tail calls).
+        // Only check after 1000+ instructions (crt0 BSS zeroing sets SP early).
+        if cpu.regs[2] == 0 {
+            let insns_executed = match unsafe { STATS.get(&STAT_INSNS_EXECUTED) } {
+                Some(v) => *v,
+                None => 0,
+            };
+            if insns_executed > 1000 {
+                // SP is zero after crt0 — something corrupted it
+                let sp_key: u32 = 24;
+                if let Some(ptr) = STATS.get_ptr_mut(&sp_key) {
+                    unsafe { *ptr = ((cpu.pc as u64) << 32) | (prev_pc as u64); }
+                }
+                cpu.halted = 1;
+                break;
+            }
+        }
         prev_pc = cpu.pc;
         let insn_word = match ROM_MAP.get(cpu.pc) {
             Some(w) => *w,
