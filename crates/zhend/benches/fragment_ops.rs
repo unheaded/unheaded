@@ -44,10 +44,70 @@ fn bench_codec_roundtrip(c: &mut Criterion) {
     });
 }
 
+fn bench_sustained_ingest(c: &mut Criterion) {
+    use zhend::pu::fragment::Fragment;
+    use zhend::pu::store::TieredStore;
+    use tempfile::TempDir;
+
+    let mut group = c.benchmark_group("sustained_ingest");
+    group.sample_size(10); // fewer samples since each iteration is 1000 fragments
+    group.throughput(criterion::Throughput::Elements(1000));
+
+    group.bench_function("ingest_1000_fragments_256b", |b| {
+        b.iter_with_setup(
+            || {
+                // Setup: create store + pre-build fragments.
+                let tmp = TempDir::new().unwrap();
+                let store = TieredStore::open(tmp.path()).unwrap();
+                let fragments: Vec<Fragment> = (0..1000)
+                    .map(|i| {
+                        let payload: Vec<u8> = format!("bench_payload_{:08}", i).into_bytes();
+                        // Pad to 256 bytes.
+                        let mut padded = payload;
+                        padded.resize(256, 0xAB);
+                        Fragment::new(padded, vec![], None)
+                    })
+                    .collect();
+                (store, fragments, tmp)
+            },
+            |(store, fragments, _tmp)| {
+                for frag in fragments {
+                    black_box(store.ingest(frag).unwrap());
+                }
+            },
+        );
+    });
+
+    group.bench_function("ingest_1000_fragments_1kb", |b| {
+        b.iter_with_setup(
+            || {
+                let tmp = TempDir::new().unwrap();
+                let store = TieredStore::open(tmp.path()).unwrap();
+                let fragments: Vec<Fragment> = (0..1000)
+                    .map(|i| {
+                        let mut payload = format!("bench_payload_{:08}", i).into_bytes();
+                        payload.resize(1024, 0xCD);
+                        Fragment::new(payload, vec![], None)
+                    })
+                    .collect();
+                (store, fragments, tmp)
+            },
+            |(store, fragments, _tmp)| {
+                for frag in fragments {
+                    black_box(store.ingest(frag).unwrap());
+                }
+            },
+        );
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_fragment_creation,
     bench_cosine_similarity,
     bench_codec_roundtrip,
+    bench_sustained_ingest,
 );
 criterion_main!(benches);
