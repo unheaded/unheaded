@@ -173,7 +173,9 @@ in
         RestrictSUIDSGID = true;
         MemoryDenyWriteExecute = true;
         LockPersonality = true;
-        SystemCallFilter = [ "@system-service" "~@privileged" ];
+        RestrictRealtime = true;
+        SystemCallFilter = [ "@system-service" "~@privileged" "~@resources" ];
+        SystemCallArchitectures = "native";
         ReadWritePaths = [ cfg.dataDir ];
 
         # Watchdog.

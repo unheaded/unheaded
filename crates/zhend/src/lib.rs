@@ -1,3 +1,4 @@
+#![deny(unsafe_code)]
 //! # Zhen (真) — Layer 0 Anti-Fragile Knowledge Substrate
 //!
 //! The Dao beneath the Protocol. Knowledge that cannot be burned,
