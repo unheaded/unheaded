@@ -55,28 +55,26 @@ static inline void mbc_halt(void) {
 #define HEAP_START_ADDR 0x001C0000
 #define HEAP_END_ADDR   0x00BC0000
 
-static char *heap_ptr = (char *)HEAP_START_ADDR;
+// CRITICAL: heap_ptr lives at a FIXED address (0xBF0000) far from .data.
+// Previously it was a static in .data at ~0x10E714, surrounded by Doom globals.
+// A wild pointer write from Doom code could corrupt it, bypassing malloc bounds.
+// At 0xBF0000 (just below HEAP_END at 0xBC0000... actually above .data, below WAD),
+// no Doom global can accidentally overwrite it.
+// doom-runner initializes this address to HEAP_START_ADDR on load.
+#define HEAP_PTR_ADDR ((char **)0x00BF0000)
+#define heap_ptr (*HEAP_PTR_ADDR)
 
 int errno;
-
-static int malloc_first_call = 1;
 
 // Each allocation is prefixed with a size_t header storing the usable size.
 // This lets realloc know how many bytes to copy from the old allocation.
 #define ALLOC_HEADER_SIZE 8  // sizeof(size_t), aligned to 8
 
 void *malloc(size_t size) {
-    if (malloc_first_call) {
-        malloc_first_call = 0;
-        debug_breadcrumb(0x00FF); // first malloc
-        // Sanity check: heap_ptr must be in heap range.
-        // If .sdata wasn't loaded, heap_ptr will be 0 → disaster.
-        if (heap_ptr < (char *)HEAP_START_ADDR || heap_ptr >= (char *)HEAP_END_ADDR) {
-            // heap_ptr is garbage — force it to HEAP_START_ADDR.
-            // This is a safety net; the real fix is loading .sdata.
-            debug_breadcrumb(0x00FE); // heap_ptr was corrupt
-            heap_ptr = (char *)HEAP_START_ADDR;
-        }
+    // Validate heap_ptr bounds on EVERY call — wild writes can corrupt at any time.
+    if (heap_ptr < (char *)HEAP_START_ADDR || heap_ptr >= (char *)HEAP_END_ADDR) {
+        debug_breadcrumb(0x00FE); // heap_ptr was corrupt
+        heap_ptr = (char *)HEAP_START_ADDR;
     }
 
     // Align requested size to 8 bytes
@@ -495,7 +493,7 @@ static int breadcrumb_idx = 0;
 //   0x0040 = I_InitGraphics entered
 //   0x0041 = I_InitGraphics complete
 //   0x0050 = D_DoomMain game loop reached
-//   0x00FF = malloc called (first time)
+//   0x00FF = (removed — malloc validates every call now)
 //   0xDEAD = I_Error / exit with error
 void debug_breadcrumb(uint32_t milestone) {
     if (breadcrumb_idx >= BREADCRUMB_MAX) return;

@@ -316,10 +316,19 @@ async fn cmd_run(
     let wad_data = loader::load_wad(&wad_path)
         .context("failed to load WAD")?;
 
-    let ram_updates = loader::stage_ram_image(
+    let mut ram_updates = loader::stage_ram_image(
         &sections.data_sections,
         Some(&wad_data),
     )?;
+
+    // Initialize heap_ptr at its isolated address (0xBF0000) to HEAP_START.
+    // This matches libc_stubs.c: #define HEAP_PTR_ADDR ((char **)0x00BF0000)
+    // The word index is byte_addr / 4 (RAM_MAP stores 32-bit words).
+    let heap_ptr_word_idx = memory::HEAP_PTR_ADDR / 4;
+    ram_updates.push((heap_ptr_word_idx, memory::HEAP_START));
+    info!("RAM: heap_ptr at {:#x} (word {:#x}) initialized to HEAP_START {:#x}",
+          memory::HEAP_PTR_ADDR, heap_ptr_word_idx, memory::HEAP_START);
+
     info!("RAM: {} non-zero words to write", ram_updates.len());
 
     // Step 5: Write data into the REAL maps (the ones the XDP program uses)

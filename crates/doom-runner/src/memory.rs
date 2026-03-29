@@ -73,6 +73,11 @@ pub const HEAP_START: u32 = 0x001C_0000;
 pub const HEAP_END: u32 = 0x00BC_0000;
 pub const HEAP_SIZE: u32 = HEAP_END - HEAP_START; // 10 MiB
 
+/// Isolated heap_ptr address — lives far from .data to avoid wild pointer corruption.
+/// libc_stubs.c defines: #define HEAP_PTR_ADDR ((char **)0x00BF0000)
+/// doom-runner writes HEAP_START to this address on load.
+pub const HEAP_PTR_ADDR: u32 = 0x00BF_0000;
+
 /// WAD data region (doom1.wad, memory-mapped into RAM).
 pub const WAD_BASE: u32 = 0x00C0_0000;
 pub const WAD_MAX_SIZE: u32 = 0x0040_1000; // 4 MiB + 4K (doom1.wad is 4,196,020 bytes)
