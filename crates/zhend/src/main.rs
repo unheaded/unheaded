@@ -18,7 +18,7 @@
 use std::sync::Arc;
 use clap::Parser;
 use tokio::sync::mpsc;
-use zhend::{ZhenConfig, ZhenResult};
+use zhend::ZhenConfig;
 use zhend::pu::TieredStore;
 use zhend::qi::GossipEngine;
 use zhend::de::embedder::Embedder;

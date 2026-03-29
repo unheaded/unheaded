@@ -20,7 +20,7 @@ use pqcrypto_dilithium::dilithium3;
 #[cfg(feature = "pq")]
 use pqcrypto_traits::sign::{
     PublicKey as SignPk, SecretKey as SignSk,
-    SignedMessage, DetachedSignature,
+    DetachedSignature,
 };
 
 /// ML-DSA-65 signing keypair for peer authentication.

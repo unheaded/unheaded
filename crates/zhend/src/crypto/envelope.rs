@@ -29,8 +29,6 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use zeroize::Zeroize;
-
 use super::kem;
 use crate::{ZhenError, ZhenResult};
 
