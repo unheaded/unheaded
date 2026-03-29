@@ -13,5 +13,5 @@ pub mod transport;
 
 pub use gossip::GossipEngine;
 pub use message::GossipMessage;
-pub use peer::{Peer, PeerState};
+pub use peer::{Peer, PeerList, PeerState};
 pub use transport::UdpTransport;

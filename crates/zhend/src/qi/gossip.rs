@@ -18,6 +18,9 @@ use rand::SeedableRng;
 use crate::pu::{TieredStore, codec};
 use crate::ZhenConfig;
 
+#[cfg(feature = "pq")]
+use crate::crypto::sign::{PeerIdentity, PqSigningKeypair};
+
 use super::message::{GossipMessage, MAX_DIGESTS_PER_BATCH, MAX_FRAGMENT_BATCH_BYTES};
 use super::peer::PeerList;
 use super::transport::{UdpTransport, MAX_MSG_SIZE};
@@ -28,9 +31,40 @@ pub struct GossipEngine {
     config: ZhenConfig,
     shutdown: mpsc::Receiver<()>,
     peers: Arc<RwLock<PeerList>>,
+    /// Our PQ identity for peer authentication.
+    #[cfg(feature = "pq")]
+    local_identity: Arc<Option<PeerIdentity>>,
 }
 
 impl GossipEngine {
+    /// Create a new gossip engine.
+    ///
+    /// If a PQ signing keypair is provided, generates a local PeerIdentity
+    /// for authenticated gossip. Without it, the engine runs unauthenticated
+    /// (all peers admitted without identity verification).
+    #[cfg(feature = "pq")]
+    pub fn new(
+        store: Arc<TieredStore>,
+        config: ZhenConfig,
+        shutdown: mpsc::Receiver<()>,
+        signing_keypair: Option<&PqSigningKeypair>,
+    ) -> Self {
+        let local_identity = signing_keypair.map(|kp| {
+            PeerIdentity::new(kp, None)
+                .expect("local identity generation must succeed")
+        });
+
+        Self {
+            store,
+            config,
+            shutdown,
+            peers: Arc::new(RwLock::new(PeerList::new())),
+            local_identity: Arc::new(local_identity),
+        }
+    }
+
+    /// Create a new gossip engine without PQ authentication (non-pq build).
+    #[cfg(not(feature = "pq"))]
     pub fn new(
         store: Arc<TieredStore>,
         config: ZhenConfig,
@@ -67,6 +101,27 @@ impl GossipEngine {
             "qi gossip engine started — vital breath flowing"
         );
 
+        // Send IdentityOffer to all seed peers on startup.
+        #[cfg(feature = "pq")]
+        {
+            if let Some(ref identity) = *self.local_identity {
+                let offer = GossipMessage::IdentityOffer {
+                    identity: identity.clone(),
+                };
+                let peer_list = self.peers.read().await;
+                let seed_addrs: Vec<SocketAddr> = peer_list.active_peers()
+                    .iter().map(|p| p.addr).collect();
+                drop(peer_list);
+
+                for addr in &seed_addrs {
+                    if let Err(e) = Self::send_message_static(&transport, &offer, *addr).await {
+                        tracing::warn!(error = %e, peer = %addr, "failed to send identity offer to seed");
+                    }
+                }
+                tracing::info!(seeds = seed_addrs.len(), "identity offers sent to seed peers");
+            }
+        }
+
         // Allocate recv buffer outside the loop.
         let mut buf = vec![0u8; MAX_MSG_SIZE];
 
@@ -78,6 +133,8 @@ impl GossipEngine {
                         &self.config,
                         &self.peers,
                         &transport,
+                        #[cfg(feature = "pq")]
+                        &self.local_identity,
                     ).await {
                         tracing::warn!(error = %e, "gossip cycle failed");
                     }
@@ -93,6 +150,8 @@ impl GossipEngine {
                                         &transport,
                                         msg,
                                         from,
+                                        #[cfg(feature = "pq")]
+                                        &self.local_identity,
                                     ).await {
                                         tracing::warn!(error = %e, peer = %from, "failed handling gossip message");
                                     }
@@ -124,7 +183,46 @@ impl GossipEngine {
         transport: &Arc<UdpTransport>,
         msg: GossipMessage,
         from: SocketAddr,
+        #[cfg(feature = "pq")]
+        local_identity: &Arc<Option<PeerIdentity>>,
     ) -> crate::ZhenResult<()> {
+        // PQ admission control: if WE have an identity and the peer is unauthenticated
+        // and sends a data message (not Ping/PingAck/Identity*), send an IdentityOffer
+        // and DROP their message. They get zero fragment data until authenticated.
+        // If we have no identity (None keypair), gossip runs open (pre-auth mode).
+        #[cfg(feature = "pq")]
+        if local_identity.is_some() {
+            let is_identity_msg = matches!(
+                msg,
+                GossipMessage::IdentityOffer { .. }
+                | GossipMessage::IdentityAck { .. }
+                | GossipMessage::Ping { .. }
+                | GossipMessage::PingAck { .. }
+            );
+
+            if !is_identity_msg {
+                let peer_list = peers.read().await;
+                let peer_authenticated = peer_list.peers_ref()
+                    .get(&from)
+                    .is_some_and(|p| p.authenticated);
+                drop(peer_list);
+
+                if !peer_authenticated {
+                    tracing::warn!(
+                        peer = %from,
+                        "unauthenticated peer sent data message — sending IdentityOffer, dropping message"
+                    );
+                    if let Some(ref identity) = **local_identity {
+                        let offer = GossipMessage::IdentityOffer {
+                            identity: identity.clone(),
+                        };
+                        Self::send_message_static(transport, &offer, from).await?;
+                    }
+                    return Ok(());
+                }
+            }
+        }
+
         match msg {
             GossipMessage::Ping { incarnation } => {
                 // Record contact and reply with PingAck.
@@ -227,6 +325,61 @@ impl GossipEngine {
                 }
             }
 
+            #[cfg(feature = "pq")]
+            GossipMessage::IdentityOffer { identity } => {
+                // Verify the offered identity's self-attestation.
+                match identity.verify_self() {
+                    Ok(true) => {
+                        // Mark peer as authenticated.
+                        {
+                            let mut peer_list = peers.write().await;
+                            peer_list.add_or_update(from, 0, 0);
+                            if let Some(peer) = peer_list.get_mut(&from) {
+                                peer.identity = Some(identity);
+                                peer.authenticated = true;
+                            }
+                        }
+                        tracing::info!(peer = %from, "peer identity verified — authenticated");
+
+                        // Reply with our own identity (IdentityAck).
+                        if let Some(ref our_identity) = **local_identity {
+                            let ack = GossipMessage::IdentityAck {
+                                identity: our_identity.clone(),
+                            };
+                            Self::send_message_static(transport, &ack, from).await?;
+                        }
+                    }
+                    Ok(false) => {
+                        tracing::warn!(peer = %from, "peer identity self-attestation FAILED — rejecting");
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, peer = %from, "peer identity verification error");
+                    }
+                }
+            }
+
+            #[cfg(feature = "pq")]
+            GossipMessage::IdentityAck { identity } => {
+                // Verify the ack identity's self-attestation.
+                match identity.verify_self() {
+                    Ok(true) => {
+                        let mut peer_list = peers.write().await;
+                        peer_list.add_or_update(from, 0, 0);
+                        if let Some(peer) = peer_list.get_mut(&from) {
+                            peer.identity = Some(identity);
+                            peer.authenticated = true;
+                        }
+                        tracing::info!(peer = %from, "peer identity ack verified — authenticated");
+                    }
+                    Ok(false) => {
+                        tracing::warn!(peer = %from, "peer identity ack self-attestation FAILED — rejecting");
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, peer = %from, "peer identity ack verification error");
+                    }
+                }
+            }
+
             GossipMessage::FragmentBatch { fragments } => {
                 // Ingest received fragments.
                 let mut ingested = 0u64;
@@ -289,11 +442,14 @@ impl GossipEngine {
     }
 
     /// Execute one gossip cycle (static version to avoid borrow conflicts).
+    #[allow(unused_variables)]
     async fn cycle_static(
         store: &Arc<TieredStore>,
         config: &ZhenConfig,
         peers: &Arc<RwLock<PeerList>>,
         transport: &Arc<UdpTransport>,
+        #[cfg(feature = "pq")]
+        local_identity: &Arc<Option<PeerIdentity>>,
     ) -> crate::ZhenResult<()> {
         // 1. Get L1 fragment IDs.
         let ids = store.l1_ids()?;
@@ -310,37 +466,67 @@ impl GossipEngine {
         // 3. Build digest batch.
         let digests: Vec<[u8; 32]> = selected.iter().map(|id| id.0).collect();
 
-        // 4. Get active peers.
+        // 4. Get peers for digest sends.
+        // With PQ auth: only send fragment data to authenticated peers.
+        // Without PQ: send to all active peers.
         let peer_list = peers.read().await;
-        let active = peer_list.active_peers();
 
-        if active.is_empty() {
-            return Ok(());
-        }
+        // With PQ auth and a local identity: only send digests to authenticated peers.
+        // Without identity or without PQ feature: send to all active peers.
+        #[cfg(feature = "pq")]
+        let digest_targets: Vec<SocketAddr> = if local_identity.is_some() {
+            peer_list
+                .authenticated_alive_peers()
+                .iter()
+                .map(|p| p.addr)
+                .collect()
+        } else {
+            peer_list
+                .active_peers()
+                .iter()
+                .map(|p| p.addr)
+                .collect()
+        };
 
-        tracing::trace!(
-            fragment_count = digests.len(),
-            peer_count = active.len(),
-            "gossip cycle: broadcasting digests"
-        );
+        #[cfg(not(feature = "pq"))]
+        let digest_targets: Vec<SocketAddr> = peer_list
+            .active_peers()
+            .iter()
+            .map(|p| p.addr)
+            .collect();
 
-        // 5. Send DigestBatch to each active peer.
-        let msg = GossipMessage::DigestBatch { digests };
-        let active_addrs: Vec<SocketAddr> = active.iter().map(|p| p.addr).collect();
+        // All active peers still get pings (membership protocol is pre-auth).
+        let active_addrs: Vec<SocketAddr> = peer_list
+            .active_peers()
+            .iter()
+            .map(|p| p.addr)
+            .collect();
+
         let local_incarnation = peer_list.local_incarnation;
         drop(peer_list); // release read lock before sending
 
-        for addr in &active_addrs {
-            if let Err(e) = Self::send_message_static(transport, &msg, *addr).await {
-                tracing::warn!(
-                    error = %e,
-                    peer = %addr,
-                    "failed to send digest batch"
-                );
+        // 5. Send DigestBatch only to authenticated peers (or all, without PQ).
+        if !digest_targets.is_empty() {
+            let msg = GossipMessage::DigestBatch { digests };
+
+            tracing::trace!(
+                fragment_count = selected.len(),
+                peer_count = digest_targets.len(),
+                "gossip cycle: broadcasting digests to authenticated peers"
+            );
+
+            for addr in &digest_targets {
+                if let Err(e) = Self::send_message_static(transport, &msg, *addr).await {
+                    tracing::warn!(
+                        error = %e,
+                        peer = %addr,
+                        "failed to send digest batch"
+                    );
+                }
             }
         }
 
-        // 6. Also send Ping to active peers for membership health.
+        // 6. Send Ping to ALL active peers for membership health.
         let ping = GossipMessage::Ping {
             incarnation: local_incarnation,
         };
