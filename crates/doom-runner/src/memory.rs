@@ -212,8 +212,8 @@ mod tests {
     }
 
     #[test]
-    fn heap_is_10mb() {
-        assert_eq!(HEAP_SIZE, 10 * 1024 * 1024);
+    fn heap_is_26mb() {
+        assert_eq!(HEAP_SIZE, 26 * 1024 * 1024);
     }
 
     #[test]
