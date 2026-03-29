@@ -47,7 +47,7 @@ static inline unsigned int mbc_syscall_arg(unsigned int num, unsigned int arg) {
 // Debug output (to fixed RAM region for post-mortem via bpftool)
 // ============================================================
 
-#define DEBUG_MSG_ADDR ((volatile char *)0x007BF000)
+#define DEBUG_MSG_ADDR ((volatile char *)0x03200000)
 #define DEBUG_MSG_MAX  256
 
 static void debug_write(const char *s) {
@@ -238,7 +238,7 @@ int main(void)
         } else {
             debug_breadcrumb(0x00FC);  // byte store/load BROKEN
             // Capture what we read back + the pointer address
-            volatile unsigned int *DBG = (volatile unsigned int *)0x02052000;
+            volatile unsigned int *DBG = (volatile unsigned int *)0x03202000;
             DBG[0] = (unsigned char)test[0];
             DBG[1] = (unsigned char)test[1];
             DBG[2] = (unsigned int)(unsigned long)test;
@@ -257,7 +257,7 @@ int main(void)
             if (sbuf) {
                 // Test 1: simple format, no args
                 sprintf(sbuf, "abc");
-                volatile unsigned int *DBG = (volatile unsigned int *)0x02052000;
+                volatile unsigned int *DBG = (volatile unsigned int *)0x03202000;
                 DBG[0] = strlen(sbuf);  // should be 3
                 DBG[1] = (unsigned char)sbuf[0]; // 'a'
                 DBG[2] = (unsigned char)sbuf[1]; // 'b'
