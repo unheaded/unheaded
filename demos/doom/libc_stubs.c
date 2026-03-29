@@ -30,7 +30,8 @@ typedef long time_t;
 typedef long clock_t;
 typedef unsigned int jmp_buf[16];
 typedef void (*sig_t)(int);
-struct stat { int st_size; unsigned int st_mode; };
+// struct stat is defined in sys/stat.h but we need it early for forward decls
+#include <sys/stat.h>
 
 // ============================================================
 // MBC syscalls (via RISC-V ecall)
@@ -677,7 +678,7 @@ int sscanf(const char *str, const char *fmt, ...) {
 // We emulate fopen/fread/fseek to read from this memory region.
 
 #define WAD_BASE     0x01C00000
-#define WAD_MAX_SIZE 4196020  // doom1.wad exact size (4,196,020 bytes)
+#define WAD_MAX_SIZE 12408292  // retail DOOM.WAD exact size (12,408,292 bytes)
 
 // File table for memory-mapped WAD access.
 // Doom opens one WAD file; multiple fopen/fclose cycles reuse slots.
@@ -856,9 +857,11 @@ void qsort(void *base, size_t nmemb, size_t size,
 }
 
 char *getenv(const char *name) {
-    // Return a safe HOME so Doom doesn't crash constructing config paths.
-    // All file writes are no-ops anyway on bare-metal MBC.
-    if (name && strcmp(name, "HOME") == 0) return "/tmp";
+    if (!name) return (char *)0;
+    // DOOMWADDIR: id DOOM uses this to find WAD files
+    if (strcmp(name, "DOOMWADDIR") == 0) return ".";
+    // HOME: Doom uses this for config file paths
+    if (strcmp(name, "HOME") == 0) return "/tmp";
     return (char *)0;
 }
 int system(const char *command) { (void)command; return -1; }
@@ -904,7 +907,9 @@ int isatty(int fd) { (void)fd; return 0; }
 int fileno(void *stream) { (void)stream; return -1; }
 int access(const char *path, int mode) {
     (void)mode;
-    // WAD files are memory-mapped and always accessible
+    // WAD files are memory-mapped and always accessible.
+    // id DOOM checks access("./doomu.wad", R_OK) to detect retail mode.
+    // Return 0 for any .wad file to make WAD detection work.
     size_t plen = strlen(path);
     if (plen >= 4 && strcasecmp(path + plen - 4, ".wad") == 0) return 0;
     return -1;
@@ -923,7 +928,116 @@ int stat(const char *path, struct stat *buf) {
     return -1;
 }
 int mkdir(const char *path, unsigned int mode) { (void)path; (void)mode; return -1; }
-int open(const char *path, int flags, ...) { (void)path; (void)flags; return -1; }
+
+// ============================================================
+// POSIX fd-based file I/O — id DOOM uses open/read/lseek (not fopen)
+// ============================================================
+// w_wad.c opens WAD files with open(), reads with read(), seeks with lseek().
+// We map fd numbers to the memory-mapped WAD region.
+
+#define FD_WAD_START 3
+#define MAX_FDS 8
+
+struct mbc_fd {
+    int in_use;
+    const unsigned char *base;
+    unsigned int size;
+    unsigned int pos;
+};
+
+static struct mbc_fd fd_table[MAX_FDS];
+
+int open(const char *path, int flags, ...) {
+    (void)flags;
+    // Check if this looks like a WAD file
+    int is_wad = 0;
+    size_t plen = strlen(path);
+    if (plen >= 4) {
+        const char *ext = path + plen - 4;
+        if (strcasecmp(ext, ".wad") == 0) is_wad = 1;
+    }
+    if (!is_wad) return -1;
+
+    // Find free fd slot
+    for (int i = 0; i < MAX_FDS; i++) {
+        if (!fd_table[i].in_use) {
+            fd_table[i].in_use = 1;
+            fd_table[i].base = (const unsigned char *)WAD_BASE;
+            fd_table[i].size = WAD_MAX_SIZE;
+            fd_table[i].pos = 0;
+            return i + FD_WAD_START;
+        }
+    }
+    return -1;
+}
+
+typedef int ssize_t_local;
+typedef int off_t_local;
+
+ssize_t_local read(int fd, void *buf, size_t count) {
+    int idx = fd - FD_WAD_START;
+    if (idx < 0 || idx >= MAX_FDS || !fd_table[idx].in_use) return -1;
+    struct mbc_fd *f = &fd_table[idx];
+    unsigned int avail = (f->pos < f->size) ? (f->size - f->pos) : 0;
+    if (count > avail) count = avail;
+    memcpy(buf, f->base + f->pos, count);
+    f->pos += count;
+    return (ssize_t_local)count;
+}
+
+ssize_t_local write(int fd, const void *buf, size_t count) {
+    // No writable files on bare metal
+    (void)fd; (void)buf; (void)count;
+    return -1;
+}
+
+off_t_local lseek(int fd, off_t_local offset, int whence) {
+    int idx = fd - FD_WAD_START;
+    if (idx < 0 || idx >= MAX_FDS || !fd_table[idx].in_use) return -1;
+    struct mbc_fd *f = &fd_table[idx];
+    long newpos;
+    switch (whence) {
+    case 0: newpos = offset; break;              // SEEK_SET
+    case 1: newpos = (long)f->pos + offset; break;  // SEEK_CUR
+    case 2: newpos = (long)f->size + offset; break;  // SEEK_END
+    default: return -1;
+    }
+    if (newpos < 0) return -1;
+    f->pos = (unsigned int)newpos;
+    return (off_t_local)f->pos;
+}
+
+int close(int fd) {
+    int idx = fd - FD_WAD_START;
+    if (idx >= 0 && idx < MAX_FDS) {
+        fd_table[idx].in_use = 0;
+        fd_table[idx].pos = 0;
+    }
+    return 0;
+}
+
+int fstat(int fd, struct stat *buf) {
+    int idx = fd - FD_WAD_START;
+    if (idx < 0 || idx >= MAX_FDS || !fd_table[idx].in_use) return -1;
+    if (buf) {
+        memset(buf, 0, sizeof(struct stat));
+        buf->st_size = fd_table[idx].size;
+        buf->st_mode = 0100644; // regular file
+    }
+    return 0;
+}
+
+long filelength(int fd) {
+    int idx = fd - FD_WAD_START;
+    if (idx < 0 || idx >= MAX_FDS || !fd_table[idx].in_use) return 0;
+    return (long)fd_table[idx].size;
+}
+
+unsigned int sleep(unsigned int seconds) { (void)seconds; return 0; }
+int usleep(unsigned int usec) { (void)usec; return 0; }
+unsigned int getuid(void) { return 0; }
+int getpid(void) { return 1; }
+int gettimeofday(void *tv, void *tz) { (void)tv; (void)tz; return -1; }
 
 sig_t signal(int sig, sig_t handler) { (void)sig; (void)handler; return (sig_t)0; }
 
@@ -935,11 +1049,26 @@ double floor(double x) { return (double)(int)x - (x < (double)(int)x ? 1.0 : 0.0
 double ceil(double x) { return (double)(int)x + (x > (double)(int)x ? 1.0 : 0.0); }
 double fabs(double x) { return x < 0 ? -x : x; }
 double sqrt(double x) {
-    // Newton's method, ~5 iterations
+    // Newton's method
     if (x <= 0) return 0;
     double guess = x;
     for (int i = 0; i < 10; i++) guess = (guess + x / guess) * 0.5;
     return guess;
+}
+// pow() — needed only if i_sound.c's I_SetChannels is called (our stub skips it).
+// Provide a minimal implementation just in case.
+double pow(double base, double exp) {
+    if (exp == 0.0) return 1.0;
+    if (base == 0.0) return 0.0;
+    // Integer exponent fast path (covers i_sound.c usage: steptable)
+    int iexp = (int)exp;
+    if ((double)iexp == exp && iexp >= 0) {
+        double result = 1.0;
+        for (int i = 0; i < iexp; i++) result = result * base;
+        return result;
+    }
+    // Rough approximation for non-integer exponents
+    return 1.0;
 }
 
 // GCC may generate calls to these for struct copies
