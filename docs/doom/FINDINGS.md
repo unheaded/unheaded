@@ -280,7 +280,41 @@ the word index is 0x1C0000/4 = 0x70000. RAM_MAP has 16M entries, so
 0x70000 is valid. But there might be a byte-within-word addressing bug
 where SB writes to the wrong byte offset within the u32 word.
 
-**Next step:**
-Verify byte store/load roundtrip at heap addresses in the eBPF executor.
-Add a test: write a known byte pattern to a heap address, read it back.
-If it doesn't round-trip, the bug is in the MBC SB/LB instructions.
+**Resolved:** Byte store/load works fine. The real bug was sprintf.
+
+---
+
+## sprintf 32-bit Overflow (id DOOM port)
+
+vsprintf passes size=(size_t)-1 (0xFFFFFFFF) to mini_vsnprintf. On 32-bit
+RV32I, `buf + 0xFFFFFFFE` wraps BELOW buf, making `end < dst`. Every
+character write check `(dst < end)` fails. Zero bytes written.
+
+Fix: cap size at 0x7FFFFFFF. One line.
+
+---
+
+## fd Resilience (id DOOM port)
+
+W_ReadLump calls read(handle, ...) but handle value may not match our
+fd table (corrupted lumpinfo pointer or fd number mismatch). Fixed by
+falling back to primary WAD slot 0 if fd lookup fails. Also made close()
+a no-op for all fds (WADs are memory-mapped, never close).
+
+---
+
+## PC Corruption -- Confirmed in id DOOM Too
+
+After all stub fixes, id DOOM loads WAD, reads lumps, executes 1.28B
+instructions with no I_Error. But PC sampling shows PC = 0x4B200000
+(max valid = 0x14DAE). Same pattern as doomgeneric.
+
+This is NOT a doomgeneric-specific bug. It happens in BOTH codebases.
+The corruption is in the MBC translator or eBPF executor:
+1. Indirect jumps (JALR/CALL) may translate incorrectly
+2. Return address handling may corrupt the link register
+3. RV32I restricted registers (x0-x15 only) may break calling convention
+
+**CRITICAL NEXT STEP: PC bounds check in eBPF executor.**
+When PC >= ROM_MAP_ENTRIES, halt and record last valid PC + the bad instruction.
+This pinpoints the exact corruption source.
