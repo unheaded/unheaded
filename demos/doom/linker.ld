@@ -1,10 +1,10 @@
 /* MBC Memory Layout for Doom-over-IPv6
  *
- * This layout maps to BPF maps managed by doom-loader:
- *   ROM_MAP  → .text + .rodata (code)
- *   RAM_MAP  → .data + .bss + heap
- *   SCREEN   → framebuffer at fixed address (320x200)
- *   WAD      → memory-mapped doom1.wad
+ * This layout maps to BPF maps managed by doom-runner:
+ *   ROM_MAP  -> .text + .rodata (code)
+ *   RAM_MAP  -> .data + .bss + heap
+ *   SCREEN   -> framebuffer at fixed address (320x200)
+ *   WAD      -> memory-mapped DOOM.WAD (retail, 12,408,292 bytes)
  *
  * Computermancer note: Double-buffer framebuffer (option C).
  * Game renders to RAM, DMA-flush to SCREEN on frame complete.
@@ -13,9 +13,9 @@ MEMORY
 {
     ROM    (rx)  : ORIGIN = 0x00000000, LENGTH = 1M      /* MBC ROM: code + rodata */
     RAM    (rw)  : ORIGIN = 0x00100000, LENGTH = 768K    /* MBC RAM: data + bss */
-    SCREEN (rw)  : ORIGIN = 0x00070000, LENGTH = 64000   /* Screen: maps to SCREEN_MAP BPF array */
+    SCREEN (rw)  : ORIGIN = 0x00170000, LENGTH = 64000   /* Screen: maps to SCREEN_MAP BPF array */
     HEAP   (rw)  : ORIGIN = 0x001C0000, LENGTH = 10M     /* Heap: 10MB, BEFORE WAD */
-    WAD    (r)   : ORIGIN = 0x00C00000, LENGTH = 4M      /* WAD: doom-runner loads here */
+    WAD    (r)   : ORIGIN = 0x01C00000, LENGTH = 16M     /* WAD: doom-runner loads retail DOOM.WAD here */
 }
 
 ENTRY(_start)
@@ -55,5 +55,5 @@ SECTIONS
     } > HEAP
 }
 
-/* Stack at 0x2100000 — above WAD end (0x2001000). Matches doom-runner memory.rs. */
-_stack_top = 0x02100000;
+/* Stack at 0x3100000 -- above WAD end. Matches doom-runner memory.rs. */
+_stack_top = 0x03100000;
