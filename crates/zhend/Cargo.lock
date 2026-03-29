@@ -3214,6 +3214,7 @@ dependencies = [
  "prost",
  "quinn",
  "rand 0.8.5",
+ "ring",
  "rustls",
  "serde",
  "serde_json",
