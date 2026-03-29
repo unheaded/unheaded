@@ -553,7 +553,121 @@ int fputs(const char *s, FILE *stream) { (void)s; (void)stream; return 0; }
 int fputc(int c, FILE *stream) { (void)c; (void)stream; return c; }
 int fgetc(FILE *stream) { (void)stream; return EOF; }
 char *fgets(char *s, int size, FILE *stream) { (void)s; (void)size; (void)stream; return (char *)0; }
-int sscanf(const char *str, const char *fmt, ...) { (void)str; (void)fmt; return 0; }
+// Minimal sscanf — handles %d, %i, %x, %o, %u, %s, %c (one conversion per call).
+// Doom uses sscanf for M_StrToInt (config parsing) and ParseIntParameter.
+int sscanf(const char *str, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int conversions = 0;
+    const char *s = str;
+
+    while (*fmt) {
+        if (*fmt == ' ') {
+            // Skip whitespace in format → skip whitespace in input
+            while (isspace(*s)) s++;
+            fmt++;
+            continue;
+        }
+        if (*fmt != '%') {
+            // Literal match
+            if (*s != *fmt) break;
+            s++; fmt++;
+            continue;
+        }
+        fmt++; // skip '%'
+        if (*fmt == '%') { // literal %
+            if (*s != '%') break;
+            s++; fmt++;
+            continue;
+        }
+
+        // Parse conversion
+        switch (*fmt) {
+        case 'd': case 'i': {
+            int *out = va_arg(ap, int *);
+            while (isspace(*s)) s++;
+            int neg = 0, val = 0, got = 0;
+            if (*s == '-') { neg = 1; s++; }
+            else if (*s == '+') { s++; }
+            // %i: auto-detect base (0x=hex, 0=octal, else decimal)
+            if (*fmt == 'i' && *s == '0') {
+                if (s[1] == 'x' || s[1] == 'X') {
+                    s += 2;
+                    while (isxdigit(*s)) {
+                        int d = isdigit(*s) ? *s - '0' : (tolower(*s) - 'a' + 10);
+                        val = val * 16 + d; s++; got = 1;
+                    }
+                } else {
+                    s++; got = 1; // the leading '0' counts
+                    while (*s >= '0' && *s <= '7') { val = val * 8 + (*s - '0'); s++; }
+                }
+            } else {
+                while (isdigit(*s)) { val = val * 10 + (*s - '0'); s++; got = 1; }
+            }
+            if (!got) break;
+            *out = neg ? -val : val;
+            conversions++;
+            break;
+        }
+        case 'u': {
+            unsigned int *out = va_arg(ap, unsigned int *);
+            while (isspace(*s)) s++;
+            unsigned int val = 0; int got = 0;
+            while (isdigit(*s)) { val = val * 10 + (*s - '0'); s++; got = 1; }
+            if (!got) break;
+            *out = val;
+            conversions++;
+            break;
+        }
+        case 'x': case 'X': {
+            unsigned int *out = va_arg(ap, unsigned int *);
+            while (isspace(*s)) s++;
+            // Skip optional 0x prefix
+            if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) s += 2;
+            unsigned int val = 0; int got = 0;
+            while (isxdigit(*s)) {
+                int d = isdigit(*s) ? *s - '0' : (tolower(*s) - 'a' + 10);
+                val = val * 16 + d; s++; got = 1;
+            }
+            if (!got) break;
+            *out = val;
+            conversions++;
+            break;
+        }
+        case 'o': {
+            unsigned int *out = va_arg(ap, unsigned int *);
+            while (isspace(*s)) s++;
+            unsigned int val = 0; int got = 0;
+            while (*s >= '0' && *s <= '7') { val = val * 8 + (*s - '0'); s++; got = 1; }
+            if (!got) break;
+            *out = val;
+            conversions++;
+            break;
+        }
+        case 's': {
+            char *out = va_arg(ap, char *);
+            while (isspace(*s)) s++;
+            while (*s && !isspace(*s)) *out++ = *s++;
+            *out = '\0';
+            conversions++;
+            break;
+        }
+        case 'c': {
+            char *out = va_arg(ap, char *);
+            if (!*s) break;
+            *out = *s++;
+            conversions++;
+            break;
+        }
+        default:
+            break;
+        }
+        fmt++;
+    }
+
+    va_end(ap);
+    return conversions;
+}
 
 // ============================================================
 // File I/O — Memory-mapped WAD access

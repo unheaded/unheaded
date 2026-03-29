@@ -89,7 +89,9 @@ pub fn parse_elf(elf_path: &Path) -> Result<ParsedSections> {
         let file_size = sh.sh_size as usize;
 
         match name {
-            ".data" | ".sdata" | ".rodata" | ".srodata" => {
+            n if matches!(n, ".data" | ".sdata" | ".rodata" | ".srodata")
+                || n.starts_with(".srodata.") =>
+            {
                 if file_size == 0 {
                     debug!("skipping empty section: {name}");
                     continue;
