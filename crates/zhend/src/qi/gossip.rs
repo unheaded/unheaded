@@ -9,16 +9,25 @@
 //!
 //! This is pull-on-demand, not push-everything. Bandwidth-efficient.
 
+use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::mpsc;
-use crate::pu::TieredStore;
+use tokio::sync::{mpsc, RwLock};
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
+
+use crate::pu::{TieredStore, codec};
 use crate::ZhenConfig;
+
+use super::message::{GossipMessage, MAX_DIGESTS_PER_BATCH, MAX_FRAGMENT_BATCH_BYTES};
+use super::peer::PeerList;
+use super::transport::{UdpTransport, MAX_MSG_SIZE};
 
 /// Gossip engine manages periodic fragment dissemination.
 pub struct GossipEngine {
     store: Arc<TieredStore>,
     config: ZhenConfig,
     shutdown: mpsc::Receiver<()>,
+    peers: Arc<RwLock<PeerList>>,
 }
 
 impl GossipEngine {
@@ -27,24 +36,75 @@ impl GossipEngine {
         config: ZhenConfig,
         shutdown: mpsc::Receiver<()>,
     ) -> Self {
-        Self { store, config, shutdown }
+        Self {
+            store,
+            config,
+            shutdown,
+            peers: Arc::new(RwLock::new(PeerList::new())),
+        }
     }
 
     /// Run the gossip loop. Blocks until shutdown signal.
     pub async fn run(&mut self) -> crate::ZhenResult<()> {
+        // Bind UDP transport.
+        let transport = Arc::new(UdpTransport::bind(&self.config.gossip_addr).await?);
+
+        // Add seed peers.
+        {
+            let mut peers = self.peers.write().await;
+            let seed_addrs: Vec<SocketAddr> = self.config.seed_peers.iter()
+                .filter_map(|s| s.parse().ok())
+                .collect();
+            peers.add_seeds(&seed_addrs);
+        }
+
         let interval = tokio::time::Duration::from_millis(self.config.gossip_interval_ms);
 
         tracing::info!(
             fanout = self.config.gossip_fanout,
             interval_ms = self.config.gossip_interval_ms,
+            seeds = self.config.seed_peers.len(),
             "qi gossip engine started — vital breath flowing"
         );
+
+        // Allocate recv buffer outside the loop.
+        let mut buf = vec![0u8; MAX_MSG_SIZE];
 
         loop {
             tokio::select! {
                 _ = tokio::time::sleep(interval) => {
-                    if let Err(e) = self.cycle().await {
+                    if let Err(e) = Self::cycle_static(
+                        &self.store,
+                        &self.config,
+                        &self.peers,
+                        &transport,
+                    ).await {
                         tracing::warn!(error = %e, "gossip cycle failed");
+                    }
+                }
+                result = transport.recv_from(&mut buf) => {
+                    match result {
+                        Ok((n, from)) => {
+                            match GossipMessage::decode(&buf[..n]) {
+                                Ok(msg) => {
+                                    if let Err(e) = Self::handle_message_static(
+                                        &self.store,
+                                        &self.peers,
+                                        &transport,
+                                        msg,
+                                        from,
+                                    ).await {
+                                        tracing::warn!(error = %e, peer = %from, "failed handling gossip message");
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::warn!(error = %e, peer = %from, "failed decoding gossip message");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "gossip recv error");
+                        }
                     }
                 }
                 _ = self.shutdown.recv() => {
@@ -57,28 +117,246 @@ impl GossipEngine {
         Ok(())
     }
 
-    /// Execute one gossip cycle.
-    async fn cycle(&self) -> crate::ZhenResult<()> {
+    /// Handle an incoming gossip message from a peer (static version to avoid borrow conflicts).
+    async fn handle_message_static(
+        store: &Arc<TieredStore>,
+        peers: &Arc<RwLock<PeerList>>,
+        transport: &Arc<UdpTransport>,
+        msg: GossipMessage,
+        from: SocketAddr,
+    ) -> crate::ZhenResult<()> {
+        match msg {
+            GossipMessage::Ping { incarnation } => {
+                // Record contact and reply with PingAck.
+                {
+                    let mut peer_list = peers.write().await;
+                    peer_list.record_contact(from, incarnation, 0);
+                }
+
+                let count = store.count()? as u64;
+                let local_incarnation = peers.read().await.local_incarnation;
+                let ack = GossipMessage::PingAck {
+                    incarnation: local_incarnation,
+                    fragment_count: count,
+                };
+
+                Self::send_message_static(transport, &ack, from).await?;
+            }
+
+            GossipMessage::PingAck { incarnation, fragment_count } => {
+                let mut peer_list = peers.write().await;
+                peer_list.record_contact(from, incarnation, fragment_count);
+            }
+
+            GossipMessage::DigestBatch { digests } => {
+                // ALL INPUTS HOSTILE — cap digest count.
+                if digests.len() > MAX_DIGESTS_PER_BATCH {
+                    return Err(crate::ZhenError::Gossip(format!(
+                        "digest batch too large: {} > {}",
+                        digests.len(),
+                        MAX_DIGESTS_PER_BATCH
+                    )));
+                }
+
+                // Check which fragments we don't have.
+                let mut wanted = Vec::new();
+                for digest in &digests {
+                    let id = crate::pu::FragmentId(*digest);
+                    if !store.contains(&id)? {
+                        wanted.push(*digest);
+                    }
+                }
+
+                if !wanted.is_empty() {
+                    tracing::debug!(
+                        wanted = wanted.len(),
+                        offered = digests.len(),
+                        peer = %from,
+                        "requesting fragments from peer"
+                    );
+
+                    let want = GossipMessage::WantBatch { wanted };
+                    Self::send_message_static(transport, &want, from).await?;
+                }
+
+                // Also record contact (peer is alive).
+                {
+                    let mut peer_list = peers.write().await;
+                    peer_list.record_contact(from, 0, 0);
+                }
+            }
+
+            GossipMessage::WantBatch { wanted } => {
+                // Peer wants these fragments — look them up and send.
+                // ALL INPUTS HOSTILE — cap request size.
+                if wanted.len() > MAX_DIGESTS_PER_BATCH {
+                    return Err(crate::ZhenError::Gossip(format!(
+                        "want batch too large: {} > {}",
+                        wanted.len(),
+                        MAX_DIGESTS_PER_BATCH
+                    )));
+                }
+
+                let mut fragments = Vec::new();
+                let mut total_bytes = 0usize;
+
+                for hash in &wanted {
+                    let id = crate::pu::FragmentId(*hash);
+                    if let Some(frag) = store.get(&id)? {
+                        let encoded = codec::encode_for_gossip(&frag)?;
+                        total_bytes += encoded.len();
+
+                        // Chunk: don't exceed max batch size.
+                        if total_bytes > MAX_FRAGMENT_BATCH_BYTES {
+                            // Send what we have so far.
+                            let batch = GossipMessage::FragmentBatch {
+                                fragments: std::mem::take(&mut fragments),
+                            };
+                            Self::send_message_static(transport, &batch, from).await?;
+                            total_bytes = encoded.len();
+                        }
+
+                        fragments.push(encoded);
+                    }
+                }
+
+                // Send remaining fragments.
+                if !fragments.is_empty() {
+                    let batch = GossipMessage::FragmentBatch { fragments };
+                    Self::send_message_static(transport, &batch, from).await?;
+                }
+            }
+
+            GossipMessage::FragmentBatch { fragments } => {
+                // Ingest received fragments.
+                let mut ingested = 0u64;
+                for encoded in &fragments {
+                    match codec::decode(encoded) {
+                        Ok(mut frag) => {
+                            // Increment hop count.
+                            frag.hop_count = frag.hop_count.saturating_add(1);
+
+                            match store.ingest(frag) {
+                                Ok(true) => ingested += 1,
+                                Ok(false) => {} // duplicate, fine
+                                Err(e) => {
+                                    tracing::warn!(
+                                        error = %e,
+                                        peer = %from,
+                                        "rejected fragment from peer"
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                error = %e,
+                                peer = %from,
+                                "failed to decode fragment from peer"
+                            );
+                        }
+                    }
+                }
+
+                if ingested > 0 {
+                    tracing::info!(
+                        ingested,
+                        peer = %from,
+                        "fragments received via gossip"
+                    );
+                }
+
+                // Record contact.
+                {
+                    let mut peer_list = peers.write().await;
+                    peer_list.record_contact(from, 0, 0);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Send a gossip message to a target peer (static version).
+    async fn send_message_static(
+        transport: &Arc<UdpTransport>,
+        msg: &GossipMessage,
+        target: SocketAddr,
+    ) -> crate::ZhenResult<()> {
+        let encoded = msg.encode()?;
+        transport.send_to(&encoded, target).await?;
+        Ok(())
+    }
+
+    /// Execute one gossip cycle (static version to avoid borrow conflicts).
+    async fn cycle_static(
+        store: &Arc<TieredStore>,
+        config: &ZhenConfig,
+        peers: &Arc<RwLock<PeerList>>,
+        transport: &Arc<UdpTransport>,
+    ) -> crate::ZhenResult<()> {
         // 1. Get L1 fragment IDs.
-        let ids = self.store.l1_ids()?;
+        let ids = store.l1_ids()?;
         if ids.is_empty() {
             return Ok(());
         }
 
         // 2. Select random subset (up to gossip_fanout fragments).
-        let selected: Vec<_> = ids.iter()
-            .take(self.config.gossip_fanout)
-            .collect();
+        let mut rng = rand::rngs::StdRng::from_entropy();
+        let mut selected = ids;
+        selected.shuffle(&mut rng);
+        selected.truncate(config.gossip_fanout);
+
+        // 3. Build digest batch.
+        let digests: Vec<[u8; 32]> = selected.iter().map(|id| id.0).collect();
+
+        // 4. Get active peers.
+        let peer_list = peers.read().await;
+        let active = peer_list.active_peers();
+
+        if active.is_empty() {
+            return Ok(());
+        }
 
         tracing::trace!(
-            fragment_count = selected.len(),
+            fragment_count = digests.len(),
+            peer_count = active.len(),
             "gossip cycle: broadcasting digests"
         );
 
-        // TODO: actual UDP peer communication
-        // For now, this is the structural skeleton.
-        // Wire protocol: [digest_count: u16][blake3_hash: 32 bytes]*N
+        // 5. Send DigestBatch to each active peer.
+        let msg = GossipMessage::DigestBatch { digests };
+        let active_addrs: Vec<SocketAddr> = active.iter().map(|p| p.addr).collect();
+        let local_incarnation = peer_list.local_incarnation;
+        drop(peer_list); // release read lock before sending
+
+        for addr in &active_addrs {
+            if let Err(e) = Self::send_message_static(transport, &msg, *addr).await {
+                tracing::warn!(
+                    error = %e,
+                    peer = %addr,
+                    "failed to send digest batch"
+                );
+            }
+        }
+
+        // 6. Also send Ping to active peers for membership health.
+        let ping = GossipMessage::Ping {
+            incarnation: local_incarnation,
+        };
+        for addr in &active_addrs {
+            if let Err(e) = Self::send_message_static(transport, &ping, *addr).await {
+                tracing::warn!(error = %e, peer = %addr, "failed to send ping");
+                let mut peer_list = peers.write().await;
+                peer_list.record_missed_ping(addr);
+            }
+        }
 
         Ok(())
+    }
+
+    /// Access to the peer list (for testing and inspection).
+    pub fn peers(&self) -> &Arc<RwLock<PeerList>> {
+        &self.peers
     }
 }
