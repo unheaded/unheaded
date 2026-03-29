@@ -48,10 +48,11 @@ static inline void mbc_halt(void) {
 // Memory allocator — simple bump allocator for Doom's z_zone
 // ============================================================
 
-// Heap boundaries — hardcoded to match linker.ld HEAP region
-// HEAP origin=0x1C0000, length=16MB → end=0x011C0000
-#define HEAP_START_ADDR 0x001C0000
-#define HEAP_END_ADDR   0x011C0000
+// Heap boundaries — MUST NOT overlap WAD region (0x800000-0xC00000).
+// Place heap AFTER the WAD: 0xC00000 to 0x1C00000 = 16MB.
+// RAM_MAP has 16M entries (64MB), so this is well within bounds.
+#define HEAP_START_ADDR 0x00C00000
+#define HEAP_END_ADDR   0x01C00000
 
 static char *heap_ptr = (char *)HEAP_START_ADDR;
 
