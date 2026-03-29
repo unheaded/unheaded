@@ -733,6 +733,12 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - Zhen Layer 0 (crates/zhend/): Anti-fragile gossip knowledge substrate, PQ crypto, 50 tests green
 - EAST bare metal: Online, P2P link live, BPF flow graph cross-host
 
+### Doom-over-IPv6 — See `docs/doom/` for full documentation
+
+All Doom technical docs, findings, and runbooks live in `docs/doom/`:
+- `docs/doom/README.md` — Architecture, memory layout, bugs fixed, running instructions
+- `docs/doom/FINDINGS.md` — Session findings, critical bugs, lessons learned
+
 ### Doom-over-IPv6 Architecture (S75+)
 
 **Pipeline:** doom.elf (RV32I) → rv32i-to-mbc → doom.mbc → BPF maps → XDP execution → browser
