@@ -83,7 +83,13 @@ void *malloc(size_t size) {
     char *new_ptr = heap_ptr + total;
 
     if (new_ptr > (char *)HEAP_END_ADDR || new_ptr < heap_ptr) {
-        // Out of memory
+        // Out of memory — capture details to debug region (above WAD, safe from heap)
+        volatile unsigned int *OOM_DBG = (volatile unsigned int *)0x02051000;
+        OOM_DBG[0] = 0xDEAD00FD;  // OOM marker
+        OOM_DBG[1] = (unsigned)(unsigned long)heap_ptr;
+        OOM_DBG[2] = (unsigned)size;
+        OOM_DBG[3] = (unsigned)total;
+        OOM_DBG[4] = (unsigned)(unsigned long)new_ptr;
         debug_breadcrumb(0x00FD); // OOM
         return (void *)0;
     }

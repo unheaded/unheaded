@@ -141,10 +141,12 @@ void DG_SleepMs(uint32_t ms) {
 int main(void) {
     debug_breadcrumb(0x0001); // main() entered
 
-    // -mb 3: request 3MB zone memory (Doom only needs 2-3MB for gameplay;
-    // reduced from 4 to give more heap margin against corruption)
+    // -mb 2: request 2MB zone memory. Doom shareware needs ~1.5MB.
+    // Reduced from 3: bump allocator uses ~24.2MB of 26MB before Z_Init
+    // (calloc for lumpinfo, stdc_wad_file_t, argv, etc.), leaving ~1.8MB.
+    // With -mb 2, AutoAllocMemory tries 2MB first, succeeds.
     // -iwad: WAD file (fopen stub maps .wad to memory-mapped region)
-    char *argv[] = { "doom", "-mb", "3", "-iwad", "doom1.wad", 0 };
+    char *argv[] = { "doom", "-mb", "2", "-iwad", "doom1.wad", 0 };
     debug_breadcrumb(0x0002); // about to call doomgeneric_Create
     doomgeneric_Create(5, argv);
 
