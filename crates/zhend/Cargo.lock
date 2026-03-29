@@ -3216,6 +3216,7 @@ dependencies = [
  "rand 0.8.5",
  "rustls",
  "serde",
+ "serde_json",
  "sha2",
  "sled",
  "tempfile",
