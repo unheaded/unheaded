@@ -7,8 +7,11 @@
 //! Fragments ride the breath of existing packet flows.
 
 pub mod gossip;
+pub mod message;
 pub mod peer;
 pub mod transport;
 
 pub use gossip::GossipEngine;
+pub use message::GossipMessage;
 pub use peer::{Peer, PeerState};
+pub use transport::UdpTransport;
