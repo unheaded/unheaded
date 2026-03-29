@@ -364,6 +364,11 @@ impl TieredStore {
         Ok(restored)
     }
 
+    /// L2 fragment count (warm/sled).
+    pub fn l2_count(&self) -> usize {
+        self.l2.len()
+    }
+
     /// L3 unique fragment count (cold/Jing).
     ///
     /// Deduplicates since L3 is append-only and may contain stale entries

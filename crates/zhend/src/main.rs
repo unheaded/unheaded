@@ -199,7 +199,18 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // TODO: spawn gRPC server
+    // Spawn gRPC server.
+    let grpc_store = Arc::clone(&store);
+    let grpc_embedder = Arc::clone(&embedder);
+    let grpc_config = config.clone();
+    let grpc_addr = config.grpc_addr.clone();
+    let grpc_handle = tokio::spawn(async move {
+        let service = zhend::api::grpc::ZhenService::new(grpc_store, grpc_embedder, grpc_config);
+        if let Err(e) = zhend::api::grpc::serve(service, &grpc_addr).await {
+            tracing::error!(error = %e, "gRPC server failed");
+        }
+    });
+
     // TODO: spawn QUIC server
     // TODO: spawn Monad bridge listener
     // TODO: spawn Li topology observer
@@ -221,6 +232,9 @@ async fn main() -> anyhow::Result<()> {
     let _ = gossip_tx.send(()).await;
     let _ = sediment_tx.send(()).await;
     let _ = deep_tx.send(()).await;
+
+    // Abort gRPC server (it blocks on serve()).
+    grpc_handle.abort();
 
     // Wait for subsystems.
     let _ = tokio::time::timeout(

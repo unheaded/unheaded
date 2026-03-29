@@ -47,6 +47,15 @@ pub mod api;
 pub mod monad;
 pub mod crypto;
 
+/// Generated protobuf / tonic types from `proto/zhen.proto`.
+pub mod proto {
+    pub mod zhen {
+        pub mod v1 {
+            tonic::include_proto!("zhen.v1");
+        }
+    }
+}
+
 use thiserror::Error;
 
 /// Unified error type for all Zhen operations.
