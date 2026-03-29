@@ -400,12 +400,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         if cpu.pc >= 262_144_u32 {
             // PC out of ROM range — record bad PC AND last valid PC
             if let Some(ptr) = STATS.get_ptr_mut(&STAT_ROM_FAULT) {
-                // Pack both PCs: high 32 = bad PC, low 32 = last valid PC
                 unsafe { *ptr = ((cpu.pc as u64) << 32) | (prev_pc as u64); }
             }
             cpu.halted = 1;
             break;
         }
+        // SP check disabled — insn_count field may not persist across tail calls
+        // TODO: re-enable once insn_count tracking is verified
         prev_pc = cpu.pc;
         let insn_word = match ROM_MAP.get(cpu.pc) {
             Some(w) => *w,
