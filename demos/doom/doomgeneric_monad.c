@@ -69,7 +69,11 @@ extern int screenvisible;
 extern int setblocks;
 extern int detailLevel;
 
+// Defined in libc_stubs.c — writes milestone IDs to fixed RAM for post-mortem
+extern void debug_breadcrumb(uint32_t milestone);
+
 void DG_Init(void) {
+    debug_breadcrumb(0x0010); // DG_Init entered
     // Initialize I_VideoBuffer early — before D_DoomMain's I_InitGraphics.
     if (!I_VideoBuffer) {
         I_VideoBuffer = static_ivb;
@@ -83,6 +87,7 @@ void DG_Init(void) {
     for (int i = 0; i < DOOMGENERIC_RESX * DOOMGENERIC_RESY; i++) {
         SCREEN_BASE[i] = 0;
     }
+    debug_breadcrumb(0x0011); // DG_Init complete
 }
 
 // ylookup table used by renderer — if NULL, fix it
@@ -134,11 +139,15 @@ void DG_SleepMs(uint32_t ms) {
 
 // Entry point — called from crt0.S
 int main(void) {
+    debug_breadcrumb(0x0001); // main() entered
+
     // -mb 4: request 4MB zone memory (fits in our 6MB heap)
     // -iwad: WAD file (fopen stub maps .wad to memory-mapped region)
     char *argv[] = { "doom", "-mb", "4", "-iwad", "doom1.wad", 0 };
+    debug_breadcrumb(0x0002); // about to call doomgeneric_Create
     doomgeneric_Create(5, argv);
 
+    debug_breadcrumb(0x0050); // game loop reached!
     while (1) {
         doomgeneric_Tick();
     }
