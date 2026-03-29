@@ -365,13 +365,10 @@ async fn cmd_run(
         Some(&wad_data),
     )?;
 
-    // Initialize heap_ptr at its isolated address (0xBF0000) to HEAP_START.
-    // This matches libc_stubs.c: #define HEAP_PTR_ADDR ((char **)0x00BF0000)
-    // The word index is byte_addr / 4 (RAM_MAP stores 32-bit words).
-    let heap_ptr_word_idx = memory::HEAP_PTR_ADDR / 4;
-    ram_updates.push((heap_ptr_word_idx, memory::HEAP_START));
-    info!("RAM: heap_ptr at {:#x} (word {:#x}) initialized to HEAP_START {:#x}",
-          memory::HEAP_PTR_ADDR, heap_ptr_word_idx, memory::HEAP_START);
+    // heap_ptr is now a normal BSS variable in the program — no magic address.
+    // The linker script defines __heap_start/__heap_end. The program initializes
+    // heap_ptr from __heap_start on first malloc (JVM/LXD-style self-contained heap).
+    // doom-runner does NOT need to write anything for heap initialization.
 
     info!("RAM: {} non-zero words to write", ram_updates.len());
 

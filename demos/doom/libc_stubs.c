@@ -46,59 +46,64 @@ static inline void mbc_halt(void) {
 
 
 // ============================================================
-// Memory allocator — simple bump allocator for Doom's z_zone
+// Memory allocator — JVM/LXD-style runtime-managed heap
 // ============================================================
+//
+// Like a JVM: the RUNTIME (doom-runner) decides where the heap lives
+// and how big it is. The program queries __heap_start/__heap_end from
+// the linker script. No hardcoded magic addresses. No doom-runner
+// writing to special locations. The binary is self-contained.
+//
+// Like LXD: the container (MBC VM) gets a memory budget from the host
+// (doom-runner via RAM_MAP size). The program lives within that budget.
+// If it runs out, sbrk returns -1 (OOM), just like cgroup OOM.
+//
+// The heap lives between BSS end and the WAD/data region, defined
+// entirely by the linker script. Change the linker = change the heap.
+// No recompilation of doom-runner needed.
 
-// Heap boundaries — matches doom-runner/src/memory.rs (THE source of truth).
-// HEAP: 0x1C0000 to 0x1BC0000 = 26MB. Doom pre-Z_Init uses ~10MB, Z_Init needs 3MB more.
-// WAD: 0x1C00000. Stack: 0x2100000.
-#define HEAP_START_ADDR 0x001C0000
-#define HEAP_END_ADDR   0x01BC0000
+extern char __heap_start;   // linker symbol: first byte of heap
+extern char __heap_end;     // linker symbol: last byte of heap + 1
 
-// CRITICAL: heap_ptr lives at a FIXED address (0x1BF0000) far from .data.
-// Previously it was a static in .data at ~0x10E714, surrounded by Doom globals.
-// A wild pointer write from Doom code could corrupt it, bypassing malloc bounds.
-// doom-runner initializes this address to HEAP_START_ADDR on load.
-#define HEAP_PTR_ADDR ((char **)0x01BF0000)
-#define heap_ptr (*HEAP_PTR_ADDR)
+static char *heap_ptr;      // BSS — zeroed by crt0, set on first use
+static int heap_ready;      // BSS — 0 until first malloc
 
 int errno;
 
 // Each allocation is prefixed with a size_t header storing the usable size.
 // This lets realloc know how many bytes to copy from the old allocation.
-#define ALLOC_HEADER_SIZE 8  // sizeof(size_t), aligned to 8
+#define ALLOC_HEADER_SIZE 8
+
+static void heap_init(void) {
+    heap_ptr = &__heap_start;
+    heap_ready = 1;
+}
+
+void *sbrk(int incr) {
+    if (!heap_ready) heap_init();
+    char *prev = heap_ptr;
+    char *next = prev + incr;
+    if (next > &__heap_end || next < prev) return (void *)-1;
+    heap_ptr = next;
+    return prev;
+}
 
 void *malloc(size_t size) {
-    // Validate heap_ptr bounds on EVERY call — wild writes can corrupt at any time.
-    if (heap_ptr < (char *)HEAP_START_ADDR || heap_ptr >= (char *)HEAP_END_ADDR) {
-        debug_breadcrumb(0x00FE); // heap_ptr was corrupt
-        heap_ptr = (char *)HEAP_START_ADDR;
-    }
+    if (!heap_ready) heap_init();
 
-    // Align requested size to 8 bytes
+    // Align to 8 bytes
     size_t aligned = (size + 7) & ~7;
-    // Total: header + payload
     size_t total = ALLOC_HEADER_SIZE + aligned;
 
-    char *result = heap_ptr;
-    char *new_ptr = heap_ptr + total;
-
-    if (new_ptr > (char *)HEAP_END_ADDR || new_ptr < heap_ptr) {
-        // Out of memory — capture details to debug region (above WAD, safe from heap)
-        volatile unsigned int *OOM_DBG = (volatile unsigned int *)0x02051000;
-        OOM_DBG[0] = 0xDEAD00FD;  // OOM marker
-        OOM_DBG[1] = (unsigned)(unsigned long)heap_ptr;
-        OOM_DBG[2] = (unsigned)size;
-        OOM_DBG[3] = (unsigned)total;
-        OOM_DBG[4] = (unsigned)(unsigned long)new_ptr;
+    char *block = (char *)sbrk(total);
+    if (block == (char *)-1) {
         debug_breadcrumb(0x00FD); // OOM
         return (void *)0;
     }
-    heap_ptr = new_ptr;
 
-    // Store the usable size in the header, then return pointer past header
-    *(size_t *)result = aligned;
-    return (void *)(result + ALLOC_HEADER_SIZE);
+    // Header stores usable size (for realloc)
+    *(size_t *)block = aligned;
+    return (void *)(block + ALLOC_HEADER_SIZE);
 }
 
 void *calloc(size_t nmemb, size_t size) {
