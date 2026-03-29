@@ -57,7 +57,7 @@ impl TieredStore {
 
         // Store in L1 (hot).
         let mut l1 = self.l1.write().map_err(|e| {
-            ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+            ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
         })?;
         l1.insert(fragment.id.clone(), fragment);
 
@@ -69,7 +69,7 @@ impl TieredStore {
         // Check L1 first.
         {
             let mut l1 = self.l1.write().map_err(|e| {
-                ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+                ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
             })?;
             if let Some(frag) = l1.get_mut(id) {
                 frag.touch();
@@ -78,18 +78,18 @@ impl TieredStore {
         }
 
         // Check L2.
-        if let Some(bytes) = self.l2.get(&id.0)? {
+        if let Some(bytes) = self.l2.get(id.0)? {
             let mut frag = codec::decode(&bytes)?;
             frag.touch();
 
             // Promote back to L1.
             let mut l1 = self.l1.write().map_err(|e| {
-                ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+                ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
             })?;
             l1.insert(id.clone(), frag.clone());
 
             // Remove from L2 (it's hot now).
-            self.l2.remove(&id.0)?;
+            self.l2.remove(id.0)?;
 
             return Ok(Some(frag));
         }
@@ -104,7 +104,7 @@ impl TieredStore {
         // L1
         {
             let l1 = self.l1.read().map_err(|e| {
-                ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+                ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
             })?;
             if l1.contains_key(id) {
                 return Ok(true);
@@ -112,7 +112,7 @@ impl TieredStore {
         }
 
         // L2
-        if self.l2.contains_key(&id.0)? {
+        if self.l2.contains_key(id.0)? {
             return Ok(true);
         }
 
@@ -132,10 +132,10 @@ impl TieredStore {
         // Identify candidates.
         {
             let l1 = self.l1.read().map_err(|e| {
-                ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+                ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
             })?;
             for (id, frag) in l1.iter() {
-                if let Some(age) = now.signed_duration_since(frag.last_accessed).to_std().ok() {
+                if let Ok(age) = now.signed_duration_since(frag.last_accessed).to_std() {
                     if age > threshold.to_std().unwrap_or_default() {
                         to_migrate.push(id.clone());
                     }
@@ -145,13 +145,13 @@ impl TieredStore {
 
         // Migrate.
         let mut l1 = self.l1.write().map_err(|e| {
-            ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+            ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
         })?;
         for id in to_migrate {
             if let Some(mut frag) = l1.remove(&id) {
                 frag.tier = Tier::Warm;
                 let encoded = codec::encode(&frag)?;
-                self.l2.insert(&id.0, encoded)?;
+                self.l2.insert(id.0, encoded)?;
                 migrated += 1;
             }
         }
@@ -167,7 +167,7 @@ impl TieredStore {
     /// Total fragment count across all tiers.
     pub fn count(&self) -> ZhenResult<usize> {
         let l1_count = self.l1.read().map_err(|e| {
-            ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+            ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
         })?.len();
         let l2_count = self.l2.len();
 
@@ -177,14 +177,14 @@ impl TieredStore {
     /// L1 fragment count (hot).
     pub fn l1_count(&self) -> ZhenResult<usize> {
         Ok(self.l1.read().map_err(|e| {
-            ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+            ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
         })?.len())
     }
 
     /// All fragment IDs currently in L1 (for gossip selection).
     pub fn l1_ids(&self) -> ZhenResult<Vec<FragmentId>> {
         let l1 = self.l1.read().map_err(|e| {
-            ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+            ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
         })?;
         Ok(l1.keys().cloned().collect())
     }
@@ -192,7 +192,7 @@ impl TieredStore {
     /// All fragments currently in L1 (for embedding/similarity search).
     pub fn l1_fragments(&self) -> ZhenResult<Vec<Fragment>> {
         let l1 = self.l1.read().map_err(|e| {
-            ZhenError::Storage(sled::Error::Unsupported(e.to_string().into()))
+            ZhenError::Storage(sled::Error::Unsupported(e.to_string()))
         })?;
         Ok(l1.values().cloned().collect())
     }

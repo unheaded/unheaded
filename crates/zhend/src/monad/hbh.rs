@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_minimal() {
-        let hash = blake3::hash(b"test fragment").as_bytes().clone();
+        let hash = *blake3::hash(b"test fragment").as_bytes();
         let encoded = encode_zhen_option(&hash, None, None);
         let parsed = parse_zhen_option(&encoded).expect("should parse");
         assert_eq!(parsed.fragment_hash, hash);
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_full() {
-        let hash = blake3::hash(b"full metadata").as_bytes().clone();
+        let hash = *blake3::hash(b"full metadata").as_bytes();
         let encoded = encode_zhen_option(&hash, Some(128), Some(4096));
         let parsed = parse_zhen_option(&encoded).expect("should parse");
         assert_eq!(parsed.fragment_hash, hash);
