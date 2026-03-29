@@ -368,6 +368,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     }
 
     // ── Execute loop ──────────────────────────────────────────────────────────
+    let mut prev_pc: u32 = cpu.pc;  // Track last valid PC for post-mortem
     let mut i = 0usize;
     while i < MAX_INSN_PER_TICK {
         if cpu.halted != 0 {
@@ -393,11 +394,22 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.interrupt_pending = 0;
         }
 
-        // Fetch
+        // Fetch — with explicit PC bounds check
+        // BPF Array::get may not return None for large indices on all kernels.
+        // Belt-and-suspenders: check explicitly, then check Array result.
+        if cpu.pc >= 262_144_u32 {
+            // PC out of ROM range — record bad PC AND last valid PC
+            if let Some(ptr) = STATS.get_ptr_mut(&STAT_ROM_FAULT) {
+                // Pack both PCs: high 32 = bad PC, low 32 = last valid PC
+                unsafe { *ptr = ((cpu.pc as u64) << 32) | (prev_pc as u64); }
+            }
+            cpu.halted = 1;
+            break;
+        }
+        prev_pc = cpu.pc;
         let insn_word = match ROM_MAP.get(cpu.pc) {
             Some(w) => *w,
             None => {
-                // PC out of bounds — halt the CPU.
                 cpu.halted = 1;
                 increment_stat(STAT_ROM_FAULT);
                 break;
