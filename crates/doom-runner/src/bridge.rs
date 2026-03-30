@@ -222,16 +222,18 @@ async fn frame_poller(
     }
 }
 
-/// Read all 64,000 pixels from SCREEN_MAP.
+/// Read 64,000 pixels from RAM_MAP at SCREEN_BASE.
 ///
-/// Returns None if the map is not found. Individual read failures yield 0.
+/// Doom writes to RAM_MAP via memcpy (word stores). We read 16K words
+/// and unpack 4 bytes per word. This is 4x faster than reading SCREEN_MAP
+/// pixel-by-pixel, and works with memcpy-based I_FinishUpdate.
 fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
-    let screen_map_ref = ebpf.map_mut("SCREEN_MAP");
-    let screen: Array<_, u8> = match screen_map_ref {
-        Some(map) => match Array::try_from(map) {
+    let ram_map_ref = ebpf.map_mut("RAM_MAP");
+    let ram: aya::maps::Array<_, u32> = match ram_map_ref {
+        Some(map) => match aya::maps::Array::try_from(map) {
             Ok(a) => a,
             Err(e) => {
-                error!("bridge: SCREEN_MAP not an Array: {e}");
+                error!("bridge: RAM_MAP not an Array<u32>: {e}");
                 return None;
             }
         },
@@ -240,10 +242,19 @@ fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
         }
     };
 
+    let screen_word_base = memory::SCREEN_BASE / 4;
+    let num_words = (memory::SCREEN_SIZE + 3) / 4;
     let mut pixels = Vec::with_capacity(memory::SCREEN_SIZE as usize);
-    for i in 0..memory::SCREEN_SIZE {
-        pixels.push(screen.get(&i, 0).unwrap_or(0));
+
+    for w in 0..num_words {
+        let word = ram.get(&(screen_word_base + w), 0).unwrap_or(0);
+        // Unpack 4 bytes from word (little-endian)
+        pixels.push((word & 0xFF) as u8);
+        pixels.push(((word >> 8) & 0xFF) as u8);
+        pixels.push(((word >> 16) & 0xFF) as u8);
+        pixels.push(((word >> 24) & 0xFF) as u8);
     }
+    pixels.truncate(memory::SCREEN_SIZE as usize);
     Some(pixels)
 }
 
