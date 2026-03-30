@@ -64,7 +64,7 @@ static void debug_write(const char *s) {
 // Zone memory
 // ============================================================
 
-int mb_used = 12; // Retail DOOM.WAD needs more zone for texture cache in later levels
+int mb_used = 14; // Retail DOOM.WAD needs ~14MB zone for texture cache in later levels
 
 // ============================================================
 // I_GetTime — returns time in 1/35s tics (TICRATE = 35)
