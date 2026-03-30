@@ -15,7 +15,7 @@
 #include "doomdef.h"
 
 // MBC memory-mapped screen address (matches doom-runner memory.rs)
-#define SCREEN_BASE 0x00170000
+#define SCREEN_BASE 0x00070000
 #define SCREEN_SIZE (SCREENWIDTH * SCREENHEIGHT)  // 320 * 200 = 64000
 
 // MBC syscall for frame presentation
@@ -148,9 +148,17 @@ void I_UpdateNoBlit(void)
 
 void I_FinishUpdate(void)
 {
-    // Copy rendered screen to MBC framebuffer
-    if (screens[0])
-        memcpy((void *)SCREEN_BASE, screens[0], SCREEN_SIZE);
+    // Copy rendered screen to MBC framebuffer using BYTE STORES.
+    // Word stores (memcpy) write to RAM_MAP only.
+    // Byte stores write to BOTH RAM_MAP AND SCREEN_MAP.
+    // The bridge reads SCREEN_MAP, so byte stores are required.
+    if (screens[0]) {
+        volatile unsigned char *dst = (volatile unsigned char *)SCREEN_BASE;
+        unsigned char *src = screens[0];
+        for (int i = 0; i < SCREEN_SIZE; i++) {
+            dst[i] = src[i];
+        }
+    }
 
     // Signal MBC to present the frame
     mbc_syscall(SYS_DRAW_FRAME);
