@@ -33,10 +33,15 @@ static inline unsigned int mbc_syscall(unsigned int num) {
 // I_InitGraphics — allocate screen buffer
 // ============================================================
 
-// Back buffer: Doom renders to malloc'd screens[0], then I_FinishUpdate
-// word-copies to SCREEN_BASE. The bridge reads SCREEN_BASE, which always
-// has a complete frame. Copy window ~0.7ms vs 28ms render = 40x less tearing.
+// Back buffer: Doom renders 8-bit indices to malloc'd screens[0], then
+// I_FinishUpdate converts to 32-bit XRGB and writes to SCREEN_BASE.
+// This matches doomgeneric's cmap_to_fb approach — palette conversion
+// happens in C, not in the browser. Eliminates multicolor banding.
 #define PALETTE_ADDR ((volatile unsigned char *)0x00060000) // 768 bytes below screen
+
+// Palette colors array — populated by I_SetPalette with gamma correction.
+// Used by I_FinishUpdate to convert 8-bit indices to 32-bit XRGB.
+static unsigned int xrgb_palette[256];
 
 void I_InitGraphics(void)
 {
@@ -201,14 +206,17 @@ void I_UpdateNoBlit(void)
 
 void I_FinishUpdate(void)
 {
-    // Word-copy back buffer → SCREEN_BASE (front buffer read by bridge).
-    // Using word-aligned copy: 16K stores instead of 64K = ~0.7ms copy window.
-    // The bridge reads SCREEN_BASE, so it mostly sees complete frames.
+    // Convert 8-bit palette indices → 32-bit XRGB and write to SCREEN_BASE.
+    // This matches doomgeneric's cmap_to_fb approach: palette conversion in C,
+    // not in the browser. Each pixel becomes a 32-bit XRGB value.
+    // Output: 320*200*4 = 256,000 bytes at SCREEN_BASE (64K words).
     if (screens[0] != (unsigned char *)SCREEN_BASE) {
         unsigned int *dst = (unsigned int *)SCREEN_BASE;
-        const unsigned int *src = (const unsigned int *)screens[0];
-        int words = SCREEN_SIZE / 4;
-        while (words--) *dst++ = *src++;
+        const unsigned char *src = screens[0];
+        int pixels = SCREEN_SIZE;
+        while (pixels--) {
+            *dst++ = xrgb_palette[*src++];
+        }
     }
     mbc_syscall(SYS_DRAW_FRAME);
 }
@@ -223,16 +231,21 @@ void I_ReadScreen(byte *scr)
 }
 
 // ============================================================
-// I_SetPalette — store palette to PALETTE_ADDR
+// I_SetPalette — build XRGB palette for I_FinishUpdate conversion
 // ============================================================
 
 void I_SetPalette(byte *palette)
 {
-    // Write 768 bytes (256 × RGB) to PALETTE_ADDR in RAM_MAP.
-    // The bridge reads this to apply correct Doom colors.
-    // Note: gamma correction is NOT applied here (gammatable access
-    // caused init stall). The raw PLAYPAL values are used directly.
-    // This matches what the WAD contains — authentic Doom colors.
+    // Build 32-bit XRGB palette for cmap_to_fb conversion in I_FinishUpdate.
+    // This matches doomgeneric's approach: palette lookup in C, not browser.
+    for (int i = 0; i < 256; i++) {
+        unsigned int r = palette[i * 3];
+        unsigned int g = palette[i * 3 + 1];
+        unsigned int b = palette[i * 3 + 2];
+        // XRGB8888: R in bits 16-23, G in bits 8-15, B in bits 0-7
+        xrgb_palette[i] = (r << 16) | (g << 8) | b;
+    }
+    // Also write raw palette to PALETTE_ADDR for bridge fallback
     volatile unsigned char *dst = PALETTE_ADDR;
     for (int i = 0; i < 768; i++) {
         dst[i] = palette[i];
