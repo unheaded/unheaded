@@ -136,7 +136,7 @@ void I_StartTic(void)
     case 69: event.data1 = KEY_RCTRL; break;        // E = fire
     case 70: event.data1 = ' '; break;              // F = use/open doors
     case 27: event.data1 = KEY_ESCAPE; break;      // Escape
-    case 13: event.data1 = KEY_ENTER; break;       // Enter
+    case 13: event.data1 = KEY_RCTRL; break;       // Enter = fire
     case 9:  event.data1 = KEY_TAB; break;         // Tab
     case 32: event.data1 = ' '; break;             // Space
     case 17: event.data1 = KEY_RCTRL; break;       // Ctrl (fire)
