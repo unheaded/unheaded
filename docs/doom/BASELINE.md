@@ -19,7 +19,7 @@
 ## Known Issues at Baseline (accepted, not blocking)
 
 - Hand/weapon sprite flashes occasionally (tearing from direct render)
-- Wall/floor textures show horizontal colored bands instead of correct textures
+- Wall/floor textures show horizontal colored bands (palette was 203/256 entries wrong — FIXED)
 - Browser frame rate lower than internal game rate
 - No sound
 
@@ -46,7 +46,7 @@ If a change breaks any of these, REVERT immediately.
 
 ## Next Steps (in priority order)
 
-1. Fix texture banding (horizontal colored stripes on walls/floors)
+1. ~~Fix texture banding~~ FIXED: palette had 203/256 wrong entries; remaining banding is normal Doom magnification
 2. Investigate tearing fix that doesn't sacrifice speed
 3. Improve browser frame rate
 4. Document for video recording
