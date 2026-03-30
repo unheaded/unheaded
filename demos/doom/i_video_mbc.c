@@ -148,17 +148,11 @@ void I_UpdateNoBlit(void)
 
 void I_FinishUpdate(void)
 {
-    // Copy rendered screen to MBC framebuffer using BYTE STORES.
-    // Word stores (memcpy) write to RAM_MAP only.
-    // Byte stores write to BOTH RAM_MAP AND SCREEN_MAP.
-    // The bridge reads SCREEN_MAP, so byte stores are required.
-    if (screens[0]) {
-        volatile unsigned char *dst = (volatile unsigned char *)SCREEN_BASE;
-        unsigned char *src = screens[0];
-        for (int i = 0; i < SCREEN_SIZE; i++) {
-            dst[i] = src[i];
-        }
-    }
+    // Copy rendered screen to MBC framebuffer via memcpy (word stores).
+    // Word stores go to RAM_MAP. The bridge reads from RAM_MAP at SCREEN_BASE.
+    // This is 4x faster than byte stores (16K words vs 64K bytes).
+    if (screens[0])
+        memcpy((void *)SCREEN_BASE, screens[0], SCREEN_SIZE);
 
     // Signal MBC to present the frame
     mbc_syscall(SYS_DRAW_FRAME);
