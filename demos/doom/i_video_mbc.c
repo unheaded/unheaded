@@ -119,6 +119,11 @@ void I_StartTic(void)
     case 40: event.data1 = KEY_DOWNARROW; break;   // ArrowDown
     case 37: event.data1 = KEY_LEFTARROW; break;   // ArrowLeft
     case 39: event.data1 = KEY_RIGHTARROW; break;  // ArrowRight
+    // WASD
+    case 87: event.data1 = KEY_UPARROW; break;     // W = forward
+    case 83: event.data1 = KEY_DOWNARROW; break;    // S = backward
+    case 65: event.data1 = KEY_LEFTARROW; break;    // A = turn left
+    case 68: event.data1 = KEY_RIGHTARROW; break;   // D = turn right
     case 27: event.data1 = KEY_ESCAPE; break;      // Escape
     case 13: event.data1 = KEY_ENTER; break;       // Enter
     case 9:  event.data1 = KEY_TAB; break;         // Tab
