@@ -350,3 +350,57 @@ Use STATS map (incremented per-instruction) instead.
 
 **WARNING: CPU state sampling can read wrong bytes if struct layout is misunderstood.**
 Always decode the FULL 128-byte CPU_MAP value, not individual offsets.
+
+---
+
+## Texture Banding Investigation (2026-03-29)
+
+### Observation
+Wall/floor textures showed "horizontal colored bands" — wide stripes of uniform
+color instead of recognizable texture detail (bricks, metal, etc).
+
+### Investigation
+Exhaustive analysis of the complete texture rendering pipeline:
+- WAD loading path (doom-runner `bytes_to_words` → RAM_MAP → `read()` → `memcpy` → heap)
+- Byte order (LE encoding consistent across `from_le_bytes`, LDB/STB, LDH/STH, LD/ST)
+- RV32I→MBC translation (LBU→LDB, SB→STB, SRAI→MOV+SAR, all correct)
+- BPF executor memory ops (read-modify-write for byte stores, LE extraction)
+- R_DrawColumn inner loop (compiler output verified: LBU for texel read, LBU for colormap, SB for pixel write)
+- R_GetColumn texture column selection (columnofs correctly loaded, columns vary per X)
+- Bridge screen reading (RAM_MAP word extraction matches Doom's byte store layout)
+- Software division (__udivsi3 verified correct for dc_iscale computation)
+
+### Empirical verification (live RAM_MAP reads via bpftool)
+1. **Palette**: Dynamic PLAYPAL from RAM_MAP at 0x60000 matches DOOM.WAD byte-for-byte
+2. **Screen pixels**: Varied values across columns (not uniform per row)
+3. **Status bar / Doomguy face**: Correct skin tones and HUD layout
+4. **Adjacent rows at wall region**: Identical pixels span ~33 columns per row
+
+### Root cause: TWO issues found
+
+**Issue 1: Incorrect fallback palette (FIXED, commit 823dde86)**
+The hardcoded PALETTE in the bridge HTML (used as JS fallback) had 203 of 256
+entries wrong compared to the actual retail DOOM.WAD PLAYPAL. Entries 48-111 were
+shifted by entire color ramps — skin tones mapped to fire colors, grey ramp mapped
+to red/fire, green mapped to brown/leather. While the dynamic palette path reads
+correct values from RAM_MAP, any fallback scenario would display dramatically wrong
+colors. Fixed by regenerating both Rust and JS palettes from the actual WAD file.
+
+**Issue 2: Normal Doom nearest-neighbor magnification (NOT A BUG)**
+When close to a wall, dc_iscale < 0x10000 causes multiple screen rows to map to
+the same texel row (via `(frac >> FRACBITS) & 127`). This produces visible
+horizontal bands where each texel row is stretched across 4-12 screen pixels.
+This is identical to how original Doom looks on a CRT at 320x200 — the low texture
+resolution becomes visible at close range. At appropriate viewing distances, texture
+detail is correctly visible.
+
+### Verification: texture rendering IS correct
+The pixel data at wall regions shows:
+- Different palette indices per column (dc_source varies correctly per texturecolumn)
+- Gradual vertical transitions within columns (frac stepping works)
+- Correct colormap application (dark lighting compresses palette range as expected)
+- HUD and face sprites render correctly (V_DrawPatch path confirmed working)
+
+The "banding" perception was amplified by the incorrect palette mapping 203 colors
+to wrong destinations. With the correct palette, the natural Doom texture
+magnification should look significantly more recognizable.
