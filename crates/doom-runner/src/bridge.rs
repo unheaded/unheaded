@@ -222,11 +222,13 @@ async fn frame_poller(
     }
 }
 
-/// Read 64,000 pixels from RAM_MAP at SCREEN_BASE.
-///
-/// Doom writes to RAM_MAP via memcpy (word stores). We read 16K words
-/// and unpack 4 bytes per word. This is 4x faster than reading SCREEN_MAP
-/// pixel-by-pixel, and works with memcpy-based I_FinishUpdate.
+/// Palette address in RAM_MAP (I_SetPalette writes 768 bytes here).
+const PALETTE_ADDR: u32 = 0x0006_0000;
+const PALETTE_SIZE: u32 = 768; // 256 * 3 (RGB)
+
+/// Read 768-byte palette + 64,000 pixels from RAM_MAP.
+/// Returns palette (768 bytes) followed by pixels (64000 bytes) = 64768 total.
+/// The bridge JS splits the message: first 768 = palette, rest = pixels.
 fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
     let ram_map_ref = ebpf.map_mut("RAM_MAP");
     let ram: aya::maps::Array<_, u32> = match ram_map_ref {
@@ -242,20 +244,32 @@ fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
         }
     };
 
+    let mut data = Vec::with_capacity((PALETTE_SIZE + memory::SCREEN_SIZE) as usize);
+
+    // Read palette (768 bytes = 192 words)
+    let pal_word_base = PALETTE_ADDR / 4;
+    let pal_words = (PALETTE_SIZE + 3) / 4;
+    for w in 0..pal_words {
+        let word = ram.get(&(pal_word_base + w), 0).unwrap_or(0);
+        data.push((word & 0xFF) as u8);
+        data.push(((word >> 8) & 0xFF) as u8);
+        data.push(((word >> 16) & 0xFF) as u8);
+        data.push(((word >> 24) & 0xFF) as u8);
+    }
+    data.truncate(PALETTE_SIZE as usize);
+
+    // Read pixels (64000 bytes = 16000 words)
     let screen_word_base = memory::SCREEN_BASE / 4;
     let num_words = (memory::SCREEN_SIZE + 3) / 4;
-    let mut pixels = Vec::with_capacity(memory::SCREEN_SIZE as usize);
-
     for w in 0..num_words {
         let word = ram.get(&(screen_word_base + w), 0).unwrap_or(0);
-        // Unpack 4 bytes from word (little-endian)
-        pixels.push((word & 0xFF) as u8);
-        pixels.push(((word >> 8) & 0xFF) as u8);
-        pixels.push(((word >> 16) & 0xFF) as u8);
-        pixels.push(((word >> 24) & 0xFF) as u8);
+        data.push((word & 0xFF) as u8);
+        data.push(((word >> 8) & 0xFF) as u8);
+        data.push(((word >> 16) & 0xFF) as u8);
+        data.push(((word >> 24) & 0xFF) as u8);
     }
-    pixels.truncate(memory::SCREEN_SIZE as usize);
-    Some(pixels)
+    data.truncate((PALETTE_SIZE + memory::SCREEN_SIZE) as usize);
+    Some(data)
 }
 
 /// Write keyboard events to KBD_MAP.
@@ -441,17 +455,31 @@ pub const VIEWER_HTML: &str = r##"<!DOCTYPE html>
       };
 
       ws.onmessage = (e) => {
-        const pixels = new Uint8Array(e.data);
-        if (pixels.length !== 64000) return;
-
-        for (let i = 0; i < 64000; i++) {
-          const ci = pixels[i] * 3;
-          const off = i * 4;
-          img.data[off]     = PALETTE[ci];
-          img.data[off + 1] = PALETTE[ci + 1];
-          img.data[off + 2] = PALETTE[ci + 2];
-          img.data[off + 3] = 255;
-        }
+        const data = new Uint8Array(e.data);
+        // Message format: [768 bytes palette][64000 bytes pixels]
+        if (data.length >= 64768) {
+          // Dynamic palette from WAD PLAYPAL (first 768 bytes)
+          const pal = data.subarray(0, 768);
+          const pixels = data.subarray(768);
+          for (let i = 0; i < 64000; i++) {
+            const ci = pixels[i] * 3;
+            const off = i * 4;
+            img.data[off]     = pal[ci];
+            img.data[off + 1] = pal[ci + 1];
+            img.data[off + 2] = pal[ci + 2];
+            img.data[off + 3] = 255;
+          }
+        } else if (data.length === 64000) {
+          // Legacy: no palette prefix, use hardcoded
+          for (let i = 0; i < 64000; i++) {
+            const ci = data[i] * 3;
+            const off = i * 4;
+            img.data[off]     = PALETTE[ci];
+            img.data[off + 1] = PALETTE[ci + 1];
+            img.data[off + 2] = PALETTE[ci + 2];
+            img.data[off + 3] = 255;
+          }
+        } else return;
         ctx.putImageData(img, 0, 0);
 
         frameCount++;
