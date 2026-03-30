@@ -231,14 +231,24 @@ load_bpf_programs() {
     #
     # Result: 1 program, 1 set of maps, 6 XDP attachment points.
 
-    # ── Hop 0: primary loader (creates program + maps) ───────────────────
+    # ── Strategy: load ONCE on hop0, attach SAME program to remaining hops ──
+    #
+    # The aya loader creates the program + maps and holds a link-based XDP
+    # attachment on hop0. It MUST stay alive as a daemon — killing it releases
+    # the link and detaches XDP. Use nohup + file redirect (NOT pipe) to keep
+    # it alive after the script exits.
+    #
+    # Hops 1+: bpftool attaches the SAME program by ID (netlink-based,
+    # persists without the loader process).
+
     local ns0="${NS_PREFIX}0"
-    local veth0="veth$((NUM_HOPS - 1))0p"  # veth50p
+    local veth0="veth$((NUM_HOPS - 1))0p"
     local pid_file="/run/doom-ring/hop0.pid"
 
     log_info "Hop 0 (primary): loading monad_cpu on ${ns0}/${veth0}..."
 
-    nsenter --net="/var/run/netns/${ns0}" \
+    # Use setsid to fully daemonize. nohup alone doesn't survive nsenter exit.
+    setsid nsenter --net="/var/run/netns/${ns0}" \
         "$LOADER_BIN" \
         --only monad-cpu \
         --obj-dir "${EBPF_BIN_DIR}" \
@@ -246,12 +256,11 @@ load_bpf_programs() {
         --map-pin-path "${MAP_PIN_DIR}" \
         --xdp-skb-mode \
         --pid-file "$pid_file" \
-        2>&1 | while IFS= read -r line; do echo "  [hop0] $line"; done &
+        < /dev/null > /tmp/doom-ring-loader.log 2>&1 &
 
-    # Wait for loader to start, create maps, verify, JIT, and attach XDP.
-    # BPF verifier can take 4-5 seconds for complex programs like monad_cpu.
+    # Wait for loader to start, verify, JIT, and attach XDP (up to 15s).
     local wait_total=0
-    while [[ ! -f "$pid_file" ]] && [[ $wait_total -lt 10 ]]; do
+    while [[ ! -f "$pid_file" ]] && [[ $wait_total -lt 15 ]]; do
         sleep 1
         wait_total=$((wait_total + 1))
         log_info "Waiting for BPF verifier... (${wait_total}s)"
@@ -264,23 +273,25 @@ load_bpf_programs() {
             log_info "Hop 0: monad_cpu attached on ${ns0}/${veth0} (PID ${pid0})"
         else
             log_error "Hop 0: loader exited prematurely (verifier rejection?)"
+            cat /tmp/doom-ring-loader.log 2>/dev/null | tail -5
             return 1
         fi
     else
-        log_error "Hop 0: loader failed to start within 10s (no PID file)"
+        log_error "Hop 0: loader failed to start within 15s"
+        cat /tmp/doom-ring-loader.log 2>/dev/null | tail -10
         return 1
     fi
 
-    # ── Get the program ID for the loaded monad_cpu ──────────────────────
+    # Get the program ID — use tail -1 to get the NEWEST if multiples exist
     local prog_id
-    prog_id=$(bpftool prog list 2>/dev/null | grep "name monad_cpu" | head -1 | awk '{print $1}' | tr -d ':')
+    prog_id=$(bpftool prog list 2>/dev/null | grep "name monad_cpu" | tail -1 | awk '{print $1}' | tr -d ':')
     if [[ -z "$prog_id" ]]; then
         log_error "Could not find monad_cpu program ID via bpftool"
         return 1
     fi
     log_info "monad_cpu program id=${prog_id} — attaching to hops 1-$((NUM_HOPS - 1))"
 
-    # ── Hops 1-5: attach same program via bpftool (legacy netlink) ───────
+    # Attach remaining hops via bpftool (netlink, shares same program + maps)
     for i in $(seq 1 $((NUM_HOPS - 1))); do
         local prev=$(( (i - 1 + NUM_HOPS) % NUM_HOPS ))
         local ns="${NS_PREFIX}${i}"
@@ -296,7 +307,7 @@ load_bpf_programs() {
         log_info "Hop ${i}: monad_cpu attached on ${ns}/${veth_in} (shared prog ${prog_id})"
     done
 
-    log_info "All ${NUM_HOPS} hops loaded with shared maps at ${MAP_PIN_DIR}"
+    log_info "All ${NUM_HOPS} hops loaded — stable netlink XDP, no background process needed"
 }
 
 # ============================================================================

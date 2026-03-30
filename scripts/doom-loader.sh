@@ -24,15 +24,10 @@ DOOM_ELF="${DOOM_DIR}/doom.elf"
 DOOM_WAD="${DOOM_WAD:-${HOME}/tmp/projects/doom-related/doom1.wad}"
 DOOM_DATA="${DOOM_DIR}/doom_data.bin"
 
-# Go doom-loader binary (replaces Python doom-loader-core.py)
-DOOM_LOADER="${PROJECT_ROOT}/cmd/doom-loader/doom-loader"
+# Go doom-loader binary
+DOOM_LOADER="${PROJECT_ROOT}/bin/doom-loader"
 if [[ ! -x "$DOOM_LOADER" ]]; then
-    # Try go build on the fly
-    log_info "Building doom-loader..."
-    (cd "$PROJECT_ROOT" && go build -o cmd/doom-loader/doom-loader ./cmd/doom-loader/) || {
-        log_error "Failed to build doom-loader. Falling back to Python."
-        DOOM_LOADER=""
-    }
+    DOOM_LOADER="${PROJECT_ROOT}/cmd/doom-loader/doom-loader"
 fi
 
 # Colors
@@ -95,13 +90,14 @@ load_data() {
         exit 1
     fi
 
-    # Extract data sections if not already done
-    if [[ ! -f "$DOOM_DATA" ]]; then
-        log_info "Extracting data sections from doom.elf..."
-        riscv64-unknown-elf-objcopy -O binary \
-            -j .rodata -j '.srodata*' -j .data \
-            "$DOOM_ELF" "$DOOM_DATA"
-    fi
+    # Extract data sections — always re-extract to pick up ELF changes.
+    # CRITICAL: must include .sdata (small initialized globals like heap_ptr,
+    # stdout, rand_seed). Missing .sdata caused heap_ptr=0 → malloc returning
+    # address 0x0 (ROM space) → memory corruption → crash in D_DoomMain().
+    log_info "Extracting data sections from doom.elf..."
+    riscv64-unknown-elf-objcopy -O binary \
+        -j .rodata -j '.srodata*' -j .data -j .sdata \
+        "$DOOM_ELF" "$DOOM_DATA"
 
     local data_size
     data_size=$(stat -c%s "$DOOM_DATA")
@@ -145,8 +141,10 @@ load_wad() {
     wad_size=$(stat -c%s "$DOOM_WAD")
     log_info "WAD: ${wad_size} bytes"
 
-    # WAD starts at byte address 0x800000 (from linker.ld WAD ORIGIN + libc_stubs.c WAD_BASE)
-    local wad_start_addr=0x800000
+    # WAD address must match WAD_BASE in libc_stubs.c and linker.ld.
+    # libc_stubs.c: #define WAD_BASE 0x00800000
+    # linker.ld:    WAD (r) : ORIGIN = 0x00800000, LENGTH = 4M
+    local wad_start_addr=${DOOM_WAD_BASE:-0x800000}
 
     "$DOOM_LOADER" ram "$ram_pin" "$DOOM_WAD" "$wad_start_addr"
 
