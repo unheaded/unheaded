@@ -223,13 +223,16 @@ void I_ReadScreen(byte *scr)
 }
 
 // ============================================================
-// I_SetPalette — store palette (no-op for now, 8-bit indexed)
+// I_SetPalette — store palette to PALETTE_ADDR
 // ============================================================
 
 void I_SetPalette(byte *palette)
 {
     // Write 768 bytes (256 × RGB) to PALETTE_ADDR in RAM_MAP.
     // The bridge reads this to apply correct Doom colors.
+    // Note: gamma correction is NOT applied here (gammatable access
+    // caused init stall). The raw PLAYPAL values are used directly.
+    // This matches what the WAD contains — authentic Doom colors.
     volatile unsigned char *dst = PALETTE_ADDR;
     for (int i = 0; i < 768; i++) {
         dst[i] = palette[i];
