@@ -33,20 +33,22 @@ static inline unsigned int mbc_syscall(unsigned int num) {
 // I_InitGraphics — allocate screen buffer
 // ============================================================
 
-// Fixed screen buffer address — bridge reads directly from here.
-// No memcpy needed: Doom renders into screens[0] which IS at SCREEN_BASE.
-// This saves 16K word stores per frame (~35% fps boost).
+// Back buffer: Doom renders to malloc'd screens[0], then I_FinishUpdate
+// word-copies to SCREEN_BASE. The bridge reads SCREEN_BASE, which always
+// has a complete frame. Copy window ~0.7ms vs 28ms render = 40x less tearing.
 #define PALETTE_ADDR ((volatile unsigned char *)0x00060000) // 768 bytes below screen
 
 void I_InitGraphics(void)
 {
-    // Point screens[0] directly at SCREEN_BASE in MBC address space.
-    // Doom renders directly into the screen buffer that the bridge reads.
-    screens[0] = (unsigned char *)SCREEN_BASE;
+    // Back buffer: Doom renders here (private, not read by bridge mid-frame).
+    screens[0] = (unsigned char *)malloc(SCREEN_SIZE);
+    if (!screens[0])
+        screens[0] = (unsigned char *)SCREEN_BASE; // fallback to direct
     memset(screens[0], 0, SCREEN_SIZE);
+    // Clear the front buffer too
+    memset((void *)SCREEN_BASE, 0, SCREEN_SIZE);
 
     // Doom uses screens[1-4] for status bar, wipe effects, temp buffers.
-    // If not allocated, V_CopyRect and wipe code write to NULL → corruption.
     for (int i = 1; i < 5; i++) {
         screens[i] = (unsigned char *)malloc(SCREEN_SIZE);
         if (screens[i])
@@ -199,9 +201,15 @@ void I_UpdateNoBlit(void)
 
 void I_FinishUpdate(void)
 {
-    // screens[0] IS SCREEN_BASE — no copy needed!
-    // Doom renders directly into the buffer the bridge reads.
-    // Just signal frame ready.
+    // Word-copy back buffer → SCREEN_BASE (front buffer read by bridge).
+    // Using word-aligned copy: 16K stores instead of 64K = ~0.7ms copy window.
+    // The bridge reads SCREEN_BASE, so it mostly sees complete frames.
+    if (screens[0] != (unsigned char *)SCREEN_BASE) {
+        unsigned int *dst = (unsigned int *)SCREEN_BASE;
+        const unsigned int *src = (const unsigned int *)screens[0];
+        int words = SCREEN_SIZE / 4;
+        while (words--) *dst++ = *src++;
+    }
     mbc_syscall(SYS_DRAW_FRAME);
 }
 
