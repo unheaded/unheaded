@@ -272,9 +272,11 @@ fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
     Some(data)
 }
 
-/// Write keyboard events to KBD_MAP.
+/// Write keyboard events to KBD_MAP circular queue (8 slots).
+/// MBC executor scans slots 0-7 and clears consumed events.
 async fn kbd_writer(ebpf: Arc<Mutex<Ebpf>>, mut rx: tokio::sync::mpsc::Receiver<KeyEvent>) {
     info!("bridge: keyboard writer started");
+    let mut write_idx: u32 = 0;
 
     while let Some(evt) = rx.recv().await {
         let mut ebpf_guard = match ebpf.lock() {
@@ -285,13 +287,26 @@ async fn kbd_writer(ebpf: Arc<Mutex<Ebpf>>, mut rx: tokio::sync::mpsc::Receiver<
             }
         };
 
-        // KBD_MAP[0] = scancode << 1 | pressed
         let kbd_map_ref = ebpf_guard.map_mut("KBD_MAP");
         if let Some(map) = kbd_map_ref {
             if let Ok(mut kbd) = Array::<_, u32>::try_from(map) {
                 let val = (evt.scancode as u32) << 1 | (evt.pressed as u32);
-                if let Err(e) = kbd.set(0, val, 0) {
-                    warn!("bridge: KBD_MAP write failed: {e}");
+                // Find next free slot (value == 0 means consumed by MBC executor)
+                for attempt in 0..8u32 {
+                    let slot = (write_idx + attempt) % 8;
+                    let current = kbd.get(&slot, 0).unwrap_or(0);
+                    if current == 0 {
+                        if let Err(e) = kbd.set(slot, val, 0) {
+                            warn!("bridge: KBD_MAP write failed: {e}");
+                        }
+                        write_idx = (slot + 1) % 8;
+                        break;
+                    }
+                    // Slot occupied — try next. If all full, overwrite oldest.
+                    if attempt == 7 {
+                        let _ = kbd.set(write_idx, val, 0);
+                        write_idx = (write_idx + 1) % 8;
+                    }
                 }
             }
         }

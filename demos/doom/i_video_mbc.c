@@ -97,8 +97,10 @@ void I_StartFrame(void)
 
 void I_StartTic(void)
 {
-    // Poll MBC keyboard via syscall
-    // Returns 0 if no key, or packed key event
+    // Drain ALL pending key events (not just one).
+    // Doom calls I_StartTic once per tic (35 Hz). If keys queue up,
+    // we need to process them all to prevent input lag and flickering.
+    for (int poll = 0; poll < 8; poll++) {
     unsigned int result = mbc_syscall(SYS_GET_KEY);
     if (result == 0)
         return;
@@ -165,13 +167,14 @@ void I_StartTic(void)
         else if (key >= 48 && key <= 57)
             event.data1 = key; // 0-9
         else
-            return; // unknown key, ignore
+            continue; // unknown key, skip to next event
         break;
     }
     event.data2 = 0;
     event.data3 = 0;
 
     D_PostEvent(&event);
+    } // end for(poll)
 }
 
 // ============================================================
