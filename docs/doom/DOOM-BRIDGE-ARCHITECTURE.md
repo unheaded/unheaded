@@ -1,170 +1,157 @@
-# Doom Bridge Architecture -- Fenrir's Eye Service
+# Doom Bridge Architecture
+
+**Last updated:** 2026-03-30
+**Implementation:** `crates/doom-runner/src/bridge.rs` (Rust/Axum/Aya)
+**Port:** 16666 (http://0.0.0.0:16666)
+**Protocol:** HTTP + WebSocket
 
 ## Overview
 
-**doom-bridge** reads the Doom framebuffer and CPU state from pinned eBPF BPF maps, converts palette indices to RGB, and streams frames via WebSocket to connected browser clients.
+The bridge is integrated into doom-runner -- no separate binary. It reads the
+Doom framebuffer and palette directly from BPF maps via the Aya Ebpf object
+and streams frames to a browser over WebSocket. Keyboard input flows in reverse.
 
-**Service Name:** Fenrir's Eye (Norse mythology: the wolf that sees all)
-**Port:** 6660 (default)
-**Protocol:** HTTP/WebSocket
-**Binary:** `cmd/doom-bridge/`
+**Replaces:** The old Go `cmd/doom-bridge/` service that used pinned maps on port
+6660. That approach was fragile (pin management, stale maps) and is no longer used.
 
 ## Data Flow
 
 ```
-BPF Maps (SCREEN_MAP, CPU_MAP, STATS, KBD_MAP)
+RAM_MAP (BPF Array<u32>, 16M entries)
     |
-doom-bridge service (Go)
-    |-- screenLoop: reads SCREEN_MAP @ 30fps -> palette -> RGBA
-    |-- statsLoop: reads CPU_MAP + STATS @ 2fps -> JSON stats
+    +-- frame_poller (60 Hz tokio timer)
+    |   reads PALETTE_ADDR (0x60000, 192 words = 768 bytes)
+    |   reads SCREEN_BASE  (0x70000, 16000 words = 64000 bytes)
+    |   broadcasts 64,768-byte binary frame
     |
-WebSocket server (port 6660)
+    +-- kbd_writer (8-slot circular queue)
+        writes to KBD_MAP (BPF Array<u32>, 8 entries)
+        encodes: (scancode << 1) | pressed
     |
-Browser clients (dashboard/doom.html)
-    |-- Canvas rendering (320x200 -> scaled)
-    |-- Keyboard input (KBD_MAP writes, reverse path)
+WebSocket server (Axum, port 16666)
+    |
+    +-- GET /   -> HTML viewer (inline <canvas> + JS)
+    +-- WS /ws  -> binary frames (64,768 bytes each)
+                   client sends 3-byte keyboard events
+    |
+Firefox canvas (320x200, bilinear CSS upscale to 960x600)
 ```
 
-## Component Details
+## Frame Format
 
-### screenLoop (Go routine)
-- Polls SCREEN_MAP at ~33ms intervals (30fps target)
-- Supports two read modes:
-  1. Batch read: BPF_MAP_LOOKUP_BATCH (fast, sub-1ms per frame)
-  2. Individual read: BPF_MAP_LOOKUP_ELEM x 64000 (fallback, ~5-10ms per frame)
-- Converts 320x200 palette indices to RGBA (256000 bytes)
-- Broadcasts binary frames to all connected WebSocket clients
-- Frame format: `[0x01 tag] + [256000 bytes RGBA]`
-
-### statsLoop (Go routine)
-- Polls CPU_MAP and STATS at ~2fps (500ms intervals)
-- Reads:
-  - CPU state: PC, flags, registers, cache hit/miss counts
-  - STATS: packet count, ticks, instructions, halted flag
-- Marshals to JSON and broadcasts as text WebSocket messages
-- Clients use this for overlay metrics (FPS, IPS, cache hit rate)
-
-### Client Handling
-- New WebSocket connection -> add to `clients` map
-- Broadcast loops iterate over all clients, write frames
-- Client disconnect -> remove from map
-- No individual message buffering (real-time streaming)
-
-## Frame Format (WS1 MVP)
-
-**Binary Frame (Screen Data):**
+**Server -> Client (binary WebSocket frame):**
 ```
-Byte 0:          0x01 (tagScreen)
-Bytes 1-256000:  RGBA pixel data (320 x 200 x 4 bytes)
-Total:           256001 bytes per frame
+Bytes 0-767:      Dynamic PLAYPAL palette (256 x RGB)
+Bytes 768-64767:  Screen pixels (320x200 x palette index)
+Total:            64,768 bytes per frame
 ```
 
-**Text Frame (Stats):**
-```json
-{
-  "type": "stats",
-  "packets": 1200,
-  "ticks": 60,
-  "insns": 85000,
-  "halted": 0,
-  "pc": 4660,
-  "flags": 66,
-  "regs": [0, 0, 0, ..., 4294901760]
-}
+The JS client decodes each pixel: `palette[pixel * 3 + channel]` -> RGBA canvas.
+
+**Fallback:** If frame is exactly 64,000 bytes (legacy, no palette prefix), the
+JS client uses a hardcoded PLAYPAL array baked into the HTML.
+
+**Client -> Server (binary WebSocket frame):**
+```
+Bytes 0-1:  JS keyCode (uint16, little-endian)
+Byte 2:     pressed (1 = down, 0 = up)
+Total:      3 bytes per event
 ```
 
-**Binary Frame (Keyboard Input, client -> server):**
+## Keyboard Pipeline
+
 ```
-Byte 0:   0x02 (tagKbd)
-Byte 1-2: scancode (uint16, little-endian)
-Byte 3:   pressed (1 = down, 0 = up)
+1. Browser keydown fires
+2. JS: if (e.repeat) return;          // suppress auto-repeat
+3. JS: sendKey(e.keyCode, true)       // 3-byte binary message
+4. Axum WS handler: parse [u16 LE][u8]
+5. mpsc channel -> kbd_writer task
+6. kbd_writer: encode val = (scancode << 1) | pressed
+7. Circular scan of KBD_MAP[0..7]:
+   - Find first empty slot (value == 0)
+   - Write val there, advance write_head
+   - If all 8 full, overwrite write_head (drop oldest)
+8. MBC executor: SYS_GET_KEY syscall
+   - Scan all 8 KBD_MAP slots
+   - Return first non-zero, clear slot
+   - Return 0 if empty
+9. i_video_mbc.c I_StartTic:
+   - Poll SYS_GET_KEY up to 8 times
+   - Map JS keyCode -> Doom KEY_* via switch
+   - D_PostEvent(ev_keydown or ev_keyup)
 ```
 
-## BPF Map Access
+## Frame Poller
 
-Uses raw `golang.org/x/sys/unix` BPF syscalls. No cilium/ebpf dependency (minimal for MVP).
+- 60 Hz tokio interval timer
+- Skips reads when no WebSocket clients connected (saves BPF map syscalls)
+- Holds ebpf mutex only during RAM_MAP reads (~16K lookups)
+- MissedTickBehavior::Skip prevents backlog buildup
+- Broadcasts via tokio broadcast channel (capacity 2, drops old frames)
 
-**Syscalls:**
-- `BPF_OBJ_GET`: Open pinned map by filesystem path
-- `BPF_MAP_LOOKUP_ELEM`: Read single element
-- `BPF_MAP_LOOKUP_BATCH`: Read multiple elements at once
-- `BPF_MAP_UPDATE_ELEM`: Write keyboard events
+## Screen Reading Strategy
+
+The bridge reads from **RAM_MAP** (not SCREEN_MAP) because:
+- Doom's HUD (status bar) uses `memset`/`memcpy` which compile to word stores (SW)
+- Word stores go to RAM_MAP only (Bug 24 fix blocks SCREEN_MAP word stores)
+- Reading RAM_MAP sees ALL writes (byte stores AND word stores)
+- 16,000 u32 reads is 4x fewer BPF syscalls than 64,000 u8 reads from SCREEN_MAP
+
+## CSS Upscale
+
+The canvas is 320x200 native, CSS-scaled to 960x600 (3x).
+
+**Current:** Bilinear interpolation (browser default). The `image-rendering: pixelated`
+rule was intentionally removed. Bilinear smoothing reduces the perception of
+nearest-neighbor texture banding that is inherent to Doom's 320x200 resolution.
+
+**To restore crisp pixels:** Add to the canvas CSS:
+```css
+image-rendering: pixelated;
+image-rendering: crisp-edges;
+```
 
 ## HTTP Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/ws` | GET | WebSocket upgrade (binary frames + JSON stats) |
-| `/health` | GET | Health check (JSON: status, client count, dry_run) |
-| `/ready` | GET | Readiness probe (200 if maps open or dry-run; 503 otherwise) |
-| `/metrics` | GET | Prometheus metrics (clients, frames, bytes, errors) |
-| `/` | GET | Static file server (doom.html viewer) |
+| `/` | GET | HTML viewer page (inline canvas, JS, palette, controls) |
+| `/ws` | GET | WebSocket upgrade (binary frames + keyboard input) |
 
-## Prometheus Metrics
+## Concurrency Model
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `unheaded_doom_bridge_clients` | gauge | Connected WebSocket clients |
-| `unheaded_doom_bridge_frames_total` | counter | Total frames sent |
-| `unheaded_doom_bridge_bytes_sent_total` | counter | Total bytes sent over WebSocket |
-| `unheaded_doom_bridge_errors_total` | counter | Total errors encountered |
+```
+main thread
+  |
+  +-- tokio runtime
+       |
+       +-- axum HTTP server (port 16666)
+       |     +-- index_handler: serves VIEWER_HTML
+       |     +-- ws_handler: upgrades to WebSocket
+       |           +-- send_task: forward frame broadcasts to client
+       |           +-- recv_task: receive keyboard events from client
+       |
+       +-- frame_poller task
+       |     60 Hz timer -> read RAM_MAP -> broadcast::Sender
+       |
+       +-- kbd_writer task
+             mpsc::Receiver -> circular write to KBD_MAP
 
-## Scaling Limitations (WS1)
-
-- **Frame rate:** 30fps fixed (configurable, but limited by network)
-- **Client connections:** Tested to 5+ concurrent clients
-- **Data rate:** ~7.7 MB/s per 30fps client (raw RGBA, no compression)
-- **Latency:** Single-frame latency ~33ms (one frame interval)
-
-**Optimization opportunities (WS3/later):**
-- PNG or JPEG compression (reduce to ~20-50KB per frame)
-- Incremental frame diffs
-- Separate control and data channels
-- Palette-indexed mode (64KB instead of 256KB per frame)
+Shared state: Arc<Mutex<Ebpf>>
+  - frame_poller holds lock briefly for RAM_MAP reads
+  - kbd_writer holds lock briefly for KBD_MAP writes
+  - Never held across await points
+```
 
 ## Known Limitations
 
-1. **Palette:** Uses synthetic VGA gradient for colors 80-255 (not true Doom palette)
-   - Fix: Load actual PLAYPAL from doom.wad
+1. **Frame rate:** Browser sees ~2-3 fps despite 60 Hz poll rate
+   - Bottleneck: 16,000 individual BPF map lookups per frame
+   - Future: batch reads, shared memory, or frame-diff
 
-2. **Keyboard input:** Basic scancode encoding, no key repeat handling
-   - Fix: Implement key repeat detection on browser side
+2. **No authentication:** Anyone on the network can connect and send input
+   - Acceptable for development; needs auth for production
 
-3. **No audio:** Silent video-only
-   - Fix: WS2+ can add audio stream
+3. **No stats endpoint:** Old Go bridge had /metrics (Prometheus). Not yet ported.
 
-4. **Dry-run mode only for MVP testing**
-   - Real frames require active Doom ring (WS3 prerequisite)
-
-## Security Considerations
-
-- No authentication on WebSocket (WS5 task)
-- BPF maps readable by doom-bridge process only (eBPF hardening)
-- Keyboard input validated but not authenticated
-- Frame data is observability-only (no secrets)
-- CORS: All origins allowed in development (tighten for production)
-
-## Testing
-
-See `tests/ws1-integration.sh` for automated integration test suite.
-
-**Manual test:**
-```bash
-go build -o doom-bridge ./cmd/doom-bridge
-./doom-bridge --port 6660 --dry-run --static ./dashboard
-# Open http://localhost:6660/ in browser
-```
-
-**Unit tests:**
-```bash
-go test -v ./cmd/doom-bridge/...
-```
-
-## Future Work (WS3+)
-
-- Real Doom palette (load from doom.wad PLAYPAL lump)
-- Frame compression (PNG/JPEG)
-- Audio streaming (separate channel)
-- Performance profiling (sub-10ms frame latency target)
-- Wotan integration (metrics publishing)
-- Authentication (WS5)
+4. **No audio:** Silent. Would need separate WebSocket channel.

@@ -68,8 +68,17 @@ make  # compiles doomgeneric sources + stubs
 make  # compiles linuxdoom-1.10 sources + MBC platform files
 ```
 
-## Phase Plan
+## Phase Plan -- COMPLETED
 
-See BATTLE-PLAN.md for the choose-your-own-adventure execution plan.
-The recommended path for the id DOOM pivot is straight through:
-Phase 1 (build) → Phase 2 (compile) → Phase 3 (link) → Phase 4 (run) → Phase 5 (fix) → Phase 6 (frame)
+All phases completed 2026-03-29 to 2026-03-30:
+
+| Phase | Status | Commits |
+|-------|--------|---------|
+| Phase 1: Build system | DONE | d56360a9 |
+| Phase 2: Compile (62 .c files) | DONE | efd094b0 |
+| Phase 3: Link (doom.elf) | DONE | 4a16480a |
+| Phase 4: Load and run | DONE | b1abb44c |
+| Phase 5: Debug (11 bugs fixed) | DONE | 459210c6..32089f37 |
+| Phase 6: PLAYABLE | DONE | Baseline: 42bbc34d + 46f36f77 |
+
+See BATTLE-PLAN.md Decision Log for the full timeline.

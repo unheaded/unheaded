@@ -404,3 +404,78 @@ The pixel data at wall regions shows:
 The "banding" perception was amplified by the incorrect palette mapping 203 colors
 to wrong destinations. With the correct palette, the natural Doom texture
 magnification should look significantly more recognizable.
+
+---
+
+## Post-Baseline Fixes (2026-03-30)
+
+### Fix 12: Palette 203/256 Entries Wrong (commit 823dde86)
+
+The hardcoded PLAYPAL palette in both the Rust bridge and JavaScript fallback had
+203 of 256 entries wrong compared to the actual retail DOOM.WAD PLAYPAL. Entries
+48-111 were shifted by entire color ramps -- skin tones mapped to fire colors, grey
+ramp mapped to red/fire, green mapped to brown/leather. Regenerated both palettes
+from the actual WAD file.
+
+### Fix 13: 8-Slot Keyboard Circular Queue (commit 42bbc34d)
+
+**Problem:** Bridge wrote keyboard events to a single KBD_MAP slot. When rapid
+input occurred (keydown + keyup in quick succession), the second event would
+overwrite the first before the MBC executor read it. This caused keys to "stick"
+(keydown consumed, keyup lost) or to be ignored entirely.
+
+**Fix (bridge.rs):** Changed kbd_writer to use an 8-slot circular queue:
+- Maintains a write_head index (0-7)
+- On each event, scans from write_head for an empty slot (value == 0)
+- If empty slot found, writes there and advances write_head
+- If all 8 full, overwrites write_head (drops oldest unread event)
+
+**Fix (i_video_mbc.c):** Changed I_StartTic to poll up to 8 times per tic:
+- Loop calls SYS_GET_KEY up to 8 times
+- Returns early when SYS_GET_KEY returns 0 (no more events)
+- Drains the entire queue each tic instead of reading just one event
+
+### Fix 14: Browser Auto-Repeat Suppression (commit 46f36f77)
+
+**Problem:** Holding a key in the browser generates repeated keydown events
+(browser auto-repeat). Each auto-repeat wrote another event to KBD_MAP, flooding
+the 8-slot queue and causing erratic behavior (multiple keydown events with no
+corresponding keyup, queue full of redundant events).
+
+**Fix (bridge.rs VIEWER_HTML):** Added `if (e.repeat) return;` to the JavaScript
+keydown handler. Only the initial press generates an event. The browser's built-in
+auto-repeat is suppressed. Doom's own key repeat logic (in the game loop) handles
+held keys correctly via the maintained keydown state.
+
+---
+
+## Summary: All Bugs Fixed (23 total)
+
+### doomgeneric era (9 bugs)
+1. Map alignment (Aya pipeline)
+2. .sdata missing
+3. Stack/WAD overlap
+4. sscanf no-op
+5. mmap path corruption
+6. Z_Malloc corrupts WAD handle
+7. heap_ptr corruption
+8. fclose no-op
+9. Heap/WAD overlap
+
+### id DOOM port session (11 bugs)
+10. sprintf 32-bit overflow
+11. fd read returns -1
+12. close() kills WAD fd
+13. Soft-float infinite recursion
+14. gamemode=commercial (wrong WAD)
+15. STCFN033 -> STCFN33
+16. HELP2 not found
+17. SCREEN_BASE mismatch
+18. Debug regions corrupted
+19. I_FinishUpdate 16K stores
+20. Keyboard JS keyCode mapping
+
+### Post-baseline polish (3 bugs)
+21. Palette 203/256 wrong
+22. Single-slot KBD overwrite
+23. Browser auto-repeat flood
