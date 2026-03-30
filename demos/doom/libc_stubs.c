@@ -8,8 +8,8 @@
 // Memory layout (matches linker.ld):
 //   0x00000000 - 0x0000BFFF  RAM (48K, data + bss)
 //   0x0000C000 - 0x0001B9FF  SCREEN (64000 bytes, 320x200)
-//   0x00020000 - 0x001FFFFF  HEAP (1.875 MB, for z_zone allocator)
-//   0x00200000 - 0x005FFFFF  WAD (4 MB, memory-mapped doom1.wad)
+//   0x001C0000 - 0x01BBFFFF  HEAP (26 MB, for z_zone allocator)
+//   0x01C00000 - 0x02BFFFFF  WAD (16 MB, memory-mapped DOOM.WAD)
 
 #include <stdint.h>
 #include <stddef.h>
