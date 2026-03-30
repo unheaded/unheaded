@@ -23,6 +23,18 @@ size_t strlen(const char *s);
 int strcasecmp(const char *s1, const char *s2);
 void debug_breadcrumb(uint32_t milestone);
 
+// Debug: log every filename Doom tries to open/access to scratch region.
+// Read via bpftool at word addresses 0xC80000+ (byte addr 0x03200000+)
+#define FILE_LOG_BASE 0x03200000
+static int file_log_idx = 0;
+static void log_file_open(const char *path) {
+    volatile char *dbg = (volatile char *)(FILE_LOG_BASE + file_log_idx * 64);
+    int i;
+    for (i = 0; i < 63 && path[i]; i++) dbg[i] = path[i];
+    dbg[i] = '\0';
+    file_log_idx = (file_log_idx + 1) & 0x3F; // 64 slots, circular
+}
+
 // Types needed before their headers
 typedef struct _FILE FILE;
 #define EOF (-1)
@@ -727,6 +739,7 @@ static int primary_wad_slot = -1;
 
 FILE *fopen(const char *path, const char *mode) {
     (void)mode;
+    log_file_open(path);
     debug_breadcrumb(0x0030); // fopen attempted
 
     // Check if this looks like a WAD file
@@ -938,6 +951,7 @@ int isatty(int fd) { (void)fd; return 0; }
 int fileno(void *stream) { (void)stream; return -1; }
 int access(const char *path, int mode) {
     (void)mode;
+    log_file_open(path);
     debug_breadcrumb(0x00A1);  // access() called
 
     // Capture first path's details to debug region for diagnosis
@@ -1023,6 +1037,7 @@ static struct mbc_fd fd_table[MAX_FDS];
 
 int open(const char *path, int flags, ...) {
     (void)flags;
+    log_file_open(path);
     // Check if this looks like a WAD file
     int is_wad = 0;
     size_t plen = strlen(path);
