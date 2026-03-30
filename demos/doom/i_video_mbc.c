@@ -38,15 +38,19 @@ static inline unsigned int mbc_syscall(unsigned int num) {
 // This saves 16K word stores per frame (~35% fps boost).
 #define PALETTE_ADDR ((volatile unsigned char *)0x00060000) // 768 bytes below screen
 
+// Double buffer: Doom renders to back buffer, I_FinishUpdate copies to front.
+// Bridge reads front buffer (SCREEN_BASE). No tearing.
+static unsigned char *back_buffer;
+
 void I_InitGraphics(void)
 {
-    // Point screens[0] directly at SCREEN_BASE in MBC address space.
-    // Doom renders directly into the screen buffer that the bridge reads.
-    screens[0] = (unsigned char *)SCREEN_BASE;
-    memset(screens[0], 0, SCREEN_SIZE);
+    // Back buffer: Doom renders here (not visible to bridge)
+    back_buffer = (unsigned char *)malloc(SCREEN_SIZE);
+    if (back_buffer)
+        memset(back_buffer, 0, SCREEN_SIZE);
+    screens[0] = back_buffer;
 
     // Doom uses screens[1-4] for status bar, wipe effects, temp buffers.
-    // If not allocated, V_CopyRect and wipe code write to NULL → corruption.
     for (int i = 1; i < 5; i++) {
         screens[i] = (unsigned char *)malloc(SCREEN_SIZE);
         if (screens[i])
@@ -199,9 +203,10 @@ void I_UpdateNoBlit(void)
 
 void I_FinishUpdate(void)
 {
-    // screens[0] IS SCREEN_BASE — no copy needed!
-    // Doom renders directly into the buffer the bridge reads.
-    // Just signal frame ready.
+    // Double buffer: copy completed frame from back buffer to front (SCREEN_BASE).
+    // Bridge reads SCREEN_BASE. This prevents tearing — bridge never sees mid-render.
+    if (back_buffer)
+        memcpy((void *)SCREEN_BASE, back_buffer, SCREEN_SIZE);
     mbc_syscall(SYS_DRAW_FRAME);
 }
 
