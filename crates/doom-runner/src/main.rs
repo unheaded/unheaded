@@ -558,7 +558,7 @@ fn verify_maps(
 
     // Verify WAD magic at WAD_BASE
     if wad_data.len() >= 4 {
-        let ram_map: Array<_, u32> = Array::try_from(
+        let mut ram_map: Array<_, u32> = Array::try_from(
             ebpf.map_mut("RAM_MAP").context("RAM_MAP not found")?,
         )?;
         let wad_base_word = memory::WAD_BASE / 4;
@@ -575,6 +575,13 @@ fn verify_maps(
         }
         let magic_str = std::str::from_utf8(&wad_data[..4]).unwrap_or("????");
         info!("RAM_MAP: PASS (WAD magic at {wad_base_word:#x} = '{magic_str}')");
+
+        // Write actual WAD file size to WAD_SIZE_ADDR so libc_stubs.c open() uses
+        // the correct size instead of a hardcoded constant. Fixes texture corruption
+        // when WAD size doesn't match the hardcoded value.
+        let wad_size_word = memory::WAD_SIZE_ADDR / 4;
+        ram_map.set(wad_size_word, wad_data.len() as u32, 0)?;
+        info!("RAM_MAP: WAD size {} bytes written to {wad_size_word:#x}", wad_data.len());
     }
 
     // Verify STATS map is empty/zeroed
