@@ -78,6 +78,10 @@ pub const HEAP_SIZE: u32 = HEAP_END - HEAP_START; // 26 MiB
 /// doom-runner writes HEAP_START to this address on load.
 pub const HEAP_PTR_ADDR: u32 = 0x01BF_0000;
 
+/// Actual WAD file size — written by doom-runner at load time.
+/// libc_stubs.c open() reads from this address instead of using a hardcoded constant.
+pub const WAD_SIZE_ADDR: u32 = 0x01BF_FFF0;
+
 /// WAD data region (memory-mapped into RAM).
 /// Retail DOOM.WAD = 12,408,292 bytes (~12.4 MiB). Shareware doom1.wad = 4,196,020 bytes.
 pub const WAD_BASE: u32 = 0x01C0_0000;

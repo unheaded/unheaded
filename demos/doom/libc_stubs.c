@@ -698,8 +698,15 @@ int sscanf(const char *str, const char *fmt, ...) {
 // The WAD file is loaded into MBC memory at WAD_BASE by the doom-loader.
 // We emulate fopen/fread/fseek to read from this memory region.
 
-#define WAD_BASE     0x01C00000
-#define WAD_MAX_SIZE 12408292  // retail DOOM.WAD exact size (12,408,292 bytes)
+#define WAD_BASE      0x01C00000
+#define WAD_SIZE_ADDR 0x01BFFFF0  // doom-runner writes actual WAD byte count here
+
+// Read actual WAD size from RAM_MAP (written by doom-runner at load time).
+// Falls back to 16 MiB if the address is zero (safety net).
+static unsigned int get_wad_size(void) {
+    unsigned int sz = *(volatile unsigned int *)WAD_SIZE_ADDR;
+    return (sz > 0) ? sz : (16 * 1024 * 1024);
+}
 
 // File table for memory-mapped WAD access.
 // Doom opens one WAD file; multiple fopen/fclose cycles reuse slots.
@@ -737,7 +744,7 @@ FILE *fopen(const char *path, const char *mode) {
         if (!file_table[i].in_use) {
             file_table[i].in_use = 1;
             file_table[i].base = (const uint8_t *)WAD_BASE;
-            file_table[i].size = WAD_MAX_SIZE;
+            file_table[i].size = get_wad_size();
             file_table[i].pos = 0;
             primary_wad_slot = i;  // last successful open is the primary
             debug_breadcrumb(0x0031); // WAD fopen succeeded
@@ -987,7 +994,7 @@ int stat(const char *path, struct stat *buf) {
     if (plen >= 4 && strcasecmp(path + plen - 4, ".wad") == 0) {
         if (buf) {
             memset(buf, 0, sizeof(struct stat));
-            buf->st_size = WAD_MAX_SIZE;
+            buf->st_size = get_wad_size();
             buf->st_mode = 0100644; // regular file
         }
         return 0;
@@ -1031,7 +1038,7 @@ int open(const char *path, int flags, ...) {
         if (!fd_table[i].in_use) {
             fd_table[i].in_use = 1;
             fd_table[i].base = (const unsigned char *)WAD_BASE;
-            fd_table[i].size = WAD_MAX_SIZE;
+            fd_table[i].size = get_wad_size();
             fd_table[i].pos = 0;
             return i + FD_WAD_START;
         }
