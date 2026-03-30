@@ -1,4 +1,9 @@
-# scripts/doom/ — Doom-over-IPv6 Tooling
+# scripts/doom/ -- Doom-over-IPv6 Tooling (Legacy)
+
+> **NOTE:** These scripts are from the pre-doom-runner era. The current pipeline
+> uses `doom-runner` (crates/doom-runner/) which handles ring setup, eBPF loading,
+> map population, and bridge serving in a single binary. See `docs/doom/RUNBOOK.md`
+> for current operational instructions.
 
 Hardened, argparse-equipped scripts for running and debugging the Doom-over-IPv6 PoC.
 

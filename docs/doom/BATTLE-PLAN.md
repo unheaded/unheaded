@@ -2,7 +2,7 @@
 
 All paths lead to demons on screen, playable in a browser.
 
-## Current State (Verified)
+## Current State (Verified 2026-03-30)
 
 | Component | Status |
 |-----------|--------|
@@ -10,11 +10,15 @@ All paths lead to demons on screen, playable in a browser.
 | Integrated WebSocket bridge | WORKING (Firefox connects, canvas renders) |
 | Tail calls (256 insns/hop) | WORKING (BTF enabled, self tail-call) |
 | sendmmsg injection | WORKING (93K pps) |
-| Bugs fixed this session | 9 |
+| id DOOM linuxdoom-1.10 | PLAYABLE (menus, movement, shooting, doors) |
+| Back buffer rendering | WORKING (screens[0]=malloc, word-copy to SCREEN_BASE) |
+| 8-slot kbd circular queue | WORKING (prevents key overwrite) |
+| Total bugs fixed | 23 |
+| Baseline commits | 42bbc34d + 46f36f77 |
 
-**CRITICAL BLOCKER: PC CORRUPTION** -- Doom's program counter jumps to invalid
-addresses early in init. 24B instructions were all NOPs (ROM returns 0 for
-out-of-range). Doom never actually reached R_Init.
+**STATUS: PLAYABLE** -- PC corruption was fixed during the id DOOM port.
+Doom runs stably at 5.9B+ instructions. All forks below FORK E have been
+completed. Current work is optimization and polish.
 
 ---
 
@@ -330,8 +334,11 @@ return address, and Doom renders. Then optimize.
 
 ## Decision Log
 
-Record each fork taken and outcome here as work proceeds:
-
 | Date | Fork | Outcome | Next |
 |------|------|---------|------|
-| | | | |
+| 2026-03-29 | FORK A | PC corruption identified in doomgeneric | Pivoted to id DOOM |
+| 2026-03-29 | PIVOT | Switched from doomgeneric to id linuxdoom-1.10 | Build + compile + link |
+| 2026-03-29 | Phase 1-3 | id DOOM compiles, links, translates to MBC | Phase 4 (run) |
+| 2026-03-29 | Phase 4-5 | WAD loads, bugs 10-20 fixed, DOOM renders | Phase 6 (play) |
+| 2026-03-30 | Phase 6 | PLAYABLE! Title, menus, movement, shooting | FORK E (optimize) |
+| 2026-03-30 | Polish | Palette, KBD queue, auto-repeat fixed | FORK E (fps) |

@@ -94,13 +94,20 @@ _start:
 
 ```ld
 MEMORY {
-    ROM    (rx)  : ORIGIN = 0x00000000, LENGTH = 1M      /* Code */
+    ROM    (rx)  : ORIGIN = 0x00000000, LENGTH = 1M      /* Code (MBC instructions) */
     RAM    (rw)  : ORIGIN = 0x00100000, LENGTH = 768K    /* Data + BSS */
-    SCREEN (rw)  : ORIGIN = 0x00070000, LENGTH = 64000   /* Framebuffer */
-    HEAP   (rw)  : ORIGIN = 0x001C0000, LENGTH = 26M     /* Heap */
-    DATA   (r)   : ORIGIN = 0x01C00000, LENGTH = 16M     /* Data files */
+    SCREEN (rw)  : ORIGIN = 0x00170000, LENGTH = 64000   /* Framebuffer (320x200) */
+    HEAP   (rw)  : ORIGIN = 0x001C0000, LENGTH = 26M     /* Heap (sbrk allocator) */
+    DATA   (r)   : ORIGIN = 0x01C00000, LENGTH = 16M     /* Data files (e.g., WAD) */
 }
+/* Stack top above all regions */
+_stack_top = 0x03100000;
 ```
+
+**Note:** SCREEN_BASE in memory.rs is 0x0007_0000. The linker SCREEN region is
+at 0x0017_0000 but platform code uses the #define directly. The bridge reads
+from memory::SCREEN_BASE / 4 as the RAM_MAP word index. Always check memory.rs
+for the authoritative values.
 
 **Key constraints:**
 - Regions MUST NOT overlap

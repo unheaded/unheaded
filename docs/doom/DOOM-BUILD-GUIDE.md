@@ -1,8 +1,13 @@
 # DOOM-over-IPv6 Cross-Compilation Build Guide
 
+> **HISTORICAL DOCUMENT (doomgeneric era)**
+> This guide was written for the doomgeneric port before the pivot to id
+> linuxdoom-1.10. For current build instructions, see **RUNBOOK.md**.
+> For the pivot decision, see **PIVOT-TO-ID-DOOM.md**.
+
 **Updated:** 2026-03-02
-**Status:** Working on x86_64 Linux (Ubuntu 24.04+) — demo playable in browser
-**Previous:** ARM64 macOS → ARM64 Ubuntu VM (confirmed working — gameplay tested)
+**Status:** SUPERSEDED by RUNBOOK.md (id linuxdoom-1.10 port)
+**Previous:** ARM64 macOS -> ARM64 Ubuntu VM (confirmed working)
 
 ---
 
