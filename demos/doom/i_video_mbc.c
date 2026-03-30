@@ -111,24 +111,54 @@ void I_StartTic(void)
     else
         event.type = ev_keyup;
 
-    unsigned int key = result & 0xFF;
-    // Simple scancode to Doom key mapping
+    unsigned int key = result & 0xFFFF;
+    // JavaScript keyCode → Doom key mapping
+    // Browser sends e.keyCode values, not PC scancodes
     switch (key) {
-    case 0x48: event.data1 = KEY_UPARROW; break;
-    case 0x50: event.data1 = KEY_DOWNARROW; break;
-    case 0x4B: event.data1 = KEY_LEFTARROW; break;
-    case 0x4D: event.data1 = KEY_RIGHTARROW; break;
-    case 0x01: event.data1 = KEY_ESCAPE; break;
-    case 0x1C: event.data1 = KEY_ENTER; break;
-    case 0x0F: event.data1 = KEY_TAB; break;
-    case 0x39: event.data1 = ' '; break;
-    case 0x1D: event.data1 = KEY_RCTRL; break;   // fire
-    case 0x38: event.data1 = KEY_RALT; break;     // strafe
-    case 0x36: event.data1 = KEY_RSHIFT; break;   // run
+    case 38: event.data1 = KEY_UPARROW; break;    // ArrowUp
+    case 40: event.data1 = KEY_DOWNARROW; break;   // ArrowDown
+    case 37: event.data1 = KEY_LEFTARROW; break;   // ArrowLeft
+    case 39: event.data1 = KEY_RIGHTARROW; break;  // ArrowRight
+    case 27: event.data1 = KEY_ESCAPE; break;      // Escape
+    case 13: event.data1 = KEY_ENTER; break;       // Enter
+    case 9:  event.data1 = KEY_TAB; break;         // Tab
+    case 32: event.data1 = ' '; break;             // Space
+    case 17: event.data1 = KEY_RCTRL; break;       // Ctrl (fire)
+    case 18: event.data1 = KEY_RALT; break;        // Alt (strafe)
+    case 16: event.data1 = KEY_RSHIFT; break;      // Shift (run)
+    case 188: event.data1 = ','; break;            // < (strafe left)
+    case 190: event.data1 = '.'; break;            // > (strafe right)
+    // Number keys for weapon select
+    case 49: event.data1 = '1'; break;
+    case 50: event.data1 = '2'; break;
+    case 51: event.data1 = '3'; break;
+    case 52: event.data1 = '4'; break;
+    case 53: event.data1 = '5'; break;
+    case 54: event.data1 = '6'; break;
+    case 55: event.data1 = '7'; break;
+    // F-keys
+    case 112: event.data1 = KEY_F1; break;
+    case 113: event.data1 = KEY_F2; break;
+    case 114: event.data1 = KEY_F3; break;
+    case 115: event.data1 = KEY_F4; break;
+    case 116: event.data1 = KEY_F5; break;
+    case 117: event.data1 = KEY_F6; break;
+    case 118: event.data1 = KEY_F7; break;
+    case 119: event.data1 = KEY_F8; break;
+    case 120: event.data1 = KEY_F9; break;
+    case 121: event.data1 = KEY_F10; break;
+    case 122: event.data1 = KEY_F11; break;
+    case 123: event.data1 = KEY_F12; break;
+    case 189: event.data1 = KEY_MINUS; break;      // -
+    case 187: event.data1 = KEY_EQUALS; break;     // =
+    case 8:   event.data1 = KEY_BACKSPACE; break;  // Backspace
+    case 19:  event.data1 = KEY_PAUSE; break;      // Pause
     default:
-        // Pass through printable ASCII
-        if (key >= 0x20 && key <= 0x7E)
-            event.data1 = key;
+        // Pass through letter keys as lowercase
+        if (key >= 65 && key <= 90)
+            event.data1 = key + 32; // A-Z → a-z
+        else if (key >= 48 && key <= 57)
+            event.data1 = key; // 0-9
         else
             return; // unknown key, ignore
         break;

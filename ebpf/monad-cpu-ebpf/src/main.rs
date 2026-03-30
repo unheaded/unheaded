@@ -1366,8 +1366,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         None => 0,
                     };
                     if kv != 0 {
-                        cpu.regs[8] = (kv >> 1) & 0x7FFF_FFFF; // key code
-                        cpu.regs[9] = kv & 1; // pressed flag
+                        let key_code = (kv >> 1) & 0xFF;
+                        let pressed = kv & 1;
+                        // Pack for I_StartTic: bit 31 = pressed, bits 0-7 = scancode
+                        cpu.regs[8] = key_code | (pressed << 31);
+                        cpu.regs[9] = pressed;
                                               // Consume: clear slot
                         if let Some(p) = KBD_MAP.get_ptr_mut(slot) {
                             unsafe {
