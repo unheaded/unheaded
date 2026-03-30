@@ -190,7 +190,6 @@ async fn frame_poller(
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     info!("bridge: frame poller started (interval {:?})", interval);
-    let mut last_frame_count: u64 = 0;
 
     loop {
         ticker.tick().await;
@@ -208,24 +207,6 @@ async fn frame_poller(
                     return;
                 }
             };
-
-            // Only read screen when Doom has completed a new frame.
-            // STAT_FRAME_READY (key 11) increments in I_FinishUpdate.
-            // This prevents reading mid-render (which causes tearing/flashing).
-            let frame_ready = {
-                let stats_ref = ebpf_guard.map_mut("STATS");
-                if let Some(map) = stats_ref {
-                    if let Ok(stats) = aya::maps::HashMap::<_, u32, u64>::try_from(map) {
-                        stats.get(&11u32, 0).unwrap_or(0)
-                    } else { 0 }
-                } else { 0 }
-            };
-
-            if frame_ready == last_frame_count {
-                continue; // No new frame — skip read
-            }
-            last_frame_count = frame_ready;
-
             read_screen(&mut ebpf_guard)
         };
 

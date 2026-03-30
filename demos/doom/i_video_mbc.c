@@ -40,13 +40,13 @@ static inline unsigned int mbc_syscall(unsigned int num) {
 
 void I_InitGraphics(void)
 {
-    // Direct render: screens[0] points to SCREEN_BASE.
-    // Bridge reads same memory. Fast (zero copy per frame).
-    // Some tearing possible but acceptable for speed.
+    // Point screens[0] directly at SCREEN_BASE in MBC address space.
+    // Doom renders directly into the screen buffer that the bridge reads.
     screens[0] = (unsigned char *)SCREEN_BASE;
     memset(screens[0], 0, SCREEN_SIZE);
 
     // Doom uses screens[1-4] for status bar, wipe effects, temp buffers.
+    // If not allocated, V_CopyRect and wipe code write to NULL → corruption.
     for (int i = 1; i < 5; i++) {
         screens[i] = (unsigned char *)malloc(SCREEN_SIZE);
         if (screens[i])
@@ -199,7 +199,9 @@ void I_UpdateNoBlit(void)
 
 void I_FinishUpdate(void)
 {
-    // Direct render — screens[0] IS SCREEN_BASE, no copy needed.
+    // screens[0] IS SCREEN_BASE — no copy needed!
+    // Doom renders directly into the buffer the bridge reads.
+    // Just signal frame ready.
     mbc_syscall(SYS_DRAW_FRAME);
 }
 
