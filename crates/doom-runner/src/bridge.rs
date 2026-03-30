@@ -391,8 +391,8 @@ pub const VIEWER_HTML: &str = r##"<!DOCTYPE html>
       text-transform: uppercase;
     }
     canvas {
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
+      /* Bilinear upscale: smooths nearest-neighbor texture banding.
+         Remove these comments and add pixelated/crisp-edges to restore sharp pixels. */
       width: 960px;
       height: 600px;
       border: 1px solid #333;
