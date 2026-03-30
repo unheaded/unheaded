@@ -940,10 +940,26 @@ int access(const char *path, int mode) {
     }
     access_call_count++;
 
-    // Match any .wad file
+    // Only report the specific WAD that doom-runner loaded at WAD_BASE.
+    // IdentifyVersion() probes for doom2f.wad, doom2.wad, plutonia.wad,
+    // tnt.wad, doomu.wad, doom.wad, doom1.wad — in that order. Matching
+    // ANY .wad caused gamemode=commercial (doom2f.wad hit first), which
+    // loads Doom II switch textures (SW1PANEL etc.) that don't exist in
+    // the retail DOOM 1 WAD, crashing R_TextureNumForName.
+    //
+    // We have retail DOOM 1 (Ultimate DOOM, 12,408,292 bytes). Match only
+    // "doom.wad" so IdentifyVersion sets gamemode=registered, episode=2,
+    // loading only DOOM 1 switches whose textures exist in the WAD.
     size_t plen = strlen(path);
-    if (plen >= 4 && strcasecmp(path + plen - 4, ".wad") == 0) {
-        debug_breadcrumb(0x00A0);  // matched
+
+    // Extract basename: find last '/' or start of string
+    const char *base = path;
+    for (size_t i = 0; i < plen; i++) {
+        if (path[i] == '/' || path[i] == '\\') base = path + i + 1;
+    }
+
+    if (strcasecmp(base, "doom.wad") == 0) {
+        debug_breadcrumb(0x00A0);  // matched doom.wad
         return 0;
     }
     return -1;
