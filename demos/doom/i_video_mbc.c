@@ -42,9 +42,16 @@ void I_InitGraphics(void)
 {
     // Point screens[0] directly at SCREEN_BASE in MBC address space.
     // Doom renders directly into the screen buffer that the bridge reads.
-    // No I_FinishUpdate copy needed.
     screens[0] = (unsigned char *)SCREEN_BASE;
     memset(screens[0], 0, SCREEN_SIZE);
+
+    // Doom uses screens[1-4] for status bar, wipe effects, temp buffers.
+    // If not allocated, V_CopyRect and wipe code write to NULL → corruption.
+    for (int i = 1; i < 5; i++) {
+        screens[i] = (unsigned char *)malloc(SCREEN_SIZE);
+        if (screens[i])
+            memset(screens[i], 0, SCREEN_SIZE);
+    }
 }
 
 // ============================================================
