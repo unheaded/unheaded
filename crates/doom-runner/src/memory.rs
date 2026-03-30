@@ -59,7 +59,7 @@ pub const RAM_MAP_ENTRIES: u32 = 16_777_216;
 pub const KBD_ADDR: u32 = 0x0016_8000;
 
 /// Screen framebuffer base: 320x200 pixels, 8-bit palette indices.
-pub const SCREEN_BASE: u32 = 0x0017_0000;
+pub const SCREEN_BASE: u32 = 0x0007_0000;
 pub const SCREEN_WIDTH: u32 = 320;
 pub const SCREEN_HEIGHT: u32 = 200;
 pub const SCREEN_SIZE: u32 = SCREEN_WIDTH * SCREEN_HEIGHT; // 64_000 bytes
