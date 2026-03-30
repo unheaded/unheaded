@@ -372,6 +372,8 @@ static int mini_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap) {
             unsigned long uval;
             if (val < 0) { neg = 1; uval = (unsigned long)(-val); } else { uval = (unsigned long)val; }
             do { tmp[len++] = '0' + (uval % 10); uval /= 10; } while (uval);
+            // Precision for integers: minimum digits, zero-padded (e.g., %.3d → "033")
+            while (prec > 0 && len < prec) tmp[len++] = '0';
             if (neg) tmp[len++] = '-';
             int pad = width - len;
             while (!left && pad-- > 0) { if (dst < end) *dst = zero_pad ? '0' : ' '; dst++; }
@@ -958,8 +960,12 @@ int access(const char *path, int mode) {
         if (path[i] == '/' || path[i] == '\\') base = path + i + 1;
     }
 
-    if (strcasecmp(base, "doom.wad") == 0) {
-        debug_breadcrumb(0x00A0);  // matched doom.wad
+    // Match doomu.wad for gamemode=retail (Ultimate DOOM, 4 episodes)
+    // OR doom.wad for gamemode=registered (3 episodes)
+    // Ultimate DOOM WAD has HELP1 but not HELP2. Registered looks for HELP2.
+    // Use doomu.wad to get retail mode which matches the WAD contents.
+    if (strcasecmp(base, "doomu.wad") == 0 || strcasecmp(base, "doom.wad") == 0) {
+        debug_breadcrumb(0x00A0);  // matched WAD
         return 0;
     }
     return -1;

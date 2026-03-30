@@ -182,15 +182,12 @@ void I_Error(char *error, ...)
     va_list argptr;
     char buf[256];
 
-    // Write raw format string first (before vsprintf might corrupt it)
-    debug_write(error ? error : "(null)");
-
     va_start(argptr, error);
     vsprintf(buf, error, argptr);
     va_end(argptr);
 
-    // Write formatted message
-    fprintf(stderr, "Error: %s\n", buf);
+    // Write expanded error message to debug region
+    debug_write(buf);
 
     if (demorecording)
         G_CheckDemoStatus();
