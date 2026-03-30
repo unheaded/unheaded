@@ -180,7 +180,11 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
     info!("bridge: WebSocket client disconnected");
 }
 
-/// Poll SCREEN_MAP at the target frame rate and broadcast frames.
+/// Poll RAM_MAP at the target frame rate and broadcast frames.
+///
+/// Simple timer-based polling (no frame-sync). Reads every tick regardless of
+/// whether Doom produced a new frame. This ensures wipe animations, menus, and
+/// all visual transitions render correctly without partial-frame artifacts.
 async fn frame_poller(
     ebpf: Arc<Mutex<Ebpf>>,
     tx: broadcast::Sender<Arc<Vec<u8>>>,
@@ -194,7 +198,6 @@ async fn frame_poller(
     loop {
         ticker.tick().await;
 
-        // If no subscribers, skip the work
         if tx.receiver_count() == 0 {
             continue;
         }
@@ -215,7 +218,6 @@ async fn frame_poller(
                 let _ = tx.send(Arc::new(pixels));
             }
             None => {
-                // Map not available yet — wait and retry
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
@@ -226,22 +228,25 @@ async fn frame_poller(
 const PALETTE_ADDR: u32 = 0x0006_0000;
 const PALETTE_SIZE: u32 = 768; // 256 * 3 (RGB)
 
-/// Read 768-byte palette + 64,000 pixels from RAM_MAP.
-/// Returns palette (768 bytes) followed by pixels (64000 bytes) = 64768 total.
-/// The bridge JS splits the message: first 768 = palette, rest = pixels.
+/// Read palette + pixels from RAM_MAP (16K word reads, fast).
+///
+/// Reads from RAM_MAP (not SCREEN_MAP) because Doom's HUD, memcpy, and memset
+/// use word stores (SW) which only go to RAM_MAP (Bug 24 fix blocks SCREEN_MAP
+/// word stores to prevent garbage from corrupted pointers). Reading RAM_MAP sees
+/// ALL writes — byte stores AND word stores — so the status bar renders correctly.
+///
+/// 16,000 u32 reads is 4x fewer BPF syscalls than 64,000 u8 reads from SCREEN_MAP,
+/// keeping the ebpf lock held briefly so keyboard writes aren't blocked.
 fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
-    let ram_map_ref = ebpf.map_mut("RAM_MAP");
-    let ram: aya::maps::Array<_, u32> = match ram_map_ref {
-        Some(map) => match aya::maps::Array::try_from(map) {
+    let ram: Array<_, u32> = match ebpf.map_mut("RAM_MAP") {
+        Some(map) => match Array::try_from(map) {
             Ok(a) => a,
             Err(e) => {
-                error!("bridge: RAM_MAP not an Array<u32>: {e}");
+                error!("bridge: RAM_MAP: {e}");
                 return None;
             }
         },
-        None => {
-            return None;
-        }
+        None => return None,
     };
 
     let mut data = Vec::with_capacity((PALETTE_SIZE + memory::SCREEN_SIZE) as usize);
@@ -272,9 +277,15 @@ fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
     Some(data)
 }
 
-/// Write keyboard events to KBD_MAP.
+/// Write keyboard events to KBD_MAP using circular queue (8 slots).
+///
+/// The executor's SYS_GET_KEY scans all 8 slots and clears consumed events.
+/// Using a circular write head prevents rapid events (especially keyup after
+/// held keydown) from overwriting each other, which caused keys to "stick."
 async fn kbd_writer(ebpf: Arc<Mutex<Ebpf>>, mut rx: tokio::sync::mpsc::Receiver<KeyEvent>) {
-    info!("bridge: keyboard writer started");
+    info!("bridge: keyboard writer started (8-slot circular queue)");
+
+    let mut write_head: u32 = 0;
 
     while let Some(evt) = rx.recv().await {
         let mut ebpf_guard = match ebpf.lock() {
@@ -285,13 +296,29 @@ async fn kbd_writer(ebpf: Arc<Mutex<Ebpf>>, mut rx: tokio::sync::mpsc::Receiver<
             }
         };
 
-        // KBD_MAP[0] = scancode << 1 | pressed
         let kbd_map_ref = ebpf_guard.map_mut("KBD_MAP");
         if let Some(map) = kbd_map_ref {
             if let Ok(mut kbd) = Array::<_, u32>::try_from(map) {
                 let val = (evt.scancode as u32) << 1 | (evt.pressed as u32);
-                if let Err(e) = kbd.set(0, val, 0) {
-                    warn!("bridge: KBD_MAP write failed: {e}");
+                // Find an empty slot starting from write_head (circular scan).
+                // If all slots are full, overwrite write_head (oldest unread event).
+                let mut wrote = false;
+                for i in 0..8u32 {
+                    let slot = (write_head + i) % 8;
+                    let current = kbd.get(&slot, 0).unwrap_or(0);
+                    if current == 0 {
+                        // Empty slot — write here
+                        if kbd.set(slot, val, 0).is_ok() {
+                            write_head = (slot + 1) % 8;
+                            wrote = true;
+                            break;
+                        }
+                    }
+                }
+                if !wrote {
+                    // All slots full — overwrite at write_head (drop oldest)
+                    let _ = kbd.set(write_head, val, 0);
+                    write_head = (write_head + 1) % 8;
                 }
             }
         }
@@ -509,6 +536,7 @@ pub const VIEWER_HTML: &str = r##"<!DOCTYPE html>
 
       document.addEventListener('keydown', (e) => {
         e.preventDefault();
+        if (e.repeat) return; // suppress browser auto-repeat, only initial press matters
         sendKey(e.keyCode, true);
       });
 

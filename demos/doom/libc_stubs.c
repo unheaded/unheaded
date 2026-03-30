@@ -139,6 +139,17 @@ void free(void *ptr) {
 void *memcpy(void *dest, const void *src, size_t n) {
     unsigned char *d = (unsigned char *)dest;
     const unsigned char *s = (const unsigned char *)src;
+    // Fast path: word-aligned copy (4x fewer MBC store instructions).
+    // Critical for I_FinishUpdate back-buffer → SCREEN_BASE copy.
+    if (((uintptr_t)d & 3) == 0 && ((uintptr_t)s & 3) == 0) {
+        uint32_t *dw = (uint32_t *)d;
+        const uint32_t *sw = (const uint32_t *)s;
+        size_t words = n >> 2;
+        while (words--) *dw++ = *sw++;
+        d = (unsigned char *)dw;
+        s = (const unsigned char *)sw;
+        n &= 3;
+    }
     while (n--) *d++ = *s++;
     return dest;
 }
