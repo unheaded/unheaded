@@ -262,12 +262,15 @@ float __mulsf3(float a, float b) {
     return r.f;
 }
 
-// Float subtraction
+// Forward declaration for __addsf3 (used by __subsf3)
+float __addsf3(float a, float b);
+
+// Float subtraction — negate b, then call __addsf3 directly (no float operators)
 float __subsf3(float a, float b) {
     float_bits fb_bits;
     fb_bits.f = b;
     fb_bits.u ^= (1u << 31); // negate b
-    return a + fb_bits.f; // use hardware add if available, or __addsf3
+    return __addsf3(a, fb_bits.f);
 }
 
 // Float addition
@@ -316,38 +319,124 @@ float __addsf3(float a, float b) {
     return r.f;
 }
 
-// Float comparison (unordered)
+// Float comparison (unordered) — integer bit ops only
 int __unordsf2(float a, float b) {
     float_bits fa, fb;
     fa.f = a; fb.f = b;
-    // Check for NaN
     int a_nan = ((fa.u & 0x7F800000) == 0x7F800000) && (fa.u & 0x7FFFFF);
     int b_nan = ((fb.u & 0x7F800000) == 0x7F800000) && (fb.u & 0x7FFFFF);
     return a_nan || b_nan;
 }
 
-// Float comparisons (return 0 if equal, -1 if a<b, 1 if a>b)
-int __lesf2(float a, float b) { return (a < b) ? -1 : (a > b) ? 1 : 0; }
-int __gesf2(float a, float b) { return (a < b) ? -1 : (a > b) ? 1 : 0; }
-int __eqsf2(float a, float b) { return (a == b) ? 0 : 1; }
-int __nesf2(float a, float b) { return (a != b) ? 1 : 0; }
-int __gtsf2(float a, float b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
-int __ltsf2(float a, float b) { return (a < b) ? -1 : (a > b) ? 1 : 0; }
-
-// Float to unsigned int
-unsigned int __fixunssfsi(float a) {
-    if (a <= 0.0f) return 0;
-    return (unsigned int)__fixsfsi(a);
+// Core float comparison helper — integer bit ops only, no float operators.
+// Returns -1 if a<b, 0 if a==b, 1 if a>b.  Returns 1 for unordered (NaN).
+static int __cmpsf2_internal(float a, float b) {
+    float_bits fa, fb;
+    fa.f = a; fb.f = b;
+    uint32_t ua = fa.u, ub = fb.u;
+    uint32_t sa = ua >> 31, sb = ub >> 31;
+    uint32_t ea = (ua >> 23) & 0xFF, eb = (ub >> 23) & 0xFF;
+    uint32_t ma = ua & 0x7FFFFF, mb = ub & 0x7FFFFF;
+    // NaN check: exponent 0xFF with nonzero mantissa
+    if (ea == 0xFF && ma != 0) return 1; // unordered
+    if (eb == 0xFF && mb != 0) return 1; // unordered
+    // Both zeros (+0 == -0)
+    if ((ua & 0x7FFFFFFF) == 0 && (ub & 0x7FFFFFFF) == 0) return 0;
+    // Different signs
+    if (sa != sb) return sa ? -1 : 1;
+    // Both negative: larger magnitude = more negative
+    if (sa && sb) {
+        if (ua == ub) return 0;
+        return (ua > ub) ? -1 : 1;
+    }
+    // Both positive: direct bit comparison works for IEEE 754
+    if (ua == ub) return 0;
+    return (ua < ub) ? -1 : 1;
 }
 
-// Double stubs (Doom barely uses doubles, but libgcc may need these)
-double __adddf3(double a, double b) { return (double)__addsf3((float)a, (float)b); }
-double __subdf3(double a, double b) { return (double)__subsf3((float)a, (float)b); }
-double __muldf3(double a, double b) { return (double)__mulsf3((float)a, (float)b); }
-double __divdf3(double a, double b) { return (double)__divsf3((float)a, (float)b); }
-int __fixdfsi(double a) { return __fixsfsi((float)a); }
-double __floatsidf(int a) { return (double)__floatsisf(a); }
-double __floatunsidf(unsigned int a) { return (double)__floatunsisf(a); }
+// GCC __ltsf2: returns negative if a<b, zero if a==b, positive if a>b or unordered
+int __ltsf2(float a, float b) { return __cmpsf2_internal(a, b); }
+// __lesf2: same semantics as __ltsf2
+int __lesf2(float a, float b) { return __cmpsf2_internal(a, b); }
+// __gtsf2: returns negative if a<b, zero if a==b, positive if a>b; -1 for unordered
+int __gtsf2(float a, float b) {
+    float_bits fa, fb;
+    fa.f = a; fb.f = b;
+    uint32_t ea = (fa.u >> 23) & 0xFF, eb = (fb.u >> 23) & 0xFF;
+    uint32_t ma = fa.u & 0x7FFFFF, mb = fb.u & 0x7FFFFF;
+    if ((ea == 0xFF && ma != 0) || (eb == 0xFF && mb != 0)) return -1; // NaN: unordered returns negative for gt
+    return __cmpsf2_internal(a, b);
+}
+// __gesf2: same as __gtsf2
+int __gesf2(float a, float b) {
+    float_bits fa, fb;
+    fa.f = a; fb.f = b;
+    uint32_t ea = (fa.u >> 23) & 0xFF, eb = (fb.u >> 23) & 0xFF;
+    uint32_t ma = fa.u & 0x7FFFFF, mb = fb.u & 0x7FFFFF;
+    if ((ea == 0xFF && ma != 0) || (eb == 0xFF && mb != 0)) return -1;
+    return __cmpsf2_internal(a, b);
+}
+// __eqsf2: returns zero if equal, nonzero otherwise
+int __eqsf2(float a, float b) {
+    float_bits fa, fb;
+    fa.f = a; fb.f = b;
+    uint32_t ea = (fa.u >> 23) & 0xFF, eb = (fb.u >> 23) & 0xFF;
+    uint32_t ma = fa.u & 0x7FFFFF, mb = fb.u & 0x7FFFFF;
+    if ((ea == 0xFF && ma != 0) || (eb == 0xFF && mb != 0)) return 1; // NaN != anything
+    int r = __cmpsf2_internal(a, b);
+    return (r == 0) ? 0 : 1;
+}
+int __nesf2(float a, float b) { return __eqsf2(a, b); }
+
+// Float to unsigned int — integer bit ops only
+unsigned int __fixunssfsi(float a) {
+    float_bits fb;
+    fb.f = a;
+    // Negative or zero → 0
+    if (fb.u >> 31) return 0;
+    if ((fb.u & 0x7FFFFFFF) == 0) return 0;
+    int exp = ((fb.u >> 23) & 0xFF) - 127;
+    if (exp < 0) return 0;
+    uint32_t mant = (fb.u & 0x7FFFFF) | 0x800000;
+    if (exp >= 32) return 0xFFFFFFFF; // overflow saturate
+    if (exp >= 23)
+        return mant << (exp - 23);
+    else
+        return mant >> (23 - exp);
+}
+
+// Forward declarations for bit-manipulation converters (defined below)
+float __truncdfsf2(double a);
+double __extendsfdf2(float a);
+
+// Double stubs — delegate to single via bit-manipulation converters (no float/double casts)
+double __adddf3(double a, double b) {
+    float fa = __truncdfsf2(a);
+    float fb = __truncdfsf2(b);
+    float fr = __addsf3(fa, fb);
+    return __extendsfdf2(fr);
+}
+double __subdf3(double a, double b) {
+    float fa = __truncdfsf2(a);
+    float fb = __truncdfsf2(b);
+    float fr = __subsf3(fa, fb);
+    return __extendsfdf2(fr);
+}
+double __muldf3(double a, double b) {
+    float fa = __truncdfsf2(a);
+    float fb = __truncdfsf2(b);
+    float fr = __mulsf3(fa, fb);
+    return __extendsfdf2(fr);
+}
+double __divdf3(double a, double b) {
+    float fa = __truncdfsf2(a);
+    float fb = __truncdfsf2(b);
+    float fr = __divsf3(fa, fb);
+    return __extendsfdf2(fr);
+}
+int __fixdfsi(double a) { return __fixsfsi(__truncdfsf2(a)); }
+double __floatsidf(int a) { return __extendsfdf2(__floatsisf(a)); }
+double __floatunsidf(unsigned int a) { return __extendsfdf2(__floatunsisf(a)); }
 // __truncdfsf2: convert double to float. Bit manipulation, no compiler cast.
 float __truncdfsf2(double a) {
     union { double d; uint64_t u; } di;
@@ -401,9 +490,9 @@ double __extendsfdf2(float a) {
     }
     return di.d;
 }
-int __ledf2(double a, double b) { return __lesf2((float)a, (float)b); }
-int __gedf2(double a, double b) { return __gesf2((float)a, (float)b); }
-int __eqdf2(double a, double b) { return __eqsf2((float)a, (float)b); }
-int __ltdf2(double a, double b) { return __ltsf2((float)a, (float)b); }
-int __gtdf2(double a, double b) { return __gtsf2((float)a, (float)b); }
-unsigned int __fixunsdfsi(double a) { return __fixunssfsi((float)a); }
+int __ledf2(double a, double b) { return __lesf2(__truncdfsf2(a), __truncdfsf2(b)); }
+int __gedf2(double a, double b) { return __gesf2(__truncdfsf2(a), __truncdfsf2(b)); }
+int __eqdf2(double a, double b) { return __eqsf2(__truncdfsf2(a), __truncdfsf2(b)); }
+int __ltdf2(double a, double b) { return __ltsf2(__truncdfsf2(a), __truncdfsf2(b)); }
+int __gtdf2(double a, double b) { return __gtsf2(__truncdfsf2(a), __truncdfsf2(b)); }
+unsigned int __fixunsdfsi(double a) { return __fixunssfsi(__truncdfsf2(a)); }
