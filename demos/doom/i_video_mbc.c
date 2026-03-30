@@ -167,6 +167,7 @@ void I_StartTic(void)
     case 187: event.data1 = KEY_EQUALS; break;     // =
     case 8:   event.data1 = KEY_BACKSPACE; break;  // Backspace
     case 19:  event.data1 = KEY_PAUSE; break;      // Pause
+    case 76:  event.data1 = KEY_RCTRL; break;      // L = fire
     default:
         // Pass through letter keys as lowercase
         if (key >= 65 && key <= 90)
