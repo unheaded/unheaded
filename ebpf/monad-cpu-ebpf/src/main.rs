@@ -419,6 +419,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         let opc = insn.opcode();
         let d = (insn.dst() as usize) & 0x0F;
         let s = (insn.src() as usize) & 0x0F;
+
+        // DIAGNOSTIC: if PC is near any CALLR, log what we see
+        if cpu.pc >= 68245 && cpu.pc <= 68248 {
+            // Log at 0xE2000 + (pc-68245)*8
+            let log_base = (0xE2000u32 >> 2) + ((cpu.pc - 68245) * 2);
+            mem_write_word(log_base, insn_word);
+            mem_write_word(log_base + 1, opc as u32);
+        }
         let imm = insn.imm16() as u32;
         let simm = insn.imm16_signed() as i32;
 
