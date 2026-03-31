@@ -23,7 +23,7 @@
 
 ## Known Issues at Baseline (accepted, not blocking)
 
-- Some texture banding close to walls -- confirmed as authentic Doom 320x200 nearest-neighbor magnification, NOT a rendering bug
+- Wall texture banding (horizontal multicolor bands of black/red/white/brown/green) -- CONFIRMED RENDERING BUG: texturecomposite[0..9] are NULL, dc_source contains garbage palette indices. Root cause: likely PU_CACHE zone memory purging. See docs/doom/HANDOFF.md for full diagnosis and next steps.
 - Browser frame rate lower than internal game rate (~2-3 visible fps)
 - No sound (by design, no audio hardware)
 
