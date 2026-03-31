@@ -420,12 +420,23 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         let d = (insn.dst() as usize) & 0x0F;
         let s = (insn.src() as usize) & 0x0F;
 
-        // DIAGNOSTIC: if PC is near any CALLR, log what we see
-        if cpu.pc >= 68245 && cpu.pc <= 68248 {
-            // Log at 0xE2000 + (pc-68245)*8
-            let log_base = (0xE2000u32 >> 2) + ((cpu.pc - 68245) * 2);
-            mem_write_word(log_base, insn_word);
-            mem_write_word(log_base + 1, opc as u32);
+        // DIAGNOSTIC: Check if PC enters key render chain functions
+        {
+            let m = 0xE3000u32 >> 2;
+            if cpu.pc == 13351 { mem_write_word(m, 0x0001); }     // D_Display
+            if cpu.pc == 12746 { mem_write_word(m + 11, 0x000C); } // D_Display.part.0
+            if cpu.pc == 13034 { mem_write_word(m + 12, 0x000D); } // CALL to R_RenderPlayerView
+            if cpu.pc == 13035 { mem_write_word(m + 13, 0x000E); } // After CALL returns
+            if cpu.pc == 13678 { mem_write_word(m + 8, 0x0009); }  // D_DoomLoop
+            if cpu.pc == 14568 { mem_write_word(m + 9, 0x000A); }  // D_DoomMain
+            if cpu.pc == 20    { mem_write_word(m + 10, 0x000B); } // main
+            if cpu.pc == 67345 { mem_write_word(m + 1, 0x0002); } // R_RenderPlayerView
+            if cpu.pc == 62099 { mem_write_word(m + 2, 0x0003); } // R_RenderBSPNode
+            if cpu.pc == 61968 { mem_write_word(m + 3, 0x0004); } // R_Subsector
+            if cpu.pc == 61628 { mem_write_word(m + 4, 0x0005); } // R_AddLine
+            if cpu.pc == 68648 { mem_write_word(m + 5, 0x0006); } // R_RenderSegLoop
+            if cpu.pc == 67979 { mem_write_word(m + 6, 0x0007); } // R_DrawPlanes
+            if cpu.pc == 69122 { mem_write_word(m + 7, 0x0008); } // R_StoreWallRange
         }
         let imm = insn.imm16() as u32;
         let simm = insn.imm16_signed() as i32;
