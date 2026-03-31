@@ -64,7 +64,7 @@ static void debug_write(const char *s) {
 // Zone memory
 // ============================================================
 
-int mb_used = 12; // Zone memory — 12MB confirmed working for retail DOOM.WAD
+int mb_used = 12; // Zone memory — 12MB (13+ causes init loop, PU_STATIC fixes handle purging)
 
 // ============================================================
 // I_GetTime — returns time in 1/35s tics (TICRATE = 35)

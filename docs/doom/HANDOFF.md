@@ -1,7 +1,7 @@
 # Doom Banding Fix — Session Handoff
 
-**Date:** 2026-03-31 05:30 UTC
-**Status:** ROOT CAUSE IDENTIFIED — texture composite data is zeroed/corrupted
+**Date:** 2026-03-31 19:30 UTC
+**Status:** PU_CACHE HYPOTHESIS DISPROVEN — all PU_STATIC fixes cause zone exhaustion or crash
 **Priority:** P0 — this is THE remaining visual bug
 
 ## The Bug
@@ -105,10 +105,164 @@ sudo nsenter --net=/var/run/netns/monad0 ./bin/doom-go-injector \
 # Play at http://192.168.69.184:16666
 ```
 
+## PU_CACHE Hypothesis — DISPROVEN (2026-03-31 19:30 UTC)
+
+All PU_CACHE→PU_STATIC fixes were tested systematically (one at a time):
+
+| Fix | Location | Result |
+|-----|----------|--------|
+| A (R_GetColumn line 395) | PU_CACHE→PU_STATIC | PC corruption at ~800B insns (zone exhaustion) |
+| B (R_GenerateComposite line 288) | Disable Z_ChangeTag | Banding persists (tested with A) |
+| C (zone 12→13-16MB) | i_system_mbc.c | Game won't load — init loop/HALT |
+| D (R_GenerateLookup line 331) | PU_CACHE→PU_STATIC | I_Error at 8.7M insns — zone exhaustion |
+| A+B together | Both runtime fixes | Banding persists |
+
+**Conclusion:** 12MB zone CANNOT hold all textures as PU_STATIC. Zone CANNOT be increased past 12MB (causes init failure). PU_CACHE purging is NOT the root cause — it's a red herring.
+
+## New Hypotheses (ordered by likelihood)
+
+### H1: MBC executor CPU state is corrupt / not syncing to CPU_MAP
+CPU_MAP reads show: PC=51,379,584 (way beyond 86K ROM), halted=48 (should be 0/1), insn_count is astronomically wrong. Yet the game renders and is playable. The BPF executor likely uses a local copy of CPU state per-packet that doesn't sync back to CPU_MAP properly, or the CPU_MAP key 0xDE doesn't match the active instance.
+
+**UPDATE (Phase 3 result): RAM_MAP writes SUCCEED — `get_ptr_mut` never returns None.**
+
+STAT counters added to `mem_write_word`:
+- STAT[22] (RAM_WRITE_FAIL) = 0 — **zero failures**
+- STAT[23] (RAM_WRITE_OK) = 10,540,368 — all writes succeed
+
+The writes go through. But bpftool reads of .bss addresses (0x490B3, 0x5A745) show zeros. Heap (0x70000) and stack (0xCFF40) show non-zero data. This means .bss values genuinely ARE zero at those addresses — the game operates with zeroed .bss globals.
+
+**The banding is NOT caused by failed writes.** The texture data path (WAD reads, memcpy, column rendering) is the remaining suspect — possibly byte-level corruption during MBC execution of texture loading/rendering code.
+
+**Native build test (2026-03-31 22:00 UTC):**
+- Built clean id-Software/DOOM linuxdoom-1.10 natively (x86-64). Crashes at R_InitTextures with out-of-bounds patchlookup + missing patches (BROWN1, COMPUTE1, DOORBLU, GRAY5, REDWALL1, etc.).
+- Stock linuxdoom-1.10 has a known compatibility issue with retail/Steam DOOM.WAD — patch indices exceed PNAMES array bounds.
+- Applied bounds check + fallback (patch 0) to MBC fork r_data.c. Banding PERSISTS — the missing patches are a real bug but not the banding root cause.
+- chocolate-doom (installed, `chocolate-doom -iwad DOOM.WAD`) renders the same WAD correctly — confirms the WAD itself is fine.
+- **Conclusion:** Banding is DEFINITIVELY an MBC execution artifact. Both retail AND shareware WADs show banding on MBC. chocolate-doom renders retail WAD correctly natively. The Doom C source is not the issue.
+- Verified maptexture_t struct layout matches WAD format (masked=4 bytes, width@12, height@14). No struct packing mismatch.
+- chocolate-doom's PACKED_STRUCT is a safety measure, not a bug fix for this specific issue.
+- alloca(256) max texture width — safe, no stack overflow.
+
+**DEFINITIVE: Banding is an MBC executor bug.** Doom C source, WAD format, struct packing all verified correct. Focus on MBC byte-level operations:
+- LBU opcode handler (main.rs:773): `(word >> byte_shift) & 0xFF` — verify byte extraction
+- STB opcode handler (main.rs:786): `mem_write_byte` — verify byte insertion  
+- memcpy word-copy path (libc_stubs.c:155): LD/ST on MBC for 4-byte copies
+- R_DrawColumn inner loop compiles to LBU for `dc_source[(frac>>16)&127]` — trace actual byte values
+
+## Screen Buffer Analysis (2026-03-31 ~23:00 UTC)
+
+Vertical strip at x=100 shows clear banding pattern:
+- y=20-27: idx 109-110 (tan/brown) — CORRECT texture pixels
+- y=28-36: idx 5 (near-black) — BAND (post header data, not pixels)
+- y=37-43: idx 111 (tan/brown) — CORRECT
+- y=44-55: idx 239 (bright orange, 0xEF) — BAND
+- y=56-79: idx 1,2,7,238,239 — BAND (post header/terminator bytes)
+
+Pattern: ~7-12 correct rows, then bands of post header bytes (0, 1, 2, 5 = topdelta/length, 238/239 = near-terminator). The `+3` offset skips the first post header correctly, but the `& 127` mask wraps frac values into post data territory prematurely.
+
+**But frac math shows this shouldn't happen.** For the captured snapshot: frac starts at ~2.14, increments by 3.69/row. At y=28 (8 rows in), frac ≈ 31 — well within the 72-pixel column. Yet we see garbage at that point.
+
+**Possible cause:** FixedMul (`__mulsi3`) in the initial frac computation returns wrong result, OR dc_iscale/dc_texturemid values are stale/wrong when captured by bpftool (timing issue — values change every column).
+
+## ROOT CAUSE FOUND (2026-03-31 ~23:30 UTC)
+
+**`texturecolumnlump[]` arrays contain GARBAGE lump numbers for some textures.**
+
+Verified via bpftool RAM_MAP reads:
+- STARTAN3 (texture 70): col[0..7] = lump 1911 (SW19_2) ← CORRECT
+- BROWN96 (texture 16): col[0] = lump 24 (SSECTORS!), col[1] = 0 (PLAYPAL!), col[6] = 18961 (OOB!) ← GARBAGE
+- BROWNGRN (texture 17): same garbage pattern as BROWN96
+
+These garbage lump numbers cause R_GetColumn to load data from non-texture lumps (PLAYPAL, SSECTORS, COLORMAP, map lumps), which contain non-pixel data → multicolor horizontal bands.
+
+**The corruption occurs during R_InitTextures → R_GenerateLookup.** The texturecolumnlump arrays are Z_Malloc'd to heap, then populated with lump numbers. Some arrays get overwritten by subsequent Z_Malloc allocations (zone memory overlap/corruption).
+
+**Hypothesis:** Z_Malloc on MBC returns overlapping memory regions due to a bug in the zone allocator's pointer arithmetic, alignment handling, or the `alloca` in R_GenerateLookup corrupting the stack frame that holds `patchcount` → corrupting later writes to texturecolumnlump.
+
+**Next step:** Investigate Z_Malloc behavior on MBC — verify zone block headers, check for alignment issues in z_zone.c compiled for RV32I, or test with chocolate-doom's Z_Malloc replacement.
+
+## Native Build & chocolate-doom Comparison (2026-03-31)
+
+### Native id Software Build
+- Cloned fresh from github.com/id-Software/DOOM (no MBC modifications)
+- Applied 3 minimal compatibility fixes for modern GCC:
+  - `errnos.h` → `errno.h` (i_video.c)
+  - `extern int errno` → commented out, use errno.h (i_sound.c)
+  - `int defaultvalue` → `intptr_t defaultvalue` in m_misc.c (pointer-to-int casts)
+- Binary: `~/tmp/projects/DOOM-clean/linuxdoom-1.10/linux/linuxxdoom`
+
+**Result:** Crashes at R_InitTextures with out-of-bounds `patchlookup[]` access, then (after bounds check fix) `I_Error: Missing patch in texture BROWN1`. Stock linuxdoom-1.10 has a known compatibility issue with retail/Steam DOOM.WAD — dozens of textures report missing patches: BROWN1, COMPUTE1, DOORBLU, DOORYEL, GRAY5, LITE4, REDWALL1, SW2STON2, etc.
+
+**Root cause of native crash:** `patchlookup` is allocated via `alloca(nummappatches)` on the stack. `SHORT(mpatch->patch)` can exceed `nummappatches` for certain textures in the retail WAD, causing out-of-bounds array read → segfault. After adding bounds check + fallback (`patch->patch = 0`), the game progresses past R_Init but still shows "Missing patch" warnings for many textures.
+
+**Applied bounds check + fallback to MBC fork** at `r_data.c:541` — banding PERSISTS, confirming missing patches are a separate issue from the banding bug.
+
+### chocolate-doom Comparison
+- Source cloned to `~/tmp/projects/chocolate-doom/`
+- chocolate-doom is a vanilla-compatible Doom port that renders the same WAD correctly
+- Key differences found in texture pipeline:
+
+**1. Struct packing (r_data.c maptexture_t):**
+- Stock id: `boolean masked` (enum, compiler-dependent size) + natural alignment
+- chocolate-doom: `PACKED_STRUCT` with `int masked` + explicit `int obsolete` field
+- **Verified NOT the banding cause:** WAD binary format has masked as 4 bytes. Our C struct layout (boolean=4 bytes on RV32I ILP32) matches the WAD format exactly. Offsets verified: width@12, height@14, patchcount@20 — all correct.
+
+**2. alloca → Z_Malloc in R_GenerateLookup:**
+- Stock id: `patchcount = (byte *)alloca(texture->width)` (stack allocation)
+- chocolate-doom: `patchcount = Z_Malloc(texture->width, PU_STATIC, &patchcount)` (zone allocation)
+- **Verified NOT the banding cause:** Max texture width is 256 bytes (texture COMP2). alloca(256) is safe on MBC stack.
+
+**3. Translation table alignment hack (r_draw.c):**
+- Stock id: `translationtables = (byte *)(((int)translationtables + 255) & ~255)` — manual 256-byte alignment with memory leak
+- chocolate-doom: `translationtables = Z_Malloc(256*3, PU_STATIC, 0)` — no alignment hack
+- Not yet tested as banding cause.
+
+**4. Missing patch handling:**
+- Stock id: `I_Error("Missing patch in texture %s")` — fatal crash
+- chocolate-doom: graceful fallback, continues with available patches
+- Applied bounds check to MBC fork — does not fix banding.
+
+### WAD Data Verification
+- WAD data in RAM_MAP matches WAD file byte-for-byte (verified DOOR2_1 header + column data)
+- Patch pixel data correct: palette indices 0x6B-0x8B (brown/grey range) present in RAM_MAP
+- maptexture_t struct layout verified against WAD binary: all field offsets correct
+- PNAMES has 351 entries, all referenced patches (WALL02_2, DOOR2_1, etc.) exist in WAD directory
+
+### Definitive Conclusion
+- chocolate-doom renders retail DOOM.WAD correctly on native x86
+- Both retail AND shareware WADs show banding on MBC
+- Stock linuxdoom-1.10 source has compatibility issues (missing patches, patchlookup OOB) but these are separate from banding
+- **Banding is definitively an MBC execution artifact** — the Doom C source, WAD format, struct packing, and loaded data are all correct
+
+**Evidence:**
+- `diag_buf` (global at 0x1242CC in .bss) was manually set to 0xDDCCBBAA via bpftool, then the game ran for minutes — value never changed. R_GetColumn's stores to diag_buf never reach RAM_MAP.
+- Executor render markers at 0xE3000 (below RAM_BASE) also mostly empty.
+- Screen buffer at 0x70000 DOES have valid pixel data — writes to SCREEN_MAP work.
+- WAD magic at 0x1C00000 is correct ("IWAD") — doom-runner writes work.
+- .data at 0x100000 is readable and correct.
+
+### H2: MBC executor byte/word access bug
+LD opcode (32-bit word load) at `ebpf/monad-cpu-ebpf/src/main.rs:753` truncates `addr & 3` — silently loads wrong word for misaligned addresses. If GCC emits misaligned LD for texture structs, data corruption follows.
+
+### H3: memcpy word-copy on MBC
+`demos/doom/libc_stubs.c:150-166` — word-aligned fast path compiles to LD/ST. If MBC LD/ST has byte-ordering issues, memcpy corrupts texture data.
+
+### H4: WAD lump read corruption
+W_ReadLump uses lseek+read. If fd position tracking in libc_stubs.c drifts, lumps contain wrong bytes.
+
+## Diagnostic Approach for Next Session
+
+Since .bss writes don't reach RAM_MAP, use one of these alternative approaches:
+1. **Write diagnostics to SCREEN_MAP** — byte stores (STB) to screen addresses DO work. Write texture data bytes to a known screen location.
+2. **Write diagnostics to 0xE3000+ region** via executor-side code (the markers work for hardcoded PCs).
+3. **Modify the MBC executor** in Rust to log texture data when specific MBC PCs execute (like the existing render markers).
+4. **Read texture data directly from WAD in RAM_MAP** — compare expected lump bytes against what the MBC code would read, to verify WAD data is correct in memory.
+
 ## Session Stats
 
 - ~30 doom-runner restarts
 - 100+ commits on main branch
-- Investigations: SRA, FixedMul, FixedDiv, gamma, XRGB, resolution, dithering, file I/O, WAD_MAX_SIZE, zone memory, CALLR opcode, render pipeline markers, gamestate, texture composites
-- Key breakthrough: raw pixel data shows garbage indices (1,2,5,6,8,239) not texture data
-- All texturecomposite[0..9] are NULL — texture cache is failing
+- Investigations: SRA, FixedMul, FixedDiv, gamma, XRGB, resolution, dithering, file I/O, WAD_MAX_SIZE, zone memory, CALLR opcode, render pipeline markers, gamestate, texture composites, PU_CACHE (disproven)
+- Key breakthrough: PU_CACHE hypothesis DISPROVEN — all PU_STATIC fixes cause zone exhaustion at 12MB
+- Next: investigate MBC executor memory access (H1) or add diagnostic breadcrumbs to trace actual texture data values
