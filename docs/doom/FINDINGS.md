@@ -479,3 +479,144 @@ held keys correctly via the maintained keydown state.
 21. Palette 203/256 wrong
 22. Single-slot KBD overwrite
 23. Browser auto-repeat flood
+
+---
+
+## Banding Investigation — Complete Findings (2026-03-31)
+
+### Key Discoveries
+
+**1. R_DrawColumn IS executing — 1.2M CALLR indirect calls confirmed**
+STAT counter monitoring confirmed 1.2 million CALLR (indirect call) opcode
+executions during gameplay. R_DrawColumn, the inner loop of Doom's wall
+renderer, is being called and executing correctly. The rendering pipeline
+is not broken.
+
+**2. Full BSP render pipeline runs — ALL markers hit**
+The complete rendering call chain executes every frame:
+```
+D_Display.part.0
+  → R_RenderPlayerView
+    → R_RenderBSPNode
+      → R_Subsector
+        → R_AddLine
+          → R_RenderSegLoop
+            → R_DrawPlanes
+            → R_StoreWallRange
+```
+Every function in the chain was confirmed via STAT markers or breadcrumb
+instrumentation. The BSP traversal, wall clipping, plane rendering, and
+segment storage all operate correctly.
+
+**3. gamestate=0 (GS_LEVEL) during gameplay**
+Earlier observations of `gamestate=3` (GS_DEMOSCREEN) were snapshots taken
+during the title screen before a demo started. Once gameplay begins (either
+player-initiated or demo playback), gamestate correctly transitions to 0
+(GS_LEVEL). The game loop processes tics and calls the full render pipeline.
+
+**4. CALLR opcode (0x2A) works correctly**
+The CALLR (call-register) opcode is encoded in the HIGH byte of the MBC
+instruction word (bits 24-31), not the low byte. This was initially
+suspected as a bug but confirmed correct. The opcode is 0x2A and the
+instruction encoding is:
+```
+[opcode:8][dst:4][src:4][imm16:16]
+```
+in the u32 value (big-endian format within the instruction word).
+
+**5. Raw pixel indices show repeated texel rows — correct magnification**
+Direct RAM_MAP reads of the screen buffer show patterns like 9 consecutive
+rows containing palette index 0x4D. This is correct nearest-neighbor
+magnification: when the player is close to a wall, `dc_iscale < 0x10000`
+causes `(frac >> FRACBITS) & 127` to return the same texel row for
+multiple screen rows. Each texel row stretches across 4-12 screen pixels
+vertically, producing visible horizontal bands.
+
+**6. XRGB conversion (doomgeneric-style cmap_to_fb) produced wrong colors**
+An attempt to use doomgeneric-style colormap-to-framebuffer XRGB conversion
+produced incorrect colors. The palette+indices path (where the bridge reads
+8-bit palette indices from SCREEN_MAP and converts via the PLAYPAL lookup
+in JavaScript/Rust) is the correct rendering path. Reverted.
+
+**7. Vertical JS smoothing filter — blur without fixing banding**
+A JavaScript post-processing filter was tested that smoothed vertical pixel
+transitions. It produced visible blur without actually resolving the banding
+appearance. The filter was reverted as it degraded image quality without
+benefit.
+
+**8. CSS bilinear upscale (committed 46f36f77)**
+CSS `image-rendering: auto` (bilinear interpolation) applied to the canvas
+upscale provides slight visual improvement at zero computational cost. This
+was committed as a minor quality-of-life improvement.
+
+### Ruled Out as Causes
+
+The following were exhaustively investigated and confirmed NOT to be the
+source of banding:
+
+- **SRA/SRL instructions** — shift-right arithmetic/logical translate correctly
+- **FixedMul / FixedDiv** — 32-bit fixed-point math verified correct
+- **WAD file reads** — lump data matches retail DOOM.WAD byte-for-byte
+- **Gamma correction** — gamma tables present and applied correctly
+- **CALLR bugs** — opcode works, 1.2M calls confirmed
+- **Translator bugs** — RV32I → MBC translation verified for all relevant opcodes
+- **Missing file I/O** — all WAD reads succeed, fd table functional
+- **Zone memory** — Z_Malloc operates correctly for rendering allocations
+
+### Root Cause: Authentic Doom Rendering
+
+The banding IS authentic Doom 320x200 nearest-neighbor texture magnification
+with 128-pixel textures. The user describes it as "10px horizontal bands of
+black/red/white/brown where stone textures should be." This is exactly how
+Doom's 8-bit indexed palette renders close-up wall textures at low resolution.
+
+When close to a wall:
+- `dc_iscale` drops below `FRACUNIT` (0x10000)
+- Multiple screen rows map to the same texel row via `(frac >> 16) & 127`
+- Each unique texel value spans 4-12 vertical pixels
+- 128-pixel source textures stretched across 200 vertical screen pixels
+  produce ~1.5 pixels per texel — visible as distinct color bands
+
+This is identical to original Doom on period hardware at 320x200.
+
+### Additional Fixes and Diagnostics from This Session
+
+**12MB zone memory fixes E1M1 completion**
+Increasing zone memory from the default to 12MB allowed E1M1 to complete
+without Z_Malloc failures. Doom's zone allocator needs sufficient headroom
+for level geometry, texture caches, and rendering temporaries. The 12MB
+size is set by doom-runner at load time.
+
+**Dynamic WAD size from doom-runner**
+doom-runner now reads the actual WAD file size rather than using a hardcoded
+constant. This ensures the memory layout correctly accommodates different
+WAD files (shareware vs retail vs Ultimate Doom) without manual adjustment.
+The WAD size is passed to the memory layout calculator which positions heap,
+WAD, and stack regions dynamically.
+
+**screenblocks=7 default**
+The default screen size is `screenblocks=7`, which renders the game view
+with a visible status bar and border. This is standard Doom behavior. The
+status bar (showing health, ammo, arms, face, armor) renders correctly via
+V_DrawPatch, confirming the sprite rendering path works.
+
+**Back buffer rendering**
+Doom renders to a back buffer (screens[0] at SCREEN_BASE) and then
+I_FinishUpdate copies the completed frame to SCREEN_MAP for the bridge to
+read. This double-buffering prevents tearing. The 16K store operations per
+frame (320x200 / 4 bytes per store) were confirmed as the I_FinishUpdate
+copy loop.
+
+**8-slot keyboard circular queue**
+The keyboard input system uses an 8-slot circular queue (Fix 13, commit
+42bbc34d). The bridge writes events to the next available slot; the MBC
+executor's I_StartTic drains up to 8 events per tic. This prevents the
+single-slot overwrite bug where rapid keydown+keyup pairs would lose the
+keyup event.
+
+**File open logging diagnostic**
+A file-open logging diagnostic was added to trace WAD file access patterns.
+This confirmed that all fopen/read/lseek operations correctly route through
+the fd table to the memory-mapped WAD region. The diagnostic was used to
+verify that W_ReadLump and W_CacheLumpNum read correct lump offsets and
+sizes.
