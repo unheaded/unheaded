@@ -436,6 +436,16 @@ impl Translator {
         let opcode = insn & 0x7F;
         let rd = ((insn >> 7) & 0x1F) as u8;
         let rs1 = ((insn >> 15) & 0x1F) as u8;
+
+        // Debug: log JALR translations
+        if opcode == 0x67 {
+            let imm_check = Self::sign_extend_12(insn >> 20);
+            eprintln!("[JALR] pc=0x{:x} insn=0x{:08x} rd=x{} rs1=x{} imm12={} (raw=0x{:x})",
+                     pc, insn, rd, rs1, imm_check, insn >> 20);
+            if rd == 1 && imm_check == 0 {
+                eprintln!("  → SHOULD emit CALLR for indirect call!");
+            }
+        }
         let rs2 = ((insn >> 20) & 0x1F) as u8;
         let funct3 = ((insn >> 12) & 0x07) as u8;
         let funct7 = ((insn >> 25) & 0x7F) as u8;
@@ -911,8 +921,24 @@ impl Translator {
                     }
                 } else if rd == 1 && imm12 == 0 {
                     // JALR x1, 0(rs1) — indirect call (function pointer)
+                    let items_before = self.items.len();
                     self.guard_zero_src(rs1, mbc_rs1);
                     self.emit(op::CALLR, mbc_rs1, 0, 0);
+                    let items_after = self.items.len();
+                    // Check what was actually emitted
+                    for idx in items_before..items_after {
+                        match &self.items[idx] {
+                            crate::translator::MbcEmit::Concrete(word) => {
+                                let opc = word & 0xFF;
+                                let d = (word >> 8) & 0xF;
+                                eprintln!("[CALLR] item[{}] = Concrete(0x{:08x}) opc=0x{:02x} dst=r{}",
+                                         idx, word, opc, d);
+                            }
+                            _ => {
+                                eprintln!("[CALLR] item[{}] = non-Concrete", idx);
+                            }
+                        }
+                    }
                 } else if imm12 == 0 {
                     // JALR rd, 0(rs1) — indirect call to non-standard link register
                     // Treat as indirect call (link address handled by CALLR stack)
