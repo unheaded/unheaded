@@ -661,19 +661,29 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
         } else if opc == op::CALLR {
             // Indirect call with RV32I→MBC address translation.
-            // Link register semantics: store return address in r14 (LR).
-            // No stack manipulation — the compiler's prologue handles ra save.
-            //
-            // This matches RV32I `jalr x1, 0(rs1)`: x1=PC+4, PC=regs[rs1].
-            // x1(ra) maps to MBC r14.
             let old_pc = cpu.pc.wrapping_sub(1);
             cpu.regs[14] = cpu.pc; // LR = return address
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
+
+            // DIAGNOSTIC: log every CALLR to debug region 0xE1000
+            let callr_log_base = 0xE1000u32 >> 2;
+            mem_write_word(callr_log_base, rv_addr);
+            mem_write_word(callr_log_base + 1, rv_word);
+            mem_write_word(callr_log_base + 2, d as u32);
+            mem_write_word(callr_log_base + 3, old_pc);
+
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
-                Some(mbc_idx) => *mbc_idx,
+                Some(mbc_idx) => {
+                    // Log successful lookup
+                    mem_write_word(callr_log_base + 4, *mbc_idx);
+                    mem_write_word(callr_log_base + 5, 0xCA110001); // success marker
+                    *mbc_idx
+                },
                 None => {
-                    // Unmapped CALLR — skip (no stack to undo now).
+                    // Unmapped CALLR — skip
+                    mem_write_word(callr_log_base + 4, 0xDEAD0003);
+                    mem_write_word(callr_log_base + 5, rv_word);
                     mem_write_word(0xE0000 >> 2, 0xDEAD0003);
                     mem_write_word(0xE0004 >> 2, opc as u32);
                     mem_write_word(0xE0008 >> 2, old_pc);
