@@ -184,7 +184,36 @@ Zone block header for texturecolumnlump[16] shows `size=24` instead of expected 
 
 **Root cause is in z_zone.c running on MBC executor.** Likely: pointer arithmetic bug, block splitting error, or software multiply (__mulsi3) producing wrong results for zone size calculations. The zone allocator's linked list operations may have subtle bugs under MBC's 32-bit execution model.
 
-**Next step:** Debug z_zone.c on MBC — add instrumentation to Z_Malloc to verify block sizes and pointer chain integrity, or replace z_zone.c's allocator with a simpler bump allocator for texture init.
+## MAJOR FIX: malloc bypass for texture initialization (2026-03-31 ~24:00 UTC)
+
+**Fix applied:** Replaced ALL `Z_Malloc(..., PU_STATIC, ...)` calls in R_InitTextures and R_GenerateComposite with `malloc()` (sbrk bump allocator). The bump allocator is immune to zone corruption because it only advances a pointer — no block headers, no linked lists, no free-list management.
+
+**Result:** Significant banding reduction across E1M1-E1M3. User reports:
+- "Big improvement" 
+- Banding on pillars in first room remains (likely W_CacheLumpNum PU_CACHE path)
+- Second room banding "reduced significantly"
+- Third room banding also reduced
+
+**Remaining banding source:** `W_CacheLumpNum(lump, PU_CACHE)` — the runtime lump cache still uses Z_Malloc. Every call to R_GetColumn → W_CacheLumpNum allocates zone memory for the cached lump copy. These PU_CACHE allocations can't simply be replaced with malloc because they need to be purgeable (memory management). 
+
+**Possible next fix for remaining banding:**
+1. Read texture data directly from WAD_BASE in RAM_MAP (skip W_CacheLumpNum entirely)
+2. Implement a simple LRU cache with malloc instead of zone
+3. Fix Z_Malloc itself (debug the zone block corruption root cause in MBC execution)
+
+## Why Z_Malloc corrupts on MBC
+
+Z_Malloc (z_zone.c) uses a linked list of `memblock_t` headers embedded in a contiguous memory region. Operations include:
+- Block splitting (when a free block is larger than needed)
+- Pointer chain updates (next/prev linked list)
+- Tag-based purging (scan and free PU_CACHE blocks during allocation)
+
+On MBC, these operations involve pointer arithmetic compiled to RV32I ADD/SUB/LD/ST instructions translated to MBC opcodes. The zone corruption manifests as:
+- Wrong block sizes in headers (e.g., size=24 for a 256-byte allocation)
+- Garbage pointer chain values
+- Previously documented: WAD file handle corruption (w_file_stdc.c)
+
+The exact MBC opcode or instruction sequence causing the corruption is not yet identified. Candidates: software multiply (__mulsi3) in size calculations, pointer arithmetic wrapping, or linked list traversal bugs in the MBC executor.
 
 ## Native Build & chocolate-doom Comparison (2026-03-31)
 
