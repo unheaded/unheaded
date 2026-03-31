@@ -25,7 +25,7 @@ CFLAGS += -I$(IDDOOM_DIR)
 
 # id DOOM build config: NORMALUNIX enables getenv/access WAD detection
 # LINUX enables alloca.h include in r_data.c
-CFLAGS += -DNORMALUNIX -DLINUX
+CFLAGS += -DNORMALUNIX -DLINUX -DMBC_DIRECT_WAD
 
 # id DOOM 1.10 is K&R/C89 — needs implicit int, implicit function decls
 IDDOOM_CFLAGS = $(CFLAGS) -std=gnu89 -Wno-implicit-int -Wno-implicit-function-declaration
