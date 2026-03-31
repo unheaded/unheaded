@@ -249,20 +249,31 @@ fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
         None => return None,
     };
 
-    // Screen is now 32-bit XRGB (doomgeneric-style palette conversion in C).
-    // Each pixel is one u32 word: 0x00RRGGBB. Read 64000 words = 256KB.
-    // Send as 192000 bytes (64000 × RGB, no palette prefix needed).
-    let screen_word_base = memory::SCREEN_BASE / 4;
-    let num_pixels = memory::SCREEN_SIZE;  // 64000 pixels, each is one word
-    let mut data = Vec::with_capacity((num_pixels * 3) as usize);
+    let mut data = Vec::with_capacity((PALETTE_SIZE + memory::SCREEN_SIZE) as usize);
 
-    for px in 0..num_pixels {
-        let xrgb = ram.get(&(screen_word_base + px), 0).unwrap_or(0);
-        // XRGB8888: R=bits 16-23, G=bits 8-15, B=bits 0-7
-        data.push(((xrgb >> 16) & 0xFF) as u8); // R
-        data.push(((xrgb >> 8) & 0xFF) as u8);  // G
-        data.push((xrgb & 0xFF) as u8);          // B
+    // Read palette (768 bytes = 192 words)
+    let pal_word_base = PALETTE_ADDR / 4;
+    let pal_words = (PALETTE_SIZE + 3) / 4;
+    for w in 0..pal_words {
+        let word = ram.get(&(pal_word_base + w), 0).unwrap_or(0);
+        data.push((word & 0xFF) as u8);
+        data.push(((word >> 8) & 0xFF) as u8);
+        data.push(((word >> 16) & 0xFF) as u8);
+        data.push(((word >> 24) & 0xFF) as u8);
     }
+    data.truncate(PALETTE_SIZE as usize);
+
+    // Read pixels (64000 bytes = 16000 words)
+    let screen_word_base = memory::SCREEN_BASE / 4;
+    let num_words = (memory::SCREEN_SIZE + 3) / 4;
+    for w in 0..num_words {
+        let word = ram.get(&(screen_word_base + w), 0).unwrap_or(0);
+        data.push((word & 0xFF) as u8);
+        data.push(((word >> 8) & 0xFF) as u8);
+        data.push(((word >> 16) & 0xFF) as u8);
+        data.push(((word >> 24) & 0xFF) as u8);
+    }
+    data.truncate((PALETTE_SIZE + memory::SCREEN_SIZE) as usize);
     Some(data)
 }
 
@@ -476,17 +487,9 @@ pub const VIEWER_HTML: &str = r##"<!DOCTYPE html>
       ws.onmessage = (e) => {
         const data = new Uint8Array(e.data);
         // XRGB mode: 192000 bytes (64000 pixels × 3 bytes RGB)
-        // Palette conversion done in C (doomgeneric-style cmap_to_fb)
-        if (data.length >= 192000) {
-          for (let i = 0; i < 64000; i++) {
-            const si = i * 3;
-            const di = i * 4;
-            img.data[di]     = data[si];     // R
-            img.data[di + 1] = data[si + 1]; // G
-            img.data[di + 2] = data[si + 2]; // B
-            img.data[di + 3] = 255;          // A
-          }
-        } else if (data.length >= 64768) {
+        // Vertical 2-tap filter: blend each pixel with the row above
+        // to smooth nearest-neighbor texture magnification bands.
+        if (data.length >= 64768) {
           // Legacy: palette + indices
           const pal = data.subarray(0, 768);
           const pixels = data.subarray(768);
