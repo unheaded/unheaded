@@ -659,7 +659,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 mem_write_word(0xE0010 >> 2, cpu.regs[15]);
                 increment_stat(STAT_ROM_FAULT);
             }
-        } else if opc == op::CALLR {
+        } else if opc == op::CALLR || (insn_word >> 24) == 0x2A {
+            // GLOBAL CALLR COUNTER at STAT slot 20
+            // Also log which path matched
+            if opc == op::CALLR { increment_stat(20); }
+            if (insn_word >> 24) == 0x2A { increment_stat(21); }
+
             // Indirect call with RV32I→MBC address translation.
             let old_pc = cpu.pc.wrapping_sub(1);
             cpu.regs[14] = cpu.pc; // LR = return address
