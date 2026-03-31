@@ -178,9 +178,13 @@ These garbage lump numbers cause R_GetColumn to load data from non-texture lumps
 
 **The corruption occurs during R_InitTextures → R_GenerateLookup.** The texturecolumnlump arrays are Z_Malloc'd to heap, then populated with lump numbers. Some arrays get overwritten by subsequent Z_Malloc allocations (zone memory overlap/corruption).
 
-**Hypothesis:** Z_Malloc on MBC returns overlapping memory regions due to a bug in the zone allocator's pointer arithmetic, alignment handling, or the `alloca` in R_GenerateLookup corrupting the stack frame that holds `patchcount` → corrupting later writes to texturecolumnlump.
+**CONFIRMED: Z_Malloc corruption is a KNOWN issue on MBC.** File `demos/doom/w_file_stdc.c` line 6 documents: "On MBC, Z_Malloc'd memory gets corrupted by zone management operations, destroying the file_class pointer and causing W_ReadLump to fail." Previous developers already worked around this for WAD file handles by using static storage.
 
-**Next step:** Investigate Z_Malloc behavior on MBC — verify zone block headers, check for alignment issues in z_zone.c compiled for RV32I, or test with chocolate-doom's Z_Malloc replacement.
+Zone block header for texturecolumnlump[16] shows `size=24` instead of expected 280 — confirming the allocation was corrupted (either allocated wrong or header overwritten).
+
+**Root cause is in z_zone.c running on MBC executor.** Likely: pointer arithmetic bug, block splitting error, or software multiply (__mulsi3) producing wrong results for zone size calculations. The zone allocator's linked list operations may have subtle bugs under MBC's 32-bit execution model.
+
+**Next step:** Debug z_zone.c on MBC — add instrumentation to Z_Malloc to verify block sizes and pointer chain integrity, or replace z_zone.c's allocator with a simpler bump allocator for texture init.
 
 ## Native Build & chocolate-doom Comparison (2026-03-31)
 
