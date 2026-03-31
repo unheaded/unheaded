@@ -206,17 +206,12 @@ void I_UpdateNoBlit(void)
 
 void I_FinishUpdate(void)
 {
-    // Convert 8-bit palette indices → 32-bit XRGB and write to SCREEN_BASE.
-    // This matches doomgeneric's cmap_to_fb approach: palette conversion in C,
-    // not in the browser. Each pixel becomes a 32-bit XRGB value.
-    // Output: 320*200*4 = 256,000 bytes at SCREEN_BASE (64K words).
+    // Word-copy back buffer → SCREEN_BASE (front buffer read by bridge).
     if (screens[0] != (unsigned char *)SCREEN_BASE) {
         unsigned int *dst = (unsigned int *)SCREEN_BASE;
-        const unsigned char *src = screens[0];
-        int pixels = SCREEN_SIZE;
-        while (pixels--) {
-            *dst++ = xrgb_palette[*src++];
-        }
+        const unsigned int *src = (const unsigned int *)screens[0];
+        int words = SCREEN_SIZE / 4;
+        while (words--) *dst++ = *src++;
     }
     mbc_syscall(SYS_DRAW_FRAME);
 }
