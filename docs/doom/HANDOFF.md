@@ -299,3 +299,20 @@ Since .bss writes don't reach RAM_MAP, use one of these alternative approaches:
 - Investigations: SRA, FixedMul, FixedDiv, gamma, XRGB, resolution, dithering, file I/O, WAD_MAX_SIZE, zone memory, CALLR opcode, render pipeline markers, gamestate, texture composites, PU_CACHE (disproven)
 - Key breakthrough: PU_CACHE hypothesis DISPROVEN — all PU_STATIC fixes cause zone exhaustion at 12MB
 - Next: investigate MBC executor memory access (H1) or add diagnostic breadcrumbs to trace actual texture data values
+
+## THE PARADOX (2026-04-01)
+
+| Build | Banding | Stability |
+|---|---|---|
+| Baseline (original z_zone, no workarounds) | Heavy banding | Stable |
+| Original z_zone + r_data.c malloc | **No banding** | Crashes room 2-3 |
+| Simplified z_zone (pure malloc) + r_data.c malloc | **Banding returns** | Stable |
+| Original z_zone + patch pre-cache | No banding | Crashes (heap pressure) |
+
+**The original zone allocator is REQUIRED for correct rendering.** Replacing it with pure malloc reintroduces banding even with r_data.c workarounds. Something about the zone's memory layout (12MB contiguous block, block headers, address patterns) is needed for W_CacheLumpNum data integrity.
+
+But the original zone CRASHES during gameplay from linked-list corruption.
+
+**Best build so far:** Original z_zone + r_data.c malloc workarounds. No banding, crashes in rooms 2-3. The r_data.c workarounds reduce zone pressure, extending stability but not eliminating crashes.
+
+**Next approach:** Keep original z_zone.c. Make Z_Malloc a bump-only allocator within the zone (allocate sequentially, never split/merge/purge blocks). This preserves the zone's memory layout while eliminating the linked-list operations that corrupt.
