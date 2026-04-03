@@ -1,0 +1,105 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: jenkins-server
+  description: Set up Jenkins CI/CD — pulls git repo, reads Jenkinsfile, builds .deb packages
+  owner: micromanager
+  estimated_duration: 30m
+  risk: medium
+  requires_sudo: true
+  cs_sources: [ci-cd/jenkins, containers/docker]
+  references: [ADR-026]
+
+notes: |
+  Jenkins on WEST pulls the Unheaded git repo, reads the Jenkinsfile,
+  builds Go binaries, runs tests, creates .deb packages, publishes
+  to the local APT repo. EAST and future hosts install via apt.
+
+  Flow: git push → Jenkins poll/webhook → Jenkinsfile stages →
+        .deb packages → reprepro → apt install on targets
+
+env:
+  JENKINS_PORT: "18080"
+  JENKINS_HOME: "/var/lib/jenkins"
+  PROJECT_ROOT: "~/tmp/unheaded"
+
+preconditions:
+  - check: "sudo docker info > /dev/null 2>&1"
+    description: "Docker is running"
+  - check: "test -f ~/tmp/unheaded/Jenkinsfile"
+    description: "Jenkinsfile exists in repo"
+
+steps:
+  - name: create-jenkins-volume
+    action: shell
+    command: |
+      sudo mkdir -p ${JENKINS_HOME}
+      sudo chown 1000:1000 ${JENKINS_HOME}
+
+  - name: start-jenkins
+    action: shell
+    command: |
+      sudo docker run -d \
+        --name jenkins \
+        --restart unless-stopped \
+        -p ${JENKINS_PORT}:8080 \
+        -p 50000:50000 \
+        -v ${JENKINS_HOME}:/var/jenkins_home \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v /usr/local/go:/usr/local/go:ro \
+        jenkins/jenkins:lts
+    timeout: 300
+    verify: "sleep 30 && curl -sf http://localhost:${JENKINS_PORT}/login"
+
+  - name: get-initial-password
+    action: shell
+    command: "sudo docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword"
+    description: "Use this to log in at http://localhost:18080"
+
+  - name: install-build-tools-in-jenkins
+    action: shell
+    command: |
+      sudo docker exec jenkins bash -c '
+        apt-get update && apt-get install -y dpkg-dev fakeroot
+      '
+    description: "Install dpkg-deb for .deb packaging inside Jenkins"
+
+  - name: create-pipeline-job
+    action: shell
+    command: |
+      echo "In Jenkins UI (http://localhost:18080):"
+      echo "  1. New Item → 'unheaded-ci' → Pipeline"
+      echo "  2. Pipeline → Definition: Pipeline script from SCM"
+      echo "  3. SCM: Git"
+      echo "  4. Repository URL: /home/govan/tmp/unheaded (local path)"
+      echo "  5. Branch: */main"
+      echo "  6. Script Path: Jenkinsfile"
+      echo "  7. Build Triggers: Poll SCM (H/5 * * * *) for 5-min polling"
+      echo "  8. Save → Build Now"
+    description: "MANUAL — configure Jenkins pipeline via UI"
+
+  - name: verify-first-build
+    action: shell
+    command: |
+      echo "After first build completes, check:"
+      echo "  1. Build artifacts: .deb files in Jenkins workspace"
+      echo "  2. Test results: test-results.txt archived"
+      echo "  3. BPF check: passed in console output"
+      echo "  4. APT repo: reprepro list noble (if apt-repo-server is set up)"
+
+  - name: setup-post-commit-hook
+    action: shell
+    command: |
+      cat > ${PROJECT_ROOT}/.git/hooks/post-commit <<'EOF'
+      #!/bin/bash
+      # Trigger Jenkins build on every commit
+      curl -sf http://localhost:18080/job/unheaded-ci/build?token=kingdom 2>/dev/null &
+      EOF
+      chmod +x ${PROJECT_ROOT}/.git/hooks/post-commit
+    description: "Auto-trigger Jenkins on git commit"
+    verify: "test -x ${PROJECT_ROOT}/.git/hooks/post-commit"
+
+rollback:
+  - name: remove-jenkins
+    action: shell
+    command: "sudo docker stop jenkins && sudo docker rm jenkins"
