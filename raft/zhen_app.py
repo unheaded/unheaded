@@ -697,6 +697,78 @@ def generate_file():
     )
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Champion API — Trust Level 1 (read-only operations, all audited)
+# ADR-019: Zhen Champion Agent
+# ──────────────────────────────────────────────────────────────────────
+
+CHAMPION_ALLOWED = [
+    os.path.expanduser('~/tmp/unheaded/'),
+    '/var/zhen/',
+]
+CHAMPION_DENIED = ['.ssh', '.env', 'credentials', 'secrets', 'shadow', 'id_rsa', 'id_ed25519']
+
+def champion_validate_path(path):
+    """Validate path is within sandbox. Returns (abs_path, error)."""
+    if '..' in path:
+        return None, 'Path traversal blocked'
+    abs_path = os.path.abspath(os.path.expanduser(path))
+    for denied in CHAMPION_DENIED:
+        if denied in abs_path:
+            return None, f'Path contains denied pattern: {denied}'
+    for allowed in CHAMPION_ALLOWED:
+        if abs_path.startswith(os.path.abspath(allowed)):
+            return abs_path, None
+    return None, f'Path outside sandbox'
+
+
+@app.route('/api/v1/champion/read', methods=['POST'])
+def champion_read():
+    """Read a file within the sandbox. Logged to action history."""
+    data = request.get_json(force=True)
+    path = data.get('path', '')
+    if not path:
+        return jsonify({'error': 'path required'}), 400
+
+    abs_path, err = champion_validate_path(path)
+    if err:
+        return jsonify({'error': err, 'path': path}), 403
+
+    try:
+        with open(abs_path, 'r', errors='replace') as f:
+            content = f.read(1_000_000)  # 1MB limit
+        return jsonify({
+            'path': abs_path,
+            'content': content,
+            'size': len(content),
+        })
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found', 'path': abs_path}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/champion/health', methods=['GET'])
+def champion_health():
+    """Check health of all Kingdom services."""
+    import urllib.request
+    services = {
+        'wotan': 18000, 'timeguru': 19000, 'captain': 19002,
+        'architect': 19001, 'micromanager': 19003, 'monad': 19004,
+        'sophia': 19005, 'dashboard': 20000, 'kanban': 16668,
+        'zhen': 20103, 'inference': 20100,
+    }
+    results = []
+    for name, port in services.items():
+        try:
+            req = urllib.request.Request(f'http://localhost:{port}/health', method='GET')
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                results.append({'name': name, 'port': port, 'status': 'healthy', 'code': resp.status})
+        except Exception:
+            results.append({'name': name, 'port': port, 'status': 'unhealthy', 'code': 0})
+    return jsonify({'services': results, 'healthy': sum(1 for r in results if r['status'] == 'healthy'), 'total': len(results)})
+
+
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
