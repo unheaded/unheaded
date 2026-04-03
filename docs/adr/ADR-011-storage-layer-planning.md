@@ -1,6 +1,29 @@
 # ADR-011: Storage Layer Planning — Phylactery Vault Internals
 
-## Status: Proposed (Medium-High Priority — spans Alpha P1 through Beta)
+## Status: Accepted — Alpha decisions documented (2026-04-03)
+
+### Alpha Scope Decisions (5 Open Questions Answered)
+
+**Q1: Backend engine?**
+**A: PostgreSQL (The Well) for structured data, filesystem for blobs.**
+Rationale: PostgreSQL is already deployed and proven (ADR-016). BadgerDB was considered but adds a dependency for marginal gain. The Well handles all CRUD. Blob storage (GGUF models, FAISS indexes, WADs) stays on filesystem at /var/zhen/.
+
+**Q2: Replication?**
+**A: Active-passive for Alpha. Raft consensus deferred to Beta.**
+WEST is primary, EAST is hot standby via pg_basebackup + WAL streaming.
+Full Raft-based consensus across 3+ nodes is a Beta feature.
+
+**Q3: Key hierarchy?**
+**A: AES-256-GCM, per-cask key, rotation via config.**
+Keys stored in /etc/unheaded/secrets/ (0600, root-only). Rotation via secrets-rotation runbook. Full KMS (Vault/Sophia) deferred to Beta.
+
+**Q4: GC lifecycle?**
+**A: 72-hour grace period for soft-deleted records.**
+`deleted_at` column on all mutable tables. Cron job runs weekly to purge records older than 72 hours. Snapshots in zhen_action_snapshots are never deleted (append-only).
+
+**Q5: Bone Shell / Soul Chamber split?**
+**A: Aligned with ADR-010 sealed cask model.**
+Bone Shell = immutable binaries + configs (build-sealed-cask.sh). Soul Chamber = /var/lib/unheaded/state/, /var/zhen/, PostgreSQL data. Split enforced by filesystem permissions, not LUKS (Beta).
 
 ## Date: 2026-02-18
 
