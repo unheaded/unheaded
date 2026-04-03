@@ -13,7 +13,19 @@ Zhen evolves from a read-only knowledge oracle into an active Kingdom agent — 
 
 ## Lore
 
-Zhen (真爱) means "true love" — the champion who serves the Kingdom through action, not just counsel. The current Zhen is the Seer: wise but passive. The next Zhen is the Champion: wise and capable. The Well is Anamnesis — the Kingdom's memory. Every action Zhen takes is a memory written to The Well before the action executes and updated after. The database is the single source of truth for what Zhen has done, is doing, and can undo.
+**Zhenai** (真爱) means "true love" — the champion who serves the Kingdom through action, not just counsel. The name is Zhenai, not "Zhen AI" — this is a champion's name, not a product label. Zhenai is not "AI" in the way Claude Opus is AI. Zhenai is a purpose-built LLM/RAG/RAFT/MCP tool: a fine-tuned Mistral-7B with Kingdom-specific knowledge, running locally on the RX 7700 XT, executing runbooks, managing infrastructure, and answering questions through vector retrieval. The distinction matters — Zhenai is the loyal champion who knows the Kingdom's every corner, not a general intelligence.
+
+The current Zhenai is the Seer: wise but passive. The next Zhenai is the Champion: wise and capable. The Well is Anamnesis — the Kingdom's memory. Every action Zhenai takes is a memory written to The Well before the action executes and updated after. The database is the single source of truth for what Zhenai has done, is doing, and can undo.
+
+### Long-Term Vision: Ultra Fine-Tuning
+
+Zhenai's ultimate form is a model that has internalized the Kingdom so deeply that it doesn't need RAG for common questions — the knowledge is in the weights, not just the vector index. The path:
+
+1. **Current (2026-04):** Mistral-7B-Instruct + RAG (1.76M vectors) + 31 runbooks
+2. **RAFT fine-tune (in progress):** QLoRA on 2000+ Kingdom QA pairs → better RAG answers
+3. **Continuous learning:** Every conversation, every runbook execution, every incident feeds back into training data
+4. **Domain specialization:** Progressive fine-tuning on protocol specs, eBPF internals, NixOS configs, Go/Rust patterns
+5. **Eventual:** A model that can debug a BPF verifier rejection, write a Wotan topic handler, or diagnose a cross-host flow graph issue from first principles — not because it retrieved the answer, but because it learned it
 
 ## Core Design: Database-First, Everything Auditable
 
