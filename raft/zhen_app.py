@@ -18,6 +18,7 @@ import json
 import time
 import uuid
 import logging
+import yaml
 from pathlib import Path
 from flask import Flask, request, jsonify, Response, send_file
 from flask_cors import CORS
@@ -767,6 +768,87 @@ def champion_health():
         except Exception:
             results.append({'name': name, 'port': port, 'status': 'unhealthy', 'code': 0})
     return jsonify({'services': results, 'healthy': sum(1 for r in results if r['status'] == 'healthy'), 'total': len(results)})
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Runbook API — Standalone execution (no Claude Code needed)
+# ADR-024: Zhen Runbook Automation
+# ──────────────────────────────────────────────────────────────────────
+
+RUNBOOKS_DIR = os.path.expanduser('~/tmp/unheaded/runbooks')
+
+@app.route('/api/v1/runbooks', methods=['GET'])
+def list_runbooks():
+    """List all available runbooks."""
+    import glob as g
+    runbooks = sorted(g.glob(os.path.join(RUNBOOKS_DIR, '**', '*.yaml'), recursive=True))
+    result = []
+    for rb in runbooks:
+        rel = os.path.relpath(rb, RUNBOOKS_DIR)
+        try:
+            with open(rb) as f:
+                data = yaml.safe_load(f) if 'yaml' in sys.modules else {}
+            meta = data.get('metadata', {}) if data else {}
+            result.append({
+                'name': meta.get('name', os.path.splitext(os.path.basename(rb))[0]),
+                'path': rel,
+                'description': meta.get('description', ''),
+                'risk': meta.get('risk', 'unknown'),
+                'estimated_duration': meta.get('estimated_duration', '?'),
+            })
+        except Exception:
+            result.append({'name': os.path.basename(rb), 'path': rel, 'description': 'parse error'})
+    return jsonify({'runbooks': result, 'total': len(result)})
+
+
+@app.route('/api/v1/runbooks/<name>', methods=['GET'])
+def get_runbook(name):
+    """Get runbook details by name."""
+    import glob as g
+    matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
+    if not matches:
+        return jsonify({'error': f'Runbook not found: {name}'}), 404
+    with open(matches[0]) as f:
+        content = f.read()
+    try:
+        data = yaml.safe_load(content) if 'yaml' in sys.modules else {}
+    except Exception:
+        data = {}
+    return jsonify({'name': name, 'path': matches[0], 'content': content, 'parsed': data})
+
+
+@app.route('/api/v1/runbooks/<name>/execute', methods=['POST'])
+def execute_runbook(name):
+    """Execute a runbook. Pass {"dry_run": true} for validation only."""
+    import glob as g
+    import subprocess as sp
+    data = request.get_json(force=True) if request.is_json else {}
+    dry_run = data.get('dry_run', False)
+
+    matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
+    if not matches:
+        return jsonify({'error': f'Runbook not found: {name}'}), 404
+
+    runner = os.path.expanduser('~/tmp/unheaded/scripts/run-runbook.py')
+    cmd = ['python3', runner]
+    if dry_run:
+        cmd.append('--dry-run')
+    cmd.append(matches[0])
+
+    try:
+        result = sp.run(cmd, capture_output=True, text=True, timeout=600)
+        return jsonify({
+            'name': name,
+            'status': 'success' if result.returncode == 0 else 'failed',
+            'dry_run': dry_run,
+            'output': result.stdout[-5000:],
+            'errors': result.stderr[-2000:] if result.stderr else '',
+            'exit_code': result.returncode,
+        })
+    except sp.TimeoutExpired:
+        return jsonify({'name': name, 'status': 'timeout', 'error': 'Execution exceeded 600s'}), 504
+    except Exception as e:
+        return jsonify({'name': name, 'status': 'error', 'error': str(e)}), 500
 
 
 @app.route('/')

@@ -1044,7 +1044,14 @@ checkHealth();
 setInterval(checkHealth, 30000);
 
 // Welcome
-addMsg("I am Zhen (真爱), champion of the Unheaded Kingdom.\n\n594K knowledge chunks indexed: Unheaded codebase, 16 GitHub repos, Linux kernel, 9,739 RFCs, 1,649 research papers, official docs, and more.\n\nLocal Mistral-7B inference. Drag-and-drop files to include in your query.\n\nAsk me anything.", 'zhen');
+// Fetch real stats for welcome message
+fetch(API + '/api/v1/stats').then(r => r.json()).then(s => {
+    const vectors = s.index_vectors ? (s.index_vectors / 1000000).toFixed(1) + 'M' : '?';
+    const chunks = s.corpus_chunks ? (s.corpus_chunks / 1000000).toFixed(1) + 'M' : '?';
+    addMsg(`I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\n${vectors} vectors indexed (${chunks} corpus chunks): Unheaded codebase, 16 GitHub repos, 9,739 RFCs, 1,649 research papers, Kingdom skills, and more.\n\nLocal Mistral-7B inference on AMD RX 7700 XT. Drag-and-drop files to include in your query. 31 operational runbooks available.\n\nAsk me anything.`, 'zhen');
+}).catch(() => {
+    addMsg("I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\nLocal Mistral-7B inference. Drag-and-drop files to include in your query.\n\nAsk me anything.", 'zhen');
+});
 </script>
 </body>
 </html>
