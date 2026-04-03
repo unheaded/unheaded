@@ -2,7 +2,17 @@
 
 **Date**: 2026-04-03
 **Sprint**: WAVE-5 — From Dev Prototype to Production Software
-**Prerequisite**: Waves 1-4 complete (all 28 ADRs resolved, 33 runbooks, 2007 QA pairs, Champion L2, MCP server)
+**Prerequisite**: Waves 1-4 complete (all 28 ADRs resolved, 34 runbooks, 2007 QA pairs, Champion L2, MCP server)
+
+## PROGRESS (updated in-session)
+- [x] Phase 1a: QA batch 2 RUNNING (~95 min remaining)
+- [x] Phase 3: eBPF fixes DONE (3 link failures → 0)
+- [x] Phase 6 partial: recall command DONE, schema fixed, conversation memory runbook written
+- [x] Phase A (quick fixes): ADR-012b deprecated, ADR-018/015 statuses fixed, index updated
+- [ ] Phase 1b: QLoRA training (blocked on 1a completion)
+- [ ] Phase 2: Infrastructure bootstrap (EAST internet, Pi-hole, Jenkins, APT)
+- [ ] Phase 4: Pre-public audit
+- [ ] Phase 5: First .deb build
 **Target**: RAFT-tuned Zhenai deployed, Jenkins CI/CD producing .debs, EAST online with internet, pre-public audit clean
 **Estimated Duration**: 15-20 hours across 3-4 sessions
 **Commit Cadence**: Every 4 steps
