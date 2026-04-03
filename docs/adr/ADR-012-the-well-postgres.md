@@ -1,6 +1,8 @@
-# ADR-012: The Well — PostgreSQL Persistent Storage
+# ADR-012b: The Well — PostgreSQL Persistent Storage
 
-## Status: Accepted
+## Status: Accepted (DEPRECATED — see ADR-016 for canonical PostgreSQL spec)
+
+**Note (2026-04-03):** This ADR predates ADR-016 which is the full, canonical PostgreSQL specification. This document is retained for historical context but ADR-016 is the authoritative reference for The Well.
 
 ## Context
 
