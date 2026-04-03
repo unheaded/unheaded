@@ -1,0 +1,18 @@
+[package]
+name = "zhenai-forge"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+description = "Zhenai Forge — Custom Rust LoRA fine-tuning for GGUF models on heterogeneous compute"
+authors = ["Stevie Bellis <stevie@bellis.tech>"]
+
+[dependencies]
+# All deps predate July 2019 per ADR-004
+memmap2 = "0.9"          # mmap for GGUF zero-copy (fork of memmap 2015)
+half = "2.4"             # f16 type (2017)
+rayon = "1.10"           # parallel data loading (2016)
+serde = { version = "1", features = ["derive"] }  # serialization (2015)
+serde_json = "1"         # JSONL parsing (2015)
+
+[dev-dependencies]
+tempfile = "3"
