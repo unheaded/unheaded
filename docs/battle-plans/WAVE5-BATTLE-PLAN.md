@@ -43,6 +43,14 @@
 - EAST has internet via WEST NAT. Wotan installed on EAST via apt.
 - Conversation schema fixed — zhen_conversations now logs correctly with search_vector.
 - Docker + Jenkins + nginx running on WEST. llama-server NOT running (killed for RAM).
+- **RAFT TRAINING BLOCKER**: 14GB RAM not enough for Mistral-7B QLoRA. Model loading thrashes swap at 79%. Options:
+  1. Use smaller model (TinyLlama-1.1B or phi-2-2.7B) — fits in RAM, less capable but trainable
+  2. Cloud GPU (breaks offline requirement)
+  3. Add RAM to WEST (hardware upgrade)
+  4. Use unsloth (memory-optimized training, needs investigation)
+  5. Train on a rented GPU for one session, deploy GGUF locally
+  - batch_size already at 1, low_cpu_mem_usage=True, gradient_checkpointing=True
+  - The 12GB VRAM is fine — the problem is the 14GB system RAM during model load
 
 ## LEGEND
 
