@@ -1,6 +1,8 @@
 # ADR-015: Go-Fiber for HTTP API Layer
 
-## Status: ACCEPTED
+## Status: ACCEPTED — Service template created (2026-04-03)
+
+**Implementation note (2026-04-03):** Created `pkg/service/` — standardized service scaffold using stdlib `net/http` (not Fiber yet). Provides: /health, /ready endpoints, Wotan integration, auth middleware, graceful shutdown, structured logging. 7 tests passing. Fiber migration deferred — current fasthttp compatibility with eBPF socket programs needs investigation before committing to the framework swap. The template codifies existing patterns first; Fiber migration is a separate effort.
 ## Date: 2026-02-20
 ## Decision Makers: Round Table S26 (All 9 Seats)
 
