@@ -1,6 +1,8 @@
 # ADR-023: Virtual Memory in Wotan
 
-**Status:** PROPOSED
+**Status:** Deferred to Dream Ladder L5 (MiniKernel)
+
+**Deferral rationale (2026-04-03):** Design complete but implementation not needed until UPC reaches L5. Current L3 (Doom) runs fine with 26MB flat heap via BPF maps. TLB_MAP placeholder already exists in eBPF code.
 **Date:** 2026-03-30
 **Context:** Doom-over-IPv6 UPC, Dream Ladder L5 (MiniKernel)
 

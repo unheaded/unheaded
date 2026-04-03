@@ -1,0 +1,12 @@
+# Large binary files — symlinked to /var/zhen/ on SSD
+models/
+index/
+corpus/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Logs
+*.log

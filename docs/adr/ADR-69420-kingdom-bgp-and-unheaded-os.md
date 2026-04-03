@@ -2,8 +2,10 @@
 
 **Date**: 2026-03-18
 **Author**: Stevie Bellis, Kingdom Council
-**Status**: ACCEPTED
+**Status**: ACCEPTED — Phase 1 deferred to end of Age 2 (Q4 2026)
 **Scope**: Long-term vision (Age 2/3 features, not blocking public launch)
+
+**Timeline note (2026-04-03):** Sleipnir Phase 1 (control plane + stub data plane) is an 8-10 week effort scheduled for Q4 2026. Yggdrasil first artifacts also end of Age 2. Not blocking Age 3 launch.
 
 ## Context
 

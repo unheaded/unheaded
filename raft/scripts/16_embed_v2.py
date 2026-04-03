@@ -27,10 +27,10 @@ INDEX_DIR = Path.home() / "tmp" / "unheaded" / "raft" / "index"
 INDEX_FILE = INDEX_DIR / "v2.index"
 IDS_FILE = INDEX_DIR / "v2_ids.json"
 
-EMBED_BATCH = 64        # Sentences per model.encode() call
-PROCESS_BATCH = 50_000  # Chunks per FAISS add cycle
+EMBED_BATCH = 512       # Sentences per model.encode() call (512 optimal for RX 7700 XT)
+PROCESS_BATCH = 5_000   # Chunks per FAISS add cycle (smaller = faster progress, less tokenization lag)
 DIM = 384               # all-MiniLM-L6-v2 dimension
-PROGRESS_EVERY = 50_000
+PROGRESS_EVERY = 5_000
 CHECKPOINT_EVERY = 200_000  # Save checkpoint index periodically
 
 
@@ -113,8 +113,14 @@ def main():
     print(f"  Total chunks: {total:,}")
     print(f"  Corpus size:  {corpus_mb:,.1f} MB")
 
-    # Estimate time
-    est_hours = total / 150_000  # ~150K chunks/hour typical
+    # Estimate time (GPU: ~3M chunks/hour on RX 7700 XT, CPU: ~370K chunks/hour)
+    import torch
+    if torch.cuda.is_available():
+        est_hours = total / 3_000_000
+        print(f"  GPU detected: {torch.cuda.get_device_name(0)}")
+    else:
+        est_hours = total / 370_000
+        print(f"  GPU: not available, using CPU")
     print(f"  Estimated time: {est_hours:.1f} hours")
 
     # Load model
