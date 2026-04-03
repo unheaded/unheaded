@@ -14,6 +14,7 @@
 mod gguf;
 mod hip;
 mod lora;
+mod train;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -100,107 +101,35 @@ fn cmd_info(args: &[String]) {
 }
 
 fn cmd_train(args: &[String]) {
-    // Parse args
-    let mut model_path = String::new();
-    let mut data_path = String::new();
-    let mut output_path = String::from("kingdom.zlora");
-    let mut rank: u32 = 16;
-    let mut epochs: u32 = 2;
-    let mut lr: f32 = 2e-4;
+    let mut config = train::TrainConfig::default();
 
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--model" => { model_path = args[i + 1].clone(); i += 2; }
-            "--data" => { data_path = args[i + 1].clone(); i += 2; }
-            "--output" => { output_path = args[i + 1].clone(); i += 2; }
-            "--rank" => { rank = args[i + 1].parse().unwrap(); i += 2; }
-            "--epochs" => { epochs = args[i + 1].parse().unwrap(); i += 2; }
-            "--lr" => { lr = args[i + 1].parse().unwrap(); i += 2; }
+            "--model" => { config.model_path = args[i + 1].clone(); i += 2; }
+            "--data" => { config.data_path = args[i + 1].clone(); i += 2; }
+            "--output" => { config.output_path = args[i + 1].clone(); i += 2; }
+            "--rank" => { config.rank = args[i + 1].parse().unwrap(); i += 2; }
+            "--epochs" => { config.epochs = args[i + 1].parse().unwrap(); i += 2; }
+            "--lr" => { config.lr = args[i + 1].parse().unwrap(); i += 2; }
+            "--batch-size" => { config.batch_size = args[i + 1].parse().unwrap(); i += 2; }
+            "--max-seq-len" => { config.max_seq_len = args[i + 1].parse().unwrap(); i += 2; }
             _ => { i += 1; }
         }
     }
 
-    if model_path.is_empty() || data_path.is_empty() {
+    if config.model_path.is_empty() || config.data_path.is_empty() {
         eprintln!("Error: --model and --data are required");
         std::process::exit(1);
     }
 
-    println!("============================================================");
-    println!("ZHENAI FORGE — LoRA Fine-Tuning");
-    println!("============================================================");
-    println!("  Model:   {}", model_path);
-    println!("  Data:    {}", data_path);
-    println!("  Output:  {}", output_path);
-    println!("  Rank:    {}", rank);
-    println!("  Epochs:  {}", epochs);
-    println!("  LR:      {}", lr);
-    println!();
-
-    // Load model metadata
-    let model = gguf::GgufFile::open(&model_path).expect("Failed to open GGUF model");
-    println!("  Model loaded: {} tensors, {:.1} MB", model.tensors.len(), model.file_size as f64 / 1e6);
-
-    let n_layers = model.get_u32("llama.block_count").unwrap_or(32);
-    let n_embd = model.get_u32("llama.embedding_length").unwrap_or(4096);
-    println!("  Layers:  {}", n_layers);
-    println!("  Dim:     {}", n_embd);
-
-    // Initialize LoRA adapters
-    let mut lora = lora::LoraAdapters::new(n_layers, n_embd, rank);
-    println!("  LoRA initialized: {} trainable params ({:.1} MB)",
-        lora.num_params(), lora.size_bytes() as f64 / 1e6);
-
-    // Load training data
-    let data = load_training_data(&data_path);
-    println!("  Training examples: {}", data.len());
-    println!();
-
-    // Training loop (CPU-only for Phase 1 — GPU in Phase 2)
-    println!("Training... (CPU-only Phase 1 — GPU acceleration in Phase 2)");
-    println!("============================================================");
-
-    for epoch in 0..epochs {
-        let mut total_loss = 0.0f64;
-        let mut steps = 0u32;
-
-        for (i, example) in data.iter().enumerate() {
-            // Phase 1: simulate forward pass with random loss
-            // Real implementation: GPU forward + backward in Phase 2
-            let loss = lora.training_step(example, lr);
-            total_loss += loss as f64;
-            steps += 1;
-
-            if (i + 1) % 100 == 0 || i == data.len() - 1 {
-                let avg_loss = total_loss / steps as f64;
-                println!("  Epoch {}/{} | Step {}/{} | Loss: {:.4}",
-                    epoch + 1, epochs, i + 1, data.len(), avg_loss);
-            }
-        }
-
-        let avg_loss = total_loss / steps as f64;
-        println!("  Epoch {} complete | Avg loss: {:.4}", epoch + 1, avg_loss);
+    if let Err(e) = train::train(&config) {
+        eprintln!("Training failed: {}", e);
+        std::process::exit(1);
     }
-
-    // Save LoRA
-    println!("\nSaving LoRA adapter to: {}", output_path);
-    lora.save_zlora(&output_path, &model).expect("Failed to save LoRA");
-    println!("  Saved: {:.1} MB", std::fs::metadata(&output_path).map(|m| m.len() as f64 / 1e6).unwrap_or(0.0));
-
-    println!("\n============================================================");
-    println!("TRAINING COMPLETE");
-    println!("============================================================");
-    println!("  Load with: llama-server -m {} --lora {}", model_path, output_path);
 }
 
 fn cmd_eval(_args: &[String]) {
     println!("Evaluation not yet implemented (Phase 4)");
 }
 
-fn load_training_data(path: &str) -> Vec<String> {
-    let content = std::fs::read_to_string(path).expect("Failed to read training data");
-    content.lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(|l| l.to_string())
-        .collect()
-}
