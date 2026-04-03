@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
 
 // Package health implements the Kingdom's immune system — every node
-// is a raven that health-checks services and participates in
+// is a akira that health-checks services and participates in
 // consensus-based auto-remediation.
 //
 // See ADR-029 for the full design.
@@ -60,8 +60,8 @@ type ConsensusState struct {
 	Reports          []HealthReport
 }
 
-// Raven monitors services and publishes health reports.
-type Raven struct {
+// Akira monitors services and publishes health reports.
+type Akira struct {
 	nodeID   string
 	targets  []ServiceTarget
 	client   *http.Client
@@ -76,29 +76,29 @@ type Raven struct {
 	onAlert  func(ConsensusState)       // called when consensus threshold hit
 }
 
-// NewRaven creates a new raven for the given node.
-func NewRaven(nodeID string, targets []ServiceTarget) *Raven {
-	return &Raven{
+// NewAkira creates a new akira for the given node.
+func NewAkira(nodeID string, targets []ServiceTarget) *Akira {
+	return &Akira{
 		nodeID: nodeID,
 		targets: targets,
 		client: &http.Client{Timeout: 5 * time.Second},
-		logger: log.With().Str("component", "raven").Str("node", nodeID).Logger(),
+		logger: log.With().Str("component", "akira").Str("node", nodeID).Logger(),
 		states: make(map[string]*ConsensusState),
 	}
 }
 
 // OnReport sets a callback for each health check result.
-func (w *Raven) OnReport(fn func(HealthReport)) {
+func (w *Akira) OnReport(fn func(HealthReport)) {
 	w.onReport = fn
 }
 
 // OnAlert sets a callback for consensus threshold triggers.
-func (w *Raven) OnAlert(fn func(ConsensusState)) {
+func (w *Akira) OnAlert(fn func(ConsensusState)) {
 	w.onAlert = fn
 }
 
 // CheckService performs a single health check on a service.
-func (w *Raven) CheckService(target ServiceTarget) HealthReport {
+func (w *Akira) CheckService(target ServiceTarget) HealthReport {
 	path := target.HealthPath
 	if path == "" {
 		path = "/health"
@@ -131,7 +131,7 @@ func (w *Raven) CheckService(target ServiceTarget) HealthReport {
 }
 
 // CheckAll performs health checks on all targets.
-func (w *Raven) CheckAll() []HealthReport {
+func (w *Akira) CheckAll() []HealthReport {
 	reports := make([]HealthReport, 0, len(w.targets))
 	for _, target := range w.targets {
 		report := w.CheckService(target)
@@ -159,7 +159,7 @@ func (w *Raven) CheckAll() []HealthReport {
 }
 
 // EvaluateConsensus checks if any service has crossed the failure threshold.
-func (w *Raven) EvaluateConsensus() []ConsensusState {
+func (w *Akira) EvaluateConsensus() []ConsensusState {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -196,13 +196,13 @@ func (w *Raven) EvaluateConsensus() []ConsensusState {
 	return alerts
 }
 
-// Run starts the raven loop. Blocks until context is cancelled.
-func (w *Raven) Run(ctx context.Context) {
+// Run starts the akira loop. Blocks until context is cancelled.
+func (w *Akira) Run(ctx context.Context) {
 	w.logger.Info().
 		Int("targets", len(w.targets)).
 		Dur("interval", HealthCheckInterval).
 		Float64("threshold", ConsensusThreshold).
-		Msg("raven started")
+		Msg("akira started")
 
 	ticker := time.NewTicker(HealthCheckInterval)
 	defer ticker.Stop()
@@ -210,7 +210,7 @@ func (w *Raven) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			w.logger.Info().Msg("raven stopped")
+			w.logger.Info().Msg("akira stopped")
 			return
 		case <-ticker.C:
 			reports := w.CheckAll()
@@ -241,7 +241,7 @@ func (w *Raven) Run(ctx context.Context) {
 }
 
 // GetStates returns current consensus states for all services.
-func (w *Raven) GetStates() map[string]ConsensusState {
+func (w *Akira) GetStates() map[string]ConsensusState {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
