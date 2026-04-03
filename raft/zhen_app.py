@@ -263,6 +263,48 @@ def _try_command(question):
         lines.append(f'\n**{healthy}/{len(services)} healthy**')
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
+    # Schedule commands
+    if q.startswith('schedule ') and 'every' in q:
+        # schedule service-health-sweep every 30m
+        parts = q.split()
+        name = parts[1] if len(parts) > 1 else ''
+        interval = parts[-1] if len(parts) > 3 else '30m'
+        try:
+            from zhen_scheduler import add_schedule
+            entry = add_schedule(name, interval)
+            return {'answer': f'Scheduled `{name}` every {interval}.\n\nTo start the scheduler daemon: `python3 zhen_scheduler.py`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        except Exception as e:
+            return {'answer': f'Schedule error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+    if q.startswith('unschedule '):
+        name = q.split(None, 1)[1].strip() if len(q.split()) > 1 else ''
+        try:
+            from zhen_scheduler import remove_schedule
+            remove_schedule(name)
+            return {'answer': f'Unscheduled `{name}`.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        except Exception as e:
+            return {'answer': f'Unschedule error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+    if q in ('list schedules', 'schedules', 'show schedules'):
+        try:
+            from zhen_scheduler import load_schedules
+            schedules = load_schedules()
+            lines = [f'**Scheduled Jobs ({len(schedules)}):**\n']
+            for s in schedules:
+                status = 'ENABLED' if s.get('enabled') else 'disabled'
+                lines.append(f'  {"●" if s.get("enabled") else "○"} `{s["name"]}` — {s.get("interval", "?")} [{status}]')
+            lines.append(f'\nScheduler daemon: `python3 zhen_scheduler.py`')
+            return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        except Exception as e:
+            return {'answer': f'Schedule list error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+    # Emergency stop
+    if q in ('emergency stop', 'stop all', 'kill all'):
+        import subprocess as sp
+        sp.run(['pkill', '-f', 'zhen_scheduler'], capture_output=True)
+        sp.run(['pkill', '-f', 'run-runbook'], capture_output=True)
+        return {'answer': '**EMERGENCY STOP** — All scheduled jobs killed. Runbook executions terminated.\n\nManual-only mode until scheduler is restarted.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
     # Trust level
     if 'trust level' in q or 'trust' == q:
         return {'answer': f'**Zhenai Trust Level: {TRUST_LEVEL}**\n\nLevel 1: Read-only\nLevel 2: Write (high/critical need approval) ← current\nLevel 3: Autonomous', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
