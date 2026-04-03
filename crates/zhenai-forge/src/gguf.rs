@@ -17,7 +17,19 @@ pub struct GgufFile {
     pub metadata: HashMap<String, String>,
     pub tensors: Vec<TensorInfo>,
     pub file_size: u64,
+    /// Offset in the mmap where tensor data begins (after headers)
+    pub data_offset: usize,
     _mmap: Mmap,
+}
+
+impl GgufFile {
+    /// Get raw bytes for a tensor from the mmap'd file.
+    /// Zero-copy — returns a slice into the mmap.
+    pub fn tensor_data(&self, tensor: &TensorInfo) -> &[u8] {
+        let start = self.data_offset + tensor.offset as usize;
+        let end = start + tensor.byte_size as usize;
+        &self._mmap[start..end.min(self._mmap.len())]
+    }
 }
 
 /// Descriptor for a tensor in the GGUF file.
@@ -289,11 +301,15 @@ impl GgufFile {
             });
         }
 
+        // Data section starts after all headers, aligned to 32 bytes
+        let data_offset = (reader.pos + 31) & !31; // Align to 32-byte boundary
+
         Ok(GgufFile {
             version,
             metadata,
             tensors,
             file_size,
+            data_offset,
             _mmap: mmap,
         })
     }
