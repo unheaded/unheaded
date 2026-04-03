@@ -1,8 +1,20 @@
 # ADR-020: Kanban Bug Fixes (Three Crowns Findings)
 
-**Status:** Accepted
+**Status:** Accepted — All 8 bugs addressed (2026-04-03)
 **Date:** 2026-03-19
 **Context:** Operation Three Crowns Docker phase UI review
+
+### Fix Status (2026-04-03)
+| Bug | Status | Fix |
+|-----|--------|-----|
+| 1 | FIXED | Wired kanban-app to PostgreSQL via WELL_* env vars in docker-compose.yml |
+| 2 | ALREADY FIXED | board.js:425 already calls API.tasks.move() — was broken by Bug 1 (no DB) |
+| 3 | FIXED | Added "dashboard-backend" to Wotan auto-approve allowlist (name mismatch) |
+| 4 | FIXED | Added wiki link to dashboard nav bar |
+| 5 | FIXED | Added DEMO_FLOWS fallback in refreshFlows() when no eBPF data |
+| 6 | ALREADY FIXED | Backend readLocalDisks() already uses /proc/mounts + statfs. Docker overlay mounts were the symptom. |
+| 7 | FIXED | Added memFree/memBuffers/memCached fields to memInfoResult + scraper metrics |
+| 8 | FIXED | Same root cause as Bug 3 — "dashboard-backend" not in Wotan auto-approve list |
 
 ## Findings
 

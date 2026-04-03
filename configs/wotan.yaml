@@ -23,6 +23,7 @@ topics:
     - "monad"
     - "sophia"
     - "dashboard"
+    - "dashboard-backend"
     - "kanban"
     - "daemon"
     - "trace-collector"
