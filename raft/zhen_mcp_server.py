@@ -143,6 +143,18 @@ async def list_tools():
                 "required": ["path", "old_text", "new_text"],
             },
         ),
+        Tool(
+            name="runbook_execute",
+            description="Execute an operational runbook by name. Runs all steps with verification gates. Use dry_run=true to validate without executing.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Runbook name (without .yaml)"},
+                    "dry_run": {"type": "boolean", "description": "If true, validate without executing", "default": False},
+                },
+                "required": ["name"],
+            },
+        ),
     ]
 
 
@@ -162,6 +174,8 @@ async def call_tool(name: str, arguments: dict):
         return await tool_file_write(arguments)
     elif name == "file_patch":
         return await tool_file_patch(arguments)
+    elif name == "runbook_execute":
+        return await tool_runbook_execute(arguments)
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
@@ -284,6 +298,28 @@ async def tool_file_patch(args: dict):
         return [TextContent(type="text", text=f"File not found: {abs_path}")]
     except Exception as e:
         return [TextContent(type="text", text=f"Error patching {abs_path}: {e}")]
+
+
+async def tool_runbook_execute(args: dict):
+    import subprocess as sp
+    name = args.get("name", "")
+    dry_run = args.get("dry_run", False)
+    matches = glob.glob(str(RUNBOOKS_DIR / "**" / f"{name}.yaml"), recursive=True)
+    if not matches:
+        return [TextContent(type="text", text=f"Runbook not found: {name}")]
+    cmd = ["python3", str(PROJECT_ROOT / "scripts" / "run-runbook.py")]
+    if dry_run:
+        cmd.append("--dry-run")
+    cmd.append(matches[0])
+    try:
+        result = sp.run(cmd, capture_output=True, text=True, timeout=600)
+        output = result.stdout + ("\n" + result.stderr if result.stderr else "")
+        status = "SUCCESS" if result.returncode == 0 else "FAILED"
+        return [TextContent(type="text", text=f"Runbook {name}: {status}\n\n{output[-3000:]}")]
+    except sp.TimeoutExpired:
+        return [TextContent(type="text", text=f"Runbook {name}: TIMEOUT (600s limit)")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Runbook {name}: ERROR — {e}")]
 
 
 async def main():
