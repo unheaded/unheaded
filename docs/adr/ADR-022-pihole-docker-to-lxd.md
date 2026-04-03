@@ -1,6 +1,6 @@
 # ADR-022: Migrate Pi-hole from Docker to LXD Container
 
-**Status:** PROPOSED
+**Status:** ACCEPTED — Runbook written (runbooks/network/dns-pihole-lxd.yaml), awaiting execution window for live DNS cutover
 **Date:** 2026-03-29
 **Author:** Stevie
 **Deciders:** Captain, Architect
