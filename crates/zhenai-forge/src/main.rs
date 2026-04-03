@@ -12,6 +12,7 @@
 //!   zhenai-forge eval --model model.gguf --lora lora.gguf --data eval.jsonl
 
 mod gguf;
+mod hip;
 mod lora;
 
 fn main() {
