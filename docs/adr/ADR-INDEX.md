@@ -1,13 +1,13 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-04-03
-**Total:** 27 ADRs (including ADR-012b duplicate)
+**Total:** 28 ADRs (ADR-012b deprecated, ADR-026 added)
 
 ## Status Summary
 
 | Status | Count |
 |--------|-------|
-| Accepted | 19 |
+| Accepted | 20 |
 | In Progress | 1 |
 | Deferred | 4 |
 | Pipe Dream | 1 |
@@ -30,7 +30,7 @@
 | [010](ADR-010-sealed-cask-deployment.md) | Sealed Cask Deployment | Accepted (Alpha) | 2026-02-18 |
 | [011](ADR-011-storage-layer-planning.md) | Storage Layer Planning | Accepted (Alpha) | 2026-02-18 |
 | [012](ADR-012-bpf-verifier-risk-mitigation.md) | BPF Verifier Risk Mitigation | Accepted + CI Gate | 2026-02-19 |
-| [012b](ADR-012-the-well-postgres.md) | The Well — PostgreSQL | Accepted | 2026-02-19 |
+| [012b](ADR-012-the-well-postgres.md) | ~~The Well — PostgreSQL~~ | Deprecated → ADR-016 | 2026-02-19 |
 | [013](ADR-013-routing-header-support.md) | IPv6 Routing Header | Accepted (Deferred) | 2026-02-20 |
 | [014](ADR-014-ipv6-fragmentation-support.md) | IPv6 Fragmentation | Accepted (Deferred) | 2026-02-20 |
 | [015](ADR-015-go-fiber-http-layer.md) | Go-Fiber HTTP Layer | Accepted + Template | 2026-02-20 |
@@ -44,4 +44,5 @@
 | [023](ADR-023-wotan-virtual-memory.md) | Wotan Virtual Memory | **Deferred to L5** | 2026-03-30 |
 | [024](ADR-024-zhen-runbook-automation.md) | Runbook Automation | Accepted (31 runbooks) | 2026-04-02 |
 | [025](ADR-025-kanban-mobile-app.md) | Kanban Mobile App | **Pipe Dream (Age 4+)** | 2026-04-03 |
+| [026](ADR-026-deb-packaging-ci-pipeline.md) | .deb Packaging + CI/CD | Accepted | 2026-04-03 |
 | [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Deferred to Q4 2026** | 2026-03-18 |
