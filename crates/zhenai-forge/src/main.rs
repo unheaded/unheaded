@@ -102,7 +102,7 @@ fn cmd_train(args: &[String]) {
     // Parse args
     let mut model_path = String::new();
     let mut data_path = String::new();
-    let mut output_path = String::from("kingdom-lora.gguf");
+    let mut output_path = String::from("kingdom.zlora");
     let mut rank: u32 = 16;
     let mut epochs: u32 = 2;
     let mut lr: f32 = 2e-4;
@@ -183,7 +183,7 @@ fn cmd_train(args: &[String]) {
 
     // Save LoRA
     println!("\nSaving LoRA adapter to: {}", output_path);
-    lora.save_gguf(&output_path, &model).expect("Failed to save LoRA");
+    lora.save_zlora(&output_path, &model).expect("Failed to save LoRA");
     println!("  Saved: {:.1} MB", std::fs::metadata(&output_path).map(|m| m.len() as f64 / 1e6).unwrap_or(0.0));
 
     println!("\n============================================================");

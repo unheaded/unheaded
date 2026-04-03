@@ -222,13 +222,20 @@ impl LoraAdapters {
         (base_loss as f64 * decay + total_grad_norm.sqrt() as f64 * 0.1) as f32
     }
 
-    /// Save LoRA adapters as a GGUF file.
-    pub fn save_gguf(&self, path: &str, _base_model: &GgufFile) -> io::Result<()> {
-        // Phase 1: save as raw binary (proper GGUF LoRA format in Phase 3)
+    /// Save LoRA adapters in Kingdom-native .zlora format.
+    ///
+    /// Format: ZLORA v1
+    ///   Magic:    "ZLORA\x01" (6 bytes) — Kingdom LoRA adapter format
+    ///   Header:   n_layers(u32) | n_embd(u32) | rank(u32) | alpha(f32) | step(u32) | reserved(12 bytes)
+    ///   Tensors:  [layer_0_q_A, layer_0_q_B, layer_0_k_A, layer_0_k_B, ...] (all f32 LE)
+    ///   Footer:   CRC-16/CCITT over entire file (2 bytes) — same polynomial as Monad wire format
+    ///
+    /// Loaded by llama-server via --lora flag after conversion, or directly by zhenai-forge eval.
+    pub fn save_zlora(&self, path: &str, _base_model: &GgufFile) -> io::Result<()> {
         let mut data = Vec::new();
 
-        // Header
-        data.extend_from_slice(b"ZHENAI-LORA-V1\0\0"); // 16 bytes magic
+        // Magic: "ZLORA\x01" — Zhenai LoRA format version 1
+        data.extend_from_slice(b"ZLORA\x01");
         data.extend_from_slice(&self.n_layers.to_le_bytes());
         data.extend_from_slice(&self.n_embd.to_le_bytes());
         data.extend_from_slice(&self.rank.to_le_bytes());
