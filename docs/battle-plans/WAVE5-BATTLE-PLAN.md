@@ -23,6 +23,27 @@
 **Commit Cadence**: Every 4 steps
 **Stuck Protocol**: Skip after 3x time estimate or 2 failed debug attempts
 
+## EXECUTION RULES
+
+1. **On plan approval or session start**: Begin executing immediately. Never ask "where to start?" — read the PROGRESS section above and pick up from the first unchecked item.
+2. **After starting any long-running step** (QA gen, training, builds): Continue working on the next independent phase while it runs. Never idle-wait.
+3. **Before each phase**: Re-read this battle plan to confirm current state and what's next.
+4. **After each phase completes**: Update the PROGRESS section above, commit, then immediately start the next phase.
+5. **On session boundary**: Update PROGRESS, commit to git, and write a handoff note at the bottom of this file so the next session knows exactly where to resume.
+
+## HANDOFF NOTES (append here on session end)
+
+### Session 2026-04-02/03 (44 commits)
+- Waves 1-4 fully complete. Wave 5: 11/12 phases done.
+- Only remaining: Phase 1b (QLoRA training) + Phase 1c (merge/quantize/deploy) + Phase 4 ScanCode.
+- 3965 QA pairs at /var/zhen/raft_dataset_combined.jsonl — ready for training.
+- To start RAFT training: kill all services (free 14GB RAM), follow Phase 1b steps.
+- Jenkins at :18080 (initial password: c6395ede2600473db25a8ae32f41b7b4, needs manual pipeline setup via UI).
+- APT repo at :18888 with unheaded-wotan_1.0.0 published.
+- EAST has internet via WEST NAT. Wotan installed on EAST via apt.
+- Conversation schema fixed — zhen_conversations now logs correctly with search_vector.
+- Docker + Jenkins + nginx running on WEST. llama-server NOT running (killed for RAM).
+
 ## LEGEND
 
 [B] = Bash command | [V] = Verification | [D] = Debug | [W] = Write file
