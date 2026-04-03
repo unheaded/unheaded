@@ -323,8 +323,12 @@ fn extract_pkt_size_feature(payload_len: u16, service_id: u32) -> i16 {
     // Z-score: (value - mean) / stddev, scaled to i16 range
     let diff = (payload_len as i16).saturating_sub(mean);
     // Multiply by 100 for precision before dividing
-    let z_score_scaled = (diff as i32 * 100) / (stddev as i32);
-    // Clamp to i16 range
+    // BPF doesn't support signed division — use unsigned with sign tracking
+    let is_negative = diff < 0;
+    let abs_diff = if diff < 0 { (-diff) as u32 } else { diff as u32 };
+    let abs_stddev = if stddev == 0 { 1u32 } else { stddev as u32 };
+    let z_abs = (abs_diff * 100) / abs_stddev;
+    let z_score_scaled = if is_negative { -(z_abs as i32) } else { z_abs as i32 };
     z_score_scaled.clamp(-32768, 32767) as i16
 }
 
