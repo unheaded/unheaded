@@ -1,0 +1,77 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: postgresql-migration
+  description: Apply schema migrations to The Well safely
+  owner: developer
+  estimated_duration: 10m
+  risk: high
+  requires_sudo: true
+  cs_sources: [databases/postgresql]
+
+env:
+  PG_CONTAINER: "unheaded-postgres"
+  PG_USER: "unheaded"
+  MIGRATIONS_DIR: "~/tmp/unheaded/db/migrations"
+
+steps:
+  - name: backup-before-migration
+    action: shell
+    command: |
+      TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+      sudo docker exec ${PG_CONTAINER} pg_dump -U ${PG_USER} -Fc unheaded_app > /var/backups/postgresql/pre_migration_${TIMESTAMP}.dump
+    verify: "test -f /var/backups/postgresql/pre_migration_*.dump"
+    description: "ALWAYS backup before applying migrations"
+
+  - name: list-migrations
+    action: shell
+    command: "ls -la ${MIGRATIONS_DIR}/*.sql"
+
+  - name: check-applied-migrations
+    action: shell
+    command: |
+      echo "=== Existing tables ==="
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c "\dt"
+    description: "Check what's already applied"
+
+  - name: dry-run-migration
+    action: shell
+    command: |
+      MIGRATION_FILE="<path_to_migration.sql>"
+      echo "=== DRY RUN: $MIGRATION_FILE ==="
+      cat $MIGRATION_FILE
+      echo ""
+      echo "Review the SQL above. If it looks correct, proceed to apply."
+    description: "MANUAL — review migration SQL before applying"
+
+  - name: apply-migration
+    action: shell
+    command: |
+      MIGRATION_FILE="<path_to_migration.sql>"
+      sudo docker exec -i ${PG_CONTAINER} psql -U ${PG_USER} < $MIGRATION_FILE
+    description: "MANUAL — replace with actual migration file path"
+    on_fail: "Check error output. If schema conflict, may need --if-exists or manual fix."
+
+  - name: verify-migration
+    action: shell
+    command: |
+      echo "=== Tables after migration ==="
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c "\dt"
+      echo "=== Recent migration tables ==="
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c "\dt zhen_*"
+
+  - name: test-application
+    action: shell
+    command: |
+      cd ~/tmp/unheaded && go test ./pkg/database/... -v -count=1 2>&1 | tail -10
+    description: "Run database tests to verify migration didn't break anything"
+
+rollback:
+  - name: restore-from-backup
+    action: shell
+    command: |
+      BACKUP=$(ls -t /var/backups/postgresql/pre_migration_*.dump | head -1)
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -c "DROP DATABASE IF EXISTS unheaded_app"
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -c "CREATE DATABASE unheaded_app"
+      sudo docker exec -i ${PG_CONTAINER} pg_restore -U ${PG_USER} -d unheaded_app < $BACKUP
+    when: "step.apply-migration.failed OR step.test-application.failed"

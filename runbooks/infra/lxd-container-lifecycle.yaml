@@ -1,0 +1,81 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: lxd-container-lifecycle
+  description: LXD container create/start/stop/snapshot/migrate operations
+  owner: architect
+  estimated_duration: 10m
+  risk: medium
+  requires_sudo: false
+  cs_sources: [containers/lxd]
+
+parameters:
+  - name: CONTAINER
+    description: "Container name"
+    required: true
+  - name: IMAGE
+    description: "Base image (e.g., ubuntu:24.04)"
+    default: "ubuntu:24.04"
+
+steps:
+  - name: list-containers
+    action: shell
+    command: "lxc list"
+    description: "Show all containers and their state"
+
+  - name: create-container
+    action: shell
+    command: "lxc launch ${IMAGE} ${CONTAINER} --config limits.memory=512MB --config limits.cpu=2"
+    verify: "lxc info ${CONTAINER} | grep -q 'Status: RUNNING'"
+
+  - name: attach-network
+    action: shell
+    command: "lxc network attach lxdbr0 ${CONTAINER} eth0"
+    description: "Attach to Kingdom bridge network"
+
+  - name: exec-shell
+    action: shell
+    command: "lxc exec ${CONTAINER} -- bash"
+    description: "Open interactive shell in container"
+
+  - name: push-file
+    action: shell
+    command: "lxc file push <local_path> ${CONTAINER}/<remote_path>"
+    description: "Copy file into container"
+
+  - name: pull-file
+    action: shell
+    command: "lxc file pull ${CONTAINER}/<remote_path> <local_path>"
+    description: "Copy file out of container"
+
+  - name: create-snapshot
+    action: shell
+    command: "lxc snapshot ${CONTAINER} snap-$(date +%Y%m%d-%H%M)"
+    verify: "lxc info ${CONTAINER} | grep -q snap-"
+
+  - name: restore-snapshot
+    action: shell
+    command: "lxc restore ${CONTAINER} <snapshot_name>"
+    description: "Restore container to snapshot state"
+
+  - name: stop-container
+    action: shell
+    command: "lxc stop ${CONTAINER}"
+    verify: "lxc info ${CONTAINER} | grep -q 'Status: STOPPED'"
+
+  - name: start-container
+    action: shell
+    command: "lxc start ${CONTAINER}"
+    verify: "lxc info ${CONTAINER} | grep -q 'Status: RUNNING'"
+
+  - name: delete-container
+    action: shell
+    command: "lxc delete ${CONTAINER} --force"
+    description: "DESTRUCTIVE — permanently removes container and all snapshots"
+
+  - name: set-resource-limits
+    action: shell
+    command: |
+      lxc config set ${CONTAINER} limits.memory 1GB
+      lxc config set ${CONTAINER} limits.cpu 4
+    verify: "lxc config get ${CONTAINER} limits.memory"

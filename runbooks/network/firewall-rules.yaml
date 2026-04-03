@@ -1,0 +1,99 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: firewall-rules
+  description: Kingdom default-deny firewall setup for Unheaded hosts
+  owner: blackmage
+  estimated_duration: 15m
+  risk: high
+  requires_sudo: true
+  cs_sources: [networking/iptables, networking/nftables]
+
+notes: |
+  Default policy: DROP all inbound. Explicit ACCEPT for Kingdom services.
+  Port range: 16666-26666 (The Doom Range) + SSH (22) + P2P link.
+  Apply to both WEST and EAST.
+
+steps:
+  - name: backup-current-rules
+    action: shell
+    command: "sudo iptables-save > /tmp/iptables-backup-$(date +%Y%m%d-%H%M).rules"
+    description: "Always backup before modifying firewall"
+
+  - name: flush-existing
+    action: shell
+    command: |
+      sudo iptables -F
+      sudo iptables -X
+      sudo iptables -t nat -F
+    description: "Clear all existing rules (start fresh)"
+
+  - name: set-default-drop
+    action: shell
+    command: |
+      sudo iptables -P INPUT DROP
+      sudo iptables -P FORWARD DROP
+      sudo iptables -P OUTPUT ACCEPT
+
+  - name: allow-loopback
+    action: shell
+    command: |
+      sudo iptables -A INPUT -i lo -j ACCEPT
+      sudo iptables -A OUTPUT -o lo -j ACCEPT
+
+  - name: allow-established
+    action: shell
+    command: "sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"
+
+  - name: allow-ssh
+    action: shell
+    command: |
+      sudo iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -m limit --limit 3/min --limit-burst 5 -j ACCEPT
+    description: "SSH with rate limiting (3 new connections/min)"
+
+  - name: allow-p2p-link
+    action: shell
+    command: "sudo iptables -A INPUT -s 192.168.13.0/24 -j ACCEPT"
+    description: "Trust P2P link between WEST↔EAST"
+
+  - name: allow-kingdom-bridge
+    action: shell
+    command: "sudo iptables -A INPUT -s 10.10.10.0/24 -j ACCEPT"
+    description: "Trust lxdbr0 Kingdom bridge network"
+
+  - name: allow-doom-range
+    action: shell
+    command: |
+      sudo iptables -A INPUT -p tcp --dport 16666:26666 -s 192.168.69.0/24 -j ACCEPT
+      sudo iptables -A INPUT -p tcp --dport 16666:26666 -s 10.10.10.0/24 -j ACCEPT
+    description: "Allow Doom Range ports from LAN and bridge only"
+
+  - name: allow-icmp
+    action: shell
+    command: |
+      sudo iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/s -j ACCEPT
+      sudo iptables -A INPUT -p icmpv6 -j ACCEPT
+
+  - name: log-dropped
+    action: shell
+    command: "sudo iptables -A INPUT -m limit --limit 5/min -j LOG --log-prefix 'KINGDOM-DROP: '"
+    description: "Log dropped packets for debugging (rate limited)"
+
+  - name: save-rules
+    action: shell
+    command: |
+      sudo mkdir -p /etc/iptables
+      sudo iptables-save > /etc/iptables/rules.v4
+    verify: "sudo iptables -L INPUT -n | grep -q DROP"
+
+  - name: verify-rules
+    action: shell
+    command: "sudo iptables -L -n -v --line-numbers"
+
+rollback:
+  - name: restore-backup
+    action: shell
+    command: |
+      BACKUP=$(ls -t /tmp/iptables-backup-*.rules | head -1)
+      sudo iptables-restore < $BACKUP
+    when: "any step fails"

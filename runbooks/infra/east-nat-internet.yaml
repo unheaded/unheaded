@@ -1,0 +1,90 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: east-nat-internet
+  description: Give EAST internet access via WEST NAT over P2P link
+  owner: architect
+  estimated_duration: 10m
+  risk: medium
+  requires_sudo: true
+  cs_sources: [networking/iptables, networking/ip]
+  references: [ADR-020 future items]
+
+notes: |
+  EAST (192.168.13.1) has no internet — only P2P link to WEST (192.168.13.2).
+  WEST has internet via 192.168.69.0/24. This runbook sets WEST as EAST's
+  default gateway with NAT/masquerade so EAST can reach the internet.
+
+steps:
+  # --- Run on WEST ---
+  - name: west-enable-forwarding
+    action: shell
+    host: west
+    command: |
+      sudo sysctl -w net.ipv4.ip_forward=1
+      echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/99-unheaded.conf
+    verify: "sysctl net.ipv4.ip_forward | grep -q 1"
+
+  - name: west-identify-wan-interface
+    action: shell
+    host: west
+    command: "ip route show default | awk '{print $5}'"
+    description: "Get the WAN interface name (e.g., enp4s0)"
+
+  - name: west-add-masquerade
+    action: shell
+    host: west
+    command: |
+      WAN_IFACE=$(ip route show default | awk '{print $5}')
+      sudo iptables -t nat -A POSTROUTING -s 192.168.13.0/24 -o $WAN_IFACE -j MASQUERADE
+      sudo iptables -A FORWARD -i p2p0 -o $WAN_IFACE -j ACCEPT
+      sudo iptables -A FORWARD -i $WAN_IFACE -o p2p0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    verify: "sudo iptables -t nat -L POSTROUTING -n | grep -q MASQUERADE"
+
+  - name: west-save-rules
+    action: shell
+    host: west
+    command: "sudo iptables-save > /etc/iptables/rules.v4"
+
+  # --- Run on EAST ---
+  - name: east-set-default-gateway
+    action: shell
+    host: east
+    command: "sudo ip route add default via 192.168.13.2"
+    verify: "ip route show default | grep -q 192.168.13.2"
+
+  - name: east-set-dns
+    action: shell
+    host: east
+    command: |
+      echo 'nameserver 1.1.1.1' | sudo tee /etc/resolv.conf
+      echo 'nameserver 8.8.8.8' | sudo tee -a /etc/resolv.conf
+    verify: "cat /etc/resolv.conf | grep -q 1.1.1.1"
+
+  - name: east-test-connectivity
+    action: shell
+    host: east
+    command: "ping -c 3 1.1.1.1 && ping -c 3 google.com"
+    verify: "ping -c 1 google.com"
+    on_fail: |
+      Check: traceroute 1.1.1.1
+      Check: sudo iptables -L FORWARD -n -v (on WEST)
+      Check: ip route show (on EAST)
+
+  - name: east-test-apt
+    action: shell
+    host: east
+    command: "sudo apt update 2>&1 | tail -3"
+    description: "Verify package manager can reach repos"
+
+rollback:
+  - name: east-remove-default-route
+    action: shell
+    host: east
+    command: "sudo ip route del default via 192.168.13.2"
+  - name: west-remove-masquerade
+    action: shell
+    host: west
+    command: |
+      WAN_IFACE=$(ip route show default | awk '{print $5}')
+      sudo iptables -t nat -D POSTROUTING -s 192.168.13.0/24 -o $WAN_IFACE -j MASQUERADE

@@ -1,0 +1,64 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: log-rotation
+  description: Configure and verify log rotation for all Kingdom services
+  owner: micromanager
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: true
+  cs_sources: [logs/logrotate, logs/rsyslog]
+
+steps:
+  - name: check-current-log-sizes
+    action: shell
+    command: |
+      echo "=== /tmp service logs ==="
+      ls -lh /tmp/*.log 2>/dev/null
+      echo "=== /var/log ==="
+      du -sh /var/log/ 2>/dev/null
+      echo "=== Journal size ==="
+      journalctl --disk-usage
+
+  - name: configure-service-logrotate
+    action: shell
+    command: |
+      sudo tee /etc/logrotate.d/unheaded <<EOF
+      /tmp/zhen.log /tmp/llama-server.log /tmp/embed.log /tmp/raft-*.log {
+          daily
+          rotate 7
+          compress
+          delaycompress
+          missingok
+          notifempty
+          copytruncate
+      }
+      EOF
+    verify: "sudo logrotate -d /etc/logrotate.d/unheaded 2>&1 | grep -q 'considering log'"
+
+  - name: configure-journal-limits
+    action: shell
+    command: |
+      sudo mkdir -p /etc/systemd/journald.conf.d
+      sudo tee /etc/systemd/journald.conf.d/unheaded.conf <<EOF
+      [Journal]
+      SystemMaxUse=500M
+      SystemKeepFree=1G
+      MaxFileSec=1week
+      EOF
+      sudo systemctl restart systemd-journald
+    verify: "journalctl --disk-usage"
+
+  - name: force-rotation
+    action: shell
+    command: "sudo logrotate -f /etc/logrotate.d/unheaded"
+    description: "Force immediate rotation (for testing)"
+
+  - name: vacuum-journal
+    action: shell
+    command: "sudo journalctl --vacuum-size=500M"
+    description: "Trim journal to 500MB"
+
+  - name: verify-free-space
+    action: shell
+    command: "df -h / /tmp /var"

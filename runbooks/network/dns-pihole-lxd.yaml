@@ -1,0 +1,72 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: dns-pihole-lxd
+  description: Pi-hole LXD migration — Docker to LXD container (ADR-022)
+  owner: architect
+  estimated_duration: 30m
+  risk: high
+  requires_sudo: true
+  cs_sources: [dns/dnsmasq, dns/bind, containers/lxd]
+
+steps:
+  - name: backup-docker-pihole
+    action: shell
+    command: |
+      sudo docker cp pihole:/etc/pihole/. /tmp/pihole-backup/
+      sudo docker cp pihole:/etc/dnsmasq.d/. /tmp/dnsmasq-backup/
+    verify: "test -d /tmp/pihole-backup"
+
+  - name: create-lxd-container
+    action: shell
+    command: "lxc launch ubuntu:24.04 pihole --config limits.memory=512MB"
+    verify: "lxc info pihole | grep -q 'Status: RUNNING'"
+
+  - name: assign-static-ip
+    action: shell
+    command: "lxc config device set pihole eth0 ipv4.address=10.10.10.53"
+
+  - name: install-pihole
+    action: shell
+    command: "lxc exec pihole -- bash -c 'curl -sSL https://install.pi-hole.net | bash'"
+    timeout: 300
+
+  - name: copy-config
+    action: shell
+    command: |
+      lxc file push -r /tmp/pihole-backup/ pihole/etc/pihole/
+      lxc file push -r /tmp/dnsmasq-backup/ pihole/etc/dnsmasq.d/
+
+  - name: restart-pihole-dns
+    action: shell
+    command: "lxc exec pihole -- pihole restartdns"
+
+  - name: test-dns-resolution
+    action: shell
+    command: "dig @10.10.10.53 google.com +short"
+    verify: "dig @10.10.10.53 google.com +short | grep -q '[0-9]'"
+
+  - name: test-ad-blocking
+    action: shell
+    command: "dig @10.10.10.53 ads.doubleclick.net +short"
+    verify: "dig @10.10.10.53 ads.doubleclick.net +short | grep -q '0.0.0.0'"
+
+  - name: switch-host-dns
+    action: shell
+    command: "sudo resolvectl dns $(ip route show default | awk '{print $5}') 10.10.10.53"
+    verify: "resolvectl query google.com"
+
+  - name: stop-docker-pihole
+    action: shell
+    command: "sudo docker stop pihole && sudo docker rm pihole"
+    description: "Only after DNS is verified working through LXD"
+
+  - name: enable-lxd-boot
+    action: shell
+    command: "sudo systemctl unmask lxc-net; sudo systemctl enable snap.lxd.daemon"
+
+rollback:
+  - name: restart-docker-pihole
+    action: shell
+    command: "sudo docker start pihole"
+    when: "step.test-dns-resolution.failed"

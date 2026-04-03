@@ -1,0 +1,70 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: postgresql-backup-restore
+  description: The Well (PostgreSQL) backup, restore, and verification
+  owner: micromanager
+  estimated_duration: 15m
+  risk: medium
+  requires_sudo: true
+  cs_sources: [databases/postgresql]
+
+env:
+  PG_CONTAINER: "unheaded-postgres"
+  PG_USER: "unheaded"
+  BACKUP_DIR: "/var/backups/postgresql"
+
+steps:
+  - name: create-backup-dir
+    action: shell
+    command: "sudo mkdir -p ${BACKUP_DIR}"
+
+  - name: backup-all-databases
+    action: shell
+    command: |
+      TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+      sudo docker exec ${PG_CONTAINER} pg_dumpall -U ${PG_USER} | gzip > ${BACKUP_DIR}/all_databases_${TIMESTAMP}.sql.gz
+    verify: "test -f ${BACKUP_DIR}/all_databases_*.sql.gz"
+    description: "Full cluster backup (all databases, roles, tablespaces)"
+
+  - name: backup-specific-database
+    action: shell
+    command: |
+      TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+      sudo docker exec ${PG_CONTAINER} pg_dump -U ${PG_USER} -Fc unheaded_app > ${BACKUP_DIR}/unheaded_app_${TIMESTAMP}.dump
+    verify: "test -f ${BACKUP_DIR}/unheaded_app_*.dump"
+    description: "Custom-format backup of unheaded_app (faster restore)"
+
+  - name: list-backups
+    action: shell
+    command: "ls -lh ${BACKUP_DIR}/ | tail -10"
+
+  - name: verify-backup-integrity
+    action: shell
+    command: |
+      LATEST=$(ls -t ${BACKUP_DIR}/*.dump 2>/dev/null | head -1)
+      sudo docker exec -i ${PG_CONTAINER} pg_restore -l < $LATEST | head -20
+    description: "List contents of latest backup to verify it's valid"
+
+  - name: restore-database
+    action: shell
+    command: |
+      BACKUP_FILE="<path_to_backup.dump>"
+      sudo docker exec -i ${PG_CONTAINER} pg_restore -U ${PG_USER} -d unheaded_app --clean --if-exists < $BACKUP_FILE
+    description: "MANUAL — replace <path_to_backup.dump> with actual file. --clean drops objects before recreating."
+
+  - name: verify-after-restore
+    action: shell
+    command: |
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c "\dt"
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c "SELECT count(*) FROM kanban_tasks"
+
+  - name: cleanup-old-backups
+    action: shell
+    command: "find ${BACKUP_DIR} -name '*.sql.gz' -mtime +30 -delete; find ${BACKUP_DIR} -name '*.dump' -mtime +30 -delete"
+    description: "Remove backups older than 30 days"
+
+  - name: vacuum-analyze
+    action: shell
+    command: "sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c 'VACUUM ANALYZE;'"
+    description: "Reclaim space and update statistics after restore"

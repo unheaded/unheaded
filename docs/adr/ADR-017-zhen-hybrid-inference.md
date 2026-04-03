@@ -1,6 +1,8 @@
 # ADR-017: Zhen Hybrid Inference — Context Window Optimization + Claude API Handoff (Deferred)
 
-**Status:** Partially Accepted (local optimization accepted, Claude API deferred)
+**Status:** Accepted — Local optimization complete. Claude API SCRAPPED (2026-04-03), replaced by MCP route via ADR-019 Champion.
+
+**2026-04-03 Update:** Direct Claude API integration is scrapped. Instead, Zhen communicates with Claude Code via MCP (Model Context Protocol) through the Champion MCP server (ADR-019). This is architecturally cleaner — Zhen is a tool provider, not an API consumer. Claude Code connects to Zhen as an MCP server and uses its tools (corpus_search, file_read, service_health, etc.).
 **Date:** 2026-03-16
 **Deciders:** Developer, Scientist, BlackMage
 

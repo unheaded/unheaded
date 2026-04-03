@@ -1,0 +1,88 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: ssh-hardening
+  description: SSH hardening — key rotation, config lockdown, fail2ban
+  owner: blackmage
+  estimated_duration: 15m
+  risk: high
+  requires_sudo: true
+  cs_sources: [security/ssh, security/fail2ban]
+
+steps:
+  - name: backup-sshd-config
+    action: shell
+    command: "sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak-$(date +%Y%m%d)"
+
+  - name: harden-sshd-config
+    action: shell
+    command: |
+      sudo tee /etc/ssh/sshd_config.d/99-kingdom-hardening.conf <<EOF
+      PermitRootLogin no
+      PasswordAuthentication no
+      PubkeyAuthentication yes
+      AuthorizedKeysFile .ssh/authorized_keys
+      X11Forwarding no
+      AllowTcpForwarding yes
+      MaxAuthTries 3
+      MaxSessions 5
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+      LoginGraceTime 30
+      Protocol 2
+      Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com
+      MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+      KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256
+      EOF
+    description: "Drop-in hardening config"
+
+  - name: test-sshd-config
+    action: shell
+    command: "sudo sshd -t"
+    verify: "sudo sshd -t 2>&1 | wc -l | grep -q 0"
+    on_fail: "Config error — check: sudo sshd -t 2>&1"
+
+  - name: restart-sshd
+    action: shell
+    command: "sudo systemctl restart sshd"
+    verify: "systemctl is-active sshd | grep -q active"
+
+  - name: install-fail2ban
+    action: shell
+    command: "sudo apt install -y fail2ban"
+    verify: "which fail2ban-client"
+
+  - name: configure-fail2ban
+    action: shell
+    command: |
+      sudo tee /etc/fail2ban/jail.local <<EOF
+      [sshd]
+      enabled = true
+      port = ssh
+      filter = sshd
+      logpath = /var/log/auth.log
+      maxretry = 3
+      bantime = 3600
+      findtime = 600
+      EOF
+
+  - name: start-fail2ban
+    action: shell
+    command: "sudo systemctl enable fail2ban && sudo systemctl restart fail2ban"
+    verify: "sudo fail2ban-client status sshd"
+
+  - name: verify-hardening
+    action: shell
+    command: |
+      echo "=== Effective SSH config ==="
+      sudo sshd -T | grep -E 'passwordauth|permitroot|pubkey|maxauth|cipher|mac|kex'
+      echo "=== Fail2ban status ==="
+      sudo fail2ban-client status sshd
+
+rollback:
+  - name: restore-sshd
+    action: shell
+    command: |
+      sudo rm /etc/ssh/sshd_config.d/99-kingdom-hardening.conf
+      sudo systemctl restart sshd
+    when: "step.restart-sshd.failed"

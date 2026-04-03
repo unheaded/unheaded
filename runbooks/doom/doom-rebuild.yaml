@@ -1,0 +1,99 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: doom-rebuild
+  description: Full DOOM rebuild — doom.elf → doom.mbc → doom_data.bin
+  owner: computermancer
+  estimated_duration: 10m
+  risk: medium
+  requires_sudo: false
+
+env:
+  BUILD_DIR: "/tmp/doom-build"
+  PROJECT_ROOT: "~/tmp/unheaded"
+
+notes: |
+  CRITICAL: All 3 artifacts (doom.mbc, doom.rv2mbc, doom_data.bin) MUST come
+  from the SAME doom.elf. Stale doom_data.bin causes vsnprintf jump table
+  corruption → CPU restart loop.
+
+  Compiler: riscv64-unknown-elf-gcc (NOT riscv64-linux-gnu-gcc — no ilp32)
+  Translator: crates/monad-mbc/target/release/rv32i-to-mbc
+
+preconditions:
+  - check: "which riscv64-unknown-elf-gcc"
+    description: "RISC-V bare metal toolchain installed"
+  - check: "test -f ${PROJECT_ROOT}/crates/monad-mbc/target/release/rv32i-to-mbc"
+    description: "MBC translator built (cargo build --release in crates/monad-mbc/)"
+
+steps:
+  - name: build-translator
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}/crates/monad-mbc
+      cargo build --release
+    verify: "test -x ${PROJECT_ROOT}/crates/monad-mbc/target/release/rv32i-to-mbc"
+
+  - name: compile-doom-elf
+    action: shell
+    command: |
+      cd ${BUILD_DIR}
+      riscv64-unknown-elf-gcc \
+        -march=rv32im -mabi=ilp32 -Os \
+        -nostdlib -nostartfiles \
+        -I${BUILD_DIR}/include \
+        -T${BUILD_DIR}/monad.ld \
+        -Wl,--noinhibit-exec \
+        -o doom.elf \
+        ${BUILD_DIR}/*.c ${BUILD_DIR}/doomgeneric_monad_patched.c \
+        -lgcc_stubs
+    verify: "file ${BUILD_DIR}/doom.elf | grep -q 'RISC-V'"
+    on_fail: |
+      Common issues:
+      - ROM/RAM overflow: expand linker script (ROM=1M, RAM=16M)
+      - libgcc missing: use custom libgcc_stubs.c
+      - ilp32 error: must use riscv64-unknown-elf-gcc, NOT riscv64-linux-gnu-gcc
+
+  - name: translate-to-mbc
+    action: shell
+    command: |
+      ${PROJECT_ROOT}/crates/monad-mbc/target/release/rv32i-to-mbc \
+        ${BUILD_DIR}/doom.elf \
+        ${PROJECT_ROOT}/doom/doom.mbc \
+        ${PROJECT_ROOT}/doom/doom.rv2mbc
+    verify: "test -f ${PROJECT_ROOT}/doom/doom.mbc"
+
+  - name: extract-data-section
+    action: shell
+    command: |
+      riscv64-unknown-elf-objcopy -O binary \
+        -j .rodata -j '.srodata*' -j .data \
+        ${BUILD_DIR}/doom.elf \
+        ${PROJECT_ROOT}/doom/doom_data.bin
+    verify: "test -f ${PROJECT_ROOT}/doom/doom_data.bin"
+
+  - name: copy-elf
+    action: shell
+    command: "cp ${BUILD_DIR}/doom.elf ${PROJECT_ROOT}/doom/doom.elf"
+
+  - name: verify-artifacts
+    action: shell
+    command: |
+      echo "=== Build Artifacts ==="
+      ls -lh ${PROJECT_ROOT}/doom/doom.elf
+      ls -lh ${PROJECT_ROOT}/doom/doom.mbc
+      ls -lh ${PROJECT_ROOT}/doom/doom.rv2mbc
+      ls -lh ${PROJECT_ROOT}/doom/doom_data.bin
+      echo "=== All from same ELF? ==="
+      stat --format='%Y' ${PROJECT_ROOT}/doom/doom.{elf,mbc,rv2mbc} ${PROJECT_ROOT}/doom/doom_data.bin | sort -u | wc -l
+    description: "All 4 files should have similar timestamps"
+
+  - name: count-instructions
+    action: shell
+    command: |
+      MBC_SIZE=$(stat --format=%s ${PROJECT_ROOT}/doom/doom.mbc)
+      INSNS=$((MBC_SIZE / 4))
+      echo "MBC instructions: $INSNS (~$(echo "scale=0; $INSNS / 1024" | bc)K)"
+      RV2MBC_SIZE=$(stat --format=%s ${PROJECT_ROOT}/doom/doom.rv2mbc)
+      ENTRIES=$((RV2MBC_SIZE / 4))
+      echo "RV2MBC entries: $ENTRIES"
