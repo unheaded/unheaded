@@ -1,6 +1,6 @@
 # ADR-019: Zhen Champion Agent — From Oracle to Operator
 
-**Status:** Draft (accepting additional requirements)
+**Status:** Accepted — Phase 1 complete (2026-04-03). Champion pkg, MCP server, API endpoints, sandbox, action logging.
 **Date:** 2026-03-16
 **Deciders:** Lore, Architect, Developer, BlackMage
 **Depends on:** ADR-017 (context window), ADR-018 (RAFT training)
