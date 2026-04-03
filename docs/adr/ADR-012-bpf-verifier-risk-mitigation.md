@@ -1,6 +1,8 @@
 # ADR-012: BPF Verifier Risk Mitigation for monad-cpu-ebpf
 
-## Status: Proposed
+## Status: Accepted
+
+**CI/CD gate implemented (2026-04-03):** `scripts/bpf-verifier-check.sh` — checks compilation, instruction budget (900K/1M), static analysis for BPF anti-patterns (unbounded loops, u128, floats, stack arrays). monad-cpu-ebpf measured at ~70K instructions (7% of budget). 3 pre-existing link failures in nfv-ebpf, qos-ebpf (u128 __multi3 — needs fix).
 
 ## Date: 2026-02-19
 
