@@ -1,0 +1,102 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: conversation-memory-maintenance
+  description: Maintain Zhenai conversation memory — consolidation, cleanup, index rebuild
+  owner: zhenai
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: false
+  references: [ADR-027]
+
+notes: |
+  Periodic maintenance for Zhenai's conversation memory.
+  Run weekly for consolidation, monthly for cleanup.
+  Conversation data lives in The Well (PostgreSQL zhen_conversations table).
+
+env:
+  PG_CONTAINER: "unheaded-postgres"
+  PG_USER: "unheaded"
+  PG_DB: "unheaded_app"
+
+preconditions:
+  - check: "sudo docker exec ${PG_CONTAINER} pg_isready -U ${PG_USER} 2>/dev/null"
+    description: "PostgreSQL is running"
+
+steps:
+  - name: count-conversations
+    action: shell
+    command: |
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d ${PG_DB} -c "
+        SELECT
+          count(*) as total,
+          count(CASE WHEN role='user' THEN 1 END) as questions,
+          count(CASE WHEN role='assistant' THEN 1 END) as answers,
+          min(created_at)::date as oldest,
+          max(created_at)::date as newest
+        FROM zhen_conversations;
+      "
+    description: "Show conversation statistics"
+
+  - name: check-search-vector
+    action: shell
+    command: |
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d ${PG_DB} -c "
+        SELECT count(*) as indexed
+        FROM zhen_conversations
+        WHERE search_vector IS NOT NULL;
+      "
+    description: "Check how many conversations are full-text indexed"
+
+  - name: add-search-vector-if-missing
+    action: shell
+    command: |
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d ${PG_DB} -c "
+        DO \$\$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='zhen_conversations' AND column_name='search_vector'
+          ) THEN
+            ALTER TABLE zhen_conversations ADD COLUMN search_vector tsvector
+              GENERATED ALWAYS AS (to_tsvector('english', coalesce(content, ''))) STORED;
+            CREATE INDEX IF NOT EXISTS idx_zhen_conv_search ON zhen_conversations USING gin(search_vector);
+            RAISE NOTICE 'Added search_vector column';
+          ELSE
+            RAISE NOTICE 'search_vector already exists';
+          END IF;
+        END \$\$;
+      "
+    description: "Add full-text search column if it doesn't exist"
+
+  - name: vacuum-conversations
+    action: shell
+    command: |
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d ${PG_DB} -c "
+        VACUUM ANALYZE zhen_conversations;
+      "
+    description: "Reclaim space and update statistics"
+
+  - name: export-conversations
+    action: shell
+    command: |
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d ${PG_DB} -c "
+        COPY (SELECT * FROM zhen_conversations ORDER BY created_at)
+        TO STDOUT WITH CSV HEADER;
+      " > /var/zhen/conversation_export_$(date +%Y%m%d).csv
+    description: "Export full conversation history to CSV backup"
+    verify: "test -f /var/zhen/conversation_export_*.csv"
+
+  - name: show-recent-topics
+    action: shell
+    command: |
+      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d ${PG_DB} -c "
+        SELECT date_trunc('day', created_at)::date as day,
+               count(*) as messages,
+               count(DISTINCT session_id) as sessions
+        FROM zhen_conversations
+        WHERE created_at > NOW() - INTERVAL '7 days'
+        GROUP BY day
+        ORDER BY day DESC;
+      "
+    description: "Show conversation activity over last 7 days"
