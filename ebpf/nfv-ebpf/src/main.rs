@@ -431,7 +431,8 @@ fn try_nfv_rate_limiter(ctx: &XdpContext) -> Result<u32, ()> {
 
         // Calculate tokens to add since last refill
         let elapsed_ns = now.saturating_sub(last_refill);
-        let new_tokens_raw = (elapsed_ns.saturating_mul(rate)) / 1_000_000_000;
+        // Use wrapping_mul — BPF doesn't support u128 (__multi3) from saturating_mul
+        let new_tokens_raw = (elapsed_ns.wrapping_mul(rate)) / 1_000_000_000;
         let new_tokens = tokens.saturating_add(new_tokens_raw);
         let capped_tokens = if new_tokens > burst { burst } else { new_tokens };
 

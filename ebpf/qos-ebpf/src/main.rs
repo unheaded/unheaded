@@ -316,7 +316,8 @@ fn try_qos_xdp(ctx: &XdpContext) -> Result<u32, ()> {
             // Refill tokens: tokens += elapsed_ns * rate_mbps * 1_000_000 / (8 * 1_000_000_000)
             // Simplified: tokens += elapsed_ns * rate_mbps / 8_000
             let tokens_to_add = if rate_limit_mbps > 0 {
-                (elapsed / 8_000).saturating_mul(rate_limit_mbps)
+                // Use wrapping_mul — BPF doesn't support u128 (__multi3) from saturating_mul
+                (elapsed / 8_000).wrapping_mul(rate_limit_mbps)
             } else {
                 0
             };
