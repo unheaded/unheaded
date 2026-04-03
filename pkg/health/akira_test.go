@@ -27,12 +27,12 @@ func TestCheckService_Healthy(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	raven := NewRaven("test-node", []ServiceTarget{
+	akira := NewAkira("test-node", []ServiceTarget{
 		{Name: "test-svc", Host: "127.0.0.1", Port: 0, HealthPath: "/health"},
 	})
 
 	// Parse the test server's port
-	report := raven.CheckService(ServiceTarget{
+	report := akira.CheckService(ServiceTarget{
 		Name: "test-svc", Host: srv.Listener.Addr().(*net.TCPAddr).IP.String(),
 		Port: srv.Listener.Addr().(*net.TCPAddr).Port, HealthPath: "/",
 	})
@@ -49,10 +49,10 @@ func TestCheckService_Healthy(t *testing.T) {
 }
 
 func TestCheckService_Unhealthy(t *testing.T) {
-	raven := NewRaven("test-node", nil)
+	akira := NewAkira("test-node", nil)
 
 	// Check a port that's definitely not listening
-	report := raven.CheckService(ServiceTarget{
+	report := akira.CheckService(ServiceTarget{
 		Name: "dead-svc", Host: "127.0.0.1", Port: 1, HealthPath: "/health",
 	})
 
@@ -65,7 +65,7 @@ func TestCheckService_Unhealthy(t *testing.T) {
 }
 
 func TestConsensusEvaluation(t *testing.T) {
-	raven := NewRaven("test-node", nil)
+	akira := NewAkira("test-node", nil)
 
 	// Simulate 5 health checks — 4 failing (80% > 66.67%)
 	for i := 0; i < 5; i++ {
@@ -75,17 +75,17 @@ func TestConsensusEvaluation(t *testing.T) {
 			Healthy:   i == 0, // Only first is healthy
 			Timestamp: time.Now(),
 		}
-		raven.mu.Lock()
-		state, ok := raven.states["failing-svc"]
+		akira.mu.Lock()
+		state, ok := akira.states["failing-svc"]
 		if !ok {
 			state = &ConsensusState{Service: "failing-svc"}
-			raven.states["failing-svc"] = state
+			akira.states["failing-svc"] = state
 		}
 		state.Reports = append(state.Reports, report)
-		raven.mu.Unlock()
+		akira.mu.Unlock()
 	}
 
-	alerts := raven.EvaluateConsensus()
+	alerts := akira.EvaluateConsensus()
 	if len(alerts) != 1 {
 		t.Fatalf("Expected 1 alert, got %d", len(alerts))
 	}
@@ -98,7 +98,7 @@ func TestConsensusEvaluation(t *testing.T) {
 }
 
 func TestNoConsensusWhenHealthy(t *testing.T) {
-	raven := NewRaven("test-node", nil)
+	akira := NewAkira("test-node", nil)
 
 	// All healthy — should NOT trigger
 	for i := 0; i < 5; i++ {
@@ -108,29 +108,29 @@ func TestNoConsensusWhenHealthy(t *testing.T) {
 			Healthy:   true,
 			Timestamp: time.Now(),
 		}
-		raven.mu.Lock()
-		state, ok := raven.states["healthy-svc"]
+		akira.mu.Lock()
+		state, ok := akira.states["healthy-svc"]
 		if !ok {
 			state = &ConsensusState{Service: "healthy-svc"}
-			raven.states["healthy-svc"] = state
+			akira.states["healthy-svc"] = state
 		}
 		state.Reports = append(state.Reports, report)
-		raven.mu.Unlock()
+		akira.mu.Unlock()
 	}
 
-	alerts := raven.EvaluateConsensus()
+	alerts := akira.EvaluateConsensus()
 	if len(alerts) != 0 {
 		t.Errorf("Expected 0 alerts for healthy service, got %d", len(alerts))
 	}
 }
 
-func TestRavenRunCancellation(t *testing.T) {
-	raven := NewRaven("test-node", nil)
+func TestAkiraRunCancellation(t *testing.T) {
+	akira := NewAkira("test-node", nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		raven.Run(ctx)
+		akira.Run(ctx)
 		close(done)
 	}()
 
@@ -141,6 +141,6 @@ func TestRavenRunCancellation(t *testing.T) {
 	case <-done:
 		// Good — Run returned
 	case <-time.After(5 * time.Second):
-		t.Fatal("Raven.Run did not stop after context cancellation")
+		t.Fatal("Akira.Run did not stop after context cancellation")
 	}
 }

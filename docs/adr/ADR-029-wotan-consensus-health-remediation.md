@@ -168,9 +168,9 @@ The Champion is the brain, but the watchdog is the immune system. The immune sys
 - Scales from 2 hosts to 200+ without architecture change
 - Immune system analogy: reflexive response, brain reviews after
 
-## Ping/Pong Full Mesh Health Protocol (Raven)
+## Ping/Pong Full Mesh Health Protocol (Akira)
 
-**Naming**: The health daemon is **Raven** — Odin's raven of memory. Flies over the Kingdom, remembers the state of all things, reports back to Wotan.
+**Naming**: The health daemon is **Akira** — Odin's akira of memory. Flies over the Kingdom, remembers the state of all things, reports back to Wotan.
 
 **Core concept**: Every service with a REST API or gRPC endpoint includes `pkg/health` and participates in the full mesh. This is NOT optional — it's compiled into every service via the `pkg/service/` template.
 
