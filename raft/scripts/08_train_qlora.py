@@ -45,8 +45,8 @@ CONFIG = {
 
     # Training hyperparameters
     "learning_rate": 2e-4,
-    "per_device_train_batch_size": 2,
-    "gradient_accumulation_steps": 4,
+    "per_device_train_batch_size": 1,       # Reduced from 2 — 14GB RAM constraint
+    "gradient_accumulation_steps": 8,       # Increased to compensate (effective batch = 8)
     "num_train_epochs": 3,
     "warmup_ratio": 0.03,
     "weight_decay": 0.01,
@@ -132,11 +132,11 @@ def check_gpu():
     print(f"Found {num_gpus} GPU(s):")
     for i in range(num_gpus):
         name = torch.cuda.get_device_name(i)
-        mem_total = torch.cuda.get_device_properties(i).total_mem / (1024 ** 3)
+        mem_total = torch.cuda.get_device_properties(i).total_memory / (1024 ** 3)
         print(f"  GPU {i}: {name} ({mem_total:.1f} GB)")
 
     # Use first GPU by default (12GB RX 7700 XT)
-    primary_mem = torch.cuda.get_device_properties(0).total_mem / (1024 ** 3)
+    primary_mem = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
     if primary_mem < 10:
         print(f"WARNING: Primary GPU has only {primary_mem:.1f} GB VRAM.")
         print("  Training may OOM. Consider reducing batch_size to 1.")
@@ -196,11 +196,12 @@ def setup_model_and_tokenizer(has_bnb: bool):
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    # Load model
+    # Load model — use low_cpu_mem_usage to avoid doubling RAM during load
     model_kwargs = {
         "trust_remote_code": True,
-        "torch_dtype": torch.bfloat16,
+        "dtype": torch.bfloat16,
         "device_map": "auto",
+        "low_cpu_mem_usage": True,  # Critical for 14GB RAM — loads weights shard-by-shard
     }
     if bnb_config:
         model_kwargs["quantization_config"] = bnb_config
