@@ -1,6 +1,6 @@
 # ADR-018: Zhen RAFT Training — Battle Plan
 
-**Status:** Planned
+**Status:** In Progress — QA generation running (2026-04-03), 200+ pairs generated, target 2000+
 **Date:** 2026-03-16
 **Deciders:** Developer, Scientist
 **Depends on:** ADR-017 (context window optimization — complete)
