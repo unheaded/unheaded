@@ -1,0 +1,93 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: security-audit
+  description: CIS benchmark audit and Linux hardening verification
+  owner: moatghost
+  estimated_duration: 20m
+  risk: low
+  requires_sudo: true
+  cs_sources: [security/auditd, security/hardening-linux]
+
+steps:
+  - name: check-kernel-hardening
+    action: shell
+    command: |
+      echo "=== Kernel Security Parameters ==="
+      for param in \
+        kernel.randomize_va_space \
+        kernel.dmesg_restrict \
+        kernel.kptr_restrict \
+        net.ipv4.conf.all.rp_filter \
+        net.ipv4.conf.all.accept_redirects \
+        net.ipv4.conf.all.send_redirects \
+        net.ipv4.icmp_echo_ignore_broadcasts \
+        net.ipv4.ip_forward \
+        net.ipv6.conf.all.forwarding \
+        net.core.bpf_jit_enable; do
+        echo "  $param = $(sysctl -n $param 2>/dev/null || echo 'NOT SET')"
+      done
+
+  - name: check-ssh-config
+    action: shell
+    command: |
+      echo "=== SSH Hardening ==="
+      sudo sshd -T 2>/dev/null | grep -E 'passwordauth|permitroot|pubkey|maxauth|x11forward|protocol'
+
+  - name: check-open-ports
+    action: shell
+    command: |
+      echo "=== Listening Services ==="
+      ss -tunlp | grep LISTEN | sort -t: -k2 -n
+
+  - name: check-suid-files
+    action: shell
+    command: |
+      echo "=== SUID/SGID files (potential privilege escalation) ==="
+      find / -perm /6000 -type f -exec ls -la {} \; 2>/dev/null | head -30
+
+  - name: check-world-writable
+    action: shell
+    command: |
+      echo "=== World-writable files in sensitive locations ==="
+      find /etc /usr /var -perm -0002 -type f 2>/dev/null | head -20
+
+  - name: check-no-owner-files
+    action: shell
+    command: |
+      echo "=== Files with no owner ==="
+      find / -nouser -o -nogroup 2>/dev/null | head -20
+
+  - name: check-password-policy
+    action: shell
+    command: |
+      echo "=== Password aging ==="
+      grep -E '^PASS_' /etc/login.defs
+      echo "=== Accounts without passwords ==="
+      sudo awk -F: '($2 == "" || $2 == "!" || $2 == "*") {print $1}' /etc/shadow
+
+  - name: check-auditd
+    action: shell
+    command: |
+      systemctl is-active auditd 2>/dev/null && echo "auditd: ACTIVE" || echo "auditd: NOT RUNNING"
+      sudo auditctl -l 2>/dev/null | head -10
+
+  - name: check-unattended-upgrades
+    action: shell
+    command: |
+      dpkg -l | grep unattended-upgrades && echo "Auto-updates: INSTALLED" || echo "Auto-updates: NOT INSTALLED"
+      cat /etc/apt/apt.conf.d/20auto-upgrades 2>/dev/null
+
+  - name: check-firewall
+    action: shell
+    command: |
+      echo "=== iptables policy ==="
+      sudo iptables -L -n | head -5
+      echo "=== Rule count ==="
+      sudo iptables -L -n | grep -c -E 'ACCEPT|DROP|REJECT'
+
+  - name: generate-report
+    action: shell
+    command: |
+      echo "Security audit completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      echo "Review findings above and remediate HIGH/CRITICAL items"

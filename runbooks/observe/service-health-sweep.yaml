@@ -1,0 +1,75 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: service-health-sweep
+  description: Health check all 34 Kingdom services and report status
+  owner: micromanager
+  estimated_duration: 2m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: sweep-all-services
+    action: shell
+    command: |
+      echo "=============================================="
+      echo "KINGDOM SERVICE HEALTH SWEEP — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      echo "=============================================="
+      HEALTHY=0
+      UNHEALTHY=0
+      TOTAL=0
+
+      SERVICES="
+        protocol-api:16666
+        dashboard-backend:16667
+        kanban-app:16668
+        trace-collector-grpc:16670
+        trace-collector-http:16671
+        unheaded-daemon-http:17000
+        unheaded-daemon-grpc:17001
+        wotan-http:18000
+        wotan-grpc:18001
+        timeguru:19000
+        architect:19001
+        captain:19002
+        micromanager:19003
+        monad:19004
+        sophia:19005
+        dashboard:20000
+        zhen-inference:20100
+        zhen-web-ui:20103
+        gateway-http:21000
+        gateway-https:21443
+      "
+
+      for entry in $SERVICES; do
+        NAME=$(echo $entry | cut -d: -f1)
+        PORT=$(echo $entry | cut -d: -f2)
+        TOTAL=$((TOTAL + 1))
+        STATUS=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 2 http://localhost:$PORT/health 2>/dev/null)
+        if [ "$STATUS" = "200" ]; then
+          LATENCY=$(curl -sf -o /dev/null -w "%{time_total}" --max-time 2 http://localhost:$PORT/health 2>/dev/null)
+          echo "  [OK]   $NAME (:$PORT) — ${LATENCY}s"
+          HEALTHY=$((HEALTHY + 1))
+        else
+          echo "  [FAIL] $NAME (:$PORT) — HTTP $STATUS"
+          UNHEALTHY=$((UNHEALTHY + 1))
+        fi
+      done
+
+      echo ""
+      echo "=============================================="
+      echo "RESULT: $HEALTHY/$TOTAL healthy, $UNHEALTHY unhealthy"
+      echo "=============================================="
+
+  - name: check-system-resources
+    action: shell
+    command: |
+      echo "=== Memory ==="
+      free -h | head -3
+      echo "=== Disk ==="
+      df -h / /var /tmp 2>/dev/null | grep -v tmpfs
+      echo "=== Load ==="
+      uptime
+      echo "=== GPU ==="
+      rocm-smi 2>/dev/null | grep -E "Device|0       1" || echo "No GPU data"

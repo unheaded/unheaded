@@ -1,0 +1,87 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: container-security-scan
+  description: Scan Docker/LXD containers for CVEs and misconfigurations
+  owner: moatghost
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  cs_sources: [security/container-security, security/vulnerability-scanning]
+
+steps:
+  - name: list-running-containers
+    action: shell
+    command: |
+      echo "=== Docker ==="
+      sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null || echo "Docker not running"
+      echo "=== LXD ==="
+      lxc list 2>/dev/null || echo "LXD not running"
+
+  - name: check-docker-security
+    action: shell
+    command: |
+      echo "=== Docker daemon config ==="
+      sudo docker info 2>/dev/null | grep -E 'Security|Seccomp|AppArmor|Rootless|Cgroup'
+      echo "=== Privileged containers ==="
+      sudo docker ps -q | xargs -I {} sudo docker inspect {} --format '{{.Name}} privileged={{.HostConfig.Privileged}}' 2>/dev/null
+
+  - name: check-container-capabilities
+    action: shell
+    command: |
+      echo "=== Container capabilities ==="
+      sudo docker ps -q 2>/dev/null | while read cid; do
+        NAME=$(sudo docker inspect $cid --format '{{.Name}}')
+        CAPS=$(sudo docker inspect $cid --format '{{.HostConfig.CapAdd}}')
+        DROP=$(sudo docker inspect $cid --format '{{.HostConfig.CapDrop}}')
+        echo "$NAME: add=$CAPS drop=$DROP"
+      done
+
+  - name: check-readonly-rootfs
+    action: shell
+    command: |
+      echo "=== Read-only root filesystem ==="
+      sudo docker ps -q 2>/dev/null | while read cid; do
+        NAME=$(sudo docker inspect $cid --format '{{.Name}}')
+        RO=$(sudo docker inspect $cid --format '{{.HostConfig.ReadonlyRootfs}}')
+        echo "$NAME: readonly=$RO"
+      done
+
+  - name: check-resource-limits
+    action: shell
+    command: |
+      echo "=== Memory/CPU limits ==="
+      sudo docker ps -q 2>/dev/null | while read cid; do
+        NAME=$(sudo docker inspect $cid --format '{{.Name}}')
+        MEM=$(sudo docker inspect $cid --format '{{.HostConfig.Memory}}')
+        CPU=$(sudo docker inspect $cid --format '{{.HostConfig.NanoCpus}}')
+        echo "$NAME: memory=$MEM cpus=$CPU"
+      done
+
+  - name: scan-images-for-cves
+    action: shell
+    command: |
+      which trivy && {
+        echo "=== Trivy CVE scan ==="
+        sudo docker images --format '{{.Repository}}:{{.Tag}}' | while read img; do
+          echo "Scanning $img..."
+          trivy image --severity HIGH,CRITICAL --no-progress $img 2>/dev/null | tail -5
+        done
+      } || echo "trivy not installed — apt install trivy or snap install trivy"
+    description: "Install trivy for CVE scanning: https://aquasecurity.github.io/trivy/"
+
+  - name: check-no-new-privileges
+    action: shell
+    command: |
+      echo "=== no-new-privileges flag ==="
+      sudo docker ps -q 2>/dev/null | while read cid; do
+        NAME=$(sudo docker inspect $cid --format '{{.Name}}')
+        NNP=$(sudo docker inspect $cid --format '{{index .HostConfig.SecurityOpt}}')
+        echo "$NAME: security_opt=$NNP"
+      done
+
+  - name: check-network-exposure
+    action: shell
+    command: |
+      echo "=== Published ports ==="
+      sudo docker ps --format '{{.Names}}: {{.Ports}}' 2>/dev/null

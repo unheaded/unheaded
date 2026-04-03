@@ -1,0 +1,49 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: prometheus-scrape-check
+  description: Verify all Kingdom service /metrics endpoints respond
+  owner: micromanager
+  estimated_duration: 5m
+  risk: low
+  requires_sudo: false
+  cs_sources: [monitoring/prometheus]
+
+steps:
+  - name: check-all-metrics-endpoints
+    action: shell
+    command: |
+      SERVICES="wotan:18000 timeguru:19000 architect:19001 captain:19002 micromanager:19003 monad:19004 sophia:19005 dashboard:20000 kanban:16668 zhen:20103"
+      echo "=== Metrics Endpoint Check ==="
+      for svc in $SERVICES; do
+        NAME=$(echo $svc | cut -d: -f1)
+        PORT=$(echo $svc | cut -d: -f2)
+        STATUS=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:$PORT/metrics 2>/dev/null)
+        if [ "$STATUS" = "200" ]; then
+          LINES=$(curl -sf http://localhost:$PORT/metrics 2>/dev/null | wc -l)
+          echo "  $NAME (:$PORT): OK ($LINES metrics)"
+        else
+          echo "  $NAME (:$PORT): FAIL (HTTP $STATUS)"
+        fi
+      done
+
+  - name: check-key-metrics
+    action: shell
+    command: |
+      echo "=== Key Metrics Sample ==="
+      for port in 18000 19000 20000; do
+        curl -sf http://localhost:$port/metrics 2>/dev/null | grep -E "^(go_goroutines|process_resident_memory|http_requests_total)" | head -3
+        echo "---"
+      done
+    description: "Spot-check goroutines, memory, and request counts"
+
+  - name: check-dashboard-scraper
+    action: shell
+    command: |
+      curl -sf http://localhost:20000/api/v1/metrics 2>/dev/null | python3 -c "
+      import sys,json
+      try:
+        d=json.load(sys.stdin)
+        print(f'Scraper: {len(d.get(\"metrics\",[]))} metric series')
+      except: print('Dashboard metrics API not available')
+      " 2>/dev/null

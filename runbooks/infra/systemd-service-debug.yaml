@@ -1,0 +1,67 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: systemd-service-debug
+  description: Debug a failed or misbehaving systemd service unit
+  owner: micromanager
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  cs_sources: [system/systemd, system/journalctl]
+
+parameters:
+  - name: SERVICE
+    description: "Service unit name (e.g., docker, postgresql, nginx)"
+    required: true
+
+steps:
+  - name: check-status
+    action: shell
+    command: "systemctl status ${SERVICE} --no-pager -l"
+    description: "Full status output including recent log lines"
+
+  - name: check-is-active
+    action: shell
+    command: "systemctl is-active ${SERVICE}"
+    description: "Returns 'active', 'inactive', 'failed', etc."
+
+  - name: check-is-enabled
+    action: shell
+    command: "systemctl is-enabled ${SERVICE}"
+    description: "Returns 'enabled', 'disabled', 'masked', etc."
+
+  - name: view-recent-logs
+    action: shell
+    command: "journalctl -u ${SERVICE} -n 50 --no-pager"
+    description: "Last 50 log lines for the service"
+
+  - name: view-error-logs
+    action: shell
+    command: "journalctl -u ${SERVICE} -p err --no-pager --since '1 hour ago'"
+    description: "Error-level logs from last hour"
+
+  - name: check-unit-file
+    action: shell
+    command: "systemctl cat ${SERVICE}"
+    description: "Show the full unit file contents"
+
+  - name: check-dependencies
+    action: shell
+    command: "systemctl list-dependencies ${SERVICE} --no-pager"
+    description: "Show dependency tree"
+
+  - name: check-resource-limits
+    action: shell
+    command: "systemctl show ${SERVICE} -p MemoryMax,CPUQuota,TasksMax,LimitNOFILE --no-pager"
+    description: "Show resource limits that might cause failures"
+
+  - name: attempt-restart
+    action: shell
+    command: "sudo systemctl restart ${SERVICE}"
+    verify: "systemctl is-active ${SERVICE} | grep -q active"
+    on_fail: "Check journalctl -u ${SERVICE} -n 20 for the restart failure reason"
+
+  - name: list-all-failed
+    action: shell
+    command: "systemctl list-units --failed --no-pager"
+    description: "Show all failed units system-wide (context)"

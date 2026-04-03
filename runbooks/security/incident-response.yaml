@@ -1,0 +1,119 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: incident-response
+  description: Kingdom incident response playbook — contain, investigate, remediate
+  owner: blackmage
+  estimated_duration: 60m
+  risk: critical
+  requires_sudo: true
+  cs_sources: [security/incident-response, security/forensics, security/log-analysis]
+
+notes: |
+  ORDER OF VOLATILITY: Capture most volatile data first.
+  1. Registers/cache → 2. Memory → 3. Network state → 4. Processes → 5. Disk
+  DO NOT reboot until evidence is captured.
+
+steps:
+  # --- Phase 1: DETECT & CONTAIN ---
+  - name: capture-timestamp
+    action: shell
+    command: "echo \"IR START: $(date -u +%Y-%m-%dT%H:%M:%SZ)\" | tee /tmp/ir-$(date +%s).log"
+
+  - name: capture-system-state
+    action: shell
+    command: |
+      IR=/tmp/ir-evidence-$(date +%s)
+      mkdir -p $IR
+      date -u > $IR/timestamp.txt
+      uname -a > $IR/uname.txt
+      ps auxwwf > $IR/processes.txt
+      ss -tunap > $IR/network.txt
+      ip addr > $IR/interfaces.txt
+      ip route >> $IR/interfaces.txt
+      w > $IR/users.txt
+      last -aiF >> $IR/users.txt
+      cat /proc/meminfo > $IR/memory.txt
+      df -h > $IR/disk.txt
+      echo "Evidence captured in $IR"
+
+  - name: capture-network-connections
+    action: shell
+    command: "ss -tunap | tee /tmp/ir-netstat.txt"
+    description: "All TCP/UDP connections with process info"
+
+  - name: identify-suspicious-processes
+    action: shell
+    command: |
+      echo "=== Processes with network connections ==="
+      ss -tunap | awk '{print $NF}' | sort -u
+      echo "=== Processes running as root ==="
+      ps aux | awk '$1=="root" {print}' | head -20
+      echo "=== Recently started processes ==="
+      ps -eo pid,lstart,cmd --sort=-lstart | head -20
+
+  - name: block-suspicious-ip
+    action: shell
+    command: "echo 'To block an IP: sudo iptables -I INPUT -s <BAD_IP> -j DROP'"
+    description: "MANUAL — replace <BAD_IP> with identified threat IP"
+
+  - name: disable-compromised-account
+    action: shell
+    command: "echo 'To lock account: sudo usermod -L <username> && sudo passwd -l <username>'"
+    description: "MANUAL — replace <username> with compromised account"
+
+  # --- Phase 2: INVESTIGATE ---
+  - name: check-auth-logs
+    action: shell
+    command: |
+      echo "=== Failed SSH attempts (last 24h) ==="
+      journalctl -u sshd --since '24 hours ago' | grep -i 'failed\|invalid\|refused' | tail -20
+      echo "=== Successful logins ==="
+      journalctl -u sshd --since '24 hours ago' | grep 'Accepted' | tail -10
+
+  - name: check-recently-modified-files
+    action: shell
+    command: "find / -mtime -1 -type f -not -path '/proc/*' -not -path '/sys/*' -not -path '/tmp/*' 2>/dev/null | head -50"
+    timeout: 30
+    description: "Files modified in last 24 hours"
+
+  - name: check-crontabs
+    action: shell
+    command: |
+      echo "=== Root crontab ==="
+      sudo crontab -l 2>/dev/null
+      echo "=== All user crontabs ==="
+      for user in $(cut -d: -f1 /etc/passwd); do
+        crontab -l -u $user 2>/dev/null && echo "^^^ $user"
+      done
+      echo "=== /etc/cron.d ==="
+      ls -la /etc/cron.d/
+
+  - name: check-systemd-timers
+    action: shell
+    command: "systemctl list-timers --all --no-pager"
+    description: "Check for suspicious scheduled tasks"
+
+  - name: hash-suspicious-files
+    action: shell
+    command: "echo 'To hash: sha256sum /path/to/suspicious/file'"
+    description: "MANUAL — hash any files identified as suspicious"
+
+  - name: check-rootkits
+    action: shell
+    command: "which rkhunter && sudo rkhunter --check --skip-keypress 2>&1 | tail -20 || echo 'rkhunter not installed — apt install rkhunter'"
+
+  # --- Phase 3: REMEDIATE ---
+  - name: document-findings
+    action: shell
+    command: |
+      echo "Document all findings in ~/tmp/unheaded/docs/incidents/$(date +%Y-%m-%d).md"
+      echo "Include: timeline, IOCs, affected systems, root cause, remediation steps"
+
+  - name: verify-clean-state
+    action: shell
+    command: |
+      echo "=== Kingdom service health ==="
+      for port in 16668 17000 18000 19000 20000 20103; do
+        curl -sf http://localhost:$port/health && echo " :$port OK" || echo " :$port FAIL"
+      done

@@ -1,0 +1,101 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: doom-debug
+  description: Debug DOOM CPU state, screen corruption, tearing, and performance
+  owner: computermancer
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  cs_sources: [performance/ebpf, system/strace]
+
+env:
+  MAP: "/sys/fs/bpf/unheaded/doom-ring/maps"
+  PROJECT_ROOT: "~/tmp/unheaded"
+
+preconditions:
+  - check: "test -d ${MAP}"
+    description: "Doom ring BPF maps exist (ring is set up)"
+
+steps:
+  - name: read-cpu-state
+    action: shell
+    command: |
+      sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu \
+        --instance DE --map ${MAP}/CPU_MAP --status
+    description: "Show PC, registers, halted state, instruction count"
+
+  - name: check-halted
+    action: shell
+    command: |
+      STATE=$(sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null)
+      echo "$STATE"
+      if echo "$STATE" | grep -q "halted=1"; then
+        echo "CPU HALTED — hit HALT opcode. Check PC for crash location."
+      elif echo "$STATE" | grep -q "halted=0"; then
+        echo "CPU RUNNING — normal operation."
+      else
+        echo "ANOMALOUS STATE — investigate."
+      fi
+
+  - name: check-screen-map
+    action: shell
+    command: |
+      echo "Checking SCREEN_MAP for non-zero pixels..."
+      sudo bpftool map dump name SCREEN_MAP 2>/dev/null | head -5
+      NONZERO=$(sudo bpftool map dump name SCREEN_MAP 2>/dev/null | grep -c "value:" || echo "0")
+      echo "Non-zero entries: $NONZERO (expect 64000 for 320x200)"
+
+  - name: check-bpf-program-stats
+    action: shell
+    command: |
+      sudo bpftool prog list | grep -A2 monad
+      echo "=== XDP programs ==="
+      for iface in veth01 veth01p; do
+        sudo ip netns exec monad0 ip link show $iface 2>/dev/null | grep xdp
+      done
+
+  - name: check-injector
+    action: shell
+    command: |
+      PID=$(pgrep -f doom-go-injector)
+      if [ -n "$PID" ]; then
+        echo "Injector running (PID $PID)"
+        ps -p $PID -o etime,%cpu,%mem --no-headers
+      else
+        echo "Injector NOT RUNNING — no packets being sent"
+      fi
+
+  - name: check-bridge
+    action: shell
+    command: |
+      PID=$(pgrep -f doom-bridge)
+      if [ -n "$PID" ]; then
+        echo "Bridge running (PID $PID)"
+        curl -sf http://localhost:16666/ -o /dev/null -w "HTTP %{http_code}, %{time_total}s"
+        echo ""
+      else
+        echo "Bridge NOT RUNNING — no browser rendering"
+      fi
+
+  - name: measure-throughput
+    action: shell
+    command: |
+      echo "Reading CPU insn_count at t=0 and t=1..."
+      COUNT1=$(sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null | grep insn_count | awk '{print $NF}')
+      sleep 1
+      COUNT2=$(sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null | grep insn_count | awk '{print $NF}')
+      RATE=$((COUNT2 - COUNT1))
+      echo "Instructions/sec: $RATE"
+      echo "Estimated FPS: $((RATE / 4000000)) (assuming ~4M insns/frame)"
+
+  - name: check-common-issues
+    action: shell
+    command: |
+      echo "=== Common Issues Checklist ==="
+      echo "1. Stale doom_data.bin? Must be from same doom.elf as doom.mbc"
+      echo "   doom.elf mtime: $(stat --format=%y ${PROJECT_ROOT}/doom/doom.elf 2>/dev/null)"
+      echo "   doom_data.bin mtime: $(stat --format=%y ${PROJECT_ROOT}/doom/doom_data.bin 2>/dev/null)"
+      echo "2. MULHU opcode (0x3A) present? Check monad-cpu-ebpf"
+      echo "3. Bug 25 (BSS repair) — check doomgeneric_monad_patched.c"
+      echo "4. XDP_TX turbo mode is BROKEN — ratio must be 1.0"

@@ -1,0 +1,55 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: corpus-rebuild
+  description: Rebuild ring_all.jsonl corpus from all sources
+  owner: zhen
+  estimated_duration: 30m
+  risk: low
+  requires_sudo: false
+
+env:
+  VENV: "~/.venv/zhen"
+
+preconditions:
+  - check: "test -d /var/zhen/corpus"
+    description: "Corpus directory exists (symlinked from raft/corpus)"
+  - check: "test -d ~/tmp/unheaded"
+    description: "Unheaded codebase present"
+
+steps:
+  - name: count-existing-corpus
+    action: shell
+    command: "wc -l /var/zhen/corpus/ring_all.jsonl 2>/dev/null || echo '0 lines'"
+    description: "Record baseline before rebuild"
+
+  - name: rebuild-ring1
+    action: shell
+    command: |
+      cd ~/tmp/unheaded/raft
+      source ${VENV}/bin/activate
+      python3 scripts/01_prepare_corpus.py
+    description: "Ring 1: Unheaded codebase (Go, Rust, Python, Markdown, configs)"
+    verify: "test -f /var/zhen/corpus/ring1.jsonl"
+
+  - name: rebuild-combined
+    action: shell
+    command: |
+      cd ~/tmp/unheaded/raft
+      source ${VENV}/bin/activate
+      python3 scripts/15_rebuild_corpus_v2.py
+    timeout: 3600
+    description: "Combine all rings: codebase + GitHub repos + RFCs + papers + skills"
+    verify: "test -f /var/zhen/corpus/ring_all.jsonl"
+
+  - name: count-new-corpus
+    action: shell
+    command: |
+      OLD=$(wc -l /var/zhen/corpus/ring_all.jsonl.bak 2>/dev/null | awk '{print $1}')
+      NEW=$(wc -l /var/zhen/corpus/ring_all.jsonl | awk '{print $1}')
+      echo "Old: ${OLD:-0} chunks, New: $NEW chunks"
+
+  - name: trigger-embedding
+    action: shell
+    command: "echo 'Corpus rebuilt. Run zhen-index-rebuild.yaml to re-embed.'"
+    description: "After corpus rebuild, the FAISS index must be rebuilt too"

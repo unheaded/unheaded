@@ -1,0 +1,85 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: kernel-upgrade
+  description: Upgrade Linux kernel with eBPF compatibility verification
+  owner: architect
+  estimated_duration: 30m
+  risk: high
+  requires_sudo: true
+  cs_sources: [system/kernel, system/grub]
+
+preconditions:
+  - check: "uname -r"
+    description: "Record current kernel version before upgrade"
+
+steps:
+  - name: record-current-kernel
+    action: shell
+    command: "uname -r > /tmp/kernel-before.txt && cat /tmp/kernel-before.txt"
+    description: "Save current kernel for rollback reference"
+
+  - name: check-available-kernels
+    action: shell
+    command: "apt list --upgradable 2>/dev/null | grep linux-image"
+
+  - name: verify-bpf-before
+    action: shell
+    command: |
+      echo "=== Current BPF support ==="
+      sudo bpftool feature probe kernel | grep -E 'program_type|map_type|helper' | wc -l
+      echo "=== Loaded BPF programs ==="
+      sudo bpftool prog list | wc -l
+    description: "Baseline BPF capabilities before upgrade"
+
+  - name: install-new-kernel
+    action: shell
+    command: "sudo apt install -y linux-image-generic linux-headers-generic linux-tools-generic"
+    timeout: 300
+
+  - name: verify-grub
+    action: shell
+    command: "grep -E 'menuentry|submenu' /boot/grub/grub.cfg | head -10"
+    description: "Verify new kernel appears in GRUB menu"
+
+  - name: reboot
+    action: shell
+    command: "echo 'Reboot required. Run: sudo reboot'"
+    description: "MANUAL STEP — reboot and reconnect SSH"
+
+  - name: verify-new-kernel
+    action: shell
+    command: |
+      echo "New kernel: $(uname -r)"
+      echo "Old kernel: $(cat /tmp/kernel-before.txt 2>/dev/null)"
+    verify: "test $(uname -r) != $(cat /tmp/kernel-before.txt 2>/dev/null)"
+
+  - name: install-kernel-tools
+    action: shell
+    command: "sudo apt install -y linux-tools-$(uname -r) bpftool"
+    verify: "bpftool version"
+
+  - name: verify-bpf-after
+    action: shell
+    command: |
+      echo "=== Post-upgrade BPF support ==="
+      sudo bpftool feature probe kernel | grep -E 'program_type|map_type|helper' | wc -l
+      echo "=== BPF JIT ==="
+      sysctl net.core.bpf_jit_enable
+    verify: "sysctl net.core.bpf_jit_enable | grep -q 1"
+    on_fail: "sudo sysctl -w net.core.bpf_jit_enable=1"
+
+  - name: test-ebpf-programs
+    action: shell
+    command: "cd ~/tmp/unheaded && bash scripts/bpf-verifier-check.sh 2>&1 | tail -10"
+    description: "Run BPF CI gate to verify all programs still compile and load"
+
+rollback:
+  - name: boot-previous-kernel
+    action: shell
+    command: |
+      echo "To roll back, edit GRUB:"
+      echo "  sudo vim /etc/default/grub"
+      echo "  Set GRUB_DEFAULT to previous kernel entry"
+      echo "  sudo update-grub && sudo reboot"
+    when: "step.verify-bpf-after.failed"

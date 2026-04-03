@@ -1,0 +1,152 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: full-stack-deploy
+  description: Deploy entire Unheaded Kingdom to bare metal (WEST primary)
+  owner: micromanager
+  estimated_duration: 30m
+  risk: high
+  requires_sudo: true
+  cs_sources: [config-mgmt/ansible, ci-cd/github-actions]
+
+env:
+  PROJECT_ROOT: "~/tmp/unheaded"
+
+preconditions:
+  - check: "test -d ${PROJECT_ROOT}/.git"
+    description: "Unheaded repo present"
+  - check: "go version"
+    description: "Go toolchain available"
+
+steps:
+  # --- Phase 1: Build ---
+  - name: pull-latest
+    action: shell
+    command: "cd ${PROJECT_ROOT} && git pull --ff-only"
+    on_fail: "git stash && git pull && git stash pop"
+
+  - name: run-tests
+    action: shell
+    command: "cd ${PROJECT_ROOT} && go test ./... -count=1 -race 2>&1 | tail -5"
+    verify: "cd ${PROJECT_ROOT} && go test ./... -count=1 2>&1 | grep -c 'FAIL' | grep -q 0"
+    on_fail: "DO NOT DEPLOY — tests are failing. Fix first."
+
+  - name: build-all-services
+    action: shell
+    command: "cd ${PROJECT_ROOT} && go build ./..."
+    timeout: 300
+    verify: "echo $?"
+
+  - name: build-ebpf
+    action: shell
+    command: "cd ${PROJECT_ROOT}/ebpf && cargo build --release 2>&1 | tail -5"
+    timeout: 300
+
+  # --- Phase 2: Stop existing ---
+  - name: stop-existing-services
+    action: shell
+    command: |
+      pkill -f zhen_app.py 2>/dev/null
+      pkill -f llama-server 2>/dev/null
+      pkill -f doom-bridge 2>/dev/null
+      pkill -f doom-go-injector 2>/dev/null
+      sudo ${PROJECT_ROOT}/scripts/doom-ring.sh teardown 2>/dev/null
+      sudo docker compose -f ${PROJECT_ROOT}/docker-compose.yml down 2>/dev/null
+      sleep 3
+    description: "Clean stop of all services"
+
+  # --- Phase 3: Start infrastructure ---
+  - name: start-postgresql
+    action: shell
+    command: "sudo docker compose -f ${PROJECT_ROOT}/docker-compose.yml up -d postgres"
+    verify: "sleep 10 && sudo docker exec unheaded-postgres pg_isready -U unheaded"
+
+  - name: start-wotan
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      nohup services/wotan/cmd/wotan/wotan --topic-config configs/wotan.yaml > /tmp/wotan.log 2>&1 &
+      sleep 3
+    verify: "curl -sf http://localhost:18000/health"
+
+  # --- Phase 4: Start services ---
+  - name: start-core-services
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      for svc in timeguru captain architect micromanager; do
+        go build -o services/$svc/cmd/$svc/$svc ./services/$svc/cmd/$svc/ 2>/dev/null
+        nohup services/$svc/cmd/$svc/$svc > /tmp/$svc.log 2>&1 &
+        sleep 1
+      done
+    description: "Start all 4 core services"
+
+  - name: start-dashboard
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      go build -o cmd/dashboard-backend/dashboard-backend ./cmd/dashboard-backend/
+      nohup cmd/dashboard-backend/dashboard-backend > /tmp/dashboard.log 2>&1 &
+    verify: "sleep 3 && curl -sf http://localhost:20000/health"
+
+  - name: start-kanban
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      go build -o cmd/kanban-app/kanban-app ./cmd/kanban-app/
+      nohup cmd/kanban-app/kanban-app > /tmp/kanban.log 2>&1 &
+    verify: "sleep 3 && curl -sf http://localhost:16668/health"
+
+  # --- Phase 5: Start AI ---
+  - name: start-inference
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}/llama.cpp/build
+      export LD_LIBRARY_PATH="$(pwd)/bin:$LD_LIBRARY_PATH"
+      nohup ./bin/llama-server \
+        -m ${PROJECT_ROOT}/raft/models/mistral-7b-instruct-q5_k_m.gguf \
+        -ngl 40 -c 16384 --port 20100 > /tmp/llama-server.log 2>&1 &
+      sleep 10
+    verify: "curl -sf http://localhost:20100/health"
+
+  - name: start-zhen
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}/raft
+      source ~/.venv/zhen/bin/activate
+      nohup python3 zhen_app.py > /tmp/zhen.log 2>&1 &
+      sleep 30
+    verify: "curl -sf http://localhost:20103/health"
+
+  # --- Phase 6: Verify ---
+  - name: health-sweep
+    action: shell
+    command: |
+      echo "=== Full Health Sweep ==="
+      for entry in wotan:18000 timeguru:19000 captain:19002 dashboard:20000 kanban:16668 zhen:20103 inference:20100; do
+        NAME=$(echo $entry | cut -d: -f1)
+        PORT=$(echo $entry | cut -d: -f2)
+        curl -sf http://localhost:$PORT/health > /dev/null && echo "  $NAME: OK" || echo "  $NAME: FAIL"
+      done
+
+  - name: test-zhen-query
+    action: shell
+    command: |
+      curl -sf -X POST http://localhost:20103/api/v1/query \
+        -H "Content-Type: application/json" \
+        -d '{"question": "What is Unheaded?"}' | python3 -c "
+      import sys,json; d=json.load(sys.stdin)
+      print(f'Zhen response: {len(d.get(\"answer\",\"\"))} chars, model={d.get(\"model\")}')
+      "
+    description: "End-to-end test: browser → Zhen → RAG → Mistral → answer"
+
+rollback:
+  - name: emergency-stop
+    action: shell
+    command: |
+      pkill -f zhen_app.py; pkill -f llama-server
+      pkill -f dashboard-backend; pkill -f kanban-app
+      pkill -f wotan; pkill -f timeguru; pkill -f captain
+      sudo docker compose -f ${PROJECT_ROOT}/docker-compose.yml down
+      echo "All services stopped. Check logs in /tmp/*.log"
+    when: "any critical step fails"

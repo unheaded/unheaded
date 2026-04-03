@@ -1,0 +1,110 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: wireguard-overlay
+  description: Set up WireGuard IPv6 overlay network (fd00:dead:beef::/48)
+  owner: architect
+  estimated_duration: 20m
+  risk: high
+  requires_sudo: true
+  cs_sources: [security/wireguard]
+
+notes: |
+  Creates WireGuard tunnel between WEST and EAST for IPv6 overlay.
+  Prefix: fd00:dead:beef::/48 (ULA, Kingdom internal)
+  WEST: fd00:dead:beef::1/64, EAST: fd00:dead:beef::2/64
+
+steps:
+  # --- WEST setup ---
+  - name: west-install-wireguard
+    action: shell
+    host: west
+    command: "sudo apt install -y wireguard"
+    verify: "which wg"
+
+  - name: west-generate-keys
+    action: shell
+    host: west
+    command: |
+      umask 077
+      wg genkey | sudo tee /etc/wireguard/west-private.key | wg pubkey | sudo tee /etc/wireguard/west-public.key
+      echo "WEST public key: $(cat /etc/wireguard/west-public.key)"
+
+  - name: west-create-config
+    action: shell
+    host: west
+    command: |
+      sudo tee /etc/wireguard/wg0.conf <<EOF
+      [Interface]
+      PrivateKey = $(sudo cat /etc/wireguard/west-private.key)
+      Address = fd00:dead:beef::1/64
+      ListenPort = 51820
+
+      [Peer]
+      PublicKey = <EAST_PUBLIC_KEY>
+      AllowedIPs = fd00:dead:beef::2/128
+      Endpoint = 192.168.13.1:51820
+      PersistentKeepalive = 25
+      EOF
+    description: "Replace <EAST_PUBLIC_KEY> with key from east-generate-keys step"
+
+  - name: west-start-wireguard
+    action: shell
+    host: west
+    command: "sudo wg-quick up wg0 && sudo systemctl enable wg-quick@wg0"
+    verify: "sudo wg show wg0 | grep -q 'interface: wg0'"
+
+  # --- EAST setup ---
+  - name: east-install-wireguard
+    action: shell
+    host: east
+    command: "sudo apt install -y wireguard"
+
+  - name: east-generate-keys
+    action: shell
+    host: east
+    command: |
+      umask 077
+      wg genkey | sudo tee /etc/wireguard/east-private.key | wg pubkey | sudo tee /etc/wireguard/east-public.key
+      echo "EAST public key: $(cat /etc/wireguard/east-public.key)"
+
+  - name: east-create-config
+    action: shell
+    host: east
+    command: |
+      sudo tee /etc/wireguard/wg0.conf <<EOF
+      [Interface]
+      PrivateKey = $(sudo cat /etc/wireguard/east-private.key)
+      Address = fd00:dead:beef::2/64
+      ListenPort = 51820
+
+      [Peer]
+      PublicKey = <WEST_PUBLIC_KEY>
+      AllowedIPs = fd00:dead:beef::1/128
+      Endpoint = 192.168.13.2:51820
+      PersistentKeepalive = 25
+      EOF
+
+  - name: east-start-wireguard
+    action: shell
+    host: east
+    command: "sudo wg-quick up wg0 && sudo systemctl enable wg-quick@wg0"
+    verify: "sudo wg show wg0"
+
+  # --- Verification ---
+  - name: test-ipv6-ping
+    action: shell
+    host: west
+    command: "ping6 -c 5 fd00:dead:beef::2"
+    verify: "ping6 -c 1 fd00:dead:beef::2"
+    on_fail: "Check: sudo wg show wg0 (look for latest handshake timestamp)"
+
+  - name: verify-handshake
+    action: shell
+    command: "sudo wg show wg0 | grep 'latest handshake'"
+    verify: "sudo wg show wg0 | grep -q 'latest handshake'"
+
+rollback:
+  - name: teardown-wireguard
+    action: shell
+    command: "sudo wg-quick down wg0; sudo systemctl disable wg-quick@wg0"

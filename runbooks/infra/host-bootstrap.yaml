@@ -1,0 +1,122 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: host-bootstrap
+  description: Bootstrap a new Unheaded bare metal host (WEST/EAST pattern)
+  owner: architect
+  estimated_duration: 45m
+  risk: high
+  requires_sudo: true
+  cs_sources: [system/systemd, provisioning/cloud-init, security/ssh]
+
+parameters:
+  - name: HOSTNAME
+    description: "Host identifier (e.g., west, east, north)"
+    required: true
+  - name: P2P_IP
+    description: "Point-to-point IP for cross-host link"
+    required: true
+
+preconditions:
+  - check: "test -f /etc/os-release && grep -q 'Ubuntu' /etc/os-release"
+    description: "Ubuntu 24.04+ installed"
+  - check: "uname -r | grep -qE '^[56]\\.' "
+    description: "Kernel 5.x or 6.x (eBPF support)"
+
+steps:
+  - name: set-hostname
+    action: shell
+    command: "sudo hostnamectl set-hostname ${HOSTNAME}"
+    verify: "hostname | grep -q ${HOSTNAME}"
+
+  - name: update-system
+    action: shell
+    command: "sudo apt update && sudo apt upgrade -y"
+    timeout: 600
+
+  - name: install-essentials
+    action: shell
+    command: |
+      sudo apt install -y \
+        build-essential git curl wget jq \
+        iproute2 bpftool linux-tools-$(uname -r) \
+        docker.io docker-compose-v2 \
+        postgresql-client \
+        python3 python3-venv python3-pip \
+        gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf \
+        clang llvm libelf-dev
+    timeout: 300
+    verify: "which docker && which bpftool && which go"
+
+  - name: configure-docker
+    action: shell
+    command: |
+      sudo usermod -aG docker $USER
+      sudo systemctl enable docker
+      sudo systemctl start docker
+    verify: "sudo docker ps"
+
+  - name: setup-go
+    action: shell
+    command: |
+      GO_VERSION=1.23.0
+      curl -sL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
+      echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee /etc/profile.d/go.sh
+    verify: "/usr/local/go/bin/go version"
+
+  - name: setup-rust
+    action: shell
+    command: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+    verify: "$HOME/.cargo/bin/rustc --version"
+
+  - name: clone-unheaded
+    action: shell
+    command: |
+      mkdir -p ~/tmp
+      cd ~/tmp
+      git clone https://github.com/unheaded/unheaded.git || echo "Already cloned"
+    verify: "test -d ~/tmp/unheaded/.git"
+
+  - name: setup-sysctl
+    action: shell
+    command: |
+      sudo tee /etc/sysctl.d/99-unheaded.conf <<EOF
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+      net.core.bpf_jit_enable = 1
+      vm.swappiness = 10
+      EOF
+      sudo sysctl -p /etc/sysctl.d/99-unheaded.conf
+    verify: "sysctl net.core.bpf_jit_enable | grep -q 1"
+
+  - name: setup-p2p-link
+    action: shell
+    command: |
+      # Configure point-to-point interface for cross-host communication
+      sudo ip addr add ${P2P_IP}/30 dev $(ip -o link | grep -v lo | head -1 | awk '{print $2}' | tr -d ':')
+    description: "Configure P2P link — adjust interface name as needed"
+
+  - name: setup-ssh-hardening
+    action: shell
+    command: |
+      sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+      sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+      sudo sshd -t && sudo systemctl restart sshd
+    verify: "sudo sshd -T | grep -q 'passwordauthentication no'"
+
+  - name: build-unheaded
+    action: shell
+    command: "cd ~/tmp/unheaded && go build ./..."
+    timeout: 300
+    verify: "echo $?"
+
+  - name: verify-bpf-support
+    action: shell
+    command: "sudo bpftool feature probe kernel | head -20"
+    verify: "sudo bpftool feature probe kernel | grep -q 'bpf_jit_enable is enabled'"
+
+rollback:
+  - name: restore-ssh
+    action: shell
+    command: "sudo cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config && sudo systemctl restart sshd"
+    when: "step.setup-ssh-hardening.failed"

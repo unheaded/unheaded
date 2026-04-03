@@ -1,0 +1,70 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: dashboard-restart
+  description: Restart dashboard + supporting services in correct order
+  owner: micromanager
+  estimated_duration: 5m
+  risk: low
+  requires_sudo: false
+
+env:
+  PROJECT_ROOT: "~/tmp/unheaded"
+
+notes: |
+  Restart order matters: Wotan first (message bus), then dashboard-backend
+  (subscribes to Wotan), then frontend is served by dashboard-backend.
+
+steps:
+  - name: check-current-state
+    action: shell
+    command: |
+      echo "=== Service status ==="
+      for svc in wotan dashboard-backend; do
+        PID=$(pgrep -f "cmd/$svc" | head -1)
+        if [ -n "$PID" ]; then
+          echo "$svc: running (PID $PID)"
+        else
+          echo "$svc: NOT RUNNING"
+        fi
+      done
+
+  - name: stop-dashboard
+    action: shell
+    command: "pkill -f 'cmd/dashboard-backend' 2>/dev/null; sleep 2"
+
+  - name: stop-wotan
+    action: shell
+    command: "pkill -f 'cmd/wotan' 2>/dev/null; sleep 2"
+
+  - name: start-wotan
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      go build -o services/wotan/cmd/wotan/wotan ./services/wotan/cmd/wotan/
+      nohup services/wotan/cmd/wotan/wotan > /tmp/wotan.log 2>&1 &
+      sleep 3
+    verify: "curl -sf http://localhost:18000/health"
+
+  - name: start-dashboard
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      go build -o cmd/dashboard-backend/dashboard-backend ./cmd/dashboard-backend/
+      nohup cmd/dashboard-backend/dashboard-backend > /tmp/dashboard.log 2>&1 &
+      sleep 3
+    verify: "curl -sf http://localhost:20000/health"
+
+  - name: verify-websocket
+    action: shell
+    command: |
+      curl -sf http://localhost:20000/api/v1/stats | python3 -c "
+      import sys,json
+      d=json.load(sys.stdin)
+      print(f'Health: {d.get(\"health\",{})}')
+      print(f'Server: {d.get(\"server\",{})}')
+      " 2>/dev/null || echo "Dashboard API not responding"
+
+  - name: open-browser
+    action: shell
+    command: "echo 'Dashboard: http://localhost:20000 or http://192.168.69.184:20000'"

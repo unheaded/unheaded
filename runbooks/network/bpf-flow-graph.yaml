@@ -1,0 +1,78 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: bpf-flow-graph
+  description: eBPF flow graph setup and cross-host validation
+  owner: computermancer
+  estimated_duration: 15m
+  risk: medium
+  requires_sudo: true
+  cs_sources: [performance/ebpf, performance/bpftrace]
+
+preconditions:
+  - check: "which bpftool"
+    description: "bpftool installed"
+  - check: "sudo bpftool feature probe kernel | grep -q bpf_jit_enable"
+    description: "BPF JIT enabled"
+
+steps:
+  - name: list-loaded-programs
+    action: shell
+    command: "sudo bpftool prog list"
+    description: "Show all loaded BPF programs"
+
+  - name: list-bpf-maps
+    action: shell
+    command: "sudo bpftool map list"
+    description: "Show all BPF maps"
+
+  - name: check-pinned-maps
+    action: shell
+    command: "ls -la /sys/fs/bpf/unheaded/ 2>/dev/null || echo 'No pinned maps'"
+    description: "Check for Unheaded pinned BPF maps"
+
+  - name: check-xdp-programs
+    action: shell
+    command: |
+      for iface in $(ip -o link show | awk '{print $2}' | tr -d ':'); do
+        XDP=$(ip link show $iface | grep xdp)
+        if [ -n "$XDP" ]; then
+          echo "$iface: $XDP"
+        fi
+      done
+    description: "Show interfaces with XDP programs attached"
+
+  - name: check-flow-tracker
+    action: shell
+    command: |
+      sudo bpftool prog list | grep flow_tracker
+      sudo bpftool map dump name FLOW_MAP 2>/dev/null | head -20
+    description: "Check flow tracker program and map state"
+
+  - name: trace-bpf-output
+    action: shell
+    command: "sudo bpftool prog tracelog 2>/dev/null | head -30"
+    timeout: 10
+    description: "Read BPF trace output (if trace_printk used)"
+
+  - name: check-cross-host-flows
+    action: shell
+    command: "curl -sf http://localhost:20000/api/v1/flows 2>/dev/null | python3 -c \"import sys,json; d=json.load(sys.stdin); print(f'Flows: {len(d.get(\\\"active_flows\\\", []))}')\" 2>/dev/null || echo 'Dashboard not running'"
+    description: "Query dashboard for active flow count"
+
+  - name: verify-namespace-connectivity
+    action: shell
+    command: |
+      for ns in monad0 monad1; do
+        if ip netns list | grep -q $ns; then
+          echo "$ns: exists"
+          sudo ip netns exec $ns ip addr show 2>/dev/null | grep inet | head -2
+        fi
+      done
+    description: "Check doom ring network namespaces"
+
+  - name: bpftrace-packet-count
+    action: shell
+    command: "sudo bpftrace -e 'tracepoint:xdp:xdp_redirect { @count = count(); } interval:s:5 { print(@count); exit(); }' 2>/dev/null || echo 'bpftrace not available'"
+    timeout: 10
+    description: "Count XDP redirects over 5 seconds"

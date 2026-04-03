@@ -1,0 +1,74 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: network-diagnostics
+  description: Debug network connectivity between WEST, EAST, and Kingdom services
+  owner: architect
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: true
+  cs_sources: [networking/tcpdump, networking/mtr, networking/ss, networking/ip]
+
+parameters:
+  - name: TARGET
+    description: "Target host or IP to diagnose (e.g., east, 192.168.13.1, 10.10.10.10)"
+    required: true
+
+steps:
+  - name: check-interfaces
+    action: shell
+    command: "ip -br addr show"
+    description: "List all interfaces with IPs"
+
+  - name: check-routes
+    action: shell
+    command: "ip route show && echo '=== IPv6 ===' && ip -6 route show"
+
+  - name: ping-target
+    action: shell
+    command: "ping -c 5 ${TARGET}"
+    on_fail: "Target unreachable — check routing and firewall"
+
+  - name: traceroute
+    action: shell
+    command: "traceroute -n ${TARGET} 2>/dev/null || mtr -r -c 5 ${TARGET}"
+    description: "Trace path to target"
+
+  - name: check-listening-ports
+    action: shell
+    command: "ss -tunap | grep LISTEN | sort -t: -k2 -n"
+    description: "All listening ports on this host"
+
+  - name: check-connections-to-target
+    action: shell
+    command: "ss -tunap | grep ${TARGET}"
+    description: "Active connections to/from target"
+
+  - name: check-arp-table
+    action: shell
+    command: "ip neigh show"
+    description: "ARP/neighbor table — check for incomplete entries"
+
+  - name: capture-packets
+    action: shell
+    command: "sudo tcpdump -i any host ${TARGET} -c 20 -nn"
+    timeout: 30
+    description: "Capture 20 packets to/from target"
+
+  - name: check-dns
+    action: shell
+    command: "dig ${TARGET} +short 2>/dev/null; host ${TARGET} 2>/dev/null"
+    description: "DNS resolution check (if target is hostname)"
+
+  - name: check-firewall-drops
+    action: shell
+    command: "sudo iptables -L -n -v | grep DROP | head -10"
+    description: "Check if firewall is dropping packets"
+
+  - name: check-kingdom-services
+    action: shell
+    command: |
+      for port in 16666 16668 17000 18000 18001 19000 19001 19002 19003 19004 19005 20000 20100 20103; do
+        (echo >/dev/tcp/localhost/$port) 2>/dev/null && echo "Port $port: OPEN" || echo "Port $port: CLOSED"
+      done
+    description: "Quick scan of all Kingdom Doom Range ports"

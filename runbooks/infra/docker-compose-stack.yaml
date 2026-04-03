@@ -1,0 +1,73 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: docker-compose-stack
+  description: Full Unheaded Docker Compose stack lifecycle
+  owner: micromanager
+  estimated_duration: 10m
+  risk: medium
+  requires_sudo: true
+  cs_sources: [containers/docker, containers/docker-compose]
+
+env:
+  COMPOSE_FILE: "~/tmp/unheaded/docker-compose.yml"
+
+steps:
+  - name: validate-config
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} config --quiet"
+    verify: "echo $?"
+    on_fail: "sudo docker compose -f ${COMPOSE_FILE} config 2>&1 | head -20"
+
+  - name: start-full-stack
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} up -d"
+    timeout: 300
+    verify: "sudo docker compose -f ${COMPOSE_FILE} ps | grep -c 'running\\|Up'"
+
+  - name: start-specific-services
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} up -d postgres wotan kanban-app"
+    description: "Start only specified services + dependencies"
+
+  - name: check-health
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} ps"
+    description: "Show all container states"
+
+  - name: view-logs
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} logs --tail=50 -f"
+    description: "Follow logs from all services"
+
+  - name: view-service-logs
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} logs --tail=100 kanban-app"
+    description: "Logs for specific service"
+
+  - name: rebuild-and-restart
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} up -d --build"
+    timeout: 600
+    description: "Rebuild images from Dockerfile and restart"
+
+  - name: stop-all
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} down"
+    verify: "sudo docker compose -f ${COMPOSE_FILE} ps | grep -c 'running' | grep -q 0"
+
+  - name: stop-and-remove-volumes
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} down -v"
+    description: "DESTRUCTIVE — stops all containers AND removes volumes (data loss)"
+
+  - name: cleanup-images
+    action: shell
+    command: "sudo docker image prune -f && sudo docker system df"
+    description: "Remove dangling images to free disk space"
+
+rollback:
+  - name: emergency-stop
+    action: shell
+    command: "sudo docker compose -f ${COMPOSE_FILE} down"
+    when: "any step fails"

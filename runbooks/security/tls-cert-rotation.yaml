@@ -1,0 +1,84 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: tls-cert-rotation
+  description: Rotate TLS certificates for gateway and Kingdom services
+  owner: blackmage
+  estimated_duration: 20m
+  risk: high
+  requires_sudo: true
+  cs_sources: [security/openssl, security/certbot, security/pki]
+
+env:
+  CERT_DIR: "/etc/unheaded/certs"
+  DOMAIN: "unheaded.local"
+
+steps:
+  - name: check-current-cert-expiry
+    action: shell
+    command: |
+      for cert in ${CERT_DIR}/*.crt; do
+        echo "=== $cert ==="
+        openssl x509 -in $cert -noout -dates -subject 2>/dev/null
+      done
+    description: "Show expiry dates for all current certs"
+
+  - name: backup-current-certs
+    action: shell
+    command: "sudo cp -r ${CERT_DIR} ${CERT_DIR}.bak-$(date +%Y%m%d)"
+    verify: "test -d ${CERT_DIR}.bak-*"
+
+  - name: generate-ca-key
+    action: shell
+    command: |
+      sudo openssl ecparam -genkey -name prime256v1 -noout -out ${CERT_DIR}/ca.key
+      sudo chmod 600 ${CERT_DIR}/ca.key
+    description: "EC P-256 CA key (skip if CA already exists)"
+
+  - name: generate-ca-cert
+    action: shell
+    command: |
+      sudo openssl req -x509 -new -key ${CERT_DIR}/ca.key -sha256 -days 3650 \
+        -out ${CERT_DIR}/ca.crt -subj "/C=US/ST=TX/O=Unheaded/CN=Unheaded Kingdom CA"
+    verify: "openssl x509 -in ${CERT_DIR}/ca.crt -noout -subject"
+
+  - name: generate-server-key
+    action: shell
+    command: "sudo openssl ecparam -genkey -name prime256v1 -noout -out ${CERT_DIR}/server.key"
+
+  - name: generate-server-csr
+    action: shell
+    command: |
+      sudo openssl req -new -key ${CERT_DIR}/server.key -out ${CERT_DIR}/server.csr \
+        -subj "/C=US/ST=TX/O=Unheaded/CN=${DOMAIN}" \
+        -addext "subjectAltName=DNS:${DOMAIN},DNS:*.${DOMAIN},IP:192.168.69.184,IP:10.10.10.100"
+
+  - name: sign-server-cert
+    action: shell
+    command: |
+      sudo openssl x509 -req -in ${CERT_DIR}/server.csr \
+        -CA ${CERT_DIR}/ca.crt -CAkey ${CERT_DIR}/ca.key -CAcreateserial \
+        -out ${CERT_DIR}/server.crt -days 365 -sha256 \
+        -extfile <(echo "subjectAltName=DNS:${DOMAIN},DNS:*.${DOMAIN},IP:192.168.69.184,IP:10.10.10.100")
+    verify: "openssl x509 -in ${CERT_DIR}/server.crt -noout -dates"
+
+  - name: verify-chain
+    action: shell
+    command: "openssl verify -CAfile ${CERT_DIR}/ca.crt ${CERT_DIR}/server.crt"
+    verify: "openssl verify -CAfile ${CERT_DIR}/ca.crt ${CERT_DIR}/server.crt | grep -q 'OK'"
+
+  - name: test-tls-connection
+    action: shell
+    command: "openssl s_client -connect localhost:21443 -servername ${DOMAIN} </dev/null 2>/dev/null | head -5"
+    description: "Test gateway TLS after restart"
+
+  - name: reload-gateway
+    action: shell
+    command: "sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null"
+    description: "Reload gateway to pick up new certs"
+
+rollback:
+  - name: restore-certs
+    action: shell
+    command: "sudo cp -r ${CERT_DIR}.bak-* ${CERT_DIR}"
+    when: "step.verify-chain.failed"
