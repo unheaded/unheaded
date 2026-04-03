@@ -1,0 +1,30 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: akira-health-daemon
+  description: Start/stop/status the Akira health monitoring daemon
+  owner: micromanager
+  estimated_duration: 2m
+  risk: low
+  requires_sudo: false
+  references: [ADR-029]
+
+steps:
+  - name: build-akira
+    action: shell
+    command: "cd ~/tmp/unheaded && go build -o cmd/akira/akira ./cmd/akira/"
+    verify: "test -x ~/tmp/unheaded/cmd/akira/akira"
+
+  - name: single-sweep
+    action: shell
+    command: "~/tmp/unheaded/cmd/akira/akira --once"
+    description: "Quick health check of all services"
+
+  - name: start-daemon
+    action: shell
+    command: "nohup ~/tmp/unheaded/cmd/akira/akira --port 16699 > /tmp/akira.log 2>&1 &"
+    verify: "sleep 3 && curl -sf http://localhost:16699/health"
+
+  - name: check-status
+    action: shell
+    command: "curl -sf http://localhost:16699/api/v1/status | python3 -m json.tool"
