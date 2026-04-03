@@ -5,14 +5,18 @@
 **Prerequisite**: Waves 1-4 complete (all 28 ADRs resolved, 34 runbooks, 2007 QA pairs, Champion L2, MCP server)
 
 ## PROGRESS (updated in-session)
-- [x] Phase 1a: QA batch 2 RUNNING (~95 min remaining)
+- [x] Phase 1a: QA batch 2 DONE — 3965 combined pairs (/var/zhen/raft_dataset_combined.jsonl)
+- [x] Phase 2a: EAST internet DONE — NAT via WEST, ping + apt working
+- [x] Phase 2b: Pi-hole LXD — SKIPPED (live DNS cutover, needs user present)
+- [x] Phase 2c: Jenkins DONE — running on port 18080 (needs manual UI pipeline setup)
+- [x] Phase 2d: APT repo DONE — reprepro + nginx on port 18888
 - [x] Phase 3: eBPF fixes DONE (3 link failures → 0)
+- [x] Phase 5: First .deb DONE — unheaded-wotan installed on WEST + EAST via apt
 - [x] Phase 6 partial: recall command DONE, schema fixed, conversation memory runbook written
 - [x] Phase A (quick fixes): ADR-012b deprecated, ADR-018/015 statuses fixed, index updated
-- [ ] Phase 1b: QLoRA training (blocked on 1a completion)
-- [ ] Phase 2: Infrastructure bootstrap (EAST internet, Pi-hole, Jenkins, APT)
-- [ ] Phase 4: Pre-public audit
-- [ ] Phase 5: First .deb build
+- [ ] Phase 1b: QLoRA training (3965 pairs ready, needs GPU + RAM)
+- [ ] Phase 1c: Merge + quantize + deploy fine-tuned model
+- [ ] Phase 4: Pre-public audit (license scan, trademark, SBOM)
 **Target**: RAFT-tuned Zhenai deployed, Jenkins CI/CD producing .debs, EAST online with internet, pre-public audit clean
 **Estimated Duration**: 15-20 hours across 3-4 sessions
 **Commit Cadence**: Every 4 steps
