@@ -196,6 +196,80 @@ def health():
     })
 
 
+def _try_command(question):
+    """Check if question is a direct command Zhenai can handle without LLM inference.
+    Returns (response_dict, True) if handled, (None, False) if not a command."""
+    q = question.lower().strip()
+
+    # Runbook commands
+    if q in ('list runbooks', 'show runbooks', 'runbooks'):
+        import glob as g
+        rbs = sorted(g.glob(os.path.join(RUNBOOKS_DIR, '**', '*.yaml'), recursive=True))
+        lines = [f"**{len(rbs)} runbooks available:**\n"]
+        by_cat = {}
+        for rb in rbs:
+            rel = os.path.relpath(rb, RUNBOOKS_DIR)
+            cat = rel.split(os.sep)[0]
+            name = os.path.splitext(os.path.basename(rb))[0]
+            by_cat.setdefault(cat, []).append(name)
+        for cat in sorted(by_cat):
+            lines.append(f"\n**{cat}/** ({len(by_cat[cat])})")
+            for name in sorted(by_cat[cat]):
+                lines.append(f"  - {name}")
+        lines.append(f"\nTo run: type `run <name>` or `run --dry <name>`")
+        return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+    # Run runbook
+    if q.startswith('run ') or q.startswith('execute '):
+        import subprocess as sp
+        parts = q.split(None, 2)
+        dry_run = '--dry' in q or '--dry-run' in q
+        name = parts[-1].replace('--dry', '').replace('--dry-run', '').strip()
+        import glob as g
+        matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
+        if not matches:
+            return {'answer': f'Runbook not found: `{name}`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        runner = os.path.expanduser('~/tmp/unheaded/scripts/run-runbook.py')
+        cmd = ['python3', runner]
+        if dry_run:
+            cmd.append('--dry-run')
+        cmd.append(matches[0])
+        try:
+            result = sp.run(cmd, capture_output=True, text=True, timeout=120)
+            status = 'SUCCESS' if result.returncode == 0 else 'FAILED'
+            output = result.stdout[-3000:]
+            return {'answer': f'**Runbook {name}: {status}**\n\n```\n{output}\n```', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        except sp.TimeoutExpired:
+            return {'answer': f'Runbook `{name}` timed out (120s)', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+    # Service health
+    if q in ('health', 'service health', 'check health', 'status'):
+        import urllib.request as ur
+        services = {
+            'wotan': 18000, 'timeguru': 19000, 'captain': 19002,
+            'architect': 19001, 'micromanager': 19003, 'monad': 19004,
+            'sophia': 19005, 'dashboard': 20000, 'kanban': 16668,
+            'zhenai': 20103, 'inference': 20100,
+        }
+        lines = ['**Kingdom Service Health:**\n']
+        healthy = 0
+        for name, port in services.items():
+            try:
+                ur.urlopen(f'http://localhost:{port}/health', timeout=2)
+                lines.append(f'  ✓ {name} (:{port})')
+                healthy += 1
+            except Exception:
+                lines.append(f'  ✗ {name} (:{port})')
+        lines.append(f'\n**{healthy}/{len(services)} healthy**')
+        return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+    # Trust level
+    if 'trust level' in q or 'trust' == q:
+        return {'answer': f'**Zhenai Trust Level: {TRUST_LEVEL}**\n\nLevel 1: Read-only\nLevel 2: Write (high/critical need approval) ← current\nLevel 3: Autonomous', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+    return None, False
+
+
 @app.route('/api/v1/query', methods=['POST'])
 def query():
     if not rag:
@@ -205,6 +279,16 @@ def query():
     question = data.get('question', '').strip()
     if not question:
         return jsonify({'error': 'Question required'}), 400
+
+    # Try direct command handling first (no LLM needed)
+    cmd_result, handled = _try_command(question)
+    if handled:
+        return jsonify({
+            'question': question,
+            **cmd_result,
+            'elapsed_seconds': 0.0,
+            'from_command': True,
+        })
 
     file_content = data.get('file_content', None)
     client_session = data.get('session_id', 'default')
