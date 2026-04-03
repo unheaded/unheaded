@@ -172,7 +172,71 @@ Runbooks MUST be detailed enough that Zhen can execute them without human interp
 
 ## Implementation Priority
 
-1. **Immediate:** Write 3 critical runbooks (index rebuild, doom ring, service deploy)
+1. **Phase 1 COMPLETE (2026-04-03):** 31 runbooks written across 7 categories
 2. **Age 3:** Kanban API for task creation from runbooks
 3. **Age 3:** Session-to-runbook extraction tooling
 4. **Age 4:** Scheduled autonomous execution
+
+## Runbook Registry (31 runbooks, 2026-04-03)
+
+### infra/ (6 runbooks)
+| Runbook | Description | Risk | cs/ Sources |
+|---------|------------|------|-------------|
+| service-deploy | Generic service build/test/deploy/health-check | medium | - |
+| host-bootstrap | Bootstrap new bare metal host | high | systemd, cloud-init, ssh |
+| systemd-service-debug | Debug failed systemd units | low | systemd, journalctl |
+| kernel-upgrade | Kernel upgrade with eBPF compat check | high | kernel, grub |
+| lxd-container-lifecycle | LXD create/start/stop/snapshot/migrate | medium | lxd |
+| docker-compose-stack | Full Docker Compose stack lifecycle | medium | docker, docker-compose |
+| east-nat-internet | EAST internet via WEST NAT | medium | iptables, ip |
+
+### network/ (5 runbooks)
+| Runbook | Description | Risk | cs/ Sources |
+|---------|------------|------|-------------|
+| wireguard-overlay | WireGuard IPv6 overlay (fd00:dead:beef::/48) | high | wireguard |
+| firewall-rules | Kingdom default-deny firewall setup | high | iptables, nftables |
+| dns-pihole-lxd | Pi-hole Docker→LXD migration (ADR-022) | high | dnsmasq, bind, lxd |
+| network-diagnostics | Debug WEST↔EAST connectivity | low | tcpdump, mtr, ss |
+| bpf-flow-graph | eBPF flow graph setup + cross-host | medium | ebpf, bpftrace |
+
+### security/ (6 runbooks)
+| Runbook | Description | Risk | cs/ Sources |
+|---------|------------|------|-------------|
+| tls-cert-rotation | TLS cert rotation for gateway+services | high | openssl, certbot, pki |
+| ssh-hardening | SSH lockdown + fail2ban | high | ssh, fail2ban |
+| secrets-rotation | API key + DB password rotation | high | vault |
+| incident-response | Kingdom IR playbook | critical | incident-response, forensics |
+| security-audit | CIS benchmark + hardening check | low | auditd, hardening-linux |
+| container-security-scan | CVE scan for Docker/LXD | low | container-security |
+
+### data/ (5 runbooks)
+| Runbook | Description | Risk | cs/ Sources |
+|---------|------------|------|-------------|
+| zhen-index-rebuild | FAISS index rebuild with ROCm GPU | low | - |
+| postgresql-backup-restore | The Well backup/restore/verify | medium | postgresql |
+| postgresql-migration | Apply schema migrations safely | high | postgresql |
+| raft-training-pipeline | Full RAFT: QA→train→quantize→deploy | medium | - |
+| corpus-rebuild | Rebuild ring_all.jsonl from all sources | low | - |
+
+### observe/ (4 runbooks)
+| Runbook | Description | Risk | cs/ Sources |
+|---------|------------|------|-------------|
+| prometheus-scrape-check | Verify all /metrics endpoints | low | prometheus |
+| log-rotation | Configure logrotate for Kingdom services | low | logrotate, rsyslog |
+| dashboard-restart | Restart dashboard + Wotan in order | low | - |
+| service-health-sweep | Health check all 34 services | low | - |
+
+### doom/ (3 runbooks)
+| Runbook | Description | Risk | cs/ Sources |
+|---------|------------|------|-------------|
+| doom-ring-setup | Full ring lifecycle: setup→load→inject→bridge | medium | - |
+| doom-debug | Debug CPU state, screen, tearing, perf | low | ebpf, strace |
+| doom-rebuild | doom.elf→doom.mbc→doom_data.bin pipeline | medium | - |
+
+### deploy/ (1 runbook)
+| Runbook | Description | Risk | cs/ Sources |
+|---------|------------|------|-------------|
+| full-stack-deploy | Deploy entire Kingdom to bare metal | high | ansible, github-actions |
+
+### Knowledge Source
+Commands sourced from `~/tmp/projects/cs/sheets/` — 200 cheatsheets across 32 categories (44K+ lines). Each runbook adapts generic commands to Unheaded-specific ports, paths, and service names.
