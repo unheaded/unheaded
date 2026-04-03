@@ -75,10 +75,12 @@ type Config struct {
 	SessionID string
 }
 
-// Champion is the Zhen Champion Agent — Trust Level 1 (read-only).
+// Champion is the Zhen Champion Agent — Trust Level 1 (read) + Level 2 (write).
 type Champion struct {
-	config Config
-	store  ActionStore
+	config        Config
+	store         ActionStore
+	snapshotStore SnapshotStore
+	kanbanStore   KanbanStore
 }
 
 // New creates a new Champion with the given configuration.
@@ -113,6 +115,18 @@ func New(cfg Config, store ActionStore) (*Champion, error) {
 	}
 
 	return &Champion{config: cfg, store: store}, nil
+}
+
+// WithSnapshotStore sets the snapshot store for revertable write operations.
+func (c *Champion) WithSnapshotStore(s SnapshotStore) *Champion {
+	c.snapshotStore = s
+	return c
+}
+
+// WithKanbanStore sets the Kanban store for task operations.
+func (c *Champion) WithKanbanStore(s KanbanStore) *Champion {
+	c.kanbanStore = s
+	return c
 }
 
 // ReadFile reads a file within the sandbox. Returns content and error.
