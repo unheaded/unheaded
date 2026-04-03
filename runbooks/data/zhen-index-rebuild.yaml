@@ -1,0 +1,104 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: zhen-index-rebuild
+  description: Rebuild Zhen FAISS index from ring_all.jsonl corpus
+  owner: zhen
+  estimated_duration: 45m
+  risk: low
+  requires_sudo: false
+  last_verified: "2026-04-02"
+
+preconditions:
+  - check: "test -f ~/tmp/unheaded/raft/corpus/ring_all.jsonl"
+    description: "Corpus file exists"
+  - check: "test -d ~/.venv/zhen-rocm"
+    description: "ROCm Python 3.12 venv exists"
+  - check: "rocm-smi 2>/dev/null | grep -q 'gfx'"
+    description: "ROCm GPU driver loaded"
+
+env:
+  HSA_OVERRIDE_GFX_VERSION: "11.0.0"
+  TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL: "1"
+  PYTHONUNBUFFERED: "1"
+  VENV_EMBED: "~/.venv/zhen-rocm"
+  VENV_APP: "~/.venv/zhen"
+
+notes: |
+  CRITICAL: HSA_OVERRIDE_GFX_VERSION=11.0.0 is needed for PyTorch (compiled for gfx1100)
+  but must NOT be set for llama-server (compiled for gfx1101). These are separate processes.
+  PyTorch ROCm requires Python 3.12 (zhen-rocm venv), not Python 3.13 (system/zhen venv).
+  PYTHONUNBUFFERED=1 is required or nohup stdout buffering hides progress output.
+
+steps:
+  - name: stop-zhen
+    action: shell
+    command: "pkill -f zhen_app.py || true"
+    description: "Stop Zhen web app (will restart with new index)"
+
+  - name: run-embedding
+    action: shell
+    command: |
+      cd ~/tmp/unheaded/raft
+      source ${VENV_EMBED}/bin/activate
+      HSA_OVERRIDE_GFX_VERSION=11.0.0 \
+      TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 \
+      PYTHONUNBUFFERED=1 \
+      python3 scripts/16_embed_v2.py
+    timeout: 7200
+    description: "Embed all chunks with GPU acceleration (~35 min for 1.76M chunks)"
+    verify: "test -f ~/tmp/unheaded/raft/index/v2.index"
+    progress:
+      log: /tmp/embed.log
+      pattern: '\d+/1,762,687'
+    on_fail: |
+      Check /tmp/embed.log for errors.
+      Common issues:
+      - OOM: reduce EMBED_BATCH in 16_embed_v2.py (currently 512)
+      - HIP error: verify HSA_OVERRIDE_GFX_VERSION=11.0.0 is set
+      - No GPU: run rocm-smi to check GPU status
+
+  - name: symlink-index
+    action: shell
+    command: |
+      cd ~/tmp/unheaded/raft/index
+      ln -sf v2.index active.index
+      ln -sf v2_ids.json active_ids.json
+    verify: "readlink ~/tmp/unheaded/raft/index/active.index | grep -q v2"
+    description: "Activate new index"
+
+  - name: restart-zhen
+    action: shell
+    command: |
+      cd ~/tmp/unheaded/raft
+      source ${VENV_APP}/bin/activate
+      nohup python3 zhen_app.py > /tmp/zhen.log 2>&1 &
+      sleep 15
+    verify: "curl -sf http://localhost:20103/api/v1/stats | python3 -c \"import sys,json; d=json.load(sys.stdin); assert d['index_vectors'] > 1700000\""
+    timeout: 60
+    description: "Restart Zhen with new index (takes ~15s to load 2.5GB FAISS)"
+
+  - name: verify-search
+    action: shell
+    command: |
+      curl -sf http://localhost:20103/api/v1/context \
+        -H "Content-Type: application/json" \
+        -d '{"task": "monad wire format", "k": 3}' | python3 -c "
+      import sys,json
+      d=json.load(sys.stdin)
+      assert len(d.get('context',[])) >= 3, 'Expected 3+ results'
+      print(f'OK: {len(d[\"context\"])} results returned')
+      "
+    description: "Verify RAG search returns relevant results"
+
+rollback:
+  - name: restore-previous-index
+    action: shell
+    command: |
+      cd ~/tmp/unheaded/raft/index
+      # Find most recent non-v2 index
+      PREV=$(ls -t *.index | grep -v v2 | grep -v active | head -1)
+      PREV_IDS=$(echo $PREV | sed 's/.index/_ids.json/')
+      ln -sf $PREV active.index
+      ln -sf $PREV_IDS active_ids.json
+    when: "step.symlink-index.completed AND step.restart-zhen.failed"

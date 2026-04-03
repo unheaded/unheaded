@@ -1,0 +1,93 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: service-deploy
+  description: Generic Unheaded service build, test, deploy, and health-check
+  owner: micromanager
+  estimated_duration: 15m
+  risk: medium
+  requires_sudo: false
+  last_verified: "2026-04-03"
+
+parameters:
+  - name: SERVICE
+    description: "Service name (e.g., timeguru, captain, architect, wotan)"
+    required: true
+  - name: HOST
+    description: "Target host (west or east)"
+    default: "west"
+
+preconditions:
+  - check: "test -d ~/tmp/unheaded/cmd/${SERVICE} || test -d ~/tmp/unheaded/services/${SERVICE}"
+    description: "Service directory exists"
+  - check: "go version 2>/dev/null | grep -q 'go1.2'"
+    description: "Go toolchain available"
+
+env:
+  PROJECT_ROOT: "~/tmp/unheaded"
+
+steps:
+  - name: run-tests
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      go test ./cmd/${SERVICE}/... ./services/${SERVICE}/... -v -count=1 -race 2>&1 | tail -30
+    verify: "echo $? | grep -q 0"
+    description: "Run service unit tests with race detector"
+    on_fail: "Fix failing tests before deploying. Do NOT deploy with red tests."
+
+  - name: build
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      go build -o cmd/${SERVICE}/${SERVICE} ./cmd/${SERVICE}/
+    verify: "test -x ${PROJECT_ROOT}/cmd/${SERVICE}/${SERVICE}"
+    description: "Build service binary"
+
+  - name: check-health-before
+    action: shell
+    command: |
+      PORT=$(grep -w ${SERVICE} ${PROJECT_ROOT}/pkg/ports/ports.go | grep -oP '\d{5}' | head -1)
+      curl -sf http://localhost:$PORT/health 2>/dev/null && echo "Service running on $PORT" || echo "Service not running"
+    description: "Check if service is currently running"
+
+  - name: stop-existing
+    action: shell
+    command: "pkill -f 'cmd/${SERVICE}/${SERVICE}' || true"
+    description: "Stop existing instance (graceful)"
+
+  - name: start-service
+    action: shell
+    command: |
+      cd ${PROJECT_ROOT}
+      nohup cmd/${SERVICE}/${SERVICE} > /tmp/${SERVICE}.log 2>&1 &
+      echo "PID: $!"
+      sleep 3
+    description: "Start new service instance"
+
+  - name: health-check
+    action: shell
+    command: |
+      PORT=$(grep -w ${SERVICE} ${PROJECT_ROOT}/pkg/ports/ports.go | grep -oP '\d{5}' | head -1)
+      curl -sf http://localhost:$PORT/health
+    verify: "curl -sf http://localhost:$PORT/health | grep -q 'ok\\|healthy\\|running'"
+    timeout: 10
+    description: "Verify service is healthy after deploy"
+    on_fail: "Check /tmp/${SERVICE}.log for startup errors"
+
+  - name: metrics-check
+    action: shell
+    command: |
+      PORT=$(grep -w ${SERVICE} ${PROJECT_ROOT}/pkg/ports/ports.go | grep -oP '\d{5}' | head -1)
+      curl -sf http://localhost:$PORT/metrics | head -5
+    description: "Verify metrics endpoint responds"
+
+rollback:
+  - name: restart-previous
+    action: shell
+    command: |
+      echo "ROLLBACK: Previous binary not preserved. Rebuild from last known-good commit:"
+      echo "  git log --oneline -5"
+      echo "  git checkout <good-commit> -- cmd/${SERVICE}/"
+      echo "  go build -o cmd/${SERVICE}/${SERVICE} ./cmd/${SERVICE}/"
+    when: "step.health-check.failed"

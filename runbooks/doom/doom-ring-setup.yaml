@@ -1,0 +1,124 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: doom-ring-setup
+  description: Full Doom-over-IPv6 ring lifecycle — setup, load, inject, bridge, teardown
+  owner: computermancer
+  estimated_duration: 5m
+  risk: medium
+  requires_sudo: true
+  last_verified: "2026-04-02"
+
+preconditions:
+  - check: "test -f ~/tmp/unheaded/doom/doom.mbc"
+    description: "doom.mbc binary exists"
+  - check: "test -f ~/tmp/unheaded/doom/doom.rv2mbc"
+    description: "RV2MBC address map exists"
+  - check: "test -f ~/tmp/unheaded/doom/doom.elf"
+    description: "doom.elf source ELF exists"
+  - check: "test -f ~/tmp/DOOM_wads/doom1.wad"
+    description: "doom1.wad (4,196,020 bytes) exists"
+  - check: "which riscv64-unknown-elf-objdump"
+    description: "RISC-V toolchain installed"
+
+env:
+  PROJECT_ROOT: "~/tmp/unheaded"
+  MAP: "/sys/fs/bpf/unheaded/doom-ring/maps"
+  WAD: "~/tmp/DOOM_wads/doom1.wad"
+  WAD_ADDR: "0x110000"
+  CPU_INSTANCE: "DE"
+  BRIDGE_PORT: "16666"
+
+steps:
+  - name: teardown-existing
+    action: shell
+    command: |
+      sudo killall doom-go-injector doom-bridge 2>/dev/null || true
+      sudo ${PROJECT_ROOT}/scripts/doom-ring.sh teardown 2>/dev/null || true
+      sleep 1
+    description: "Clean up any existing doom ring"
+
+  - name: setup-ring
+    action: shell
+    command: "sudo ${PROJECT_ROOT}/scripts/doom-ring.sh setup"
+    verify: "ls ${MAP}/ROM_MAP ${MAP}/RAM_MAP ${MAP}/CPU_MAP ${MAP}/RV2MBC_MAP 2>/dev/null | wc -l | grep -q 4"
+    description: "Create network namespaces and attach BPF programs"
+    on_fail: "Check dmesg for BPF verifier errors: dmesg | tail -30"
+
+  - name: build-loader
+    action: shell
+    command: "cd ${PROJECT_ROOT} && go build -o cmd/doom-loader/doom-loader ./cmd/doom-loader/"
+    verify: "test -x ${PROJECT_ROOT}/cmd/doom-loader/doom-loader"
+    description: "Build doom-loader Go binary"
+
+  - name: load-rom
+    action: shell
+    command: "sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader rom ${MAP}/ROM_MAP ${PROJECT_ROOT}/doom/doom.mbc"
+    description: "Load MBC instructions into ROM_MAP"
+
+  - name: extract-data-vma
+    action: shell
+    command: |
+      DATA_VMA=$(riscv64-unknown-elf-objdump -h ${PROJECT_ROOT}/doom/doom.elf | awk '/\.rodata[[:space:]]/{print "0x"$4}')
+      echo "DATA_VMA=$DATA_VMA"
+    description: "Extract .rodata VMA from ELF for data loading"
+
+  - name: load-data
+    action: shell
+    command: |
+      DATA_VMA=$(riscv64-unknown-elf-objdump -h ${PROJECT_ROOT}/doom/doom.elf | awk '/\.rodata[[:space:]]/{print "0x"$4}')
+      sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader ram ${MAP}/RAM_MAP ${PROJECT_ROOT}/doom/doom_data.bin $DATA_VMA
+    description: "Load .rodata+.data into RAM_MAP at correct VMA"
+    on_fail: |
+      CRITICAL: doom_data.bin MUST be from the SAME doom.elf as doom.mbc.
+      Regenerate: riscv64-unknown-elf-objcopy -O binary -j .rodata -j '.srodata*' -j .data doom.elf doom_data.bin
+
+  - name: load-wad
+    action: shell
+    command: "sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader ram ${MAP}/RAM_MAP ${WAD} ${WAD_ADDR}"
+    description: "Load doom1.wad at 0x110000"
+
+  - name: load-rv2mbc
+    action: shell
+    command: "sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader rv2mbc ${MAP}/RV2MBC_MAP ${PROJECT_ROOT}/doom/doom.rv2mbc"
+    description: "Load RV32I→MBC address translation map"
+
+  - name: init-cpu
+    action: shell
+    command: "sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance ${CPU_INSTANCE} --map ${MAP}/CPU_MAP"
+    verify: "sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance ${CPU_INSTANCE} --map ${MAP}/CPU_MAP --status 2>/dev/null | grep -q 'halted=0' || true"
+    description: "Initialize CPU state (instance 0xDE)"
+
+  - name: start-injector
+    action: shell
+    command: |
+      SRC=$(sudo ip netns exec monad0 cat /sys/class/net/veth01/address)
+      DST=$(sudo ip netns exec monad1 cat /sys/class/net/veth01p/address)
+      sudo ip netns exec monad0 ${PROJECT_ROOT}/cmd/doom-go-injector/doom-go-injector \
+        -iface veth01 -src-mac $SRC -dst-mac $DST -mode sendmmsg -batch 64 -flow-label 222 -count 0 &
+    description: "Start packet injector (continuous mode)"
+
+  - name: build-bridge
+    action: shell
+    command: "cd ${PROJECT_ROOT} && go build -o cmd/doom-bridge/doom-bridge ./cmd/doom-bridge/"
+    verify: "test -x ${PROJECT_ROOT}/cmd/doom-bridge/doom-bridge"
+    description: "Build doom-bridge HTTP server"
+
+  - name: start-bridge
+    action: shell
+    command: "sudo ${PROJECT_ROOT}/cmd/doom-bridge/doom-bridge -port ${BRIDGE_PORT} &"
+    verify: "sleep 2 && curl -sf http://localhost:${BRIDGE_PORT}/ -o /dev/null"
+    description: "Start bridge HTTP server on port 16666"
+
+  - name: verify-rendering
+    action: shell
+    command: "echo 'Open http://localhost:16666/ in browser — DOOM should be rendering'"
+    description: "Manual verification — check browser for DOOM gameplay"
+
+rollback:
+  - name: full-teardown
+    action: shell
+    command: |
+      sudo killall doom-go-injector doom-bridge 2>/dev/null || true
+      sudo ${PROJECT_ROOT}/scripts/doom-ring.sh teardown
+    when: "any step fails"

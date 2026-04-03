@@ -1,6 +1,8 @@
 # ADR-009: Binding Circles — RFC 1918 Range Map as Security Factor
 
-## Status: Proposed (Wishlist — Beta)
+## Status: Deferred to Beta
+
+**Deferral rationale (2026-04-03):** Optional third authentication factor via RFC 1918 range coloring. Not blocking public launch or Age 3. Will revisit when auth framework needs hardening beyond APIKey/JWT/RBAC (ADR-051).
 
 ## Date: 2026-02-18
 
