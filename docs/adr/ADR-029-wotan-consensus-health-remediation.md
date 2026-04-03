@@ -168,6 +168,66 @@ The Champion is the brain, but the watchdog is the immune system. The immune sys
 - Scales from 2 hosts to 200+ without architecture change
 - Immune system analogy: reflexive response, brain reviews after
 
+## Ping/Pong Full Mesh Health Protocol (Raven)
+
+**Naming**: The health daemon is **Raven** — Odin's raven of memory. Flies over the Kingdom, remembers the state of all things, reports back to Wotan.
+
+**Core concept**: Every service with a REST API or gRPC endpoint includes `pkg/health` and participates in the full mesh. This is NOT optional — it's compiled into every service via the `pkg/service/` template.
+
+### Protocol
+
+```
+Service A pushes to Wotan:
+  topic: system.health.report
+  payload: { "service": "timeguru", "status": "ok", "timestamp": 1712188800 }
+
+Wotan responds with aggregated state:
+  { "services": {
+      "wotan": {"status": "ok", "last_seen": 1712188795},
+      "timeguru": {"status": "ok", "last_seen": 1712188800},
+      "captain": {"status": "degraded", "last_seen": 1712188750},
+      ...
+    },
+    "consensus": { "captain": { "failure_rate": 0.72, "action": "restart" } }
+  }
+```
+
+Every service:
+1. **Pushes** `health:ok:$TIMESTAMP` to Wotan at a configurable interval (default 30s)
+2. **Receives** the aggregated health state of ALL other services in the response
+3. **Acts** on consensus decisions (restart commands for local services)
+
+This is a **ping/pong model** — the health push IS the ping, the aggregated state IS the pong. No separate health check loop needed — the reporting IS the checking.
+
+### Configuration
+
+Per-service config (in `/etc/unheaded/<service>.yaml` or env vars):
+
+```yaml
+health:
+  report_interval: 30s        # How often to push health report (default 30s)
+  dependencies:                # Services this service depends on (checked in response)
+    - wotan
+    - postgresql
+  alert_threshold: 0.6667     # Consensus threshold (default: 2/3, NOT configurable in code but configurable which services to watch)
+```
+
+Default dependencies are auto-discovered from the service registry (`configs/services.yaml`). Custom dependencies can override for services that only care about specific peers.
+
+### Full Mesh Visualization
+
+```
+     timeguru ──push──> WOTAN ──pong──> timeguru (sees all)
+      captain ──push──> WOTAN ──pong──> captain (sees all)
+    architect ──push──> WOTAN ──pong──> architect (sees all)
+ micromanager ──push──> WOTAN ──pong──> micromanager (sees all)
+    dashboard ──push──> WOTAN ──pong──> dashboard (sees all)
+       kanban ──push──> WOTAN ──pong──> kanban (sees all)
+       zhenai ──push──> WOTAN ──pong──> zhenai (sees all)
+```
+
+Every service knows the health of every other service. Wotan is the hub but NOT the decision-maker — consensus is computed by each service locally from the aggregated data. If Wotan itself goes down, services lose visibility but continue operating.
+
 ### Negative
 - Restart storms possible if multiple services fail simultaneously (mitigate: rate limit restarts)
 - Hardcoded threshold means no per-service tuning (feature: consistency > flexibility)
