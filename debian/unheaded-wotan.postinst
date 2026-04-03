@@ -1,0 +1,40 @@
+#!/bin/sh
+set -e
+
+# Create unheaded system user if it doesn't exist
+if ! id -u unheaded > /dev/null 2>&1; then
+    useradd --system --home-dir /opt/unheaded --shell /usr/sbin/nologin unheaded
+fi
+
+# Create required directories
+mkdir -p /var/lib/unheaded /var/log/unheaded /etc/unheaded
+chown unheaded:unheaded /var/lib/unheaded /var/log/unheaded
+
+# Install systemd unit
+cat > /etc/systemd/system/unheaded-wotan.service <<'EOF'
+[Unit]
+Description=Wotan Message Bus — Unheaded Kingdom
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=unheaded
+Group=unheaded
+ExecStart=/opt/unheaded/bin/wotan --config /etc/unheaded/wotan.yaml
+Restart=always
+RestartSec=5
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/unheaded /var/log/unheaded
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+echo "Wotan installed. Enable with: systemctl enable --now unheaded-wotan"
+
+#DEBHELPER#

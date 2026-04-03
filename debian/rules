@@ -1,0 +1,45 @@
+#!/usr/bin/make -f
+# debian/rules for Unheaded Kingdom packages
+
+export DH_VERBOSE = 1
+export GOPATH = $(CURDIR)/go
+export PATH := /usr/local/go/bin:$(PATH)
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Build Go binaries
+	go build -ldflags="-s -w" -o bin/wotan ./services/wotan/cmd/wotan/
+	go build -ldflags="-s -w" -o bin/unheaded-daemon ./cmd/unheaded-daemon/
+	go build -ldflags="-s -w" -o bin/dashboard-backend ./cmd/dashboard-backend/
+	go build -ldflags="-s -w" -o bin/kanban-app ./cmd/kanban-app/
+
+override_dh_auto_test:
+	go test ./... -count=1 -timeout 5m
+
+override_dh_auto_install:
+	# unheaded-wotan
+	install -D -m 755 bin/wotan $(CURDIR)/debian/unheaded-wotan/opt/unheaded/bin/wotan
+	install -D -m 644 configs/wotan.yaml $(CURDIR)/debian/unheaded-wotan/etc/unheaded/wotan.yaml
+
+	# unheaded-daemon
+	install -D -m 755 bin/unheaded-daemon $(CURDIR)/debian/unheaded-daemon/opt/unheaded/bin/unheaded-daemon
+
+	# unheaded-dashboard
+	install -D -m 755 bin/dashboard-backend $(CURDIR)/debian/unheaded-dashboard/opt/unheaded/bin/dashboard-backend
+
+	# unheaded-kanban
+	install -D -m 755 bin/kanban-app $(CURDIR)/debian/unheaded-kanban/opt/unheaded/bin/kanban-app
+
+	# unheaded-configs (systemd units + default configs)
+	install -d $(CURDIR)/debian/unheaded-configs/etc/systemd/system
+	install -d $(CURDIR)/debian/unheaded-configs/etc/unheaded
+	install -d $(CURDIR)/debian/unheaded-configs/opt/unheaded/runbooks
+	cp -r runbooks/* $(CURDIR)/debian/unheaded-configs/opt/unheaded/runbooks/
+
+override_dh_dwz:
+	# Skip dwz for Go binaries (not supported)
+
+override_dh_strip:
+	# Go binaries are already stripped via -ldflags="-s -w"
