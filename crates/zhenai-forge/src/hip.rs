@@ -85,6 +85,92 @@ extern "C" {
     fn hipGetLastError() -> i32;
 }
 
+// hipBLAS bindings for GPU matrix multiplication
+// Used for LoRA forward/backward passes on RX 7700 XT
+pub type HipblasHandle = *mut c_void;
+
+#[repr(i32)]
+pub enum HipblasOperation {
+    None = 111,        // HIPBLAS_OP_N
+    Transpose = 112,   // HIPBLAS_OP_T
+}
+
+#[link(name = "hipblas", kind = "dylib")]
+extern "C" {
+    pub fn hipblasCreate(handle: *mut HipblasHandle) -> i32;
+    pub fn hipblasDestroy(handle: HipblasHandle) -> i32;
+
+    /// C = alpha * A * B + beta * C
+    /// Single-precision general matrix multiply
+    pub fn hipblasSgemm(
+        handle: HipblasHandle,
+        transa: i32,    // HipblasOperation
+        transb: i32,
+        m: i32,         // rows of A (and C)
+        n: i32,         // cols of B (and C)
+        k: i32,         // cols of A / rows of B
+        alpha: *const f32,
+        a: *const c_void,  // device pointer
+        lda: i32,
+        b: *const c_void,
+        ldb: i32,
+        beta: *const f32,
+        c: *mut c_void,
+        ldc: i32,
+    ) -> i32;
+}
+
+/// hipBLAS handle wrapper with RAII.
+pub struct BlasHandle {
+    handle: HipblasHandle,
+}
+
+impl BlasHandle {
+    pub fn new() -> Result<Self, HipError> {
+        let mut handle: HipblasHandle = std::ptr::null_mut();
+        check(unsafe { hipblasCreate(&mut handle) })?;
+        Ok(BlasHandle { handle })
+    }
+
+    /// GPU matrix multiply: C = alpha * A * B + beta * C
+    /// A: (m × k), B: (k × n), C: (m × n), all in GPU memory
+    pub fn sgemm(
+        &self,
+        m: i32, n: i32, k: i32,
+        alpha: f32,
+        a: &GpuBuffer, lda: i32,
+        b: &GpuBuffer, ldb: i32,
+        beta: f32,
+        c: &GpuBuffer, ldc: i32,
+    ) -> Result<(), HipError> {
+        check(unsafe {
+            hipblasSgemm(
+                self.handle,
+                HipblasOperation::None as i32,
+                HipblasOperation::None as i32,
+                m, n, k,
+                &alpha,
+                a.as_ptr() as *const c_void, lda,
+                b.as_ptr() as *const c_void, ldb,
+                &beta,
+                c.as_ptr() as *mut c_void, ldc,
+            )
+        })
+    }
+
+    pub fn raw_handle(&self) -> HipblasHandle {
+        self.handle
+    }
+}
+
+impl Drop for BlasHandle {
+    fn drop(&mut self) {
+        if !self.handle.is_null() {
+            unsafe { hipblasDestroy(self.handle) };
+        }
+    }
+}
+
 /// Check a HIP call result.
 fn check(code: i32) -> Result<(), HipError> {
     let err = HipError::from(code);
@@ -257,5 +343,53 @@ mod tests {
         buf.copy_to_host(&mut result).expect("D2H");
 
         assert_eq!(host_data, result, "Round-trip data mismatch");
+    }
+
+    #[test]
+    fn test_hipblas_sgemm() {
+        if GpuDevice::init(0).is_err() {
+            println!("No GPU, skipping");
+            return;
+        }
+
+        let blas = BlasHandle::new().expect("hipblas create failed");
+
+        // Simple 2x2 matrix multiply: C = A * B
+        // A = [[1, 2], [3, 4]]  B = [[5, 6], [7, 8]]
+        // C = [[1*5+2*7, 1*6+2*8], [3*5+4*7, 3*6+4*8]] = [[19, 22], [43, 50]]
+        // Note: hipBLAS uses column-major, so we store transposed
+        let a_data: Vec<f32> = vec![1.0, 3.0, 2.0, 4.0]; // col-major
+        let b_data: Vec<f32> = vec![5.0, 7.0, 6.0, 8.0]; // col-major
+        let c_data: Vec<f32> = vec![0.0; 4];
+
+        let a_buf = GpuBuffer::alloc(16).expect("alloc A");
+        let b_buf = GpuBuffer::alloc(16).expect("alloc B");
+        let c_buf = GpuBuffer::alloc(16).expect("alloc C");
+
+        a_buf.copy_from_host(bytemuck_cast(&a_data)).expect("H2D A");
+        b_buf.copy_from_host(bytemuck_cast(&b_data)).expect("H2D B");
+        c_buf.copy_from_host(bytemuck_cast(&c_data)).expect("H2D C");
+
+        blas.sgemm(2, 2, 2, 1.0, &a_buf, 2, &b_buf, 2, 0.0, &c_buf, 2).expect("sgemm");
+        sync().expect("sync");
+
+        let mut result = vec![0.0f32; 4];
+        c_buf.copy_to_host(bytemuck_cast_mut(&mut result)).expect("D2H C");
+
+        // Column-major result: [19, 43, 22, 50]
+        assert!((result[0] - 19.0).abs() < 0.01, "C[0,0] = {} (expected 19)", result[0]);
+        assert!((result[1] - 43.0).abs() < 0.01, "C[1,0] = {} (expected 43)", result[1]);
+        assert!((result[2] - 22.0).abs() < 0.01, "C[0,1] = {} (expected 22)", result[2]);
+        assert!((result[3] - 50.0).abs() < 0.01, "C[1,1] = {} (expected 50)", result[3]);
+
+        println!("hipBLAS SGEMM verified: [[19, 22], [43, 50]]");
+    }
+
+    fn bytemuck_cast(data: &[f32]) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4) }
+    }
+
+    fn bytemuck_cast_mut(data: &mut [f32]) -> &mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u8, data.len() * 4) }
     }
 }
