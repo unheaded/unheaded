@@ -17,16 +17,18 @@
 ---
 
 ## PROGRESS (update as you go)
-- [ ] Sprint A: Zhenai Forge GPU Kernels
-- [ ] Sprint B: Conversation Memory
-- [ ] Sprint C: Scheduler & Heartbeat
+- [~] Sprint A: A1 hipBLAS DONE, A2 Q5_K dequant DONE, A3 tensor data access DONE, A3-A7 GPU forward/backward IN PROGRESS
+- [~] Sprint B: B1 schema DONE, B4 decision recall DONE, B2/B3/B5/B6/B7 need Zhenai running
+- [x] Sprint C: Scheduler daemon + chat commands + emergency stop DONE
 - [ ] Sprint D: Consensus Health Watchdog
 - [ ] Sprint E: .deb Packaging Full Stack
-- [ ] Sprint F: Pi-hole LXD Migration
-- [ ] Sprint G: Pre-Public Audit
+- [ ] Sprint F: Pi-hole LXD Migration (needs user for DNS cutover)
+- [ ] Sprint G: Pre-Public Audit (ScanCode overnight)
 - [ ] Sprint H: Security Hardening
 - [ ] Sprint I: Protocol Maturity
 - [ ] Sprint J: Zhenai Champion Expansion
+- NEW: ADR-031 Hybrid Model Handoff (Specialist + Generalist) — PLANNED
+- NEW: ADR-032 Python → Go/Rust Migration — PLANNED
 
 ---
 
