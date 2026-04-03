@@ -2773,6 +2773,9 @@ func (s *Server) doCollectHostMetrics(ctx context.Context) {
 				{"host_cpu_percent", cpuPct, nil},
 				{"host_memory_used_bytes", float64(memInfo.memUsed), nil},
 				{"host_memory_total_bytes", float64(memInfo.memTotal), nil},
+				{"host_memory_free_bytes", float64(memInfo.memFree), nil},
+				{"host_memory_buffers_bytes", float64(memInfo.memBuffers), nil},
+				{"host_memory_cached_bytes", float64(memInfo.memCached), nil},
 				{"host_swap_used_bytes", float64(memInfo.swapUsed), nil},
 				{"host_load_1m", load1, nil},
 				{"host_load_5m", load5, nil},
@@ -3077,11 +3080,14 @@ func readLocalCPUPercent() float64 {
 
 // memInfoResult holds parsed /proc/meminfo values.
 type memInfoResult struct {
-	memTotal   uint64
-	memUsed    uint64
-	memPercent float64
-	swapTotal  uint64
-	swapUsed   uint64
+	memTotal    uint64
+	memUsed     uint64
+	memBuffers  uint64
+	memCached   uint64
+	memFree     uint64
+	memPercent  float64
+	swapTotal   uint64
+	swapUsed    uint64
 	swapPercent float64
 }
 
@@ -3094,7 +3100,7 @@ func readLocalMemInfo() memInfoResult {
 	}
 	defer f.Close()
 
-	var memTotal, memAvail, swapTotal, swapFree uint64
+	var memTotal, memAvail, memFree, buffers, cached, swapTotal, swapFree uint64
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
@@ -3111,6 +3117,12 @@ func readLocalMemInfo() memInfoResult {
 			memTotal = val * 1024
 		case "MemAvailable":
 			memAvail = val * 1024
+		case "MemFree":
+			memFree = val * 1024
+		case "Buffers":
+			buffers = val * 1024
+		case "Cached":
+			cached = val * 1024
 		case "SwapTotal":
 			swapTotal = val * 1024
 		case "SwapFree":
@@ -3119,6 +3131,9 @@ func readLocalMemInfo() memInfoResult {
 	}
 
 	r.memTotal = memTotal
+	r.memFree = memFree
+	r.memBuffers = buffers
+	r.memCached = cached
 	if memTotal > 0 && memAvail <= memTotal {
 		r.memUsed = memTotal - memAvail
 		r.memPercent = float64(r.memUsed) / float64(memTotal) * 100
