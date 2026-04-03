@@ -738,6 +738,12 @@ services:
       WOTAN_ADDR: "wotan:18000"
       TIMEGURU_ADDR: "timeguru:19000"
       DATA_DIR: "/data"
+      WELL_HOST: "postgres"
+      WELL_PORT: "5432"
+      WELL_USER: "unheaded"
+      WELL_PASSWORD: "${POSTGRES_PASSWORD:-unheaded_dev}"
+      WELL_DB: "unheaded"
+      WELL_SSLMODE: "disable"
     ports:
       - "20001:20001"
     networks:
@@ -746,6 +752,8 @@ services:
       wotan:
         condition: service_healthy
       timeguru:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     labels:
       kingdom.armor: "meta-moment"
