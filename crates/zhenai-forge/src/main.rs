@@ -66,6 +66,28 @@ fn cmd_info(args: &[String]) {
                 }
             }
 
+            // List tensors (first 30 + pattern summary)
+            if args.len() > 1 && args[1] == "--verbose" {
+                println!("\n  All tensors:");
+                for t in &model.tensors {
+                    println!("    {} [{}] {:?} ({:.1} MB)", t.name, t.tensor_type,
+                        t.dimensions, t.byte_size as f64 / 1e6);
+                }
+            } else {
+                // Show unique name patterns
+                let mut patterns: std::collections::HashSet<String> = std::collections::HashSet::new();
+                for t in &model.tensors {
+                    let pattern = t.name.replace(|c: char| c.is_ascii_digit(), "N");
+                    patterns.insert(pattern);
+                }
+                println!("\n  Tensor name patterns ({}):", patterns.len());
+                let mut sorted: Vec<_> = patterns.into_iter().collect();
+                sorted.sort();
+                for p in &sorted {
+                    println!("    {}", p);
+                }
+            }
+
             // Summarize tensor types
             let mut type_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
             let mut total_bytes: u64 = 0;
