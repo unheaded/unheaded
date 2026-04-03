@@ -730,8 +730,19 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - eBPF AF_XDP pipeline: 920K pps validated, Rust FFI + Go bridge
 - DOOM-on-Monad: Computational completeness proof
 - doom-runner (crates/doom-runner/): Aya-based Rust runtime replacing shell/Go loader chain
-- Zhen Layer 0 (crates/zhend/): Anti-fragile gossip knowledge substrate, PQ crypto, 50 tests green
+- Zhen Layer 0 (crates/zhend/): Anti-fragile gossip knowledge substrate, PQ crypto, 161 tests green
 - EAST bare metal: Online, P2P link live, BPF flow graph cross-host
+- ADR Sweep (2026-04-03): All 27 ADRs resolved (19 accepted, 4 deferred, 1 in-progress, 1 pipe dream)
+- Zhen Champion (pkg/champion/): Trust Level 1+2, sandboxed file R/W, Kanban CRUD, action logging, snapshots (18 tests)
+- Zhen MCP Server (raft/zhen_mcp_server.py): 7 tools for Claude Code integration (corpus_search, file_read, file_write, file_patch, service_health, runbook_list, runbook_show)
+- 31 Operational Runbooks (runbooks/): 7 categories (infra, network, security, data, observe, doom, deploy)
+- Service Template (pkg/service/): Standardized scaffold with health/ready/auth/Wotan (7 tests)
+- BPF CI Gate (scripts/bpf-verifier-check.sh): Instruction budget tracking, static analysis
+- Sealed Cask (scripts/build-sealed-cask.sh + verify-binding-rune.sh): Deterministic image builder with SHA256 integrity
+- ROCm GPU acceleration: PyTorch 2.5.1+rocm6.2 for embedding (862 chunks/s), llama.cpp for inference (60 tok/s)
+- RAFT QA generation: ~2000 pairs from Mistral-7B for fine-tuning pipeline
+- Kanban Bugs: All 8 Three Crowns bugs fixed (ADR-020)
+- Dependency Policy: Established orgs OK with approval, Rust replacement long-term (ADR-004)
 
 ### Doom-over-IPv6 — ALL DOCS IN `docs/doom/`
 
