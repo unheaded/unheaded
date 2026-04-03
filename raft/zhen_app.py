@@ -898,6 +898,65 @@ def execute_runbook(name):
         return jsonify({'name': name, 'status': 'error', 'error': str(e)}), 500
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Approval Queue — pending high-risk operations awaiting human approval
+# ──────────────────────────────────────────────────────────────────────
+
+_approval_queue = []  # In-memory for now; The Well integration later
+_approval_counter = 0
+
+@app.route('/api/v1/approvals', methods=['GET'])
+def list_approvals():
+    """List pending approval requests."""
+    pending = [a for a in _approval_queue if a['status'] == 'pending']
+    return jsonify({'approvals': pending, 'total': len(pending)})
+
+
+@app.route('/api/v1/approvals', methods=['POST'])
+def request_approval():
+    """Submit an operation for approval."""
+    global _approval_counter
+    data = request.get_json(force=True)
+    _approval_counter += 1
+    approval = {
+        'id': _approval_counter,
+        'operation': data.get('operation', ''),
+        'runbook': data.get('runbook', ''),
+        'risk': data.get('risk', 'high'),
+        'reason': data.get('reason', ''),
+        'status': 'pending',
+        'requested_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        'decided_at': None,
+        'decided_by': None,
+    }
+    _approval_queue.append(approval)
+    return jsonify(approval), 201
+
+
+@app.route('/api/v1/approvals/<int:approval_id>/approve', methods=['POST'])
+def approve_request(approval_id):
+    """Approve a pending request (human operator action)."""
+    for a in _approval_queue:
+        if a['id'] == approval_id and a['status'] == 'pending':
+            a['status'] = 'approved'
+            a['decided_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+            a['decided_by'] = 'human'
+            return jsonify(a)
+    return jsonify({'error': 'Approval not found or already decided'}), 404
+
+
+@app.route('/api/v1/approvals/<int:approval_id>/deny', methods=['POST'])
+def deny_request(approval_id):
+    """Deny a pending request."""
+    for a in _approval_queue:
+        if a['id'] == approval_id and a['status'] == 'pending':
+            a['status'] = 'denied'
+            a['decided_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+            a['decided_by'] = 'human'
+            return jsonify(a)
+    return jsonify({'error': 'Approval not found or already decided'}), 404
+
+
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
