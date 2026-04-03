@@ -14,9 +14,10 @@
 - [x] Phase 5: First .deb DONE — unheaded-wotan installed on WEST + EAST via apt
 - [x] Phase 6 partial: recall command DONE, schema fixed, conversation memory runbook written
 - [x] Phase A (quick fixes): ADR-012b deprecated, ADR-018/015 statuses fixed, index updated
-- [ ] Phase 1b: QLoRA training (3965 pairs ready, needs GPU + RAM)
+- [x] Phase 4 partial: Trademark CLEARED, license audit CLEARED (100 deps, all permissive)
+- [ ] Phase 1b: QLoRA training (3965 pairs ready, needs GPU + full RAM — next session)
 - [ ] Phase 1c: Merge + quantize + deploy fine-tuned model
-- [ ] Phase 4: Pre-public audit (license scan, trademark, SBOM)
+- [ ] Phase 4 remaining: Full ScanCode deep scan (heavy, schedule overnight)
 **Target**: RAFT-tuned Zhenai deployed, Jenkins CI/CD producing .debs, EAST online with internet, pre-public audit clean
 **Estimated Duration**: 15-20 hours across 3-4 sessions
 **Commit Cadence**: Every 4 steps
