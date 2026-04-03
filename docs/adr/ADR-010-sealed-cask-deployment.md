@@ -1,6 +1,12 @@
 # ADR-010: Soul Vessel Deployment Model — Immutable Encrypted VMs
 
-## Status: Proposed (High Priority — Alpha P4)
+## Status: Accepted — Alpha scope implemented (2026-04-03)
+
+**2026-04-03 Implementation:**
+- `scripts/build-sealed-cask.sh` — deterministic image builder with SHA256 manifest
+- `scripts/verify-binding-rune.sh` — integrity verification before deployment
+- Binding Rune = SHA256 manifest of all files in the cask
+- LUKS encryption and Bone Shell/Soul Chamber split deferred to Beta
 
 ## Date: 2026-02-18
 
