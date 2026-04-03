@@ -318,6 +318,45 @@ def _try_command(question):
         except Exception as e:
             return {'answer': f'Recall search error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
+    # "what did we decide about X" — search conversation history for decisions
+    if q.startswith('what did we decide') or q.startswith('what was decided'):
+        topic = q.split('about', 1)[-1].strip().strip('?') if 'about' in q else q.split('decide', 1)[-1].strip().strip('?')
+        if not topic:
+            return {'answer': 'Usage: `what did we decide about <topic>?`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        if pg_conn is None:
+            return {'answer': 'The Well is not connected — conversation history unavailable.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+        try:
+            cur = pg_conn.cursor()
+            # Search for decision-like patterns in conversations
+            cur.execute(
+                """SELECT role, content, model, created_at
+                   FROM zhen_conversations
+                   WHERE (content ILIKE %s OR
+                          (search_vector IS NOT NULL AND search_vector @@ websearch_to_tsquery('english', %s)))
+                     AND (content ILIKE '%%decided%%' OR content ILIKE '%%decision%%' OR content ILIKE '%%chose%%'
+                          OR content ILIKE '%%accepted%%' OR content ILIKE '%%approved%%' OR content ILIKE '%%agreed%%'
+                          OR role = 'assistant')
+                   ORDER BY created_at DESC
+                   LIMIT 10""",
+                (f'%{topic}%', topic),
+            )
+            rows = cur.fetchall()
+            cur.close()
+
+            if not rows:
+                return {'answer': f'No decisions found about "{topic}" in conversation history.\n\nTry `recall {topic}` for a broader search.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+            lines = [f'**Decisions about "{topic}":**\n']
+            for role, content, model, created_at in rows:
+                ts = created_at.strftime('%Y-%m-%d %H:%M') if created_at else '?'
+                prefix = '**You:**' if role == 'user' else f'**Zhenai:**'
+                lines.append(f'`{ts}` {prefix} {content[:300]}{"..." if len(content) > 300 else ""}\n')
+
+            return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        except Exception as e:
+            return {'answer': f'Decision search error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
     return None, False
 
 
