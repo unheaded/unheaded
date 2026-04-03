@@ -38,6 +38,25 @@ We adopt a **no-unknown-author-dependencies policy for production code**. All sh
 
 The policy targets **supply chain risk from unknown code authors**, not ideological purity. Code from organizations with professional security teams, CI/CD pipelines, and public audit trails carries fundamentally different risk than a single-author npm package with 12 stars.
 
+### Dependency Age Requirement
+
+**All dependencies must have a GitHub repo created BEFORE July 2019.** No exceptions without owner approval.
+
+Mature software has survived multiple release cycles, community scrutiny, and real-world battle testing. A package created in 2023 hasn't proven itself. If a package is too new — we build our own.
+
+**Verification:**
+```bash
+# Check repo creation date via GitHub API
+curl -s https://api.github.com/repos/OWNER/REPO | jq '.created_at'
+# Must be before 2019-07-01
+```
+
+**Combined rule:** A dependency must pass BOTH checks:
+1. From an established organization (Google, Cloudflare, etc.)
+2. Repository created before July 2019
+
+If either check fails → build our own replacement (in Rust if we can outperform, Go if equivalent).
+
 Specifically, we replace external dependencies with internal implementations:
 
 | External Dependency | Internal Replacement | Package | LOC |
