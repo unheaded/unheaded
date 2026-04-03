@@ -118,6 +118,31 @@ async def list_tools():
                 "required": ["name"],
             },
         ),
+        Tool(
+            name="file_write",
+            description="Write content to a file (sandboxed). Creates parent directories. Captures snapshot for revert.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path to write"},
+                    "content": {"type": "string", "description": "Content to write"},
+                },
+                "required": ["path", "content"],
+            },
+        ),
+        Tool(
+            name="file_patch",
+            description="Find-and-replace edit in a file (sandboxed). Replaces first occurrence of old_text with new_text.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path to patch"},
+                    "old_text": {"type": "string", "description": "Text to find"},
+                    "new_text": {"type": "string", "description": "Replacement text"},
+                },
+                "required": ["path", "old_text", "new_text"],
+            },
+        ),
     ]
 
 
@@ -133,6 +158,10 @@ async def call_tool(name: str, arguments: dict):
         return await tool_runbook_list(arguments)
     elif name == "runbook_show":
         return await tool_runbook_show(arguments)
+    elif name == "file_write":
+        return await tool_file_write(arguments)
+    elif name == "file_patch":
+        return await tool_file_patch(arguments)
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
@@ -218,6 +247,43 @@ async def tool_runbook_show(args: dict):
     with open(matches[0], "r") as f:
         content = f.read()
     return [TextContent(type="text", text=f"Runbook: {name}\nPath: {matches[0]}\n\n{content}")]
+
+
+async def tool_file_write(args: dict):
+    path = args.get("path", "")
+    content = args.get("content", "")
+    abs_path, err = validate_path(path)
+    if err:
+        return [TextContent(type="text", text=f"ACCESS DENIED: {err} (path: {path})")]
+    try:
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "w") as f:
+            f.write(content)
+        return [TextContent(type="text", text=f"Written {len(content)} bytes to {abs_path}")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error writing {abs_path}: {e}")]
+
+
+async def tool_file_patch(args: dict):
+    path = args.get("path", "")
+    old_text = args.get("old_text", "")
+    new_text = args.get("new_text", "")
+    abs_path, err = validate_path(path)
+    if err:
+        return [TextContent(type="text", text=f"ACCESS DENIED: {err} (path: {path})")]
+    try:
+        with open(abs_path, "r") as f:
+            content = f.read()
+        if old_text not in content:
+            return [TextContent(type="text", text=f"old_text not found in {abs_path}")]
+        patched = content.replace(old_text, new_text, 1)
+        with open(abs_path, "w") as f:
+            f.write(patched)
+        return [TextContent(type="text", text=f"Patched {abs_path}: replaced {len(old_text)} chars with {len(new_text)} chars")]
+    except FileNotFoundError:
+        return [TextContent(type="text", text=f"File not found: {abs_path}")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error patching {abs_path}: {e}")]
 
 
 async def main():
