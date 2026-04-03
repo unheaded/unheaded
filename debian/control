@@ -1,0 +1,43 @@
+Source: unheaded
+Section: admin
+Priority: optional
+Maintainer: Stevie Bellis <stevie@bellis.tech>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.21)
+Standards-Version: 4.6.2
+Homepage: https://github.com/unheaded/unheaded
+
+Package: unheaded-wotan
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Wotan Message Bus — Unheaded Kingdom
+ Ring buffer + event bus + protocol RAM for the Unheaded infrastructure
+ platform. Triple-role message backbone for all Kingdom services.
+ .
+ Part of the Unheaded Kingdom infrastructure platform.
+
+Package: unheaded-daemon
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}, unheaded-wotan
+Description: Unheaded Control Plane Daemon
+ Control plane with Wotan integration, state reconciliation, and
+ service orchestration for the Unheaded Kingdom.
+
+Package: unheaded-dashboard
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}, unheaded-wotan
+Description: Unheaded Dashboard Backend
+ Metrics scraping, health monitoring, WebSocket real-time updates,
+ and static frontend serving for the Kingdom dashboard.
+
+Package: unheaded-kanban
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}, unheaded-wotan
+Description: Unheaded Kanban Application
+ Task management with drag-drop, Wotan pub/sub, PostgreSQL persistence,
+ and timeline integration (The Meta Moment).
+
+Package: unheaded-configs
+Architecture: all
+Description: Unheaded Kingdom Configuration Files
+ Default configuration files, systemd service units, and security
+ baselines for all Unheaded services.
