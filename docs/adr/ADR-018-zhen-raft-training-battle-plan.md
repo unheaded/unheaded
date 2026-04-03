@@ -1,6 +1,6 @@
 # ADR-018: Zhen RAFT Training — Battle Plan
 
-**Status:** In Progress — 2007 QA pairs generated (2026-04-03). Fine-tuning pending.
+**Status:** ACCEPTED — 3965 QA pairs, fine-tuned via zhenai-forge (2026-04-03). kingdom.zlora deployed.
 **Date:** 2026-03-16
 **Deciders:** Developer, Scientist
 **Depends on:** ADR-017 (context window optimization — complete)

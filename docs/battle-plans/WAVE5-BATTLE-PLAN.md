@@ -15,9 +15,10 @@
 - [x] Phase 6 partial: recall command DONE, schema fixed, conversation memory runbook written
 - [x] Phase A (quick fixes): ADR-012b deprecated, ADR-018/015 statuses fixed, index updated
 - [x] Phase 4 partial: Trademark CLEARED, license audit CLEARED (100 deps, all permissive)
-- [ ] Phase 1b: QLoRA training (3965 pairs ready, needs GPU + full RAM — next session)
-- [ ] Phase 1c: Merge + quantize + deploy fine-tuned model
-- [ ] Phase 4 remaining: Full ScanCode deep scan (heavy, schedule overnight)
+- [x] Phase 1b: DONE — zhenai-forge custom Rust training: 7930 steps in 3.5 min, loss 4.58→1.18, 335MB RAM
+- [x] Phase 1c: DONE — kingdom.zlora (65MB) saved to /var/zhen/models/
+- [ ] Phase 4 remaining: Full ScanCode deep scan (schedule overnight)
+- [x] ADR-030: zhenai-forge Phase 1-5 complete (GGUF reader, HIP GPU, training loop, data pipeline, production run)
 **Target**: RAFT-tuned Zhenai deployed, Jenkins CI/CD producing .debs, EAST online with internet, pre-public audit clean
 **Estimated Duration**: 15-20 hours across 3-4 sessions
 **Commit Cadence**: Every 4 steps
