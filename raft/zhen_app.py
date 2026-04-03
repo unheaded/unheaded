@@ -777,6 +777,20 @@ def champion_health():
 
 RUNBOOKS_DIR = os.path.expanduser('~/tmp/unheaded/runbooks')
 
+# Trust levels — controls what Zhenai can do autonomously vs what needs approval
+# Mirrors real NOC/sysadmin permission model:
+#   Level 1: Read — always allowed (health checks, file reads, corpus search)
+#   Level 2: Write with snapshot — allowed for low-risk runbooks (dry-run always allowed)
+#   Level 3: Destructive/sudo — requires human approval (high/critical risk runbooks)
+TRUST_LEVEL = int(os.environ.get('ZHENAI_TRUST_LEVEL', '2'))
+
+# Risk levels that require approval at each trust level
+RISK_REQUIRES_APPROVAL = {
+    1: ['low', 'medium', 'high', 'critical'],  # Level 1: everything needs approval except reads
+    2: ['high', 'critical'],                      # Level 2: high/critical need approval
+    3: ['critical'],                               # Level 3: only critical needs approval
+}
+
 @app.route('/api/v1/runbooks', methods=['GET'])
 def list_runbooks():
     """List all available runbooks."""
@@ -817,17 +831,50 @@ def get_runbook(name):
     return jsonify({'name': name, 'path': matches[0], 'content': content, 'parsed': data})
 
 
+@app.route('/api/v1/trust', methods=['GET'])
+def get_trust_level():
+    """Show current Zhenai trust level and what it controls."""
+    return jsonify({
+        'trust_level': TRUST_LEVEL,
+        'description': {
+            1: 'Read-only — all executions require approval',
+            2: 'Write with snapshot — high/critical risk require approval',
+            3: 'Autonomous — only critical risk requires approval',
+        }.get(TRUST_LEVEL, 'Unknown'),
+        'requires_approval': RISK_REQUIRES_APPROVAL.get(TRUST_LEVEL, []),
+    })
+
+
 @app.route('/api/v1/runbooks/<name>/execute', methods=['POST'])
 def execute_runbook(name):
-    """Execute a runbook. Pass {"dry_run": true} for validation only."""
+    """Execute a runbook. Pass {"dry_run": true} for validation only.
+    Trust level controls what can execute without approval."""
     import glob as g
     import subprocess as sp
     data = request.get_json(force=True) if request.is_json else {}
     dry_run = data.get('dry_run', False)
+    force = data.get('force', False)  # Override trust check (human explicitly approved)
 
     matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
     if not matches:
         return jsonify({'error': f'Runbook not found: {name}'}), 404
+
+    # Trust level check — does this runbook need approval?
+    if not dry_run and not force:
+        try:
+            with open(matches[0]) as f:
+                rb_data = yaml.safe_load(f)
+            risk = rb_data.get('metadata', {}).get('risk', 'medium')
+            needs_approval = RISK_REQUIRES_APPROVAL.get(TRUST_LEVEL, [])
+            if risk in needs_approval:
+                return jsonify({
+                    'error': f'Runbook "{name}" has risk level "{risk}" which requires approval at trust level {TRUST_LEVEL}',
+                    'action': 'Set force=true to execute with explicit approval, or increase ZHENAI_TRUST_LEVEL',
+                    'trust_level': TRUST_LEVEL,
+                    'risk': risk,
+                }), 403
+        except Exception:
+            pass  # If we can't parse the runbook, let it through to the runner
 
     runner = os.path.expanduser('~/tmp/unheaded/scripts/run-runbook.py')
     cmd = ['python3', runner]
