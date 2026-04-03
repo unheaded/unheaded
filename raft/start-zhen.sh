@@ -1,8 +1,8 @@
 #!/bin/bash
-# Start Zhen AI Champion — all services
+# Start Zhenai Champion — all services
 set -e
 
-echo "=== Starting Zhen AI Champion ==="
+echo "=== Starting Zhenai Champion ==="
 
 # Context window size — benchmark found zero degradation up to 32K on 7700 XT
 # 16384 chosen for 4.8 GB VRAM headroom under concurrent load
@@ -45,5 +45,15 @@ echo "=== Zhen Status ==="
 curl -s http://localhost:20100/v1/models | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Inference: {d[\"models\"][0][\"name\"]}')" 2>/dev/null || echo "Inference: NOT READY"
 curl -s http://localhost:20103/health | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'RAG: {d[\"status\"]} (ready={d[\"rag_ready\"]})')" 2>/dev/null || echo "RAG: NOT READY"
 echo ""
-echo "Web UI: http://localhost:20103"
-echo "API:    http://localhost:20103/api/v1/query"
+echo "Web UI:  http://localhost:20103"
+echo "API:     http://localhost:20103/api/v1/query"
+echo "MCP:     python3 ~/tmp/unheaded/raft/zhen_mcp_server.py (stdio transport)"
+echo ""
+echo "=== Claude Code MCP Config ==="
+echo 'Add to ~/.claude/settings.json or project settings:'
+echo '  "mcpServers": {'
+echo '    "zhen": {'
+echo '      "command": "python3",'
+echo '      "args": ["'$HOME'/tmp/unheaded/raft/zhen_mcp_server.py"]'
+echo '    }'
+echo '  }'
