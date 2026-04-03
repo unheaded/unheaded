@@ -1,0 +1,124 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: apt-repo-server
+  description: Set up local APT repository for Kingdom package distribution
+  owner: architect
+  estimated_duration: 20m
+  risk: medium
+  requires_sudo: true
+
+notes: |
+  Local APT repo on WEST for distributing .deb packages to EAST and future hosts.
+  Uses reprepro for repo management. Served via nginx on port 18888.
+  Enables offline package installs across the Kingdom without internet.
+
+  Future: Yggdrasil (ADR-69420) signed .deb packages distributed here.
+
+env:
+  REPO_DIR: "/var/lib/apt-repo"
+  REPO_PORT: "18888"
+  CODENAME: "noble"
+  ARCH: "amd64"
+
+preconditions:
+  - check: "which dpkg-scanpackages || which reprepro"
+    description: "reprepro or dpkg-dev installed"
+    optional: true
+
+steps:
+  - name: install-reprepro
+    action: shell
+    command: "sudo apt install -y reprepro nginx-light"
+    verify: "which reprepro"
+
+  - name: create-repo-structure
+    action: shell
+    command: |
+      sudo mkdir -p ${REPO_DIR}/{conf,dists/${CODENAME}/main/binary-${ARCH},pool/main,incoming}
+      sudo chown -R $USER:$USER ${REPO_DIR}
+
+  - name: configure-reprepro
+    action: shell
+    command: |
+      cat > ${REPO_DIR}/conf/distributions <<EOF
+      Origin: Unheaded Kingdom
+      Label: Unheaded
+      Codename: ${CODENAME}
+      Architectures: ${ARCH}
+      Components: main
+      Description: Unheaded Kingdom local APT repository
+      EOF
+
+      cat > ${REPO_DIR}/conf/options <<EOF
+      verbose
+      basedir ${REPO_DIR}
+      EOF
+    verify: "test -f ${REPO_DIR}/conf/distributions"
+
+  - name: configure-nginx
+    action: shell
+    command: |
+      sudo tee /etc/nginx/sites-available/apt-repo <<EOF
+      server {
+          listen ${REPO_PORT};
+          server_name _;
+          root ${REPO_DIR};
+          autoindex on;
+
+          location / {
+              allow 192.168.13.0/24;
+              allow 192.168.69.0/24;
+              allow 10.10.10.0/24;
+              allow 127.0.0.1;
+              deny all;
+          }
+      }
+      EOF
+      sudo ln -sf /etc/nginx/sites-available/apt-repo /etc/nginx/sites-enabled/
+      sudo nginx -t && sudo systemctl reload nginx
+    verify: "curl -sf http://localhost:${REPO_PORT}/"
+
+  - name: add-test-package
+    action: shell
+    command: |
+      echo "To add a .deb package to the repo:"
+      echo "  reprepro -b ${REPO_DIR} includedeb ${CODENAME} /path/to/package.deb"
+      echo ""
+      echo "To remove a package:"
+      echo "  reprepro -b ${REPO_DIR} remove ${CODENAME} package-name"
+    description: "MANUAL — add packages as they're built"
+
+  - name: configure-client
+    action: shell
+    command: |
+      echo "On client machines (EAST), add to /etc/apt/sources.list.d/unheaded.list:"
+      echo "  deb [trusted=yes] http://192.168.13.2:${REPO_PORT} ${CODENAME} main"
+      echo ""
+      echo "Then: sudo apt update"
+    description: "MANUAL — configure on each client host"
+
+  - name: configure-east
+    action: shell
+    host: east
+    command: |
+      echo "deb [trusted=yes] http://192.168.13.2:${REPO_PORT} ${CODENAME} main" | sudo tee /etc/apt/sources.list.d/unheaded.list
+      sudo apt update
+    description: "Configure EAST to use WEST's APT repo"
+    verify: "ssh govan@east 'apt policy 2>/dev/null | grep unheaded'"
+
+  - name: verify-repo
+    action: shell
+    command: |
+      echo "=== Repo contents ==="
+      reprepro -b ${REPO_DIR} list ${CODENAME}
+      echo "=== Repo accessible ==="
+      curl -sf http://localhost:${REPO_PORT}/dists/${CODENAME}/Release | head -10
+
+rollback:
+  - name: remove-nginx-config
+    action: shell
+    command: |
+      sudo rm /etc/nginx/sites-enabled/apt-repo
+      sudo systemctl reload nginx
+    when: "step.configure-nginx.failed"

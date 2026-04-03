@@ -202,6 +202,128 @@ pipeline {
       }
     }
 
+    stage('Package (.deb)') {
+      steps {
+        script {
+          echo "=== Creating .deb packages ==="
+          sh '''
+            mkdir -p build/deb
+            SERVICES="unheaded-daemon dashboard-backend kanban-app"
+
+            for svc_bin in $SERVICES; do
+              PKG_NAME="unheaded-${svc_bin}"
+              PKG_DIR="build/deb/${PKG_NAME}_${VERSION}"
+
+              mkdir -p ${PKG_DIR}/DEBIAN
+              mkdir -p ${PKG_DIR}/opt/unheaded/bin
+              mkdir -p ${PKG_DIR}/etc/systemd/system
+
+              # Copy binary
+              if [ -f "bin/${svc_bin}" ]; then
+                cp "bin/${svc_bin}" ${PKG_DIR}/opt/unheaded/bin/
+                chmod 755 ${PKG_DIR}/opt/unheaded/bin/${svc_bin}
+              fi
+
+              # Control file
+              cat > ${PKG_DIR}/DEBIAN/control <<EOF
+Package: ${PKG_NAME}
+Version: ${VERSION}
+Architecture: amd64
+Maintainer: Stevie Bellis <stevie@bellis.tech>
+Description: Unheaded ${svc_bin} service
+ Part of the Unheaded Kingdom infrastructure platform.
+ https://github.com/unheaded/unheaded
+Depends: libc6
+Section: admin
+Priority: optional
+EOF
+
+              # Systemd unit
+              cat > ${PKG_DIR}/etc/systemd/system/${PKG_NAME}.service <<EOF
+[Unit]
+Description=Unheaded ${svc_bin}
+After=network.target
+
+[Service]
+Type=simple
+User=unheaded
+Group=unheaded
+ExecStart=/opt/unheaded/bin/${svc_bin}
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/unheaded /var/log/unheaded
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+              # Post-install script
+              cat > ${PKG_DIR}/DEBIAN/postinst <<'POSTINST'
+#!/bin/sh
+set -e
+# Create unheaded user if it doesn't exist
+if ! id -u unheaded > /dev/null 2>&1; then
+  useradd --system --home-dir /opt/unheaded --shell /usr/sbin/nologin unheaded
+fi
+mkdir -p /var/lib/unheaded /var/log/unheaded /etc/unheaded
+chown unheaded:unheaded /var/lib/unheaded /var/log/unheaded
+systemctl daemon-reload
+POSTINST
+              chmod 755 ${PKG_DIR}/DEBIAN/postinst
+
+              # Pre-remove script
+              cat > ${PKG_DIR}/DEBIAN/prerm <<PRERM
+#!/bin/sh
+set -e
+systemctl stop ${PKG_NAME} 2>/dev/null || true
+systemctl disable ${PKG_NAME} 2>/dev/null || true
+PRERM
+              chmod 755 ${PKG_DIR}/DEBIAN/prerm
+
+              dpkg-deb --build ${PKG_DIR}
+              echo "  Built: ${PKG_NAME}_${VERSION}.deb"
+            done
+
+            echo "=== All packages ==="
+            ls -lh build/deb/*.deb 2>/dev/null
+          '''
+        }
+      }
+      post {
+        success {
+          archiveArtifacts artifacts: 'build/deb/*.deb', allowEmptyArchive: true
+        }
+      }
+    }
+
+    stage('Publish to APT Repo') {
+      when {
+        branch 'main'
+      }
+      steps {
+        script {
+          echo "=== Publishing to local APT repository ==="
+          sh '''
+            APT_REPO="/var/lib/apt-repo"
+            CODENAME="noble"
+            if [ -d "$APT_REPO" ] && which reprepro > /dev/null 2>&1; then
+              for deb in build/deb/*.deb; do
+                reprepro -b ${APT_REPO} includedeb ${CODENAME} ${deb} || echo "Publish failed: ${deb}"
+              done
+              echo "=== Published packages ==="
+              reprepro -b ${APT_REPO} list ${CODENAME}
+            else
+              echo "APT repo not configured — skipping publish"
+              echo "Run runbooks/infra/apt-repo-server.yaml to set up"
+            fi
+          '''
+        }
+      }
+    }
+
     stage('Deploy') {
       when {
         allOf {
@@ -212,7 +334,11 @@ pipeline {
       steps {
         script {
           echo "=== Deploying Unheaded Kingdom ==="
-          sh 'make deploy'
+          sh '''
+            # Deploy via apt on target hosts
+            # ssh govan@east "sudo apt update && sudo apt install -y unheaded-wotan unheaded-daemon"
+            make deploy
+          '''
         }
       }
     }
