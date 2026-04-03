@@ -1,4 +1,4 @@
-# Zhen AI — Local RAG Context Provider
+# Zhenai — Kingdom Champion (Local RAG + MCP)
 
 Zhen is running at http://localhost:20103 with 594K indexed chunks.
 
