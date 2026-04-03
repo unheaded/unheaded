@@ -1041,6 +1041,90 @@ def deny_request(approval_id):
     return jsonify({'error': 'Approval not found or already decided'}), 404
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Source Viewer — view full source content in a new tab
+# ──────────────────────────────────────────────────────────────────────
+
+@app.route('/api/v1/source', methods=['GET'])
+def view_source():
+    """Retrieve full content of a corpus source by ID or path.
+    Used by the UI to open sources in a new tab."""
+    source_id = request.args.get('id', '')
+    source_path = request.args.get('path', '')
+
+    if not rag:
+        return jsonify({'error': 'RAG not initialized'}), 503
+
+    # Search corpus for matching chunk
+    results = []
+    for chunk in rag.corpus:
+        cid = chunk.get('id', '')
+        csource = chunk.get('source', '')
+        if (source_id and cid == source_id) or (source_path and csource == source_path):
+            results.append(chunk)
+
+    if not results:
+        return jsonify({'error': f'Source not found: {source_id or source_path}'}), 404
+
+    return jsonify({
+        'source': results[0].get('source', ''),
+        'type': results[0].get('type', ''),
+        'content': results[0].get('content', ''),
+        'id': results[0].get('id', ''),
+        'total_matches': len(results),
+    })
+
+
+@app.route('/view/source')
+def source_viewer_page():
+    """HTML page that displays a source document. Opened in a new tab."""
+    source_path = request.args.get('path', '')
+    source_id = request.args.get('id', '')
+    return f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Source: {source_path or source_id} — Zhenai</title>
+    <style>
+        body {{ background: #0a0a0a; color: #c9c9c9; font-family: 'JetBrains Mono', monospace; padding: 20px; max-width: 900px; margin: 0 auto; }}
+        h1 {{ color: #ff5c00; font-size: 1.2em; border-bottom: 1px solid #333; padding-bottom: 8px; }}
+        .meta {{ color: #666; font-size: 0.8em; margin-bottom: 16px; }}
+        pre {{ background: #111; padding: 16px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }}
+        .error {{ color: #ff4444; }}
+        a {{ color: #ff5c00; }}
+    </style>
+</head>
+<body>
+    <h1 id="title">Loading...</h1>
+    <div class="meta" id="meta"></div>
+    <pre id="content">Loading source content...</pre>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get('id') || '';
+        const path = params.get('path') || '';
+        fetch('/api/v1/source?' + (id ? 'id=' + encodeURIComponent(id) : 'path=' + encodeURIComponent(path)))
+            .then(r => r.json())
+            .then(d => {{
+                if (d.error) {{
+                    document.getElementById('title').textContent = 'Source Not Found';
+                    document.getElementById('content').className = 'error';
+                    document.getElementById('content').textContent = d.error;
+                    return;
+                }}
+                document.getElementById('title').textContent = d.source || d.id;
+                document.getElementById('meta').textContent = 'Type: ' + (d.type || 'unknown') + ' | ID: ' + (d.id || '?');
+                document.title = 'Source: ' + (d.source || d.id) + ' — Zhenai';
+                document.getElementById('content').textContent = d.content;
+            }})
+            .catch(e => {{
+                document.getElementById('content').className = 'error';
+                document.getElementById('content').textContent = 'Error loading source: ' + e;
+            }});
+    </script>
+</body>
+</html>'''
+
+
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
