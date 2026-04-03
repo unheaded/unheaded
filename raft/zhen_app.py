@@ -267,6 +267,57 @@ def _try_command(question):
     if 'trust level' in q or 'trust' == q:
         return {'answer': f'**Zhenai Trust Level: {TRUST_LEVEL}**\n\nLevel 1: Read-only\nLevel 2: Write (high/critical need approval) ← current\nLevel 3: Autonomous', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
+    # Recall — search past conversations
+    if q.startswith('recall '):
+        search_term = question[7:].strip()
+        if not search_term:
+            return {'answer': 'Usage: `recall <topic>` or `recall last week`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+        # Handle time-based recalls
+        days = 30
+        if 'last week' in search_term:
+            days = 7
+            search_term = search_term.replace('last week', '').strip() or 'conversation'
+        elif 'yesterday' in search_term:
+            days = 1
+            search_term = search_term.replace('yesterday', '').strip() or 'conversation'
+        elif 'last month' in search_term:
+            days = 30
+            search_term = search_term.replace('last month', '').strip() or 'conversation'
+
+        global pg_conn
+        if pg_conn is None:
+            return {'answer': 'The Well is not connected — conversation history unavailable.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+        try:
+            cur = pg_conn.cursor()
+            # Try full-text search first
+            cur.execute(
+                """SELECT role, content, model, created_at
+                   FROM zhen_conversations
+                   WHERE created_at > NOW() - INTERVAL '%s days'
+                     AND (content ILIKE %s OR
+                          (search_vector IS NOT NULL AND search_vector @@ websearch_to_tsquery('english', %s)))
+                   ORDER BY created_at DESC
+                   LIMIT 20""",
+                (days, f'%{search_term}%', search_term),
+            )
+            rows = cur.fetchall()
+            cur.close()
+
+            if not rows:
+                return {'answer': f'No conversations found matching "{search_term}" in the last {days} days.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
+            lines = [f'**Found {len(rows)} messages matching "{search_term}" (last {days} days):**\n']
+            for role, content, model, created_at in rows:
+                ts = created_at.strftime('%Y-%m-%d %H:%M') if created_at else '?'
+                prefix = '**You:**' if role == 'user' else f'**Zhenai ({model or "?"}):**'
+                lines.append(f'`{ts}` {prefix} {content[:200]}{"..." if len(content) > 200 else ""}\n')
+
+            return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+        except Exception as e:
+            return {'answer': f'Recall search error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
     return None, False
 
 
