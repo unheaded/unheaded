@@ -918,9 +918,10 @@ async function ask(preset) {
             const badge = modelBadge(model);
             const extraCls = modelMsgClass(model);
 
-            const sources = (data.sources || []).map(s =>
-                `<a title="${(s.preview || '').replace(/"/g, '&quot;')}">${s.source}</a>`
-            ).join(' | ');
+            const sources = (data.sources || []).map(s => {
+                const viewUrl = '/view/source?' + (s.id ? 'id=' + encodeURIComponent(s.id) : 'path=' + encodeURIComponent(s.source));
+                return `<a href="${viewUrl}" target="_blank" rel="noopener" title="${(s.preview || '').replace(/"/g, '&quot;')}">${s.source}</a>`;
+            }).join(' | ');
 
             // Check for download blocks
             const downloads = extractDownloadBlocks(data.answer);
