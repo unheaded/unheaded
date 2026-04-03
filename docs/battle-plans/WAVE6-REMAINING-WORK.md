@@ -17,11 +17,11 @@
 ---
 
 ## PROGRESS (update as you go)
-- [~] Sprint A: A1 hipBLAS DONE, A2 Q5_K dequant DONE, A3 tensor data access DONE, A3-A7 GPU forward/backward IN PROGRESS
-- [~] Sprint B: B1 schema DONE, B4 decision recall DONE, B2/B3/B5/B6/B7 need Zhenai running
-- [x] Sprint C: Scheduler daemon + chat commands + emergency stop DONE
-- [ ] Sprint D: Consensus Health Watchdog
-- [ ] Sprint E: .deb Packaging Full Stack
+- [~] Sprint A: A1-A2 DONE, A3 partial (tensor data access), A4-A7 GPU kernels remaining
+- [~] Sprint B: B1+B4 DONE, B2/B3/B5/B6/B7 need Zhenai running
+- [x] Sprint C: DONE — scheduler daemon + chat commands + emergency stop
+- [~] Sprint D: D1-D3 DONE (Akira pkg/health + cmd/akira binary), D4-D6 need Wotan running
+- [~] Sprint E: E1 DONE (5 .debs built + published + installed on EAST), E2-E3 remaining
 - [ ] Sprint F: Pi-hole LXD Migration (needs user for DNS cutover)
 - [ ] Sprint G: Pre-Public Audit (ScanCode overnight)
 - [ ] Sprint H: Security Hardening
@@ -29,6 +29,7 @@
 - [ ] Sprint J: Zhenai Champion Expansion
 - NEW: ADR-031 Hybrid Model Handoff (Specialist + Generalist) — PLANNED
 - NEW: ADR-032 Python → Go/Rust Migration — PLANNED
+- NEW: ADR-033 NetBox IPAM — PLANNED
 
 ---
 
