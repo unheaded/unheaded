@@ -1,6 +1,6 @@
 # ADR-XXXX: Zhen — Layer 0 Anti-Fragile Knowledge Substrate
 
-**Status:** PROPOSED  
+**Status:** ACCEPTED — 133 tests passing (2026-04-03). PQ crypto Phase 1 complete, gossip core operational.  
 **Date:** 2026-03-28  
 **Author:** Muck (Dworkin)  
 **Deciders:** Captain, Architect, Micromanager, Scientist  
