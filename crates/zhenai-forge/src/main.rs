@@ -14,6 +14,7 @@
 mod data;
 mod gguf;
 mod hip;
+mod quant;
 mod lora;
 mod train;
 
