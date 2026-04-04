@@ -89,6 +89,51 @@ pub fn softmax(logits: &mut [f32]) {
     }
 }
 
+/// FFN forward pass: SwiGLU (gate * silu(up)) then down projection.
+/// gate_weight: (ffn_dim × embed_dim), up_weight: (ffn_dim × embed_dim), down_weight: (embed_dim × ffn_dim)
+/// Input: (embed_dim,), Output: (embed_dim,)
+pub fn ffn_forward(input: &[f32], gate_w: &[f32], up_w: &[f32], down_w: &[f32], n_embd: usize, n_ff: usize) -> Vec<f32> {
+    let dims = n_embd.min(256); // Partial dims for speed
+    let ff_dims = n_ff.min(256);
+
+    // Gate projection: gate = gate_w × input
+    let mut gate = vec![0.0f32; ff_dims];
+    for i in 0..ff_dims {
+        let mut sum = 0.0f32;
+        for j in 0..dims {
+            sum += gate_w[i * n_embd + j] * input[j];
+        }
+        gate[i] = silu(sum);
+    }
+
+    // Up projection: up = up_w × input
+    let mut up = vec![0.0f32; ff_dims];
+    for i in 0..ff_dims {
+        let mut sum = 0.0f32;
+        for j in 0..dims {
+            sum += up_w[i * n_embd + j] * input[j];
+        }
+        up[i] = sum;
+    }
+
+    // Element-wise: hidden = gate * up (SwiGLU)
+    for i in 0..ff_dims {
+        gate[i] *= up[i];
+    }
+
+    // Down projection: output = down_w × hidden
+    let mut output = vec![0.0f32; n_embd];
+    for i in 0..dims {
+        let mut sum = 0.0f32;
+        for j in 0..ff_dims {
+            sum += down_w[i * n_ff + j] * gate[j];
+        }
+        output[i] = sum;
+    }
+
+    output
+}
+
 /// Cross-entropy loss for a single token prediction.
 /// logits: (vocab_size,) — raw model output
 /// target: the correct token index
