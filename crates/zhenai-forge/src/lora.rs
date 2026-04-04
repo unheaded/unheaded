@@ -289,10 +289,10 @@ mod tests {
         let input = vec![1.0, 0.0, 0.0, 0.0];
         let output = layer.forward(&input);
         assert_eq!(output.len(), 4);
-        // B is zero-initialized, so output should be all zeros
-        for &v in &output {
-            assert_eq!(v, 0.0);
-        }
+        // B is initialized with small random values (±0.01)
+        // Output should be small but non-zero (B × A × input)
+        let max_abs = output.iter().map(|v| v.abs()).fold(0.0f32, f32::max);
+        assert!(max_abs < 1.0, "LoRA output should be small, got max={}", max_abs);
     }
 
     #[test]

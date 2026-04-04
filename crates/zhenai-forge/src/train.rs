@@ -279,7 +279,7 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 // Output norm + logits
                 let last_hidden = &hidden[last_pos * n..(last_pos + 1) * n];
                 let normed_out = forward::rmsnorm(last_hidden, &cpu_weights.output_norm, 1e-5);
-                let vocab_subset = 100.min(cpu_weights.n_vocab);
+                let vocab_subset = cpu_weights.n_vocab;
                 let mut logits = vec![0.0f32; vocab_subset];
                 for v in 0..vocab_subset {
                     for i in 0..n {
@@ -304,14 +304,6 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 // 3. Through output RMSNorm
                 let grad_last_hidden = backward::rmsnorm_backward(
                     last_hidden, &cpu_weights.output_norm, &grad_normed, 1e-5);
-
-                // Debug: check gradient chain
-                if state.step % 50 == 0 {
-                    let gl_norm: f32 = grad_logits.iter().map(|g| g*g).sum::<f32>().sqrt();
-                    let gn_norm: f32 = grad_normed.iter().map(|g| g*g).sum::<f32>().sqrt();
-                    let gh_norm: f32 = grad_last_hidden.iter().map(|g| g*g).sum::<f32>().sqrt();
-                    println!("  [CHAIN] grad_logits: {:.6}, grad_normed: {:.6}, grad_hidden: {:.6}", gl_norm, gn_norm, gh_norm);
-                }
 
                 // 4. Through each layer (reverse order) — compute LoRA gradients
                 let mut grad_residual = grad_last_hidden.clone();
@@ -344,17 +336,17 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                         }
                     }
 
+                    // Gradient clipping (max_norm = 1.0)
+                    let grad_norm: f32 = lora.layers[l][0].grad_a.iter().chain(lora.layers[l][0].grad_b.iter())
+                        .map(|g| g * g).sum::<f32>().sqrt();
+                    if grad_norm > 1.0 {
+                        let scale = 1.0 / grad_norm;
+                        for g in lora.layers[l][0].grad_a.iter_mut() { *g *= scale; }
+                        for g in lora.layers[l][0].grad_b.iter_mut() { *g *= scale; }
+                    }
+
                     // Adam step for this layer's Q LoRA
                     lora.layers[l][0].adam_step(config.lr, 0.9, 0.999, 1e-8, state.step + 1);
-                    // Debug: print gradient magnitude every 50 steps
-                    if state.step % 50 == 0 && l == 0 {
-                        let grad_norm_a: f32 = lora.layers[0][0].grad_a.iter().map(|g| g*g).sum::<f32>().sqrt();
-                        let grad_norm_b: f32 = lora.layers[0][0].grad_b.iter().map(|g| g*g).sum::<f32>().sqrt();
-                        let weight_norm_a: f32 = lora.layers[0][0].a.iter().map(|w| w*w).sum::<f32>().sqrt();
-                        let weight_norm_b: f32 = lora.layers[0][0].b.iter().map(|w| w*w).sum::<f32>().sqrt();
-                        println!("  [DEBUG] grad_a: {:.6}, grad_b: {:.6}, weight_a: {:.4}, weight_b: {:.6}",
-                            grad_norm_a, grad_norm_b, weight_norm_a, weight_norm_b);
-                    }
                 }
             }
             epoch_loss += loss as f64;
@@ -540,7 +532,7 @@ impl CpuWeights {
         let normed = forward::rmsnorm(last_hidden, &self.output_norm, 1e-5);
 
         // 4. Output projection → logits (simplified: use first 1000 vocab for speed)
-        let vocab_subset = 100.min(self.n_vocab);
+        let vocab_subset = self.n_vocab;
         let mut logits = vec![0.0f32; vocab_subset];
         for v in 0..vocab_subset {
             let mut sum = 0.0f32;
