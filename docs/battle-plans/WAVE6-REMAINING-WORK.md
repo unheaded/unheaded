@@ -17,8 +17,8 @@
 ---
 
 ## PROGRESS (update as you go)
-- [~] Sprint A: Wave 7+8 in progress — real training running (loss 14.3→9.6), 34 tests, backprop working
-- [~] Sprint B: B1+B4 DONE, B2/B3/B5/B6/B7 need Zhenai running
+- [x] Sprint A: DONE — Wave 8 complete. 7930 steps, loss 14.33→8.77, pipeline proven end-to-end
+- [x] Sprint B: DONE — B2+B3 semantic recall fallback, B4 decision search, B6 history browser tab
 - [x] Sprint C: DONE — scheduler daemon + chat commands + emergency stop
 - [x] Sprint D: DONE — D1-D3 pkg/health + binary, D4 YAML config + EAST deploy (7/7 healthy, 0 false alerts)
 - [x] Sprint E: DONE — 12 .debs built, published to APT repo, 8 installed on EAST
