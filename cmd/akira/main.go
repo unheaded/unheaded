@@ -35,6 +35,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/health"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // AkiraConfig is the YAML config file format.
@@ -96,6 +97,7 @@ func main() {
 	configPath := flag.String("config", "", "Path to config YAML (optional)")
 	nodeID := flag.String("node", "", "Node identifier (default: hostname)")
 	listenPort := flag.Int("port", 16699, "HTTP API port for Akira status")
+	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	flag.Parse()
 
 	// Logger
@@ -125,6 +127,18 @@ func main() {
 		log.Info().Str("config", *configPath).Int("targets", len(targets)).Msg("loaded targets from config")
 	}
 
+	// Connect to Wotan (best-effort — Akira works without it)
+	var wotan *wotanClient.Client
+	if *wotanAddr != "" {
+		var err error
+		wotan, err = wotanClient.NewClient(*wotanAddr)
+		if err != nil {
+			log.Warn().Err(err).Str("addr", *wotanAddr).Msg("Wotan connection failed — running without publish")
+		} else {
+			log.Info().Str("addr", *wotanAddr).Msg("connected to Wotan")
+		}
+	}
+
 	// Create Akira instance
 	akira := health.NewAkira(*nodeID, targets)
 
@@ -137,6 +151,18 @@ func main() {
 				Dur("latency", r.Latency).
 				Msg("service unhealthy")
 		}
+		// Publish all health reports to Wotan
+		if wotan != nil {
+			payload, _ := json.Marshal(map[string]interface{}{
+				"node":    *nodeID,
+				"service": r.Service,
+				"healthy": r.Healthy,
+				"latency": r.Latency.Milliseconds(),
+				"error":   r.Error,
+				"time":    time.Now().UnixMilli(),
+			})
+			_ = wotan.Publish(context.Background(), "system.health.reports", payload)
+		}
 	})
 
 	akira.OnAlert(func(s health.ConsensusState) {
@@ -145,6 +171,18 @@ func main() {
 			Float64("failure_rate", s.FailureRate).
 			Int("auto_restarts", s.AutoRestarts).
 			Msg("CONSENSUS THRESHOLD — remediation needed")
+
+		// Publish consensus alerts to Wotan
+		if wotan != nil {
+			payload, _ := json.Marshal(map[string]interface{}{
+				"node":          *nodeID,
+				"service":       s.Service,
+				"failure_rate":  s.FailureRate,
+				"auto_restarts": s.AutoRestarts,
+				"time":          time.Now().UnixMilli(),
+			})
+			_ = wotan.Publish(context.Background(), "system.outage.reports", payload)
+		}
 
 		// Auto-restart if under limit
 		if s.AutoRestarts < health.MaxAutoRestarts {
