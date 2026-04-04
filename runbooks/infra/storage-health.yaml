@@ -1,0 +1,48 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: storage-health
+  description: Check disk health, SMART status, filesystem integrity
+  owner: architect
+  estimated_duration: 5m
+  risk: low
+  requires_sudo: true
+  cs_sources: [storage/lvm, storage/zfs, disk/df, disk/du]
+
+steps:
+  - name: disk-usage
+    action: shell
+    command: "df -h | grep -vE 'tmpfs|udev|loop|snap'"
+    description: "Filesystem usage — alert if any > 85%"
+
+  - name: inode-usage
+    action: shell
+    command: "df -i | grep -vE 'tmpfs|udev|loop|snap'"
+    description: "Inode usage — can cause 'disk full' even with space available"
+
+  - name: large-files
+    action: shell
+    command: "find / -xdev -type f -size +100M 2>/dev/null | head -20"
+    timeout: 30
+    description: "Files > 100MB that might be consuming space"
+
+  - name: smart-status
+    action: shell
+    command: |
+      for disk in /dev/sd[a-z] /dev/nvme[0-9]n[0-9]; do
+        if [ -b "$disk" ]; then
+          echo "=== $disk ==="
+          sudo smartctl -H "$disk" 2>/dev/null | grep -E "SMART|result|Temperature|Reallocated|Power_On"
+        fi
+      done
+    description: "SMART health for all disks"
+
+  - name: io-stats
+    action: shell
+    command: "iostat -xz 1 1 2>/dev/null || echo 'iostat not installed (apt install sysstat)'"
+    description: "Current I/O utilization per device"
+
+  - name: mount-status
+    action: shell
+    command: "mount | grep -E '^/dev' | awk '{print $1, $3, $5, $6}'"
+    description: "Mounted filesystems with options"

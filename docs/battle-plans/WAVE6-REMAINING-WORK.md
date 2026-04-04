@@ -17,11 +17,11 @@
 ---
 
 ## PROGRESS (update as you go)
-- [~] Sprint A: A1-A2 DONE, A3 partial, A4-A7 GPU kernels remaining
+- [~] Sprint A: Wave 7+8 in progress — real training running (loss 14.3→9.6), 34 tests, backprop working
 - [~] Sprint B: B1+B4 DONE, B2/B3/B5/B6/B7 need Zhenai running
 - [x] Sprint C: DONE — scheduler daemon + chat commands + emergency stop
 - [~] Sprint D: D1-D3 DONE (Akira pkg/health + cmd/akira binary), D4-D6 need Wotan running
-- [x] Sprint E: DONE — 7 .debs built, published to APT repo, 4 installed on EAST
+- [x] Sprint E: DONE — 12 .debs built, published to APT repo, 8 installed on EAST
 - [ ] Sprint F: Pi-hole LXD Migration (needs user present for DNS cutover)
 - [x] Sprint G: DONE — ScanCode 8660 files clean, 99 deps audited, trademark cleared
 - [x] Sprint H: DONE — H1 JWT (123 tests) + H2 age encryption for sealed casks

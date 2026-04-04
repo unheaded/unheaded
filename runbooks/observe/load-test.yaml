@@ -1,0 +1,57 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: load-test
+  description: Basic load test for Kingdom services
+  owner: micromanager
+  estimated_duration: 10m
+  risk: medium
+  requires_sudo: false
+  cs_sources: [load-testing/ab, load-testing/wrk]
+
+parameters:
+  - name: TARGET
+    description: "Target URL (e.g., http://localhost:18000/health)"
+    required: true
+  - name: REQUESTS
+    description: "Total requests"
+    default: "1000"
+  - name: CONCURRENCY
+    description: "Concurrent connections"
+    default: "10"
+
+steps:
+  - name: check-tools
+    action: shell
+    command: "which ab wrk curl 2>/dev/null; echo 'At least curl is needed'"
+
+  - name: warmup
+    action: shell
+    command: "for i in $(seq 1 10); do curl -sf ${TARGET} > /dev/null; done; echo 'Warmup done'"
+
+  - name: load-test-curl
+    action: shell
+    command: |
+      echo "=== Load test: ${REQUESTS} requests, ${CONCURRENCY} concurrent ==="
+      START=$(date +%s%N)
+      seq 1 ${REQUESTS} | xargs -P${CONCURRENCY} -I{} curl -sf -o /dev/null -w "%{http_code} %{time_total}\n" ${TARGET} 2>/dev/null | \
+        awk '{codes[$1]++; total+=$2; count++} END {
+          print "  Requests: " count;
+          for(c in codes) print "  HTTP " c ": " codes[c];
+          if(count>0) print "  Avg latency: " total/count "s";
+        }'
+      END=$(date +%s%N)
+      ELAPSED=$(( ($END - $START) / 1000000 ))
+      echo "  Total time: ${ELAPSED}ms"
+      echo "  RPS: $(echo "scale=1; ${REQUESTS} * 1000 / ${ELAPSED}" | bc)"
+    timeout: 300
+
+  - name: load-test-ab
+    action: shell
+    command: |
+      if which ab > /dev/null 2>&1; then
+        ab -n ${REQUESTS} -c ${CONCURRENCY} ${TARGET} 2>&1 | grep -E "Requests per|Time per|Failed|Complete"
+      else
+        echo "ab not installed (apt install apache2-utils)"
+      fi
+    description: "Apache Bench (more detailed stats)"

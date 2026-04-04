@@ -1,0 +1,49 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: package-management
+  description: APT package management — update, upgrade, audit, cleanup
+  owner: micromanager
+  estimated_duration: 10m
+  risk: medium
+  requires_sudo: true
+  cs_sources: [package-managers/apt]
+
+steps:
+  - name: update-package-list
+    action: shell
+    command: "sudo apt update 2>&1 | tail -3"
+
+  - name: list-upgradable
+    action: shell
+    command: "apt list --upgradable 2>/dev/null | head -20"
+
+  - name: check-security-updates
+    action: shell
+    command: "apt list --upgradable 2>/dev/null | grep -i security | head -10"
+    description: "Security updates should be applied promptly"
+
+  - name: list-unheaded-packages
+    action: shell
+    command: "dpkg -l | grep unheaded"
+    description: "All installed Unheaded Kingdom packages"
+
+  - name: check-apt-repo
+    action: shell
+    command: |
+      echo "=== Local APT repo ==="
+      reprepro -b /var/lib/apt-repo list noble 2>/dev/null
+      echo "=== Repo accessible ==="
+      curl -sf http://localhost:18888/dists/noble/Release | head -5
+
+  - name: cleanup-old-packages
+    action: shell
+    command: |
+      sudo apt autoremove -y 2>&1 | tail -3
+      sudo apt clean
+      echo "Package cache cleaned"
+
+  - name: check-held-packages
+    action: shell
+    command: "apt-mark showhold"
+    description: "Packages held back from upgrade"
