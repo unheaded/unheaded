@@ -1,13 +1,15 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-04-03
-**Total:** 28 ADRs (ADR-012b deprecated, ADR-026 added)
+**Total:** 35 ADRs (ADR-012b deprecated, ADR-027-033 added this session)
 
 ## Status Summary
 
 | Status | Count |
 |--------|-------|
 | Accepted | 20 |
+| In Progress | 2 |
+| Planned | 5 |
 | In Progress | 1 |
 | Deferred | 4 |
 | Pipe Dream | 1 |
@@ -45,4 +47,11 @@
 | [024](ADR-024-zhen-runbook-automation.md) | Runbook Automation | Accepted (31 runbooks) | 2026-04-02 |
 | [025](ADR-025-kanban-mobile-app.md) | Kanban Mobile App | **Pipe Dream (Age 4+)** | 2026-04-03 |
 | [026](ADR-026-deb-packaging-ci-pipeline.md) | .deb Packaging + CI/CD | Accepted | 2026-04-03 |
+| [027](ADR-027-zhenai-conversation-memory.md) | Zhenai Conversation Memory | Planned | 2026-04-03 |
+| [028](ADR-028-zhenai-scheduler-heartbeat.md) | Zhenai Scheduler + Heartbeat | Planned | 2026-04-03 |
+| [029](ADR-029-wotan-consensus-health-remediation.md) | Wotan Consensus Health (Akira) | In Progress | 2026-04-03 |
+| [030](ADR-030-zhenai-forge-rust-training.md) | Zhenai Forge (Rust LoRA training) | **In Progress — training** | 2026-04-03 |
+| [031](ADR-031-hybrid-model-handoff.md) | Hybrid Model Handoff | Planned | 2026-04-03 |
+| [032](ADR-032-python-to-go-rust-migration.md) | Python → Go/Rust Migration | Planned | 2026-04-03 |
+| [033](ADR-033-netbox-ipam.md) | NetBox IPAM | Planned | 2026-04-03 |
 | [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Deferred to Q4 2026** | 2026-03-18 |
