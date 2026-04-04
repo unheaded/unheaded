@@ -339,8 +339,8 @@ impl CpuWeights {
         let output_norm = forward::dequantize_tensor(model, "output_norm.weight")
             .ok_or("Failed to dequantize output_norm.weight")?;
 
-        // Load first few layers' attention Q for simplified forward pass
-        let max_layers = n_layers.min(2) as usize; // Start with 2 layers for memory
+        // Load all layers — streaming dequant keeps RAM manageable
+        let max_layers = n_layers as usize;
         let mut attn_q = Vec::new();
         let mut attn_norm = Vec::new();
 
