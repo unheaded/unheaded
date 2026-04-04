@@ -1,0 +1,69 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: west-east-network
+  description: Full WEST↔EAST P2P network verification and troubleshooting
+  owner: architect
+  estimated_duration: 5m
+  risk: low
+  requires_sudo: true
+
+notes: |
+  WEST: 192.168.69.184 (LAN), 192.168.13.2 (P2P)
+  EAST: 192.168.13.1 (P2P only, internet via WEST NAT)
+  Bridge: 10.10.10.0/24 (lxdbr0)
+
+steps:
+  - name: verify-p2p-link
+    action: shell
+    command: |
+      echo "=== P2P Link ==="
+      echo "WEST (local): $(ip addr show | grep 192.168.13 | awk '{print $2}')"
+      echo "EAST (remote): $(ssh govan@east 'ip addr show | grep 192.168.13' 2>/dev/null | awk '{print $2}')"
+      echo "=== Ping test ==="
+      ping -c 3 -W 2 192.168.13.1
+
+  - name: verify-east-internet
+    action: shell
+    command: |
+      echo "=== EAST internet ==="
+      ssh govan@east 'ping -c 1 -W 3 1.1.1.1 && echo "IP: OK" || echo "IP: FAIL"'
+      ssh govan@east 'ping -c 1 -W 3 google.com && echo "DNS: OK" || echo "DNS: FAIL"'
+
+  - name: verify-nat-rules
+    action: shell
+    command: |
+      echo "=== WEST NAT rules ==="
+      sudo iptables -t nat -L POSTROUTING -n | grep 192.168.13
+      echo "=== IP forwarding ==="
+      sysctl net.ipv4.ip_forward
+
+  - name: verify-east-route
+    action: shell
+    command: |
+      echo "=== EAST routing table ==="
+      ssh govan@east 'ip route show'
+      echo "=== EAST DNS ==="
+      ssh govan@east 'cat /etc/resolv.conf'
+
+  - name: verify-apt-repo-access
+    action: shell
+    command: |
+      echo "=== EAST can reach APT repo? ==="
+      ssh govan@east 'curl -sf http://192.168.13.2:18888/dists/noble/Release | head -3'
+
+  - name: verify-ssh-both-ways
+    action: shell
+    command: |
+      echo "=== SSH WEST→EAST ==="
+      ssh govan@east 'hostname && uptime'
+      echo "=== SSH EAST→WEST ==="
+      ssh govan@east 'ssh govan@192.168.13.2 hostname 2>/dev/null' || echo "EAST→WEST SSH not configured"
+
+  - name: verify-packages
+    action: shell
+    command: |
+      echo "=== WEST packages ==="
+      dpkg -l | grep unheaded | wc -l
+      echo "=== EAST packages ==="
+      ssh govan@east 'dpkg -l | grep unheaded | wc -l'
