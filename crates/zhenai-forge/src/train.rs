@@ -413,10 +413,14 @@ struct CpuWeights {
     output: Vec<f32>,
     /// Output norm: (embed_dim,)
     output_norm: Vec<f32>,
-    /// Per-layer attention Q weights: [layer] → (embed_dim × embed_dim)
+    /// Per-layer attention weights: [layer] → (embed_dim × embed_dim)
     attn_q: Vec<Vec<f32>>,
-    /// Per-layer attention norm: [layer] → (embed_dim,)
+    attn_k: Vec<Vec<f32>>,
+    attn_v: Vec<Vec<f32>>,
+    attn_o: Vec<Vec<f32>>,
+    /// Per-layer norms: [layer] → (embed_dim,)
     attn_norm: Vec<Vec<f32>>,
+    ffn_norm: Vec<Vec<f32>>,
 
     n_vocab: usize,
     n_embd: usize,
@@ -442,31 +446,51 @@ impl CpuWeights {
         let output_norm = forward::dequantize_tensor(model, "output_norm.weight")
             .ok_or("Failed to dequantize output_norm.weight")?;
 
-        // Load all layers — streaming dequant keeps RAM manageable
-        let max_layers = n_layers.min(4) as usize; // 4 layers for speed with numerical grads
+        // Load layers — Q/K/V/O attention weights for full gradient signal
+        let max_layers = n_layers.min(4) as usize; // 4 layers (increase after backprop speedup)
         let mut attn_q = Vec::new();
+        let mut attn_k = Vec::new();
+        let mut attn_v = Vec::new();
+        let mut attn_o = Vec::new();
         let mut attn_norm = Vec::new();
+        let mut ffn_norm = Vec::new();
 
         for l in 0..max_layers {
-            let q_name = format!("blk.{}.attn_q.weight", l);
-            let norm_name = format!("blk.{}.attn_norm.weight", l);
-
-            if let Some(q) = forward::dequantize_tensor(model, &q_name) {
-                println!("    {}: {} elements ({:.1} MB)", q_name, q.len(), q.len() as f64 * 4.0 / 1e6);
-                attn_q.push(q);
+            // Q/K/V/O projections
+            for (name_suffix, vec) in [
+                ("attn_q", &mut attn_q),
+                ("attn_k", &mut attn_k),
+                ("attn_v", &mut attn_v),
+                ("attn_output", &mut attn_o),
+            ] {
+                let tensor_name = format!("blk.{}.{}.weight", l, name_suffix);
+                if let Some(w) = forward::dequantize_tensor(model, &tensor_name) {
+                    if name_suffix == "attn_q" {
+                        println!("    blk.{} Q/K/V/O: {:.1} MB each", l, w.len() as f64 * 4.0 / 1e6);
+                    }
+                    vec.push(w);
+                }
             }
-            if let Some(n) = forward::dequantize_tensor(model, &norm_name) {
+            // Norms
+            if let Some(n) = forward::dequantize_tensor(model, &format!("blk.{}.attn_norm.weight", l)) {
                 attn_norm.push(n);
+            }
+            if let Some(n) = forward::dequantize_tensor(model, &format!("blk.{}.ffn_norm.weight", l)) {
+                ffn_norm.push(n);
             }
         }
 
-        let total_mb = (embed.len() + output.len() + output_norm.len()
-            + attn_q.iter().map(|v| v.len()).sum::<usize>()
-            + attn_norm.iter().map(|v| v.len()).sum::<usize>()) as f64 * 4.0 / 1e6;
+        let total_elements: usize = embed.len() + output.len() + output_norm.len()
+            + attn_q.iter().chain(attn_k.iter()).chain(attn_v.iter()).chain(attn_o.iter())
+                .chain(attn_norm.iter()).chain(ffn_norm.iter())
+                .map(|v| v.len()).sum::<usize>();
+        let total_mb = total_elements as f64 * 4.0 / 1e6;
         println!("    Total CPU weights: {:.1} MB", total_mb);
 
         Ok(CpuWeights {
-            embed, output, output_norm, attn_q, attn_norm,
+            embed, output, output_norm,
+            attn_q, attn_k, attn_v, attn_o,
+            attn_norm, ffn_norm,
             n_vocab, n_embd, n_layers: max_layers,
         })
     }
