@@ -32,9 +32,46 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/health"
 )
+
+// AkiraConfig is the YAML config file format.
+type AkiraConfig struct {
+	Targets []struct {
+		Name       string `yaml:"name"`
+		Host       string `yaml:"host"`
+		Port       int    `yaml:"port"`
+		HealthPath string `yaml:"health_path"`
+	} `yaml:"targets"`
+}
+
+func loadConfig(path string) ([]health.ServiceTarget, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var cfg AkiraConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	targets := make([]health.ServiceTarget, 0, len(cfg.Targets))
+	for _, t := range cfg.Targets {
+		host := t.Host
+		if host == "" {
+			host = "localhost"
+		}
+		hp := t.HealthPath
+		if hp == "" {
+			hp = "/health"
+		}
+		targets = append(targets, health.ServiceTarget{
+			Name: t.Name, Host: host, Port: t.Port, HealthPath: hp,
+		})
+	}
+	return targets, nil
+}
 
 // Default service targets — The Doom Range
 var defaultTargets = []health.ServiceTarget{
@@ -80,8 +117,12 @@ func main() {
 	// Load targets (from config or defaults)
 	targets := defaultTargets
 	if *configPath != "" {
-		// TODO: load from YAML config
-		log.Info().Str("config", *configPath).Msg("config loading not yet implemented, using defaults")
+		loaded, err := loadConfig(*configPath)
+		if err != nil {
+			log.Fatal().Err(err).Str("config", *configPath).Msg("failed to load config")
+		}
+		targets = loaded
+		log.Info().Str("config", *configPath).Int("targets", len(targets)).Msg("loaded targets from config")
 	}
 
 	// Create Akira instance
