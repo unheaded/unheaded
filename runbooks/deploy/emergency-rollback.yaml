@@ -1,0 +1,53 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: emergency-rollback
+  description: Emergency rollback — restore previous package versions + database state
+  owner: micromanager
+  estimated_duration: 10m
+  risk: critical
+  requires_sudo: true
+
+steps:
+  - name: stop-all-services
+    action: shell
+    command: |
+      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+        sudo systemctl stop "unheaded-${svc}" 2>/dev/null
+      done
+      echo "All services stopped"
+
+  - name: restore-database
+    action: shell
+    command: |
+      LATEST_BACKUP=$(ls -t /var/backups/postgresql/pre-upgrade-*.dump 2>/dev/null | head -1)
+      if [ -n "$LATEST_BACKUP" ]; then
+        echo "Restoring from: $LATEST_BACKUP"
+        sudo docker exec unheaded-postgres psql -U unheaded -c "DROP DATABASE IF EXISTS unheaded_app"
+        sudo docker exec unheaded-postgres psql -U unheaded -c "CREATE DATABASE unheaded_app"
+        sudo docker exec -i unheaded-postgres pg_restore -U unheaded -d unheaded_app < "$LATEST_BACKUP"
+        echo "Database restored"
+      else
+        echo "No backup found — database NOT restored"
+      fi
+
+  - name: downgrade-packages
+    action: shell
+    command: |
+      echo "To downgrade to specific version:"
+      echo "  sudo apt install unheaded-wotan=<version>"
+      echo ""
+      echo "Available versions:"
+      apt list -a unheaded-wotan 2>/dev/null
+    description: "MANUAL — specify the version to rollback to"
+
+  - name: restart-services
+    action: shell
+    command: |
+      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+        sudo systemctl start "unheaded-${svc}" 2>/dev/null
+      done
+
+  - name: verify-health
+    action: shell
+    command: "~/tmp/unheaded/cmd/akira/akira --once 2>&1 | tail -5"

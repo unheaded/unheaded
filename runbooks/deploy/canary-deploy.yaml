@@ -1,0 +1,52 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: canary-deploy
+  description: Deploy a single service update to EAST (canary) before WEST
+  owner: micromanager
+  estimated_duration: 10m
+  risk: medium
+  requires_sudo: true
+
+parameters:
+  - name: SERVICE
+    description: "Service to deploy (e.g., wotan, timeguru)"
+    required: true
+  - name: VERSION
+    description: "Version to deploy (default: latest from APT repo)"
+    default: "latest"
+
+steps:
+  - name: verify-current-version
+    action: shell
+    command: |
+      echo "WEST: $(dpkg -l unheaded-${SERVICE} 2>/dev/null | grep ii | awk '{print $3}')"
+      echo "EAST: $(ssh govan@east 'dpkg -l unheaded-'${SERVICE}' 2>/dev/null | grep ii' | awk '{print $3}')"
+
+  - name: deploy-to-east
+    action: shell
+    command: "ssh govan@east 'sudo apt update -qq && sudo apt install -y unheaded-${SERVICE}'"
+    verify: "ssh govan@east 'systemctl status unheaded-${SERVICE} 2>/dev/null | head -3'"
+
+  - name: health-check-east
+    action: shell
+    command: |
+      PORT=$(grep -w ${SERVICE} ~/tmp/unheaded/pkg/ports/ports.go 2>/dev/null | grep -oP '\d{5}' | head -1)
+      ssh govan@east "curl -sf http://localhost:${PORT}/health" 2>/dev/null || echo "Health check failed"
+    timeout: 10
+
+  - name: wait-and-monitor
+    action: shell
+    command: "echo 'Monitor EAST for 5 minutes before promoting to WEST'"
+    description: "MANUAL — watch logs, check metrics, verify no errors"
+
+  - name: promote-to-west
+    action: shell
+    command: "sudo apt update -qq && sudo apt install -y unheaded-${SERVICE}"
+    verify: "systemctl status unheaded-${SERVICE} 2>/dev/null | head -3"
+
+rollback:
+  - name: rollback-east
+    action: shell
+    command: "ssh govan@east 'sudo apt install -y unheaded-${SERVICE}=<previous_version>'"
+    when: "step.health-check-east.failed"
