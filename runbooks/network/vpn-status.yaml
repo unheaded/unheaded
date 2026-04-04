@@ -2,14 +2,38 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: vpn-status
-  description: Check WireGuard/VPN tunnel status and connectivity
-  owner: micromanager
+  description: Check WireGuard VPN tunnel status and connectivity
+  owner: architect
   estimated_duration: 3m
   risk: low
-  requires_sudo: false
+  requires_sudo: true
+  cs_sources: [security/wireguard]
 
 steps:
-  - name: check
+  - name: check-wireguard-interface
     action: shell
-    command: "echo 'Runbook vpn-status — implementation pending'"
-    description: "Check WireGuard/VPN tunnel status and connectivity"
+    command: "sudo wg show 2>/dev/null || echo 'WireGuard not configured'"
+    description: "Show WireGuard interface status, peers, handshakes"
+
+  - name: check-tunnel-connectivity
+    action: shell
+    command: |
+      if sudo wg show wg0 2>/dev/null | grep -q "endpoint"; then
+        PEER_IP=$(sudo wg show wg0 | grep "allowed ips" | awk '{print $3}' | cut -d/ -f1)
+        ping -c 3 -W 2 $PEER_IP && echo "Tunnel UP" || echo "Tunnel DOWN"
+      else
+        echo "No WireGuard peers configured"
+      fi
+
+  - name: check-handshake-age
+    action: shell
+    command: |
+      sudo wg show wg0 2>/dev/null | grep "latest handshake" | while read line; do
+        echo "  $line"
+        # Alert if handshake older than 5 minutes
+      done
+
+  - name: check-transfer-stats
+    action: shell
+    command: "sudo wg show wg0 transfer 2>/dev/null"
+    description: "Bytes transferred per peer"

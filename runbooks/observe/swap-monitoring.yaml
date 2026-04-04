@@ -4,12 +4,43 @@ metadata:
   name: swap-monitoring
   description: Monitor swap usage and identify memory-hungry processes
   owner: micromanager
-  estimated_duration: 3m
+  estimated_duration: 2m
   risk: low
   requires_sudo: false
 
 steps:
-  - name: check
+  - name: memory-overview
     action: shell
-    command: "echo 'Runbook swap-monitoring — implementation pending'"
-    description: "Monitor swap usage and identify memory-hungry processes"
+    command: "free -h"
+
+  - name: swap-detail
+    action: shell
+    command: |
+      echo "=== Swap devices ==="
+      swapon --show
+      echo "=== Swap usage ==="
+      SWAP_TOTAL=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
+      SWAP_FREE=$(grep SwapFree /proc/meminfo | awk '{print $2}')
+      SWAP_USED=$((SWAP_TOTAL - SWAP_FREE))
+      PCT=$((SWAP_USED * 100 / SWAP_TOTAL))
+      echo "  Used: $((SWAP_USED / 1024))MB / $((SWAP_TOTAL / 1024))MB ($PCT%)"
+      if [ "$PCT" -gt 50 ]; then
+        echo "  WARNING: Swap usage above 50%!"
+      fi
+
+  - name: top-memory-processes
+    action: shell
+    command: "ps aux --sort=-%mem | head -15"
+    description: "Processes sorted by memory usage"
+
+  - name: top-swap-processes
+    action: shell
+    command: |
+      echo "=== Processes using swap ==="
+      for pid in $(ls /proc/*/status 2>/dev/null | cut -d/ -f3); do
+        SWAP=$(grep VmSwap /proc/$pid/status 2>/dev/null | awk '{print $2}')
+        if [ -n "$SWAP" ] && [ "$SWAP" -gt 1000 ]; then
+          NAME=$(grep Name /proc/$pid/status 2>/dev/null | awk '{print $2}')
+          echo "  $NAME (PID $pid): ${SWAP}kB swap"
+        fi
+      done 2>/dev/null | sort -t: -k2 -rn | head -10
