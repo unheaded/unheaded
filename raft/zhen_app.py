@@ -263,6 +263,44 @@ def _try_command(question):
         lines.append(f'\n**{healthy}/{len(services)} healthy**')
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
+    # Bailiff — drift detection: compare desired state vs actual state
+    if q in ('drift check', 'bailiff', 'check drift', 'drift'):
+        import urllib.request as ur
+        desired_services = {
+            'wotan': 18000, 'timeguru': 19000, 'captain': 19002,
+            'architect': 19001, 'micromanager': 19003, 'monad': 19004,
+            'sophia': 19005, 'dashboard': 20000, 'kanban': 16668,
+            'zhenai': 20103, 'inference': 20100, 'akira': 16699,
+        }
+        lines = ['**Bailiff Drift Report:**\n']
+        drifts = 0
+        for name, port in desired_services.items():
+            try:
+                ur.urlopen(f'http://localhost:{port}/health', timeout=2)
+                lines.append(f'  ✓ {name} (:{port}) — running')
+            except Exception:
+                lines.append(f'  ✗ {name} (:{port}) — **DRIFT: should be running but is DOWN**')
+                drifts += 1
+
+        # Check systemd units
+        import subprocess as sp
+        try:
+            result = sp.run(['systemctl', 'list-units', '--type=service', '--state=failed', '--no-pager', '-q'],
+                          capture_output=True, text=True, timeout=5)
+            failed_units = [l.strip().split()[0] for l in result.stdout.strip().split('\n') if l.strip() and 'unheaded' in l]
+            for unit in failed_units:
+                lines.append(f'  ⚠ {unit} — **DRIFT: systemd unit FAILED**')
+                drifts += 1
+        except Exception:
+            pass
+
+        if drifts == 0:
+            lines.append(f'\n**No drift detected.** All services aligned with desired state.')
+        else:
+            lines.append(f'\n**{drifts} drift(s) detected.** Run `run service-health-sweep` for details.')
+
+        return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
     # Config generation: generate nginx|systemd|haproxy <service> <port>
     if q.startswith('generate '):
         parts = q.split()
