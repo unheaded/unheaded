@@ -492,7 +492,7 @@ impl CpuWeights {
             .ok_or("Failed to dequantize output_norm.weight")?;
 
         // Load layers — Q/K/V/O attention weights for full gradient signal
-        let max_layers = n_layers.min(4) as usize; // 4 layers (increase after backprop speedup)
+        let max_layers = n_layers.min(8) as usize; // 8 layers — balanced speed vs quality
         let mut attn_q = Vec::new();
         let mut attn_k = Vec::new();
         let mut attn_v = Vec::new();
