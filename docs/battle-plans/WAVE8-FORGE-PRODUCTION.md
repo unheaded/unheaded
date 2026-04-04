@@ -7,6 +7,15 @@
 
 ---
 
+## PROGRESS (2026-04-04)
+- [x] Phase 1: Tests green (34/34) ✓
+- [x] Phase 2: Full 32K vocab + gradient clipping ✓
+- [x] Phase 3: Scaled to 8 layers ✓ 
+- [x] Phase 4: Q/K/V/O LoRA in forward + backward ✓
+- [x] Phase 5: FFN (SwiGLU) in forward pass ✓
+- [~] Phase 6: Production training — Epoch 1 DONE (14.33→9.26), Epoch 2 in progress
+- [ ] Phase 7: Validate + deploy (blocked on Phase 6)
+
 ## ROUND TABLE ASSESSMENT
 
 ### What's PROVEN (do not re-do)
