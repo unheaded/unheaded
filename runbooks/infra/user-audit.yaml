@@ -3,13 +3,48 @@ kind: Runbook
 metadata:
   name: user-audit
   description: Audit system users, sudo access, and SSH keys
-  owner: micromanager
+  owner: blackmage
   estimated_duration: 3m
   risk: low
-  requires_sudo: false
+  requires_sudo: true
+  cs_sources: [users/sudo, users/useradd, security/ssh]
 
 steps:
-  - name: check
+  - name: list-human-users
     action: shell
-    command: "echo 'Runbook user-audit — implementation pending'"
-    description: "Audit system users, sudo access, and SSH keys"
+    command: |
+      echo "=== Users with login shells ==="
+      grep -vE '(/nologin|/false)$' /etc/passwd | awk -F: '{print $1, "uid=" $3, "home=" $6, "shell=" $7}'
+
+  - name: list-sudo-users
+    action: shell
+    command: |
+      echo "=== Sudoers ==="
+      grep -vE '^#|^$' /etc/sudoers 2>/dev/null | head -20
+      echo "=== Sudoers.d ==="
+      ls /etc/sudoers.d/ 2>/dev/null
+
+  - name: check-ssh-keys
+    action: shell
+    command: |
+      echo "=== SSH authorized keys ==="
+      for user in $(grep -vE '(/nologin|/false)$' /etc/passwd | awk -F: '{print $1}'); do
+        KEYS=$(cat /home/$user/.ssh/authorized_keys 2>/dev/null | wc -l)
+        if [ "$KEYS" -gt 0 ]; then
+          echo "  $user: $KEYS keys"
+        fi
+      done
+
+  - name: check-system-users
+    action: shell
+    command: |
+      echo "=== System users (uid < 1000) ==="
+      awk -F: '$3 < 1000 && $3 > 0 {print $1, "uid=" $3}' /etc/passwd | head -20
+      echo "=== Unheaded service user ==="
+      id unheaded 2>/dev/null || echo "unheaded user not found"
+
+  - name: check-failed-logins
+    action: shell
+    command: |
+      echo "=== Recent failed logins ==="
+      journalctl -u sshd --since "24 hours ago" 2>/dev/null | grep -i "failed\|invalid" | tail -10

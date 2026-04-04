@@ -3,13 +3,51 @@ kind: Runbook
 metadata:
   name: doom-performance
   description: Measure DOOM rendering FPS and CPU throughput
-  owner: micromanager
-  estimated_duration: 3m
+  owner: computermancer
+  estimated_duration: 5m
   risk: low
-  requires_sudo: false
+  requires_sudo: true
+
+env:
+  MAP: "/sys/fs/bpf/unheaded/doom-ring/maps"
+
+preconditions:
+  - check: "test -d ${MAP}"
+    description: "Doom ring must be set up"
 
 steps:
-  - name: check
+  - name: check-cpu-state
     action: shell
-    command: "echo 'Runbook doom-performance — implementation pending'"
-    description: "Measure DOOM rendering FPS and CPU throughput"
+    command: |
+      sudo ~/tmp/unheaded/cmd/doom-loader/doom-loader cpu \
+        --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null
+
+  - name: measure-throughput
+    action: shell
+    command: |
+      echo "Measuring MBC instructions/sec over 5 seconds..."
+      COUNT1=$(sudo ~/tmp/unheaded/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null | grep insn_count | awk '{print $NF}')
+      sleep 5
+      COUNT2=$(sudo ~/tmp/unheaded/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null | grep insn_count | awk '{print $NF}')
+      RATE=$(( (COUNT2 - COUNT1) / 5 ))
+      FPS=$(( RATE / 4000000 ))
+      echo "  Instructions/sec: $RATE"
+      echo "  Estimated FPS: $FPS (assumes ~4M insns/frame)"
+      echo "  Target: 35 FPS = 140M insns/sec"
+
+  - name: check-bridge
+    action: shell
+    command: |
+      PID=$(pgrep -f doom-bridge)
+      if [ -n "$PID" ]; then
+        echo "Bridge running (PID $PID)"
+        curl -sf http://localhost:16666/ -o /dev/null -w "HTTP %{http_code}, latency %{time_total}s\n"
+      else
+        echo "Bridge NOT running"
+      fi
+
+  - name: check-screen-map
+    action: shell
+    command: |
+      NONZERO=$(sudo bpftool map dump name SCREEN_MAP 2>/dev/null | grep -c "value:" || echo "0")
+      echo "SCREEN_MAP entries with data: $NONZERO (expect ~64000 for 320x200)"

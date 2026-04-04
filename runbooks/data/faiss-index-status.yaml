@@ -3,13 +3,36 @@ kind: Runbook
 metadata:
   name: faiss-index-status
   description: Check FAISS index health and vector counts
-  owner: micromanager
-  estimated_duration: 3m
+  owner: zhenai
+  estimated_duration: 2m
   risk: low
   requires_sudo: false
 
 steps:
-  - name: check
+  - name: check-index-files
     action: shell
-    command: "echo 'Runbook faiss-index-status — implementation pending'"
-    description: "Check FAISS index health and vector counts"
+    command: |
+      echo "=== FAISS index files ==="
+      ls -lh /var/zhen/index/*.index /var/zhen/index/*.json 2>/dev/null
+      echo "=== Active index ==="
+      readlink /var/zhen/index/active.index 2>/dev/null || echo "No active index"
+      readlink /var/zhen/index/active_ids.json 2>/dev/null
+
+  - name: check-corpus
+    action: shell
+    command: |
+      echo "=== Corpus files ==="
+      wc -l /var/zhen/corpus/*.jsonl 2>/dev/null
+      echo "=== Corpus size ==="
+      du -sh /var/zhen/corpus/ 2>/dev/null
+
+  - name: check-model-files
+    action: shell
+    command: |
+      echo "=== Model files ==="
+      ls -lh /var/zhen/models/*.gguf /var/zhen/models/*.zlora 2>/dev/null
+
+  - name: check-zhenai-stats
+    action: shell
+    command: |
+      curl -sf http://localhost:20103/api/v1/stats 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "Zhenai not running"
