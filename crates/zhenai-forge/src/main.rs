@@ -17,6 +17,7 @@ mod gguf;
 mod hip;
 mod quant;
 mod lora;
+mod tokenizer;
 mod train;
 
 fn main() {
@@ -57,14 +58,23 @@ fn cmd_info(args: &[String]) {
             println!("  File size:  {:.1} MB", model.file_size as f64 / 1e6);
 
             // Show key metadata
-            for (key, val) in &model.metadata {
-                match key.as_str() {
-                    k if k.contains("name") || k.contains("arch") || k.contains("context")
-                        || k.contains("block_count") || k.contains("embedding") => {
-                        println!("  {}: {}", key, val);
-                    }
-                    _ => {}
+            let mut sorted_keys: Vec<_> = model.metadata.keys().collect();
+            sorted_keys.sort();
+            for key in &sorted_keys {
+                let val = &model.metadata[*key];
+                let show = key.contains("name") || key.contains("arch") || key.contains("context")
+                    || key.contains("block_count") || key.contains("embedding")
+                    || key.contains("tokenizer.ggml.model") || key.contains("bos") || key.contains("eos")
+                    || key.contains("vocab");
+                let truncated = if val.len() > 80 { format!("{}...", &val[..80]) } else { val.clone() };
+                if show {
+                    println!("  {}: {}", key, truncated);
                 }
+            }
+            // Show all metadata keys (for discovery)
+            println!("\n  All metadata keys:");
+            for key in &sorted_keys {
+                println!("    {}", key);
             }
 
             // List tensors (first 30 + pattern summary)
