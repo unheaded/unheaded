@@ -147,6 +147,54 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
         pg_conn = _pg_connect()
 
 
+def _recall_semantic(search_term, days=30, k=20):
+    """Semantic search fallback for recall — embed the query, search conversations via cosine similarity."""
+    global pg_conn
+    if pg_conn is None or rag is None:
+        return []
+    try:
+        import numpy as np
+        # Embed the search term
+        q_emb = rag.embedding_model.encode(search_term, convert_to_numpy=True).astype('float32')
+
+        # Fetch recent conversations from The Well
+        cur = pg_conn.cursor()
+        cur.execute(
+            """SELECT role, content, model, created_at
+               FROM zhen_conversations
+               WHERE created_at > NOW() - INTERVAL '%s days'
+                 AND length(content) > 20
+               ORDER BY created_at DESC
+               LIMIT 500""",
+            (days,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+
+        if not rows:
+            return []
+
+        # Embed all conversation content and rank by similarity
+        contents = [r[1] for r in rows]
+        c_embs = rag.embedding_model.encode(contents, convert_to_numpy=True, batch_size=64).astype('float32')
+
+        # Cosine similarity
+        q_norm = q_emb / (np.linalg.norm(q_emb) + 1e-10)
+        c_norms = c_embs / (np.linalg.norm(c_embs, axis=1, keepdims=True) + 1e-10)
+        scores = c_norms @ q_norm
+
+        # Top-k by similarity (threshold 0.3)
+        top_idx = np.argsort(scores)[::-1][:k]
+        results = []
+        for idx in top_idx:
+            if scores[idx] > 0.3:
+                results.append(rows[idx])
+        return results
+    except Exception as e:
+        logging.warning(f"[zhen] Semantic recall failed: {e}")
+        return []
+
+
 def _search_memories(question, threshold=0.9):
     """Search zhen_memories for a cached answer using embedding similarity."""
     global pg_conn
@@ -560,9 +608,14 @@ backend {svc_name}_back
             cur.close()
 
             if not rows:
-                return {'answer': f'No conversations found matching "{search_term}" in the last {days} days.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+                # B3: Semantic search fallback — use embedding similarity on conversation content
+                rows = _recall_semantic(search_term, days)
+                if not rows:
+                    return {'answer': f'No conversations found matching "{search_term}" in the last {days} days.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+                lines = [f'**Found {len(rows)} messages via semantic search for "{search_term}" (last {days} days):**\n']
+            else:
+                lines = [f'**Found {len(rows)} messages matching "{search_term}" (last {days} days):**\n']
 
-            lines = [f'**Found {len(rows)} messages matching "{search_term}" (last {days} days):**\n']
             for role, content, model, created_at in rows:
                 ts = created_at.strftime('%Y-%m-%d %H:%M') if created_at else '?'
                 prefix = '**You:**' if role == 'user' else f'**Zhenai ({model or "?"}):**'
@@ -599,9 +652,13 @@ backend {svc_name}_back
             cur.close()
 
             if not rows:
-                return {'answer': f'No decisions found about "{topic}" in conversation history.\n\nTry `recall {topic}` for a broader search.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
-
-            lines = [f'**Decisions about "{topic}":**\n']
+                # Semantic fallback for decisions
+                rows = _recall_semantic(f"decided {topic}", days=90, k=10)
+                if not rows:
+                    return {'answer': f'No decisions found about "{topic}" in conversation history.\n\nTry `recall {topic}` for a broader search.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+                lines = [f'**Decisions about "{topic}" (via semantic search):**\n']
+            else:
+                lines = [f'**Decisions about "{topic}":**\n']
             for role, content, model, created_at in rows:
                 ts = created_at.strftime('%Y-%m-%d %H:%M') if created_at else '?'
                 prefix = '**You:**' if role == 'user' else f'**Zhenai:**'
