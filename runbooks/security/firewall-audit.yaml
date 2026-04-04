@@ -3,13 +3,48 @@ kind: Runbook
 metadata:
   name: firewall-audit
   description: Audit iptables rules for security gaps
-  owner: micromanager
-  estimated_duration: 3m
+  owner: blackmage
+  estimated_duration: 5m
   risk: low
-  requires_sudo: false
+  requires_sudo: true
+  cs_sources: [networking/iptables, networking/nftables]
 
 steps:
-  - name: check
+  - name: show-all-rules
     action: shell
-    command: "echo 'Runbook firewall-audit — implementation pending'"
-    description: "Audit iptables rules for security gaps"
+    command: "sudo iptables -L -n -v --line-numbers"
+
+  - name: check-default-policy
+    action: shell
+    command: |
+      for chain in INPUT FORWARD OUTPUT; do
+        POLICY=$(sudo iptables -L $chain -n | head -1 | grep -oP '\(policy \K\w+')
+        echo "  $chain: $POLICY"
+        if [ "$chain" = "INPUT" ] && [ "$POLICY" != "DROP" ]; then
+          echo "  WARNING: INPUT should be DROP, got $POLICY"
+        fi
+      done
+
+  - name: check-open-ports
+    action: shell
+    command: |
+      echo "=== Ports accepting connections ==="
+      sudo iptables -L INPUT -n | grep ACCEPT | grep -oP 'dpt:\K\d+' | sort -n | uniq
+      echo "=== Listening but not in iptables ==="
+      ss -tunlp | grep LISTEN | awk '{print $5}' | grep -oP ':\K\d+' | sort -n | uniq
+
+  - name: check-nat-rules
+    action: shell
+    command: "sudo iptables -t nat -L -n -v"
+    description: "NAT/masquerade rules (EAST internet access)"
+
+  - name: check-for-any-any-rules
+    action: shell
+    command: |
+      DANGEROUS=$(sudo iptables -L INPUT -n | grep -E "ACCEPT.*0\.0\.0\.0/0.*0\.0\.0\.0/0" | grep -v "RELATED,ESTABLISHED")
+      if [ -n "$DANGEROUS" ]; then
+        echo "WARNING: Found permissive ACCEPT rules:"
+        echo "$DANGEROUS"
+      else
+        echo "No dangerous any-any ACCEPT rules found"
+      fi
