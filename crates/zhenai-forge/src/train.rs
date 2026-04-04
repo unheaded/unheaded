@@ -17,6 +17,7 @@ use crate::forward;
 use crate::gguf::GgufFile;
 use crate::hip::{GpuBuffer, GpuDevice, self};
 use crate::lora::LoraAdapters;
+use crate::tokenizer::{Tokenizer, extract_vocabulary_from_gguf};
 use std::time::Instant;
 
 /// Training configuration.
@@ -174,7 +175,16 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     println!("  Optimizer states: {:.1} MB\n",
         lora.size_bytes() as f64 / 1e6 * 4.0); // m, v for A and B
 
-    // 4. Load training data
+    // 4. Build tokenizer from GGUF vocabulary
+    println!("Loading tokenizer from GGUF...");
+    let vocab = extract_vocabulary_from_gguf(&config.model_path)
+        .map_err(|e| format!("Failed to extract vocabulary: {}", e))?;
+    let bos = model.get_u32("tokenizer.ggml.bos_token_id").unwrap_or(1);
+    let eos = model.get_u32("tokenizer.ggml.eos_token_id").unwrap_or(2);
+    let tokenizer = Tokenizer::from_tokens(vocab, bos, eos);
+    println!("  Vocabulary: {} tokens (BOS={}, EOS={})\n", tokenizer.vocab_size, bos, eos);
+
+    // 5. Load training data
     let data = load_training_jsonl(&config.data_path)?;
     println!("Training data: {} examples\n", data.len());
 
@@ -200,18 +210,9 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
         println!("--- Epoch {}/{} ---", epoch + 1, config.epochs);
 
         for (i, example) in data.iter().enumerate() {
-            // Real forward pass: tokenize → embed → layers → loss
-            // Use simple token hashing as tokenizer substitute
-            let token_ids: Vec<u32> = example.as_bytes().chunks(4)
-                .map(|b| {
-                    let mut v = 0u32;
-                    for (j, &byte) in b.iter().enumerate() {
-                        v |= (byte as u32) << (j * 8);
-                    }
-                    v % cpu_weights.n_vocab as u32
-                })
-                .take(config.max_seq_len)
-                .collect();
+            // Real tokenization using GGUF vocabulary
+            let mut token_ids = tokenizer.encode(example);
+            token_ids.truncate(config.max_seq_len);
 
             // Forward pass with real model weights
             let loss = if token_ids.len() >= 2 {
