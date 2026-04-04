@@ -75,7 +75,7 @@ steps:
         -CAkey /var/lib/unheaded/pki/ca/ca.key \
         -CAcreateserial \
         -out ${TMPDIR}/${SVC}.crt \
-        -days 90 \
+        -days ${CERT_DAYS:-1} \
         -extensions v3_req \
         -extfile ${TMPDIR}/cert.cnf
 

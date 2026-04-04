@@ -58,29 +58,52 @@ rotation tooling (`CertRotator` + fsnotify), and the health daemon (Akira). Ther
 is zero reason to issue long-lived certs. A compromised cert's blast radius equals
 its remaining validity — shorter = strictly better.
 
-Let's Encrypt proved 90-day certs work at internet scale with ACME automation.
-We have something better: we own every layer. Apple enforces 398-day max for public
-TLS. Google/Chrome are pushing toward 90-day. We follow the industry, not fight it.
+**Aggressive defaults to prove the automation.** If daily rotation works flawlessly,
+relaxing to 90-day is trivial. If it breaks, we find out immediately — not 89 days
+from now when the first cert expires and takes down prod at 3am.
+
+All lifetimes are configurable via `/var/lib/unheaded/pki/pki.conf`:
+
+```ini
+[lifetimes]
+ca_days = 3
+service_days = 1
+host_days = 1
+
+[rotation]
+# Trigger rotation when this fraction of lifetime remains
+trigger_ratio = 0.33
+# Akira check interval
+check_interval = 1h
+```
+
+**Default (aggressive — proving the automation):**
 
 | Level | Certificate | Purpose | Lifetime | Rotation Trigger |
 |-------|------------|---------|----------|-----------------|
-| Root CA | `ca.crt` / `ca.key` | Signs all service + host certs | **2 years** | Manual ceremony at 18 months |
-| Service | `<svc>.crt` / `<svc>.key` | Per-service identity | **90 days** | Akira auto-rotates at 60 days (2/3 lifetime) |
-| Node | `<host>.crt` / `<host>.key` | Per-host identity (Akira, daemon) | **90 days** | Akira auto-rotates at 60 days |
+| Root CA | `ca.crt` / `ca.key` | Signs all service + host certs | **3 days** | Akira auto-rotates at 2 days (2/3 lifetime) |
+| Service | `<svc>.crt` / `<svc>.key` | Per-service identity | **1 day** | Akira auto-rotates at 16 hours (2/3 lifetime) |
+| Node | `<host>.crt` / `<host>.key` | Per-host identity (Akira, daemon) | **1 day** | Akira auto-rotates at 16 hours |
 
-**Why 2-year CA, not 10:** If the CA key is compromised, every cert it ever signed
-is suspect. A 2-year CA limits the blast radius. Planned rotation ceremony at 18
-months gives a 6-month overlap where both old and new CA are trusted (cross-signing).
+**Production (once automation is proven stable):**
 
-**Why 90-day service certs, not 1 year:** Stolen service cert = max 90 days of valid
-impersonation vs 365. With Akira monitoring cert expiry as a health check and
-triggering rotation at 60 days, the actual exposure window is ~30 days worst case.
+| Level | Certificate | Lifetime | Rotation Trigger |
+|-------|------------|----------|-----------------|
+| Root CA | `ca.crt` / `ca.key` | 90 days | 60 days |
+| Service | `<svc>.crt` / `<svc>.key` | 7 days | ~4.5 days |
+| Node | `<host>.crt` / `<host>.key` | 7 days | ~4.5 days |
 
-**Akira cert health check:** Akira runs an exec check every cycle that reads each
-service cert's `Not After` date. If any cert is within 30 days of expiry, Akira
-triggers the rotation runbook automatically. If rotation fails, Akira escalates
-to WARN (cert expiring) → ERROR (< 7 days) → CRITICAL (< 24 hours) via the
-standard consensus severity thresholds.
+**Why start at 1-day/3-day:** The entire point is to exercise the rotation
+pipeline continuously. Every failure mode surfaces within 72 hours instead of
+hiding for months. This is how you build confidence in automation — run it hot.
+
+**Akira cert health check:** Akira runs an exec check every hour that reads each
+cert's `Not After` date. Rotation triggers at 2/3 lifetime remaining.
+If rotation fails, Akira escalates via standard consensus thresholds:
+- 50% lifetime remaining: retry rotation, log WARN
+- 25% lifetime remaining: ERROR, publish to system.outage.reports
+- 10% lifetime remaining: CRITICAL — consensus alert
+- 0%: expired — mTLS handshakes fail, service isolated
 
 ### PKI Directory Layout
 
@@ -141,28 +164,39 @@ Two layers: the `CertRotator` (per-service, reactive) and Akira (cluster-wide, p
 3. Akira calls `openssl` to generate new cert signed by CA, writes to cert path
 4. CertRotator detects the file change, hot-reloads — loop complete
 
-**Rotation timeline for a 90-day cert:**
+**Rotation timeline (1-day service cert, aggressive defaults):**
 ```
-Day 0:  Cert issued (valid 90 days)
-Day 60: Akira triggers rotation → new cert issued (valid 90 days)
-Day 90: Old cert expires (but was replaced 30 days ago)
-```
-
-**Failure escalation (if auto-rotation fails):**
-```
-30 days remaining: Akira retries rotation, logs WARN
- 7 days remaining: Akira escalates to ERROR, publishes to system.outage.reports
-24 hours remaining: CRITICAL — consensus alert, all dependent services notified
- 0 days remaining: Cert expired — mTLS handshakes fail, service isolated
+Hour 0:  Cert issued (valid 24 hours)
+Hour 16: Akira triggers rotation → new cert issued (valid 24 hours)
+Hour 24: Old cert expires (but was replaced 8 hours ago)
 ```
 
-**CA rotation ceremony (manual, every 18 months):**
-1. Generate new CA on WEST (overlapping validity with old CA)
-2. Cross-sign: new CA signs old CA's cert (trust chain continuity)
-3. Distribute new CA cert to all nodes (add to trust bundle, don't replace yet)
-4. Re-issue all service certs signed by new CA (Akira batch rotation)
-5. Remove old CA from trust bundle after all certs are re-issued
-6. Age-encrypt new CA key, archive old CA key
+**Rotation timeline (3-day CA, aggressive defaults):**
+```
+Day 0: CA issued (valid 3 days)
+Day 2: Akira triggers CA rotation → new CA issued, cross-signs old
+Day 2: All service certs re-issued under new CA (batch)
+Day 3: Old CA expires (replaced 1 day ago)
+```
+
+**Failure escalation (percentage-based, scales with any lifetime):**
+```
+33% remaining: Akira triggers rotation (normal lifecycle)
+50% consumed without rotation: WARN — retry, log
+75% consumed without rotation: ERROR — publish to system.outage.reports
+90% consumed without rotation: CRITICAL — consensus alert
+100% consumed: expired — mTLS handshakes fail, service isolated
+```
+
+**CA rotation (fully automated via Akira):**
+1. Akira detects CA at 2/3 lifetime → triggers CA rotation runbook
+2. Generate new CA on WEST (overlapping validity with old CA)
+3. Cross-sign: new CA signs old CA's cert (trust chain continuity)
+4. Distribute new CA cert to all nodes (add to trust bundle)
+5. Batch re-issue all service certs signed by new CA
+6. CertRotator hot-reloads on each service — zero downtime
+7. Remove old CA from trust bundle after all certs re-issued
+8. Age-encrypt new CA key, archive old
 
 ### REST Fallback Rules
 
@@ -215,23 +249,26 @@ Binding rules:
 
 ## Security Review (BlackMage / MoatGhost / Sentinel)
 
-**BlackMage (crypto):** 2-year CA is the maximum defensible lifetime for an
-internal root. The key is age-encrypted at rest, only decrypted during signing
-ceremonies. Ed25519 or ECDSA P-384 would be preferred over RSA for new deployments,
-but RSA-4096 is acceptable for compatibility with existing tooling.
+**BlackMage (crypto):** Aggressive short-lived certs are cryptographically sound —
+the shorter the validity window, the less useful a stolen key. 1-day service certs
+mean a compromised key is worthless within 24 hours without revocation infrastructure.
+The CA key is age-encrypted at rest, only decrypted during automated signing.
+Ed25519 or ECDSA P-384 preferred for new deployments long-term; RSA-4096 acceptable now.
 
-**MoatGhost (perimeter):** 90-day cert lifetime limits blast radius of key
-compromise to max 90 days (realistically ~30 days since Akira rotates at 60).
-Combined with CRL/OCSP (future: Phase 9), revocation can shrink this further.
-Localhost-only health endpoints are acceptable — they're not reachable across
-the network boundary.
+**MoatGhost (perimeter):** 1-day service certs with hourly monitoring = max 24-hour
+blast radius from key compromise, realistically ~8 hours (rotation at 16h mark).
+This is better than most production systems achieve with CRL/OCSP. The aggressive
+defaults also continuously exercise the alerting pipeline — every cert rotation
+generates Akira health events, Wotan topic publishes, and consensus evaluations.
+This means the monitoring infra is tested daily, not just when something breaks.
 
-**Sentinel (ops security):** Akira-driven rotation is the correct pattern.
-Human-operated cert rotation is the #1 cause of outages at scale (see: every
-cloud provider's postmortem about expired certs). Akira treats cert expiry as
-a health signal with graduated severity — same consensus model as service health.
-The 6-hour check interval means worst case 6 hours between detection and rotation
-trigger, well within the 30-day buffer.
+**Sentinel (ops security):** The aggressive defaults are the right call. Every
+cloud provider postmortem about expired certs boils down to "rotation was manual
+and someone forgot." By running 1-day certs from day one, we guarantee the
+automation works before we depend on it. The hourly Akira check interval means
+worst case 1 hour between detection and rotation trigger — well within the
+8-hour buffer before escalation. All lifetimes configurable via pki.conf for
+production tuning once confidence is established.
 
 ## References
 

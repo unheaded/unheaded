@@ -13,9 +13,10 @@ notes: |
   CA key is age-encrypted at rest. Service certs are signed by the CA.
   Run on WEST (PKI root), then distribute to EAST via scp.
 
-  Certificate hierarchy:
-    Root CA (2yr) → Service certs (90d) → per-host copies (90d)
-  Akira monitors expiry and auto-rotates at 60 days remaining.
+  Certificate hierarchy (aggressive defaults to prove automation):
+    Root CA (3d) → Service certs (1d) → per-host copies (1d)
+  Akira monitors expiry hourly and auto-rotates at 2/3 lifetime.
+  All lifetimes configurable via /var/lib/unheaded/pki/pki.conf.
 
   SAN entries include both hostnames and IPs so certs work
   across the P2P link (192.168.13.x) and bridge (10.10.10.x).
@@ -24,8 +25,8 @@ notes: |
 
 params:
   pki_dir: /var/lib/unheaded/pki
-  ca_days: 730
-  cert_days: 90
+  ca_days: 3
+  cert_days: 1
   key_bits: 4096
   services:
     - wotan
@@ -64,13 +65,15 @@ steps:
 
   - name: generate-ca-key-and-cert
     action: shell
-    description: "Generate 4096-bit RSA CA key + self-signed CA cert (2 year validity, rotate at 18mo)"
+    description: "Generate 4096-bit RSA CA key + self-signed CA cert (3-day validity, Akira rotates at day 2)"
     command: |
+      # Read configurable lifetime (default: 3 days for aggressive automation testing)
+      CA_DAYS=${CA_DAYS:-3}
       sudo openssl genrsa -out /var/lib/unheaded/pki/ca/ca.key 4096
       sudo openssl req -new -x509 \
         -key /var/lib/unheaded/pki/ca/ca.key \
         -out /var/lib/unheaded/pki/ca/ca.crt \
-        -days 730 \
+        -days $CA_DAYS \
         -subj "/C=GB/ST=Scotland/O=Unheaded/OU=Kingdom PKI/CN=Unheaded Root CA"
       sudo chmod 600 /var/lib/unheaded/pki/ca/ca.key
       sudo chmod 644 /var/lib/unheaded/pki/ca/ca.crt
@@ -152,7 +155,7 @@ steps:
           -CAkey /var/lib/unheaded/pki/ca/ca.key \
           -CAcreateserial \
           -out /var/lib/unheaded/pki/services/${svc}.crt \
-          -days 90 \
+          -days ${CERT_DAYS:-1} \
           -extensions v3_req \
           -extfile /tmp/cert-${svc}.cnf
 
@@ -220,7 +223,7 @@ steps:
           -CAkey /var/lib/unheaded/pki/ca/ca.key \
           -CAcreateserial \
           -out /var/lib/unheaded/pki/hosts/${host}.crt \
-          -days 90 \
+          -days ${CERT_DAYS:-1} \
           -extensions v3_req \
           -extfile /tmp/cert-${host}.cnf
 

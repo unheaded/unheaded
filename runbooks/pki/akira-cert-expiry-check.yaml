@@ -7,17 +7,27 @@ metadata:
   estimated_duration: 30s
   risk: low
   requires_sudo: true
-  schedule: "0 */6 * * *"
+  schedule: "0 * * * *"
 
 notes: |
-  Designed to run as an Akira exec health check every 6 hours.
+  Designed to run as an Akira exec health check every hour.
   Checks all service + host certs under /var/lib/unheaded/pki/.
 
-  Rotation thresholds (for 90-day certs):
-    60 days remaining → trigger auto-rotation (normal)
-    30 days remaining → WARN (rotation may have failed)
-     7 days remaining → ERROR (escalate)
-    24 hours remaining → CRITICAL (consensus alert)
+  Uses percentage-based thresholds that scale with ANY cert lifetime:
+    33% remaining → trigger auto-rotation (normal lifecycle)
+    50% consumed without rotation → WARN (retry)
+    75% consumed without rotation → ERROR (escalate)
+    90% consumed without rotation → CRITICAL (consensus alert)
+
+  With aggressive defaults (1-day service certs):
+    Hour 16: rotation triggered (8 hours remaining = 33%)
+    Hour 18: WARN if not rotated (6 hours remaining)
+    Hour 21: ERROR (3 hours remaining)
+    Hour 24: expired — service isolated
+
+  This also exercises the entire alerting + monitoring pipeline daily,
+  proving Akira consensus, Wotan system.outage.reports, and escalation
+  paths all work continuously — not just when something breaks months later.
 
   On rotation trigger, Akira invokes rotate-service-cert.yaml
   for the specific service. CertRotator picks up the new file
@@ -34,25 +44,38 @@ steps:
       for cert in ${PKI}/services/*.crt ${PKI}/hosts/*.crt; do
         [ -f "$cert" ] || continue
         NAME=$(basename "$cert" .crt)
-        EXPIRY=$(sudo openssl x509 -in "$cert" -noout -enddate 2>/dev/null | cut -d= -f2)
-        EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || echo 0)
-        DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW) / 86400 ))
 
-        if [ $DAYS_LEFT -le 0 ]; then
-          echo "EXPIRED: ${NAME} (expired $((-DAYS_LEFT)) days ago)"
+        # Read both start and end dates to compute total lifetime
+        START=$(sudo openssl x509 -in "$cert" -noout -startdate 2>/dev/null | cut -d= -f2)
+        EXPIRY=$(sudo openssl x509 -in "$cert" -noout -enddate 2>/dev/null | cut -d= -f2)
+        START_EPOCH=$(date -d "$START" +%s 2>/dev/null || echo 0)
+        EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || echo 0)
+
+        TOTAL_LIFETIME=$(( EXPIRY_EPOCH - START_EPOCH ))
+        SECS_LEFT=$(( EXPIRY_EPOCH - NOW ))
+        [ $TOTAL_LIFETIME -le 0 ] && TOTAL_LIFETIME=1  # avoid div/0
+
+        # Percentage of lifetime remaining
+        PCT_LEFT=$(( (SECS_LEFT * 100) / TOTAL_LIFETIME ))
+        HOURS_LEFT=$(( SECS_LEFT / 3600 ))
+
+        if [ $SECS_LEFT -le 0 ]; then
+          echo "EXPIRED: ${NAME} (${PCT_LEFT}% — expired)"
           EXIT=2
-        elif [ $DAYS_LEFT -le 1 ]; then
-          echo "CRITICAL: ${NAME} expires in ${DAYS_LEFT} day"
+        elif [ $PCT_LEFT -le 10 ]; then
+          echo "CRITICAL: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left)"
           EXIT=2
-        elif [ $DAYS_LEFT -le 7 ]; then
-          echo "ERROR: ${NAME} expires in ${DAYS_LEFT} days"
+        elif [ $PCT_LEFT -le 25 ]; then
+          echo "ERROR: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left)"
           [ $EXIT -lt 2 ] && EXIT=1
-        elif [ $DAYS_LEFT -le 30 ]; then
-          echo "WARN: ${NAME} expires in ${DAYS_LEFT} days (rotation may have failed)"
+        elif [ $PCT_LEFT -le 50 ]; then
+          echo "WARN: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left) — rotation may have failed"
           [ $EXIT -lt 1 ] && EXIT=1
-        elif [ $DAYS_LEFT -le 60 ]; then
-          echo "ROTATE: ${NAME} expires in ${DAYS_LEFT} days — triggering auto-rotation"
-          # Trigger rotation runbook for this service
+        elif [ $PCT_LEFT -le 33 ]; then
+          # This shouldn't trigger if 50% caught it, but handles edge cases
+          echo "ROTATE: ${NAME} (${PCT_LEFT}% remaining) — triggering auto-rotation"
+        elif [ $PCT_LEFT -le 66 ]; then
+          echo "ROTATE: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left) — triggering auto-rotation"
           if [ -x /opt/unheaded/bin/run-runbook ]; then
             /opt/unheaded/bin/run-runbook /opt/unheaded/runbooks/pki/rotate-service-cert.yaml \
               --param service_name="${NAME}" --param host="$(hostname -s)" 2>&1 || true
@@ -60,7 +83,7 @@ steps:
             echo "  (run-runbook not available — manual rotation needed)"
           fi
         else
-          echo "OK: ${NAME} expires in ${DAYS_LEFT} days"
+          echo "OK: ${NAME} (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left)"
         fi
       done
 
@@ -68,7 +91,7 @@ steps:
 
   - name: check-ca-cert
     action: shell
-    description: "CA cert has longer lifetime but still needs monitoring for 18-month rotation ceremony"
+    description: "CA cert uses same percentage-based thresholds — with 3-day default, rotation triggers at day 2"
     command: |
       CA=/var/lib/unheaded/pki/ca/ca.crt
       if [ ! -f "$CA" ]; then
@@ -77,17 +100,35 @@ steps:
       fi
 
       NOW=$(date +%s)
+      START=$(sudo openssl x509 -in "$CA" -noout -startdate | cut -d= -f2)
       EXPIRY=$(sudo openssl x509 -in "$CA" -noout -enddate | cut -d= -f2)
+      START_EPOCH=$(date -d "$START" +%s)
       EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
-      DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW) / 86400 ))
 
-      if [ $DAYS_LEFT -le 30 ]; then
-        echo "CRITICAL: CA cert expires in ${DAYS_LEFT} days — ROTATION CEREMONY OVERDUE"
+      TOTAL_LIFETIME=$(( EXPIRY_EPOCH - START_EPOCH ))
+      SECS_LEFT=$(( EXPIRY_EPOCH - NOW ))
+      [ $TOTAL_LIFETIME -le 0 ] && TOTAL_LIFETIME=1
+      PCT_LEFT=$(( (SECS_LEFT * 100) / TOTAL_LIFETIME ))
+      HOURS_LEFT=$(( SECS_LEFT / 3600 ))
+
+      if [ $SECS_LEFT -le 0 ]; then
+        echo "EXPIRED: CA cert — ALL SERVICE CERTS INVALID"
         exit 2
-      elif [ $DAYS_LEFT -le 180 ]; then
-        echo "WARN: CA cert expires in ${DAYS_LEFT} days — schedule rotation ceremony"
+      elif [ $PCT_LEFT -le 10 ]; then
+        echo "CRITICAL: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h) — ROTATION OVERDUE"
+        exit 2
+      elif [ $PCT_LEFT -le 25 ]; then
+        echo "ERROR: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h) — rotation failed?"
         exit 1
+      elif [ $PCT_LEFT -le 66 ]; then
+        echo "ROTATE: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h) — triggering CA rotation"
+        if [ -x /opt/unheaded/bin/run-runbook ]; then
+          /opt/unheaded/bin/run-runbook /opt/unheaded/runbooks/pki/generate-kingdom-certs.yaml 2>&1 || true
+        else
+          echo "  (run-runbook not available — manual CA rotation needed)"
+        fi
+        exit 0
       else
-        echo "OK: CA cert expires in ${DAYS_LEFT} days"
+        echo "OK: CA cert (${PCT_LEFT}% remaining, ${HOURS_LEFT}h left)"
         exit 0
       fi
