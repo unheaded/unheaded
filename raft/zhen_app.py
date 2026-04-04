@@ -201,6 +201,36 @@ def _try_command(question):
     Returns (response_dict, True) if handled, (None, False) if not a command."""
     q = question.lower().strip()
 
+    # Help — list all commands
+    if q in ('help', 'commands', 'list commands', '?'):
+        return {'answer': """**Zhenai Commands** (no LLM needed):
+
+**Operations:**
+- `kingdom status` — full dashboard (services, memory, disk, GPU, training, EAST)
+- `health` / `status` — service health sweep
+- `drift check` / `bailiff` — compare desired vs actual state
+- `trust level` — show current trust level
+
+**Runbooks:**
+- `list runbooks` — show all 51 runbooks by category
+- `run <name>` — execute a runbook
+- `run --dry <name>` — dry-run validation
+
+**Scheduling:**
+- `schedule <runbook> every <interval>` — schedule recurring execution
+- `unschedule <runbook>` — remove schedule
+- `list schedules` — show all scheduled jobs
+- `emergency stop` — kill all jobs and schedules
+
+**Memory:**
+- `recall <topic>` — search past conversations
+- `what did we decide about <X>` — find decisions
+
+**Config:**
+- `generate nginx|systemd|haproxy <service> [port]` — generate config templates
+
+Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
     # Kingdom Status — comprehensive dashboard
     if q in ('kingdom status', 'kingdom', 'full status', 'dashboard'):
         import subprocess as sp, urllib.request as ur
