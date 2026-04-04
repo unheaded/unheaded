@@ -291,9 +291,24 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                     lora_inputs.push(normed.clone());
                     lora_hiddens.push(lora_hidden);
 
-                    // Residual connection
+                    // Attention residual connection
                     for i in 0..n {
                         hidden[last_pos * n + i] += attn_output[i];
+                    }
+
+                    // FFN: norm → gate*silu(up) → down → residual
+                    if l < cpu_weights.ffn_gate.len() && l < cpu_weights.ffn_norm.len() {
+                        let ffn_input = hidden[last_pos * n..(last_pos + 1) * n].to_vec();
+                        let ffn_normed = forward::rmsnorm(&ffn_input, &cpu_weights.ffn_norm[l], 1e-5);
+                        let ffn_out = forward::ffn_forward(
+                            &ffn_normed,
+                            &cpu_weights.ffn_gate[l], &cpu_weights.ffn_up[l], &cpu_weights.ffn_down[l],
+                            n, cpu_weights.n_ff,
+                        );
+                        // FFN residual
+                        for i in 0..n {
+                            hidden[last_pos * n + i] += ffn_out[i];
+                        }
                     }
                 }
 
@@ -443,12 +458,17 @@ struct CpuWeights {
     attn_k: Vec<Vec<f32>>,
     attn_v: Vec<Vec<f32>>,
     attn_o: Vec<Vec<f32>>,
+    /// Per-layer FFN weights
+    ffn_gate: Vec<Vec<f32>>,
+    ffn_up: Vec<Vec<f32>>,
+    ffn_down: Vec<Vec<f32>>,
     /// Per-layer norms: [layer] → (embed_dim,)
     attn_norm: Vec<Vec<f32>>,
     ffn_norm: Vec<Vec<f32>>,
 
     n_vocab: usize,
     n_embd: usize,
+    n_ff: usize,
     n_layers: usize,
 }
 
@@ -477,6 +497,9 @@ impl CpuWeights {
         let mut attn_k = Vec::new();
         let mut attn_v = Vec::new();
         let mut attn_o = Vec::new();
+        let mut ffn_gate = Vec::new();
+        let mut ffn_up = Vec::new();
+        let mut ffn_down = Vec::new();
         let mut attn_norm = Vec::new();
         let mut ffn_norm = Vec::new();
 
@@ -503,19 +526,39 @@ impl CpuWeights {
             if let Some(n) = forward::dequantize_tensor(model, &format!("blk.{}.ffn_norm.weight", l)) {
                 ffn_norm.push(n);
             }
+
+            // FFN weights (gate, up, down)
+            for (suffix, vec) in [
+                ("ffn_gate", &mut ffn_gate),
+                ("ffn_up", &mut ffn_up),
+                ("ffn_down", &mut ffn_down),
+            ] {
+                let name = format!("blk.{}.{}.weight", l, suffix);
+                if let Some(w) = forward::dequantize_tensor(model, &name) {
+                    if suffix == "ffn_gate" {
+                        println!("    blk.{} FFN gate/up/down: {:.1} MB each", l, w.len() as f64 * 4.0 / 1e6);
+                    }
+                    vec.push(w);
+                }
+            }
         }
 
         let total_elements: usize = embed.len() + output.len() + output_norm.len()
             + attn_q.iter().chain(attn_k.iter()).chain(attn_v.iter()).chain(attn_o.iter())
+                .chain(ffn_gate.iter()).chain(ffn_up.iter()).chain(ffn_down.iter())
                 .chain(attn_norm.iter()).chain(ffn_norm.iter())
                 .map(|v| v.len()).sum::<usize>();
         let total_mb = total_elements as f64 * 4.0 / 1e6;
         println!("    Total CPU weights: {:.1} MB", total_mb);
 
+        let n_ff = model.get_u32("llama.feed_forward_length").unwrap_or(14336) as usize;
+
         Ok(CpuWeights {
             embed, output, output_norm,
             attn_q, attn_k, attn_v, attn_o,
+            ffn_gate, ffn_up, ffn_down,
             attn_norm, ffn_norm,
+            n_ff,
             n_vocab, n_embd, n_layers: max_layers,
         })
     }
