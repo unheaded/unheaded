@@ -1,0 +1,69 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: start-east-services
+  description: Start all Kingdom services on EAST via systemd
+  owner: micromanager
+  estimated_duration: 5m
+  risk: medium
+  requires_sudo: true
+
+notes: |
+  EAST services installed via apt from WEST's local APT repo.
+  Services need WorkingDirectory=/var/lib/unheaded for data dirs.
+  Wotan needs --topic-config flag (not --config).
+
+steps:
+  - name: verify-east-reachable
+    action: shell
+    command: "ssh govan@east 'hostname && uptime'"
+    verify: "ssh govan@east 'echo OK'"
+
+  - name: verify-packages
+    action: shell
+    command: "ssh govan@east 'dpkg -l | grep unheaded | wc -l; echo packages'"
+
+  - name: start-wotan-first
+    action: shell
+    command: "ssh govan@east 'sudo systemctl start unheaded-wotan'"
+    verify: "ssh govan@east 'curl -sf http://localhost:18000/health'"
+    description: "Wotan must start first — other services depend on it"
+
+  - name: start-core-services
+    action: shell
+    command: |
+      for svc in timeguru captain architect micromanager; do
+        ssh govan@east "sudo systemctl start unheaded-${svc}"
+      done
+    verify: "ssh govan@east '/opt/unheaded/bin/akira --once 2>&1 | grep OK | wc -l'"
+
+  - name: start-ui-services
+    action: shell
+    command: |
+      for svc in dashboard-backend kanban-app; do
+        ssh govan@east "sudo systemctl start unheaded-${svc}"
+      done
+
+  - name: start-infra-services
+    action: shell
+    command: |
+      for svc in unheaded-daemon akira; do
+        ssh govan@east "sudo systemctl start unheaded-${svc}"
+      done
+
+  - name: enable-on-boot
+    action: shell
+    command: |
+      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app unheaded-daemon akira; do
+        ssh govan@east "sudo systemctl enable unheaded-${svc}" 2>/dev/null
+      done
+
+  - name: health-sweep
+    action: shell
+    command: "ssh govan@east '/opt/unheaded/bin/akira --once 2>&1 | tail -5'"
+
+  - name: verify-cross-host
+    action: shell
+    command: |
+      echo "Dashboard: $(curl -sf -o /dev/null -w '%{http_code}' http://192.168.13.1:20000/)"
+      echo "Wotan: $(curl -sf http://192.168.13.1:18000/health | python3 -c 'import sys,json; d=json.load(sys.stdin); print(f"{d[\"rooms\"]} rooms, {d[\"total_members\"]} members")' 2>/dev/null)"
