@@ -1,0 +1,8 @@
+[
+  {"name": "service-health-sweep", "interval": "30m", "enabled": true, "duty": "corvee"},
+  {"name": "prometheus-scrape-check", "interval": "1h", "enabled": true, "duty": "corvee"},
+  {"name": "log-rotation", "interval": "daily", "time": "03:00", "enabled": true, "duty": "corvee"},
+  {"name": "postgresql-backup-restore", "interval": "daily", "time": "02:00", "enabled": false, "duty": "corvee"},
+  {"name": "security-audit", "interval": "weekly", "enabled": false, "duty": "corvee"},
+  {"name": "conversation-memory-maintenance", "interval": "weekly", "enabled": false, "duty": "corvee"}
+]
