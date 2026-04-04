@@ -26,7 +26,7 @@
 - [x] Sprint G: DONE — ScanCode 8660 files clean, 99 deps audited, trademark cleared
 - [x] Sprint H: DONE — H1 JWT (123 tests) + H2 age encryption for sealed casks
 - [ ] Sprint I: Protocol Maturity (zhend 9 TODOs, Wotan clustering)
-- [~] Sprint J: J1 Corvée DONE, J2 Bailiff DONE, J3 Config Gen DONE, J4 remaining
+- [x] Sprint J: DONE — J1 Corvée, J2 Bailiff, J3 Config Gen, J4 Session-to-Runbook
 - NEW: ADR-031 Hybrid Model Handoff — PLANNED
 - NEW: ADR-032 Python → Go/Rust Migration — PLANNED
 - NEW: ADR-033 NetBox IPAM — PLANNED
