@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -106,11 +107,25 @@ func main() {
 
 		// Auto-restart if under limit
 		if s.AutoRestarts < health.MaxAutoRestarts {
+			svcUnit := fmt.Sprintf("unheaded-%s", s.Service)
 			log.Warn().
 				Str("service", s.Service).
+				Str("unit", svcUnit).
 				Int("attempt", s.AutoRestarts+1).
 				Msg("attempting auto-restart via systemctl")
-			// TODO: exec systemctl restart unheaded-<service>
+
+			cmd := exec.Command("systemctl", "restart", svcUnit)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				log.Error().
+					Err(err).
+					Str("output", string(out)).
+					Str("service", s.Service).
+					Msg("auto-restart FAILED")
+			} else {
+				log.Info().
+					Str("service", s.Service).
+					Msg("auto-restart SUCCESS")
+			}
 		} else {
 			log.Error().
 				Str("service", s.Service).

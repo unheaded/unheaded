@@ -17,19 +17,49 @@
 ---
 
 ## PROGRESS (update as you go)
-- [~] Sprint A: A1-A2 DONE, A3 partial (tensor data access), A4-A7 GPU kernels remaining
+- [~] Sprint A: A1-A2 DONE, A3 partial, A4-A7 GPU kernels remaining
 - [~] Sprint B: B1+B4 DONE, B2/B3/B5/B6/B7 need Zhenai running
 - [x] Sprint C: DONE — scheduler daemon + chat commands + emergency stop
 - [~] Sprint D: D1-D3 DONE (Akira pkg/health + cmd/akira binary), D4-D6 need Wotan running
 - [~] Sprint E: E1 DONE (5 .debs built + published + installed on EAST), E2-E3 remaining
 - [ ] Sprint F: Pi-hole LXD Migration (needs user for DNS cutover)
-- [ ] Sprint G: Pre-Public Audit (ScanCode overnight)
-- [ ] Sprint H: Security Hardening
+- [~] Sprint G: G1 ScanCode running, G3-G4 DONE (99 Go deps, age check passed)
+- [~] Sprint H: H1 JWT already implemented (123 tests), H2 LUKS remaining
 - [ ] Sprint I: Protocol Maturity
 - [ ] Sprint J: Zhenai Champion Expansion
-- NEW: ADR-031 Hybrid Model Handoff (Specialist + Generalist) — PLANNED
+- NEW: ADR-031 Hybrid Model Handoff — PLANNED
 - NEW: ADR-032 Python → Go/Rust Migration — PLANNED
 - NEW: ADR-033 NetBox IPAM — PLANNED
+
+## KNOWN STUBS (honest audit 2026-04-04)
+
+Items that have tests passing but are NOT yet real implementations:
+
+### CRITICAL STUB 1: zhenai-forge training gradients (Sprint A)
+- **What tests verify**: Adam optimizer math, LoRA shapes, loss convergence curve
+- **What's stubbed**: Gradients are RANDOM, not from model forward pass. GPU buffers loaded with ZEROS, not actual model weights. The kingdom.zlora file exists but was trained on random gradients — NOT useful for inference.
+- **Impact**: Cannot produce a real fine-tuned model until A3-A7 are completed (real GPU matmul + real forward/backward)
+- **Fix**: Sprint A steps A3-A7 (hipBLAS forward pass, cross-entropy loss, backward pass for LoRA)
+- **Files**: `crates/zhenai-forge/src/train.rs` (line 99-102: zero buffers), `src/lora.rs` (line 189-221: simulated gradients)
+
+### CRITICAL STUB 2: Akira auto-restart (Sprint D)
+- **What tests verify**: Health check HTTP calls, consensus threshold math, alert triggering
+- **What's stubbed**: `// TODO: exec systemctl restart unheaded-<service>` — detects failure but doesn't actually restart
+- **Impact**: Akira reports problems but can't fix them autonomously
+- **Fix**: Add `exec.Command("systemctl", "restart", svcName)` in alert handler
+- **File**: `cmd/akira/main.go` (line 113)
+
+### MODERATE STUB 3: Champion PostgreSQL integration
+- **What tests verify**: File R/W sandbox, path traversal blocking, Kanban CRUD, snapshot/revert
+- **What's stubbed**: Tests use mock ActionStore/SnapshotStore/KanbanStore, never hit real PostgreSQL
+- **Impact**: Works in tests, untested against The Well in production
+- **Fix**: Integration test with Docker PostgreSQL running
+- **Files**: `pkg/champion/champion_test.go`, `pkg/champion/write_test.go`
+
+### MINOR GAPS
+- Scheduler (`zhen_scheduler.py`): No unit tests, but real subprocess execution verified
+- Conversation recall commands: Real SQL but untested with Zhenai running
+- Chat command handlers: No automated tests, manual testing only when Zhenai is up
 
 ---
 
