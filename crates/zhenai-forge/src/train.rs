@@ -13,6 +13,7 @@
 //!   7. Updated LoRA copied back to GPU
 //!   8. Repeat
 
+use crate::forward;
 use crate::gguf::GgufFile;
 use crate::hip::{GpuBuffer, GpuDevice, self};
 use crate::lora::LoraAdapters;
@@ -177,6 +178,10 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     let data = load_training_jsonl(&config.data_path)?;
     println!("Training data: {} examples\n", data.len());
 
+    // 4b. Dequantize essential weights to CPU for forward pass
+    let cpu_weights = CpuWeights::load(&model, gpu_model.n_layers)?;
+    println!();
+
     // 5. Training loop
     let start = Instant::now();
     let mut state = TrainState {
@@ -195,8 +200,51 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
         println!("--- Epoch {}/{} ---", epoch + 1, config.epochs);
 
         for (i, example) in data.iter().enumerate() {
-            // Forward pass (Phase 3: GPU matmul, currently CPU simulation)
-            let loss = lora.training_step(example, config.lr);
+            // Real forward pass: tokenize → embed → layers → loss
+            // Use simple token hashing as tokenizer substitute
+            let token_ids: Vec<u32> = example.as_bytes().chunks(4)
+                .map(|b| {
+                    let mut v = 0u32;
+                    for (j, &byte) in b.iter().enumerate() {
+                        v |= (byte as u32) << (j * 8);
+                    }
+                    v % cpu_weights.n_vocab as u32
+                })
+                .take(config.max_seq_len)
+                .collect();
+
+            // Forward pass with real model weights
+            let loss = if token_ids.len() >= 2 {
+                cpu_weights.forward_loss(&token_ids, &lora)
+            } else {
+                10.0 // Skip very short sequences
+            };
+
+            // Numerical gradient estimation for LoRA params
+            // Perturb each LoRA param, measure loss change, compute gradient
+            let eps = 1e-4f32;
+            if state.step % 10 == 0 { // Compute gradients every 10th step for speed
+                let n_layers = lora.layers.len().min(cpu_weights.n_layers);
+                for l in 0..n_layers {
+                    for t in 0..4 { // 4 targets: q, k, v, o
+                        let n_sample = 16.min(lora.layers[l][t].a.len());
+                        for k in 0..n_sample {
+                            let idx = (state.step as usize * 7 + k * 13) % lora.layers[l][t].a.len();
+                            let orig = lora.layers[l][t].a[idx];
+
+                            lora.layers[l][t].a[idx] = orig + eps;
+                            let loss_plus = cpu_weights.forward_loss(&token_ids, &lora);
+
+                            lora.layers[l][t].a[idx] = orig - eps;
+                            let loss_minus = cpu_weights.forward_loss(&token_ids, &lora);
+
+                            lora.layers[l][t].grad_a[idx] = (loss_plus - loss_minus) / (2.0 * eps);
+                            lora.layers[l][t].a[idx] = orig;
+                        }
+                        lora.layers[l][t].adam_step(config.lr, 0.9, 0.999, 1e-8, state.step + 1);
+                    }
+                }
+            }
             epoch_loss += loss as f64;
             epoch_steps += 1;
             state.step += 1;
@@ -250,6 +298,150 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     println!("  RAM used:  {:.1} MB (LoRA + optimizer)",
         lora.size_bytes() as f64 / 1e6 * 5.0); // weights + grads + m + v
     Ok(())
+}
+
+/// Dequantized model weights for CPU forward pass.
+/// Only holds the tensors needed for loss computation — not all 291.
+struct CpuWeights {
+    /// Token embedding: (vocab_size × embed_dim)
+    embed: Vec<f32>,
+    /// Output projection: (vocab_size × embed_dim)
+    output: Vec<f32>,
+    /// Output norm: (embed_dim,)
+    output_norm: Vec<f32>,
+    /// Per-layer attention Q weights: [layer] → (embed_dim × embed_dim)
+    attn_q: Vec<Vec<f32>>,
+    /// Per-layer attention norm: [layer] → (embed_dim,)
+    attn_norm: Vec<Vec<f32>>,
+
+    n_vocab: usize,
+    n_embd: usize,
+    n_layers: usize,
+}
+
+impl CpuWeights {
+    /// Load essential weights from GGUF by dequantizing on CPU.
+    /// This is the streaming approach — only load what's needed.
+    fn load(model: &GgufFile, n_layers: u32) -> Result<Self, String> {
+        println!("  Dequantizing essential weights to CPU...");
+
+        let embed = forward::dequantize_tensor(model, "token_embd.weight")
+            .ok_or("Failed to dequantize token_embd.weight")?;
+        let n_vocab = model.get_u32("llama.vocab_size").unwrap_or(32000) as usize;
+        let n_embd = model.get_u32("llama.embedding_length").unwrap_or(4096) as usize;
+        println!("    token_embd: {} elements ({:.1} MB)", embed.len(), embed.len() as f64 * 4.0 / 1e6);
+
+        let output = forward::dequantize_tensor(model, "output.weight")
+            .ok_or("Failed to dequantize output.weight")?;
+        println!("    output: {} elements ({:.1} MB)", output.len(), output.len() as f64 * 4.0 / 1e6);
+
+        let output_norm = forward::dequantize_tensor(model, "output_norm.weight")
+            .ok_or("Failed to dequantize output_norm.weight")?;
+
+        // Load first few layers' attention Q for simplified forward pass
+        let max_layers = n_layers.min(2) as usize; // Start with 2 layers for memory
+        let mut attn_q = Vec::new();
+        let mut attn_norm = Vec::new();
+
+        for l in 0..max_layers {
+            let q_name = format!("blk.{}.attn_q.weight", l);
+            let norm_name = format!("blk.{}.attn_norm.weight", l);
+
+            if let Some(q) = forward::dequantize_tensor(model, &q_name) {
+                println!("    {}: {} elements ({:.1} MB)", q_name, q.len(), q.len() as f64 * 4.0 / 1e6);
+                attn_q.push(q);
+            }
+            if let Some(n) = forward::dequantize_tensor(model, &norm_name) {
+                attn_norm.push(n);
+            }
+        }
+
+        let total_mb = (embed.len() + output.len() + output_norm.len()
+            + attn_q.iter().map(|v| v.len()).sum::<usize>()
+            + attn_norm.iter().map(|v| v.len()).sum::<usize>()) as f64 * 4.0 / 1e6;
+        println!("    Total CPU weights: {:.1} MB", total_mb);
+
+        Ok(CpuWeights {
+            embed, output, output_norm, attn_q, attn_norm,
+            n_vocab, n_embd, n_layers: max_layers,
+        })
+    }
+
+    /// Simplified forward pass: embed → (simplified attention × layers) → norm → output → loss
+    /// Returns cross-entropy loss for the given token sequence.
+    fn forward_loss(&self, token_ids: &[u32], lora: &LoraAdapters) -> f32 {
+        if token_ids.len() < 2 {
+            return 10.0; // Can't compute loss with < 2 tokens
+        }
+
+        let n = self.n_embd;
+
+        // 1. Embedding lookup
+        let embeddings = forward::embedding_lookup(&self.embed, n, token_ids);
+
+        // 2. For each layer: simplified attention (just Q projection + LoRA for gradient signal)
+        let mut hidden = embeddings.clone();
+        for l in 0..self.n_layers.min(lora.layers.len()) {
+            if l >= self.attn_q.len() || l >= self.attn_norm.len() {
+                break;
+            }
+
+            // RMSNorm
+            let seq_len = hidden.len() / n;
+            let mut normed = Vec::with_capacity(hidden.len());
+            for s in 0..seq_len {
+                let start = s * n;
+                let slice = &hidden[start..start + n];
+                normed.extend(forward::rmsnorm(slice, &self.attn_norm[l], 1e-5));
+            }
+
+            // Simplified attention: just Q projection (Q = normed × W_q + LoRA contribution)
+            // This gives gradient signal through the LoRA adapters
+            for s in 0..seq_len {
+                let input = &normed[s * n..(s + 1) * n];
+                // Base Q projection (truncated — use first n elements as output)
+                let mut q_out = vec![0.0f32; n];
+                for i in 0..n.min(64) { // Compute first 64 dims for speed
+                    let mut sum = 0.0f32;
+                    for j in 0..n.min(64) {
+                        sum += input[j] * self.attn_q[l][i * n + j];
+                    }
+                    q_out[i] = sum;
+                }
+
+                // Add LoRA contribution
+                let lora_out = lora.layers[l][0].forward(input); // q_proj LoRA
+                for i in 0..n.min(lora_out.len()) {
+                    q_out[i] += lora_out[i] * (lora.alpha / lora.rank as f32);
+                }
+
+                // Residual connection (simplified)
+                for i in 0..n {
+                    hidden[s * n + i] += q_out[i] * 0.01; // Scale down to avoid explosion
+                }
+            }
+        }
+
+        // 3. Output norm
+        let last_pos = token_ids.len() - 1;
+        let last_hidden = &hidden[last_pos * n..(last_pos + 1) * n];
+        let normed = forward::rmsnorm(last_hidden, &self.output_norm, 1e-5);
+
+        // 4. Output projection → logits (simplified: use first 1000 vocab for speed)
+        let vocab_subset = 1000.min(self.n_vocab);
+        let mut logits = vec![0.0f32; vocab_subset];
+        for v in 0..vocab_subset {
+            let mut sum = 0.0f32;
+            for i in 0..n.min(128) { // Partial projection for speed
+                sum += normed[i] * self.output[v * n + i];
+            }
+            logits[v] = sum;
+        }
+
+        // 5. Cross-entropy loss on last token
+        let target = token_ids[last_pos] % vocab_subset as u32;
+        forward::cross_entropy_loss(&logits, target)
+    }
 }
 
 fn load_training_jsonl(path: &str) -> Result<Vec<String>, String> {
