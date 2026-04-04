@@ -31,9 +31,7 @@ pub fn dequantize_tensor(model: &GgufFile, name: &str) -> Option<Vec<f32>> {
             Some(floats)
         }
         "Q6_K" => {
-            // Q6_K dequantization — similar to Q5_K but 6-bit
-            // For now, return zeros (proper Q6_K impl in next iteration)
-            Some(vec![0.0f32; tensor.num_elements as usize])
+            Some(quant::dequantize_q6_k(data, tensor.num_elements as usize))
         }
         _ => {
             eprintln!("  Unknown tensor type: {} for {}", tensor.tensor_type, name);
