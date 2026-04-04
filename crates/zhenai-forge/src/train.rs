@@ -20,6 +20,20 @@ use crate::lora::LoraAdapters;
 use crate::tokenizer::{Tokenizer, extract_vocabulary_from_gguf};
 use std::time::Instant;
 
+/// Cosine annealing with linear warmup.
+/// Returns LR for the given step.
+fn cosine_lr(peak_lr: f32, step: u32, total_steps: u32, warmup_steps: u32) -> f32 {
+    let min_lr = peak_lr * 0.1; // decay to 10% of peak
+    if step < warmup_steps {
+        // Linear warmup
+        min_lr + (peak_lr - min_lr) * (step as f32 / warmup_steps as f32)
+    } else {
+        // Cosine decay
+        let progress = (step - warmup_steps) as f32 / (total_steps - warmup_steps).max(1) as f32;
+        min_lr + 0.5 * (peak_lr - min_lr) * (1.0 + (std::f32::consts::PI * progress).cos())
+    }
+}
+
 /// Training configuration.
 pub struct TrainConfig {
     pub model_path: String,
@@ -42,7 +56,7 @@ impl Default for TrainConfig {
             output_path: "kingdom.zlora".into(),
             rank: 16,
             epochs: 2,
-            lr: 1e-3,
+            lr: 3e-4,
             batch_size: 1,
             max_seq_len: 2048,
             log_interval: 50,
@@ -201,6 +215,10 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
         best_eval_loss: f64::MAX,
         start_time: start,
     };
+
+    let total_steps = config.epochs as u32 * data.len() as u32;
+    let warmup_steps = (total_steps / 20).max(50).min(200); // 5% warmup, clamped 50-200
+    println!("  LR schedule: cosine annealing, warmup={warmup_steps} steps, peak={:.1e}, total={total_steps}", config.lr);
 
     for epoch in 0..config.epochs {
         state.epoch = epoch;
@@ -384,8 +402,9 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             for g in lora.layers[l][t].grad_b.iter_mut() { *g *= clip; }
                         }
 
-                        // Adam step
-                        lora.layers[l][t].adam_step(config.lr, 0.9, 0.999, 1e-8, state.step + 1);
+                        // Adam step with cosine annealing + warmup
+                        let lr = cosine_lr(config.lr, state.step, total_steps, warmup_steps);
+                        lora.layers[l][t].adam_step(lr, 0.9, 0.999, 1e-8, state.step + 1);
                     }
                 }
             }
@@ -687,5 +706,36 @@ mod tests {
         assert_eq!(gpu_model.n_embd, 4096);
         assert!(gpu_model.vram_used > 0);
         println!("GPU model loaded: {:.1} MB VRAM", gpu_model.vram_used as f64 / 1e6);
+    }
+
+    #[test]
+    fn test_cosine_lr() {
+        let peak = 3e-4;
+        let total = 1000;
+        let warmup = 100;
+
+        // Step 0: start of warmup (near min_lr)
+        let lr0 = cosine_lr(peak, 0, total, warmup);
+        assert!(lr0 < peak * 0.2, "lr0={lr0} should be near min");
+
+        // Step 100: end of warmup (at peak)
+        let lr100 = cosine_lr(peak, warmup, total, warmup);
+        assert!((lr100 - peak).abs() < 1e-7, "lr100={lr100} should be peak={peak}");
+
+        // Step 500: midpoint (between peak and min)
+        let lr500 = cosine_lr(peak, 500, total, warmup);
+        assert!(lr500 < peak && lr500 > peak * 0.1, "lr500={lr500} should be between peak and min");
+
+        // Step 1000: end (near min_lr)
+        let lr1000 = cosine_lr(peak, total, total, warmup);
+        assert!((lr1000 - peak * 0.1).abs() < 1e-6, "lr1000={lr1000} should be near min={}", peak * 0.1);
+
+        // Monotonic decrease after warmup
+        let mut prev = peak;
+        for s in (warmup..total).step_by(10) {
+            let lr = cosine_lr(peak, s, total, warmup);
+            assert!(lr <= prev + 1e-7, "LR should decrease: step {s}, lr={lr}, prev={prev}");
+            prev = lr;
+        }
     }
 }
