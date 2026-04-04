@@ -1,0 +1,15 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: user-audit
+  description: Audit system users, sudo access, and SSH keys
+  owner: micromanager
+  estimated_duration: 3m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: check
+    action: shell
+    command: "echo 'Runbook user-audit — implementation pending'"
+    description: "Audit system users, sudo access, and SSH keys"

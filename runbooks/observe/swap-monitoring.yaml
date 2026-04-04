@@ -1,0 +1,15 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: swap-monitoring
+  description: Monitor swap usage and identify memory-hungry processes
+  owner: micromanager
+  estimated_duration: 3m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: check
+    action: shell
+    command: "echo 'Runbook swap-monitoring — implementation pending'"
+    description: "Monitor swap usage and identify memory-hungry processes"

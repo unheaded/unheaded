@@ -1,0 +1,15 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: ntp-time-sync
+  description: Verify time synchronization across WEST and EAST
+  owner: micromanager
+  estimated_duration: 3m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: check
+    action: shell
+    command: "echo 'Runbook ntp-time-sync — implementation pending'"
+    description: "Verify time synchronization across WEST and EAST"

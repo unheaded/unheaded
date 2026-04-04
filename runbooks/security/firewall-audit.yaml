@@ -1,0 +1,15 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: firewall-audit
+  description: Audit iptables rules for security gaps
+  owner: micromanager
+  estimated_duration: 3m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: check
+    action: shell
+    command: "echo 'Runbook firewall-audit — implementation pending'"
+    description: "Audit iptables rules for security gaps"
