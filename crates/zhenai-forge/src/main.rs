@@ -11,12 +11,13 @@
 //!   zhenai-forge train --model model.gguf --data train.jsonl --output lora.gguf
 //!   zhenai-forge eval --model model.gguf --lora lora.gguf --data eval.jsonl
 
+mod backward;
 mod data;
 mod forward;
 mod gguf;
 mod hip;
-mod quant;
 mod lora;
+mod quant;
 mod tokenizer;
 mod train;
 

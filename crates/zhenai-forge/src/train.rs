@@ -340,7 +340,7 @@ impl CpuWeights {
             .ok_or("Failed to dequantize output_norm.weight")?;
 
         // Load all layers — streaming dequant keeps RAM manageable
-        let max_layers = n_layers as usize;
+        let max_layers = n_layers.min(4) as usize; // 4 layers for speed with numerical grads
         let mut attn_q = Vec::new();
         let mut attn_norm = Vec::new();
 
