@@ -1,18 +1,18 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-04-03
+**Last updated:** 2026-04-04
 **Total:** 36 ADRs (ADR-012b deprecated, ADR-027-034 added this session)
 
 ## Status Summary
 
 | Status | Count |
 |--------|-------|
-| Accepted | 20 |
-| In Progress | 2 |
-| Planned | 5 |
+| Accepted | 25 |
 | In Progress | 1 |
+| Planned | 3 |
 | Deferred | 4 |
 | Pipe Dream | 1 |
+| Deprecated | 1 |
 
 **Zero Draft/Proposed remaining.**
 
@@ -47,10 +47,10 @@
 | [024](ADR-024-zhen-runbook-automation.md) | Runbook Automation | Accepted (31 runbooks) | 2026-04-02 |
 | [025](ADR-025-kanban-mobile-app.md) | Kanban Mobile App | **Pipe Dream (Age 4+)** | 2026-04-03 |
 | [026](ADR-026-deb-packaging-ci-pipeline.md) | .deb Packaging + CI/CD | Accepted | 2026-04-03 |
-| [027](ADR-027-zhenai-conversation-memory.md) | Zhenai Conversation Memory | Planned | 2026-04-03 |
-| [028](ADR-028-zhenai-scheduler-heartbeat.md) | Zhenai Scheduler + Heartbeat | Planned | 2026-04-03 |
-| [029](ADR-029-wotan-consensus-health-remediation.md) | Wotan Consensus Health (Akira) | In Progress | 2026-04-03 |
-| [030](ADR-030-zhenai-forge-rust-training.md) | Zhenai Forge (Rust LoRA training) | **In Progress — training** | 2026-04-03 |
+| [027](ADR-027-zhenai-conversation-memory.md) | Zhenai Conversation Memory | Accepted (semantic recall + browser) | 2026-04-04 |
+| [028](ADR-028-zhenai-scheduler-heartbeat.md) | Zhenai Scheduler + Heartbeat | Accepted (Sprint C complete) | 2026-04-04 |
+| [029](ADR-029-wotan-consensus-health-remediation.md) | Wotan Consensus Health (Akira) | Accepted (7/7 EAST, Wotan publishing) | 2026-04-04 |
+| [030](ADR-030-zhenai-forge-rust-training.md) | Zhenai Forge (Rust LoRA training) | **In Progress — v3 training (cosine LR)** | 2026-04-04 |
 | [031](ADR-031-hybrid-model-handoff.md) | Hybrid Model Handoff | Planned | 2026-04-03 |
 | [032](ADR-032-python-to-go-rust-migration.md) | Python → Go/Rust Migration | Planned | 2026-04-03 |
 | [033](ADR-033-netbox-ipam.md) | NetBox IPAM | Planned | 2026-04-03 |
