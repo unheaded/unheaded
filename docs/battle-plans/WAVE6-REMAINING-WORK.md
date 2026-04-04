@@ -24,7 +24,7 @@
 - [x] Sprint E: DONE — 7 .debs built, published to APT repo, 4 installed on EAST
 - [ ] Sprint F: Pi-hole LXD Migration (needs user present for DNS cutover)
 - [x] Sprint G: DONE — ScanCode 8660 files clean, 99 deps audited, trademark cleared
-- [~] Sprint H: H1 JWT done (123 tests), H2 LUKS encryption remaining
+- [x] Sprint H: DONE — H1 JWT (123 tests) + H2 age encryption for sealed casks
 - [ ] Sprint I: Protocol Maturity (zhend 9 TODOs, Wotan clustering)
 - [~] Sprint J: J1 Corvée DONE, J2 Bailiff DONE, J3 Config Gen DONE, J4 remaining
 - NEW: ADR-031 Hybrid Model Handoff — PLANNED
