@@ -586,6 +586,7 @@
             <div class="tab-bar">
                 <button id="tab-chat" class="active" onclick="switchTab('chat')">Chat</button>
                 <button id="tab-search" onclick="switchTab('search')">Search</button>
+                <button id="tab-history" onclick="switchTab('history')">History</button>
             </div>
             <div id="chat-view">
                 <div class="messages" id="messages"></div>
@@ -604,6 +605,16 @@
                 <div class="search-results" id="search-results">
                     <div class="search-empty">Enter a query to search the codebase.</div>
                 </div>
+            </div>
+            <div id="history-view" style="display:none;">
+                <div style="padding: 10px; display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="history-search" placeholder="Search conversations..."
+                           style="flex:1; padding:8px; border:1px solid #555; background:#1a1a2e; color:#eee; border-radius:6px;"
+                           onkeyup="if(event.key==='Enter')loadHistory()">
+                    <button onclick="loadHistory()" style="padding:8px 16px; background:#7b2fff; color:white; border:none; border-radius:6px; cursor:pointer;">Search</button>
+                    <button onclick="document.getElementById('history-search').value='';loadHistory()" style="padding:8px 12px; background:#333; color:#aaa; border:none; border-radius:6px; cursor:pointer;">All</button>
+                </div>
+                <div class="history-list" id="history-list" style="padding: 10px; overflow-y: auto; max-height: calc(100vh - 200px);"></div>
             </div>
             <!-- File upload indicator -->
             <div class="file-upload-area" id="file-upload-area">
@@ -723,15 +734,21 @@ function switchTab(tab) {
     currentTab = tab;
     document.getElementById('tab-chat').className = tab === 'chat' ? 'active' : '';
     document.getElementById('tab-search').className = tab === 'search' ? 'active' : '';
+    document.getElementById('tab-history').className = tab === 'history' ? 'active' : '';
     document.getElementById('chat-view').style.display = tab === 'chat' ? 'flex' : 'none';
     document.getElementById('search-view').style.display = tab === 'search' ? 'flex' : 'none';
+    document.getElementById('history-view').style.display = tab === 'history' ? 'flex' : 'none';
 
     if (tab === 'chat') {
         qInput.placeholder = 'Ask Zhen about Unheaded...';
         btn.textContent = 'Ask';
-    } else {
+    } else if (tab === 'search') {
         qInput.placeholder = 'Search the codebase...';
         btn.textContent = 'Search';
+    } else if (tab === 'history') {
+        qInput.placeholder = 'Search conversations...';
+        btn.textContent = 'Search';
+        loadHistory();
     }
     qInput.focus();
 }
@@ -739,9 +756,63 @@ function switchTab(tab) {
 function handleSubmit() {
     if (currentTab === 'chat') {
         ask();
+    } else if (currentTab === 'history') {
+        loadHistory();
     } else {
         doSearch();
     }
+}
+
+async function loadHistory() {
+    const list = document.getElementById('history-list');
+    const q = document.getElementById('history-search').value.trim();
+    list.innerHTML = '<div style="color:#888;padding:20px;">Loading...</div>';
+
+    try {
+        const url = q
+            ? `/api/v1/conversations/search?q=${encodeURIComponent(q)}&limit=100`
+            : `/api/v1/conversations?limit=100`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        const convos = data.conversations || [];
+
+        if (convos.length === 0) {
+            list.innerHTML = '<div style="color:#888;padding:20px;">No conversations found.</div>';
+            return;
+        }
+
+        // Group by session
+        const sessions = {};
+        convos.forEach(c => {
+            const sid = c.session_id || 'unknown';
+            if (!sessions[sid]) sessions[sid] = [];
+            sessions[sid].push(c);
+        });
+
+        let html = '';
+        for (const [sid, msgs] of Object.entries(sessions)) {
+            const first = msgs[msgs.length - 1];
+            const date = first.created_at ? new Date(first.created_at).toLocaleString() : '?';
+            html += `<div style="margin-bottom:16px;border:1px solid #333;border-radius:8px;padding:12px;background:#1a1a2e;">`;
+            html += `<div style="color:#7b2fff;font-size:12px;margin-bottom:8px;">${date} &mdash; Session ${sid.slice(0,8)}</div>`;
+            msgs.reverse().forEach(m => {
+                const role = m.role === 'user' ? '**You**' : `**Zhenai**`;
+                const content = m.content.length > 300 ? m.content.slice(0,300) + '...' : m.content;
+                const color = m.role === 'user' ? '#4fc3f7' : '#e0e0e0';
+                html += `<div style="margin:4px 0;color:${color};font-size:13px;"><b>${m.role === 'user' ? 'You' : 'Zhenai'}:</b> ${escapeHtml(content)}</div>`;
+            });
+            html += '</div>';
+        }
+        list.innerHTML = html;
+    } catch (e) {
+        list.innerHTML = `<div style="color:#ff5c00;padding:20px;">Error loading history: ${e.message}</div>`;
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // --- Markdown rendering (lightweight) ---
