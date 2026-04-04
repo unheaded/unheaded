@@ -14,7 +14,8 @@ notes: |
   Run on WEST (PKI root), then distribute to EAST via scp.
 
   Certificate hierarchy:
-    Root CA (10yr) → Service certs (1yr) → per-host copies
+    Root CA (2yr) → Service certs (90d) → per-host copies (90d)
+  Akira monitors expiry and auto-rotates at 60 days remaining.
 
   SAN entries include both hostnames and IPs so certs work
   across the P2P link (192.168.13.x) and bridge (10.10.10.x).
@@ -23,8 +24,8 @@ notes: |
 
 params:
   pki_dir: /var/lib/unheaded/pki
-  ca_days: 3650
-  cert_days: 365
+  ca_days: 730
+  cert_days: 90
   key_bits: 4096
   services:
     - wotan
@@ -63,13 +64,13 @@ steps:
 
   - name: generate-ca-key-and-cert
     action: shell
-    description: "Generate 4096-bit RSA CA key + self-signed CA cert (10 year validity)"
+    description: "Generate 4096-bit RSA CA key + self-signed CA cert (2 year validity, rotate at 18mo)"
     command: |
       sudo openssl genrsa -out /var/lib/unheaded/pki/ca/ca.key 4096
       sudo openssl req -new -x509 \
         -key /var/lib/unheaded/pki/ca/ca.key \
         -out /var/lib/unheaded/pki/ca/ca.crt \
-        -days 3650 \
+        -days 730 \
         -subj "/C=GB/ST=Scotland/O=Unheaded/OU=Kingdom PKI/CN=Unheaded Root CA"
       sudo chmod 600 /var/lib/unheaded/pki/ca/ca.key
       sudo chmod 644 /var/lib/unheaded/pki/ca/ca.crt
@@ -151,7 +152,7 @@ steps:
           -CAkey /var/lib/unheaded/pki/ca/ca.key \
           -CAcreateserial \
           -out /var/lib/unheaded/pki/services/${svc}.crt \
-          -days 365 \
+          -days 90 \
           -extensions v3_req \
           -extfile /tmp/cert-${svc}.cnf
 
@@ -219,7 +220,7 @@ steps:
           -CAkey /var/lib/unheaded/pki/ca/ca.key \
           -CAcreateserial \
           -out /var/lib/unheaded/pki/hosts/${host}.crt \
-          -days 365 \
+          -days 90 \
           -extensions v3_req \
           -extfile /tmp/cert-${host}.cnf
 

@@ -1,0 +1,93 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: akira-cert-expiry-check
+  description: Akira health check — monitor cert expiry, auto-rotate at 60 days remaining
+  owner: akira
+  estimated_duration: 30s
+  risk: low
+  requires_sudo: true
+  schedule: "0 */6 * * *"
+
+notes: |
+  Designed to run as an Akira exec health check every 6 hours.
+  Checks all service + host certs under /var/lib/unheaded/pki/.
+
+  Rotation thresholds (for 90-day certs):
+    60 days remaining → trigger auto-rotation (normal)
+    30 days remaining → WARN (rotation may have failed)
+     7 days remaining → ERROR (escalate)
+    24 hours remaining → CRITICAL (consensus alert)
+
+  On rotation trigger, Akira invokes rotate-service-cert.yaml
+  for the specific service. CertRotator picks up the new file
+  via fsnotify — zero downtime.
+
+steps:
+  - name: check-all-certs
+    action: shell
+    command: |
+      PKI=/var/lib/unheaded/pki
+      NOW=$(date +%s)
+      EXIT=0
+
+      for cert in ${PKI}/services/*.crt ${PKI}/hosts/*.crt; do
+        [ -f "$cert" ] || continue
+        NAME=$(basename "$cert" .crt)
+        EXPIRY=$(sudo openssl x509 -in "$cert" -noout -enddate 2>/dev/null | cut -d= -f2)
+        EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || echo 0)
+        DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW) / 86400 ))
+
+        if [ $DAYS_LEFT -le 0 ]; then
+          echo "EXPIRED: ${NAME} (expired $((-DAYS_LEFT)) days ago)"
+          EXIT=2
+        elif [ $DAYS_LEFT -le 1 ]; then
+          echo "CRITICAL: ${NAME} expires in ${DAYS_LEFT} day"
+          EXIT=2
+        elif [ $DAYS_LEFT -le 7 ]; then
+          echo "ERROR: ${NAME} expires in ${DAYS_LEFT} days"
+          [ $EXIT -lt 2 ] && EXIT=1
+        elif [ $DAYS_LEFT -le 30 ]; then
+          echo "WARN: ${NAME} expires in ${DAYS_LEFT} days (rotation may have failed)"
+          [ $EXIT -lt 1 ] && EXIT=1
+        elif [ $DAYS_LEFT -le 60 ]; then
+          echo "ROTATE: ${NAME} expires in ${DAYS_LEFT} days — triggering auto-rotation"
+          # Trigger rotation runbook for this service
+          if [ -x /opt/unheaded/bin/run-runbook ]; then
+            /opt/unheaded/bin/run-runbook /opt/unheaded/runbooks/pki/rotate-service-cert.yaml \
+              --param service_name="${NAME}" --param host="$(hostname -s)" 2>&1 || true
+          else
+            echo "  (run-runbook not available — manual rotation needed)"
+          fi
+        else
+          echo "OK: ${NAME} expires in ${DAYS_LEFT} days"
+        fi
+      done
+
+      exit $EXIT
+
+  - name: check-ca-cert
+    action: shell
+    description: "CA cert has longer lifetime but still needs monitoring for 18-month rotation ceremony"
+    command: |
+      CA=/var/lib/unheaded/pki/ca/ca.crt
+      if [ ! -f "$CA" ]; then
+        echo "NO CA CERT FOUND"
+        exit 2
+      fi
+
+      NOW=$(date +%s)
+      EXPIRY=$(sudo openssl x509 -in "$CA" -noout -enddate | cut -d= -f2)
+      EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
+      DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW) / 86400 ))
+
+      if [ $DAYS_LEFT -le 30 ]; then
+        echo "CRITICAL: CA cert expires in ${DAYS_LEFT} days — ROTATION CEREMONY OVERDUE"
+        exit 2
+      elif [ $DAYS_LEFT -le 180 ]; then
+        echo "WARN: CA cert expires in ${DAYS_LEFT} days — schedule rotation ceremony"
+        exit 1
+      else
+        echo "OK: CA cert expires in ${DAYS_LEFT} days"
+        exit 0
+      fi
