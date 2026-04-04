@@ -1,6 +1,6 @@
 # ADR-024: Zhen Runbook Automation — Champion-Executable Infrastructure Playbooks
 
-**Status:** Accepted — Phase 1 complete (2026-04-03). 31 runbooks across 7 categories.
+**Status:** Accepted — Phase 1 complete (2026-04-03). 50 runbooks across 7 categories.
 **Date:** 2026-04-02
 **Deciders:** Architect, Developer, Captain, Micromanager
 **Depends on:** ADR-019 (Zhen Champion Agent), ADR-018 (RAFT training)
