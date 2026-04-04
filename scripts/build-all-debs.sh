@@ -35,10 +35,14 @@ go build -ldflags="-s -w" -o /tmp/build-unheaded-daemon ./cmd/unheaded-daemon/ 2
 go build -ldflags="-s -w" -o /tmp/build-dashboard-backend ./cmd/dashboard-backend/ 2>/dev/null && echo "  dashboard: OK" || echo "  dashboard: SKIP"
 go build -ldflags="-s -w" -o /tmp/build-kanban-app ./cmd/kanban-app/ 2>/dev/null && echo "  kanban: OK" || echo "  kanban: SKIP"
 go build -ldflags="-s -w" -o /tmp/build-akira ./cmd/akira/ 2>/dev/null && echo "  akira: OK" || echo "  akira: SKIP"
+go build -ldflags="-s -w" -o /tmp/build-timeguru ./services/timeguru/cmd/timeguru/ 2>/dev/null && echo "  timeguru: OK" || echo "  timeguru: SKIP"
+go build -ldflags="-s -w" -o /tmp/build-captain ./services/captain/cmd/captain/ 2>/dev/null && echo "  captain: OK" || echo "  captain: SKIP"
+go build -ldflags="-s -w" -o /tmp/build-architect ./services/architect/cmd/architect/ 2>/dev/null && echo "  architect: OK" || echo "  architect: SKIP"
+go build -ldflags="-s -w" -o /tmp/build-micromanager ./services/micromanager/cmd/micromanager/ 2>/dev/null && echo "  micromanager: OK" || echo "  micromanager: SKIP"
 
 # Build .deb for each service
 BUILT=0
-for svc in wotan unheaded-daemon dashboard-backend kanban-app akira; do
+for svc in wotan unheaded-daemon dashboard-backend kanban-app akira timeguru captain architect micromanager; do
     BIN="/tmp/build-${svc}"
     if [ ! -f "$BIN" ]; then
         echo "  SKIP: $svc (binary not found)"
