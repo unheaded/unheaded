@@ -3,13 +3,37 @@ kind: Runbook
 metadata:
   name: ntp-time-sync
   description: Verify time synchronization across WEST and EAST
-  owner: micromanager
+  owner: architect
   estimated_duration: 3m
   risk: low
-  requires_sudo: false
+  requires_sudo: true
+  cs_sources: [system/chrony]
 
 steps:
-  - name: check
+  - name: check-local-time
     action: shell
-    command: "echo 'Runbook ntp-time-sync — implementation pending'"
-    description: "Verify time synchronization across WEST and EAST"
+    command: |
+      echo "=== Local time ==="
+      timedatectl
+      echo "=== Chrony sources ==="
+      chronyc sources 2>/dev/null || ntpq -p 2>/dev/null || echo "No NTP client running"
+
+  - name: check-east-time
+    action: shell
+    command: |
+      echo "=== EAST time ==="
+      ssh govan@east 'date -u && timedatectl 2>/dev/null | grep "System clock"' 2>/dev/null
+      echo "=== Time difference ==="
+      LOCAL=$(date +%s)
+      REMOTE=$(ssh govan@east 'date +%s' 2>/dev/null)
+      DIFF=$((LOCAL - REMOTE))
+      echo "  Offset: ${DIFF}s"
+      if [ "${DIFF#-}" -gt 2 ]; then
+        echo "  WARNING: Clock skew > 2 seconds!"
+      else
+        echo "  OK: Clocks synchronized"
+      fi
+
+  - name: check-chrony-tracking
+    action: shell
+    command: "chronyc tracking 2>/dev/null || echo 'chrony not running'"
