@@ -88,6 +88,77 @@ pub fn dequantize_q5_k(data: &[u8], num_elements: usize) -> Vec<f32> {
     output
 }
 
+/// Q6_K block layout (256 elements per block):
+///
+/// struct block_q6_K {
+///     uint8_t ql[128];     // low 4 bits of quants
+///     uint8_t qh[64];      // high 2 bits of quants
+///     int8_t  scales[16];  // scales (signed)
+///     half    d;           // super-block scale
+/// };
+///
+/// Total: 210 bytes per 256 elements = 6.5625 bits/element
+pub const Q6_K_BLOCK_SIZE: usize = 256;
+pub const Q6_K_BYTES_PER_BLOCK: usize = 210;
+
+/// Dequantize a single Q6_K block (256 elements) to f32.
+pub fn dequantize_q6_k_block(block: &[u8], output: &mut [f32]) {
+    assert!(block.len() >= Q6_K_BYTES_PER_BLOCK);
+    assert!(output.len() >= Q6_K_BLOCK_SIZE);
+
+    let ql = &block[0..128];    // low 4 bits
+    let qh = &block[128..192];  // high 2 bits
+    let scales = &block[192..208]; // int8 scales
+    let d = f16_to_f32(u16::from_le_bytes([block[208], block[209]]));
+
+    for i in 0..Q6_K_BLOCK_SIZE {
+        // Extract 6-bit value
+        let ql_val = if i < 128 {
+            if i < 64 {
+                (ql[i] & 0x0F) as i8
+            } else {
+                (ql[i - 64] >> 4) as i8
+            }
+        } else {
+            if i < 192 {
+                (ql[i - 64] & 0x0F) as i8
+            } else {
+                (ql[i - 128] >> 4) as i8
+            }
+        };
+
+        let qh_val = ((qh[i % 64] >> ((i / 64) * 2)) & 3) as i8;
+        let q = ql_val | (qh_val << 4); // 6-bit signed value (-32 to 31)
+
+        // Scale
+        let scale_idx = i / 16;
+        let sc = scales[scale_idx.min(15)] as i8;
+
+        output[i] = d * sc as f32 * q as f32;
+    }
+}
+
+/// Dequantize a full tensor of Q6_K blocks to f32.
+pub fn dequantize_q6_k(data: &[u8], num_elements: usize) -> Vec<f32> {
+    let num_blocks = num_elements / Q6_K_BLOCK_SIZE;
+    let mut output = vec![0.0f32; num_elements];
+
+    for i in 0..num_blocks {
+        let block_start = i * Q6_K_BYTES_PER_BLOCK;
+        let block_end = block_start + Q6_K_BYTES_PER_BLOCK;
+        if block_end > data.len() {
+            break;
+        }
+        let out_start = i * Q6_K_BLOCK_SIZE;
+        dequantize_q6_k_block(
+            &data[block_start..block_end],
+            &mut output[out_start..out_start + Q6_K_BLOCK_SIZE],
+        );
+    }
+
+    output
+}
+
 /// Extract scale and min for a sub-block from the packed scales array.
 /// K-quant scales are packed 6 bits each into 12 bytes.
 fn get_scale_min_k4(j: usize, scales: &[u8]) -> (u8, u8) {

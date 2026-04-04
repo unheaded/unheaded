@@ -54,9 +54,21 @@ impl LoraLayer {
             *val = (u * 2.0 - 1.0) * bound;
         }
 
+        // Initialize B with small random values (not zeros!)
+        // Standard LoRA uses B=0, but with our backward pass, B=0 creates
+        // a dead gradient cycle: hidden=A*input (non-zero), but grad_hidden=B^T*grad
+        // → if B=0, grad_hidden=0 → grad_A=0. Small B breaks the cycle.
+        let b_bound = 0.01f32;
+        let mut b = vec![0.0f32; b_size];
+        for val in b.iter_mut() {
+            rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let u = (rng_state >> 33) as f32 / (1u64 << 31) as f32;
+            *val = (u * 2.0 - 1.0) * b_bound;
+        }
+
         Self {
             a,
-            b: vec![0.0; b_size],
+            b,
             grad_a: vec![0.0; a_size],
             grad_b: vec![0.0; b_size],
             m_a: vec![0.0; a_size],
