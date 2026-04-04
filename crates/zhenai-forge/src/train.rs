@@ -248,31 +248,52 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                     // RMSNorm
                     let normed = forward::rmsnorm(&layer_in, &cpu_weights.attn_norm[l], 1e-5);
 
-                    // LoRA forward (save hidden for backward)
+                    // Q/K/V/O projections with LoRA — 4x gradient signal
+                    let scale = lora.alpha / lora.rank as f32;
+                    let mut attn_output = vec![0.0f32; n];
+
+                    // Process each attention target: Q(0), K(1), V(2), O(3)
+                    let weights_per_target = [
+                        &cpu_weights.attn_q, &cpu_weights.attn_k,
+                        &cpu_weights.attn_v, &cpu_weights.attn_o,
+                    ];
+
+                    for (t, target_weights) in weights_per_target.iter().enumerate() {
+                        if l >= target_weights.len() { continue; }
+
+                        // LoRA forward for this target
+                        let lora_out = lora.layers[l][t].forward(&normed);
+
+                        // Base projection (partial dims for speed — first 256)
+                        let dims = n.min(256);
+                        let mut proj = vec![0.0f32; n];
+                        for i in 0..dims {
+                            let mut sum = 0.0f32;
+                            for j in 0..dims {
+                                sum += normed[j] * target_weights[l][i * n + j];
+                            }
+                            proj[i] = sum;
+                        }
+
+                        // Add LoRA contribution
+                        for i in 0..n.min(lora_out.len()) {
+                            proj[i] += lora_out[i] * scale;
+                        }
+
+                        // Accumulate into attention output (simplified — real attention uses Q*K^T*V)
+                        for i in 0..n {
+                            attn_output[i] += proj[i] * 0.25; // Average of 4 projections
+                        }
+                    }
+
+                    // Save for backward (use Q LoRA as representative)
                     let lora_hidden = lora.layers[l][0].forward(&normed);
                     lora_inputs.push(normed.clone());
-                    lora_hiddens.push(lora_hidden.clone());
+                    lora_hiddens.push(lora_hidden);
 
-                    // Q projection (simplified — partial dims for speed)
-                    let mut q_out = vec![0.0f32; n];
-                    let dims = n; // Partial for speed
-                    for i in 0..dims {
-                        let mut sum = 0.0f32;
-                        for j in 0..dims {
-                            sum += normed[j] * cpu_weights.attn_q[l][i * n + j];
-                        }
-                        q_out[i] = sum;
-                    }
-
-                    // Add LoRA
-                    let scale = lora.alpha / lora.rank as f32;
-                    for i in 0..n.min(lora_hidden.len()) {
-                        q_out[i] += lora_hidden[i] * scale;
-                    }
-
-                    // Residual
+                    // Residual connection
                     for i in 0..n {
-                        hidden[last_pos * n + i] += q_out[i];
+                        hidden[last_pos * n + i] += attn_output[i];
                     }
                 }
 
@@ -314,39 +335,43 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                         grad_q[i] = grad_residual[i];
                     }
 
-                    // LoRA backward
-                    let (ga, gb) = backward::lora_backward(
-                        &lora_inputs[l],
-                        &lora_hiddens[l],
-                        &grad_q,
-                        &lora.layers[l][0].a,
-                        &lora.layers[l][0].b,
-                        n, n, lora.rank as usize, lora.alpha,
-                    );
+                    // LoRA backward for ALL 4 targets (Q, K, V, O)
+                    for t in 0..4 {
+                        // Each target gets the same gradient signal (simplified)
+                        let target_grad: Vec<f32> = grad_q.iter().map(|&g| g * 0.25).collect();
 
-                    // Accumulate gradients
-                    for (i, &g) in ga.iter().enumerate() {
-                        if i < lora.layers[l][0].grad_a.len() {
-                            lora.layers[l][0].grad_a[i] += g;
+                        let lora_h = lora.layers[l][t].forward(&lora_inputs[l]);
+                        let (ga, gb) = backward::lora_backward(
+                            &lora_inputs[l], &lora_h, &target_grad,
+                            &lora.layers[l][t].a, &lora.layers[l][t].b,
+                            n, n, lora.rank as usize, lora.alpha,
+                        );
+
+                        // Accumulate gradients
+                        for (i, &g) in ga.iter().enumerate() {
+                            if i < lora.layers[l][t].grad_a.len() {
+                                lora.layers[l][t].grad_a[i] += g;
+                            }
                         }
-                    }
-                    for (i, &g) in gb.iter().enumerate() {
-                        if i < lora.layers[l][0].grad_b.len() {
-                            lora.layers[l][0].grad_b[i] += g;
+                        for (i, &g) in gb.iter().enumerate() {
+                            if i < lora.layers[l][t].grad_b.len() {
+                                lora.layers[l][t].grad_b[i] += g;
+                            }
                         }
-                    }
 
-                    // Gradient clipping (max_norm = 1.0)
-                    let grad_norm: f32 = lora.layers[l][0].grad_a.iter().chain(lora.layers[l][0].grad_b.iter())
-                        .map(|g| g * g).sum::<f32>().sqrt();
-                    if grad_norm > 1.0 {
-                        let scale = 1.0 / grad_norm;
-                        for g in lora.layers[l][0].grad_a.iter_mut() { *g *= scale; }
-                        for g in lora.layers[l][0].grad_b.iter_mut() { *g *= scale; }
-                    }
+                        // Gradient clipping per target
+                        let grad_norm: f32 = lora.layers[l][t].grad_a.iter()
+                            .chain(lora.layers[l][t].grad_b.iter())
+                            .map(|g| g * g).sum::<f32>().sqrt();
+                        if grad_norm > 1.0 {
+                            let clip = 1.0 / grad_norm;
+                            for g in lora.layers[l][t].grad_a.iter_mut() { *g *= clip; }
+                            for g in lora.layers[l][t].grad_b.iter_mut() { *g *= clip; }
+                        }
 
-                    // Adam step for this layer's Q LoRA
-                    lora.layers[l][0].adam_step(config.lr, 0.9, 0.999, 1e-8, state.step + 1);
+                        // Adam step
+                        lora.layers[l][t].adam_step(config.lr, 0.9, 0.999, 1e-8, state.step + 1);
+                    }
                 }
             }
             epoch_loss += loss as f64;
