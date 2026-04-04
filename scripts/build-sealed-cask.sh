@@ -102,7 +102,31 @@ tar czf "${OUTPUT}" -C "$(dirname "${STAGING}")" "$(basename "${STAGING}")"
 SIZE=$(du -h "${OUTPUT}" | awk '{print $1}')
 echo "  Output: ${OUTPUT} (${SIZE})"
 
-# --- Phase 6: Cleanup ---
+# --- Phase 6: Encrypt with age (ADR-010 + Sprint H2) ---
+AGE_KEY="${PROJECT_ROOT}/secrets/cask.age.key"
+ENCRYPTED="${OUTPUT}.age"
+
+if which age >/dev/null 2>&1; then
+    echo "=== Phase 6: Encrypt ==="
+    if [ ! -f "${AGE_KEY}" ]; then
+        echo "  Generating age key pair..."
+        mkdir -p "$(dirname "${AGE_KEY}")"
+        age-keygen -o "${AGE_KEY}" 2>/dev/null
+        chmod 600 "${AGE_KEY}"
+        echo "  Key saved to: ${AGE_KEY} (PROTECT THIS FILE)"
+    fi
+
+    AGE_PUB=$(grep "^age1" "${AGE_KEY}" || age-keygen -y "${AGE_KEY}")
+    age -r "${AGE_PUB}" -o "${ENCRYPTED}" "${OUTPUT}"
+    ENC_SIZE=$(du -h "${ENCRYPTED}" | awk '{print $1}')
+    echo "  Encrypted: ${ENCRYPTED} (${ENC_SIZE})"
+    echo "  Decrypt:   age -d -i ${AGE_KEY} ${ENCRYPTED} > cask.tar.gz"
+else
+    echo "=== Phase 6: Encryption SKIPPED (age not installed) ==="
+    echo "  Install with: apt install age"
+fi
+
+# --- Phase 7: Cleanup ---
 rm -rf "${STAGING}"
 
 echo ""
@@ -114,4 +138,8 @@ echo "  Size:       ${SIZE}"
 echo "  Files:      ${TOTAL}"
 echo "  Rune hash:  ${RUNE_HASH}"
 echo "  Verify:     ./scripts/verify-binding-rune.sh ${OUTPUT}"
+if [ -f "${ENCRYPTED}" ]; then
+echo "  Encrypted:  ${ENCRYPTED} (${ENC_SIZE})"
+echo "  Decrypt:    age -d -i ${AGE_KEY} ${ENCRYPTED} > cask.tar.gz"
+fi
 echo ""
