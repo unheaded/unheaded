@@ -37,24 +37,17 @@ Items that have tests passing but are NOT yet real implementations:
 
 ### CRITICAL STUB 1: zhenai-forge training gradients (Sprint A)
 - **What tests verify**: Adam optimizer math, LoRA shapes, loss convergence curve
-- **What's stubbed**: Gradients are RANDOM, not from model forward pass. GPU buffers loaded with ZEROS, not actual model weights. The kingdom.zlora file exists but was trained on random gradients — NOT useful for inference.
+- **What's stubbed**: Gradients are RANDOM, not from model forward pass. ~~GPU buffers loaded with ZEROS~~ GPU now loads REAL tensor data from GGUF mmap (FIXED 2026-04-04). The kingdom.zlora file was trained on random gradients — NOT useful for inference until real forward/backward is implemented.
 - **Impact**: Cannot produce a real fine-tuned model until A3-A7 are completed (real GPU matmul + real forward/backward)
 - **Fix**: Sprint A steps A3-A7 (hipBLAS forward pass, cross-entropy loss, backward pass for LoRA)
 - **Files**: `crates/zhenai-forge/src/train.rs` (line 99-102: zero buffers), `src/lora.rs` (line 189-221: simulated gradients)
 
-### CRITICAL STUB 2: Akira auto-restart (Sprint D)
-- **What tests verify**: Health check HTTP calls, consensus threshold math, alert triggering
-- **What's stubbed**: `// TODO: exec systemctl restart unheaded-<service>` — detects failure but doesn't actually restart
-- **Impact**: Akira reports problems but can't fix them autonomously
-- **Fix**: Add `exec.Command("systemctl", "restart", svcName)` in alert handler
-- **File**: `cmd/akira/main.go` (line 113)
+### ~~CRITICAL STUB 2: Akira auto-restart~~ — FIXED 2026-04-04
+- Now calls `exec.Command("systemctl", "restart", svcUnit)` for real
 
-### MODERATE STUB 3: Champion PostgreSQL integration
-- **What tests verify**: File R/W sandbox, path traversal blocking, Kanban CRUD, snapshot/revert
-- **What's stubbed**: Tests use mock ActionStore/SnapshotStore/KanbanStore, never hit real PostgreSQL
-- **Impact**: Works in tests, untested against The Well in production
-- **Fix**: Integration test with Docker PostgreSQL running
-- **Files**: `pkg/champion/champion_test.go`, `pkg/champion/write_test.go`
+### ~~MODERATE STUB 3: Champion PostgreSQL integration~~ — FIXED 2026-04-04
+- Integration tests pass against real Docker PostgreSQL (The Well)
+- `pkg/champion/integration_test.go`: 2 tests verify action logging to zhen_actions table
 
 ### MINOR GAPS
 - Scheduler (`zhen_scheduler.py`): No unit tests, but real subprocess execution verified
