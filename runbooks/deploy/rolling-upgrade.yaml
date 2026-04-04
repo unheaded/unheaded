@@ -1,0 +1,79 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: rolling-upgrade
+  description: Rolling upgrade of Kingdom services with zero downtime
+  owner: micromanager
+  estimated_duration: 20m
+  risk: high
+  requires_sudo: true
+
+steps:
+  - name: pre-flight-check
+    action: shell
+    command: |
+      echo "=== Pre-flight ==="
+      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+        dpkg -l "unheaded-${svc}" 2>/dev/null | grep "^ii" | awk '{print $2, $3}'
+      done
+    description: "Show current package versions"
+
+  - name: backup-state
+    action: shell
+    command: |
+      sudo docker exec unheaded-postgres pg_dump -U unheaded -Fc unheaded_app > /var/backups/postgresql/pre-upgrade-$(date +%Y%m%d-%H%M).dump
+    description: "Backup The Well before upgrade"
+    verify: "test -f /var/backups/postgresql/pre-upgrade-*.dump"
+
+  - name: build-new-packages
+    action: shell
+    command: "bash ~/tmp/unheaded/scripts/build-all-debs.sh"
+    timeout: 300
+    description: "Build all .deb packages from current code"
+
+  - name: publish-to-repo
+    action: shell
+    command: |
+      for deb in /tmp/unheaded-debs/*.deb; do
+        reprepro -b /var/lib/apt-repo includedeb noble "$deb" 2>/dev/null
+      done
+    description: "Publish new packages to APT repo"
+
+  - name: upgrade-east-first
+    action: shell
+    command: |
+      ssh govan@east 'sudo apt update -qq && sudo apt upgrade -y 2>&1 | tail -10'
+    description: "Upgrade EAST first (canary)"
+    verify: "ssh govan@east 'systemctl is-active unheaded-wotan 2>/dev/null || echo not-running'"
+
+  - name: verify-east-health
+    action: shell
+    command: |
+      ssh govan@east '~/tmp/unheaded/cmd/akira/akira --once 2>&1 | tail -5'
+    description: "Run Akira health sweep on EAST after upgrade"
+    timeout: 30
+
+  - name: upgrade-west
+    action: shell
+    command: "sudo apt update -qq && sudo apt upgrade -y 2>&1 | tail -10"
+    description: "Upgrade WEST (primary)"
+
+  - name: verify-west-health
+    action: shell
+    command: "~/tmp/unheaded/cmd/akira/akira --once 2>&1 | tail -5"
+
+  - name: post-upgrade-check
+    action: shell
+    command: |
+      echo "=== Post-upgrade versions ==="
+      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+        dpkg -l "unheaded-${svc}" 2>/dev/null | grep "^ii" | awk '{print $2, $3}'
+      done
+
+rollback:
+  - name: restore-previous-version
+    action: shell
+    command: |
+      echo "To rollback: sudo apt install unheaded-wotan=<previous_version>"
+      echo "Then restore DB: pg_restore -U unheaded -d unheaded_app /var/backups/postgresql/pre-upgrade-*.dump"
+    when: "step.verify-east-health.failed"
