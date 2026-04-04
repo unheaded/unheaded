@@ -96,10 +96,15 @@ impl GpuModel {
 
             match GpuBuffer::alloc(size) {
                 Ok(buf) => {
-                    // In Phase 3, we'd copy the actual tensor data from mmap here:
-                    // buf.copy_from_host(&mmap[tensor.offset..tensor.offset + size])
-                    // For now, just allocate (proves VRAM budget)
-                    buf.zero().map_err(|e| format!("GPU zero failed: {}", e))?;
+                    // Copy REAL tensor data from mmap to GPU VRAM
+                    let tensor_bytes = model.tensor_data(tensor);
+                    if tensor_bytes.len() >= size {
+                        buf.copy_from_host(&tensor_bytes[..size])
+                            .map_err(|e| format!("GPU memcpy failed for {}: {}", tensor.name, e))?;
+                    } else {
+                        // Tensor data shorter than expected — zero-fill remainder
+                        buf.zero().map_err(|e| format!("GPU zero failed: {}", e))?;
+                    }
                     total_vram += size;
                     weight_buffers.push(buf);
                     loaded += 1;
