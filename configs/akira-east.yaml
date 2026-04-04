@@ -1,0 +1,17 @@
+# Akira config for EAST — only services installed via .deb
+# Update this as more services are deployed to EAST
+targets:
+  - name: wotan
+    port: 18000
+  - name: timeguru
+    port: 19000
+  - name: architect
+    port: 19001
+  - name: captain
+    port: 19002
+  - name: micromanager
+    port: 19003
+  - name: dashboard
+    port: 20000
+  - name: daemon
+    port: 17000
