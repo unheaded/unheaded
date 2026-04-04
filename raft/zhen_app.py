@@ -201,6 +201,83 @@ def _try_command(question):
     Returns (response_dict, True) if handled, (None, False) if not a command."""
     q = question.lower().strip()
 
+    # Kingdom Status — comprehensive dashboard
+    if q in ('kingdom status', 'kingdom', 'full status', 'dashboard'):
+        import subprocess as sp, urllib.request as ur
+        lines = ['**Kingdom Status Report**\n']
+
+        # Services
+        services = {
+            'wotan': 18000, 'timeguru': 19000, 'captain': 19002,
+            'architect': 19001, 'micromanager': 19003,
+            'dashboard': 20000, 'kanban': 16668,
+            'zhenai': 20103, 'inference': 20100, 'akira': 16699,
+        }
+        healthy = 0
+        for name, port in services.items():
+            try:
+                ur.urlopen(f'http://localhost:{port}/health', timeout=2)
+                healthy += 1
+            except: pass
+        lines.append(f'**Services:** {healthy}/{len(services)} healthy')
+
+        # Memory
+        try:
+            with open('/proc/meminfo') as f:
+                mem = {}
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2: mem[parts[0].rstrip(':')] = int(parts[1])
+            total = mem.get('MemTotal', 0) // 1024
+            avail = mem.get('MemAvailable', 0) // 1024
+            swap_used = (mem.get('SwapTotal', 0) - mem.get('SwapFree', 0)) // 1024
+            lines.append(f'**Memory:** {total - avail}MB / {total}MB (swap: {swap_used}MB)')
+        except: pass
+
+        # Disk
+        try:
+            result = sp.run(['df', '-h', '/'], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.strip().split('\n')[1:]:
+                parts = line.split()
+                lines.append(f'**Disk /:** {parts[2]} used / {parts[1]} ({parts[4]})')
+        except: pass
+
+        # GPU
+        try:
+            result = sp.run(['rocm-smi'], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.split('\n'):
+                if 'Temp' in line and '°C' in line:
+                    lines.append(f'**GPU:** {line.strip()}')
+                    break
+        except: pass
+
+        # Training
+        try:
+            with open('/tmp/forge-production.log') as f:
+                last = [l for l in f.readlines() if 'Loss' in l]
+                if last:
+                    lines.append(f'**Training:** {last[-1].strip()}')
+        except: pass
+
+        # Packages
+        try:
+            result = sp.run(['dpkg', '-l'], capture_output=True, text=True, timeout=5)
+            pkg_count = len([l for l in result.stdout.split('\n') if 'unheaded' in l])
+            lines.append(f'**Packages:** {pkg_count} installed')
+        except: pass
+
+        # EAST
+        try:
+            result = sp.run(['ssh', 'govan@east', 'uptime'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                lines.append(f'**EAST:** {result.stdout.strip()}')
+            else:
+                lines.append('**EAST:** unreachable')
+        except:
+            lines.append('**EAST:** unreachable')
+
+        return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
+
     # Runbook commands
     if q in ('list runbooks', 'show runbooks', 'runbooks'):
         import glob as g
