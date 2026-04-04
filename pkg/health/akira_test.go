@@ -144,3 +144,93 @@ func TestAkiraRunCancellation(t *testing.T) {
 		t.Fatal("Akira.Run did not stop after context cancellation")
 	}
 }
+
+func TestConsensusAtExactThreshold(t *testing.T) {
+	akira := NewAkira("test-node", nil)
+
+	// 3 reports: 2 failing = 66.67% = exactly at threshold
+	for i := 0; i < 3; i++ {
+		report := HealthReport{
+			Service:   "edge-svc",
+			Reporter:  "test-node",
+			Healthy:   i == 0, // 1 healthy, 2 unhealthy = 66.67%
+			Timestamp: time.Now(),
+		}
+		akira.mu.Lock()
+		state, ok := akira.states["edge-svc"]
+		if !ok {
+			state = &ConsensusState{Service: "edge-svc"}
+			akira.states["edge-svc"] = state
+		}
+		state.Reports = append(state.Reports, report)
+		akira.mu.Unlock()
+	}
+
+	alerts := akira.EvaluateConsensus()
+	if len(alerts) != 1 {
+		t.Fatalf("Expected 1 alert at exact threshold (66.67%%), got %d", len(alerts))
+	}
+	if alerts[0].FailureRate < ConsensusThreshold {
+		t.Errorf("Failure rate %.4f should be >= threshold %.4f", alerts[0].FailureRate, ConsensusThreshold)
+	}
+}
+
+func TestConsensusBelowThreshold(t *testing.T) {
+	akira := NewAkira("test-node", nil)
+
+	// 5 reports: 3 healthy, 2 failing = 40% < 66.67%
+	for i := 0; i < 5; i++ {
+		report := HealthReport{
+			Service:   "ok-svc",
+			Reporter:  "test-node",
+			Healthy:   i < 3, // 3 healthy, 2 failing = 40%
+			Timestamp: time.Now(),
+		}
+		akira.mu.Lock()
+		state, ok := akira.states["ok-svc"]
+		if !ok {
+			state = &ConsensusState{Service: "ok-svc"}
+			akira.states["ok-svc"] = state
+		}
+		state.Reports = append(state.Reports, report)
+		akira.mu.Unlock()
+	}
+
+	alerts := akira.EvaluateConsensus()
+	if len(alerts) != 0 {
+		t.Errorf("Expected 0 alerts at 40%% failure, got %d", len(alerts))
+	}
+}
+
+func TestMultipleServicesConsensus(t *testing.T) {
+	akira := NewAkira("test-node", nil)
+
+	// 2 services: one failing, one healthy
+	for i := 0; i < 5; i++ {
+		akira.mu.Lock()
+		// Failing service
+		fs, ok := akira.states["bad-svc"]
+		if !ok {
+			fs = &ConsensusState{Service: "bad-svc"}
+			akira.states["bad-svc"] = fs
+		}
+		fs.Reports = append(fs.Reports, HealthReport{Service: "bad-svc", Healthy: false, Timestamp: time.Now()})
+
+		// Healthy service
+		gs, ok := akira.states["good-svc"]
+		if !ok {
+			gs = &ConsensusState{Service: "good-svc"}
+			akira.states["good-svc"] = gs
+		}
+		gs.Reports = append(gs.Reports, HealthReport{Service: "good-svc", Healthy: true, Timestamp: time.Now()})
+		akira.mu.Unlock()
+	}
+
+	alerts := akira.EvaluateConsensus()
+	if len(alerts) != 1 {
+		t.Fatalf("Expected 1 alert (bad-svc only), got %d", len(alerts))
+	}
+	if alerts[0].Service != "bad-svc" {
+		t.Errorf("Expected bad-svc alert, got %s", alerts[0].Service)
+	}
+}
