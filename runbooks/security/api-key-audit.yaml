@@ -1,0 +1,55 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: api-key-audit
+  description: Audit all API keys and secrets across the Kingdom
+  owner: blackmage
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: true
+
+steps:
+  - name: check-env-vars
+    action: shell
+    command: |
+      echo "=== Environment variables with sensitive patterns ==="
+      env | grep -iE "key|secret|password|token|api" | sed 's/=.*/=***REDACTED***/'
+
+  - name: check-config-files
+    action: shell
+    command: |
+      echo "=== Config files with potential secrets ==="
+      find /etc/unheaded/ ~/tmp/unheaded/configs/ -type f 2>/dev/null | while read f; do
+        if grep -qiE "password|secret|key|token" "$f" 2>/dev/null; then
+          echo "  FOUND: $f"
+        fi
+      done
+
+  - name: check-git-history
+    action: shell
+    command: |
+      echo "=== Git commits mentioning secrets (last 50) ==="
+      cd ~/tmp/unheaded && git log --oneline -50 | grep -iE "secret|password|credential|key" | head -5
+      echo "(Check with: git log -p --all -S 'password' for full history)"
+
+  - name: check-docker-env
+    action: shell
+    command: |
+      echo "=== Docker container environment ==="
+      sudo docker ps -q 2>/dev/null | while read cid; do
+        NAME=$(sudo docker inspect $cid --format '{{.Name}}')
+        echo "  $NAME:"
+        sudo docker inspect $cid --format '{{range .Config.Env}}  {{.}}{{end}}' | grep -iE "password|secret|key" | sed 's/=.*/=***/'
+      done
+
+  - name: check-age-keys
+    action: shell
+    command: |
+      echo "=== Age encryption keys ==="
+      find ~/tmp/unheaded -name "*.age.key" -type f 2>/dev/null | while read f; do
+        PERMS=$(stat --format=%a "$f")
+        echo "  $f (perms: $PERMS)"
+        if [ "$PERMS" != "600" ]; then
+          echo "    WARNING: permissions should be 600, got $PERMS"
+        fi
+      done

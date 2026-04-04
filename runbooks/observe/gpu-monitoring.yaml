@@ -1,0 +1,39 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: gpu-monitoring
+  description: Monitor AMD RX 7700 XT GPU — VRAM, temperature, utilization
+  owner: micromanager
+  estimated_duration: 2m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: rocm-smi-overview
+    action: shell
+    command: "rocm-smi"
+    description: "Full GPU status — temp, power, VRAM, utilization"
+
+  - name: check-vram-usage
+    action: shell
+    command: "rocm-smi --showmemuse"
+    description: "Detailed VRAM breakdown"
+
+  - name: check-gpu-processes
+    action: shell
+    command: "rocm-smi --showpids"
+    description: "Processes using the GPU"
+
+  - name: check-temperature
+    action: shell
+    command: |
+      TEMP=$(rocm-smi --showtemp 2>/dev/null | grep "Temperature" | awk '{print $NF}')
+      echo "GPU Temperature: ${TEMP}°C"
+      if [ "${TEMP%.*}" -gt 80 ]; then
+        echo "WARNING: GPU temperature above 80°C!"
+      fi
+
+  - name: check-power
+    action: shell
+    command: "rocm-smi --showpower"
+    description: "Power draw (TDP 220W for RX 7700 XT)"
