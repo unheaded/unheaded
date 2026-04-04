@@ -21,12 +21,12 @@
 - [~] Sprint B: B1+B4 DONE, B2/B3/B5/B6/B7 need Zhenai running
 - [x] Sprint C: DONE — scheduler daemon + chat commands + emergency stop
 - [~] Sprint D: D1-D3 DONE (Akira pkg/health + cmd/akira binary), D4-D6 need Wotan running
-- [~] Sprint E: E1 DONE (5 .debs built + published + installed on EAST), E2-E3 remaining
-- [ ] Sprint F: Pi-hole LXD Migration (needs user for DNS cutover)
-- [~] Sprint G: G1 ScanCode running, G3-G4 DONE (99 Go deps, age check passed)
-- [~] Sprint H: H1 JWT already implemented (123 tests), H2 LUKS remaining
-- [ ] Sprint I: Protocol Maturity
-- [ ] Sprint J: Zhenai Champion Expansion
+- [x] Sprint E: DONE — 7 .debs built, published to APT repo, 4 installed on EAST
+- [ ] Sprint F: Pi-hole LXD Migration (needs user present for DNS cutover)
+- [x] Sprint G: DONE — ScanCode 8660 files clean, 99 deps audited, trademark cleared
+- [~] Sprint H: H1 JWT done (123 tests), H2 LUKS encryption remaining
+- [ ] Sprint I: Protocol Maturity (zhend 9 TODOs, Wotan clustering)
+- [~] Sprint J: J1 Corvée DONE, J2 Bailiff DONE, J3 Config Gen DONE, J4 remaining
 - NEW: ADR-031 Hybrid Model Handoff — PLANNED
 - NEW: ADR-032 Python → Go/Rust Migration — PLANNED
 - NEW: ADR-033 NetBox IPAM — PLANNED
