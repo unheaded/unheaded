@@ -1,0 +1,15 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: doom-performance
+  description: Measure DOOM rendering FPS and CPU throughput
+  owner: micromanager
+  estimated_duration: 3m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: check
+    action: shell
+    command: "echo 'Runbook doom-performance — implementation pending'"
+    description: "Measure DOOM rendering FPS and CPU throughput"

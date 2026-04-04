@@ -1,0 +1,15 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: faiss-index-status
+  description: Check FAISS index health and vector counts
+  owner: micromanager
+  estimated_duration: 3m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: check
+    action: shell
+    command: "echo 'Runbook faiss-index-status — implementation pending'"
+    description: "Check FAISS index health and vector counts"

@@ -1,0 +1,15 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: vpn-status
+  description: Check WireGuard/VPN tunnel status and connectivity
+  owner: micromanager
+  estimated_duration: 3m
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: check
+    action: shell
+    command: "echo 'Runbook vpn-status — implementation pending'"
+    description: "Check WireGuard/VPN tunnel status and connectivity"
