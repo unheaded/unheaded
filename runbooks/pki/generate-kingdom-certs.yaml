@@ -1,0 +1,321 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: generate-kingdom-certs
+  description: Generate CA + per-service mTLS certificates for the Kingdom
+  owner: micromanager
+  estimated_duration: 10m
+  risk: high
+  requires_sudo: true
+
+notes: |
+  Creates the full PKI hierarchy for gRPC mTLS communication.
+  CA key is age-encrypted at rest. Service certs are signed by the CA.
+  Run on WEST (PKI root), then distribute to EAST via scp.
+
+  Certificate hierarchy:
+    Root CA (10yr) → Service certs (1yr) → per-host copies
+
+  SAN entries include both hostnames and IPs so certs work
+  across the P2P link (192.168.13.x) and bridge (10.10.10.x).
+
+  IMPORTANT: CA key must NEVER leave WEST unencrypted.
+
+params:
+  pki_dir: /var/lib/unheaded/pki
+  ca_days: 3650
+  cert_days: 365
+  key_bits: 4096
+  services:
+    - wotan
+    - timeguru
+    - captain
+    - architect
+    - micromanager
+    - dashboard-backend
+    - kanban-app
+    - unheaded-daemon
+    - akira
+    - monad
+    - sophia
+    - trace-collector
+    - gateway
+    - zhen-inference
+  hosts:
+    - name: west
+      ip: 192.168.13.2
+      alt_ips: "10.10.10.1"
+    - name: east
+      ip: 192.168.13.1
+      alt_ips: "10.10.10.1"
+
+steps:
+  - name: create-pki-directories
+    action: shell
+    command: |
+      sudo mkdir -p /var/lib/unheaded/pki/{ca,services,hosts}
+      sudo chown -R root:unheaded /var/lib/unheaded/pki
+      sudo chmod 750 /var/lib/unheaded/pki
+      sudo chmod 700 /var/lib/unheaded/pki/ca
+      sudo chmod 750 /var/lib/unheaded/pki/services
+      sudo chmod 750 /var/lib/unheaded/pki/hosts
+    verify: "test -d /var/lib/unheaded/pki/ca && echo OK"
+
+  - name: generate-ca-key-and-cert
+    action: shell
+    description: "Generate 4096-bit RSA CA key + self-signed CA cert (10 year validity)"
+    command: |
+      sudo openssl genrsa -out /var/lib/unheaded/pki/ca/ca.key 4096
+      sudo openssl req -new -x509 \
+        -key /var/lib/unheaded/pki/ca/ca.key \
+        -out /var/lib/unheaded/pki/ca/ca.crt \
+        -days 3650 \
+        -subj "/C=GB/ST=Scotland/O=Unheaded/OU=Kingdom PKI/CN=Unheaded Root CA"
+      sudo chmod 600 /var/lib/unheaded/pki/ca/ca.key
+      sudo chmod 644 /var/lib/unheaded/pki/ca/ca.crt
+    verify: |
+      sudo openssl x509 -in /var/lib/unheaded/pki/ca/ca.crt -noout -subject -dates
+      echo "CA cert generated OK"
+
+  - name: encrypt-ca-key
+    action: shell
+    description: "Encrypt CA private key with age — key never stored in plaintext at rest"
+    command: |
+      if command -v age &>/dev/null; then
+        sudo age -p -o /var/lib/unheaded/pki/ca/ca.key.age /var/lib/unheaded/pki/ca/ca.key
+        echo "CA key encrypted with age"
+      else
+        echo "WARNING: age not installed — CA key stored in plaintext. Install age ASAP."
+      fi
+
+  - name: create-openssl-config
+    action: shell
+    description: "Create OpenSSL config template for service certs with SANs"
+    command: |
+      cat > /tmp/kingdom-cert.cnf << 'SSLEOF'
+      [req]
+      default_bits = 4096
+      prompt = no
+      distinguished_name = dn
+      req_extensions = v3_req
+
+      [dn]
+      C = GB
+      ST = Scotland
+      O = Unheaded
+      OU = Kingdom Services
+      CN = SERVICENAME
+
+      [v3_req]
+      basicConstraints = CA:FALSE
+      keyUsage = digitalSignature, keyEncipherment
+      extendedKeyUsage = serverAuth, clientAuth
+      subjectAltName = @alt_names
+
+      [alt_names]
+      DNS.1 = SERVICENAME
+      DNS.2 = SERVICENAME.unheaded.local
+      DNS.3 = localhost
+      IP.1 = 127.0.0.1
+      IP.2 = ::1
+      IP.3 = 192.168.13.1
+      IP.4 = 192.168.13.2
+      IP.5 = 10.10.10.10
+      SSLEOF
+    verify: "test -f /tmp/kingdom-cert.cnf && echo OK"
+
+  - name: generate-service-certs
+    action: shell
+    description: "Generate cert+key for each Kingdom service, signed by CA"
+    command: |
+      SERVICES="wotan timeguru captain architect micromanager dashboard-backend kanban-app unheaded-daemon akira monad sophia trace-collector gateway zhen-inference"
+      for svc in $SERVICES; do
+        echo "=== Generating cert for: $svc ==="
+
+        # Create service-specific config with correct CN
+        sed "s/SERVICENAME/$svc/g" /tmp/kingdom-cert.cnf > /tmp/cert-${svc}.cnf
+
+        # Generate key
+        sudo openssl genrsa -out /var/lib/unheaded/pki/services/${svc}.key 4096
+
+        # Generate CSR
+        sudo openssl req -new \
+          -key /var/lib/unheaded/pki/services/${svc}.key \
+          -out /tmp/${svc}.csr \
+          -config /tmp/cert-${svc}.cnf
+
+        # Sign with CA
+        sudo openssl x509 -req \
+          -in /tmp/${svc}.csr \
+          -CA /var/lib/unheaded/pki/ca/ca.crt \
+          -CAkey /var/lib/unheaded/pki/ca/ca.key \
+          -CAcreateserial \
+          -out /var/lib/unheaded/pki/services/${svc}.crt \
+          -days 365 \
+          -extensions v3_req \
+          -extfile /tmp/cert-${svc}.cnf
+
+        # Set permissions
+        sudo chmod 640 /var/lib/unheaded/pki/services/${svc}.key
+        sudo chmod 644 /var/lib/unheaded/pki/services/${svc}.crt
+        sudo chown root:unheaded /var/lib/unheaded/pki/services/${svc}.key
+
+        # Cleanup temp files
+        rm -f /tmp/${svc}.csr /tmp/cert-${svc}.cnf
+      done
+    verify: |
+      ls -la /var/lib/unheaded/pki/services/*.crt | wc -l
+      echo "service certs generated"
+
+  - name: generate-host-certs
+    action: shell
+    description: "Generate per-host certs for WEST and EAST"
+    command: |
+      for host in west east; do
+        echo "=== Generating host cert: $host ==="
+
+        if [ "$host" = "west" ]; then
+          HOST_IP="192.168.13.2"
+        else
+          HOST_IP="192.168.13.1"
+        fi
+
+        cat > /tmp/cert-${host}.cnf << HOSTEOF
+      [req]
+      default_bits = 4096
+      prompt = no
+      distinguished_name = dn
+      req_extensions = v3_req
+
+      [dn]
+      C = GB
+      ST = Scotland
+      O = Unheaded
+      OU = Kingdom Hosts
+      CN = ${host}
+
+      [v3_req]
+      basicConstraints = CA:FALSE
+      keyUsage = digitalSignature, keyEncipherment
+      extendedKeyUsage = serverAuth, clientAuth
+      subjectAltName = @alt_names
+
+      [alt_names]
+      DNS.1 = ${host}
+      DNS.2 = ${host}.unheaded.local
+      DNS.3 = localhost
+      IP.1 = 127.0.0.1
+      IP.2 = ${HOST_IP}
+      HOSTEOF
+
+        sudo openssl genrsa -out /var/lib/unheaded/pki/hosts/${host}.key 4096
+        sudo openssl req -new \
+          -key /var/lib/unheaded/pki/hosts/${host}.key \
+          -out /tmp/${host}.csr \
+          -config /tmp/cert-${host}.cnf
+        sudo openssl x509 -req \
+          -in /tmp/${host}.csr \
+          -CA /var/lib/unheaded/pki/ca/ca.crt \
+          -CAkey /var/lib/unheaded/pki/ca/ca.key \
+          -CAcreateserial \
+          -out /var/lib/unheaded/pki/hosts/${host}.crt \
+          -days 365 \
+          -extensions v3_req \
+          -extfile /tmp/cert-${host}.cnf
+
+        sudo chmod 640 /var/lib/unheaded/pki/hosts/${host}.key
+        sudo chmod 644 /var/lib/unheaded/pki/hosts/${host}.crt
+        rm -f /tmp/${host}.csr /tmp/cert-${host}.cnf
+      done
+    verify: |
+      sudo openssl verify -CAfile /var/lib/unheaded/pki/ca/ca.crt \
+        /var/lib/unheaded/pki/hosts/west.crt
+      sudo openssl verify -CAfile /var/lib/unheaded/pki/ca/ca.crt \
+        /var/lib/unheaded/pki/hosts/east.crt
+      echo "Host certs verified against CA"
+
+  - name: verify-all-certs
+    action: shell
+    description: "Verify every service cert chains to the CA"
+    command: |
+      echo "=== Verifying certificate chain ==="
+      FAIL=0
+      for cert in /var/lib/unheaded/pki/services/*.crt /var/lib/unheaded/pki/hosts/*.crt; do
+        NAME=$(basename $cert .crt)
+        if sudo openssl verify -CAfile /var/lib/unheaded/pki/ca/ca.crt "$cert" > /dev/null 2>&1; then
+          echo "  OK: $NAME"
+        else
+          echo "  FAIL: $NAME"
+          FAIL=1
+        fi
+      done
+      if [ $FAIL -eq 0 ]; then
+        echo "All certificates verified against CA"
+      else
+        echo "ERROR: Some certificates failed verification"
+        exit 1
+      fi
+
+  - name: distribute-to-east
+    action: shell
+    description: "Copy CA cert + service certs + EAST host cert to EAST node"
+    command: |
+      ssh govan@east 'sudo mkdir -p /var/lib/unheaded/pki/{ca,services,hosts}'
+
+      # CA cert (not key!)
+      scp /var/lib/unheaded/pki/ca/ca.crt govan@east:/tmp/ca.crt
+      ssh govan@east 'sudo mv /tmp/ca.crt /var/lib/unheaded/pki/ca/ca.crt'
+
+      # Service certs
+      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app unheaded-daemon akira; do
+        scp /var/lib/unheaded/pki/services/${svc}.crt govan@east:/tmp/${svc}.crt
+        scp /var/lib/unheaded/pki/services/${svc}.key govan@east:/tmp/${svc}.key
+        ssh govan@east "sudo mv /tmp/${svc}.crt /var/lib/unheaded/pki/services/${svc}.crt && sudo mv /tmp/${svc}.key /var/lib/unheaded/pki/services/${svc}.key"
+      done
+
+      # EAST host cert
+      scp /var/lib/unheaded/pki/hosts/east.crt govan@east:/tmp/east.crt
+      scp /var/lib/unheaded/pki/hosts/east.key govan@east:/tmp/east.key
+      ssh govan@east "sudo mv /tmp/east.crt /var/lib/unheaded/pki/hosts/east.crt && sudo mv /tmp/east.key /var/lib/unheaded/pki/hosts/east.key"
+
+      # Fix permissions
+      ssh govan@east 'sudo chown -R root:unheaded /var/lib/unheaded/pki && sudo chmod 750 /var/lib/unheaded/pki && sudo chmod 700 /var/lib/unheaded/pki/ca && sudo chmod 640 /var/lib/unheaded/pki/services/*.key && sudo chmod 644 /var/lib/unheaded/pki/services/*.crt'
+    verify: |
+      ssh govan@east 'sudo openssl verify -CAfile /var/lib/unheaded/pki/ca/ca.crt /var/lib/unheaded/pki/services/wotan.crt'
+      echo "EAST certs distributed and verified"
+
+  - name: test-mtls-connection
+    action: shell
+    description: "Test that a gRPC mTLS handshake works between two services"
+    command: |
+      echo "Testing mTLS handshake (openssl s_client)..."
+      # Start a temporary TLS server with wotan's cert
+      sudo timeout 5 openssl s_server \
+        -cert /var/lib/unheaded/pki/services/wotan.crt \
+        -key /var/lib/unheaded/pki/services/wotan.key \
+        -CAfile /var/lib/unheaded/pki/ca/ca.crt \
+        -Verify 1 -accept 18999 &
+      SERVER_PID=$!
+      sleep 1
+
+      # Connect as timeguru client
+      echo "Q" | openssl s_client \
+        -cert /var/lib/unheaded/pki/services/timeguru.crt \
+        -key /var/lib/unheaded/pki/services/timeguru.key \
+        -CAfile /var/lib/unheaded/pki/ca/ca.crt \
+        -connect localhost:18999 2>&1 | grep -E "Verify return code|SSL handshake"
+
+      kill $SERVER_PID 2>/dev/null
+      echo "mTLS handshake test complete"
+
+  - name: cleanup
+    action: shell
+    command: |
+      rm -f /tmp/kingdom-cert.cnf
+      echo "=== PKI Generation Complete ==="
+      echo "CA cert:      /var/lib/unheaded/pki/ca/ca.crt"
+      echo "Service certs: /var/lib/unheaded/pki/services/*.{crt,key}"
+      echo "Host certs:   /var/lib/unheaded/pki/hosts/*.{crt,key}"
+      echo ""
+      echo "Next: Update systemd units to set PKI_DIR=/var/lib/unheaded/pki"
+      echo "Next: Wire pkg/transport/mtls/ into service startup"

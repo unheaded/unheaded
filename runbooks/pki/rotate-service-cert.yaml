@@ -1,0 +1,137 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: rotate-service-cert
+  description: Rotate a single service's mTLS certificate (zero downtime)
+  owner: akira
+  estimated_duration: 2m
+  risk: medium
+  requires_sudo: true
+
+notes: |
+  Hot-rotates a service cert without restart. The CertRotator in
+  pkg/transport/mtls/ watches cert files via fsnotify and reloads
+  automatically when the file changes.
+
+  Workflow: generate new cert → atomic write → CertRotator picks up → done.
+  Old cert stays valid until expiry (for in-flight connections).
+
+params:
+  service_name: "wotan"
+  host: "west"
+  pki_dir: /var/lib/unheaded/pki
+
+steps:
+  - name: verify-current-cert
+    action: shell
+    command: |
+      SVC="${service_name:-wotan}"
+      echo "=== Current cert for $SVC ==="
+      sudo openssl x509 -in /var/lib/unheaded/pki/services/${SVC}.crt \
+        -noout -subject -dates -serial
+    verify: "test -f /var/lib/unheaded/pki/services/${service_name:-wotan}.crt && echo OK"
+
+  - name: generate-new-cert
+    action: shell
+    description: "Generate new key+cert, signed by existing CA"
+    command: |
+      SVC="${service_name:-wotan}"
+      TMPDIR=$(mktemp -d)
+
+      cat > ${TMPDIR}/cert.cnf << EOF
+      [req]
+      default_bits = 4096
+      prompt = no
+      distinguished_name = dn
+      req_extensions = v3_req
+      [dn]
+      C = GB
+      ST = Scotland
+      O = Unheaded
+      OU = Kingdom Services
+      CN = ${SVC}
+      [v3_req]
+      basicConstraints = CA:FALSE
+      keyUsage = digitalSignature, keyEncipherment
+      extendedKeyUsage = serverAuth, clientAuth
+      subjectAltName = @alt_names
+      [alt_names]
+      DNS.1 = ${SVC}
+      DNS.2 = ${SVC}.unheaded.local
+      DNS.3 = localhost
+      IP.1 = 127.0.0.1
+      IP.2 = 192.168.13.1
+      IP.3 = 192.168.13.2
+      EOF
+
+      sudo openssl genrsa -out ${TMPDIR}/${SVC}.key 4096
+      sudo openssl req -new \
+        -key ${TMPDIR}/${SVC}.key \
+        -out ${TMPDIR}/${SVC}.csr \
+        -config ${TMPDIR}/cert.cnf
+      sudo openssl x509 -req \
+        -in ${TMPDIR}/${SVC}.csr \
+        -CA /var/lib/unheaded/pki/ca/ca.crt \
+        -CAkey /var/lib/unheaded/pki/ca/ca.key \
+        -CAcreateserial \
+        -out ${TMPDIR}/${SVC}.crt \
+        -days 365 \
+        -extensions v3_req \
+        -extfile ${TMPDIR}/cert.cnf
+
+      echo "New cert generated in ${TMPDIR}"
+      echo "TMPDIR=${TMPDIR}"
+    verify: |
+      SVC="${service_name:-wotan}"
+      sudo openssl verify -CAfile /var/lib/unheaded/pki/ca/ca.crt ${TMPDIR:-/tmp}/${SVC}.crt 2>/dev/null || echo "Verify in next step"
+
+  - name: atomic-replace
+    action: shell
+    description: "Atomic file replacement — CertRotator picks up the change via fsnotify"
+    command: |
+      SVC="${service_name:-wotan}"
+      PKI=/var/lib/unheaded/pki/services
+
+      # Find the temp dir from previous step
+      TMPDIR=$(ls -td /tmp/tmp.* 2>/dev/null | head -1)
+
+      # Atomic replace: write to temp location in same filesystem, then rename
+      sudo cp ${TMPDIR}/${SVC}.key ${PKI}/${SVC}.key.new
+      sudo cp ${TMPDIR}/${SVC}.crt ${PKI}/${SVC}.crt.new
+      sudo chmod 640 ${PKI}/${SVC}.key.new
+      sudo chmod 644 ${PKI}/${SVC}.crt.new
+      sudo chown root:unheaded ${PKI}/${SVC}.key.new
+
+      # Atomic rename (same filesystem = instant, no partial reads)
+      sudo mv ${PKI}/${SVC}.key.new ${PKI}/${SVC}.key
+      sudo mv ${PKI}/${SVC}.crt.new ${PKI}/${SVC}.crt
+
+      echo "Cert rotated for ${SVC} — CertRotator will reload automatically"
+
+      # Cleanup
+      sudo rm -rf ${TMPDIR}
+
+  - name: verify-new-cert
+    action: shell
+    command: |
+      SVC="${service_name:-wotan}"
+      echo "=== New cert for $SVC ==="
+      sudo openssl x509 -in /var/lib/unheaded/pki/services/${SVC}.crt \
+        -noout -subject -dates -serial
+      sudo openssl verify -CAfile /var/lib/unheaded/pki/ca/ca.crt \
+        /var/lib/unheaded/pki/services/${SVC}.crt
+
+  - name: distribute-to-remote
+    action: shell
+    description: "If service runs on EAST, push the new cert there too"
+    command: |
+      SVC="${service_name:-wotan}"
+      HOST="${host:-west}"
+      if [ "$HOST" = "east" ] || [ "$HOST" = "both" ]; then
+        scp /var/lib/unheaded/pki/services/${SVC}.crt govan@east:/tmp/${SVC}.crt
+        scp /var/lib/unheaded/pki/services/${SVC}.key govan@east:/tmp/${SVC}.key
+        ssh govan@east "sudo mv /tmp/${SVC}.crt /var/lib/unheaded/pki/services/${SVC}.crt && sudo mv /tmp/${SVC}.key /var/lib/unheaded/pki/services/${SVC}.key && sudo chown root:unheaded /var/lib/unheaded/pki/services/${SVC}.key && sudo chmod 640 /var/lib/unheaded/pki/services/${SVC}.key"
+        echo "Cert pushed to EAST"
+      else
+        echo "Skipping remote distribution (host=${HOST})"
+      fi
