@@ -13,8 +13,14 @@
 - [x] Phase 3: Scaled to 8 layers ✓ 
 - [x] Phase 4: Q/K/V/O LoRA in forward + backward ✓
 - [x] Phase 5: FFN (SwiGLU) in forward pass ✓
-- [~] Phase 6: Production training — Epoch 1 DONE (14.33→9.26), Epoch 2 in progress
-- [ ] Phase 7: Validate + deploy (blocked on Phase 6)
+- [x] Phase 6: Production training — COMPLETE. 7930 steps, 262 min. Loss: 14.33→9.26→8.77
+- [x] Phase 7: Validate + deploy — COMPLETE (partial)
+  - zlora-to-gguf.py fixed: GQA dims, adapter.lora.alpha, tensor naming
+  - llama-server loads 256 tensors from kingdom-v2-lora.gguf ✓
+  - A/B test: LoRA produces degenerate output (repetitive tokens)
+  - Root cause: loss 8.77 vs random 10.37 — only 15% improvement, insufficient
+  - Base model restored for stable Zhenai inference
+  - NEXT: Better training data, learning rate schedule, more epochs
 
 ## ROUND TABLE ASSESSMENT
 
