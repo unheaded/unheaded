@@ -1,0 +1,7 @@
+# Akira config for WEST — services running on dev machine
+# Update as services are started/stopped
+targets:
+  - name: wotan
+    port: 18000
+  - name: inference
+    port: 20100
