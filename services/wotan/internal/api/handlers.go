@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/httputil"
+	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/wotan"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
@@ -25,6 +26,9 @@ type Server struct {
 	Wotan                 *wotan.Wotan
 	PendingApprovalTimeout time.Duration
 	AdminAPIKey            string // API key for admin endpoints
+
+	// Persistent store (optional — nil means memory-only)
+	Store store.MessageStore
 
 	// Topic pub/sub state (initialized by InitTopics)
 	topicSeqs   *topicSeqCounter

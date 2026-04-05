@@ -17,7 +17,11 @@ import (
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/httputil"
 	"unheaded/services/wotan/internal/ringbuffer"
+	"unheaded/services/wotan/internal/store"
 )
+
+// Ensure store import is used
+var _ = store.ErrNotFound
 
 // TopicSubscriber represents a subscriber to a topic (maps to wotan-client.Subscriber)
 type TopicSubscriber struct {
@@ -247,6 +251,22 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 
 	// Send message to room's ring buffer
 	msg, _ := rm.SendMessage(subscriberUUID, req.Payload)
+
+	// Persist to store if available (async — non-blocking)
+	if s.Store != nil {
+		go func() {
+			storeMsg := &store.Message{
+				ID:        msg.ID,
+				CreatorID: msg.CreatorID,
+				RoomID:    msg.RoomID,
+				Content:   msg.Content,
+				Timestamp: msg.Timestamp,
+			}
+			if _, _, err := s.Store.Push(r.Context(), storeMsg); err != nil {
+				log.Warn().Err(err).Str("topic", topic).Msg("failed to persist message to store")
+			}
+		}()
+	}
 
 	// Publish event through wotan pub/sub
 	if s.Wotan != nil {
