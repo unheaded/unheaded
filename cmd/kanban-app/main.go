@@ -45,7 +45,7 @@ import (
 // Package-level logger instance
 var log = logger.New(os.Stderr)
 
-//go:embed static/*
+//go:embed all:static
 var staticFiles embed.FS
 
 // Config holds server configuration
