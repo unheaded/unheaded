@@ -8,6 +8,16 @@ metadata:
   risk: high
   requires_sudo: true
   cs_sources: [dns/dnsmasq, dns/bind, containers/lxd]
+  last_executed: "2026-04-05"
+  execution_result: "F1-F2 complete — LXD Pi-hole running and verified"
+
+# NETWORK TOPOLOGY:
+#   LXD bridge: lxdbr0 on 10.10.20.0/24 (dns.mode=none to avoid port 53 conflict)
+#   Docker bridge: 172.17.0.0/16 (still running Docker Pi-hole on port 53)
+#   Pi-hole LXD container IP: DHCP from lxdbr0 (e.g., 10.10.20.252)
+#
+# Pi-hole v6.4.1 / FTL v6.6 — config via pihole.toml, NOT setupVars.conf
+# Custom DNS records: dns.hosts array in pihole.toml (not custom.list)
 
 steps:
   - name: backup-docker-pihole
@@ -16,54 +26,132 @@ steps:
       sudo docker cp pihole:/etc/pihole/. /tmp/pihole-backup/
       sudo docker cp pihole:/etc/dnsmasq.d/. /tmp/dnsmasq-backup/
     verify: "test -d /tmp/pihole-backup"
+    status: done
 
   - name: create-lxd-container
     action: shell
-    command: "lxc launch ubuntu:24.04 pihole --config limits.memory=512MB"
-    verify: "lxc info pihole | grep -q 'Status: RUNNING'"
+    command: "/snap/bin/lxc launch ubuntu:24.04 pihole --config limits.memory=512MB"
+    verify: "/snap/bin/lxc info pihole | grep -q 'Status: RUNNING'"
+    status: done
+    notes: |
+      Container gets DHCP IP from lxdbr0 (10.10.20.0/24).
+      dns.mode=none means container has no DNS by default.
+      Must fix /etc/resolv.conf before apt-get will work.
 
-  - name: assign-static-ip
+  - name: fix-container-dns
     action: shell
-    command: "lxc config device set pihole eth0 ipv4.address=10.10.10.53"
+    command: |
+      /snap/bin/lxc exec pihole -- bash -c 'rm /etc/resolv.conf && echo "nameserver 8.8.8.8" > /etc/resolv.conf && echo "nameserver 1.1.1.3" >> /etc/resolv.conf'
+    notes: |
+      Required because lxdbr0 has dns.mode=none.
+      systemd-resolved stub (127.0.0.53) has no upstream.
+      This is temporary — Pi-hole FTL will manage DNS once installed.
+    status: done
+
+  - name: create-setupvars
+    action: shell
+    command: |
+      /snap/bin/lxc exec pihole -- bash -c 'mkdir -p /etc/pihole && cat > /etc/pihole/setupVars.conf << EOF
+      PIHOLE_INTERFACE=eth0
+      PIHOLE_DNS_1=8.8.8.8
+      PIHOLE_DNS_2=1.1.1.3
+      PIHOLE_DNS_3=8.8.4.4
+      QUERY_LOGGING=true
+      INSTALL_WEB_SERVER=true
+      INSTALL_WEB_INTERFACE=true
+      LIGHTTPD_ENABLED=true
+      CACHE_SIZE=10000
+      DNS_FQDN_REQUIRED=false
+      DNS_BOGUS_PRIV=false
+      DNSMASQ_LISTENING=all
+      WEBPASSWORD=
+      BLOCKING_ENABLED=true
+      DNSSEC=false
+      REV_SERVER=false
+      EOF'
+    notes: |
+      setupVars.conf is consumed by the installer for initial config.
+      Pi-hole v6 migrates this into pihole.toml on first boot.
+      DNSMASQ_LISTENING=all is critical — container listens on all interfaces.
+    status: done
 
   - name: install-pihole
     action: shell
-    command: "lxc exec pihole -- bash -c 'curl -sSL https://install.pi-hole.net | bash'"
+    command: |
+      /snap/bin/lxc exec pihole -- bash -c 'PIHOLE_SKIP_OS_CHECK=true curl -sSL https://install.pi-hole.net | bash /dev/stdin --unattended'
     timeout: 300
+    notes: |
+      Installs Pi-hole v6.4.1 / Web v6.5 / FTL v6.6.
+      setupVars.conf is auto-migrated to pihole.toml.
+      Gravity pulls ~92K blocklist domains from StevenBlack/hosts.
+    status: done
 
-  - name: copy-config
+  - name: set-web-password
+    action: shell
+    command: "/snap/bin/lxc exec pihole -- pihole setpassword unheaded"
+    status: done
+
+  - name: configure-custom-dns
     action: shell
     command: |
-      lxc file push -r /tmp/pihole-backup/ pihole/etc/pihole/
-      lxc file push -r /tmp/dnsmasq-backup/ pihole/etc/dnsmasq.d/
+      /snap/bin/lxc exec pihole -- pihole-FTL --config dns.hosts '["192.168.69.184 west","192.168.69.184 west.lab","192.168.13.2 west.p2p","192.168.13.1 east","192.168.13.1 east.lab","192.168.13.1 east.p2p","10.10.10.1 lxd.west","10.10.10.10 wotan.west","10.10.10.20 services.west","10.10.10.100 gateway.west","10.0.3.1 lxc.west","172.17.0.1 docker.west","127.0.0.1 unheaded-daemon.local","127.0.0.1 wotan.local","127.0.0.1 timeguru.local","127.0.0.1 architect.local","127.0.0.1 captain.local","127.0.0.1 micromanager.local","127.0.0.1 monad.local","127.0.0.1 sophia.local","127.0.0.1 dashboard.local","127.0.0.1 kanban.local","127.0.0.1 zhen.local","127.0.0.1 pihole.west","127.0.0.2 dns.west","127.0.0.2 pihole.local"]'
+    notes: |
+      Pi-hole v6 uses dns.hosts array in pihole.toml (NOT custom.list file).
+      pihole-FTL --config writes to pihole.toml and live-reloads.
+      Each entry is "IP HOSTNAME" format (same as /etc/hosts).
+    status: done
 
-  - name: restart-pihole-dns
+  - name: copy-dnsmasq-config
     action: shell
-    command: "lxc exec pihole -- pihole restartdns"
+    command: |
+      sudo /snap/bin/lxc file push /tmp/dnsmasq-backup/10-lab.conf pihole/etc/dnsmasq.d/10-lab.conf
+      /snap/bin/lxc exec pihole -- systemctl restart pihole-FTL
+    status: done
 
   - name: test-dns-resolution
     action: shell
-    command: "dig @10.10.10.53 google.com +short"
-    verify: "dig @10.10.10.53 google.com +short | grep -q '[0-9]'"
+    command: "dig @<container-ip> google.com +short"
+    verify: "dig @<container-ip> google.com +short | grep -q '[0-9]'"
+    status: done
+    result: "Resolves to 142.251.x.x (Google IPs)"
 
   - name: test-ad-blocking
     action: shell
-    command: "dig @10.10.10.53 ads.doubleclick.net +short"
-    verify: "dig @10.10.10.53 ads.doubleclick.net +short | grep -q '0.0.0.0'"
+    command: "dig @<container-ip> ads.doubleclick.net +short"
+    verify: "Returns NXDOMAIN (blocked)"
+    status: done
+    result: "NXDOMAIN — ads.doubleclick.net blocked successfully"
+
+  - name: test-custom-dns
+    action: shell
+    command: |
+      dig @<container-ip> west.lab +short    # expect 192.168.69.184
+      dig @<container-ip> east.lab +short    # expect 192.168.13.1
+      dig @<container-ip> wotan.west +short  # expect 10.10.10.10
+    status: done
+    result: "All custom records resolve correctly"
 
   - name: switch-host-dns
     action: shell
-    command: "sudo resolvectl dns $(ip route show default | awk '{print $5}') 10.10.10.53"
+    command: "sudo resolvectl dns $(ip route show default | awk '{print $5}') <container-ip>"
     verify: "resolvectl query google.com"
+    status: pending
+    notes: |
+      USER DECISION REQUIRED — switching host DNS may cause brief outage.
+      Container IP from: /snap/bin/lxc list pihole
+      Only do this after all tests pass.
 
   - name: stop-docker-pihole
     action: shell
     command: "sudo docker stop pihole && sudo docker rm pihole"
     description: "Only after DNS is verified working through LXD"
+    status: pending
+    notes: "Do NOT do this until host DNS is switched and verified"
 
   - name: enable-lxd-boot
     action: shell
-    command: "sudo systemctl unmask lxc-net; sudo systemctl enable snap.lxd.daemon"
+    command: "/snap/bin/lxc config set pihole boot.autostart true"
+    status: pending
 
 rollback:
   - name: restart-docker-pihole
