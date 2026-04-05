@@ -181,12 +181,17 @@ impl Dataset {
     }
 }
 
-/// Truncate document to max chars, ending at a word boundary.
+/// Truncate document to max chars, respecting UTF-8 char boundaries.
 fn truncate_doc(doc: &str, max_chars: usize) -> String {
     if doc.len() <= max_chars {
         return doc.to_string();
     }
-    let truncated = &doc[..max_chars];
+    // Find a valid UTF-8 char boundary at or before max_chars
+    let mut end = max_chars;
+    while end > 0 && !doc.is_char_boundary(end) {
+        end -= 1;
+    }
+    let truncated = &doc[..end];
     // Find last space to avoid cutting mid-word
     match truncated.rfind(' ') {
         Some(pos) => format!("{}...", &truncated[..pos]),
