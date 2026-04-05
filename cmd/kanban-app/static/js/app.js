@@ -377,7 +377,7 @@ const App = (function() {
 
         // Hide GUID (not available for new tasks)
         const guidGroup = document.getElementById('guidGroup');
-        if (guidGroup) guidGroup.style.display = 'none';
+        if (guidGroup) guidGroup.hidden = true;
 
         // Set defaults
         elements.taskType.value = 'task';
@@ -421,7 +421,7 @@ const App = (function() {
         const guidInput = document.getElementById('taskGuid');
         if (task.guid && guidGroup && guidInput) {
             guidInput.value = task.guid;
-            guidGroup.style.display = 'block';
+            guidGroup.hidden = false;
         }
 
         // Update modal title and button
@@ -527,10 +527,10 @@ const App = (function() {
         const guidRow = document.getElementById('detailGuidRow');
         const guidEl = document.getElementById('detailGuid');
         if (guidRow && guidEl && task.guid) {
-            guidEl.textContent = task.guid;
-            guidRow.style.display = 'block';
+            guidEl.value = task.guid;
+            guidRow.classList.add('visible');
         } else if (guidRow) {
-            guidRow.style.display = 'none';
+            guidRow.classList.remove('visible');
         }
 
         elements.detailDescription.textContent = task.description || 'No description provided.';
