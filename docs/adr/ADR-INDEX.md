@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-04-04
-**Total:** 36 ADRs (ADR-012b deprecated, ADR-027-034 added this session)
+**Total:** 38 ADRs (ADR-012b deprecated, ADR-027-036 added this session)
 
 ## Status Summary
 
@@ -55,4 +55,6 @@
 | [032](ADR-032-python-to-go-rust-migration.md) | Python → Go/Rust Migration | Planned | 2026-04-03 |
 | [033](ADR-033-netbox-ipam.md) | NetBox IPAM | Planned | 2026-04-03 |
 | [034](ADR-034-grpc-mtls-default-transport.md) | gRPC mTLS Default Transport | Accepted | 2026-04-02 |
+| [035](ADR-035-wotan-active-passive-redundancy.md) | Wotan Active-Passive Redundancy | **In Progress** | 2026-04-05 |
+| [036](ADR-036-claude-distillation-training.md) | Claude Distillation Training Data | **In Progress** | 2026-04-05 |
 | [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Deferred to Q4 2026** | 2026-03-18 |
