@@ -167,9 +167,7 @@ func main() {
 			Msg("cluster mode enabled")
 	}
 
-	// Suppress unused variable warnings for future wiring
-	_ = msgStore
-	_ = clusterCfg
+	_ = clusterCfg // Used in future cluster wiring
 
 	log.Info().Msg("initialized_core_managers")
 
@@ -190,6 +188,7 @@ func main() {
 	// Create API server
 	apiServer := api.NewServer(roomManager, memberManager, messageWotan, config.PendingApprovalTimeout)
 	apiServer.TopicConfig = topicCfg
+	apiServer.Store = msgStore // Wire persistent store (nil = memory-only)
 	apiServer.InitTopics() // Enable topic pub/sub (Fae Chamber message bus)
 
 	// Setup rate limiter
