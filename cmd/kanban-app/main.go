@@ -73,6 +73,7 @@ type Task struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`  // Soft delete timestamp (nil = active)
 	ArchivedAt  *time.Time `json:"archived_at,omitempty"` // Archive timestamp (nil = not archived)
+	Commits     string     `json:"commits,omitempty"`     // JSONB array of linked git commits
 }
 
 // Server holds the HTTP server and dependencies

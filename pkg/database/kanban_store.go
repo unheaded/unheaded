@@ -25,6 +25,7 @@ type KanbanTask struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
+	Commits     string     `json:"commits,omitempty"` // JSONB array of {hash, message, date}
 }
 
 // KanbanStore provides Postgres-backed task persistence.
@@ -68,6 +69,9 @@ func (s *KanbanStore) EnsureSchema(ctx context.Context) error {
 
 		-- Backfill GUIDs for existing rows
 		UPDATE kanban_tasks SET guid = gen_random_uuid() WHERE guid IS NULL;
+
+		-- Git commit audit trail (ADR-038)
+		ALTER TABLE kanban_tasks ADD COLUMN IF NOT EXISTS commits JSONB DEFAULT '[]';
 	`)
 	return err
 }
@@ -76,7 +80,7 @@ func (s *KanbanStore) EnsureSchema(ctx context.Context) error {
 func (s *KanbanStore) GetAllTasks(ctx context.Context) ([]KanbanTask, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, COALESCE(guid::text, ''), title, description, status, type, owner, progress,
-		       created_at, updated_at, deleted_at, archived_at
+		       created_at, updated_at, deleted_at, archived_at, COALESCE(commits::text, '[]')
 		FROM kanban_tasks
 		WHERE deleted_at IS NULL AND archived_at IS NULL
 		ORDER BY created_at ASC
@@ -91,7 +95,7 @@ func (s *KanbanStore) GetAllTasks(ctx context.Context) ([]KanbanTask, error) {
 		var t KanbanTask
 		if err := rows.Scan(&t.ID, &t.GUID, &t.Title, &t.Description, &t.Status,
 			&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt,
-			&t.DeletedAt, &t.ArchivedAt); err != nil {
+			&t.DeletedAt, &t.ArchivedAt, &t.Commits); err != nil {
 			return nil, fmt.Errorf("scan kanban task: %w", err)
 		}
 		tasks = append(tasks, t)
@@ -104,11 +108,11 @@ func (s *KanbanStore) GetTask(ctx context.Context, id string) (*KanbanTask, erro
 	var t KanbanTask
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, COALESCE(guid::text, ''), title, description, status, type, owner, progress,
-		       created_at, updated_at, deleted_at, archived_at
+		       created_at, updated_at, deleted_at, archived_at, COALESCE(commits::text, '[]')
 		FROM kanban_tasks WHERE id = $1 OR guid::text = $1
 	`, id).Scan(&t.ID, &t.GUID, &t.Title, &t.Description, &t.Status,
 		&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt,
-		&t.DeletedAt, &t.ArchivedAt)
+		&t.DeletedAt, &t.ArchivedAt, &t.Commits)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +184,7 @@ func (s *KanbanStore) RestoreTask(ctx context.Context, id string) error {
 func (s *KanbanStore) GetDeletedTasks(ctx context.Context) ([]KanbanTask, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, COALESCE(guid::text, ''), title, description, status, type, owner, progress,
-		       created_at, updated_at, deleted_at, archived_at
+		       created_at, updated_at, deleted_at, archived_at, COALESCE(commits::text, '[]')
 		FROM kanban_tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC
 	`)
 	if err != nil {
@@ -192,7 +196,7 @@ func (s *KanbanStore) GetDeletedTasks(ctx context.Context) ([]KanbanTask, error)
 		var t KanbanTask
 		if err := rows.Scan(&t.ID, &t.GUID, &t.Title, &t.Description, &t.Status,
 			&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt,
-			&t.DeletedAt, &t.ArchivedAt); err != nil {
+			&t.DeletedAt, &t.ArchivedAt, &t.Commits); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, t)
@@ -204,7 +208,7 @@ func (s *KanbanStore) GetDeletedTasks(ctx context.Context) ([]KanbanTask, error)
 func (s *KanbanStore) GetArchivedTasks(ctx context.Context) ([]KanbanTask, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, COALESCE(guid::text, ''), title, description, status, type, owner, progress,
-		       created_at, updated_at, deleted_at, archived_at
+		       created_at, updated_at, deleted_at, archived_at, COALESCE(commits::text, '[]')
 		FROM kanban_tasks WHERE archived_at IS NOT NULL AND deleted_at IS NULL ORDER BY archived_at DESC
 	`)
 	if err != nil {
@@ -216,7 +220,7 @@ func (s *KanbanStore) GetArchivedTasks(ctx context.Context) ([]KanbanTask, error
 		var t KanbanTask
 		if err := rows.Scan(&t.ID, &t.GUID, &t.Title, &t.Description, &t.Status,
 			&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt,
-			&t.DeletedAt, &t.ArchivedAt); err != nil {
+			&t.DeletedAt, &t.ArchivedAt, &t.Commits); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, t)

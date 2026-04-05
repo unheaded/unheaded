@@ -112,6 +112,7 @@ func fromPgTask(pt database.KanbanTask) Task {
 		UpdatedAt:   pt.UpdatedAt,
 		DeletedAt:   pt.DeletedAt,
 		ArchivedAt:  pt.ArchivedAt,
+		Commits:     pt.Commits,
 	}
 }
 
@@ -129,5 +130,6 @@ func toPgTask(t Task) database.KanbanTask {
 		UpdatedAt:   t.UpdatedAt,
 		DeletedAt:   t.DeletedAt,
 		ArchivedAt:  t.ArchivedAt,
+		Commits:     t.Commits,
 	}
 }

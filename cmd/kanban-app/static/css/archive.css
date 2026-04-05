@@ -128,6 +128,46 @@
     font-size: 11px;
 }
 
+/* Linked commits in detail modal */
+.detail-commits h3 {
+    font-size: 13px;
+    color: #aaa;
+    margin-top: 16px;
+    margin-bottom: 8px;
+}
+.commits-list {
+    font-size: 12px;
+}
+.commit-entry {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 4px 0;
+    border-bottom: 1px solid #222;
+}
+.commit-hash {
+    font-family: monospace;
+    font-size: 11px;
+    color: #4fc3f7;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.commit-hash:hover {
+    text-decoration: underline;
+}
+.commit-message {
+    color: #ccc;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.commit-date {
+    color: #666;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
 /* Archive button in header */
 .btn-archive {
     margin-left: 8px;
