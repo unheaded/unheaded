@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-04-04
-**Total:** 39 ADRs (ADR-012b deprecated, ADR-027-037 added this session)
+**Last updated:** 2026-04-05
+**Total:** 43 ADRs (ADR-012b deprecated, ADR-027-042 across sessions)
 
 ## Status Summary
 
@@ -61,3 +61,6 @@
 | [038](ADR-038-kanban-git-audit-trail.md) | Kanban GUID → Git Commit Audit | Accepted | 2026-04-05 |
 | [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Deferred to Q4 2026** | 2026-03-18 |
 | [039](ADR-039-cs-precision-reference-service.md) | CS Precision Reference Service | In Progress | 2026-04-05 |
+| [040](ADR-040-kubernetes-ecosystem-strategy.md) | Kubernetes Ecosystem Strategy | Planned | 2026-04-05 |
+| [041](ADR-041-kanban-timeline-sync.md) | Kanban ↔ Timeline Bidirectional Sync | Planned | 2026-04-05 |
+| [042](ADR-042-cs-blackmage-lich-integration.md) | CS → BlackMage Skill + Lich Security | Planned | 2026-04-05 |
