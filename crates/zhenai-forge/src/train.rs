@@ -201,7 +201,7 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     println!("  Vocabulary: {} tokens (BOS={}, EOS={})\n", tokenizer.vocab_size, bos, eos);
 
     // 5. Load training data
-    let data = load_training_jsonl(&config.data_path)?;
+    let data = load_and_format_training_data(&config.data_path)?;
     println!("Training data: {} examples\n", data.len());
 
     // 4b. Dequantize essential weights to CPU for forward pass
@@ -426,6 +426,10 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             // Adam step with cosine annealing + warmup
                             let lr = cosine_lr(config.lr, state.step, total_steps, warmup_steps);
                             lora.layers[l][t].adam_step(lr, 0.9, 0.999, 1e-8, state.step + 1);
+
+                            // Zero gradients for next accumulation window
+                            for g in lora.layers[l][t].grad_a.iter_mut() { *g = 0.0; }
+                            for g in lora.layers[l][t].grad_b.iter_mut() { *g = 0.0; }
                         }
                     }
                 }
@@ -681,17 +685,38 @@ impl CpuWeights {
     }
 }
 
-fn load_training_jsonl(path: &str) -> Result<Vec<String>, String> {
+/// Load JSONL training data and format as Mistral instruct prompts.
+/// Uses Dataset::format_prompt for RAFT-aware formatting (source context + distractors).
+fn load_and_format_training_data(path: &str) -> Result<Vec<String>, String> {
+    use crate::data::{Dataset, TrainingExample};
+
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read {}: {}", path, e))?;
-    let lines: Vec<String> = content.lines()
+
+    let mut raft_count = 0;
+    let mut simple_count = 0;
+
+    let prompts: Vec<String> = content.lines()
         .filter(|l| !l.trim().is_empty())
-        .map(|l| l.to_string())
+        .filter_map(|l| {
+            let example: TrainingExample = serde_json::from_str(l).ok()?;
+            if example.has_raft_context() {
+                raft_count += 1;
+            } else {
+                simple_count += 1;
+            }
+            Some(Dataset::format_prompt(&example))
+        })
         .collect();
-    if lines.is_empty() {
-        return Err(format!("No training examples found in {}", path));
+
+    if prompts.is_empty() {
+        return Err(format!("No valid training examples found in {}", path));
     }
-    Ok(lines)
+
+    println!("  Formatted {} prompts ({} RAFT with context, {} simple Q/A)",
+        prompts.len(), raft_count, simple_count);
+
+    Ok(prompts)
 }
 
 #[cfg(test)]
