@@ -22,7 +22,7 @@
 - [x] Sprint C: DONE — scheduler daemon + chat commands + emergency stop
 - [x] Sprint D: DONE — D1-D3 pkg/health + binary, D4 YAML config + EAST deploy (7/7 healthy, 0 false alerts)
 - [x] Sprint E: DONE — 12 .debs built, published to APT repo, 8 installed on EAST
-- [ ] Sprint F: Pi-hole LXD Migration (needs user present for DNS cutover)
+- [~] Sprint F: Pi-hole LXD — BLOCKED: LXD not initialized on WEST (snap install + lxd init needed first). Docker Pi-hole backup done.
 - [x] Sprint G: DONE — ScanCode 8660 files clean, 99 deps audited, trademark cleared
 - [x] Sprint H: DONE — H1 JWT (123 tests) + H2 age encryption for sealed casks
 - [x] Sprint I: DONE — Wotan clustering (Wave 9: PG store, WAL, replication, failover, 39 ADRs)
