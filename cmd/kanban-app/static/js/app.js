@@ -522,6 +522,17 @@ const App = (function() {
         elements.detailTitle.textContent = task.title;
         elements.detailPriority.textContent = priority.label;
         elements.detailPriority.className = `priority-badge ${priority.class}`;
+
+        // Show GUID in detail view
+        const guidRow = document.getElementById('detailGuidRow');
+        const guidEl = document.getElementById('detailGuid');
+        if (guidRow && guidEl && task.guid) {
+            guidEl.textContent = task.guid;
+            guidRow.style.display = 'block';
+        } else if (guidRow) {
+            guidRow.style.display = 'none';
+        }
+
         elements.detailDescription.textContent = task.description || 'No description provided.';
         elements.detailStatus.textContent = Cards.STATUS_NAMES[task.status] || task.status;
 
