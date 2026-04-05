@@ -35,12 +35,12 @@
 
 Items that have tests passing but are NOT yet real implementations:
 
-### CRITICAL STUB 1: zhenai-forge training gradients (Sprint A)
-- **What tests verify**: Adam optimizer math, LoRA shapes, loss convergence curve
-- **What's stubbed**: Gradients are RANDOM, not from model forward pass. ~~GPU buffers loaded with ZEROS~~ GPU now loads REAL tensor data from GGUF mmap (FIXED 2026-04-04). The kingdom.zlora file was trained on random gradients — NOT useful for inference until real forward/backward is implemented.
-- **Impact**: Cannot produce a real fine-tuned model until A3-A7 are completed (real GPU matmul + real forward/backward)
-- **Fix**: Sprint A steps A3-A7 (hipBLAS forward pass, cross-entropy loss, backward pass for LoRA)
-- **Files**: `crates/zhenai-forge/src/train.rs` (line 99-102: zero buffers), `src/lora.rs` (line 189-221: simulated gradients)
+### ~~CRITICAL STUB 1: zhenai-forge training gradients~~ — FIXED (Wave 7+8)
+- Real forward pass through all 32 Mistral-7B layers (Q5_K/Q6_K dequant + RMSNorm + attention + FFN)
+- Real analytical backprop (cross-entropy → softmax → matmul → LoRA chain rule)
+- Cosine annealing LR schedule (warmup + decay)
+- Training v3 running: 34/34 tests green, loss 14.33→8.77 (v2), v3 in progress
+- zlora-to-gguf.py converter fixed (GQA dims, alpha, tensor naming) — llama-server loads 256 tensors
 
 ### ~~CRITICAL STUB 2: Akira auto-restart~~ — FIXED 2026-04-04
 - Now calls `exec.Command("systemctl", "restart", svcUnit)` for real
