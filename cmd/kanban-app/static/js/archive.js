@@ -5,6 +5,8 @@
 (function() {
     'use strict';
 
+    var currentArchiveTab = 'deleted';
+
     document.addEventListener('DOMContentLoaded', function() {
         // Archive toggle button
         const archBtn = document.getElementById('archiveViewBtn');
@@ -13,9 +15,12 @@
             archBtn.addEventListener('click', function() {
                 const visible = archView.classList.toggle('visible');
                 archBtn.textContent = visible ? 'Hide Archive' : 'Archive';
-                if (visible) loadArchive('deleted');
+                if (visible) loadArchive(currentArchiveTab);
             });
         }
+
+        // Auto-refresh archive list every 3s while visible
+        setInterval(refreshArchiveIfVisible, 3000);
 
         // Tab buttons
         const tabs = {
@@ -42,7 +47,15 @@
         }
     });
 
+    function refreshArchiveIfVisible() {
+        var archView = document.getElementById('archiveView');
+        if (archView && archView.classList.contains('visible')) {
+            loadArchive(currentArchiveTab);
+        }
+    }
+
     async function loadArchive(type) {
+        currentArchiveTab = type;
         var list = document.getElementById('archiveList');
         if (!list) return;
         list.innerHTML = '';
