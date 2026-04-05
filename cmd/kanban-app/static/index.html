@@ -28,8 +28,8 @@
                     <span class="btn-icon">+</span>
                     New Task
                 </button>
-                <button class="btn btn-secondary" id="archiveViewBtn" onclick="toggleArchiveView()"
-                        style="margin-left:8px;font-size:13px;">
+                <button class="btn btn-secondary" id="archiveViewBtn"
+                        style="margin-left:8px;font-size:12px;padding:6px 12px;border:1px solid #555;">
                     Archive
                 </button>
             </div>
@@ -167,10 +167,10 @@
 
                     <!-- GUID display (read-only, shown in edit mode) -->
                     <div class="form-group" id="guidGroup" style="display:none;">
-                        <label>GUID <small style="color:#888;">(for linking)</small></label>
+                        <label style="font-size:11px;">GUID</label>
                         <input type="text" id="taskGuid" readonly
-                               style="font-family:monospace; font-size:12px; background:#1a1a2e; color:#7b2fff; cursor:pointer;"
-                               title="Click to copy" onclick="navigator.clipboard.writeText(this.value)">
+                               style="font-family:monospace;font-size:10px;background:#1a1a2e;color:#7b2fff;padding:4px 6px;border:1px solid #333;border-radius:3px;cursor:text;"
+                               onclick="this.select()" title="Click to select, Ctrl+C to copy">
                     </div>
 
                     <div class="form-group">
@@ -244,11 +244,12 @@
                     <button class="modal-close" id="detailClose">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <!-- GUID (click to copy) -->
-                    <div class="detail-guid" id="detailGuidRow" style="margin-bottom:12px;display:none;">
-                        <span style="color:#888;font-size:11px;">GUID:</span>
-                        <code id="detailGuid" style="font-size:11px;color:#7b2fff;cursor:pointer;user-select:all;margin-left:4px;"
-                              title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)"></code>
+                    <!-- GUID (click to select, easy copy) -->
+                    <div class="detail-guid" id="detailGuidRow" style="margin-bottom:8px;display:none;">
+                        <span style="color:#666;font-size:10px;letter-spacing:0.5px;">GUID</span>
+                        <input type="text" id="detailGuid" readonly
+                               style="display:block;font-family:monospace;font-size:10px;color:#7b2fff;background:transparent;border:none;padding:0;margin-top:1px;width:100%;cursor:text;outline:none;"
+                               onclick="this.select()" title="Click to select, Ctrl+C to copy">
                     </div>
                     <div class="detail-section">
                         <h3>Description</h3>
@@ -330,15 +331,22 @@
     <script src="js/app.js"></script>
     <script>
     // Archive/Deleted/Completed viewer
-    function toggleArchiveView() {
-        const view = document.getElementById('archiveView');
-        if (view.style.display === 'none') {
-            view.style.display = 'block';
-            loadArchive('deleted');
-        } else {
-            view.style.display = 'none';
+    document.addEventListener('DOMContentLoaded', function() {
+        const archBtn = document.getElementById('archiveViewBtn');
+        if (archBtn) {
+            archBtn.addEventListener('click', function() {
+                const view = document.getElementById('archiveView');
+                if (view.style.display === 'none') {
+                    view.style.display = 'block';
+                    loadArchive('deleted');
+                    archBtn.textContent = 'Hide Archive';
+                } else {
+                    view.style.display = 'none';
+                    archBtn.textContent = 'Archive';
+                }
+            });
         }
-    }
+    });
 
     async function loadArchive(type) {
         const list = document.getElementById('archiveList');
