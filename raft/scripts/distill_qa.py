@@ -27,6 +27,7 @@ import json
 import os
 import sys
 import time
+import fnmatch
 import glob
 import hashlib
 from pathlib import Path
@@ -107,6 +108,53 @@ CATEGORIES = {
         "prompt_prefix": "network protocol specification",
         "qa_count": 10,
     },
+    "lore": {
+        "pattern": f"{PROJECT_ROOT}/docs/lore/*.md",
+        "prompt_prefix": "Kingdom lore, mythology, and naming conventions",
+        "qa_count": 12,
+    },
+    "architecture": {
+        "pattern": f"{PROJECT_ROOT}/docs/architecture/*.md",
+        "prompt_prefix": "system architecture documentation",
+        "qa_count": 10,
+    },
+    "history": {
+        "pattern": f"{PROJECT_ROOT}/docs/history/*.md",
+        "prompt_prefix": "project history and session records",
+        "qa_count": 6,
+    },
+    "binder_book": {
+        "pattern": f"{PROJECT_ROOT}/docs/binder-book/**/*.md",
+        "prompt_prefix": "educational material from the Unheaded binder book",
+        "qa_count": 8,
+    },
+    "research": {
+        "pattern": f"{PROJECT_ROOT}/docs/research/*.md",
+        "prompt_prefix": "research notes and technical analysis",
+        "qa_count": 8,
+    },
+    "zhen_docs": {
+        "pattern": f"{PROJECT_ROOT}/docs/zhen/*.md",
+        "prompt_prefix": "Zhenai AI champion documentation",
+        "qa_count": 10,
+    },
+    "talks": {
+        "pattern": f"{PROJECT_ROOT}/docs/talks/*.md",
+        "prompt_prefix": "conference talk and presentation material",
+        "qa_count": 6,
+    },
+    "skill_references": {
+        "glob_dirs": [os.path.expanduser("~/.claude/skills/")],
+        "pattern": "*.md",
+        "search_subdir": "references",
+        "prompt_prefix": "Kingdom skill reference material",
+        "qa_count": 8,
+    },
+    "battle_plans": {
+        "pattern": f"{PROJECT_ROOT}/docs/battle-plans/*.md",
+        "prompt_prefix": "sprint battle plan and execution strategy",
+        "qa_count": 8,
+    },
 }
 
 SYSTEM_PROMPT = """You are an expert technical writer generating training data for a local AI assistant called Zhenai.
@@ -154,10 +202,19 @@ def collect_files(category_name: str, category: dict) -> list[tuple[str, str]]:
                     pass
 
     if "glob_dirs" in category:
+        search_subdir = category.get("search_subdir", "")
+        pat = category.get("pattern", "")
         for d in category["glob_dirs"]:
-            for root, dirs, fnames in os.walk(d):
-                for fn in fnames:
-                    if fn == category.get("pattern", ""):
+            for skill_dir in sorted(glob.glob(os.path.join(d, "*"))):
+                if not os.path.isdir(skill_dir):
+                    continue
+                search_root = os.path.join(skill_dir, search_subdir) if search_subdir else skill_dir
+                if not os.path.isdir(search_root):
+                    continue
+                for root, dirs, fnames in os.walk(search_root):
+                    for fn in fnames:
+                        if pat and not fnmatch.fnmatch(fn, pat):
+                            continue
                         fp = os.path.join(root, fn)
                         try:
                             content = Path(fp).read_text(errors="replace")
@@ -199,7 +256,7 @@ def generate_qa_pairs(client: anthropic.Anthropic, model: str, filepath: str,
     if len(content) > max_content:
         content = content[:max_content] + "\n\n[... truncated for length ...]"
 
-    rel_path = filepath.replace(PROJECT_ROOT, "").lstrip("/")
+    rel_path = filepath.replace(PROJECT_ROOT, "").replace(os.path.expanduser("~"), "~").lstrip("/")
     prompt_prefix = category.get("prompt_prefix", "document")
 
     user_prompt = f"""Here is a {prompt_prefix} from the Unheaded Kingdom project.
@@ -314,27 +371,39 @@ def main():
     print(f"  Categories: {', '.join(categories.keys())}")
     print()
 
-    # Process each document
+    # Process documents — batch small docs together to respect rate limits
+    # Trial tier: 5 requests/minute → 12s between requests
     total_pairs = 0
     total_docs = 0
+    api_calls = 0
     start = time.time()
 
     output_file = None
+    checkpoint_file = None
     if not args.dry_run:
         output_file = open(args.output, "a")  # Append mode for resumability
         checkpoint_file = open(checkpoint_path, "a")
 
-    for i, (cat_name, cat_cfg, filepath, content) in enumerate(all_files):
+    # Filter already-completed files
+    pending = []
+    for cat_name, cat_cfg, filepath, content in all_files:
         fhash = file_hash(filepath)
-        if fhash in completed:
-            continue
+        if fhash not in completed:
+            pending.append((cat_name, cat_cfg, filepath, content))
 
-        rel_path = filepath.replace(PROJECT_ROOT, "").lstrip("/")
+    print(f"  Pending: {len(pending)} documents ({len(all_files) - len(pending)} already done)")
+    print()
+
+    i = 0
+    while i < len(pending):
+        cat_name, cat_cfg, filepath, content = pending[i]
         qa_count = args.qa_count if args.qa_count > 0 else cat_cfg.get("qa_count", 10)
+        rel_path = filepath.replace(PROJECT_ROOT, "").replace(os.path.expanduser("~"), "~").lstrip("/")
 
-        print(f"  [{i+1}/{len(all_files)}] {cat_name}: {rel_path} ({qa_count} QA)...", end=" ", flush=True)
+        print(f"  [{i+1}/{len(pending)}] {cat_name}: {rel_path} ({qa_count} QA)...", end=" ", flush=True)
 
         pairs = generate_qa_pairs(client, args.model, filepath, content, cat_cfg, qa_count)
+        api_calls += 1
 
         if pairs:
             total_pairs += len(pairs)
@@ -350,13 +419,22 @@ def main():
                 for p in pairs:
                     output_file.write(json.dumps(p, ensure_ascii=False) + "\n")
                 output_file.flush()
-                checkpoint_file.write(fhash + "\n")
+                checkpoint_file.write(file_hash(filepath) + "\n")
                 checkpoint_file.flush()
         else:
             print("0 pairs (skipped)")
+            # Still checkpoint to avoid retrying failed docs
+            if checkpoint_file:
+                checkpoint_file.write(file_hash(filepath) + "\n")
+                checkpoint_file.flush()
 
-        # Rate limiting — be kind to the API
-        time.sleep(0.5)
+        i += 1
+
+        # Rate limiting: 5 req/min = 12s between requests
+        if not args.dry_run and i < len(pending):
+            wait = 13.0  # 13s to stay safely under 5/min
+            print(f"    (rate limit: waiting {wait:.0f}s, {api_calls} calls so far)", flush=True)
+            time.sleep(wait)
 
     elapsed = time.time() - start
 
