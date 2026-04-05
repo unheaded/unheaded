@@ -86,9 +86,9 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "postgres without data_dir",
+			name:    "postgres without data_dir uses default",
 			cfg:     Config{Type: PostgresStoreType, Capacity: 1000, DataDir: ""},
-			wantErr: true,
+			wantErr: false, // PG uses default connstr when DataDir empty
 		},
 	}
 
@@ -129,8 +129,8 @@ func TestNew(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "postgres store not implemented",
-			cfg:     Config{Type: PostgresStoreType, DataDir: "postgres://"},
+			name:    "postgres store with bad connstr",
+			cfg:     Config{Type: PostgresStoreType, DataDir: "postgres://badhost:9999/nodb?connect_timeout=1"},
 			wantErr: true,
 		},
 	}
