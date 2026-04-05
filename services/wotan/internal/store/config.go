@@ -133,8 +133,7 @@ func New(cfg Config) (MessageStore, error) {
 		return NewMemoryStore(capacity), nil
 
 	case WALStoreType:
-		// Future: return NewWALStore(cfg)
-		return nil, fmt.Errorf("store: wal store not yet implemented")
+		return NewWALStore(cfg.DataDir, capacity, nil)
 
 	case SQLiteStoreType:
 		// Future: return NewSQLiteStore(cfg)

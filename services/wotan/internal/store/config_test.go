@@ -4,7 +4,9 @@
 package store
 
 import (
+	"fmt"
 	"testing"
+	"time"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -119,9 +121,9 @@ func TestNew(t *testing.T) {
 			wantErr: false, // Empty type becomes default
 		},
 		{
-			name:    "wal store not implemented",
-			cfg:     Config{Type: WALStoreType, DataDir: "/tmp/wal"},
-			wantErr: true,
+			name:    "wal store with valid dir",
+			cfg:     Config{Type: WALStoreType, DataDir: "/tmp/wal-test-" + fmt.Sprintf("%d", time.Now().UnixNano())},
+			wantErr: false,
 		},
 		{
 			name:    "sqlite store not implemented",
