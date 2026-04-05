@@ -80,6 +80,9 @@
                 var title = document.createElement('span');
                 title.className = 'archive-item-title';
                 title.textContent = t.title;
+                title.addEventListener('click', function() {
+                    if (window.App) App.openDetailModal(t);
+                });
                 info.appendChild(title);
 
                 var typeSpan = document.createElement('span');

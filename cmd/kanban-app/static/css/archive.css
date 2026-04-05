@@ -37,6 +37,11 @@
 .archive-item-title {
     color: #eee;
     font-size: 13px;
+    cursor: pointer;
+}
+.archive-item-title:hover {
+    color: #7b2fff;
+    text-decoration: underline;
 }
 .archive-item-type {
     color: #666;
