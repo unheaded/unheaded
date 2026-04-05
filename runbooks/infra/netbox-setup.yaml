@@ -1,0 +1,78 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: netbox-setup
+  description: Deploy NetBox IPAM on WEST for Kingdom IP address management
+  owner: architect
+  estimated_duration: 20m
+  risk: low
+  requires_sudo: true
+
+notes: |
+  NetBox manages IP allocations as the Kingdom scales from 2 to 10+ hosts.
+  Deployed as Docker service on WEST (port 18889).
+  Source: ~/tmp/projects/netbox/
+  NOT part of the Unheaded repo — separate service.
+  ADR: ADR-033
+
+steps:
+  - name: verify-docker
+    action: shell
+    command: "sudo docker info > /dev/null 2>&1 && echo 'Docker OK'"
+    verify: "sudo docker ps > /dev/null 2>&1"
+
+  - name: clone-netbox-docker
+    action: shell
+    command: |
+      if [ -d ~/tmp/projects/netbox-docker ]; then
+        echo "Already cloned"
+      else
+        mkdir -p ~/tmp/projects
+        cd ~/tmp/projects
+        git clone https://github.com/netbox-community/netbox-docker.git
+      fi
+    verify: "test -d ~/tmp/projects/netbox-docker"
+
+  - name: configure-netbox
+    action: shell
+    command: |
+      cd ~/tmp/projects/netbox-docker
+      # Use port 18889 (avoids 18888 APT repo conflict)
+      cat > docker-compose.override.yml << 'EOF'
+      services:
+        netbox:
+          ports:
+            - "18889:8080"
+      EOF
+    verify: "test -f ~/tmp/projects/netbox-docker/docker-compose.override.yml"
+
+  - name: start-netbox
+    action: shell
+    command: |
+      cd ~/tmp/projects/netbox-docker
+      sudo docker compose up -d
+    verify: |
+      sleep 30
+      curl -sf http://localhost:18889/ > /dev/null && echo "NetBox running on :18889"
+
+  - name: create-api-token
+    action: shell
+    description: "Create API token for Zhenai integration"
+    command: |
+      echo "Access NetBox at http://localhost:18889/"
+      echo "Default credentials: admin / admin"
+      echo "Create API token under Admin > API Tokens for Zhenai integration"
+
+  - name: document-current-ips
+    action: shell
+    description: "Document existing Kingdom IP allocations"
+    command: |
+      echo "=== Current Kingdom IP Allocations ==="
+      echo "WEST:      192.168.69.184 (LAN)"
+      echo "WEST P2P:  192.168.13.2"
+      echo "EAST P2P:  192.168.13.1"
+      echo "Bridge:    10.10.10.0/24 (lxdbr0)"
+      echo "WireGuard: fd00:dead:beef::/48 (planned)"
+      echo "Ports:     16666-26666 (The Doom Range)"
+      echo ""
+      echo "Add these to NetBox IPAM via the web UI or API."
