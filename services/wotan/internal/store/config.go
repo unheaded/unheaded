@@ -104,8 +104,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("store: batch_size must be non-negative")
 	}
 
-	// DataDir required for persistent stores
-	if c.Type != MemoryStoreType && c.DataDir == "" {
+	// DataDir required for WAL/SQLite stores (PG uses it as connection string, optional)
+	if (c.Type == WALStoreType || c.Type == SQLiteStoreType) && c.DataDir == "" {
 		return fmt.Errorf("store: data_dir required for %s store", c.Type)
 	}
 
@@ -141,8 +141,11 @@ func New(cfg Config) (MessageStore, error) {
 		return nil, fmt.Errorf("store: sqlite store not yet implemented")
 
 	case PostgresStoreType:
-		// Future: return NewPostgresStore(cfg)
-		return nil, fmt.Errorf("store: postgres store not yet implemented")
+		connStr := cfg.DataDir // Reuse DataDir for PG connection string
+		if connStr == "" {
+			connStr = "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable"
+		}
+		return NewPGStore(connStr, capacity)
 
 	default:
 		return nil, fmt.Errorf("store: unknown type %q", cfg.Type)
