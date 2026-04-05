@@ -35,12 +35,29 @@ Gradient accumulation is free speedup. Tokenizer caching saves 15%.
 `raft_dataset_combined.jsonl` contains `source_content` and `distractor_chunks`
 but `data.rs format_prompt()` strips them out.
 
+## CRITICAL FINDINGS (Developer/Scientist review 2026-04-05)
+
+**BUG 1 (CRITICAL): format_prompt was DEAD CODE.** train.rs loaded raw JSON
+strings via load_training_jsonl(), fed them directly to the tokenizer. All v1-v3
+training runs learned to predict JSON syntax, not natural language. This explains
+degenerate output despite decreasing loss — the loss measured JSON prediction quality.
+FIX: load_and_format_training_data() now parses JSON → TrainingExample → format_prompt().
+
+**BUG 2: Gradient accumulation leaked.** Gradients from previous accumulation windows
+were never zeroed, contaminating subsequent updates.
+FIX: Zero grad_a/grad_b after each Adam step.
+
+**BUG 3 (Scientist): Stale FAISS index.** Built Apr 2, missing 188 commits. If v5 LoRA
+is deployed, the model "knows" about Wave 9/10 work but RAG can't retrieve supporting
+documents. Re-index MUST happen before v5 deployment.
+
 ## PROGRESS
 
-- [ ] Phase 1: Fix RAFT Prompt Format (Steps 1-8)
-- [ ] Phase 2: Deepen Training Data (Steps 9-16)
-- [ ] Phase 3: Training Speed Optimizations (Steps 17-24)
-- [ ] Phase 4: Train + Validate kingdom-v5 (Steps 25-32)
+- [x] Phase 1: Fix RAFT Prompt Format (Steps 1-8) — DONE + format_prompt wired into train.rs
+- [~] Phase 2: Deepen Training Data (Steps 9-16) — 286 Claude pairs, 11K+ total
+- [x] Phase 3: Training Speed Optimizations (Steps 17-24) — accum=4, tokenizer cache, grad zero fix
+- [ ] Phase 4: Train + Validate kingdom-v5 (Steps 25-32) — BLOCKED on GPU (distillation running)
+- [ ] Phase 5 (NEW): Re-index Zhenai FAISS corpus (required before v5 deployment)
 
 ---
 
