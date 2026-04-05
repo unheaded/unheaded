@@ -12,9 +12,11 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	chatpb "unheaded/services/wotan/proto"
+	"unheaded/pkg/transport/mtls"
 )
 
 // ReplicationClient connects to the primary and receives WAL entries (standby side).
@@ -22,6 +24,7 @@ type ReplicationClient struct {
 	peerAddr string
 	nodeID   string
 	epoch    int64
+	pkiDir   string // mTLS certificate directory (empty = insecure)
 
 	conn   *grpc.ClientConn
 	client chatpb.WotanReplicationClient
@@ -35,21 +38,32 @@ type ReplicationClient struct {
 }
 
 // NewReplicationClient creates a standby-side replication client.
-func NewReplicationClient(peerAddr, nodeID string, epoch int64) *ReplicationClient {
+func NewReplicationClient(peerAddr, nodeID, pkiDir string, epoch int64) *ReplicationClient {
 	return &ReplicationClient{
 		peerAddr: peerAddr,
 		nodeID:   nodeID,
+		pkiDir:   pkiDir,
 		epoch:    epoch,
 	}
 }
 
 // Connect establishes gRPC connection to the primary.
+// Uses mTLS if pkiDir is set, falls back to insecure for development.
 func (c *ReplicationClient) Connect(ctx context.Context) error {
-	// TODO: add mTLS credentials from pkg/transport/mtls/
-	conn, err := grpc.DialContext(ctx, c.peerAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-	)
+	var dialOpt grpc.DialOption
+	if c.pkiDir != "" {
+		tlsCfg, err := mtls.SetupServiceClientTLS("wotan", c.pkiDir)
+		if err != nil {
+			log.Warn().Err(err).Msg("replication: mTLS setup failed, falling back to insecure")
+			dialOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
+		} else {
+			dialOpt = grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
+		}
+	} else {
+		dialOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+
+	conn, err := grpc.DialContext(ctx, c.peerAddr, dialOpt, grpc.WithBlock())
 	if err != nil {
 		return fmt.Errorf("replication_client: connect %s: %w", c.peerAddr, err)
 	}

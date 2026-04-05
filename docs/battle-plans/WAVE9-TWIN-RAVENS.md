@@ -18,12 +18,12 @@
 
 ## PROGRESS
 
-- [x] Phase 0: PostgreSQL Store (Steps 1-18) — DONE. PG store, WAL store, hybrid store, encoding, sequences, epoch manager. 11+ tests green.
-- [~] Phase 1: Cluster Plumbing (Steps 19-36) — IN PROGRESS. Config (8 tests), proto (compiled), replication server + client, flags in main.go.
-- [ ] Phase 2: Failover (Steps 37-48)
-- [ ] Phase 3: Integration + Hardening (Steps 49-56)
-- [~] Track B: Backlog Blitz — ADR-035/036/037 written
-- [~] Track D: Distillation — script ready (443 docs + 2378 repo mode), auto-distill queued
+- [x] Phase 0: PostgreSQL Store (Steps 1-18) — DONE. PG+WAL+hybrid stores, encoding, sequences, epoch. 13 packages green.
+- [x] Phase 1: Cluster Plumbing (Steps 19-36) — DONE. Config (8 tests), proto, replication server+client, flags, node_id, main.go wiring.
+- [x] Phase 2: Failover (Steps 37-48) — DONE. State machine (5 tests), runbooks (setup + failover).
+- [x] Phase 3: Integration + Hardening (Steps 49-56) — DONE. Config, ADR-035 accepted, PG publish wiring, 13/13 packages green.
+- [x] Track B: Backlog Blitz — ADR-035/036/037 written, README updated, NetBox runbook, Wave 6 9/10 sprints
+- [~] Track D: Distillation — script ready (2378 files repo mode), auto-distill queued (waiting for training v3)
 
 ---
 
