@@ -746,6 +746,26 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Special routes that look like task IDs
+	switch taskID {
+	case "deleted":
+		s.handleDeletedTasks(w, r)
+		return
+	case "archived":
+		s.handleArchivedTasks(w, r)
+		return
+	case "completed":
+		s.handleCompletedTasks(w, r)
+		return
+	}
+
+	// Handle /tasks/:id/restore
+	if strings.HasSuffix(taskID, "/restore") {
+		realID := strings.TrimSuffix(taskID, "/restore")
+		s.handleRestoreTask(w, r, realID)
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		s.handleGetTaskByID(w, r, taskID)
@@ -931,6 +951,86 @@ func (s *Server) handleDeleteTaskByID(w http.ResponseWriter, r *http.Request, ta
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID})
+}
+
+// handleDeletedTasks returns soft-deleted tasks.
+func (s *Server) handleDeletedTasks(w http.ResponseWriter, r *http.Request) {
+	if pgStore, ok := s.store.(*PgStore); ok {
+		tasks, err := pgStore.inner.GetDeletedTasks(context.Background())
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		out := make([]Task, len(tasks))
+		for i, t := range tasks {
+			out[i] = fromPgTask(t)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0})
+}
+
+// handleArchivedTasks returns archived tasks.
+func (s *Server) handleArchivedTasks(w http.ResponseWriter, r *http.Request) {
+	if pgStore, ok := s.store.(*PgStore); ok {
+		tasks, err := pgStore.inner.GetArchivedTasks(context.Background())
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		out := make([]Task, len(tasks))
+		for i, t := range tasks {
+			out[i] = fromPgTask(t)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0})
+}
+
+// handleCompletedTasks returns done tasks (still on board but accessible here too).
+func (s *Server) handleCompletedTasks(w http.ResponseWriter, r *http.Request) {
+	if pgStore, ok := s.store.(*PgStore); ok {
+		all, err := pgStore.inner.GetAllTasks(context.Background())
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		var out []Task
+		for _, t := range all {
+			if t.Status == "done" {
+				out = append(out, fromPgTask(t))
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0})
+}
+
+// handleRestoreTask un-deletes or un-archives a task.
+func (s *Server) handleRestoreTask(w http.ResponseWriter, r *http.Request, taskID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if pgStore, ok := s.store.(*PgStore); ok {
+		if err := pgStore.inner.RestoreTask(context.Background(), taskID); err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"restored": true, "task_id": taskID})
+		return
+	}
+	http.Error(w, "Restore not available without PostgreSQL", http.StatusNotImplemented)
 }
 
 // handleWebSocket handles WebSocket connections for real-time updates

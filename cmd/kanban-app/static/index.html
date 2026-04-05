@@ -28,8 +28,23 @@
                     <span class="btn-icon">+</span>
                     New Task
                 </button>
+                <button class="btn btn-secondary" id="archiveViewBtn" onclick="toggleArchiveView()"
+                        style="margin-left:8px;font-size:13px;">
+                    Archive
+                </button>
             </div>
         </header>
+
+        <!-- Archive/Deleted Viewer (hidden by default) -->
+        <div id="archiveView" style="display:none;padding:16px;background:#111;border-bottom:1px solid #333;">
+            <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+                <h3 style="margin:0;color:#aaa;font-size:14px;">Archived &amp; Deleted Tasks</h3>
+                <button class="btn btn-secondary" onclick="loadArchive('deleted')" style="font-size:12px;padding:4px 10px;">Deleted</button>
+                <button class="btn btn-secondary" onclick="loadArchive('archived')" style="font-size:12px;padding:4px 10px;">Archived</button>
+                <button class="btn btn-secondary" onclick="loadArchive('done')" style="font-size:12px;padding:4px 10px;">Completed</button>
+            </div>
+            <div id="archiveList" style="max-height:300px;overflow-y:auto;"></div>
+        </div>
 
         <!-- Sort & Filter Toolbar -->
         <div class="board-toolbar" id="boardToolbar">
@@ -229,6 +244,12 @@
                     <button class="modal-close" id="detailClose">&times;</button>
                 </div>
                 <div class="modal-body">
+                    <!-- GUID (click to copy) -->
+                    <div class="detail-guid" id="detailGuidRow" style="margin-bottom:12px;display:none;">
+                        <span style="color:#888;font-size:11px;">GUID:</span>
+                        <code id="detailGuid" style="font-size:11px;color:#7b2fff;cursor:pointer;user-select:all;margin-left:4px;"
+                              title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)"></code>
+                    </div>
                     <div class="detail-section">
                         <h3>Description</h3>
                         <p id="detailDescription">No description provided.</p>
@@ -307,5 +328,68 @@
     <script src="js/cards.js"></script>
     <script src="js/board.js"></script>
     <script src="js/app.js"></script>
+    <script>
+    // Archive/Deleted/Completed viewer
+    function toggleArchiveView() {
+        const view = document.getElementById('archiveView');
+        if (view.style.display === 'none') {
+            view.style.display = 'block';
+            loadArchive('deleted');
+        } else {
+            view.style.display = 'none';
+        }
+    }
+
+    async function loadArchive(type) {
+        const list = document.getElementById('archiveList');
+        list.innerHTML = '<div style="color:#888;padding:8px;">Loading...</div>';
+        try {
+            let url;
+            if (type === 'deleted') url = '/api/v1/tasks/deleted';
+            else if (type === 'archived') url = '/api/v1/tasks/archived';
+            else url = '/api/v1/tasks/completed';
+            const resp = await fetch(url);
+            const data = await resp.json();
+            const tasks = data.tasks || [];
+            if (tasks.length === 0) {
+                list.innerHTML = `<div style="color:#888;padding:8px;">No ${type} tasks found.</div>`;
+                return;
+            }
+            list.innerHTML = tasks.map(t => {
+                const date = t.deleted_at || t.archived_at || t.updated_at || '';
+                const when = date ? new Date(date).toLocaleDateString() : '';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #222;">
+                    <div>
+                        <span style="color:#eee;font-size:13px;">${escapeHtml(t.title)}</span>
+                        <span style="color:#666;font-size:11px;margin-left:8px;">${t.type || 'task'}</span>
+                        ${t.guid ? `<code style="color:#7b2fff;font-size:10px;margin-left:8px;cursor:pointer;" onclick="navigator.clipboard.writeText('${t.guid}')" title="Click to copy">${t.guid.slice(0,8)}...</code>` : ''}
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <span style="color:#888;font-size:11px;">${when}</span>
+                        <button onclick="restoreTask('${t.id}')" style="font-size:11px;padding:2px 8px;background:#2a4a2a;color:#4fc3f7;border:1px solid #4fc3f7;border-radius:4px;cursor:pointer;">Restore</button>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            list.innerHTML = `<div style="color:#ff5c00;padding:8px;">Error: ${e.message}</div>`;
+        }
+    }
+
+    async function restoreTask(id) {
+        try {
+            await fetch(`/api/v1/tasks/${id}/restore`, { method: 'POST' });
+            Board.showToast('success', 'Task restored', id);
+            loadArchive('deleted');
+            // Refresh board
+            const resp = await fetch('/api/v1/tasks');
+            const data = await resp.json();
+            if (data.tasks) data.tasks.forEach(t => Board.updateTask(t));
+        } catch (e) {
+            Board.showToast('error', 'Restore failed', e.message);
+        }
+    }
+
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+    </script>
 </body>
 </html>
