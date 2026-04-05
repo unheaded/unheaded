@@ -60,3 +60,4 @@
 | [037](ADR-037-zhenai-unified-champion.md) | Zhenai Unified Champion (The Armor) | Planned | 2026-04-05 |
 | [038](ADR-038-kanban-git-audit-trail.md) | Kanban GUID → Git Commit Audit | Accepted | 2026-04-05 |
 | [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Deferred to Q4 2026** | 2026-03-18 |
+| [039](ADR-039-cs-precision-reference-service.md) | CS Precision Reference Service | In Progress | 2026-04-05 |
