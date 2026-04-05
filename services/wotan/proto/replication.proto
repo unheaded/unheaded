@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
+syntax = "proto3";
+
+package wotan;
+
+option go_package = "unheaded/services/wotan/proto;chatpb";
+
+import "google/protobuf/timestamp.proto";
+
+// WotanReplication handles WAL-based replication between primary and standby.
+service WotanReplication {
+  // CatchUp: standby requests WAL entries from a specific sequence.
+  // Primary streams all entries since that sequence.
+  rpc CatchUp(CatchUpRequest) returns (stream WALEntry);
+
+  // ReplicationPing: health/status exchange between nodes.
+  rpc ReplicationPing(ReplicationPingRequest) returns (ReplicationPongResponse);
+
+  // TransferSnapshot: full state transfer for initial sync or large gaps.
+  rpc TransferSnapshot(SnapshotRequest) returns (stream SnapshotChunk);
+}
+
+// WALEntry represents a single WAL entry for replication.
+message WALEntry {
+  uint64 sequence = 1;
+  bytes data = 2;
+  uint32 crc = 3;
+  string node_id = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  int64 epoch = 6;
+}
+
+// CatchUpRequest is sent by standby to request WAL entries.
+message CatchUpRequest {
+  uint64 since_seq = 1;
+  string node_id = 2;
+  int64 epoch = 3;
+}
+
+// ReplicationPingRequest is a health check between nodes.
+message ReplicationPingRequest {
+  string node_id = 1;
+  string role = 2;
+  uint64 last_seq = 3;
+  int64 epoch = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}
+
+// ReplicationPongResponse returns cluster status.
+message ReplicationPongResponse {
+  string node_id = 1;
+  string role = 2;
+  uint64 last_seq = 3;
+  int64 epoch = 4;
+  int64 replication_lag = 5;
+}
+
+// SnapshotRequest initiates a full state transfer.
+message SnapshotRequest {
+  string node_id = 1;
+  int64 epoch = 2;
+}
+
+// SnapshotChunk is a piece of the snapshot stream.
+message SnapshotChunk {
+  uint64 offset = 1;
+  bytes data = 2;
+  bool final = 3;
+  uint64 total_size = 4;
+  uint64 last_seq = 5;
+}
