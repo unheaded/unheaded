@@ -248,9 +248,135 @@ def collect_files(category_name: str, category: dict) -> list[tuple[str, str]]:
     return files
 
 
-def generate_qa_pairs(client: anthropic.Anthropic, model: str, filepath: str,
+def collect_full_repo() -> list[tuple[str, dict, str, str]]:
+    """Collect ALL source files from the entire repo for --repo mode."""
+    extensions = {
+        ".md": ("documentation", 8),
+        ".go": ("Go source code", 6),
+        ".rs": ("Rust source code", 6),
+        ".py": ("Python source code", 6),
+        ".js": ("JavaScript source code", 5),
+        ".html": ("HTML template", 4),
+        ".css": ("CSS stylesheet", 3),
+        ".yaml": ("YAML configuration", 5),
+        ".yml": ("YAML configuration", 5),
+        ".toml": ("TOML configuration", 4),
+        ".nix": ("NixOS configuration", 5),
+        ".proto": ("Protocol Buffers definition", 8),
+        ".sh": ("Shell script", 5),
+        ".sql": ("SQL schema", 6),
+        ".c": ("C source code", 6),
+        ".h": ("C header file", 5),
+    }
+    skip_dirs = {".git", "vendor", "node_modules", "target", "llama.cpp", "build", "__pycache__"}
+    skip_suffixes = ("_test.go", "_extended_test.go", "_bench_test.go")
+
+    files = []
+    for root, dirs, fnames in os.walk(PROJECT_ROOT):
+        dirs[:] = [d for d in dirs if d not in skip_dirs]
+        for fn in fnames:
+            ext = os.path.splitext(fn)[1]
+            if ext not in extensions:
+                continue
+            if any(fn.endswith(s) for s in skip_suffixes):
+                continue
+            fp = os.path.join(root, fn)
+            try:
+                content = Path(fp).read_text(errors="replace")
+                if len(content) < 100:
+                    continue
+                prompt_prefix, qa_count = extensions[ext]
+                cat = {"prompt_prefix": f"{prompt_prefix} from the Unheaded Kingdom", "qa_count": qa_count}
+                files.append(("repo", cat, fp, content))
+            except Exception:
+                pass
+
+    # Also add skill files
+    skills_dir = os.path.expanduser("~/.claude/skills/")
+    if os.path.isdir(skills_dir):
+        for skill_dir in sorted(glob.glob(os.path.join(skills_dir, "unheaded-*"))):
+            for root, dirs, fnames in os.walk(skill_dir):
+                for fn in fnames:
+                    if fn.endswith(".md"):
+                        fp = os.path.join(root, fn)
+                        try:
+                            content = Path(fp).read_text(errors="replace")
+                            if len(content) > 100:
+                                cat = {"prompt_prefix": "Kingdom skill definition", "qa_count": 10}
+                                files.append(("skills", cat, fp, content))
+                        except Exception:
+                            pass
+
+    return files
+
+
+def generate_qa_pairs_local(inference_url: str, filepath: str,
+                            content: str, category: dict, qa_count: int) -> list[dict]:
+    """Generate QA pairs using local Mistral-7B via llama.cpp."""
+    import requests
+
+    max_content = 8000  # Smaller context for local model
+    if len(content) > max_content:
+        content = content[:max_content] + "\n\n[... truncated ...]"
+
+    rel_path = filepath.replace(PROJECT_ROOT, "").replace(os.path.expanduser("~"), "~").lstrip("/")
+    prompt_prefix = category.get("prompt_prefix", "document")
+
+    prompt = f"""<s>[INST] You are generating training data for Zhenai, an AI assistant for the Unheaded Kingdom infrastructure platform.
+
+Read this {prompt_prefix} and generate exactly {qa_count} question-answer pairs.
+Questions should be natural. Answers must be grounded in the document (2-5 sentences).
+Output ONLY a JSON array: [{{"question": "...", "answer": "..."}}]
+
+File: {rel_path}
+
+{content}
+[/INST]"""
+
+    try:
+        resp = requests.post(
+            f"{inference_url}/v1/completions",
+            json={
+                "prompt": prompt,
+                "max_tokens": 2048,
+                "temperature": 0.7,
+                "stop": ["</s>", "[INST]"],
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["text"].strip()
+
+        # Extract JSON from response
+        if "[" in text:
+            text = text[text.index("["):]
+        if text.rfind("]") > 0:
+            text = text[:text.rfind("]") + 1]
+
+        pairs = json.loads(text)
+        if not isinstance(pairs, list):
+            return []
+
+        result = []
+        for p in pairs:
+            if isinstance(p, dict) and "question" in p and "answer" in p:
+                result.append({
+                    "question": p["question"],
+                    "answer": p["answer"],
+                    "source": rel_path,
+                })
+        return result
+
+    except json.JSONDecodeError:
+        return []
+    except Exception as e:
+        print(f"  Local error for {rel_path}: {e}", file=sys.stderr)
+        return []
+
+
+def generate_qa_pairs(client, model: str, filepath: str,
                       content: str, category: dict, qa_count: int) -> list[dict]:
-    """Generate QA pairs for a single document using Claude."""
+    """Generate QA pairs for a single document using Claude API."""
     # Truncate very long documents to fit context
     max_content = 12000  # ~3K tokens, leaves room for generation
     if len(content) > max_content:
@@ -319,11 +445,11 @@ def file_hash(path: str) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Claude-powered QA distillation for Zhenai")
-    parser.add_argument("--output", "-o", default="/var/zhen/distilled_qa_haiku.jsonl",
+    parser = argparse.ArgumentParser(description="QA distillation for Zhenai (Claude API or local Mistral-7B)")
+    parser.add_argument("--output", "-o", default="/var/zhen/distilled_qa.jsonl",
                         help="Output JSONL file path")
     parser.add_argument("--model", "-m", default="claude-haiku-4-5-20251001",
-                        help="Claude model to use")
+                        help="Claude model to use (ignored with --local)")
     parser.add_argument("--category", "-c", default=None,
                         help="Only process this category (adrs, docs, runbooks, etc)")
     parser.add_argument("--limit", type=int, default=0,
@@ -332,14 +458,36 @@ def main():
                         help="Print QA pairs to stdout, don't write file")
     parser.add_argument("--qa-count", type=int, default=0,
                         help="Override QA pairs per document")
+    parser.add_argument("--local", action="store_true",
+                        help="Use local Mistral-7B via llama.cpp instead of Claude API")
+    parser.add_argument("--inference-url", default="http://localhost:20100",
+                        help="Local inference server URL (default: http://localhost:20100)")
+    parser.add_argument("--repo", action="store_true",
+                        help="Crawl entire ~/tmp/unheaded/ repo (2300+ files)")
     args = parser.parse_args()
 
-    # Check API key
-    client = anthropic.Anthropic()  # Uses ANTHROPIC_API_KEY env var
+    # Setup inference backend
+    client = None
+    if args.local:
+        # Verify local inference is up
+        import requests
+        try:
+            r = requests.get(f"{args.inference_url}/health", timeout=5)
+            r.raise_for_status()
+            print(f"=== Zhenai LOCAL Distillation (Mistral-7B) ===")
+        except Exception as e:
+            print(f"ERROR: Local inference not reachable at {args.inference_url}: {e}")
+            print("Start llama-server first, or run without --local for Claude API")
+            sys.exit(1)
+    else:
+        client = anthropic.Anthropic()  # Uses ANTHROPIC_API_KEY env var
+        print(f"=== Zhenai Training Data Distillation (Claude API) ===")
 
-    print(f"=== Zhenai Training Data Distillation ===")
-    print(f"  Model: {args.model}")
+    mode = "local (Mistral-7B)" if args.local else args.model
+    print(f"  Mode:   {mode}")
     print(f"  Output: {args.output}")
+    if args.repo:
+        print(f"  Scope:  FULL REPO (all source + docs + skills)")
     print()
 
     # Load checkpoint (for resumability)
@@ -358,17 +506,22 @@ def main():
             sys.exit(1)
         categories = {args.category: categories[args.category]}
 
-    all_files = []
-    for cat_name, cat_cfg in categories.items():
-        files = collect_files(cat_name, cat_cfg)
-        for fp, content in files:
-            all_files.append((cat_name, cat_cfg, fp, content))
+    # Collect files
+    if args.repo:
+        all_files = collect_full_repo()
+        print(f"  Full repo scan: {len(all_files)} files")
+    else:
+        all_files = []
+        for cat_name, cat_cfg in categories.items():
+            files = collect_files(cat_name, cat_cfg)
+            for fp, content in files:
+                all_files.append((cat_name, cat_cfg, fp, content))
+        print(f"  Categories: {', '.join(categories.keys())}")
 
     if args.limit > 0:
         all_files = all_files[:args.limit]
 
     print(f"  Documents to process: {len(all_files)}")
-    print(f"  Categories: {', '.join(categories.keys())}")
     print()
 
     # Process documents — batch small docs together to respect rate limits
@@ -402,7 +555,10 @@ def main():
 
         print(f"  [{i+1}/{len(pending)}] {cat_name}: {rel_path} ({qa_count} QA)...", end=" ", flush=True)
 
-        pairs = generate_qa_pairs(client, args.model, filepath, content, cat_cfg, qa_count)
+        if args.local:
+            pairs = generate_qa_pairs_local(args.inference_url, filepath, content, cat_cfg, qa_count)
+        else:
+            pairs = generate_qa_pairs(client, args.model, filepath, content, cat_cfg, qa_count)
         api_calls += 1
 
         if pairs:
@@ -430,8 +586,8 @@ def main():
 
         i += 1
 
-        # Rate limiting: 5 req/min = 12s between requests
-        if not args.dry_run and i < len(pending):
+        # Rate limiting: API needs 13s between calls (5 req/min), local has no limit
+        if not args.dry_run and not args.local and i < len(pending):
             wait = 13.0  # 13s to stay safely under 5/min
             print(f"    (rate limit: waiting {wait:.0f}s, {api_calls} calls so far)", flush=True)
             time.sleep(wait)
