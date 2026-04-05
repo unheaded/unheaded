@@ -1,0 +1,62 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: wotan-cluster-failover
+  description: Manual failover of Wotan primary from WEST to EAST
+  owner: akira
+  estimated_duration: 2m
+  risk: high
+  requires_sudo: true
+
+notes: |
+  Manual failover procedure. Normally Akira handles this automatically
+  when consensus threshold (66.67%) detects primary failure.
+
+  Use this runbook for planned maintenance or when Akira auto-failover
+  has hit the 3x max restart limit.
+
+steps:
+  - name: verify-current-state
+    action: shell
+    command: |
+      echo "=== Current State ==="
+      echo "WEST Wotan:" && curl -sf http://localhost:18000/health 2>&1 || echo "DOWN"
+      echo "EAST Wotan:" && ssh govan@east 'curl -sf http://localhost:18000/health 2>&1' || echo "DOWN"
+
+  - name: promote-east
+    action: shell
+    description: "Promote EAST standby to primary — accepts writes"
+    command: |
+      ssh govan@east 'curl -sf -X POST http://localhost:18000/api/v1/cluster/promote' || \
+      echo "Promotion API not yet available — restart with --cluster-role=primary"
+
+  - name: notify-services
+    action: shell
+    description: "Services with circuit breaker will auto-detect, but explicit notify is faster"
+    command: |
+      echo "Services should auto-failover via circuit breaker within 10s"
+      echo "If needed, restart services pointing to EAST Wotan"
+
+  - name: verify-failover
+    action: shell
+    command: |
+      echo "=== Post-Failover State ==="
+      echo "EAST Wotan (should be primary):"
+      ssh govan@east 'curl -sf http://localhost:18000/health'
+      echo ""
+      echo "Publishing test message to EAST..."
+      ssh govan@east 'curl -sf -X POST http://localhost:18000/api/v1/topics/test.failover/publish \
+        -H "Content-Type: application/json" \
+        -d "{\"sender_id\":\"test\",\"payload\":\"failover-test\"}"'
+
+  - name: recovery-west
+    action: shell
+    description: "When WEST recovers, it re-syncs as standby then resumes as primary"
+    command: |
+      echo "To recover WEST as primary:"
+      echo "  1. Fix the issue that caused WEST failure"
+      echo "  2. Start WEST Wotan with --cluster-role=standby"
+      echo "  3. Wait for WAL catch-up to complete"
+      echo "  4. Demote EAST back to standby"
+      echo "  5. Promote WEST back to primary"
+      echo "  6. Verify replication resumes"

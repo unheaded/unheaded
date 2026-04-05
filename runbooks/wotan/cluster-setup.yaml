@@ -1,0 +1,109 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: wotan-cluster-setup
+  description: Set up Wotan active-passive cluster between WEST (primary) and EAST (standby)
+  owner: architect
+  estimated_duration: 15m
+  risk: high
+  requires_sudo: true
+
+notes: |
+  Configures Wotan for active-passive replication.
+  WEST is always the configured primary. EAST is standby.
+  Requires PostgreSQL (The Well) on both nodes.
+  Requires mTLS certs (run generate-kingdom-certs first).
+
+steps:
+  - name: verify-prerequisites
+    action: shell
+    command: |
+      echo "=== WEST ==="
+      curl -sf http://localhost:18000/health && echo "Wotan: OK" || echo "Wotan: DOWN"
+      docker exec unheaded-postgres psql -U unheaded -d unheaded -c "SELECT 1" > /dev/null 2>&1 && echo "PG: OK" || echo "PG: DOWN"
+      echo ""
+      echo "=== EAST ==="
+      ssh govan@east 'curl -sf http://localhost:18000/health && echo "Wotan: OK" || echo "Wotan: DOWN"'
+    verify: "curl -sf http://localhost:18000/health"
+
+  - name: create-pg-schema-west
+    action: shell
+    command: |
+      docker exec unheaded-postgres psql -U unheaded -d unheaded -c "
+        CREATE TABLE IF NOT EXISTS wotan_messages (id UUID PK, room TEXT, sender_id UUID, content BYTEA, seq BIGINT, created_at TIMESTAMPTZ DEFAULT NOW());
+        CREATE TABLE IF NOT EXISTS wotan_sequences (topic TEXT PK, seq BIGINT DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT NOW());
+        CREATE TABLE IF NOT EXISTS wotan_cluster (key TEXT PK, value TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
+      "
+
+  - name: start-west-primary
+    action: shell
+    command: |
+      sudo systemctl stop unheaded-wotan 2>/dev/null
+      sudo tee /etc/systemd/system/unheaded-wotan.service << 'EOF'
+      [Unit]
+      Description=Wotan Message Bus (Primary)
+      After=network.target docker.service
+
+      [Service]
+      Type=simple
+      User=unheaded
+      Group=unheaded
+      ExecStart=/opt/unheaded/bin/wotan \
+        --cluster-mode=cluster \
+        --cluster-role=primary \
+        --cluster-node-id=west \
+        --cluster-peer=east:18002 \
+        --store-type=hybrid \
+        --store-data-dir=/var/lib/unheaded/wotan/wal \
+        --store-conn-str=postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable
+      Restart=always
+      RestartSec=5
+      WorkingDirectory=/var/lib/unheaded
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      sudo systemctl daemon-reload
+      sudo systemctl start unheaded-wotan
+    verify: "curl -sf http://localhost:18000/health"
+
+  - name: start-east-standby
+    action: shell
+    command: |
+      ssh govan@east "sudo tee /etc/systemd/system/unheaded-wotan.service << 'SVCEOF'
+      [Unit]
+      Description=Wotan Message Bus (Standby)
+      After=network.target
+
+      [Service]
+      Type=simple
+      User=unheaded
+      Group=unheaded
+      ExecStart=/opt/unheaded/bin/wotan \
+        --cluster-mode=cluster \
+        --cluster-role=standby \
+        --cluster-node-id=east \
+        --cluster-peer=west:18002 \
+        --store-type=hybrid \
+        --store-data-dir=/var/lib/unheaded/wotan/wal \
+        --store-conn-str=postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable
+      Restart=always
+      RestartSec=5
+      WorkingDirectory=/var/lib/unheaded
+
+      [Install]
+      WantedBy=multi-user.target
+      SVCEOF
+      sudo systemctl daemon-reload && sudo systemctl restart unheaded-wotan"
+    verify: "ssh govan@east 'curl -sf http://localhost:18000/health'"
+
+  - name: verify-replication
+    action: shell
+    command: |
+      echo "Publishing test message to WEST..."
+      curl -sf -X POST http://localhost:18000/api/v1/topics/test.replication/publish \
+        -H "Content-Type: application/json" \
+        -d '{"sender_id":"test","payload":"replication-test"}'
+      sleep 2
+      echo "Checking EAST received it..."
+      ssh govan@east 'curl -sf http://localhost:18000/api/v1/topics/test.replication/messages'
