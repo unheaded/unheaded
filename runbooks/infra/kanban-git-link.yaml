@@ -1,0 +1,25 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: kanban-git-link
+  description: Scan git commits for Task GUID trailers and link to Kanban tasks in PG
+  owner: akira
+  estimated_duration: 30s
+  risk: low
+  requires_sudo: false
+  schedule: "*/10 * * * *"
+
+notes: |
+  Akira runs this every 10 minutes as an exec check.
+  Scans git log for "Task: <uuid>" trailers in commit messages.
+  Links commit hashes to kanban_tasks.commits JSONB column in PG.
+
+  To manually include a task reference in a commit:
+    git commit -m "feat(x): description
+
+    Task: f543319f-c65d-484d-b074-a66cf619b66c"
+
+steps:
+  - name: scan-and-link
+    action: shell
+    command: "cd ~/tmp/unheaded && bash scripts/kanban-git-link.sh --since='1 week ago'"

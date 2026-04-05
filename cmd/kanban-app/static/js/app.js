@@ -571,6 +571,41 @@ const App = (function() {
             elements.detailTags.innerHTML = '<span class="text-muted">No tags</span>';
         }
 
+        // Show linked commits (ADR-038)
+        var commitsSection = document.getElementById('detailCommitsSection');
+        var commitsList = document.getElementById('detailCommits');
+        if (commitsSection && commitsList) {
+            var commits = [];
+            try { commits = JSON.parse(task.commits || '[]'); } catch(e) {}
+            if (commits.length > 0) {
+                commitsSection.hidden = false;
+                commitsList.innerHTML = '';
+                commits.forEach(function(c) {
+                    var entry = document.createElement('div');
+                    entry.className = 'commit-entry';
+                    var hash = document.createElement('code');
+                    hash.className = 'commit-hash';
+                    hash.textContent = (c.hash || '').slice(0, 8);
+                    hash.title = c.hash + ' (click to copy)';
+                    hash.addEventListener('click', function() {
+                        navigator.clipboard.writeText(c.hash);
+                    });
+                    var msg = document.createElement('span');
+                    msg.className = 'commit-message';
+                    msg.textContent = c.message || '';
+                    var date = document.createElement('span');
+                    date.className = 'commit-date';
+                    date.textContent = c.date ? new Date(c.date).toLocaleDateString() : '';
+                    entry.appendChild(hash);
+                    entry.appendChild(msg);
+                    entry.appendChild(date);
+                    commitsList.appendChild(entry);
+                });
+            } else {
+                commitsSection.hidden = true;
+            }
+        }
+
         // Show modal
         elements.taskDetailModal.classList.add('active');
     }
