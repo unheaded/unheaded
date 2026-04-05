@@ -13,15 +13,18 @@ import (
 // KanbanTask mirrors the kanban-app Task type for Postgres persistence.
 // Field names and JSON tags match the kanban-app's canonical Task struct.
 type KanbanTask struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description,omitempty"`
-	Status      string    `json:"status"`
-	Type        string    `json:"type,omitempty"`
-	Owner       string    `json:"owner,omitempty"`
-	Progress    int       `json:"progress,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string     `json:"id"`
+	GUID        string     `json:"guid,omitempty"`
+	Title       string     `json:"title"`
+	Description string     `json:"description,omitempty"`
+	Status      string     `json:"status"`
+	Type        string     `json:"type,omitempty"`
+	Owner       string     `json:"owner,omitempty"`
+	Progress    int        `json:"progress,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
+	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
 }
 
 // KanbanStore provides Postgres-backed task persistence.
@@ -43,6 +46,7 @@ func (s *KanbanStore) EnsureSchema(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS kanban_tasks (
 			id          TEXT PRIMARY KEY,
+			guid        UUID NOT NULL DEFAULT gen_random_uuid(),
 			title       TEXT NOT NULL,
 			description TEXT NOT NULL DEFAULT '',
 			status      TEXT NOT NULL DEFAULT 'todo',
@@ -50,18 +54,32 @@ func (s *KanbanStore) EnsureSchema(ctx context.Context) error {
 			owner       TEXT NOT NULL DEFAULT '',
 			progress    INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
 			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			deleted_at  TIMESTAMPTZ,
+			archived_at TIMESTAMPTZ
 		);
 		CREATE INDEX IF NOT EXISTS idx_kanban_tasks_status ON kanban_tasks(status);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_kanban_tasks_guid ON kanban_tasks(guid);
+
+		-- Add columns if table already exists (idempotent migration)
+		ALTER TABLE kanban_tasks ADD COLUMN IF NOT EXISTS guid UUID DEFAULT gen_random_uuid();
+		ALTER TABLE kanban_tasks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+		ALTER TABLE kanban_tasks ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+		-- Backfill GUIDs for existing rows
+		UPDATE kanban_tasks SET guid = gen_random_uuid() WHERE guid IS NULL;
 	`)
 	return err
 }
 
-// GetAllTasks returns all tasks ordered by creation time.
+// GetAllTasks returns active tasks (not deleted, not archived) ordered by creation time.
 func (s *KanbanStore) GetAllTasks(ctx context.Context) ([]KanbanTask, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, title, description, status, type, owner, progress, created_at, updated_at
-		FROM kanban_tasks ORDER BY created_at ASC
+		SELECT id, COALESCE(guid::text, ''), title, description, status, type, owner, progress,
+		       created_at, updated_at, deleted_at, archived_at
+		FROM kanban_tasks
+		WHERE deleted_at IS NULL AND archived_at IS NULL
+		ORDER BY created_at ASC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("query kanban tasks: %w", err)
@@ -71,8 +89,9 @@ func (s *KanbanStore) GetAllTasks(ctx context.Context) ([]KanbanTask, error) {
 	var tasks []KanbanTask
 	for rows.Next() {
 		var t KanbanTask
-		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.Status,
-			&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.GUID, &t.Title, &t.Description, &t.Status,
+			&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt,
+			&t.DeletedAt, &t.ArchivedAt); err != nil {
 			return nil, fmt.Errorf("scan kanban task: %w", err)
 		}
 		tasks = append(tasks, t)
@@ -80,14 +99,16 @@ func (s *KanbanStore) GetAllTasks(ctx context.Context) ([]KanbanTask, error) {
 	return tasks, rows.Err()
 }
 
-// GetTask returns a single task by ID, or sql.ErrNoRows if not found.
+// GetTask returns a single task by ID or GUID, or sql.ErrNoRows if not found.
 func (s *KanbanStore) GetTask(ctx context.Context, id string) (*KanbanTask, error) {
 	var t KanbanTask
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, title, description, status, type, owner, progress, created_at, updated_at
-		FROM kanban_tasks WHERE id = $1
-	`, id).Scan(&t.ID, &t.Title, &t.Description, &t.Status,
-		&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt)
+		SELECT id, COALESCE(guid::text, ''), title, description, status, type, owner, progress,
+		       created_at, updated_at, deleted_at, archived_at
+		FROM kanban_tasks WHERE id = $1 OR guid::text = $1
+	`, id).Scan(&t.ID, &t.GUID, &t.Title, &t.Description, &t.Status,
+		&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt,
+		&t.DeletedAt, &t.ArchivedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +116,7 @@ func (s *KanbanStore) GetTask(ctx context.Context, id string) (*KanbanTask, erro
 }
 
 // SaveTask performs an upsert (insert or update on conflict).
+// GUID is auto-generated by PostgreSQL on INSERT if empty.
 func (s *KanbanStore) SaveTask(ctx context.Context, t *KanbanTask) error {
 	if t == nil {
 		return fmt.Errorf("task cannot be nil")
@@ -109,13 +131,101 @@ func (s *KanbanStore) SaveTask(ctx context.Context, t *KanbanTask) error {
 			type        = EXCLUDED.type,
 			owner       = EXCLUDED.owner,
 			progress    = EXCLUDED.progress,
+			deleted_at  = NULL,
+			archived_at = NULL,
 			updated_at  = NOW()
 	`, t.ID, t.Title, t.Description, t.Status, t.Type, t.Owner, t.Progress, t.CreatedAt)
 	return err
 }
 
-// DeleteTask removes a task by ID.
+// DeleteTask soft-deletes a task by setting deleted_at (retains data).
 func (s *KanbanStore) DeleteTask(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE kanban_tasks SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL
+	`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// ArchiveTask marks a task as archived (retained but hidden from board).
+func (s *KanbanStore) ArchiveTask(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE kanban_tasks SET archived_at = NOW(), updated_at = NOW() WHERE id = $1 AND archived_at IS NULL
+	`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// RestoreTask un-deletes or un-archives a task.
+func (s *KanbanStore) RestoreTask(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE kanban_tasks SET deleted_at = NULL, archived_at = NULL, updated_at = NOW() WHERE id = $1
+	`, id)
+	return err
+}
+
+// GetDeletedTasks returns soft-deleted tasks.
+func (s *KanbanStore) GetDeletedTasks(ctx context.Context) ([]KanbanTask, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, COALESCE(guid::text, ''), title, description, status, type, owner, progress,
+		       created_at, updated_at, deleted_at, archived_at
+		FROM kanban_tasks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []KanbanTask
+	for rows.Next() {
+		var t KanbanTask
+		if err := rows.Scan(&t.ID, &t.GUID, &t.Title, &t.Description, &t.Status,
+			&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt,
+			&t.DeletedAt, &t.ArchivedAt); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
+
+// GetArchivedTasks returns archived tasks.
+func (s *KanbanStore) GetArchivedTasks(ctx context.Context) ([]KanbanTask, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, COALESCE(guid::text, ''), title, description, status, type, owner, progress,
+		       created_at, updated_at, deleted_at, archived_at
+		FROM kanban_tasks WHERE archived_at IS NOT NULL AND deleted_at IS NULL ORDER BY archived_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []KanbanTask
+	for rows.Next() {
+		var t KanbanTask
+		if err := rows.Scan(&t.ID, &t.GUID, &t.Title, &t.Description, &t.Status,
+			&t.Type, &t.Owner, &t.Progress, &t.CreatedAt, &t.UpdatedAt,
+			&t.DeletedAt, &t.ArchivedAt); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
+
+// HardDeleteTask permanently removes a task (admin use only).
+func (s *KanbanStore) HardDeleteTask(ctx context.Context, id string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM kanban_tasks WHERE id = $1`, id)
 	if err != nil {
 		return err

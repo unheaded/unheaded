@@ -101,6 +101,7 @@ func (p *PgStore) Close() error {
 func fromPgTask(pt database.KanbanTask) Task {
 	return Task{
 		ID:          pt.ID,
+		GUID:        pt.GUID,
 		Title:       pt.Title,
 		Description: pt.Description,
 		Status:      pt.Status,
@@ -109,12 +110,15 @@ func fromPgTask(pt database.KanbanTask) Task {
 		Progress:    pt.Progress,
 		CreatedAt:   pt.CreatedAt,
 		UpdatedAt:   pt.UpdatedAt,
+		DeletedAt:   pt.DeletedAt,
+		ArchivedAt:  pt.ArchivedAt,
 	}
 }
 
 func toPgTask(t Task) database.KanbanTask {
 	return database.KanbanTask{
 		ID:          t.ID,
+		GUID:        t.GUID,
 		Title:       t.Title,
 		Description: t.Description,
 		Status:      t.Status,
@@ -123,5 +127,7 @@ func toPgTask(t Task) database.KanbanTask {
 		Progress:    t.Progress,
 		CreatedAt:   t.CreatedAt,
 		UpdatedAt:   t.UpdatedAt,
+		DeletedAt:   t.DeletedAt,
+		ArchivedAt:  t.ArchivedAt,
 	}
 }
