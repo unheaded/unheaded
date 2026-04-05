@@ -799,54 +799,87 @@ func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskI
 
 // handleUpdateTaskByID updates a single task
 func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, taskID string) {
-	var task Task
-	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+	// Decode partial update — only fields present in JSON will be non-zero
+	var updates map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
 		return
 	}
-	task.ID = taskID // Ensure ID from URL
 
+	// Get existing task to merge updates into
+	var task *Task
 	if s.taskManager != nil {
-		if err := s.taskManager.UpdateTask(r.Context(), &task); err != nil {
-			if err == ErrTaskNotFound {
-				http.Error(w, "Task not found", http.StatusNotFound)
-			} else {
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-			}
-			return
-		}
-	} else if s.store != nil {
-		// Standalone + SQLite persistence
-		existing, err := s.store.GetTask(taskID)
+		t, err := s.taskManager.GetTask(taskID)
 		if err != nil {
 			http.Error(w, "Task not found", http.StatusNotFound)
 			return
 		}
-		task.CreatedAt = existing.CreatedAt
-		task.UpdatedAt = time.Now()
-		if err := s.store.SaveTask(&task); err != nil {
+		task = t
+	} else if s.store != nil {
+		t, err := s.store.GetTask(taskID)
+		if err != nil {
+			http.Error(w, "Task not found", http.StatusNotFound)
+			return
+		}
+		task = t
+	} else {
+		s.tasksMu.RLock()
+		for i := range s.tasks {
+			if s.tasks[i].ID == taskID {
+				t := s.tasks[i]
+				task = &t
+				break
+			}
+		}
+		s.tasksMu.RUnlock()
+		if task == nil {
+			http.Error(w, "Task not found", http.StatusNotFound)
+			return
+		}
+	}
+
+	// Merge updates into existing task (only overwrite fields that are present)
+	if v, ok := updates["title"].(string); ok && v != "" {
+		task.Title = v
+	}
+	if v, ok := updates["description"].(string); ok {
+		task.Description = v
+	}
+	if v, ok := updates["status"].(string); ok && v != "" {
+		task.Status = v
+	}
+	if v, ok := updates["type"].(string); ok && v != "" {
+		task.Type = v
+	}
+	if v, ok := updates["owner"].(string); ok {
+		task.Owner = v
+	}
+	if v, ok := updates["progress"].(float64); ok {
+		task.Progress = int(v)
+	}
+	task.UpdatedAt = time.Now()
+
+	// Save merged task
+	if s.taskManager != nil {
+		if err := s.taskManager.UpdateTask(r.Context(), task); err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	} else if s.store != nil {
+		if err := s.store.SaveTask(task); err != nil {
 			log.Error().Err(err).Str("task_id", taskID).Msg("failed to update task in store")
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 	} else {
-		// Fallback: in-memory only
 		s.tasksMu.Lock()
-		found := false
 		for i, t := range s.tasks {
 			if t.ID == taskID {
-				task.CreatedAt = t.CreatedAt
-				task.UpdatedAt = time.Now()
-				s.tasks[i] = task
-				found = true
+				s.tasks[i] = *task
 				break
 			}
 		}
 		s.tasksMu.Unlock()
-		if !found {
-			http.Error(w, "Task not found", http.StatusNotFound)
-			return
-		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
