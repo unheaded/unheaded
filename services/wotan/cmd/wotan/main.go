@@ -27,6 +27,8 @@ import (
 	"unheaded/pkg/auth"
 	chatpb "unheaded/services/wotan/proto"
 	"unheaded/services/wotan/internal/api"
+	"unheaded/services/wotan/internal/cluster"
+	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/wotan"
 	grpcservice "unheaded/services/wotan/internal/grpc"
 	"unheaded/services/wotan/internal/logger"
@@ -123,6 +125,51 @@ func main() {
 	roomManager := room.NewManager(config.BufferSize)
 	memberManager := member.NewManager()
 	messageWotan := wotan.NewWotan()
+
+	// Initialize persistent store (if configured)
+	var msgStore store.MessageStore
+	if config.StoreType != "" && config.StoreType != "memory" {
+		storeCfg := store.Config{
+			Type:     store.StoreType(config.StoreType),
+			Capacity: config.BufferSize,
+			DataDir:  config.StoreDataDir,
+			ConnStr:  config.StoreConnStr,
+			SyncMode: "batch",
+		}
+		var err error
+		msgStore, err = store.New(storeCfg)
+		if err != nil {
+			log.Warn().Err(err).Str("type", config.StoreType).Msg("persistent store failed, falling back to memory")
+		} else {
+			log.Info().Str("type", config.StoreType).Msg("persistent store initialized")
+		}
+	}
+
+	// Initialize cluster (if configured)
+	clusterCfg := cluster.Config{
+		Mode:            cluster.Mode(config.ClusterMode),
+		Role:            cluster.Role(config.ClusterRole),
+		NodeID:          config.ClusterNodeID,
+		PeerAddr:        config.ClusterPeerAddr,
+		ReplicationPort: config.ClusterReplicationPort,
+		PKIDir:          config.ClusterPKIDir,
+	}
+	if clusterCfg.IsCluster() {
+		if err := clusterCfg.Validate(); err != nil {
+			log.Fatal().Err(err).Msg("invalid cluster configuration")
+		}
+		log.Info().
+			Str("mode", string(clusterCfg.Mode)).
+			Str("role", string(clusterCfg.Role)).
+			Str("node_id", clusterCfg.NodeID).
+			Str("peer", clusterCfg.PeerAddr).
+			Int("replication_port", clusterCfg.ReplicationPort).
+			Msg("cluster mode enabled")
+	}
+
+	// Suppress unused variable warnings for future wiring
+	_ = msgStore
+	_ = clusterCfg
 
 	log.Info().Msg("initialized_core_managers")
 
