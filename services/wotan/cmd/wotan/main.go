@@ -74,6 +74,17 @@ type Config struct {
 
 	// CORS
 	CORSOrigins []string
+
+	// Cluster
+	ClusterMode            string
+	ClusterRole            string
+	ClusterNodeID          string
+	ClusterPeerAddr        string
+	ClusterReplicationPort int
+	ClusterPKIDir          string
+	StoreType              string
+	StoreDataDir           string
+	StoreConnStr           string
 }
 
 func main() {
@@ -312,6 +323,19 @@ func parseFlags() Config {
 
 	// CORS flags
 	config.CORSOrigins = []string{"*"} // Configure as needed
+
+	// Cluster flags (Wave 9 — The Twin Ravens)
+	flag.StringVar(&config.ClusterMode, "cluster-mode", "standalone", "Cluster mode (standalone|cluster)")
+	flag.StringVar(&config.ClusterRole, "cluster-role", "primary", "Cluster role (primary|standby)")
+	flag.StringVar(&config.ClusterNodeID, "cluster-node-id", "", "Node identifier (default: hostname)")
+	flag.StringVar(&config.ClusterPeerAddr, "cluster-peer", "", "Peer node address (host:port)")
+	flag.IntVar(&config.ClusterReplicationPort, "cluster-replication-port", 18002, "Replication gRPC port")
+	flag.StringVar(&config.ClusterPKIDir, "cluster-pki-dir", "/var/lib/unheaded/pki", "PKI directory for mTLS")
+
+	// Store flags
+	flag.StringVar(&config.StoreType, "store-type", "memory", "Store backend (memory|wal|postgres|hybrid)")
+	flag.StringVar(&config.StoreDataDir, "store-data-dir", "/var/lib/unheaded/wotan/data", "Store data directory (WAL/hybrid)")
+	flag.StringVar(&config.StoreConnStr, "store-conn-str", "", "PostgreSQL connection string (postgres/hybrid)")
 
 	flag.Parse()
 	config.PendingApprovalTimeout = pendingApprovalTimeout
