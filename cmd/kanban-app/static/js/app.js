@@ -375,6 +375,10 @@ const App = (function() {
         elements.taskForm.reset();
         elements.taskId.value = '';
 
+        // Hide GUID (not available for new tasks)
+        const guidGroup = document.getElementById('guidGroup');
+        if (guidGroup) guidGroup.style.display = 'none';
+
         // Set defaults
         elements.taskType.value = 'task';
         elements.taskStatus.value = 'backlog';
@@ -411,6 +415,14 @@ const App = (function() {
         elements.taskStatus.value = normalizedStatus;
         elements.taskAssignee.value = task.owner || task.assignee || '';
         elements.taskProgress.value = task.progress || 0;
+
+        // Show GUID in edit mode (for cross-referencing)
+        const guidGroup = document.getElementById('guidGroup');
+        const guidInput = document.getElementById('taskGuid');
+        if (task.guid && guidGroup && guidInput) {
+            guidInput.value = task.guid;
+            guidGroup.style.display = 'block';
+        }
 
         // Update modal title and button
         elements.modalTitle.textContent = 'Edit Task';

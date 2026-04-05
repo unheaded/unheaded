@@ -61,15 +61,18 @@ type Config struct {
 
 // Task represents a kanban task
 type Task struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description,omitempty"`
-	Status      string    `json:"status"`
-	Type        string    `json:"type,omitempty"`
-	Owner       string    `json:"owner,omitempty"`
-	Progress    int       `json:"progress,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string     `json:"id"`
+	GUID        string     `json:"guid,omitempty"`        // Unique UUID for cross-referencing and linking
+	Title       string     `json:"title"`
+	Description string     `json:"description,omitempty"`
+	Status      string     `json:"status"`
+	Type        string     `json:"type,omitempty"`
+	Owner       string     `json:"owner,omitempty"`
+	Progress    int        `json:"progress,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`  // Soft delete timestamp (nil = active)
+	ArchivedAt  *time.Time `json:"archived_at,omitempty"` // Archive timestamp (nil = not archived)
 }
 
 // Server holds the HTTP server and dependencies

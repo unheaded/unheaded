@@ -150,6 +150,14 @@
                 <form class="modal-form" id="taskForm">
                     <input type="hidden" id="taskId" value="">
 
+                    <!-- GUID display (read-only, shown in edit mode) -->
+                    <div class="form-group" id="guidGroup" style="display:none;">
+                        <label>GUID <small style="color:#888;">(for linking)</small></label>
+                        <input type="text" id="taskGuid" readonly
+                               style="font-family:monospace; font-size:12px; background:#1a1a2e; color:#7b2fff; cursor:pointer;"
+                               title="Click to copy" onclick="navigator.clipboard.writeText(this.value)">
+                    </div>
+
                     <div class="form-group">
                         <label for="taskTitle">Title</label>
                         <input type="text" id="taskTitle" name="title" required
