@@ -46,6 +46,7 @@ pub struct TrainConfig {
     pub max_seq_len: usize,
     pub log_interval: usize,
     pub save_interval: usize,
+    pub accum_steps: usize,
 }
 
 impl Default for TrainConfig {
@@ -58,9 +59,10 @@ impl Default for TrainConfig {
             epochs: 2,
             lr: 3e-4,
             batch_size: 1,
-            max_seq_len: 2048,
+            max_seq_len: 4096,
             log_interval: 50,
             save_interval: 500,
+            accum_steps: 4,
         }
     }
 }
@@ -219,6 +221,21 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     let total_steps = config.epochs as u32 * data.len() as u32;
     let warmup_steps = (total_steps / 20).max(50).min(200); // 5% warmup, clamped 50-200
     println!("  LR schedule: cosine annealing, warmup={warmup_steps} steps, peak={:.1e}, total={total_steps}", config.lr);
+    println!("  Gradient accumulation: {} steps (effective batch size {})", config.accum_steps, config.accum_steps);
+    println!("  Max sequence length: {} tokens", config.max_seq_len);
+
+    // Tokenizer cache: tokenize all examples once, reuse across epochs
+    println!("  Caching tokenized sequences...");
+    let cached_tokens: Vec<Vec<u32>> = data.iter()
+        .map(|example| {
+            let mut ids = tokenizer.encode(example);
+            ids.truncate(config.max_seq_len);
+            ids
+        })
+        .collect();
+    println!("  Cached {} sequences (avg {:.0} tokens)",
+        cached_tokens.len(),
+        cached_tokens.iter().map(|t| t.len()).sum::<usize>() as f64 / cached_tokens.len() as f64);
 
     for epoch in 0..config.epochs {
         state.epoch = epoch;
@@ -227,10 +244,7 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
 
         println!("--- Epoch {}/{} ---", epoch + 1, config.epochs);
 
-        for (i, example) in data.iter().enumerate() {
-            // Real tokenization using GGUF vocabulary
-            let mut token_ids = tokenizer.encode(example);
-            token_ids.truncate(config.max_seq_len);
+        for (i, token_ids) in cached_tokens.iter().enumerate() {
 
             // Forward pass with real model weights
             let loss = if token_ids.len() >= 2 {
@@ -392,19 +406,27 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             }
                         }
 
-                        // Gradient clipping per target
-                        let grad_norm: f32 = lora.layers[l][t].grad_a.iter()
-                            .chain(lora.layers[l][t].grad_b.iter())
-                            .map(|g| g * g).sum::<f32>().sqrt();
-                        if grad_norm > 1.0 {
-                            let clip = 1.0 / grad_norm;
-                            for g in lora.layers[l][t].grad_a.iter_mut() { *g *= clip; }
-                            for g in lora.layers[l][t].grad_b.iter_mut() { *g *= clip; }
-                        }
+                        // Gradient accumulation: only clip + update every accum_steps
+                        if (i + 1) % config.accum_steps == 0 || i == data.len() - 1 {
+                            // Scale gradients by 1/accum_steps for averaging
+                            let scale = 1.0 / config.accum_steps as f32;
+                            for g in lora.layers[l][t].grad_a.iter_mut() { *g *= scale; }
+                            for g in lora.layers[l][t].grad_b.iter_mut() { *g *= scale; }
 
-                        // Adam step with cosine annealing + warmup
-                        let lr = cosine_lr(config.lr, state.step, total_steps, warmup_steps);
-                        lora.layers[l][t].adam_step(lr, 0.9, 0.999, 1e-8, state.step + 1);
+                            // Gradient clipping
+                            let grad_norm: f32 = lora.layers[l][t].grad_a.iter()
+                                .chain(lora.layers[l][t].grad_b.iter())
+                                .map(|g| g * g).sum::<f32>().sqrt();
+                            if grad_norm > 1.0 {
+                                let clip = 1.0 / grad_norm;
+                                for g in lora.layers[l][t].grad_a.iter_mut() { *g *= clip; }
+                                for g in lora.layers[l][t].grad_b.iter_mut() { *g *= clip; }
+                            }
+
+                            // Adam step with cosine annealing + warmup
+                            let lr = cosine_lr(config.lr, state.step, total_steps, warmup_steps);
+                            lora.layers[l][t].adam_step(lr, 0.9, 0.999, 1e-8, state.step + 1);
+                        }
                     }
                 }
             }
@@ -682,7 +704,8 @@ mod tests {
         assert_eq!(cfg.rank, 16);
         assert_eq!(cfg.epochs, 2);
         assert_eq!(cfg.batch_size, 1);
-        assert_eq!(cfg.max_seq_len, 2048);
+        assert_eq!(cfg.max_seq_len, 4096);
+        assert_eq!(cfg.accum_steps, 4);
     }
 
     #[test]
