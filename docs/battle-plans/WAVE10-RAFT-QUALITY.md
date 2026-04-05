@@ -56,8 +56,32 @@ documents. Re-index MUST happen before v5 deployment.
 - [x] Phase 1: Fix RAFT Prompt Format (Steps 1-8) — DONE + format_prompt wired into train.rs
 - [~] Phase 2: Deepen Training Data (Steps 9-16) — 286 Claude pairs, 11K+ total
 - [x] Phase 3: Training Speed Optimizations (Steps 17-24) — accum=4, tokenizer cache, grad zero fix
-- [ ] Phase 4: Train + Validate kingdom-v5 (Steps 25-32) — BLOCKED on GPU (distillation running)
-- [ ] Phase 5 (NEW): Re-index Zhenai FAISS corpus (required before v5 deployment)
+- [~] Phase 4: Train kingdom-v5 — RUNNING. Loss 12.21→0.42 at step 1500 (epoch 1 of 3)
+- [ ] Phase 4b (SCIENTIST): Early checkpoint test at epoch 1 end — check for overfitting
+- [ ] Phase 5: Re-index FAISS corpus (Unheaded 188 commits + CS 685 sheets + learning 245 books)
+
+## SCIENTIST WARNING (2026-04-05)
+
+Loss 0.42 at step 1500 (9% of epoch 1) is suspiciously low. Two possibilities:
+
+1. GOOD: RAFT format provides enough context for reliable next-token prediction.
+   The model learned to read documents and extract answers.
+
+2. BAD: Overfitting. Model memorizing training examples verbatim. At 16K examples
+   with rank-16 LoRA (16.7M params), ~1 parameter per training token — enough
+   capacity to memorize. Loss <0.5 this early is a memorization signal.
+
+DIAGNOSTIC: Check eval loss (10% held-out split) at epoch 1 checkpoint.
+- Eval loss dropping → real learning → continue to epoch 2+3
+- Eval loss plateaus/rises while train loss drops → OVERFITTING → STOP
+
+RECOMMENDATION: Test checkpoint-16304 (end of epoch 1) BEFORE continuing.
+If answers are already good, extra epochs may hurt.
+
+MITIGATION FOR FUTURE: Add eval loss logging per N steps, not just at epoch end.
+Consider: lower learning rate (3e-4 may be too high for 16K examples),
+increase rank (32 instead of 16 — more capacity, less memorization pressure),
+or add dropout to LoRA layers.
 
 ---
 
