@@ -28,3 +28,23 @@ topics:
     - "daemon"
     - "trace-collector"
     - "wiki"
+    - "akira"
+    - "zhenai"
+
+# Persistent store configuration (Wave 9)
+# Options: memory (default), wal, postgres, hybrid
+# Hybrid = WAL write-ahead + PostgreSQL durable (recommended for production)
+store:
+  type: memory       # Change to "hybrid" for production persistence
+  # data_dir: /var/lib/unheaded/wotan/wal    # WAL directory (wal/hybrid)
+  # conn_str: postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable
+
+# Cluster configuration (Wave 9 — The Twin Ravens)
+# Options: standalone (default), cluster
+cluster:
+  mode: standalone   # Change to "cluster" for active-passive replication
+  # role: primary    # primary (WEST) or standby (EAST)
+  # node_id: west
+  # peer_addr: east:18002
+  # replication_port: 18002
+  # pki_dir: /var/lib/unheaded/pki

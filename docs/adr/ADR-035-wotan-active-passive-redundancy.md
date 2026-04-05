@@ -1,6 +1,6 @@
 # ADR-035: Wotan Active-Passive Redundancy
 
-## Status: IN PROGRESS (Wave 9 — The Twin Ravens)
+## Status: ACCEPTED (Wave 9 — The Twin Ravens, Phases 0-2 complete)
 
 ## Date: 2026-04-05
 ## Decision Makers: Stevie Bellis (Principal), Claude (Advisor)
