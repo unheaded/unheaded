@@ -70,6 +70,9 @@ type TopicService struct {
 	wotan        *wotan.Wotan
 	seqCounter    *TopicSequenceCounter
 
+	// NodeID identifies this Wotan instance in cluster mode
+	NodeID string
+
 	// Track active streams for metrics/TopicPing
 	activeStreams atomic.Int64
 }
@@ -214,6 +217,7 @@ func (s *TopicService) StreamTopics(
 						CreatedAt: timestamppb.New(msg.Timestamp),
 						Seq:       int64(i + 1),
 						Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
+						NodeId:    s.NodeID,
 					}
 
 					if err := stream.Send(event); err != nil {
@@ -306,6 +310,7 @@ func (s *TopicService) forwardTopicEvents(
 				CreatedAt: timestamppb.New(event.Timestamp),
 				Seq:       seq,
 				Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
+				NodeId:    s.NodeID,
 			}
 
 			// Non-blocking send to event channel
