@@ -63,6 +63,10 @@ type Config struct {
 	// Format: Go duration string
 	// Default: "1h"
 	CompactionInterval string `json:"compaction_interval" yaml:"compaction_interval"`
+
+	// ConnStr is the PostgreSQL connection string (for postgres and hybrid stores).
+	// Default: "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable"
+	ConnStr string `json:"conn_str" yaml:"conn_str"`
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -81,7 +85,7 @@ func DefaultConfig() Config {
 // Validate checks the configuration for errors.
 func (c *Config) Validate() error {
 	switch c.Type {
-	case MemoryStoreType, WALStoreType, SQLiteStoreType, PostgresStoreType:
+	case MemoryStoreType, WALStoreType, SQLiteStoreType, PostgresStoreType, HybridStoreType:
 		// Valid types
 	case "":
 		return fmt.Errorf("store: type is required")
@@ -104,8 +108,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("store: batch_size must be non-negative")
 	}
 
-	// DataDir required for WAL/SQLite stores (PG uses it as connection string, optional)
-	if (c.Type == WALStoreType || c.Type == SQLiteStoreType) && c.DataDir == "" {
+	// DataDir required for WAL/SQLite/Hybrid stores
+	if (c.Type == WALStoreType || c.Type == SQLiteStoreType || c.Type == HybridStoreType) && c.DataDir == "" {
 		return fmt.Errorf("store: data_dir required for %s store", c.Type)
 	}
 
@@ -140,11 +144,25 @@ func New(cfg Config) (MessageStore, error) {
 		return nil, fmt.Errorf("store: sqlite store not yet implemented")
 
 	case PostgresStoreType:
-		connStr := cfg.DataDir // Reuse DataDir for PG connection string
+		connStr := cfg.ConnStr
+		if connStr == "" {
+			connStr = cfg.DataDir // Legacy: DataDir as connstr fallback
+		}
 		if connStr == "" {
 			connStr = "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable"
 		}
 		return NewPGStore(connStr, capacity)
+
+	case HybridStoreType:
+		connStr := cfg.ConnStr
+		if connStr == "" {
+			connStr = "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable"
+		}
+		walDir := cfg.DataDir
+		if walDir == "" {
+			walDir = "/var/lib/unheaded/wotan/wal"
+		}
+		return NewHybridStore(walDir, connStr, capacity)
 
 	default:
 		return nil, fmt.Errorf("store: unknown type %q", cfg.Type)
