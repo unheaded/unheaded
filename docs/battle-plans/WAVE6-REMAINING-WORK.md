@@ -22,7 +22,7 @@
 - [x] Sprint C: DONE — scheduler daemon + chat commands + emergency stop
 - [x] Sprint D: DONE — D1-D3 pkg/health + binary, D4 YAML config + EAST deploy (7/7 healthy, 0 false alerts)
 - [x] Sprint E: DONE — 12 .debs built, published to APT repo, 8 installed on EAST
-- [~] Sprint F: Pi-hole LXD — BLOCKED: LXD not initialized on WEST (snap install + lxd init needed first). Docker Pi-hole backup done.
+- [~] Sprint F: Pi-hole LXD — F1+F2 DONE: LXD Pi-hole running at 10.10.20.252, DNS resolution + ad blocking + custom DNS verified. F3 (host DNS cutover) awaiting user decision.
 - [x] Sprint G: DONE — ScanCode 8660 files clean, 99 deps audited, trademark cleared
 - [x] Sprint H: DONE — H1 JWT (123 tests) + H2 age encryption for sealed casks
 - [x] Sprint I: DONE — Wotan clustering (Wave 9: PG store, WAL, replication, failover, 39 ADRs)
@@ -276,18 +276,30 @@ Items that have tests passing but are NOT yet real implementations:
 **Runbook**: `runbooks/network/dns-pihole-lxd.yaml`
 **Time**: 1 session (needs user present for DNS cutover)
 
-- [ ] **F1** [B]: Execute runbook steps 1-8 (backup, create LXD, install, config)
+- [x] **F1** [B]: Execute runbook steps 1-8 (backup, create LXD, install, config)
   - GOTO: `runbooks/network/dns-pihole-lxd.yaml`
+  - **Result**: LXD container launched (ubuntu:24.04, 512MB), Pi-hole v6.4.1/FTL v6.6 installed
+  - Container IP: 10.10.20.252 (DHCP from lxdbr0 10.10.20.0/24)
+  - Fixed dns.mode=none by setting static /etc/resolv.conf before install
+  - Custom DNS: 26 local records loaded via pihole-FTL --config dns.hosts (v6 API, NOT custom.list)
+  - Web admin: http://10.10.20.252/admin/ (password: unheaded)
+  - Blocklist: 92,277 domains from StevenBlack/hosts
   - NEXT: F2
 
-- [ ] **F2** [V]: `dig @10.10.10.53 google.com` resolves + ads blocked
+- [x] **F2** [V]: `dig @10.10.20.252 google.com` resolves + ads blocked
+  - DNS resolution: google.com -> 142.251.x.x (PASS)
+  - Ad blocking: ads.doubleclick.net -> NXDOMAIN (PASS)
+  - Custom DNS: west.lab -> 192.168.69.184, east.lab -> 192.168.13.1, wotan.west -> 10.10.10.10 (PASS)
   - NEXT: F3
 
 - [ ] **F3** [ESCALATE]: Switch host DNS to LXD Pi-hole (live cutover)
   - Needs user approval — DNS downtime possible
+  - Command: `sudo resolvectl dns <interface> 10.10.20.252`
   - NEXT: F4
 
 - [ ] **F4** [B]: Stop Docker Pi-hole, re-enable LXD at boot
+  - `sudo docker stop pihole && sudo docker rm pihole`
+  - `/snap/bin/lxc config set pihole boot.autostart true`
   - NEXT: F5
 
 - [ ] **F5** [V]: **SPRINT F EXIT GATE**
