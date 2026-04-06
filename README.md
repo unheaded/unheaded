@@ -1,3 +1,7 @@
+kink
+s&m&ai
+
+
 # Unheaded
 
 Configuration management automation platform. Provisions backend infrastructure — service mesh, observability, security, control plane — from declarative configuration. The Unheaded Protocol encodes state in IPv6 Hop-by-Hop headers, processed at each hop via eBPF.
