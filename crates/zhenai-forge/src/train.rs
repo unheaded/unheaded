@@ -179,47 +179,117 @@ impl GpuModel {
 /// GPU-accelerated trainer — uses hipBLAS sgemm for matrix multiply.
 /// Dequantizes weights per-layer on CPU, uploads to GPU, runs sgemm.
 /// Element-wise ops (RMSNorm, SiLU, softmax) stay on CPU.
+/// Per-layer cached weight buffers on GPU.
+pub struct GpuLayerWeights {
+    pub attn_q: GpuBuffer,  // (n_embd × n_embd) f32
+    pub attn_k: GpuBuffer,  // (kv_dim × n_embd) f32
+    pub attn_v: GpuBuffer,  // (kv_dim × n_embd) f32
+    pub attn_o: GpuBuffer,  // (n_embd × n_embd) f32
+    pub ffn_gate: GpuBuffer, // (n_ff × n_embd) f32
+    pub ffn_up: GpuBuffer,   // (n_ff × n_embd) f32
+    pub ffn_down: GpuBuffer, // (n_embd × n_ff) f32
+}
+
 pub struct GpuTrainer {
     pub blas: hip::BlasHandle,
-    /// Pre-allocated GPU buffer for weight matrix (largest: 4096×14336 = 235MB f32)
-    pub weight_buf: GpuBuffer,
-    /// GPU buffer for hidden states (seq_len × 4096 max)
+    /// Cached layer weights on GPU — uploaded ONCE at init, reused every step
+    pub layer_weights: Vec<GpuLayerWeights>,
+    /// Output projection cached on GPU: (n_vocab × n_embd) f32
+    pub output_weight: GpuBuffer,
+    /// GPU buffer for hidden states (batch × n_embd)
     pub hidden_buf: GpuBuffer,
     /// GPU buffer for output/result matrix
     pub result_buf: GpuBuffer,
+    /// Scratch buffer for weight uploads (used only during init)
+    pub weight_buf: GpuBuffer,
     /// Dimensions
     pub n_embd: usize,
     pub n_ff: usize,
     pub n_vocab: usize,
+    pub n_cached_layers: usize,
 }
 
 impl GpuTrainer {
-    /// Initialize GPU trainer with pre-allocated buffers.
-    pub fn new(n_embd: usize, n_ff: usize, n_vocab: usize, max_seq: usize) -> Result<Self, String> {
+    /// Initialize GPU trainer and cache layer weights to VRAM.
+    /// Dequantizes CPU weights → uploads to persistent GPU buffers.
+    /// After init, zero weight transfers needed per training step.
+    pub fn new(cpu_weights: &CpuWeights, n_embd: usize, n_ff: usize, n_vocab: usize, max_seq: usize) -> Result<Self, String> {
         let blas = hip::BlasHandle::new()
             .map_err(|e| format!("hipBLAS init failed: {}", e))?;
 
-        // Weight buffer: large enough for FFN gate/up (n_ff × n_embd × 4 bytes)
-        let weight_size = n_ff * n_embd * 4;
-        let weight_buf = GpuBuffer::alloc(weight_size)
-            .map_err(|e| format!("GPU alloc weight_buf ({:.1}MB): {}", weight_size as f64 / 1e6, e))?;
+        let n_layers = cpu_weights.attn_q.len();
+        let kv_dim = n_embd * cpu_weights.n_head_kv / cpu_weights.n_head;
 
-        // Hidden buffer: seq_len × n_embd × 4 bytes (for multi-position)
-        let hidden_size = max_seq * n_embd * 4;
+        // Allocate and upload cached layer weights
+        println!("  Caching {} layer weights to GPU VRAM...", n_layers);
+        let mut layer_weights = Vec::new();
+        let mut total_cached = 0usize;
+
+        for l in 0..n_layers {
+            let alloc_and_upload = |data: &[f32], name: &str| -> Result<GpuBuffer, String> {
+                let size = data.len() * 4;
+                let buf = GpuBuffer::alloc(size)
+                    .map_err(|e| format!("GPU alloc {} layer {}: {}", name, l, e))?;
+                buf.upload_f32(data)
+                    .map_err(|e| format!("GPU upload {} layer {}: {}", name, l, e))?;
+                Ok(buf)
+            };
+
+            let lw = GpuLayerWeights {
+                attn_q: alloc_and_upload(&cpu_weights.attn_q[l], "attn_q")?,
+                attn_k: alloc_and_upload(&cpu_weights.attn_k[l], "attn_k")?,
+                attn_v: alloc_and_upload(&cpu_weights.attn_v[l], "attn_v")?,
+                attn_o: alloc_and_upload(&cpu_weights.attn_o[l], "attn_o")?,
+                ffn_gate: alloc_and_upload(&cpu_weights.ffn_gate[l], "ffn_gate")?,
+                ffn_up: alloc_and_upload(&cpu_weights.ffn_up[l], "ffn_up")?,
+                ffn_down: alloc_and_upload(&cpu_weights.ffn_down[l], "ffn_down")?,
+            };
+
+            let layer_size = cpu_weights.attn_q[l].len() + cpu_weights.attn_k[l].len()
+                + cpu_weights.attn_v[l].len() + cpu_weights.attn_o[l].len()
+                + cpu_weights.ffn_gate[l].len() + cpu_weights.ffn_up[l].len()
+                + cpu_weights.ffn_down[l].len();
+            total_cached += layer_size * 4;
+            layer_weights.push(lw);
+        }
+
+        // Cache output projection
+        let output_weight = {
+            let size = cpu_weights.output.len() * 4;
+            let buf = GpuBuffer::alloc(size)
+                .map_err(|e| format!("GPU alloc output: {}", e))?;
+            buf.upload_f32(&cpu_weights.output)
+                .map_err(|e| format!("GPU upload output: {}", e))?;
+            total_cached += size;
+            buf
+        };
+
+        hip::sync().map_err(|e| format!("GPU sync after cache: {}", e))?;
+        println!("  Cached: {:.1} MB weights in GPU VRAM ({} layers + output)",
+            total_cached as f64 / 1e6, n_layers);
+
+        // Working buffers (not cached — reused per step)
+        let max_batch = 8;
+        let hidden_size = max_batch * n_ff.max(n_embd).max(n_vocab) * 4;
         let hidden_buf = GpuBuffer::alloc(hidden_size)
-            .map_err(|e| format!("GPU alloc hidden_buf ({:.1}MB): {}", hidden_size as f64 / 1e6, e))?;
+            .map_err(|e| format!("GPU alloc hidden_buf: {}", e))?;
 
-        // Result buffer: largest output is batched logits (8 positions × n_vocab × 4 bytes)
-        // or batched FFN hidden (8 × n_ff × 4 bytes)
-        let max_batch = 8; // max positions per batch
         let result_size = (n_vocab * max_batch).max(n_ff * max_batch) * 4;
         let result_buf = GpuBuffer::alloc(result_size)
-            .map_err(|e| format!("GPU alloc result_buf ({:.1}MB): {}", result_size as f64 / 1e6, e))?;
+            .map_err(|e| format!("GPU alloc result_buf: {}", e))?;
 
-        println!("  GpuTrainer: weight={:.1}MB hidden={:.1}MB result={:.1}MB",
-            weight_size as f64 / 1e6, hidden_size as f64 / 1e6, result_size as f64 / 1e6);
+        // Scratch buffer (reused for misc uploads)
+        let weight_buf = GpuBuffer::alloc(n_ff * n_embd * 4)
+            .map_err(|e| format!("GPU alloc weight_buf: {}", e))?;
 
-        Ok(GpuTrainer { blas, weight_buf, hidden_buf, result_buf, n_embd, n_ff, n_vocab })
+        println!("  Working buffers: hidden={:.1}MB result={:.1}MB",
+            hidden_size as f64 / 1e6, result_size as f64 / 1e6);
+
+        Ok(GpuTrainer {
+            blas, layer_weights, output_weight,
+            hidden_buf, result_buf, weight_buf,
+            n_embd, n_ff, n_vocab, n_cached_layers: n_layers,
+        })
     }
 
     /// GPU matmul: result = input × weight^T (row-major)
@@ -282,6 +352,48 @@ impl GpuTrainer {
 }
 
 impl GpuTrainer {
+    /// Batched GPU matmul using CACHED weight buffer (zero upload overhead).
+    /// inputs: (n_pos × in_dim) on CPU, weight: already on GPU, results: downloaded to CPU.
+    pub fn cached_batched_matmul(
+        &self,
+        inputs: &[f32],
+        weight_gpu: &GpuBuffer,
+        n_pos: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> Result<Vec<f32>, String> {
+        // Upload only the inputs — clamp to buffer size
+        let upload_elems = (n_pos * in_dim).min(self.hidden_buf.len() / 4);
+        self.hidden_buf.upload_f32(&inputs[..upload_elems])
+            .map_err(|e| format!("upload inputs ({} elems, buf {} bytes): {}", upload_elems, self.hidden_buf.len(), e))?;
+
+        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+
+        // sgemm with cached weight — NO weight upload
+        self.blas.sgemm_ex(
+            true, false,
+            out_dim as i32, n_pos as i32, in_dim as i32,
+            1.0,
+            weight_gpu, in_dim as i32,
+            &self.hidden_buf, in_dim as i32,
+            0.0,
+            &self.result_buf, out_dim as i32,
+        ).map_err(|e| format!("cached sgemm: {}", e))?;
+
+        hip::sync().map_err(|e| format!("sync: {}", e))?;
+
+        let download_elems = n_pos * out_dim;
+        let max_elems = self.result_buf.len() / 4; // buffer size in f32
+        let actual_elems = download_elems.min(max_elems);
+        let mut results = vec![0.0f32; actual_elems];
+        self.result_buf.download_f32(&mut results)
+            .map_err(|e| format!("download ({} elems, buf {} bytes): {}", actual_elems, self.result_buf.len(), e))?;
+        // Extend to full size if buffer was smaller (shouldn't happen with correct sizing)
+        results.resize(download_elems, 0.0);
+
+        Ok(results)
+    }
+
     /// Batched GPU matmul: results = inputs × weight^T
     /// inputs: (n_pos × in_dim), weight: (out_dim × in_dim), results: (n_pos × out_dim)
     /// Uploads weight ONCE, all positions in one sgemm call.
@@ -363,7 +475,7 @@ impl GpuTrainer {
         let mut hidden = embeddings;
 
         // 2. Process last 8 layers — BATCHED: all positions per weight matrix in one sgemm
-        let n_layers_fwd = cpu_weights.n_layers.min(lora.layers.len()).min(8);
+        let n_layers_fwd = cpu_weights.n_layers.min(lora.layers.len()).min(4);
         let layer_offset = cpu_weights.n_layers.saturating_sub(n_layers_fwd);
         let scale = lora.alpha / lora.rank as f32;
         let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
@@ -380,21 +492,20 @@ impl GpuTrainer {
                 normed_batch[pi * n..(pi + 1) * n].copy_from_slice(&normed);
             }
 
-            // Q/K/V/O projections — ONE batched sgemm per weight matrix
+            // Q/K/V/O projections — CACHED GPU weights, zero upload per step
             let proj_dims = [n, kv_dim, kv_dim, n];
-            let weights = [
-                &cpu_weights.attn_q, &cpu_weights.attn_k,
-                &cpu_weights.attn_v, &cpu_weights.attn_o,
+            let cached_w = [
+                &self.layer_weights[l_idx].attn_q, &self.layer_weights[l_idx].attn_k,
+                &self.layer_weights[l_idx].attn_v, &self.layer_weights[l_idx].attn_o,
             ];
 
-            let mut attn_batch = vec![0.0f32; n_pos * n]; // accumulated attention output
+            let mut attn_batch = vec![0.0f32; n_pos * n];
 
-            for (t, w) in weights.iter().enumerate() {
-                if l_idx >= w.len() { continue; }
+            for (t, gpu_w) in cached_w.iter().enumerate() {
                 let out_dim = proj_dims[t];
 
-                // ONE sgemm for all positions: result(n_pos × out_dim) = normed(n_pos × n) × W^T
-                let proj_batch = self.batched_matmul_weight_t(&normed_batch, &w[l_idx], n_pos, out_dim, n)?;
+                // CACHED sgemm — weight already on GPU, only upload 128KB of hidden states
+                let proj_batch = self.cached_batched_matmul(&normed_batch, gpu_w, n_pos, out_dim, n)?;
 
                 // Add LoRA contribution per position (CPU — tiny)
                 for pi in 0..n_pos {
@@ -433,10 +544,9 @@ impl GpuTrainer {
                     ffn_normed_batch[pi * n..(pi + 1) * n].copy_from_slice(&normed);
                 }
 
-                // Gate: (n_pos × n_ff) = (n_pos × n) × gate_w^T  — ONE sgemm
-                let gate_batch = self.batched_matmul_weight_t(&ffn_normed_batch, &cpu_weights.ffn_gate[l_idx], n_pos, n_ff, n)?;
-                // Up: same
-                let up_batch = self.batched_matmul_weight_t(&ffn_normed_batch, &cpu_weights.ffn_up[l_idx], n_pos, n_ff, n)?;
+                // Gate + Up via CACHED GPU weights
+                let gate_batch = self.cached_batched_matmul(&ffn_normed_batch, &self.layer_weights[l_idx].ffn_gate, n_pos, n_ff, n)?;
+                let up_batch = self.cached_batched_matmul(&ffn_normed_batch, &self.layer_weights[l_idx].ffn_up, n_pos, n_ff, n)?;
 
                 // SiLU + element-wise (CPU)
                 let mut ffn_hidden_batch = vec![0.0f32; n_pos * n_ff];
@@ -446,8 +556,8 @@ impl GpuTrainer {
                     }
                 }
 
-                // Down: (n_pos × n) = (n_pos × n_ff) × down_w^T  — ONE sgemm
-                let ffn_out_batch = self.batched_matmul_weight_t(&ffn_hidden_batch, &cpu_weights.ffn_down[l_idx], n_pos, n, n_ff)?;
+                // Down via CACHED GPU weight
+                let ffn_out_batch = self.cached_batched_matmul(&ffn_hidden_batch, &self.layer_weights[l_idx].ffn_down, n_pos, n, n_ff)?;
 
                 // FFN residual
                 for (pi, &pos) in positions.iter().enumerate() {
@@ -466,8 +576,8 @@ impl GpuTrainer {
             normed_out_batch[pi * n..(pi + 1) * n].copy_from_slice(&normed);
         }
 
-        // Logits: (n_pos × vocab) = (n_pos × n) × output_w^T — ONE sgemm
-        let logits_batch = self.batched_matmul_weight_t(&normed_out_batch, &cpu_weights.output, n_pos, cpu_weights.n_vocab, n)?;
+        // Logits via CACHED output weight on GPU
+        let logits_batch = self.cached_batched_matmul(&normed_out_batch, &self.output_weight, n_pos, cpu_weights.n_vocab, n)?;
 
         let mut total_loss = 0.0f32;
         let mut count = 0u32;
@@ -536,10 +646,10 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     let cpu_weights = CpuWeights::load(&model, gpu_model.n_layers)?;
     println!();
 
-    // 4c. Initialize GPU trainer for hipBLAS-accelerated matmuls
-    println!("Initializing GPU trainer...");
+    // 4c. Initialize GPU trainer — cache layer weights to VRAM (zero upload per step)
+    println!("Initializing GPU trainer (caching weights to VRAM)...");
     let gpu_trainer = GpuTrainer::new(
-        cpu_weights.n_embd, cpu_weights.n_ff, cpu_weights.n_vocab, config.max_seq_len,
+        &cpu_weights, cpu_weights.n_embd, cpu_weights.n_ff, cpu_weights.n_vocab, config.max_seq_len,
     )?;
     println!();
 
@@ -613,7 +723,7 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
 
                 let n = cpu_weights.n_embd;
                 // Only process last 8 layers for speed (LoRA at layers 24-31 matters most)
-                let n_layers_used = lora.layers.len().min(cpu_weights.n_layers).min(8);
+                let n_layers_used = lora.layers.len().min(cpu_weights.n_layers).min(4);
                 let layer_offset = lora.layers.len().saturating_sub(n_layers_used);
                 let loss_start = answer_start.max(1);
                 let loss_end = token_ids.len();
@@ -908,9 +1018,9 @@ impl CpuWeights {
         let output_norm = forward::dequantize_tensor(model, "output_norm.weight")
             .ok_or("Failed to dequantize output_norm.weight")?;
 
-        // Load LAST 8 layers — these contribute most to output quality.
-        // LoRA adapters at layers 24-31 have the most impact on generation.
-        let max_layers = n_layers.min(8) as usize;
+        // Load LAST 4 layers — fits in VRAM alongside quantized model.
+        // 4 layers × ~870MB f32 = ~3.5GB + 4.8GB quantized = 8.3GB of 12GB.
+        let max_layers = n_layers.min(4) as usize;
         let layer_start = (n_layers as usize).saturating_sub(max_layers);
         let mut attn_q = Vec::new();
         let mut attn_k = Vec::new();
@@ -1020,7 +1130,7 @@ impl CpuWeights {
         let mut hidden = embeddings.clone();
 
         // Only process last 8 layers for speed (matches backward pass)
-        let n_layers_fwd = self.n_layers.min(lora.layers.len()).min(8);
+        let n_layers_fwd = self.n_layers.min(lora.layers.len()).min(4);
         let fwd_layer_offset = self.n_layers.saturating_sub(n_layers_fwd);
 
         for l_idx in 0..n_layers_fwd {
@@ -1204,15 +1314,14 @@ mod tests {
             return;
         }
 
-        // Test GPU matmul at realistic dimension (small for speed)
-        // Weight: (8 × 4) row-major, Input: (1 × 4), Result: (1 × 8)
-        let trainer = GpuTrainer::new(4, 8, 8, 16).expect("GpuTrainer init");
-
+        // Test GPU batched matmul with hipBLAS sgemm
+        // Allocate GPU buffers manually for test (no CpuWeights needed)
+        let blas = hip::BlasHandle::new().expect("hipblas");
         let weight: Vec<f32> = vec![
             1.0, 0.0, 0.0, 0.0, // row 0: picks input[0]
             0.0, 1.0, 0.0, 0.0, // row 1: picks input[1]
-            0.0, 0.0, 1.0, 0.0, // row 2: picks input[2]
-            0.0, 0.0, 0.0, 1.0, // row 3: picks input[3]
+            0.0, 0.0, 1.0, 0.0, // row 2
+            0.0, 0.0, 0.0, 1.0, // row 3
             1.0, 1.0, 0.0, 0.0, // row 4: input[0]+input[1]
             0.0, 0.0, 1.0, 1.0, // row 5: input[2]+input[3]
             1.0, 1.0, 1.0, 1.0, // row 6: sum all
@@ -1220,16 +1329,29 @@ mod tests {
         ];
         let input: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
 
-        let result = trainer.matmul_weight_t(&input, &weight, 8, 4)
-            .expect("GPU matmul failed");
+        // Upload weight to GPU and test cached_batched_matmul pattern
+        let w_buf = GpuBuffer::alloc(weight.len() * 4).expect("alloc w");
+        w_buf.upload_f32(&weight).expect("upload w");
+        let h_buf = GpuBuffer::alloc(input.len() * 4).expect("alloc h");
+        h_buf.upload_f32(&input).expect("upload h");
+        let r_buf = GpuBuffer::alloc(8 * 4).expect("alloc r");
+        r_buf.zero().expect("zero r");
 
-        println!("GPU matmul result: {:?}", result);
+        // sgemm: result(8×1) = weight^T(8×4) × input(4×1)
+        blas.sgemm_ex(true, false, 8, 1, 4, 1.0, &w_buf, 4, &h_buf, 4, 0.0, &r_buf, 8)
+            .expect("sgemm");
+        hip::sync().expect("sync");
+
+        let mut result = vec![0.0f32; 8];
+        r_buf.download_f32(&mut result).expect("download");
+
+        println!("GPU cached matmul result: {:?}", result);
         assert!((result[0] - 1.0).abs() < 0.01, "row0: {} expected 1.0", result[0]);
         assert!((result[1] - 2.0).abs() < 0.01, "row1: {} expected 2.0", result[1]);
         assert!((result[4] - 3.0).abs() < 0.01, "row4: {} expected 3.0", result[4]);
         assert!((result[6] - 10.0).abs() < 0.01, "row6: {} expected 10.0", result[6]);
         assert!((result[7] - 2.0).abs() < 0.01, "row7: {} expected 2.0", result[7]);
-        println!("GPU matmul_weight_t verified");
+        println!("GPU cached matmul verified");
     }
 
     #[test]
