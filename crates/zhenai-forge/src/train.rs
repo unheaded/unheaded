@@ -176,6 +176,313 @@ impl GpuModel {
     }
 }
 
+/// GPU-accelerated trainer — uses hipBLAS sgemm for matrix multiply.
+/// Dequantizes weights per-layer on CPU, uploads to GPU, runs sgemm.
+/// Element-wise ops (RMSNorm, SiLU, softmax) stay on CPU.
+pub struct GpuTrainer {
+    pub blas: hip::BlasHandle,
+    /// Pre-allocated GPU buffer for weight matrix (largest: 4096×14336 = 235MB f32)
+    pub weight_buf: GpuBuffer,
+    /// GPU buffer for hidden states (seq_len × 4096 max)
+    pub hidden_buf: GpuBuffer,
+    /// GPU buffer for output/result matrix
+    pub result_buf: GpuBuffer,
+    /// Dimensions
+    pub n_embd: usize,
+    pub n_ff: usize,
+    pub n_vocab: usize,
+}
+
+impl GpuTrainer {
+    /// Initialize GPU trainer with pre-allocated buffers.
+    pub fn new(n_embd: usize, n_ff: usize, n_vocab: usize, max_seq: usize) -> Result<Self, String> {
+        let blas = hip::BlasHandle::new()
+            .map_err(|e| format!("hipBLAS init failed: {}", e))?;
+
+        // Weight buffer: large enough for FFN gate/up (n_ff × n_embd × 4 bytes)
+        let weight_size = n_ff * n_embd * 4;
+        let weight_buf = GpuBuffer::alloc(weight_size)
+            .map_err(|e| format!("GPU alloc weight_buf ({:.1}MB): {}", weight_size as f64 / 1e6, e))?;
+
+        // Hidden buffer: seq_len × n_embd × 4 bytes (for multi-position)
+        let hidden_size = max_seq * n_embd * 4;
+        let hidden_buf = GpuBuffer::alloc(hidden_size)
+            .map_err(|e| format!("GPU alloc hidden_buf ({:.1}MB): {}", hidden_size as f64 / 1e6, e))?;
+
+        // Result buffer: largest output is batched logits (8 positions × n_vocab × 4 bytes)
+        // or batched FFN hidden (8 × n_ff × 4 bytes)
+        let max_batch = 8; // max positions per batch
+        let result_size = (n_vocab * max_batch).max(n_ff * max_batch) * 4;
+        let result_buf = GpuBuffer::alloc(result_size)
+            .map_err(|e| format!("GPU alloc result_buf ({:.1}MB): {}", result_size as f64 / 1e6, e))?;
+
+        println!("  GpuTrainer: weight={:.1}MB hidden={:.1}MB result={:.1}MB",
+            weight_size as f64 / 1e6, hidden_size as f64 / 1e6, result_size as f64 / 1e6);
+
+        Ok(GpuTrainer { blas, weight_buf, hidden_buf, result_buf, n_embd, n_ff, n_vocab })
+    }
+
+    /// GPU matmul: result = input × weight^T (row-major)
+    /// input: (1 × in_dim), weight: (out_dim × in_dim), result: (1 × out_dim)
+    /// Uses hipBLAS column-major: to compute row-major A×B^T, we do col-major B×A^T
+    pub fn matmul_weight_t(
+        &self,
+        input: &[f32],      // (1 × in_dim) — one position's hidden state
+        weight: &[f32],     // (out_dim × in_dim) — row-major weight matrix
+        out_dim: usize,
+        in_dim: usize,
+    ) -> Result<Vec<f32>, String> {
+        // Upload input to hidden_buf
+        self.hidden_buf.upload_f32(input)
+            .map_err(|e| format!("upload input: {}", e))?;
+
+        // Upload weight to weight_buf (stored row-major = column-major transpose)
+        self.weight_buf.upload_f32(&weight[..out_dim * in_dim])
+            .map_err(|e| format!("upload weight: {}", e))?;
+
+        // Zero result
+        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+
+        // hipBLAS column-major: C = alpha * op(A) * op(B) + beta * C
+        // We want: result(1×out) = input(1×in) × weight^T(in×out)
+        // Col-major: result(out×1) = weight(out×in) × input(in×1)
+        // So: m=out, n=1, k=in, A=weight(out×in), B=input(in×1), C=result(out×1)
+        // weight is row-major (out×in) which IS column-major layout for (out×in) matrix
+        // Actually: row-major(out×in) = col-major(in×out) transposed
+        // Use transpose flag on weight: C = weight^T × input won't work...
+        //
+        // Simplest: weight is (out_dim × in_dim) row-major.
+        // In col-major, this is a (in_dim × out_dim) matrix.
+        // We want: result = weight × input (row-major)
+        //        = input^T × weight^T (also row-major, same thing for vectors)
+        // Col-major: result(out×1) = weight_colmaj^T(out×in) × input(in×1)
+        // weight_colmaj is (in_dim × out_dim) so weight_colmaj^T is (out_dim × in_dim) ✓
+        self.blas.sgemm_ex(
+            true,   // transpose A (weight stored as col-major in×out, transpose to out×in)
+            false,  // no transpose B
+            out_dim as i32, // m = rows of result
+            1,              // n = 1 (single position)
+            in_dim as i32,  // k = inner dimension
+            1.0,
+            &self.weight_buf, in_dim as i32,  // lda = in_dim (col-major stride of the stored matrix)
+            &self.hidden_buf, in_dim as i32,  // ldb = in_dim (column height of input vector)
+            0.0,
+            &self.result_buf, out_dim as i32, // ldc = out_dim
+        ).map_err(|e| format!("sgemm: {}", e))?;
+
+        hip::sync().map_err(|e| format!("sync: {}", e))?;
+
+        // Download result
+        let mut result = vec![0.0f32; out_dim];
+        self.result_buf.download_f32(&mut result)
+            .map_err(|e| format!("download result: {}", e))?;
+
+        Ok(result)
+    }
+}
+
+impl GpuTrainer {
+    /// Batched GPU matmul: results = inputs × weight^T
+    /// inputs: (n_pos × in_dim), weight: (out_dim × in_dim), results: (n_pos × out_dim)
+    /// Uploads weight ONCE, all positions in one sgemm call.
+    pub fn batched_matmul_weight_t(
+        &self,
+        inputs: &[f32],     // (n_pos × in_dim) — multiple positions concatenated
+        weight: &[f32],     // (out_dim × in_dim) — row-major weight matrix
+        n_pos: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> Result<Vec<f32>, String> {
+        // Upload inputs (n_pos × in_dim) to GPU
+        self.hidden_buf.upload_f32(&inputs[..n_pos * in_dim])
+            .map_err(|e| format!("upload inputs: {}", e))?;
+
+        // Upload weight (out_dim × in_dim) to GPU — ONCE
+        self.weight_buf.upload_f32(&weight[..out_dim * in_dim])
+            .map_err(|e| format!("upload weight: {}", e))?;
+
+        // Zero result buffer
+        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+
+        // Batched sgemm: result(n_pos × out_dim) = inputs(n_pos × in_dim) × weight^T(in_dim × out_dim)
+        // Col-major: result_cm(out_dim × n_pos) = weight_cm^T(out_dim × in_dim) × inputs_cm(in_dim × n_pos)
+        self.blas.sgemm_ex(
+            true,               // transpose A (weight)
+            false,              // no transpose B (inputs)
+            out_dim as i32,     // m = rows of result
+            n_pos as i32,       // n = columns of result (number of positions)
+            in_dim as i32,      // k = inner dimension
+            1.0,
+            &self.weight_buf, in_dim as i32,
+            &self.hidden_buf, in_dim as i32,
+            0.0,
+            &self.result_buf, out_dim as i32,
+        ).map_err(|e| format!("batched sgemm: {}", e))?;
+
+        hip::sync().map_err(|e| format!("sync: {}", e))?;
+
+        // Download results (n_pos × out_dim)
+        let mut results = vec![0.0f32; n_pos * out_dim];
+        self.result_buf.download_f32(&mut results)
+            .map_err(|e| format!("download results: {}", e))?;
+
+        Ok(results)
+    }
+
+    /// GPU-accelerated forward loss — BATCHED hipBLAS sgemm.
+    /// All answer positions processed in ONE sgemm call per weight matrix.
+    /// This minimizes GPU↔CPU transfer overhead (upload weight once, compute all positions).
+    pub fn forward_loss(
+        &self,
+        cpu_weights: &CpuWeights,
+        token_ids: &[u32],
+        lora: &LoraAdapters,
+        answer_start: usize,
+    ) -> Result<f32, String> {
+        if token_ids.len() < 2 { return Ok(10.0); }
+
+        let n = cpu_weights.n_embd;
+        let seq_len = token_ids.len();
+        let loss_start = answer_start.max(1);
+        let max_positions: usize = 8;
+        let raw_n = if seq_len > loss_start + 1 { seq_len - loss_start - 1 } else { 0 };
+        if raw_n == 0 { return Ok(10.0); }
+        let stride = if raw_n > max_positions { raw_n / max_positions } else { 1 };
+
+        // Collect the positions we'll process
+        let mut positions: Vec<usize> = Vec::new();
+        let mut s = loss_start;
+        while s < seq_len {
+            positions.push(s);
+            s += stride;
+        }
+        let n_pos = positions.len();
+
+        // 1. Embedding lookup (CPU — fast indexing)
+        let embeddings = forward::embedding_lookup(&cpu_weights.embed, n, token_ids);
+        let mut hidden = embeddings;
+
+        // 2. Process last 8 layers — BATCHED: all positions per weight matrix in one sgemm
+        let n_layers_fwd = cpu_weights.n_layers.min(lora.layers.len()).min(8);
+        let layer_offset = cpu_weights.n_layers.saturating_sub(n_layers_fwd);
+        let scale = lora.alpha / lora.rank as f32;
+        let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
+
+        for l_idx in 0..n_layers_fwd {
+            let l_abs = layer_offset + l_idx;
+            if l_idx >= cpu_weights.attn_q.len() || l_idx >= cpu_weights.attn_norm.len() { break; }
+
+            // Batch: extract + normalize hidden states at all positions
+            let mut normed_batch = vec![0.0f32; n_pos * n]; // (n_pos × n)
+            for (pi, &pos) in positions.iter().enumerate() {
+                let input = &hidden[pos * n..(pos + 1) * n];
+                let normed = forward::rmsnorm(input, &cpu_weights.attn_norm[l_idx], 1e-5);
+                normed_batch[pi * n..(pi + 1) * n].copy_from_slice(&normed);
+            }
+
+            // Q/K/V/O projections — ONE batched sgemm per weight matrix
+            let proj_dims = [n, kv_dim, kv_dim, n];
+            let weights = [
+                &cpu_weights.attn_q, &cpu_weights.attn_k,
+                &cpu_weights.attn_v, &cpu_weights.attn_o,
+            ];
+
+            let mut attn_batch = vec![0.0f32; n_pos * n]; // accumulated attention output
+
+            for (t, w) in weights.iter().enumerate() {
+                if l_idx >= w.len() { continue; }
+                let out_dim = proj_dims[t];
+
+                // ONE sgemm for all positions: result(n_pos × out_dim) = normed(n_pos × n) × W^T
+                let proj_batch = self.batched_matmul_weight_t(&normed_batch, &w[l_idx], n_pos, out_dim, n)?;
+
+                // Add LoRA contribution per position (CPU — tiny)
+                for pi in 0..n_pos {
+                    let normed_slice = &normed_batch[pi * n..(pi + 1) * n];
+                    let lora_out = if l_abs < lora.layers.len() {
+                        lora.layers[l_abs][t].forward(normed_slice)
+                    } else {
+                        vec![0.0; out_dim]
+                    };
+
+                    let effective_dim = out_dim.min(n);
+                    for i in 0..effective_dim {
+                        let proj_val = proj_batch[pi * out_dim + i];
+                        let lora_val = if i < lora_out.len() { lora_out[i] } else { 0.0 };
+                        attn_batch[pi * n + i] += (proj_val + lora_val * scale) * 0.25;
+                    }
+                }
+            }
+
+            // Residual connection for all positions
+            for (pi, &pos) in positions.iter().enumerate() {
+                for i in 0..n {
+                    hidden[pos * n + i] += attn_batch[pi * n + i];
+                }
+            }
+
+            // FFN — also batched
+            if l_idx < cpu_weights.ffn_gate.len() && l_idx < cpu_weights.ffn_norm.len() {
+                let n_ff = cpu_weights.n_ff;
+
+                // Batch FFN inputs
+                let mut ffn_normed_batch = vec![0.0f32; n_pos * n];
+                for (pi, &pos) in positions.iter().enumerate() {
+                    let input = &hidden[pos * n..(pos + 1) * n];
+                    let normed = forward::rmsnorm(input, &cpu_weights.ffn_norm[l_idx], 1e-5);
+                    ffn_normed_batch[pi * n..(pi + 1) * n].copy_from_slice(&normed);
+                }
+
+                // Gate: (n_pos × n_ff) = (n_pos × n) × gate_w^T  — ONE sgemm
+                let gate_batch = self.batched_matmul_weight_t(&ffn_normed_batch, &cpu_weights.ffn_gate[l_idx], n_pos, n_ff, n)?;
+                // Up: same
+                let up_batch = self.batched_matmul_weight_t(&ffn_normed_batch, &cpu_weights.ffn_up[l_idx], n_pos, n_ff, n)?;
+
+                // SiLU + element-wise (CPU)
+                let mut ffn_hidden_batch = vec![0.0f32; n_pos * n_ff];
+                for pi in 0..n_pos {
+                    for i in 0..n_ff {
+                        ffn_hidden_batch[pi * n_ff + i] = forward::silu(gate_batch[pi * n_ff + i]) * up_batch[pi * n_ff + i];
+                    }
+                }
+
+                // Down: (n_pos × n) = (n_pos × n_ff) × down_w^T  — ONE sgemm
+                let ffn_out_batch = self.batched_matmul_weight_t(&ffn_hidden_batch, &cpu_weights.ffn_down[l_idx], n_pos, n, n_ff)?;
+
+                // FFN residual
+                for (pi, &pos) in positions.iter().enumerate() {
+                    for i in 0..n {
+                        hidden[pos * n + i] += ffn_out_batch[pi * n + i];
+                    }
+                }
+            }
+        }
+
+        // 3. Compute loss — batch output projection too
+        let mut normed_out_batch = vec![0.0f32; n_pos * n];
+        for (pi, &pos) in positions.iter().enumerate() {
+            let h = &hidden[pos * n..(pos + 1) * n];
+            let normed = forward::rmsnorm(h, &cpu_weights.output_norm, 1e-5);
+            normed_out_batch[pi * n..(pi + 1) * n].copy_from_slice(&normed);
+        }
+
+        // Logits: (n_pos × vocab) = (n_pos × n) × output_w^T — ONE sgemm
+        let logits_batch = self.batched_matmul_weight_t(&normed_out_batch, &cpu_weights.output, n_pos, cpu_weights.n_vocab, n)?;
+
+        let mut total_loss = 0.0f32;
+        let mut count = 0u32;
+        for (pi, &pos) in positions.iter().enumerate() {
+            if pos + 1 >= seq_len { continue; }
+            let logits = &logits_batch[pi * cpu_weights.n_vocab..(pi + 1) * cpu_weights.n_vocab];
+            let target = token_ids[pos + 1] % cpu_weights.n_vocab as u32;
+            total_loss += forward::cross_entropy_loss(logits, target);
+            count += 1;
+        }
+
+        Ok(if count > 0 { total_loss / count as f32 } else { 10.0 })
+    }
+}
+
 /// Training state and metrics.
 pub struct TrainState {
     pub epoch: u32,
@@ -229,6 +536,13 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     let cpu_weights = CpuWeights::load(&model, gpu_model.n_layers)?;
     println!();
 
+    // 4c. Initialize GPU trainer for hipBLAS-accelerated matmuls
+    println!("Initializing GPU trainer...");
+    let gpu_trainer = GpuTrainer::new(
+        cpu_weights.n_embd, cpu_weights.n_ff, cpu_weights.n_vocab, config.max_seq_len,
+    )?;
+    println!();
+
     // 5. Training loop
     let start = Instant::now();
     let mut state = TrainState {
@@ -278,9 +592,15 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
         for (i, token_ids) in cached_tokens.iter().enumerate() {
             let answer_start = cached_answer_starts[i];
 
-            // Forward pass with real model weights — multi-position loss on answer tokens
+            // Forward pass via GPU hipBLAS — multi-position loss on answer tokens
             let loss = if token_ids.len() >= 2 && answer_start < token_ids.len() - 1 {
-                cpu_weights.forward_loss(&token_ids, &lora, answer_start)
+                match gpu_trainer.forward_loss(&cpu_weights, &token_ids, &lora, answer_start) {
+                    Ok(l) => l,
+                    Err(e) => {
+                        eprintln!("  GPU forward error at step {}: {}", state.step, e);
+                        10.0 // fallback
+                    }
+                }
             } else {
                 10.0 // Skip very short sequences
             };
@@ -565,6 +885,8 @@ struct CpuWeights {
     n_embd: usize,
     n_ff: usize,
     n_layers: usize,
+    n_head: usize,
+    n_head_kv: usize,
 }
 
 impl CpuWeights {
@@ -586,8 +908,10 @@ impl CpuWeights {
         let output_norm = forward::dequantize_tensor(model, "output_norm.weight")
             .ok_or("Failed to dequantize output_norm.weight")?;
 
-        // Load layers — Q/K/V/O attention weights for full gradient signal
-        let max_layers = n_layers.min(8) as usize; // 8 layers — balanced speed vs quality
+        // Load LAST 8 layers — these contribute most to output quality.
+        // LoRA adapters at layers 24-31 have the most impact on generation.
+        let max_layers = n_layers.min(8) as usize;
+        let layer_start = (n_layers as usize).saturating_sub(max_layers);
         let mut attn_q = Vec::new();
         let mut attn_k = Vec::new();
         let mut attn_v = Vec::new();
@@ -598,7 +922,7 @@ impl CpuWeights {
         let mut attn_norm = Vec::new();
         let mut ffn_norm = Vec::new();
 
-        for l in 0..max_layers {
+        for l in layer_start..(layer_start + max_layers) {
             // Q/K/V/O projections
             for (name_suffix, vec) in [
                 ("attn_q", &mut attn_q),
@@ -648,6 +972,9 @@ impl CpuWeights {
 
         let n_ff = model.get_u32("llama.feed_forward_length").unwrap_or(14336) as usize;
 
+        let n_head = model.get_u32("llama.attention.head_count").unwrap_or(32) as usize;
+        let n_head_kv = model.get_u32("llama.attention.head_count_kv").unwrap_or(8) as usize;
+
         Ok(CpuWeights {
             embed, output, output_norm,
             attn_q, attn_k, attn_v, attn_o,
@@ -655,6 +982,7 @@ impl CpuWeights {
             attn_norm, ffn_norm,
             n_ff,
             n_vocab, n_embd, n_layers: max_layers,
+            n_head, n_head_kv,
         })
     }
 
@@ -867,6 +1195,41 @@ mod tests {
         assert_eq!(gpu_model.n_embd, 4096);
         assert!(gpu_model.vram_used > 0);
         println!("GPU model loaded: {:.1} MB VRAM", gpu_model.vram_used as f64 / 1e6);
+    }
+
+    #[test]
+    fn test_gpu_trainer_matmul() {
+        if GpuDevice::init(0).is_err() {
+            println!("No GPU, skipping");
+            return;
+        }
+
+        // Test GPU matmul at realistic dimension (small for speed)
+        // Weight: (8 × 4) row-major, Input: (1 × 4), Result: (1 × 8)
+        let trainer = GpuTrainer::new(4, 8, 8, 16).expect("GpuTrainer init");
+
+        let weight: Vec<f32> = vec![
+            1.0, 0.0, 0.0, 0.0, // row 0: picks input[0]
+            0.0, 1.0, 0.0, 0.0, // row 1: picks input[1]
+            0.0, 0.0, 1.0, 0.0, // row 2: picks input[2]
+            0.0, 0.0, 0.0, 1.0, // row 3: picks input[3]
+            1.0, 1.0, 0.0, 0.0, // row 4: input[0]+input[1]
+            0.0, 0.0, 1.0, 1.0, // row 5: input[2]+input[3]
+            1.0, 1.0, 1.0, 1.0, // row 6: sum all
+            2.0, 0.0, 0.0, 0.0, // row 7: 2*input[0]
+        ];
+        let input: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+
+        let result = trainer.matmul_weight_t(&input, &weight, 8, 4)
+            .expect("GPU matmul failed");
+
+        println!("GPU matmul result: {:?}", result);
+        assert!((result[0] - 1.0).abs() < 0.01, "row0: {} expected 1.0", result[0]);
+        assert!((result[1] - 2.0).abs() < 0.01, "row1: {} expected 2.0", result[1]);
+        assert!((result[4] - 3.0).abs() < 0.01, "row4: {} expected 3.0", result[4]);
+        assert!((result[6] - 10.0).abs() < 0.01, "row6: {} expected 10.0", result[6]);
+        assert!((result[7] - 2.0).abs() < 0.01, "row7: {} expected 2.0", result[7]);
+        println!("GPU matmul_weight_t verified");
     }
 
     #[test]
