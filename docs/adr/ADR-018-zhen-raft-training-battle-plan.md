@@ -1,6 +1,6 @@
 # ADR-018: Zhen RAFT Training — Battle Plan
 
-**Status:** ACCEPTED — 3965 QA pairs, fine-tuned via zhenai-forge (2026-04-03). kingdom.zlora deployed.
+**Status:** SUPERSEDED by ADR-030 (zhenai-forge Rust pipeline) + ADR-036 (Claude distillation). kingdom-v5.zlora training in progress (2026-04-06): step 13150/16304 epoch 1, loss 0.047, 16309 total QA pairs (3965 RAFT + 12026 Mistral-distilled + 368 Claude-distilled). Format_prompt DEAD CODE bug fixed in Wave 10.
 **Date:** 2026-03-16
 **Deciders:** Developer, Scientist
 **Depends on:** ADR-017 (context window optimization — complete)
