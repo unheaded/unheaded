@@ -155,6 +155,19 @@ CATEGORIES = {
         "prompt_prefix": "sprint battle plan and execution strategy",
         "qa_count": 8,
     },
+    "cs_sheets": {
+        "root_dir": "/var/zhen/cs/sheets/",
+        "extensions": [".md"],
+        "prompt_prefix": "technical reference cheat sheet",
+        "qa_count": 8,
+    },
+    "learning_books": {
+        "root_dir": "/var/zhen/learning/txt/",
+        "extensions": [".txt"],
+        "prompt_prefix": "technical reference book",
+        "qa_count": 12,
+        "max_content": 8000,
+    },
 }
 
 SYSTEM_PROMPT = """You are an expert technical writer generating training data for a local AI assistant called Zhenai.
@@ -219,6 +232,24 @@ def collect_files(category_name: str, category: dict) -> list[tuple[str, str]]:
                         try:
                             content = Path(fp).read_text(errors="replace")
                             if len(content) > 100:
+                                files.append((fp, content))
+                        except Exception:
+                            pass
+
+    if "root_dir" in category:
+        exts = set(category.get("extensions", []))
+        max_content = category.get("max_content", 0)
+        root_dir = category["root_dir"]
+        if os.path.isdir(root_dir):
+            for root, dirs, fnames in os.walk(root_dir):
+                for fn in sorted(fnames):
+                    if any(fn.endswith(e) for e in exts):
+                        fp = os.path.join(root, fn)
+                        try:
+                            content = Path(fp).read_text(errors="replace")
+                            if len(content) > 100:
+                                if max_content > 0 and len(content) > max_content:
+                                    content = content[:max_content] + "\n\n[... truncated for length ...]"
                                 files.append((fp, content))
                         except Exception:
                             pass

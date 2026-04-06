@@ -93,8 +93,8 @@ pub fn softmax(logits: &mut [f32]) {
 /// gate_weight: (ffn_dim × embed_dim), up_weight: (ffn_dim × embed_dim), down_weight: (embed_dim × ffn_dim)
 /// Input: (embed_dim,), Output: (embed_dim,)
 pub fn ffn_forward(input: &[f32], gate_w: &[f32], up_w: &[f32], down_w: &[f32], n_embd: usize, n_ff: usize) -> Vec<f32> {
-    let dims = n_embd.min(256); // Partial dims for speed
-    let ff_dims = n_ff.min(256);
+    let dims = n_embd.min(512); // Partial dims — 512 for reasonable quality/speed
+    let ff_dims = n_ff.min(512);
 
     // Gate projection: gate = gate_w × input
     let mut gate = vec![0.0f32; ff_dims];
