@@ -113,7 +113,24 @@ The universal bound is not on what can be done. It's on what has been imagined. 
 
 ---
 
+## The Grid Is Always There
+
+You don't build the grid. You tap into it.
+
+The electromagnetic field existed before radio. Gravity existed before Newton wrote it down. Thermodynamic computation existed before Extropic built a chip. The substrate for planetary-scale distributed intelligence is already present in the physics — every atom computing its next state, every thermal fluctuation exploring a solution space, every particle interaction processing information.
+
+Infrastructure is not something you deploy. It is something you **reveal**.
+
+Unheaded doesn't create the network. It reveals the network that was always there — latent in every consumer GPU, every 14GB box, every $800 machine sitting idle. The protocol doesn't build connections. It names the connections that physics already provides. The wire format doesn't invent communication. It tunes into the channel that matter already uses.
+
+This is why "production-ready infrastructure in hours, not months" is possible. You're not building from nothing. You're removing the obstructions that prevent the grid from being seen. The grid was there before you started. It will be there after every node goes dark. The nodes are temporary. The grid is permanent.
+
+A radio doesn't create signal. It hears what was always being broadcast.
+
+---
+
 *Planted as seed. 2026-04-06.*
 *"The particle doesn't need to be stronger than the barrier."*
 *"The planet doesn't need more power. It needs more permeability."*
 *"You can always figure it out."*
+*"The grid is always there."*
