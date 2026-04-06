@@ -282,6 +282,56 @@ impl Drop for GpuBuffer {
     }
 }
 
+// Safe f32 cast helpers (pub for use in train.rs)
+pub fn f32_as_bytes(data: &[f32]) -> &[u8] {
+    unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4) }
+}
+
+pub fn f32_as_bytes_mut(data: &mut [f32]) -> &mut [u8] {
+    unsafe { std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u8, data.len() * 4) }
+}
+
+impl GpuBuffer {
+    /// Upload f32 slice from CPU to GPU.
+    pub fn upload_f32(&self, data: &[f32]) -> Result<(), HipError> {
+        self.copy_from_host(f32_as_bytes(data))
+    }
+
+    /// Download f32 data from GPU to CPU.
+    pub fn download_f32(&self, data: &mut [f32]) -> Result<(), HipError> {
+        self.copy_to_host(f32_as_bytes_mut(data))
+    }
+}
+
+impl BlasHandle {
+    /// GPU matmul with transpose support: C = alpha * op(A) * op(B) + beta * C
+    /// transa/transb: false = no-transpose, true = transpose
+    pub fn sgemm_ex(
+        &self,
+        transa: bool, transb: bool,
+        m: i32, n: i32, k: i32,
+        alpha: f32,
+        a: &GpuBuffer, lda: i32,
+        b: &GpuBuffer, ldb: i32,
+        beta: f32,
+        c: &GpuBuffer, ldc: i32,
+    ) -> Result<(), HipError> {
+        let op_a = if transa { HipblasOperation::Transpose as i32 } else { HipblasOperation::None as i32 };
+        let op_b = if transb { HipblasOperation::Transpose as i32 } else { HipblasOperation::None as i32 };
+        check(unsafe {
+            hipblasSgemm(
+                self.handle, op_a, op_b,
+                m, n, k,
+                &alpha,
+                a.as_ptr() as *const c_void, lda,
+                b.as_ptr() as *const c_void, ldb,
+                &beta,
+                c.as_ptr() as *mut c_void, ldc,
+            )
+        })
+    }
+}
+
 /// Synchronize GPU — wait for all operations to complete.
 pub fn sync() -> Result<(), HipError> {
     check(unsafe { hipDeviceSynchronize() })
