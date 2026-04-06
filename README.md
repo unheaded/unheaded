@@ -1,5 +1,5 @@
 kink
-s&m&ai
+s and m & ai
 
 
 # Unheaded
