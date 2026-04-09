@@ -96,6 +96,87 @@ Reserved for monitoring and weather-related metaphors:
 | **Aether** | Upper atmosphere | High-level dashboard / overview metrics |
 | **Typhon** | Storm giant | Stress test / DDoS simulation |
 
+## Mímir's Law Components (ADR-043)
+
+The Mímir's Law / Gleipnir Phase 0 PoC introduces a coherent set of Norse-named
+components for UPC-controlled OS baseline delivery, drift detection, and (alerts-only
+v1) self-healing. All names are public-domain Norse mythology and clear ZERO Sacred
+Law conflicts. See [ADR-043](../adr/ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md).
+
+### Mímir — Speaker of the Baseline
+
+**Mythological**: Mímir is the wise head from Norse cosmology, the rememberer of
+all knowledge. Odin sacrificed an eye at Mímir's well for a single drink of its
+wisdom. After Mímir was killed in the Æsir-Vanir war, Odin preserved his head
+and consulted it for counsel.
+
+**Technical**: A conceptual role rather than a code path — Mímir is the
+authoritative speaker of baseline truth. The Mjölnir manifest is "Mímir's first
+declaration"; signed deltas are "Mímir's utterances." UPC executes Mímir's will.
+The PoC demonstrates that the OS can hear Mímir's word and align itself.
+
+### Mjölnir — The Baseline Definition
+
+**Mythological**: Thor's hammer, forged by the dwarves Sindri and Brokkr from
+star-iron. The foundational weapon of Asgard. When thrown, it always returns to
+Thor's hand. When laid against any oath, the oath becomes binding law.
+
+**Technical**: The canonical baseline definition file (`references/baseline/mjolnir.yaml`
++ `mjolnir.manifest.json`). Declares the desired OS state — packages, files,
+hashes, modes, owners. Once Mjölnir is placed, reality must conform.
+
+### Gungnir Seal — The Signature Wrapper
+
+**Mythological**: Gungnir is Odin's spear, also forged by the dwarves of
+Svartálfheim. It never misses its target and never fails to return. Odin pledged
+his oaths upon it.
+
+**Technical**: The ML-DSA-65 signature wrapper for every signable artifact in
+Mímir's Law (`pkg/gungnir/`, `*.gungnir.sig`). Algorithm is locked to ml-dsa-65
+explicitly — no algorithm agility — to block downgrade attacks. Every Mjölnir
+manifest, every config delta, every drift event, every Gjallarhorn audit message
+carries a Gungnir Seal.
+
+### Heimdall Daemon — The Eternal Watchman
+
+**Mythological**: Heimdall is the watchman of the Bifröst bridge, born of nine
+mothers, possessed of senses so sharp he can hear the grass grow on the earth and
+the wool grow on a sheep. He needs less sleep than a bird and sees a hundred
+leagues by day and night.
+
+**Technical**: The drift-detection daemon (`cmd/heimdall-daemon/`,
+`crates/heimdall-bpf/`). Aya eBPF programs hook `vfs_write`, `execve`, and
+`mmap` to observe filesystem and process activity at the kernel level. The
+userspace component reads ringbuf events, compares against the Mjölnir manifest,
+and publishes drift events to Wotan with a Gungnir Seal. Heimdall sees all
+changes; nothing escapes the watchman.
+
+### Gjallarhorn — The UPC Trigger Packet
+
+**Mythological**: Heimdall's horn, hidden under Yggdrasil's roots. When Heimdall
+blows Gjallarhorn, it signals the start of Ragnarök and rouses the gods to
+battle. The horn is heard across all the nine worlds.
+
+**Technical**: The specially-formed UPC trigger packet (`pkg/gjallarhorn/`)
+that fits within the frozen Monad v0x01 wire format (Kingdom Mode + flow action
+combination, 20-byte register payload). Has two modes:
+
+- **Bootstrap Broadcast** (multicast on local segment): wakes freshly-planted
+  seed nodes — *"you are part of cluster X, here is your Mjölnir manifest pointer."*
+  Same pattern as DHCP/PXE/Wake-on-LAN, but unified into the UPC primitive.
+- **Reverify Unicast** (over WireGuard overlay): prompts a specific existing
+  node to re-check its baseline against Mjölnir and report any drift.
+
+This is the discrete-trigger plane that complements Wotan's steady-state plane.
+Wotan handles continuous verification; Gjallarhorn delivers the one-shot kicks.
+
+### Naming arc
+
+ADR-69420 dreams the infrastructure (Sleipnir for routing, Yggdrasil for the OS,
+Gleipnir for config convergence). ADR-043 awakens it: Mímir speaks, Heimdall
+watches, Gjallarhorn calls, the seeds answer. *The infrastructure dreams; the
+infrastructure awakens.*
+
 ## Heritage Lineage
 
 The protocol names connect to a heritage lineage:

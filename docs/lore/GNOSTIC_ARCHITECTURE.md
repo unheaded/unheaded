@@ -96,6 +96,29 @@ The unheaded-daemon compares them every 30 seconds. If drift is detected:
 2. Remediation is attempted (restart, reconfig, redeploy)
 3. If remediation fails, alert escalation via Wotan
 
+### Enkrateia — The Restoration Verb (ADR-043)
+
+Greek ἐγκράτεια — *"self-control,"* *"mastery over oneself,"* *"continence."*
+In Gnostic ethical writing, Enkrateia is not a state — it is the *action* by
+which the soul aligns the material with the divine. Where Pleroma is the ideal
+that exists, Kenoma is the fallen reality, and Anamnesis is the memory of how
+they diverged, Enkrateia is the *will* that pulls Kenoma back into harmony with
+Pleroma.
+
+In the Mímir's Law PoC ([ADR-043](../adr/ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md)),
+Enkrateia (`pkg/enkrateia/`) is the restoration loop — the daemon that
+processes drift events from Heimdall and routes them. **In v1 of the PoC,
+Enkrateia is alerts-only**: it emits human-reviewable alerts and does NOT
+mutate filesystem state. This is a hard BlackMage condition: a machine that
+heals too aggressively becomes a machine that thrashes; a machine that trusts
+unsigned messages becomes a machine an attacker controls. Enkrateia must earn
+the right to act through the LICH-012 Configuration Convergence Attacks
+campaign before any auto-restore version (v2) is enabled.
+
+Enkrateia is not a new state layer in the Pleroma/Kenoma/Anamnesis trinity —
+it is the verb form of the reconciliation loop itself. The trinity describes
+*what is*; Enkrateia describes *what acts*.
+
 ### Yaldabaoth — Chaos Engineering
 
 Named for the Demiurge who introduces disorder to test creation, Yaldabaoth
