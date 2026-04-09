@@ -78,7 +78,7 @@ impl Default for TrainConfig {
             output_path: "kingdom.zlora".into(),
             rank: 16,
             epochs: 1,
-            lr: 1e-4,
+            lr: 1e-5,
             batch_size: 1,
             max_seq_len: 4096,
             log_interval: 50,
@@ -442,23 +442,22 @@ impl GpuTrainer {
     }
 
     /// GPU-accelerated forward loss — BATCHED hipBLAS sgemm.
-    /// All answer positions processed in ONE sgemm call per weight matrix.
-    /// This minimizes GPU↔CPU transfer overhead (upload weight once, compute all positions).
+    /// Returns (loss, per_layer_normed_inputs) — the normed inputs are reused in backward.
     pub fn forward_loss(
         &self,
         cpu_weights: &CpuWeights,
         token_ids: &[u32],
         lora: &LoraAdapters,
         answer_start: usize,
-    ) -> Result<f32, String> {
-        if token_ids.len() < 2 { return Ok(10.0); }
+    ) -> Result<(f32, Vec<Vec<Vec<f32>>>), String> {
+        if token_ids.len() < 2 { return Ok((10.0, Vec::new())); }
 
         let n = cpu_weights.n_embd;
         let seq_len = token_ids.len();
         let loss_start = answer_start.max(1);
         let max_positions: usize = 8;
         let raw_n = if seq_len > loss_start + 1 { seq_len - loss_start - 1 } else { 0 };
-        if raw_n == 0 { return Ok(10.0); }
+        if raw_n == 0 { return Ok((10.0, Vec::new())); }
         let stride = if raw_n > max_positions { raw_n / max_positions } else { 1 };
 
         // Collect the positions we'll process
@@ -480,16 +479,21 @@ impl GpuTrainer {
         let scale = lora.alpha / lora.rank as f32;
         let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
 
+        // Save per-layer normed inputs for backward pass reuse
+        let mut gpu_layer_normed: Vec<Vec<Vec<f32>>> = Vec::new();
+
         for l_idx in 0..n_layers_fwd {
             let l_abs = layer_offset + l_idx;
             if l_idx >= cpu_weights.attn_q.len() || l_idx >= cpu_weights.attn_norm.len() { break; }
 
             // Batch: extract + normalize hidden states at all positions
-            let mut normed_batch = vec![0.0f32; n_pos * n]; // (n_pos × n)
+            let mut normed_batch = vec![0.0f32; n_pos * n];
+            let mut pos_normed: Vec<Vec<f32>> = Vec::new();
             for (pi, &pos) in positions.iter().enumerate() {
                 let input = &hidden[pos * n..(pos + 1) * n];
                 let normed = forward::rmsnorm(input, &cpu_weights.attn_norm[l_idx], 1e-5);
                 normed_batch[pi * n..(pi + 1) * n].copy_from_slice(&normed);
+                pos_normed.push(normed);
             }
 
             // Q/K/V/O projections — CACHED GPU weights, zero upload per step
@@ -566,6 +570,7 @@ impl GpuTrainer {
                     }
                 }
             }
+            gpu_layer_normed.push(pos_normed);
         }
 
         // 3. Compute loss — batch output projection too
@@ -589,7 +594,8 @@ impl GpuTrainer {
             count += 1;
         }
 
-        Ok(if count > 0 { total_loss / count as f32 } else { 10.0 })
+        let avg_loss = if count > 0 { total_loss / count as f32 } else { 10.0 };
+        Ok((avg_loss, gpu_layer_normed))
     }
 }
 
@@ -702,17 +708,17 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
         for (i, token_ids) in cached_tokens.iter().enumerate() {
             let answer_start = cached_answer_starts[i];
 
-            // Forward pass via GPU hipBLAS — multi-position loss on answer tokens
-            let loss = if token_ids.len() >= 2 && answer_start < token_ids.len() - 1 {
+            // Forward pass via GPU hipBLAS — returns loss + normed inputs for backward reuse
+            let (loss, gpu_normed) = if token_ids.len() >= 2 && answer_start < token_ids.len() - 1 {
                 match gpu_trainer.forward_loss(&cpu_weights, &token_ids, &lora, answer_start) {
-                    Ok(l) => l,
+                    Ok((l, normed)) => (l, normed),
                     Err(e) => {
                         eprintln!("  GPU forward error at step {}: {}", state.step, e);
-                        10.0 // fallback
+                        (10.0, Vec::new())
                     }
                 }
             } else {
-                10.0 // Skip very short sequences
+                (10.0, Vec::new())
             };
 
             // Analytical backpropagation — multi-position gradient accumulation.
@@ -722,93 +728,63 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 use crate::backward;
 
                 let n = cpu_weights.n_embd;
-                // Only process last 8 layers for speed (LoRA at layers 24-31 matters most)
-                let n_layers_used = lora.layers.len().min(cpu_weights.n_layers).min(4);
-                let layer_offset = lora.layers.len().saturating_sub(n_layers_used);
+                // Process ALL 32 layers via stream-dequantization from GGUF.
+                // Each layer dequantized on demand, used, then dropped.
+                // Peak RAM: 1 layer's weights (~870MB) + hidden states + LoRA.
+                let n_layers_total = lora.layers.len(); // 32
                 let loss_start = answer_start.max(1);
                 let loss_end = token_ids.len();
-                // Cap answer positions to 8 for speed — sample evenly across the answer
-                let max_loss_positions: usize = 8;
+                let max_loss_positions: usize = 4; // fewer positions = faster per step
                 let raw_n_positions = if loss_end > loss_start + 1 { loss_end - loss_start - 1 } else { 1 };
                 let n_loss_positions = raw_n_positions.min(max_loss_positions);
-                // Stride to sample evenly across all answer positions
                 let stride = if raw_n_positions > max_loss_positions {
                     raw_n_positions / max_loss_positions
                 } else { 1 };
 
-                // === Forward pass through all layers, saving per-layer inputs ===
+                // === Backward uses normed inputs from GPU forward pass ===
+                // GPU forward processed layers [layer_offset..layer_offset+n_cached_layers]
+                // with full base weights. Those normed inputs are in `gpu_normed`.
+                // For layers NOT covered by GPU (0..layer_offset-1), compute LoRA-only.
+                let gpu_layer_offset = cpu_weights.n_layers.saturating_sub(gpu_trainer.n_cached_layers);
+                let scale = lora.alpha / lora.rank as f32;
+
+                // Build the unified normed_per_pos array for all 32 layers
+                let mut layer_normed_per_pos: Vec<Vec<Vec<f32>>> = Vec::new();
+
+                // For layers 0..gpu_layer_offset: LoRA-only forward to get normed inputs
                 let embeddings = forward::embedding_lookup(&cpu_weights.embed, n, &token_ids);
-                let mut hidden = embeddings.clone();
+                let mut hidden_bw = embeddings.clone();
 
-                // Per-layer saved activations: layer_normed[l] = normed input at each answer position
-                let mut layer_normed_per_pos: Vec<Vec<Vec<f32>>> = Vec::new(); // [layer][pos_idx] = normed
+                for l in 0..n_layers_total {
+                    if l >= gpu_layer_offset && (l - gpu_layer_offset) < gpu_normed.len() {
+                        // Use normed inputs from GPU forward (has base weights baked in)
+                        layer_normed_per_pos.push(gpu_normed[l - gpu_layer_offset].clone());
+                    } else {
+                        // Layers not covered by GPU — stream dequantize norm, LoRA-only forward
+                        let attn_norm = forward::dequantize_tensor(&model, &format!("blk.{}.attn_norm.weight", l))
+                            .unwrap_or_else(|| vec![1.0; n]);
 
-                for l_idx in 0..n_layers_used {
-                    let l = layer_offset + l_idx; // actual layer index
-                    if l >= cpu_weights.attn_q.len() { break; }
-
-                    let scale = lora.alpha / lora.rank as f32;
-                    let mut pos_normed: Vec<Vec<f32>> = Vec::new();
-
-                    // Process sampled answer positions through this layer (strided)
-                    let mut s = loss_start;
-                    while s < loss_end {
-                        let input = hidden[s * n..(s + 1) * n].to_vec();
-                        let normed = forward::rmsnorm(&input, &cpu_weights.attn_norm[l], 1e-5);
-
-                        // Save normed input for backward
-                        if s < loss_end - 1 {
-                            pos_normed.push(normed.clone());
-                        }
-
-                        // Q/K/V/O projections with LoRA
-                        let mut attn_output = vec![0.0f32; n];
-                        let weights = [
-                            &cpu_weights.attn_q, &cpu_weights.attn_k,
-                            &cpu_weights.attn_v, &cpu_weights.attn_o,
-                        ];
-                        for (t, w) in weights.iter().enumerate() {
-                            if l >= w.len() { continue; }
-                            let lora_out = lora.layers[l][t].forward(&normed);
-                            let dims = n.min(512);
-                            let mut proj = vec![0.0f32; n];
-                            for ii in 0..dims {
-                                let mut sum = 0.0f32;
-                                for jj in 0..dims {
-                                    sum += normed[jj] * w[l][ii * n + jj];
+                        let mut pos_normed: Vec<Vec<f32>> = Vec::new();
+                        let mut s = loss_start;
+                        while s < loss_end {
+                            let input = hidden_bw[s * n..(s + 1) * n].to_vec();
+                            let normed = forward::rmsnorm(&input, &attn_norm, 1e-5);
+                            if s < loss_end - 1 {
+                                pos_normed.push(normed.clone());
+                            }
+                            // LoRA-only residual for hidden state propagation
+                            for t in 0..4 {
+                                if l < lora.layers.len() {
+                                    let lora_out = lora.layers[l][t].forward(&normed);
+                                    for ii in 0..n.min(lora_out.len()) {
+                                        hidden_bw[s * n + ii] += lora_out[ii] * scale * 0.25;
+                                    }
                                 }
-                                proj[ii] = sum;
                             }
-                            for ii in 0..n.min(lora_out.len()) {
-                                proj[ii] += lora_out[ii] * scale;
-                            }
-                            for ii in 0..n {
-                                attn_output[ii] += proj[ii] * 0.25;
-                            }
+                            s += stride;
                         }
-
-                        // Residual
-                        for ii in 0..n {
-                            hidden[s * n + ii] += attn_output[ii];
-                        }
-
-                        // FFN
-                        if l < cpu_weights.ffn_gate.len() && l < cpu_weights.ffn_norm.len() {
-                            let ffn_input = hidden[s * n..(s + 1) * n].to_vec();
-                            let ffn_normed = forward::rmsnorm(&ffn_input, &cpu_weights.ffn_norm[l], 1e-5);
-                            let ffn_out = forward::ffn_forward(
-                                &ffn_normed,
-                                &cpu_weights.ffn_gate[l], &cpu_weights.ffn_up[l], &cpu_weights.ffn_down[l],
-                                n, cpu_weights.n_ff,
-                            );
-                            for ii in 0..n {
-                                hidden[s * n + ii] += ffn_out[ii];
-                            }
-                        }
-
-                        s += stride;
+                        layer_normed_per_pos.push(pos_normed);
                     }
-                    layer_normed_per_pos.push(pos_normed);
                 }
 
                 // === Backward pass: accumulate gradients from ALL answer positions ===
@@ -819,7 +795,7 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                     if t_pos + 1 >= token_ids.len() { break; }
 
                     // Output logits at this position
-                    let h = &hidden[t_pos * n..(t_pos + 1) * n];
+                    let h = &hidden_bw[t_pos * n..(t_pos + 1) * n];
                     let normed_out = forward::rmsnorm(h, &cpu_weights.output_norm, 1e-5);
                     let mut logits = vec![0.0f32; vocab_subset];
                     for v in 0..vocab_subset {
@@ -847,11 +823,10 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                         h, &cpu_weights.output_norm, &grad_normed, 1e-5);
 
                     // Through each layer (reverse) — accumulate LoRA gradients
-                    for l_idx in (0..n_layers_used.min(layer_normed_per_pos.len())).rev() {
-                        let l = layer_offset + l_idx; // actual layer index
+                    for l in (0..n_layers_total.min(layer_normed_per_pos.len())).rev() {
                         // Get saved normed input for this position at this layer
-                        let normed_input = if pos_idx < layer_normed_per_pos[l_idx].len() {
-                            &layer_normed_per_pos[l_idx][pos_idx]
+                        let normed_input = if pos_idx < layer_normed_per_pos[l].len() {
+                            &layer_normed_per_pos[l][pos_idx]
                         } else {
                             continue;
                         };
@@ -886,9 +861,7 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                     let scale = 1.0 / config.accum_steps as f32;
                     let lr = cosine_lr(config.lr, state.step, total_steps, warmup_steps);
 
-                    for l_idx in 0..n_layers_used.min(lora.layers.len()) {
-                        let l = layer_offset + l_idx;
-                        if l >= lora.layers.len() { break; }
+                    for l in 0..n_layers_total.min(lora.layers.len()) {
                         for t in 0..4 {
                             // Scale
                             for g in lora.layers[l][t].grad_a.iter_mut() { *g *= scale; }
