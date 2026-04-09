@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-04-05
-**Total:** 43 ADRs (ADR-012b deprecated, ADR-027-042 across sessions)
+**Last updated:** 2026-04-09
+**Total:** 44 ADRs (ADR-012b deprecated, ADR-027-043 across sessions)
 
 ## Status Summary
 
@@ -13,6 +13,7 @@
 | Deferred | 4 |
 | Pipe Dream | 1 |
 | Deprecated | 1 |
+| PoC / Research | 1 |
 
 **Zero Draft/Proposed remaining.**
 
@@ -64,3 +65,4 @@
 | [040](ADR-040-kubernetes-ecosystem-strategy.md) | Kubernetes Ecosystem Strategy | Planned | 2026-04-05 |
 | [041](ADR-041-kanban-timeline-sync.md) | Kanban ↔ Timeline Bidirectional Sync | Planned | 2026-04-05 |
 | [042](ADR-042-cs-blackmage-lich-integration.md) | CS → BlackMage Skill + Lich Security | Planned | 2026-04-05 |
+| [043](ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md) | Mímir's Law: UPC-Controlled Baseline (Gleipnir Phase 0 PoC) | **PoC / Research** | 2026-04-08 |

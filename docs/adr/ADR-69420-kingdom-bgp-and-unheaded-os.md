@@ -139,6 +139,8 @@ This is the same problem traditional catalog compilers solve: declare desired st
 
 Also a Ragnarok Online God Item crafting component — Gleipnir is assembled from the six pieces of Megingjard before the God Item can be created. Configuration convergence assembles disparate config fragments into a unified artifact.
 
+> **Phase 0 PoC**: [ADR-043 Mímir's Law](ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md) is an early dogfood prototype of Gleipnir, scoped as a 2-week PoC spike that lands a year ahead of the Age 2b production sprint. It demonstrates UPC-controlled baseline delivery via the Wotan steady-state plane PLUS a discrete-trigger plane (Gjallarhorn UPC packets) for fresh-seed bootstrap and unicast reverification. The Phase 0 PoC is alerts-only and uses Norse-named components Mjölnir/Gungnir/Heimdall/Gjallarhorn/Mímir + Gnostic-named Enkrateia. Its findings de-risk this Gleipnir Age 2b sprint. Round Table v2 verdict 2026-04-08.
+
 **Architecture**:
 
 ```

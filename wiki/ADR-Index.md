@@ -17,6 +17,9 @@
 | [013](../docs/adr/ADR-013-routing-header-support.md) | Routing Header Support | Accepted |
 | [014](../docs/adr/ADR-014-ipv6-fragmentation-support.md) | IPv6 Fragmentation Support | Accepted |
 | [015](../docs/adr/ADR-015-go-fiber-http-layer.md) | Go Fiber HTTP Layer | Accepted |
+| [043](../docs/adr/ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md) | Mímir's Law — UPC-Controlled Baseline (Gleipnir Phase 0 PoC) | PoC / Research |
+
+> **Note:** This wiki mirror is incomplete (ADRs 016-042 not yet rippled here — separate Librarian sweep needed). The canonical source is [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md), which has all 44 ADRs.
 
 ---
 
