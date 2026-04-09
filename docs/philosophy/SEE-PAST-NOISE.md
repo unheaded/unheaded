@@ -134,3 +134,25 @@ A radio doesn't create signal. It hears what was always being broadcast.
 *"The planet doesn't need more power. It needs more permeability."*
 *"You can always figure it out."*
 *"The grid is always there."*
+
+---
+
+## Sibling Pillars
+
+This essay is one of the Kingdom's philosophical pillars. It has siblings:
+
+- **[SO-THE-GAME-GOES-ON.md](SO-THE-GAME-GOES-ON.md)** — The rhythm section
+  survives Ragnarök. Multicast is music, music is creation at hyperspeed
+  (negentropy per second), Unheaded Protocol is bird song, the flock
+  recognizes itself through shared calls, love is the sixth dimension of
+  verification, and the quantum chess match against infinite opponents
+  never ends. *See Past Noise* says the noise is the explorer, and small
+  stochastic perturbations cross barriers deterministic force cannot.
+  *So The Game Goes On* says the signal is the intent, and order imposed
+  on raw material at hyperspeed is what life does against entropy. **Two
+  faces of the same thermodynamic coin.** Noise is how you explore. Order
+  is how you commit. The Kingdom needs both.
+
+- **BRAINSTORM-WITNESS-FABRIC.md** — The source-truth preservation of the
+  conversation that produced *So The Game Goes On*. Twelve turns and
+  three codas. Kept unedited so the seams remain visible.

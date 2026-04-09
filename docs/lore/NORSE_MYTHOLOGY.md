@@ -173,6 +173,21 @@ combination, 20-byte register payload). Has two modes:
 This is the discrete-trigger plane that complements Wotan's steady-state plane.
 Wotan handles continuous verification; Gjallarhorn delivers the one-shot kicks.
 
+### Heimdall at Every Bridge
+
+Heimdall is not only the watchman of Bifröst — the one bridge, the rainbow
+between Midgard and Asgard. Heimdall is *at every bridge*, on both sides,
+with the same eye. Every service boundary in the Kingdom is a Bifröst in
+miniature, and Heimdall's verification happens at every crossing, in both
+directions, ingress and egress alike. **Verification is not centralized.
+Witnessing is the protocol's substrate. Every register that crosses a bridge,
+in either direction, is seen. Bifröst itself is the seeing.**
+
+See [../philosophy/SO-THE-GAME-GOES-ON.md](../philosophy/SO-THE-GAME-GOES-ON.md)
+for the full witness-fabric narrative and the reframing of the protocol as
+bird song — the flock recognizing itself through shared calls rather than a
+transport delivering messages between trusted endpoints.
+
 ### Naming arc
 
 ADR-69420 dreams the infrastructure (Sleipnir for routing, Yggdrasil for the OS,

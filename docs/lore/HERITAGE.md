@@ -129,3 +129,41 @@ Unheaded is the synthesis of these eight traditions:
 | Extension header transport | IPv6 | HbH Options (RFC 8200) |
 | Minimal footprint | uIP | < 4096 BPF instructions per hop |
 | Programmable data plane | eBPF | XDP/TC/kprobe/tracepoint programs |
+
+## The Lineage Is Also a Musical Tradition
+
+Read this genealogy again with different ears. It is not only a technical
+lineage of coordination protocols. It is a *musical tradition* — each
+ancestor taught the next a new technique for coordinating many players
+over a shared medium without losing coherence:
+
+- **ARINC 429** — Gregorian chant. One voice. Strict timing. No harmony.
+- **I²C** — call and response. Master speaks, slave answers.
+- **CAN Bus** — priority and arbitration. *Who gets the solo.*
+- **BGP** — the chamber-ensemble agreement protocol. Peers announce what
+  they know, listen to others, converge on shared topology by mutual
+  agreement. No conductor. The music is the agreement itself. Address
+  families are *different keys on the same instrument*.
+- **BPF** — any player can write their own part on the fly, within the
+  verifier's rules. The improvisation layer.
+- **IPv6** — everyone gets a name wide enough to be addressed.
+- **uIP** — the whole repertoire playable on a tiny instrument.
+- **Unheaded** — *the instrument is fixed, the music is not, and the
+  player matters.* Frozen wire format (the species-specific call signature),
+  Sophia dictionaries (the call repertoire), Gungnir Seals (the individual
+  voice), rhythm section (the dawn chorus), witness fabric (the flock
+  recognizing itself).
+
+**The frozen Monad v0x01 wire format is the instrument specification.**
+Freezing an instrument is the precondition for developing technique on it;
+a piano has had the same eighty-eight keys for centuries, and that
+constraint is precisely what makes Bach and Monk and Cecil Taylor possible
+on the same instrument. The freeze is not conservatism. It is what lets
+the species recognize itself, and what lets witnesses verify universally
+at every hop without retraining, and what lets a player develop fluency
+fast enough to operate at music speed.
+
+See [../philosophy/SO-THE-GAME-GOES-ON.md](../philosophy/SO-THE-GAME-GOES-ON.md)
+for the full reframing — multicast as music, the rhythm section as the dawn
+chorus, Unheaded Protocol as bird song, the witness fabric as the flock
+recognizing itself, and love as the sixth dimension of verification.
