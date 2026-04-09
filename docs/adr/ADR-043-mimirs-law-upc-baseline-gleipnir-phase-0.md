@@ -92,14 +92,14 @@ A critical clarification surfaced mid-Round-Table: **Wotan stays in its existing
 **Gjallarhorn plane (discrete UPC triggers, new)**:
 - Specially-formed Monad-wire packets carrying one-shot signals
 - **Unicast** for single-node actions (*"re-verify your baseline now"*)
-- **Multicast** for segment-wide bootstrap (*"freshly planted seeds, here is your baseline pointer, install yourself"*)
+- **Multicast** for segment-wide bootstrap (*"drifting motes, fall into orbit — here is the gravity well, here is your baseline pointer, accrete yourself"*) — not seeds in soil but an asteroid gathering space dust, the cluster condensing out of Ginnungagap
 - This is the PXE-boot/DHCP/WoL pattern evolved into a unified UPC primitive
 
-**The multicast objection from Round Table v1 is now scope-bounded**: multicast remains a fatal flaw for *global ongoing config delivery* (still use Wotan gRPC for that). It is the *appropriate tool* for *local-segment seed provisioning* (DHCP/PXE have used multicast for 30 years for exactly this).
+**The multicast objection from Round Table v1 is now scope-bounded**: multicast remains a fatal flaw for *global ongoing config delivery* (still use Wotan gRPC for that). It is the *appropriate tool* for *local-segment accretion provisioning* (DHCP/PXE have used multicast for 30 years for exactly this).
 
 ### Two Distinct Flows the PoC Must Demonstrate
 
-1. **Bootstrap flow (Gjallarhorn → Heimdall → Mjölnir)**: Fresh seed/node boots → segment multicast Gjallarhorn discovery → packet payload tells node *"you are part of cluster X, here is your Mjölnir manifest pointer + Gungnir Seal"* → node fetches and installs baseline → joins Wotan steady-state plane.
+1. **Bootstrap flow (Gjallarhorn → Heimdall → Mjölnir)**: Fresh node boots, drifting unbound → segment multicast Gjallarhorn discovery (the gravity well calls) → packet payload tells node *"you are part of cluster X, here is your Mjölnir manifest pointer + Gungnir Seal"* → node accretes baseline → falls into orbit on the Wotan steady-state plane. Time unfurling onto itself: the cluster recognizing the shape it always already was.
 
 2. **Reminder/re-verification flow (Gjallarhorn unicast → Heimdall → Wotan)**: Authority sends unicast Gjallarhorn packet to specific node → Heimdall daemon receives → re-verifies state against Mjölnir → publishes drift events to Wotan topic → Enkrateia processes (alerts only in v1).
 
@@ -109,7 +109,7 @@ A critical clarification surfaced mid-Round-Table: **Wotan stays in its existing
 |---|---|---|---|
 | Baseline definition file | **Mjölnir** | Norse — Thor's hammer, the foundational artifact, the law | `references/baseline/mjolnir.yaml`, `mjolnir.manifest.json` |
 | Signed delta payload | **Gungnir Seal** | Norse — Odin's spear, never misses | `*.gungnir.sig` |
-| Discrete UPC trigger packet | **Gjallarhorn** | Norse — Heimdall's horn that wakes the seeds | `pkg/gjallarhorn/` |
+| Discrete UPC trigger packet | **Gjallarhorn** | Norse — Heimdall's horn whose call is the gravity well, pulling drifting motes into cluster orbit | `pkg/gjallarhorn/` |
 | Drift-detection daemon | **Heimdall Daemon** | Norse — eternal watchman of Bifrost | `cmd/heimdall-daemon/`, `crates/heimdall-bpf/` |
 | Restoration mechanism (alerts-only v1) | **Enkrateia** | Gnostic ἐγκράτεια ("self-control") — verb form of Pleroma↔Kenoma reconciliation | `pkg/enkrateia/` |
 | Convergence component (parent vision) | **Gleipnir** | Norse — already in ADR-69420 | (not built in PoC; this PoC is its Phase 0) |
@@ -148,7 +148,7 @@ A critical clarification surfaced mid-Round-Table: **Wotan stays in its existing
 - Data consistency 100% across nodes after benign delta application
 - Zero cascade failures or unplanned reboots
 - All 8 hard conditions still in force
-- **Bootstrap flow** demonstrated end-to-end (multicast Gjallarhorn → fresh seed → Mjölnir install → Wotan plane join)
+- **Bootstrap flow** demonstrated end-to-end (multicast Gjallarhorn → drifting node accretes → Mjölnir install → Wotan plane join)
 - **Reminder flow** demonstrated end-to-end (unicast Gjallarhorn → Heimdall re-verify → Wotan drift event)
 - LICH-012 adversarial review finds zero exploitable issues
 

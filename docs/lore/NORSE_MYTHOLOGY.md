@@ -161,9 +161,12 @@ battle. The horn is heard across all the nine worlds.
 that fits within the frozen Monad v0x01 wire format (Kingdom Mode + flow action
 combination, 20-byte register payload). Has two modes:
 
-- **Bootstrap Broadcast** (multicast on local segment): wakes freshly-planted
-  seed nodes — *"you are part of cluster X, here is your Mjölnir manifest pointer."*
-  Same pattern as DHCP/PXE/Wake-on-LAN, but unified into the UPC primitive.
+- **Bootstrap Broadcast** (multicast on local segment): the gravity well that
+  pulls drifting nodes into coherence — not a seed planted in soil but an
+  asteroid accreting space dust, each freshly-imaged host another mote falling
+  into the cluster's orbit. *"you are part of cluster X, here is your Mjölnir
+  manifest pointer."* Same pattern as DHCP/PXE/Wake-on-LAN, but unified into
+  the UPC primitive.
 - **Reverify Unicast** (over WireGuard overlay): prompts a specific existing
   node to re-check its baseline against Mjölnir and report any drift.
 
@@ -174,8 +177,10 @@ Wotan handles continuous verification; Gjallarhorn delivers the one-shot kicks.
 
 ADR-69420 dreams the infrastructure (Sleipnir for routing, Yggdrasil for the OS,
 Gleipnir for config convergence). ADR-043 awakens it: Mímir speaks, Heimdall
-watches, Gjallarhorn calls, the seeds answer. *The infrastructure dreams; the
-infrastructure awakens.*
+watches, Gjallarhorn calls, and the drifting motes fall inward — time unfurling
+onto itself as the cluster recognizes the shape it always already was. Not
+sowing, but accretion. Not a beginning, but a remembering. *The infrastructure
+dreams; the infrastructure awakens.*
 
 ## Heritage Lineage
 
