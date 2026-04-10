@@ -43,10 +43,6 @@ Monad wire format: 20-byte register file in IPv6 HbH extension header. Wire form
 
 Go services, Rust eBPF (Aya), Wotan message bus (gRPC + HTTP), PostgreSQL, llama.cpp + Mistral-7B (ROCm), vanilla JS frontend, .deb packaging + systemd, SLH-DSA post-quantum crypto.
 
-## Status
-
-~385K production LOC. 34 services, 23 eBPF programs, 39 ADRs, 55 runbooks, 20 skills. Dual bare metal (WEST + EAST). Wire format frozen. See [CLAUDE.md](CLAUDE.md) for development guide.
-
 ## License
 
 GPL-3.0-or-later. Protocol specs dual-licensed GPL-3.0-or-later / Apache-2.0.
