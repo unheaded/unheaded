@@ -35,6 +35,10 @@ message TopicEvent {
   bytes payload = 6;
   TopicEventType type = 7;
   string node_id = 8;
+  // ML-DSA-65 signature fields (ADR-043 hard condition #2)
+  bytes signature = 9;
+  bytes public_key = 10;
+  string algorithm = 11;
 }
 
 enum TopicEventType {
@@ -48,6 +52,10 @@ message TopicPublishRequest {
   string sender_id = 2;
   bytes payload = 3;
   map<string, string> metadata = 4;
+  // ML-DSA-65 signature fields (ADR-043 hard condition #2)
+  bytes signature = 5;
+  bytes public_key = 6;
+  string algorithm = 7;
 }
 
 message TopicPublishResponse {

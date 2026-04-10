@@ -12,11 +12,12 @@ import (
 
 	"github.com/google/uuid"
 	chatpb "unheaded/services/wotan/proto"
-	"unheaded/services/wotan/internal/wotan"
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/signing"
+	"unheaded/services/wotan/internal/wotan"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -75,6 +76,9 @@ type TopicService struct {
 
 	// Track active streams for metrics/TopicPing
 	activeStreams atomic.Int64
+
+	// ML-DSA-65 verifier for config.* topic signing (ADR-043 hard condition #2)
+	topicVerifier *signing.TopicVerifier
 }
 
 // NewTopicService creates a new TopicService.
@@ -83,11 +87,13 @@ func NewTopicService(
 	memberManager *member.Manager,
 	msgWotan *wotan.Wotan,
 ) *TopicService {
+	verifier, _ := signing.NewTopicVerifier() // nil-safe: PublishTopic checks before use
 	return &TopicService{
 		roomManager:   roomManager,
 		memberManager: memberManager,
 		wotan:        msgWotan,
 		seqCounter:    NewTopicSequenceCounter(),
+		topicVerifier: verifier,
 	}
 }
 
@@ -411,6 +417,25 @@ func (s *TopicService) PublishTopic(
 			Str("topic", req.Topic).
 			Msg("payload_required")
 		return nil, status.Error(codes.InvalidArgument, "payload is required")
+	}
+
+	// ADR-043 hard condition #2: config.* topics require ML-DSA-65 signature
+	if signing.RequiresSignature(req.Topic) {
+		if len(req.Signature) == 0 || len(req.PublicKey) == 0 {
+			logger.FromContext(ctx).Warn().
+				Str("topic", req.Topic).
+				Msg("config_topic_unsigned")
+			return nil, status.Error(codes.InvalidArgument, "config.* topics require ML-DSA-65 signature")
+		}
+		if s.topicVerifier != nil {
+			if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, req.Signature, req.PublicKey, req.Algorithm); err != nil {
+				logger.FromContext(ctx).Warn().
+					Err(err).
+					Str("topic", req.Topic).
+					Msg("config_topic_signature_invalid")
+				return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
+			}
+		}
 	}
 
 	// Get or create the room for this topic
