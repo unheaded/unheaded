@@ -84,6 +84,14 @@ impl LoraLayer {
     /// Forward pass: compute LoRA output = (B × A) × input
     /// Input shape: (input_dim,), Output shape: (output_dim,)
     pub fn forward(&self, input: &[f32]) -> Vec<f32> {
+        let (output, _) = self.forward_with_hidden(input);
+        output
+    }
+
+    /// Forward pass returning both the output AND the intermediate hidden state.
+    /// hidden = A × input (rank,), output = B × hidden (output_dim,)
+    /// The hidden state is needed by lora_backward for correct gradient computation.
+    pub fn forward_with_hidden(&self, input: &[f32]) -> (Vec<f32>, Vec<f32>) {
         assert_eq!(input.len(), self.input_dim as usize);
 
         // Step 1: hidden = A × input (rank,)
@@ -106,7 +114,7 @@ impl LoraLayer {
             output[o] = sum;
         }
 
-        output
+        (output, hidden)
     }
 
     /// Number of trainable parameters in this layer.
