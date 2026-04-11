@@ -1,0 +1,28 @@
+# Mjölnir Baseline Manifest — example
+# Per ADR-043: canonical baseline definition for Mímir's Law / Gleipnir Phase 0
+apiVersion: mimir.unheaded.dev/v1alpha1
+kind: BaselineManifest
+metadata:
+  name: yggdrasil-debian12-hardened
+  version: 0.1.0
+  created: 2026-04-10T00:00:00Z
+  signed_by: spike/mimirs-law/dev-key
+spec:
+  base_image:
+    distro: debian
+    release: bookworm
+    digest: sha256:DEADBEEF
+  files:
+    - path: /etc/ssh/sshd_config
+      sha256: BEEFCAFE
+      mode: "0600"
+      owner: "root:root"
+    - path: /etc/sysctl.d/99-hardening.conf
+      sha256: F00DC0DE
+      mode: "0644"
+      owner: "root:root"
+  packages:
+    - name: openssh-server
+      version: ">=9.2"
+    - name: dm-verity-tools
+      version: ">=2.04"

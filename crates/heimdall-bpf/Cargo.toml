@@ -1,0 +1,27 @@
+[package]
+name = "heimdall-bpf"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "heimdall-vfs-write"
+path = "src/vfs_write.rs"
+
+[[bin]]
+name = "heimdall-execve"
+path = "src/execve.rs"
+
+[[bin]]
+name = "heimdall-gjallarhorn-xdp"
+path = "src/gjallarhorn_xdp.rs"
+
+[dependencies]
+aya-ebpf = "0.1"
+aya-log-ebpf = "0.1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+debug = false
+strip = true
