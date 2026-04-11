@@ -29,6 +29,13 @@
 **ADRs**
 - [[ADR Index|ADR-Index]]
 - [[ADR-69420 (Sleipnir + Yggdrasil)|ADR-69420]]
+- [[ADR-043 Mímir's Law|Mimirs-Law]]
+
+**Mímir's Law Spike**
+- [[Overview|Mimirs-Law]]
+- [[Wotan Topic Signing|Wotan-Topic-Signing]]
+- [[Wave 10C Backprop|Wave-10C-Backprop]]
+- [[So The Game Goes On|So-The-Game-Goes-On]]
 
 **Security**
 - [[Overview|Security]]

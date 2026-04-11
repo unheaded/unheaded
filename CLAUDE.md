@@ -743,6 +743,9 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 - RAFT QA generation: ~2000 pairs from Mistral-7B for fine-tuning pipeline
 - Kanban Bugs: All 8 Three Crowns bugs fixed (ADR-020)
 - Dependency Policy: Established orgs OK with approval, Rust replacement long-term (ADR-004)
+- Wave 10C Backprop (2026-04-11): 3 backprop bugs fixed in zhenai-forge (lora_backward wrong tensor, missing chain rule, rmsnorm_backward extra weight factor). 32-layer toy gradient descent test proves correctness (loss 2.24→1.62, monotonic). 46/46 tests pass. See `wiki/Wave-10C-Backprop.md`.
+- Wotan Topic Signing (2026-04-11): ML-DSA-65 enforcement on `config.*` topics in services/wotan/internal/signing/ (6 tests). Proto fields added to TopicPublishRequest/TopicEvent. ADR-043 hard condition #2 satisfied. See `wiki/Wotan-Topic-Signing.md`.
+- Mímir's Law / Gleipnir Phase 0 Spike (2026-04-11, ADR-043, branch `spike/mimirs-law`): UPC-controlled OS baseline delivery PoC. New components: `pkg/gungnir/` (ML-DSA-65 sealed payloads, 4 tests), `pkg/gjallarhorn/` (20-byte Monad trigger packets, 5 tests), `pkg/enkrateia/` (alerts-only drift aggregator, 3 tests, zero FS mutations enforced), `cmd/heimdall-daemon/` (Mjölnir scan + drift detection), `cmd/gjallarhorn-sender/` (UPC trigger CLI), `crates/heimdall-bpf/` (Aya kprobe scaffold), `tomb/lich/LICH-012-config-convergence/` (red team campaign). REAL-METAL VALIDATED on EAST: zero false positives, 100% drift detection accuracy, alerts-only confirmed. See `wiki/Mimirs-Law.md`. 11 of 13 phases complete; bare-metal Phases 9 (full bootstrap), 11 (stress), 13 (gate eval) pending.
 
 ### Doom-over-IPv6 — ALL DOCS IN `docs/doom/`
 

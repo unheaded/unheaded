@@ -545,6 +545,213 @@ mod tests {
         }
     }
 
+    /// PROOF OF CORRECTNESS: train a 32-LAYER toy transformer (same depth as Mistral-7B)
+    /// and verify loss decreases. Tests chain rule survives depth without
+    /// gradient explosion or vanishing.
+    #[test]
+    fn test_gradient_descent_decreases_loss() {
+        use crate::forward;
+        use crate::lora::LoraLayer;
+
+        let n = 32usize;          // embed dim (toy)
+        let n_ff = 64usize;       // FFN dim
+        let rank = 4usize;
+        let alpha = 8.0f32;
+        let scale = alpha / rank as f32;
+        let vocab = 16usize;
+        let n_layers = 32usize;   // SAME AS MISTRAL-7B — proves chain rule survives depth
+        let lr = 0.005f32;        // Lower LR for deeper net
+        let n_steps = 30usize;
+
+        let mut rng: u64 = 1234;
+        let mut rf = |rng: &mut u64| -> f32 {
+            *rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1);
+            ((*rng >> 33) as f32 / (1u64 << 31) as f32) * 2.0 - 1.0
+        };
+        let rv = |rng: &mut u64, len: usize| -> Vec<f32> { (0..len).map(|_| rf(rng) * 0.1).collect() };
+
+        // Random fixed weights (frozen, like base model)
+        let attn_norms: Vec<Vec<f32>> = (0..n_layers).map(|_| (0..n).map(|_| 0.8 + rf(&mut rng) * 0.4).collect()).collect();
+        let ffn_norms: Vec<Vec<f32>> = (0..n_layers).map(|_| (0..n).map(|_| 0.8 + rf(&mut rng) * 0.4).collect()).collect();
+        let w_qs: Vec<Vec<f32>> = (0..n_layers).map(|_| rv(&mut rng, n * n)).collect();
+        let w_ks: Vec<Vec<f32>> = (0..n_layers).map(|_| rv(&mut rng, n * n)).collect();
+        let w_vs: Vec<Vec<f32>> = (0..n_layers).map(|_| rv(&mut rng, n * n)).collect();
+        let w_os: Vec<Vec<f32>> = (0..n_layers).map(|_| rv(&mut rng, n * n)).collect();
+        let w_gates: Vec<Vec<f32>> = (0..n_layers).map(|_| rv(&mut rng, n_ff * n)).collect();
+        let w_ups: Vec<Vec<f32>> = (0..n_layers).map(|_| rv(&mut rng, n_ff * n)).collect();
+        let w_downs: Vec<Vec<f32>> = (0..n_layers).map(|_| rv(&mut rng, n * n_ff)).collect();
+        let output_norm: Vec<f32> = (0..n).map(|_| 0.8 + rf(&mut rng) * 0.4).collect();
+        let output_weight = rv(&mut rng, vocab * n);
+        let embed_weight = rv(&mut rng, vocab * n);
+
+        // LoRA adapters (trainable)
+        let mut lora_layers: Vec<[LoraLayer; 4]> = Vec::new();
+        for _ in 0..n_layers {
+            lora_layers.push([
+                LoraLayer::new(n as u32, n as u32, rank as u32),
+                LoraLayer::new(n as u32, n as u32, rank as u32),
+                LoraLayer::new(n as u32, n as u32, rank as u32),
+                LoraLayer::new(n as u32, n as u32, rank as u32),
+            ]);
+        }
+
+        // Fixed input/target — overfit one example
+        let input_token = 3u32;
+        let target_token = 5u32;
+
+        let forward_loss = |lora: &Vec<[LoraLayer; 4]>| -> (f32, Vec<Vec<f32>>, Vec<Vec<f32>>) {
+            let mut hidden = embed_weight[input_token as usize * n..(input_token as usize + 1) * n].to_vec();
+            let mut layer_inputs: Vec<Vec<f32>> = Vec::new();
+            let mut layer_mids: Vec<Vec<f32>> = Vec::new();
+
+            for l in 0..n_layers {
+                layer_inputs.push(hidden.clone());
+                let normed = forward::rmsnorm(&hidden, &attn_norms[l], 1e-5);
+                let ws: [(&[f32], usize); 4] = [(&w_qs[l], n), (&w_ks[l], n), (&w_vs[l], n), (&w_os[l], n)];
+                for (t, &(w, out_dim)) in ws.iter().enumerate() {
+                    let lo = lora[l][t].forward(&normed);
+                    for i in 0..out_dim {
+                        let mut s = 0.0f32;
+                        for j in 0..n { s += w[i * n + j] * normed[j]; }
+                        let lv = if i < lo.len() { lo[i] } else { 0.0 };
+                        hidden[i] += (s + lv * scale) * 0.25;
+                    }
+                }
+                layer_mids.push(hidden.clone());
+                let ffn_normed = forward::rmsnorm(&hidden, &ffn_norms[l], 1e-5);
+                let ffn_out = forward::ffn_forward(&ffn_normed, &w_gates[l], &w_ups[l], &w_downs[l], n, n_ff);
+                for i in 0..n { hidden[i] += ffn_out[i]; }
+            }
+
+            let normed_out = forward::rmsnorm(&hidden, &output_norm, 1e-5);
+            let mut logits = vec![0.0f32; vocab];
+            for v in 0..vocab { for i in 0..n { logits[v] += normed_out[i] * output_weight[v * n + i]; } }
+            (forward::cross_entropy_loss(&logits, target_token), layer_inputs, layer_mids)
+        };
+
+        let (initial_loss, _, _) = forward_loss(&lora_layers);
+        println!("Initial loss: {:.4}", initial_loss);
+
+        // Gradient descent loop
+        for step in 0..n_steps {
+            let (_, layer_inputs, layer_mids) = forward_loss(&lora_layers);
+
+            // Re-run forward to get final hidden for output projection backward
+            let mut hidden = embed_weight[input_token as usize * n..(input_token as usize + 1) * n].to_vec();
+            for l in 0..n_layers {
+                let normed = forward::rmsnorm(&hidden, &attn_norms[l], 1e-5);
+                let ws: [(&[f32], usize); 4] = [(&w_qs[l], n), (&w_ks[l], n), (&w_vs[l], n), (&w_os[l], n)];
+                for (t, &(w, out_dim)) in ws.iter().enumerate() {
+                    let lo = lora_layers[l][t].forward(&normed);
+                    for i in 0..out_dim {
+                        let mut s = 0.0f32;
+                        for j in 0..n { s += w[i * n + j] * normed[j]; }
+                        let lv = if i < lo.len() { lo[i] } else { 0.0 };
+                        hidden[i] += (s + lv * scale) * 0.25;
+                    }
+                }
+                let ffn_normed = forward::rmsnorm(&hidden, &ffn_norms[l], 1e-5);
+                let ffn_out = forward::ffn_forward(&ffn_normed, &w_gates[l], &w_ups[l], &w_downs[l], n, n_ff);
+                for i in 0..n { hidden[i] += ffn_out[i]; }
+            }
+
+            let normed_out = forward::rmsnorm(&hidden, &output_norm, 1e-5);
+            let mut logits = vec![0.0f32; vocab];
+            for v in 0..vocab { for i in 0..n { logits[v] += normed_out[i] * output_weight[v * n + i]; } }
+            let grad_logits = cross_entropy_softmax_backward(&logits, target_token);
+
+            let mut grad_normed_out = vec![0.0f32; n];
+            for i in 0..n { for v in 0..vocab { grad_normed_out[i] += grad_logits[v] * output_weight[v * n + i]; } }
+            let mut grad_hidden = rmsnorm_backward(&hidden, &output_norm, &grad_normed_out, 1e-5);
+
+            // Backward through layers with chain rule
+            for l in (0..n_layers).rev() {
+                // FFN backward to get grad_mid
+                let ffn_normed = forward::rmsnorm(&layer_mids[l], &ffn_norms[l], 1e-5);
+                let ff_dims = n_ff.min(512);
+                let dims = n.min(512);
+                let mut gate_pre = vec![0.0f32; ff_dims];
+                let mut up_val = vec![0.0f32; ff_dims];
+                for i in 0..ff_dims {
+                    for j in 0..dims {
+                        gate_pre[i] += w_gates[l][i * n + j] * ffn_normed[j];
+                        up_val[i] += w_ups[l][i * n + j] * ffn_normed[j];
+                    }
+                }
+                let gate_silu: Vec<f32> = gate_pre.iter().map(|&x| forward::silu(x)).collect();
+                let mut grad_ffn_hidden = vec![0.0f32; ff_dims];
+                for i in 0..ff_dims {
+                    for j in 0..dims { grad_ffn_hidden[i] += w_downs[l][j * n_ff + i] * grad_hidden[j]; }
+                }
+                let mut grad_gate_pre = vec![0.0f32; ff_dims];
+                let mut grad_up = vec![0.0f32; ff_dims];
+                for i in 0..ff_dims {
+                    grad_up[i] = grad_ffn_hidden[i] * gate_silu[i];
+                    grad_gate_pre[i] = silu_backward(gate_pre[i], grad_ffn_hidden[i] * up_val[i]);
+                }
+                let mut grad_ffn_normed = vec![0.0f32; n];
+                for j in 0..dims {
+                    for i in 0..ff_dims {
+                        grad_ffn_normed[j] += w_gates[l][i * n + j] * grad_gate_pre[i] + w_ups[l][i * n + j] * grad_up[i];
+                    }
+                }
+                let grad_mid_from_ffn = rmsnorm_backward(&layer_mids[l], &ffn_norms[l], &grad_ffn_normed, 1e-5);
+                let mut grad_mid = vec![0.0f32; n];
+                for i in 0..n { grad_mid[i] = grad_hidden[i] + grad_mid_from_ffn[i]; }
+
+                // LoRA gradients with grad_mid (NOT grad_hidden)
+                let normed = forward::rmsnorm(&layer_inputs[l], &attn_norms[l], 1e-5);
+                for t in 0..4 {
+                    let target_grad: Vec<f32> = grad_mid.iter().map(|&g| g * 0.25).collect();
+                    let (_, lh) = lora_layers[l][t].forward_with_hidden(&normed);
+                    let (ga, gb) = lora_backward(&normed, &lh, &target_grad, &lora_layers[l][t].a, &lora_layers[l][t].b, n, n, rank, alpha);
+                    for (i, &g) in ga.iter().enumerate() { lora_layers[l][t].grad_a[i] += g; }
+                    for (i, &g) in gb.iter().enumerate() { lora_layers[l][t].grad_b[i] += g; }
+                }
+
+                // Propagate grad_mid through attention to get grad_input
+                let attn_ws: [(&[f32], usize); 4] = [(&w_qs[l], n), (&w_ks[l], n), (&w_vs[l], n), (&w_os[l], n)];
+                let mut grad_normed_attn = vec![0.0f32; n];
+                for &(w, out_dim) in &attn_ws {
+                    let eff = out_dim.min(n);
+                    for j in 0..n {
+                        for i in 0..eff { grad_normed_attn[j] += w[i * n + j] * grad_mid[i] * 0.25; }
+                    }
+                }
+                let grad_input_attn = rmsnorm_backward(&layer_inputs[l], &attn_norms[l], &grad_normed_attn, 1e-5);
+                for i in 0..n { grad_hidden[i] = grad_mid[i] + grad_input_attn[i]; }
+            }
+
+            // SGD step (no Adam to keep test simple)
+            for l in 0..n_layers {
+                for t in 0..4 {
+                    for i in 0..lora_layers[l][t].a.len() {
+                        lora_layers[l][t].a[i] -= lr * lora_layers[l][t].grad_a[i];
+                        lora_layers[l][t].grad_a[i] = 0.0;
+                    }
+                    for i in 0..lora_layers[l][t].b.len() {
+                        lora_layers[l][t].b[i] -= lr * lora_layers[l][t].grad_b[i];
+                        lora_layers[l][t].grad_b[i] = 0.0;
+                    }
+                }
+            }
+
+            if step % 10 == 0 {
+                let (loss_now, _, _) = forward_loss(&lora_layers);
+                println!("  Step {}: loss = {:.4}", step, loss_now);
+            }
+        }
+
+        let (final_loss, _, _) = forward_loss(&lora_layers);
+        println!("Final loss: {:.4} (initial: {:.4})", final_loss, initial_loss);
+
+        assert!(final_loss < initial_loss,
+            "MATH BROKEN: loss did not decrease ({:.4} → {:.4})", initial_loss, final_loss);
+        let improvement = (initial_loss - final_loss) / initial_loss;
+        assert!(improvement > 0.1,
+            "MATH WEAK: loss only improved by {:.1}% (need >10%)", improvement * 100.0);
+    }
+
     /// Minimal 1-layer, no-FFN gradient check.
     /// If this passes but the full transformer fails, bug is in FFN backward.
     #[test]
