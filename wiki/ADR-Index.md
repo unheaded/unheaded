@@ -18,8 +18,9 @@
 | [014](../docs/adr/ADR-014-ipv6-fragmentation-support.md) | IPv6 Fragmentation Support | Accepted |
 | [015](../docs/adr/ADR-015-go-fiber-http-layer.md) | Go Fiber HTTP Layer | Accepted |
 | [043](../docs/adr/ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md) | Mímir's Law — UPC-Controlled Baseline (Gleipnir Phase 0 PoC) | PoC / Research |
+| [044](../docs/adr/ADR-044-kanban-task-detail-status-query.md) | Kanban Task Detail Status Query (git log + docs + checklist exposure) | PIPE DREAM |
 
-> **Note:** This wiki mirror is incomplete (ADRs 016-042 not yet rippled here — separate Librarian sweep needed). The canonical source is [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md), which has all 44 ADRs.
+> **Note:** This wiki mirror is incomplete (ADRs 016-042 not yet rippled here — separate Librarian sweep needed). The canonical source is [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md), which has all 45 ADRs.
 
 ---
 
