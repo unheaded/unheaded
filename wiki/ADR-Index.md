@@ -21,6 +21,7 @@
 | [044](../docs/adr/ADR-044-kanban-task-detail-status-query.md) | Kanban Task Detail Status Query (git log + docs + checklist exposure) | PIPE DREAM |
 | [045](../docs/adr/ADR-045-wave-10d-gpu-backward-first-real-training.md) | Wave 10D — GPU Backward + First Real Training Run | PLANNED |
 | [046](../docs/adr/ADR-046-upc-perservice-ingress-egress-inspection.md) | UPC Per-Service Ingress/Egress Inspection (Anti-Fake-Horn) | PIPE DREAM |
+| [047](../docs/adr/ADR-047-k8s-honest-assessment-and-extractable-tools.md) | K8s Honest Assessment + Extractable Tools + East/West K8s Lab | ACKNOWLEDGED |
 
 > **Note:** This wiki mirror is incomplete (ADRs 016-042 not yet rippled here — separate Librarian sweep needed). The canonical source is [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md), which has all 45 ADRs.
 
