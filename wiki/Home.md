@@ -92,6 +92,17 @@
 - [[Log Aggregation|Log-Aggregation]] — The Chronicler's Well: centralized structured logging
 - [[Service Discovery|Service-Discovery]] — The Cartographer's Eye: four-layer resolution
 
+## Mímir's Law Spike (ADR-043, S77)
+
+UPC-controlled OS baseline delivery, drift detection, alerts-only self-healing.
+Two-plane architecture: Wotan steady-state + Gjallarhorn discrete UPC triggers.
+Real-metal validation on EAST 2026-04-11.
+
+- [[Mímir's Law Overview|Mimirs-Law]] — Phases 1-12 of 13, naming, hard conditions, validation
+- [[Wotan Topic Signing|Wotan-Topic-Signing]] — ML-DSA-65 enforcement on `config.*` (prerequisite)
+- [[Wave 10C Backprop|Wave-10C-Backprop]] — 3 backprop bugs fixed, 32-layer descent proof
+- [[So The Game Goes On|So-The-Game-Goes-On]] — The chapter that named the rhythm section
+
 ## Recent Sessions & Waves
 
 ### Wave 1 (S51): Security Hardening
