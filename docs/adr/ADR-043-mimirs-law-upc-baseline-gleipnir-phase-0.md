@@ -1,6 +1,6 @@
 # ADR-043: Mímir's Law — OS Baseline Delivery, Drift Detection, and Self-Healing via UPC (Gleipnir Phase 0 PoC)
 
-## Status: PoC / Research (Round Table v2 — 2026-04-08)
+## Status: PoC / Research — Spike In Flight (Phases 1-12 of 13 shipped 2026-04-11; bare-metal flows demonstrated on EAST)
 
 ## Date: 2026-04-08
 
