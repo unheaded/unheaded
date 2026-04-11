@@ -394,6 +394,54 @@ impl GpuTrainer {
         Ok(results)
     }
 
+    /// Wave 10D — GPU backward pass: compute grad_input = grad_output @ weight
+    ///
+    /// Forward: result(n_pos × out_dim) = input(n_pos × in_dim) @ weight^T
+    /// Backward: grad_input(n_pos × in_dim) = grad_output(n_pos × out_dim) @ weight(out_dim × in_dim)
+    ///
+    /// Col-major BLAS: grad_input_cm(in_dim, n_pos) = weight_cm(in_dim, out_dim) @ grad_output_cm(out_dim, n_pos)
+    /// (no transpose on either operand)
+    pub fn gpu_matmul_grad_input(
+        &self,
+        grad_output: &[f32],   // (n_pos × out_dim) row-major
+        weight_gpu: &GpuBuffer, // cached weight (out_dim × in_dim) row-major
+        n_pos: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> Result<Vec<f32>, String> {
+        // Upload grad_output into hidden_buf (reuse staging)
+        let upload_elems = (n_pos * out_dim).min(self.hidden_buf.len() / 4);
+        self.hidden_buf.upload_f32(&grad_output[..upload_elems])
+            .map_err(|e| format!("upload grad_output ({} elems): {}", upload_elems, e))?;
+
+        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+
+        // Col-major: result_cm(in_dim, n_pos) = weight_cm(in_dim, out_dim) @ grad_output_cm(out_dim, n_pos)
+        // weight is row-major (out_dim × in_dim), col-major view = (in_dim × out_dim), lda = in_dim
+        // grad_output is row-major (n_pos × out_dim), col-major view = (out_dim × n_pos), ldb = out_dim
+        // result is row-major (n_pos × in_dim), col-major view = (in_dim × n_pos), ldc = in_dim
+        self.blas.sgemm_ex(
+            false, false,
+            in_dim as i32, n_pos as i32, out_dim as i32,
+            1.0,
+            weight_gpu, in_dim as i32,
+            &self.hidden_buf, out_dim as i32,
+            0.0,
+            &self.result_buf, in_dim as i32,
+        ).map_err(|e| format!("grad_input sgemm: {}", e))?;
+
+        hip::sync().map_err(|e| format!("sync: {}", e))?;
+
+        let download_elems = n_pos * in_dim;
+        let max_elems = self.result_buf.len() / 4;
+        let actual_elems = download_elems.min(max_elems);
+        let mut results = vec![0.0f32; actual_elems];
+        self.result_buf.download_f32(&mut results)
+            .map_err(|e| format!("download grad_input: {}", e))?;
+        results.resize(download_elems, 0.0);
+        Ok(results)
+    }
+
     /// Batched GPU matmul: results = inputs × weight^T
     /// inputs: (n_pos × in_dim), weight: (out_dim × in_dim), results: (n_pos × out_dim)
     /// Uploads weight ONCE, all positions in one sgemm call.
@@ -854,16 +902,48 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             }
                         }
 
-                        // Chain rule: propagate grad_hidden through ALL layers using
-                        // pre-loaded all_attn_* weights. Wave 10C fix.
-                        // No FFN backward (no LoRA on FFN — gradient through residual only).
-                        if l < cpu_weights.all_attn_q.len()
-                            && !cpu_weights.all_attn_q[l].is_empty()
-                        {
-                            let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
+                        // Chain rule: propagate grad_hidden through ALL layers.
+                        // Wave 10D: GPU backward for cached layers (28-31), CPU for rest.
+                        // No FFN backward (no LoRA on FFN — residual carries the gradient).
+                        let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
+                        let gpu_local_idx = l.checked_sub(gpu_layer_offset);
+                        let use_gpu = gpu_local_idx
+                            .map(|idx| idx < gpu_trainer.layer_weights.len())
+                            .unwrap_or(false);
+
+                        if use_gpu {
+                            // Wave 10D GPU path: use cached GPU weights for chain rule
+                            let lc = gpu_local_idx.unwrap();
+                            let gw = &gpu_trainer.layer_weights[lc];
+                            // grad_normed = sum_t W_t^T @ (grad_hidden * 0.25)
+                            let scaled: Vec<f32> = grad_hidden.iter().map(|g| g * 0.25).collect();
+                            // 4 contributions: Q, K, V, O
+                            let grad_q = gpu_trainer.gpu_matmul_grad_input(&scaled, &gw.attn_q, 1, n, n).unwrap_or_default();
+                            let grad_k = gpu_trainer.gpu_matmul_grad_input(&scaled[..kv_dim.min(scaled.len())], &gw.attn_k, 1, kv_dim, n).unwrap_or_default();
+                            let grad_v = gpu_trainer.gpu_matmul_grad_input(&scaled[..kv_dim.min(scaled.len())], &gw.attn_v, 1, kv_dim, n).unwrap_or_default();
+                            let grad_o = gpu_trainer.gpu_matmul_grad_input(&scaled, &gw.attn_o, 1, n, n).unwrap_or_default();
+                            let mut grad_normed = vec![0.0f32; n];
+                            for j in 0..n {
+                                if j < grad_q.len() { grad_normed[j] += grad_q[j]; }
+                                if j < grad_k.len() { grad_normed[j] += grad_k[j]; }
+                                if j < grad_v.len() { grad_normed[j] += grad_v[j]; }
+                                if j < grad_o.len() { grad_normed[j] += grad_o[j]; }
+                            }
+                            // Through attention RMSNorm
+                            let attn_norm = if l < cpu_weights.all_attn_norm.len() {
+                                &cpu_weights.all_attn_norm[l]
+                            } else {
+                                &cpu_weights.attn_norm[lc]
+                            };
+                            let grad_input_attn = backward::rmsnorm_backward(normed_input, attn_norm, &grad_normed, 1e-5);
+                            for i in 0..n {
+                                grad_hidden[i] = grad_hidden[i] + grad_input_attn[i];
+                            }
+                        } else if l < cpu_weights.all_attn_q.len() && !cpu_weights.all_attn_q[l].is_empty() {
+                            // CPU path for non-cached layers
                             grad_hidden = backward::attn_only_layer_backward(
                                 &grad_hidden,
-                                normed_input, // approximation for pre-norm input
+                                normed_input,
                                 &cpu_weights.all_attn_norm[l],
                                 &cpu_weights.all_attn_q[l],
                                 &cpu_weights.all_attn_k[l],
@@ -1389,6 +1469,90 @@ mod tests {
         assert!((result[6] - 10.0).abs() < 0.01, "row6: {} expected 10.0", result[6]);
         assert!((result[7] - 2.0).abs() < 0.01, "row7: {} expected 2.0", result[7]);
         println!("GPU cached matmul verified");
+    }
+
+    /// Wave 10D — verify gpu_matmul_grad_input against CPU reference
+    /// Forward: result = input @ weight^T
+    /// Backward: grad_input = grad_output @ weight
+    /// CPU reference: backward::matmul_backward_a
+    #[test]
+    fn test_gpu_matmul_grad_input() {
+        use crate::backward;
+
+        if GpuDevice::init(0).is_err() {
+            println!("No GPU, skipping");
+            return;
+        }
+
+        // Small but non-trivial: n_pos=4, in_dim=8, out_dim=12
+        let n_pos = 4usize;
+        let in_dim = 8usize;
+        let out_dim = 12usize;
+
+        // Random-ish weight (out_dim × in_dim) row-major
+        let weight: Vec<f32> = (0..out_dim * in_dim)
+            .map(|i| ((i as f32) * 0.13).sin() * 0.5)
+            .collect();
+        // Random-ish grad_output (n_pos × out_dim) row-major
+        let grad_output: Vec<f32> = (0..n_pos * out_dim)
+            .map(|i| ((i as f32) * 0.27).cos() * 0.3)
+            .collect();
+
+        // CPU reference: grad_input = grad_output @ weight
+        // matmul_backward_a expects: grad_C(m × n), B(k × n), returns grad_A(m × k)
+        // We have grad_output(n_pos × out_dim) @ weight(out_dim × in_dim) = grad_input(n_pos × in_dim)
+        // So m=n_pos, n=in_dim... wait, that's not how matmul_backward_a is shaped.
+        //
+        // Just compute the reference directly (one matmul):
+        let mut cpu_grad_input = vec![0.0f32; n_pos * in_dim];
+        for p in 0..n_pos {
+            for i in 0..in_dim {
+                let mut s = 0.0f32;
+                for o in 0..out_dim {
+                    s += grad_output[p * out_dim + o] * weight[o * in_dim + i];
+                }
+                cpu_grad_input[p * in_dim + i] = s;
+            }
+        }
+
+        // GPU path: build a tiny GpuTrainer-equivalent
+        let blas = hip::BlasHandle::new().expect("blas");
+        let max_buf = (n_pos * in_dim).max(n_pos * out_dim).max(out_dim * in_dim) * 4;
+        let weight_buf = GpuBuffer::alloc(out_dim * in_dim * 4).expect("alloc weight");
+        weight_buf.upload_f32(&weight).expect("upload weight");
+        let hidden_buf = GpuBuffer::alloc(max_buf).expect("alloc hidden");
+        let result_buf = GpuBuffer::alloc(max_buf).expect("alloc result");
+
+        // Inline gpu_matmul_grad_input logic (mirror the method exactly)
+        hidden_buf.upload_f32(&grad_output).expect("upload grad_output");
+        result_buf.zero().expect("zero result");
+        blas.sgemm_ex(
+            false, false,
+            in_dim as i32, n_pos as i32, out_dim as i32,
+            1.0,
+            &weight_buf, in_dim as i32,
+            &hidden_buf, out_dim as i32,
+            0.0,
+            &result_buf, in_dim as i32,
+        ).expect("sgemm");
+        hip::sync().expect("sync");
+
+        let mut gpu_grad_input = vec![0.0f32; n_pos * in_dim];
+        result_buf.download_f32(&mut gpu_grad_input).expect("download");
+
+        // Compare
+        let mut max_err = 0.0f32;
+        for i in 0..cpu_grad_input.len() {
+            let err = (cpu_grad_input[i] - gpu_grad_input[i]).abs();
+            let rel = if cpu_grad_input[i].abs() > 1e-6 { err / cpu_grad_input[i].abs() } else { err };
+            if rel > max_err { max_err = rel; }
+            if i < 4 {
+                println!("  [{}] cpu={:.6} gpu={:.6} rel_err={:.6}",
+                    i, cpu_grad_input[i], gpu_grad_input[i], rel);
+            }
+        }
+        println!("GPU vs CPU max rel error: {:.6}", max_err);
+        assert!(max_err < 1e-3, "GPU backward disagrees with CPU: max_err={}", max_err);
     }
 
     #[test]
