@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-04-11
-**Total:** 45 ADRs (ADR-012b deprecated, ADR-027-044 across sessions)
+**Total:** 47 ADRs (ADR-012b deprecated, ADR-027-046 across sessions)
 
 ## Status Summary
 
@@ -67,3 +67,5 @@
 | [042](ADR-042-cs-blackmage-lich-integration.md) | CS → BlackMage Skill + Lich Security | Planned | 2026-04-05 |
 | [043](ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md) | Mímir's Law: UPC-Controlled Baseline (Gleipnir Phase 0 PoC) | **PoC / Research** | 2026-04-08 |
 | [044](ADR-044-kanban-task-detail-status-query.md) | Kanban Task Detail Status Query (git log + docs + checklist) | **PIPE DREAM** | 2026-04-11 |
+| [045](ADR-045-wave-10d-gpu-backward-first-real-training.md) | Wave 10D — GPU Backward + First Real Training Run | **PLANNED** | 2026-04-11 |
+| [046](ADR-046-upc-perservice-ingress-egress-inspection.md) | UPC Per-Service Ingress/Egress Inspection (Anti-Fake-Horn) | **PIPE DREAM** | 2026-04-11 |
