@@ -387,6 +387,122 @@ head.** You will VISCERALLY understand the overlap.
 
 ---
 
+## Stress Testing Toolkit
+
+The "watch the pool drain" tools.
+
+| Tool | What It Does | Vibe |
+|---|---|---|
+| **k9s** | Terminal UI for cluster — watch pods/nodes/events live | The "watch it drain" tool |
+| **Lens Desktop** | GUI version of k9s | Click instead of type |
+| **k6** (Grafana) | HTTP load generator, scriptable in JS | Send realistic traffic |
+| **vegeta** | `vegeta attack -rate=500/s` | Quickest load to use |
+| **Locust** | Python distributed load gen | More setup, more control |
+| **Chaos Mesh** | Kill pods, partition networks, throttle CPU/disk | Chaos engineering |
+| **Litmus** | Chaos with experiment library | Alternative to Chaos Mesh |
+| **kube-burner** | Spam objects (pods/secrets) at scale | Stress the control plane |
+| **Goldpinger** | Pod-to-pod connectivity probe | Watch network health under load |
+| **stress-ng in pods** | Burn CPU/RAM inside pods | Trigger scheduling/OOM |
+| **Hubble UI** (Cilium) | eBPF flow visualizer | See EVERYTHING moving |
+| **kube-prometheus-stack** | Prometheus + Grafana + dashboards | Standard "watch your cluster" |
+
+**The watch-the-pool-drain combo**: k9s + Chaos Mesh + Grafana. Run chaos,
+watch it in k9s, see metrics in Grafana.
+
+---
+
+## What K8s Is Actually For (The Brain Hook)
+
+**K8s is bus-factor protection.**
+
+K8s exists because most engineers **can't hold a full architecture in their
+head**. The system has to be self-describing through declarative manifests +
+standardized primitives so any new hire can read the YAML and know what's
+running where. Stevie can hold the whole Kingdom in his head, so K8s feels
+like overhead — for him personally, it IS overhead. For a 50-person team
+where nobody knows the whole stack, K8s is the only thing keeping the lights
+on when the one person who DID know quits.
+
+That framing answers most "why K8s?" questions:
+
+- **Why declarative?** So the next person can figure out what's running
+- **Why namespaces + RBAC?** So teams don't break each other when nobody
+  knows what each team is doing
+- **Why operators + CRDs?** So domain knowledge gets encoded as code instead
+  of tribal knowledge
+- **Why GitOps?** So git history IS the documentation
+- **Why service mesh?** So security policy is enforced even when devs don't
+  know the network
+
+K8s is the **answer to "the original engineer left."**
+
+### K8s WINS at
+
+| Workload | Why |
+|---|---|
+| SaaS with 10+ microservices | Service discovery + rolling deploys + per-service scaling |
+| Multi-tenant platforms (CI runners, dev envs per customer) | Namespace isolation + RBAC + quotas |
+| ML inference fleets | GPU scheduling + autoscaling on queue depth |
+| Background job processing at scale | Job/CronJob + retries + node affinity |
+| API gateways for many backends | Service mesh + ingress + canary deploys |
+| E-commerce (Black Friday) | HPA scales web tier 10x in minutes |
+| 100+ engineer dev platforms | Namespace per team, RBAC per team, GitOps |
+
+### K8s LOSES at (overkill — Stevie's daily reality)
+
+| Workload | Why K8s is wrong |
+|---|---|
+| Single monolithic web app | systemd + nginx + a VPS does it fine |
+| Static site | Cloudflare Pages / Netlify / S3 |
+| 5-service stack with stable traffic | Docker Compose on a single host |
+| Personal project | Anything from a Pi to a $5 VPS |
+| < 100 RPS | Single nginx with upstream backends |
+| Solo / 2-person team | Operational overhead exceeds benefit |
+| Anything that fits in one process | Just run the process |
+
+### The Bus-Factor Insight
+
+> "K8s is a tool to help companies from depending too much on a single
+> person knowing the entire infra head to toe." — Stevie, 2026-04-11
+
+This is the right framing. The **technical** value of K8s is overhyped. The
+**organizational** value is real. K8s is what you build when you can't
+guarantee that the person who built it will still be there in 6 months.
+
+For **interview answers**, frame your K8s knowledge this way:
+- "I learned K8s on a 2-host bare metal lab so I can talk about real failure
+  modes, not just `kubectl apply`."
+- "I think K8s is most valuable as bus-factor insurance for teams. The
+  declarative API forces you to write down architecture decisions that
+  would otherwise live in someone's head."
+- "I built an Unheaded prototype that does similar reconciliation in a 14GB
+  footprint to understand the primitives from the inside, then learned K8s
+  to see how the industry standardized them."
+
+That's a story interviewers will remember.
+
+---
+
+## Suggested Workload for the Lab
+
+To *feel* K8s benefits, run something with:
+
+1. **Multiple services** talking to each other (service discovery matters)
+2. **Stateful + stateless** mix (PVCs + Deployments + StatefulSets)
+3. **External traffic** (ingress matters)
+4. **Variable load** you can drive with k6 (HPA makes sense)
+
+| Choice | Services | Why |
+|---|---|---|
+| **Online Boutique** (Google) | 11, polyglot | Has built-in load generator. Best fit. |
+| **Sock Shop** (Weaveworks) | 6, simpler | Faster setup. |
+| **Guestbook + Postgres** | 2 | Fast but doesn't show K8s shining. |
+
+**Recommended combo**: Online Boutique + k6 + k9s + Grafana. Run load,
+watch the HPA scale, watch Grafana light up, watch pods land on nodes.
+
+---
+
 ## Quick Resume Prompt
 
 If session resumes mid-lab:
