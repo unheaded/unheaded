@@ -63,13 +63,9 @@ func main() {
 
 	var addr *net.UDPAddr
 	if *multicast {
-		mcastStr := gjallarhornMcast
-		if *iface != "" {
-			mcastStr += "%" + *iface
-		}
-		ip := net.ParseIP(mcastStr)
+		ip := net.ParseIP(gjallarhornMcast)
 		if ip == nil {
-			fatal("invalid multicast address: %s", mcastStr)
+			fatal("invalid multicast address: %s", gjallarhornMcast)
 		}
 		addr = &net.UDPAddr{IP: ip, Port: gjallarhornPort, Zone: *iface}
 	} else {

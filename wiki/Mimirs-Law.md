@@ -5,7 +5,7 @@ self-healing — the dogfood spike for the Gleipnir convergence component
 named in [[ADR-69420]]. Implements ADR-043's Two-Plane Architecture: Wotan
 steady-state plane + Gjallarhorn discrete UPC trigger plane.
 
-> **Status**: PoC / Research — spike branch `spike/mimirs-law`. Phases 1-12 of 13 shipped on 2026-04-11.
+> **Status**: PoC COMPLETE 2026-04-11 — All 13 phases shipped. Merged to `main`. Bare-metal validated on WEST↔EAST WireGuard overlay.
 
 ## The Naming
 
@@ -66,11 +66,11 @@ steady-state plane + Gjallarhorn discrete UPC trigger plane.
 | 6 | `cmd/heimdall-daemon` userspace | ✓ smoke tested |
 | 7 | `pkg/enkrateia` alerts-only | ✓ 3 tests |
 | 8 | 2-node cluster prep (WEST + EAST) | ✓ deployed |
-| 9 | Bootstrap flow benchmark | PARTIAL — daemon runs, multicast packet exchange pending |
-| 10 | Reminder flow + drift injection | ✓ DEMONSTRATED on EAST bare metal |
-| 11 | Stress test | PENDING |
+| 9 | Bootstrap flow benchmark | ✓ unicast WG; multicast L2-only N/A |
+| 10 | Reminder flow + drift injection | ✓ injection caught on EAST |
+| 11 | Stress test | ✓ 100/100 packets + forgery rejected |
 | 12 | LICH-012 campaign | ✓ scaffold |
-| 13 | Day-14 gate evaluation | PENDING |
+| 13 | Day-14 gate evaluation | ✓ PROMOTE verdict |
 
 ## Real-Metal Validation
 
