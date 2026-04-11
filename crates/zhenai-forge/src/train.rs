@@ -854,13 +854,26 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             }
                         }
 
-                        // TODO Phase 2: propagate grad_hidden through base weights (chain rule).
-                        // Requires saving pre-norm layer_input per position during forward,
-                        // and GPU-accelerated W^T @ grad to avoid 46s/step CPU dequantization.
-                        // For now, same grad_hidden flows to all layers — direction is correct
-                        // for the last few layers, magnitude attenuates for earlier layers.
-                        // The two critical fixes (forward_with_hidden + rmsnorm_backward)
-                        // ensure gradients at each layer are computed correctly given grad_hidden.
+                        // Chain rule: propagate grad_hidden through ALL layers using
+                        // pre-loaded all_attn_* weights. Wave 10C fix.
+                        // No FFN backward (no LoRA on FFN — gradient through residual only).
+                        if l < cpu_weights.all_attn_q.len()
+                            && !cpu_weights.all_attn_q[l].is_empty()
+                        {
+                            let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
+                            grad_hidden = backward::attn_only_layer_backward(
+                                &grad_hidden,
+                                normed_input, // approximation for pre-norm input
+                                &cpu_weights.all_attn_norm[l],
+                                &cpu_weights.all_attn_q[l],
+                                &cpu_weights.all_attn_k[l],
+                                &cpu_weights.all_attn_v[l],
+                                &cpu_weights.all_attn_o[l],
+                                n, kv_dim, kv_dim, n,
+                                None, 0, 0.0,
+                                n,
+                            );
+                        }
                     }
                 } // end per-position gradient loop
 
@@ -960,6 +973,7 @@ struct CpuWeights {
     /// Output norm: (embed_dim,)
     output_norm: Vec<f32>,
     /// Per-layer attention weights: [layer] → (embed_dim × embed_dim)
+    /// NOTE: indexed [0..max_layers] = the LAST max_layers of the model.
     attn_q: Vec<Vec<f32>>,
     attn_k: Vec<Vec<f32>>,
     attn_v: Vec<Vec<f32>>,
@@ -972,10 +986,20 @@ struct CpuWeights {
     attn_norm: Vec<Vec<f32>>,
     ffn_norm: Vec<Vec<f32>>,
 
+    /// ALL-LAYER attention weights for chain rule backward (Wave 10C).
+    /// Indexed [0..n_total_layers]. Loaded once at startup, ~5.4GB for Mistral-7B.
+    /// FFN weights NOT included (no LoRA on FFN, FFN backward not needed).
+    all_attn_q: Vec<Vec<f32>>,
+    all_attn_k: Vec<Vec<f32>>,
+    all_attn_v: Vec<Vec<f32>>,
+    all_attn_o: Vec<Vec<f32>>,
+    all_attn_norm: Vec<Vec<f32>>,
+
     n_vocab: usize,
     n_embd: usize,
     n_ff: usize,
     n_layers: usize,
+    n_total_layers: usize,
     n_head: usize,
     n_head_kv: usize,
 }
@@ -1053,13 +1077,43 @@ impl CpuWeights {
             }
         }
 
+        // Load attention weights for ALL layers (Wave 10C chain rule).
+        // 32 layers × ~167 MB each = ~5.4 GB. Enables free chain rule backward.
+        // FFN weights skipped (no LoRA on FFN, ~3GB savings).
+        println!("  Loading ALL-layer attention weights for chain rule (Wave 10C)...");
+        let n_total_layers = n_layers as usize;
+        let mut all_attn_q: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
+        let mut all_attn_k: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
+        let mut all_attn_v: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
+        let mut all_attn_o: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
+        let mut all_attn_norm: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
+        for l in 0..n_total_layers {
+            all_attn_q.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_q.weight", l))
+                .unwrap_or_default());
+            all_attn_k.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_k.weight", l))
+                .unwrap_or_default());
+            all_attn_v.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_v.weight", l))
+                .unwrap_or_default());
+            all_attn_o.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_output.weight", l))
+                .unwrap_or_default());
+            all_attn_norm.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_norm.weight", l))
+                .unwrap_or_else(|| vec![1.0; n_embd]));
+            if (l + 1) % 8 == 0 {
+                println!("    Loaded {}/{} layers", l + 1, n_total_layers);
+            }
+        }
+        let all_attn_mb: f64 = all_attn_q.iter().chain(all_attn_k.iter())
+            .chain(all_attn_v.iter()).chain(all_attn_o.iter())
+            .map(|v| v.len()).sum::<usize>() as f64 * 4.0 / 1e6;
+        println!("    All-layer attention: {:.1} MB", all_attn_mb);
+
         let total_elements: usize = embed.len() + output.len() + output_norm.len()
             + attn_q.iter().chain(attn_k.iter()).chain(attn_v.iter()).chain(attn_o.iter())
                 .chain(ffn_gate.iter()).chain(ffn_up.iter()).chain(ffn_down.iter())
                 .chain(attn_norm.iter()).chain(ffn_norm.iter())
                 .map(|v| v.len()).sum::<usize>();
         let total_mb = total_elements as f64 * 4.0 / 1e6;
-        println!("    Total CPU weights: {:.1} MB", total_mb);
+        println!("    Total CPU weights: {:.1} MB (+ {:.1} MB chain rule)", total_mb, all_attn_mb);
 
         let n_ff = model.get_u32("llama.feed_forward_length").unwrap_or(14336) as usize;
 
@@ -1071,8 +1125,10 @@ impl CpuWeights {
             attn_q, attn_k, attn_v, attn_o,
             ffn_gate, ffn_up, ffn_down,
             attn_norm, ffn_norm,
+            all_attn_q, all_attn_k, all_attn_v, all_attn_o, all_attn_norm,
             n_ff,
             n_vocab, n_embd, n_layers: max_layers,
+            n_total_layers,
             n_head, n_head_kv,
         })
     }
