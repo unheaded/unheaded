@@ -20,6 +20,33 @@ use crate::lora::LoraAdapters;
 use crate::tokenizer::{Tokenizer, extract_vocabulary_from_gguf};
 use std::time::Instant;
 
+// Wave 10D post-mortem: on a 14 GB host with shared-VRAM AMD APU semantics,
+// unconditional upload of all 32 Mistral-7B attention layers pushes allocations
+// into ROCm HMM/SVM paging and livelocks the driver (observed 2026-04-12, see
+// crates/zhenai-forge/notes/wave-10d-postmortem/README.md for budget derivation).
+//
+// Budget: 14 − 5.1 (model) − 1.0 (activations) − 2.0 (headroom) − 0.07 (LoRA)
+//       ≈ 5.83 GB for bw_attn; at 0.27 GB/layer that's 21 layers theoretical.
+// Cap at 16 to preserve ~1.6 GB host safety margin.
+pub const BW_ATTN_MAX_LAYERS: usize = 16;
+
+/// Refuse to start another bw_attn upload if host MemAvailable drops below this.
+pub const MIN_FREE_HOST_RAM_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+/// Read /proc/meminfo MemAvailable in bytes. Returns 0 if unreadable —
+/// callers must treat 0 as "unknown" and fail closed.
+fn host_mem_available_bytes() -> u64 {
+    let Ok(s) = std::fs::read_to_string("/proc/meminfo") else { return 0 };
+    for line in s.lines() {
+        if let Some(rest) = line.strip_prefix("MemAvailable:") {
+            let kb: u64 = rest.trim().split_whitespace().next()
+                .and_then(|tok| tok.parse().ok()).unwrap_or(0);
+            return kb * 1024;
+        }
+    }
+    0
+}
+
 /// Find the boundary between instruction and answer tokens.
 /// Looks for the "]" token after "[/INST" in the token sequence.
 /// Returns the index of the first ANSWER token (the one after [/INST]).
@@ -190,10 +217,21 @@ pub struct GpuLayerWeights {
     pub ffn_down: GpuBuffer, // (n_embd × n_ff) f32
 }
 
+/// Wave 10D — per-layer attention-only weights cached on GPU for backward chain rule.
+/// Uploaded once at init for ALL layers (no FFN — gradient-through-residual is enough).
+pub struct GpuBwAttnWeights {
+    pub attn_q: GpuBuffer,
+    pub attn_k: GpuBuffer,
+    pub attn_v: GpuBuffer,
+    pub attn_o: GpuBuffer,
+}
+
 pub struct GpuTrainer {
     pub blas: hip::BlasHandle,
     /// Cached layer weights on GPU — uploaded ONCE at init, reused every step
     pub layer_weights: Vec<GpuLayerWeights>,
+    /// Wave 10D: ALL-layer attention weights for chain rule backward (uploaded once)
+    pub bw_attn: Vec<GpuBwAttnWeights>,
     /// Output projection cached on GPU: (n_vocab × n_embd) f32
     pub output_weight: GpuBuffer,
     /// GPU buffer for hidden states (batch × n_embd)
@@ -264,9 +302,68 @@ impl GpuTrainer {
             buf
         };
 
+        // Wave 10D: cache attention weights for backward chain rule.
+        // Bounded by BW_ATTN_MAX_LAYERS and a live /proc/meminfo gate — see
+        // post-mortem in crates/zhenai-forge/notes/wave-10d-postmortem/.
+        let n_total = cpu_weights.all_attn_q.len();
+        let layer_cap = n_total.min(BW_ATTN_MAX_LAYERS);
+        let start_free = host_mem_available_bytes();
+        if start_free < MIN_FREE_HOST_RAM_BYTES {
+            return Err(format!(
+                "bw_attn upload refused: host MemAvailable {:.2} GB < required {:.2} GB floor. \
+                 Stop services to reclaim RAM before retrying.",
+                start_free as f64 / 1e9,
+                MIN_FREE_HOST_RAM_BYTES as f64 / 1e9));
+        }
+        println!("  Wave 10D: caching {} of {} attention layers (cap={}, start_free={:.2} GB)...",
+            layer_cap, n_total, BW_ATTN_MAX_LAYERS, start_free as f64 / 1e9);
+        let mut bw_attn: Vec<GpuBwAttnWeights> = Vec::with_capacity(layer_cap);
+        let mut bw_total = 0usize;
+        for l in 0..layer_cap {
+            let q = &cpu_weights.all_attn_q[l];
+            let k = &cpu_weights.all_attn_k[l];
+            let v = &cpu_weights.all_attn_v[l];
+            let o = &cpu_weights.all_attn_o[l];
+            if q.is_empty() || k.is_empty() || v.is_empty() || o.is_empty() {
+                return Err(format!("bw_attn upload: layer {} has empty weights — aborting, \
+                    dataset/model mismatch suspected", l));
+            }
+            let free_now = host_mem_available_bytes();
+            if free_now != 0 && free_now < MIN_FREE_HOST_RAM_BYTES {
+                return Err(format!(
+                    "bw_attn upload aborted at layer {}: host MemAvailable fell to {:.2} GB \
+                     (< {:.2} GB floor). Cached {} layers so far. Budget derivation is wrong \
+                     or the host shed RAM mid-run — return to Phase A.",
+                    l, free_now as f64 / 1e9,
+                    MIN_FREE_HOST_RAM_BYTES as f64 / 1e9, bw_attn.len()));
+            }
+            let alloc_up = |data: &[f32], name: &str| -> Result<GpuBuffer, String> {
+                let buf = GpuBuffer::alloc(data.len() * 4)
+                    .map_err(|e| format!("bw_attn alloc {} layer {}: {}", name, l, e))?;
+                buf.upload_f32(data)
+                    .map_err(|e| format!("bw_attn upload {} layer {}: {}", name, l, e))?;
+                Ok(buf)
+            };
+            let q_buf = alloc_up(q, "attn_q")?;
+            let k_buf = alloc_up(k, "attn_k")?;
+            let v_buf = alloc_up(v, "attn_v")?;
+            let o_buf = alloc_up(o, "attn_o")?;
+            bw_total += (q.len() + k.len() + v.len() + o.len()) * 4;
+            bw_attn.push(GpuBwAttnWeights { attn_q: q_buf, attn_k: k_buf, attn_v: v_buf, attn_o: o_buf });
+            if (l + 1) % 4 == 0 {
+                println!("    bw cache: {}/{} layers ({:.2} GB used, {:.2} GB host free)",
+                    l + 1, layer_cap, bw_total as f64 / 1e9, free_now as f64 / 1e9);
+            }
+        }
+        total_cached += bw_total;
+        let end_free = host_mem_available_bytes();
+        println!("  Wave 10D bw_attn: {}/{} layers cached, {:.2} GB used, host_free {:.2}→{:.2} GB",
+            bw_attn.len(), n_total, bw_total as f64 / 1e9,
+            start_free as f64 / 1e9, end_free as f64 / 1e9);
+
         hip::sync().map_err(|e| format!("GPU sync after cache: {}", e))?;
-        println!("  Cached: {:.1} MB weights in GPU VRAM ({} layers + output)",
-            total_cached as f64 / 1e6, n_layers);
+        println!("  Cached: {:.1} MB weights in GPU VRAM ({} fwd layers + {} bw layers + output)",
+            total_cached as f64 / 1e6, n_layers, bw_attn.len());
 
         // Working buffers (not cached — reused per step)
         let max_batch = 8;
@@ -286,7 +383,7 @@ impl GpuTrainer {
             hidden_size as f64 / 1e6, result_size as f64 / 1e6);
 
         Ok(GpuTrainer {
-            blas, layer_weights, output_weight,
+            blas, layer_weights, bw_attn, output_weight,
             hidden_buf, result_buf, weight_buf,
             n_embd, n_ff, n_vocab, n_cached_layers: n_layers,
         })
@@ -755,6 +852,11 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
 
         for (i, token_ids) in cached_tokens.iter().enumerate() {
             let answer_start = cached_answer_starts[i];
+            let step_start = Instant::now();
+            // Verbose progress: emit BEGIN line every step so user sees liveness
+            println!("  [step {}/{}] begin (tokens={}, answer_start={})", i + 1, cached_tokens.len(), token_ids.len(), answer_start);
+            use std::io::Write;
+            let _ = std::io::stdout().flush();
 
             // Forward pass via GPU hipBLAS — returns loss + normed inputs for backward reuse
             let (loss, gpu_normed) = if token_ids.len() >= 2 && answer_start < token_ids.len() - 1 {
@@ -902,26 +1004,19 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             }
                         }
 
-                        // Chain rule: propagate grad_hidden through ALL layers.
-                        // Wave 10D: GPU backward for cached layers (28-31), CPU for rest.
-                        // No FFN backward (no LoRA on FFN — residual carries the gradient).
+                        // Wave 10D Phase 1.5: chain rule via GPU sgemm for ALL layers.
+                        // bw_attn[l] holds Q/K/V/O for layer l, uploaded once at startup.
+                        // Drops the per-step CPU attn_only_layer_backward bottleneck.
                         let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
-                        let gpu_local_idx = l.checked_sub(gpu_layer_offset);
-                        let use_gpu = gpu_local_idx
-                            .map(|idx| idx < gpu_trainer.layer_weights.len())
-                            .unwrap_or(false);
-
-                        if use_gpu {
-                            // Wave 10D GPU path: use cached GPU weights for chain rule
-                            let lc = gpu_local_idx.unwrap();
-                            let gw = &gpu_trainer.layer_weights[lc];
+                        if l < gpu_trainer.bw_attn.len() && l < cpu_weights.all_attn_norm.len() {
+                            let bw = &gpu_trainer.bw_attn[l];
                             // grad_normed = sum_t W_t^T @ (grad_hidden * 0.25)
                             let scaled: Vec<f32> = grad_hidden.iter().map(|g| g * 0.25).collect();
-                            // 4 contributions: Q, K, V, O
-                            let grad_q = gpu_trainer.gpu_matmul_grad_input(&scaled, &gw.attn_q, 1, n, n).unwrap_or_default();
-                            let grad_k = gpu_trainer.gpu_matmul_grad_input(&scaled[..kv_dim.min(scaled.len())], &gw.attn_k, 1, kv_dim, n).unwrap_or_default();
-                            let grad_v = gpu_trainer.gpu_matmul_grad_input(&scaled[..kv_dim.min(scaled.len())], &gw.attn_v, 1, kv_dim, n).unwrap_or_default();
-                            let grad_o = gpu_trainer.gpu_matmul_grad_input(&scaled, &gw.attn_o, 1, n, n).unwrap_or_default();
+                            let grad_q = gpu_trainer.gpu_matmul_grad_input(&scaled, &bw.attn_q, 1, n, n).unwrap_or_default();
+                            let scaled_kv = &scaled[..kv_dim.min(scaled.len())];
+                            let grad_k = gpu_trainer.gpu_matmul_grad_input(scaled_kv, &bw.attn_k, 1, kv_dim, n).unwrap_or_default();
+                            let grad_v = gpu_trainer.gpu_matmul_grad_input(scaled_kv, &bw.attn_v, 1, kv_dim, n).unwrap_or_default();
+                            let grad_o = gpu_trainer.gpu_matmul_grad_input(&scaled, &bw.attn_o, 1, n, n).unwrap_or_default();
                             let mut grad_normed = vec![0.0f32; n];
                             for j in 0..n {
                                 if j < grad_q.len() { grad_normed[j] += grad_q[j]; }
@@ -929,18 +1024,13 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                                 if j < grad_v.len() { grad_normed[j] += grad_v[j]; }
                                 if j < grad_o.len() { grad_normed[j] += grad_o[j]; }
                             }
-                            // Through attention RMSNorm
-                            let attn_norm = if l < cpu_weights.all_attn_norm.len() {
-                                &cpu_weights.all_attn_norm[l]
-                            } else {
-                                &cpu_weights.attn_norm[lc]
-                            };
-                            let grad_input_attn = backward::rmsnorm_backward(normed_input, attn_norm, &grad_normed, 1e-5);
+                            let grad_input_attn = backward::rmsnorm_backward(
+                                normed_input, &cpu_weights.all_attn_norm[l], &grad_normed, 1e-5);
                             for i in 0..n {
                                 grad_hidden[i] = grad_hidden[i] + grad_input_attn[i];
                             }
                         } else if l < cpu_weights.all_attn_q.len() && !cpu_weights.all_attn_q[l].is_empty() {
-                            // CPU path for non-cached layers
+                            // Fallback CPU path (only if GPU upload failed for this layer)
                             grad_hidden = backward::attn_only_layer_backward(
                                 &grad_hidden,
                                 normed_input,
@@ -993,17 +1083,20 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
             state.step += 1;
             state.total_loss += loss as f64;
 
-            // Log
-            if (i + 1) % config.log_interval == 0 || i == data.len() - 1 {
-                let elapsed = start.elapsed().as_secs_f64();
-                let steps_per_sec = state.step as f64 / elapsed;
-                let avg_loss = epoch_loss / epoch_steps as f64;
-                let eta_s = (data.len() as f64 - i as f64) / steps_per_sec
-                    + (config.epochs - epoch - 1) as f64 * data.len() as f64 / steps_per_sec;
+            // Log EVERY step — Wave 10D requirement (per-step progress + ETA)
+            let step_secs = step_start.elapsed().as_secs_f64();
+            let elapsed = start.elapsed().as_secs_f64();
+            let steps_per_sec = state.step as f64 / elapsed;
+            let avg_loss = epoch_loss / epoch_steps as f64;
+            let remaining_in_epoch = (data.len() as f64) - (i as f64 + 1.0);
+            let remaining_epochs = (config.epochs - epoch - 1) as f64;
+            let eta_s = remaining_in_epoch / steps_per_sec.max(0.0001)
+                + remaining_epochs * data.len() as f64 / steps_per_sec.max(0.0001);
+            let eta_min = eta_s / 60.0;
 
-                println!("  Step {}/{} | Loss: {:.4} | {:.1} steps/s | ETA: {:.0}s",
-                    i + 1, data.len(), avg_loss, steps_per_sec, eta_s);
-            }
+            println!("  [step {}/{}] DONE loss={:.4} avg={:.4} step_time={:.1}s | sps={:.3} | ETA={:.0}m",
+                i + 1, cached_tokens.len(), loss, avg_loss, step_secs, steps_per_sec, eta_min);
+            let _ = std::io::stdout().flush();
 
             // Save checkpoint
             if state.step > 0 && state.step as usize % config.save_interval == 0 {

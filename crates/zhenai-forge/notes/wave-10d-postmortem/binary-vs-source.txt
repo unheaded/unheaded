@@ -1,0 +1,2 @@
+stat: cannot stat '/home/govan/tmp/unheaded/target/release/zhenai-forge': No such file or directory (os error 2)
+2026-04-11 17:00:04.684749369 +0000 /home/govan/tmp/unheaded/crates/zhenai-forge/src/train.rs
