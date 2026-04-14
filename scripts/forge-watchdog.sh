@@ -76,10 +76,15 @@ date +%s > "$HEARTBEAT"
   done
 ) &
 STALL_PID=$!
-trap 'kill $STALL_PID 2>/dev/null || true' EXIT
 
-# Main tailer — forever, pattern-matches and kills.
-tail -n0 -F "$LOG" | while IFS= read -r line; do
+# Cleanup: kill stall detector + any surviving `tail -F` owned by this PID.
+# `tail -F | while` leaves tail orphaned on exit; process substitution +
+# explicit pkill on our own PGID is the cleanest path bash gives us.
+trap 'kill $STALL_PID 2>/dev/null || true; pkill -P $$ 2>/dev/null || true' EXIT
+
+# Main tailer via process substitution so `exit` in the loop exits the
+# main shell (not just a pipeline subshell).
+while IFS= read -r line; do
   # K1 — sgemm shape/geometry failures
   if [[ "$line" =~ (shape[[:space:]]mismatch|sgemm.*error|sgemm.*failed|HIPBLAS.*error) ]]; then
     kill_unit "K1 sgemm failure: $line"
@@ -104,4 +109,4 @@ tail -n0 -F "$LOG" | while IFS= read -r line; do
   if [[ "$line" =~ svm_range_restore_work ]]; then
     kill_unit "TIP Apr-12-class ROCm SVM thrash detected in log"
   fi
-done
+done < <(tail -n0 -F "$LOG")
