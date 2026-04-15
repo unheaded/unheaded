@@ -940,6 +940,33 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 // === Backward pass: accumulate gradients from ALL answer positions ===
                 let vocab_subset = cpu_weights.n_vocab;
 
+                // Path C: pre-dequantize lazy attention layers ONCE per step.
+                // Without this, each position's inner layer loop would re-dequantize
+                // the same ~170 MB layer, turning 16 lazy layers × N positions into
+                // (16N) GGUF reads — 100+ min per step for seq=900. We accept the
+                // ~2.7 GB transient allocation during backward (peak was ~6.5 GB
+                // in the previous run, ~3.5 GB under the 10 GB cgroup cap).
+                let mut lazy_attn: Vec<Option<(Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>)>>
+                    = Vec::with_capacity(n_layers_total);
+                for l in 0..n_layers_total {
+                    let is_lazy = l >= gpu_trainer.bw_attn.len()
+                        && l < cpu_weights.all_attn_q.len()
+                        && cpu_weights.all_attn_q[l].is_empty();
+                    if is_lazy {
+                        let q = forward::dequantize_tensor(&model, &format!("blk.{}.attn_q.weight", l))
+                            .unwrap_or_default();
+                        let k = forward::dequantize_tensor(&model, &format!("blk.{}.attn_k.weight", l))
+                            .unwrap_or_default();
+                        let v = forward::dequantize_tensor(&model, &format!("blk.{}.attn_v.weight", l))
+                            .unwrap_or_default();
+                        let o = forward::dequantize_tensor(&model, &format!("blk.{}.attn_output.weight", l))
+                            .unwrap_or_default();
+                        lazy_attn.push(Some((q, k, v, o)));
+                    } else {
+                        lazy_attn.push(None);
+                    }
+                }
+
                 for pos_idx in 0..n_loss_positions {
                     let t_pos = loss_start + pos_idx * stride; // strided position in sequence
                     if t_pos + 1 >= token_ids.len() { break; }
@@ -1030,39 +1057,24 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                                 grad_hidden[i] = grad_hidden[i] + grad_input_attn[i];
                             }
                         } else if l < cpu_weights.all_attn_q.len() {
-                            // CPU backward. Two sub-cases:
-                            //   (a) eager layer: Vec populated, use directly
-                            //   (b) Path C lazy layer: Vec empty, re-dequantize from
-                            //       GGUF mmap into locals that drop at block end.
-                            // The GPU path above covers layers 0..bw_attn.len()
-                            // (= eager_cap), so this branch runs for layers
-                            // bw_attn.len()..n_total — always the lazy range
-                            // unless bw_attn upload was short.
-                            let eager = !cpu_weights.all_attn_q[l].is_empty();
-                            let (q_vec, k_vec, v_vec, o_vec);
+                            // CPU backward. Source weights come from either:
+                            //   (a) cpu_weights.all_attn_* (eager layers)
+                            //   (b) lazy_attn[l] (Path C per-step cache, pre-dequantized
+                            //       once above the position loop to avoid O(positions × layers)
+                            //       GGUF reads).
                             let (q_ref, k_ref, v_ref, o_ref): (&[f32], &[f32], &[f32], &[f32]);
-                            if eager {
+                            if let Some((q, k, v, o)) = &lazy_attn[l] {
+                                if q.is_empty() || k.is_empty() || v.is_empty() || o.is_empty() {
+                                    continue; // tensor genuinely missing from model
+                                }
+                                q_ref = q; k_ref = k; v_ref = v; o_ref = o;
+                            } else if !cpu_weights.all_attn_q[l].is_empty() {
                                 q_ref = &cpu_weights.all_attn_q[l];
                                 k_ref = &cpu_weights.all_attn_k[l];
                                 v_ref = &cpu_weights.all_attn_v[l];
                                 o_ref = &cpu_weights.all_attn_o[l];
                             } else {
-                                q_vec = forward::dequantize_tensor(&model, &format!("blk.{}.attn_q.weight", l))
-                                    .unwrap_or_default();
-                                k_vec = forward::dequantize_tensor(&model, &format!("blk.{}.attn_k.weight", l))
-                                    .unwrap_or_default();
-                                v_vec = forward::dequantize_tensor(&model, &format!("blk.{}.attn_v.weight", l))
-                                    .unwrap_or_default();
-                                o_vec = forward::dequantize_tensor(&model, &format!("blk.{}.attn_output.weight", l))
-                                    .unwrap_or_default();
-                                if q_vec.is_empty() || k_vec.is_empty() || v_vec.is_empty() || o_vec.is_empty() {
-                                    // Tensor genuinely missing from model — skip this layer's backward
-                                    continue;
-                                }
-                                q_ref = &q_vec;
-                                k_ref = &k_vec;
-                                v_ref = &v_vec;
-                                o_ref = &o_vec;
+                                continue; // no source for this layer; skip
                             }
                             grad_hidden = backward::attn_only_layer_backward(
                                 &grad_hidden,
@@ -1073,7 +1085,6 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                                 None, 0, 0.0,
                                 n,
                             );
-                            // Lazy Vecs drop here, releasing ~170 MB/layer to the allocator.
                         }
                     }
                 } // end per-position gradient loop
