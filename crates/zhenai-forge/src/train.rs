@@ -884,7 +884,11 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 let n_layers_total = lora.layers.len(); // 32
                 let loss_start = answer_start.max(1);
                 let loss_end = token_ids.len();
-                let max_loss_positions: usize = 4; // fewer positions = faster per step
+                // Tunable for ladder smoke tests (E0/E1) on slow APUs without rebuild.
+                // Production default 4. Each position adds one full backward chain
+                // (~16 lazy-layer matmuls), so smoke tests can drop to 1-2.
+                let max_loss_positions: usize = std::env::var("FORGE_MAX_LOSS_POSITIONS")
+                    .ok().and_then(|s| s.parse().ok()).unwrap_or(4);
                 let raw_n_positions = if loss_end > loss_start + 1 { loss_end - loss_start - 1 } else { 1 };
                 let n_loss_positions = raw_n_positions.min(max_loss_positions);
                 let stride = if raw_n_positions > max_loss_positions {
