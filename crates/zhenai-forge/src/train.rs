@@ -1029,20 +1029,51 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             for i in 0..n {
                                 grad_hidden[i] = grad_hidden[i] + grad_input_attn[i];
                             }
-                        } else if l < cpu_weights.all_attn_q.len() && !cpu_weights.all_attn_q[l].is_empty() {
-                            // Fallback CPU path (only if GPU upload failed for this layer)
+                        } else if l < cpu_weights.all_attn_q.len() {
+                            // CPU backward. Two sub-cases:
+                            //   (a) eager layer: Vec populated, use directly
+                            //   (b) Path C lazy layer: Vec empty, re-dequantize from
+                            //       GGUF mmap into locals that drop at block end.
+                            // The GPU path above covers layers 0..bw_attn.len()
+                            // (= eager_cap), so this branch runs for layers
+                            // bw_attn.len()..n_total — always the lazy range
+                            // unless bw_attn upload was short.
+                            let eager = !cpu_weights.all_attn_q[l].is_empty();
+                            let (q_vec, k_vec, v_vec, o_vec);
+                            let (q_ref, k_ref, v_ref, o_ref): (&[f32], &[f32], &[f32], &[f32]);
+                            if eager {
+                                q_ref = &cpu_weights.all_attn_q[l];
+                                k_ref = &cpu_weights.all_attn_k[l];
+                                v_ref = &cpu_weights.all_attn_v[l];
+                                o_ref = &cpu_weights.all_attn_o[l];
+                            } else {
+                                q_vec = forward::dequantize_tensor(&model, &format!("blk.{}.attn_q.weight", l))
+                                    .unwrap_or_default();
+                                k_vec = forward::dequantize_tensor(&model, &format!("blk.{}.attn_k.weight", l))
+                                    .unwrap_or_default();
+                                v_vec = forward::dequantize_tensor(&model, &format!("blk.{}.attn_v.weight", l))
+                                    .unwrap_or_default();
+                                o_vec = forward::dequantize_tensor(&model, &format!("blk.{}.attn_output.weight", l))
+                                    .unwrap_or_default();
+                                if q_vec.is_empty() || k_vec.is_empty() || v_vec.is_empty() || o_vec.is_empty() {
+                                    // Tensor genuinely missing from model — skip this layer's backward
+                                    continue;
+                                }
+                                q_ref = &q_vec;
+                                k_ref = &k_vec;
+                                v_ref = &v_vec;
+                                o_ref = &o_vec;
+                            }
                             grad_hidden = backward::attn_only_layer_backward(
                                 &grad_hidden,
                                 normed_input,
                                 &cpu_weights.all_attn_norm[l],
-                                &cpu_weights.all_attn_q[l],
-                                &cpu_weights.all_attn_k[l],
-                                &cpu_weights.all_attn_v[l],
-                                &cpu_weights.all_attn_o[l],
+                                q_ref, k_ref, v_ref, o_ref,
                                 n, kv_dim, kv_dim, n,
                                 None, 0, 0.0,
                                 n,
                             );
+                            // Lazy Vecs drop here, releasing ~170 MB/layer to the allocator.
                         }
                     }
                 } // end per-position gradient loop
@@ -1250,35 +1281,53 @@ impl CpuWeights {
             }
         }
 
-        // Load attention weights for ALL layers (Wave 10C chain rule).
-        // 32 layers × ~167 MB each = ~5.4 GB. Enables free chain rule backward.
-        // FFN weights skipped (no LoRA on FFN, ~3GB savings).
-        println!("  Loading ALL-layer attention weights for chain rule (Wave 10C)...");
+        // Load attention weights for the chain rule (Wave 10C + 10D Path C).
+        // Path C: eagerly load only layers 0..BW_ATTN_MAX_LAYERS (bw_attn will
+        // upload these to GPU). Layers BW_ATTN_MAX_LAYERS..n_total are left
+        // empty at load time and re-dequantized lazily per-backward-step from
+        // the GGUF mmap (see lazy_dequantize_attn_layer). This avoids the
+        // ~2.7 GB peak-memory cliff that broke E0 on the 14 GB west host.
+        // attn_norm is always loaded (small: 16 KB/layer, 512 KB total).
+        println!("  Loading attention weights for chain rule (Wave 10C + 10D Path C)...");
         let n_total_layers = n_layers as usize;
+        let eager_cap = BW_ATTN_MAX_LAYERS.min(n_total_layers);
         let mut all_attn_q: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
         let mut all_attn_k: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
         let mut all_attn_v: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
         let mut all_attn_o: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
         let mut all_attn_norm: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
         for l in 0..n_total_layers {
-            all_attn_q.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_q.weight", l))
-                .unwrap_or_default());
-            all_attn_k.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_k.weight", l))
-                .unwrap_or_default());
-            all_attn_v.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_v.weight", l))
-                .unwrap_or_default());
-            all_attn_o.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_output.weight", l))
-                .unwrap_or_default());
+            if l < eager_cap {
+                all_attn_q.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_q.weight", l))
+                    .unwrap_or_default());
+                all_attn_k.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_k.weight", l))
+                    .unwrap_or_default());
+                all_attn_v.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_v.weight", l))
+                    .unwrap_or_default());
+                all_attn_o.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_output.weight", l))
+                    .unwrap_or_default());
+            } else {
+                // Path C lazy — placeholder empty Vecs; re-dequantized on demand in backward.
+                all_attn_q.push(Vec::new());
+                all_attn_k.push(Vec::new());
+                all_attn_v.push(Vec::new());
+                all_attn_o.push(Vec::new());
+            }
+            // attn_norm is small and always needed (both GPU path's rmsnorm_backward
+            // and CPU-fallback use it). Keep eager for all layers.
             all_attn_norm.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_norm.weight", l))
                 .unwrap_or_else(|| vec![1.0; n_embd]));
             if (l + 1) % 8 == 0 {
-                println!("    Loaded {}/{} layers", l + 1, n_total_layers);
+                println!("    Loaded {}/{} attn_norm layers ({} Q/K/V/O eager)",
+                    l + 1, n_total_layers, (l + 1).min(eager_cap));
             }
         }
         let all_attn_mb: f64 = all_attn_q.iter().chain(all_attn_k.iter())
             .chain(all_attn_v.iter()).chain(all_attn_o.iter())
             .map(|v| v.len()).sum::<usize>() as f64 * 4.0 / 1e6;
-        println!("    All-layer attention: {:.1} MB", all_attn_mb);
+        let lazy_count = n_total_layers - eager_cap;
+        println!("    All-layer attention: {:.1} MB eager ({} layers), {} lazy layers",
+            all_attn_mb, eager_cap, lazy_count);
 
         let total_elements: usize = embed.len() + output.len() + output_norm.len()
             + attn_q.iter().chain(attn_k.iter()).chain(attn_v.iter()).chain(attn_o.iter())
@@ -1515,6 +1564,50 @@ mod tests {
         assert_eq!(gpu_model.n_embd, 4096);
         assert!(gpu_model.vram_used > 0);
         println!("GPU model loaded: {:.1} MB VRAM", gpu_model.vram_used as f64 / 1e6);
+    }
+
+    /// Wave 10D Path C invariant: CpuWeights::load must eagerly dequantize only
+    /// the first BW_ATTN_MAX_LAYERS layers of all_attn_q/k/v/o, leaving the rest
+    /// as empty Vecs (lazy-dequantized in the backward path). all_attn_norm is
+    /// small (~16 KB/layer) and is kept eager for all layers.
+    #[test]
+    fn test_cpu_weights_path_c_lazy_skip() {
+        let model_path = "/var/zhen/models/mistral-7b-instruct-q5_k_m.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            println!("Model not found, skipping");
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("Failed to open GGUF");
+        let n_layers = model.get_u32("llama.block_count").unwrap_or(32);
+        let cpu = CpuWeights::load(&model, n_layers).expect("CpuWeights::load failed");
+
+        assert_eq!(cpu.all_attn_q.len(), n_layers as usize, "all_attn_q index range");
+        assert_eq!(cpu.all_attn_norm.len(), n_layers as usize, "all_attn_norm index range");
+
+        // Eager layers: populated.
+        for l in 0..BW_ATTN_MAX_LAYERS {
+            assert!(!cpu.all_attn_q[l].is_empty(), "layer {} attn_q should be eager", l);
+            assert!(!cpu.all_attn_k[l].is_empty(), "layer {} attn_k should be eager", l);
+            assert!(!cpu.all_attn_v[l].is_empty(), "layer {} attn_v should be eager", l);
+            assert!(!cpu.all_attn_o[l].is_empty(), "layer {} attn_o should be eager", l);
+        }
+        // Lazy layers: Q/K/V/O empty, norm still populated.
+        for l in BW_ATTN_MAX_LAYERS..(n_layers as usize) {
+            assert!(cpu.all_attn_q[l].is_empty(), "layer {} attn_q should be lazy", l);
+            assert!(cpu.all_attn_k[l].is_empty(), "layer {} attn_k should be lazy", l);
+            assert!(cpu.all_attn_v[l].is_empty(), "layer {} attn_v should be lazy", l);
+            assert!(cpu.all_attn_o[l].is_empty(), "layer {} attn_o should be lazy", l);
+            assert!(!cpu.all_attn_norm[l].is_empty(), "layer {} attn_norm stays eager", l);
+        }
+
+        // Footprint budget: eager all_attn total < 3 GB (16 layers × ~168 MB ≈ 2.7 GB).
+        let bytes: usize = cpu.all_attn_q.iter().chain(cpu.all_attn_k.iter())
+            .chain(cpu.all_attn_v.iter()).chain(cpu.all_attn_o.iter())
+            .map(|v| v.len() * 4).sum();
+        assert!(bytes < 3 * 1024 * 1024 * 1024,
+            "Path C eager all_attn footprint exceeded 3 GB budget: {} bytes", bytes);
+        println!("Path C OK: eager all_attn {:.2} GB, {} lazy layers",
+            bytes as f64 / 1e9, (n_layers as usize) - BW_ATTN_MAX_LAYERS);
     }
 
     #[test]
