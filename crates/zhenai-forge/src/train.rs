@@ -794,7 +794,7 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     println!("Training data: {} examples\n", data.len());
 
     // 4b. Dequantize essential weights to CPU for forward pass
-    let cpu_weights = CpuWeights::load(&model, gpu_model.n_layers)?;
+    let mut cpu_weights = CpuWeights::load(&model, gpu_model.n_layers)?;
     println!();
 
     // 4c. Initialize GPU trainer — cache layer weights to VRAM (zero upload per step)
@@ -802,6 +802,22 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     let gpu_trainer = GpuTrainer::new(
         &cpu_weights, cpu_weights.n_embd, cpu_weights.n_ff, cpu_weights.n_vocab, config.max_seq_len,
     )?;
+
+    // Path 1: free CPU-side all_attn copies for layers already in bw_attn GPU cache.
+    // On shared-memory APU, both CPU and GPU copies consume host RAM. Freeing the CPU
+    // side after upload reclaims ~2.68 GB (16 layers × 167 MB). The GPU bw_attn cache
+    // is the sole owner from here. The backward CPU-fallback for these layers would hit
+    // the empty-Vec check and skip — but it never fires because the GPU path handles them.
+    let freed_layers = gpu_trainer.bw_attn.len().min(cpu_weights.all_attn_q.len());
+    for l in 0..freed_layers {
+        let _ = std::mem::take(&mut cpu_weights.all_attn_q[l]);
+        let _ = std::mem::take(&mut cpu_weights.all_attn_k[l]);
+        let _ = std::mem::take(&mut cpu_weights.all_attn_v[l]);
+        let _ = std::mem::take(&mut cpu_weights.all_attn_o[l]);
+    }
+    let post_free = host_mem_available_bytes();
+    println!("  Path 1: freed CPU all_attn for {} GPU-cached layers, host_free now {:.2} GB",
+        freed_layers, post_free as f64 / 1e9);
     println!();
 
     // 5. Training loop
@@ -1244,7 +1260,9 @@ impl CpuWeights {
 
         // Load LAST 4 layers — fits in VRAM alongside quantized model.
         // 4 layers × ~870MB f32 = ~3.5GB + 4.8GB quantized = 8.3GB of 12GB.
-        let max_layers = n_layers.min(4) as usize;
+        let fwd_cache_cap: u32 = std::env::var("FORGE_FWD_CACHE_LAYERS")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(4);
+        let max_layers = n_layers.min(fwd_cache_cap) as usize;
         let layer_start = (n_layers as usize).saturating_sub(max_layers);
         let mut attn_q = Vec::new();
         let mut attn_k = Vec::new();
