@@ -1100,11 +1100,11 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             }
                         }
 
-                        // Wave 10D Phase 1.5: chain rule via GPU sgemm for ALL layers.
-                        // bw_attn[l] holds Q/K/V/O for layer l, uploaded once at startup.
-                        // Drops the per-step CPU attn_only_layer_backward bottleneck.
+                        // Base-weight chain rule: ONLY for layers that had real base
+                        // weights in the forward pass (l >= gpu_layer_offset). For layers
+                        // outside fwd_cache, forward was LoRA-only so backward must match.
                         let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
-                        if l < gpu_trainer.bw_attn.len() && l < cpu_weights.all_attn_norm.len() {
+                        if l >= gpu_layer_offset && l < gpu_trainer.bw_attn.len() && l < cpu_weights.all_attn_norm.len() {
                             let bw = &gpu_trainer.bw_attn[l];
                             // grad_normed = sum_t W_t^T @ (grad_hidden * 0.25)
                             let scaled: Vec<f32> = grad_hidden.iter().map(|g| g * 0.25).collect();
@@ -1125,8 +1125,8 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             for i in 0..n {
                                 grad_hidden[i] = grad_hidden[i] + grad_input_attn[i];
                             }
-                        } else if l < cpu_weights.all_attn_q.len() {
-                            // CPU backward with bf16→fp32 conversion.
+                        } else if l >= gpu_layer_offset && l < cpu_weights.all_attn_q.len() {
+                            // CPU backward with bf16→fp32 conversion (only for fwd-cached layers).
                             // Source: lazy_attn[l] (bf16 per-step cache) or cpu_weights.all_attn_* (bf16 eager).
                             let (q_bf16, k_bf16, v_bf16, o_bf16): (&[bf16], &[bf16], &[bf16], &[bf16]);
                             if let Some((q, k, v, o)) = &lazy_attn[l] {
