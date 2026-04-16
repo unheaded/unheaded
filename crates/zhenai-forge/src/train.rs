@@ -18,6 +18,7 @@ use crate::gguf::GgufFile;
 use crate::hip::{GpuBuffer, GpuDevice, self};
 use crate::lora::LoraAdapters;
 use crate::tokenizer::{Tokenizer, extract_vocabulary_from_gguf};
+use half::bf16;
 use std::time::Instant;
 
 // Wave 10D post-mortem: on a 14 GB host with shared-VRAM AMD APU semantics,
@@ -337,18 +338,20 @@ impl GpuTrainer {
                     l, free_now as f64 / 1e9,
                     MIN_FREE_HOST_RAM_BYTES as f64 / 1e9, bw_attn.len()));
             }
-            let alloc_up = |data: &[f32], name: &str| -> Result<GpuBuffer, String> {
-                let buf = GpuBuffer::alloc(data.len() * 4)
+            // bf16 upload: alloc half the VRAM, copy raw bf16 bytes
+            let alloc_up_bf16 = |data: &[bf16], name: &str| -> Result<GpuBuffer, String> {
+                let buf = GpuBuffer::alloc(data.len() * 2)
                     .map_err(|e| format!("bw_attn alloc {} layer {}: {}", name, l, e))?;
-                buf.upload_f32(data)
-                    .map_err(|e| format!("bw_attn upload {} layer {}: {}", name, l, e))?;
+                buf.copy_from_host(unsafe {
+                    std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 2)
+                }).map_err(|e| format!("bw_attn upload {} layer {}: {}", name, l, e))?;
                 Ok(buf)
             };
-            let q_buf = alloc_up(q, "attn_q")?;
-            let k_buf = alloc_up(k, "attn_k")?;
-            let v_buf = alloc_up(v, "attn_v")?;
-            let o_buf = alloc_up(o, "attn_o")?;
-            bw_total += (q.len() + k.len() + v.len() + o.len()) * 4;
+            let q_buf = alloc_up_bf16(q, "attn_q")?;
+            let k_buf = alloc_up_bf16(k, "attn_k")?;
+            let v_buf = alloc_up_bf16(v, "attn_v")?;
+            let o_buf = alloc_up_bf16(o, "attn_o")?;
+            bw_total += (q.len() + k.len() + v.len() + o.len()) * 2; // bf16 = 2 bytes
             bw_attn.push(GpuBwAttnWeights { attn_q: q_buf, attn_k: k_buf, attn_v: v_buf, attn_o: o_buf });
             if (l + 1) % 4 == 0 {
                 println!("    bw cache: {}/{} layers ({:.2} GB used, {:.2} GB host free)",
@@ -526,6 +529,48 @@ impl GpuTrainer {
             0.0,
             &self.result_buf, in_dim as i32,
         ).map_err(|e| format!("grad_input sgemm: {}", e))?;
+
+        hip::sync().map_err(|e| format!("sync: {}", e))?;
+
+        let download_elems = n_pos * in_dim;
+        let max_elems = self.result_buf.len() / 4;
+        let actual_elems = download_elems.min(max_elems);
+        let mut results = vec![0.0f32; actual_elems];
+        self.result_buf.download_f32(&mut results)
+            .map_err(|e| format!("download grad_input: {}", e))?;
+        results.resize(download_elems, 0.0);
+        Ok(results)
+    }
+
+    /// Like gpu_matmul_grad_input but weight_gpu is bf16 and grad_output is converted
+    /// to bf16 on the fly. Uses hipblasGemmEx for mixed-precision: bf16 × bf16 → fp32.
+    pub fn gpu_matmul_grad_input_bf16(
+        &self,
+        grad_output: &[f32],
+        weight_gpu: &GpuBuffer, // bf16 data on GPU
+        n_pos: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> Result<Vec<f32>, String> {
+        // Convert grad_output fp32 → bf16 and upload
+        let upload_elems = (n_pos * out_dim).min(self.hidden_buf.len() / 2);
+        let grad_bf16: Vec<bf16> = grad_output[..upload_elems].iter()
+            .map(|f| bf16::from_f32(*f)).collect();
+        self.hidden_buf.copy_from_host(unsafe {
+            std::slice::from_raw_parts(grad_bf16.as_ptr() as *const u8, grad_bf16.len() * 2)
+        }).map_err(|e| format!("upload grad_output bf16 ({} elems): {}", upload_elems, e))?;
+
+        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+
+        // bf16 A × bf16 B → fp32 C via hipblasGemmEx
+        self.blas.sgemm_bf16(
+            in_dim as i32, n_pos as i32, out_dim as i32,
+            1.0,
+            weight_gpu, in_dim as i32,
+            &self.hidden_buf, out_dim as i32,
+            0.0,
+            &self.result_buf, in_dim as i32,
+        ).map_err(|e| format!("grad_input sgemm_bf16: {}", e))?;
 
         hip::sync().map_err(|e| format!("sync: {}", e))?;
 
@@ -966,7 +1011,11 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 // (16N) GGUF reads — 100+ min per step for seq=900. We accept the
                 // ~2.7 GB transient allocation during backward (peak was ~6.5 GB
                 // in the previous run, ~3.5 GB under the 10 GB cgroup cap).
-                let mut lazy_attn: Vec<Option<(Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>)>>
+                // Path B+C: per-step lazy cache stored as bf16 (~1.35 GB transient, down from 2.7 GB fp32)
+                let f32_to_bf16_vec = |v: Vec<f32>| -> Vec<bf16> {
+                    v.iter().map(|f| bf16::from_f32(*f)).collect()
+                };
+                let mut lazy_attn: Vec<Option<(Vec<bf16>, Vec<bf16>, Vec<bf16>, Vec<bf16>)>>
                     = Vec::with_capacity(n_layers_total);
                 for l in 0..n_layers_total {
                     let is_lazy = l >= gpu_trainer.bw_attn.len()
@@ -974,13 +1023,13 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                         && cpu_weights.all_attn_q[l].is_empty();
                     if is_lazy {
                         let q = forward::dequantize_tensor(&model, &format!("blk.{}.attn_q.weight", l))
-                            .unwrap_or_default();
+                            .map(&f32_to_bf16_vec).unwrap_or_default();
                         let k = forward::dequantize_tensor(&model, &format!("blk.{}.attn_k.weight", l))
-                            .unwrap_or_default();
+                            .map(&f32_to_bf16_vec).unwrap_or_default();
                         let v = forward::dequantize_tensor(&model, &format!("blk.{}.attn_v.weight", l))
-                            .unwrap_or_default();
+                            .map(&f32_to_bf16_vec).unwrap_or_default();
                         let o = forward::dequantize_tensor(&model, &format!("blk.{}.attn_output.weight", l))
-                            .unwrap_or_default();
+                            .map(&f32_to_bf16_vec).unwrap_or_default();
                         lazy_attn.push(Some((q, k, v, o)));
                     } else {
                         lazy_attn.push(None);
@@ -1059,11 +1108,11 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             let bw = &gpu_trainer.bw_attn[l];
                             // grad_normed = sum_t W_t^T @ (grad_hidden * 0.25)
                             let scaled: Vec<f32> = grad_hidden.iter().map(|g| g * 0.25).collect();
-                            let grad_q = gpu_trainer.gpu_matmul_grad_input(&scaled, &bw.attn_q, 1, n, n).unwrap_or_default();
+                            let grad_q = gpu_trainer.gpu_matmul_grad_input_bf16(&scaled, &bw.attn_q, 1, n, n).unwrap_or_default();
                             let scaled_kv = &scaled[..kv_dim.min(scaled.len())];
-                            let grad_k = gpu_trainer.gpu_matmul_grad_input(scaled_kv, &bw.attn_k, 1, kv_dim, n).unwrap_or_default();
-                            let grad_v = gpu_trainer.gpu_matmul_grad_input(scaled_kv, &bw.attn_v, 1, kv_dim, n).unwrap_or_default();
-                            let grad_o = gpu_trainer.gpu_matmul_grad_input(&scaled, &bw.attn_o, 1, n, n).unwrap_or_default();
+                            let grad_k = gpu_trainer.gpu_matmul_grad_input_bf16(scaled_kv, &bw.attn_k, 1, kv_dim, n).unwrap_or_default();
+                            let grad_v = gpu_trainer.gpu_matmul_grad_input_bf16(scaled_kv, &bw.attn_v, 1, kv_dim, n).unwrap_or_default();
+                            let grad_o = gpu_trainer.gpu_matmul_grad_input_bf16(&scaled, &bw.attn_o, 1, n, n).unwrap_or_default();
                             let mut grad_normed = vec![0.0f32; n];
                             for j in 0..n {
                                 if j < grad_q.len() { grad_normed[j] += grad_q[j]; }
@@ -1077,30 +1126,31 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                                 grad_hidden[i] = grad_hidden[i] + grad_input_attn[i];
                             }
                         } else if l < cpu_weights.all_attn_q.len() {
-                            // CPU backward. Source weights come from either:
-                            //   (a) cpu_weights.all_attn_* (eager layers)
-                            //   (b) lazy_attn[l] (Path C per-step cache, pre-dequantized
-                            //       once above the position loop to avoid O(positions × layers)
-                            //       GGUF reads).
-                            let (q_ref, k_ref, v_ref, o_ref): (&[f32], &[f32], &[f32], &[f32]);
+                            // CPU backward with bf16→fp32 conversion.
+                            // Source: lazy_attn[l] (bf16 per-step cache) or cpu_weights.all_attn_* (bf16 eager).
+                            let (q_bf16, k_bf16, v_bf16, o_bf16): (&[bf16], &[bf16], &[bf16], &[bf16]);
                             if let Some((q, k, v, o)) = &lazy_attn[l] {
                                 if q.is_empty() || k.is_empty() || v.is_empty() || o.is_empty() {
-                                    continue; // tensor genuinely missing from model
+                                    continue;
                                 }
-                                q_ref = q; k_ref = k; v_ref = v; o_ref = o;
+                                q_bf16 = q; k_bf16 = k; v_bf16 = v; o_bf16 = o;
                             } else if !cpu_weights.all_attn_q[l].is_empty() {
-                                q_ref = &cpu_weights.all_attn_q[l];
-                                k_ref = &cpu_weights.all_attn_k[l];
-                                v_ref = &cpu_weights.all_attn_v[l];
-                                o_ref = &cpu_weights.all_attn_o[l];
+                                q_bf16 = &cpu_weights.all_attn_q[l];
+                                k_bf16 = &cpu_weights.all_attn_k[l];
+                                v_bf16 = &cpu_weights.all_attn_v[l];
+                                o_bf16 = &cpu_weights.all_attn_o[l];
                             } else {
-                                continue; // no source for this layer; skip
+                                continue;
                             }
+                            let q_f32: Vec<f32> = q_bf16.iter().map(|b| b.to_f32()).collect();
+                            let k_f32: Vec<f32> = k_bf16.iter().map(|b| b.to_f32()).collect();
+                            let v_f32: Vec<f32> = v_bf16.iter().map(|b| b.to_f32()).collect();
+                            let o_f32: Vec<f32> = o_bf16.iter().map(|b| b.to_f32()).collect();
                             grad_hidden = backward::attn_only_layer_backward(
                                 &grad_hidden,
                                 normed_input,
                                 &cpu_weights.all_attn_norm[l],
-                                q_ref, k_ref, v_ref, o_ref,
+                                &q_f32, &k_f32, &v_f32, &o_f32,
                                 n, kv_dim, kv_dim, n,
                                 None, 0, 0.0,
                                 n,
@@ -1222,12 +1272,12 @@ struct CpuWeights {
     ffn_norm: Vec<Vec<f32>>,
 
     /// ALL-LAYER attention weights for chain rule backward (Wave 10C).
-    /// Indexed [0..n_total_layers]. Loaded once at startup, ~5.4GB for Mistral-7B.
-    /// FFN weights NOT included (no LoRA on FFN, FFN backward not needed).
-    all_attn_q: Vec<Vec<f32>>,
-    all_attn_k: Vec<Vec<f32>>,
-    all_attn_v: Vec<Vec<f32>>,
-    all_attn_o: Vec<Vec<f32>>,
+    /// Stored as bf16 (Wave 10D Path B) — halves footprint from ~5.4 GB to ~2.7 GB.
+    /// Converted to fp32 at use sites (CPU backward) or consumed directly (GPU sgemm_bf16).
+    all_attn_q: Vec<Vec<bf16>>,
+    all_attn_k: Vec<Vec<bf16>>,
+    all_attn_v: Vec<Vec<bf16>>,
+    all_attn_o: Vec<Vec<bf16>>,
     all_attn_norm: Vec<Vec<f32>>,
 
     n_vocab: usize,
@@ -1314,33 +1364,33 @@ impl CpuWeights {
             }
         }
 
-        // Load attention weights for the chain rule (Wave 10C + 10D Path C).
-        // Path C: eagerly load only layers 0..BW_ATTN_MAX_LAYERS (bw_attn will
-        // upload these to GPU). Layers BW_ATTN_MAX_LAYERS..n_total are left
-        // empty at load time and re-dequantized lazily per-backward-step from
-        // the GGUF mmap (see lazy_dequantize_attn_layer). This avoids the
-        // ~2.7 GB peak-memory cliff that broke E0 on the 14 GB west host.
-        // attn_norm is always loaded (small: 16 KB/layer, 512 KB total).
-        println!("  Loading attention weights for chain rule (Wave 10C + 10D Path C)...");
+        // Load attention weights for the chain rule (Wave 10C + 10D Path B+C).
+        // Path C: eagerly load only layers 0..BW_ATTN_MAX_LAYERS.
+        // Path B: store as bf16 (halves footprint from ~2.7 GB to ~1.34 GB eager).
+        // Lazy layers pushed as empty Vec<bf16> and re-dequantized per step.
+        // attn_norm stays fp32 (small + precision-sensitive for RMSNorm).
+        let f32_to_bf16 = |v: Vec<f32>| -> Vec<bf16> {
+            v.iter().map(|f| bf16::from_f32(*f)).collect()
+        };
+        println!("  Loading attention weights for chain rule (Wave 10C + 10D Path B+C, bf16)...");
         let n_total_layers = n_layers as usize;
         let eager_cap = BW_ATTN_MAX_LAYERS.min(n_total_layers);
-        let mut all_attn_q: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
-        let mut all_attn_k: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
-        let mut all_attn_v: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
-        let mut all_attn_o: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
+        let mut all_attn_q: Vec<Vec<bf16>> = Vec::with_capacity(n_total_layers);
+        let mut all_attn_k: Vec<Vec<bf16>> = Vec::with_capacity(n_total_layers);
+        let mut all_attn_v: Vec<Vec<bf16>> = Vec::with_capacity(n_total_layers);
+        let mut all_attn_o: Vec<Vec<bf16>> = Vec::with_capacity(n_total_layers);
         let mut all_attn_norm: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
         for l in 0..n_total_layers {
             if l < eager_cap {
                 all_attn_q.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_q.weight", l))
-                    .unwrap_or_default());
+                    .map(&f32_to_bf16).unwrap_or_default());
                 all_attn_k.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_k.weight", l))
-                    .unwrap_or_default());
+                    .map(&f32_to_bf16).unwrap_or_default());
                 all_attn_v.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_v.weight", l))
-                    .unwrap_or_default());
+                    .map(&f32_to_bf16).unwrap_or_default());
                 all_attn_o.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_output.weight", l))
-                    .unwrap_or_default());
+                    .map(&f32_to_bf16).unwrap_or_default());
             } else {
-                // Path C lazy — placeholder empty Vecs; re-dequantized on demand in backward.
                 all_attn_q.push(Vec::new());
                 all_attn_k.push(Vec::new());
                 all_attn_v.push(Vec::new());
@@ -1357,7 +1407,7 @@ impl CpuWeights {
         }
         let all_attn_mb: f64 = all_attn_q.iter().chain(all_attn_k.iter())
             .chain(all_attn_v.iter()).chain(all_attn_o.iter())
-            .map(|v| v.len()).sum::<usize>() as f64 * 4.0 / 1e6;
+            .map(|v| v.len()).sum::<usize>() as f64 * 2.0 / 1e6; // bf16 = 2 bytes
         let lazy_count = n_total_layers - eager_cap;
         println!("    All-layer attention: {:.1} MB eager ({} layers), {} lazy layers",
             all_attn_mb, eager_cap, lazy_count);
@@ -1633,13 +1683,13 @@ mod tests {
             assert!(!cpu.all_attn_norm[l].is_empty(), "layer {} attn_norm stays eager", l);
         }
 
-        // Footprint budget: eager all_attn total < 3 GB (16 layers × ~168 MB ≈ 2.7 GB).
+        // Footprint budget: eager all_attn in bf16 < 1.5 GB (16 layers × ~84 MB ≈ 1.34 GB).
         let bytes: usize = cpu.all_attn_q.iter().chain(cpu.all_attn_k.iter())
             .chain(cpu.all_attn_v.iter()).chain(cpu.all_attn_o.iter())
-            .map(|v| v.len() * 4).sum();
-        assert!(bytes < 3 * 1024 * 1024 * 1024,
-            "Path C eager all_attn footprint exceeded 3 GB budget: {} bytes", bytes);
-        println!("Path C OK: eager all_attn {:.2} GB, {} lazy layers",
+            .map(|v| v.len() * 2).sum(); // bf16 = 2 bytes
+        assert!(bytes < 2 * 1024 * 1024 * 1024,
+            "Path B+C eager all_attn bf16 footprint exceeded 2 GB budget: {} bytes", bytes);
+        println!("Path B+C OK: eager all_attn bf16 {:.2} GB, {} lazy layers",
             bytes as f64 / 1e9, (n_layers as usize) - BW_ATTN_MAX_LAYERS);
     }
 
