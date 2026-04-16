@@ -95,6 +95,14 @@ pub enum HipblasOperation {
     Transpose = 112,   // HIPBLAS_OP_T
 }
 
+// hipblasDatatype_t values (from hipblas.h — legacy enum, accepted by hipblasGemmEx)
+pub const HIPBLAS_R_16F: i32 = 150;  // float16
+pub const HIPBLAS_R_32F: i32 = 151;  // float32
+pub const HIPBLAS_R_16B: i32 = 168;  // bfloat16
+// hipblasComputeType_t (from hipblas-common.h)
+pub const HIPBLAS_COMPUTE_32F: i32 = 2;
+pub const HIPBLAS_GEMM_DEFAULT: i32 = 160;
+
 #[link(name = "hipblas", kind = "dylib")]
 extern "C" {
     pub fn hipblasCreate(handle: *mut HipblasHandle) -> i32;
@@ -117,6 +125,21 @@ extern "C" {
         beta: *const f32,
         c: *mut c_void,
         ldc: i32,
+    ) -> i32;
+
+    /// C = alpha * A * B + beta * C — extended precision variant.
+    /// Supports mixed precision: bf16 inputs + fp32 compute + fp32 output.
+    pub fn hipblasGemmEx(
+        handle: HipblasHandle,
+        transa: i32, transb: i32,
+        m: i32, n: i32, k: i32,
+        alpha: *const c_void,
+        a: *const c_void, a_type: i32, lda: i32,
+        b: *const c_void, b_type: i32, ldb: i32,
+        beta: *const c_void,
+        c: *mut c_void, c_type: i32, ldc: i32,
+        compute_type: i32,
+        algo: i32,
     ) -> i32;
 }
 
@@ -154,6 +177,34 @@ impl BlasHandle {
                 b.as_ptr() as *const c_void, ldb,
                 &beta,
                 c.as_ptr() as *mut c_void, ldc,
+            )
+        })
+    }
+
+    /// GPU matmul with bf16 inputs and fp32 output: C(fp32) = alpha * A(bf16) * B(bf16) + beta * C(fp32).
+    /// Compute is fp32 internally. A: (m × k), B: (k × n), C: (m × n).
+    pub fn sgemm_bf16(
+        &self,
+        m: i32, n: i32, k: i32,
+        alpha: f32,
+        a: &GpuBuffer, lda: i32,
+        b: &GpuBuffer, ldb: i32,
+        beta: f32,
+        c: &GpuBuffer, ldc: i32,
+    ) -> Result<(), HipError> {
+        check(unsafe {
+            hipblasGemmEx(
+                self.handle,
+                HipblasOperation::None as i32,
+                HipblasOperation::None as i32,
+                m, n, k,
+                &alpha as *const f32 as *const c_void,
+                a.as_ptr() as *const c_void, HIPBLAS_R_16B, lda,
+                b.as_ptr() as *const c_void, HIPBLAS_R_16B, ldb,
+                &beta as *const f32 as *const c_void,
+                c.as_ptr() as *mut c_void, HIPBLAS_R_32F, ldc,
+                HIPBLAS_R_32F, // V1 API: compute type passed as hipblasDatatype_t
+                HIPBLAS_GEMM_DEFAULT,
             )
         })
     }
@@ -433,6 +484,49 @@ mod tests {
         assert!((result[3] - 50.0).abs() < 0.01, "C[1,1] = {} (expected 50)", result[3]);
 
         println!("hipBLAS SGEMM verified: [[19, 22], [43, 50]]");
+    }
+
+    #[test]
+    fn test_hipblas_sgemm_bf16() {
+        if GpuDevice::init(0).is_err() {
+            println!("No GPU, skipping");
+            return;
+        }
+
+        let blas = BlasHandle::new().expect("hipblas create failed");
+
+        // Same 2x2 multiply as fp32 test: C = A(bf16) * B(bf16) → C(fp32)
+        // A = [[1, 2], [3, 4]]  B = [[5, 6], [7, 8]]  → C = [[19, 22], [43, 50]]
+        let a_f32: Vec<f32> = vec![1.0, 3.0, 2.0, 4.0]; // col-major
+        let b_f32: Vec<f32> = vec![5.0, 7.0, 6.0, 8.0];
+
+        let a_bf16: Vec<u16> = a_f32.iter().map(|f| half::bf16::from_f32(*f).to_bits()).collect();
+        let b_bf16: Vec<u16> = b_f32.iter().map(|f| half::bf16::from_f32(*f).to_bits()).collect();
+
+        let a_buf = GpuBuffer::alloc(a_bf16.len() * 2).expect("alloc A");
+        let b_buf = GpuBuffer::alloc(b_bf16.len() * 2).expect("alloc B");
+        let c_buf = GpuBuffer::alloc(4 * 4).expect("alloc C"); // fp32 output
+
+        a_buf.copy_from_host(unsafe {
+            std::slice::from_raw_parts(a_bf16.as_ptr() as *const u8, a_bf16.len() * 2)
+        }).expect("H2D A");
+        b_buf.copy_from_host(unsafe {
+            std::slice::from_raw_parts(b_bf16.as_ptr() as *const u8, b_bf16.len() * 2)
+        }).expect("H2D B");
+        c_buf.zero().expect("zero C");
+
+        blas.sgemm_bf16(2, 2, 2, 1.0, &a_buf, 2, &b_buf, 2, 0.0, &c_buf, 2).expect("sgemm_bf16");
+        sync().expect("sync");
+
+        let mut result = vec![0.0f32; 4];
+        c_buf.copy_to_host(bytemuck_cast_mut(&mut result)).expect("D2H C");
+
+        assert!((result[0] - 19.0).abs() < 0.1, "C[0,0] = {} (expected 19)", result[0]);
+        assert!((result[1] - 43.0).abs() < 0.1, "C[1,0] = {} (expected 43)", result[1]);
+        assert!((result[2] - 22.0).abs() < 0.1, "C[0,1] = {} (expected 22)", result[2]);
+        assert!((result[3] - 50.0).abs() < 0.1, "C[1,1] = {} (expected 50)", result[3]);
+
+        println!("hipBLAS SGEMM bf16 verified: [[19, 22], [43, 50]]");
     }
 
     fn bytemuck_cast(data: &[f32]) -> &[u8] {
