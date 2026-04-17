@@ -1185,6 +1185,47 @@ pub fn backward_gemma4(
     backward_gemma4_with_lora(weights, None, caches, logits, tokens, answer_start)
 }
 
+/// Build the per-layer producer table for unified KV routing. For each
+/// KV-reusing layer (has_kv = false), returns the index of its producer
+/// (the most recent KV-producing layer of the same attention type).
+/// For KV-producing layers themselves, returns None.
+///
+/// Per Gemma 4 E2B with n_layer_kv_from_start=20 and the verified pattern
+/// (full at [4,9,14,19,24,29,34], rest sliding):
+///   - Layer 19 (last KV-prod full) is producer for consumers 24, 29, 34
+///   - Layer 18 (last KV-prod sliding) is producer for consumers
+///     20, 21, 22, 23, 25, 26, 27, 28, 30, 31, 32, 33
+fn build_producer_table(h: &Gemma4Hparams) -> Vec<Option<usize>> {
+    let mut last_full_producer: Option<usize> = None;
+    let mut last_sliding_producer: Option<usize> = None;
+    let mut producers = vec![None; h.n_layer];
+    for il in 0..h.n_layer {
+        if h.has_kv(il) {
+            // Update the running last producer for this attention type
+            if h.is_sliding(il) {
+                last_sliding_producer = Some(il);
+            } else {
+                last_full_producer = Some(il);
+            }
+        } else {
+            producers[il] = if h.is_sliding(il) {
+                last_sliding_producer
+            } else {
+                last_full_producer
+            };
+        }
+    }
+    producers
+}
+
+/// Accumulated K/V gradients destined for a producer layer.
+/// grad_k_rot is in post-gqa-collapse, post-RoPE, pre-K-norm shape.
+/// grad_v_post_norm is in post-gqa-collapse, post-V-norm shape.
+struct SharedKvGrads {
+    grad_k_rot: Vec<f32>,         // [seq, n_head_kv, head_dim]
+    grad_v_post_norm: Vec<f32>,   // [seq, n_head_kv, head_dim]
+}
+
 /// Same as `backward_gemma4` but accumulates LoRA gradients when `lora` is
 /// Some. Per-position lora_backward contributions are summed into grad_a /
 /// grad_b on the corresponding LoraLayer.
@@ -1245,6 +1286,14 @@ pub fn backward_gemma4_with_lora(
         let gi = backward::rmsnorm_backward(input_row, &weights.output_norm, go_row, h.rms_norm_eps);
         grad_hidden[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
     }
+
+    // 4b. Phase 4 — Unified KV routing accumulators.
+    //     For each KV-reusing layer in the reverse pass, push gradient
+    //     contributions on shared K/V into shared_kv_grads[producer_idx].
+    //     When the producer's backward runs, those contributions are added
+    //     to its own K/V backward path before the wk/wv projection backward.
+    let producer_of = build_producer_table(h);
+    let mut shared_kv_grads: Vec<Option<SharedKvGrads>> = (0..h.n_layer).map(|_| None).collect();
 
     // 5. Per-layer reverse loop.
     let mut health = Vec::with_capacity(h.n_layer);
@@ -1446,8 +1495,46 @@ pub fn backward_gemma4_with_lora(
             &cache.attn_cache,
             n_head, head_dim, seq,
         );
-        let grad_k_rot = backward::gqa_collapse(&grad_k_rot_expanded, n_head, n_head_kv, head_dim, seq);
-        let grad_v = backward::gqa_collapse(&grad_v_expanded, n_head, n_head_kv, head_dim, seq);
+        let mut grad_k_rot = backward::gqa_collapse(&grad_k_rot_expanded, n_head, n_head_kv, head_dim, seq);
+        let mut grad_v = backward::gqa_collapse(&grad_v_expanded, n_head, n_head_kv, head_dim, seq);
+
+        // Phase 4 — if THIS is a KV-reusing layer, route its K/V grad to producer.
+        if !h.has_kv(il) {
+            if let Some(producer_idx) = producer_of[il] {
+                let entry = shared_kv_grads[producer_idx].get_or_insert_with(|| SharedKvGrads {
+                    grad_k_rot: vec![0.0; grad_k_rot.len()],
+                    grad_v_post_norm: vec![0.0; grad_v.len()],
+                });
+                // Sanity: shapes must match (same attention type → same head_dim,
+                // same kv_out_dim; producer and consumer's seq is identical).
+                if entry.grad_k_rot.len() == grad_k_rot.len() {
+                    for i in 0..grad_k_rot.len() {
+                        entry.grad_k_rot[i] += grad_k_rot[i];
+                    }
+                }
+                if entry.grad_v_post_norm.len() == grad_v.len() {
+                    for i in 0..grad_v.len() {
+                        entry.grad_v_post_norm[i] += grad_v[i];
+                    }
+                }
+            }
+            // Zero out local consumer grads — they're now routed.
+            // (The consumer has no wk/wv to apply them to anyway; zeroing
+            // makes the downstream branch produce zero grad_normed_k/v.)
+            for v in grad_k_rot.iter_mut() { *v = 0.0; }
+            for v in grad_v.iter_mut() { *v = 0.0; }
+        } else {
+            // Phase 4 — if THIS is a producer, ADD any consumer contributions
+            // to our own K/V grads before continuing through RoPE/norm backward.
+            if let Some(shared) = shared_kv_grads[il].take() {
+                for i in 0..grad_k_rot.len().min(shared.grad_k_rot.len()) {
+                    grad_k_rot[i] += shared.grad_k_rot[i];
+                }
+                for i in 0..grad_v.len().min(shared.grad_v_post_norm.len()) {
+                    grad_v[i] += shared.grad_v_post_norm[i];
+                }
+            }
+        }
 
         // Backward through RoPE on Q and K
         let rope_dim = h.rope_dim(il);
