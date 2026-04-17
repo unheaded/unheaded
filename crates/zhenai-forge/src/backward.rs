@@ -322,6 +322,256 @@ pub fn attn_only_layer_backward(
     grad_input
 }
 
+// =============================================================================
+// WAVE10F Phase 1 — real attention backward (vanilla GQA).
+// Math derivations: crates/zhenai-forge/notes/phase1-attention-math.md
+// All new functions get a numerical-gradient test in the test module below.
+// =============================================================================
+
+/// Backward pass for softmax along the last axis (one row at a time).
+/// Given upstream gradient `g` and softmax output `p`:
+///   ∂L/∂z = p .* (g - dot(g, p))
+/// where dot(g, p) = sum_j g_j * p_j is a scalar per row.
+///
+/// Inputs:
+///   grad_out: gradient w.r.t. softmax output, shape [n]
+///   softmax_out: the softmax output (cached from forward), shape [n]
+/// Returns:
+///   gradient w.r.t. softmax input (pre-softmax z), shape [n]
+pub fn softmax_backward(grad_out: &[f32], softmax_out: &[f32]) -> Vec<f32> {
+    debug_assert_eq!(grad_out.len(), softmax_out.len());
+    let dot: f32 = grad_out.iter().zip(softmax_out.iter()).map(|(g, p)| g * p).sum();
+    softmax_out.iter().zip(grad_out.iter())
+        .map(|(p, g)| p * (g - dot))
+        .collect()
+}
+
+/// Backward pass for RoPE rotation. RoPE applies a 2D rotation per (even, odd)
+/// dim pair with angles `freqs[s, d/2] = (cos θ, sin θ)`. Backward applies the
+/// inverse rotation (transpose for orthogonal matrices).
+///
+/// Inputs:
+///   grad_rotated: gradient w.r.t. the rotated output, shape [seq_len, head_dim]
+///                 (single head; caller iterates over heads)
+///   freqs_cos: cosine table, shape [seq_len, head_dim/2]
+///   freqs_sin: sine table, shape [seq_len, head_dim/2]
+/// Returns:
+///   gradient w.r.t. the pre-rotation input, shape [seq_len, head_dim]
+pub fn rope_backward(
+    grad_rotated: &[f32],
+    freqs_cos: &[f32],
+    freqs_sin: &[f32],
+    seq_len: usize,
+    head_dim: usize,
+) -> Vec<f32> {
+    let half = head_dim / 2;
+    debug_assert_eq!(grad_rotated.len(), seq_len * head_dim);
+    debug_assert_eq!(freqs_cos.len(), seq_len * half);
+    debug_assert_eq!(freqs_sin.len(), seq_len * half);
+
+    let mut out = vec![0.0f32; seq_len * head_dim];
+    for s in 0..seq_len {
+        for d in 0..half {
+            let cos = freqs_cos[s * half + d];
+            let sin = freqs_sin[s * half + d];
+            let ge = grad_rotated[s * head_dim + 2 * d];
+            let go = grad_rotated[s * head_dim + 2 * d + 1];
+            // Inverse of [[cos, -sin], [sin, cos]] is [[cos, sin], [-sin, cos]]
+            out[s * head_dim + 2 * d]     =  ge * cos + go * sin;
+            out[s * head_dim + 2 * d + 1] = -ge * sin + go * cos;
+        }
+    }
+    out
+}
+
+/// Backward pass for GQA expansion. Forward repeats each KV head `group_size`
+/// times along the head axis. Backward sums gradients across the repeated heads
+/// back into a single KV head.
+///
+/// Inputs:
+///   grad_kv_expanded: gradient w.r.t. the expanded K or V, shape [seq_len, n_heads, head_dim]
+///   n_heads: query head count
+///   n_kv_heads: KV head count (n_heads must be a multiple of n_kv_heads)
+///   head_dim: per-head dimension
+/// Returns:
+///   gradient w.r.t. the pre-expand K or V, shape [seq_len, n_kv_heads, head_dim]
+pub fn gqa_collapse(
+    grad_kv_expanded: &[f32],
+    n_heads: usize,
+    n_kv_heads: usize,
+    head_dim: usize,
+    seq_len: usize,
+) -> Vec<f32> {
+    debug_assert_eq!(grad_kv_expanded.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(n_heads % n_kv_heads, 0);
+    let group_size = n_heads / n_kv_heads;
+
+    let mut out = vec![0.0f32; seq_len * n_kv_heads * head_dim];
+    for s in 0..seq_len {
+        for h_kv in 0..n_kv_heads {
+            for h_in_group in 0..group_size {
+                let h_q = h_kv * group_size + h_in_group;
+                let src_off = (s * n_heads + h_q) * head_dim;
+                let dst_off = (s * n_kv_heads + h_kv) * head_dim;
+                for d in 0..head_dim {
+                    out[dst_off + d] += grad_kv_expanded[src_off + d];
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Forward GQA expansion (the reverse direction of `gqa_collapse`). Repeats
+/// each KV head `group_size = n_heads / n_kv_heads` times.
+///
+/// Inputs:
+///   kv: K or V, shape [seq_len, n_kv_heads, head_dim]
+/// Returns:
+///   expanded K or V, shape [seq_len, n_heads, head_dim]
+///
+/// Defined here (not in forward.rs) so the backward+forward pair lives together.
+pub fn gqa_expand(
+    kv: &[f32],
+    n_heads: usize,
+    n_kv_heads: usize,
+    head_dim: usize,
+    seq_len: usize,
+) -> Vec<f32> {
+    debug_assert_eq!(kv.len(), seq_len * n_kv_heads * head_dim);
+    let group_size = n_heads / n_kv_heads;
+    let mut out = vec![0.0f32; seq_len * n_heads * head_dim];
+    for s in 0..seq_len {
+        for h_kv in 0..n_kv_heads {
+            let src_off = (s * n_kv_heads + h_kv) * head_dim;
+            for h_in_group in 0..group_size {
+                let h_q = h_kv * group_size + h_in_group;
+                let dst_off = (s * n_heads + h_q) * head_dim;
+                out[dst_off..dst_off + head_dim]
+                    .copy_from_slice(&kv[src_off..src_off + head_dim]);
+            }
+        }
+    }
+    out
+}
+
+/// Backward pass for vanilla GQA scaled-dot-product attention.
+///
+/// Forward (recap):
+///   K_e, V_e = gqa_expand(K, V)            # to [seq, n_heads, head_dim]
+///   scores_pre = (Q_rot @ K_rot_e^T) / sqrt(head_dim)   # [n_heads, seq, seq]
+///   scores_masked = scores_pre + mask      # additive mask (-inf outside window)
+///   A = softmax(scores_masked)             # [n_heads, seq, seq]
+///   O = A @ V_e                            # [seq, n_heads, head_dim]
+///
+/// Inputs:
+///   grad_out: gradient w.r.t. O, shape [seq, n_heads, head_dim]
+///   q_rot: post-RoPE Q, shape [seq, n_heads, head_dim]
+///   k_rot_expanded: post-RoPE post-GQA-expand K, shape [seq, n_heads, head_dim]
+///   v_expanded: post-GQA-expand V, shape [seq, n_heads, head_dim]
+///   attn: cached softmax output, shape [n_heads, seq, seq]
+///   n_heads, head_dim, seq_len: dims
+/// Returns:
+///   (grad_q_rot, grad_k_rot_expanded, grad_v_expanded) — all in expanded shape;
+///   caller applies `gqa_collapse` to grad_k/v to fold back to KV heads, then
+///   `rope_backward` to grad_q_rot and the collapsed grad_k.
+pub fn attention_backward(
+    grad_out: &[f32],
+    q_rot: &[f32],
+    k_rot_expanded: &[f32],
+    v_expanded: &[f32],
+    attn: &[f32],
+    n_heads: usize,
+    head_dim: usize,
+    seq_len: usize,
+) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+    debug_assert_eq!(grad_out.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(q_rot.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(k_rot_expanded.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(v_expanded.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(attn.len(), n_heads * seq_len * seq_len);
+
+    let scale = 1.0f32 / (head_dim as f32).sqrt();
+    let mut grad_q = vec![0.0f32; seq_len * n_heads * head_dim];
+    let mut grad_k = vec![0.0f32; seq_len * n_heads * head_dim];
+    let mut grad_v = vec![0.0f32; seq_len * n_heads * head_dim];
+
+    for h in 0..n_heads {
+        // Per-head views: A is [seq, seq], dO is [seq, head_dim], V is [seq, head_dim]
+        // Indexing: O[s, h, d] = grad_out[(s * n_heads + h) * head_dim + d]
+        //          A[h, i, j] = attn[h * seq_len * seq_len + i * seq_len + j]
+        let a_off = h * seq_len * seq_len;
+
+        // Step 1: dA = dO @ V_e^T per head
+        //   dA[i, j] = sum_d dO[i, h, d] * V_e[j, h, d]
+        let mut da = vec![0.0f32; seq_len * seq_len];
+        for i in 0..seq_len {
+            for j in 0..seq_len {
+                let mut s = 0.0f32;
+                for d in 0..head_dim {
+                    let do_id = (i * n_heads + h) * head_dim + d;
+                    let v_jd = (j * n_heads + h) * head_dim + d;
+                    s += grad_out[do_id] * v_expanded[v_jd];
+                }
+                da[i * seq_len + j] = s;
+            }
+        }
+
+        // Step 2: dV_e = A^T @ dO per head
+        //   dV_e[j, d] = sum_i A[i, j] * dO[i, h, d]
+        for j in 0..seq_len {
+            for d in 0..head_dim {
+                let mut s = 0.0f32;
+                for i in 0..seq_len {
+                    let a_ij = attn[a_off + i * seq_len + j];
+                    let do_id = (i * n_heads + h) * head_dim + d;
+                    s += a_ij * grad_out[do_id];
+                }
+                grad_v[(j * n_heads + h) * head_dim + d] = s;
+            }
+        }
+
+        // Step 3: d_scores = softmax_backward(dA, A) per row, then * scale
+        let mut d_scores = vec![0.0f32; seq_len * seq_len];
+        for i in 0..seq_len {
+            let row_grad = &da[i * seq_len..(i + 1) * seq_len];
+            let row_p = &attn[a_off + i * seq_len..a_off + (i + 1) * seq_len];
+            let row_out = softmax_backward(row_grad, row_p);
+            for (j, v) in row_out.iter().enumerate() {
+                d_scores[i * seq_len + j] = v * scale;
+            }
+        }
+
+        // Step 4: dQ = d_scores @ K_rot_e per head
+        //   dQ[i, h, d] = sum_j d_scores[i, j] * K_rot_e[j, h, d]
+        for i in 0..seq_len {
+            for d in 0..head_dim {
+                let mut s = 0.0f32;
+                for j in 0..seq_len {
+                    let k_jd = (j * n_heads + h) * head_dim + d;
+                    s += d_scores[i * seq_len + j] * k_rot_expanded[k_jd];
+                }
+                grad_q[(i * n_heads + h) * head_dim + d] = s;
+            }
+        }
+
+        // Step 5: dK_rot_e = d_scores^T @ Q_rot per head
+        //   dK_rot_e[j, h, d] = sum_i d_scores[i, j] * Q_rot[i, h, d]
+        for j in 0..seq_len {
+            for d in 0..head_dim {
+                let mut s = 0.0f32;
+                for i in 0..seq_len {
+                    let q_id = (i * n_heads + h) * head_dim + d;
+                    s += d_scores[i * seq_len + j] * q_rot[q_id];
+                }
+                grad_k[(j * n_heads + h) * head_dim + d] = s;
+            }
+        }
+    }
+
+    (grad_q, grad_k, grad_v)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,6 +589,199 @@ mod tests {
         // Sum of gradients should be ~0 (softmax sums to 1, minus 1 for target)
         let sum: f32 = grad.iter().sum();
         assert!((sum).abs() < 1e-5, "Gradient sum should be ~0, got {}", sum);
+    }
+
+    // === WAVE10F Phase 1 numerical gradient tests ===
+
+    /// Deterministic pseudo-random vector for tests (no rand crate dep).
+    fn det_vec(n: usize, seed: u64) -> Vec<f32> {
+        let mut s = seed.wrapping_mul(0x9E3779B97F4A7C15);
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            // Map to [-1, 1]
+            let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
+            out.push(u);
+        }
+        out
+    }
+
+    fn softmax_inline(x: &mut [f32]) {
+        let max = x.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        let mut sum = 0.0f32;
+        for v in x.iter_mut() { *v = (*v - max).exp(); sum += *v; }
+        for v in x.iter_mut() { *v /= sum; }
+    }
+
+    #[test]
+    fn test_softmax_backward_numerical() {
+        let n = 8;
+        let z = det_vec(n, 1);
+        let mut p = z.clone(); softmax_inline(&mut p);
+
+        let upstream = det_vec(n, 2);
+        let analytical = softmax_backward(&upstream, &p);
+
+        let eps = 1e-3f32;
+        for i in 0..n {
+            let mut zp = z.clone(); zp[i] += eps; softmax_inline(&mut zp);
+            let mut zm = z.clone(); zm[i] -= eps; softmax_inline(&mut zm);
+            let numerical: f32 = zp.iter().zip(zm.iter()).zip(upstream.iter())
+                .map(|((p, m), u)| (p - m) * u).sum::<f32>() / (2.0 * eps);
+            let denom = numerical.abs().max(1e-4);
+            let rel = (analytical[i] - numerical).abs() / denom;
+            assert!(rel < 0.1, "softmax_backward[{}] analytical={} numerical={} rel_err={}",
+                i, analytical[i], numerical, rel);
+        }
+    }
+
+    #[test]
+    fn test_rope_backward_numerical() {
+        use crate::forward::{rope_apply, rope_freqs};
+        let seq_len = 4;
+        let head_dim = 8;
+        let (cos, sin) = rope_freqs(seq_len, head_dim, 10000.0);
+
+        let x = det_vec(seq_len * head_dim, 3);
+        let upstream = det_vec(seq_len * head_dim, 4);
+
+        let analytical = rope_backward(&upstream, &cos, &sin, seq_len, head_dim);
+
+        let eps = 1e-3f32;
+        for i in 0..x.len() {
+            let mut xp = x.clone(); xp[i] += eps;
+            let mut xm = x.clone(); xm[i] -= eps;
+            let yp = rope_apply(&xp, &cos, &sin, seq_len, head_dim);
+            let ym = rope_apply(&xm, &cos, &sin, seq_len, head_dim);
+            let numerical: f32 = yp.iter().zip(ym.iter()).zip(upstream.iter())
+                .map(|((p, m), u)| (p - m) * u).sum::<f32>() / (2.0 * eps);
+            let denom = numerical.abs().max(1e-4);
+            let rel = (analytical[i] - numerical).abs() / denom;
+            assert!(rel < 0.05, "rope_backward[{}] analytical={} numerical={} rel_err={}",
+                i, analytical[i], numerical, rel);
+        }
+    }
+
+    #[test]
+    fn test_gqa_collapse_sums_correctly() {
+        let seq_len = 2;
+        let n_heads = 4;
+        let n_kv_heads = 2;
+        let head_dim = 3;
+        let group_size = n_heads / n_kv_heads; // 2
+
+        // Construct expanded grad with known per-head values
+        // grad_kv_e[s, h, d] = h + 1 (so KV head 0 = sum of heads 0,1 = 1+2 = 3 per element)
+        let mut grad_e = vec![0.0f32; seq_len * n_heads * head_dim];
+        for s in 0..seq_len {
+            for h in 0..n_heads {
+                for d in 0..head_dim {
+                    grad_e[(s * n_heads + h) * head_dim + d] = (h + 1) as f32;
+                }
+            }
+        }
+
+        let collapsed = gqa_collapse(&grad_e, n_heads, n_kv_heads, head_dim, seq_len);
+        // KV head 0 = sum of query heads 0,1 = 1+2 = 3
+        // KV head 1 = sum of query heads 2,3 = 3+4 = 7
+        for s in 0..seq_len {
+            for d in 0..head_dim {
+                let v0 = collapsed[(s * n_kv_heads + 0) * head_dim + d];
+                let v1 = collapsed[(s * n_kv_heads + 1) * head_dim + d];
+                assert_eq!(v0, 3.0, "kv head 0 should sum to 3");
+                assert_eq!(v1, 7.0, "kv head 1 should sum to 7");
+            }
+        }
+        let _ = group_size;
+    }
+
+    #[test]
+    fn test_gqa_expand_collapse_roundtrip() {
+        let seq_len = 3;
+        let n_heads = 6;
+        let n_kv_heads = 2;
+        let head_dim = 4;
+
+        let kv = det_vec(seq_len * n_kv_heads * head_dim, 5);
+        let expanded = gqa_expand(&kv, n_heads, n_kv_heads, head_dim, seq_len);
+        // Each KV head replicated 3 times → collapse should yield 3 * kv
+        let collapsed = gqa_collapse(&expanded, n_heads, n_kv_heads, head_dim, seq_len);
+        let group_size = (n_heads / n_kv_heads) as f32;
+        for i in 0..kv.len() {
+            let expected = kv[i] * group_size;
+            assert!((collapsed[i] - expected).abs() < 1e-5,
+                "roundtrip [{}] expected={} got={}", i, expected, collapsed[i]);
+        }
+    }
+
+    #[test]
+    fn test_attention_backward_numerical() {
+        use crate::forward::{attention_forward, AttnMask};
+        let seq_len = 4;
+        let n_heads = 2;
+        let n_kv_heads = 1;
+        let head_dim = 4;
+        let mask = AttnMask::Causal;
+
+        let q = det_vec(seq_len * n_heads * head_dim, 10);
+        let k = det_vec(seq_len * n_kv_heads * head_dim, 11);
+        let v = det_vec(seq_len * n_kv_heads * head_dim, 12);
+
+        // Expand K, V to [seq, n_heads, head_dim] for attention_backward signature
+        let k_e = gqa_expand(&k, n_heads, n_kv_heads, head_dim, seq_len);
+        let v_e = gqa_expand(&v, n_heads, n_kv_heads, head_dim, seq_len);
+
+        let (out, attn) = attention_forward(&q, &k, &v, n_heads, n_kv_heads, head_dim, seq_len, mask);
+
+        let upstream = det_vec(out.len(), 13);
+        let (gq, gk_e, gv_e) = attention_backward(&upstream, &q, &k_e, &v_e, &attn,
+                                                  n_heads, head_dim, seq_len);
+
+        let eps = 1e-3f32;
+
+        // Check Q gradients
+        for i in 0..q.len() {
+            let mut qp = q.clone(); qp[i] += eps;
+            let mut qm = q.clone(); qm[i] -= eps;
+            let (op, _) = attention_forward(&qp, &k, &v, n_heads, n_kv_heads, head_dim, seq_len, mask);
+            let (om, _) = attention_forward(&qm, &k, &v, n_heads, n_kv_heads, head_dim, seq_len, mask);
+            let numerical: f32 = op.iter().zip(om.iter()).zip(upstream.iter())
+                .map(|((p, m), u)| (p - m) * u).sum::<f32>() / (2.0 * eps);
+            let denom = numerical.abs().max(1e-4);
+            let rel = (gq[i] - numerical).abs() / denom;
+            assert!(rel < 0.1, "grad_Q[{}] analytical={} numerical={} rel_err={}",
+                i, gq[i], numerical, rel);
+        }
+
+        // Check V gradients (collapse expanded grad first)
+        let gv = gqa_collapse(&gv_e, n_heads, n_kv_heads, head_dim, seq_len);
+        for i in 0..v.len() {
+            let mut vp = v.clone(); vp[i] += eps;
+            let mut vm = v.clone(); vm[i] -= eps;
+            let (op, _) = attention_forward(&q, &k, &vp, n_heads, n_kv_heads, head_dim, seq_len, mask);
+            let (om, _) = attention_forward(&q, &k, &vm, n_heads, n_kv_heads, head_dim, seq_len, mask);
+            let numerical: f32 = op.iter().zip(om.iter()).zip(upstream.iter())
+                .map(|((p, m), u)| (p - m) * u).sum::<f32>() / (2.0 * eps);
+            let denom = numerical.abs().max(1e-4);
+            let rel = (gv[i] - numerical).abs() / denom;
+            assert!(rel < 0.1, "grad_V[{}] analytical={} numerical={} rel_err={}",
+                i, gv[i], numerical, rel);
+        }
+
+        // Check K gradients (collapse expanded grad first)
+        let gk = gqa_collapse(&gk_e, n_heads, n_kv_heads, head_dim, seq_len);
+        for i in 0..k.len() {
+            let mut kp = k.clone(); kp[i] += eps;
+            let mut km = k.clone(); km[i] -= eps;
+            let (op, _) = attention_forward(&q, &kp, &v, n_heads, n_kv_heads, head_dim, seq_len, mask);
+            let (om, _) = attention_forward(&q, &km, &v, n_heads, n_kv_heads, head_dim, seq_len, mask);
+            let numerical: f32 = op.iter().zip(om.iter()).zip(upstream.iter())
+                .map(|((p, m), u)| (p - m) * u).sum::<f32>() / (2.0 * eps);
+            let denom = numerical.abs().max(1e-4);
+            let rel = (gk[i] - numerical).abs() / denom;
+            assert!(rel < 0.1, "grad_K[{}] analytical={} numerical={} rel_err={}",
+                i, gk[i], numerical, rel);
+        }
     }
 
     #[test]

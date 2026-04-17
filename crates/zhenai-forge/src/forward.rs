@@ -162,6 +162,186 @@ pub fn matmul_cpu(a: &[f32], b: &[f32], m: usize, n: usize, k: usize) -> Vec<f32
     c
 }
 
+// =============================================================================
+// WAVE10F Phase 1 — real attention forward (vanilla GQA).
+// Math derivations: crates/zhenai-forge/notes/phase1-attention-math.md
+// Backward counterparts in backward.rs; numerical-gradient tests in both.
+// =============================================================================
+
+/// Precompute RoPE cos/sin tables for a given sequence length and head dim.
+///
+/// freqs[s, d/2] = (cos(s * theta_d), sin(s * theta_d))
+/// where theta_d = 1.0 / base^(2*d / head_dim)
+///
+/// Returns (cos_table, sin_table), each of shape [seq_len, head_dim/2].
+pub fn rope_freqs(seq_len: usize, head_dim: usize, base: f32) -> (Vec<f32>, Vec<f32>) {
+    let half = head_dim / 2;
+    let mut cos_table = vec![0.0f32; seq_len * half];
+    let mut sin_table = vec![0.0f32; seq_len * half];
+    for d in 0..half {
+        let theta = 1.0f32 / base.powf(2.0 * d as f32 / head_dim as f32);
+        for s in 0..seq_len {
+            let angle = s as f32 * theta;
+            cos_table[s * half + d] = angle.cos();
+            sin_table[s * half + d] = angle.sin();
+        }
+    }
+    (cos_table, sin_table)
+}
+
+/// Apply RoPE rotation in-place along (even, odd) dim pairs.
+///
+/// Input shape: [seq_len, head_dim] for a single head; caller iterates heads.
+/// freqs_cos, freqs_sin: shape [seq_len, head_dim/2]
+///
+/// Rotation: [x_even', x_odd'] = [x_even * cos - x_odd * sin,
+///                                x_even * sin + x_odd * cos]
+pub fn rope_apply(
+    x: &[f32],
+    freqs_cos: &[f32],
+    freqs_sin: &[f32],
+    seq_len: usize,
+    head_dim: usize,
+) -> Vec<f32> {
+    let half = head_dim / 2;
+    debug_assert_eq!(x.len(), seq_len * head_dim);
+    debug_assert_eq!(freqs_cos.len(), seq_len * half);
+    debug_assert_eq!(freqs_sin.len(), seq_len * half);
+
+    let mut out = vec![0.0f32; seq_len * head_dim];
+    for s in 0..seq_len {
+        for d in 0..half {
+            let cos = freqs_cos[s * half + d];
+            let sin = freqs_sin[s * half + d];
+            let xe = x[s * head_dim + 2 * d];
+            let xo = x[s * head_dim + 2 * d + 1];
+            out[s * head_dim + 2 * d]     = xe * cos - xo * sin;
+            out[s * head_dim + 2 * d + 1] = xe * sin + xo * cos;
+        }
+    }
+    out
+}
+
+/// Mask type for attention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttnMask {
+    /// Standard causal mask: position i can attend to positions [0, i].
+    Causal,
+    /// Sliding-window causal mask: position i can attend to positions
+    /// [max(0, i - window + 1), i].
+    SlidingWindow(usize),
+}
+
+impl AttnMask {
+    /// Returns true if query position `i` is allowed to attend to key position `j`.
+    pub fn allows(&self, i: usize, j: usize) -> bool {
+        match self {
+            AttnMask::Causal => j <= i,
+            AttnMask::SlidingWindow(w) => j <= i && i - j < *w,
+        }
+    }
+}
+
+/// Vanilla GQA scaled-dot-product attention forward (CPU reference).
+///
+/// Inputs:
+///   q_rot: post-RoPE Q, shape [seq_len, n_heads, head_dim]
+///   k_rot: post-RoPE K, shape [seq_len, n_kv_heads, head_dim]
+///   v: V, shape [seq_len, n_kv_heads, head_dim]
+///   n_heads, n_kv_heads, head_dim, seq_len: dims
+///   mask: causal or sliding-window
+///
+/// Returns (output, attn_cache) where:
+///   output: shape [seq_len, n_heads, head_dim] — attention output (before O proj)
+///   attn_cache: shape [n_heads, seq_len, seq_len] — softmax weights, needed by backward
+///
+/// Mistral-7B example: n_heads=32, n_kv_heads=8, head_dim=128.
+/// GQA expansion happens inside (each KV head consumed by 4 query heads).
+pub fn attention_forward(
+    q_rot: &[f32],
+    k_rot: &[f32],
+    v: &[f32],
+    n_heads: usize,
+    n_kv_heads: usize,
+    head_dim: usize,
+    seq_len: usize,
+    mask: AttnMask,
+) -> (Vec<f32>, Vec<f32>) {
+    debug_assert_eq!(q_rot.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(k_rot.len(), seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(v.len(), seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(n_heads % n_kv_heads, 0);
+
+    let group_size = n_heads / n_kv_heads;
+    let scale = 1.0f32 / (head_dim as f32).sqrt();
+
+    let mut output = vec![0.0f32; seq_len * n_heads * head_dim];
+    let mut attn_cache = vec![0.0f32; n_heads * seq_len * seq_len];
+
+    for h in 0..n_heads {
+        let h_kv = h / group_size; // GQA grouping: query head h reads from KV head h_kv
+        let attn_off = h * seq_len * seq_len;
+
+        // Step 1: scores[i, j] = (Q[i, h] . K[j, h_kv]) * scale, masked
+        for i in 0..seq_len {
+            // Compute row of pre-softmax scores
+            let mut row = vec![f32::NEG_INFINITY; seq_len];
+            for j in 0..seq_len {
+                if !mask.allows(i, j) {
+                    continue; // leave as -inf
+                }
+                let mut dot = 0.0f32;
+                for d in 0..head_dim {
+                    let q_id = (i * n_heads + h) * head_dim + d;
+                    let k_jd = (j * n_kv_heads + h_kv) * head_dim + d;
+                    dot += q_rot[q_id] * k_rot[k_jd];
+                }
+                row[j] = dot * scale;
+            }
+
+            // Step 2: softmax with numerical stability (max-subtract)
+            softmax(&mut row);
+
+            // Step 3: cache attention weights for backward
+            for j in 0..seq_len {
+                attn_cache[attn_off + i * seq_len + j] = row[j];
+            }
+
+            // Step 4: output[i, h] = sum_j attn[i, j] * V[j, h_kv]
+            for d in 0..head_dim {
+                let mut sum = 0.0f32;
+                for j in 0..seq_len {
+                    let v_jd = (j * n_kv_heads + h_kv) * head_dim + d;
+                    sum += row[j] * v[v_jd];
+                }
+                output[(i * n_heads + h) * head_dim + d] = sum;
+            }
+        }
+    }
+
+    (output, attn_cache)
+}
+
+/// GELU activation, tanh approximation (matches Gemma 4's `gelu_pytorch_tanh`).
+///
+/// gelu_tanh(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+///
+/// This is the approximation used by Gemma 4 / Llama / many transformer
+/// implementations. It differs from the exact GELU (`x * Φ(x)`) by ~1e-3.
+pub fn gelu_tanh_approx(x: f32) -> f32 {
+    const SQRT_2_OVER_PI: f32 = 0.7978845608028654; // sqrt(2.0 / PI)
+    const ALPHA: f32 = 0.044715;
+    let inner = SQRT_2_OVER_PI * (x + ALPHA * x * x * x);
+    0.5 * x * (1.0 + inner.tanh())
+}
+
+/// Logit softcapping (Gemma 4 final layer): bounds logits via tanh.
+/// `out = tanh(x / cap) * cap`
+/// For cap=30, logits saturate smoothly at ±30.
+pub fn logit_softcap(x: f32, cap: f32) -> f32 {
+    (x / cap).tanh() * cap
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,6 +404,117 @@ mod tests {
         assert!((silu(0.0) - 0.0).abs() < 0.01);
         assert!(silu(1.0) > 0.5); // SiLU(1) ≈ 0.731
         assert!(silu(-1.0) < 0.0); // SiLU(-1) ≈ -0.269
+    }
+
+    // === WAVE10F Phase 1 forward tests ===
+
+    #[test]
+    fn test_rope_apply_orthogonal() {
+        // RoPE rotation preserves L2 norm per position.
+        let seq_len = 4;
+        let head_dim = 8;
+        let (cos, sin) = rope_freqs(seq_len, head_dim, 10000.0);
+
+        let mut x = Vec::with_capacity(seq_len * head_dim);
+        for i in 0..seq_len * head_dim {
+            x.push(((i as f32) * 0.137).sin());
+        }
+        let y = rope_apply(&x, &cos, &sin, seq_len, head_dim);
+
+        for s in 0..seq_len {
+            let nx: f32 = (0..head_dim).map(|d| {
+                let v = x[s * head_dim + d]; v * v
+            }).sum();
+            let ny: f32 = (0..head_dim).map(|d| {
+                let v = y[s * head_dim + d]; v * v
+            }).sum();
+            assert!((nx - ny).abs() < 1e-4,
+                "RoPE not norm-preserving at pos {}: |x|^2={} |y|^2={}", s, nx, ny);
+        }
+    }
+
+    #[test]
+    fn test_rope_freqs_position_zero_identity() {
+        // At position 0, all angles are 0 → cos=1, sin=0 → no rotation.
+        let head_dim = 8;
+        let (cos, sin) = rope_freqs(2, head_dim, 10000.0);
+        for d in 0..head_dim / 2 {
+            assert!((cos[d] - 1.0).abs() < 1e-6);
+            assert!(sin[d].abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_attention_forward_causal_mask() {
+        // First token's attention should put all weight on itself (mask blocks all later).
+        let seq_len = 3;
+        let n_heads = 1;
+        let n_kv_heads = 1;
+        let head_dim = 4;
+
+        let q = vec![1.0; seq_len * n_heads * head_dim];
+        let k = vec![1.0; seq_len * n_kv_heads * head_dim];
+        let v = vec![0.5; seq_len * n_kv_heads * head_dim];
+
+        let (out, attn) = attention_forward(&q, &k, &v, n_heads, n_kv_heads, head_dim, seq_len, AttnMask::Causal);
+
+        // Position 0 only attends to position 0 → attn[0, 0, 0] = 1.0
+        assert!((attn[0] - 1.0).abs() < 1e-6, "attn[0,0,0] should be 1.0, got {}", attn[0]);
+        assert_eq!(attn[1], 0.0, "attn[0,0,1] should be 0 (masked)");
+        assert_eq!(attn[2], 0.0, "attn[0,0,2] should be 0 (masked)");
+
+        // Output[0] should equal V[0] (since attention is one-hot on position 0)
+        for d in 0..head_dim {
+            assert!((out[d] - 0.5).abs() < 1e-5);
+        }
+    }
+
+    #[test]
+    fn test_attention_forward_sliding_window() {
+        // SlidingWindow(2): position 2 can only attend to positions [1, 2]
+        let seq_len = 3;
+        let n_heads = 1;
+        let n_kv_heads = 1;
+        let head_dim = 4;
+
+        let q = vec![1.0; seq_len * n_heads * head_dim];
+        let k = vec![1.0; seq_len * n_kv_heads * head_dim];
+        let v = vec![1.0; seq_len * n_kv_heads * head_dim];
+
+        let (_out, attn) = attention_forward(&q, &k, &v, n_heads, n_kv_heads, head_dim, seq_len,
+            AttnMask::SlidingWindow(2));
+
+        // Position 2's attention: [0]=0 (out of window), [1]=0.5, [2]=0.5
+        let row2_off = 2 * seq_len;
+        assert_eq!(attn[row2_off + 0], 0.0, "pos 2 should not attend to pos 0 (window=2)");
+        assert!((attn[row2_off + 1] - 0.5).abs() < 1e-5);
+        assert!((attn[row2_off + 2] - 0.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_gelu_tanh_approx_basic() {
+        // gelu(0) = 0
+        assert!(gelu_tanh_approx(0.0).abs() < 1e-6);
+        // gelu is monotonically increasing
+        assert!(gelu_tanh_approx(0.5) < gelu_tanh_approx(1.0));
+        assert!(gelu_tanh_approx(-1.0) < gelu_tanh_approx(0.0));
+        // Asymptotically: large positive → x; large negative → 0
+        assert!(gelu_tanh_approx(10.0) > 9.99);
+        assert!(gelu_tanh_approx(-10.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_logit_softcap_bounds() {
+        let cap = 30.0;
+        // Within cap, near-linear
+        let small = logit_softcap(5.0, cap);
+        assert!((small - 5.0).abs() < 0.5, "small input should be near-linear");
+        // Asymptote at cap (tanh saturates to exactly 1.0 in f32 for large inputs).
+        let big = logit_softcap(1000.0, cap);
+        assert!(big <= cap, "softcap output {} must not exceed cap {}", big, cap);
+        assert!(big > cap * 0.99, "softcap should approach cap, got {}", big);
+        // Symmetric
+        assert!((logit_softcap(7.0, cap) + logit_softcap(-7.0, cap)).abs() < 1e-5);
     }
 
     #[test]
