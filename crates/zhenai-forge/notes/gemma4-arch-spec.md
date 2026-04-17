@@ -129,6 +129,60 @@ Per gemma4-iswa.cpp:10-260. Sequence:
 - `per_layer_model_proj` — `[n_embd_per_layer, n_embd]` — projects hidden → per_layer space
 - `per_layer_proj_norm` — `[n_embd_per_layer]` — RMSNorm weights for the projection
 
+## Verified tensor inventory (from llama-model.cpp:4526-4619)
+
+The canonical Gemma 4 tensor list. Forge `gguf.rs` + `train.rs::CpuWeights::load` must produce these by name.
+
+**Globals:**
+
+| Tensor | Shape | Required? | Note |
+|--------|-------|-----------|------|
+| `token_embd.weight` | [n_embd, n_vocab] | yes | Main token embedding |
+| `output_norm.weight` | [n_embd] | yes | Final RMSNorm |
+| `output.weight` | [n_embd, n_vocab] | optional | If absent, tied to `token_embd` |
+| `per_layer_token_embd.weight` | [n_embd_per_layer * n_layer, n_vocab] | if PLE | E2B: 256*35 × 262144 = ~9.4 GB at f32, ~4.7 GB at bf16 |
+| `per_layer_model_proj.weight` | [n_embd, n_embd_per_layer * n_layer] | if PLE | Projects hidden → per_layer space |
+| `per_layer_proj_norm.weight` | [n_embd_per_layer] | if PLE | RMSNorm weights for the projection |
+
+**Per-layer (per `blk.{il}.*`):**
+
+| Tensor | Shape (E2B, layer il) | Required? | Note |
+|--------|----------------------|-----------|------|
+| `attn_norm.weight` | [n_embd] = [1536] | yes | Pre-attention RMSNorm |
+| `attn_q.weight` | [n_embd, n_embd_head*n_head] = [1536, 256*8 sliding / 512*8 full] | yes | Q projection (per-layer-variable output dim) |
+| `attn_k.weight` | [n_embd, n_embd_k_gqa] | only if has_kv(il) | K projection — absent on KV-reusing layers (20-34) |
+| `attn_v.weight` | [n_embd, n_embd_v_gqa] | optional via TENSOR_NOT_REQUIRED | V projection — if absent, fall back to K (`Vcur = Kcur`) |
+| `attn_output.weight` | [n_embd_head*n_head, n_embd] | yes | O projection |
+| `attn_q_norm.weight` | [n_embd_head] | yes | Per-head Q-norm AFTER projection, BEFORE RoPE |
+| `attn_k_norm.weight` | [n_embd_head] | only if has_kv(il) | Per-head K-norm (same condition as wk) |
+| `attn_post_norm.weight` | [n_embd] | yes | Post-attention RMSNorm (before residual) |
+| `out_scale.weight` | [1] | optional | Per-layer scalar output multiplier |
+| `rope_freqs.weight` | [n_embd_head/2] | only on full-attention layers (`!is_swa(il)`) | The proportional-RoPE freq factors. First full layer creates the tensor; subsequent full layers DUPLICATE the same tensor (TENSOR_DUPLICATED flag at line 4581) |
+| `ffn_norm.weight` | [n_embd] | yes | Pre-FFN RMSNorm |
+| `ffn_gate.weight` | [n_embd, n_ff] = [1536, 6144] | yes | SwiGLU gate (note: Gemma 4 uses gelu_pytorch_tanh, parallel mode) |
+| `ffn_up.weight` | [n_embd, n_ff] | yes | Up projection |
+| `ffn_down.weight` | [n_ff, n_embd] | yes | Down projection |
+| `ffn_post_norm.weight` | [n_embd] | yes | Post-FFN RMSNorm |
+| `ffn_gate_inp.weight` | [n_embd, n_expert] | only if MoE (26B-A4B) | Router weights — null for E2B |
+| `per_layer_inp_gate.weight` | [n_embd, n_embd_per_layer] = [1536, 256] | if PLE | PLE chain input gate (TRAINABLE matmul) |
+| `per_layer_proj.weight` | [n_embd_per_layer, n_embd] = [256, 1536] | if PLE | PLE chain output projection (TRAINABLE matmul) |
+| `per_layer_post_norm.weight` | [n_embd] | if PLE | PLE post-projection RMSNorm |
+
+**MoE-only (26B-A4B, not E2B):**
+
+| Tensor | Shape | Note |
+|--------|-------|------|
+| `ffn_gate_inp.scale` | [n_embd] | Router pre-norm scale |
+| `ffn_pre_norm_2.weight` | [n_embd] | Pre-MoE-FFN norm |
+| `ffn_post_norm_1.weight` | [n_embd] | Post-shared-expert norm |
+| `ffn_post_norm_2.weight` | [n_embd] | Post-MoE norm |
+| `ffn_gate_up_exps.weight` | [n_embd, n_ff_exp*2, n_expert] | Combined gate+up expert weights |
+| `ffn_down_exps.weight` | [n_ff_exp, n_embd, n_expert] | Down expert weights |
+
+**Important constraint (lines 4531-4536):** Gemma 4 enforces `n_embd_head_k == n_embd_head_v` (both for full and sliding layers). Forge must validate this at load.
+
+**Important constraint (line 4569):** `wv` is TENSOR_NOT_REQUIRED. If absent, forge must use `Vcur = Kcur` per gemma4-iswa.cpp:83-85. This is a different constraint than `has_kv` — wv may be missing even when wk is present.
+
 ## Per-layer tensors (forge must load all of these per `blk.{il}.*`)
 
 **Always present:**
@@ -417,11 +471,124 @@ For text-only training, forge should:
 - Detect these tensor name patterns and explicitly skip them in the load path
 - Verify `processor_class` is NOT `Gemma4Processor` for text-only mode (or explicitly set text-only flag)
 
-## Still TBD (after GGUF conversion completes — currently in flight, PID 91982)
+## Verified GGUF metadata keys (from `forge info` 2026-04-17)
 
-- Exact GGUF metadata key names (read with `forge info` once GGUF written)
-- Quantization formats actually present (post-conversion = bf16 only; quantize separately to Q4_0/Q4_K_M/Q8_0 if needed)
-- iswa cache mapping confirmation (which producer feeds which consumer per attention type) — read `llama-kv-cache-iswa.cpp` for ground truth before Phase 4 implementation
+Conversion produced `/var/zhen/models/gemma-4-E2B-it.gguf`, 9.3 GB, 601 tensors.
+
+**Architecture-prefixed hparam keys** (use with `gguf::GgufFile::get_arch_*` from Phase 2 scaffold):
+
+| Key | E2B value | Forge meaning |
+|-----|-----------|---------------|
+| `gemma4.block_count` | 35 | n_layer |
+| `gemma4.context_length` | 131072 | max position embeddings |
+| `gemma4.embedding_length` | 1536 | n_embd |
+| `gemma4.embedding_length_per_layer_input` | 256 | n_embd_per_layer (PLE dim) |
+| `gemma4.feed_forward_length` | 6144 | n_ff |
+| `gemma4.attention.head_count` | (verify, expect 8) | n_head |
+| `gemma4.attention.head_count_kv` | (verify, expect 1) | n_head_kv |
+| `gemma4.attention.key_length` | (expect 512) | head_dim full |
+| `gemma4.attention.key_length_swa` | (expect 256) | head_dim sliding |
+| `gemma4.attention.value_length` | (== key_length per constraint) | head_dim full V |
+| `gemma4.attention.value_length_swa` | (== key_length_swa) | head_dim sliding V |
+| `gemma4.attention.layer_norm_rms_epsilon` | 1e-6 | RMSNorm eps |
+| `gemma4.attention.shared_kv_layers` | 20 | n_layer_kv_from_start (KV-shared boundary) |
+| `gemma4.attention.sliding_window` | 512 | sliding window size |
+| `gemma4.attention.sliding_window_pattern` | (encoded per-layer pattern) | which layers are sliding vs full — read this rather than computing from index |
+| `gemma4.final_logit_softcapping` | 30.0 | tanh-bound for LM head logits |
+| `gemma4.rope.dimension_count` | (full layer rotation dim) | RoPE dim for full layers (likely 128 = 0.25 * 512) |
+| `gemma4.rope.dimension_count_swa` | (sliding rotation dim) | RoPE dim for sliding (likely 256 = full of 256) |
+| `gemma4.rope.freq_base` | 1000000 | RoPE θ for full layers |
+| `gemma4.rope.freq_base_swa` | 10000 | RoPE θ for sliding layers |
+
+**Tokenizer keys:**
+- `tokenizer.ggml.model`: "gemma4"
+- `tokenizer.ggml.bos_token_id`: 2
+- `tokenizer.ggml.eos_token_id`: 1
+- `tokenizer.ggml.padding_token_id`
+- `tokenizer.ggml.mask_token_id`
+- `tokenizer.ggml.unknown_token_id`
+- `tokenizer.ggml.add_bos_token`: true
+- `tokenizer.ggml.add_space_prefix`
+- `tokenizer.ggml.tokens` (array of 262144)
+- `tokenizer.ggml.scores` (array)
+- `tokenizer.ggml.token_type` (array — USER_DEFINED for special tokens)
+- `tokenizer.ggml.merges`
+- `tokenizer.chat_template` (the Jinja template, ~16 KB)
+
+**General keys:**
+- `general.architecture`: "gemma4"
+- `general.name`: "Gemma 4 E2B It"
+- `general.size_label`, `general.type`, `general.tags`
+- `general.license`, `general.license.link`
+- `general.quantization_version`
+- `general.file_type` (numeric quant type)
+
+## Verified tensor name conventions (from `forge info`)
+
+GGUF actually uses these names — DIFFERENT from the LLM_TENSOR enum strings I extracted earlier from llama-model.cpp:
+
+| Forge spec name | Actual GGUF name |
+|-----------------|------------------|
+| attn_norm | `blk.{i}.attn_norm.weight` ✓ |
+| attn_q/k/v | `blk.{i}.attn_q.weight` / `attn_k.weight` / `attn_v.weight` ✓ |
+| attn_output | `blk.{i}.attn_output.weight` (note: not "attn_o") |
+| attn_q_norm / attn_k_norm | `blk.{i}.attn_q_norm.weight` / `attn_k_norm.weight` ✓ |
+| **attn_post_norm** | `blk.{i}.post_attention_norm.weight` (NOT `attn_post_norm`) |
+| **ffn_post_norm** | `blk.{i}.post_ffw_norm.weight` (NOT `ffn_post_norm`) |
+| ffn_norm | `blk.{i}.ffn_norm.weight` ✓ |
+| ffn_gate/up/down | `blk.{i}.ffn_gate.weight` / `ffn_up.weight` / `ffn_down.weight` ✓ |
+| **per_layer_inp_gate** | `blk.{i}.inp_gate.weight` (shorter!) |
+| **per_layer_proj** | `blk.{i}.proj.weight` (shorter!) |
+| **per_layer_post_norm** | `blk.{i}.post_norm.weight` (shorter!) |
+| **out_scale** | `blk.{i}.layer_output_scale.weight` (longer!) |
+| Global rope_freqs | `rope_freqs.weight` (no .blk prefix — single shared tensor) |
+| Global per_layer_token_embd | `per_layer_token_embd.weight` ✓ |
+| Global per_layer_model_proj | `per_layer_model_proj.weight` ✓ |
+| Global per_layer_proj_norm | `per_layer_proj_norm.weight` ✓ |
+| Global token_embd | `token_embd.weight` ✓ |
+| Global output_norm | `output_norm.weight` ✓ |
+| Global output | (absent — tied to token_embd per `tie_word_embeddings`) |
+
+**Forge tensor name table (canonical for Phase 2 loader):**
+
+```
+blk.{i}.attn_norm.weight             [n_embd] = [1536]
+blk.{i}.attn_q.weight                [n_embd, n_head*head_dim_per_layer]
+blk.{i}.attn_k.weight                [n_embd, n_head_kv*head_dim_per_layer]   (only if has_kv)
+blk.{i}.attn_v.weight                [n_embd, n_head_kv*head_dim_per_layer]   (optional)
+blk.{i}.attn_output.weight           [n_head*head_dim_per_layer, n_embd]
+blk.{i}.attn_q_norm.weight           [head_dim_per_layer]
+blk.{i}.attn_k_norm.weight           [head_dim_per_layer]                     (only if has_kv)
+blk.{i}.post_attention_norm.weight   [n_embd]
+blk.{i}.post_ffw_norm.weight         [n_embd]
+blk.{i}.ffn_norm.weight              [n_embd]
+blk.{i}.ffn_gate.weight              [n_embd, n_ff]
+blk.{i}.ffn_up.weight                [n_embd, n_ff]
+blk.{i}.ffn_down.weight              [n_ff, n_embd]
+blk.{i}.inp_gate.weight              [n_embd, n_embd_per_layer]               (PLE)
+blk.{i}.proj.weight                  [n_embd_per_layer, n_embd]               (PLE)
+blk.{i}.post_norm.weight             [n_embd]                                 (PLE)
+blk.{i}.layer_output_scale.weight    [1]                                      (optional)
+
+token_embd.weight                    [n_embd, n_vocab]
+output_norm.weight                   [n_embd]
+per_layer_token_embd.weight          [n_embd_per_layer * n_layer, n_vocab]
+per_layer_model_proj.weight          [n_embd, n_embd_per_layer * n_layer]
+per_layer_proj_norm.weight           [n_embd_per_layer]
+rope_freqs.weight                    [n_embd_head/2]                          (shared across full-attention layers)
+```
+
+## Quantization in the converted GGUF
+
+- 283 tensors at F32 (norms, scales, embeddings table mostly)
+- 318 tensors at **type_30 = BF16** (main weight matrices)
+- Total tensor data ≈ 9.3 GB on disk
+
+**Forge gap:** `quant.rs` currently supports F32, Q5_K, Q6_K. Does NOT yet support BF16. Phase 2 must add `dequantize_bf16` (trivial — just two bytes interpreted as bf16, sign+8-exp+7-mant, convert to f32 by zero-extending mantissa to 16 bits and reinterpreting as f32).
+
+## iswa cache mapping confirmation (Phase 4 prerequisite)
+
+Still TBD: which producer layer feeds which consumer layer. Reading `llama-kv-cache-iswa.cpp` (or whichever file implements the per-attention-type cache) is required before Phase 4 unified-KV-backward implementation.
 
 ## Key insight from spec
 
