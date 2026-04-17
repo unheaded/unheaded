@@ -797,10 +797,476 @@ fn rope_apply_partial(
     out
 }
 
-// silence the unused import for now; backward integration comes with Phase 1c part 2
+// =============================================================================
+// Phase 1c part 2 — backward pass for Gemma 4 (grad health probe).
+//
+// This backward reconstructs dL/dhidden through the 35-layer chain using the
+// per-layer cache from forward. It does NOT yet accumulate LoRA gradients —
+// the deliverable is the exit-gate diagnostic: ARE gradients finite across
+// all layers on the real 9 GB model? That answers the "does the chain rule
+// math work end-to-end on Gemma 4" question.
+//
+// Once this probe shows healthy=N/N, the next commit wires LoRA Q/K/V/O
+// injection in forward + gradient accumulation in this backward.
+// =============================================================================
+
+/// Per-layer grad-health datum returned by `backward_gemma4`.
+#[derive(Debug, Clone)]
+pub struct LayerGradHealth {
+    pub layer: usize,
+    pub is_sliding: bool,
+    pub has_kv: bool,
+    pub grad_norm: f32,
+    pub has_nan: bool,
+    pub has_inf: bool,
+    pub nonzero: bool,
+}
+
+/// Matmul backward helper. Forward was `out = x @ w^T`. Given grad_out, returns
+/// grad_x. Shapes: x=[m,k], w=[n,k], out=[m,n]. Returns grad_x=[m,k].
+///
+/// grad_x[i,l] = sum_j grad_out[i,j] * w[j,l]
+fn matmul_grad_x(grad_out: &[f32], w: &[f32], m: usize, n: usize, k: usize) -> Vec<f32> {
+    let mut out = vec![0.0f32; m * k];
+    for i in 0..m {
+        for l in 0..k {
+            let mut s = 0.0f32;
+            for j in 0..n {
+                s += grad_out[i * n + j] * w[j * k + l];
+            }
+            out[i * k + l] = s;
+        }
+    }
+    out
+}
+
+/// Per-head RMSNorm backward — mirrors forward `per_head_rmsnorm`.
+/// Each (seq, head) slice gets rmsnorm_backward independently.
+fn per_head_rmsnorm_backward(
+    grad_out: &[f32],
+    input: &[f32],
+    weight: &[f32],
+    seq: usize,
+    n_head: usize,
+    head_dim: usize,
+    eps: f32,
+) -> Vec<f32> {
+    let mut grad_in = vec![0.0f32; input.len()];
+    for s in 0..seq {
+        for h in 0..n_head {
+            let off = (s * n_head + h) * head_dim;
+            let in_slice = &input[off..off + head_dim];
+            let go_slice = &grad_out[off..off + head_dim];
+            let gi = backward::rmsnorm_backward(in_slice, weight, go_slice, eps);
+            grad_in[off..off + head_dim].copy_from_slice(&gi);
+        }
+    }
+    grad_in
+}
+
+/// V-norm backward (unit weight since Gemma 4 V has no weight, just eps).
+fn v_norm_backward(
+    grad_out: &[f32],
+    input: &[f32],
+    seq: usize,
+    n_head_kv: usize,
+    head_dim: usize,
+    eps: f32,
+) -> Vec<f32> {
+    let unit = vec![1.0f32; head_dim];
+    per_head_rmsnorm_backward(grad_out, input, &unit, seq, n_head_kv, head_dim, eps)
+}
+
+/// RoPE backward for the partial-rotary variant used in forward.
+/// Inverse of `rope_apply_partial` — unchanged dims pass through, rotated
+/// dims get the inverse 2D rotation.
+fn rope_backward_partial(
+    grad_rotated: &[f32],
+    cos: &[f32],
+    sin: &[f32],
+    seq: usize,
+    n_head: usize,
+    head_dim: usize,
+    rope_dim: usize,
+) -> Vec<f32> {
+    let mut out = grad_rotated.to_vec();
+    let half = rope_dim / 2;
+    for s in 0..seq {
+        for h in 0..n_head {
+            let off = (s * n_head + h) * head_dim;
+            for d in 0..half {
+                let c = cos[s * half + d];
+                let si = sin[s * half + d];
+                let ge = grad_rotated[off + 2 * d];
+                let go = grad_rotated[off + 2 * d + 1];
+                out[off + 2 * d]     = ge * c + go * si;
+                out[off + 2 * d + 1] = -ge * si + go * c;
+            }
+        }
+    }
+    out
+}
+
+/// Gemma 4 backward pass — the grad-health probe.
+/// Runs backward from the logits through all 35 layers, returning:
+///   - total loss (scalar)
+///   - per-layer grad health data
+///
+/// Does NOT yet accumulate LoRA gradients. This is the Phase 1c+2.2 exit
+/// gate: verify healthy gradient flow through the full Gemma 4 chain on
+/// the real model.
+pub fn backward_gemma4(
+    weights: &CpuWeightsGemma4,
+    caches: &[Gemma4LayerCache],
+    logits: &[f32],
+    tokens: &[u32],
+    answer_start: usize,
+) -> (f32, Vec<LayerGradHealth>) {
+    let h = &weights.hparams;
+    let seq = tokens.len();
+    let n_embd = h.n_embd;
+    let vocab = h.vocab_size;
+
+    // 1. Compute loss + grad_logits from cross-entropy at answer positions.
+    let loss_start = answer_start.max(1);
+    let mut total_loss = 0.0f32;
+    let mut n_loss_pos = 0;
+    let mut grad_logits = vec![0.0f32; seq * vocab];
+    for pos in loss_start..seq.saturating_sub(1) {
+        let pos_logits = &logits[pos * vocab..(pos + 1) * vocab];
+        let target = tokens[pos + 1];
+        let row_grad = backward::cross_entropy_softmax_backward(pos_logits, target);
+        for (i, v) in row_grad.iter().enumerate() {
+            grad_logits[pos * vocab + i] = *v;
+        }
+        total_loss += forward::cross_entropy_loss(pos_logits, target);
+        n_loss_pos += 1;
+    }
+    if n_loss_pos > 0 {
+        total_loss /= n_loss_pos as f32;
+    }
+
+    // 2. Backward through softcap: d(tanh(x/cap)*cap)/dx = 1 - (out/cap)^2
+    let cap = h.final_logit_softcapping;
+    if cap > 0.0 {
+        for i in 0..grad_logits.len() {
+            let out = logits[i];
+            let d_sc = 1.0 - (out / cap).powi(2);
+            grad_logits[i] *= d_sc;
+        }
+    }
+
+    // 3. Backward through tied LM head: logits = final_hidden @ tok_embd^T
+    //    grad_final_hidden = grad_logits @ tok_embd  [seq, n_embd]
+    //    (tok_embd is [vocab, n_embd] row-major, i.e., tok_embd[v * n_embd + d])
+    let tok_embd_f32 = bf16_to_f32_vec(&weights.token_embd);
+    let grad_final_hidden = matmul_grad_x(&grad_logits, &tok_embd_f32, seq, vocab, n_embd);
+
+    // 4. Backward through final output_norm.
+    let last_cache = caches.last().expect("at least one layer cache");
+    let mut grad_hidden = vec![0.0f32; seq * n_embd];
+    for s in 0..seq {
+        let input_row = &last_cache.post_ffw_residual[s * n_embd..(s + 1) * n_embd];
+        let go_row = &grad_final_hidden[s * n_embd..(s + 1) * n_embd];
+        let gi = backward::rmsnorm_backward(input_row, &weights.output_norm, go_row, h.rms_norm_eps);
+        grad_hidden[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
+    }
+
+    // 5. Per-layer reverse loop.
+    let mut health = Vec::with_capacity(h.n_layer);
+    for il in (0..h.n_layer).rev() {
+        let cache = &caches[il];
+        let head_dim = h.head_dim(il);
+        let n_head = h.n_head;
+        let n_head_kv = h.n_head_kv;
+        let q_out_dim = n_head * head_dim;
+        let kv_out_dim = n_head_kv * head_dim;
+
+        // Compute grad_hidden norm BEFORE this layer's backward (i.e., what the
+        // LAYER ABOVE produced). That's the diagnostic: each layer's "incoming"
+        // gradient shows chain-rule magnitude evolution.
+        let grad_norm_before: f32 = grad_hidden.iter().map(|g| g * g).sum::<f32>().sqrt();
+        let has_nan = grad_hidden.iter().any(|g| g.is_nan());
+        let has_inf = grad_hidden.iter().any(|g| g.is_infinite() && !g.is_nan());
+        health.push(LayerGradHealth {
+            layer: il,
+            is_sliding: h.is_sliding(il),
+            has_kv: h.has_kv(il),
+            grad_norm: grad_norm_before,
+            has_nan,
+            has_inf,
+            nonzero: grad_norm_before > 0.0 && grad_norm_before.is_finite(),
+        });
+
+        // === Backward through forward's layer output structure ===
+        // Forward: layer_out = rmsnorm(ffn_out, post_ffw_norm) + post_attn_residual
+        // So grad splits into two paths at the + :
+        //   grad_ffn_normed_out (into post_ffw_norm backward) AND
+        //   grad_post_attn_residual (straight passthrough)
+        let mut grad_post_attn = grad_hidden.clone(); // residual contribution
+
+        // Backward through post_ffw_norm
+        let mut grad_ffn_out = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            // The RMSNorm input was `ffn_out` row. We need to reconstruct that.
+            // Forward: ffn_out = matmul_x_wt(ffn_hidden, ffn_down, seq, n_embd, n_ff)
+            // Reconstruct on demand:
+            let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
+            let row_ffn_hidden = &cache.ffn_hidden[s * h.n_ff..(s + 1) * h.n_ff];
+            let mut row_ffn_out = vec![0.0f32; n_embd];
+            for d in 0..n_embd {
+                let mut acc = 0.0;
+                for fj in 0..h.n_ff {
+                    acc += row_ffn_hidden[fj] * ffn_down_f32[d * h.n_ff + fj];
+                }
+                row_ffn_out[d] = acc;
+            }
+            let go_row = &grad_hidden[s * n_embd..(s + 1) * n_embd];
+            let gi = backward::rmsnorm_backward(&row_ffn_out, &weights.post_ffw_norm[il], go_row, h.rms_norm_eps);
+            grad_ffn_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
+        }
+
+        // Backward through FFN down: ffn_out = ffn_hidden @ ffn_down^T
+        //   grad_ffn_hidden = grad_ffn_out @ ffn_down
+        let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
+        let grad_ffn_hidden = matmul_grad_x(&grad_ffn_out, &ffn_down_f32, seq, n_embd, h.n_ff);
+
+        // Backward through ffn_hidden = gelu_tanh(gate_pre) * up_pre
+        //   grad_gate_pre[i] = grad_ffn_hidden[i] * up_pre[i] * gelu_tanh'(gate_pre[i])
+        //   grad_up_pre[i]   = grad_ffn_hidden[i] * gelu_tanh(gate_pre[i])
+        let mut grad_gate_pre = vec![0.0f32; seq * h.n_ff];
+        let mut grad_up_pre = vec![0.0f32; seq * h.n_ff];
+        for i in 0..seq * h.n_ff {
+            let gp = cache.ffn_gate_pre[i];
+            let up = cache.ffn_up_pre[i];
+            let gelu_val = forward::gelu_tanh_approx(gp);
+            let d_gelu = gelu_tanh_approx_prime(gp);
+            grad_gate_pre[i] = grad_ffn_hidden[i] * up * d_gelu;
+            grad_up_pre[i] = grad_ffn_hidden[i] * gelu_val;
+        }
+
+        // Backward through ffn_gate + ffn_up: both took ffn_normed as input.
+        //   ffn_gate_pre = ffn_normed @ ffn_gate^T → grad_ffn_normed += grad_gate_pre @ ffn_gate
+        //   ffn_up_pre   = ffn_normed @ ffn_up^T   → grad_ffn_normed += grad_up_pre   @ ffn_up
+        let ffn_gate_f32 = bf16_to_f32_vec(&weights.ffn_gate[il]);
+        let ffn_up_f32 = bf16_to_f32_vec(&weights.ffn_up[il]);
+        let mut grad_ffn_normed = matmul_grad_x(&grad_gate_pre, &ffn_gate_f32, seq, h.n_ff, n_embd);
+        let grad_ffn_normed_up = matmul_grad_x(&grad_up_pre, &ffn_up_f32, seq, h.n_ff, n_embd);
+        for i in 0..grad_ffn_normed.len() {
+            grad_ffn_normed[i] += grad_ffn_normed_up[i];
+        }
+
+        // Backward through ffn_norm → grad w.r.t. post_attn_residual (add to residual grad)
+        for s in 0..seq {
+            let input_row = &cache.post_attn_residual[s * n_embd..(s + 1) * n_embd];
+            let go_row = &grad_ffn_normed[s * n_embd..(s + 1) * n_embd];
+            let gi = backward::rmsnorm_backward(input_row, &weights.ffn_norm[il], go_row, h.rms_norm_eps);
+            for d in 0..n_embd {
+                grad_post_attn[s * n_embd + d] += gi[d];
+            }
+        }
+
+        // Now grad_post_attn is the gradient w.r.t. the full post_attn_residual tensor.
+        // Forward: post_attn = rmsnorm(o_out, post_attention_norm) + hidden_incoming
+        // Split into: grad_o_normed (to post_attention_norm backward) + grad_hidden_incoming
+        let mut grad_hidden_incoming = grad_post_attn.clone(); // residual passthrough
+
+        let mut grad_o_out = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            // Reconstruct o_out row:
+            let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
+            let attn_row = &cache.attn_out[s * q_out_dim..(s + 1) * q_out_dim];
+            let mut row_o = vec![0.0f32; n_embd];
+            for d in 0..n_embd {
+                let mut acc = 0.0;
+                for qj in 0..q_out_dim {
+                    acc += attn_row[qj] * wo_f32[d * q_out_dim + qj];
+                }
+                row_o[d] = acc;
+            }
+            let go_row = &grad_post_attn[s * n_embd..(s + 1) * n_embd];
+            let gi = backward::rmsnorm_backward(&row_o, &weights.post_attention_norm[il], go_row, h.rms_norm_eps);
+            grad_o_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
+        }
+
+        // Backward through O projection: o_out = attn_out @ wo^T
+        //   grad_attn_out = grad_o_out @ wo
+        let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
+        let grad_attn_out = matmul_grad_x(&grad_o_out, &wo_f32, seq, n_embd, q_out_dim);
+
+        // Backward through attention: need the pre-GQA K/V shapes. We stored
+        // (q_rot, k_rot, v) in the cache. The attention_forward expanded K/V
+        // internally via mask-based gather; backward::attention_backward expects
+        // EXPANDED K/V per query head. Expand here, then collapse grads at the end.
+        let k_rot_expanded = backward::gqa_expand(&cache.k_rot, n_head, n_head_kv, head_dim, seq);
+        let v_expanded = backward::gqa_expand(&cache.v, n_head, n_head_kv, head_dim, seq);
+        let (grad_q_rot, grad_k_rot_expanded, grad_v_expanded) = backward::attention_backward(
+            &grad_attn_out,
+            &cache.q_rot,
+            &k_rot_expanded,
+            &v_expanded,
+            &cache.attn_cache,
+            n_head, head_dim, seq,
+        );
+        let grad_k_rot = backward::gqa_collapse(&grad_k_rot_expanded, n_head, n_head_kv, head_dim, seq);
+        let grad_v = backward::gqa_collapse(&grad_v_expanded, n_head, n_head_kv, head_dim, seq);
+
+        // Backward through RoPE on Q and K
+        let rope_dim = h.rope_dim(il);
+        let freq_base = h.rope_freq_base(il);
+        let (cos_table, sin_table) = forward::rope_freqs(seq, rope_dim, freq_base);
+        let grad_q_normed = rope_backward_partial(&grad_q_rot, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
+        let grad_k_normed = rope_backward_partial(&grad_k_rot, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
+
+        // Backward through per-head Q-norm, K-norm, V-norm
+        let grad_q = per_head_rmsnorm_backward(
+            &grad_q_normed,
+            &reconstruct_q_pre_norm(weights, il, seq, n_embd, q_out_dim, &cache.normed_input),
+            &weights.attn_q_norm[il],
+            seq, n_head, head_dim, h.rms_norm_eps,
+        );
+        let grad_k = if let Some(k_norm_w) = &weights.attn_k_norm[il] {
+            per_head_rmsnorm_backward(
+                &grad_k_normed,
+                &reconstruct_kv_pre_norm(weights, il, seq, n_embd, kv_out_dim, &cache.normed_input, true),
+                k_norm_w,
+                seq, n_head_kv, head_dim, h.rms_norm_eps,
+            )
+        } else {
+            grad_k_normed
+        };
+        // V had a weightless per-head RMSNorm
+        let grad_v_pre = v_norm_backward(
+            &grad_v,
+            &reconstruct_kv_pre_norm(weights, il, seq, n_embd, kv_out_dim, &cache.normed_input, false),
+            seq, n_head_kv, head_dim, h.rms_norm_eps,
+        );
+
+        // Backward through Q, K, V projections (input was cache.normed_input).
+        //   q = normed @ wq^T → grad_normed_q = grad_q @ wq
+        let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
+        let grad_normed_q = matmul_grad_x(&grad_q, &wq_f32, seq, q_out_dim, n_embd);
+
+        let (grad_normed_k, grad_normed_v) = if let Some(wk) = &weights.wk[il] {
+            let wk_f32 = bf16_to_f32_vec(wk);
+            let wv_f32 = weights.wv[il].as_ref().map(|w| bf16_to_f32_vec(w)).unwrap_or_else(|| wk_f32.clone());
+            let gnk = matmul_grad_x(&grad_k, &wk_f32, seq, kv_out_dim, n_embd);
+            let gnv = matmul_grad_x(&grad_v_pre, &wv_f32, seq, kv_out_dim, n_embd);
+            (gnk, gnv)
+        } else {
+            // KV-reusing layer: grad on shared K/V flows to a DIFFERENT layer's weights
+            // (the producer). Phase 4 routing work — for now, ignore (zero contribution).
+            (vec![0.0; seq * n_embd], vec![0.0; seq * n_embd])
+        };
+
+        // Sum Q, K, V contributions to normed input
+        let mut grad_normed = grad_normed_q;
+        for i in 0..grad_normed.len() {
+            grad_normed[i] += grad_normed_k[i] + grad_normed_v[i];
+        }
+
+        // Backward through attn_norm → grad to hidden_incoming (add residual)
+        // We need the ORIGINAL layer input (hidden before this layer's attn_norm).
+        // That's the layer_out of the PREVIOUS layer (or embedding for layer 0).
+        let layer_input = if il > 0 {
+            &caches[il - 1].post_ffw_residual[..]
+        } else {
+            // Layer 0 input = scaled embedding. Reconstruct.
+            // Compute on demand:
+            &compute_embed_input(weights, tokens)[..]
+            // NOTE: this borrows a temporary — we need to hold it.
+        };
+        let mut layer_input_owned: Option<Vec<f32>> = None;
+        let layer_input_ref: &[f32] = if il > 0 {
+            &caches[il - 1].post_ffw_residual
+        } else {
+            layer_input_owned = Some(compute_embed_input(weights, tokens));
+            layer_input_owned.as_ref().unwrap().as_slice()
+        };
+        // The above `let layer_input =` is redundant with the one below; clean up.
+        let _ = layer_input;
+
+        for s in 0..seq {
+            let input_row = &layer_input_ref[s * n_embd..(s + 1) * n_embd];
+            let go_row = &grad_normed[s * n_embd..(s + 1) * n_embd];
+            let gi = backward::rmsnorm_backward(input_row, &weights.attn_norm[il], go_row, h.rms_norm_eps);
+            for d in 0..n_embd {
+                grad_hidden_incoming[s * n_embd + d] += gi[d];
+            }
+        }
+
+        // grad_hidden_incoming is now the gradient w.r.t. this layer's INPUT,
+        // i.e., the PREVIOUS layer's output. Propagate to next iteration.
+        grad_hidden = grad_hidden_incoming;
+    }
+
+    // Reverse so health[0] = layer 0 (oldest)
+    health.reverse();
+    (total_loss, health)
+}
+
+/// GELU-tanh derivative: d/dx [0.5 * x * (1 + tanh(k*(x + α*x^3)))]
+fn gelu_tanh_approx_prime(x: f32) -> f32 {
+    const SQRT_2_OVER_PI: f32 = 0.7978845608028654;
+    const ALPHA: f32 = 0.044715;
+    let inner = SQRT_2_OVER_PI * (x + ALPHA * x * x * x);
+    let th = inner.tanh();
+    let d_inner = SQRT_2_OVER_PI * (1.0 + 3.0 * ALPHA * x * x);
+    0.5 * (1.0 + th) + 0.5 * x * (1.0 - th * th) * d_inner
+}
+
+/// Reconstruct Q pre-normalized output (cache.q_rot is post-RoPE AND post-norm;
+/// we need pre-norm for rmsnorm_backward's `input` arg).
+fn reconstruct_q_pre_norm(
+    weights: &CpuWeightsGemma4,
+    il: usize,
+    seq: usize,
+    n_embd: usize,
+    q_out_dim: usize,
+    normed_input: &[f32],
+) -> Vec<f32> {
+    let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
+    matmul_x_wt(normed_input, &wq_f32, seq, q_out_dim, n_embd)
+}
+
+/// Reconstruct K or V pre-normalized output.
+fn reconstruct_kv_pre_norm(
+    weights: &CpuWeightsGemma4,
+    il: usize,
+    seq: usize,
+    n_embd: usize,
+    kv_out_dim: usize,
+    normed_input: &[f32],
+    is_k: bool,
+) -> Vec<f32> {
+    let w = if is_k {
+        weights.wk[il].as_ref()
+    } else {
+        weights.wv[il].as_ref().or(weights.wk[il].as_ref())
+    };
+    let Some(w_bf16) = w else {
+        return vec![0.0; seq * kv_out_dim]; // KV-reusing layer — returns zero
+    };
+    let w_f32 = bf16_to_f32_vec(w_bf16);
+    matmul_x_wt(normed_input, &w_f32, seq, kv_out_dim, n_embd)
+}
+
+/// Reconstruct the embedding input at layer 0 (scaled token embeddings).
+fn compute_embed_input(weights: &CpuWeightsGemma4, tokens: &[u32]) -> Vec<f32> {
+    let h = &weights.hparams;
+    let tok_embd_f32 = bf16_to_f32_vec(&weights.token_embd);
+    let mut hidden = forward::embedding_lookup(&tok_embd_f32, h.n_embd, tokens);
+    let embed_scale = (h.n_embd as f32).sqrt();
+    for v in hidden.iter_mut() {
+        *v *= embed_scale;
+    }
+    hidden
+}
+
+// silence the unused import for now
 #[allow(dead_code)]
-fn _use_backward() {
-    let _ = backward::softmax_backward;
+fn _hashmap_keepalive() {
+    let _: HashMap<String, String> = HashMap::new();
 }
 
 #[cfg(test)]
@@ -836,6 +1302,61 @@ mod tests {
         for il in 20..35 {
             assert!(weights.wk[il].is_none(), "layer {} should NOT have wk", il);
         }
+    }
+
+    #[test]
+    fn test_gemma4_backward_grad_health() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            println!("Gemma 4 GGUF not on disk — skipping");
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("open gguf");
+        let weights = CpuWeightsGemma4::load(&model).expect("load");
+
+        let tokens: Vec<u32> = vec![2, 1000, 2000, 3000];
+        println!("Forward...");
+        let t0 = std::time::Instant::now();
+        let (logits, caches) = forward_gemma4(&weights, &tokens);
+        println!("  Forward: {:.1}s", t0.elapsed().as_secs_f64());
+
+        println!("Backward...");
+        let t1 = std::time::Instant::now();
+        let (loss, health) = backward_gemma4(&weights, &caches, &logits, &tokens, 1);
+        println!("  Backward: {:.1}s, loss={:.4}", t1.elapsed().as_secs_f64(), loss);
+
+        // Print health per layer
+        println!("\nPer-layer grad health (incoming gradient at each layer's output):");
+        println!("  layer | type   | KV   | grad_norm     | NaN | Inf | nonzero");
+        for (idx, hh) in health.iter().enumerate() {
+            let _ = idx;
+            println!("  {:3}   | {:6} | {:5} | {:13.4e} | {:3} | {:3} | {}",
+                hh.layer,
+                if hh.is_sliding { "slide" } else { "full" },
+                if hh.has_kv { "yes" } else { "no" },
+                hh.grad_norm, hh.has_nan, hh.has_inf, hh.nonzero);
+        }
+
+        // Exit gate assertions
+        assert!(loss.is_finite(), "loss must be finite, got {}", loss);
+        let any_nan = health.iter().any(|h| h.has_nan);
+        let any_inf = health.iter().any(|h| h.has_inf);
+        let n_zero = health.iter().filter(|h| !h.nonzero && !h.has_nan && !h.has_inf).count();
+        let n_healthy = health.iter().filter(|h| h.nonzero && !h.has_nan && !h.has_inf).count();
+
+        println!("\nGrad health summary:");
+        println!("  healthy={}/{} zero={} nan={} inf={}",
+            n_healthy, health.len(), n_zero,
+            health.iter().filter(|h| h.has_nan).count(),
+            health.iter().filter(|h| h.has_inf).count());
+
+        assert!(!any_nan, "WAVE10F exit gate FAILED: NaN gradients in {}/{} layers",
+            health.iter().filter(|h| h.has_nan).count(), health.len());
+        assert!(!any_inf, "WAVE10F exit gate FAILED: Inf gradients in {}/{} layers",
+            health.iter().filter(|h| h.has_inf).count(), health.len());
+        assert_eq!(n_healthy, health.len(),
+            "WAVE10F exit gate FAILED: only {}/{} layers have healthy gradients",
+            n_healthy, health.len());
     }
 
     #[test]
