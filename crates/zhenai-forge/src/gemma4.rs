@@ -551,7 +551,19 @@ pub struct Gemma4LayerCache {
     pub ffn_gate_pre: Vec<f32>,       // [seq, n_ff] — pre-GELU
     pub ffn_up_pre: Vec<f32>,         // [seq, n_ff] — pre-multiply
     pub ffn_hidden: Vec<f32>,         // [seq, n_ff] — after gate * up
-    pub post_ffw_residual: Vec<f32>,  // [seq, n_embd] — layer output before next layer
+    pub post_ffw_residual: Vec<f32>,  // [seq, n_embd] — output of attn+ffn block, BEFORE PLE add
+    // Phase 5 — PLE intermediates (Some only when PLE active):
+    pub ple: Option<Gemma4PleCache>,
+}
+
+/// PLE chain intermediates per layer. Stored only when n_embd_per_layer > 0
+/// (i.e., the model has Per-Layer Embeddings, true for E2B/E4B).
+pub struct Gemma4PleCache {
+    pub pe_in: Vec<f32>,              // [seq, n_embd] — input to PLE chain (= post_ffw_residual)
+    pub gate_pre_gelu: Vec<f32>,      // [seq, n_embd_per_layer] — pre-GELU
+    pub gate_post_gelu: Vec<f32>,     // [seq, n_embd_per_layer] — after GELU, before * inp_layer
+    pub inp_layer_slice: Vec<f32>,    // [seq, n_embd_per_layer] — frozen lookup
+    pub proj_out_pre_norm: Vec<f32>,  // [seq, n_embd] — pre-RMSNorm
 }
 
 /// Convert a bf16 weight vector to f32 (CPU).
@@ -621,6 +633,14 @@ pub fn forward_gemma4_with_lora(
     for v in hidden.iter_mut() {
         *v *= embed_scale;
     }
+
+    // 1b. Phase 5 — Per-Layer Embedding setup. Computed once, sliced per layer
+    //     in the loop below. Storage: [seq, n_layer, n_embd_per_layer].
+    let inp_per_layer: Option<Vec<f32>> = if h.n_embd_per_layer > 0 {
+        Some(compute_inp_per_layer(weights, tokens, &hidden))
+    } else {
+        None
+    };
 
     let mut layer_caches: Vec<Gemma4LayerCache> = Vec::with_capacity(h.n_layer);
 
@@ -817,8 +837,60 @@ pub fn forward_gemma4_with_lora(
             }
         }
 
-        // NOTE: PLE contribution + layer_output_scale skipped in this commit —
-        // next commit adds them.
+        // Phase 5 — Per-Layer Embedding contribution.
+        // pe_in (= layer_out so far) gets a residual addition from the PLE chain.
+        let ple_cache = if let Some(ref ipl) = inp_per_layer {
+            let pe_in = layer_out.clone();
+            let n_epl = h.n_embd_per_layer;
+            let inp_layer_slice = slice_layer(ipl, seq, h.n_layer, n_epl, il);
+
+            // gate_pre = pe_in @ inp_gate^T, shape [seq, n_epl]
+            let inp_gate_w = bf16_to_f32_vec(&weights.inp_gate[il]);
+            let gate_pre_gelu = matmul_x_wt(&pe_in, &inp_gate_w, seq, n_epl, n_embd);
+            // GELU
+            let mut gate_post_gelu = gate_pre_gelu.clone();
+            for v in gate_post_gelu.iter_mut() {
+                *v = forward::gelu_tanh_approx(*v);
+            }
+            // Multiply elementwise with inp_layer_slice
+            let mut gated = vec![0.0f32; gate_post_gelu.len()];
+            for i in 0..gated.len() {
+                gated[i] = gate_post_gelu[i] * inp_layer_slice[i];
+            }
+            // Project back: gated [seq, n_epl] → proj_out [seq, n_embd]
+            let proj_w = bf16_to_f32_vec(&weights.proj[il]);
+            let proj_out_pre_norm = matmul_x_wt(&gated, &proj_w, seq, n_embd, n_epl);
+            // RMSNorm with post_norm
+            let mut proj_normed = vec![0.0f32; seq * n_embd];
+            for s in 0..seq {
+                let row = forward::rmsnorm(
+                    &proj_out_pre_norm[s * n_embd..(s + 1) * n_embd],
+                    &weights.post_norm[il],
+                    h.rms_norm_eps,
+                );
+                proj_normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
+            }
+            // Residual: layer_out = pe_in + proj_normed
+            for i in 0..layer_out.len() {
+                layer_out[i] = pe_in[i] + proj_normed[i];
+            }
+            Some(Gemma4PleCache {
+                pe_in,
+                gate_pre_gelu,
+                gate_post_gelu,
+                inp_layer_slice,
+                proj_out_pre_norm,
+            })
+        } else {
+            None
+        };
+
+        // Optional layer_output_scale (post-everything multiplier)
+        if let Some(scale_v) = weights.layer_output_scale[il] {
+            for v in layer_out.iter_mut() {
+                *v *= scale_v;
+            }
+        }
 
         layer_caches.push(Gemma4LayerCache {
             normed_input: normed,
@@ -833,6 +905,7 @@ pub fn forward_gemma4_with_lora(
             ffn_up_pre: up_pre,
             ffn_hidden,
             post_ffw_residual: layer_out.clone(),
+            ple: ple_cache,
         });
 
         hidden = layer_out;
@@ -873,6 +946,83 @@ pub fn forward_gemma4_with_lora(
     };
 
     (logits, layer_caches)
+}
+
+/// Compute the per-token PLE input table (one-time, before layer loop).
+/// Returns flattened buffer of shape [seq, n_layer, n_embd_per_layer].
+///
+/// Per gemma4-iswa.cpp `build_inp_per_layer` + `project_per_layer_inputs`:
+/// 1. lookup per_layer_token_embd rows for input tokens, scale by sqrt(n_epl)
+/// 2. project scaled embeddings via per_layer_model_proj, scale by 1/sqrt(n_embd)
+/// 3. RMSNorm with per_layer_proj_norm weights (along n_epl axis)
+/// 4. add to lookup, scale by 1/sqrt(2)
+fn compute_inp_per_layer(
+    weights: &CpuWeightsGemma4,
+    tokens: &[u32],
+    scaled_embeddings: &[f32],
+) -> Vec<f32> {
+    let h = &weights.hparams;
+    let n_tokens = tokens.len();
+    let n_embd = h.n_embd;
+    let n_epl = h.n_embd_per_layer;
+    let n_layer = h.n_layer;
+    let row_size = n_epl * n_layer;
+
+    // 1. Lookup per_layer_token_embd rows. Storage convention: ggml first-dim
+    //    is fast-axis, so for tensor with dimensions [n_epl*n_layer, n_vocab],
+    //    a row for token t is at byte offset t * row_size in bf16 elements.
+    let mut tok_embd_per_layer = vec![0.0f32; n_tokens * row_size];
+    let scale_tok = (n_epl as f32).sqrt();
+    for (ti, &tok) in tokens.iter().enumerate() {
+        let src_off = tok as usize * row_size;
+        for d in 0..row_size {
+            if src_off + d < weights.per_layer_token_embd.len() {
+                tok_embd_per_layer[ti * row_size + d] =
+                    weights.per_layer_token_embd[src_off + d].to_f32() * scale_tok;
+            }
+        }
+    }
+
+    // 2. Project scaled embeddings via per_layer_model_proj.
+    //    per_layer_model_proj dimensions = [n_embd, row_size]
+    //    matmul_x_wt: out[t, j] = sum_k scaled[t, k] * proj[j, k]
+    let proj_w = bf16_to_f32_vec(&weights.per_layer_model_proj);
+    let mut proj_out = matmul_x_wt(scaled_embeddings, &proj_w, n_tokens, row_size, n_embd);
+    let scale_proj = 1.0 / (n_embd as f32).sqrt();
+    for v in proj_out.iter_mut() {
+        *v *= scale_proj;
+    }
+
+    // 3. RMSNorm along the n_epl axis with per_layer_proj_norm weights.
+    //    proj_out is [n_tokens, n_layer * n_epl]. Inner n_epl chunk per layer.
+    for ti in 0..n_tokens {
+        for li in 0..n_layer {
+            let off = ti * row_size + li * n_epl;
+            let slice = &proj_out[off..off + n_epl];
+            let normed = forward::rmsnorm(slice, &weights.per_layer_proj_norm, h.rms_norm_eps);
+            proj_out[off..off + n_epl].copy_from_slice(&normed);
+        }
+    }
+
+    // 4. Add to lookup, scale by 1/sqrt(2).
+    let inv_sqrt2 = 1.0f32 / 2.0f32.sqrt();
+    for i in 0..proj_out.len() {
+        proj_out[i] = (proj_out[i] + tok_embd_per_layer[i]) * inv_sqrt2;
+    }
+
+    proj_out
+}
+
+/// Slice the per-layer chunk for layer `l` from inp_per_layer.
+/// Source: [seq, n_layer, n_epl] flattened.
+/// Returns: [seq, n_epl].
+fn slice_layer(inp_per_layer: &[f32], seq: usize, n_layer: usize, n_epl: usize, l: usize) -> Vec<f32> {
+    let mut out = Vec::with_capacity(seq * n_epl);
+    for t in 0..seq {
+        let off = t * n_layer * n_epl + l * n_epl;
+        out.extend_from_slice(&inp_per_layer[off..off + n_epl]);
+    }
+    out
 }
 
 /// Apply RoPE to the first `rope_dim` dims of each head's feature vector,
@@ -1122,8 +1272,72 @@ pub fn backward_gemma4_with_lora(
             nonzero: grad_norm_before > 0.0 && grad_norm_before.is_finite(),
         });
 
-        // === Backward through forward's layer output structure ===
-        // Forward: layer_out = rmsnorm(ffn_out, post_ffw_norm) + post_attn_residual
+        // === Phase 5 PLE backward (if active) ===
+        // Forward last steps:
+        //   layer_out = (pe_in + proj_normed) [* layer_output_scale optional]
+        // Backward in reverse:
+        //   undo layer_output_scale → grad_combined
+        //   split: grad_pe_in_residual + grad_proj_normed
+        //   backward through rmsnorm → proj → mul → GELU → inp_gate
+        //   sum: grad_hidden_pre_ple = grad_pe_in_residual + grad_pe_in_chain
+
+        // Undo layer_output_scale if applied
+        if let Some(scale_v) = weights.layer_output_scale[il] {
+            for v in grad_hidden.iter_mut() {
+                *v *= scale_v;
+            }
+        }
+
+        // PLE backward
+        if let Some(ple) = &cache.ple {
+            // Split residual + chain
+            let grad_proj_normed = grad_hidden.clone();
+            let mut grad_pe_in = grad_hidden.clone(); // residual passthrough
+
+            // rmsnorm backward
+            let mut grad_proj_out_pre_norm = vec![0.0f32; seq * n_embd];
+            for s in 0..seq {
+                let input_row = &ple.proj_out_pre_norm[s * n_embd..(s + 1) * n_embd];
+                let go_row = &grad_proj_normed[s * n_embd..(s + 1) * n_embd];
+                let gi = backward::rmsnorm_backward(input_row, &weights.post_norm[il], go_row, h.rms_norm_eps);
+                grad_proj_out_pre_norm[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
+            }
+
+            // proj matmul backward: forward was gated [seq, n_epl] @ proj^T → [seq, n_embd]
+            // So grad_gated = grad_proj_out_pre_norm @ proj (matmul_grad_x)
+            let proj_w = bf16_to_f32_vec(&weights.proj[il]);
+            let n_epl = h.n_embd_per_layer;
+            let grad_gated = matmul_grad_x(&grad_proj_out_pre_norm, &proj_w, seq, n_embd, n_epl);
+
+            // elementwise mul backward: gated = gate_post * inp_layer_slice
+            // grad_gate_post = grad_gated * inp_layer_slice  (inp_layer_slice frozen)
+            let mut grad_gate_post = vec![0.0f32; seq * n_epl];
+            for i in 0..grad_gate_post.len() {
+                grad_gate_post[i] = grad_gated[i] * ple.inp_layer_slice[i];
+            }
+
+            // GELU backward: gate_post = gelu(gate_pre)
+            // grad_gate_pre = grad_gate_post * gelu_tanh_approx_prime(gate_pre)
+            let mut grad_gate_pre = vec![0.0f32; seq * n_epl];
+            for i in 0..grad_gate_pre.len() {
+                grad_gate_pre[i] = grad_gate_post[i] * gelu_tanh_approx_prime(ple.gate_pre_gelu[i]);
+            }
+
+            // inp_gate matmul backward: gate_pre = pe_in @ inp_gate^T
+            //   grad_pe_in_chain = grad_gate_pre @ inp_gate
+            let inp_gate_w = bf16_to_f32_vec(&weights.inp_gate[il]);
+            let grad_pe_in_chain = matmul_grad_x(&grad_gate_pre, &inp_gate_w, seq, n_epl, n_embd);
+
+            // Sum residual + chain to get total gradient on pe_in
+            for i in 0..grad_pe_in.len() {
+                grad_pe_in[i] += grad_pe_in_chain[i];
+            }
+            // Replace grad_hidden with grad_pe_in (gradient w.r.t. pre-PLE layer output)
+            grad_hidden = grad_pe_in;
+        }
+
+        // === Backward through forward's layer output structure (post-PLE) ===
+        // Forward: post_ffw_residual = rmsnorm(ffn_out, post_ffw_norm) + post_attn_residual
         // So grad splits into two paths at the + :
         //   grad_ffn_normed_out (into post_ffw_norm backward) AND
         //   grad_post_attn_residual (straight passthrough)
