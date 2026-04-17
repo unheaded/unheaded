@@ -219,7 +219,8 @@ fn type_name(t: u32) -> &'static str {
     }
 }
 
-/// Byte size per element for each GGML tensor type.
+/// Byte size per BLOCK for each GGML tensor type.
+/// (For unquantized types like F32/F16/BF16, "block" = 1 element.)
 fn ggml_type_size(ttype: u32) -> u64 {
     match ttype {
         0 => 4,    // F32
@@ -230,11 +231,13 @@ fn ggml_type_size(ttype: u32) -> u64 {
         7 => 22,   // Q5_1
         8 => 34,   // Q8_0
         9 => 40,   // Q8_1
-        10 => 0,   // Q2_K (variable)
-        11 => 0,   // Q3_K
-        12 => 0,   // Q4_K
-        13 => 0,   // Q5_K
-        14 => 0,   // Q6_K
+        10 => 84,   // Q2_K (256 elements per block, 84 bytes)
+        11 => 110,  // Q3_K (256/110)
+        12 => 144,  // Q4_K (256/144)
+        13 => 176,  // Q5_K (256/176)
+        14 => 210,  // Q6_K (256/210)
+        15 => 292,  // Q8_K (256/292)
+        30 => 2,   // BF16 — 2 bytes per element
         _ => 0,
     }
 }
@@ -244,7 +247,8 @@ fn ggml_block_size(ttype: u32) -> u64 {
     match ttype {
         0 | 1 => 1,     // F32, F16 — 1 element per "block"
         2..=9 => 32,    // Q4/Q5/Q8 — 32 elements per block
-        10..=14 => 256, // K-quants — 256 elements per block
+        10..=15 => 256, // K-quants — 256 elements per block
+        30 => 1,        // BF16 — 1 element per "block"
         _ => 1,
     }
 }
