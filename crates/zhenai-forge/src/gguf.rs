@@ -161,15 +161,36 @@ impl<'a> Reader<'a> {
             GGUF_TYPE_ARRAY => {
                 let elem_type = self.read_u32();
                 let count = self.read_u64() as usize;
-                // For large arrays, just note the count
-                if count > 10 {
+                // For numeric arrays up to 1024 (covers per-layer hparams in 60-layer
+                // models), store all values comma-joined so consumers can recover
+                // them via get_arch_u32_array. For larger / string arrays, keep the
+                // summary format (tokenizer vocabs etc go through different paths).
+                let is_numeric = matches!(
+                    elem_type,
+                    GGUF_TYPE_UINT8
+                        | GGUF_TYPE_INT8
+                        | GGUF_TYPE_UINT16
+                        | GGUF_TYPE_INT16
+                        | GGUF_TYPE_UINT32
+                        | GGUF_TYPE_INT32
+                        | GGUF_TYPE_UINT64
+                        | GGUF_TYPE_INT64
+                        | GGUF_TYPE_FLOAT32
+                        | GGUF_TYPE_FLOAT64
+                        | GGUF_TYPE_BOOL
+                );
+                if is_numeric && count <= 1024 {
+                    let vals: Vec<String> =
+                        (0..count).map(|_| self.read_value(elem_type)).collect();
+                    // Machine-readable comma-separated form with an 'A:' prefix
+                    // so callers can detect and split. Primitive accessors
+                    // (get_u32/f32/str) still fail cleanly on this marker.
+                    format!("A:{}", vals.join(","))
+                } else {
                     for _ in 0..count {
                         self.read_value(elem_type);
                     }
                     format!("[array of {} {}s]", count, type_name(elem_type))
-                } else {
-                    let vals: Vec<String> = (0..count).map(|_| self.read_value(elem_type)).collect();
-                    format!("[{}]", vals.join(", "))
                 }
             }
             _ => {
@@ -364,6 +385,53 @@ impl GgufFile {
     pub fn get_arch_string(&self, key: &str) -> Option<String> {
         let prefix = self.architecture().prefix().to_string();
         self.metadata.get(&format!("{}.{}", prefix, key)).cloned()
+    }
+
+    /// Get a numeric array metadata value by full key. Returns Vec<u32> if the
+    /// stored value is the `A:v1,v2,...` machine-readable array marker.
+    pub fn get_u32_array(&self, key: &str) -> Option<Vec<u32>> {
+        let v = self.metadata.get(key)?;
+        let s = v.strip_prefix("A:")?;
+        s.split(',').map(|x| x.trim().parse::<u32>().ok()).collect()
+    }
+
+    /// Get a f32 array metadata value by full key.
+    pub fn get_f32_array(&self, key: &str) -> Option<Vec<f32>> {
+        let v = self.metadata.get(key)?;
+        let s = v.strip_prefix("A:")?;
+        s.split(',').map(|x| x.trim().parse::<f32>().ok()).collect()
+    }
+
+    /// Architecture-aware u32 array getter.
+    pub fn get_arch_u32_array(&self, key: &str) -> Option<Vec<u32>> {
+        let arch = self.architecture();
+        self.get_u32_array(&format!("{}.{}", arch.prefix(), key))
+    }
+
+    /// Architecture-aware f32 array getter.
+    pub fn get_arch_f32_array(&self, key: &str) -> Option<Vec<f32>> {
+        let arch = self.architecture();
+        self.get_f32_array(&format!("{}.{}", arch.prefix(), key))
+    }
+
+    /// Get a metadata value that may be EITHER a scalar u32 OR the first element
+    /// of a u32 array (useful when a key is stored as a per-layer array but we
+    /// want the "canonical" value assuming all layers agree).
+    pub fn get_arch_u32_or_first(&self, key: &str) -> Option<u32> {
+        if let Some(v) = self.get_arch_u32(key) {
+            return Some(v);
+        }
+        self.get_arch_u32_array(key)
+            .and_then(|v| v.first().copied())
+    }
+
+    /// Same as above for f32.
+    pub fn get_arch_f32_or_first(&self, key: &str) -> Option<f32> {
+        if let Some(v) = self.get_arch_f32(key) {
+            return Some(v);
+        }
+        self.get_arch_f32_array(key)
+            .and_then(|v| v.first().copied())
     }
 }
 

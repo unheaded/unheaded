@@ -14,6 +14,7 @@
 mod backward;
 mod data;
 mod forward;
+mod gemma4;
 mod gguf;
 mod hip;
 mod lora;
