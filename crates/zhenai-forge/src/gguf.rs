@@ -323,6 +323,77 @@ impl GgufFile {
     pub fn get_str(&self, key: &str) -> Option<&str> {
         self.metadata.get(key).map(|s| s.as_str())
     }
+
+    /// Get a f32 metadata value by key.
+    pub fn get_f32(&self, key: &str) -> Option<f32> {
+        self.metadata.get(key).and_then(|v| v.parse().ok())
+    }
+
+    // === WAVE10F Phase 2 — architecture-aware metadata access ===
+
+    /// Detected model architecture from `general.architecture`.
+    pub fn architecture(&self) -> Architecture {
+        match self.get_str("general.architecture") {
+            Some("llama") => Architecture::Llama,
+            Some("gemma4") => Architecture::Gemma4,
+            Some(other) => Architecture::Other(other.to_string()),
+            None => Architecture::Other(String::new()),
+        }
+    }
+
+    /// Architecture-aware u32 metadata getter — looks up `"{arch}.{key}"`.
+    /// E.g., `get_arch_u32("block_count")` → reads `llama.block_count` or `gemma4.block_count`
+    /// depending on detected architecture.
+    pub fn get_arch_u32(&self, key: &str) -> Option<u32> {
+        let arch = self.architecture();
+        self.get_u32(&format!("{}.{}", arch.prefix(), key))
+    }
+
+    /// Architecture-aware f32 metadata getter.
+    pub fn get_arch_f32(&self, key: &str) -> Option<f32> {
+        let arch = self.architecture();
+        self.get_f32(&format!("{}.{}", arch.prefix(), key))
+    }
+
+    /// Architecture-aware string metadata getter. Returns owned String to
+    /// avoid lifetime issues from the formatted lookup key.
+    pub fn get_arch_string(&self, key: &str) -> Option<String> {
+        let prefix = self.architecture().prefix().to_string();
+        self.metadata.get(&format!("{}.{}", prefix, key)).cloned()
+    }
+}
+
+/// Detected model architecture string from GGUF metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Architecture {
+    /// Llama family (Mistral, Llama 1/2/3, CodeLlama, etc.) — `general.architecture = "llama"`
+    Llama,
+    /// Gemma 4 (E2B, E4B, 26B-A4B, 31B) — `general.architecture = "gemma4"`
+    Gemma4,
+    /// Anything else — keep the literal string for diagnostic purposes.
+    Other(String),
+}
+
+impl Architecture {
+    /// Metadata key prefix used by this architecture. Per llama.cpp convention,
+    /// hparams are stored as `"{prefix}.{key}"` (e.g. `llama.block_count`,
+    /// `gemma4.embedding_length`).
+    pub fn prefix(&self) -> &str {
+        match self {
+            Architecture::Llama => "llama",
+            Architecture::Gemma4 => "gemma4",
+            Architecture::Other(s) => s.as_str(),
+        }
+    }
+
+    /// Human-readable architecture name for display.
+    pub fn display_name(&self) -> &str {
+        match self {
+            Architecture::Llama => "Llama family (Mistral/Llama/CodeLlama)",
+            Architecture::Gemma4 => "Gemma 4 (E2B/E4B/26B-A4B/31B)",
+            Architecture::Other(s) => s.as_str(),
+        }
+    }
 }
 
 #[cfg(test)]

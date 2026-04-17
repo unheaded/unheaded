@@ -340,14 +340,88 @@ If smaller VRAM footprint needed for forge memory budget:
 ```
 Q4_0 brings to ~1.6 GB per the typical compression ratio.
 
-## Still TBD (after GGUF lands)
+## KV-share mechanism (verified from llama.cpp `llama-hparams.cpp:231`)
 
-- Exact GGUF metadata key names (read with `forge info` or `gguf-py`'s reader once we have the file)
-- Tokenizer chat-template field in GGUF metadata
-- Quantization formats actually present (post-conversion = bf16 only; quantize separately if needed)
-- Confirmation that llama.cpp's `Gemma4VisionAudioModel` fires for `Gemma4ForConditionalGeneration` arch (it might during conversion — that's the multimodal projector path)
+```cpp
+bool llama_hparams::has_kv(uint32_t il) const {
+    if (n_layer_kv_from_start >= 0) {
+        return il < (uint32_t) n_layer_kv_from_start;
+    }
+    return true;  // default: all layers have KV
+}
+```
 
-These come at Phase 0 final step (validate llama-cli inference on the converted GGUF).
+For E2B with `num_kv_shared_layers = 20` → `n_layer_kv_from_start = 20`:
+- Layers **0-19**: `has_kv = true`. Each produces its own K/V.
+- Layers **20-34**: `has_kv = false`. Each computes only Q; K/V comes from the iswa cache (the most recent KV-producing layer of the matching attention type — sliding for sliding, full for full).
+
+Cross-layer summation in backward (Phase 4): producing layer's `dK`, `dV` = sum of all consumer layers' `dK_partial`, `dV_partial`. For E2B:
+- Layer 18 (last KV-producing sliding) accumulates dK/dV from sliding consumers 20-23, 25-28, 30-33 (12 consumers)
+- Layer 19 (last KV-producing full) accumulates dK/dV from full consumers 24, 29, 34 (3 consumers)
+
+**IMPORTANT:** This mapping is the LIKELY behavior given the iswa cache pattern but **must be confirmed** by reading `llama-kv-cache-iswa.cpp` (or equivalent). Phase 4 implementation must verify with a multi-consumer toy test.
+
+## Tokenizer chat-template + special tokens (from `tokenizer_config.json`)
+
+Gemma 4 uses distinct turn/role markers (NOT Mistral's `[INST]/[/INST]` and NOT plain ChatML):
+
+**Special tokens:**
+| Token | Meaning |
+|-------|---------|
+| `<bos>` | Beginning of sequence |
+| `<eos>` | End of sequence |
+| `<pad>` | Padding |
+| `<mask>` | Mask (training-time) |
+| `<turn\|>` | End-of-turn marker (eot_token) |
+| `<channel\|>` | End-of-channel marker (eoc_token, used in thinking mode) |
+| `<tool_call\|>` | End-of-tool-call (etc_token) |
+| `<tool\|>` | End-of-tool (etd_token) |
+| `<tool_response\|>` | End-of-tool-response (etr_token) |
+| `<\|"\|>` | Escape token |
+| `<\|image\|>` | Image token (multimodal) |
+| `<\|audio\|>` | Audio token (multimodal) |
+| `<\|video\|>` | Video token (multimodal) |
+
+**Turn structure (chat template):**
+```
+<bos><|turn>user
+<user content><turn|>
+<|turn>model
+<model content><turn|>
+```
+
+**Thinking mode:** Add `<|think|>` at the start of the system prompt. Model output structure when thinking:
+```
+<|channel>thought
+<reasoning>
+<channel|>
+<final answer>
+```
+
+For Phase 7 LoRA fine-tuning on Kingdom Q&A:
+- Format each example as `<bos><|turn>user\n{question}<turn|>\n<|turn>model\n{answer}<turn|>`
+- Use `train_on_responses_only` pattern (mask user input, train only on model output) — same as Wave 10D's RAFT path but with new role markers
+- For non-thinking variant (E2B small model), use `chat_template = "gemma-4"` not `"gemma-4-thinking"`
+
+**Special tokens that need GGUF token-type = USER_DEFINED** (per convert script line 7679-7689):
+`<|channel>`, `<channel|>`, `<|tool_call>`, `<tool_call|>`, `<|tool_response>`, `<tool_response|>`, `<|"|>`
+
+## Multimodal model class (from convert script line 7791)
+
+`Gemma4VisionAudioModel(MmprojModel)` — separate registration from `Gemma4Model(Gemma3Model)`. Vision projector type `GEMMA4V`, audio projector type `GEMMA4A`. Audio config:
+- `feat_in = input_feat_size or 128` (mel bins)
+- `intermediate_size = hidden_size * 4`
+- Tensor name patterns: `audio_tower.*`, `embed_audio.*`
+
+For text-only training, forge should:
+- Detect these tensor name patterns and explicitly skip them in the load path
+- Verify `processor_class` is NOT `Gemma4Processor` for text-only mode (or explicitly set text-only flag)
+
+## Still TBD (after GGUF conversion completes — currently in flight, PID 91982)
+
+- Exact GGUF metadata key names (read with `forge info` once GGUF written)
+- Quantization formats actually present (post-conversion = bf16 only; quantize separately to Q4_0/Q4_K_M/Q8_0 if needed)
+- iswa cache mapping confirmation (which producer feeds which consumer per attention type) — read `llama-kv-cache-iswa.cpp` for ground truth before Phase 4 implementation
 
 ## Key insight from spec
 
