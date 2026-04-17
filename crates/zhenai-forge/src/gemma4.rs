@@ -15,6 +15,7 @@
 
 use crate::gguf::{Architecture, GgufFile};
 use crate::forward;
+use crate::lora::LoraLayer;
 use half::bf16;
 use std::collections::HashMap;
 
@@ -463,6 +464,60 @@ impl CpuWeightsGemma4 {
 }
 
 // =============================================================================
+// LoRA adapters sized for Gemma 4's per-layer variable head_dim + KV sharing.
+// Each layer has 4 possible LoRA targets: 0=Q, 1=K, 2=V, 3=O.
+// For layers 0..n_layer_kv_from_start (KV-producing): all 4 targets present.
+// For KV-reusing layers: K and V targets are None (there's no wk/wv to adapt).
+// =============================================================================
+
+pub struct Gemma4LoraAdapters {
+    pub layers: Vec<[Option<LoraLayer>; 4]>,
+    pub rank: u32,
+    pub alpha: f32,
+}
+
+impl Gemma4LoraAdapters {
+    pub fn new(hparams: &Gemma4Hparams, rank: u32, alpha: f32) -> Self {
+        let mut layers = Vec::with_capacity(hparams.n_layer);
+        let n_embd = hparams.n_embd as u32;
+        for il in 0..hparams.n_layer {
+            let head_dim = hparams.head_dim(il);
+            let q_out = (hparams.n_head * head_dim) as u32;
+            let kv_out = (hparams.n_head_kv * head_dim) as u32;
+            let has_kv = hparams.has_kv(il);
+            let layer_loras: [Option<LoraLayer>; 4] = [
+                Some(LoraLayer::new(n_embd, q_out, rank)),
+                if has_kv { Some(LoraLayer::new(n_embd, kv_out, rank)) } else { None },
+                if has_kv { Some(LoraLayer::new(n_embd, kv_out, rank)) } else { None },
+                Some(LoraLayer::new(q_out, n_embd, rank)),
+            ];
+            layers.push(layer_loras);
+        }
+        Self { layers, rank, alpha }
+    }
+
+    pub fn scale(&self) -> f32 {
+        self.alpha / self.rank as f32
+    }
+
+    /// Count active (non-None) LoRA targets.
+    pub fn n_active_targets(&self) -> usize {
+        self.layers.iter()
+            .flat_map(|l| l.iter())
+            .filter(|o| o.is_some())
+            .count()
+    }
+
+    pub fn size_bytes(&self) -> u64 {
+        self.layers.iter()
+            .flat_map(|l| l.iter())
+            .filter_map(|o| o.as_ref())
+            .map(|l| l.num_params())
+            .sum::<u64>() * 4  // f32
+    }
+}
+
+// =============================================================================
 // Phase 1c — forward pass for Gemma 4 (CPU, correctness first).
 //
 // This is the minimal-viable forward: embedding + all layers (real attention
@@ -545,6 +600,16 @@ pub fn forward_gemma4(
     weights: &CpuWeightsGemma4,
     tokens: &[u32],
 ) -> (Vec<f32>, Vec<Gemma4LayerCache>) {
+    forward_gemma4_with_lora(weights, None, tokens)
+}
+
+/// Same as `forward_gemma4` but adds LoRA contributions at Q/K/V/O projections
+/// when `lora` is Some. The scale factor is `alpha / rank`.
+pub fn forward_gemma4_with_lora(
+    weights: &CpuWeightsGemma4,
+    lora: Option<&Gemma4LoraAdapters>,
+    tokens: &[u32],
+) -> (Vec<f32>, Vec<Gemma4LayerCache>) {
     let h = &weights.hparams;
     let seq = tokens.len();
     let n_embd = h.n_embd;
@@ -578,9 +643,21 @@ pub fn forward_gemma4(
             normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
         }
 
-        // 2b. Q projection: [seq, q_out_dim] = normed @ wq^T
+        // 2b. Q projection: [seq, q_out_dim] = normed @ wq^T + LoRA_Q
         let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
-        let q = matmul_x_wt(&normed, &wq_f32, seq, q_out_dim, n_embd);
+        let mut q = matmul_x_wt(&normed, &wq_f32, seq, q_out_dim, n_embd);
+        if let Some(lora_set) = lora {
+            if let Some(lq) = &lora_set.layers[il][0] {
+                let scale = lora_set.scale();
+                for s in 0..seq {
+                    let inp = &normed[s * n_embd..(s + 1) * n_embd];
+                    let out = lq.forward(inp);
+                    for d in 0..q_out_dim.min(out.len()) {
+                        q[s * q_out_dim + d] += out[d] * scale;
+                    }
+                }
+            }
+        }
 
         // 2c. K, V projections (if has_kv)
         let (k_flat, v_flat) = if let Some(wk) = &weights.wk[il] {
@@ -589,8 +666,29 @@ pub fn forward_gemma4(
                 .as_ref()
                 .map(|w| bf16_to_f32_vec(w))
                 .unwrap_or_else(|| wk_f32.clone()); // Vcur = Kcur fallback
-            let k = matmul_x_wt(&normed, &wk_f32, seq, kv_out_dim, n_embd);
-            let v = matmul_x_wt(&normed, &wv_f32, seq, kv_out_dim, n_embd);
+            let mut k = matmul_x_wt(&normed, &wk_f32, seq, kv_out_dim, n_embd);
+            let mut v = matmul_x_wt(&normed, &wv_f32, seq, kv_out_dim, n_embd);
+            if let Some(lora_set) = lora {
+                let scale = lora_set.scale();
+                if let Some(lk) = &lora_set.layers[il][1] {
+                    for s in 0..seq {
+                        let inp = &normed[s * n_embd..(s + 1) * n_embd];
+                        let out = lk.forward(inp);
+                        for d in 0..kv_out_dim.min(out.len()) {
+                            k[s * kv_out_dim + d] += out[d] * scale;
+                        }
+                    }
+                }
+                if let Some(lv) = &lora_set.layers[il][2] {
+                    for s in 0..seq {
+                        let inp = &normed[s * n_embd..(s + 1) * n_embd];
+                        let out = lv.forward(inp);
+                        for d in 0..kv_out_dim.min(out.len()) {
+                            v[s * kv_out_dim + d] += out[d] * scale;
+                        }
+                    }
+                }
+            }
             (k, v)
         } else {
             // KV-reusing layer — use the last-produced K/V from cache.
@@ -655,10 +753,22 @@ pub fn forward_gemma4(
         // attn_out_head shape: [seq, n_head, head_dim] — flatten to [seq, q_out_dim]
         // (already contiguous in that order)
 
-        // 2g. O projection: [seq, n_embd] = attn_out_head @ wo^T
+        // 2g. O projection: [seq, n_embd] = attn_out_head @ wo^T + LoRA_O
         //     wo shape: [q_out_dim, n_embd] stored row-major
         let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
-        let o_out = matmul_x_wt(&attn_out_head, &wo_f32, seq, n_embd, q_out_dim);
+        let mut o_out = matmul_x_wt(&attn_out_head, &wo_f32, seq, n_embd, q_out_dim);
+        if let Some(lora_set) = lora {
+            if let Some(lo) = &lora_set.layers[il][3] {
+                let scale = lora_set.scale();
+                for s in 0..seq {
+                    let inp = &attn_out_head[s * q_out_dim..(s + 1) * q_out_dim];
+                    let out = lo.forward(inp);
+                    for d in 0..n_embd.min(out.len()) {
+                        o_out[s * n_embd + d] += out[d] * scale;
+                    }
+                }
+            }
+        }
 
         // 2h. post_attention_norm + residual
         let mut post_attn = vec![0.0f32; seq * n_embd];
@@ -922,6 +1032,20 @@ pub fn backward_gemma4(
     tokens: &[u32],
     answer_start: usize,
 ) -> (f32, Vec<LayerGradHealth>) {
+    backward_gemma4_with_lora(weights, None, caches, logits, tokens, answer_start)
+}
+
+/// Same as `backward_gemma4` but accumulates LoRA gradients when `lora` is
+/// Some. Per-position lora_backward contributions are summed into grad_a /
+/// grad_b on the corresponding LoraLayer.
+pub fn backward_gemma4_with_lora(
+    weights: &CpuWeightsGemma4,
+    mut lora: Option<&mut Gemma4LoraAdapters>,
+    caches: &[Gemma4LayerCache],
+    logits: &[f32],
+    tokens: &[u32],
+    answer_start: usize,
+) -> (f32, Vec<LayerGradHealth>) {
     let h = &weights.hparams;
     let seq = tokens.len();
     let n_embd = h.n_embd;
@@ -1159,6 +1283,20 @@ pub fn backward_gemma4(
             (vec![0.0; seq * n_embd], vec![0.0; seq * n_embd])
         };
 
+        // === LoRA gradient accumulation for Q/K/V ===
+        if let Some(ls) = lora.as_mut() {
+            let scale = ls.scale();
+            // Q target (0) — always present
+            accumulate_lora_grad(&mut ls.layers[il][0], &cache.normed_input, &grad_q, seq, n_embd, q_out_dim, scale);
+            // K target (1) — present only for KV-producing layers
+            if let Some(_) = &weights.wk[il] {
+                accumulate_lora_grad(&mut ls.layers[il][1], &cache.normed_input, &grad_k, seq, n_embd, kv_out_dim, scale);
+                accumulate_lora_grad(&mut ls.layers[il][2], &cache.normed_input, &grad_v_pre, seq, n_embd, kv_out_dim, scale);
+            }
+            // O target (3) — input was attn_out_head, output grad is grad_o_out
+            accumulate_lora_grad(&mut ls.layers[il][3], &cache.attn_out, &grad_o_out, seq, q_out_dim, n_embd, scale);
+        }
+
         // Sum Q, K, V contributions to normed input
         let mut grad_normed = grad_normed_q;
         for i in 0..grad_normed.len() {
@@ -1203,6 +1341,44 @@ pub fn backward_gemma4(
     // Reverse so health[0] = layer 0 (oldest)
     health.reverse();
     (total_loss, health)
+}
+
+/// Accumulate LoRA gradient for one target across all sequence positions.
+/// Does nothing if `lora_opt` is None.
+fn accumulate_lora_grad(
+    lora_opt: &mut Option<LoraLayer>,
+    input_tensor: &[f32],    // [seq, input_dim]
+    grad_output_tensor: &[f32], // [seq, output_dim]
+    seq: usize,
+    input_dim: usize,
+    output_dim: usize,
+    scale: f32,
+) {
+    let Some(lora_layer) = lora_opt.as_mut() else { return; };
+    let rank = lora_layer.rank as usize;
+    for s in 0..seq {
+        let inp = &input_tensor[s * input_dim..(s + 1) * input_dim];
+        let go = &grad_output_tensor[s * output_dim..(s + 1) * output_dim];
+        // Compute hidden = A @ input for this position
+        let (_, hidden) = lora_layer.forward_with_hidden(inp);
+        debug_assert_eq!(hidden.len(), rank);
+        let (ga, gb) = crate::backward::lora_backward(
+            inp, &hidden, go,
+            &lora_layer.a, &lora_layer.b,
+            input_dim, output_dim, rank,
+            scale,
+        );
+        for (i, v) in ga.iter().enumerate() {
+            if i < lora_layer.grad_a.len() {
+                lora_layer.grad_a[i] += v;
+            }
+        }
+        for (i, v) in gb.iter().enumerate() {
+            if i < lora_layer.grad_b.len() {
+                lora_layer.grad_b[i] += v;
+            }
+        }
+    }
 }
 
 /// GELU-tanh derivative: d/dx [0.5 * x * (1 + tanh(k*(x + α*x^3)))]
@@ -1302,6 +1478,68 @@ mod tests {
         for il in 20..35 {
             assert!(weights.wk[il].is_none(), "layer {} should NOT have wk", il);
         }
+    }
+
+    #[test]
+    fn test_gemma4_lora_grad_health() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("open gguf");
+        let weights = CpuWeightsGemma4::load(&model).expect("load");
+        let mut lora = Gemma4LoraAdapters::new(&weights.hparams, 16, 32.0);
+
+        println!("LoRA: {} active targets, {:.1} MB",
+            lora.n_active_targets(), lora.size_bytes() as f64 / 1e6);
+
+        let tokens: Vec<u32> = vec![2, 1000, 2000, 3000];
+        let t0 = std::time::Instant::now();
+        let (logits, caches) = forward_gemma4_with_lora(&weights, Some(&lora), &tokens);
+        println!("  Forward (with LoRA): {:.1}s", t0.elapsed().as_secs_f64());
+
+        let t1 = std::time::Instant::now();
+        let (loss, _health) = backward_gemma4_with_lora(
+            &weights, Some(&mut lora), &caches, &logits, &tokens, 1);
+        println!("  Backward (with LoRA grad accum): {:.1}s, loss={:.4}",
+            t1.elapsed().as_secs_f64(), loss);
+
+        // Count LoRA grad health per target/layer
+        let mut healthy = 0;
+        let mut nan_count = 0;
+        let mut zero_count = 0;
+        let mut total = 0;
+        let target_names = ["Q", "K", "V", "O"];
+        println!("\nLoRA grad health:");
+        for il in 0..weights.hparams.n_layer {
+            for t in 0..4 {
+                if let Some(layer_l) = &lora.layers[il][t] {
+                    total += 1;
+                    let has_nan = layer_l.grad_a.iter().chain(layer_l.grad_b.iter())
+                        .any(|v| v.is_nan());
+                    let sum_sq: f32 = layer_l.grad_a.iter().chain(layer_l.grad_b.iter())
+                        .map(|v| v * v).sum();
+                    let norm = sum_sq.sqrt();
+                    if has_nan {
+                        nan_count += 1;
+                    } else if sum_sq == 0.0 {
+                        zero_count += 1;
+                    } else {
+                        healthy += 1;
+                    }
+                    // Print only transitions / edge cases
+                    if il < 2 || il >= weights.hparams.n_layer - 2 {
+                        println!("  L{:2}T{}({}): norm={:.3e} nan={}", il, t, target_names[t], norm, has_nan);
+                    }
+                }
+            }
+        }
+        println!("\nLoRA target summary: healthy={}/{} zero={} nan={}",
+            healthy, total, zero_count, nan_count);
+
+        assert_eq!(nan_count, 0, "no NaN LoRA gradients");
+        assert!(healthy > total / 2,
+            "at least half of LoRA targets should have healthy grads, got {}/{}", healthy, total);
     }
 
     #[test]
