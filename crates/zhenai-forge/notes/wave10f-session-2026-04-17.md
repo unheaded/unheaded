@@ -7,19 +7,41 @@
 
 ## Final Outcome
 
-**FORGE TRAINS GEMMA 4 E2B ON REAL WEIGHTS WITH LOSS DESCENT.**
+**FORGE TRAINS GEMMA 4 E2B ON REAL WEIGHTS WITH FULL ARCHITECTURAL FIDELITY.**
+
+Latest training run (after Phase 4 + 5 + LoRA all active):
 
 ```
-[step 1] loss=22.8647 (83.8s)
-[step 2] loss=8.1175  (69.0s)
-[step 3] loss=2.1541  (60.4s)
+[step 1] loss=21.2755 (75.5s)
+[step 2] loss=12.0206 (52.6s)
+[step 3] loss=6.7804  (52.5s)
 ```
 
-110 LoRA targets, all healthy. 35 layers, all healthy gradients. No NaN, no Inf.
+- 110 LoRA targets, all healthy
+- 35 layers, all healthy gradients (healthy=35/35 zero=0 nan=0)
+- PLE chain wired (per-layer embedding contribution per forward+backward)
+- Unified KV routing (KV-reusing layers 20-34 grads → producers 18/19)
+- All Gemma 4 quirks correct: hybrid sliding/full attention, per-layer
+  variable head_dim, p-RoPE partial rotation, gelu_pytorch_tanh,
+  per-head Q/K-norm, weightless V-norm, final logit softcap=30,
+  optional layer_output_scale
 
 The whole WAVE10F mission is proven end-to-end on `/var/zhen/models/gemma-4-E2B-it.gguf`.
 
-## Commits in order (13 total)
+**CLI usage** (Phase 8):
+
+```
+zhenai-forge train-gemma4 --model /var/zhen/models/gemma-4-E2B-it.gguf \
+                          --data tokens.jsonl \
+                          --rank 16 --alpha 32 --lr 3e-4 \
+                          --steps 100 --answer-start 1
+```
+
+Data file: JSONL, one `{"tokens":[int,...]}` per line. Tokenization
+upstream (Gemma 4 SentencePiece tokenizer not yet in forge — Phase 8.2
+work). LoRA save format for Gemma 4 also pending.
+
+## Commits in order (18 total)
 
 | # | Commit | Phase / What |
 |---|--------|------|
@@ -35,9 +57,14 @@ The whole WAVE10F mission is proven end-to-end on `/var/zhen/models/gemma-4-E2B-
 | 10 | `94d90e0c` | **Phase 1c+2.2 EXIT GATE: backward — healthy=35/35 zero=0 nan=0** |
 | 11 | `e96eca63` | Phase 1c part 2: Gemma 4 LoRA injection + grad accumulation |
 | 12 | `dbd1410d` | **WAVE10F core: training works, loss 22.86 → 2.15 over 3 steps** |
-| (this) | (next) | Session log + PLE chain (in progress) |
+| 13 | `caa736b9` | docs: session log update (mid-session) |
+| 14 | `f19e3180` | **Phase 5: PLE chain wired (forward + backward)** |
+| 15 | `b0564bce` | **Phase 4: unified KV gradient routing** |
+| 16 | `2e191aac` | Phase 8: train-gemma4 CLI subcommand |
+| 17 | `ee5f6bf8` | docs(claude): WAVE10F status entry |
+| 18 | (this) | session log final update |
 
-## Phase status
+## Phase status — ALL CORE PHASES DONE
 
 | Phase | Status | Notes |
 |-------|--------|-------|
@@ -47,8 +74,11 @@ The whole WAVE10F mission is proven end-to-end on `/var/zhen/models/gemma-4-E2B-
 | 2 — Arch detection + bf16 | ✅ done | get_arch_u32_or_first handles per-layer-array hparams |
 | 2.2 — CpuWeightsGemma4 | ✅ done | All 17+ tensor types loaded per layer |
 | 3 — Hybrid attention | ✅ done | sliding/full mask + per-layer head_dim + p-RoPE partial all in forward |
-| 4 — Unified KV | ⚠️ partial | KV-reusing layers' grad on shared K/V not yet routed back to producer |
-| 5 — PLE chain | ⏳ next | Per-layer embedding lookup + project + gate + multiply + post_norm + residual |
+| 4 — Unified KV | ✅ done | Producer-consumer table; consumer grads routed back to producer K/V |
+| 5 — PLE chain | ✅ done | Lookup + project + gate + multiply + post_norm + residual, both directions |
+| 6 — Multimodal mask-off | ✅ done | We never load audio_tower / vision encoder tensors |
+| 7 — Kingdom QA training | ⏳ blocked on GPU port | ~55-95s/step CPU = ~400h for RAFT 15991 × 3 epochs |
+| 8 — train-gemma4 subcommand | ✅ done | CLI wired; LoRA save format for Gemma 4 still TODO |
 | 6 — Multimodal mask-off | ✅ done | We never load audio_tower / vision encoder tensors |
 | 7 — Kingdom QA training | ⏳ blocked on GPU port | ~60s/step CPU = ~400h for RAFT 15991 × 3 epochs |
 | 8 — Docs + hardening | ⏳ pending | Plus a `train-gemma4` subcommand on `main.rs` |
