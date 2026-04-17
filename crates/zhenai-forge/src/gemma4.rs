@@ -1343,6 +1343,44 @@ pub fn backward_gemma4_with_lora(
     (total_loss, health)
 }
 
+/// Complete training step: forward + backward + Adam update on LoRA params.
+/// Returns the loss for this step.
+pub fn train_step_gemma4(
+    weights: &CpuWeightsGemma4,
+    lora: &mut Gemma4LoraAdapters,
+    tokens: &[u32],
+    answer_start: usize,
+    lr: f32,
+    step: u32,
+) -> f32 {
+    let (logits, caches) = forward_gemma4_with_lora(weights, Some(lora), tokens);
+    let (loss, _health) = backward_gemma4_with_lora(
+        weights, Some(lora), &caches, &logits, tokens, answer_start);
+
+    // Gradient clip + Adam step per LoRA layer
+    let clip_threshold = 1.0f32;
+    for il in 0..lora.layers.len() {
+        for t in 0..4 {
+            if let Some(lora_layer) = &mut lora.layers[il][t] {
+                // Compute grad norm
+                let grad_norm_sq: f32 = lora_layer.grad_a.iter()
+                    .chain(lora_layer.grad_b.iter())
+                    .map(|g| g * g).sum();
+                let grad_norm = grad_norm_sq.sqrt();
+                // Clip
+                if grad_norm > clip_threshold {
+                    let scale = clip_threshold / grad_norm;
+                    for g in lora_layer.grad_a.iter_mut() { *g *= scale; }
+                    for g in lora_layer.grad_b.iter_mut() { *g *= scale; }
+                }
+                // Adam step (with NaN guard from lora.rs)
+                lora_layer.adam_step(lr, 0.9, 0.999, 1e-8, step);
+            }
+        }
+    }
+    loss
+}
+
 /// Accumulate LoRA gradient for one target across all sequence positions.
 /// Does nothing if `lora_opt` is None.
 fn accumulate_lora_grad(
@@ -1478,6 +1516,38 @@ mod tests {
         for il in 20..35 {
             assert!(weights.wk[il].is_none(), "layer {} should NOT have wk", il);
         }
+    }
+
+    #[test]
+    fn test_gemma4_train_step_loss_descent() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("open gguf");
+        let weights = CpuWeightsGemma4::load(&model).expect("load");
+        let mut lora = Gemma4LoraAdapters::new(&weights.hparams, 16, 32.0);
+
+        let tokens: Vec<u32> = vec![2, 1000, 2000, 3000, 4000, 5000];
+        let answer_start = 3;  // train on tokens 3, 4, 5
+        let lr = 3e-3f32;  // aggressive lr for smoke test
+
+        println!("Running {} training steps on fixed tokens...", 3);
+        let mut losses = Vec::new();
+        for step in 1..=3 {
+            let t0 = std::time::Instant::now();
+            let loss = train_step_gemma4(&weights, &mut lora, &tokens, answer_start, lr, step);
+            losses.push(loss);
+            println!("  [step {}] loss={:.4} ({:.1}s)", step, loss, t0.elapsed().as_secs_f64());
+            assert!(loss.is_finite(), "loss must be finite at step {}", step);
+        }
+
+        println!("\nLoss trajectory: {:?}", losses);
+        // On a fixed training example with aggressive lr, loss should decrease
+        // monotonically over 3 steps. Allow some slack (step 3 <= step 1 is sufficient).
+        assert!(losses[2] <= losses[0],
+            "loss should decrease: start={} end={}", losses[0], losses[2]);
+        println!("✓ Loss descended: {:.4} → {:.4}", losses[0], losses[2]);
     }
 
     #[test]
