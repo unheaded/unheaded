@@ -1,9 +1,11 @@
 # WAVE 10E — Gemma 4 E2B Forge Adaptation
 
 **Date:** 2026-04-17
-**Status:** PLANNED
+**Status:** SUPERSEDED by `WAVE10F-FORGE-REAL-ATTENTION-GEMMA4.md`
 **Predecessor:** Wave 10D (12 commits, pipeline E2E, Mistral-7B doesn't learn on 14GB APU)
 **Decision:** Adapt zhenai-forge for Gemma 4 E2B instead of fighting Mistral-7B VRAM ceiling
+
+> **SUPERSEDED 2026-04-17:** This plan's premise — that Mistral's flat loss was a hardware ceiling and switching to Gemma 4 would resolve it — was invalidated by grad-norm instrumentation (commit `2e0c44f5`). The real blocker was forge's simplified backward producing NaN gradients in 21 of 32 layers. WAVE10F replaces this plan with a real-attention forward+backward implementation that targets Gemma 4's actual architecture (hybrid sliding+global, PLE, p-RoPE, unified KV) — multi-month scope. Retained here as historical record.
 
 ---
 
