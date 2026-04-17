@@ -33,6 +33,10 @@ pub fn dequantize_tensor(model: &GgufFile, name: &str) -> Option<Vec<f32>> {
         "Q6_K" => {
             Some(quant::dequantize_q6_k(data, tensor.num_elements as usize))
         }
+        "BF16" => {
+            // Gemma 4 base weights ship as bf16 (318 of 601 tensors in E2B-it).
+            Some(quant::dequantize_bf16(data, tensor.num_elements as usize))
+        }
         _ => {
             eprintln!("  Unknown tensor type: {} for {}", tensor.tensor_type, name);
             None

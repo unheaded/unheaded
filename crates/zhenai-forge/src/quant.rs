@@ -7,6 +7,25 @@
 //! to f32 for GPU matrix multiplication. The dequantization happens
 //! tile-by-tile to minimize memory footprint.
 
+/// bf16 → f32: bf16 is the upper 16 bits of an f32 (1 sign + 8 exp + 7 mant).
+/// Convert by zero-extending the mantissa to 16 bits.
+pub fn bf16_to_f32(b: u16) -> f32 {
+    f32::from_bits((b as u32) << 16)
+}
+
+/// Dequantize a contiguous bf16 tensor to f32. 2 bytes per element, little-endian.
+/// Used for Gemma 4 base weights (318 of 601 tensors in E2B-it).
+pub fn dequantize_bf16(data: &[u8], n_elements: usize) -> Vec<f32> {
+    let mut out = Vec::with_capacity(n_elements);
+    let mut i = 0;
+    while i + 1 < data.len() && out.len() < n_elements {
+        let raw = u16::from_le_bytes([data[i], data[i + 1]]);
+        out.push(bf16_to_f32(raw));
+        i += 2;
+    }
+    out
+}
+
 /// Q5_K block layout (256 elements per block):
 ///
 /// ```text
