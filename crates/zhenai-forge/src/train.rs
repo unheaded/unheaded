@@ -204,6 +204,43 @@ impl GpuModel {
     }
 }
 
+// =============================================================================
+// WAVE10F Phase 1c — real attention wire-up SCAFFOLD (not yet implemented).
+//
+// Status: env gate + saved-state struct defined; full forward/backward
+// integration deferred until a focused session (substantial train.rs refactor:
+// ~200-400 LOC across forward_loss + per-layer backward at lines 1073-1158).
+//
+// When implemented:
+//   FORGE_REAL_ATTENTION=1 forces fwd_cache = n_layers (full) and routes:
+//     - forward path through forward::attention_forward (with rope_apply,
+//       gqa_expand, AttnMask::Causal for Mistral / SlidingWindow for Gemma)
+//     - backward path through backward::attention_backward + gqa_collapse
+//       + rope_backward, replacing attn_only_layer_backward
+//   Memory budget requires seq_len ≤ 128 on Mistral-7B (west VRAM ceiling).
+//
+// Math + signatures already in forward.rs / backward.rs; numerical gradient
+// tests passing. Tracked as task #23.
+// =============================================================================
+
+/// Per-layer state saved during real-attention forward, consumed by backward.
+/// Allocated when FORGE_REAL_ATTENTION=1; unused otherwise.
+#[allow(dead_code)]
+pub struct RealAttnLayerState {
+    pub normed_input: Vec<f32>,    // [seq, n_embd] — RMSNormed input to attention
+    pub q_rot: Vec<f32>,           // [seq, n_heads, head_dim] — post-RoPE Q
+    pub k_rot: Vec<f32>,           // [seq, n_kv_heads, head_dim] — post-RoPE K
+    pub v: Vec<f32>,               // [seq, n_kv_heads, head_dim] — V (no RoPE)
+    pub attn_cache: Vec<f32>,      // [n_heads, seq, seq] — softmax output
+    pub attn_out: Vec<f32>,        // [seq, n_heads, head_dim] — pre-O-proj attn output
+}
+
+/// Returns true when real-attention path is enabled. Defer to env at every check.
+#[allow(dead_code)]
+fn real_attention_enabled() -> bool {
+    std::env::var("FORGE_REAL_ATTENTION").map(|v| v == "1").unwrap_or(false)
+}
+
 /// GPU-accelerated trainer — uses hipBLAS sgemm for matrix multiply.
 /// Dequantizes weights per-layer on CPU, uploads to GPU, runs sgemm.
 /// Element-wise ops (RMSNorm, SiLU, softmax) stay on CPU.
