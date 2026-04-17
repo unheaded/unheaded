@@ -1160,9 +1160,60 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 } // end per-position gradient loop
 
                 // Gradient accumulation: clip + Adam step every accum_steps
-                if (i + 1) % config.accum_steps == 0 || i == data.len() - 1 {
-                    let scale = 1.0 / config.accum_steps as f32;
+                // FORGE_ACCUM_STEPS env override (diagnostic — defaults to config.accum_steps).
+                let effective_accum = std::env::var("FORGE_ACCUM_STEPS").ok()
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .unwrap_or(config.accum_steps);
+                if (i + 1) % effective_accum == 0 || i == data.len() - 1 {
+                    let scale = 1.0 / effective_accum as f32;
                     let lr = cosine_lr(config.lr, state.step, total_steps, warmup_steps);
+
+                    // Experiment B refined (WAVE10E forge bug hunt): env-gated grad health
+                    // breakout. Splits "nonzero=0" into zero / NaN / healthy buckets, names
+                    // first NaN and first healthy layer so we can localize the bug source.
+                    if std::env::var("FORGE_DEBUG_GRAD_NORMS").map(|v| v == "1").unwrap_or(false) {
+                        let n_walked = n_layers_total.min(lora.layers.len());
+                        let mut zero_n = 0usize;
+                        let mut nan_n = 0usize;
+                        let mut healthy_n = 0usize;
+                        let mut first_nan: Option<(usize, usize)> = None;
+                        let mut first_healthy: Option<(usize, usize, f32)> = None;
+                        let mut last_healthy: Option<(usize, usize, f32)> = None;
+                        let mut healthy_sq_total: f64 = 0.0;
+                        for l in 0..n_walked {
+                            for t in 0..4 {
+                                let lyr = &lora.layers[l][t];
+                                let mut has_nan = false;
+                                let mut sq: f64 = 0.0;
+                                for g in lyr.grad_a.iter().chain(lyr.grad_b.iter()) {
+                                    if g.is_nan() { has_nan = true; break; }
+                                    sq += (*g as f64) * (*g as f64);
+                                }
+                                if has_nan {
+                                    nan_n += 1;
+                                    if first_nan.is_none() { first_nan = Some((l, t)); }
+                                } else if sq == 0.0 {
+                                    zero_n += 1;
+                                } else {
+                                    healthy_n += 1;
+                                    healthy_sq_total += sq;
+                                    let n = sq.sqrt() as f32;
+                                    if first_healthy.is_none() { first_healthy = Some((l, t, n)); }
+                                    last_healthy = Some((l, t, n));
+                                }
+                            }
+                        }
+                        let names = ["q", "k", "v", "o"];
+                        let nan_str = first_nan.map(|(l,t)| format!("L{}T{}({})", l, t, names[t]))
+                            .unwrap_or_else(|| "-".to_string());
+                        let fh_str = first_healthy.map(|(l,t,n)| format!("L{}T{}({})={:.2e}", l, t, names[t], n))
+                            .unwrap_or_else(|| "-".to_string());
+                        let lh_str = last_healthy.map(|(l,t,n)| format!("L{}T{}({})={:.2e}", l, t, names[t], n))
+                            .unwrap_or_else(|| "-".to_string());
+                        println!("  [GRAD] step={} healthy={} zero={} nan={} (of {}) | hsum={:.3e} first_nan={} first_h={} last_h={}",
+                            state.step, healthy_n, zero_n, nan_n, n_walked * 4,
+                            healthy_sq_total.sqrt(), nan_str, fh_str, lh_str);
+                    }
 
                     for l in 0..n_layers_total.min(lora.layers.len()) {
                         for t in 0..4 {

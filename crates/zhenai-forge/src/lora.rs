@@ -128,7 +128,20 @@ impl LoraLayer {
     }
 
     /// Adam optimizer step for this layer.
+    ///
+    /// Guards against non-finite gradients: if any element of grad_a/grad_b is
+    /// NaN or ±Inf, the update is skipped entirely and gradients reset.
+    /// Without this, one corrupt backward pass poisons weights forever
+    /// (NaN weight → NaN logit → NaN grad on every subsequent step).
     pub fn adam_step(&mut self, lr: f32, beta1: f32, beta2: f32, eps: f32, step: u32) {
+        let bad_grad = self.grad_a.iter().chain(self.grad_b.iter())
+            .any(|g| !g.is_finite());
+        if bad_grad {
+            for g in self.grad_a.iter_mut() { *g = 0.0; }
+            for g in self.grad_b.iter_mut() { *g = 0.0; }
+            return;
+        }
+
         let bc1 = 1.0 - beta1.powi(step as i32);
         let bc2 = 1.0 - beta2.powi(step as i32);
 
