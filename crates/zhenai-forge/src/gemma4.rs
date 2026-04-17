@@ -71,7 +71,13 @@ impl Gemma4Hparams {
 
         let n_layer = getu("block_count")? as usize;
         let n_embd = getu("embedding_length")? as usize;
-        let n_ff = getu("feed_forward_length")? as usize;
+        // Some Gemma 4 hparams are stored as per-layer arrays even when uniform,
+        // and some are stored with conventions that don't match tensor shapes
+        // (e.g., feed_forward_length = 12288 in metadata but actual n_ff = 6144
+        // due to use_double_wide_mlp=true storing combined gate+up dim).
+        // Trust tensor shapes over metadata for these.
+        let n_ff = ffn_dim_from_tensors(model)
+            .ok_or("could not infer n_ff from blk.0.ffn_gate.weight shape")?;
         let n_head = getu("attention.head_count")? as usize;
         let n_head_kv = getu("attention.head_count_kv")? as usize;
         let head_dim_full = getu("attention.key_length")? as usize;
@@ -98,12 +104,20 @@ impl Gemma4Hparams {
             .ok_or("token_embd.weight missing — cannot determine vocab_size")?
             as usize;
 
-        // Per-layer attention type. Gemma 4 stores this as a packed bitfield in
-        // `gemma4.attention.sliding_window_pattern` OR (more commonly) we infer
-        // it from per-layer rope tensor presence: sliding layers don't have a
-        // per-layer rope_freqs tensor, full layers do. As a fallback, use the
-        // pattern from config.json (every 5th layer is full, indices 4,9,14,19,...).
-        let layer_is_sliding = infer_layer_pattern(model, n_layer);
+        // Per-layer attention type — infer from actual wq tensor shape.
+        // Sliding layers have wq.shape[1] = n_head * head_dim_swa (e.g. 2048
+        // for E2B). Full layers have wq.shape[1] = n_head * head_dim_full
+        // (e.g. 4096). The GGUF metadata key `attention.sliding_window_pattern`
+        // is unreliable (E2B stores it as a single bool, not a per-layer array).
+        let layer_is_sliding = (0..n_layer).map(|il| {
+            let wq_name = format!("blk.{}.attn_q.weight", il);
+            let q_out_dim = model.tensors.iter()
+                .find(|t| t.name == wq_name)
+                .and_then(|t| t.dimensions.last().copied())
+                .unwrap_or(0) as usize;
+            let head_dim_per_layer = q_out_dim / n_head.max(1);
+            head_dim_per_layer == head_dim_swa
+        }).collect();
 
         Ok(Self {
             n_layer,
@@ -168,28 +182,12 @@ impl Gemma4Hparams {
     }
 }
 
-/// Infer per-layer sliding/full pattern. Best path: GGUF has a packed pattern
-/// metadata. Fallback: check whether each layer has a per-layer rope_freqs
-/// tensor (full layers DUPLICATE the global one in current llama.cpp; the
-/// global presence + every-5th pattern from config is the practical signal).
-fn infer_layer_pattern(model: &GgufFile, n_layer: usize) -> Vec<bool> {
-    // Try to read the packed pattern from metadata first.
-    if let Some(pattern_str) = model.get_arch_string("attention.sliding_window_pattern") {
-        // Pattern is stored as a comma-separated or array string; parse.
-        let mut out = Vec::with_capacity(n_layer);
-        for s in pattern_str.split([',', ' ', '\n']).filter(|s| !s.is_empty()) {
-            // 1 = sliding, 0 = full (per llama.cpp convention)
-            out.push(s.trim() == "1" || s.trim().eq_ignore_ascii_case("true"));
-        }
-        if out.len() == n_layer {
-            return out;
-        }
-        // Fall through if parse failed
-    }
-    // Fallback: every 5th layer is full attention (verified pattern from
-    // /home/govan/tmp/gemma-4-E2B-it/config.json layer_types). Layers
-    // 4, 9, 14, ..., 34 are full; rest are sliding.
-    (0..n_layer).map(|i| (i + 1) % 5 != 0).collect()
+/// Read FFN dim from blk.0.ffn_gate.weight shape (`[n_embd, n_ff]`).
+/// More reliable than the `feed_forward_length` GGUF metadata key, which
+/// for Gemma 4 stores 2*n_ff (combined gate+up) due to use_double_wide_mlp.
+fn ffn_dim_from_tensors(model: &GgufFile) -> Option<usize> {
+    let t = model.tensors.iter().find(|t| t.name == "blk.0.ffn_gate.weight")?;
+    t.dimensions.last().copied().map(|d| d as usize)
 }
 
 /// Loaded Gemma 4 weights, all stored as bf16 to fit memory (matches GGUF
@@ -464,6 +462,347 @@ impl CpuWeightsGemma4 {
     }
 }
 
+// =============================================================================
+// Phase 1c — forward pass for Gemma 4 (CPU, correctness first).
+//
+// This is the minimal-viable forward: embedding + all layers (real attention
+// with hybrid sliding/full mask, real RoPE with per-layer freq, real FFN
+// with gelu_tanh_approx + parallel gate-up, post-norms, residuals) + final
+// norm + tied LM head + logit softcap.
+//
+// Deliberate simplifications for this commit:
+//  - PLE chain skipped (next commit)
+//  - LoRA skipped (wired when backward is ready)
+//  - No MoE (not in E2B)
+//  - No multimodal
+//  - No layer_output_scale application
+//
+// Memory: runs per-position to keep peak modest; attention scores cached
+// per-layer for backward.
+// =============================================================================
+
+use crate::backward;
+
+/// Per-layer state saved during forward, consumed by backward.
+pub struct Gemma4LayerCache {
+    pub normed_input: Vec<f32>,       // [seq, n_embd] — post-attn-norm
+    pub q_rot: Vec<f32>,              // [seq, n_head, head_dim]
+    pub k_rot: Vec<f32>,              // [seq, n_head_kv, head_dim]
+    pub v: Vec<f32>,                  // [seq, n_head_kv, head_dim]
+    pub attn_cache: Vec<f32>,         // [n_head, seq, seq] — softmax output
+    pub attn_out: Vec<f32>,           // [seq, n_embd] — pre-O-proj
+    pub post_attn_residual: Vec<f32>, // [seq, n_embd] — after post_attention_norm + residual
+    pub ffn_normed: Vec<f32>,         // [seq, n_embd] — input to FFN
+    pub ffn_gate_pre: Vec<f32>,       // [seq, n_ff] — pre-GELU
+    pub ffn_up_pre: Vec<f32>,         // [seq, n_ff] — pre-multiply
+    pub ffn_hidden: Vec<f32>,         // [seq, n_ff] — after gate * up
+    pub post_ffw_residual: Vec<f32>,  // [seq, n_embd] — layer output before next layer
+}
+
+/// Convert a bf16 weight vector to f32 (CPU).
+fn bf16_to_f32_vec(w: &[bf16]) -> Vec<f32> {
+    w.iter().map(|b| b.to_f32()).collect()
+}
+
+/// Dense matmul C = A @ B^T.  A: [m, k], B: [n, k] → C: [m, n].
+/// (B is stored row-major with n rows of k cols — the usual weight shape.)
+fn matmul_x_wt(a: &[f32], w: &[f32], m: usize, n: usize, k: usize) -> Vec<f32> {
+    let mut out = vec![0.0f32; m * n];
+    for i in 0..m {
+        for j in 0..n {
+            let mut s = 0.0f32;
+            for l in 0..k {
+                s += a[i * k + l] * w[j * k + l];
+            }
+            out[i * n + j] = s;
+        }
+    }
+    out
+}
+
+/// Apply per-head RMSNorm over the last axis.
+/// x: [seq, n_head, head_dim]; weight: [head_dim]
+fn per_head_rmsnorm(x: &[f32], weight: &[f32], seq: usize, n_head: usize, head_dim: usize, eps: f32) -> Vec<f32> {
+    let mut out = vec![0.0f32; x.len()];
+    for s in 0..seq {
+        for h in 0..n_head {
+            let off = (s * n_head + h) * head_dim;
+            let slice = &x[off..off + head_dim];
+            let ss: f32 = slice.iter().map(|v| v * v).sum::<f32>() / head_dim as f32;
+            let rms = (ss + eps).sqrt();
+            for d in 0..head_dim {
+                out[off + d] = (slice[d] / rms) * weight[d];
+            }
+        }
+    }
+    out
+}
+
+/// Gemma 4 forward pass. Returns (logits, per-layer cache for backward).
+/// tokens: input token IDs
+/// seq_len: number of tokens
+pub fn forward_gemma4(
+    weights: &CpuWeightsGemma4,
+    tokens: &[u32],
+) -> (Vec<f32>, Vec<Gemma4LayerCache>) {
+    let h = &weights.hparams;
+    let seq = tokens.len();
+    let n_embd = h.n_embd;
+
+    // 1. Embedding lookup + sqrt(n_embd) scale (gemma4-iswa.cpp:20)
+    let tok_embd_f32 = bf16_to_f32_vec(&weights.token_embd);
+    let mut hidden = forward::embedding_lookup(&tok_embd_f32, n_embd, tokens);
+    let embed_scale = (n_embd as f32).sqrt();
+    for v in hidden.iter_mut() {
+        *v *= embed_scale;
+    }
+
+    let mut layer_caches: Vec<Gemma4LayerCache> = Vec::with_capacity(h.n_layer);
+
+    // 2. Per-layer loop
+    for il in 0..h.n_layer {
+        let head_dim = h.head_dim(il);
+        let n_head = h.n_head;
+        let n_head_kv = h.n_head_kv;
+        let q_out_dim = n_head * head_dim;
+        let kv_out_dim = n_head_kv * head_dim;
+
+        // 2a. attn_norm
+        let mut normed = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let row = forward::rmsnorm(
+                &hidden[s * n_embd..(s + 1) * n_embd],
+                &weights.attn_norm[il],
+                h.rms_norm_eps,
+            );
+            normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
+        }
+
+        // 2b. Q projection: [seq, q_out_dim] = normed @ wq^T
+        let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
+        let q = matmul_x_wt(&normed, &wq_f32, seq, q_out_dim, n_embd);
+
+        // 2c. K, V projections (if has_kv)
+        let (k_flat, v_flat) = if let Some(wk) = &weights.wk[il] {
+            let wk_f32 = bf16_to_f32_vec(wk);
+            let wv_f32 = weights.wv[il]
+                .as_ref()
+                .map(|w| bf16_to_f32_vec(w))
+                .unwrap_or_else(|| wk_f32.clone()); // Vcur = Kcur fallback
+            let k = matmul_x_wt(&normed, &wk_f32, seq, kv_out_dim, n_embd);
+            let v = matmul_x_wt(&normed, &wv_f32, seq, kv_out_dim, n_embd);
+            (k, v)
+        } else {
+            // KV-reusing layer — use the last-produced K/V from cache.
+            // For now, use the PREVIOUS layer's K/V (simplification; actual
+            // Gemma 4 behavior is "reuse from last same-type KV producer").
+            let prev = layer_caches.last().unwrap();
+            // Re-flatten from [seq, n_head_kv, head_dim] shape. But the head_dim
+            // may have changed between layers of different attention types —
+            // handled via head_dim(il) being consistent with how K/V were built.
+            (prev.k_rot.clone(), prev.v.clone())
+        };
+
+        // 2d. Reshape Q, K, V to [seq, n_head(_kv), head_dim], apply q_norm/k_norm
+        //     (Q and K get per-head RMSNorm, V gets a plain RMSNorm with eps only)
+        let q_normed = per_head_rmsnorm(
+            &q,
+            &weights.attn_q_norm[il],
+            seq, n_head, head_dim, h.rms_norm_eps,
+        );
+        let k_normed = if let Some(k_norm) = &weights.attn_k_norm[il] {
+            per_head_rmsnorm(&k_flat, k_norm, seq, n_head_kv, head_dim, h.rms_norm_eps)
+        } else {
+            k_flat.clone()
+        };
+        // V: plain RMSNorm using eps only (no weight tensor)
+        let v_normed = {
+            let mut out = vec![0.0f32; v_flat.len()];
+            for s in 0..seq {
+                for hh in 0..n_head_kv {
+                    let off = (s * n_head_kv + hh) * head_dim;
+                    let slice = &v_flat[off..off + head_dim];
+                    let ss: f32 = slice.iter().map(|x| x * x).sum::<f32>() / head_dim as f32;
+                    let rms = (ss + h.rms_norm_eps).sqrt();
+                    for d in 0..head_dim {
+                        out[off + d] = slice[d] / rms;
+                    }
+                }
+            }
+            out
+        };
+
+        // 2e. RoPE — per-layer freq base, partial rotary factor for full layers
+        //     Sliding: standard RoPE, full rotation over rope_dim_swa dims
+        //     Full: proportional RoPE, partial rotation over rope_dim_full dims
+        let rope_dim = h.rope_dim(il);
+        let freq_base = h.rope_freq_base(il);
+        let (cos_table, sin_table) = forward::rope_freqs(seq, rope_dim, freq_base);
+
+        let q_rot = rope_apply_partial(&q_normed, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
+        let k_rot = rope_apply_partial(&k_normed, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
+
+        // 2f. Real attention with hybrid mask
+        let mask = if h.is_sliding(il) {
+            forward::AttnMask::SlidingWindow(h.sliding_window)
+        } else {
+            forward::AttnMask::Causal
+        };
+        let (attn_out_head, attn_cache) = forward::attention_forward(
+            &q_rot, &k_rot, &v_normed,
+            n_head, n_head_kv, head_dim, seq, mask,
+        );
+        // attn_out_head shape: [seq, n_head, head_dim] — flatten to [seq, q_out_dim]
+        // (already contiguous in that order)
+
+        // 2g. O projection: [seq, n_embd] = attn_out_head @ wo^T
+        //     wo shape: [q_out_dim, n_embd] stored row-major
+        let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
+        let o_out = matmul_x_wt(&attn_out_head, &wo_f32, seq, n_embd, q_out_dim);
+
+        // 2h. post_attention_norm + residual
+        let mut post_attn = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let row = forward::rmsnorm(
+                &o_out[s * n_embd..(s + 1) * n_embd],
+                &weights.post_attention_norm[il],
+                h.rms_norm_eps,
+            );
+            for d in 0..n_embd {
+                post_attn[s * n_embd + d] = row[d] + hidden[s * n_embd + d];
+            }
+        }
+
+        // 2i. FFN — norm, parallel gate-up with gelu_tanh, down
+        let mut ffn_normed = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let row = forward::rmsnorm(
+                &post_attn[s * n_embd..(s + 1) * n_embd],
+                &weights.ffn_norm[il],
+                h.rms_norm_eps,
+            );
+            ffn_normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
+        }
+        let ffn_gate_f32 = bf16_to_f32_vec(&weights.ffn_gate[il]);
+        let ffn_up_f32 = bf16_to_f32_vec(&weights.ffn_up[il]);
+        let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
+        let gate_pre = matmul_x_wt(&ffn_normed, &ffn_gate_f32, seq, h.n_ff, n_embd);
+        let up_pre = matmul_x_wt(&ffn_normed, &ffn_up_f32, seq, h.n_ff, n_embd);
+        let mut ffn_hidden = vec![0.0f32; seq * h.n_ff];
+        for i in 0..ffn_hidden.len() {
+            ffn_hidden[i] = forward::gelu_tanh_approx(gate_pre[i]) * up_pre[i];
+        }
+        let ffn_out = matmul_x_wt(&ffn_hidden, &ffn_down_f32, seq, n_embd, h.n_ff);
+
+        // 2j. post_ffw_norm + residual (forming layer output for next iteration)
+        let mut layer_out = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let row = forward::rmsnorm(
+                &ffn_out[s * n_embd..(s + 1) * n_embd],
+                &weights.post_ffw_norm[il],
+                h.rms_norm_eps,
+            );
+            for d in 0..n_embd {
+                layer_out[s * n_embd + d] = row[d] + post_attn[s * n_embd + d];
+            }
+        }
+
+        // NOTE: PLE contribution + layer_output_scale skipped in this commit —
+        // next commit adds them.
+
+        layer_caches.push(Gemma4LayerCache {
+            normed_input: normed,
+            q_rot,
+            k_rot,
+            v: v_normed,
+            attn_cache,
+            attn_out: attn_out_head,
+            post_attn_residual: post_attn,
+            ffn_normed,
+            ffn_gate_pre: gate_pre,
+            ffn_up_pre: up_pre,
+            ffn_hidden,
+            post_ffw_residual: layer_out.clone(),
+        });
+
+        hidden = layer_out;
+    }
+
+    // 3. Final output_norm
+    let mut final_hidden = vec![0.0f32; seq * n_embd];
+    for s in 0..seq {
+        let row = forward::rmsnorm(
+            &hidden[s * n_embd..(s + 1) * n_embd],
+            &weights.output_norm,
+            h.rms_norm_eps,
+        );
+        final_hidden[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
+    }
+
+    // 4. LM head — tied to token_embd per tie_word_embeddings=true
+    //    logits[s, v] = tok_embd[v, :] . final_hidden[s, :]
+    let tok_embd_f32 = bf16_to_f32_vec(&weights.token_embd);
+    // tok_embd is stored as [vocab, n_embd] row-major. Match shape.
+    let logits = matmul_x_wt(
+        &final_hidden,
+        &tok_embd_f32,
+        seq,
+        h.vocab_size,
+        n_embd,
+    );
+
+    // 5. Logit softcap
+    let softcap = h.final_logit_softcapping;
+    let logits = if softcap > 0.0 {
+        logits
+            .into_iter()
+            .map(|x| forward::logit_softcap(x, softcap))
+            .collect()
+    } else {
+        logits
+    };
+
+    (logits, layer_caches)
+}
+
+/// Apply RoPE to the first `rope_dim` dims of each head's feature vector,
+/// leaving the remaining (head_dim - rope_dim) dims untouched.
+/// This is how "proportional RoPE" (partial_rotary_factor=0.25 on Gemma 4's
+/// full-attention layers, where rope_dim < head_dim) is implemented.
+fn rope_apply_partial(
+    x: &[f32],
+    cos: &[f32],
+    sin: &[f32],
+    seq: usize,
+    n_head: usize,
+    head_dim: usize,
+    rope_dim: usize,
+) -> Vec<f32> {
+    let mut out = x.to_vec();
+    let half = rope_dim / 2;
+    for s in 0..seq {
+        for h in 0..n_head {
+            let off = (s * n_head + h) * head_dim;
+            for d in 0..half {
+                let c = cos[s * half + d];
+                let si = sin[s * half + d];
+                let xe = x[off + 2 * d];
+                let xo = x[off + 2 * d + 1];
+                out[off + 2 * d]     = xe * c - xo * si;
+                out[off + 2 * d + 1] = xe * si + xo * c;
+            }
+            // Dims [rope_dim..head_dim] already copied from x unchanged.
+        }
+    }
+    out
+}
+
+// silence the unused import for now; backward integration comes with Phase 1c part 2
+#[allow(dead_code)]
+fn _use_backward() {
+    let _ = backward::softmax_backward;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -500,33 +839,69 @@ mod tests {
     }
 
     #[test]
-    fn test_layer_pattern_inference() {
+    fn test_gemma4_forward_finite() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            println!("Gemma 4 GGUF not on disk — skipping");
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("open gguf");
+        let weights = CpuWeightsGemma4::load(&model).expect("load");
+
+        // Small test: 4 tokens (BOS + 3 content tokens)
+        let tokens: Vec<u32> = vec![2, 1000, 2000, 3000];
+        println!("Running forward on {} tokens...", tokens.len());
+        let start = std::time::Instant::now();
+        let (logits, caches) = forward_gemma4(&weights, &tokens);
+        let elapsed = start.elapsed().as_secs_f64();
+        println!("Forward took {:.2}s, {} layer caches, {} logits",
+            elapsed, caches.len(), logits.len());
+
+        assert_eq!(caches.len(), weights.hparams.n_layer, "one cache per layer");
+        assert_eq!(logits.len(), tokens.len() * weights.hparams.vocab_size,
+            "logits = seq × vocab");
+
+        // All logits finite
+        let n_nan = logits.iter().filter(|x| x.is_nan()).count();
+        let n_inf = logits.iter().filter(|x| x.is_infinite()).count();
+        assert_eq!(n_nan, 0, "logits contain NaN");
+        assert_eq!(n_inf, 0, "logits contain Inf");
+
+        // Softcap applied — all in bounds
+        let softcap = weights.hparams.final_logit_softcapping;
+        if softcap > 0.0 {
+            let max_abs = logits.iter().cloned().fold(0.0f32, |a, x| a.max(x.abs()));
+            assert!(max_abs <= softcap + 1e-3,
+                "|logit| = {} exceeds softcap {}", max_abs, softcap);
+        }
+
+        // Top-5 tokens for last position as sanity check
+        let last_pos = tokens.len() - 1;
+        let vocab = weights.hparams.vocab_size;
+        let last_logits = &logits[last_pos * vocab..(last_pos + 1) * vocab];
+        let mut indexed: Vec<(usize, f32)> = last_logits.iter().copied().enumerate().collect();
+        indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        println!("Top-5 tokens for last position: {:?}",
+            &indexed[..5.min(indexed.len())]);
+    }
+
+    #[test]
+    fn test_layer_pattern_from_tensor_shapes() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
             return;
         }
         let model = GgufFile::open(model_path).unwrap();
-        let pattern = infer_layer_pattern(&model, 35);
-        let full_indices: Vec<usize> = pattern
-            .iter()
-            .enumerate()
+        let hparams = Gemma4Hparams::from_gguf(&model).expect("hparams");
+        let full_indices: Vec<usize> = hparams.layer_is_sliding
+            .iter().enumerate()
             .filter_map(|(i, &s)| if !s { Some(i) } else { None })
             .collect();
-        // GGUF metadata is the ground truth. For E2B it's one of two patterns
-        // depending on convention: HF config.json says [4,9,14,19,24,29,34]
-        // (7 full), but the converted GGUF's sliding_window_pattern metadata
-        // tags layer 0 as full too, giving [0,4,9,14,19,24,29,34] (8 full).
-        // Final layer MUST be full per the architectural spec; accept either.
-        assert!(full_indices.contains(&34), "final layer (34) must be full");
-        assert!(full_indices.contains(&4) && full_indices.contains(&9)
-            && full_indices.contains(&14) && full_indices.contains(&19)
-            && full_indices.contains(&24) && full_indices.contains(&29),
-            "every-5th-layer-is-full pattern broken: {:?}", full_indices);
-        let n_full = full_indices.len();
-        assert!(n_full == 7 || n_full == 8,
-            "expected 7 or 8 full-attention layers, got {}: {:?}", n_full, full_indices);
-        println!("Layer pattern: {} full, {} sliding. Full indices: {:?}",
-            n_full, 35 - n_full, full_indices);
+        // Per HF config.json layer_types and verified blk.{N}.attn_q.weight
+        // shapes (full = 4096 = 8*512, sliding = 2048 = 8*256), full layers
+        // are at indices [4, 9, 14, 19, 24, 29, 34].
+        assert_eq!(full_indices, vec![4, 9, 14, 19, 24, 29, 34],
+            "full-attention layers should be at indices [4,9,14,19,24,29,34]");
     }
 }
 
