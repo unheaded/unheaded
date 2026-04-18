@@ -424,6 +424,65 @@ mod tests {
             "rel err on significant entries should be < 10%, got {:.4e}", worst_rel_err);
     }
 
+    #[test]
+    fn test_gemma4_gpu_wq_speedup() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("open");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load cpu");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+
+        let il = 0;
+        let h = &cpu.hparams;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let q_out_dim = h.n_head * h.head_dim(il);
+
+        let mut input = vec![0.0f32; seq * n_embd];
+        for i in 0..input.len() {
+            input[i] = ((i * 7 + 3) as f32 * 0.001).sin() * 0.1;
+        }
+
+        let n_iter = 10;
+
+        // Warm up + time GPU
+        for _ in 0..3 { let _ = gpu.wq_matmul(&input, seq, il).unwrap(); }
+        let t0 = std::time::Instant::now();
+        for _ in 0..n_iter {
+            let _ = gpu.wq_matmul(&input, seq, il).unwrap();
+        }
+        let gpu_secs = t0.elapsed().as_secs_f64() / n_iter as f64;
+
+        // Time CPU (matches forward_gemma4_with_lora's pattern: bf16→f32 + matmul)
+        let cpu_matmul = |input: &[f32]| -> Vec<f32> {
+            let wq_f32: Vec<f32> = cpu.wq[il].iter().map(|b| b.to_f32()).collect();
+            let mut out = vec![0.0f32; seq * q_out_dim];
+            for i in 0..seq {
+                for j in 0..q_out_dim {
+                    let mut acc = 0.0f32;
+                    for l in 0..n_embd {
+                        acc += input[i * n_embd + l] * wq_f32[j * n_embd + l];
+                    }
+                    out[i * q_out_dim + j] = acc;
+                }
+            }
+            out
+        };
+        for _ in 0..1 { let _ = cpu_matmul(&input); }
+        let t0 = std::time::Instant::now();
+        for _ in 0..n_iter {
+            let _ = cpu_matmul(&input);
+        }
+        let cpu_secs = t0.elapsed().as_secs_f64() / n_iter as f64;
+
+        println!("wq matmul timing (4×1536 → 4×{}, n={} iterations):", q_out_dim, n_iter);
+        println!("  CPU (incl bf16→f32 conversion): {:.4}s", cpu_secs);
+        println!("  GPU (incl input upload + sync): {:.4}s", gpu_secs);
+        println!("  Speedup:                         {:.1}x", cpu_secs / gpu_secs);
+    }
+
     #[allow(dead_code)]
     fn _suppress(_: HipError) {}
 }
