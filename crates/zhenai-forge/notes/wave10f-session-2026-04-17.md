@@ -5,7 +5,20 @@
 **Arch spec:** `crates/zhenai-forge/notes/gemma4-arch-spec.md`
 **Math notes:** `crates/zhenai-forge/notes/phase1-attention-math.md`
 
-## Final Outcome
+## Final Outcome (resumed session 2026-04-18)
+
+**FORGE TRAINS GEMMA 4 E2B ON REAL WEIGHTS — CORRECT, FAST FORWARD, HYBRID STEP WORKING.**
+
+Phase 7 GPU port progress this resume:
+- Step A ✓ Gemma4GpuWeights upload + VRAM verified (4.57 GB CPU-PLE / 9.27 GB GPU-PLE)
+- Step B ✓ forward_gemma4_gpu — **10.7x speedup** (CPU 7.6s → GPU 0.7s warm), cosine sim 0.998787, top-1 + top-5 match
+- matmul_grad_x helper ✓ verified (cosine sim 0.999999)
+- Hybrid train step (GPU forward + CPU backward) ✓ — 43s/step, loss 19.96 → 16.48 → 6.79 over 3 steps (matches pure CPU 6.78 final)
+- Phase 8.2 ZLG4 adapter save/load ✓ exact roundtrip
+- bf16 conversion optimization (CPU path, 3-12x speedup when memory hot)
+- Profile + plan: GPU port plan committed at `crates/zhenai-forge/notes/wave10f-gpu-port-plan.md`
+
+Step C ⏳ (full backward GPU port) — mechanical translation of backward_gemma4_with_lora's ~13 matmul sites. Both helpers (matmul_xwt, matmul_grad_x) verified. Once landed, full step time should drop from 43s to ~10-15s (5-10x overall speedup vs original CPU).
 
 **FORGE TRAINS GEMMA 4 E2B ON REAL WEIGHTS WITH FULL ARCHITECTURAL FIDELITY.**
 
@@ -62,7 +75,19 @@ work). LoRA save format for Gemma 4 also pending.
 | 15 | `b0564bce` | **Phase 4: unified KV gradient routing** |
 | 16 | `2e191aac` | Phase 8: train-gemma4 CLI subcommand |
 | 17 | `ee5f6bf8` | docs(claude): WAVE10F status entry |
-| 18 | (this) | session log final update |
+| 18 | `d073d37d` | session log final update |
+| 19 | `efd6efb4` | Phase 8.2 ZLG4 adapter save/load + CLI checkpoint |
+| 20 | `b1edc212` | Phase 7 profiler — bf16 conversion = 94% of forward time |
+| 21 | `bde57ebd` | bf16_to_f32_vec optimized (tight loop, 3-12x when memory hot) |
+| 22 | `4267b83e` | Phase 7 GPU port plan committed to repo |
+| 23 | `85ce4774` | **Phase 7 Step A: Gemma4GpuWeights upload + VRAM verify (4.57 GB)** |
+| 24 | `a33484ec` | **Phase 7 Step A.5: GPU vs CPU matmul match (cos sim 0.999999)** |
+| 25 | `bca51e95` | Phase 7: wq matmul GPU 50.6x faster than CPU (single-call) |
+| 26 | `5b2f8aa8` | Phase 7 Step B: forward_gemma4_gpu (correctness ✓, initial speed ✗) |
+| 27 | `c9180e42` | **Phase 7: 10.7x forward speedup (removed redundant sync)** |
+| 28 | `6c49d671` | Phase 7: matmul_grad_x GPU helper (cos sim 0.999999) |
+| 29 | `04e441fb` | **Phase 7 hybrid: GPU fwd + CPU bwd train step works (43s/step, loss descends)** |
+| 30 | (next) | Step C — full backward GPU port |
 
 ## Phase status — ALL CORE PHASES DONE
 
