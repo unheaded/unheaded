@@ -228,6 +228,52 @@ impl Gemma4GpuWeights {
         self.vram_used_bytes as f64 / 1e9
     }
 
+    /// Generic GPU matmul: out[m, n] = input_f32[m, k] @ w_gpu_bf16[n, k]^T.
+    /// Mirrors CPU matmul_x_wt's call convention. Input is converted to bf16
+    /// on host then uploaded; output is downloaded as f32.
+    /// Per-call overhead: ~50-100 µs (PCIe + sync). For seq=4 this is dwarfed
+    /// by the matmul itself; for larger seq, batch transfers help.
+    pub fn matmul_xwt(
+        &self,
+        w_gpu_bf16: &GpuBuffer,
+        input_f32: &[f32],
+        m: usize, n: usize, k: usize,
+    ) -> Result<Vec<f32>, String> {
+        debug_assert_eq!(input_f32.len(), m * k);
+        // f32 → bf16 host-side. Cheap (~ns/element).
+        let mut input_bf16: Vec<bf16> = Vec::with_capacity(input_f32.len());
+        for &f in input_f32 {
+            input_bf16.push(bf16::from_f32(f));
+        }
+        let n_bytes_in = input_bf16.len() * 2;
+        let input_buf = GpuBuffer::alloc(n_bytes_in)
+            .map_err(|e| format!("alloc input: {:?}", e))?;
+        let bytes = unsafe {
+            std::slice::from_raw_parts(input_bf16.as_ptr() as *const u8, n_bytes_in)
+        };
+        input_buf.copy_from_host(bytes)
+            .map_err(|e| format!("upload input: {:?}", e))?;
+
+        let out_buf = GpuBuffer::alloc(m * n * 4)
+            .map_err(|e| format!("alloc output: {:?}", e))?;
+
+        self.blas.sgemm_bf16_ex(
+            true, false,
+            n as i32, m as i32, k as i32,
+            1.0,
+            w_gpu_bf16, k as i32,
+            &input_buf, k as i32,
+            0.0,
+            &out_buf, n as i32,
+        ).map_err(|e| format!("sgemm_bf16: {:?}", e))?;
+        crate::hip::sync().map_err(|e| format!("sync: {:?}", e))?;
+
+        let mut out = vec![0.0f32; m * n];
+        out_buf.download_f32(&mut out)
+            .map_err(|e| format!("download: {:?}", e))?;
+        Ok(out)
+    }
+
     /// Test helper: matmul one input vector through layer `il`'s wq weight
     /// using GPU sgemm_bf16. Returns output [seq, q_out_dim] as f32.
     ///
@@ -287,6 +333,400 @@ impl Gemma4GpuWeights {
             .map_err(|e| format!("download output: {:?}", e))?;
         Ok(out)
     }
+}
+
+// =============================================================================
+// Phase 7 Step B — forward_gemma4_gpu.
+//
+// Drop-in GPU version of gemma4::forward_gemma4_with_lora. Replaces every
+// matmul_x_wt call with self.matmul_xwt (bf16 weights stay GPU-resident).
+// All other ops (rmsnorm, RoPE, attention, GELU, softcap, embedding lookup,
+// PLE table lookup) stay on CPU — they're fast enough that GPU porting them
+// would mostly be PCIe shuffling. Phase 7b would custom-kernel them.
+//
+// Returns (logits, layer_caches) compatible with backward_gemma4_with_lora —
+// caller can interleave GPU forward with CPU backward (or eventually GPU
+// backward when Step C lands).
+// =============================================================================
+
+use crate::gemma4::{Gemma4LoraAdapters, Gemma4LayerCache, Gemma4PleCache};
+
+pub fn forward_gemma4_gpu(
+    cpu: &CpuWeightsGemma4,
+    gpu: &Gemma4GpuWeights,
+    lora: Option<&Gemma4LoraAdapters>,
+    tokens: &[u32],
+) -> Result<(Vec<f32>, Vec<Gemma4LayerCache>), String> {
+    use crate::forward;
+
+    let h = &cpu.hparams;
+    let seq = tokens.len();
+    let n_embd = h.n_embd;
+    let row_size = h.n_embd_per_layer * h.n_layer;
+
+    // 1. Embedding lookup + sqrt(n_embd) scale (CPU — fast indexing).
+    let tok_embd_f32: Vec<f32> = cpu.token_embd.iter().map(|b| b.to_f32()).collect();
+    let mut hidden = forward::embedding_lookup(&tok_embd_f32, n_embd, tokens);
+    let embed_scale = (n_embd as f32).sqrt();
+    for v in hidden.iter_mut() { *v *= embed_scale; }
+
+    // 1b. PLE setup (per_layer_model_proj matmul on GPU; lookup on CPU).
+    let inp_per_layer: Option<Vec<f32>> = if h.n_embd_per_layer > 0 {
+        Some(compute_inp_per_layer_gpu(cpu, gpu, tokens, &hidden)?)
+    } else {
+        None
+    };
+
+    let mut layer_caches: Vec<Gemma4LayerCache> = Vec::with_capacity(h.n_layer);
+
+    for il in 0..h.n_layer {
+        let head_dim = h.head_dim(il);
+        let n_head = h.n_head;
+        let n_head_kv = h.n_head_kv;
+        let q_out_dim = n_head * head_dim;
+        let kv_out_dim = n_head_kv * head_dim;
+
+        // 2a. attn_norm (CPU, f32 weights).
+        let mut normed = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let row = forward::rmsnorm(
+                &hidden[s * n_embd..(s + 1) * n_embd],
+                &cpu.attn_norm[il],
+                h.rms_norm_eps,
+            );
+            normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
+        }
+
+        // 2b. Q projection (GPU) + LoRA Q (CPU)
+        let mut q = gpu.matmul_xwt(&gpu.wq[il], &normed, seq, q_out_dim, n_embd)?;
+        if let Some(lora_set) = lora {
+            if let Some(lq) = &lora_set.layers[il][0] {
+                let scale = lora_set.scale();
+                for s in 0..seq {
+                    let inp = &normed[s * n_embd..(s + 1) * n_embd];
+                    let out = lq.forward(inp);
+                    for d in 0..q_out_dim.min(out.len()) {
+                        q[s * q_out_dim + d] += out[d] * scale;
+                    }
+                }
+            }
+        }
+
+        // 2c. K, V projections (GPU if has_kv) + LoRA K, V (CPU)
+        let (k_flat, v_flat) = if let Some(wk_buf) = &gpu.wk[il] {
+            let wv_buf = gpu.wv[il].as_ref().unwrap_or(wk_buf);
+            let mut k = gpu.matmul_xwt(wk_buf, &normed, seq, kv_out_dim, n_embd)?;
+            let mut v = gpu.matmul_xwt(wv_buf, &normed, seq, kv_out_dim, n_embd)?;
+            if let Some(lora_set) = lora {
+                let scale = lora_set.scale();
+                if let Some(lk) = &lora_set.layers[il][1] {
+                    for s in 0..seq {
+                        let inp = &normed[s * n_embd..(s + 1) * n_embd];
+                        let out = lk.forward(inp);
+                        for d in 0..kv_out_dim.min(out.len()) {
+                            k[s * kv_out_dim + d] += out[d] * scale;
+                        }
+                    }
+                }
+                if let Some(lv) = &lora_set.layers[il][2] {
+                    for s in 0..seq {
+                        let inp = &normed[s * n_embd..(s + 1) * n_embd];
+                        let out = lv.forward(inp);
+                        for d in 0..kv_out_dim.min(out.len()) {
+                            v[s * kv_out_dim + d] += out[d] * scale;
+                        }
+                    }
+                }
+            }
+            (k, v)
+        } else {
+            // KV-reusing layer — use previous layer's cached K/V.
+            let prev = layer_caches.last().unwrap();
+            (prev.k_rot.clone(), prev.v.clone())
+        };
+
+        // 2d. Per-head Q-norm, K-norm, weightless V-norm (CPU, f32 weights)
+        let q_normed = per_head_rmsnorm_cpu(
+            &q, &cpu.attn_q_norm[il], seq, n_head, head_dim, h.rms_norm_eps);
+        let k_normed = if let Some(k_norm) = &cpu.attn_k_norm[il] {
+            per_head_rmsnorm_cpu(&k_flat, k_norm, seq, n_head_kv, head_dim, h.rms_norm_eps)
+        } else {
+            k_flat.clone()
+        };
+        let v_normed = {
+            let mut out = vec![0.0f32; v_flat.len()];
+            for s in 0..seq {
+                for hh in 0..n_head_kv {
+                    let off = (s * n_head_kv + hh) * head_dim;
+                    let slice = &v_flat[off..off + head_dim];
+                    let ss: f32 = slice.iter().map(|x| x * x).sum::<f32>() / head_dim as f32;
+                    let rms = (ss + h.rms_norm_eps).sqrt();
+                    for d in 0..head_dim {
+                        out[off + d] = slice[d] / rms;
+                    }
+                }
+            }
+            out
+        };
+
+        // 2e. RoPE (CPU)
+        let rope_dim = h.rope_dim(il);
+        let freq_base = h.rope_freq_base(il);
+        let (cos_table, sin_table) = forward::rope_freqs(seq, rope_dim, freq_base);
+        let q_rot = rope_apply_partial_cpu(&q_normed, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
+        let k_rot = rope_apply_partial_cpu(&k_normed, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
+
+        // 2f. Attention (CPU)
+        let mask = if h.is_sliding(il) {
+            forward::AttnMask::SlidingWindow(h.sliding_window)
+        } else {
+            forward::AttnMask::Causal
+        };
+        let (attn_out_head, attn_cache) = forward::attention_forward(
+            &q_rot, &k_rot, &v_normed,
+            n_head, n_head_kv, head_dim, seq, mask,
+        );
+
+        // 2g. O projection (GPU) + LoRA O (CPU)
+        let mut o_out = gpu.matmul_xwt(&gpu.wo[il], &attn_out_head, seq, n_embd, q_out_dim)?;
+        if let Some(lora_set) = lora {
+            if let Some(lo) = &lora_set.layers[il][3] {
+                let scale = lora_set.scale();
+                for s in 0..seq {
+                    let inp = &attn_out_head[s * q_out_dim..(s + 1) * q_out_dim];
+                    let out = lo.forward(inp);
+                    for d in 0..n_embd.min(out.len()) {
+                        o_out[s * n_embd + d] += out[d] * scale;
+                    }
+                }
+            }
+        }
+
+        // 2h. post_attention_norm + residual (CPU)
+        let mut post_attn = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let row = forward::rmsnorm(
+                &o_out[s * n_embd..(s + 1) * n_embd],
+                &cpu.post_attention_norm[il],
+                h.rms_norm_eps,
+            );
+            for d in 0..n_embd {
+                post_attn[s * n_embd + d] = row[d] + hidden[s * n_embd + d];
+            }
+        }
+
+        // 2i. FFN — norm (CPU), gate/up/down matmul (GPU), GELU + mul (CPU)
+        let mut ffn_normed = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let row = forward::rmsnorm(
+                &post_attn[s * n_embd..(s + 1) * n_embd],
+                &cpu.ffn_norm[il],
+                h.rms_norm_eps,
+            );
+            ffn_normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
+        }
+        let gate_pre = gpu.matmul_xwt(&gpu.ffn_gate[il], &ffn_normed, seq, h.n_ff, n_embd)?;
+        let up_pre = gpu.matmul_xwt(&gpu.ffn_up[il], &ffn_normed, seq, h.n_ff, n_embd)?;
+        let mut ffn_hidden = vec![0.0f32; seq * h.n_ff];
+        for i in 0..ffn_hidden.len() {
+            ffn_hidden[i] = forward::gelu_tanh_approx(gate_pre[i]) * up_pre[i];
+        }
+        let ffn_out = gpu.matmul_xwt(&gpu.ffn_down[il], &ffn_hidden, seq, n_embd, h.n_ff)?;
+
+        // 2j. post_ffw_norm + residual
+        let mut layer_out = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let row = forward::rmsnorm(
+                &ffn_out[s * n_embd..(s + 1) * n_embd],
+                &cpu.post_ffw_norm[il],
+                h.rms_norm_eps,
+            );
+            for d in 0..n_embd {
+                layer_out[s * n_embd + d] = row[d] + post_attn[s * n_embd + d];
+            }
+        }
+
+        // PLE chain (matmuls on GPU)
+        let ple_cache = if let Some(ref ipl) = inp_per_layer {
+            let pe_in = layer_out.clone();
+            let n_epl = h.n_embd_per_layer;
+            let inp_layer_slice = slice_layer_cpu(ipl, seq, h.n_layer, n_epl, il);
+
+            let gate_pre_gelu = gpu.matmul_xwt(&gpu.inp_gate[il], &pe_in, seq, n_epl, n_embd)?;
+            let mut gate_post_gelu = gate_pre_gelu.clone();
+            for v in gate_post_gelu.iter_mut() { *v = forward::gelu_tanh_approx(*v); }
+            let mut gated = vec![0.0f32; gate_post_gelu.len()];
+            for i in 0..gated.len() {
+                gated[i] = gate_post_gelu[i] * inp_layer_slice[i];
+            }
+            let proj_out_pre_norm = gpu.matmul_xwt(&gpu.proj[il], &gated, seq, n_embd, n_epl)?;
+            let mut proj_normed = vec![0.0f32; seq * n_embd];
+            for s in 0..seq {
+                let row = forward::rmsnorm(
+                    &proj_out_pre_norm[s * n_embd..(s + 1) * n_embd],
+                    &cpu.post_norm[il],
+                    h.rms_norm_eps,
+                );
+                proj_normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
+            }
+            for i in 0..layer_out.len() {
+                layer_out[i] = pe_in[i] + proj_normed[i];
+            }
+            Some(Gemma4PleCache {
+                pe_in,
+                gate_pre_gelu,
+                gate_post_gelu,
+                inp_layer_slice,
+                proj_out_pre_norm,
+            })
+        } else {
+            None
+        };
+
+        if let Some(scale_v) = cpu.layer_output_scale[il] {
+            for v in layer_out.iter_mut() { *v *= scale_v; }
+        }
+
+        layer_caches.push(Gemma4LayerCache {
+            normed_input: normed,
+            q_rot,
+            k_rot,
+            v: v_normed,
+            attn_cache,
+            attn_out: attn_out_head,
+            post_attn_residual: post_attn,
+            ffn_normed,
+            ffn_gate_pre: gate_pre,
+            ffn_up_pre: up_pre,
+            ffn_hidden,
+            post_ffw_residual: layer_out.clone(),
+            ple: ple_cache,
+        });
+
+        hidden = layer_out;
+    }
+
+    // Final output_norm (CPU)
+    let mut final_hidden = vec![0.0f32; seq * n_embd];
+    for s in 0..seq {
+        let row = forward::rmsnorm(
+            &hidden[s * n_embd..(s + 1) * n_embd],
+            &cpu.output_norm,
+            h.rms_norm_eps,
+        );
+        final_hidden[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
+    }
+
+    // LM head (GPU — token_embd is already on GPU, treated as W^T)
+    let logits = gpu.matmul_xwt(&gpu.token_embd, &final_hidden, seq, h.vocab_size, n_embd)?;
+
+    // Softcap (CPU)
+    let logits = if h.final_logit_softcapping > 0.0 {
+        let cap = h.final_logit_softcapping;
+        logits.into_iter().map(|x| forward::logit_softcap(x, cap)).collect()
+    } else {
+        logits
+    };
+
+    let _ = row_size; // silence unused (used only when PLE active)
+    Ok((logits, layer_caches))
+}
+
+/// PLE setup helper — GPU matmul for per_layer_model_proj.
+fn compute_inp_per_layer_gpu(
+    cpu: &CpuWeightsGemma4,
+    gpu: &Gemma4GpuWeights,
+    tokens: &[u32],
+    scaled_embeddings: &[f32],
+) -> Result<Vec<f32>, String> {
+    use crate::forward;
+    let h = &cpu.hparams;
+    let n_tokens = tokens.len();
+    let n_embd = h.n_embd;
+    let n_epl = h.n_embd_per_layer;
+    let n_layer = h.n_layer;
+    let row_size = n_epl * n_layer;
+
+    // Look up + scale (CPU, accesses CpuWeightsGemma4.per_layer_token_embd)
+    let mut tok_embd_per_layer = vec![0.0f32; n_tokens * row_size];
+    let scale_tok = (n_epl as f32).sqrt();
+    for (ti, &tok) in tokens.iter().enumerate() {
+        let src_off = tok as usize * row_size;
+        for d in 0..row_size {
+            if src_off + d < cpu.per_layer_token_embd.len() {
+                tok_embd_per_layer[ti * row_size + d] =
+                    cpu.per_layer_token_embd[src_off + d].to_f32() * scale_tok;
+            }
+        }
+    }
+
+    // Project on GPU
+    let mut proj_out = gpu.matmul_xwt(
+        &gpu.per_layer_model_proj, scaled_embeddings, n_tokens, row_size, n_embd)?;
+    let scale_proj = 1.0 / (n_embd as f32).sqrt();
+    for v in proj_out.iter_mut() { *v *= scale_proj; }
+
+    // Rest is CPU
+    for ti in 0..n_tokens {
+        for li in 0..n_layer {
+            let off = ti * row_size + li * n_epl;
+            let slice = &proj_out[off..off + n_epl];
+            let normed = forward::rmsnorm(slice, &cpu.per_layer_proj_norm, h.rms_norm_eps);
+            proj_out[off..off + n_epl].copy_from_slice(&normed);
+        }
+    }
+    let inv_sqrt2 = 1.0f32 / 2.0f32.sqrt();
+    for i in 0..proj_out.len() {
+        proj_out[i] = (proj_out[i] + tok_embd_per_layer[i]) * inv_sqrt2;
+    }
+    Ok(proj_out)
+}
+
+fn slice_layer_cpu(inp_per_layer: &[f32], seq: usize, n_layer: usize, n_epl: usize, l: usize) -> Vec<f32> {
+    let mut out = Vec::with_capacity(seq * n_epl);
+    for t in 0..seq {
+        let off = t * n_layer * n_epl + l * n_epl;
+        out.extend_from_slice(&inp_per_layer[off..off + n_epl]);
+    }
+    out
+}
+
+fn per_head_rmsnorm_cpu(x: &[f32], weight: &[f32], seq: usize, n_head: usize, head_dim: usize, eps: f32) -> Vec<f32> {
+    let mut out = vec![0.0f32; x.len()];
+    for s in 0..seq {
+        for h in 0..n_head {
+            let off = (s * n_head + h) * head_dim;
+            let slice = &x[off..off + head_dim];
+            let ss: f32 = slice.iter().map(|v| v * v).sum::<f32>() / head_dim as f32;
+            let rms = (ss + eps).sqrt();
+            for d in 0..head_dim {
+                out[off + d] = (slice[d] / rms) * weight[d];
+            }
+        }
+    }
+    out
+}
+
+fn rope_apply_partial_cpu(
+    x: &[f32], cos: &[f32], sin: &[f32],
+    seq: usize, n_head: usize, head_dim: usize, rope_dim: usize,
+) -> Vec<f32> {
+    let mut out = x.to_vec();
+    let half = rope_dim / 2;
+    for s in 0..seq {
+        for h in 0..n_head {
+            let off = (s * n_head + h) * head_dim;
+            for d in 0..half {
+                let c = cos[s * half + d];
+                let si = sin[s * half + d];
+                let xe = x[off + 2 * d];
+                let xo = x[off + 2 * d + 1];
+                out[off + 2 * d]     = xe * c - xo * si;
+                out[off + 2 * d + 1] = xe * si + xo * c;
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -422,6 +862,86 @@ mod tests {
         // bf16 noise.
         assert!(worst_rel_err < 0.10,
             "rel err on significant entries should be < 10%, got {:.4e}", worst_rel_err);
+    }
+
+    #[test]
+    fn test_gemma4_gpu_forward_matches_cpu() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("open");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load cpu");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+
+        let tokens: Vec<u32> = vec![2, 1000, 2000, 3000];
+
+        // CPU reference forward
+        println!("CPU forward (reference)...");
+        let t0 = std::time::Instant::now();
+        let (cpu_logits, _cpu_caches) = crate::gemma4::forward_gemma4(&cpu, &tokens);
+        let cpu_secs = t0.elapsed().as_secs_f64();
+        println!("  CPU forward: {:.1}s", cpu_secs);
+
+        // GPU forward
+        println!("GPU forward (matmuls on hipBLAS sgemm_bf16)...");
+        let t0 = std::time::Instant::now();
+        let (gpu_logits, _gpu_caches) =
+            super::forward_gemma4_gpu(&cpu, &gpu, None, &tokens).expect("gpu forward");
+        let gpu_secs = t0.elapsed().as_secs_f64();
+        println!("  GPU forward: {:.1}s", gpu_secs);
+        println!("  Speedup:     {:.1}x", cpu_secs / gpu_secs);
+
+        assert_eq!(cpu_logits.len(), gpu_logits.len());
+
+        // Compare logits at the LAST position (where prediction matters most).
+        let vocab = cpu.hparams.vocab_size;
+        let last_pos = tokens.len() - 1;
+        let cpu_last = &cpu_logits[last_pos * vocab..(last_pos + 1) * vocab];
+        let gpu_last = &gpu_logits[last_pos * vocab..(last_pos + 1) * vocab];
+
+        let mut dot = 0.0f64;
+        let mut sq_cpu = 0.0f64;
+        let mut sq_gpu = 0.0f64;
+        let mut top1_match_at = 0;
+        let mut argmax_cpu_val = f32::NEG_INFINITY;
+        let mut argmax_cpu_idx = 0;
+        let mut argmax_gpu_val = f32::NEG_INFINITY;
+        let mut argmax_gpu_idx = 0;
+        for i in 0..vocab {
+            dot += cpu_last[i] as f64 * gpu_last[i] as f64;
+            sq_cpu += (cpu_last[i] as f64).powi(2);
+            sq_gpu += (gpu_last[i] as f64).powi(2);
+            if cpu_last[i] > argmax_cpu_val { argmax_cpu_val = cpu_last[i]; argmax_cpu_idx = i; }
+            if gpu_last[i] > argmax_gpu_val { argmax_gpu_val = gpu_last[i]; argmax_gpu_idx = i; }
+        }
+        let cos_sim = (dot / (sq_cpu.sqrt() * sq_gpu.sqrt())) as f32;
+        if argmax_cpu_idx == argmax_gpu_idx { top1_match_at = 1; }
+
+        // Top-5 overlap
+        let mut cpu_top: Vec<(usize, f32)> = cpu_last.iter().copied().enumerate().collect();
+        cpu_top.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        let mut gpu_top: Vec<(usize, f32)> = gpu_last.iter().copied().enumerate().collect();
+        gpu_top.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        let cpu_top5: std::collections::HashSet<usize> = cpu_top[..5].iter().map(|x| x.0).collect();
+        let gpu_top5: std::collections::HashSet<usize> = gpu_top[..5].iter().map(|x| x.0).collect();
+        let top5_overlap = cpu_top5.intersection(&gpu_top5).count();
+
+        println!("Logits comparison @ last position (vocab={}):", vocab);
+        println!("  cosine sim:        {:.6}", cos_sim);
+        println!("  argmax CPU:        token {} (logit {:.3})", argmax_cpu_idx, argmax_cpu_val);
+        println!("  argmax GPU:        token {} (logit {:.3})", argmax_gpu_idx, argmax_gpu_val);
+        println!("  top-1 match:       {}", top1_match_at == 1);
+        println!("  top-5 overlap:     {}/5", top5_overlap);
+        println!("  CPU top-5: {:?}", &cpu_top[..5]);
+        println!("  GPU top-5: {:?}", &gpu_top[..5]);
+
+        assert!(cos_sim > 0.99,
+            "logits cosine similarity should be > 0.99, got {}", cos_sim);
+        // Top-1 may differ if logits are very close — top-3 overlap is the
+        // robust check.
+        assert!(top5_overlap >= 3,
+            "top-5 should overlap by ≥3, got {} (CPU vs GPU divergent)", top5_overlap);
     }
 
     #[test]
