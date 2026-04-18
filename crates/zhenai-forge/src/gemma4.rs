@@ -515,6 +515,96 @@ impl Gemma4LoraAdapters {
             .map(|l| l.num_params())
             .sum::<u64>() * 4  // f32
     }
+
+    /// Save adapter to disk in ZLG4 format (custom binary, distinct from
+    /// Mistral's ZLORA because Gemma 4 has per-layer per-target variable
+    /// dims and Optional KV targets).
+    ///
+    /// Layout:
+    ///   Magic   : b"ZLG4\x01" (5 bytes)
+    ///   Header  : n_layer:u32, rank:u32, alpha:f32 (12 bytes)
+    ///   Layers  : per layer, per target 0..4:
+    ///               present:u8 (0=None, 1=Some)
+    ///               if present: input_dim:u32, output_dim:u32,
+    ///                           A vals (input_dim*rank f32),
+    ///                           B vals (rank*output_dim f32)
+    pub fn save(&self, path: &str) -> std::io::Result<()> {
+        let mut data: Vec<u8> = Vec::new();
+        data.extend_from_slice(b"ZLG4\x01");
+        data.extend_from_slice(&(self.layers.len() as u32).to_le_bytes());
+        data.extend_from_slice(&self.rank.to_le_bytes());
+        data.extend_from_slice(&self.alpha.to_le_bytes());
+        for layer in &self.layers {
+            for slot in layer.iter() {
+                match slot {
+                    None => data.push(0u8),
+                    Some(ll) => {
+                        data.push(1u8);
+                        data.extend_from_slice(&ll.input_dim.to_le_bytes());
+                        data.extend_from_slice(&ll.output_dim.to_le_bytes());
+                        for v in &ll.a {
+                            data.extend_from_slice(&v.to_le_bytes());
+                        }
+                        for v in &ll.b {
+                            data.extend_from_slice(&v.to_le_bytes());
+                        }
+                    }
+                }
+            }
+        }
+        std::fs::write(path, &data)
+    }
+
+    /// Load a previously-saved ZLG4 adapter. Validates magic + dims.
+    pub fn load(path: &str) -> std::io::Result<Self> {
+        let bytes = std::fs::read(path)?;
+        let err = |s: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, s);
+        if bytes.len() < 5 + 12 || &bytes[..5] != b"ZLG4\x01" {
+            return Err(err("not a ZLG4 file"));
+        }
+        let mut p = 5usize;
+        let read_u32 = |b: &[u8], pos: &mut usize| -> u32 {
+            let v = u32::from_le_bytes([b[*pos], b[*pos+1], b[*pos+2], b[*pos+3]]);
+            *pos += 4; v
+        };
+        let read_f32 = |b: &[u8], pos: &mut usize| -> f32 {
+            let v = f32::from_le_bytes([b[*pos], b[*pos+1], b[*pos+2], b[*pos+3]]);
+            *pos += 4; v
+        };
+        let n_layer = read_u32(&bytes, &mut p) as usize;
+        let rank = read_u32(&bytes, &mut p);
+        let alpha = read_f32(&bytes, &mut p);
+
+        let mut layers = Vec::with_capacity(n_layer);
+        for _ in 0..n_layer {
+            let mut slots: [Option<LoraLayer>; 4] =
+                [None, None, None, None];
+            for slot in slots.iter_mut() {
+                if p >= bytes.len() { return Err(err("truncated")); }
+                let present = bytes[p]; p += 1;
+                if present == 1 {
+                    if p + 8 > bytes.len() { return Err(err("truncated")); }
+                    let input_dim = read_u32(&bytes, &mut p);
+                    let output_dim = read_u32(&bytes, &mut p);
+                    let a_size = (input_dim * rank) as usize;
+                    let b_size = (rank * output_dim) as usize;
+                    if p + 4 * (a_size + b_size) > bytes.len() {
+                        return Err(err("truncated tensor"));
+                    }
+                    let mut a = Vec::with_capacity(a_size);
+                    for _ in 0..a_size { a.push(read_f32(&bytes, &mut p)); }
+                    let mut b = Vec::with_capacity(b_size);
+                    for _ in 0..b_size { b.push(read_f32(&bytes, &mut p)); }
+                    let mut layer = LoraLayer::new(input_dim, output_dim, rank);
+                    layer.a = a;
+                    layer.b = b;
+                    *slot = Some(layer);
+                }
+            }
+            layers.push(slots);
+        }
+        Ok(Self { layers, rank, alpha })
+    }
 }
 
 // =============================================================================
@@ -1817,6 +1907,55 @@ mod tests {
         for il in 20..35 {
             assert!(weights.wk[il].is_none(), "layer {} should NOT have wk", il);
         }
+    }
+
+    #[test]
+    fn test_gemma4_lora_save_load_roundtrip() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("open gguf");
+        let weights = CpuWeightsGemma4::load(&model).expect("load");
+        let mut lora = Gemma4LoraAdapters::new(&weights.hparams, 16, 32.0);
+
+        // Tweak some values to verify exact roundtrip
+        if let Some(l0q) = lora.layers[0][0].as_mut() {
+            l0q.a[0] = 1.234;
+            l0q.b[0] = -5.678;
+            let last = l0q.a.len() - 1;
+            l0q.a[last] = 9.999;
+        }
+        if let Some(l34o) = lora.layers[34][3].as_mut() {
+            l34o.a[42] = 0.42;
+        }
+
+        let tmp = "/tmp/test-zlg4-roundtrip.bin";
+        lora.save(tmp).expect("save");
+        let loaded = Gemma4LoraAdapters::load(tmp).expect("load");
+
+        assert_eq!(loaded.layers.len(), lora.layers.len());
+        assert_eq!(loaded.rank, lora.rank);
+        assert_eq!(loaded.alpha, lora.alpha);
+
+        // KV-share pattern: first 20 layers have all 4 targets, last 15 have Q+O only
+        for il in 0..lora.layers.len() {
+            for t in 0..4 {
+                let want = lora.layers[il][t].is_some();
+                let got = loaded.layers[il][t].is_some();
+                assert_eq!(want, got, "presence mismatch at L{}T{}", il, t);
+                if let (Some(orig), Some(rt)) =
+                    (lora.layers[il][t].as_ref(), loaded.layers[il][t].as_ref())
+                {
+                    assert_eq!(orig.input_dim, rt.input_dim);
+                    assert_eq!(orig.output_dim, rt.output_dim);
+                    assert_eq!(orig.a, rt.a);
+                    assert_eq!(orig.b, rt.b);
+                }
+            }
+        }
+        std::fs::remove_file(tmp).ok();
+        println!("ZLG4 roundtrip OK ({} layers)", lora.layers.len());
     }
 
     #[test]

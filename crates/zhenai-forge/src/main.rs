@@ -63,22 +63,26 @@ fn main() {
 fn cmd_train_gemma4(args: &[String]) {
     let mut model_path = String::new();
     let mut data_path = String::new();
+    let mut output_path = String::new();
     let mut rank: u32 = 16;
     let mut alpha: f32 = 32.0;
     let mut lr: f32 = 3e-4;
     let mut steps: usize = 10;
     let mut answer_start: usize = 1;
+    let mut save_every: usize = 0;
 
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--model"        => { model_path = args[i + 1].clone(); i += 2; }
             "--data"         => { data_path = args[i + 1].clone(); i += 2; }
+            "--output"       => { output_path = args[i + 1].clone(); i += 2; }
             "--rank"         => { rank = args[i + 1].parse().unwrap(); i += 2; }
             "--alpha"        => { alpha = args[i + 1].parse().unwrap(); i += 2; }
             "--lr"           => { lr = args[i + 1].parse().unwrap(); i += 2; }
             "--steps"        => { steps = args[i + 1].parse().unwrap(); i += 2; }
             "--answer-start" => { answer_start = args[i + 1].parse().unwrap(); i += 2; }
+            "--save-every"   => { save_every = args[i + 1].parse().unwrap(); i += 2; }
             _ => { eprintln!("unknown arg: {}", args[i]); i += 1; }
         }
     }
@@ -144,6 +148,14 @@ fn cmd_train_gemma4(args: &[String]) {
         println!("  [step {}/{}] loss={:.4} avg={:.4} step_time={:.1}s elapsed={:.1}m eta={:.1}m",
             step, steps, loss, avg_loss, step_secs, elapsed_min, eta_min);
         let _ = std::io::Write::flush(&mut std::io::stdout());
+
+        if save_every > 0 && !output_path.is_empty() && step % save_every == 0 {
+            let cp_path = format!("{}.checkpoint-{}", output_path, step);
+            match lora.save(&cp_path) {
+                Ok(_) => println!("  Checkpoint saved: {}", cp_path),
+                Err(e) => eprintln!("  Checkpoint save failed: {}", e),
+            }
+        }
     }
 
     let total_time_min = start.elapsed().as_secs_f64() / 60.0;
@@ -153,10 +165,16 @@ fn cmd_train_gemma4(args: &[String]) {
     println!("  Steps:       {}", steps);
     println!("  Time:        {:.1} min", total_time_min);
     println!("  Final avg:   {:.4}", total_loss / steps as f64);
-    println!();
-    println!("LoRA adapter saving not yet implemented for Gemma 4 (Phase 8.2 work).");
-    println!("In-memory LoRA discarded on exit. Use the integration test path");
-    println!("until save_gemma4_lora_gguf is implemented.");
+
+    if !output_path.is_empty() {
+        match lora.save(&output_path) {
+            Ok(_) => println!("  Saved to:    {}", output_path),
+            Err(e) => eprintln!("  Save failed: {}", e),
+        }
+    } else {
+        println!();
+        println!("No --output specified; in-memory LoRA discarded on exit.");
+    }
 }
 
 fn cmd_info(args: &[String]) {
