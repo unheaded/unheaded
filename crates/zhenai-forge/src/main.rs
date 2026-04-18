@@ -15,6 +15,7 @@ mod backward;
 mod data;
 mod forward;
 mod gemma4;
+mod gemma4_gpu;
 mod gguf;
 mod hip;
 mod lora;

@@ -192,18 +192,34 @@ impl BlasHandle {
         beta: f32,
         c: &GpuBuffer, ldc: i32,
     ) -> Result<(), HipError> {
+        self.sgemm_bf16_ex(false, false, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
+    }
+
+    /// bf16 matmul with transpose flags. Same convention as sgemm_ex but
+    /// inputs are bf16 with f32 accumulation. Output stays f32.
+    pub fn sgemm_bf16_ex(
+        &self,
+        transa: bool, transb: bool,
+        m: i32, n: i32, k: i32,
+        alpha: f32,
+        a: &GpuBuffer, lda: i32,
+        b: &GpuBuffer, ldb: i32,
+        beta: f32,
+        c: &GpuBuffer, ldc: i32,
+    ) -> Result<(), HipError> {
+        let op_a = if transa { HipblasOperation::Transpose as i32 } else { HipblasOperation::None as i32 };
+        let op_b = if transb { HipblasOperation::Transpose as i32 } else { HipblasOperation::None as i32 };
         check(unsafe {
             hipblasGemmEx(
                 self.handle,
-                HipblasOperation::None as i32,
-                HipblasOperation::None as i32,
+                op_a, op_b,
                 m, n, k,
                 &alpha as *const f32 as *const c_void,
                 a.as_ptr() as *const c_void, HIPBLAS_R_16B, lda,
                 b.as_ptr() as *const c_void, HIPBLAS_R_16B, ldb,
                 &beta as *const f32 as *const c_void,
                 c.as_ptr() as *mut c_void, HIPBLAS_R_32F, ldc,
-                HIPBLAS_R_32F, // V1 API: compute type passed as hipblasDatatype_t
+                HIPBLAS_R_32F,
                 HIPBLAS_GEMM_DEFAULT,
             )
         })
