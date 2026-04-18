@@ -756,6 +756,43 @@ fn per_head_rmsnorm_cpu(x: &[f32], weight: &[f32], seq: usize, n_head: usize, he
     out
 }
 
+/// Hybrid training step: forward on GPU, backward on CPU, Adam on CPU.
+/// Step C (full GPU backward) would replace the CPU backward call.
+pub fn train_step_gemma4_hybrid(
+    cpu: &CpuWeightsGemma4,
+    gpu: &Gemma4GpuWeights,
+    lora: &mut Gemma4LoraAdapters,
+    tokens: &[u32],
+    answer_start: usize,
+    lr: f32,
+    step: u32,
+) -> Result<f32, String> {
+    use crate::gemma4::backward_gemma4_with_lora;
+
+    let (logits, caches) = forward_gemma4_gpu(cpu, gpu, Some(lora), tokens)?;
+    let (loss, _health) = backward_gemma4_with_lora(
+        cpu, Some(lora), &caches, &logits, tokens, answer_start);
+
+    // Gradient clip + Adam (same as CPU train_step_gemma4)
+    let clip_threshold = 1.0f32;
+    for il in 0..lora.layers.len() {
+        for t in 0..4 {
+            if let Some(ll) = &mut lora.layers[il][t] {
+                let gn_sq: f32 = ll.grad_a.iter().chain(ll.grad_b.iter())
+                    .map(|g| g * g).sum();
+                let gn = gn_sq.sqrt();
+                if gn > clip_threshold {
+                    let s = clip_threshold / gn;
+                    for g in ll.grad_a.iter_mut() { *g *= s; }
+                    for g in ll.grad_b.iter_mut() { *g *= s; }
+                }
+                ll.adam_step(lr, 0.9, 0.999, 1e-8, step);
+            }
+        }
+    }
+    Ok(loss)
+}
+
 fn rope_apply_partial_cpu(
     x: &[f32], cos: &[f32], sin: &[f32],
     seq: usize, n_head: usize, head_dim: usize, rope_dim: usize,
@@ -911,6 +948,37 @@ mod tests {
         // bf16 noise.
         assert!(worst_rel_err < 0.10,
             "rel err on significant entries should be < 10%, got {:.4e}", worst_rel_err);
+    }
+
+    #[test]
+    fn test_gemma4_hybrid_train_step_loss_descent() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() { return; }
+        let model = GgufFile::open(model_path).expect("open");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+        let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+
+        let tokens: Vec<u32> = vec![2, 1000, 2000, 3000, 4000, 5000];
+        let answer_start = 3;
+        let lr = 3e-3f32;
+
+        println!("Hybrid train (forward GPU + backward CPU), 3 steps:");
+        let mut losses = Vec::new();
+        let session_start = std::time::Instant::now();
+        for step in 1..=3 {
+            let t0 = std::time::Instant::now();
+            let loss = super::train_step_gemma4_hybrid(
+                &cpu, &gpu, &mut lora, &tokens, answer_start, lr, step
+            ).expect("train_step");
+            losses.push(loss);
+            println!("  [step {}] loss={:.4} ({:.1}s)", step, loss, t0.elapsed().as_secs_f64());
+            assert!(loss.is_finite());
+        }
+        println!("Total: {:.1}s for 3 steps", session_start.elapsed().as_secs_f64());
+        println!("Loss trajectory: {:?}", losses);
+        assert!(losses[2] <= losses[0],
+            "loss should descend: {} -> {}", losses[0], losses[2]);
     }
 
     #[test]
