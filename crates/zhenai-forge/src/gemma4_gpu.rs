@@ -227,6 +227,66 @@ impl Gemma4GpuWeights {
     pub fn vram_used_gb(&self) -> f64 {
         self.vram_used_bytes as f64 / 1e9
     }
+
+    /// Test helper: matmul one input vector through layer `il`'s wq weight
+    /// using GPU sgemm_bf16. Returns output [seq, q_out_dim] as f32.
+    ///
+    /// Forward analog of the matmul_x_wt(input, wq_f32, seq, q_out_dim, n_embd)
+    /// call in forward_gemma4_with_lora step 2b.
+    ///
+    /// hipBLAS is column-major; to compute row-major out[m,n] = a[m,k] @ w[n,k]^T,
+    /// we transpose-A and call gemm with op_a=true, op_b=false on swapped
+    /// dimensions. See: gemma4_gpu test_gemma4_gpu_wq_matches_cpu.
+    pub fn wq_matmul(
+        &self,
+        input: &[f32],
+        seq: usize,
+        il: usize,
+    ) -> Result<Vec<f32>, String> {
+        let h = &self.hparams;
+        let head_dim = h.head_dim(il);
+        let n = h.n_head * head_dim; // q_out_dim
+        let k = h.n_embd;
+        let m = seq;
+
+        // Convert input f32 → bf16 on host, upload
+        let input_bf16: Vec<bf16> = input.iter().map(|f| bf16::from_f32(*f)).collect();
+        let n_in_bytes = input_bf16.len() * 2;
+        let input_buf = GpuBuffer::alloc(n_in_bytes)
+            .map_err(|e| format!("alloc input failed: {:?}", e))?;
+        let in_bytes = unsafe {
+            std::slice::from_raw_parts(input_bf16.as_ptr() as *const u8, n_in_bytes)
+        };
+        input_buf.copy_from_host(in_bytes)
+            .map_err(|e| format!("copy input to GPU: {:?}", e))?;
+
+        // Output buffer f32
+        let out_size = m * n;
+        let out_buf = GpuBuffer::alloc(out_size * 4)
+            .map_err(|e| format!("alloc output failed: {:?}", e))?;
+
+        // sgemm_bf16_ex with op_a=transpose(W), op_b=none(input)
+        // Compute (in col-major view): C_cm[n,m] = W_cm^T[n,k] @ A_cm[k,m]
+        // which is equivalent to row-major C[m,n] = A[m,k] @ W[n,k]^T.
+        // Args: M_hipblas=n, N_hipblas=m, K_hipblas=k.
+        // Leading dims (col-major): lda=k for W (transposed), ldb=k for A,
+        // ldc=n for C.
+        self.blas.sgemm_bf16_ex(
+            true, false,
+            n as i32, m as i32, k as i32,
+            1.0,
+            &self.wq[il], k as i32,
+            &input_buf, k as i32,
+            0.0,
+            &out_buf, n as i32,
+        ).map_err(|e| format!("sgemm_bf16 failed: {:?}", e))?;
+        crate::hip::sync().map_err(|e| format!("sync: {:?}", e))?;
+
+        let mut out = vec![0.0f32; out_size];
+        out_buf.download_f32(&mut out)
+            .map_err(|e| format!("download output: {:?}", e))?;
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
@@ -273,6 +333,95 @@ mod tests {
         println!("VRAM used (CPU PLE): {:.2} GB", gpu_weights.vram_used_gb());
         assert!(gpu_weights.vram_used_gb() < 6.0,
             "VRAM with CPU PLE should be < 6 GB, got {:.2}", gpu_weights.vram_used_gb());
+    }
+
+    #[test]
+    fn test_gemma4_gpu_wq_matches_cpu() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
+        let model = GgufFile::open(model_path).expect("open");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load cpu");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+
+        // Pick layer 0 (sliding, head_dim=256, q_out_dim=2048).
+        let il = 0;
+        let h = &cpu.hparams;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let q_out_dim = h.n_head * h.head_dim(il);
+
+        // Random f32 input [seq, n_embd]
+        let mut input = Vec::with_capacity(seq * n_embd);
+        let mut s = 0xbadcab1eu64;
+        for _ in 0..(seq * n_embd) {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
+            input.push(u * 0.1);
+        }
+
+        // CPU reference: matmul_x_wt(input, wq_f32, seq, q_out_dim, n_embd)
+        let wq_f32: Vec<f32> = cpu.wq[il].iter().map(|b| b.to_f32()).collect();
+        let mut cpu_out = vec![0.0f32; seq * q_out_dim];
+        for i in 0..seq {
+            for j in 0..q_out_dim {
+                let mut acc = 0.0f32;
+                for l in 0..n_embd {
+                    acc += input[i * n_embd + l] * wq_f32[j * n_embd + l];
+                }
+                cpu_out[i * q_out_dim + j] = acc;
+            }
+        }
+
+        // GPU candidate
+        let gpu_out = gpu.wq_matmul(&input, seq, il).expect("gpu matmul");
+
+        assert_eq!(cpu_out.len(), gpu_out.len());
+
+        // Magnitude-aware metrics. bf16 input precision (~3e-3 relative) plus
+        // sqrt(k) accumulation in dot product means small-magnitude outputs
+        // are naturally noisier in absolute terms. Use:
+        //   - cosine similarity (scale-invariant, structural correctness)
+        //   - rel err only on entries above 1% of max magnitude
+        let max_mag = cpu_out.iter().map(|x| x.abs()).fold(0.0f32, f32::max);
+        let mut dot_cpu_gpu = 0.0f64;
+        let mut sq_cpu = 0.0f64;
+        let mut sq_gpu = 0.0f64;
+        let mut max_abs_err = 0.0f32;
+        let mut worst_rel_err = 0.0f32;
+        let mut n_above_threshold = 0;
+        for i in 0..cpu_out.len() {
+            let a = cpu_out[i];
+            let b = gpu_out[i];
+            assert!(a.is_finite() && b.is_finite());
+            dot_cpu_gpu += (a as f64) * (b as f64);
+            sq_cpu += (a as f64).powi(2);
+            sq_gpu += (b as f64).powi(2);
+            let abs_err = (a - b).abs();
+            max_abs_err = max_abs_err.max(abs_err);
+            if a.abs() > 0.01 * max_mag {
+                n_above_threshold += 1;
+                let rel = abs_err / a.abs();
+                worst_rel_err = worst_rel_err.max(rel);
+            }
+        }
+        let cos_sim = (dot_cpu_gpu / (sq_cpu.sqrt() * sq_gpu.sqrt())) as f32;
+        println!("CPU vs GPU wq matmul (layer 0, seq=4, q_out_dim={})", q_out_dim);
+        println!("  cosine sim:        {:.6}", cos_sim);
+        println!("  max abs err:       {:.4e}", max_abs_err);
+        println!("  CPU max magnitude: {:.4e}", max_mag);
+        println!("  worst rel err on entries > 1% max_mag ({} entries): {:.4e}",
+            n_above_threshold, worst_rel_err);
+
+        assert!(cos_sim > 0.9999,
+            "cosine similarity should be > 0.9999, got {}", cos_sim);
+        // bf16 precision: input round-trip ~3e-3 per element, accumulated over
+        // k=1536 dot product → expected per-output error ~ sqrt(k)*eps ~ 12% in
+        // worst case. 10% threshold catches structural bugs without flagging
+        // bf16 noise.
+        assert!(worst_rel_err < 0.10,
+            "rel err on significant entries should be < 10%, got {:.4e}", worst_rel_err);
     }
 
     #[allow(dead_code)]
