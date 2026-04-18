@@ -228,6 +228,55 @@ impl Gemma4GpuWeights {
         self.vram_used_bytes as f64 / 1e9
     }
 
+    /// GPU matmul backward partner: out[m, k] = grad_out_f32[m, n] @ w_gpu_bf16[n, k].
+    /// Mirrors CPU matmul_grad_x's call convention (no transpose on W).
+    /// Used in backward to compute grad w.r.t. an intermediate.
+    pub fn matmul_grad_x(
+        &self,
+        w_gpu_bf16: &GpuBuffer,
+        grad_out_f32: &[f32],
+        m: usize, n: usize, k: usize,
+    ) -> Result<Vec<f32>, String> {
+        debug_assert_eq!(grad_out_f32.len(), m * n);
+        // Convert grad_out to bf16, upload
+        let mut go_bf16: Vec<bf16> = Vec::with_capacity(grad_out_f32.len());
+        for &f in grad_out_f32 { go_bf16.push(bf16::from_f32(f)); }
+        let n_bytes = go_bf16.len() * 2;
+        let go_buf = GpuBuffer::alloc(n_bytes)
+            .map_err(|e| format!("alloc grad_out: {:?}", e))?;
+        let bytes = unsafe {
+            std::slice::from_raw_parts(go_bf16.as_ptr() as *const u8, n_bytes)
+        };
+        go_buf.copy_from_host(bytes)
+            .map_err(|e| format!("upload grad_out: {:?}", e))?;
+
+        let out_buf = GpuBuffer::alloc(m * k * 4)
+            .map_err(|e| format!("alloc output: {:?}", e))?;
+
+        // Row-major: out[m,k] = grad_out[m,n] @ w[n,k] (no transpose either side).
+        // hipBLAS is col-major. Treating row-major data as transposed col-major:
+        //   grad_out [m,n] row-major == [n,m] col-major
+        //   w        [n,k] row-major == [k,n] col-major
+        //   out      [m,k] row-major == [k,m] col-major
+        // In col-major: out_cm[k,m] = w_cm[k,n] @ grad_out_cm[n,m]
+        // Both ops untransposed. M_hipblas=k, N_hipblas=m, K_hipblas=n.
+        // Leading dims (col-major rows): lda=k, ldb=n, ldc=k.
+        self.blas.sgemm_bf16_ex(
+            false, false,
+            k as i32, m as i32, n as i32,
+            1.0,
+            w_gpu_bf16, k as i32,
+            &go_buf, n as i32,
+            0.0,
+            &out_buf, k as i32,
+        ).map_err(|e| format!("sgemm_bf16: {:?}", e))?;
+
+        let mut out = vec![0.0f32; m * k];
+        out_buf.download_f32(&mut out)
+            .map_err(|e| format!("download: {:?}", e))?;
+        Ok(out)
+    }
+
     /// Generic GPU matmul: out[m, n] = input_f32[m, k] @ w_gpu_bf16[n, k]^T.
     /// Mirrors CPU matmul_x_wt's call convention. Input is converted to bf16
     /// on host then uploaded; output is downloaded as f32.
@@ -862,6 +911,78 @@ mod tests {
         // bf16 noise.
         assert!(worst_rel_err < 0.10,
             "rel err on significant entries should be < 10%, got {:.4e}", worst_rel_err);
+    }
+
+    #[test]
+    fn test_gemma4_gpu_matmul_grad_x_matches_cpu() {
+        // Verify GPU matmul_grad_x matches CPU's matmul_grad_x within bf16
+        // precision. Same shape pattern as wq backward in backward_gemma4:
+        //   grad_normed_q = matmul_grad_x(grad_q, wq, seq, q_out_dim, n_embd)
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() { return; }
+        let model = GgufFile::open(model_path).expect("open");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+
+        let il = 0;
+        let h = &cpu.hparams;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let q_out_dim = h.n_head * h.head_dim(il);
+
+        // Random "grad_q" input
+        let mut grad_q = Vec::with_capacity(seq * q_out_dim);
+        let mut s = 0xdeadbeefu64;
+        for _ in 0..(seq * q_out_dim) {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
+            grad_q.push(u * 0.1);
+        }
+
+        // CPU reference
+        let wq_f32: Vec<f32> = cpu.wq[il].iter().map(|b| b.to_f32()).collect();
+        let cpu_out = crate::backward::matmul_backward_a(&grad_q, &wq_f32, seq, q_out_dim, n_embd);
+        // Note: matmul_backward_a takes grad_c, b, m, n, k and computes grad_a = grad_c @ b^T
+        // But matmul_grad_x computes grad_out @ w. Let me use forge's matmul_grad_x equivalent.
+        // Looking at backward.rs:matmul_backward_a:
+        //   "grad_A = grad_C × B^T" with shapes A=(m,k), B=(k,n), C=(m,n)
+        //   So grad_A[i,j] = sum_l grad_C[i,l] * B^T[l,j] = sum_l grad_C[i,l] * B[j,l]
+        // That's grad_C @ B^T. NOT grad_C @ B. Different from gemma4_gpu's matmul_grad_x
+        // which is grad_out @ W (no transpose).
+        // For our GPU helper to match the gemma4_gpu uses (e.g.,
+        //   grad_normed_q = matmul_grad_x(grad_q, wq_f32, seq, q_out_dim, n_embd))
+        // the CPU equivalent is: out[i, l] = sum_j grad_q[i, j] * wq[j, l]
+        // i.e., simple no-transpose.
+        let mut cpu_ref = vec![0.0f32; seq * n_embd];
+        for i in 0..seq {
+            for l in 0..n_embd {
+                let mut acc = 0.0f32;
+                for j in 0..q_out_dim {
+                    acc += grad_q[i * q_out_dim + j] * wq_f32[j * n_embd + l];
+                }
+                cpu_ref[i * n_embd + l] = acc;
+            }
+        }
+        let _ = cpu_out;
+
+        let gpu_out = gpu.matmul_grad_x(&gpu.wq[il], &grad_q, seq, q_out_dim, n_embd)
+            .expect("gpu matmul_grad_x");
+
+        let mut dot = 0.0f64; let mut sq_a = 0.0f64; let mut sq_b = 0.0f64;
+        let mut max_abs_err = 0.0f32;
+        for i in 0..cpu_ref.len() {
+            let a = cpu_ref[i]; let b = gpu_out[i];
+            dot += a as f64 * b as f64;
+            sq_a += (a as f64).powi(2);
+            sq_b += (b as f64).powi(2);
+            max_abs_err = max_abs_err.max((a - b).abs());
+        }
+        let cos_sim = (dot / (sq_a.sqrt() * sq_b.sqrt())) as f32;
+        println!("matmul_grad_x CPU vs GPU:");
+        println!("  cosine sim: {:.6}", cos_sim);
+        println!("  max abs err: {:.4e}", max_abs_err);
+        assert!(cos_sim > 0.9999,
+            "matmul_grad_x cos sim should be >0.9999, got {}", cos_sim);
     }
 
     #[test]
