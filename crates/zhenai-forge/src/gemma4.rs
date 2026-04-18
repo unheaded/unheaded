@@ -705,6 +705,49 @@ pub fn forward_gemma4(
     forward_gemma4_with_lora(weights, None, tokens)
 }
 
+/// Per-op time accumulators for forward profiling. Enabled via env
+/// FORGE_GEMMA4_PROFILE=1; otherwise each measurement is a few ns.
+#[derive(Default)]
+struct ProfTimes {
+    enabled: bool,
+    t_bf16conv: f64,
+    t_qkvo_proj: f64,   // Q + K + V + O matmul (excludes LoRA add)
+    t_qkvo_lora: f64,
+    t_attention: f64,
+    t_norms: f64,       // attn_norm, post_attn_norm, ffn_norm, post_ffw_norm
+    t_ffn: f64,         // gate, up, down matmul
+    t_rope: f64,
+    t_ple: f64,
+    t_lm_head: f64,
+    n_layers: usize,
+}
+impl ProfTimes {
+    fn from_env() -> Self {
+        let enabled = std::env::var("FORGE_GEMMA4_PROFILE")
+            .map(|v| v == "1").unwrap_or(false);
+        Self { enabled, ..Default::default() }
+    }
+    // (timing recorded inline at call sites; no closure helper)
+    fn report(&self) {
+        if !self.enabled { return; }
+        let total = self.t_bf16conv + self.t_qkvo_proj + self.t_qkvo_lora
+            + self.t_attention + self.t_norms + self.t_ffn + self.t_rope
+            + self.t_ple + self.t_lm_head;
+        eprintln!("  [PROF] total={:.2}s breakdown:", total);
+        let pct = |t: f64| if total > 0.0 { 100.0 * t / total } else { 0.0 };
+        eprintln!("    bf16→f32 conversion : {:6.2}s ({:5.1}%)", self.t_bf16conv, pct(self.t_bf16conv));
+        eprintln!("    Q/K/V/O projections : {:6.2}s ({:5.1}%)", self.t_qkvo_proj, pct(self.t_qkvo_proj));
+        eprintln!("    Q/K/V/O LoRA        : {:6.2}s ({:5.1}%)", self.t_qkvo_lora, pct(self.t_qkvo_lora));
+        eprintln!("    attention math      : {:6.2}s ({:5.1}%)", self.t_attention, pct(self.t_attention));
+        eprintln!("    RMSNorm             : {:6.2}s ({:5.1}%)", self.t_norms, pct(self.t_norms));
+        eprintln!("    FFN matmuls         : {:6.2}s ({:5.1}%)", self.t_ffn, pct(self.t_ffn));
+        eprintln!("    RoPE                : {:6.2}s ({:5.1}%)", self.t_rope, pct(self.t_rope));
+        eprintln!("    PLE chain           : {:6.2}s ({:5.1}%)", self.t_ple, pct(self.t_ple));
+        eprintln!("    LM head             : {:6.2}s ({:5.1}%)", self.t_lm_head, pct(self.t_lm_head));
+        eprintln!("    layers:             : {}", self.n_layers);
+    }
+}
+
 /// Same as `forward_gemma4` but adds LoRA contributions at Q/K/V/O projections
 /// when `lora` is Some. The scale factor is `alpha / rank`.
 pub fn forward_gemma4_with_lora(
@@ -712,6 +755,7 @@ pub fn forward_gemma4_with_lora(
     lora: Option<&Gemma4LoraAdapters>,
     tokens: &[u32],
 ) -> (Vec<f32>, Vec<Gemma4LayerCache>) {
+    let mut prof = ProfTimes::from_env();
     let h = &weights.hparams;
     let seq = tokens.len();
     let n_embd = h.n_embd;
@@ -754,8 +798,12 @@ pub fn forward_gemma4_with_lora(
         }
 
         // 2b. Q projection: [seq, q_out_dim] = normed @ wq^T + LoRA_Q
+        let _t = std::time::Instant::now();
         let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
+        if prof.enabled { prof.t_bf16conv += _t.elapsed().as_secs_f64(); }
+        let _t = std::time::Instant::now();
         let mut q = matmul_x_wt(&normed, &wq_f32, seq, q_out_dim, n_embd);
+        if prof.enabled { prof.t_qkvo_proj += _t.elapsed().as_secs_f64(); }
         if let Some(lora_set) = lora {
             if let Some(lq) = &lora_set.layers[il][0] {
                 let scale = lora_set.scale();
@@ -856,10 +904,12 @@ pub fn forward_gemma4_with_lora(
         } else {
             forward::AttnMask::Causal
         };
+        let _t = std::time::Instant::now();
         let (attn_out_head, attn_cache) = forward::attention_forward(
             &q_rot, &k_rot, &v_normed,
             n_head, n_head_kv, head_dim, seq, mask,
         );
+        if prof.enabled { prof.t_attention += _t.elapsed().as_secs_f64(); }
         // attn_out_head shape: [seq, n_head, head_dim] — flatten to [seq, q_out_dim]
         // (already contiguous in that order)
 
@@ -903,9 +953,12 @@ pub fn forward_gemma4_with_lora(
             );
             ffn_normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
         }
+        let _t = std::time::Instant::now();
         let ffn_gate_f32 = bf16_to_f32_vec(&weights.ffn_gate[il]);
         let ffn_up_f32 = bf16_to_f32_vec(&weights.ffn_up[il]);
         let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
+        if prof.enabled { prof.t_bf16conv += _t.elapsed().as_secs_f64(); }
+        let _t = std::time::Instant::now();
         let gate_pre = matmul_x_wt(&ffn_normed, &ffn_gate_f32, seq, h.n_ff, n_embd);
         let up_pre = matmul_x_wt(&ffn_normed, &ffn_up_f32, seq, h.n_ff, n_embd);
         let mut ffn_hidden = vec![0.0f32; seq * h.n_ff];
@@ -913,6 +966,7 @@ pub fn forward_gemma4_with_lora(
             ffn_hidden[i] = forward::gelu_tanh_approx(gate_pre[i]) * up_pre[i];
         }
         let ffn_out = matmul_x_wt(&ffn_hidden, &ffn_down_f32, seq, n_embd, h.n_ff);
+        if prof.enabled { prof.t_ffn += _t.elapsed().as_secs_f64(); }
 
         // 2j. post_ffw_norm + residual (forming layer output for next iteration)
         let mut layer_out = vec![0.0f32; seq * n_embd];
@@ -1014,7 +1068,10 @@ pub fn forward_gemma4_with_lora(
 
     // 4. LM head — tied to token_embd per tie_word_embeddings=true
     //    logits[s, v] = tok_embd[v, :] . final_hidden[s, :]
+    let _t = std::time::Instant::now();
     let tok_embd_f32 = bf16_to_f32_vec(&weights.token_embd);
+    if prof.enabled { prof.t_bf16conv += _t.elapsed().as_secs_f64(); }
+    let _t = std::time::Instant::now();
     // tok_embd is stored as [vocab, n_embd] row-major. Match shape.
     let logits = matmul_x_wt(
         &final_hidden,
@@ -1023,6 +1080,9 @@ pub fn forward_gemma4_with_lora(
         h.vocab_size,
         n_embd,
     );
+    if prof.enabled { prof.t_lm_head += _t.elapsed().as_secs_f64(); }
+    prof.n_layers = h.n_layer;
+    prof.report();
 
     // 5. Logit softcap
     let softcap = h.final_logit_softcapping;
