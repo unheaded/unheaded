@@ -266,7 +266,7 @@ impl Gemma4GpuWeights {
             0.0,
             &out_buf, n as i32,
         ).map_err(|e| format!("sgemm_bf16: {:?}", e))?;
-        crate::hip::sync().map_err(|e| format!("sync: {:?}", e))?;
+        // hipMemcpy(D2H) is synchronous; no explicit sync needed.
 
         let mut out = vec![0.0f32; m * n];
         out_buf.download_f32(&mut out)
