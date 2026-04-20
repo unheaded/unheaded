@@ -1647,28 +1647,32 @@ pub fn backward_gemma4_with_lora(
         // Split into: grad_o_normed (to post_attention_norm backward) + grad_hidden_incoming
         let mut grad_hidden_incoming = grad_post_attn.clone(); // residual passthrough
 
+        // Site 6 — reconstruct o_out for rmsnorm_backward. Lift the per-row
+        // matmul out of the loop into a single full-batch dispatch.
+        let o_out_full = if let Some(g) = gpu {
+            g.matmul_xwt(&g.wo[il], &cache.attn_out, seq, n_embd, q_out_dim)
+                .expect("gpu site 6 o_out recon")
+        } else {
+            let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
+            matmul_x_wt(&cache.attn_out, &wo_f32, seq, n_embd, q_out_dim)
+        };
         let mut grad_o_out = vec![0.0f32; seq * n_embd];
         for s in 0..seq {
-            // Reconstruct o_out row:
-            let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
-            let attn_row = &cache.attn_out[s * q_out_dim..(s + 1) * q_out_dim];
-            let mut row_o = vec![0.0f32; n_embd];
-            for d in 0..n_embd {
-                let mut acc = 0.0;
-                for qj in 0..q_out_dim {
-                    acc += attn_row[qj] * wo_f32[d * q_out_dim + qj];
-                }
-                row_o[d] = acc;
-            }
+            let row_o = &o_out_full[s * n_embd..(s + 1) * n_embd];
             let go_row = &grad_post_attn[s * n_embd..(s + 1) * n_embd];
-            let gi = backward::rmsnorm_backward(&row_o, &weights.post_attention_norm[il], go_row, h.rms_norm_eps);
+            let gi = backward::rmsnorm_backward(row_o, &weights.post_attention_norm[il], go_row, h.rms_norm_eps);
             grad_o_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
         }
 
-        // Backward through O projection: o_out = attn_out @ wo^T
+        // Site 7 — backward through O projection: o_out = attn_out @ wo^T
         //   grad_attn_out = grad_o_out @ wo
-        let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
-        let grad_attn_out = matmul_grad_x(&grad_o_out, &wo_f32, seq, n_embd, q_out_dim);
+        let grad_attn_out = if let Some(g) = gpu {
+            g.matmul_grad_x(&g.wo[il], &grad_o_out, seq, n_embd, q_out_dim)
+                .expect("gpu site 7 wo_grad")
+        } else {
+            let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
+            matmul_grad_x(&grad_o_out, &wo_f32, seq, n_embd, q_out_dim)
+        };
 
         // Backward through attention: need the pre-GQA K/V shapes. We stored
         // (q_rot, k_rot, v) in the cache. The attention_forward expanded K/V
