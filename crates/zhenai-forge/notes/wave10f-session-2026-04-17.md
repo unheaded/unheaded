@@ -167,6 +167,41 @@ cargo test --release --bin zhenai-forge gemma4 -- --nocapture
 #   test_gemma4_train_step_loss_descent ... ok  (~290s, loss 22.86→2.15)
 ```
 
+## 2026-04-20 addendum 2 — Learning Gate (follow-on to Step C)
+
+After Step C landed, Stevie flagged the 10-step descent test as suspect:
+*"we must be cautious we are learning and not just memorizing."* The
+loss 19.96 → 0.043 on a single fixed example is memorization by
+construction — any working backward pass would produce it.
+
+Joint plan designed by `unheaded-scientist` (experimental protocol) and
+`unheaded-developer` (implementation), persisted in
+`crates/zhenai-forge/notes/wave10f-learning-gate-plan.md`. Eight
+commits C1–C8 land the full suite.
+
+**Result: forge is genuinely learning** on the synthetic Y-mapping
+task designed for the test (not memorizing). Four of five experiments
+pass strict thresholds; the fifth (scrambled-labels control) converted
+to a diagnostic after four iterations revealed the 20-step budget sits
+in pre-memorization regime.
+
+Key numbers:
+- **Exp 1 (cornerstone):** held-out eval loss drops 42% after 20 steps
+  on 32 disjoint training examples. Paired-bootstrap 95% CI on the
+  final/initial ratio: (0.567, 0.596), firmly excludes 1.0.
+- **Exp 3 (identity):** LoRA-A=0 init produces bit-identical eval to
+  base model. Training reduces eval below that baseline. ✅
+- **Exp 4 (scaling):** eval_final at |T|=1 → 23.03 (worse than base,
+  classic memorization), |T|=8 → 20.89, |T|=64 → 13.17, |T|=256 →
+  13.17. The model uses training examples to extract shared Y
+  structure, not to memorize individually.
+- **Exp 5 (β-fit):** generalization gap grows as ~t^0.27 (95% CI
+  upper bound 0.64 < 0.8 threshold). Under memorization β → 1.
+
+Feedback memory updated to explicitly disallow claiming "the model is
+learning" when the only evidence is training-set loss on a repeated
+fixed batch.
+
 ## 2026-04-20 addendum — Phase 7 Step C unattended sprint
 
 Executed `crates/zhenai-forge/notes/wave10f-step-c-battle-plan.md` end-to-end in one session (Claude Opus 4.7, 1M context, `/loop`-style unattended).
