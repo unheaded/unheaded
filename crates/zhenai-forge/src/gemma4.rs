@@ -1529,11 +1529,17 @@ pub fn backward_gemma4_with_lora(
                 grad_proj_out_pre_norm[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
             }
 
-            // proj matmul backward: forward was gated [seq, n_epl] @ proj^T → [seq, n_embd]
-            // So grad_gated = grad_proj_out_pre_norm @ proj (matmul_grad_x)
-            let proj_w = bf16_to_f32_vec(&weights.proj[il]);
+            // Site 13 — PLE proj matmul backward: forward was
+            //   gated [seq, n_epl] @ proj^T → [seq, n_embd]
+            // so grad_gated = grad_proj_out_pre_norm @ proj.
             let n_epl = h.n_embd_per_layer;
-            let grad_gated = matmul_grad_x(&grad_proj_out_pre_norm, &proj_w, seq, n_embd, n_epl);
+            let grad_gated = if let Some(g) = gpu {
+                g.matmul_grad_x(&g.proj[il], &grad_proj_out_pre_norm, seq, n_embd, n_epl)
+                    .expect("gpu site 13 ple_proj_grad")
+            } else {
+                let proj_w = bf16_to_f32_vec(&weights.proj[il]);
+                matmul_grad_x(&grad_proj_out_pre_norm, &proj_w, seq, n_embd, n_epl)
+            };
 
             // elementwise mul backward: gated = gate_post * inp_layer_slice
             // grad_gate_post = grad_gated * inp_layer_slice  (inp_layer_slice frozen)
@@ -1549,10 +1555,15 @@ pub fn backward_gemma4_with_lora(
                 grad_gate_pre[i] = grad_gate_post[i] * gelu_tanh_approx_prime(ple.gate_pre_gelu[i]);
             }
 
-            // inp_gate matmul backward: gate_pre = pe_in @ inp_gate^T
+            // Site 14 — PLE inp_gate matmul backward: gate_pre = pe_in @ inp_gate^T
             //   grad_pe_in_chain = grad_gate_pre @ inp_gate
-            let inp_gate_w = bf16_to_f32_vec(&weights.inp_gate[il]);
-            let grad_pe_in_chain = matmul_grad_x(&grad_gate_pre, &inp_gate_w, seq, n_epl, n_embd);
+            let grad_pe_in_chain = if let Some(g) = gpu {
+                g.matmul_grad_x(&g.inp_gate[il], &grad_gate_pre, seq, n_epl, n_embd)
+                    .expect("gpu site 14 ple_inp_gate_grad")
+            } else {
+                let inp_gate_w = bf16_to_f32_vec(&weights.inp_gate[il]);
+                matmul_grad_x(&grad_gate_pre, &inp_gate_w, seq, n_epl, n_embd)
+            };
 
             // Sum residual + chain to get total gradient on pe_in
             for i in 0..grad_pe_in.len() {
