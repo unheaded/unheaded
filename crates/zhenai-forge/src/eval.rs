@@ -125,6 +125,64 @@ impl EvalHarness {
         Ok(EvalStats { mean, per_seq, ci95 })
     }
 
+    /// Full training + periodic-evaluation protocol.
+    ///
+    /// - Runs `n_steps` training steps via `train_step_gemma4_gpu` when
+    ///   `gpu` is Some, `train_step_gemma4` otherwise.
+    /// - Each step draws one sequence from `self.train` cycling by index.
+    /// - Before step 1 and after every `eval_every` steps, runs
+    ///   `compute_eval_loss` on the entire held-out set and records the
+    ///   checkpoint. Always records a final checkpoint at step `n_steps`.
+    ///
+    /// Returns the trajectory for the Learning Gate tests to analyze.
+    pub fn run(
+        &self,
+        cpu: &CpuWeightsGemma4,
+        gpu: Option<&Gemma4GpuWeights>,
+        lora: &mut Gemma4LoraAdapters,
+        n_steps: usize,
+        eval_every: usize,
+        lr: f32,
+    ) -> Result<LearningTrajectory, String> {
+        assert!(!self.train.is_empty(), "train corpus empty");
+        assert!(eval_every >= 1, "eval_every must be ≥1");
+
+        let mut traj = LearningTrajectory {
+            train: Vec::with_capacity(n_steps),
+            checkpoints: Vec::new(),
+        };
+
+        // t=0 eval — baseline before any gradient step.
+        let eval0 = self.compute_eval_loss(cpu, gpu, lora)
+            .map_err(|e| format!("initial eval: {}", e))?;
+        traj.checkpoints.push((0, eval0));
+
+        for step in 1..=n_steps {
+            let example = &self.train[(step - 1) % self.train.len()];
+            let answer_start = self.answer_start.min(example.len() / 2);
+            let loss = match gpu {
+                Some(g) => crate::gemma4_gpu::train_step_gemma4_gpu(
+                    cpu, g, lora, example, answer_start, lr, step as u32,
+                )?,
+                None => crate::gemma4::train_step_gemma4(
+                    cpu, lora, example, answer_start, lr, step as u32,
+                ),
+            };
+            if !loss.is_finite() {
+                return Err(format!("non-finite train loss at step {}: {}", step, loss));
+            }
+            traj.train.push(loss);
+
+            let should_eval = step % eval_every == 0 || step == n_steps;
+            if should_eval {
+                let stats = self.compute_eval_loss(cpu, gpu, lora)
+                    .map_err(|e| format!("eval @ step {}: {}", step, e))?;
+                traj.checkpoints.push((step, stats));
+            }
+        }
+        Ok(traj)
+    }
+
     /// Single-sequence forward + cross-entropy loss over the answer region.
     /// Returns the mean per-position loss so short and long sequences can
     /// be compared.
