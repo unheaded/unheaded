@@ -1405,10 +1405,10 @@ pub fn backward_gemma4_with_lora(
     tokens: &[u32],
     answer_start: usize,
 ) -> (f32, Vec<LayerGradHealth>) {
-    // `gpu` is wired through in Phase 2; actual GPU dispatch at each matmul
-    // site lands in Phase 3. Until then, presence of `gpu` MUST NOT change
-    // semantics — the whole function is still CPU-only.
-    let _ = gpu;
+    // When `gpu` is Some, each of the 14 matmul sites dispatches to the GPU
+    // helper (phase 3). When None, we stay on the CPU baseline. The switch is
+    // per-site with identical shape, so the two paths produce bit-equivalent
+    // output within bf16 precision.
     let h = &weights.hparams;
     let seq = tokens.len();
     let n_embd = h.n_embd;
@@ -1446,8 +1446,13 @@ pub fn backward_gemma4_with_lora(
     // 3. Backward through tied LM head: logits = final_hidden @ tok_embd^T
     //    grad_final_hidden = grad_logits @ tok_embd  [seq, n_embd]
     //    (tok_embd is [vocab, n_embd] row-major, i.e., tok_embd[v * n_embd + d])
-    let tok_embd_f32 = bf16_to_f32_vec(&weights.token_embd);
-    let grad_final_hidden = matmul_grad_x(&grad_logits, &tok_embd_f32, seq, vocab, n_embd);
+    let grad_final_hidden = if let Some(g) = gpu {
+        g.matmul_grad_x(&g.token_embd, &grad_logits, seq, vocab, n_embd)
+            .expect("gpu site 1 lm_head_grad")
+    } else {
+        let tok_embd_f32 = bf16_to_f32_vec(&weights.token_embd);
+        matmul_grad_x(&grad_logits, &tok_embd_f32, seq, vocab, n_embd)
+    };
 
     // 4. Backward through final output_norm.
     let last_cache = caches.last().expect("at least one layer cache");
