@@ -1736,17 +1736,56 @@ pub fn backward_gemma4_with_lora(
         let grad_q_normed = rope_backward_partial(&grad_q_rot, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
         let grad_k_normed = rope_backward_partial(&grad_k_rot, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
 
+        // Sites 11 + 12 — reconstruct Q/K/V pre-norm values for per_head_*
+        // backward. These replace the former reconstruct_q_pre_norm /
+        // reconstruct_kv_pre_norm helpers (deleted). Inlined here so the gpu
+        // dispatch can share the `gpu` param without extra plumbing.
+        let q_pre_norm = if let Some(g) = gpu {
+            g.matmul_xwt(&g.wq[il], &cache.normed_input, seq, q_out_dim, n_embd)
+                .expect("gpu site 11 q_pre_norm recon")
+        } else {
+            let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
+            matmul_x_wt(&cache.normed_input, &wq_f32, seq, q_out_dim, n_embd)
+        };
+        let (k_pre_norm, v_pre_norm) = if let Some(wk_cpu) = &weights.wk[il] {
+            let k_pre = if let Some(g) = gpu {
+                let g_wk = g.wk[il].as_ref().expect("gpu wk present on producer");
+                g.matmul_xwt(g_wk, &cache.normed_input, seq, kv_out_dim, n_embd)
+                    .expect("gpu site 12 k_pre_norm recon")
+            } else {
+                let wk_f32 = bf16_to_f32_vec(wk_cpu);
+                matmul_x_wt(&cache.normed_input, &wk_f32, seq, kv_out_dim, n_embd)
+            };
+            let v_pre = if let Some(g) = gpu {
+                let g_wv = g.wv[il].as_ref()
+                    .or(g.wk[il].as_ref())
+                    .expect("gpu wv or wk present on producer");
+                g.matmul_xwt(g_wv, &cache.normed_input, seq, kv_out_dim, n_embd)
+                    .expect("gpu site 12 v_pre_norm recon")
+            } else {
+                let wk_f32 = bf16_to_f32_vec(wk_cpu);
+                let wv_f32 = weights.wv[il].as_ref().map(|w| bf16_to_f32_vec(w)).unwrap_or(wk_f32);
+                matmul_x_wt(&cache.normed_input, &wv_f32, seq, kv_out_dim, n_embd)
+            };
+            (k_pre, v_pre)
+        } else {
+            // KV-reusing layer: k_pre_norm is unused (grad_k takes grad_k_normed
+            // branch below), v_pre_norm goes to v_norm_backward as zeros (matches
+            // former reconstruct_kv_pre_norm None-fallthrough behavior).
+            (vec![0.0f32; seq * kv_out_dim], vec![0.0f32; seq * kv_out_dim])
+        };
+
         // Backward through per-head Q-norm, K-norm, V-norm
         let grad_q = per_head_rmsnorm_backward(
             &grad_q_normed,
-            &reconstruct_q_pre_norm(weights, il, seq, n_embd, q_out_dim, &cache.normed_input),
+            &q_pre_norm,
             &weights.attn_q_norm[il],
             seq, n_head, head_dim, h.rms_norm_eps,
         );
         let grad_k = if let Some(k_norm_w) = &weights.attn_k_norm[il] {
             per_head_rmsnorm_backward(
                 &grad_k_normed,
-                &reconstruct_kv_pre_norm(weights, il, seq, n_embd, kv_out_dim, &cache.normed_input, true),
+                &k_pre_norm,
                 k_norm_w,
                 seq, n_head_kv, head_dim, h.rms_norm_eps,
             )
@@ -1756,7 +1795,7 @@ pub fn backward_gemma4_with_lora(
         // V had a weightless per-head RMSNorm
         let grad_v_pre = v_norm_backward(
             &grad_v,
-            &reconstruct_kv_pre_norm(weights, il, seq, n_embd, kv_out_dim, &cache.normed_input, false),
+            &v_pre_norm,
             seq, n_head_kv, head_dim, h.rms_norm_eps,
         );
 
@@ -1944,42 +1983,6 @@ fn gelu_tanh_approx_prime(x: f32) -> f32 {
     let th = inner.tanh();
     let d_inner = SQRT_2_OVER_PI * (1.0 + 3.0 * ALPHA * x * x);
     0.5 * (1.0 + th) + 0.5 * x * (1.0 - th * th) * d_inner
-}
-
-/// Reconstruct Q pre-normalized output (cache.q_rot is post-RoPE AND post-norm;
-/// we need pre-norm for rmsnorm_backward's `input` arg).
-fn reconstruct_q_pre_norm(
-    weights: &CpuWeightsGemma4,
-    il: usize,
-    seq: usize,
-    n_embd: usize,
-    q_out_dim: usize,
-    normed_input: &[f32],
-) -> Vec<f32> {
-    let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
-    matmul_x_wt(normed_input, &wq_f32, seq, q_out_dim, n_embd)
-}
-
-/// Reconstruct K or V pre-normalized output.
-fn reconstruct_kv_pre_norm(
-    weights: &CpuWeightsGemma4,
-    il: usize,
-    seq: usize,
-    n_embd: usize,
-    kv_out_dim: usize,
-    normed_input: &[f32],
-    is_k: bool,
-) -> Vec<f32> {
-    let w = if is_k {
-        weights.wk[il].as_ref()
-    } else {
-        weights.wv[il].as_ref().or(weights.wk[il].as_ref())
-    };
-    let Some(w_bf16) = w else {
-        return vec![0.0; seq * kv_out_dim]; // KV-reusing layer — returns zero
-    };
-    let w_f32 = bf16_to_f32_vec(w_bf16);
-    matmul_x_wt(normed_input, &w_f32, seq, kv_out_dim, n_embd)
 }
 
 /// Reconstruct the embedding input at layer 0 (scaled token embeddings).
