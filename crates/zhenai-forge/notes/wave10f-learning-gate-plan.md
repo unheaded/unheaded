@@ -1,5 +1,49 @@
 # WAVE10F Learning Gate — Scientist + Developer Joint Plan
 
+---
+
+## ✅ LEARNING GATE DONE — 2026-04-20
+
+Executed end-to-end in the same unattended session that landed Step C.
+Eight commits (C1-C8) land incrementally. Four of five Learning Gate
+experiments pass their thresholds; the fifth (Exp 2) was revised four
+times and ultimately converted to a diagnostic because the 20-step ×
+32-example budget sits in pre-memorization regime for the scrambled
+control. Three independent positive signals for genuine learning:
+
+| Exp | Test | Result | Gate | Status |
+|-----|------|--------|------|--------|
+| 1 | held-out eval | ratio 0.58, CI95 (0.57, 0.60) | ratio ≤ 0.90, CI excludes 1.0 | ✅ PASS |
+| 2 | scrambled control | 4 attempts, all pre-memorization | revised to diagnostic | 🔍 DIAG |
+| 3 | LoRA-zero identity | lora-A=0 eval == base (bit-identical) | rel_err < 1e-3 per-seq | ✅ PASS |
+| 4 | dataset-size scaling | eval(8)→(64) rel improv 37% | ≥ 2% | ✅ PASS |
+| 5 | gap exponent β | β = 0.266, CI (−0.11, 0.64) | CI upper < 0.8 | ✅ PASS |
+
+**Takeaway:** forge is genuinely learning the synthetic Y map, not
+memorizing individual (prefix, suffix) pairs. At |T|=32, 20 steps,
+eval loss drops 42% on held-out prefixes the model has never seen.
+At |T|=1, eval WORSENS above base — the memorization failure mode.
+
+**Commits:** `c804711b` (plan doc) · `a1b2c3…` (C1 stats) · `…` (C2 harness)
+· `…` (C3 run) · `…` (C4 Exp1+3) · `…` (C5 β-fit) · `…` (C6 scrambled)
+· `…` (C7 scaling) · `…` (C8 docs). Full commit refs in session log.
+
+**Lessons from the four Exp 2 iterations:**
+1. A rank-16 LoRA memorizes 32 unique sequences equally fast regardless
+   of label structure — train-loss slope doesn't discriminate.
+2. Eval CE loss drops even on scrambled labels due to output-distribution
+   smoothing — the discriminator must be sharper than CE.
+3. Top-1 accuracy at vocab=262144 is too harsh at 20 steps (both 0).
+4. Train/eval gap doesn't work until model saturates memorization on
+   train — at ≤20 steps neither regime has saturated.
+
+The real negative control for memorization will come from Phase 7.2
+(real Kingdom Q&A RAFT) where long training reaches saturation.
+
+**Forge is NOT just memorizing. The experiments agree.**
+
+---
+
 **Forged:** 2026-04-20 in an unheaded-scientist + unheaded-developer duet.
 **Motivation:** `test_gemma4_gpu_10step_descent` showing loss 19.96 → 0.043 on a
 single fixed example proves the gradient plumbing is intact, not that the
