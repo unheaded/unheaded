@@ -458,6 +458,66 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // ~4 min — four runs at |T| ∈ {1, 8, 64, 256}
+    fn test_learning_exp4_dataset_size_scaling() {
+        // Exp 4: eval loss after training should decrease monotonically
+        // as |T| grows when the model is genuinely learning Y. Under pure
+        // memorization, eval loss would be flat regardless of |T| (the
+        // model just fits its 1/8/64/256 seen examples).
+        //
+        // Gate: eval_final(|T|=64) < eval_final(|T|=8) with a
+        //       non-trivial margin (≥2% relative).
+        // The full sweep is logged for diagnostic value.
+        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let n_steps = 20usize;
+        let lr = 3e-3f32;
+        let n_eval = 32usize;
+
+        let big_harness = EvalHarness::synthetic(
+            0xE7A4, 256, n_eval, cpu.hparams.vocab_size);
+
+        let run_at_size = |n_train: usize, gpu: &Gemma4GpuWeights| -> f32 {
+            // Use the same Y-map by slicing the largest harness's train.
+            // This guarantees all four runs share the same Y across splits.
+            let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+            for step in 1..=n_steps {
+                let ex = &big_harness.train[(step - 1) % n_train];
+                let a_start = big_harness.answer_start.min(ex.len() / 2);
+                let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
+                    &cpu, gpu, &mut lora, ex, a_start, lr, step as u32,
+                ).expect("train");
+            }
+            big_harness.compute_eval_loss(&cpu, Some(gpu), Some(&lora))
+                .expect("eval").mean
+        };
+
+        println!("Exp 4: dataset-size scaling ({} steps, same eval set)", n_steps);
+        let sizes = &[1usize, 8, 64, 256];
+        let mut eval_finals = Vec::new();
+        for &n_train in sizes {
+            let t0 = std::time::Instant::now();
+            let ef = run_at_size(n_train, &gpu);
+            println!("  |T|={:3}  eval_final={:.4}  ({:.1}s)",
+                n_train, ef, t0.elapsed().as_secs_f64());
+            eval_finals.push(ef);
+        }
+
+        // Gate: |T|=64 must clearly beat |T|=8.
+        let ef8 = eval_finals[1];
+        let ef64 = eval_finals[2];
+        let rel_improv = (ef8 - ef64) / ef8.max(1e-6);
+        println!("Exp 4 gate: eval_final(8)={:.4}, eval_final(64)={:.4}, \
+                  relative improvement = {:.3}", ef8, ef64, rel_improv);
+        assert!(
+            rel_improv > 0.02,
+            "Exp 4 FAIL: eval at |T|=64 ({:.4}) must beat |T|=8 ({:.4}) \
+             by ≥2%. If eval is flat or worse with more data, the model \
+             isn't extracting shared Y structure — it's memorizing \
+             per-sequence artifacts.", ef64, ef8
+        );
+    }
+
+    #[test]
     #[ignore] // ~5 min — diagnostic, not a binary gate (see comments)
     fn test_learning_exp2_scrambled_labels_control() {
         // Exp 2 (four iterations 2026-04-20 — full write-up in
