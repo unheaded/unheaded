@@ -770,8 +770,10 @@ pub fn train_step_gemma4_hybrid(
     use crate::gemma4::backward_gemma4_with_lora;
 
     let (logits, caches) = forward_gemma4_gpu(cpu, gpu, Some(lora), tokens)?;
+    // Phase 2: pass None for gpu param so backward stays on CPU until Phase 4
+    // flips this to Some(gpu). Keeps hybrid semantics identical.
     let (loss, _health) = backward_gemma4_with_lora(
-        cpu, Some(lora), &caches, &logits, tokens, answer_start);
+        cpu, None, Some(lora), &caches, &logits, tokens, answer_start);
 
     // Gradient clip + Adam (same as CPU train_step_gemma4)
     let clip_threshold = 1.0f32;

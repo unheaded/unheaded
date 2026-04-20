@@ -1349,7 +1349,7 @@ pub fn backward_gemma4(
     tokens: &[u32],
     answer_start: usize,
 ) -> (f32, Vec<LayerGradHealth>) {
-    backward_gemma4_with_lora(weights, None, caches, logits, tokens, answer_start)
+    backward_gemma4_with_lora(weights, None, None, caches, logits, tokens, answer_start)
 }
 
 /// Build the per-layer producer table for unified KV routing. For each
@@ -1398,12 +1398,17 @@ struct SharedKvGrads {
 /// grad_b on the corresponding LoraLayer.
 pub fn backward_gemma4_with_lora(
     weights: &CpuWeightsGemma4,
+    gpu: Option<&crate::gemma4_gpu::Gemma4GpuWeights>,
     mut lora: Option<&mut Gemma4LoraAdapters>,
     caches: &[Gemma4LayerCache],
     logits: &[f32],
     tokens: &[u32],
     answer_start: usize,
 ) -> (f32, Vec<LayerGradHealth>) {
+    // `gpu` is wired through in Phase 2; actual GPU dispatch at each matmul
+    // site lands in Phase 3. Until then, presence of `gpu` MUST NOT change
+    // semantics — the whole function is still CPU-only.
+    let _ = gpu;
     let h = &weights.hparams;
     let seq = tokens.len();
     let n_embd = h.n_embd;
@@ -1823,7 +1828,7 @@ pub fn train_step_gemma4(
 ) -> f32 {
     let (logits, caches) = forward_gemma4_with_lora(weights, Some(lora), tokens);
     let (loss, _health) = backward_gemma4_with_lora(
-        weights, Some(lora), &caches, &logits, tokens, answer_start);
+        weights, None, Some(lora), &caches, &logits, tokens, answer_start);
 
     // Gradient clip + Adam step per LoRA layer
     let clip_threshold = 1.0f32;
@@ -2087,7 +2092,7 @@ mod tests {
 
         let t1 = std::time::Instant::now();
         let (loss, _health) = backward_gemma4_with_lora(
-            &weights, Some(&mut lora), &caches, &logits, &tokens, 1);
+            &weights, None, Some(&mut lora), &caches, &logits, &tokens, 1);
         println!("  Backward (with LoRA grad accum): {:.1}s, loss={:.4}",
             t1.elapsed().as_secs_f64(), loss);
 
