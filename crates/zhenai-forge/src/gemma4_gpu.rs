@@ -1194,4 +1194,235 @@ mod tests {
 
     #[allow(dead_code)]
     fn _suppress(_: HipError) {}
+
+    // ---------- Step C verification harness (Phase 1) ----------
+
+    fn rand_f32(n: usize, seed: u64) -> Vec<f32> {
+        let mut s = seed;
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
+            out.push(u * 0.1);
+        }
+        out
+    }
+
+    fn check_gpu_matmul(name: &str, cpu_out: &[f32], gpu_out: &[f32], min_cosine: f32) {
+        assert_eq!(cpu_out.len(), gpu_out.len(),
+            "{} length mismatch: cpu={} gpu={}", name, cpu_out.len(), gpu_out.len());
+        let mut dot = 0.0f64;
+        let mut sq_a = 0.0f64;
+        let mut sq_b = 0.0f64;
+        let mut max_abs_err = 0.0f32;
+        for i in 0..cpu_out.len() {
+            let a = cpu_out[i];
+            let b = gpu_out[i];
+            assert!(a.is_finite() && b.is_finite(),
+                "{} non-finite at {}: cpu={} gpu={}", name, i, a, b);
+            dot += a as f64 * b as f64;
+            sq_a += (a as f64).powi(2);
+            sq_b += (b as f64).powi(2);
+            max_abs_err = max_abs_err.max((a - b).abs());
+        }
+        let cos_sim = (dot / (sq_a.sqrt() * sq_b.sqrt())) as f32;
+        println!("[{}] cos={:.6} max_abs_err={:.4e} len={}",
+            name, cos_sim, max_abs_err, cpu_out.len());
+        assert!(cos_sim >= min_cosine,
+            "{} cosine {:.6} below minimum {}", name, cos_sim, min_cosine);
+    }
+
+    // Shared CPU reference helpers (match gemma4_gpu dispatch conventions).
+    fn cpu_ref_matmul_grad_x(grad_out: &[f32], w_bf16: &[bf16], m: usize, n: usize, k: usize)
+        -> Vec<f32>
+    {
+        // out[m,k] = grad_out[m,n] @ w[n,k] (no transpose)
+        let mut out = vec![0.0f32; m * k];
+        for i in 0..m {
+            for l in 0..k {
+                let mut acc = 0.0f32;
+                for j in 0..n {
+                    acc += grad_out[i * n + j] * w_bf16[j * k + l].to_f32();
+                }
+                out[i * k + l] = acc;
+            }
+        }
+        out
+    }
+    fn cpu_ref_matmul_xwt(input: &[f32], w_bf16: &[bf16], m: usize, n: usize, k: usize)
+        -> Vec<f32>
+    {
+        // out[m,n] = input[m,k] @ w[n,k]^T
+        let mut out = vec![0.0f32; m * n];
+        for i in 0..m {
+            for j in 0..n {
+                let mut acc = 0.0f32;
+                for l in 0..k {
+                    acc += input[i * k + l] * w_bf16[j * k + l].to_f32();
+                }
+                out[i * n + j] = acc;
+            }
+        }
+        out
+    }
+
+    fn load_cpu_gpu_for_harness() -> Option<(CpuWeightsGemma4, Gemma4GpuWeights)> {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() { return None; }
+        let model = GgufFile::open(model_path).expect("open gguf");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load cpu");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+        Some((cpu, gpu))
+    }
+
+    #[test]
+    fn test_gpu_site_1_lm_head() {
+        // grad_final_hidden[seq, n_embd] = grad_logits[seq, vocab] @ token_embd[vocab, n_embd]
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let h = &cpu.hparams;
+        let seq = 2;                 // vocab=262144 → keep seq small for CPU ref time
+        let vocab = h.vocab_size;
+        let n_embd = h.n_embd;
+        let grad_logits = rand_f32(seq * vocab, 0xA1);
+        let cpu_out = cpu_ref_matmul_grad_x(&grad_logits, &cpu.token_embd, seq, vocab, n_embd);
+        let gpu_out = gpu.matmul_grad_x(&gpu.token_embd, &grad_logits, seq, vocab, n_embd)
+            .expect("gpu site 1");
+        check_gpu_matmul("site1_lm_head_grad", &cpu_out, &gpu_out, 0.9999);
+    }
+
+    #[test]
+    fn test_gpu_site_3_ffn_down_grad() {
+        // grad_ffn_hidden[seq, n_ff] = grad_ffn_out[seq, n_embd] @ ffn_down[n_embd, n_ff]
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let h = &cpu.hparams;
+        let il = 0;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let n_ff = h.n_ff;
+        let grad_ffn_out = rand_f32(seq * n_embd, 0xA3);
+        let cpu_out = cpu_ref_matmul_grad_x(&grad_ffn_out, &cpu.ffn_down[il], seq, n_embd, n_ff);
+        let gpu_out = gpu.matmul_grad_x(&gpu.ffn_down[il], &grad_ffn_out, seq, n_embd, n_ff)
+            .expect("gpu site 3");
+        check_gpu_matmul("site3_ffn_down_grad", &cpu_out, &gpu_out, 0.9999);
+    }
+
+    #[test]
+    fn test_gpu_site_4_5_ffn_gate_up_grad() {
+        // Both shapes identical: grad[seq, n_embd] = grad_pre[seq, n_ff] @ w[n_ff, n_embd]
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let h = &cpu.hparams;
+        let il = 0;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let n_ff = h.n_ff;
+        let grad_pre = rand_f32(seq * n_ff, 0xA4);
+        // Site 4 (ffn_gate)
+        let cpu_gate = cpu_ref_matmul_grad_x(&grad_pre, &cpu.ffn_gate[il], seq, n_ff, n_embd);
+        let gpu_gate = gpu.matmul_grad_x(&gpu.ffn_gate[il], &grad_pre, seq, n_ff, n_embd)
+            .expect("gpu site 4");
+        check_gpu_matmul("site4_ffn_gate_grad", &cpu_gate, &gpu_gate, 0.9999);
+        // Site 5 (ffn_up)
+        let cpu_up = cpu_ref_matmul_grad_x(&grad_pre, &cpu.ffn_up[il], seq, n_ff, n_embd);
+        let gpu_up = gpu.matmul_grad_x(&gpu.ffn_up[il], &grad_pre, seq, n_ff, n_embd)
+            .expect("gpu site 5");
+        check_gpu_matmul("site5_ffn_up_grad", &cpu_up, &gpu_up, 0.9999);
+    }
+
+    #[test]
+    fn test_gpu_site_7_wo_grad() {
+        // grad_attn_out[seq, q_out_dim] = grad_o_out[seq, n_embd] @ wo[n_embd, q_out_dim]
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let h = &cpu.hparams;
+        let il = 0;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let q_out_dim = h.n_head * h.head_dim(il);
+        let grad_o_out = rand_f32(seq * n_embd, 0xA7);
+        let cpu_out = cpu_ref_matmul_grad_x(&grad_o_out, &cpu.wo[il], seq, n_embd, q_out_dim);
+        let gpu_out = gpu.matmul_grad_x(&gpu.wo[il], &grad_o_out, seq, n_embd, q_out_dim)
+            .expect("gpu site 7");
+        check_gpu_matmul("site7_wo_grad", &cpu_out, &gpu_out, 0.9999);
+    }
+
+    #[test]
+    fn test_gpu_site_9_10_wk_wv_grad() {
+        // grad[seq, n_embd] = grad_kv[seq, kv_out] @ w[kv_out, n_embd]
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let h = &cpu.hparams;
+        let il = 0; // layer 0 has its own wk/wv
+        assert!(cpu.wk[il].is_some(), "layer 0 must have wk for this test");
+        assert!(cpu.wv[il].is_some(), "layer 0 must have wv for this test");
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let kv_out_dim = h.n_head_kv * h.head_dim(il);
+        let grad_kv = rand_f32(seq * kv_out_dim, 0xA9);
+        // Site 9 — wk backward
+        let wk_bf16 = cpu.wk[il].as_ref().unwrap();
+        let cpu_wk = cpu_ref_matmul_grad_x(&grad_kv, wk_bf16, seq, kv_out_dim, n_embd);
+        let gpu_wk = gpu.matmul_grad_x(
+            gpu.wk[il].as_ref().expect("gpu wk"),
+            &grad_kv, seq, kv_out_dim, n_embd,
+        ).expect("gpu site 9");
+        check_gpu_matmul("site9_wk_grad", &cpu_wk, &gpu_wk, 0.9999);
+        // Site 10 — wv backward
+        let wv_bf16 = cpu.wv[il].as_ref().unwrap();
+        let cpu_wv = cpu_ref_matmul_grad_x(&grad_kv, wv_bf16, seq, kv_out_dim, n_embd);
+        let gpu_wv = gpu.matmul_grad_x(
+            gpu.wv[il].as_ref().expect("gpu wv"),
+            &grad_kv, seq, kv_out_dim, n_embd,
+        ).expect("gpu site 10");
+        check_gpu_matmul("site10_wv_grad", &cpu_wv, &gpu_wv, 0.9999);
+    }
+
+    #[test]
+    fn test_gpu_site_12_kv_reconstruct() {
+        // Spot-check reconstruct_kv_pre_norm shape: out[seq, kv_out] = normed[seq, n_embd] @ wk^T
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let h = &cpu.hparams;
+        let il = 0;
+        assert!(cpu.wk[il].is_some());
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let kv_out_dim = h.n_head_kv * h.head_dim(il);
+        let normed = rand_f32(seq * n_embd, 0xAC);
+        let wk_bf16 = cpu.wk[il].as_ref().unwrap();
+        let cpu_out = cpu_ref_matmul_xwt(&normed, wk_bf16, seq, kv_out_dim, n_embd);
+        let gpu_out = gpu.matmul_xwt(
+            gpu.wk[il].as_ref().expect("gpu wk"),
+            &normed, seq, kv_out_dim, n_embd,
+        ).expect("gpu site 12");
+        check_gpu_matmul("site12_kv_recon", &cpu_out, &gpu_out, 0.9999);
+    }
+
+    #[test]
+    fn test_gpu_site_13_ple_proj_grad() {
+        // grad_gated[seq, n_epl] = grad_proj_out_pre_norm[seq, n_embd] @ proj[n_embd, n_epl]
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let h = &cpu.hparams;
+        let il = 0;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let n_epl = h.n_embd_per_layer;
+        let grad_proj_out = rand_f32(seq * n_embd, 0xAD);
+        let cpu_out = cpu_ref_matmul_grad_x(&grad_proj_out, &cpu.proj[il], seq, n_embd, n_epl);
+        let gpu_out = gpu.matmul_grad_x(&gpu.proj[il], &grad_proj_out, seq, n_embd, n_epl)
+            .expect("gpu site 13");
+        check_gpu_matmul("site13_ple_proj_grad", &cpu_out, &gpu_out, 0.9999);
+    }
+
+    #[test]
+    fn test_gpu_site_14_ple_inp_gate_grad() {
+        // grad_pe_in[seq, n_embd] = grad_gate_pre_ple[seq, n_epl] @ inp_gate[n_epl, n_embd]
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let h = &cpu.hparams;
+        let il = 0;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let n_epl = h.n_embd_per_layer;
+        let grad_gate = rand_f32(seq * n_epl, 0xAE);
+        let cpu_out = cpu_ref_matmul_grad_x(&grad_gate, &cpu.inp_gate[il], seq, n_epl, n_embd);
+        let gpu_out = gpu.matmul_grad_x(&gpu.inp_gate[il], &grad_gate, seq, n_epl, n_embd)
+            .expect("gpu site 14");
+        check_gpu_matmul("site14_ple_inp_gate_grad", &cpu_out, &gpu_out, 0.9999);
+    }
 }
