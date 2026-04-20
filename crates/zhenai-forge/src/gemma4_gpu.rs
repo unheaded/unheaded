@@ -770,10 +770,10 @@ pub fn train_step_gemma4_hybrid(
     use crate::gemma4::backward_gemma4_with_lora;
 
     let (logits, caches) = forward_gemma4_gpu(cpu, gpu, Some(lora), tokens)?;
-    // Phase 2: pass None for gpu param so backward stays on CPU until Phase 4
-    // flips this to Some(gpu). Keeps hybrid semantics identical.
+    // Phase 4: full-GPU backward — all 14 matmul sites in
+    // backward_gemma4_with_lora dispatch to hipBLAS when gpu is Some.
     let (loss, _health) = backward_gemma4_with_lora(
-        cpu, None, Some(lora), &caches, &logits, tokens, answer_start);
+        cpu, Some(gpu), Some(lora), &caches, &logits, tokens, answer_start);
 
     // Gradient clip + Adam (same as CPU train_step_gemma4)
     let clip_threshold = 1.0f32;
