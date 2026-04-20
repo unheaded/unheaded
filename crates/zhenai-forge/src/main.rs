@@ -47,11 +47,12 @@ fn main() {
             eprintln!("                            --data <prepokenized.jsonl>");
             eprintln!("                            [--rank 16] [--alpha 32]");
             eprintln!("                            [--lr 3e-4] [--steps 100]");
-            eprintln!("                            [--answer-start 1]");
-            eprintln!("    Train a Gemma 4 LoRA via the WAVE10F path. Currently CPU-only");
-            eprintln!("    (~60-100s per training step on E2B). Data file should be JSONL");
-            eprintln!("    with one {{\"tokens\": [int, ...]}} object per line. Tokenize");
-            eprintln!("    upstream — forge does not include a Gemma 4 tokenizer yet.");
+            eprintln!("                            [--answer-start 1] [--cpu]");
+            eprintln!("    Train a Gemma 4 LoRA via the WAVE10F path. Defaults to GPU");
+            eprintln!("    (all 14 matmul sites on hipBLAS, ~2s/step warm on E2B). Pass");
+            eprintln!("    --cpu to force the CPU fallback (~55-95s/step). Data file is");
+            eprintln!("    JSONL with one {{\"tokens\": [int, ...]}} object per line.");
+            eprintln!("    Tokenize upstream — forge does not include a Gemma 4 tokenizer.");
             eprintln!();
             eprintln!("  zhenai-forge eval   --model <model.gguf>   Evaluate model");
             eprintln!("                      --lora <lora.gguf>");
@@ -71,6 +72,7 @@ fn cmd_train_gemma4(args: &[String]) {
     let mut steps: usize = 10;
     let mut answer_start: usize = 1;
     let mut save_every: usize = 0;
+    let mut cpu_only: bool = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -84,6 +86,7 @@ fn cmd_train_gemma4(args: &[String]) {
             "--steps"        => { steps = args[i + 1].parse().unwrap(); i += 2; }
             "--answer-start" => { answer_start = args[i + 1].parse().unwrap(); i += 2; }
             "--save-every"   => { save_every = args[i + 1].parse().unwrap(); i += 2; }
+            "--cpu"          => { cpu_only = true; i += 1; }
             _ => { eprintln!("unknown arg: {}", args[i]); i += 1; }
         }
     }
@@ -132,15 +135,44 @@ fn cmd_train_gemma4(args: &[String]) {
         std::process::exit(1);
     }
 
-    println!("\nTraining for {} steps (lr={}, answer_start={})...", steps, lr, answer_start);
+    // GPU path (default unless --cpu). Upload once up-front; a failure here
+    // is loud but not fatal — we fall back to the CPU path.
+    let gpu_weights: Option<gemma4_gpu::Gemma4GpuWeights> = if cpu_only {
+        println!("\n--cpu requested — using CPU training step.");
+        None
+    } else {
+        println!("\nUploading Gemma 4 weights to GPU (PleMode::Cpu)...");
+        match gemma4_gpu::Gemma4GpuWeights::upload(&weights, gemma4_gpu::PleMode::Cpu) {
+            Ok(g) => {
+                println!("  VRAM used:   {:.2} GB", g.vram_used_gb());
+                Some(g)
+            }
+            Err(e) => {
+                eprintln!("  GPU upload failed ({}). Falling back to CPU.", e);
+                None
+            }
+        }
+    };
+
+    let path_label = if gpu_weights.is_some() { "GPU (fwd+bwd on hipBLAS)" } else { "CPU" };
+    println!("\nTraining for {} steps (lr={}, answer_start={}, path={})...",
+        steps, lr, answer_start, path_label);
     let start = std::time::Instant::now();
     let mut total_loss = 0.0f64;
     for step in 1..=steps {
         let example = &examples[(step - 1) % examples.len()];
         let step_start = std::time::Instant::now();
-        let loss = gemma4::train_step_gemma4(
-            &weights, &mut lora, example, answer_start.min(example.len() / 2), lr, step as u32
-        );
+        let effective_answer_start = answer_start.min(example.len() / 2);
+        let loss = match &gpu_weights {
+            Some(gpu) => gemma4_gpu::train_step_gemma4_gpu(
+                &weights, gpu, &mut lora, example,
+                effective_answer_start, lr, step as u32,
+            ).expect("gpu train step"),
+            None => gemma4::train_step_gemma4(
+                &weights, &mut lora, example,
+                effective_answer_start, lr, step as u32,
+            ),
+        };
         total_loss += loss as f64;
         let avg_loss = total_loss / step as f64;
         let step_secs = step_start.elapsed().as_secs_f64();
