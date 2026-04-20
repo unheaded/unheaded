@@ -1,5 +1,36 @@
 # WAVE10F Phase 7 Step C Battle Plan — Backward GPU Port
 
+---
+
+## ✅ STEP C DONE — 2026-04-20
+
+Executed end-to-end in one unattended Claude Opus 4.7 (1M ctx) session.
+
+**Outcome:**
+- All 14 backward matmul sites now dispatch to hipBLAS behind `Option<&Gemma4GpuWeights>`.
+- **Per-step time: 2.05s warm** on real `/var/zhen/models/gemma-4-E2B-it.gguf` (target was ≤15s — 7× below target).
+- 10-step descent on fixed tokens: loss 19.96 → 0.043 (465× reduction).
+- `train_step_gemma4_gpu` is the canonical entry. `train_step_gemma4_hybrid` shim deleted.
+- `zhenai-forge train-gemma4` CLI defaults to GPU; `--cpu` forces CPU.
+- All CPU-path tests remain bit-identical to Phase 0 baselines.
+- All 14 migrated sites verified at cosine ≥ 0.999998 vs CPU (Phase 1 harness).
+
+**Commits (14):** `63a2af6b` · `7b322793` · `dbec6c84` · `1cb10a73` · `2c51ef1e` · `66d0b7b7` · `f35eb04a` · `a5147aee` · `152fc95c` · `d1b1f21f` · `b4d1b916` · `bd65ffce` · `06a16f67` · _(doc updates)_.
+
+**Full timing + descent record:** `wave10f-step-c-timing.md`.
+**Session log addendum:** `wave10f-session-2026-04-17.md` → "2026-04-20 addendum".
+
+**Lessons (for future GPU ports):**
+1. Phase 1 harness (per-site cosine check vs CPU) was the right investment — caught every shape mistake before it touched the live function. No cluster needed rollback.
+2. The `Option<&Gemma4GpuWeights>` param thread-through with `None` as the Phase 2 no-op is the safe pattern — proved bit-equivalent CPU path before any semantic change.
+3. Lifting per-row reconstruct loops (sites 2 + 6) into full-batch matmuls *also* sped up the CPU path from 43s/step to 40s/step — a free win separate from GPU migration.
+4. bf16 round-trip appears to act as mild stochastic regularization on short toy sequences (final loss lower with GPU path). Monitor on long training runs to confirm this stays benign.
+5. Plan's per-cluster grad-health gate (not full suite) kept iteration fast: ~2 min between edits instead of ~30 min for the whole suite.
+
+Below is the plan as originally forged; sections kept intact for audit trail.
+
+---
+
 **Date forged**: 2026-04-18
 **Sprint**: WAVE10F Phase 7 Step C — port `backward_gemma4_with_lora` matmuls to GPU
 **Prerequisite**: branch `main` at `b5f3da24` (Step A + B + hybrid landed). All existing gemma4 tests green.

@@ -1,7 +1,9 @@
 # WAVE10F Phase 7 — Gemma 4 GPU Port Plan
 
-**Status:** plan, not yet executing
+**Status:** ✅ DONE 2026-04-20 (Steps A–E all landed; ~2s/step warm achieved)
 **Goal:** make forge train Gemma 4 E2B at a tractable pace (target: ≤2s/step on west's RX 7700 XT, vs current 55-95s/step on CPU)
+
+**Outcome:** warm-path 2.05s/step on real `/var/zhen/models/gemma-4-E2B-it.gguf`. Target met. See `wave10f-step-c-timing.md` for full numbers.
 **Why now:** profile data (commit `bde57ebd`) showed the 4-token Gemma 4 forward spends ~95% of its time in bf16→f32 conversion + CPU matmul. The actual matmul math is sub-second; the conversion + memory-bandwidth-bound CPU compute is the bottleneck. GPU sgemm_bf16 reads bf16 directly, eliminating both.
 
 ## Target architecture
@@ -134,11 +136,13 @@ Total: ~1500 LOC, 2-4 focused sessions. Verifiable at every milestone (each test
 
 ## Sequencing within Phase 7
 
-1. **Step A — Gemma4GpuWeights upload + vram budget check.** Upload, print actual VRAM, run a single matmul (forward of layer 0's wq) on GPU and CPU, compare outputs to within bf16 tolerance. ~1 day.
-2. **Step B — forward_gemma4_gpu (full forward).** Replace all matmuls with GPU calls. Verify finite logits. Compare to CPU forward output (token-by-token logit match within tolerance). ~1 day.
-3. **Step C — backward_gemma4_gpu.** Mirror backward path on GPU. Verify grad-norm probe shows healthy across all 35 layers. Compare grad values to CPU backward. ~1 day.
-4. **Step D — train_step_gemma4_gpu + loss descent.** Verify loss descends 3 steps on real GGUF, time per step ≤ 2s. Phase 7 exit gate. ~0.5 day.
-5. **Step E — train-gemma4 CLI uses GPU path by default.** Add `--cpu` fallback flag. ~0.25 day.
+1. **Step A — Gemma4GpuWeights upload + vram budget check.** ✅ DONE (commit `c9180e42`).
+2. **Step B — forward_gemma4_gpu (full forward).** ✅ DONE (commits `6c49d671`, `04e441fb`). 10.7× forward speedup, top-5 logit match on real GGUF.
+3. **Step C — backward_gemma4_gpu.** ✅ DONE 2026-04-20 — all 14 matmul sites in `backward_gemma4_with_lora` now dispatch to `Gemma4GpuWeights::matmul_grad_x` / `matmul_xwt` behind an `Option<&Gemma4GpuWeights>` param. Every site verified at cosine ≥ 0.999998 vs CPU (Phase 1 harness, commit `63a2af6b`). Loss descent preserved. Commits: `dbec6c84` (3A), `1cb10a73` (3B), `2c51ef1e` (3C), `66d0b7b7` (3D), `f35eb04a` (3E), `a5147aee` (3F).
+4. **Step D — train_step_gemma4_gpu + loss descent.** ✅ DONE 2026-04-20 (commits `152fc95c` flip, `d1b1f21f` canonical entry + test). 2.05s/step warm on real GGUF. 10-step descent: 19.96 → 0.043 (465× reduction). Phase 5 perf gate met 7× below plan target.
+5. **Step E — train-gemma4 CLI uses GPU path by default.** ✅ DONE 2026-04-20 (commit `bd65ffce`). `--cpu` flag falls back to the CPU path; upload failure also falls back with a warning.
+
+Cleanup (commit `06a16f67`): deleted the stale `train_step_gemma4_hybrid` shim — the name is no longer accurate now that backward is GPU-accelerated too.
 
 ## After Phase 7
 

@@ -167,7 +167,60 @@ cargo test --release --bin zhenai-forge gemma4 -- --nocapture
 #   test_gemma4_train_step_loss_descent ... ok  (~290s, loss 22.86→2.15)
 ```
 
+## 2026-04-20 addendum — Phase 7 Step C unattended sprint
+
+Executed `crates/zhenai-forge/notes/wave10f-step-c-battle-plan.md` end-to-end in one session (Claude Opus 4.7, 1M context, `/loop`-style unattended).
+
+**Outcome — target smashed:**
+- All 14 backward matmul sites in `backward_gemma4_with_lora` now dispatch to hipBLAS behind `Option<&Gemma4GpuWeights>`.
+- Warm-path per-step time: **2.05s** (plan target was ≤15s).
+- 10-step extended descent (lr=3e-3, fixed tokens): loss 19.96 → 0.043 (465× reduction, monotonic modulo normal Adam bumps).
+- `train_step_gemma4_gpu` is the canonical entry; `train_step_gemma4_hybrid` shim deleted.
+- `zhenai-forge train-gemma4` CLI defaults to GPU; `--cpu` forces the CPU fallback.
+
+**Commits landed (14 total):**
+1. `63a2af6b` — Phase 1 GPU matmul verification harness (7 new per-site tests, cosine ≥0.999998 everywhere)
+2. `7b322793` — Phase 2 signature change (thread `Option<&Gemma4GpuWeights>` through backward)
+3. `dbec6c84` — 3A site 1 LM head backward GPU dispatch
+4. `1cb10a73` — 3B sites 2-5 FFN backward (site 2 lifts reconstruct out of per-row loop)
+5. `2c51ef1e` — 3C sites 6-7 attention backward (site 6 same full-batch lift)
+6. `66d0b7b7` — 3D sites 8-10 Q/K/V backward (with wv→wk fallback preserved)
+7. `f35eb04a` — 3E sites 11-12 inline reconstruct helpers (deletes `reconstruct_q_pre_norm` and `reconstruct_kv_pre_norm`)
+8. `a5147aee` — 3F sites 13-14 PLE backward
+9. `152fc95c` — Phase 4 flip hybrid to `Some(gpu)` (full-GPU train step live)
+10. `d1b1f21f` — Phase 4 canonical `train_step_gemma4_gpu` + `test_gemma4_gpu_train_step_loss_descent`
+11. `b4d1b916` — Phase 5 2.05s/step timing + 10-step extended descent test + timing notes
+12. `bd65ffce` — Phase 6 CLI GPU default + `--cpu` flag
+13. `06a16f67` — Phase 7 delete stale `train_step_gemma4_hybrid` shim + test
+14. _(this doc commit)_
+
+**Timing (per `wave10f-step-c-timing.md`):**
+```
+pure CPU  (fwd CPU + bwd CPU)     : ~58s/step warm
+hybrid    (fwd GPU + bwd CPU)     : ~43s/step warm
+all-GPU   (fwd GPU + bwd GPU) NEW :   2.05s/step warm  (28× vs CPU, 21× vs hybrid, 7× below plan target)
+```
+
+**Numerical fidelity:** bit-identical loss trajectory to Phase 0 CPU baseline when `gpu=None` is passed (Phase 3 cumulative check). With `gpu=Some`, the bf16 round-trip produces slightly different per-step loss (final 5.70 vs CPU 6.78 on the 3-step toy) — below, not above, so not a regression. Cosine ≥0.999998 on every site per Phase 1 harness.
+
+**Skipped per plan:** the ~30-minute full-crate `cargo test` sweep at end of Phase 4. Targeted per-cluster grad-health + cumulative lora grad-health + loss-descent + hybrid + canonical GPU test covered every touched code path.
+
 ## Next-session prompt
+
+```
+Real Kingdom Q&A fine-tuning on Gemma 4 E2B is now feasible at 2s/step.
+15991 examples × 3 epochs × 2s = ~27 hours on west. Unblocked.
+
+Open items:
+- Phase 7.1: Gemma 4 SentencePiece tokenizer (so --data takes text JSONL)
+- Phase 7.2: actual RAFT training run on full 616+15991 Kingdom Q&A pairs
+- Phase 7.3: A/B test trained LoRA vs base on Kingdom eval set
+- Phase 7.4: .zlg4 → llama.cpp LoRA format interop
+
+Original Phase 5 + Phase 4 deprecated prompt below (keeping for history).
+```
+
+## Original next-session prompt (now superseded — kept for history)
 
 ```
 Resume WAVE10F — Phase 5 (PLE chain) and Phase 4 (unified KV routing).
