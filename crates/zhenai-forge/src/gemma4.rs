@@ -1569,31 +1569,33 @@ pub fn backward_gemma4_with_lora(
         //   grad_post_attn_residual (straight passthrough)
         let mut grad_post_attn = grad_hidden.clone(); // residual contribution
 
-        // Backward through post_ffw_norm
+        // Site 2 — reconstruct ffn_out for rmsnorm_backward input. Lift the
+        // per-row matmul out of the loop into a single full-batch dispatch;
+        // the output is then sliced per row.
+        let ffn_out_full = if let Some(g) = gpu {
+            g.matmul_xwt(&g.ffn_down[il], &cache.ffn_hidden, seq, n_embd, h.n_ff)
+                .expect("gpu site 2 ffn_out recon")
+        } else {
+            let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
+            matmul_x_wt(&cache.ffn_hidden, &ffn_down_f32, seq, n_embd, h.n_ff)
+        };
         let mut grad_ffn_out = vec![0.0f32; seq * n_embd];
         for s in 0..seq {
-            // The RMSNorm input was `ffn_out` row. We need to reconstruct that.
-            // Forward: ffn_out = matmul_x_wt(ffn_hidden, ffn_down, seq, n_embd, n_ff)
-            // Reconstruct on demand:
-            let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
-            let row_ffn_hidden = &cache.ffn_hidden[s * h.n_ff..(s + 1) * h.n_ff];
-            let mut row_ffn_out = vec![0.0f32; n_embd];
-            for d in 0..n_embd {
-                let mut acc = 0.0;
-                for fj in 0..h.n_ff {
-                    acc += row_ffn_hidden[fj] * ffn_down_f32[d * h.n_ff + fj];
-                }
-                row_ffn_out[d] = acc;
-            }
+            let row_ffn_out = &ffn_out_full[s * n_embd..(s + 1) * n_embd];
             let go_row = &grad_hidden[s * n_embd..(s + 1) * n_embd];
-            let gi = backward::rmsnorm_backward(&row_ffn_out, &weights.post_ffw_norm[il], go_row, h.rms_norm_eps);
+            let gi = backward::rmsnorm_backward(row_ffn_out, &weights.post_ffw_norm[il], go_row, h.rms_norm_eps);
             grad_ffn_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
         }
 
-        // Backward through FFN down: ffn_out = ffn_hidden @ ffn_down^T
+        // Site 3 — backward through FFN down: ffn_out = ffn_hidden @ ffn_down^T
         //   grad_ffn_hidden = grad_ffn_out @ ffn_down
-        let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
-        let grad_ffn_hidden = matmul_grad_x(&grad_ffn_out, &ffn_down_f32, seq, n_embd, h.n_ff);
+        let grad_ffn_hidden = if let Some(g) = gpu {
+            g.matmul_grad_x(&g.ffn_down[il], &grad_ffn_out, seq, n_embd, h.n_ff)
+                .expect("gpu site 3 ffn_down_grad")
+        } else {
+            let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
+            matmul_grad_x(&grad_ffn_out, &ffn_down_f32, seq, n_embd, h.n_ff)
+        };
 
         // Backward through ffn_hidden = gelu_tanh(gate_pre) * up_pre
         //   grad_gate_pre[i] = grad_ffn_hidden[i] * up_pre[i] * gelu_tanh'(gate_pre[i])
@@ -1609,13 +1611,23 @@ pub fn backward_gemma4_with_lora(
             grad_up_pre[i] = grad_ffn_hidden[i] * gelu_val;
         }
 
-        // Backward through ffn_gate + ffn_up: both took ffn_normed as input.
+        // Sites 4 + 5 — backward through ffn_gate + ffn_up: both took ffn_normed.
         //   ffn_gate_pre = ffn_normed @ ffn_gate^T → grad_ffn_normed += grad_gate_pre @ ffn_gate
         //   ffn_up_pre   = ffn_normed @ ffn_up^T   → grad_ffn_normed += grad_up_pre   @ ffn_up
-        let ffn_gate_f32 = bf16_to_f32_vec(&weights.ffn_gate[il]);
-        let ffn_up_f32 = bf16_to_f32_vec(&weights.ffn_up[il]);
-        let mut grad_ffn_normed = matmul_grad_x(&grad_gate_pre, &ffn_gate_f32, seq, h.n_ff, n_embd);
-        let grad_ffn_normed_up = matmul_grad_x(&grad_up_pre, &ffn_up_f32, seq, h.n_ff, n_embd);
+        let mut grad_ffn_normed = if let Some(g) = gpu {
+            g.matmul_grad_x(&g.ffn_gate[il], &grad_gate_pre, seq, h.n_ff, n_embd)
+                .expect("gpu site 4 ffn_gate_grad")
+        } else {
+            let ffn_gate_f32 = bf16_to_f32_vec(&weights.ffn_gate[il]);
+            matmul_grad_x(&grad_gate_pre, &ffn_gate_f32, seq, h.n_ff, n_embd)
+        };
+        let grad_ffn_normed_up = if let Some(g) = gpu {
+            g.matmul_grad_x(&g.ffn_up[il], &grad_up_pre, seq, h.n_ff, n_embd)
+                .expect("gpu site 5 ffn_up_grad")
+        } else {
+            let ffn_up_f32 = bf16_to_f32_vec(&weights.ffn_up[il]);
+            matmul_grad_x(&grad_up_pre, &ffn_up_f32, seq, h.n_ff, n_embd)
+        };
         for i in 0..grad_ffn_normed.len() {
             grad_ffn_normed[i] += grad_ffn_normed_up[i];
         }
