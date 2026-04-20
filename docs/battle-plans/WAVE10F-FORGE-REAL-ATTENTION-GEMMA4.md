@@ -1,6 +1,6 @@
 # WAVE 10F — Forge Real Attention Forward+Backward for Gemma 4 E2B
 
-**Status:** Plan, not yet executing
+**Status:** Phases 1-7 all landed as of 2026-04-20. Phase 7 GPU port (Steps A-E) complete — 2.05s/step warm on real `/var/zhen/models/gemma-4-E2B-it.gguf`, full loss descent verified, CLI defaults to GPU. Real-Kingdom-Q&A fine-tuning is now the next track.
 **Estimated scope:** 10-14 weeks of focused work, blocks other Zhen tracks
 **Decision date:** 2026-04-17
 **Supersedes:** `WAVE10E-GEMMA4-FORGE.md` (the original Gemma 4 plan, invalidated when grad-norm instrumentation revealed forge's simplified backward as the real blocker, not VRAM)
