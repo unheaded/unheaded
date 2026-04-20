@@ -17,6 +17,19 @@ use crate::forward;
 use crate::gemma4::{CpuWeightsGemma4, Gemma4LoraAdapters};
 use crate::gemma4_gpu::Gemma4GpuWeights;
 
+/// Mutate a `Gemma4LoraAdapters` so every LoRA-A matrix is zero. Leaves the
+/// (non-zero) B matrices alone — the forward residual becomes `B·0·x = 0`,
+/// making the combined model identical to the base. Used by Exp 3.
+pub fn zero_lora_a_in_place(lora: &mut Gemma4LoraAdapters) {
+    for layer in lora.layers.iter_mut() {
+        for slot in layer.iter_mut() {
+            if let Some(ll) = slot.as_mut() {
+                for v in ll.a.iter_mut() { *v = 0.0; }
+            }
+        }
+    }
+}
+
 /// Default sequence layout used by the synthetic corpus generator.
 pub const DEFAULT_PREFIX_LEN: usize = 5;
 pub const DEFAULT_SUFFIX_LEN: usize = 6;
@@ -106,17 +119,18 @@ impl EvalHarness {
     }
 
     /// Compute mean cross-entropy loss over `self.eval`. Uses the GPU
-    /// forward path if `gpu` is Some, CPU otherwise. Returns per-sequence
-    /// losses, mean, and bootstrap 95% CI on the mean.
+    /// forward path if `gpu` is Some, CPU otherwise. Pass `lora = None` for
+    /// a pure base-model baseline. Returns per-sequence losses, mean, and
+    /// bootstrap 95% CI on the mean.
     pub fn compute_eval_loss(
         &self,
         cpu: &CpuWeightsGemma4,
         gpu: Option<&Gemma4GpuWeights>,
-        lora: &Gemma4LoraAdapters,
+        lora: Option<&Gemma4LoraAdapters>,
     ) -> Result<EvalStats, String> {
         let mut per_seq = Vec::with_capacity(self.eval.len());
         for (i, tokens) in self.eval.iter().enumerate() {
-            let loss = self.forward_loss(cpu, gpu, Some(lora), tokens).map_err(|e|
+            let loss = self.forward_loss(cpu, gpu, lora, tokens).map_err(|e|
                 format!("eval seq {}: {}", i, e))?;
             per_seq.push(loss);
         }
@@ -153,7 +167,7 @@ impl EvalHarness {
         };
 
         // t=0 eval — baseline before any gradient step.
-        let eval0 = self.compute_eval_loss(cpu, gpu, lora)
+        let eval0 = self.compute_eval_loss(cpu, gpu, Some(lora))
             .map_err(|e| format!("initial eval: {}", e))?;
         traj.checkpoints.push((0, eval0));
 
@@ -175,7 +189,7 @@ impl EvalHarness {
 
             let should_eval = step % eval_every == 0 || step == n_steps;
             if should_eval {
-                let stats = self.compute_eval_loss(cpu, gpu, lora)
+                let stats = self.compute_eval_loss(cpu, gpu, Some(lora))
                     .map_err(|e| format!("eval @ step {}: {}", step, e))?;
                 traj.checkpoints.push((step, stats));
             }
@@ -296,6 +310,107 @@ fn gen_sequences_scrambled(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eval_stats::bootstrap_ratio_ci_95;
+    use crate::gemma4::Gemma4LoraAdapters;
+    use crate::gemma4_gpu::{Gemma4GpuWeights, PleMode};
+    use crate::gguf::GgufFile;
+
+    const MODEL_PATH: &str = "/var/zhen/models/gemma-4-E2B-it.gguf";
+
+    /// Shared setup for the Learning Gate integration tests. Skips (returns
+    /// None) if the GGUF isn't present, matching the existing forge test
+    /// pattern.
+    fn setup_gpu() -> Option<(CpuWeightsGemma4, Gemma4GpuWeights)> {
+        if !std::path::Path::new(MODEL_PATH).exists() {
+            eprintln!("learning-gate: {} missing — skipping", MODEL_PATH);
+            return None;
+        }
+        let model = GgufFile::open(MODEL_PATH).expect("open gguf");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load cpu");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+        Some((cpu, gpu))
+    }
+
+    #[test]
+    #[ignore] // ~3 min — run with `cargo test -- --ignored`
+    fn test_learning_exp1_held_out_eval() {
+        // Exp 1 cornerstone: train on 32 seqs, eval on 32 held-out, verify
+        // eval descent below 0.90 × baseline with bootstrap CI excluding 1.0.
+        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let harness = EvalHarness::synthetic(0xE7A1, 32, 32, cpu.hparams.vocab_size);
+        let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+
+        println!("Exp 1: 20-step training, 32 train seqs, 32 eval seqs");
+        let start = std::time::Instant::now();
+        let traj = harness.run(&cpu, Some(&gpu), &mut lora, 20, 5, 3e-3)
+            .expect("learning run");
+        println!("  wall-clock: {:.1}s", start.elapsed().as_secs_f64());
+
+        for (step, stats) in &traj.checkpoints {
+            println!("  t={:3}: eval={:.4}  CI95=({:.4},{:.4})",
+                step, stats.mean, stats.ci95.0, stats.ci95.1);
+        }
+        let init = traj.initial_eval();
+        let fin = traj.final_eval();
+        let ratio = fin.mean / init.mean;
+        let (ci_lo, ci_hi) = bootstrap_ratio_ci_95(
+            &init.per_seq, &fin.per_seq, 2000, 0xBAA5);
+        println!("  final/initial ratio = {:.4}  CI95=({:.4},{:.4})",
+            ratio, ci_lo, ci_hi);
+
+        assert!(
+            ci_hi < 1.0,
+            "Exp 1 FAIL: eval/init CI95 must exclude 1.0 — got ({:.4},{:.4}), \
+             point ratio {:.4}. This is the memorization-vs-learning gate. \
+             If eval didn't drop, forge trained ok on the batch but did not \
+             learn the underlying Y map.",
+            ci_lo, ci_hi, ratio
+        );
+        assert!(ratio <= 0.90,
+            "Exp 1 THRESHOLD: ratio {:.4} > 0.90 — eval dropped but less \
+             than the Scientist's 10% threshold. Consider more steps or \
+             larger train set.", ratio);
+    }
+
+    #[test]
+    #[ignore] // ~40s
+    fn test_learning_exp3_lora_zero_identity() {
+        // Exp 3: A=0 ⇒ B·A·x = 0 residual ⇒ model output must match
+        // base model (no LoRA) within fp noise. Then verify training
+        // reduces eval below the A=0 starting point.
+        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let harness = EvalHarness::synthetic(0xE7A3, 8, 16, cpu.hparams.vocab_size);
+
+        // Step 1: lora with A zeroed out.
+        let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+        zero_lora_a_in_place(&mut lora);
+
+        let eval_zero_a = harness.compute_eval_loss(&cpu, Some(&gpu), Some(&lora))
+            .expect("eval lora-zero-A");
+        let eval_base = harness.compute_eval_loss(&cpu, Some(&gpu), None)
+            .expect("eval base");
+
+        println!("Exp 3: lora-zero-A eval  = {:.6}", eval_zero_a.mean);
+        println!("Exp 3: base-model  eval  = {:.6}", eval_base.mean);
+        // Per-sequence equivalence within bf16 round-trip noise.
+        for (i, (a, b)) in eval_zero_a.per_seq.iter()
+            .zip(eval_base.per_seq.iter()).enumerate()
+        {
+            let rel = (a - b).abs() / b.abs().max(1e-6);
+            assert!(rel < 1e-3,
+                "Exp 3 identity FAIL seq {}: lora-zero-A={:.6} base={:.6} rel_err={:.2e}",
+                i, a, b, rel);
+        }
+
+        // Step 2: training must reduce eval below the A=0 baseline.
+        let traj = harness.run(&cpu, Some(&gpu), &mut lora, 15, 5, 3e-3)
+            .expect("learning run");
+        let fin = traj.final_eval();
+        println!("Exp 3: post-train  eval  = {:.6}", fin.mean);
+        assert!(fin.mean < eval_zero_a.mean,
+            "Exp 3 FAIL: training must lower eval from the A=0 baseline. \
+             baseline={:.4}, final={:.4}", eval_zero_a.mean, fin.mean);
+    }
 
     #[test]
     fn test_synthetic_train_eval_disjoint_prefixes() {
