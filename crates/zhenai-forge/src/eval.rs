@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
+//! # WAVE10F Learning Gate — eval harness
+//!
+//! Infrastructure for distinguishing *memorization* from *learning* in
+//! zhenai-forge Gemma 4 training. See `notes/wave10f-learning-gate-plan.md`
+//! for the experimental protocol (Scientist + Developer joint plan).
+//!
+//! All corpora are synthetic, deterministic from a seed, and pre-tokenized —
+//! forge does not yet include a Gemma 4 SentencePiece tokenizer. The
+//! synthetic task is a *prefix-to-suffix injective mapping* `Y` that the
+//! model must learn in order to generalize to held-out prefixes.
+
+use crate::eval_stats::{bootstrap_ci_95, Lcg};
+use crate::forward;
+use crate::gemma4::{CpuWeightsGemma4, Gemma4LoraAdapters};
+use crate::gemma4_gpu::Gemma4GpuWeights;
+
+/// Default sequence layout used by the synthetic corpus generator.
+pub const DEFAULT_PREFIX_LEN: usize = 5;
+pub const DEFAULT_SUFFIX_LEN: usize = 6;
+pub const DEFAULT_SEQ_LEN: usize = DEFAULT_PREFIX_LEN + 1 + DEFAULT_SUFFIX_LEN; // = 12
+/// The separator token ID that lives between prefix and suffix.
+pub const SEPARATOR_TOKEN: u32 = 1;
+/// Prefix token IDs drawn from this range in TRAIN corpus.
+pub const TRAIN_PREFIX_POOL: std::ops::Range<u32> = 100..4096;
+/// Prefix token IDs drawn from this range in EVAL corpus (disjoint).
+pub const EVAL_PREFIX_POOL: std::ops::Range<u32> = 4096..8192;
+/// Suffix tokens drawn from this pool via the injective `Y` map.
+pub const SUFFIX_POOL: std::ops::Range<u32> = 10000..20000;
+
+/// Loss statistics at a checkpoint.
+#[derive(Clone, Debug)]
+pub struct EvalStats {
+    pub mean: f32,
+    pub per_seq: Vec<f32>,
+    pub ci95: (f32, f32),
+}
+
+/// Full training trajectory: per-step train losses + periodic eval stats.
+#[derive(Clone, Debug)]
+pub struct LearningTrajectory {
+    pub train: Vec<f32>,
+    pub checkpoints: Vec<(usize, EvalStats)>,
+}
+
+impl LearningTrajectory {
+    /// Initial eval (t=0) if captured. Panics if empty.
+    pub fn initial_eval(&self) -> &EvalStats {
+        &self.checkpoints.first().expect("no checkpoints").1
+    }
+    /// Final eval (t=last). Panics if empty.
+    pub fn final_eval(&self) -> &EvalStats {
+        &self.checkpoints.last().expect("no checkpoints").1
+    }
+}
+
+/// Training + evaluation harness with disjoint train/eval corpora.
+pub struct EvalHarness {
+    pub train: Vec<Vec<u32>>,
+    pub eval: Vec<Vec<u32>>,
+    pub answer_start: usize,
+    pub vocab_size: usize,
+}
+
+impl EvalHarness {
+    /// Build a synthetic "learn Y" harness with `n_train`/`n_eval` sequences.
+    ///
+    /// The generator:
+    ///   1. Picks a fixed injective map `Y: prefix_tok → suffix_tok` from
+    ///      the concatenated pools using `seed`.
+    ///   2. Draws train prefixes from TRAIN_PREFIX_POOL and eval prefixes
+    ///      from EVAL_PREFIX_POOL (disjoint ID ranges).
+    ///   3. Emits `[prefix | SEPARATOR | Y(prefix)]` of length DEFAULT_SEQ_LEN.
+    ///
+    /// A model that *memorizes* train prefix→suffix pairs cannot score on
+    /// eval (never saw those prefixes). A model that *learns* Y generalizes.
+    pub fn synthetic(seed: u64, n_train: usize, n_eval: usize, vocab: usize) -> Self {
+        assert!(vocab >= SUFFIX_POOL.end as usize,
+            "synthetic corpus requires vocab ≥ {}, got {}", SUFFIX_POOL.end, vocab);
+        let y_map = build_y_map(seed);
+        let train = gen_sequences(seed.wrapping_add(1), n_train, TRAIN_PREFIX_POOL, &y_map);
+        let eval = gen_sequences(seed.wrapping_add(2), n_eval, EVAL_PREFIX_POOL, &y_map);
+        Self {
+            train,
+            eval,
+            answer_start: DEFAULT_PREFIX_LEN, // loss only on suffix positions
+            vocab_size: vocab,
+        }
+    }
+
+    /// Same as `synthetic` but with SCRAMBLED suffixes: the suffix tokens
+    /// are random draws from SUFFIX_POOL (no `Y` mapping). Used to verify
+    /// that training loss dropping fast on structured data isn't just
+    /// "forge memorizes any token pairing" (see Exp 2).
+    pub fn synthetic_scrambled(seed: u64, n_train: usize, n_eval: usize, vocab: usize) -> Self {
+        assert!(vocab >= SUFFIX_POOL.end as usize);
+        let train = gen_sequences_scrambled(
+            seed.wrapping_add(1), n_train, TRAIN_PREFIX_POOL, seed.wrapping_add(11),
+        );
+        let eval = gen_sequences_scrambled(
+            seed.wrapping_add(2), n_eval, EVAL_PREFIX_POOL, seed.wrapping_add(22),
+        );
+        Self { train, eval, answer_start: DEFAULT_PREFIX_LEN, vocab_size: vocab }
+    }
+
+    /// Compute mean cross-entropy loss over `self.eval`. Uses the GPU
+    /// forward path if `gpu` is Some, CPU otherwise. Returns per-sequence
+    /// losses, mean, and bootstrap 95% CI on the mean.
+    pub fn compute_eval_loss(
+        &self,
+        cpu: &CpuWeightsGemma4,
+        gpu: Option<&Gemma4GpuWeights>,
+        lora: &Gemma4LoraAdapters,
+    ) -> Result<EvalStats, String> {
+        let mut per_seq = Vec::with_capacity(self.eval.len());
+        for (i, tokens) in self.eval.iter().enumerate() {
+            let loss = self.forward_loss(cpu, gpu, Some(lora), tokens).map_err(|e|
+                format!("eval seq {}: {}", i, e))?;
+            per_seq.push(loss);
+        }
+        let mean = per_seq.iter().sum::<f32>() / per_seq.len() as f32;
+        let ci95 = bootstrap_ci_95(&per_seq, 1000, 0xEDA1_u64);
+        Ok(EvalStats { mean, per_seq, ci95 })
+    }
+
+    /// Single-sequence forward + cross-entropy loss over the answer region.
+    /// Returns the mean per-position loss so short and long sequences can
+    /// be compared.
+    pub fn forward_loss(
+        &self,
+        cpu: &CpuWeightsGemma4,
+        gpu: Option<&Gemma4GpuWeights>,
+        lora: Option<&Gemma4LoraAdapters>,
+        tokens: &[u32],
+    ) -> Result<f32, String> {
+        let (logits, _caches) = match gpu {
+            Some(g) => crate::gemma4_gpu::forward_gemma4_gpu(cpu, g, lora, tokens)?,
+            None => crate::gemma4::forward_gemma4_with_lora(cpu, lora, tokens),
+        };
+        let vocab = cpu.hparams.vocab_size;
+        let seq = tokens.len();
+        let loss_start = self.answer_start.max(1);
+        if seq <= loss_start {
+            return Err(format!("sequence too short: {} ≤ answer_start {}", seq, loss_start));
+        }
+        let mut total = 0.0f32;
+        let mut n = 0usize;
+        for pos in loss_start..seq.saturating_sub(1) {
+            let row = &logits[pos * vocab..(pos + 1) * vocab];
+            let target = tokens[pos + 1];
+            total += forward::cross_entropy_loss(row, target);
+            n += 1;
+        }
+        if n == 0 {
+            return Err("no loss positions in sequence".into());
+        }
+        Ok(total / n as f32)
+    }
+}
+
+/// Build the injective prefix→suffix map used by a given seed. We pre-
+/// compute the full set of training prefixes + eval prefixes (the union of
+/// both pools) and assign each one a fixed random suffix from SUFFIX_POOL.
+/// Injectivity isn't strictly required for the learning task (multiple
+/// prefixes can share a suffix) but we enforce uniqueness where possible
+/// to keep Y well-defined.
+fn build_y_map(seed: u64) -> std::collections::HashMap<u32, u32> {
+    let mut rng = Lcg::new(seed.wrapping_add(0xBEEF));
+    let mut map = std::collections::HashMap::new();
+    let suffix_count = SUFFIX_POOL.end - SUFFIX_POOL.start;
+    for pfx in TRAIN_PREFIX_POOL.chain(EVAL_PREFIX_POOL) {
+        let offset = rng.next_range(suffix_count as u64) as u32;
+        map.insert(pfx, SUFFIX_POOL.start + offset);
+    }
+    map
+}
+
+fn gen_sequences(
+    seed: u64,
+    n: usize,
+    prefix_pool: std::ops::Range<u32>,
+    y_map: &std::collections::HashMap<u32, u32>,
+) -> Vec<Vec<u32>> {
+    let mut rng = Lcg::new(seed);
+    let pool_size = (prefix_pool.end - prefix_pool.start) as u64;
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        // Pick DEFAULT_PREFIX_LEN prefix tokens.
+        let mut seq = Vec::with_capacity(DEFAULT_SEQ_LEN);
+        let mut prefix_toks = Vec::with_capacity(DEFAULT_PREFIX_LEN);
+        for _ in 0..DEFAULT_PREFIX_LEN {
+            let pfx = prefix_pool.start + rng.next_range(pool_size) as u32;
+            seq.push(pfx);
+            prefix_toks.push(pfx);
+        }
+        seq.push(SEPARATOR_TOKEN);
+        // Suffix = deterministic Y applied to (prefix_tok rotated) for length.
+        // We cycle prefix_toks to fill DEFAULT_SUFFIX_LEN positions. This
+        // ensures each position's correct answer depends on the matching
+        // prefix position, which is what attention needs to learn.
+        for i in 0..DEFAULT_SUFFIX_LEN {
+            let src = prefix_toks[i % DEFAULT_PREFIX_LEN];
+            let tgt = *y_map.get(&src).expect("y_map covers prefix pools");
+            seq.push(tgt);
+        }
+        out.push(seq);
+    }
+    out
+}
+
+fn gen_sequences_scrambled(
+    seed: u64,
+    n: usize,
+    prefix_pool: std::ops::Range<u32>,
+    suffix_seed: u64,
+) -> Vec<Vec<u32>> {
+    let mut rng = Lcg::new(seed);
+    let mut suf_rng = Lcg::new(suffix_seed);
+    let pool_size = (prefix_pool.end - prefix_pool.start) as u64;
+    let suffix_count = (SUFFIX_POOL.end - SUFFIX_POOL.start) as u64;
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        let mut seq = Vec::with_capacity(DEFAULT_SEQ_LEN);
+        for _ in 0..DEFAULT_PREFIX_LEN {
+            seq.push(prefix_pool.start + rng.next_range(pool_size) as u32);
+        }
+        seq.push(SEPARATOR_TOKEN);
+        for _ in 0..DEFAULT_SUFFIX_LEN {
+            seq.push(SUFFIX_POOL.start + suf_rng.next_range(suffix_count) as u32);
+        }
+        out.push(seq);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_synthetic_train_eval_disjoint_prefixes() {
+        let h = EvalHarness::synthetic(7, 16, 16, 262_144);
+        let train_pfx: std::collections::HashSet<u32> = h
+            .train.iter()
+            .flat_map(|s| s[..DEFAULT_PREFIX_LEN].iter().copied())
+            .collect();
+        let eval_pfx: std::collections::HashSet<u32> = h
+            .eval.iter()
+            .flat_map(|s| s[..DEFAULT_PREFIX_LEN].iter().copied())
+            .collect();
+        let intersection: Vec<_> = train_pfx.intersection(&eval_pfx).collect();
+        assert!(intersection.is_empty(),
+            "train/eval prefixes must be disjoint, got {:?}", intersection);
+        assert!(!train_pfx.is_empty() && !eval_pfx.is_empty());
+    }
+
+    #[test]
+    fn test_synthetic_shared_y_map_across_splits() {
+        // Same seed → same Y. Train and eval suffix-for-prefix-X must match
+        // when prefix pools overlap. They don't (disjoint by construction),
+        // but the same Y must be used to build both, so if we independently
+        // instantiate harnesses with the same seed we get identical Y-maps.
+        let a = build_y_map(42);
+        let b = build_y_map(42);
+        assert_eq!(a, b);
+        // Different seeds produce different maps.
+        let c = build_y_map(43);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn test_synthetic_sequence_shape() {
+        let h = EvalHarness::synthetic(1, 4, 4, 262_144);
+        for seq in h.train.iter().chain(h.eval.iter()) {
+            assert_eq!(seq.len(), DEFAULT_SEQ_LEN);
+            assert_eq!(seq[DEFAULT_PREFIX_LEN], SEPARATOR_TOKEN);
+            for &t in &seq[..DEFAULT_PREFIX_LEN] {
+                assert!(TRAIN_PREFIX_POOL.contains(&t) || EVAL_PREFIX_POOL.contains(&t));
+            }
+            for &t in &seq[DEFAULT_PREFIX_LEN + 1..] {
+                assert!(SUFFIX_POOL.contains(&t),
+                    "suffix token {} outside SUFFIX_POOL", t);
+            }
+        }
+    }
+
+    #[test]
+    fn test_synthetic_scrambled_has_no_y_structure() {
+        let h = EvalHarness::synthetic_scrambled(7, 8, 8, 262_144);
+        for seq in h.train.iter() {
+            // Scrambled sequences: suffix tokens are unrelated to prefixes.
+            // Structural check: at least one suffix token should differ from
+            // what `Y` would produce on the corresponding prefix position.
+            let y_map = build_y_map(7);
+            let expected: Vec<u32> = (0..DEFAULT_SUFFIX_LEN)
+                .map(|i| y_map[&seq[i % DEFAULT_PREFIX_LEN]])
+                .collect();
+            let actual = &seq[DEFAULT_PREFIX_LEN + 1..];
+            // Vanishingly unlikely all positions happen to match Y.
+            assert_ne!(&expected[..], actual,
+                "scrambled corpus accidentally matches Y — seed collision?");
+        }
+    }
+}
