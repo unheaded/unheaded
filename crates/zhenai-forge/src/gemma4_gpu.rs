@@ -1000,6 +1000,40 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // slow (~50s), run with `cargo test -- --ignored`
+    fn test_gemma4_gpu_10step_descent() {
+        // Extended descent — proves backward is producing real gradient updates
+        // rather than numerical noise. Loss at step 10 should be at least 10×
+        // below step 1 loss on a fixed 6-token sequence with lr=3e-3.
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() { return; }
+        let model = GgufFile::open(model_path).expect("open");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+        let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+
+        let tokens: Vec<u32> = vec![2, 1000, 2000, 3000, 4000, 5000];
+        let answer_start = 3;
+        let lr = 3e-3f32;
+
+        println!("All-GPU 10-step descent:");
+        let mut losses = Vec::new();
+        for step in 1..=10 {
+            let t0 = std::time::Instant::now();
+            let loss = super::train_step_gemma4_gpu(
+                &cpu, &gpu, &mut lora, &tokens, answer_start, lr, step
+            ).expect("train_step_gpu");
+            println!("  [step {:2}] loss={:.4} ({:.1}s)", step, loss, t0.elapsed().as_secs_f64());
+            assert!(loss.is_finite(), "loss became non-finite at step {}", step);
+            losses.push(loss);
+        }
+        println!("Loss trajectory: {:?}", losses);
+        // Loss at step 10 should be at least 10× below step 1.
+        assert!(losses[9] * 10.0 < losses[0],
+            "10-step descent too weak: {} -> {}", losses[0], losses[9]);
+    }
+
+    #[test]
     fn test_gemma4_gpu_train_step_loss_descent() {
         // Canonical Phase 7 exit-gate test — exercises the full-GPU fwd+bwd
         // path via train_step_gemma4_gpu on the real GGUF. Logs per-step and
