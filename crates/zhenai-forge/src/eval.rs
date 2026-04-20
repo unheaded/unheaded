@@ -17,6 +17,26 @@ use crate::forward;
 use crate::gemma4::{CpuWeightsGemma4, Gemma4LoraAdapters};
 use crate::gemma4_gpu::Gemma4GpuWeights;
 
+/// Compute mean CE loss over an arbitrary slice of sequences — shares the
+/// `EvalHarness::forward_loss` path but works on any corpus (used by Exp 5
+/// to measure train-set loss at the same checkpoints as eval-set loss).
+pub fn compute_mean_loss_over(
+    harness: &EvalHarness,
+    cpu: &CpuWeightsGemma4,
+    gpu: Option<&Gemma4GpuWeights>,
+    lora: Option<&Gemma4LoraAdapters>,
+    sequences: &[Vec<u32>],
+) -> Result<f32, String> {
+    let mut sum = 0.0f32;
+    let mut n = 0usize;
+    for tokens in sequences {
+        sum += harness.forward_loss(cpu, gpu, lora, tokens)?;
+        n += 1;
+    }
+    assert!(n > 0);
+    Ok(sum / n as f32)
+}
+
 /// Mutate a `Gemma4LoraAdapters` so every LoRA-A matrix is zero. Leaves the
 /// (non-zero) B matrices alone — the forward residual becomes `B·0·x = 0`,
 /// making the combined model identical to the base. Used by Exp 3.
@@ -370,6 +390,51 @@ mod tests {
             "Exp 1 THRESHOLD: ratio {:.4} > 0.90 — eval dropped but less \
              than the Scientist's 10% threshold. Consider more steps or \
              larger train set.", ratio);
+    }
+
+    #[test]
+    #[ignore] // ~5 min — measures generalization-gap growth exponent
+    fn test_learning_exp5_generalization_gap_beta() {
+        // Exp 5: at checkpoints t ∈ {1, 3, 10, 30, 100} (scaled to the
+        // budget: we use {1, 3, 10, 20}), fit gap(t) = α·t^β. Under
+        // memorization β → 1; under learning β < 0.8.
+        use crate::eval_stats::fit_power_law_beta;
+        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let harness = EvalHarness::synthetic(0xE7A5, 32, 32, cpu.hparams.vocab_size);
+        let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+
+        let checkpoints: &[usize] = &[1, 3, 10, 20];
+        let lr = 3e-3f32;
+        let mut gaps: Vec<f32> = Vec::new();
+        let mut last_step = 0usize;
+        println!("Exp 5: β-fit on gap(t) = eval(t) − train_set(t)");
+        for &target_step in checkpoints {
+            while last_step < target_step {
+                last_step += 1;
+                let ex = &harness.train[(last_step - 1) % harness.train.len()];
+                let a_start = harness.answer_start.min(ex.len() / 2);
+                let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
+                    &cpu, &gpu, &mut lora, ex, a_start, lr, last_step as u32,
+                ).expect("train");
+            }
+            let train_mean = compute_mean_loss_over(
+                &harness, &cpu, Some(&gpu), Some(&lora), &harness.train,
+            ).expect("train-set eval");
+            let eval_stats = harness.compute_eval_loss(&cpu, Some(&gpu), Some(&lora))
+                .expect("eval");
+            let gap = (eval_stats.mean - train_mean).max(1e-4); // log-safe
+            println!("  t={:2}  train={:.4}  eval={:.4}  gap={:.4}",
+                target_step, train_mean, eval_stats.mean, gap);
+            gaps.push(gap);
+        }
+        let (beta, lo, hi) = fit_power_law_beta(checkpoints, &gaps);
+        println!("Exp 5: β = {:.3}  95% CI = ({:.3}, {:.3})", beta, lo, hi);
+        assert!(
+            hi < 0.8,
+            "Exp 5 FAIL: β CI upper {:.3} ≥ 0.8 — gap is growing too fast. \
+             Either gradient plumbing is leaking noise OR the optimizer is \
+             overfitting the train set faster than it generalizes.", hi
+        );
     }
 
     #[test]
