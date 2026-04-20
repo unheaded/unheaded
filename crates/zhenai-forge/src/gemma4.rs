@@ -1762,14 +1762,37 @@ pub fn backward_gemma4_with_lora(
 
         // Backward through Q, K, V projections (input was cache.normed_input).
         //   q = normed @ wq^T → grad_normed_q = grad_q @ wq
-        let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
-        let grad_normed_q = matmul_grad_x(&grad_q, &wq_f32, seq, q_out_dim, n_embd);
+        // Site 8 — wq backward
+        let grad_normed_q = if let Some(g) = gpu {
+            g.matmul_grad_x(&g.wq[il], &grad_q, seq, q_out_dim, n_embd)
+                .expect("gpu site 8 wq_grad")
+        } else {
+            let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
+            matmul_grad_x(&grad_q, &wq_f32, seq, q_out_dim, n_embd)
+        };
 
         let (grad_normed_k, grad_normed_v) = if let Some(wk) = &weights.wk[il] {
-            let wk_f32 = bf16_to_f32_vec(wk);
-            let wv_f32 = weights.wv[il].as_ref().map(|w| bf16_to_f32_vec(w)).unwrap_or_else(|| wk_f32.clone());
-            let gnk = matmul_grad_x(&grad_k, &wk_f32, seq, kv_out_dim, n_embd);
-            let gnv = matmul_grad_x(&grad_v_pre, &wv_f32, seq, kv_out_dim, n_embd);
+            // Site 9 — wk backward
+            let gnk = if let Some(g) = gpu {
+                let g_wk = g.wk[il].as_ref().expect("gpu wk mirror present on producer layer");
+                g.matmul_grad_x(g_wk, &grad_k, seq, kv_out_dim, n_embd)
+                    .expect("gpu site 9 wk_grad")
+            } else {
+                let wk_f32 = bf16_to_f32_vec(wk);
+                matmul_grad_x(&grad_k, &wk_f32, seq, kv_out_dim, n_embd)
+            };
+            // Site 10 — wv backward (wv falls back to wk on Gemma 4 if absent)
+            let gnv = if let Some(g) = gpu {
+                let g_wv = g.wv[il].as_ref()
+                    .or(g.wk[il].as_ref())
+                    .expect("gpu wv or wk mirror present on producer layer");
+                g.matmul_grad_x(g_wv, &grad_v_pre, seq, kv_out_dim, n_embd)
+                    .expect("gpu site 10 wv_grad")
+            } else {
+                let wk_f32 = bf16_to_f32_vec(wk);
+                let wv_f32 = weights.wv[il].as_ref().map(|w| bf16_to_f32_vec(w)).unwrap_or(wk_f32);
+                matmul_grad_x(&grad_v_pre, &wv_f32, seq, kv_out_dim, n_embd)
+            };
             (gnk, gnv)
         } else {
             // KV-reusing layer: grad on shared K/V flows to a DIFFERENT layer's weights
