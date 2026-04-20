@@ -13,6 +13,7 @@
 
 mod backward;
 mod data;
+mod eval_stats;
 mod forward;
 mod gemma4;
 mod gemma4_gpu;
