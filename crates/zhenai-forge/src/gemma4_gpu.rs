@@ -757,23 +757,8 @@ fn per_head_rmsnorm_cpu(x: &[f32], weight: &[f32], seq: usize, n_head: usize, he
 }
 
 /// Canonical all-GPU training step — forward AND backward on hipBLAS,
-/// Adam on CPU. Use this over the deprecated `train_step_gemma4_hybrid`.
+/// Adam on CPU.
 pub fn train_step_gemma4_gpu(
-    cpu: &CpuWeightsGemma4,
-    gpu: &Gemma4GpuWeights,
-    lora: &mut Gemma4LoraAdapters,
-    tokens: &[u32],
-    answer_start: usize,
-    lr: f32,
-    step: u32,
-) -> Result<f32, String> {
-    train_step_gemma4_hybrid(cpu, gpu, lora, tokens, answer_start, lr, step)
-}
-
-/// Deprecated alias for `train_step_gemma4_gpu`. The name is stale after
-/// Phase 7 Step C landed full-GPU backward; kept as a shim through the
-/// Phase 7 cleanup commit. Prefer `train_step_gemma4_gpu` in new code.
-pub fn train_step_gemma4_hybrid(
     cpu: &CpuWeightsGemma4,
     gpu: &Gemma4GpuWeights,
     lora: &mut Gemma4LoraAdapters,
@@ -965,38 +950,6 @@ mod tests {
         // bf16 noise.
         assert!(worst_rel_err < 0.10,
             "rel err on significant entries should be < 10%, got {:.4e}", worst_rel_err);
-    }
-
-    #[test]
-    fn test_gemma4_hybrid_train_step_loss_descent() {
-        // Kept pointing at train_step_gemma4_hybrid through Phase 7 cleanup.
-        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
-        if !std::path::Path::new(model_path).exists() { return; }
-        let model = GgufFile::open(model_path).expect("open");
-        let cpu = CpuWeightsGemma4::load(&model).expect("load");
-        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
-        let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
-
-        let tokens: Vec<u32> = vec![2, 1000, 2000, 3000, 4000, 5000];
-        let answer_start = 3;
-        let lr = 3e-3f32;
-
-        println!("Hybrid train (forward GPU + backward CPU), 3 steps:");
-        let mut losses = Vec::new();
-        let session_start = std::time::Instant::now();
-        for step in 1..=3 {
-            let t0 = std::time::Instant::now();
-            let loss = super::train_step_gemma4_hybrid(
-                &cpu, &gpu, &mut lora, &tokens, answer_start, lr, step
-            ).expect("train_step");
-            losses.push(loss);
-            println!("  [step {}] loss={:.4} ({:.1}s)", step, loss, t0.elapsed().as_secs_f64());
-            assert!(loss.is_finite());
-        }
-        println!("Total: {:.1}s for 3 steps", session_start.elapsed().as_secs_f64());
-        println!("Loss trajectory: {:?}", losses);
-        assert!(losses[2] <= losses[0],
-            "loss should descend: {} -> {}", losses[0], losses[2]);
     }
 
     #[test]
