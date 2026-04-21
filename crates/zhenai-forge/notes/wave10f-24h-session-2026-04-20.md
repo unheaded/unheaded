@@ -9,16 +9,22 @@ finalizes).
 
 ## Overall phase outcome
 
-| Phase | Name | Outcome | Time |
-|------:|------|---------|------|
-| 0 | Recon + preflight | ✅ PASS | 30 min |
-| 1 | Exp 2 hard gate (plateau) | 🔍 DIAG (honest — log(vocab) floor) | ~1 h |
-| 2 | Exp 1 extended + lr sweep | TBD | TBD |
-| 3 | Multi-Y capacity probe | TBD | TBD |
-| 4 | Tokenizer vertical slice | ✅ PASS | <1 h (pipelined) |
-| 5 | Kingdom QA RAFT kickoff | TBD | TBD |
-| 6 | Regression audit | TBD | TBD |
-| 7 | Docs + handoff | in this doc | ~1 h |
+| Phase | Name | Outcome | Wall-clock |
+|------:|------|---------|-----------:|
+| 0 | Recon + preflight | ✅ PASS | 25 min |
+| 1 | Exp 2 hard gate (plateau) | 🔍 DIAG (log(vocab) floor finding) | ~60 min |
+| 2 | Exp 1 extended + lr sweep | MIXED (extended FAIL, sweep PASS — lr=1e-3 adopted) | ~65 min |
+| 3 | Multi-Y capacity probe | ✅ 2-Y PASS (both groups ratio ~0.6); 3-Y skipped | ~80 min |
+| 4 | Tokenizer vertical slice | ✅ PASS (pipelined while Exp 2 ran) | ~15 min |
+| 5 | Kingdom QA RAFT kickoff | ❌ ABORT (CPU-bound attention at seq=384) | ~65 min wasted |
+| 6 | Regression audit | ✅ ALL 6 TESTS GREEN (no regressions) | ~30 min |
+| 7 | Docs + handoff | ✅ DONE (this doc + plan docs + memory) | ~20 min |
+
+Session wall-clock: ~6 h of the 24 h budget. Aborted early at Phase 5
+because the forward-path CPU bottleneck at long sequences was
+out-of-scope to fix in this session. All scientific learning signals
+held; the forge can learn, we just can't efficiently train it on
+400-token real text yet.
 
 ---
 
@@ -191,11 +197,28 @@ Per Appendix B reallocation, the 8 h Phase 5 budget that won't be
 used is being redirected to Phase 6 regression (deeper sweep) and
 Phase 7 (more thorough docs).
 
-## Phase 6 — Regression + Timing Audit (TBD)
+## Phase 6 — Regression + Timing Audit (ALL GREEN)
 
-_[results pending]_
+Ran the full Learning Gate + core GPU tests post-session. **Zero
+regressions.** Details in `notes/wave10f-24h-regression.md`:
 
-## Phase 7 — Docs + Session Handoff (in progress)
+| Test | Result | Metric |
+|------|:-----:|--------|
+| `test_gemma4_backward_grad_health` | ✅ | healthy=35/35 |
+| `test_gemma4_gpu_train_step_loss_descent` | ✅ | 1.97 s/step, loss 19.96→5.70 |
+| `test_learning_exp1_held_out_eval` | ✅ | ratio 0.58 CI (0.567, 0.596) |
+| `test_learning_exp3_lora_zero_identity` | ✅ | A=0 ≡ base |
+| `test_learning_exp4_dataset_size_scaling` | ✅ | \|T\|=64 vs 8 = 37% |
+| `test_learning_exp5_generalization_gap_beta` | ✅ | β=0.266 CI (−0.11, 0.64) |
+
+GPU warm-step unchanged at 1.97 s (vs 2.05 s baseline, ±5% noise).
+Loss trajectories bit-identical to prior runs. The 24h session's
+additive code changes did not touch core forward/backward/Adam.
+
+Audit-script bug (misused `--ignored` flag on non-ignored tests)
+caught and documented for next session.
+
+## Phase 7 — Docs + Session Handoff (DONE)
 
 - This document.
 - `notes/wave10f-learning-gate-plan.md` updated with iter-5 finding.
@@ -205,21 +228,69 @@ _[results pending]_
 
 ## Commit chain (this session)
 
-_[filled in by Phase 7 final]_
+```
+072d4b50  WAVE10F 24-hour battle plan
+2b911ce7  run_until_plateau added
+93d5a761  Exp 2 rewritten — plateau-based hard gate
+4edfdf37  pipelined Phase 2/3/5 code while Exp 2 runs
+25dc0d08  Kingdom tokenizer vertical slice (Phase 4)
+22258105  Phase 1 outcome + Phase 7 session log scaffold
+28e49674  Phase 2 complete — lr=1e-3 is the stable operating point
+1e43a20e  Phase 3 — Exp 6 multi-Y 2-Y PASS; 3-Y skipped (Skip Protocol)
+ed92ca9a  Phase 5 ABORT — forge forward is CPU-bound at seq=384
+<next>     Phase 6 regression audit green; Phase 7 handoff
+```
 
 ## Next-session prompt
 
 ```
-WAVE10F post-24h-block. Current state (2026-04-20):
-- Exp 2: DIAG — log(vocab) floor makes synthetic scrambled-train
-  discrimination impossible. Real negative control in Phase 7.2.
-- Optimal lr: [X] (from Phase 2 sweep)
-- Multi-Y capacity: [verdict] (from Phase 3)
-- Kingdom RAFT: [first LoRA at /tmp/...]
-- Tokenizer: Python wrapper at scripts/tokenize-kingdom-for-gemma4.py
+WAVE10F post-24h-block. Ship state (2026-04-20):
 
-Open items:
-- [per-phase: filled in by Phase 7]
+SCIENTIFIC RESULTS:
+  - Exp 2: DIAG. Scrambled-labels train_loss plateaus at log(262144)
+    ≈ 12.48 — the information-theoretic CE floor for uniform labels
+    over a vocab that size. Hard-gate impossible on synthetic noise
+    by construction. Real negative control still pending Phase 7.2.
+  - Optimal lr: 1e-3 at plateau over 100 steps on the synthetic Y
+    task. lr=3e-3 IS a cliff edge — works for 20 steps, blows up at
+    100 (eval reverts to baseline). Adopt 1e-3 for anything long.
+  - Multi-Y capacity: 2 disjoint Y maps at rank=16 → both groups'
+    eval ratio < 0.61 after 100 steps. Attention CAN partition.
+  - 24h regression: ALL SIX Learning Gate + core tests GREEN
+    (grad_health, loss_descent, exp1/3/4/5). Zero regressions.
 
-Next likely sprint: [Phase 7.1 full Rust SentencePiece OR Phase 7.3 LoRA A/B eval]
+ENGINEERING BLOCKER:
+  - Forge's 'GPU forward' only accelerates matmuls; attention,
+    softmax, RoPE, norms stay CPU. At seq=384 (real-text scale),
+    single-threaded CPU attention is O(seq²) and swamps everything.
+    RAFT smoke stalled 64 min with zero training output. GPU% = 0
+    during stall. FIX needed before Phase 5 real-data training is
+    viable.
+
+ARTIFACTS PERSISTED:
+  - scripts/tokenize-kingdom-for-gemma4.py    (Gemma 4 chat tokenizer
+    wrapper via transformers.AutoTokenizer + HF tokenizer.json)
+  - /tmp/24h-kingdom-{train,eval}.jsonl        (3568 + 397 tokenized
+    sequences at MAX_TOKENS=384)
+  - notes/wave10f-24h-battle-plan.md            (the plan executed)
+  - notes/wave10f-24h-session-2026-04-20.md     (this doc)
+  - notes/wave10f-lr-sweep.md                   (lr=1e-3 finding)
+  - notes/wave10f-24h-regression.md             (no-regression proof)
+  - notes/wave10f-tokenizer-slice.md            (tokenizer docs)
+  - /tmp/24h-exp2-outcome.md                    (5-iter Exp 2 record)
+
+NEXT SPRINT CANDIDATES (in descending value):
+
+  (A) GPU attention kernels — move softmax + RoPE + attention scores
+      to hipBLAS/HIP/Aya-kernels. Biggest leverage: unlocks long-seq
+      training and Phase 5.
+  (B) Reduce Kingdom prompts to ≤64 tokens (aggressive context trim)
+      and retry RAFT. Easier/faster; gets us a real LoRA this week.
+  (C) Per-token batching instead of full-prompt CE — shorten effective
+      seq per gradient step.
+  (D) Phase 7.1 full Rust SentencePiece tokenizer — lowest priority
+      since Python wrapper works for the corpus we have.
+
+Recommendation for next session: (B) first (validate real-learning at
+seq≤64 with lr=1e-3), then (A) in parallel for the long-term solution.
 ```
