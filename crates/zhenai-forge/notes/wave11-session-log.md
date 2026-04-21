@@ -17,11 +17,35 @@
 | 5 | Softmax fwd + masked + bwd | ✅ DONE | (cosine=1.000000) |
 | 6 | RoPE partial-rotary fwd+bwd | ✅ DONE | (cosine=1.000000) |
 | 7 | Attention fwd+bwd (4 grad kernels + E2E) | ✅ DONE | **21 kernel tests cosine=1.000** |
-| 8a | GPU attention wired into forward_gemma4_gpu | ✅ DONE | `6d620c9e` |
-| 8b | Sweep remaining CPU ops (rmsnorm, rope, gelu) | 🚧 in progress |
-| 8c | Proper `impl ForgeBackend for GpuKernelsBackend` | pending |
+| 8a | GPU attention forward wired into forward_gemma4_gpu | ✅ DONE | `6d620c9e` |
+| 8b | GPU attention backward wired into backward_gemma4_with_lora | ✅ DONE | `5ebceb5a` |
+| 8c | Sweep remaining CPU ops (rmsnorm, rope, gelu) on GPU | 🚧 next |
+| 8d | Proper `impl ForgeBackend for GpuKernelsBackend` struct | pending |
 | 9 | Regression + RAFT retry at seq=384 | pending |
 | 10 | Docs + ADR-049 + handoff | pending |
+
+### Phase 8a results (attention forward on GPU)
+
+seq=384 smoke (3 steps, lr=1e-3, Kingdom train corpus):
+- Cold step: 227.5s
+- Warm steps: 154.0s / 152.4s
+- Loss: 21.24 → 19.63 → 17.02
+
+**Critical unblock vs 24h session:** forge was stalled for 64+ minutes
+on a single seq=384 step before Phase 8a. After Phase 8a, warm step-time
+is 152s — still 30× the ≤5s/step target, but the training loop is now
+running and descending. Phase 8b and 8c should close most of the gap.
+
+### Phase 8a kernel bug caught by Gemma-4 regression
+
+Four attention kernels and both RoPE kernels had a latent "one-thread-
+per-d" pattern that silently under-wrote output when `head_dim > 256`.
+Gemma-4 E2B's single global layer (layer 34) runs at `head_dim_full =
+512`, so 256..512 stayed at allocation garbage, wrecking final logits
+(cos=-0.11 vs CPU). Fixed with strided `for (d = tid; d < head_dim;
+d += blockDim.x)` in attn_output_fwd, attn_grad_v/q/k, attn_grad_probs
+(same bug over sk), and rope_partial_fwd/bwd. Unit tests at head_dim=256
+don't exercise this, but the full Gemma-4 forward_matches_cpu test does.
 
 ### Key empirical findings this session
 
