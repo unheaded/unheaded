@@ -8,6 +8,7 @@
 // Error handling: every launcher returns `hipError_t` which we map to
 // `Result<(), String>` to match the existing `hip.rs` style.
 
+pub mod attn;
 pub mod gelu;
 pub mod identity;
 pub mod rmsnorm;
