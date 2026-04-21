@@ -93,9 +93,34 @@ training.
 Full analysis: `notes/wave10f-lr-sweep.md`.
 Runtime: Exp 1 extended ~13 min, lr sweep ~49 min = ~1 h 2 min total.
 
-## Phase 3 — Multi-Y Capacity Probe (TBD)
+## Phase 3 — Multi-Y Capacity Probe (2-Y PASS, 3-Y skipped)
 
-_[results pending]_
+**`test_learning_exp6_multi_y_capacity` PASSED** on the 2-Y gate after
+4396s (73 min) — much slower than the 8-min estimate. Both groups
+descend cleanly:
+
+| Group | Base | Final | Ratio | Status |
+|------:|-----:|------:|------:|:------:|
+| 0 | 21.95 | 12.52 | **0.570** | ✅ |
+| 1 | 20.77 | 12.55 | **0.604** | ✅ |
+
+Gate: ratio ≤ 0.85 per group. Both passed with margin.
+
+**Key finding:** forge learns two disjoint Y maps in parallel with
+rank-16 LoRA. Capacity split across groups doesn't collapse either —
+each group descends to roughly the single-Y baseline.
+
+**3-Y informational stress test SKIPPED** per Skip Protocol: at 2×
+the 2-Y runtime (~90 min), it would push Phase 3 past 3× estimate
+and delay Phase 5. The 2-Y result is the hard gate; 3-Y was
+informational only.
+
+**Unexpected timing:** 2-Y ran 73 min instead of 8 min estimate
+(~9× overshoot). Each training step appears to have taken ~44 s
+instead of the expected 2 s. Hypothesis: mixed-sequence cycling
+through 64 examples plus expensive per-group eval harness overhead
+produced GPU-buffer allocation storms. Not investigated further;
+logged as a follow-up.
 
 ## Phase 4 — Tokenizer Vertical Slice (DONE, pipelined while GPU busy)
 
