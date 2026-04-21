@@ -9,6 +9,7 @@
 // `Result<(), String>` to match the existing `hip.rs` style.
 
 pub mod identity;
+pub mod rmsnorm;
 
 /// Map hipError_t (i32) to Result. 0 = hipSuccess.
 pub fn check_hip(err: i32, op: &str) -> Result<(), String> {
