@@ -138,69 +138,99 @@ fn cmd_train_gemma4(args: &[String]) {
         std::process::exit(1);
     }
 
-    // GPU path (default unless --cpu). Upload once up-front; a failure here
-    // is loud but not fatal — we fall back to the CPU path.
-    let gpu_weights: Option<gemma4_gpu::Gemma4GpuWeights> = if cpu_only {
-        println!("\n--cpu requested — using CPU training step.");
+    // Select backend at runtime. The training loop itself is generic over
+    // B: ForgeBackend, so every backend (CPU, hybrid-matmul, future
+    // GPU-kernels, hypothetical LlamaCppBackend) uses the same loop. This
+    // is the payoff of the trait refactor: ONE training loop, N backends.
+    let cpu_backend_fallback = backend::CpuBackend;
+    let hybrid_backend = backend::HybridMatmulBackend::default();
+    let hybrid_handle: Option<gemma4_gpu::Gemma4GpuWeights> = if cpu_only {
+        println!("\n--cpu requested — using CpuBackend.");
         None
     } else {
-        println!("\nUploading Gemma 4 weights to GPU (PleMode::Cpu)...");
-        match gemma4_gpu::Gemma4GpuWeights::upload(&weights, gemma4_gpu::PleMode::Cpu) {
+        use backend::ForgeBackend as _;  // bring method into scope
+        println!("\nUploading Gemma 4 weights to GPU (PleMode::Cpu) — HybridMatmulBackend...");
+        match hybrid_backend.upload_weights(&weights) {
             Ok(g) => {
                 println!("  VRAM used:   {:.2} GB", g.vram_used_gb());
                 Some(g)
             }
             Err(e) => {
-                eprintln!("  GPU upload failed ({}). Falling back to CPU.", e);
+                eprintln!("  GPU upload failed ({}). Falling back to CpuBackend.", e);
                 None
             }
         }
     };
 
-    let path_label = if gpu_weights.is_some() { "GPU (fwd+bwd on hipBLAS)" } else { "CPU" };
-    println!("\nTraining for {} steps (lr={}, answer_start={}, path={})...",
+    let path_label = if hybrid_handle.is_some() { "hybrid-matmul (GPU fwd+bwd matmuls)" } else { "cpu" };
+    println!("\nTraining for {} steps (lr={}, answer_start={}, backend={})...",
         steps, lr, answer_start, path_label);
-    let start = std::time::Instant::now();
-    let mut total_loss = 0.0f64;
-    for step in 1..=steps {
-        let example = &examples[(step - 1) % examples.len()];
-        let step_start = std::time::Instant::now();
-        let effective_answer_start = answer_start.min(example.len() / 2);
-        let loss = match &gpu_weights {
-            Some(gpu) => gemma4_gpu::train_step_gemma4_gpu(
-                &weights, gpu, &mut lora, example,
-                effective_answer_start, lr, step as u32,
-            ).expect("gpu train step"),
-            None => gemma4::train_step_gemma4(
-                &weights, &mut lora, example,
-                effective_answer_start, lr, step as u32,
-            ),
-        };
-        total_loss += loss as f64;
-        let avg_loss = total_loss / step as f64;
-        let step_secs = step_start.elapsed().as_secs_f64();
-        let elapsed_min = start.elapsed().as_secs_f64() / 60.0;
-        let eta_min = (steps - step) as f64 * step_secs / 60.0;
-        println!("  [step {}/{}] loss={:.4} avg={:.4} step_time={:.1}s elapsed={:.1}m eta={:.1}m",
-            step, steps, loss, avg_loss, step_secs, elapsed_min, eta_min);
-        let _ = std::io::Write::flush(&mut std::io::stdout());
 
-        if save_every > 0 && !output_path.is_empty() && step % save_every == 0 {
-            let cp_path = format!("{}.checkpoint-{}", output_path, step);
-            match lora.save(&cp_path) {
-                Ok(_) => println!("  Checkpoint saved: {}", cp_path),
-                Err(e) => eprintln!("  Checkpoint save failed: {}", e),
+    // Generic training loop — instantiated once per backend. Returns
+    // total_loss so the caller can print the per-step average.
+    fn run_loop<B: backend::ForgeBackend>(
+        backend: &B,
+        weights: &gemma4::CpuWeightsGemma4,
+        handle: &B::Handle,
+        lora: &mut gemma4::Gemma4LoraAdapters,
+        examples: &[Vec<u32>],
+        steps: usize,
+        answer_start: usize,
+        lr: f32,
+        save_every: usize,
+        output_path: &str,
+    ) -> f64 {
+        let start = std::time::Instant::now();
+        let mut total_loss = 0.0f64;
+        for step in 1..=steps {
+            let example = &examples[(step - 1) % examples.len()];
+            let step_start = std::time::Instant::now();
+            let effective_answer_start = answer_start.min(example.len() / 2);
+            let loss = backend.train_step(
+                weights, handle, lora, example,
+                effective_answer_start, lr, step as u32,
+            ).expect("train step");
+            total_loss += loss as f64;
+            let avg_loss = total_loss / step as f64;
+            let step_secs = step_start.elapsed().as_secs_f64();
+            let elapsed_min = start.elapsed().as_secs_f64() / 60.0;
+            let eta_min = (steps - step) as f64 * step_secs / 60.0;
+            println!("  [step {}/{}] loss={:.4} avg={:.4} step_time={:.1}s elapsed={:.1}m eta={:.1}m  (backend={})",
+                step, steps, loss, avg_loss, step_secs, elapsed_min, eta_min, backend.name());
+            let _ = std::io::Write::flush(&mut std::io::stdout());
+
+            if save_every > 0 && !output_path.is_empty() && step % save_every == 0 {
+                let cp_path = format!("{}.checkpoint-{}", output_path, step);
+                match lora.save(&cp_path) {
+                    Ok(_) => println!("  Checkpoint saved: {}", cp_path),
+                    Err(e) => eprintln!("  Checkpoint save failed: {}", e),
+                }
             }
         }
+        total_loss
     }
 
-    let total_time_min = start.elapsed().as_secs_f64() / 60.0;
+    // Thread total_loss + wall_start through so the summary section can
+    // still print them after the generic loop returns.
+    let wall_start = std::time::Instant::now();
+    let final_total_loss = match hybrid_handle {
+        Some(ref h) => run_loop(
+            &hybrid_backend, &weights, h, &mut lora,
+            &examples, steps, answer_start, lr, save_every, &output_path,
+        ),
+        None => run_loop(
+            &cpu_backend_fallback, &weights, &(), &mut lora,
+            &examples, steps, answer_start, lr, save_every, &output_path,
+        ),
+    };
+
+    let total_time_min = wall_start.elapsed().as_secs_f64() / 60.0;
     println!("\n========================================");
     println!("TRAINING COMPLETE");
     println!("========================================");
     println!("  Steps:       {}", steps);
     println!("  Time:        {:.1} min", total_time_min);
-    println!("  Final avg:   {:.4}", total_loss / steps as f64);
+    println!("  Final avg:   {:.4}", final_total_loss / steps as f64);
 
     if !output_path.is_empty() {
         match lora.save(&output_path) {
