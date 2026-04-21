@@ -245,6 +245,78 @@ impl EvalHarness {
         Ok(traj)
     }
 
+    /// Train until the train loss plateaus or until `max_steps`. Plateau is
+    /// detected when the train-loss window `[t-K .. t)` has peak-to-peak range
+    /// < `plateau_eps`. Eval is recorded at t=0 and then every
+    /// `max(plateau_window/2, 5)` steps, plus a final eval at the stopping
+    /// step. Returns `(trajectory, steps_used)`.
+    pub fn run_until_plateau(
+        &self,
+        cpu: &CpuWeightsGemma4,
+        gpu: Option<&Gemma4GpuWeights>,
+        lora: &mut Gemma4LoraAdapters,
+        lr: f32,
+        max_steps: usize,
+        plateau_window: usize,
+        plateau_eps: f32,
+    ) -> Result<(LearningTrajectory, usize), String> {
+        assert!(!self.train.is_empty());
+        assert!(plateau_window >= 2);
+        let eval_every = (plateau_window / 2).max(5);
+        let mut traj = LearningTrajectory {
+            train: Vec::with_capacity(max_steps),
+            checkpoints: Vec::new(),
+        };
+        let eval0 = self.compute_eval_loss(cpu, gpu, Some(lora))
+            .map_err(|e| format!("initial eval: {}", e))?;
+        traj.checkpoints.push((0, eval0));
+
+        let mut stopped_at = max_steps;
+        for step in 1..=max_steps {
+            let example = &self.train[(step - 1) % self.train.len()];
+            let a_start = self.answer_start.min(example.len() / 2);
+            let loss = match gpu {
+                Some(g) => crate::gemma4_gpu::train_step_gemma4_gpu(
+                    cpu, g, lora, example, a_start, lr, step as u32,
+                )?,
+                None => crate::gemma4::train_step_gemma4(
+                    cpu, lora, example, a_start, lr, step as u32,
+                ),
+            };
+            if !loss.is_finite() {
+                return Err(format!("non-finite train loss at step {}: {}", step, loss));
+            }
+            traj.train.push(loss);
+
+            // Periodic eval checkpoint.
+            if step % eval_every == 0 {
+                let stats = self.compute_eval_loss(cpu, gpu, Some(lora))
+                    .map_err(|e| format!("eval @ step {}: {}", step, e))?;
+                traj.checkpoints.push((step, stats));
+            }
+
+            // Plateau detection: once we have at least `plateau_window` losses,
+            // compare peak-to-peak of the last window.
+            if traj.train.len() >= plateau_window {
+                let tail = &traj.train[traj.train.len() - plateau_window..];
+                let mn = tail.iter().copied().fold(f32::INFINITY, f32::min);
+                let mx = tail.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                if mx - mn < plateau_eps {
+                    stopped_at = step;
+                    break;
+                }
+            }
+        }
+        // Always record a final eval at stopping step (if not already captured).
+        let last_step_logged = traj.checkpoints.last().map(|(s, _)| *s).unwrap_or(0);
+        if last_step_logged != stopped_at {
+            let stats = self.compute_eval_loss(cpu, gpu, Some(lora))
+                .map_err(|e| format!("final eval: {}", e))?;
+            traj.checkpoints.push((stopped_at, stats));
+        }
+        Ok((traj, stopped_at))
+    }
+
     /// Single-sequence forward + cross-entropy loss over the answer region.
     /// Returns the mean per-position loss so short and long sequences can
     /// be compared.
