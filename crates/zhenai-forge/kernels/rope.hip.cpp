@@ -28,30 +28,25 @@ __global__ void rope_partial_fwd_f32_kernel(
 {
     const int s = blockIdx.x;
     const int h = blockIdx.y;
-    const int d = threadIdx.x;
-    if (d >= head_dim) return;
     const int half = rope_dim / 2;
     const int off = (s * n_head + h) * head_dim;
 
-    if (d < rope_dim) {
-        // Rotated pair. Compute only on even d; odd d is written by the
-        // even-d thread via thread-cooperation. But simpler: each thread
-        // computes its own output independently using the counterpart.
-        // For even d: pair index = d/2 → reads x[off+d], x[off+d+1].
-        // For odd d:  pair index = (d-1)/2 → reads x[off+d-1], x[off+d].
-        int pair_idx = d / 2;
-        float c = cos_tab[s * half + pair_idx];
-        float si = sin_tab[s * half + pair_idx];
-        float xe = in[off + 2 * pair_idx];
-        float xo = in[off + 2 * pair_idx + 1];
-        if (d % 2 == 0) {
-            out[off + d] = xe * c - xo * si;
+    // Strided so head_dim > blockDim.x (e.g. 512 with 256 threads) works.
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x) {
+        if (d < rope_dim) {
+            int pair_idx = d / 2;
+            float c = cos_tab[s * half + pair_idx];
+            float si = sin_tab[s * half + pair_idx];
+            float xe = in[off + 2 * pair_idx];
+            float xo = in[off + 2 * pair_idx + 1];
+            if (d % 2 == 0) {
+                out[off + d] = xe * c - xo * si;
+            } else {
+                out[off + d] = xe * si + xo * c;
+            }
         } else {
-            out[off + d] = xe * si + xo * c;
+            out[off + d] = in[off + d];
         }
-    } else {
-        // Passthrough for dims [rope_dim..head_dim].
-        out[off + d] = in[off + d];
     }
 }
 
@@ -62,24 +57,24 @@ __global__ void rope_partial_bwd_f32_kernel(
 {
     const int s = blockIdx.x;
     const int h = blockIdx.y;
-    const int d = threadIdx.x;
-    if (d >= head_dim) return;
     const int half = rope_dim / 2;
     const int off = (s * n_head + h) * head_dim;
 
-    if (d < rope_dim) {
-        int pair_idx = d / 2;
-        float c = cos_tab[s * half + pair_idx];
-        float si = sin_tab[s * half + pair_idx];
-        float ge = grad_out[off + 2 * pair_idx];
-        float go = grad_out[off + 2 * pair_idx + 1];
-        if (d % 2 == 0) {
-            grad_in[off + d] = ge * c + go * si;
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x) {
+        if (d < rope_dim) {
+            int pair_idx = d / 2;
+            float c = cos_tab[s * half + pair_idx];
+            float si = sin_tab[s * half + pair_idx];
+            float ge = grad_out[off + 2 * pair_idx];
+            float go = grad_out[off + 2 * pair_idx + 1];
+            if (d % 2 == 0) {
+                grad_in[off + d] = ge * c + go * si;
+            } else {
+                grad_in[off + d] = -ge * si + go * c;
+            }
         } else {
-            grad_in[off + d] = -ge * si + go * c;
+            grad_in[off + d] = grad_out[off + d];
         }
-    } else {
-        grad_in[off + d] = grad_out[off + d];
     }
 }
 
