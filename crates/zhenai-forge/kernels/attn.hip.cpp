@@ -75,22 +75,22 @@ __global__ void attn_output_fwd_f32_kernel(
 {
     const int sq = blockIdx.x;
     const int h  = blockIdx.y;
-    const int d  = threadIdx.x;
-    if (d >= head_dim) return;
 
     const int group_size = n_heads / n_kv_heads;
     const int h_kv = h / group_size;
 
     const int probs_row_off = (h * seq + sq) * seq;
-    const int out_off = (sq * n_heads + h) * head_dim + d;
 
-    float sum = 0.0f;
-    for (int k = 0; k < seq; ++k) {
-        float p = probs[probs_row_off + k];
-        float vv = v[(k * n_kv_heads + h_kv) * head_dim + d];
-        sum += p * vv;
+    // Strided over d so head_dim > blockDim.x (e.g. 512 with 256 threads) works.
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x) {
+        float sum = 0.0f;
+        for (int k = 0; k < seq; ++k) {
+            float p = probs[probs_row_off + k];
+            float vv = v[(k * n_kv_heads + h_kv) * head_dim + d];
+            sum += p * vv;
+        }
+        out[(sq * n_heads + h) * head_dim + d] = sum;
     }
-    out[out_off] = sum;
 }
 
 extern "C" hipError_t wave11_launch_attn_scores_fwd_f32(
@@ -149,22 +149,22 @@ __global__ void attn_grad_v_kernel(
 {
     const int sk = blockIdx.x;
     const int h_kv = blockIdx.y;
-    const int d = threadIdx.x;
-    if (d >= head_dim) return;
 
     const int group_size = n_heads / n_kv_heads;
-    const int gv_off = (sk * n_kv_heads + h_kv) * head_dim + d;
 
-    float sum = 0.0f;
-    for (int gh = 0; gh < group_size; ++gh) {
-        const int h = h_kv * group_size + gh;
-        for (int sq = 0; sq < seq; ++sq) {
-            float p  = probs[(h * seq + sq) * seq + sk];
-            float go = grad_out[(sq * n_heads + h) * head_dim + d];
-            sum += p * go;
+    // Strided over d so head_dim > blockDim.x works.
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x) {
+        float sum = 0.0f;
+        for (int gh = 0; gh < group_size; ++gh) {
+            const int h = h_kv * group_size + gh;
+            for (int sq = 0; sq < seq; ++sq) {
+                float p  = probs[(h * seq + sq) * seq + sk];
+                float go = grad_out[(sq * n_heads + h) * head_dim + d];
+                sum += p * go;
+            }
         }
+        grad_v[(sk * n_kv_heads + h_kv) * head_dim + d] = sum;
     }
-    grad_v[gv_off] = sum;
 }
 
 __global__ void attn_grad_probs_kernel(
@@ -175,19 +175,20 @@ __global__ void attn_grad_probs_kernel(
 {
     const int h  = blockIdx.x;
     const int sq = blockIdx.y;
-    const int sk = threadIdx.x;
-    if (sk >= seq) return;
 
     const int group_size = n_heads / n_kv_heads;
     const int h_kv = h / group_size;
 
-    float sum = 0.0f;
-    for (int d = 0; d < head_dim; ++d) {
-        float go = grad_out[(sq * n_heads + h) * head_dim + d];
-        float vv = v[(sk * n_kv_heads + h_kv) * head_dim + d];
-        sum += go * vv;
+    // Strided over sk so seq > blockDim.x works.
+    for (int sk = threadIdx.x; sk < seq; sk += blockDim.x) {
+        float sum = 0.0f;
+        for (int d = 0; d < head_dim; ++d) {
+            float go = grad_out[(sq * n_heads + h) * head_dim + d];
+            float vv = v[(sk * n_kv_heads + h_kv) * head_dim + d];
+            sum += go * vv;
+        }
+        grad_probs[(h * seq + sq) * seq + sk] = sum;
     }
-    grad_probs[(h * seq + sq) * seq + sk] = sum;
 }
 
 __global__ void attn_grad_q_kernel(
@@ -198,19 +199,20 @@ __global__ void attn_grad_q_kernel(
 {
     const int sq = blockIdx.x;
     const int h  = blockIdx.y;
-    const int d  = threadIdx.x;
-    if (d >= head_dim) return;
 
     const int group_size = n_heads / n_kv_heads;
     const int h_kv = h / group_size;
 
-    float sum = 0.0f;
-    for (int sk = 0; sk < seq; ++sk) {
-        float gs = grad_scores[(h * seq + sq) * seq + sk];
-        float kv = k[(sk * n_kv_heads + h_kv) * head_dim + d];
-        sum += gs * kv;
+    // Strided over d so head_dim > blockDim.x works.
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x) {
+        float sum = 0.0f;
+        for (int sk = 0; sk < seq; ++sk) {
+            float gs = grad_scores[(h * seq + sq) * seq + sk];
+            float kv = k[(sk * n_kv_heads + h_kv) * head_dim + d];
+            sum += gs * kv;
+        }
+        grad_q[(sq * n_heads + h) * head_dim + d] = sum * scale;
     }
-    grad_q[(sq * n_heads + h) * head_dim + d] = sum * scale;
 }
 
 __global__ void attn_grad_k_kernel(
@@ -221,22 +223,22 @@ __global__ void attn_grad_k_kernel(
 {
     const int sk = blockIdx.x;
     const int h_kv = blockIdx.y;
-    const int d = threadIdx.x;
-    if (d >= head_dim) return;
 
     const int group_size = n_heads / n_kv_heads;
-    const int gk_off = (sk * n_kv_heads + h_kv) * head_dim + d;
 
-    float sum = 0.0f;
-    for (int gh = 0; gh < group_size; ++gh) {
-        const int h = h_kv * group_size + gh;
-        for (int sq = 0; sq < seq; ++sq) {
-            float gs = grad_scores[(h * seq + sq) * seq + sk];
-            float qv = q[(sq * n_heads + h) * head_dim + d];
-            sum += gs * qv;
+    // Strided over d so head_dim > blockDim.x works.
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x) {
+        float sum = 0.0f;
+        for (int gh = 0; gh < group_size; ++gh) {
+            const int h = h_kv * group_size + gh;
+            for (int sq = 0; sq < seq; ++sq) {
+                float gs = grad_scores[(h * seq + sq) * seq + sk];
+                float qv = q[(sq * n_heads + h) * head_dim + d];
+                sum += gs * qv;
+            }
         }
+        grad_k[(sk * n_kv_heads + h_kv) * head_dim + d] = sum * scale;
     }
-    grad_k[gk_off] = sum * scale;
 }
 
 extern "C" hipError_t wave11_launch_attn_grad_v_f32(

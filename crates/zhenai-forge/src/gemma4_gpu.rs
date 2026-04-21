@@ -525,16 +525,16 @@ pub fn forward_gemma4_gpu(
         let q_rot = rope_apply_partial_cpu(&q_normed, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
         let k_rot = rope_apply_partial_cpu(&k_normed, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
 
-        // 2f. Attention (CPU)
+        // 2f. Attention (GPU — WAVE11 kernels: scores_fwd → softmax_masked → output_fwd)
         let mask = if h.is_sliding(il) {
             forward::AttnMask::SlidingWindow(h.sliding_window)
         } else {
             forward::AttnMask::Causal
         };
-        let (attn_out_head, attn_cache) = forward::attention_forward(
+        let (attn_out_head, attn_cache) = attention_forward_gpu_kernels(
             &q_rot, &k_rot, &v_normed,
             n_head, n_head_kv, head_dim, seq, mask,
-        );
+        )?;
 
         // 2g. O projection (GPU) + LoRA O (CPU)
         let mut o_out = gpu.matmul_xwt(&gpu.wo[il], &attn_out_head, seq, n_embd, q_out_dim)?;
@@ -793,6 +793,89 @@ pub fn train_step_gemma4_gpu(
         }
     }
     Ok(loss)
+}
+
+/// WAVE11 Phase 8: GPU-resident attention forward using Phase 5/7 kernels.
+///
+/// Drop-in replacement for `forward::attention_forward` that runs the
+/// O(seq²·d) compute on the GPU via `attn_scores_fwd` → `softmax_fwd_masked`
+/// → `attn_output_fwd`. Signature, layouts, and return shapes match the CPU
+/// reference so callers can swap one line.
+///
+/// Layouts:
+///   q_rot [seq, n_heads,    head_dim]
+///   k_rot [seq, n_kv_heads, head_dim]
+///   v     [seq, n_kv_heads, head_dim]
+/// Returns:
+///   output     [seq, n_heads, head_dim]
+///   attn_cache [n_heads, seq, seq]  — post-softmax probs, needed by backward
+fn attention_forward_gpu_kernels(
+    q_rot: &[f32],
+    k_rot: &[f32],
+    v: &[f32],
+    n_heads: usize,
+    n_kv_heads: usize,
+    head_dim: usize,
+    seq_len: usize,
+    mask: crate::forward::AttnMask,
+) -> Result<(Vec<f32>, Vec<f32>), String> {
+    use crate::hip_kernels::{attn as k_attn, softmax as k_softmax};
+
+    debug_assert_eq!(q_rot.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(k_rot.len(), seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(v.len(),     seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(n_heads % n_kv_heads, 0);
+
+    let scale = 1.0f32 / (head_dim as f32).sqrt();
+    let scores_elems = n_heads * seq_len * seq_len;
+    let out_elems    = seq_len * n_heads * head_dim;
+
+    // Build additive mask [n_heads, seq, seq] on CPU. Identical per head, so
+    // a per-(i,j) pattern is replicated across the head axis.
+    let mut mask_cpu = vec![0.0f32; scores_elems];
+    for sq in 0..seq_len {
+        for sk in 0..seq_len {
+            if !mask.allows(sq, sk) {
+                let v = -1.0e30_f32;
+                for h in 0..n_heads {
+                    mask_cpu[(h * seq_len + sq) * seq_len + sk] = v;
+                }
+            }
+        }
+    }
+
+    let q_buf      = GpuBuffer::alloc(q_rot.len() * 4).map_err(|e| format!("q alloc: {:?}", e))?;
+    let k_buf      = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("k alloc: {:?}", e))?;
+    let v_buf      = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("v alloc: {:?}", e))?;
+    let scores_buf = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("scores alloc: {:?}", e))?;
+    let probs_buf  = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("probs alloc: {:?}", e))?;
+    let mask_buf   = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("mask alloc: {:?}", e))?;
+    let out_buf    = GpuBuffer::alloc(out_elems * 4).map_err(|e| format!("out alloc: {:?}", e))?;
+
+    q_buf.upload_f32(q_rot).map_err(|e| format!("q upload: {:?}", e))?;
+    k_buf.upload_f32(k_rot).map_err(|e| format!("k upload: {:?}", e))?;
+    v_buf.upload_f32(v).map_err(|e| format!("v upload: {:?}", e))?;
+    mask_buf.upload_f32(&mask_cpu).map_err(|e| format!("mask upload: {:?}", e))?;
+
+    k_attn::attn_scores_fwd(
+        &scores_buf, &q_buf, &k_buf,
+        n_heads, n_kv_heads, seq_len, head_dim, scale,
+    )?;
+    k_softmax::softmax_fwd_masked(
+        &probs_buf, &scores_buf, &mask_buf,
+        n_heads * seq_len, seq_len,
+    )?;
+    k_attn::attn_output_fwd(
+        &out_buf, &probs_buf, &v_buf,
+        n_heads, n_kv_heads, seq_len, head_dim,
+    )?;
+
+    let mut output = vec![0.0f32; out_elems];
+    out_buf.download_f32(&mut output).map_err(|e| format!("out download: {:?}", e))?;
+    let mut probs = vec![0.0f32; scores_elems];
+    probs_buf.download_f32(&mut probs).map_err(|e| format!("probs download: {:?}", e))?;
+
+    Ok((output, probs))
 }
 
 fn rope_apply_partial_cpu(
