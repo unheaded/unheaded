@@ -17,6 +17,7 @@ mod data;
 mod eval;
 mod eval_stats;
 mod forward;
+mod hip_kernels;
 mod gemma4;
 mod gemma4_gpu;
 mod gguf;
