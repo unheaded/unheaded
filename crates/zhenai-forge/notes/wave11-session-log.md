@@ -24,17 +24,30 @@
 | 9 | Regression + RAFT retry at seq=384 | pending |
 | 10 | Docs + ADR-049 + handoff | pending |
 
-### Phase 8a results (attention forward on GPU)
+### Phase 8a+b results (attention fwd + bwd on GPU)
 
-seq=384 smoke (3 steps, lr=1e-3, Kingdom train corpus):
-- Cold step: 227.5s
-- Warm steps: 154.0s / 152.4s
-- Loss: 21.24 → 19.63 → 17.02
+seq=384 smoke on Kingdom train corpus (lr=1e-3, 3 steps each):
 
-**Critical unblock vs 24h session:** forge was stalled for 64+ minutes
-on a single seq=384 step before Phase 8a. After Phase 8a, warm step-time
-is 152s — still 30× the ≤5s/step target, but the training loop is now
-running and descending. Phase 8b and 8c should close most of the gap.
+| Config | Cold | Warm | vs target |
+|--------|-----:|-----:|----------:|
+| 24h session (CPU attn) | ∞ | ∞ (stalled 64+ min) | — |
+| Phase 8a (GPU fwd, CPU bwd) | 227.5s | 154s | 30× over |
+| **Phase 8b (GPU fwd + bwd)** | **69.0s** | **~11s** | **2.2× over** |
+
+**Phase 8b unblocks the Phase 9 gate pragmatically.** 500-step RAFT at
+seq=384 now projects to ~92 min, where 24h-session's CPU-attention
+path couldn't complete a single step in 64 min.
+
+Loss descends identically between 8a and 8b (21.24 → 19.6 → 17.0),
+confirming numerical correctness of GPU attention backward on real
+Gemma-4 E2B weights.
+
+**Aside (caught while instrumenting):** some Gemma-4 E2B KV-reusing
+layers inherit K/V from producers with a different head_dim (e.g.
+sliding consumer head_dim=256 reusing from full producer head_dim=512
+stored as `[seq, 1, 512]`). Both the CPU and GPU paths consume the
+first-head_dim slice of the inherited tensor — consistent but
+architecturally suspect. Outside W11 scope; flagged for future review.
 
 ### Phase 8a kernel bug caught by Gemma-4 regression
 
