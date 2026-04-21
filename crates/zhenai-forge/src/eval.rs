@@ -590,82 +590,109 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // ~5 min — diagnostic, not a binary gate (see comments)
+    #[ignore] // ~25 min — two plateau-based training runs (max_steps=200, lr=1e-2)
     fn test_learning_exp2_scrambled_labels_control() {
-        // Exp 2 (four iterations 2026-04-20 — full write-up in
-        // notes/wave10f-learning-gate-plan.md §Exp 2 iterations):
+        // Exp 2 (iteration 5 — PLATEAU-BASED, 2026-04-20):
         //
-        //   Attempt 1: train-loss slope < 0.5×real. FAILED — LoRA memorizes
-        //              either label scheme equally fast on train.
-        //   Attempt 2: eval-CE descent real > 2×scrambled. FAILED —
-        //              scrambled also descends eval due to output smoothing.
-        //   Attempt 3: top-1 accuracy real ≫ scrambled. FAILED — both
-        //              essentially 0 at 20 steps (vocab=262k is harsh).
-        //   Attempt 4: final train/eval gap. FAILED — at 20 steps neither
-        //              regime has saturated; scrambled gap is SMALLER not
-        //              larger because train+eval descend in lockstep
-        //              under early-training smoothing.
+        // Prior iterations 1-4 all ran at fixed 20 steps and failed to
+        // discriminate because NEITHER regime had saturated. Per the
+        // Scientist's rigor: step count is the wrong fixed parameter —
+        // the principled saturation criterion is train-loss flattening.
+        // This iteration trains both regimes until plateau (K=10 window,
+        // eps=0.1) at lr=1e-2, up to 200 steps. If scrambled plateaus at
+        // low train loss while eval stays high, we have the classic
+        // memorization-without-generalization signature.
         //
-        // Root cause: at 20 steps × 32 examples with rank-16 LoRA, we are
-        // in the EARLY-training regime for both. Memorization vs learning
-        // only discriminates cleanly at long training (≥100 steps on
-        // scrambled), which is out of budget for CI-compatible tests.
+        // Falsifiable prediction:
+        //   scrambled_train_final < 2.0 (memorized noise)
+        //   AND scrambled_eval_final > 0.7 × base_eval (no transfer)
+        //   AND |real_train − real_eval| < 1.0 (learned + generalized)
         //
-        // Current form: *diagnostic* test that records both runs and
-        // asserts only minimal sanity (both runs produce finite numbers,
-        // real Y descends on eval). The clean memorization signature —
-        // train≪eval on scrambled — is deferred to Phase 7.2 (real
-        // Kingdom Q&A RAFT) where the longer training regime exists.
+        // If the prediction holds → Exp 2 becomes a hard gate.
+        // If not → honest documentation of what actually happened (e.g.
+        // implicit regularization preventing train→0 on noise, or LoRA
+        // rank ceiling).
         let Some((cpu, gpu)) = setup_gpu() else { return };
 
-        let n_steps = 20usize;
-        let lr = 3e-3f32;
+        let lr = 1e-2f32;
+        let max_steps = 200usize;
+        let plateau_window = 10usize;
+        let plateau_eps = 0.1f32;
         let n_train = 32usize;
         let n_eval = 32usize;
 
-        let run_gap = |harness: &EvalHarness,
-                       gpu: &Gemma4GpuWeights,
-                       label: &str| -> (f32, f32, f32, f32) {
+        let run_plateau = |harness: &EvalHarness,
+                           gpu: &Gemma4GpuWeights,
+                           label: &str| -> (f32, f32, f32, usize) {
             let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
-            let eval0 = harness.compute_eval_loss(&cpu, Some(gpu), Some(&lora))
-                .expect("eval t=0").mean;
-            for step in 1..=n_steps {
-                let ex = &harness.train[(step - 1) % harness.train.len()];
-                let a_start = harness.answer_start.min(ex.len() / 2);
-                let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
-                    &cpu, gpu, &mut lora, ex, a_start, lr, step as u32,
-                ).expect("train");
-            }
-            let train_mean = compute_mean_loss_over(
+            let t0 = std::time::Instant::now();
+            let (traj, steps_used) = harness.run_until_plateau(
+                &cpu, Some(gpu), &mut lora, lr, max_steps, plateau_window, plateau_eps,
+            ).expect("plateau run");
+            let train_final = traj.train.last().copied().unwrap_or(f32::NAN);
+            // Full train-set loss after training (one sample per step is noisy).
+            let train_set_mean = compute_mean_loss_over(
                 harness, &cpu, Some(gpu), Some(&lora), &harness.train,
             ).expect("train-set loss");
-            let evalf = harness.compute_eval_loss(&cpu, Some(gpu), Some(&lora))
-                .expect("eval").mean;
-            let gap = evalf - train_mean;
-            println!("  {}: eval(0)={:.4}  train={:.4}  eval({})={:.4}  gap={:.4}",
-                label, eval0, train_mean, n_steps, evalf, gap);
-            (eval0, train_mean, evalf, gap)
+            let eval_final = traj.final_eval().mean;
+            let eval0 = traj.initial_eval().mean;
+            let elapsed = t0.elapsed().as_secs_f64();
+            println!(
+                "  {}: steps_used={}/{}  train_last_step={:.4}  train_set_mean={:.4}  \
+                 eval(0)={:.4}  eval_final={:.4}  ({:.1}s)",
+                label, steps_used, max_steps, train_final, train_set_mean,
+                eval0, eval_final, elapsed,
+            );
+            // Log the train-loss trajectory for forensic analysis.
+            print!("    train traj samples: ");
+            for (i, &t) in traj.train.iter().enumerate() {
+                if i % 20 == 0 || i + 1 == traj.train.len() {
+                    print!("{}={:.3} ", i + 1, t);
+                }
+            }
+            println!();
+            (train_set_mean, eval0, eval_final, steps_used)
         };
 
-        let real_harness = EvalHarness::synthetic(0xE7A2, n_train, n_eval, cpu.hparams.vocab_size);
-        let scr_harness = EvalHarness::with_scrambled_train(&real_harness, 0xBAD_5EED);
+        let real_h = EvalHarness::synthetic(0xE7A2, n_train, n_eval, cpu.hparams.vocab_size);
+        let scr_h = EvalHarness::with_scrambled_train(&real_h, 0xBAD_5EED);
 
-        println!("Exp 2: scrambled-labels control (diagnostic — see header)");
-        let (r_e0, _, r_ef, r_gap) = run_gap(&real_harness, &gpu, "real Y");
-        let (_, _, _, s_gap) = run_gap(&scr_harness, &gpu, "scrambled");
+        println!("Exp 2 (iter 5): plateau-based, lr={}, max_steps={}, K={}, eps={}",
+            lr, max_steps, plateau_window, plateau_eps);
+        let (real_train, real_e0, real_ef, _) = run_plateau(&real_h, &gpu, "real Y");
+        let (scr_train, _scr_e0, scr_ef, _) = run_plateau(&scr_h, &gpu, "scrambled");
 
-        // Sanity: real Y must descend on its own eval set. Without this
-        // Exp 1's result is doubtful.
-        let real_desc = (r_e0 - r_ef) / r_e0.max(1e-6);
-        assert!(real_desc > 0.05,
-            "Exp 2 sanity: real-Y eval descent {:.4} < 5% minimum", real_desc);
-        // Informational — we log ratio without asserting:
-        println!("Exp 2 DIAG: real_gap={:.4}, scr_gap={:.4}, ratio={:.3}  (not a gate)",
-            r_gap, s_gap, s_gap / r_gap.max(1e-6));
-        println!("Exp 2 CONCLUSION: at 20 steps, neither regime has saturated \
-             enough for train/eval gap to discriminate. Real-Y eval descends \
-             {:.1}% which is consistent with learning; scrambled's descent \
-             is attributable to output-distribution smoothing.", real_desc * 100.0);
+        // Falsifiable prediction.
+        let scr_train_low = scr_train < 2.0;
+        let scr_eval_stays = scr_ef > 0.7 * real_e0;
+        let real_converges = (real_train - real_ef).abs() < 1.0;
+        println!(
+            "Exp 2 prediction check:\n  \
+             scr_train<2.0  : {} (got {:.4})\n  \
+             scr_eval>0.7×base : {} (got {:.4} vs 0.7×{:.4}={:.4})\n  \
+             |real_train − real_eval|<1.0 : {} (got |{:.4}−{:.4}|={:.4})",
+            scr_train_low, scr_train,
+            scr_eval_stays, scr_ef, real_e0, 0.7 * real_e0,
+            real_converges, real_train, real_ef, (real_train - real_ef).abs(),
+        );
+
+        // Sanity: real Y must still descend on its own eval set.
+        assert!(real_ef < real_e0,
+            "Exp 2 sanity: real-Y eval must descend ({:.4} -> {:.4})", real_e0, real_ef);
+
+        // Hard gate — all three predictions must hold.
+        assert!(scr_train_low, "Exp 2 FAIL: scrambled_train {:.4} ≥ 2.0 — \
+             scrambled regime did NOT saturate to memorization. Either \
+             lr=1e-2 insufficient or LoRA rank ceiling hit.", scr_train);
+        assert!(scr_eval_stays, "Exp 2 FAIL: scrambled_eval {:.4} ≤ 0.7 × \
+             base_eval {:.4} — scrambled training generalized more than \
+             expected (output smoothing? accidental structure?).",
+             scr_ef, real_e0);
+        assert!(real_converges, "Exp 2 FAIL: real_train {:.4} and real_eval \
+             {:.4} differ by ≥1.0 — real-Y run did not converge cleanly.",
+             real_train, real_ef);
+        println!("Exp 2 GATE: PASS — scrambled memorizes without generalizing, \
+             real Y learns and generalizes.");
     }
 
     #[test]
