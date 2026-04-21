@@ -150,6 +150,85 @@ impl EvalHarness {
         }
     }
 
+    /// Build a multi-Y harness: concatenates `n_maps` independent Y-maps
+    /// under distinguishing prefix marker tokens (0xA0, 0xA1, ...). Train
+    /// sequences are split evenly across the maps, each prefixed with the
+    /// marker at sequence position 0 (prepended before the prefix tokens).
+    /// Eval sequences follow the same layout with held-out prefix pools.
+    /// Used by Exp 6 (multi-Y capacity probe).
+    ///
+    /// Tests whether attention learns multiple disjoint mappings in parallel.
+    /// If the model has enough capacity, each Y_i's per-group eval should
+    /// descend to roughly the single-Y baseline. If capacity is saturated,
+    /// per-group descent will be partial.
+    pub fn synthetic_multi_y(
+        seed: u64, n_train_per_map: usize, n_eval_per_map: usize,
+        vocab: usize, n_maps: usize,
+    ) -> (Self, Vec<u8> /* train_group_ids */, Vec<u8> /* eval_group_ids */) {
+        assert!(n_maps >= 1 && n_maps <= 8, "n_maps must be in 1..=8");
+        assert!(vocab >= SUFFIX_POOL.end as usize);
+        let mut all_train: Vec<Vec<u32>> = Vec::new();
+        let mut all_eval: Vec<Vec<u32>> = Vec::new();
+        let mut train_groups: Vec<u8> = Vec::new();
+        let mut eval_groups: Vec<u8> = Vec::new();
+        for g in 0..n_maps {
+            // Distinct Y-map per group via seed derivation.
+            let y_map = build_y_map(seed.wrapping_add(0x100 * g as u64));
+            let group_marker: u32 = 0xA0 + g as u32;
+            let train = gen_sequences(
+                seed.wrapping_add(1 + g as u64), n_train_per_map, TRAIN_PREFIX_POOL, &y_map,
+            );
+            let eval = gen_sequences(
+                seed.wrapping_add(2 + g as u64), n_eval_per_map, EVAL_PREFIX_POOL, &y_map,
+            );
+            for mut s in train {
+                // Prepend group marker as position 0.
+                s.insert(0, group_marker);
+                all_train.push(s);
+                train_groups.push(g as u8);
+            }
+            for mut s in eval {
+                s.insert(0, group_marker);
+                all_eval.push(s);
+                eval_groups.push(g as u8);
+            }
+        }
+        // Answer start bumps by +1 because of the prepended marker.
+        let harness = Self {
+            train: all_train,
+            eval: all_eval,
+            answer_start: DEFAULT_PREFIX_LEN + 1,
+            vocab_size: vocab,
+        };
+        (harness, train_groups, eval_groups)
+    }
+
+    /// Per-group eval loss breakdown. Returns `Vec<(group_id, EvalStats)>`
+    /// keyed by group_id from `eval_group_ids` (parallel to `self.eval`).
+    pub fn compute_eval_loss_per_group(
+        &self,
+        cpu: &CpuWeightsGemma4,
+        gpu: Option<&Gemma4GpuWeights>,
+        lora: Option<&Gemma4LoraAdapters>,
+        eval_group_ids: &[u8],
+    ) -> Result<Vec<(u8, EvalStats)>, String> {
+        assert_eq!(eval_group_ids.len(), self.eval.len());
+        let mut by_group: std::collections::BTreeMap<u8, Vec<f32>> =
+            std::collections::BTreeMap::new();
+        for (i, tokens) in self.eval.iter().enumerate() {
+            let loss = self.forward_loss(cpu, gpu, lora, tokens)
+                .map_err(|e| format!("eval seq {}: {}", i, e))?;
+            by_group.entry(eval_group_ids[i]).or_default().push(loss);
+        }
+        let mut out = Vec::with_capacity(by_group.len());
+        for (g, per_seq) in by_group {
+            let mean = per_seq.iter().sum::<f32>() / per_seq.len() as f32;
+            let ci95 = bootstrap_ci_95(&per_seq, 1000, 0xEDA2_u64);
+            out.push((g, EvalStats { mean, per_seq, ci95 }));
+        }
+        Ok(out)
+    }
+
     /// Legacy full-scrambled generator (both train and eval have random
     /// suffixes from SUFFIX_POOL). Kept as `#[deprecated]` because the
     /// SUFFIX_POOL bias leaks structure across splits and produces false
@@ -530,6 +609,171 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // ~15 min — 2-Y capacity + optional 3-Y stress
+    fn test_learning_exp6_multi_y_capacity() {
+        // Exp 6: does attention learn TWO disjoint Y maps simultaneously?
+        // Training drawn from 64 sequences (32 per Y), eval per-Y-group
+        // reported. Pass: each group's eval ratio ≤ 0.85 (slightly
+        // looser than single-Y's 0.90 because capacity is split).
+        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let lr = 3e-3f32; // adjust to optimal from Phase 2 if different
+        let n_per_map = 32usize;
+
+        // --- 2-Y run ---
+        let (harness2, _tg2, eg2) = EvalHarness::synthetic_multi_y(
+            0xE7A6, n_per_map, 16, cpu.hparams.vocab_size, 2);
+        let mut lora2 = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+        let t0 = std::time::Instant::now();
+        // Baseline per-group eval (before training).
+        let base2 = harness2.compute_eval_loss_per_group(
+            &cpu, Some(&gpu), Some(&lora2), &eg2).expect("base2");
+        println!("Exp 6 (2-Y): baseline per-group eval:");
+        for (g, s) in &base2 {
+            println!("  group {}: eval={:.4} n={}", g, s.mean, s.per_seq.len());
+        }
+        // Train 100 steps (interleaved cycles through train, which is
+        // already interleaved by construction — half-half).
+        for step in 1..=100usize {
+            let ex = &harness2.train[(step - 1) % harness2.train.len()];
+            let a_start = harness2.answer_start.min(ex.len() / 2);
+            let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
+                &cpu, &gpu, &mut lora2, ex, a_start, lr, step as u32,
+            ).expect("train 2-Y");
+        }
+        let fin2 = harness2.compute_eval_loss_per_group(
+            &cpu, Some(&gpu), Some(&lora2), &eg2).expect("fin2");
+        println!("Exp 6 (2-Y): final per-group eval (after 100 steps, {:.1}s):",
+            t0.elapsed().as_secs_f64());
+        let mut ratios = Vec::new();
+        for ((g, b), (_g2, f)) in base2.iter().zip(fin2.iter()) {
+            let r = f.mean / b.mean;
+            println!("  group {}: base={:.4} -> final={:.4}  ratio={:.4}",
+                g, b.mean, f.mean, r);
+            ratios.push(r);
+        }
+
+        // Gate: every group must descend to ratio ≤ 0.85.
+        for (i, r) in ratios.iter().enumerate() {
+            assert!(*r <= 0.85,
+                "Exp 6 (2-Y) FAIL: group {} ratio {:.4} > 0.85 — \
+                 capacity split hurts generalization beyond tolerance", i, r);
+        }
+        println!("Exp 6 (2-Y) GATE: PASS");
+
+        // --- 3-Y stress (informational, no hard gate) ---
+        let (harness3, _tg3, eg3) = EvalHarness::synthetic_multi_y(
+            0xE7A7, n_per_map, 12, cpu.hparams.vocab_size, 3);
+        let mut lora3 = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+        let base3 = harness3.compute_eval_loss_per_group(
+            &cpu, Some(&gpu), Some(&lora3), &eg3).expect("base3");
+        for step in 1..=100usize {
+            let ex = &harness3.train[(step - 1) % harness3.train.len()];
+            let a_start = harness3.answer_start.min(ex.len() / 2);
+            let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
+                &cpu, &gpu, &mut lora3, ex, a_start, lr, step as u32,
+            ).expect("train 3-Y");
+        }
+        let fin3 = harness3.compute_eval_loss_per_group(
+            &cpu, Some(&gpu), Some(&lora3), &eg3).expect("fin3");
+        println!("Exp 6 (3-Y, informational):");
+        for ((g, b), (_, f)) in base3.iter().zip(fin3.iter()) {
+            println!("  group {}: base={:.4} -> final={:.4}  ratio={:.4}",
+                g, b.mean, f.mean, f.mean / b.mean);
+        }
+    }
+
+    #[test]
+    #[ignore] // ~5 min — Exp 1 at plateau (not fixed 20 steps)
+    fn test_learning_exp1_extended() {
+        // Exp 1 at plateau instead of fixed 20-step budget. Validates that
+        // the 42% descent ratio observed at 20 steps (ratio 0.58) holds when
+        // we let the model converge. Also records steps_used for velocity
+        // reporting.
+        use crate::eval_stats::bootstrap_ratio_ci_95;
+        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let harness = EvalHarness::synthetic(0xE7A1, 32, 32, cpu.hparams.vocab_size);
+        let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+
+        let (traj, steps_used) = harness.run_until_plateau(
+            &cpu, Some(&gpu), &mut lora, 3e-3, 100, 10, 0.1,
+        ).expect("plateau run");
+        let init = traj.initial_eval();
+        let fin = traj.final_eval();
+        let ratio = fin.mean / init.mean;
+        let (ci_lo, ci_hi) = bootstrap_ratio_ci_95(
+            &init.per_seq, &fin.per_seq, 2000, 0xBAA5);
+
+        println!("Exp 1 extended (plateau): steps_used={}/100", steps_used);
+        for (step, stats) in &traj.checkpoints {
+            println!("  t={:3}  eval={:.4}  CI95=({:.4},{:.4})",
+                step, stats.mean, stats.ci95.0, stats.ci95.1);
+        }
+        println!("  final/initial ratio = {:.4}  CI95=({:.4},{:.4})",
+            ratio, ci_lo, ci_hi);
+
+        assert!(ci_hi < 1.0,
+            "Exp 1 extended FAIL: CI upper {:.4} ≥ 1.0", ci_hi);
+        assert!(ratio <= 0.90,
+            "Exp 1 extended FAIL: ratio {:.4} > 0.90", ratio);
+    }
+
+    #[test]
+    #[ignore] // ~20 min — 4 lrs at plateau
+    fn test_learning_exp1_lr_sweep() {
+        // Sweep lr ∈ {1e-3, 3e-3, 1e-2, 3e-2} at plateau detection.
+        // Records (lr, steps_used, eval_final_ratio, ci_lo, ci_hi) per lr.
+        use crate::eval_stats::bootstrap_ratio_ci_95;
+        let Some((cpu, gpu)) = setup_gpu() else { return };
+
+        let lrs: &[f32] = &[1e-3, 3e-3, 1e-2, 3e-2];
+        let mut results = Vec::new();
+
+        for &lr in lrs {
+            let harness = EvalHarness::synthetic(0xE7A1, 32, 32, cpu.hparams.vocab_size);
+            let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
+            let t0 = std::time::Instant::now();
+            let run = harness.run_until_plateau(
+                &cpu, Some(&gpu), &mut lora, lr, 100, 10, 0.1,
+            );
+            match run {
+                Ok((traj, steps_used)) => {
+                    let init = traj.initial_eval();
+                    let fin = traj.final_eval();
+                    let ratio = fin.mean / init.mean;
+                    let (ci_lo, ci_hi) = bootstrap_ratio_ci_95(
+                        &init.per_seq, &fin.per_seq, 2000, 0xBAA5);
+                    println!(
+                        "  lr={:.0e}  steps_used={}/100  eval_final={:.4}  \
+                         ratio={:.4}  CI95=({:.4},{:.4})  ({:.1}s)",
+                        lr, steps_used, fin.mean, ratio, ci_lo, ci_hi,
+                        t0.elapsed().as_secs_f64(),
+                    );
+                    results.push((lr, steps_used, ratio, ci_lo, ci_hi));
+                }
+                Err(e) => {
+                    println!("  lr={:.0e}  ERROR: {}", lr, e);
+                    results.push((lr, 0, f32::NAN, f32::NAN, f32::NAN));
+                }
+            }
+        }
+
+        // Final table (for the notes file).
+        println!("\nExp 1 lr-sweep summary:");
+        println!("  lr      | steps | ratio  | CI95");
+        for (lr, s, r, lo, hi) in &results {
+            println!("  {:.0e} | {:5}|  {:.4} | ({:.4}, {:.4})", lr, s, r, lo, hi);
+        }
+        // Soft gate — at least 2 of 4 lrs should pass the original Exp 1
+        // threshold (ratio ≤ 0.90, CI upper < 1.0).
+        let passes = results.iter()
+            .filter(|(_, _, r, _, hi)| *r <= 0.90 && *hi < 1.0)
+            .count();
+        assert!(passes >= 2,
+            "Exp 1 lr sweep FAIL: only {}/4 lrs passed the ratio ≤ 0.90 gate",
+            passes);
+    }
+
+    #[test]
     #[ignore] // ~4 min — four runs at |T| ∈ {1, 8, 64, 256}
     fn test_learning_exp4_dataset_size_scaling() {
         // Exp 4: eval loss after training should decrease monotonically
@@ -825,6 +1069,35 @@ mod tests {
                     "suffix token {} outside SUFFIX_POOL", t);
             }
         }
+    }
+
+    #[test]
+    fn test_synthetic_multi_y_shape_and_disjoint() {
+        let (h, tg, eg) = EvalHarness::synthetic_multi_y(11, 8, 8, 262_144, 2);
+        assert_eq!(h.train.len(), 16);
+        assert_eq!(h.eval.len(), 16);
+        assert_eq!(tg.len(), 16);
+        assert_eq!(eg.len(), 16);
+        // Each group gets 8 train + 8 eval.
+        let g0_train = tg.iter().filter(|&&g| g == 0).count();
+        let g1_train = tg.iter().filter(|&&g| g == 1).count();
+        assert_eq!(g0_train, 8);
+        assert_eq!(g1_train, 8);
+        // Distinct group markers at position 0.
+        for (i, seq) in h.train.iter().enumerate() {
+            assert_eq!(seq[0], 0xA0 + tg[i] as u32);
+        }
+        // Prefix pools are disjoint (train from TRAIN_PREFIX_POOL, eval
+        // from EVAL_PREFIX_POOL) — inherited from synthetic single-Y.
+        let train_prefixes: std::collections::HashSet<u32> = h.train.iter()
+            .flat_map(|s| s[1..=DEFAULT_PREFIX_LEN].iter().copied())
+            .collect();
+        let eval_prefixes: std::collections::HashSet<u32> = h.eval.iter()
+            .flat_map(|s| s[1..=DEFAULT_PREFIX_LEN].iter().copied())
+            .collect();
+        let overlap: Vec<_> = train_prefixes.intersection(&eval_prefixes).collect();
+        assert!(overlap.is_empty(),
+            "train/eval prefixes must be disjoint: {:?}", overlap);
     }
 
     #[test]
