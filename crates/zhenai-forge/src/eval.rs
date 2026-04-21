@@ -12,6 +12,7 @@
 //! synthetic task is a *prefix-to-suffix injective mapping* `Y` that the
 //! model must learn in order to generalize to held-out prefixes.
 
+use crate::backend::{CpuBackend, ForgeBackend, HybridMatmulBackend};
 use crate::eval_stats::{bootstrap_ci_95, Lcg};
 use crate::forward;
 use crate::gemma4::{CpuWeightsGemma4, Gemma4LoraAdapters};
@@ -20,6 +21,10 @@ use crate::gemma4_gpu::Gemma4GpuWeights;
 /// Compute mean CE loss over an arbitrary slice of sequences — shares the
 /// `EvalHarness::forward_loss` path but works on any corpus (used by Exp 5
 /// to measure train-set loss at the same checkpoints as eval-set loss).
+///
+/// Thin shim: dispatches to `compute_mean_loss_over_with_backend` using
+/// `CpuBackend` when `gpu` is None and `HybridMatmulBackend::default()`
+/// when `gpu` is Some.
 pub fn compute_mean_loss_over(
     harness: &EvalHarness,
     cpu: &CpuWeightsGemma4,
@@ -27,10 +32,29 @@ pub fn compute_mean_loss_over(
     lora: Option<&Gemma4LoraAdapters>,
     sequences: &[Vec<u32>],
 ) -> Result<f32, String> {
+    match gpu {
+        Some(g) => compute_mean_loss_over_with_backend(
+            &HybridMatmulBackend::default(), harness, cpu, g, lora, sequences),
+        None => compute_mean_loss_over_with_backend(
+            &CpuBackend, harness, cpu, &(), lora, sequences),
+    }
+}
+
+/// Backend-parameterized form of `compute_mean_loss_over`. Use this in new
+/// code; the `Option<&Gemma4GpuWeights>` form above stays as a shim for
+/// the Learning Gate tests.
+pub fn compute_mean_loss_over_with_backend<B: ForgeBackend>(
+    backend: &B,
+    harness: &EvalHarness,
+    cpu: &CpuWeightsGemma4,
+    handle: &B::Handle,
+    lora: Option<&Gemma4LoraAdapters>,
+    sequences: &[Vec<u32>],
+) -> Result<f32, String> {
     let mut sum = 0.0f32;
     let mut n = 0usize;
     for tokens in sequences {
-        sum += harness.forward_loss(cpu, gpu, lora, tokens)?;
+        sum += harness.forward_loss_with_backend(backend, cpu, handle, lora, tokens)?;
         n += 1;
     }
     assert!(n > 0);
@@ -315,18 +339,35 @@ impl EvalHarness {
 
     /// Compute mean cross-entropy loss over `self.eval`. Uses the GPU
     /// forward path if `gpu` is Some, CPU otherwise. Pass `lora = None` for
-    /// a pure base-model baseline. Returns per-sequence losses, mean, and
-    /// bootstrap 95% CI on the mean.
+    /// a pure base-model baseline.
+    ///
+    /// Thin shim; delegates to `compute_eval_loss_with_backend`.
     pub fn compute_eval_loss(
         &self,
         cpu: &CpuWeightsGemma4,
         gpu: Option<&Gemma4GpuWeights>,
         lora: Option<&Gemma4LoraAdapters>,
     ) -> Result<EvalStats, String> {
+        match gpu {
+            Some(g) => self.compute_eval_loss_with_backend(
+                &HybridMatmulBackend::default(), cpu, g, lora),
+            None => self.compute_eval_loss_with_backend(
+                &CpuBackend, cpu, &(), lora),
+        }
+    }
+
+    /// Backend-parameterized form of `compute_eval_loss`.
+    pub fn compute_eval_loss_with_backend<B: ForgeBackend>(
+        &self,
+        backend: &B,
+        cpu: &CpuWeightsGemma4,
+        handle: &B::Handle,
+        lora: Option<&Gemma4LoraAdapters>,
+    ) -> Result<EvalStats, String> {
         let mut per_seq = Vec::with_capacity(self.eval.len());
         for (i, tokens) in self.eval.iter().enumerate() {
-            let loss = self.forward_loss(cpu, gpu, lora, tokens).map_err(|e|
-                format!("eval seq {}: {}", i, e))?;
+            let loss = self.forward_loss_with_backend(backend, cpu, handle, lora, tokens)
+                .map_err(|e| format!("eval seq {}: {}", i, e))?;
             per_seq.push(loss);
         }
         let mean = per_seq.iter().sum::<f32>() / per_seq.len() as f32;
@@ -336,18 +377,32 @@ impl EvalHarness {
 
     /// Full training + periodic-evaluation protocol.
     ///
-    /// - Runs `n_steps` training steps via `train_step_gemma4_gpu` when
-    ///   `gpu` is Some, `train_step_gemma4` otherwise.
-    /// - Each step draws one sequence from `self.train` cycling by index.
-    /// - Before step 1 and after every `eval_every` steps, runs
-    ///   `compute_eval_loss` on the entire held-out set and records the
-    ///   checkpoint. Always records a final checkpoint at step `n_steps`.
-    ///
-    /// Returns the trajectory for the Learning Gate tests to analyze.
+    /// Thin shim; delegates to `run_with_backend`.
     pub fn run(
         &self,
         cpu: &CpuWeightsGemma4,
         gpu: Option<&Gemma4GpuWeights>,
+        lora: &mut Gemma4LoraAdapters,
+        n_steps: usize,
+        eval_every: usize,
+        lr: f32,
+    ) -> Result<LearningTrajectory, String> {
+        match gpu {
+            Some(g) => self.run_with_backend(
+                &HybridMatmulBackend::default(), cpu, g, lora, n_steps, eval_every, lr),
+            None => self.run_with_backend(
+                &CpuBackend, cpu, &(), lora, n_steps, eval_every, lr),
+        }
+    }
+
+    /// Backend-parameterized form of `run`. New code should prefer this
+    /// form — it's what enables CPU-vs-GPU correctness diffs, kernel
+    /// backend swapping, and future `LlamaCppBackend`-style adapters.
+    pub fn run_with_backend<B: ForgeBackend>(
+        &self,
+        backend: &B,
+        cpu: &CpuWeightsGemma4,
+        handle: &B::Handle,
         lora: &mut Gemma4LoraAdapters,
         n_steps: usize,
         eval_every: usize,
@@ -362,21 +417,16 @@ impl EvalHarness {
         };
 
         // t=0 eval — baseline before any gradient step.
-        let eval0 = self.compute_eval_loss(cpu, gpu, Some(lora))
+        let eval0 = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
             .map_err(|e| format!("initial eval: {}", e))?;
         traj.checkpoints.push((0, eval0));
 
         for step in 1..=n_steps {
             let example = &self.train[(step - 1) % self.train.len()];
             let answer_start = self.answer_start.min(example.len() / 2);
-            let loss = match gpu {
-                Some(g) => crate::gemma4_gpu::train_step_gemma4_gpu(
-                    cpu, g, lora, example, answer_start, lr, step as u32,
-                )?,
-                None => crate::gemma4::train_step_gemma4(
-                    cpu, lora, example, answer_start, lr, step as u32,
-                ),
-            };
+            let loss = backend.train_step(
+                cpu, handle, lora, example, answer_start, lr, step as u32,
+            )?;
             if !loss.is_finite() {
                 return Err(format!("non-finite train loss at step {}: {}", step, loss));
             }
@@ -384,7 +434,7 @@ impl EvalHarness {
 
             let should_eval = step % eval_every == 0 || step == n_steps;
             if should_eval {
-                let stats = self.compute_eval_loss(cpu, gpu, Some(lora))
+                let stats = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
                     .map_err(|e| format!("eval @ step {}: {}", step, e))?;
                 traj.checkpoints.push((step, stats));
             }
@@ -397,10 +447,34 @@ impl EvalHarness {
     /// < `plateau_eps`. Eval is recorded at t=0 and then every
     /// `max(plateau_window/2, 5)` steps, plus a final eval at the stopping
     /// step. Returns `(trajectory, steps_used)`.
+    ///
+    /// Thin shim; delegates to `run_until_plateau_with_backend`.
     pub fn run_until_plateau(
         &self,
         cpu: &CpuWeightsGemma4,
         gpu: Option<&Gemma4GpuWeights>,
+        lora: &mut Gemma4LoraAdapters,
+        lr: f32,
+        max_steps: usize,
+        plateau_window: usize,
+        plateau_eps: f32,
+    ) -> Result<(LearningTrajectory, usize), String> {
+        match gpu {
+            Some(g) => self.run_until_plateau_with_backend(
+                &HybridMatmulBackend::default(), cpu, g, lora,
+                lr, max_steps, plateau_window, plateau_eps),
+            None => self.run_until_plateau_with_backend(
+                &CpuBackend, cpu, &(), lora,
+                lr, max_steps, plateau_window, plateau_eps),
+        }
+    }
+
+    /// Backend-parameterized form of `run_until_plateau`.
+    pub fn run_until_plateau_with_backend<B: ForgeBackend>(
+        &self,
+        backend: &B,
+        cpu: &CpuWeightsGemma4,
+        handle: &B::Handle,
         lora: &mut Gemma4LoraAdapters,
         lr: f32,
         max_steps: usize,
@@ -414,7 +488,7 @@ impl EvalHarness {
             train: Vec::with_capacity(max_steps),
             checkpoints: Vec::new(),
         };
-        let eval0 = self.compute_eval_loss(cpu, gpu, Some(lora))
+        let eval0 = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
             .map_err(|e| format!("initial eval: {}", e))?;
         traj.checkpoints.push((0, eval0));
 
@@ -422,14 +496,9 @@ impl EvalHarness {
         for step in 1..=max_steps {
             let example = &self.train[(step - 1) % self.train.len()];
             let a_start = self.answer_start.min(example.len() / 2);
-            let loss = match gpu {
-                Some(g) => crate::gemma4_gpu::train_step_gemma4_gpu(
-                    cpu, g, lora, example, a_start, lr, step as u32,
-                )?,
-                None => crate::gemma4::train_step_gemma4(
-                    cpu, lora, example, a_start, lr, step as u32,
-                ),
-            };
+            let loss = backend.train_step(
+                cpu, handle, lora, example, a_start, lr, step as u32,
+            )?;
             if !loss.is_finite() {
                 return Err(format!("non-finite train loss at step {}: {}", step, loss));
             }
@@ -437,13 +506,12 @@ impl EvalHarness {
 
             // Periodic eval checkpoint.
             if step % eval_every == 0 {
-                let stats = self.compute_eval_loss(cpu, gpu, Some(lora))
+                let stats = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
                     .map_err(|e| format!("eval @ step {}: {}", step, e))?;
                 traj.checkpoints.push((step, stats));
             }
 
-            // Plateau detection: once we have at least `plateau_window` losses,
-            // compare peak-to-peak of the last window.
+            // Plateau detection.
             if traj.train.len() >= plateau_window {
                 let tail = &traj.train[traj.train.len() - plateau_window..];
                 let mn = tail.iter().copied().fold(f32::INFINITY, f32::min);
@@ -454,10 +522,9 @@ impl EvalHarness {
                 }
             }
         }
-        // Always record a final eval at stopping step (if not already captured).
         let last_step_logged = traj.checkpoints.last().map(|(s, _)| *s).unwrap_or(0);
         if last_step_logged != stopped_at {
-            let stats = self.compute_eval_loss(cpu, gpu, Some(lora))
+            let stats = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
                 .map_err(|e| format!("final eval: {}", e))?;
             traj.checkpoints.push((stopped_at, stats));
         }
@@ -483,6 +550,7 @@ impl EvalHarness {
     /// signal than CE loss: smoothing the output distribution lowers CE,
     /// but to score on top-1 the model must actually *pick* the right
     /// token — which it can only do if it learned the underlying mapping.
+    /// Thin shim; delegates to `forward_loss_and_top1_with_backend`.
     pub fn forward_loss_and_top1(
         &self,
         cpu: &CpuWeightsGemma4,
@@ -490,10 +558,25 @@ impl EvalHarness {
         lora: Option<&Gemma4LoraAdapters>,
         tokens: &[u32],
     ) -> Result<(f32, f32), String> {
-        let (logits, _caches) = match gpu {
-            Some(g) => crate::gemma4_gpu::forward_gemma4_gpu(cpu, g, lora, tokens)?,
-            None => crate::gemma4::forward_gemma4_with_lora(cpu, lora, tokens),
-        };
+        match gpu {
+            Some(g) => self.forward_loss_and_top1_with_backend(
+                &HybridMatmulBackend::default(), cpu, g, lora, tokens),
+            None => self.forward_loss_and_top1_with_backend(
+                &CpuBackend, cpu, &(), lora, tokens),
+        }
+    }
+
+    /// Backend-parameterized form. Returns (mean CE loss, mean top-1 acc)
+    /// over the answer region of `tokens`.
+    pub fn forward_loss_and_top1_with_backend<B: ForgeBackend>(
+        &self,
+        backend: &B,
+        cpu: &CpuWeightsGemma4,
+        handle: &B::Handle,
+        lora: Option<&Gemma4LoraAdapters>,
+        tokens: &[u32],
+    ) -> Result<(f32, f32), String> {
+        let (logits, _caches) = backend.forward(cpu, handle, lora, tokens)?;
         let vocab = cpu.hparams.vocab_size;
         let seq = tokens.len();
         let loss_start = self.answer_start.max(1);
@@ -507,7 +590,6 @@ impl EvalHarness {
             let row = &logits[pos * vocab..(pos + 1) * vocab];
             let target = tokens[pos + 1];
             total_loss += forward::cross_entropy_loss(row, target);
-            // argmax via single pass — no softmax needed.
             let mut arg = 0usize;
             let mut max_v = f32::NEG_INFINITY;
             for (i, &v) in row.iter().enumerate() {
@@ -520,16 +602,45 @@ impl EvalHarness {
         Ok((total_loss / n as f32, n_correct as f32 / n as f32))
     }
 
-    /// Mean top-1 next-token accuracy over `self.eval`.
+    /// Single-seq forward + CE loss over the answer region, backend-parameterized.
+    pub fn forward_loss_with_backend<B: ForgeBackend>(
+        &self,
+        backend: &B,
+        cpu: &CpuWeightsGemma4,
+        handle: &B::Handle,
+        lora: Option<&Gemma4LoraAdapters>,
+        tokens: &[u32],
+    ) -> Result<f32, String> {
+        self.forward_loss_and_top1_with_backend(backend, cpu, handle, lora, tokens)
+            .map(|(l, _)| l)
+    }
+
+    /// Mean top-1 next-token accuracy over `self.eval`. Thin shim.
     pub fn compute_eval_top1(
         &self,
         cpu: &CpuWeightsGemma4,
         gpu: Option<&Gemma4GpuWeights>,
         lora: Option<&Gemma4LoraAdapters>,
     ) -> Result<f32, String> {
+        match gpu {
+            Some(g) => self.compute_eval_top1_with_backend(
+                &HybridMatmulBackend::default(), cpu, g, lora),
+            None => self.compute_eval_top1_with_backend(&CpuBackend, cpu, &(), lora),
+        }
+    }
+
+    /// Backend-parameterized mean top-1.
+    pub fn compute_eval_top1_with_backend<B: ForgeBackend>(
+        &self,
+        backend: &B,
+        cpu: &CpuWeightsGemma4,
+        handle: &B::Handle,
+        lora: Option<&Gemma4LoraAdapters>,
+    ) -> Result<f32, String> {
         let mut acc_sum = 0.0f32;
         for tokens in self.eval.iter() {
-            let (_, top1) = self.forward_loss_and_top1(cpu, gpu, lora, tokens)?;
+            let (_, top1) = self.forward_loss_and_top1_with_backend(
+                backend, cpu, handle, lora, tokens)?;
             acc_sum += top1;
         }
         Ok(acc_sum / self.eval.len() as f32)
