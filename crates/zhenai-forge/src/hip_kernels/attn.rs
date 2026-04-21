@@ -23,6 +23,26 @@ extern "C" {
         n_heads: i32, n_kv_heads: i32, seq: i32, head_dim: i32,
         stream: *mut std::ffi::c_void,
     ) -> i32;
+    fn wave11_launch_attn_grad_v_f32(
+        grad_v: *mut f32, probs: *const f32, grad_out: *const f32,
+        n_heads: i32, n_kv_heads: i32, seq: i32, head_dim: i32,
+        stream: *mut std::ffi::c_void,
+    ) -> i32;
+    fn wave11_launch_attn_grad_probs_f32(
+        grad_probs: *mut f32, grad_out: *const f32, v: *const f32,
+        n_heads: i32, n_kv_heads: i32, seq: i32, head_dim: i32,
+        stream: *mut std::ffi::c_void,
+    ) -> i32;
+    fn wave11_launch_attn_grad_q_f32(
+        grad_q: *mut f32, grad_scores: *const f32, k: *const f32,
+        n_heads: i32, n_kv_heads: i32, seq: i32, head_dim: i32, scale: f32,
+        stream: *mut std::ffi::c_void,
+    ) -> i32;
+    fn wave11_launch_attn_grad_k_f32(
+        grad_k: *mut f32, grad_scores: *const f32, q: *const f32,
+        n_heads: i32, n_kv_heads: i32, seq: i32, head_dim: i32, scale: f32,
+        stream: *mut std::ffi::c_void,
+    ) -> i32;
 }
 
 /// Compute pre-softmax attention scores with GQA broadcast.
@@ -64,6 +84,80 @@ pub fn attn_output_fwd(
         )
     };
     super::check_hip(err, "attn_output_fwd")
+}
+
+/// grad_V[sk, h_kv, d] = sum_{h in group(h_kv), sq} probs[h][sq][sk] * grad_out[sq][h][d].
+/// GQA collapse is built in — kernel writes grad_v directly in KV-head layout.
+pub fn attn_grad_v(
+    grad_v: &GpuBuffer, probs: &GpuBuffer, grad_out: &GpuBuffer,
+    n_heads: usize, n_kv_heads: usize, seq: usize, head_dim: usize,
+) -> Result<(), String> {
+    let err = unsafe {
+        wave11_launch_attn_grad_v_f32(
+            grad_v.as_ptr() as *mut f32,
+            probs.as_ptr() as *const f32,
+            grad_out.as_ptr() as *const f32,
+            n_heads as i32, n_kv_heads as i32,
+            seq as i32, head_dim as i32,
+            std::ptr::null_mut(),
+        )
+    };
+    super::check_hip(err, "attn_grad_v")
+}
+
+/// grad_probs[h][sq][sk] = sum_d grad_out[sq][h][d] * V[sk, h_kv, d].
+pub fn attn_grad_probs(
+    grad_probs: &GpuBuffer, grad_out: &GpuBuffer, v: &GpuBuffer,
+    n_heads: usize, n_kv_heads: usize, seq: usize, head_dim: usize,
+) -> Result<(), String> {
+    let err = unsafe {
+        wave11_launch_attn_grad_probs_f32(
+            grad_probs.as_ptr() as *mut f32,
+            grad_out.as_ptr() as *const f32,
+            v.as_ptr() as *const f32,
+            n_heads as i32, n_kv_heads as i32,
+            seq as i32, head_dim as i32,
+            std::ptr::null_mut(),
+        )
+    };
+    super::check_hip(err, "attn_grad_probs")
+}
+
+/// grad_Q[sq, h, d] = scale * sum_sk grad_scores[h][sq][sk] * K[sk, h_kv, d].
+pub fn attn_grad_q(
+    grad_q: &GpuBuffer, grad_scores: &GpuBuffer, k: &GpuBuffer,
+    n_heads: usize, n_kv_heads: usize, seq: usize, head_dim: usize, scale: f32,
+) -> Result<(), String> {
+    let err = unsafe {
+        wave11_launch_attn_grad_q_f32(
+            grad_q.as_ptr() as *mut f32,
+            grad_scores.as_ptr() as *const f32,
+            k.as_ptr() as *const f32,
+            n_heads as i32, n_kv_heads as i32,
+            seq as i32, head_dim as i32, scale,
+            std::ptr::null_mut(),
+        )
+    };
+    super::check_hip(err, "attn_grad_q")
+}
+
+/// grad_K[sk, h_kv, d] = scale * sum_{h in group, sq} grad_scores[h][sq][sk] * Q[sq, h, d].
+/// GQA collapse built in.
+pub fn attn_grad_k(
+    grad_k: &GpuBuffer, grad_scores: &GpuBuffer, q: &GpuBuffer,
+    n_heads: usize, n_kv_heads: usize, seq: usize, head_dim: usize, scale: f32,
+) -> Result<(), String> {
+    let err = unsafe {
+        wave11_launch_attn_grad_k_f32(
+            grad_k.as_ptr() as *mut f32,
+            grad_scores.as_ptr() as *const f32,
+            q.as_ptr() as *const f32,
+            n_heads as i32, n_kv_heads as i32,
+            seq as i32, head_dim as i32, scale,
+            std::ptr::null_mut(),
+        )
+    };
+    super::check_hip(err, "attn_grad_k")
 }
 
 #[cfg(test)]
@@ -196,6 +290,196 @@ mod tests {
         let max_abs = cpu_out.iter().zip(&gpu_out).map(|(a, b)| (a - b).abs())
             .fold(0.0f32, f32::max);
         println!("attn_output_fwd cosine={:.6} max_abs_err={:.4e}", c, max_abs);
+        assert!(c >= 0.9999);
+    }
+
+    // CPU references for the four backward stages, matching
+    // kernels/attn.hip.cpp documentation.
+    fn cpu_grad_v(probs: &[f32], grad_out: &[f32],
+                  n_heads: usize, n_kv_heads: usize, seq: usize, head_dim: usize) -> Vec<f32> {
+        let group_size = n_heads / n_kv_heads;
+        let mut out = vec![0.0f32; seq * n_kv_heads * head_dim];
+        for sk in 0..seq {
+            for h_kv in 0..n_kv_heads {
+                for d in 0..head_dim {
+                    let mut sum = 0.0f32;
+                    for gh in 0..group_size {
+                        let h = h_kv * group_size + gh;
+                        for sq in 0..seq {
+                            let p = probs[(h * seq + sq) * seq + sk];
+                            let go = grad_out[(sq * n_heads + h) * head_dim + d];
+                            sum += p * go;
+                        }
+                    }
+                    out[(sk * n_kv_heads + h_kv) * head_dim + d] = sum;
+                }
+            }
+        }
+        out
+    }
+    fn cpu_grad_probs(grad_out: &[f32], v: &[f32],
+                      n_heads: usize, n_kv_heads: usize, seq: usize, head_dim: usize) -> Vec<f32> {
+        let group_size = n_heads / n_kv_heads;
+        let mut out = vec![0.0f32; n_heads * seq * seq];
+        for h in 0..n_heads {
+            let h_kv = h / group_size;
+            for sq in 0..seq {
+                for sk in 0..seq {
+                    let mut sum = 0.0f32;
+                    for d in 0..head_dim {
+                        let go = grad_out[(sq * n_heads + h) * head_dim + d];
+                        let vv = v[(sk * n_kv_heads + h_kv) * head_dim + d];
+                        sum += go * vv;
+                    }
+                    out[(h * seq + sq) * seq + sk] = sum;
+                }
+            }
+        }
+        out
+    }
+    fn cpu_grad_q(grad_scores: &[f32], k: &[f32],
+                  n_heads: usize, n_kv_heads: usize, seq: usize, head_dim: usize, scale: f32) -> Vec<f32> {
+        let group_size = n_heads / n_kv_heads;
+        let mut out = vec![0.0f32; seq * n_heads * head_dim];
+        for sq in 0..seq {
+            for h in 0..n_heads {
+                let h_kv = h / group_size;
+                for d in 0..head_dim {
+                    let mut sum = 0.0f32;
+                    for sk in 0..seq {
+                        let gs = grad_scores[(h * seq + sq) * seq + sk];
+                        let kv = k[(sk * n_kv_heads + h_kv) * head_dim + d];
+                        sum += gs * kv;
+                    }
+                    out[(sq * n_heads + h) * head_dim + d] = sum * scale;
+                }
+            }
+        }
+        out
+    }
+    fn cpu_grad_k(grad_scores: &[f32], q: &[f32],
+                  n_heads: usize, n_kv_heads: usize, seq: usize, head_dim: usize, scale: f32) -> Vec<f32> {
+        let group_size = n_heads / n_kv_heads;
+        let mut out = vec![0.0f32; seq * n_kv_heads * head_dim];
+        for sk in 0..seq {
+            for h_kv in 0..n_kv_heads {
+                for d in 0..head_dim {
+                    let mut sum = 0.0f32;
+                    for gh in 0..group_size {
+                        let h = h_kv * group_size + gh;
+                        for sq in 0..seq {
+                            let gs = grad_scores[(h * seq + sq) * seq + sk];
+                            let qv = q[(sq * n_heads + h) * head_dim + d];
+                            sum += gs * qv;
+                        }
+                    }
+                    out[(sk * n_kv_heads + h_kv) * head_dim + d] = sum * scale;
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn test_attn_grad_v_matches_cpu() {
+        let seq = 8usize; let n_heads = 8usize; let n_kv_heads = 2usize; let head_dim = 256usize;
+        let probs = {
+            let mut v = det_vec(n_heads * seq * seq, 0xC71);
+            for p in v.iter_mut() { *p = p.abs() + 0.01; }
+            for h in 0..n_heads { for sq in 0..seq {
+                let start = (h * seq + sq) * seq;
+                let s: f32 = v[start..start + seq].iter().sum();
+                for p in v[start..start + seq].iter_mut() { *p /= s; }
+            } }
+            v
+        };
+        let grad_out = det_vec(seq * n_heads * head_dim, 0xC72);
+        let cpu = cpu_grad_v(&probs, &grad_out, n_heads, n_kv_heads, seq, head_dim);
+
+        let p_buf  = GpuBuffer::alloc(probs.len() * 4).unwrap();
+        let go_buf = GpuBuffer::alloc(grad_out.len() * 4).unwrap();
+        let gv_buf = GpuBuffer::alloc(cpu.len() * 4).unwrap();
+        let pb  = unsafe { std::slice::from_raw_parts(probs.as_ptr() as *const u8, probs.len()*4) };
+        let gob = unsafe { std::slice::from_raw_parts(grad_out.as_ptr() as *const u8, grad_out.len()*4) };
+        p_buf.copy_from_host(pb).unwrap();
+        go_buf.copy_from_host(gob).unwrap();
+        attn_grad_v(&gv_buf, &p_buf, &go_buf, n_heads, n_kv_heads, seq, head_dim).unwrap();
+        let mut gpu = vec![0.0f32; cpu.len()];
+        gv_buf.download_f32(&mut gpu).unwrap();
+
+        let c = cosine(&cpu, &gpu);
+        println!("attn_grad_v cosine={:.6}", c);
+        assert!(c >= 0.9999);
+    }
+
+    #[test]
+    fn test_attn_grad_probs_matches_cpu() {
+        let seq = 8usize; let n_heads = 8usize; let n_kv_heads = 2usize; let head_dim = 256usize;
+        let grad_out = det_vec(seq * n_heads * head_dim, 0xC81);
+        let v = det_vec(seq * n_kv_heads * head_dim, 0xC82);
+        let cpu = cpu_grad_probs(&grad_out, &v, n_heads, n_kv_heads, seq, head_dim);
+
+        let go_buf = GpuBuffer::alloc(grad_out.len() * 4).unwrap();
+        let v_buf  = GpuBuffer::alloc(v.len() * 4).unwrap();
+        let gp_buf = GpuBuffer::alloc(cpu.len() * 4).unwrap();
+        let gob = unsafe { std::slice::from_raw_parts(grad_out.as_ptr() as *const u8, grad_out.len()*4) };
+        let vb  = unsafe { std::slice::from_raw_parts(v.as_ptr() as *const u8, v.len()*4) };
+        go_buf.copy_from_host(gob).unwrap();
+        v_buf.copy_from_host(vb).unwrap();
+        attn_grad_probs(&gp_buf, &go_buf, &v_buf, n_heads, n_kv_heads, seq, head_dim).unwrap();
+        let mut gpu = vec![0.0f32; cpu.len()];
+        gp_buf.download_f32(&mut gpu).unwrap();
+
+        let c = cosine(&cpu, &gpu);
+        println!("attn_grad_probs cosine={:.6}", c);
+        assert!(c >= 0.9999);
+    }
+
+    #[test]
+    fn test_attn_grad_q_matches_cpu() {
+        let seq = 8usize; let n_heads = 8usize; let n_kv_heads = 2usize; let head_dim = 256usize;
+        let scale = 1.0 / (head_dim as f32).sqrt();
+        let grad_scores = det_vec(n_heads * seq * seq, 0xC91);
+        let k = det_vec(seq * n_kv_heads * head_dim, 0xC92);
+        let cpu = cpu_grad_q(&grad_scores, &k, n_heads, n_kv_heads, seq, head_dim, scale);
+
+        let gs_buf = GpuBuffer::alloc(grad_scores.len() * 4).unwrap();
+        let k_buf  = GpuBuffer::alloc(k.len() * 4).unwrap();
+        let gq_buf = GpuBuffer::alloc(cpu.len() * 4).unwrap();
+        let gsb = unsafe { std::slice::from_raw_parts(grad_scores.as_ptr() as *const u8, grad_scores.len()*4) };
+        let kb  = unsafe { std::slice::from_raw_parts(k.as_ptr() as *const u8, k.len()*4) };
+        gs_buf.copy_from_host(gsb).unwrap();
+        k_buf.copy_from_host(kb).unwrap();
+        attn_grad_q(&gq_buf, &gs_buf, &k_buf, n_heads, n_kv_heads, seq, head_dim, scale).unwrap();
+        let mut gpu = vec![0.0f32; cpu.len()];
+        gq_buf.download_f32(&mut gpu).unwrap();
+
+        let c = cosine(&cpu, &gpu);
+        println!("attn_grad_q cosine={:.6}", c);
+        assert!(c >= 0.9999);
+    }
+
+    #[test]
+    fn test_attn_grad_k_matches_cpu() {
+        let seq = 8usize; let n_heads = 8usize; let n_kv_heads = 2usize; let head_dim = 256usize;
+        let scale = 1.0 / (head_dim as f32).sqrt();
+        let grad_scores = det_vec(n_heads * seq * seq, 0xCA1);
+        let q = det_vec(seq * n_heads * head_dim, 0xCA2);
+        let cpu = cpu_grad_k(&grad_scores, &q, n_heads, n_kv_heads, seq, head_dim, scale);
+
+        let gs_buf = GpuBuffer::alloc(grad_scores.len() * 4).unwrap();
+        let q_buf  = GpuBuffer::alloc(q.len() * 4).unwrap();
+        let gk_buf = GpuBuffer::alloc(cpu.len() * 4).unwrap();
+        let gsb = unsafe { std::slice::from_raw_parts(grad_scores.as_ptr() as *const u8, grad_scores.len()*4) };
+        let qb  = unsafe { std::slice::from_raw_parts(q.as_ptr() as *const u8, q.len()*4) };
+        gs_buf.copy_from_host(gsb).unwrap();
+        q_buf.copy_from_host(qb).unwrap();
+        attn_grad_k(&gk_buf, &gs_buf, &q_buf, n_heads, n_kv_heads, seq, head_dim, scale).unwrap();
+        let mut gpu = vec![0.0f32; cpu.len()];
+        gk_buf.download_f32(&mut gpu).unwrap();
+
+        let c = cosine(&cpu, &gpu);
+        println!("attn_grad_k cosine={:.6}", c);
         assert!(c >= 0.9999);
     }
 
