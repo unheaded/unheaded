@@ -131,9 +131,65 @@ logged as a follow-up.
   avoids PEP 668 pip restriction
 - Notes: `notes/wave10f-tokenizer-slice.md`
 
-## Phase 5 — Kingdom QA RAFT Kickoff (TBD)
+## Phase 5 — Kingdom QA RAFT Kickoff (ABORTED — CPU-bound attention at seq=384)
 
-_[results pending]_
+**RAFT smoke on real Kingdom text ran for 64 min without emitting any
+training-loss output. Killed to free GPU for Phase 6.**
+
+### Diagnosis
+
+During the stall, `rocm-smi` reported **GPU% = 0**, while the
+`zhenai_forge` process held 90.9% on a single CPU core. The forge
+"GPU" forward path offloads only matmuls to hipBLAS; attention
+softmax, RoPE, RMSNorm, GELU, and Adam all run single-threaded on
+the CPU. At seq=384 (vs synthetic's seq=12), attention alone is:
+
+    n_layers × n_heads × seq² × head_dim
+  = 35 × 8 × 384² × 256
+  ≈ 10.5 G ops per forward pass
+
+Single-threaded CPU (≈1-3 GFLOP sustained Rust, no SIMD) gives ~5-10s
+per forward × 16 baseline-eval sequences ≈ 80-160s just for baseline
+eval. Training-step forward+backward is ~2× that. 20 training steps +
+3 evals predicted ~20-40 min. Observed: >60 min with zero output
+visible, suggesting additional pathological overhead (possibly
+hipBLAS kernel-compilation cost on first sgemm at seq=384, or
+VRAM/RAM thrashing — 9 GB zhenai_forge RSS + 4.57 GB GPU weights is
+tight against west's 12.87 GB VRAM + 14 GB RAM).
+
+### Why this surprised us
+
+The 24h battle plan assumed real-text sequences at the same ~2 s/step
+as synthetic-Y (seq=12). That assumption was wrong:
+
+- **Attention scales as O(seq²)** on CPU, so seq=384 is 1024× worse
+  than seq=12 for the attention block specifically.
+- **Non-matmul CPU work wasn't tracked** in the Phase 7 Step C timing
+  notes — those measured matmul speedup, not end-to-end long-seq
+  latency.
+- **Exp 6 multi-Y already hinted at the issue:** each step took ~44 s
+  instead of ~2 s, a 22× overshoot; real-text seq=384 is the same
+  problem at greater magnitude.
+
+### Resolution
+
+Phase 5 DEFERRED. This is not forge's "learning works" question — that
+was answered by Exp 1/3/4/5/6. This is a "forge's forward-path
+throughput" question:
+
+- **Fix requires:** moving attention/softmax/RoPE onto the GPU (WAVE11?
+  HIP kernels or Aya/Triton), OR using a much shorter sequence length
+  (truncate Kingdom prompts more aggressively), OR a different training
+  regime (batched single-token positions rather than full-prompt CE).
+- **Honest 24h outcome:** the Python-side tokenizer slice landed
+  (Phase 4), the tokenized Kingdom corpus is persisted at
+  `/tmp/24h-kingdom-{train,eval}.jsonl`, but the CLI path to feed it
+  through forge is only viable for sequences ≤64 tokens or so
+  without further kernel work.
+
+Per Appendix B reallocation, the 8 h Phase 5 budget that won't be
+used is being redirected to Phase 6 regression (deeper sweep) and
+Phase 7 (more thorough docs).
 
 ## Phase 6 — Regression + Timing Audit (TBD)
 
