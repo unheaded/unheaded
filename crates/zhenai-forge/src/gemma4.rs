@@ -1685,22 +1685,34 @@ pub fn backward_gemma4_with_lora(
             matmul_grad_x(&grad_o_out, &wo_f32, seq, n_embd, q_out_dim)
         };
 
-        // Backward through attention: need the pre-GQA K/V shapes. We stored
-        // (q_rot, k_rot, v) in the cache. The attention_forward expanded K/V
-        // internally via mask-based gather; backward::attention_backward expects
-        // EXPANDED K/V per query head. Expand here, then collapse grads at the end.
-        let k_rot_expanded = backward::gqa_expand(&cache.k_rot, n_head, n_head_kv, head_dim, seq);
-        let v_expanded = backward::gqa_expand(&cache.v, n_head, n_head_kv, head_dim, seq);
-        let (grad_q_rot, grad_k_rot_expanded, grad_v_expanded) = backward::attention_backward(
-            &grad_attn_out,
-            &cache.q_rot,
-            &k_rot_expanded,
-            &v_expanded,
-            &cache.attn_cache,
-            n_head, head_dim, seq,
-        );
-        let mut grad_k_rot = backward::gqa_collapse(&grad_k_rot_expanded, n_head, n_head_kv, head_dim, seq);
-        let mut grad_v = backward::gqa_collapse(&grad_v_expanded, n_head, n_head_kv, head_dim, seq);
+        // Backward through attention. GPU path (Phase 8b) is GQA-native:
+        // kernels consume unexpanded K/V and emit unexpanded grad_K/grad_V,
+        // so we skip the expand/collapse shuffle entirely. CPU path keeps
+        // the old expand → CPU backward → collapse pattern.
+        let (grad_q_rot, mut grad_k_rot, mut grad_v) = if gpu.is_some() {
+            crate::gemma4_gpu::attention_backward_gpu_kernels(
+                &grad_attn_out,
+                &cache.q_rot,
+                &cache.k_rot,
+                &cache.v,
+                &cache.attn_cache,
+                n_head, n_head_kv, head_dim, seq,
+            ).expect("gpu attention backward")
+        } else {
+            let k_rot_expanded = backward::gqa_expand(&cache.k_rot, n_head, n_head_kv, head_dim, seq);
+            let v_expanded = backward::gqa_expand(&cache.v, n_head, n_head_kv, head_dim, seq);
+            let (gq, gke, gve) = backward::attention_backward(
+                &grad_attn_out,
+                &cache.q_rot,
+                &k_rot_expanded,
+                &v_expanded,
+                &cache.attn_cache,
+                n_head, head_dim, seq,
+            );
+            let gk = backward::gqa_collapse(&gke, n_head, n_head_kv, head_dim, seq);
+            let gv = backward::gqa_collapse(&gve, n_head, n_head_kv, head_dim, seq);
+            (gq, gk, gv)
+        };
 
         // Phase 4 — if THIS is a KV-reusing layer, route its K/V grad to producer.
         if !h.has_kv(il) {

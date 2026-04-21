@@ -878,6 +878,79 @@ fn attention_forward_gpu_kernels(
     Ok((output, probs))
 }
 
+/// WAVE11 Phase 8b: GPU-kernel attention backward.
+///
+/// GQA-native: takes unexpanded K, V (shape `[seq, n_kv_heads, head_dim]`)
+/// and returns grad_K, grad_V in the same unexpanded layout (the kernels
+/// collapse group-heads internally). Caller does NOT need to gqa_expand
+/// inputs or gqa_collapse outputs — huge simplification vs CPU path.
+///
+/// Chain: attn_grad_v ∥ attn_grad_probs → softmax_bwd → attn_grad_q ∥ attn_grad_k.
+pub fn attention_backward_gpu_kernels(
+    grad_out: &[f32],  // [seq, n_heads, head_dim]
+    q_rot: &[f32],     // [seq, n_heads, head_dim]
+    k_rot: &[f32],     // [seq, n_kv_heads, head_dim]  — unexpanded
+    v: &[f32],         // [seq, n_kv_heads, head_dim]  — unexpanded
+    attn_probs: &[f32],// [n_heads, seq, seq]
+    n_heads: usize,
+    n_kv_heads: usize,
+    head_dim: usize,
+    seq_len: usize,
+) -> Result<(Vec<f32>, Vec<f32>, Vec<f32>), String> {
+    use crate::hip_kernels::{attn as k_attn, softmax as k_softmax};
+
+    debug_assert_eq!(grad_out.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(q_rot.len(),    seq_len * n_heads * head_dim);
+    debug_assert_eq!(k_rot.len(),    seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(v.len(),        seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(attn_probs.len(), n_heads * seq_len * seq_len);
+    debug_assert_eq!(n_heads % n_kv_heads, 0);
+
+    let scale = 1.0f32 / (head_dim as f32).sqrt();
+    let scores_elems = n_heads * seq_len * seq_len;
+    // Allocate from actual slice sizes so KV-reuse layers with stale
+    // previous-layer shapes (e.g. head_dim_swa=256 K feeding a head_dim=512
+    // global layer) don't overrun buffers. Grad buffers match the expected
+    // output shape for the CURRENT layer's attention pass.
+    let go_buf = GpuBuffer::alloc(grad_out.len() * 4).map_err(|e| format!("go alloc: {:?}", e))?;
+    let q_buf  = GpuBuffer::alloc(q_rot.len() * 4).map_err(|e| format!("q alloc: {:?}", e))?;
+    let k_buf  = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("k alloc: {:?}", e))?;
+    let v_buf  = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("v alloc: {:?}", e))?;
+    let p_buf  = GpuBuffer::alloc(attn_probs.len() * 4).map_err(|e| format!("p alloc: {:?}", e))?;
+    let gp_buf = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("gp alloc: {:?}", e))?;
+    let gs_buf = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("gs alloc: {:?}", e))?;
+    let gq_buf = GpuBuffer::alloc(seq_len * n_heads * head_dim * 4)
+        .map_err(|e| format!("gq alloc: {:?}", e))?;
+    let gk_buf = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("gk alloc: {:?}", e))?;
+    let gv_buf = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("gv alloc: {:?}", e))?;
+
+    go_buf.upload_f32(grad_out).map_err(|e| format!("go upload: {:?}", e))?;
+    q_buf.upload_f32(q_rot).map_err(|e| format!("q upload: {:?}", e))?;
+    k_buf.upload_f32(k_rot).map_err(|e| format!("k upload: {:?}", e))?;
+    v_buf.upload_f32(v).map_err(|e| format!("v upload: {:?}", e))?;
+    p_buf.upload_f32(attn_probs).map_err(|e| format!("p upload: {:?}", e))?;
+
+    k_attn::attn_grad_v(&gv_buf, &p_buf, &go_buf,
+        n_heads, n_kv_heads, seq_len, head_dim)?;
+    k_attn::attn_grad_probs(&gp_buf, &go_buf, &v_buf,
+        n_heads, n_kv_heads, seq_len, head_dim)?;
+    k_softmax::softmax_bwd(&gs_buf, &gp_buf, &p_buf,
+        n_heads * seq_len, seq_len)?;
+    k_attn::attn_grad_q(&gq_buf, &gs_buf, &k_buf,
+        n_heads, n_kv_heads, seq_len, head_dim, scale)?;
+    k_attn::attn_grad_k(&gk_buf, &gs_buf, &q_buf,
+        n_heads, n_kv_heads, seq_len, head_dim, scale)?;
+
+    let mut grad_q = vec![0.0f32; seq_len * n_heads * head_dim];
+    let mut grad_k = vec![0.0f32; k_rot.len()];
+    let mut grad_v = vec![0.0f32; v.len()];
+    gq_buf.download_f32(&mut grad_q).map_err(|e| format!("gq download: {:?}", e))?;
+    gk_buf.download_f32(&mut grad_k).map_err(|e| format!("gk download: {:?}", e))?;
+    gv_buf.download_f32(&mut grad_v).map_err(|e| format!("gv download: {:?}", e))?;
+
+    Ok((grad_q, grad_k, grad_v))
+}
+
 fn rope_apply_partial_cpu(
     x: &[f32], cos: &[f32], sin: &[f32],
     seq: usize, n_head: usize, head_dim: usize, rope_dim: usize,

@@ -17,7 +17,9 @@
 | 5 | Softmax fwd + masked + bwd | ✅ DONE | (cosine=1.000000) |
 | 6 | RoPE partial-rotary fwd+bwd | ✅ DONE | (cosine=1.000000) |
 | 7 | Attention fwd+bwd (4 grad kernels + E2E) | ✅ DONE | **21 kernel tests cosine=1.000** |
-| 8 | GpuKernelsBackend integration | 🚧 next session |
+| 8a | GPU attention wired into forward_gemma4_gpu | ✅ DONE | `6d620c9e` |
+| 8b | Sweep remaining CPU ops (rmsnorm, rope, gelu) | 🚧 in progress |
+| 8c | Proper `impl ForgeBackend for GpuKernelsBackend` | pending |
 | 9 | Regression + RAFT retry at seq=384 | pending |
 | 10 | Docs + ADR-049 + handoff | pending |
 
