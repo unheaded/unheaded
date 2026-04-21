@@ -70,9 +70,28 @@ memorization achievable in principle while eval stays high.
 
 Full 5-iteration history: `/tmp/24h-exp2-outcome.md`.
 
-## Phase 2 — Exp 1 Extended + LR Sweep (TBD)
+## Phase 2 — Exp 1 Extended + LR Sweep (MIXED — extended FAIL, sweep PASS)
 
-_[results pending]_
+`test_learning_exp1_extended` **FAILED** at lr=3e-3 (original Learning
+Gate lr) with 100 training steps: training destabilizes after step ~30,
+eval bounces back to baseline by step 100 (ratio 1.066). Classic "lr too
+high for long training" signature.
+
+`test_learning_exp1_lr_sweep` **PASSED**: 3 of 4 lrs below the 0.90 gate:
+
+| lr   | ratio | CI95           | Status |
+|------|------:|----------------|--------|
+| 1e-3 | 0.700 | (0.664, 0.739) | ✅ BEST |
+| 3e-3 | 1.066 | (1.042, 1.096) | ❌ cliff edge |
+| 1e-2 | 0.779 | (0.740, 0.819) | ✅ |
+| 3e-2 | 0.762 | (0.715, 0.812) | ✅ |
+
+**Verdict: adopt lr=1e-3 for long training runs (Phase 5 RAFT)**.
+Original 20-step Learning Gate used lr=3e-3 which works only for short
+training.
+
+Full analysis: `notes/wave10f-lr-sweep.md`.
+Runtime: Exp 1 extended ~13 min, lr sweep ~49 min = ~1 h 2 min total.
 
 ## Phase 3 — Multi-Y Capacity Probe (TBD)
 
