@@ -11,6 +11,7 @@
 pub mod gelu;
 pub mod identity;
 pub mod rmsnorm;
+pub mod rope;
 pub mod softmax;
 
 /// Map hipError_t (i32) to Result. 0 = hipSuccess.
