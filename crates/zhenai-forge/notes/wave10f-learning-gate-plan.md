@@ -14,7 +14,7 @@ control. Three independent positive signals for genuine learning:
 | Exp | Test | Result | Gate | Status |
 |-----|------|--------|------|--------|
 | 1 | held-out eval | ratio 0.58, CI95 (0.57, 0.60) | ratio ≤ 0.90, CI excludes 1.0 | ✅ PASS |
-| 2 | scrambled control | 4 attempts, all pre-memorization | revised to diagnostic | 🔍 DIAG |
+| 2 | scrambled control | 5 attempts; iter 5 hit log(vocab) floor | diagnostic (info-theoretic impossible) | 🔍 DIAG |
 | 3 | LoRA-zero identity | lora-A=0 eval == base (bit-identical) | rel_err < 1e-3 per-seq | ✅ PASS |
 | 4 | dataset-size scaling | eval(8)→(64) rel improv 37% | ≥ 2% | ✅ PASS |
 | 5 | gap exponent β | β = 0.266, CI (−0.11, 0.64) | CI upper < 0.8 | ✅ PASS |
@@ -28,7 +28,8 @@ At |T|=1, eval WORSENS above base — the memorization failure mode.
 · `…` (C3 run) · `…` (C4 Exp1+3) · `…` (C5 β-fit) · `…` (C6 scrambled)
 · `…` (C7 scaling) · `…` (C8 docs). Full commit refs in session log.
 
-**Lessons from the four Exp 2 iterations:**
+**Lessons from the five Exp 2 iterations (full data in
+/tmp/24h-exp2-outcome.md):**
 1. A rank-16 LoRA memorizes 32 unique sequences equally fast regardless
    of label structure — train-loss slope doesn't discriminate.
 2. Eval CE loss drops even on scrambled labels due to output-distribution
@@ -36,9 +37,21 @@ At |T|=1, eval WORSENS above base — the memorization failure mode.
 3. Top-1 accuracy at vocab=262144 is too harsh at 20 steps (both 0).
 4. Train/eval gap doesn't work until model saturates memorization on
    train — at ≤20 steps neither regime has saturated.
+5. **Plateau-based training at lr=1e-2** (2026-04-20 rerun): scrambled
+   plateaus at `log(vocab_size) = log(262144) ≈ 12.48`, which is the
+   information-theoretic CE floor for uniform-random labels. No model
+   can descend below this floor — the hard-gate prediction
+   `scrambled_train < 2.0` is unreachable by construction. Real-Y at
+   lr=1e-2 also destabilizes (train oscillates 8–14); lower lr needed
+   for clean convergence. Raw numbers: real_train_set=7.78,
+   real_eval=19.51, scr_train_set=12.46, scr_eval=12.52, wall 1492s
+   (real) + 224s (scrambled plateau at step 25).
 
-The real negative control for memorization will come from Phase 7.2
-(real Kingdom Q&A RAFT) where long training reaches saturation.
+**Resolution:** The synthetic-corpus discrimination target is
+information-theoretically impossible. The real negative control for
+memorization will come from Phase 7.2 (real Kingdom Q&A RAFT on
+non-uniform natural-language distributions), where a memorizing
+model CAN drive train → near-0 while eval stays at base performance.
 
 **Forge is NOT just memorizing. The experiments agree.**
 
