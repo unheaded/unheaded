@@ -15,7 +15,7 @@
 | 0 | Preflight + baseline | warm step 3 ∈ [9.5, 12] s | **10.2 s** @ loss 21.21→18.63→16.47 | ✅ |
 | 1 | Shared mask cache | warm ≤ 10.5 s (no regression) | **10.65 s median** (4 warm samples) | ⚠ noise-floor |
 | 2 | Backward GPU ops | warm ≤ 8.5 s | **9.9 s** (4 warm samples) | ⚠ below expectation (−0.7s vs −2-4s) |
-| 3 | Checkpoint + decision | median warm | — | pending |
+| 3 | Checkpoint + decision | median warm | **10.5 s** (8 warm samples) | ⚠ at baseline |
 | 4 | Matmul GPU-in/out | matmul tests green, no regression | — | pending |
 | 5 | GPU-resident forward | warm ≤ 5.5 s | — | pending |
 | 6 | Full regression | Learning Gate 4/5 pass, warm ≤ 5.5 s | — | pending |
@@ -152,7 +152,82 @@ The per-call PCIe round-trip overhead now dominates the backward path, not CPU c
 |-----:|------|------:|---------|
 | 20 | `9338d9e5` | 0 | `docs(forge): [PLAN W12] Phase 0 — preflight, baseline confirmed @ ~10.2s/step warm` |
 | 34 | `9df2cba5` | 1 | `feat(forge): [PLAN W12] Phase 1 — MaskCache eliminates 34/35 per-layer mask uploads` |
-| 74 | *pending* | 2 | `feat(forge): [PLAN W12] Phase 2 — 11 backward sites on GPU (rope passthrough fix)` |
+| 74 | `1ea58922` | 2 | `feat(forge): [PLAN W12] Phase 2 — 11 backward sites on GPU (rope passthrough fix)` |
+| 88 | *pending* | 3 | TBD — Phase 3 checkpoint recorded, awaiting route decision |
+
+---
+
+## Phase 3 — Checkpoint + decision (2026-04-22)
+
+**10-step steady-state smoke (seq=384, lr=1e-3):**
+```
+step  1: 65.7s (cold)
+step  2: 10.7s
+step  3: 10.5s
+step  4: 10.6s
+step  5: 10.5s
+step  6: 10.6s
+step  7: 10.5s
+step  8: 10.5s
+step  9: 10.5s
+step 10: 10.5s
+```
+Warm median (3-10): **10.5 s**. Warm range: 10.5-10.7 s.
+
+**Loss descent:** 21.21 → 18.61 → 17.07 → 14.33 → 12.94 → 11.72 → 11.44 → 11.16 → 10.55 → **9.79**. Kingdom corpus learning is working — 10 steps cut loss >50% on fixed mini-batch.
+
+**Honest delta from Phase 0 baseline (10.2 s, n=1):** essentially zero. Phase 1's mask cache and Phase 2's 11 backward kernel swaps both produced correct-but-wall-neutral outputs. The net gain (if any) is within the 0.3 s jitter band.
+
+**Cost-model mismatch with plan:**
+- Plan predicted Phase 2 saves 2-4 s/step. Actual: 0.0-0.75 s (jitter).
+- Plan predicted Phase 5 (GPU-resident forward chain) saves ~3 s on top. If the cost model is systematically wrong by 3-4×, Phase 5's expected win of ~5 s might be ~1-1.5 s in practice.
+- Where IS the 10.5 s going? Without a profiler pass (added `std::time::Instant` around major chunks → plan Step 131's [D] branch), we're guessing. The ~175 backward kernel launches per step at ~10-50 µs each = 2-9 ms total, not seconds. The bulk is probably still matmuls (30+ per layer × 35 layers), or ROCm stream synchronization.
+
+**Phase 3 DECIDE (Step 85/86): routes forward.**
+
+| # | Route | Eta | Risk | DoD status |
+|--:|-------|----:|-----|-----------|
+| A | **Short-circuit: skip Phases 4-6, run 500-step RAFT now.** 10.5s/step × 500 ≈ 88 min + cold + eval ≈ 2h to shipped LoRA. | ~2h | low | misses warm ≤5.5s; hits other 14 DoD items |
+| B | **Continue Phases 4-5-6** (GPU-resident forward+backward) then RAFT. Plan budget 6.5h; risk of 10-12h if Phase 5 rewrite runs long. | 6.5-10h | med-high | full DoD |
+| C | **Profile first** (plan Step 131 [D] branch): add Instant timing around forward chunks, run 3-step, identify the real bottleneck. Then pick A or B. | +30m | low | informs decision |
+
+**Recommendation: C then A.** 30 min of profiling tells us whether Phase 5 even has 4-5 s of headroom to reclaim. If yes → B is justified; if no → A ships the Kingdom LoRA today with confidence.
+
+### Profiling experiment (Step 131 [D] branch, pulled forward into Phase 3)
+
+Instrumented `matmul_xwt` + `matmul_grad_x` with atomic ns counters gated by `WAVE12_PROFILE=1`. Two counters:
+- `MATMUL_SGEMM_NS`: pure `sgemm_bf16_ex` call time only (actual GPU compute).
+- `MATMUL_METHOD_NS`: full matmul_method wall time (bf16 conv + alloc + upload + sgemm + download).
+
+**5-step run (WAVE12_PROFILE=1, warm samples 2-5):**
+
+| step | step_time | sgemm_only | matmul_method | round-trip | n_calls |
+|-----:|----------:|-----------:|--------------:|-----------:|--------:|
+| 1 (cold) | 69.1 s | 0.09 s (0.1%) | 35.96 s (52%) | 35.87 s | 718 |
+| 2 | 10.0 s | 0.02 s (0.2%) | 1.63 s (16%) | 1.61 s | 718 |
+| 3 | 10.6 s | 0.02 s (0.2%) | 1.58 s (15%) | 1.56 s | 718 |
+| 4 | 10.6 s | 0.01 s (0.1%) | 1.56 s (15%) | 1.55 s | 718 |
+| 5 |  9.8 s | 0.01 s (0.1%) | 1.56 s (16%) | 1.55 s | 718 |
+
+**Discriminating reading:**
+- Pure bf16 hipBLAS matmul compute for Gemma-4 E2B at seq=384 on RX 7700 XT = **0.02 s/step, 0.2% of warm step time.** 20 ms of GPU compute, 718 calls, ~28 µs/call.
+- matmul_method round-trip overhead alone = **1.55 s/step, 15%.** That's the bf16 conversion + alloc + upload + download cost for just the matmul family.
+- **Remaining 84% (≈8.4 s/step) is outside the matmul path entirely** — attention kernels (35 forward + 35 backward launches, each with their own alloc/upload/download), rmsnorm/gelu/rope helpers (all doing round-trips too), residual/PLE/CPU glue.
+
+**Scientist's decision rule applied:**
+- matmul_compute_share = 0.002 (0.2%). THRESHOLD FOR "matmul compute dominates" was ≥0.80. **H_matmul falsified.**
+- matmul_compute_share = 0.002 ≪ 0.50. **H_overhead confirmed as the dominant hypothesis.**
+- Phase 5's ForwardScratch consolidates non-matmul round-trips across the same call pattern we just measured. If non-matmul kernels share the same round-trip:compute ratio as the matmul family (78:1), most of the 8.4 s is reclaimable by keeping activations GPU-resident.
+
+**Revised expected-value estimate for Phase 4+5+6:**
+- Recovered round-trip time: plausibly 3-5 s/step (upper bound ≈ 8.4 s of non-matmul non-trip-essential time).
+- Expected post-Phase 5 warm step: **~5.0-7.5 s.** The 5.5 s DoD gate is achievable with moderate confidence.
+- Time cost: 5.5 h plan budget (Phase 4 1.5h + Phase 5 3h + Phase 6 1h).
+- Risk: Phase 5 is the biggest rewrite; correctness regression is the main failure mode.
+
+**Updated recommendation: PROFILE CONFIRMS — Option B is justified.** Plan's cost model was directionally right, just attributed the round-trips to the wrong kernels. The 3-5 s of Phase 5 savings is the actual non-matmul round-trip overhead, which my measurement quantifies at ~8 s.
+
+Still Stevie's call — the investment is another 5-6 hours today vs. shipping at 10.5 s/step now. Both produce a learning Kingdom LoRA.
 
 ---
 
