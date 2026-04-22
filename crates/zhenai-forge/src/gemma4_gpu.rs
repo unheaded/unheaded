@@ -435,16 +435,10 @@ pub fn forward_gemma4_gpu(
         let q_out_dim = n_head * head_dim;
         let kv_out_dim = n_head_kv * head_dim;
 
-        // 2a. attn_norm (CPU, f32 weights).
-        let mut normed = vec![0.0f32; seq * n_embd];
-        for s in 0..seq {
-            let row = forward::rmsnorm(
-                &hidden[s * n_embd..(s + 1) * n_embd],
-                &cpu.attn_norm[il],
-                h.rms_norm_eps,
-            );
-            normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
-        }
+        // 2a. attn_norm (GPU batched — Phase 8c).
+        let normed = rmsnorm_batch_on_gpu(
+            &hidden, &gpu.attn_norm[il], h.rms_norm_eps, seq, n_embd,
+        )?;
 
         // 2b. Q projection (GPU) + LoRA Q (CPU)
         let mut q = gpu.matmul_xwt(&gpu.wq[il], &normed, seq, q_out_dim, n_embd)?;
@@ -494,11 +488,14 @@ pub fn forward_gemma4_gpu(
             (prev.k_rot.clone(), prev.v.clone())
         };
 
-        // 2d. Per-head Q-norm, K-norm, weightless V-norm (CPU, f32 weights)
-        let q_normed = per_head_rmsnorm_cpu(
-            &q, &cpu.attn_q_norm[il], seq, n_head, head_dim, h.rms_norm_eps);
-        let k_normed = if let Some(k_norm) = &cpu.attn_k_norm[il] {
-            per_head_rmsnorm_cpu(&k_flat, k_norm, seq, n_head_kv, head_dim, h.rms_norm_eps)
+        // 2d. Per-head Q-norm, K-norm (GPU batched), weightless V-norm (CPU — tiny, no weight)
+        let q_normed = rmsnorm_batch_on_gpu(
+            &q, &gpu.attn_q_norm[il], h.rms_norm_eps, seq * n_head, head_dim,
+        )?;
+        let k_normed = if let Some(k_norm_buf) = &gpu.attn_k_norm[il] {
+            rmsnorm_batch_on_gpu(
+                &k_flat, k_norm_buf, h.rms_norm_eps, seq * n_head_kv, head_dim,
+            )?
         } else {
             k_flat.clone()
         };
@@ -551,73 +548,45 @@ pub fn forward_gemma4_gpu(
             }
         }
 
-        // 2h. post_attention_norm + residual (CPU)
+        // 2h. post_attention_norm + residual (GPU rmsnorm batched — Phase 8c)
+        let o_normed = rmsnorm_batch_on_gpu(
+            &o_out, &gpu.post_attention_norm[il], h.rms_norm_eps, seq, n_embd,
+        )?;
         let mut post_attn = vec![0.0f32; seq * n_embd];
-        for s in 0..seq {
-            let row = forward::rmsnorm(
-                &o_out[s * n_embd..(s + 1) * n_embd],
-                &cpu.post_attention_norm[il],
-                h.rms_norm_eps,
-            );
-            for d in 0..n_embd {
-                post_attn[s * n_embd + d] = row[d] + hidden[s * n_embd + d];
-            }
-        }
+        for i in 0..post_attn.len() { post_attn[i] = o_normed[i] + hidden[i]; }
 
-        // 2i. FFN — norm (CPU), gate/up/down matmul (GPU), GELU + mul (CPU)
-        let mut ffn_normed = vec![0.0f32; seq * n_embd];
-        for s in 0..seq {
-            let row = forward::rmsnorm(
-                &post_attn[s * n_embd..(s + 1) * n_embd],
-                &cpu.ffn_norm[il],
-                h.rms_norm_eps,
-            );
-            ffn_normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
-        }
+        // 2i. FFN — norm (GPU), gate/up/down matmul (GPU), fused GELU*up (GPU — Phase 8c)
+        let ffn_normed = rmsnorm_batch_on_gpu(
+            &post_attn, &gpu.ffn_norm[il], h.rms_norm_eps, seq, n_embd,
+        )?;
         let gate_pre = gpu.matmul_xwt(&gpu.ffn_gate[il], &ffn_normed, seq, h.n_ff, n_embd)?;
         let up_pre = gpu.matmul_xwt(&gpu.ffn_up[il], &ffn_normed, seq, h.n_ff, n_embd)?;
-        let mut ffn_hidden = vec![0.0f32; seq * h.n_ff];
-        for i in 0..ffn_hidden.len() {
-            ffn_hidden[i] = forward::gelu_tanh_approx(gate_pre[i]) * up_pre[i];
-        }
+        let ffn_hidden = gelu_mul_batch_on_gpu(&gate_pre, &up_pre)?;
         let ffn_out = gpu.matmul_xwt(&gpu.ffn_down[il], &ffn_hidden, seq, n_embd, h.n_ff)?;
 
-        // 2j. post_ffw_norm + residual
+        // 2j. post_ffw_norm + residual (GPU rmsnorm batched — Phase 8c)
+        let ffn_normed_out = rmsnorm_batch_on_gpu(
+            &ffn_out, &gpu.post_ffw_norm[il], h.rms_norm_eps, seq, n_embd,
+        )?;
         let mut layer_out = vec![0.0f32; seq * n_embd];
-        for s in 0..seq {
-            let row = forward::rmsnorm(
-                &ffn_out[s * n_embd..(s + 1) * n_embd],
-                &cpu.post_ffw_norm[il],
-                h.rms_norm_eps,
-            );
-            for d in 0..n_embd {
-                layer_out[s * n_embd + d] = row[d] + post_attn[s * n_embd + d];
-            }
-        }
+        for i in 0..layer_out.len() { layer_out[i] = ffn_normed_out[i] + post_attn[i]; }
 
-        // PLE chain (matmuls on GPU)
+        // PLE chain (matmuls on GPU; gelu + rmsnorm now on GPU — Phase 8c)
         let ple_cache = if let Some(ref ipl) = inp_per_layer {
             let pe_in = layer_out.clone();
             let n_epl = h.n_embd_per_layer;
             let inp_layer_slice = slice_layer_cpu(ipl, seq, h.n_layer, n_epl, il);
 
             let gate_pre_gelu = gpu.matmul_xwt(&gpu.inp_gate[il], &pe_in, seq, n_epl, n_embd)?;
-            let mut gate_post_gelu = gate_pre_gelu.clone();
-            for v in gate_post_gelu.iter_mut() { *v = forward::gelu_tanh_approx(*v); }
+            let gate_post_gelu = gelu_batch_on_gpu(&gate_pre_gelu)?;
             let mut gated = vec![0.0f32; gate_post_gelu.len()];
             for i in 0..gated.len() {
                 gated[i] = gate_post_gelu[i] * inp_layer_slice[i];
             }
             let proj_out_pre_norm = gpu.matmul_xwt(&gpu.proj[il], &gated, seq, n_embd, n_epl)?;
-            let mut proj_normed = vec![0.0f32; seq * n_embd];
-            for s in 0..seq {
-                let row = forward::rmsnorm(
-                    &proj_out_pre_norm[s * n_embd..(s + 1) * n_embd],
-                    &cpu.post_norm[il],
-                    h.rms_norm_eps,
-                );
-                proj_normed[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
-            }
+            let proj_normed = rmsnorm_batch_on_gpu(
+                &proj_out_pre_norm, &gpu.post_norm[il], h.rms_norm_eps, seq, n_embd,
+            )?;
             for i in 0..layer_out.len() {
                 layer_out[i] = pe_in[i] + proj_normed[i];
             }
@@ -655,16 +624,10 @@ pub fn forward_gemma4_gpu(
         hidden = layer_out;
     }
 
-    // Final output_norm (CPU)
-    let mut final_hidden = vec![0.0f32; seq * n_embd];
-    for s in 0..seq {
-        let row = forward::rmsnorm(
-            &hidden[s * n_embd..(s + 1) * n_embd],
-            &cpu.output_norm,
-            h.rms_norm_eps,
-        );
-        final_hidden[s * n_embd..(s + 1) * n_embd].copy_from_slice(&row);
-    }
+    // Final output_norm (GPU batched — Phase 8c)
+    let final_hidden = rmsnorm_batch_on_gpu(
+        &hidden, &gpu.output_norm, h.rms_norm_eps, seq, n_embd,
+    )?;
 
     // LM head (GPU — token_embd is already on GPU, treated as W^T)
     let logits = gpu.matmul_xwt(&gpu.token_embd, &final_hidden, seq, h.vocab_size, n_embd)?;
@@ -715,15 +678,11 @@ fn compute_inp_per_layer_gpu(
     let scale_proj = 1.0 / (n_embd as f32).sqrt();
     for v in proj_out.iter_mut() { *v *= scale_proj; }
 
-    // Rest is CPU
-    for ti in 0..n_tokens {
-        for li in 0..n_layer {
-            let off = ti * row_size + li * n_epl;
-            let slice = &proj_out[off..off + n_epl];
-            let normed = forward::rmsnorm(slice, &cpu.per_layer_proj_norm, h.rms_norm_eps);
-            proj_out[off..off + n_epl].copy_from_slice(&normed);
-        }
-    }
+    // per_layer_proj_norm rmsnorm (GPU batched — Phase 8c, rows = n_tokens*n_layer, d = n_epl)
+    let proj_normed = rmsnorm_batch_on_gpu(
+        &proj_out, &gpu.per_layer_proj_norm, h.rms_norm_eps, n_tokens * n_layer, n_epl,
+    )?;
+    proj_out = proj_normed;
     let inv_sqrt2 = 1.0f32 / 2.0f32.sqrt();
     for i in 0..proj_out.len() {
         proj_out[i] = (proj_out[i] + tok_embd_per_layer[i]) * inv_sqrt2;
@@ -971,6 +930,66 @@ fn rope_apply_partial_cpu(
         }
     }
     out
+}
+
+// WAVE11 Phase 8c: per-token CPU ops → GPU kernels. The kernels were
+// shipped in Phases 3-6; these helpers are just the glue to batch all
+// rows in one launch instead of the per-row CPU loops in
+// `forward_gemma4_gpu`. Each helper uploads its input, launches a
+// single kernel over `rows × d`, and downloads the result.
+
+fn rmsnorm_batch_on_gpu(
+    input_f32: &[f32],
+    weight_buf: &GpuBuffer,
+    eps: f32,
+    rows: usize,
+    d: usize,
+) -> Result<Vec<f32>, String> {
+    use crate::hip_kernels::rmsnorm as k_rms;
+    debug_assert_eq!(input_f32.len(), rows * d);
+    let size = rows * d * 4;
+    let in_buf = GpuBuffer::alloc(size).map_err(|e| format!("rms in alloc: {:?}", e))?;
+    let out_buf = GpuBuffer::alloc(size).map_err(|e| format!("rms out alloc: {:?}", e))?;
+    in_buf.upload_f32(input_f32).map_err(|e| format!("rms upload: {:?}", e))?;
+    k_rms::rmsnorm_fwd(&out_buf, &in_buf, weight_buf, eps, rows, d)?;
+    let mut out = vec![0.0f32; rows * d];
+    out_buf.download_f32(&mut out).map_err(|e| format!("rms download: {:?}", e))?;
+    Ok(out)
+}
+
+/// Fused `out = gelu_tanh(gate_pre) * up_pre` on GPU. Drop-in for the
+/// per-element FFN CPU loop.
+fn gelu_mul_batch_on_gpu(
+    gate_pre: &[f32],
+    up_pre: &[f32],
+) -> Result<Vec<f32>, String> {
+    use crate::hip_kernels::gelu as k_gelu;
+    debug_assert_eq!(gate_pre.len(), up_pre.len());
+    let n = gate_pre.len();
+    let size = n * 4;
+    let gate_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu gate alloc: {:?}", e))?;
+    let up_buf   = GpuBuffer::alloc(size).map_err(|e| format!("gelu up alloc: {:?}", e))?;
+    let out_buf  = GpuBuffer::alloc(size).map_err(|e| format!("gelu out alloc: {:?}", e))?;
+    gate_buf.upload_f32(gate_pre).map_err(|e| format!("gelu gate upload: {:?}", e))?;
+    up_buf.upload_f32(up_pre).map_err(|e| format!("gelu up upload: {:?}", e))?;
+    k_gelu::gelu_mul_fwd(&out_buf, &gate_buf, &up_buf, n)?;
+    let mut out = vec![0.0f32; n];
+    out_buf.download_f32(&mut out).map_err(|e| format!("gelu download: {:?}", e))?;
+    Ok(out)
+}
+
+/// Unfused gelu on GPU: `out = gelu_tanh(input)` — used by PLE gate (no fused up).
+fn gelu_batch_on_gpu(input: &[f32]) -> Result<Vec<f32>, String> {
+    use crate::hip_kernels::gelu as k_gelu;
+    let n = input.len();
+    let size = n * 4;
+    let in_buf  = GpuBuffer::alloc(size).map_err(|e| format!("gelu in alloc: {:?}", e))?;
+    let out_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu out alloc: {:?}", e))?;
+    in_buf.upload_f32(input).map_err(|e| format!("gelu in upload: {:?}", e))?;
+    k_gelu::gelu_fwd(&out_buf, &in_buf, n)?;
+    let mut out = vec![0.0f32; n];
+    out_buf.download_f32(&mut out).map_err(|e| format!("gelu out download: {:?}", e))?;
+    Ok(out)
 }
 
 #[cfg(test)]
