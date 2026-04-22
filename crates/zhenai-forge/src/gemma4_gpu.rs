@@ -1057,6 +1057,152 @@ fn gelu_batch_on_gpu(input: &[f32]) -> Result<Vec<f32>, String> {
     Ok(out)
 }
 
+// ---------------------------------------------------------------------------
+// WAVE12 Phase 2: backward GPU batch helpers.
+//
+// Mirror the Phase 8c forward helpers above — upload per-call, launch one
+// kernel over all rows, download result. Each helper owns its own GpuBuffer
+// allocations; inputs come in as CPU slices; outputs come back as Vec<f32>.
+// Call sites in src/gemma4.rs::backward_gemma4_with_lora guard with
+// `if gpu.is_some()` to keep the CPU path unchanged.
+// ---------------------------------------------------------------------------
+
+/// rmsnorm backward. `weight_buf` is the already-GPU-resident per-layer
+/// weight (caller picks from `gpu.attn_norm[il]`, `gpu.ffn_norm[il]`, etc.).
+/// Returns `grad_in` matching `[rows, d]` layout.
+pub(crate) fn rmsnorm_batch_bwd_on_gpu(
+    grad_out_f32: &[f32],
+    input_f32: &[f32],
+    weight_buf: &GpuBuffer,
+    eps: f32,
+    rows: usize,
+    d: usize,
+) -> Result<Vec<f32>, String> {
+    use crate::hip_kernels::rmsnorm as k_rms;
+    debug_assert_eq!(grad_out_f32.len(), rows * d);
+    debug_assert_eq!(input_f32.len(), rows * d);
+    let size = rows * d * 4;
+    let grad_in_buf  = GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd grad_in alloc: {:?}", e))?;
+    let grad_out_buf = GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd grad_out alloc: {:?}", e))?;
+    let input_buf    = GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd input alloc: {:?}", e))?;
+    grad_out_buf.upload_f32(grad_out_f32).map_err(|e| format!("rms_bwd grad_out upload: {:?}", e))?;
+    input_buf.upload_f32(input_f32).map_err(|e| format!("rms_bwd input upload: {:?}", e))?;
+    k_rms::rmsnorm_bwd(&grad_in_buf, &grad_out_buf, &input_buf, weight_buf, eps, rows, d)?;
+    let mut grad_in = vec![0.0f32; rows * d];
+    grad_in_buf.download_f32(&mut grad_in).map_err(|e| format!("rms_bwd grad_in download: {:?}", e))?;
+    Ok(grad_in)
+}
+
+/// Per-head rmsnorm backward = rmsnorm_bwd with rows = seq*n_head, d = head_dim.
+/// Input layout `[seq, n_head, head_dim]` flattened.
+pub(crate) fn per_head_rmsnorm_batch_bwd_on_gpu(
+    grad_out_f32: &[f32],
+    input_f32: &[f32],
+    weight_buf: &GpuBuffer,
+    eps: f32,
+    seq: usize,
+    n_head: usize,
+    head_dim: usize,
+) -> Result<Vec<f32>, String> {
+    rmsnorm_batch_bwd_on_gpu(
+        grad_out_f32, input_f32, weight_buf, eps,
+        seq * n_head, head_dim,
+    )
+}
+
+/// Unfused gelu backward: `grad_in = grad_out * gelu_tanh'(input)`.
+pub(crate) fn gelu_batch_bwd_on_gpu(
+    grad_out_f32: &[f32],
+    input_f32: &[f32],
+) -> Result<Vec<f32>, String> {
+    use crate::hip_kernels::gelu as k_gelu;
+    debug_assert_eq!(grad_out_f32.len(), input_f32.len());
+    let n = input_f32.len();
+    let size = n * 4;
+    let grad_in_buf  = GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd grad_in alloc: {:?}", e))?;
+    let grad_out_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd grad_out alloc: {:?}", e))?;
+    let input_buf    = GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd input alloc: {:?}", e))?;
+    grad_out_buf.upload_f32(grad_out_f32).map_err(|e| format!("gelu_bwd grad_out upload: {:?}", e))?;
+    input_buf.upload_f32(input_f32).map_err(|e| format!("gelu_bwd input upload: {:?}", e))?;
+    k_gelu::gelu_bwd(&grad_in_buf, &grad_out_buf, &input_buf, n)?;
+    let mut grad_in = vec![0.0f32; n];
+    grad_in_buf.download_f32(&mut grad_in).map_err(|e| format!("gelu_bwd grad_in download: {:?}", e))?;
+    Ok(grad_in)
+}
+
+/// Fused `gelu_tanh(gate_pre) * up_pre` backward. Returns (grad_gate_pre, grad_up_pre).
+pub(crate) fn gelu_mul_batch_bwd_on_gpu(
+    grad_out_f32: &[f32],
+    gate_pre_f32: &[f32],
+    up_pre_f32: &[f32],
+) -> Result<(Vec<f32>, Vec<f32>), String> {
+    use crate::hip_kernels::gelu as k_gelu;
+    debug_assert_eq!(grad_out_f32.len(), gate_pre_f32.len());
+    debug_assert_eq!(grad_out_f32.len(), up_pre_f32.len());
+    let n = grad_out_f32.len();
+    let size = n * 4;
+    let grad_gate_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_gate alloc: {:?}", e))?;
+    let grad_up_buf   = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_up alloc: {:?}", e))?;
+    let grad_out_buf  = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_out alloc: {:?}", e))?;
+    let gate_buf      = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd gate alloc: {:?}", e))?;
+    let up_buf        = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd up alloc: {:?}", e))?;
+    grad_out_buf.upload_f32(grad_out_f32).map_err(|e| format!("gelu_mul_bwd grad_out upload: {:?}", e))?;
+    gate_buf.upload_f32(gate_pre_f32).map_err(|e| format!("gelu_mul_bwd gate upload: {:?}", e))?;
+    up_buf.upload_f32(up_pre_f32).map_err(|e| format!("gelu_mul_bwd up upload: {:?}", e))?;
+    k_gelu::gelu_mul_bwd(&grad_gate_buf, &grad_up_buf, &grad_out_buf, &gate_buf, &up_buf, n)?;
+    let mut grad_gate = vec![0.0f32; n];
+    let mut grad_up   = vec![0.0f32; n];
+    grad_gate_buf.download_f32(&mut grad_gate).map_err(|e| format!("gelu_mul_bwd grad_gate download: {:?}", e))?;
+    grad_up_buf.download_f32(&mut grad_up).map_err(|e| format!("gelu_mul_bwd grad_up download: {:?}", e))?;
+    Ok((grad_gate, grad_up))
+}
+
+/// Partial-RoPE backward. cos/sin tables arrive as CPU slices (rope_freqs).
+/// Shape: grad_out [seq, n_head, head_dim], cos/sin [seq, rope_dim/2].
+pub(crate) fn rope_batch_bwd_on_gpu(
+    grad_out_f32: &[f32],
+    cos_f32: &[f32],
+    sin_f32: &[f32],
+    seq: usize,
+    n_head: usize,
+    head_dim: usize,
+    rope_dim: usize,
+) -> Result<Vec<f32>, String> {
+    use crate::hip_kernels::rope as k_rope;
+    // Phase 8b postmortem quirk: on KV-reuse consumer layers, grad_out may be
+    // larger than seq*n_head*head_dim because the cache was sized from the
+    // producer's attention type (e.g. a swa consumer inherits a 512-stride K
+    // cache from a full producer). CPU `rope_backward_partial` handles this
+    // silently via `grad_rotated.to_vec()` — writing only to the first
+    // head_dim stride per head and copying the tail through. Mirror that here:
+    // allocate buffers from grad_out.len() and seed grad_in with the input
+    // so any tail beyond head_dim is passed through unchanged.
+    let buf_elems = grad_out_f32.len();
+    let trig_len = cos_f32.len();
+    if sin_f32.len() != trig_len {
+        return Err(format!(
+            "rope_bwd: cos len {} != sin len {}", trig_len, sin_f32.len()));
+    }
+    let grad_in_buf  = GpuBuffer::alloc(buf_elems * 4).map_err(|e| format!("rope_bwd grad_in alloc: {:?}", e))?;
+    let grad_out_buf = GpuBuffer::alloc(buf_elems * 4).map_err(|e| format!("rope_bwd grad_out alloc: {:?}", e))?;
+    let cos_buf      = GpuBuffer::alloc(trig_len * 4).map_err(|e| format!("rope_bwd cos alloc: {:?}", e))?;
+    let sin_buf      = GpuBuffer::alloc(trig_len * 4).map_err(|e| format!("rope_bwd sin alloc: {:?}", e))?;
+    grad_out_buf.upload_f32(grad_out_f32).map_err(|e| format!("rope_bwd grad_out upload: {:?}", e))?;
+    // Seed grad_in with grad_out so the "tail" dims (beyond rope_dim within
+    // each head) and any consumer-layer stride tail are copied through, then
+    // the kernel overwrites the rotary half — matching CPU's to_vec() pattern.
+    grad_in_buf.upload_f32(grad_out_f32).map_err(|e| format!("rope_bwd grad_in seed upload: {:?}", e))?;
+    cos_buf.upload_f32(cos_f32).map_err(|e| format!("rope_bwd cos upload: {:?}", e))?;
+    sin_buf.upload_f32(sin_f32).map_err(|e| format!("rope_bwd sin upload: {:?}", e))?;
+    k_rope::rope_partial_bwd(
+        &grad_in_buf, &grad_out_buf, &cos_buf, &sin_buf,
+        seq, n_head, head_dim, rope_dim,
+    )?;
+    let mut grad_in = vec![0.0f32; buf_elems];
+    grad_in_buf.download_f32(&mut grad_in).map_err(|e| format!("rope_bwd grad_in download: {:?}", e))?;
+    Ok(grad_in)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

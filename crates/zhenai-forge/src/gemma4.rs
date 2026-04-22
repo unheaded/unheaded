@@ -1455,14 +1455,24 @@ pub fn backward_gemma4_with_lora(
     };
 
     // 4. Backward through final output_norm.
+    // WAVE12 Phase 2 — Site 18: output_norm rmsnorm_bwd on GPU.
     let last_cache = caches.last().expect("at least one layer cache");
-    let mut grad_hidden = vec![0.0f32; seq * n_embd];
-    for s in 0..seq {
-        let input_row = &last_cache.post_ffw_residual[s * n_embd..(s + 1) * n_embd];
-        let go_row = &grad_final_hidden[s * n_embd..(s + 1) * n_embd];
-        let gi = backward::rmsnorm_backward(input_row, &weights.output_norm, go_row, h.rms_norm_eps);
-        grad_hidden[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
-    }
+    let grad_hidden = if let Some(g) = gpu {
+        crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
+            &grad_final_hidden, &last_cache.post_ffw_residual,
+            &g.output_norm, h.rms_norm_eps, seq, n_embd,
+        ).expect("gpu site 18 output_norm_bwd")
+    } else {
+        let mut grad_hidden = vec![0.0f32; seq * n_embd];
+        for s in 0..seq {
+            let input_row = &last_cache.post_ffw_residual[s * n_embd..(s + 1) * n_embd];
+            let go_row = &grad_final_hidden[s * n_embd..(s + 1) * n_embd];
+            let gi = backward::rmsnorm_backward(input_row, &weights.output_norm, go_row, h.rms_norm_eps);
+            grad_hidden[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
+        }
+        grad_hidden
+    };
+    let mut grad_hidden = grad_hidden;
 
     // 4b. Phase 4 — Unified KV routing accumulators.
     //     For each KV-reusing layer in the reverse pass, push gradient
@@ -1520,14 +1530,22 @@ pub fn backward_gemma4_with_lora(
             let grad_proj_normed = grad_hidden.clone();
             let mut grad_pe_in = grad_hidden.clone(); // residual passthrough
 
-            // rmsnorm backward
-            let mut grad_proj_out_pre_norm = vec![0.0f32; seq * n_embd];
-            for s in 0..seq {
-                let input_row = &ple.proj_out_pre_norm[s * n_embd..(s + 1) * n_embd];
-                let go_row = &grad_proj_normed[s * n_embd..(s + 1) * n_embd];
-                let gi = backward::rmsnorm_backward(input_row, &weights.post_norm[il], go_row, h.rms_norm_eps);
-                grad_proj_out_pre_norm[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
-            }
+            // WAVE12 Phase 2 — Site 16: PLE post_norm rmsnorm_bwd on GPU.
+            let grad_proj_out_pre_norm = if let Some(g) = gpu {
+                crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
+                    &grad_proj_normed, &ple.proj_out_pre_norm,
+                    &g.post_norm[il], h.rms_norm_eps, seq, n_embd,
+                ).expect("gpu site 16 ple_post_norm_bwd")
+            } else {
+                let mut grad_proj_out_pre_norm = vec![0.0f32; seq * n_embd];
+                for s in 0..seq {
+                    let input_row = &ple.proj_out_pre_norm[s * n_embd..(s + 1) * n_embd];
+                    let go_row = &grad_proj_normed[s * n_embd..(s + 1) * n_embd];
+                    let gi = backward::rmsnorm_backward(input_row, &weights.post_norm[il], go_row, h.rms_norm_eps);
+                    grad_proj_out_pre_norm[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
+                }
+                grad_proj_out_pre_norm
+            };
 
             // Site 13 — PLE proj matmul backward: forward was
             //   gated [seq, n_epl] @ proj^T → [seq, n_embd]
@@ -1548,12 +1566,19 @@ pub fn backward_gemma4_with_lora(
                 grad_gate_post[i] = grad_gated[i] * ple.inp_layer_slice[i];
             }
 
-            // GELU backward: gate_post = gelu(gate_pre)
-            // grad_gate_pre = grad_gate_post * gelu_tanh_approx_prime(gate_pre)
-            let mut grad_gate_pre = vec![0.0f32; seq * n_epl];
-            for i in 0..grad_gate_pre.len() {
-                grad_gate_pre[i] = grad_gate_post[i] * gelu_tanh_approx_prime(ple.gate_pre_gelu[i]);
-            }
+            // WAVE12 Phase 2 — Site 17: PLE unfused gelu_bwd on GPU.
+            //   grad_gate_pre = grad_gate_post * gelu_tanh_approx_prime(gate_pre)
+            let grad_gate_pre = if let Some(_g) = gpu {
+                crate::gemma4_gpu::gelu_batch_bwd_on_gpu(
+                    &grad_gate_post, &ple.gate_pre_gelu,
+                ).expect("gpu site 17 ple_gelu_bwd")
+            } else {
+                let mut grad_gate_pre = vec![0.0f32; seq * n_epl];
+                for i in 0..grad_gate_pre.len() {
+                    grad_gate_pre[i] = grad_gate_post[i] * gelu_tanh_approx_prime(ple.gate_pre_gelu[i]);
+                }
+                grad_gate_pre
+            };
 
             // Site 14 — PLE inp_gate matmul backward: gate_pre = pe_in @ inp_gate^T
             //   grad_pe_in_chain = grad_gate_pre @ inp_gate
@@ -1590,13 +1615,22 @@ pub fn backward_gemma4_with_lora(
             let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
             matmul_x_wt(&cache.ffn_hidden, &ffn_down_f32, seq, n_embd, h.n_ff)
         };
-        let mut grad_ffn_out = vec![0.0f32; seq * n_embd];
-        for s in 0..seq {
-            let row_ffn_out = &ffn_out_full[s * n_embd..(s + 1) * n_embd];
-            let go_row = &grad_hidden[s * n_embd..(s + 1) * n_embd];
-            let gi = backward::rmsnorm_backward(row_ffn_out, &weights.post_ffw_norm[il], go_row, h.rms_norm_eps);
-            grad_ffn_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
-        }
+        // WAVE12 Phase 2 — Site 9: post_ffw_norm rmsnorm_bwd on GPU.
+        let grad_ffn_out = if let Some(g) = gpu {
+            crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
+                &grad_hidden, &ffn_out_full,
+                &g.post_ffw_norm[il], h.rms_norm_eps, seq, n_embd,
+            ).expect("gpu site 9 post_ffw_norm_bwd")
+        } else {
+            let mut grad_ffn_out = vec![0.0f32; seq * n_embd];
+            for s in 0..seq {
+                let row_ffn_out = &ffn_out_full[s * n_embd..(s + 1) * n_embd];
+                let go_row = &grad_hidden[s * n_embd..(s + 1) * n_embd];
+                let gi = backward::rmsnorm_backward(row_ffn_out, &weights.post_ffw_norm[il], go_row, h.rms_norm_eps);
+                grad_ffn_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
+            }
+            grad_ffn_out
+        };
 
         // Site 3 — backward through FFN down: ffn_out = ffn_hidden @ ffn_down^T
         //   grad_ffn_hidden = grad_ffn_out @ ffn_down
@@ -1608,19 +1642,26 @@ pub fn backward_gemma4_with_lora(
             matmul_grad_x(&grad_ffn_out, &ffn_down_f32, seq, n_embd, h.n_ff)
         };
 
-        // Backward through ffn_hidden = gelu_tanh(gate_pre) * up_pre
+        // WAVE12 Phase 2 — Site 11: fused gelu_mul backward on GPU.
         //   grad_gate_pre[i] = grad_ffn_hidden[i] * up_pre[i] * gelu_tanh'(gate_pre[i])
         //   grad_up_pre[i]   = grad_ffn_hidden[i] * gelu_tanh(gate_pre[i])
-        let mut grad_gate_pre = vec![0.0f32; seq * h.n_ff];
-        let mut grad_up_pre = vec![0.0f32; seq * h.n_ff];
-        for i in 0..seq * h.n_ff {
-            let gp = cache.ffn_gate_pre[i];
-            let up = cache.ffn_up_pre[i];
-            let gelu_val = forward::gelu_tanh_approx(gp);
-            let d_gelu = gelu_tanh_approx_prime(gp);
-            grad_gate_pre[i] = grad_ffn_hidden[i] * up * d_gelu;
-            grad_up_pre[i] = grad_ffn_hidden[i] * gelu_val;
-        }
+        let (grad_gate_pre, grad_up_pre) = if let Some(_g) = gpu {
+            crate::gemma4_gpu::gelu_mul_batch_bwd_on_gpu(
+                &grad_ffn_hidden, &cache.ffn_gate_pre, &cache.ffn_up_pre,
+            ).expect("gpu site 11 gelu_mul_bwd")
+        } else {
+            let mut grad_gate_pre = vec![0.0f32; seq * h.n_ff];
+            let mut grad_up_pre = vec![0.0f32; seq * h.n_ff];
+            for i in 0..seq * h.n_ff {
+                let gp = cache.ffn_gate_pre[i];
+                let up = cache.ffn_up_pre[i];
+                let gelu_val = forward::gelu_tanh_approx(gp);
+                let d_gelu = gelu_tanh_approx_prime(gp);
+                grad_gate_pre[i] = grad_ffn_hidden[i] * up * d_gelu;
+                grad_up_pre[i] = grad_ffn_hidden[i] * gelu_val;
+            }
+            (grad_gate_pre, grad_up_pre)
+        };
 
         // Sites 4 + 5 — backward through ffn_gate + ffn_up: both took ffn_normed.
         //   ffn_gate_pre = ffn_normed @ ffn_gate^T → grad_ffn_normed += grad_gate_pre @ ffn_gate
@@ -1643,13 +1684,24 @@ pub fn backward_gemma4_with_lora(
             grad_ffn_normed[i] += grad_ffn_normed_up[i];
         }
 
-        // Backward through ffn_norm → grad w.r.t. post_attn_residual (add to residual grad)
-        for s in 0..seq {
-            let input_row = &cache.post_attn_residual[s * n_embd..(s + 1) * n_embd];
-            let go_row = &grad_ffn_normed[s * n_embd..(s + 1) * n_embd];
-            let gi = backward::rmsnorm_backward(input_row, &weights.ffn_norm[il], go_row, h.rms_norm_eps);
-            for d in 0..n_embd {
-                grad_post_attn[s * n_embd + d] += gi[d];
+        // WAVE12 Phase 2 — Site 10: ffn_norm rmsnorm_bwd on GPU.
+        // Output accumulates into grad_post_attn (residual-gradient sum).
+        if let Some(g) = gpu {
+            let grad_ffn_norm_in = crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
+                &grad_ffn_normed, &cache.post_attn_residual,
+                &g.ffn_norm[il], h.rms_norm_eps, seq, n_embd,
+            ).expect("gpu site 10 ffn_norm_bwd");
+            for i in 0..grad_post_attn.len() {
+                grad_post_attn[i] += grad_ffn_norm_in[i];
+            }
+        } else {
+            for s in 0..seq {
+                let input_row = &cache.post_attn_residual[s * n_embd..(s + 1) * n_embd];
+                let go_row = &grad_ffn_normed[s * n_embd..(s + 1) * n_embd];
+                let gi = backward::rmsnorm_backward(input_row, &weights.ffn_norm[il], go_row, h.rms_norm_eps);
+                for d in 0..n_embd {
+                    grad_post_attn[s * n_embd + d] += gi[d];
+                }
             }
         }
 
@@ -1667,13 +1719,22 @@ pub fn backward_gemma4_with_lora(
             let wo_f32 = bf16_to_f32_vec(&weights.wo[il]);
             matmul_x_wt(&cache.attn_out, &wo_f32, seq, n_embd, q_out_dim)
         };
-        let mut grad_o_out = vec![0.0f32; seq * n_embd];
-        for s in 0..seq {
-            let row_o = &o_out_full[s * n_embd..(s + 1) * n_embd];
-            let go_row = &grad_post_attn[s * n_embd..(s + 1) * n_embd];
-            let gi = backward::rmsnorm_backward(row_o, &weights.post_attention_norm[il], go_row, h.rms_norm_eps);
-            grad_o_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
-        }
+        // WAVE12 Phase 2 — Site 6: rmsnorm_bwd on GPU (batched, replaces per-row CPU loop).
+        let grad_o_out = if let Some(g) = gpu {
+            crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
+                &grad_post_attn, &o_out_full,
+                &g.post_attention_norm[il], h.rms_norm_eps, seq, n_embd,
+            ).expect("gpu site 6 post_attention_norm_bwd")
+        } else {
+            let mut grad_o_out = vec![0.0f32; seq * n_embd];
+            for s in 0..seq {
+                let row_o = &o_out_full[s * n_embd..(s + 1) * n_embd];
+                let go_row = &grad_post_attn[s * n_embd..(s + 1) * n_embd];
+                let gi = backward::rmsnorm_backward(row_o, &weights.post_attention_norm[il], go_row, h.rms_norm_eps);
+                grad_o_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
+            }
+            grad_o_out
+        };
 
         // Site 7 — backward through O projection: o_out = attn_out @ wo^T
         //   grad_attn_out = grad_o_out @ wo
@@ -1752,12 +1813,25 @@ pub fn backward_gemma4_with_lora(
             }
         }
 
-        // Backward through RoPE on Q and K
+        // WAVE12 Phase 2 — Site 12: partial-RoPE backward on GPU for Q and K.
         let rope_dim = h.rope_dim(il);
         let freq_base = h.rope_freq_base(il);
         let (cos_table, sin_table) = forward::rope_freqs(seq, rope_dim, freq_base);
-        let grad_q_normed = rope_backward_partial(&grad_q_rot, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
-        let grad_k_normed = rope_backward_partial(&grad_k_rot, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
+        let (grad_q_normed, grad_k_normed) = if let Some(_g) = gpu {
+            let gq = crate::gemma4_gpu::rope_batch_bwd_on_gpu(
+                &grad_q_rot, &cos_table, &sin_table,
+                seq, n_head, head_dim, rope_dim,
+            ).expect("gpu site 12 rope_bwd Q");
+            let gk = crate::gemma4_gpu::rope_batch_bwd_on_gpu(
+                &grad_k_rot, &cos_table, &sin_table,
+                seq, n_head_kv, head_dim, rope_dim,
+            ).expect("gpu site 12 rope_bwd K");
+            (gq, gk)
+        } else {
+            let gq = rope_backward_partial(&grad_q_rot, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
+            let gk = rope_backward_partial(&grad_k_rot, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
+            (gq, gk)
+        };
 
         // Sites 11 + 12 — reconstruct Q/K/V pre-norm values for per_head_*
         // backward. These replace the former reconstruct_q_pre_norm /
@@ -1798,20 +1872,37 @@ pub fn backward_gemma4_with_lora(
             (vec![0.0f32; seq * kv_out_dim], vec![0.0f32; seq * kv_out_dim])
         };
 
-        // Backward through per-head Q-norm, K-norm, V-norm
-        let grad_q = per_head_rmsnorm_backward(
-            &grad_q_normed,
-            &q_pre_norm,
-            &weights.attn_q_norm[il],
-            seq, n_head, head_dim, h.rms_norm_eps,
-        );
-        let grad_k = if let Some(k_norm_w) = &weights.attn_k_norm[il] {
+        // WAVE12 Phase 2 — Site 13: per-head rmsnorm backward on GPU for Q and K.
+        // V's weightless norm (Site 14) stays on CPU: tensor is tiny
+        // (seq * n_head_kv=1 * head_dim) and would need a synthesized
+        // ones-weight GpuBuffer — net cost exceeds the CPU loop.
+        let grad_q = if let Some(g) = gpu {
+            crate::gemma4_gpu::per_head_rmsnorm_batch_bwd_on_gpu(
+                &grad_q_normed, &q_pre_norm,
+                &g.attn_q_norm[il], h.rms_norm_eps,
+                seq, n_head, head_dim,
+            ).expect("gpu site 13 per_head_rms_bwd Q")
+        } else {
             per_head_rmsnorm_backward(
-                &grad_k_normed,
-                &k_pre_norm,
-                k_norm_w,
-                seq, n_head_kv, head_dim, h.rms_norm_eps,
+                &grad_q_normed, &q_pre_norm, &weights.attn_q_norm[il],
+                seq, n_head, head_dim, h.rms_norm_eps,
             )
+        };
+        let grad_k = if let Some(k_norm_w) = &weights.attn_k_norm[il] {
+            if let Some(g) = gpu {
+                let g_kn = g.attn_k_norm[il].as_ref()
+                    .expect("gpu attn_k_norm mirror present when CPU has k_norm");
+                crate::gemma4_gpu::per_head_rmsnorm_batch_bwd_on_gpu(
+                    &grad_k_normed, &k_pre_norm,
+                    g_kn, h.rms_norm_eps,
+                    seq, n_head_kv, head_dim,
+                ).expect("gpu site 13 per_head_rms_bwd K")
+            } else {
+                per_head_rmsnorm_backward(
+                    &grad_k_normed, &k_pre_norm, k_norm_w,
+                    seq, n_head_kv, head_dim, h.rms_norm_eps,
+                )
+            }
         } else {
             grad_k_normed
         };
@@ -1903,12 +1994,24 @@ pub fn backward_gemma4_with_lora(
         // The above `let layer_input =` is redundant with the one below; clean up.
         let _ = layer_input;
 
-        for s in 0..seq {
-            let input_row = &layer_input_ref[s * n_embd..(s + 1) * n_embd];
-            let go_row = &grad_normed[s * n_embd..(s + 1) * n_embd];
-            let gi = backward::rmsnorm_backward(input_row, &weights.attn_norm[il], go_row, h.rms_norm_eps);
-            for d in 0..n_embd {
-                grad_hidden_incoming[s * n_embd + d] += gi[d];
+        // WAVE12 Phase 2 — Site 15: attn_norm rmsnorm_bwd on GPU.
+        // Output accumulates into grad_hidden_incoming (residual sum).
+        if let Some(g) = gpu {
+            let grad_attn_norm_in = crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
+                &grad_normed, layer_input_ref,
+                &g.attn_norm[il], h.rms_norm_eps, seq, n_embd,
+            ).expect("gpu site 15 attn_norm_bwd");
+            for i in 0..grad_hidden_incoming.len() {
+                grad_hidden_incoming[i] += grad_attn_norm_in[i];
+            }
+        } else {
+            for s in 0..seq {
+                let input_row = &layer_input_ref[s * n_embd..(s + 1) * n_embd];
+                let go_row = &grad_normed[s * n_embd..(s + 1) * n_embd];
+                let gi = backward::rmsnorm_backward(input_row, &weights.attn_norm[il], go_row, h.rms_norm_eps);
+                for d in 0..n_embd {
+                    grad_hidden_incoming[s * n_embd + d] += gi[d];
+                }
             }
         }
 

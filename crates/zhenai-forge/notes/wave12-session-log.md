@@ -14,7 +14,7 @@
 |------:|------|-----|---------|-------:|
 | 0 | Preflight + baseline | warm step 3 ∈ [9.5, 12] s | **10.2 s** @ loss 21.21→18.63→16.47 | ✅ |
 | 1 | Shared mask cache | warm ≤ 10.5 s (no regression) | **10.65 s median** (4 warm samples) | ⚠ noise-floor |
-| 2 | Backward GPU ops | warm ≤ 8.5 s | — | pending |
+| 2 | Backward GPU ops | warm ≤ 8.5 s | **9.9 s** (4 warm samples) | ⚠ below expectation (−0.7s vs −2-4s) |
 | 3 | Checkpoint + decision | median warm | — | pending |
 | 4 | Matmul GPU-in/out | matmul tests green, no regression | — | pending |
 | 5 | GPU-resident forward | warm ≤ 5.5 s | — | pending |
@@ -102,12 +102,57 @@ sliding window variant in Gemma-4).
 
 ---
 
+## Phase 2 — Backward rmsnorm/gelu/rope on GPU (2026-04-22)
+
+**Duration:** ~1 h wall (plan budgeted 2h).
+
+**Implementation:**
+- Added 5 batch backward helpers in `src/gemma4_gpu.rs`, mirroring the Phase 8c forward helpers: `rmsnorm_batch_bwd_on_gpu`, `per_head_rmsnorm_batch_bwd_on_gpu`, `gelu_batch_bwd_on_gpu`, `gelu_mul_batch_bwd_on_gpu`, `rope_batch_bwd_on_gpu`.
+- Swapped 11 CPU backward call sites in `src/gemma4.rs::backward_gemma4_with_lora` to use the GPU helpers, guarded by `if gpu.is_some()`:
+  - Site 6: post_attention_norm rmsnorm_bwd
+  - Site 9: post_ffw_norm rmsnorm_bwd
+  - Site 10: ffn_norm rmsnorm_bwd (accumulating add)
+  - Site 11: fused gelu_mul_bwd (FFN)
+  - Site 12: partial-RoPE bwd × 2 (Q, K)
+  - Site 13: per-head rmsnorm_bwd × 2 (Q, K)
+  - Site 15: attn_norm rmsnorm_bwd (accumulating add)
+  - Site 16: PLE post_norm rmsnorm_bwd
+  - Site 17: PLE unfused gelu_bwd
+  - Site 18: output_norm rmsnorm_bwd
+- Site 14 (v_norm_backward, weightless) kept on CPU per plan — tensor is tiny (seq*n_head_kv=1*head_dim) and synthesizing a ones-weight GpuBuffer would dwarf the CPU cost.
+- Plan's Site 19 (per_layer_proj_norm) is used only in PLE forward, not backward — no swap needed.
+
+**Phase 8b postmortem quirk recurred in rope_bwd:**
+KV-reuse consumer layers have `grad_k_rot.len() > seq * n_head_kv * head_dim` because `attention_backward_gpu_kernels` allocates `grad_k = vec![0.0; k_rot.len()]` from actual cache size (e.g., swa consumer inheriting 512-stride K from full producer → 3072-element grad_k_rot when derived shape says 1536). CPU `rope_backward_partial` silently tolerated this via `grad_rotated.to_vec()` passthrough of the tail; my first GPU helper asserted the derived shape and panicked. Fix: allocate buffers from actual `grad_out.len()`, pre-seed `grad_in_buf` with `grad_out` so the passthrough tail matches CPU semantics, kernel overwrites only the first `head_dim` stride per head. Documented at the helper body.
+
+**Regression:**
+- `test_gemma4_gpu_forward_matches_cpu`: unchanged (forward untouched) — cosine 0.9985, argmax 5646, ok.
+- `test_gemma4_gpu_train_step_loss_descent`: loss **21.1045 → 13.4454 → 7.1765** (monotonic, within bf16 variance vs CPU 21.10 → 13.29 → 6.48). ok.
+
+**Kingdom smoke (seq=384, steps=5, warm samples 2-5):**
+```
+[step 1/5] 62.4s  (cold, JIT-warmed 11 new bwd kernels)
+[step 2/5] 10.0s
+[step 3/5]  9.9s
+[step 4/5]  9.9s
+[step 5/5]  9.9s
+```
+Warm median: **9.9 s**. Plan gate was ≤8.5 s. Saved ~0.75 s/step vs Phase 1 baseline (10.65 → 9.9) — much less than the plan's 2-4 s expectation.
+
+**Diagnosis (honest):**
+The per-call PCIe round-trip overhead now dominates the backward path, not CPU compute. Each of the ~175 backward kernel calls per step (35 layers × ~5 bwd ops each) does alloc + upload + download ≈ 2.4-9.4 MB round-trip. Net PCIe traffic for backward swaps alone ≈ 880 MB/step. The CPU backward we replaced was ~9 ms/layer × 35 ≈ 0.3 s of compute — that's the actual savings ceiling for Phase 2 before Phase 5 eliminates the round-trips.
+
+**Decision:** The remaining 4.9 s/step gap (9.9 → 5.0 target) genuinely requires Phase 4+5 (GPU-resident activations). The Phase 2 swaps are still *necessary* infrastructure for Phase 5 (which needs gpu-in/gpu-out bwd kernels), just not the performance unlock by themselves. Moving forward with the plan.
+
+---
+
 ## Commit ledger
 
 | Step | Hash | Phase | Summary |
 |-----:|------|------:|---------|
 | 20 | `9338d9e5` | 0 | `docs(forge): [PLAN W12] Phase 0 — preflight, baseline confirmed @ ~10.2s/step warm` |
-| 34 | *pending* | 1 | `feat(forge): [PLAN W12] Phase 1 — MaskCache eliminates 34/35 per-layer mask uploads` |
+| 34 | `9df2cba5` | 1 | `feat(forge): [PLAN W12] Phase 1 — MaskCache eliminates 34/35 per-layer mask uploads` |
+| 74 | *pending* | 2 | `feat(forge): [PLAN W12] Phase 2 — 11 backward sites on GPU (rope passthrough fix)` |
 
 ---
 
