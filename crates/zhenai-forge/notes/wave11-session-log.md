@@ -19,8 +19,8 @@
 | 7 | Attention fwd+bwd (4 grad kernels + E2E) | ✅ DONE | **21 kernel tests cosine=1.000** |
 | 8a | GPU attention forward wired into forward_gemma4_gpu | ✅ DONE | `6d620c9e` |
 | 8b | GPU attention backward wired into backward_gemma4_with_lora | ✅ DONE | `5ebceb5a` |
-| 8c | Sweep remaining CPU ops (rmsnorm, rope, gelu) on GPU | deferred |
-| 8d | Proper `impl ForgeBackend for GpuKernelsBackend` struct | deferred |
+| 8c | Sweep remaining CPU ops (rmsnorm × 9, gelu × 2) on GPU | ✅ DONE | `5f90152b` |
+| 8d | Proper `impl ForgeBackend for GpuKernelsBackend` struct (GPU-resident activations) | deferred |
 | 9 | 30-step Kingdom RAFT at seq=384 — descent proven | ✅ DONE |
 | 10 | ADR-049 + session log + handoff | ✅ DONE | `51e0917b` |
 
@@ -107,7 +107,34 @@ follow-on work for the sub-5s/step goal but not blocking.
 | `6d620c9e` | Phase 8a GPU attention forward integrated |
 | `5ebceb5a` | Phase 8b GPU attention backward integrated |
 | `21a28028` | Phase 8b seq=384 timing — 11s/step warm |
-| `51e0917b` | Phase 10 ADR-049 + index
+| `51e0917b` | Phase 10 ADR-049 + index |
+| `cd483ac5` | Phase 9+10 Kingdom RAFT descends at seq=384 |
+| `5f90152b` | Phase 8c — rmsnorm + gelu per-token loops → GPU kernels (10.5s warm)
+
+### Phase 8c results — rmsnorm + gelu swaps (seq=384, 10 steps)
+
+```
+[step  1/10] step_time=78.2s (cold)
+[step  2/10] step_time=11.7s  ← JIT warmup for new kernel variants
+[step  3/10] step_time=10.5s
+[step  4/10] step_time=10.4s
+[step  5/10] step_time=10.7s
+[step  6/10] step_time=10.5s
+[step  7/10] step_time=10.5s
+[step  8/10] step_time=10.8s
+[step  9/10] step_time=10.3s
+[step 10/10] step_time=10.3s
+--
+Phase 8c warm avg:  ~10.5 s  (vs Phase 8b ~11.0 s — ~5% speedup)
+Phase 8c cold:      78.2 s   (vs Phase 8b 69.0 s — +9s JIT warmup)
+Loss step 10:       10.69    (healthy descent, matches Phase 9 trajectory)
+```
+
+**Phase 8c verdict:** small steady-state win, amortizes cold cost in ~20
+steps. Over a 500-step full RAFT, saves ~4 minutes. Not a revolution.
+The bigger speedup requires Phase 8d — keeping activations GPU-resident
+across op boundaries so rmsnorm → matmul → gelu chains don't round-trip
+to CPU per op. Deferred to a future session.
 
 ### Phase 8a kernel bug caught by Gemma-4 regression
 
