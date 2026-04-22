@@ -428,6 +428,9 @@ pub fn forward_gemma4_gpu(
 
     let mut layer_caches: Vec<Gemma4LayerCache> = Vec::with_capacity(h.n_layer);
 
+    // WAVE12 Phase 1: build attention mask once per (variant, seq) pair per step.
+    let mut mask_cache = MaskCache::new();
+
     for il in 0..h.n_layer {
         let head_dim = h.head_dim(il);
         let n_head = h.n_head;
@@ -531,6 +534,7 @@ pub fn forward_gemma4_gpu(
         let (attn_out_head, attn_cache) = attention_forward_gpu_kernels(
             &q_rot, &k_rot, &v_normed,
             n_head, n_head_kv, head_dim, seq, mask,
+            &mut mask_cache,
         )?;
 
         // 2g. O projection (GPU) + LoRA O (CPU)
@@ -754,12 +758,86 @@ pub fn train_step_gemma4_gpu(
     Ok(loss)
 }
 
+/// WAVE12 Phase 1: per-step mask cache.
+///
+/// Gemma-4 has exactly two mask shapes per step: Causal (7 full-attention
+/// layers) and SlidingWindow(512) (28 sliding layers). The additive mask is
+/// identical across layers of the same type and depends only on (mask_variant,
+/// n_heads, seq_len) — all of which are constant within a single forward
+/// pass. Rebuilding + uploading ~4.7 MB/layer was burning ~165 MB/step of
+/// PCIe traffic. Cache inside `forward_gemma4_gpu`; rebuilt every step
+/// because `seq_len` can change per batch, but shared across the 35 layer
+/// calls within one step.
+struct MaskCache {
+    causal: Option<GpuBuffer>,
+    sliding: Vec<(usize, GpuBuffer)>, // keyed by window size
+}
+
+impl MaskCache {
+    fn new() -> Self {
+        Self { causal: None, sliding: Vec::new() }
+    }
+
+    fn get_or_build(
+        &mut self,
+        mask: crate::forward::AttnMask,
+        n_heads: usize,
+        seq_len: usize,
+    ) -> Result<&GpuBuffer, String> {
+        use crate::forward::AttnMask;
+        match mask {
+            AttnMask::Causal => {
+                if self.causal.is_none() {
+                    self.causal = Some(Self::build(mask, n_heads, seq_len)?);
+                }
+                Ok(self.causal.as_ref().unwrap())
+            }
+            AttnMask::SlidingWindow(w) => {
+                if let Some(idx) = self.sliding.iter().position(|(ww, _)| *ww == w) {
+                    Ok(&self.sliding[idx].1)
+                } else {
+                    let buf = Self::build(mask, n_heads, seq_len)?;
+                    self.sliding.push((w, buf));
+                    Ok(&self.sliding.last().unwrap().1)
+                }
+            }
+        }
+    }
+
+    fn build(
+        mask: crate::forward::AttnMask,
+        n_heads: usize,
+        seq_len: usize,
+    ) -> Result<GpuBuffer, String> {
+        let scores_elems = n_heads * seq_len * seq_len;
+        let mut mask_cpu = vec![0.0f32; scores_elems];
+        for sq in 0..seq_len {
+            for sk in 0..seq_len {
+                if !mask.allows(sq, sk) {
+                    let v = -1.0e30_f32;
+                    for h in 0..n_heads {
+                        mask_cpu[(h * seq_len + sq) * seq_len + sk] = v;
+                    }
+                }
+            }
+        }
+        let buf = GpuBuffer::alloc(scores_elems * 4)
+            .map_err(|e| format!("mask alloc: {:?}", e))?;
+        buf.upload_f32(&mask_cpu)
+            .map_err(|e| format!("mask upload: {:?}", e))?;
+        Ok(buf)
+    }
+}
+
 /// WAVE11 Phase 8: GPU-resident attention forward using Phase 5/7 kernels.
 ///
 /// Drop-in replacement for `forward::attention_forward` that runs the
 /// O(seq²·d) compute on the GPU via `attn_scores_fwd` → `softmax_fwd_masked`
 /// → `attn_output_fwd`. Signature, layouts, and return shapes match the CPU
 /// reference so callers can swap one line.
+///
+/// WAVE12 Phase 1: takes `&mut MaskCache` so the additive mask is built +
+/// uploaded once per (mask_variant, seq_len) pair instead of once per layer.
 ///
 /// Layouts:
 ///   q_rot [seq, n_heads,    head_dim]
@@ -777,6 +855,7 @@ fn attention_forward_gpu_kernels(
     head_dim: usize,
     seq_len: usize,
     mask: crate::forward::AttnMask,
+    mask_cache: &mut MaskCache,
 ) -> Result<(Vec<f32>, Vec<f32>), String> {
     use crate::hip_kernels::{attn as k_attn, softmax as k_softmax};
 
@@ -789,39 +868,25 @@ fn attention_forward_gpu_kernels(
     let scores_elems = n_heads * seq_len * seq_len;
     let out_elems    = seq_len * n_heads * head_dim;
 
-    // Build additive mask [n_heads, seq, seq] on CPU. Identical per head, so
-    // a per-(i,j) pattern is replicated across the head axis.
-    let mut mask_cpu = vec![0.0f32; scores_elems];
-    for sq in 0..seq_len {
-        for sk in 0..seq_len {
-            if !mask.allows(sq, sk) {
-                let v = -1.0e30_f32;
-                for h in 0..n_heads {
-                    mask_cpu[(h * seq_len + sq) * seq_len + sk] = v;
-                }
-            }
-        }
-    }
+    let mask_buf = mask_cache.get_or_build(mask, n_heads, seq_len)?;
 
     let q_buf      = GpuBuffer::alloc(q_rot.len() * 4).map_err(|e| format!("q alloc: {:?}", e))?;
     let k_buf      = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("k alloc: {:?}", e))?;
     let v_buf      = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("v alloc: {:?}", e))?;
     let scores_buf = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("scores alloc: {:?}", e))?;
     let probs_buf  = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("probs alloc: {:?}", e))?;
-    let mask_buf   = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("mask alloc: {:?}", e))?;
     let out_buf    = GpuBuffer::alloc(out_elems * 4).map_err(|e| format!("out alloc: {:?}", e))?;
 
     q_buf.upload_f32(q_rot).map_err(|e| format!("q upload: {:?}", e))?;
     k_buf.upload_f32(k_rot).map_err(|e| format!("k upload: {:?}", e))?;
     v_buf.upload_f32(v).map_err(|e| format!("v upload: {:?}", e))?;
-    mask_buf.upload_f32(&mask_cpu).map_err(|e| format!("mask upload: {:?}", e))?;
 
     k_attn::attn_scores_fwd(
         &scores_buf, &q_buf, &k_buf,
         n_heads, n_kv_heads, seq_len, head_dim, scale,
     )?;
     k_softmax::softmax_fwd_masked(
-        &probs_buf, &scores_buf, &mask_buf,
+        &probs_buf, &scores_buf, mask_buf,
         n_heads * seq_len, seq_len,
     )?;
     k_attn::attn_output_fwd(
