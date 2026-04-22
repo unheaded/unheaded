@@ -185,6 +185,7 @@ fn cmd_train_gemma4(args: &[String]) {
         let mut total_loss = 0.0f64;
         for step in 1..=steps {
             let example = &examples[(step - 1) % examples.len()];
+            crate::gemma4_gpu::profile_reset();
             let step_start = std::time::Instant::now();
             let effective_answer_start = answer_start.min(example.len() / 2);
             let loss = backend.train_step(
@@ -198,6 +199,16 @@ fn cmd_train_gemma4(args: &[String]) {
             let eta_min = (steps - step) as f64 * step_secs / 60.0;
             println!("  [step {}/{}] loss={:.4} avg={:.4} step_time={:.1}s elapsed={:.1}m eta={:.1}m  (backend={})",
                 step, steps, loss, avg_loss, step_secs, elapsed_min, eta_min, backend.name());
+            if crate::gemma4_gpu::profile_enabled() {
+                let (method_ns, sgemm_ns, n_calls) = crate::gemma4_gpu::profile_snapshot();
+                let method_s = method_ns as f64 / 1e9;
+                let sgemm_s = sgemm_ns as f64 / 1e9;
+                let overhead_s = method_s - sgemm_s;
+                let frac_method = method_s / step_secs * 100.0;
+                let frac_sgemm = sgemm_s / step_secs * 100.0;
+                println!("         [PROFILE] matmul_method={:.2}s ({:.1}% of step) sgemm_only={:.2}s ({:.1}%) roundtrip_overhead={:.2}s calls={}",
+                    method_s, frac_method, sgemm_s, frac_sgemm, overhead_s, n_calls);
+            }
             let _ = std::io::Write::flush(&mut std::io::stdout());
 
             if save_every > 0 && !output_path.is_empty() && step % save_every == 0 {

@@ -14,6 +14,40 @@ use crate::gemma4::Gemma4Hparams;
 use crate::hip::{BlasHandle, GpuBuffer, GpuDevice, HipError};
 use half::bf16;
 
+// WAVE12 Phase 3 profiling counters. Enabled when env WAVE12_PROFILE=1.
+// - MATMUL_METHOD_NS: total wall time inside matmul_xwt + matmul_grad_x
+//   (includes bf16 conv, alloc, upload, sgemm, download).
+// - MATMUL_SGEMM_NS: pure hipBLAS sgemm_bf16_ex call time only (the
+//   actual GPU matmul compute + its implicit sync).
+// Difference = bf16 conv + alloc + upload + download overhead (i.e. the
+// exact cost Phase 5's GPU-resident rewrite would eliminate).
+pub(crate) static MATMUL_METHOD_NS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+pub(crate) static MATMUL_SGEMM_NS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+pub(crate) static MATMUL_CALL_COUNT: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+pub(crate) fn profile_enabled() -> bool {
+    std::env::var("WAVE12_PROFILE").ok().as_deref() == Some("1")
+}
+
+pub(crate) fn profile_reset() {
+    use std::sync::atomic::Ordering;
+    MATMUL_METHOD_NS.store(0, Ordering::Relaxed);
+    MATMUL_SGEMM_NS.store(0, Ordering::Relaxed);
+    MATMUL_CALL_COUNT.store(0, Ordering::Relaxed);
+}
+
+pub(crate) fn profile_snapshot() -> (u64, u64, u64) {
+    use std::sync::atomic::Ordering;
+    (
+        MATMUL_METHOD_NS.load(Ordering::Relaxed),
+        MATMUL_SGEMM_NS.load(Ordering::Relaxed),
+        MATMUL_CALL_COUNT.load(Ordering::Relaxed),
+    )
+}
+
 /// GPU-resident Gemma 4 weights. Each tensor is uploaded as bf16 (matching
 /// on-disk + on-CPU storage). Output of matmuls accumulates in f32.
 pub struct Gemma4GpuWeights {
@@ -238,6 +272,7 @@ impl Gemma4GpuWeights {
         m: usize, n: usize, k: usize,
     ) -> Result<Vec<f32>, String> {
         debug_assert_eq!(grad_out_f32.len(), m * n);
+        let _prof_t0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
         // Convert grad_out to bf16, upload
         let mut go_bf16: Vec<bf16> = Vec::with_capacity(grad_out_f32.len());
         for &f in grad_out_f32 { go_bf16.push(bf16::from_f32(f)); }
@@ -261,6 +296,7 @@ impl Gemma4GpuWeights {
         // In col-major: out_cm[k,m] = w_cm[k,n] @ grad_out_cm[n,m]
         // Both ops untransposed. M_hipblas=k, N_hipblas=m, K_hipblas=n.
         // Leading dims (col-major rows): lda=k, ldb=n, ldc=k.
+        let _prof_s0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
         self.blas.sgemm_bf16_ex(
             false, false,
             k as i32, m as i32, n as i32,
@@ -270,10 +306,17 @@ impl Gemma4GpuWeights {
             0.0,
             &out_buf, k as i32,
         ).map_err(|e| format!("sgemm_bf16: {:?}", e))?;
+        if let Some(t0) = _prof_s0 {
+            MATMUL_SGEMM_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        }
 
         let mut out = vec![0.0f32; m * k];
         out_buf.download_f32(&mut out)
             .map_err(|e| format!("download: {:?}", e))?;
+        if let Some(t0) = _prof_t0 {
+            MATMUL_METHOD_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
         Ok(out)
     }
 
@@ -289,6 +332,7 @@ impl Gemma4GpuWeights {
         m: usize, n: usize, k: usize,
     ) -> Result<Vec<f32>, String> {
         debug_assert_eq!(input_f32.len(), m * k);
+        let _prof_t0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
         // f32 → bf16 host-side. Cheap (~ns/element).
         let mut input_bf16: Vec<bf16> = Vec::with_capacity(input_f32.len());
         for &f in input_f32 {
@@ -306,6 +350,7 @@ impl Gemma4GpuWeights {
         let out_buf = GpuBuffer::alloc(m * n * 4)
             .map_err(|e| format!("alloc output: {:?}", e))?;
 
+        let _prof_s0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
         self.blas.sgemm_bf16_ex(
             true, false,
             n as i32, m as i32, k as i32,
@@ -315,11 +360,18 @@ impl Gemma4GpuWeights {
             0.0,
             &out_buf, n as i32,
         ).map_err(|e| format!("sgemm_bf16: {:?}", e))?;
+        if let Some(t0) = _prof_s0 {
+            MATMUL_SGEMM_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        }
         // hipMemcpy(D2H) is synchronous; no explicit sync needed.
 
         let mut out = vec![0.0f32; m * n];
         out_buf.download_f32(&mut out)
             .map_err(|e| format!("download: {:?}", e))?;
+        if let Some(t0) = _prof_t0 {
+            MATMUL_METHOD_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
         Ok(out)
     }
 
