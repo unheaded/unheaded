@@ -17,7 +17,7 @@
 | 2 | Backward GPU ops | warm ≤ 8.5 s | **9.9 s** (4 warm samples) | ⚠ below expectation (−0.7s vs −2-4s) |
 | 3 | Checkpoint + decision | median warm | **10.5 s** (8 warm samples) | ⚠ at baseline |
 | 4 | Matmul GPU-in/out | matmul tests green, no regression | cosine 1.0 exact, 0 abs err | ✅ |
-| 5 | GPU-resident forward | warm ≤ 5.5 s | — | pending |
+| 5 | GPU-resident forward | warm ≤ 5.5 s | **10.3 s** (5 warm samples, 5C+5D) | 🚨 gate missed, plan cost-model broken |
 | 6 | Full regression | Learning Gate 4/5 pass, warm ≤ 5.5 s | — | pending |
 | 7 | 500-step RAFT | eval loss@500 < eval loss@0, final train loss < 8 | — | pending |
 | 8 | ADR-050 + handoff | DoD all true | — | pending |
@@ -230,6 +230,34 @@ Instrumented `matmul_xwt` + `matmul_grad_x` with atomic ns counters gated by `WA
 Still Stevie's call — the investment is another 5-6 hours today vs. shipping at 10.5 s/step now. Both produce a learning Kingdom LoRA.
 
 **Stevie's call (2026-04-23):** Route **B** — continue Phases 4-8 unattended under Marshal oversight. Session log henceforth includes Marshal citations at every phase exit gate.
+
+### MARSHAL CITATION — S3 after Phase 5C+5D (2026-04-23)
+
+**Finding:** Phase 5 matmul-path savings are real (matmul_method dropped 1.55 s → 1.17 s) but offset 1:1 by per-layer cache downloads that the backward pass still requires (`ffn_normed`, `gate_pre`, `up_pre`, `ffn_hidden`, `post_attn`, `layer_out` — 6 downloads × 35 layers = 210 extra sync-bound transfers/step, ≈0.4 s). Net wall-time: **10.3 s warm**, unchanged from baseline 10.5 s.
+
+**Root cause:** Plan Phase 5 cost-model (3 s/step savings) assumed GPU-resident backward too. Backward currently runs CPU-side and consumes Vec<f32> layer cache fields, forcing downloads that defeat the GPU-resident forward's round-trip elimination. Phase 5E (PLE) will follow the same pattern — forward savings canceled by cache downloads.
+
+**What Phase 5 DID deliver (useful infrastructure):**
+- ForwardScratch struct + alloc
+- `matmul_xwt_gpu_in_out` / `matmul_grad_x_gpu_in_out`
+- `f32_to_bf16` kernel (bit-identical to CPU)
+- `add_f32` kernel (residual stream GPU add)
+- All 3 major forward chains (pre-attn, O/post-attn/FFN) rewritten for GPU-resident flow
+
+**These unlock a future WAVE13** where `backward_gemma4_with_lora` is rewritten to consume GPU-resident layer cache directly — likely 3-5 s/step savings when paired.
+
+**Realistic WAVE12 outcomes from here:**
+
+| Route | Time | Warm step | DoD |
+|------:|-----:|----------:|----|
+| B1 | +30m (5E) | ~10 s | miss ≤5.5 gate |
+| B2 | +30m (5E) + 2h RAFT | ~10 s | ship LoRA, miss ≤5.5 gate, hit others |
+| B3 | +3-5h (backward-resident refactor, high risk) + 2h RAFT | ~6-8 s | maybe hit 5.5, maybe not |
+| B4 | skip 5E, skip further refactor, go to Phase 7 now + Phase 8 | ~2.5h | ship LoRA, miss 5.5 gate, hit others |
+
+**Marshal recommendation:** B4 (ship at ~10 s now). We've spent 4h on Phase 4+5 with negligible wall-time gain. Continuing into backward-resident refactor risks another 3-5h for uncertain payoff. The Phase 5 infrastructure is preserved as WAVE13 launching pad. Stevie originally authorized B on the assumption that Phase 5 had 3-5 s headroom — the profile now shows that headroom exists but is locked behind a backward rewrite the plan didn't account for.
+
+Stevie's call needed. Checking in.
 
 ### Marshal — session-opening top-3 risk checklist (cite at every phase exit)
 
