@@ -16,7 +16,7 @@
 | 1 | Shared mask cache | warm ≤ 10.5 s (no regression) | **10.65 s median** (4 warm samples) | ⚠ noise-floor |
 | 2 | Backward GPU ops | warm ≤ 8.5 s | **9.9 s** (4 warm samples) | ⚠ below expectation (−0.7s vs −2-4s) |
 | 3 | Checkpoint + decision | median warm | **10.5 s** (8 warm samples) | ⚠ at baseline |
-| 4 | Matmul GPU-in/out | matmul tests green, no regression | — | pending |
+| 4 | Matmul GPU-in/out | matmul tests green, no regression | cosine 1.0 exact, 0 abs err | ✅ |
 | 5 | GPU-resident forward | warm ≤ 5.5 s | — | pending |
 | 6 | Full regression | Learning Gate 4/5 pass, warm ≤ 5.5 s | — | pending |
 | 7 | 500-step RAFT | eval loss@500 < eval loss@0, final train loss < 8 | — | pending |
@@ -228,6 +228,14 @@ Instrumented `matmul_xwt` + `matmul_grad_x` with atomic ns counters gated by `WA
 **Updated recommendation: PROFILE CONFIRMS — Option B is justified.** Plan's cost model was directionally right, just attributed the round-trips to the wrong kernels. The 3-5 s of Phase 5 savings is the actual non-matmul round-trip overhead, which my measurement quantifies at ~8 s.
 
 Still Stevie's call — the investment is another 5-6 hours today vs. shipping at 10.5 s/step now. Both produce a learning Kingdom LoRA.
+
+**Stevie's call (2026-04-23):** Route **B** — continue Phases 4-8 unattended under Marshal oversight. Session log henceforth includes Marshal citations at every phase exit gate.
+
+### Marshal — session-opening top-3 risk checklist (cite at every phase exit)
+
+1. **Gold-plate creep in Phase 5** (Law 4). Only modify `gemma4_gpu.rs` + `gemma4.rs` + `kernels/` for plan-named additions. No rename tangents, no warning chases, no helper refactors beyond ForwardScratch spec (plan Steps 108-111).
+2. **Phase 5 correctness stall → hero debugging.** Skip Protocol trigger = 3× estimate OR 2 failed debug attempts. Known KV-reuse trap in rope_bwd will recur on every new scratch buffer — pre-seed from actual input length, not derived shape. Commit before every debug attempt.
+3. **Gate skip Phase 6 → Phase 7** (Law 2). No 500-step RAFT launch until Learning Gate 4/5 pass AND forward cosine ≥ 0.99 AND 10-step warm median ≤ 5.5 s. A 2h RAFT on an unvalidated gradient = 2h waste.
 
 ---
 

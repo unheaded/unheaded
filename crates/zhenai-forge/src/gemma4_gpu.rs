@@ -375,6 +375,78 @@ impl Gemma4GpuWeights {
         Ok(out)
     }
 
+    /// WAVE12 Phase 4: matmul_xwt with pre-allocated GPU input + output buffers.
+    ///
+    /// Unlocks GPU-resident forward: caller keeps input_bf16 and output_f32 on
+    /// the GPU across layers, no per-call alloc / upload / download / bf16
+    /// conversion on the host. Profile in Phase 3 showed matmul_method's
+    /// 1.55 s/step round-trip overhead is exactly this cost.
+    ///
+    /// Layout: `out_f32_buf[m,n] = input_bf16_buf[m,k] @ w_gpu_bf16[n,k]^T`.
+    /// Caller must ensure:
+    ///   input_bf16_buf capacity ≥ m*k*2 bytes
+    ///   out_f32_buf    capacity ≥ m*n*4 bytes
+    ///   w_gpu_bf16     capacity ≥ n*k*2 bytes (already the case for uploaded weights)
+    pub fn matmul_xwt_gpu_in_out(
+        &self,
+        w_gpu_bf16: &GpuBuffer,
+        input_bf16_buf: &GpuBuffer,
+        out_f32_buf: &GpuBuffer,
+        m: usize, n: usize, k: usize,
+    ) -> Result<(), String> {
+        let _prof_t0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
+        let _prof_s0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
+        self.blas.sgemm_bf16_ex(
+            true, false,
+            n as i32, m as i32, k as i32,
+            1.0,
+            w_gpu_bf16, k as i32,
+            input_bf16_buf, k as i32,
+            0.0,
+            out_f32_buf, n as i32,
+        ).map_err(|e| format!("sgemm_bf16 (gpu-in/out): {:?}", e))?;
+        if let Some(t0) = _prof_s0 {
+            MATMUL_SGEMM_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        }
+        if let Some(t0) = _prof_t0 {
+            MATMUL_METHOD_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        Ok(())
+    }
+
+    /// WAVE12 Phase 4: matmul_grad_x with pre-allocated GPU input + output buffers.
+    ///
+    /// Layout: `out_f32_buf[m,k] = grad_out_bf16_buf[m,n] @ w_gpu_bf16[n,k]`
+    /// (no transpose). Caller owns both buffers.
+    pub fn matmul_grad_x_gpu_in_out(
+        &self,
+        w_gpu_bf16: &GpuBuffer,
+        grad_out_bf16_buf: &GpuBuffer,
+        out_f32_buf: &GpuBuffer,
+        m: usize, n: usize, k: usize,
+    ) -> Result<(), String> {
+        let _prof_t0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
+        let _prof_s0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
+        self.blas.sgemm_bf16_ex(
+            false, false,
+            k as i32, m as i32, n as i32,
+            1.0,
+            w_gpu_bf16, k as i32,
+            grad_out_bf16_buf, n as i32,
+            0.0,
+            out_f32_buf, k as i32,
+        ).map_err(|e| format!("sgemm_bf16 (gpu-in/out grad_x): {:?}", e))?;
+        if let Some(t0) = _prof_s0 {
+            MATMUL_SGEMM_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        }
+        if let Some(t0) = _prof_t0 {
+            MATMUL_METHOD_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        Ok(())
+    }
+
     /// Test helper: matmul one input vector through layer `il`'s wq weight
     /// using GPU sgemm_bf16. Returns output [seq, q_out_dim] as f32.
     ///
@@ -1529,6 +1601,74 @@ mod tests {
         println!("  max abs err: {:.4e}", max_abs_err);
         assert!(cos_sim > 0.9999,
             "matmul_grad_x cos sim should be >0.9999, got {}", cos_sim);
+    }
+
+    /// WAVE12 Phase 4: gpu-in/out matmul matches the round-trip version.
+    /// Proves the new sgemm variant produces the same result when inputs
+    /// pre-placed on GPU and outputs stay on GPU.
+    #[test]
+    fn test_matmul_xwt_gpu_in_out_matches_cpu() {
+        let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
+        if !std::path::Path::new(model_path).exists() { return; }
+        let model = GgufFile::open(model_path).expect("open");
+        let cpu = CpuWeightsGemma4::load(&model).expect("load");
+        let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
+
+        // Same shape as layer-0 Q projection: seq=4, n_embd=1536, q_out_dim=2048 (sliding).
+        let il = 0;
+        let h = &cpu.hparams;
+        let seq = 4;
+        let n_embd = h.n_embd;
+        let q_out_dim = h.n_head * h.head_dim(il);
+
+        let mut input = Vec::with_capacity(seq * n_embd);
+        let mut s = 0xbadcab1eu64;
+        for _ in 0..(seq * n_embd) {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
+            input.push(u * 0.1);
+        }
+
+        // Reference: existing matmul_xwt (CPU → GPU → CPU round-trip).
+        let ref_out = gpu.matmul_xwt(&gpu.wq[il], &input, seq, q_out_dim, n_embd)
+            .expect("matmul_xwt ref");
+
+        // Candidate: upload f32 to GPU, convert f32→bf16 on-device, run gpu-in/out.
+        let in_f32_buf = GpuBuffer::alloc(seq * n_embd * 4).unwrap();
+        let in_bf16_buf = GpuBuffer::alloc(seq * n_embd * 2).unwrap();
+        let out_buf = GpuBuffer::alloc(seq * q_out_dim * 4).unwrap();
+        in_f32_buf.upload_f32(&input).expect("upload input");
+        crate::hip_kernels::convert::f32_to_bf16(&in_bf16_buf, &in_f32_buf, seq * n_embd)
+            .expect("f32_to_bf16");
+        gpu.matmul_xwt_gpu_in_out(&gpu.wq[il], &in_bf16_buf, &out_buf, seq, q_out_dim, n_embd)
+            .expect("matmul_xwt_gpu_in_out");
+
+        let mut cand_out = vec![0.0f32; seq * q_out_dim];
+        out_buf.download_f32(&mut cand_out).expect("download");
+
+        // Both go through the same sgemm_bf16_ex and the same bf16 rounding
+        // (CPU bf16::from_f32 uses RNE, GPU kernel also uses RNE with the
+        // same `0x7FFF + low_bit` formula). So they should agree to ≥0.9999
+        // cosine with near-bit-identical outputs.
+        assert_eq!(ref_out.len(), cand_out.len());
+        let mut dot = 0.0f64;
+        let mut sa = 0.0f64;
+        let mut sb = 0.0f64;
+        let mut max_abs_err = 0.0f32;
+        for i in 0..ref_out.len() {
+            let a = ref_out[i];
+            let b = cand_out[i];
+            assert!(a.is_finite() && b.is_finite());
+            dot += (a as f64) * (b as f64);
+            sa += (a as f64).powi(2);
+            sb += (b as f64).powi(2);
+            max_abs_err = max_abs_err.max((a - b).abs());
+        }
+        let cos = (dot / (sa.sqrt() * sb.sqrt())) as f32;
+        println!("matmul_xwt_gpu_in_out vs round-trip ref:");
+        println!("  cosine:      {:.8}", cos);
+        println!("  max abs err: {:.4e}", max_abs_err);
+        assert!(cos >= 0.9999, "cosine {} < 0.9999", cos);
     }
 
     #[test]

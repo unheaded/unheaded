@@ -9,6 +9,7 @@
 // `Result<(), String>` to match the existing `hip.rs` style.
 
 pub mod attn;
+pub mod convert;
 pub mod gelu;
 pub mod identity;
 pub mod rmsnorm;
