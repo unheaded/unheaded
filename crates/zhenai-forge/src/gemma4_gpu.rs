@@ -772,8 +772,22 @@ pub fn forward_gemma4_gpu(
             &mut mask_cache,
         )?;
 
-        // 2g. O projection (GPU) + LoRA O (CPU)
-        let mut o_out = gpu.matmul_xwt(&gpu.wo[il], &attn_out_head, seq, n_embd, q_out_dim)?;
+        // WAVE12 Phase 5C — GPU-resident O projection + post_attention_norm + residual.
+        // attn_out_head is CPU Vec (attn kernel currently returns host slice);
+        // upload once, f32_to_bf16 on-device, then matmul_xwt_gpu_in_out →
+        // scratch_f32_a (= o_out). LoRA O still needs CPU normed path.
+        scratch.q_out_f32.upload_f32(&attn_out_head)
+            .map_err(|e| format!("scratch attn_out upload: {:?}", e))?;
+        crate::hip_kernels::convert::f32_to_bf16(
+            &scratch.attn_bf16, &scratch.q_out_f32, seq * q_out_dim,
+        )?;
+        gpu.matmul_xwt_gpu_in_out(
+            &gpu.wo[il], &scratch.attn_bf16, &scratch.scratch_f32_a,
+            seq, n_embd, q_out_dim,
+        )?;
+        let mut o_out = vec![0.0f32; seq * n_embd];
+        scratch.scratch_f32_a.download_f32(&mut o_out)
+            .map_err(|e| format!("scratch o_out download: {:?}", e))?;
         if let Some(lora_set) = lora {
             if let Some(lo) = &lora_set.layers[il][3] {
                 let scale = lora_set.scale();
@@ -785,30 +799,76 @@ pub fn forward_gemma4_gpu(
                     }
                 }
             }
+            // LoRA modified o_out on CPU; upload back for on-GPU rmsnorm+residual.
+            scratch.scratch_f32_a.upload_f32(&o_out)
+                .map_err(|e| format!("scratch o_out LoRA re-upload: {:?}", e))?;
         }
 
-        // 2h. post_attention_norm + residual (GPU rmsnorm batched — Phase 8c)
-        let o_normed = rmsnorm_batch_on_gpu(
-            &o_out, &gpu.post_attention_norm[il], h.rms_norm_eps, seq, n_embd,
+        // rmsnorm(o_out) + residual(hidden) → post_attn_residual (on GPU).
+        crate::hip_kernels::rmsnorm::rmsnorm_fwd(
+            &scratch.normed_f32, &scratch.scratch_f32_a,
+            &gpu.post_attention_norm[il], h.rms_norm_eps, seq, n_embd,
+        )?;
+        crate::hip_kernels::convert::add_f32(
+            &scratch.scratch_f32_b, &scratch.normed_f32, &scratch.hidden_f32,
+            seq * n_embd,
         )?;
         let mut post_attn = vec![0.0f32; seq * n_embd];
-        for i in 0..post_attn.len() { post_attn[i] = o_normed[i] + hidden[i]; }
+        scratch.scratch_f32_b.download_f32(&mut post_attn)
+            .map_err(|e| format!("scratch post_attn download: {:?}", e))?;
 
-        // 2i. FFN — norm (GPU), gate/up/down matmul (GPU), fused GELU*up (GPU — Phase 8c)
-        let ffn_normed = rmsnorm_batch_on_gpu(
-            &post_attn, &gpu.ffn_norm[il], h.rms_norm_eps, seq, n_embd,
+        // 2i. FFN — GPU-resident: rmsnorm → f32_to_bf16 → gate/up → gelu_mul → down.
+        crate::hip_kernels::rmsnorm::rmsnorm_fwd(
+            &scratch.normed_f32, &scratch.scratch_f32_b,
+            &gpu.ffn_norm[il], h.rms_norm_eps, seq, n_embd,
         )?;
-        let gate_pre = gpu.matmul_xwt(&gpu.ffn_gate[il], &ffn_normed, seq, h.n_ff, n_embd)?;
-        let up_pre = gpu.matmul_xwt(&gpu.ffn_up[il], &ffn_normed, seq, h.n_ff, n_embd)?;
-        let ffn_hidden = gelu_mul_batch_on_gpu(&gate_pre, &up_pre)?;
-        let ffn_out = gpu.matmul_xwt(&gpu.ffn_down[il], &ffn_hidden, seq, n_embd, h.n_ff)?;
+        // ffn_normed is cached for backward — download now before overwriting scratch.normed_f32.
+        let mut ffn_normed = vec![0.0f32; seq * n_embd];
+        scratch.normed_f32.download_f32(&mut ffn_normed)
+            .map_err(|e| format!("scratch ffn_normed download: {:?}", e))?;
+        crate::hip_kernels::convert::f32_to_bf16(
+            &scratch.normed_bf16, &scratch.normed_f32, seq * n_embd,
+        )?;
+        gpu.matmul_xwt_gpu_in_out(
+            &gpu.ffn_gate[il], &scratch.normed_bf16, &scratch.ffn_gate_f32,
+            seq, h.n_ff, n_embd,
+        )?;
+        gpu.matmul_xwt_gpu_in_out(
+            &gpu.ffn_up[il], &scratch.normed_bf16, &scratch.ffn_up_f32,
+            seq, h.n_ff, n_embd,
+        )?;
+        // Download gate_pre + up_pre for backward cache.
+        let mut gate_pre = vec![0.0f32; seq * h.n_ff];
+        let mut up_pre = vec![0.0f32; seq * h.n_ff];
+        scratch.ffn_gate_f32.download_f32(&mut gate_pre).map_err(|e| format!("ffn gate download: {:?}", e))?;
+        scratch.ffn_up_f32.download_f32(&mut up_pre).map_err(|e| format!("ffn up download: {:?}", e))?;
+        // Fused GELU*up on GPU, scratch-resident.
+        crate::hip_kernels::gelu::gelu_mul_fwd(
+            &scratch.ffn_hidden_f32, &scratch.ffn_gate_f32, &scratch.ffn_up_f32,
+            seq * h.n_ff,
+        )?;
+        let mut ffn_hidden = vec![0.0f32; seq * h.n_ff];
+        scratch.ffn_hidden_f32.download_f32(&mut ffn_hidden).map_err(|e| format!("ffn hidden download: {:?}", e))?;
+        crate::hip_kernels::convert::f32_to_bf16(
+            &scratch.ffn_hidden_bf16, &scratch.ffn_hidden_f32, seq * h.n_ff,
+        )?;
+        gpu.matmul_xwt_gpu_in_out(
+            &gpu.ffn_down[il], &scratch.ffn_hidden_bf16, &scratch.scratch_f32_a,
+            seq, n_embd, h.n_ff,
+        )?;
 
-        // 2j. post_ffw_norm + residual (GPU rmsnorm batched — Phase 8c)
-        let ffn_normed_out = rmsnorm_batch_on_gpu(
-            &ffn_out, &gpu.post_ffw_norm[il], h.rms_norm_eps, seq, n_embd,
+        // 2j. post_ffw_norm + residual (GPU; result stays in hidden_f32 for next layer).
+        crate::hip_kernels::rmsnorm::rmsnorm_fwd(
+            &scratch.normed_f32, &scratch.scratch_f32_a,
+            &gpu.post_ffw_norm[il], h.rms_norm_eps, seq, n_embd,
+        )?;
+        crate::hip_kernels::convert::add_f32(
+            &scratch.hidden_f32, &scratch.normed_f32, &scratch.scratch_f32_b,
+            seq * n_embd,
         )?;
         let mut layer_out = vec![0.0f32; seq * n_embd];
-        for i in 0..layer_out.len() { layer_out[i] = ffn_normed_out[i] + post_attn[i]; }
+        scratch.hidden_f32.download_f32(&mut layer_out)
+            .map_err(|e| format!("scratch layer_out download: {:?}", e))?;
 
         // PLE chain (matmuls on GPU; gelu + rmsnorm now on GPU — Phase 8c)
         let ple_cache = if let Some(ref ipl) = inp_per_layer {

@@ -13,6 +13,32 @@ extern "C" {
         out_bf16: *mut u16, in_f32: *const f32, n: i32,
         stream: *mut std::ffi::c_void,
     ) -> i32;
+    fn wave12_launch_add_f32(
+        out: *mut f32, a: *const f32, b: *const f32, n: i32,
+        stream: *mut std::ffi::c_void,
+    ) -> i32;
+}
+
+/// On-device elementwise add: `out[i] = a[i] + b[i]`. All buffers f32.
+/// Used for residual-stream adds between rmsnorm outputs and the running
+/// hidden vector across the 35-layer forward chain.
+pub fn add_f32(
+    out: &GpuBuffer, a: &GpuBuffer, b: &GpuBuffer, n: usize,
+) -> Result<(), String> {
+    let required = n * 4;
+    if out.len() < required || a.len() < required || b.len() < required {
+        return Err(format!("add_f32: buf too small (need {} bytes)", required));
+    }
+    let err = unsafe {
+        wave12_launch_add_f32(
+            out.as_ptr() as *mut f32,
+            a.as_ptr() as *const f32,
+            b.as_ptr() as *const f32,
+            n as i32,
+            std::ptr::null_mut(),
+        )
+    };
+    super::check_hip(err, "add_f32")
 }
 
 /// On-device f32 → bf16 conversion. `out_bf16` must have ≥ n*2 bytes;
