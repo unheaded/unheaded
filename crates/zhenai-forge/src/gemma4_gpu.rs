@@ -635,6 +635,9 @@ pub fn forward_gemma4_gpu(
     // WAVE12 Phase 1: build attention mask once per (variant, seq) pair per step.
     let mut mask_cache = MaskCache::new();
 
+    // WAVE12 Phase 5: pre-allocate scratch buffers for the hot activation chain.
+    let scratch = ForwardScratch::alloc(h, seq)?;
+
     for il in 0..h.n_layer {
         let head_dim = h.head_dim(il);
         let n_head = h.n_head;
@@ -642,13 +645,31 @@ pub fn forward_gemma4_gpu(
         let q_out_dim = n_head * head_dim;
         let kv_out_dim = n_head_kv * head_dim;
 
-        // 2a. attn_norm (GPU batched — Phase 8c).
-        let normed = rmsnorm_batch_on_gpu(
-            &hidden, &gpu.attn_norm[il], h.rms_norm_eps, seq, n_embd,
+        // WAVE12 Phase 5B — GPU-resident pre-attention chain (attn_norm → Q/K/V).
+        // Upload hidden once, then rmsnorm + f32_to_bf16 + Q/K/V matmuls all
+        // run on scratch buffers with no host round-trip.
+        scratch.hidden_f32.upload_f32(&hidden)
+            .map_err(|e| format!("scratch hidden upload: {:?}", e))?;
+        crate::hip_kernels::rmsnorm::rmsnorm_fwd(
+            &scratch.normed_f32, &scratch.hidden_f32, &gpu.attn_norm[il],
+            h.rms_norm_eps, seq, n_embd,
+        )?;
+        crate::hip_kernels::convert::f32_to_bf16(
+            &scratch.normed_bf16, &scratch.normed_f32, seq * n_embd,
         )?;
 
-        // 2b. Q projection (GPU) + LoRA Q (CPU)
-        let mut q = gpu.matmul_xwt(&gpu.wq[il], &normed, seq, q_out_dim, n_embd)?;
+        // Q projection (GPU-in/out) + LoRA Q (CPU after download of normed)
+        gpu.matmul_xwt_gpu_in_out(
+            &gpu.wq[il], &scratch.normed_bf16, &scratch.q_out_f32,
+            seq, q_out_dim, n_embd,
+        )?;
+        let mut q = vec![0.0f32; seq * q_out_dim];
+        scratch.q_out_f32.download_f32(&mut q)
+            .map_err(|e| format!("scratch q_out download: {:?}", e))?;
+        // normed must come back to CPU for LoRA forward + per-head-norm downstream.
+        let mut normed = vec![0.0f32; seq * n_embd];
+        scratch.normed_f32.download_f32(&mut normed)
+            .map_err(|e| format!("scratch normed download: {:?}", e))?;
         if let Some(lora_set) = lora {
             if let Some(lq) = &lora_set.layers[il][0] {
                 let scale = lora_set.scale();
@@ -662,11 +683,21 @@ pub fn forward_gemma4_gpu(
             }
         }
 
-        // 2c. K, V projections (GPU if has_kv) + LoRA K, V (CPU)
+        // 2c. K, V projections (GPU-in/out on producers, reuses scratch.normed_bf16).
         let (k_flat, v_flat) = if let Some(wk_buf) = &gpu.wk[il] {
             let wv_buf = gpu.wv[il].as_ref().unwrap_or(wk_buf);
-            let mut k = gpu.matmul_xwt(wk_buf, &normed, seq, kv_out_dim, n_embd)?;
-            let mut v = gpu.matmul_xwt(wv_buf, &normed, seq, kv_out_dim, n_embd)?;
+            gpu.matmul_xwt_gpu_in_out(
+                wk_buf, &scratch.normed_bf16, &scratch.k_out_f32,
+                seq, kv_out_dim, n_embd,
+            )?;
+            gpu.matmul_xwt_gpu_in_out(
+                wv_buf, &scratch.normed_bf16, &scratch.v_out_f32,
+                seq, kv_out_dim, n_embd,
+            )?;
+            let mut k = vec![0.0f32; seq * kv_out_dim];
+            let mut v = vec![0.0f32; seq * kv_out_dim];
+            scratch.k_out_f32.download_f32(&mut k).map_err(|e| format!("scratch k download: {:?}", e))?;
+            scratch.v_out_f32.download_f32(&mut v).map_err(|e| format!("scratch v download: {:?}", e))?;
             if let Some(lora_set) = lora {
                 let scale = lora_set.scale();
                 if let Some(lk) = &lora_set.layers[il][1] {
