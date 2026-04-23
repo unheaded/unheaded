@@ -509,6 +509,86 @@ impl Gemma4GpuWeights {
 }
 
 // =============================================================================
+// WAVE12 Phase 5 — ForwardScratch.
+//
+// Hot-path activation buffers reused across all 35 layers of forward_gemma4_gpu.
+// Allocated once at step start; read/written by direct kernel calls on
+// &GpuBuffer so activations stay GPU-resident across rmsnorm → matmul →
+// per-head-norm → RoPE → attention → O matmul → post-attn-norm → FFN →
+// post-ffw-norm → PLE chain. Eliminates the ~8 s/step of per-helper
+// alloc/upload/download overhead measured in Phase 3.
+//
+// Sizing: seq_max * max_dim * 4 bytes for f32, *2 for bf16. At seq=512,
+// n_embd=1536, n_ff=6144, q_out_dim=4096, kv_out_dim=512, total ≈ 70 MB —
+// well under the ~7 GB VRAM headroom after weight upload.
+// =============================================================================
+
+pub(crate) struct ForwardScratch {
+    /// [seq, n_embd] f32 — residual stream (hidden activations).
+    pub hidden_f32: GpuBuffer,
+    /// [seq, n_embd] bf16 — normed output cast for matmul inputs.
+    pub normed_bf16: GpuBuffer,
+    /// [seq, n_embd] f32 — scratch for rmsnorm output + residual sums.
+    pub normed_f32: GpuBuffer,
+    /// [seq, q_out_dim_max] f32 — Q projection output, attn output scratch, O output.
+    pub q_out_f32: GpuBuffer,
+    /// [seq, q_out_dim_max] bf16 — attn output cast for O matmul input.
+    pub attn_bf16: GpuBuffer,
+    /// [seq, kv_out_dim_max] f32 — K projection output.
+    pub k_out_f32: GpuBuffer,
+    /// [seq, kv_out_dim_max] f32 — V projection output.
+    pub v_out_f32: GpuBuffer,
+    /// [seq, n_ff] f32 — FFN gate_pre (pre-GELU).
+    pub ffn_gate_f32: GpuBuffer,
+    /// [seq, n_ff] f32 — FFN up_pre.
+    pub ffn_up_f32: GpuBuffer,
+    /// [seq, n_ff] f32 — FFN hidden = gelu(gate) * up.
+    pub ffn_hidden_f32: GpuBuffer,
+    /// [seq, n_ff] bf16 — FFN hidden cast for down matmul.
+    pub ffn_hidden_bf16: GpuBuffer,
+    /// [seq, n_embd] f32 — FFN down output, scratch for residual adds.
+    pub scratch_f32_a: GpuBuffer,
+    /// [seq, n_embd] f32 — second n_embd scratch (used for chained residuals).
+    pub scratch_f32_b: GpuBuffer,
+}
+
+impl ForwardScratch {
+    pub(crate) fn alloc(h: &Gemma4Hparams, seq: usize) -> Result<Self, String> {
+        // Max-dim sizing so buffers work for every layer shape variant.
+        let n_embd = h.n_embd;
+        let n_ff = h.n_ff;
+        // head_dim varies per layer: full=512, swa=256. Take the max.
+        let head_dim_max = (0..h.n_layer).map(|il| h.head_dim(il)).max().unwrap_or(256);
+        let q_out_dim_max = h.n_head * head_dim_max;
+        let kv_out_dim_max = h.n_head_kv * head_dim_max;
+
+        let b_ne_f32 = seq * n_embd * 4;
+        let b_ne_bf16 = seq * n_embd * 2;
+        let b_q_f32 = seq * q_out_dim_max * 4;
+        let b_q_bf16 = seq * q_out_dim_max * 2;
+        let b_kv_f32 = seq * kv_out_dim_max * 4;
+        let b_ff_f32 = seq * n_ff * 4;
+        let b_ff_bf16 = seq * n_ff * 2;
+
+        Ok(Self {
+            hidden_f32: GpuBuffer::alloc(b_ne_f32).map_err(|e| format!("scratch hidden_f32: {:?}", e))?,
+            normed_bf16: GpuBuffer::alloc(b_ne_bf16).map_err(|e| format!("scratch normed_bf16: {:?}", e))?,
+            normed_f32: GpuBuffer::alloc(b_ne_f32).map_err(|e| format!("scratch normed_f32: {:?}", e))?,
+            q_out_f32: GpuBuffer::alloc(b_q_f32).map_err(|e| format!("scratch q_out_f32: {:?}", e))?,
+            attn_bf16: GpuBuffer::alloc(b_q_bf16).map_err(|e| format!("scratch attn_bf16: {:?}", e))?,
+            k_out_f32: GpuBuffer::alloc(b_kv_f32).map_err(|e| format!("scratch k_out_f32: {:?}", e))?,
+            v_out_f32: GpuBuffer::alloc(b_kv_f32).map_err(|e| format!("scratch v_out_f32: {:?}", e))?,
+            ffn_gate_f32: GpuBuffer::alloc(b_ff_f32).map_err(|e| format!("scratch ffn_gate_f32: {:?}", e))?,
+            ffn_up_f32: GpuBuffer::alloc(b_ff_f32).map_err(|e| format!("scratch ffn_up_f32: {:?}", e))?,
+            ffn_hidden_f32: GpuBuffer::alloc(b_ff_f32).map_err(|e| format!("scratch ffn_hidden_f32: {:?}", e))?,
+            ffn_hidden_bf16: GpuBuffer::alloc(b_ff_bf16).map_err(|e| format!("scratch ffn_hidden_bf16: {:?}", e))?,
+            scratch_f32_a: GpuBuffer::alloc(b_ne_f32).map_err(|e| format!("scratch scratch_f32_a: {:?}", e))?,
+            scratch_f32_b: GpuBuffer::alloc(b_ne_f32).map_err(|e| format!("scratch scratch_f32_b: {:?}", e))?,
+        })
+    }
+}
+
+// =============================================================================
 // Phase 7 Step B — forward_gemma4_gpu.
 //
 // Drop-in GPU version of gemma4::forward_gemma4_with_lora. Replaces every
