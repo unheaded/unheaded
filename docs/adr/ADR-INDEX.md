@@ -7,7 +7,7 @@
 
 | Status | Count |
 |--------|-------|
-| Accepted | 25 |
+| Accepted | 26 |
 | In Progress | 1 |
 | Planned | 3 |
 | Deferred | 4 |
@@ -72,3 +72,4 @@
 | [047](ADR-047-k8s-honest-assessment-and-extractable-tools.md) | K8s Honest Assessment + Extractable Tools + East/West K8s Lab | **ACKNOWLEDGED** | 2026-04-11 |
 | [048](ADR-048-forge-backend-trait.md) | ForgeBackend Trait — Pluggable Kernel Provider for zhenai-forge | Accepted | 2026-04-21 |
 | [049](ADR-049-wave11-gpu-kernels-for-gemma4-training.md) | WAVE11 — Custom HIP Kernels for Gemma-4 Training at seq=384 | Accepted | 2026-04-21 |
+| [050](ADR-050-wave12-gpu-resident-activations.md) | WAVE12 — GPU-Resident Forge Activations + Kingdom RAFT LoRA | Accepted | 2026-04-23 |

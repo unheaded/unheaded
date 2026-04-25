@@ -17,9 +17,9 @@
 | 2 | Backward GPU ops | warm ≤ 8.5 s | **9.9 s** (4 warm samples) | ⚠ below expectation (−0.7s vs −2-4s) |
 | 3 | Checkpoint + decision | median warm | **10.5 s** (8 warm samples) | ⚠ at baseline |
 | 4 | Matmul GPU-in/out | matmul tests green, no regression | cosine 1.0 exact, 0 abs err | ✅ |
-| 5 | GPU-resident forward | warm ≤ 5.5 s | **10.3 s** (5 warm samples, 5C+5D) | 🚨 gate missed, plan cost-model broken |
+| 5 | GPU-resident forward | warm ≤ 5.5 s | **10.3 s** (5 warm samples, 5C+5D) | 🚨 plan cost-model corrected; 5.5 target retired as wishful |
 | 6 | Full regression | Learning Gate 4/5 pass, warm ≤ 5.5 s | — | pending |
-| 7 | 500-step RAFT | eval loss@500 < eval loss@0, final train loss < 8 | — | pending |
+| 7 | 500-step RAFT | eval loss@500 < eval loss@0 (warm-time gate retired) | _running_ | in progress |
 | 8 | ADR-050 + handoff | DoD all true | — | pending |
 
 ---

@@ -33,6 +33,7 @@ fn main() {
     match args.get(1).map(|s| s.as_str()) {
         Some("train") => cmd_train(&args[2..]),
         Some("train-gemma4") => cmd_train_gemma4(&args[2..]),
+        Some("eval-gemma4") => cmd_eval_gemma4(&args[2..]),
         Some("eval") => cmd_eval(&args[2..]),
         Some("info") => cmd_info(&args[2..]),
         _ => {
@@ -375,5 +376,139 @@ fn cmd_train(args: &[String]) {
 
 fn cmd_eval(_args: &[String]) {
     println!("Evaluation not yet implemented (Phase 4)");
+}
+
+/// Held-out eval for a Gemma-4 LoRA. Computes mean cross-entropy loss over
+/// every sequence in `--data` using the GPU forward path. If `--lora` is
+/// provided, also computes the base-model (no-LoRA) loss for comparison —
+/// required by the WAVE12 Phase 7 exit gate (eval@500 < eval@0).
+///
+/// Usage:
+///   zhenai-forge eval-gemma4 --model <gguf> --data <eval.jsonl> [--lora <lora.gguf>] [--answer-start 1]
+fn cmd_eval_gemma4(args: &[String]) {
+    let mut model_path = String::new();
+    let mut data_path = String::new();
+    let mut lora_path = String::new();
+    let mut answer_start: usize = 1;
+    let mut cpu_only = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--model"        => { model_path = args[i + 1].clone(); i += 2; }
+            "--data"         => { data_path = args[i + 1].clone(); i += 2; }
+            "--lora"         => { lora_path = args[i + 1].clone(); i += 2; }
+            "--answer-start" => { answer_start = args[i + 1].parse().unwrap(); i += 2; }
+            "--cpu"          => { cpu_only = true; i += 1; }
+            _ => { eprintln!("unknown arg: {}", args[i]); i += 1; }
+        }
+    }
+    if model_path.is_empty() || data_path.is_empty() {
+        eprintln!("--model and --data are required");
+        std::process::exit(1);
+    }
+
+    println!("Loading Gemma 4 GGUF: {}", model_path);
+    let model = match gguf::GgufFile::open(&model_path) {
+        Ok(m) => m, Err(e) => { eprintln!("open: {}", e); std::process::exit(1); }
+    };
+    let weights = match gemma4::CpuWeightsGemma4::load(&model) {
+        Ok(w) => w, Err(e) => { eprintln!("load: {}", e); std::process::exit(1); }
+    };
+
+    let lora_opt = if !lora_path.is_empty() {
+        match gemma4::Gemma4LoraAdapters::load(&lora_path) {
+            Ok(l) => {
+                println!("Loaded LoRA: {} (rank={}, alpha={})", lora_path, l.rank, l.alpha);
+                Some(l)
+            }
+            Err(e) => { eprintln!("LoRA load: {}", e); std::process::exit(1); }
+        }
+    } else { None };
+
+    println!("Loading eval data: {}", data_path);
+    let data = std::fs::read_to_string(&data_path).expect("read eval data");
+    let examples: Vec<Vec<u32>> = data.lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|line| {
+            let toks: Vec<u32> = line
+                .split(|c: char| !c.is_ascii_digit() && c != '-')
+                .filter(|s| !s.is_empty())
+                .filter_map(|s| s.parse().ok())
+                .collect();
+            if toks.len() >= 2 { Some(toks) } else { None }
+        })
+        .collect();
+    println!("  {} eval sequences loaded", examples.len());
+
+    let cpu_backend = backend::CpuBackend;
+    let hybrid_backend = backend::HybridMatmulBackend::default();
+    let hybrid_handle = if cpu_only {
+        None
+    } else {
+        use backend::ForgeBackend as _;
+        match hybrid_backend.upload_weights(&weights) {
+            Ok(g) => { println!("GPU upload OK ({:.2} GB VRAM)", g.vram_used_gb()); Some(g) }
+            Err(e) => { eprintln!("GPU upload failed ({}); falling back to CPU.", e); None }
+        }
+    };
+
+    // Build a thin EvalHarness for scoring. `train` is unused here.
+    let harness = eval::EvalHarness {
+        train: Vec::new(),
+        eval: examples.clone(),
+        answer_start,
+        vocab_size: weights.hparams.vocab_size,
+    };
+
+    fn score<B: backend::ForgeBackend>(
+        backend: &B,
+        harness: &eval::EvalHarness,
+        weights: &gemma4::CpuWeightsGemma4,
+        handle: &B::Handle,
+        lora: Option<&gemma4::Gemma4LoraAdapters>,
+    ) -> (f32, usize) {
+        let mut total = 0.0f64;
+        let mut n = 0;
+        let t0 = std::time::Instant::now();
+        for (idx, tokens) in harness.eval.iter().enumerate() {
+            match harness.forward_loss_with_backend(backend, weights, handle, lora, tokens) {
+                Ok(l) if l.is_finite() => { total += l as f64; n += 1; }
+                Ok(_) => { eprintln!("  [seq {}] loss non-finite, skipping", idx); }
+                Err(e) => { eprintln!("  [seq {}] forward error: {}", idx, e); }
+            }
+            if (idx + 1) % 25 == 0 {
+                let avg = if n > 0 { (total / n as f64) as f32 } else { f32::NAN };
+                let elapsed = t0.elapsed().as_secs_f64();
+                let eta = if idx > 0 { elapsed * (harness.eval.len() - idx - 1) as f64 / (idx + 1) as f64 } else { 0.0 };
+                println!("  [{}/{}] running avg loss = {:.4}  elapsed {:.0}s  eta {:.0}s",
+                    idx + 1, harness.eval.len(), avg, elapsed, eta);
+            }
+        }
+        let mean = if n > 0 { (total / n as f64) as f32 } else { f32::NAN };
+        (mean, n)
+    }
+
+    println!("\n=== EVAL: base model (no LoRA) ===");
+    let (base_loss, base_n) = match &hybrid_handle {
+        Some(h) => score(&hybrid_backend, &harness, &weights, h, None),
+        None    => score(&cpu_backend,    &harness, &weights, &(), None),
+    };
+    println!("  mean CE loss (base):      {:.4}  (n={})", base_loss, base_n);
+
+    if let Some(ref l) = lora_opt {
+        println!("\n=== EVAL: with LoRA ===");
+        let (lora_loss, lora_n) = match &hybrid_handle {
+            Some(h) => score(&hybrid_backend, &harness, &weights, h, Some(l)),
+            None    => score(&cpu_backend,    &harness, &weights, &(), Some(l)),
+        };
+        println!("  mean CE loss (+ LoRA):    {:.4}  (n={})", lora_loss, lora_n);
+        println!("  delta (base - LoRA):      {:+.4}", base_loss - lora_loss);
+        if lora_loss < base_loss {
+            println!("  PHASE 7 EXIT GATE:        ✅ eval descended below base");
+        } else {
+            println!("  PHASE 7 EXIT GATE:        ❌ eval did NOT descend below base");
+        }
+    }
 }
 
