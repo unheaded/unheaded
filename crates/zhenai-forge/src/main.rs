@@ -34,6 +34,7 @@ fn main() {
         Some("train") => cmd_train(&args[2..]),
         Some("train-gemma4") => cmd_train_gemma4(&args[2..]),
         Some("eval-gemma4") => cmd_eval_gemma4(&args[2..]),
+        Some("generate-gemma4") => cmd_generate_gemma4(&args[2..]),
         Some("eval") => cmd_eval(&args[2..]),
         Some("info") => cmd_info(&args[2..]),
         _ => {
@@ -510,5 +511,368 @@ fn cmd_eval_gemma4(args: &[String]) {
             println!("  PHASE 7 EXIT GATE:        ❌ eval did NOT descend below base");
         }
     }
+}
+
+// =============================================================================
+// WAVE13 — generate-gemma4 subcommand.
+//
+// Token-by-token decoder over forward_gemma4_gpu. Runs the entire prefix
+// through forward each step (no KV-cache; correctness first, KV-cache is
+// WAVE14+ if perf becomes a bottleneck for serving). Sampling: greedy by
+// default, optional --temperature / --top-k / --top-p / --seed.
+//
+// Modes:
+//   --prompt <text>          — raw text encoded with the in-tree GGUF tokenizer
+//   --gemma-prompt <text>    — wrap with Gemma-4 chat template via gemma4-venv
+//                              Python subprocess, then encode with HF tokenizer
+//   --tokens '[1,2,…]'       — pre-tokenized JSON array of token ids
+//
+// Constraints:
+//   prompt_len + max_new_tokens ≤ MAX_SEQ (defaults to 384, the WAVE12 trained
+//   sequence length). Exceeding it returns NaN-prone activations on the
+//   LoRA path; base-only forward tolerates longer but isn't validated.
+// =============================================================================
+
+const W13_MAX_SEQ: usize = 384;
+const W13_GEMMA_END_OF_TURN: u32 = 106;
+const W13_GEMMA_EOS: u32 = 1;
+const W13_GEMMA_BOS: u32 = 2;
+
+fn cmd_generate_gemma4(args: &[String]) {
+    let mut model_path = String::new();
+    let mut lora_path = String::new();
+    let mut prompt_raw = String::new();
+    let mut prompt_gemma = String::new();
+    let mut prompt_tokens_json = String::new();
+    let mut max_new_tokens: usize = 100;
+    let mut temperature: f32 = 0.0;
+    let mut top_k: usize = 0;
+    let mut top_p: f32 = 1.0;
+    let mut seed: u64 = 0xC011D5;
+    let mut cpu_only = false;
+    let mut quiet = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--model"           => { model_path = args[i+1].clone(); i += 2; }
+            "--lora"            => { lora_path = args[i+1].clone(); i += 2; }
+            "--prompt"          => { prompt_raw = args[i+1].clone(); i += 2; }
+            "--gemma-prompt"    => { prompt_gemma = args[i+1].clone(); i += 2; }
+            "--tokens"          => { prompt_tokens_json = args[i+1].clone(); i += 2; }
+            "--max-new-tokens"  => { max_new_tokens = args[i+1].parse().unwrap(); i += 2; }
+            "--temperature"     => { temperature = args[i+1].parse().unwrap(); i += 2; }
+            "--top-k"           => { top_k = args[i+1].parse().unwrap(); i += 2; }
+            "--top-p"           => { top_p = args[i+1].parse().unwrap(); i += 2; }
+            "--seed"            => { seed = args[i+1].parse().unwrap(); i += 2; }
+            "--cpu"             => { cpu_only = true; i += 1; }
+            "--quiet"           => { quiet = true; i += 1; }
+            _ => { eprintln!("unknown arg: {}", args[i]); i += 1; }
+        }
+    }
+
+    if model_path.is_empty() {
+        eprintln!("--model is required");
+        std::process::exit(1);
+    }
+    let prompt_modes_set: u32 = (!prompt_raw.is_empty() as u32)
+        + (!prompt_gemma.is_empty() as u32)
+        + (!prompt_tokens_json.is_empty() as u32);
+    if prompt_modes_set != 1 {
+        eprintln!("exactly one of --prompt | --gemma-prompt | --tokens is required");
+        std::process::exit(1);
+    }
+
+    if !quiet { eprintln!("Loading Gemma 4 GGUF: {}", model_path); }
+    let model = match gguf::GgufFile::open(&model_path) {
+        Ok(m) => m, Err(e) => { eprintln!("open: {}", e); std::process::exit(1); }
+    };
+    let weights = match gemma4::CpuWeightsGemma4::load(&model) {
+        Ok(w) => w, Err(e) => { eprintln!("load: {}", e); std::process::exit(1); }
+    };
+
+    let lora_opt = if !lora_path.is_empty() {
+        match gemma4::Gemma4LoraAdapters::load(&lora_path) {
+            Ok(l) => {
+                if !quiet { eprintln!("Loaded LoRA: {} (rank={}, alpha={})", lora_path, l.rank, l.alpha); }
+                Some(l)
+            }
+            Err(e) => { eprintln!("LoRA load: {}", e); std::process::exit(1); }
+        }
+    } else { None };
+
+    // Tokenize the prompt. Three paths:
+    //   - --tokens: parse JSON array directly, no tokenizer needed.
+    //   - --gemma-prompt: shell out to gemma4-venv Python.
+    //   - --prompt: use the in-tree GGUF tokenizer (greedy longest-match).
+    let mut tokens: Vec<u32> = if !prompt_tokens_json.is_empty() {
+        parse_tokens_json(&prompt_tokens_json).unwrap_or_else(|e| {
+            eprintln!("--tokens parse: {}", e); std::process::exit(1);
+        })
+    } else if !prompt_gemma.is_empty() {
+        encode_via_gemma_venv(&prompt_gemma).unwrap_or_else(|e| {
+            eprintln!("gemma-prompt encode failed: {}", e); std::process::exit(1);
+        })
+    } else {
+        // --prompt: in-tree tokenizer
+        let vocab = match tokenizer::extract_vocabulary_from_gguf(&model_path) {
+            Ok(v) => v,
+            Err(e) => { eprintln!("vocab extract: {}", e); std::process::exit(1); }
+        };
+        let tok = tokenizer::Tokenizer::from_tokens(vocab, W13_GEMMA_BOS, W13_GEMMA_EOS);
+        tok.encode(&prompt_raw)
+    };
+
+    if !quiet {
+        eprintln!("Prompt tokens: {} (first 8: {:?})",
+            tokens.len(), &tokens[..tokens.len().min(8)]);
+    }
+    if tokens.is_empty() {
+        eprintln!("empty prompt after tokenization"); std::process::exit(1);
+    }
+
+    // Cap so prompt + new tokens stays in trained seq range.
+    let allowed_new = W13_MAX_SEQ.saturating_sub(tokens.len());
+    if allowed_new == 0 {
+        eprintln!("prompt already {} tokens — at or beyond MAX_SEQ={}; truncate or shorten.",
+            tokens.len(), W13_MAX_SEQ);
+        std::process::exit(1);
+    }
+    let effective_new = max_new_tokens.min(allowed_new);
+    if effective_new < max_new_tokens && !quiet {
+        eprintln!("max_new_tokens capped {} → {} (prompt {} + new ≤ {})",
+            max_new_tokens, effective_new, tokens.len(), W13_MAX_SEQ);
+    }
+
+    // Backend selection (mirror train-gemma4 path).
+    let cpu_backend_fallback = backend::CpuBackend;
+    let hybrid_backend = backend::HybridMatmulBackend::default();
+    let hybrid_handle: Option<gemma4_gpu::Gemma4GpuWeights> = if cpu_only {
+        if !quiet { eprintln!("--cpu: CpuBackend forward"); }
+        None
+    } else {
+        use backend::ForgeBackend as _;
+        match hybrid_backend.upload_weights(&weights) {
+            Ok(g) => {
+                if !quiet { eprintln!("GPU upload: {:.2} GB VRAM", g.vram_used_gb()); }
+                Some(g)
+            }
+            Err(e) => {
+                eprintln!("GPU upload failed ({}); falling back to CPU.", e);
+                None
+            }
+        }
+    };
+    let _ = cpu_backend_fallback; // path selection logic below uses hybrid_handle.is_some()
+
+    // Generation loop. One forward per token (no KV-cache; WAVE13 ships
+    // correctness first).
+    let prompt_len = tokens.len();
+    let stop_tokens: [u32; 3] = [W13_GEMMA_EOS, W13_GEMMA_END_OF_TURN, 0];
+    let mut rng_state: u64 = seed.wrapping_add(0x9E3779B97F4A7C15);
+    let t0 = std::time::Instant::now();
+    let mut steps_done = 0;
+
+    for step in 0..effective_new {
+        let logits_full = match hybrid_handle.as_ref() {
+            Some(g) => gemma4_gpu::forward_gemma4_gpu(&weights, g, lora_opt.as_ref(), &tokens),
+            None => Ok(gemma4::forward_gemma4_with_lora(&weights, lora_opt.as_ref(), &tokens)),
+        };
+        let (logits, _caches) = match logits_full {
+            Ok(x) => x,
+            Err(e) => { eprintln!("\nforward failed at step {}: {}", step, e); break; }
+        };
+        let vocab = weights.hparams.vocab_size;
+        let row_off = (tokens.len() - 1) * vocab;
+        let last_logits = &logits[row_off..row_off + vocab];
+
+        let next = sample_next(last_logits, temperature, top_k, top_p, &mut rng_state);
+        if !next.is_finite_id() {
+            eprintln!("\nsampler returned invalid id; halting"); break;
+        }
+        let next_id = next.id;
+        tokens.push(next_id);
+        steps_done += 1;
+
+        if stop_tokens.contains(&next_id) {
+            if !quiet { eprintln!("\n[stop token id={} at step {}]", next_id, step + 1); }
+            break;
+        }
+    }
+    let elapsed = t0.elapsed().as_secs_f64();
+
+    // Output the completion (tokens after the prompt).
+    let completion = &tokens[prompt_len..];
+    let completion_text = decode_via_gemma_venv(completion).unwrap_or_else(|e| {
+        eprintln!("decode failed: {}; falling back to raw token ids", e);
+        format!("{:?}", completion)
+    });
+
+    if !quiet {
+        eprintln!("\n--- generated {} tokens in {:.1}s ({:.2}s/tok) ---",
+            steps_done, elapsed, elapsed / steps_done.max(1) as f64);
+    }
+    println!("{}", completion_text.trim_end());
+}
+
+/// Parse a JSON array of integers (`[1,2,3]` or `{"tokens":[1,2,3]}`).
+/// Robust to whitespace; tolerant of either shape.
+fn parse_tokens_json(raw: &str) -> Result<Vec<u32>, String> {
+    // Strip optional `{"tokens":` wrapper.
+    let s = raw.trim();
+    let inner = if let Some(idx) = s.find('[') {
+        &s[idx..]
+    } else {
+        return Err(format!("no '[' in {:?}", &s[..s.len().min(80)]));
+    };
+    let end = inner.rfind(']').ok_or_else(|| "no ']' in tokens".to_string())?;
+    let body = &inner[1..end];
+    let mut out = Vec::new();
+    for chunk in body.split(',') {
+        let t = chunk.trim();
+        if t.is_empty() { continue; }
+        out.push(t.parse::<u32>().map_err(|e| format!("parse {:?}: {}", t, e))?);
+    }
+    if out.is_empty() {
+        return Err("empty token array".into());
+    }
+    Ok(out)
+}
+
+/// Encode a text prompt via the gemma4-venv Python helper (applies the
+/// Gemma-4 chat template). Returns token ids ending with the
+/// start-of-model-turn marker, ready for generation.
+fn encode_via_gemma_venv(prompt: &str) -> Result<Vec<u32>, String> {
+    use std::process::{Command, Stdio};
+    use std::io::Write;
+    let mut child = Command::new("/home/govan/tmp/gemma4-venv/bin/python")
+        .arg("/home/govan/tmp/unheaded/scripts/gemma4-encode-prompt.py")
+        .arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn encode: {}", e))?;
+    {
+        let stdin = child.stdin.as_mut().ok_or("encode: no stdin")?;
+        stdin.write_all(prompt.as_bytes()).map_err(|e| format!("encode write: {}", e))?;
+    }
+    let out = child.wait_with_output().map_err(|e| format!("encode wait: {}", e))?;
+    if !out.status.success() {
+        return Err(format!("encode exit {:?}: {}", out.status,
+            String::from_utf8_lossy(&out.stderr)));
+    }
+    let body = String::from_utf8_lossy(&out.stdout);
+    parse_tokens_json(body.trim())
+}
+
+/// Decode token ids back to text via the gemma4-venv Python helper. Slower
+/// than an in-tree decoder but matches encoding round-trip exactly.
+fn decode_via_gemma_venv(ids: &[u32]) -> Result<String, String> {
+    use std::process::{Command, Stdio};
+    use std::io::Write;
+    let json_in = serde_json_array(ids);
+    let mut child = Command::new("/home/govan/tmp/gemma4-venv/bin/python")
+        .arg("/home/govan/tmp/unheaded/scripts/gemma4-decode-tokens.py")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn decode: {}", e))?;
+    {
+        let stdin = child.stdin.as_mut().ok_or("decode: no stdin")?;
+        stdin.write_all(json_in.as_bytes()).map_err(|e| format!("decode write: {}", e))?;
+    }
+    let out = child.wait_with_output().map_err(|e| format!("decode wait: {}", e))?;
+    if !out.status.success() {
+        return Err(format!("decode exit {:?}: {}", out.status,
+            String::from_utf8_lossy(&out.stderr)));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+fn serde_json_array(ids: &[u32]) -> String {
+    let mut s = String::with_capacity(ids.len() * 6 + 2);
+    s.push('[');
+    for (i, id) in ids.iter().enumerate() {
+        if i > 0 { s.push(','); }
+        s.push_str(&id.to_string());
+    }
+    s.push(']');
+    s
+}
+
+#[derive(Clone, Copy)]
+struct SampledToken { id: u32 }
+impl SampledToken {
+    fn is_finite_id(&self) -> bool { self.id != u32::MAX }
+}
+
+/// Pick the next token from a logits row.
+/// - temperature == 0.0 → argmax (greedy, deterministic)
+/// - temperature > 0.0  → softmax(logits/T), apply top_k, top_p, multinomial sample.
+fn sample_next(logits: &[f32], temperature: f32, top_k: usize, top_p: f32, rng: &mut u64) -> SampledToken {
+    if !logits.iter().any(|x| x.is_finite()) {
+        return SampledToken { id: u32::MAX };
+    }
+    if temperature <= 0.0 {
+        let mut best_id: u32 = 0;
+        let mut best_v = f32::NEG_INFINITY;
+        for (i, &v) in logits.iter().enumerate() {
+            if v > best_v { best_v = v; best_id = i as u32; }
+        }
+        return SampledToken { id: best_id };
+    }
+
+    // Build (id, scaled_logit) and find max for numerical stability.
+    let mut scored: Vec<(u32, f32)> = logits.iter().enumerate()
+        .filter(|(_, v)| v.is_finite())
+        .map(|(i, &v)| (i as u32, v / temperature))
+        .collect();
+    let max_v = scored.iter().fold(f32::NEG_INFINITY, |a, b| a.max(b.1));
+
+    // Apply top-k: keep only the k largest.
+    if top_k > 0 && top_k < scored.len() {
+        // Partial sort: use selection by repeated max — k is small in practice.
+        scored.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored.truncate(top_k);
+    }
+
+    // Convert to probabilities.
+    let mut probs: Vec<(u32, f32)> = scored.iter()
+        .map(|(id, lv)| (*id, (lv - max_v).exp()))
+        .collect();
+    let z: f32 = probs.iter().map(|(_, p)| *p).sum();
+    if z <= 0.0 {
+        return SampledToken { id: probs[0].0 };
+    }
+    for (_, p) in probs.iter_mut() { *p /= z; }
+
+    // Apply top-p (nucleus): sort desc by prob, keep prefix s.t. cumulative ≥ top_p.
+    if top_p < 1.0 && top_p > 0.0 {
+        probs.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        let mut cum = 0.0;
+        let mut cutoff = probs.len();
+        for (i, (_, p)) in probs.iter().enumerate() {
+            cum += *p;
+            if cum >= top_p { cutoff = i + 1; break; }
+        }
+        probs.truncate(cutoff);
+        let z2: f32 = probs.iter().map(|(_, p)| *p).sum();
+        if z2 > 0.0 {
+            for (_, p) in probs.iter_mut() { *p /= z2; }
+        }
+    }
+
+    // Multinomial sample using LCG.
+    *rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    let r: f32 = ((*rng >> 33) as f32) / ((u32::MAX as f32) + 1.0);
+    let mut acc = 0.0f32;
+    let mut picked = probs[0].0;
+    for (id, p) in &probs {
+        acc += *p;
+        if r <= acc { picked = *id; break; }
+    }
+    SampledToken { id: picked }
 }
 
