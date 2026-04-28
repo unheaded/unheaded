@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Timeline Drift Guard (ADR-052)
+#
+# Enforces ADR-052 Rule 1: references/timeline.md must be ≤ 7 days behind HEAD
+# when HEAD has commits since timeline's last touch.
+#
+# Triggered on:
+#   - push to main (catches direct pushes / merges)
+#   - pull_request (catches incoming PRs before merge)
+#
+# Override: include "[TIMELINE-DRIFT-OVERRIDE: <rationale>]" in the commit
+# message. Marshal will review on next Round Table.
+
+name: "Timeline Drift Guard"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  timeline-drift-check:
+    name: "Check references/timeline.md freshness (ADR-052)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history needed for git log on file)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run timeline freshness check
+        id: drift_check
+        run: |
+          set +e
+          ./scripts/check-timeline-freshness.sh --check
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Detect override directive
+        id: override
+        if: steps.drift_check.outputs.exit_code != '0'
+        run: |
+          # Look for the override marker in the commit message of HEAD
+          MSG="$(git log -1 --format=%B HEAD)"
+          if echo "$MSG" | grep -qE '\[TIMELINE-DRIFT-OVERRIDE:[^]]+\]'; then
+            RATIONALE="$(echo "$MSG" | grep -oE '\[TIMELINE-DRIFT-OVERRIDE:[^]]+\]')"
+            echo "override_present=true" >> "$GITHUB_OUTPUT"
+            echo "rationale=$RATIONALE" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Timeline Drift Override Used::$RATIONALE — Marshal will review on next Round Table"
+          else
+            echo "override_present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail (no override)
+        if: steps.drift_check.outputs.exit_code != '0' && steps.override.outputs.override_present != 'true'
+        run: |
+          echo "::error title=Timeline Drift (ADR-052)::references/timeline.md exceeds 7-day staleness threshold. Update the timeline in this PR or include [TIMELINE-DRIFT-OVERRIDE: <rationale>] in the commit message."
+          exit 1
+
+      - name: Pass (fresh)
+        if: steps.drift_check.outputs.exit_code == '0'
+        run: echo "Timeline is fresh per ADR-052."
+
+      - name: Pass with override (warn)
+        if: steps.drift_check.outputs.exit_code != '0' && steps.override.outputs.override_present == 'true'
+        run: |
+          echo "Timeline drift detected but override directive present."
+          echo "Rationale: ${{ steps.override.outputs.rationale }}"
+          echo "Marshal will review on next Round Table."
