@@ -16,7 +16,7 @@
 
 **Implication:** the "Question:" attractor in WAVE14 Run A is **not** corpus-shape leakage. The corpus is clean — 75% of answers open with " The" (token 818, expected English explainer pattern). The model produced an attractor that does NOT exist in the corpus, which means the corruption came from somewhere else in the training pipeline.
 
-**H6 is the parsing bug ADR-050 negative section warned about, and it has been training on corrupted data for ~6 months.** Every training example feeds the model `[real_tokens..., answer_start_int]` and the LoRA learns to predict the trailing integer.
+**H6 is the parsing bug ADR-050 negative section warned about, and it has been training on corrupted data for ~11 days (since `cmd_train_gemma4` shipped in WAVE10F on 2026-04-17).** Every training example feeds the model `[real_tokens..., answer_start_int]` and the LoRA learns to predict the trailing integer.
 
 ---
 
@@ -171,6 +171,6 @@ Smaller than Run A alone (which was 1 h training + 25 min eval). Recommended ove
 
 ---
 
-**Joint MICROMANAGER + SCIENTIST ruling:** before any GPU training, fix the parser AND the `--answer-start` semantics. The data has been quietly broken for 6 months — WAVE10F, WAVE12, and Run A all trained on this corruption. WAVE12's eval Δ −14.32 was a measure of structural-token prior fit, not generation skill, which is why Phase 2 generation failed catastrophically.
+**Joint MICROMANAGER + SCIENTIST ruling:** before any GPU training, fix the parser AND the `--answer-start` semantics. The data has been quietly broken for 11 days (since `cmd_train_gemma4` shipped in WAVE10F on 2026-04-17) — WAVE10F, WAVE12, and Run A all trained on this corruption. WAVE12's eval Δ −14.32 was a measure of structural-token prior fit, not generation skill, which is why Phase 2 generation failed catastrophically.
 
 Standing by for Stevie's go/no-go on parser fix + answer_start plumbing.
