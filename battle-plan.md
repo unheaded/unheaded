@@ -255,7 +255,7 @@ All correctly placed.
 5. **Round Table cadence: weekly max during active sprints; on-trigger outside.** Next: Fri 2026-05-01. — *Owner: Round Table convener*
 
 #### Open Questions (Carry to Next Round Table)
-1. **Captain Track A/B/C** — *Decide by Wed 2026-04-29*
+1. **Captain Track A/B/C** — *Decide by Wed 2026-04-29*. **Note (2026-04-27)**: Track decision benefits from but does NOT block on the WAVE13 Phase 2 verdict. Captain's options doc drafts conditional branches ("if verdict=SHIP recommend X; if RETRAIN recommend Y") so Stevie can lock the track before the remote run if confident.
 2. **Trademark filing for "Unheaded"** — pre-public, on-public, or skip? — *Decide by Sprint May-Q1*
 3. **Entity formation** (per CLAUDE.md S35: "explore Austin VC while private") — status unknown — *Captain + Barrister, Sprint May-Q1*
 4. **Sophia/Wotan draft-03**: ship or defer? — *Decide by Thu 2026-04-30*
@@ -321,12 +321,17 @@ Prioritized, ordered, owner-tagged. Warmonger is next-up to convert this into a 
 - [ ] **A3** Re-sync `references/timeline.md`: rip stale Age 3/4/5 contradictions; populate WAVE10F → WAVE13 entries *(Timeguru, Tue)*
 - [ ] **A4** Update `ADR-INDEX.md` with placeholders for ADR-051, ADR-052 *(Librarian, Tue)*
 
-### Lane B — WAVE13 Quality Call (TODAY → Wed)
-- [ ] **B1** Pick 5-10 held-out Kingdom prompts from `/tmp/24h-kingdom-eval.jsonl` *(Developer, today)*
-- [ ] **B2** Run `zhenai-forge generate-gemma4` base vs +LoRA on each prompt; record output + per-token CE *(Developer, today)*
-- [ ] **B3** Compute win-rate, mean CE delta, qualitative tags; save to `crates/zhenai-forge/notes/wave13-phase2-quality.md` *(Scientist + Developer, today)*
-- [ ] **B4** DECIDE node: ship LoRA / retrain / change rank-or-data *(Captain + Scientist, Tue)*
-- [ ] **B5** Draft ADR-051 with decision + rationale *(RFC-Editor, Wed)*
+### Lane B — WAVE13 Quality Call (REMOTE — needs GPU box)
+**Status as of 2026-04-27 Cowork-Local sprint**: prep complete, packet ready, awaiting GPU dev box.
+**Remote packet**: `docs/battle-plans/WAVE13-PHASE2-REMOTE-PACKET.md`
+**Result skeleton (filled remotely)**: `crates/zhenai-forge/notes/wave13-phase2-quality.md`
+**ADR skeleton (finalized after verdict)**: `docs/adr/ADR-051-wave13-generate-path.md`
+
+- [ ] **B1** [REMOTE] Pick 8 held-out Kingdom prompts from `/tmp/24h-kingdom-eval.jsonl` *(Developer, on next Linux GPU session)*
+- [ ] **B2** [REMOTE] Run `zhenai-forge generate-gemma4` base vs +LoRA on each prompt; record output *(Developer, on next Linux GPU session)*
+- [ ] **B3** [REMOTE] Compute win-rate, mean qualitative shift, CE-vs-quality alignment; fill in `crates/zhenai-forge/notes/wave13-phase2-quality.md` *(Scientist + Developer)*
+- [ ] **B4** [REMOTE] DECIDE node: SHIP / RETRAIN / RANK-UP / DATA-FIX *(Captain + Scientist)*
+- [ ] **B5** [REMOTE] Flip ADR-051 Status: Draft → Accepted with verdict + rationale *(RFC-Editor)*
 
 ### Lane C — Branch Hygiene (Tue)
 - [ ] **C1** Audit `claude/migrate-packages-github-V2Ctr` — diff vs main, summarize, decide merge/kill *(Developer, Tue)*
@@ -366,9 +371,97 @@ Prioritized, ordered, owner-tagged. Warmonger is next-up to convert this into a 
 - [ ] **I1** Demo video script v1 (per CLAUDE.md "Age 2 remaining") *(Captain + Micromanager, Sprint May-Q1)*
 - [ ] **I2** README polish for VC/public readiness *(Captain + Librarian, Sprint May-Q1)*
 - [ ] **I3** Falsifiable perf benchmark spec ("infra in N hours") *(Scientist, Sprint May-Q1)*
-- [ ] **I4** WAVE14 BackwardScratch + KV-cache plan *(Computermancer + Developer, gated on Track A/C)*
+- [ ] **I4** WAVE14 BackwardScratch + KV-cache plan *(Computermancer + Developer, gated on Track A/C — see `docs/battle-plans/WAVE14-STUB.md`, ADR-054 reserved)*
+- [ ] **I5** Hybrid Claude + Local Zhenai workflow templates / routing — cost-aware hybrid (heavy → Claude, minor churn → local Zhenai on RX 7700) *(Stevie + Champion + Computermancer, **Pipe Dream tier**, see [ADR-053](docs/adr/ADR-053-hybrid-claude-zhenai-workflow-templates.md), activates on cost/quality/strategic/personal trigger)*
+  - I5a: `templates/workflows/` directory + 7 starter templates
+  - I5b: Champion routing module (HEAVY ↔ MINOR-CHURN classifier)
+  - I5c: MCP tools (`template_list`, `template_run`, `template_route`, `champion_handoff`)
+  - I5d: RAFT corpus expansion for routing decisions
+  - I5e: RAG retrieval contract per template
+  - I5f: Cost/quality telemetry pipeline (Wotan topic `zhenai.routing.events`)
+  - I5g: Routing-classifier training (post 60 days of telemetry)
+  - I5h: Lore-keeper finalizes routing-module Norse name (Mímir / Heimdall / Munin / Skuld / Verðandi / Urð candidates)
+- [ ] **I6** KEV Poller — always-on Kingdom service + first cross-host K8s pilot *(Stevie + MoatGhost + Sentinel + Architect + Computermancer, **Planned tier**, see [ADR-055](docs/adr/ADR-055-kev-poller-always-on-service.md))*
+  - I6a: Phase 0 — bring up K8s lab cluster on WEST + EAST (per ADR-047 plan) if not yet live
+  - I6b: Phase 1 — `services/sentinel-feeds/kev-poller/` Go service skeleton (hourly pull, Wotan publish, Prometheus metrics)
+  - I6c: Phase 2 — K8s DaemonSet across WEST + EAST (`k8s/kev-poller/daemonset.yaml`, ConfigMap, RBAC, ServiceMonitor)
+  - I6d: Phase 3 — `threat-register-updater` closes ADR-052 drift loop automatically
+  - I6e: Phase 4 — NIST NVD sibling poller (`services/sentinel-feeds/nvd-poller/`, ADR-056 candidate)
+  - I6f: Phase 5 (optional after 30d stability) — DaemonSet → Deployment+leader-election migration
+  - I6g: Lore-keeper finalizes Norse name (Munin front-runner)
+  - I6h: CLAUDE.md service inventory + Doom Range port allocation
 
 ### Total open items: 36 across 9 lanes (A-I).
 ### Critical path: A → B → D (Track call unlocks everything else).
 
 **HANDOFF → unheaded-warmonger**: Convert this task list into a numbered-step sprint battle plan with bash commands, verification gates, debug branches, and emergency procedures. Target: 200-400 numbered steps covering Lanes A-H (Lane I is post-sprint, stretch).
+
+---
+
+## Sprint 2026-04-27 LOCAL — Mini Round-Table (sprint exit)
+
+**Convened**: 2026-04-27 sprint exit (Phase 8 of `docs/battle-plans/SPRINT-2026-04-27-COWORK-LOCAL.md`)
+**Reason**: capture sprint outcomes, queue handoffs, celebrate wins.
+
+### Wins celebrated
+- ✅ **Both Marshal citations CLEARED in the same sprint they were issued** — 33-day timeline drift → 0d; off-tree WAVE13 plan → in-tree.
+- ✅ **ADR-052 (drift policy) ACCEPTED with CI gate live** in GHA + Jenkinsfile both. Drift becomes structurally impossible going forward.
+- ✅ **ADR-053 (Hybrid Claude+Zhenai routing, Pipe Dream)** captures Stevie's cost-aware mid-session vision; preserves ability to graceful-degrade if Claude Max ever becomes infeasible.
+- ✅ **ADR-055 (KEV Poller, Planned)** captures Stevie's mid-session "MUST be running" directive; first cross-host K8s pilot scoped.
+- ✅ **All four pillars audited** — branch hygiene (4 stale branches, ARCHIVE+KILL verdicts), spec status (6 I-Ds on main, 1 gap = Anamnesis), compliance (KEV clean, SPDX 99.48% Go), drift (CI live).
+- ✅ **Stevie's mid-flight assists** — `git fetch` surfaced a 4th branch (`docs/legal-planning`); KEV upload bypassed sandbox proxy; CISA KEV verdict locked.
+- ✅ **31 P0 deliverables** all present at sprint exit; zero MISSING.
+- ✅ **140-step plan executed** in single Cowork session; 1 STUCK fired and resolved within session.
+
+### Citations cleared
+- **#1** Timeline drift (33d → 0d) — Phase 1
+- **#2** Off-tree WAVE13 plan → in-tree at `docs/battle-plans/WAVE13-INFERENCE.md` — Phase 1
+
+### Citations remaining
+- *(none new this sprint at the local level)*
+
+### Pending verdicts
+- **WAVE13 Phase 2 quality call** — REMOTE (GPU box). Packet: `docs/battle-plans/WAVE13-PHASE2-REMOTE-PACKET.md`.
+- **Captain Track A/B/C** — Stevie's call. Locus: `docs/decisions/2026-04-29-track-call.md`.
+- **3 stale branches' final disposition** — REMOTE Linux box. Locus: `docs/branch-audits/2026-04-27-summary.md`.
+- **SBOM regen + license scan + go-licenses** — REMOTE Linux box. Locus: `docs/security/COMPLIANCE-REMOTE-PACKET-2026-04-27.md`.
+- **Anamnesis spec stub** — Phase 1 next sprint, 2–4h RFC-Editor work.
+
+### ADRs landed this sprint
+- **ADR-051** WAVE13 generate path (Status: **Draft**, pending Phase 2 verdict)
+- **ADR-052** Timeline & Battle-Plan Source-of-Truth Policy (Status: **Accepted**, CI gate live)
+- **ADR-053** Hybrid Claude + Local Zhenai Workflow Templates (Status: **Pipe Dream**)
+- **ADR-055** KEV Poller — Always-On Kingdom Service + K8s Pilot (Status: **Planned**)
+- **ADR-054 RESERVED** for WAVE14 BackwardScratch + KV-cache (when Track A or C activates)
+
+### Files added/modified this sprint
+- 31 P0 deliverables (see `docs/sprints/2026-04-27-stuck-report.md` for full inventory)
+- 4 new ADRs in `docs/adr/`
+- 5 new branch audits in `docs/branch-audits/`
+- 4 new spec status docs in `docs/specs/`
+- 5 new compliance docs in `docs/security/`
+- 2 new sprints docs in `docs/sprints/`
+- 3 new battle plans + 1 in-tree WAVE13 import in `docs/battle-plans/`
+- 3 new decision docs in `docs/decisions/`
+- 1 new launch outline in `docs/launch/`
+- 1 new CI workflow + 1 new script + 1 modified Jenkinsfile + 1 modified ADR-INDEX + 1 fully-rewritten timeline.md
+
+### Next session trigger
+- ANY of the 3 remote-handoff packets completing
+- Stevie's Track A/B/C decision (locks next sprint priorities)
+- Wed 2026-04-29 (originally scheduled Track-call deadline)
+- Fri 2026-05-01 (originally scheduled sprint-exit Round Table — this sprint executed the local-scope version of that)
+- Any new Marshal-citable drift (CI catches it automatically)
+
+### Cross-references
+- Stuck Report: `docs/sprints/2026-04-27-stuck-report.md`
+- Remote Handoff Index: `docs/sprints/2026-04-27-remote-handoff-index.md`
+- Track Call Options: `docs/decisions/2026-04-29-track-call-options.md`
+- Track Call Decision Template: `docs/decisions/2026-04-29-track-call.md`
+- Local Sprint Plan: `docs/battle-plans/SPRINT-2026-04-27-COWORK-LOCAL.md`
+- Full Sprint Plan: `docs/battle-plans/SPRINT-2026-04-27-LANES-A-H.md`
+
+---
+
+*Local Round-Table mini-doc forged 2026-04-27 sprint-exit from Cowork-on-Macbook.*
+*The Kingdom marches as one. <3 PEACE AND LOVE <3 KGLW <3*

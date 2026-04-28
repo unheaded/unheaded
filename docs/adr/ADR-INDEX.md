@@ -1,22 +1,28 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-04-27
-**Total:** 50 ADRs (ADR-012b deprecated, ADR-027-052 across sessions)
+**Total:** 52 ADRs (ADR-012b deprecated, ADR-027-055 across sessions)
 
 ## Status Summary
 
 | Status | Count |
 |--------|-------|
-| Accepted | 27 |
-| Draft | 2 |
+| Accepted | 28 |
+| Draft | 1 |
 | In Progress | 1 |
-| Planned | 3 |
+| Planned | 4 |
 | Deferred | 4 |
-| Pipe Dream | 1 |
+| Pipe Dream | 2 |
 | Deprecated | 1 |
 | PoC / Research | 1 |
 
-**Two new Draft ADRs (ADR-051, ADR-052) added 2026-04-27 from Round Table sprint follow-through.**
+**Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
+- ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
+- ADR-052 (drift / source-of-truth policy) — **Accepted** (CI guard + Jenkins stage shipped same patch)
+- ADR-053 (Hybrid Claude + Local Zhenai workflow templates) — **Pipe Dream** (cost-driven; per Stevie's mid-session note)
+- ADR-055 (KEV Poller — always-on Kingdom service + K8s cross-host pilot) — **Planned** (per Stevie's mid-session directive)
+
+**ADR-054 RESERVED** for WAVE14 BackwardScratch + KV-cache when Track A or C activates.
 
 ## Full Index
 
@@ -75,4 +81,6 @@
 | [049](ADR-049-wave11-gpu-kernels-for-gemma4-training.md) | WAVE11 — Custom HIP Kernels for Gemma-4 Training at seq=384 | Accepted | 2026-04-21 |
 | [050](ADR-050-wave12-gpu-resident-activations.md) | WAVE12 — GPU-Resident Forge Activations + Kingdom RAFT LoRA | Accepted | 2026-04-23 |
 | [051](ADR-051-wave13-generate-path.md) | WAVE13 — Forge generate-gemma4 path + KV-cache deferral | **Draft** (pending Phase 2 verdict) | 2026-04-27 |
-| [052](ADR-052-timeline-and-battleplan-source-of-truth.md) | Timeline & Battle-Plan Source-of-Truth Policy (drift ≤ 7 days, in-tree only) | **Draft** (Round Table follow-through) | 2026-04-27 |
+| [052](ADR-052-timeline-and-battleplan-source-of-truth.md) | Timeline & Battle-Plan Source-of-Truth Policy (drift ≤ 7 days, in-tree only) | **Accepted** (CI gate live) | 2026-04-27 |
+| [053](ADR-053-hybrid-claude-zhenai-workflow-templates.md) | Hybrid Claude + Local Zhenai Workflow Templates (cost-driven hybrid routing) | **Pipe Dream** (activates on cost/quality/strategic/personal trigger) | 2026-04-27 |
+| [055](ADR-055-kev-poller-always-on-service.md) | KEV Poller — Always-On Kingdom Service + K8s Cross-Host Pilot (CISA KEV + NIST NVD parity) | **Planned** (Phase 0-5; first cross-host K8s workload) | 2026-04-27 |

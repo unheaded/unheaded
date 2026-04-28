@@ -104,6 +104,34 @@ pipeline {
             }
           }
         }
+        stage('Timeline Drift Guard') {
+          // ADR-052 Rule 1: references/timeline.md must be <= 7 days behind HEAD
+          // when HEAD has commits since the timeline was last touched.
+          // Override: include [TIMELINE-DRIFT-OVERRIDE: <rationale>] in the commit
+          // message; Marshal reviews on next Round Table.
+          steps {
+            script {
+              echo "=== Checking timeline.md freshness (ADR-052) ==="
+              sh '''
+                set +e
+                ./scripts/check-timeline-freshness.sh --check
+                rc=$?
+                if [ "$rc" -ne 0 ]; then
+                  MSG=$(git log -1 --format=%B HEAD)
+                  if echo "$MSG" | grep -qE '\\[TIMELINE-DRIFT-OVERRIDE:[^]]+\\]'; then
+                    RATIONALE=$(echo "$MSG" | grep -oE '\\[TIMELINE-DRIFT-OVERRIDE:[^]]+\\]')
+                    echo "WARNING: timeline drift detected, override directive present: $RATIONALE"
+                    echo "Marshal will review on next Round Table."
+                    exit 0
+                  fi
+                  echo "ERROR: Timeline drift detected per ADR-052 and no override directive."
+                  exit 1
+                fi
+                echo "Timeline freshness check passed (ADR-052)"
+              '''
+            }
+          }
+        }
       }
     }
 
