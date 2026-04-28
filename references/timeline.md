@@ -3,8 +3,8 @@
 ## A Living Grimoire of the Kingdom's Journey
 
 **STATUS:** Age 3 IN PROGRESS — Public Release Sprint
-**LAST UPDATED:** 2026-04-27
-**HEAD:** `5d413699` (WAVE13 Phase 1 — generate-gemma4 subcommand)
+**LAST UPDATED:** 2026-04-28
+**HEAD:** WAVE13 Phase 2 verdict (RETRAIN; ADR-051 Accepted)
 **Drift policy:** ADR-052 — this file MUST be ≤ 7 days from HEAD when HEAD has new commits.
 
 ---
@@ -47,12 +47,11 @@
 - WAVE12 Kingdom RAFT LoRA (2026-04-23, eval Δ −14.32, ADR-050 GPU-resident activations)
 - WAVE13 Phase 1 (2026-04-25, generate-gemma4 subcommand, early quality finding: LoRA under-trained ~10× off target)
 - Round Table verification audit (2026-04-27, 19 seats reported, 2 citations issued + cleared)
+- WAVE13 Phase 2 quality verdict: **RETRAIN** (2026-04-28, autonomous overnight per Marshal charter; 0/8 LoRA-better, 6/8 immediate-stop, 2/8 mode-collapse `\tif`; ADR-051 Accepted; Phases 4-5 PAUSED until WAVE14 retrain)
 
 **Remaining for Age 3:**
-- WAVE13 Phase 2 quality call (REMOTE — needs GPU box)
 - Captain Track A/B/C decision (Wed 2026-04-29)
-- ADR-051 (WAVE13 generate path) finalization
-- ADR-052 (drift policy) acceptance
+- WAVE14 retrain (extended-epoch, rank=16/alpha=32 unchanged, ≥3 epochs ≈ 10704 example-steps; gated on Captain sign-off)
 - Branch hygiene execution (3 stale branches, REMOTE for build/test)
 - SBOM regen + license scan + threat refresh (REMOTE)
 - Sophia draft-03 ship-or-defer
@@ -74,5 +73,5 @@
 
 ---
 
-*Synced: 2026-04-27 (in-tree from Cowork-on-Macbook session)*
+*Synced: 2026-04-28 (autonomous overnight session per Marshal charter — WAVE13 Phase 2 verdict commit)*
 *Next sync trigger: any commit to main + drift-guard CI check*

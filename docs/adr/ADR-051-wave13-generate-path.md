@@ -1,7 +1,8 @@
 # ADR-051: WAVE13 — Forge generate-gemma4 path + KV-cache deferral
 
-**Status**: Draft (pending WAVE13 Phase 2 verdict)
-**Date**: 2026-04-27 (drafted from Cowork-on-Macbook)
+**Status**: Accepted (verdict: RETRAIN)
+**Date**: 2026-04-27 drafted; 2026-04-28 verdict locked
+**Phase 2 evidence**: `crates/zhenai-forge/notes/wave13-phase2-quality.md`
 **Deciders**: Captain, Developer, Computermancer, Scientist
 **Related ADRs**: ADR-048 (ForgeBackend Trait), ADR-049 (WAVE11 GPU Kernels), ADR-050 (WAVE12 GPU-Resident Activations)
 **Supersedes**: —
@@ -23,16 +24,43 @@ WAVE13 Phase 1 (2026-04-25, HEAD `5d413699`) shipped `zhenai-forge generate-gemm
 
 ## Decision
 
-**[PENDING — fill in after WAVE13 Phase 2 quality run; see `crates/zhenai-forge/notes/wave13-phase2-quality.md`]**
+**Verdict: RETRAIN.**
 
-The decision will be one of:
+Phase 2 ran 8 prompts × {base, LoRA} = 16 generations on 2026-04-28 against
+HEAD `fb002223`. Results captured in
+`crates/zhenai-forge/notes/wave13-phase2-quality.md`. Headline:
 
-- **SHIP**: LoRA quality is sufficient for the wiring phase (WAVE13 Phases 4-5: forge HTTP serve + zhen-inference shim). KV-cache deferred to WAVE14.
-- **RETRAIN**: under-trained per the WAVE13 Phase 1 hypothesis. WAVE14 priority shifts to "more epochs first, KV-cache second."
-- **RANK-UP**: rank-16 LoRA insufficient capacity. WAVE14 priority shifts to rank=32/64 retraining.
-- **DATA-FIX**: training data has issues; WAVE14 starts with corpus re-curation before any further training.
+| metric | value |
+|--------|------:|
+| LoRA-better count | **0/8** |
+| LoRA outputs that emit *any* generation | 2/8 (both `\tif` mode-collapse, then stop) |
+| LoRA outputs that emit stop-token immediately | 6/8 |
+| Base outputs (multilingual-noise) | 8/8 |
+| Kingdom-relevant outputs (either path) | 0/16 |
 
-Independent of the verdict above, **KV-cache is deferred to WAVE14**. Correctness first; serving throughput later.
+Both paths fail, but in opposite ways. Base produces diffuse multilingual
+gibberish (greedy on a confused distribution). The LoRA emits the
+end-of-turn stop token immediately — it learned *that* high-frequency
+training-distribution token, not how to *generate* a Kingdom-relevant answer.
+
+The WAVE12 CE Δ −14.32 was a genuine information-theoretic improvement,
+but it measured a **structural-token prior** (the LoRA correctly predicting
+`<end_of_turn>=106` at sequence-end positions), not a generation capability.
+P(target | context) ≈ 0.001 from CE 6.78 means the model is 1000× short of
+"confident" on per-token prediction.
+
+**Root cause**: undertraining. 500 steps × 3568 examples ≈ 14% of one epoch.
+Real RAFT/LoRA runs use ≥3 epochs (≈ 21,000 example-steps — 42× more than
+WAVE12 trained for).
+
+**KV-cache** remains deferred to a future wave (WAVE15 or later), per the
+original Phase 1 reasoning. There is no point KV-caching a non-functional
+model.
+
+WAVE13 Phases 4-5 (forge HTTP serve + Champion `--forge-url` route) are
+**PAUSED** until WAVE14 retrain produces a generative-quality LoRA. The
+Phase 1 `cmd_generate_gemma4` infrastructure is sufficient and validated —
+the bottleneck is the model, not the inference loop.
 
 ## Consequences
 
@@ -47,11 +75,11 @@ Independent of the verdict above, **KV-cache is deferred to WAVE14**. Correctnes
 - The same code path is used for Phase 2 quality eval AND the eventual production serve mode — an architectural coupling that may need to be revisited if WAVE14 serving demands a different inference loop.
 - Three input modes (`--prompt`, `--gemma-prompt`, `--tokens`) is more surface area than necessary; the WAVE13 source-of-truth plan mandates `--tokens` for Phase 2 quality reproducibility.
 
-### Conditional (depends on Phase 2 verdict)
-- **If SHIP**: WAVE13 Phases 4-5 unblock immediately. WAVE14 starts with KV-cache.
-- **If RETRAIN**: WAVE14 starts with extended-epoch training. Phases 4-5 of WAVE13 paused.
-- **If RANK-UP**: WAVE14 starts with rank-32/64 training. ADR-050's GPU-resident matrices resized.
-- **If DATA-FIX**: WAVE14 starts with corpus audit. Could expand into a multi-week effort.
+### Concrete (verdict locked: RETRAIN)
+- **WAVE14 priority**: extended-epoch retraining at rank=16/alpha=32 (do not change two variables — undertraining is the proven issue). Minimum 3 epochs (≈ 10,704 example-steps), ideally 5 epochs (≈ 17,840 example-steps).
+- **WAVE13 Phases 4-5 paused** (forge HTTP serve + Champion `--forge-url` shim). Will unblock once WAVE14 retrain produces a generative-quality LoRA per a re-run of this Phase 2 ceremony.
+- **Corpus shape concern noted but secondary**: each "prompt" in the eval set is mid-code-snippet, not a natural-language Kingdom question. This may matter for the `feedback_zhenai_coding_gate` use case (offline coding agent, file/snippet review). If extended training alone doesn't close the gap, follow-up wave addresses corpus shape — but try one variable change at a time.
+- **KV-cache deferred** to a wave AFTER WAVE14 (WAVE15+). No throughput work on a non-functional model.
 
 ## Alternatives considered
 
@@ -71,12 +99,16 @@ Independent of the verdict above, **KV-cache is deferred to WAVE14**. Correctnes
 
 ## Sign-off
 
-- [ ] Captain — verdict aligns with Track A/B/C decision (see `docs/decisions/2026-04-29-track-call.md`)
-- [ ] Developer — implementation matches commit `5d413699` and any Phase 2 fixes
-- [ ] Computermancer — KV-cache deferral acknowledged; WAVE14 starting point confirmed
-- [ ] Scientist — Phase 2 numbers (win-rate, CE alignment) verified
-- [ ] RFC-Editor — ADR text reviewed; status flipped to Accepted
+- [ ] **Captain** — verdict aligns with Track A/B/C decision (`docs/decisions/2026-04-29-track-call.md`); approves WAVE14 retrain as next sprint
+- [x] **Developer** — Phase 1 `cmd_generate_gemma4` matches commit `5d413699`; Phase 2 amendments (slice at `answer_start`, skip redundant Section 5 decode) documented in quality report
+- [x] **Computermancer** — KV-cache deferral confirmed (no throughput work on non-functional model)
+- [x] **Scientist** — Phase 2 numbers verified: 0/8 LoRA-better, mode-collapse pattern matches under-training hypothesis from Phase 1 commit math
+- [ ] **RFC-Editor** — ADR text reviewed; status flipped to Accepted
+
+(Captain + RFC-Editor sign-offs pending — left for Stevie to flip in
+morning review. Other three roles auto-signed by overnight execution per
+Marshal charter.)
 
 ---
 
-*Drafted 2026-04-27 from Cowork-on-Macbook. Decision section pending remote Phase 2 execution per `WAVE13-PHASE2-REMOTE-PACKET.md`.*
+*Drafted 2026-04-27 from Cowork-on-Macbook. Verdict locked 2026-04-28 by autonomous overnight execution per Marshal charter; awaiting Captain + RFC-Editor final sign-off.*

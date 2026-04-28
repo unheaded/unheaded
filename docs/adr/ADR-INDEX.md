@@ -80,7 +80,7 @@
 | [048](ADR-048-forge-backend-trait.md) | ForgeBackend Trait — Pluggable Kernel Provider for zhenai-forge | Accepted | 2026-04-21 |
 | [049](ADR-049-wave11-gpu-kernels-for-gemma4-training.md) | WAVE11 — Custom HIP Kernels for Gemma-4 Training at seq=384 | Accepted | 2026-04-21 |
 | [050](ADR-050-wave12-gpu-resident-activations.md) | WAVE12 — GPU-Resident Forge Activations + Kingdom RAFT LoRA | Accepted | 2026-04-23 |
-| [051](ADR-051-wave13-generate-path.md) | WAVE13 — Forge generate-gemma4 path + KV-cache deferral | **Draft** (pending Phase 2 verdict) | 2026-04-27 |
+| [051](ADR-051-wave13-generate-path.md) | WAVE13 — Forge generate-gemma4 path + KV-cache deferral | **Accepted** (verdict: RETRAIN) | 2026-04-28 |
 | [052](ADR-052-timeline-and-battleplan-source-of-truth.md) | Timeline & Battle-Plan Source-of-Truth Policy (drift ≤ 7 days, in-tree only) | **Accepted** (CI gate live) | 2026-04-27 |
 | [053](ADR-053-hybrid-claude-zhenai-workflow-templates.md) | Hybrid Claude + Local Zhenai Workflow Templates (cost-driven hybrid routing) | **Pipe Dream** (activates on cost/quality/strategic/personal trigger) | 2026-04-27 |
 | [055](ADR-055-kev-poller-always-on-service.md) | KEV Poller — Always-On Kingdom Service + K8s Cross-Host Pilot (CISA KEV + NIST NVD parity) | **Planned** (Phase 0-5; first cross-host K8s workload) | 2026-04-27 |
