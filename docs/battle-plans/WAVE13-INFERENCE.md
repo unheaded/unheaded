@@ -1,18 +1,10 @@
-> **SUPERSEDED 2026-04-23 — relocated 2026-04-27.** This draft is preserved for
-> git history / lineage only. The canonical WAVE13 plan now lives in-tree at
-> `docs/battle-plans/WAVE13-INFERENCE.md` (per ADR-052 Source-of-Truth policy).
-> Key corrections folded into the canonical version: explicit ADR-031 Tier 2
-> framing, no-such-`zhen-inference`-Go-service naming fix, 3-category Phase 2
-> quality gate (Kingdom + general knowledge + 7-language coding help + code
-> review on pasted snippets), and per-request `lora=on/off` toggle in the serve
-> API. (Original off-tree pointer was `~/.claude/plans/synthetic-stirring-pudding.md`,
-> retained here for history but no longer the source of truth.)
->
-> Don't execute against this draft.
+> **In-tree canonical WAVE13 plan.** Imported 2026-04-27 from in-tree draft per ADR-052 (Source-of-Truth policy).
+> Battle plans of record live here in `docs/battle-plans/`. Off-tree drafts in `~/.claude/plans/` are working scratch only.
+> Marshal-citable: any future WAVE13 plan changes update THIS file.
 
 # WAVE13 BATTLE PLAN — Forge Inference: Validate the Kingdom LoRA + Wire to Zhen
 
-**Date forged:** 2026-04-23
+**Date forged:** 2026-04-23 (imported in-tree 2026-04-27)
 **Sprint:** WAVE13 — give zhenai-forge a `generate` subcommand, validate that the WAVE12 Kingdom LoRA produces sensible text (not just descending CE), then wire forge inference into the zhenai service so Zhen actually uses what we trained.
 **Prerequisite:** WAVE12 closed (HEAD `2f44309c` or descendant). Kingdom LoRA at `raft/kingdom-w12/kingdom.lora.gguf`. Gemma-4 GGUF at `/var/zhen/models/gemma-4-E2B-it.gguf`. zhen-inference (Mistral-7B + llama.cpp) running at port 20100.
 **Target:** `zhenai-forge generate --model gemma-4-E2B-it.gguf --lora kingdom-w12.lora.gguf --prompt "..." --max-new-tokens 100` produces text on stdout. AND a side-by-side base-vs-LoRA comparison on 5-10 held-out Kingdom prompts shows qualitative difference. AND a Zhen query routes through forge generate.

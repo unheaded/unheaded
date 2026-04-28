@@ -1,13 +1,14 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-04-11
-**Total:** 48 ADRs (ADR-012b deprecated, ADR-027-047 across sessions)
+**Last updated:** 2026-04-27
+**Total:** 50 ADRs (ADR-012b deprecated, ADR-027-052 across sessions)
 
 ## Status Summary
 
 | Status | Count |
 |--------|-------|
-| Accepted | 26 |
+| Accepted | 27 |
+| Draft | 2 |
 | In Progress | 1 |
 | Planned | 3 |
 | Deferred | 4 |
@@ -15,7 +16,7 @@
 | Deprecated | 1 |
 | PoC / Research | 1 |
 
-**Zero Draft/Proposed remaining.**
+**Two new Draft ADRs (ADR-051, ADR-052) added 2026-04-27 from Round Table sprint follow-through.**
 
 ## Full Index
 
@@ -73,3 +74,5 @@
 | [048](ADR-048-forge-backend-trait.md) | ForgeBackend Trait — Pluggable Kernel Provider for zhenai-forge | Accepted | 2026-04-21 |
 | [049](ADR-049-wave11-gpu-kernels-for-gemma4-training.md) | WAVE11 — Custom HIP Kernels for Gemma-4 Training at seq=384 | Accepted | 2026-04-21 |
 | [050](ADR-050-wave12-gpu-resident-activations.md) | WAVE12 — GPU-Resident Forge Activations + Kingdom RAFT LoRA | Accepted | 2026-04-23 |
+| [051](ADR-051-wave13-generate-path.md) | WAVE13 — Forge generate-gemma4 path + KV-cache deferral | **Draft** (pending Phase 2 verdict) | 2026-04-27 |
+| [052](ADR-052-timeline-and-battleplan-source-of-truth.md) | Timeline & Battle-Plan Source-of-Truth Policy (drift ≤ 7 days, in-tree only) | **Draft** (Round Table follow-through) | 2026-04-27 |
