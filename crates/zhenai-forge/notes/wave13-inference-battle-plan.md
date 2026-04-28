@@ -1,13 +1,14 @@
-> **SUPERSEDED 2026-04-23.** This draft was written before consulting on-disk
-> ADRs / Marshal / Busboy / Micromanager. The accepted WAVE13 plan lives at
-> `~/.claude/plans/synthetic-stirring-pudding.md`. Key corrections in the
-> accepted version: explicit ADR-031 Tier 2 framing, no-such-`zhen-inference`-
-> Go-service naming fix, 3-category Phase 2 quality gate (Kingdom + general
-> knowledge + 7-language coding help + code review on pasted snippets), and
-> per-request `lora=on/off` toggle in the serve API.
+> **SUPERSEDED 2026-04-23 — relocated 2026-04-27.** This draft is preserved for
+> git history / lineage only. The canonical WAVE13 plan now lives in-tree at
+> `docs/battle-plans/WAVE13-INFERENCE.md` (per ADR-052 Source-of-Truth policy).
+> Key corrections folded into the canonical version: explicit ADR-031 Tier 2
+> framing, no-such-`zhen-inference`-Go-service naming fix, 3-category Phase 2
+> quality gate (Kingdom + general knowledge + 7-language coding help + code
+> review on pasted snippets), and per-request `lora=on/off` toggle in the serve
+> API. (Original off-tree pointer was `~/.claude/plans/synthetic-stirring-pudding.md`,
+> retained here for history but no longer the source of truth.)
 >
-> Keeping this file for git history / lineage. Don't execute against this
-> draft.
+> Don't execute against this draft.
 
 # WAVE13 BATTLE PLAN — Forge Inference: Validate the Kingdom LoRA + Wire to Zhen
 
