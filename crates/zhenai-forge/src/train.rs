@@ -1715,6 +1715,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~5 GB Mistral-7B GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gpu_model_load() {
         // Only run if GPU is available
         if GpuDevice::init(0).is_err() {
@@ -1742,6 +1743,7 @@ mod tests {
     /// as empty Vecs (lazy-dequantized in the backward path). all_attn_norm is
     /// small (~16 KB/layer) and is kept eager for all layers.
     #[test]
+    #[ignore] // heavy: loads ~5 GB Mistral-7B GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_cpu_weights_path_c_lazy_skip() {
         let model_path = "/var/zhen/models/mistral-7b-instruct-q5_k_m.gguf";
         if !std::path::Path::new(model_path).exists() {

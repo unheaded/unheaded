@@ -2134,6 +2134,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_load_e2b() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -2165,6 +2166,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_lora_save_load_roundtrip() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -2214,6 +2216,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_train_step_loss_descent() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -2246,6 +2249,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_lora_grad_health() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -2308,6 +2312,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_backward_grad_health() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -2363,6 +2368,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_forward_finite() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -2410,6 +2416,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_layer_pattern_from_tensor_shapes() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {

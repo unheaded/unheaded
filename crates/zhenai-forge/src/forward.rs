@@ -522,6 +522,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~5 GB Mistral-7B q5_k_m GGUF — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_dequantize_real_tensor() {
         let model_path = "/var/zhen/models/mistral-7b-instruct-q5_k_m.gguf";
         if !std::path::Path::new(model_path).exists() {
