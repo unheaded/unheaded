@@ -472,12 +472,15 @@ fn cmd_eval_gemma4(args: &[String]) {
         }
     };
 
-    // Build a thin EvalHarness for scoring. `train` is unused here.
+    // Build a thin EvalHarness for scoring. `train` is unused here, so
+    // `train_answer_starts` is empty — the per-example train loop never
+    // runs against this harness.
     let harness = eval::EvalHarness {
         train: Vec::new(),
         eval: examples.clone(),
         answer_start,
         vocab_size: weights.hparams.vocab_size,
+        train_answer_starts: Vec::new(),
     };
 
     fn score<B: backend::ForgeBackend>(
