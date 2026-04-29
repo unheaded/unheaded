@@ -2,8 +2,8 @@
 ## "Doom in the Data Plane: Observing Every Packet with eBPF"
 
 **Duration:** ~20 minutes + Q&A
-**Setup Time:** < 5 minutes (automated with demo-start.sh)
-**Reset:** Run demo-reset.sh between runs
+**Setup Time:** < 5 minutes (automated with `scripts/demo-start.sh`)
+**Reset:** Run `scripts/demo-reset.sh` between runs
 
 ---
 
