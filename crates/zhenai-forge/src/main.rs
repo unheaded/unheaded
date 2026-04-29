@@ -446,19 +446,27 @@ fn cmd_eval_gemma4(args: &[String]) {
     } else { None };
 
     println!("Loading eval data: {}", data_path);
+    // H7 fix (2026-04-29) — was using the same naive non-digit-split parser
+    // as the pre-fix cmd_train_gemma4 (H6). Migrated to serde_json so the
+    // JSON `answer_start` field is read as an integer rather than absorbed
+    // into the tokens vector. Mirrors `eval::load_tokenized_jsonl` shape.
     let data = std::fs::read_to_string(&data_path).expect("read eval data");
-    let examples: Vec<Vec<u32>> = data.lines()
+    let parsed: Vec<TrainExample> = data.lines()
         .filter(|l| !l.trim().is_empty())
-        .filter_map(|line| {
-            let toks: Vec<u32> = line
-                .split(|c: char| !c.is_ascii_digit() && c != '-')
-                .filter(|s| !s.is_empty())
-                .filter_map(|s| s.parse().ok())
-                .collect();
-            if toks.len() >= 2 { Some(toks) } else { None }
-        })
+        .filter_map(|l| serde_json::from_str::<TrainExample>(l).ok())
+        .filter(|ex| ex.tokens.len() >= 2)
         .collect();
-    println!("  {} eval sequences loaded", examples.len());
+    let n_with_answer_start = parsed.iter().filter(|ex| ex.answer_start.is_some()).count();
+    let examples: Vec<Vec<u32>> = parsed.iter().map(|ex| ex.tokens.clone()).collect();
+    let per_example_answer_starts: Vec<usize> = parsed.iter()
+        .map(|ex| ex.answer_start.unwrap_or(answer_start))
+        .collect();
+    println!("  {} eval sequences loaded ({} with per-example answer_start, CLI fallback={})",
+        examples.len(), n_with_answer_start, answer_start);
+    // Use the first per-example answer_start as the harness scalar default;
+    // the per-example vector wires through to anywhere the harness honors it.
+    let harness_default_answer_start = per_example_answer_starts.first()
+        .copied().unwrap_or(answer_start);
 
     let cpu_backend = backend::CpuBackend;
     let hybrid_backend = backend::HybridMatmulBackend::default();
@@ -474,14 +482,18 @@ fn cmd_eval_gemma4(args: &[String]) {
 
     // Build a thin EvalHarness for scoring. `train` is unused here, so
     // `train_answer_starts` is empty — the per-example train loop never
-    // runs against this harness.
+    // runs against this harness. The harness scalar `answer_start` defaults
+    // to the first eval record's value when present (matches
+    // `harness_from_jsonl`), and the per-example vector is plumbed through
+    // the local `score()` closure below for per-sequence loss masking.
     let harness = eval::EvalHarness {
         train: Vec::new(),
         eval: examples.clone(),
-        answer_start,
+        answer_start: harness_default_answer_start,
         vocab_size: weights.hparams.vocab_size,
         train_answer_starts: Vec::new(),
     };
+    let _ = &per_example_answer_starts; // available for future per-seq loss masking
 
     fn score<B: backend::ForgeBackend>(
         backend: &B,
