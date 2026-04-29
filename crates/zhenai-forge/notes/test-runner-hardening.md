@@ -48,30 +48,36 @@ hosts.
 
 ## How to run heavy tests
 
-**Don't run them on `west` (14 GB dev box).** Two options:
+**Reality check on Kingdom hardware:**
+- `west` (this box): 14 GB RAM, 12 cores, RX 7700 XT — where forge runs.
+- `east`: 8 GB DDR3, 4 cores, no GPU — even smaller. Wrong target for
+  heavy tests.
 
-1. **Bare-metal east/west bootstrap.** Per `~/.claude/.../memory/reference_east_west_hosts.md`,
-   both bare-metal hosts have ROCm and significantly more RAM than the dev
-   loop. Heavy tests should run there:
+There is no bigger metal host to escape to. The way to run the heavy
+suite on `west` without crashing the session is **one test at a time,
+under a memory cap**:
 
-   ```
-   ssh govan@east   # or west bare-metal
-   cd /path/to/unheaded/crates/zhenai-forge
-   cargo test -- --ignored
-   ```
+```
+systemd-run --user --scope -p MemoryMax=10G \
+    cargo test --bin zhenai-forge --tests \
+    test_gemma4_load_e2b -- --ignored --exact
+```
 
-2. **Single test, careful manual run on dev box.** If you must run a single
-   heavy test on `west`:
+The `MemoryMax=10G` cgroup cap means OOM kills only the test subtree,
+never the tmux session. **Pick one test at a time; don't run the whole
+`--ignored` suite this way** — that's the configuration that crashed the
+box on 2026-04-29.
 
-   ```
-   systemd-run --user --scope -p MemoryMax=10G \
-       cargo test --bin zhenai-forge --tests \
-       test_gemma4_load_e2b -- --ignored --exact
-   ```
+If a future box arrives with ≥32 GB RAM, the right command is just
+`cargo test -- --ignored` directly (parallel runs become safe at that
+RAM headroom).
 
-   The `MemoryMax=10G` cgroup cap means OOM kills only the test subtree,
-   never the tmux session. Pick one test at a time; don't run the whole
-   `--ignored` suite this way.
+**Note: a single training run is NOT a heavy-test concern.** A
+standalone `zhenai-forge train-gemma4 ...` invocation is a single
+process with bounded VRAM/RSS — same profile as WAVE12's 85 min training
+that ran fine on this same box. The OOM was specifically `cargo test`'s
+12-way parallel test runs *each* loading the 9 GB GGUF, not a single
+forge process.
 
 ## What is safe to run on the dev box
 
@@ -88,7 +94,7 @@ cargo build --release            # release build of zhenai-forge binary
   iteration cadence; not worth the trade-off.
 - **No env-gate (`ZHENAI_HEAVY_TESTS=1`).** `#[ignore]` is the idiomatic
   cargo solution and matches the existing Learning Gate convention.
-- **No automatic re-routing to east/west.** Manual SSH for now; could be a
+- **No automatic re-routing to a host with headroom.** Manual SSH for now; could be a
   future Makefile target if heavy tests become routine.
 
 ## Verification
