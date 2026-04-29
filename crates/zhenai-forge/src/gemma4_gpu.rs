@@ -1504,6 +1504,7 @@ mod tests {
     use crate::gguf::GgufFile;
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_gpu_upload_full() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -1527,6 +1528,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_gpu_upload_cpu_ple() {
         // Skips PLE — should drop ~4.7 GB
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
@@ -1545,6 +1547,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_gpu_wq_matches_cpu() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -1668,6 +1671,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_gpu_train_step_loss_descent() {
         // Canonical Phase 7 exit-gate test — exercises the full-GPU fwd+bwd
         // path via train_step_gemma4_gpu on the real GGUF. Logs per-step and
@@ -1703,6 +1707,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_gpu_matmul_grad_x_matches_cpu() {
         // Verify GPU matmul_grad_x matches CPU's matmul_grad_x within bf16
         // precision. Same shape pattern as wq backward in backward_gemma4:
@@ -1778,6 +1783,7 @@ mod tests {
     /// Proves the new sgemm variant produces the same result when inputs
     /// pre-placed on GPU and outputs stay on GPU.
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_matmul_xwt_gpu_in_out_matches_cpu() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() { return; }
@@ -1843,6 +1849,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_gpu_forward_matches_cpu() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {
@@ -1923,6 +1930,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_gemma4_gpu_wq_speedup() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
         if !std::path::Path::new(model_path).exists() {

@@ -1,0 +1,26 @@
+# Crate-local cargo config — zhenai-forge
+#
+# Why this exists:
+#   This crate has hipcc kernel compiles, 3000+ LoC of Gemma-4 logic, and
+#   tests that load multi-GB GGUF model files. On the 14 GB dev box, an
+#   unconstrained `cargo test` (nproc=12 default) OOM-killed the tmux
+#   session (anon-RSS 11.5 GB at peak; see notes/test-runner-hardening.md).
+#
+# What this caps:
+#   `jobs = 4` — limits concurrent rustc/hipcc invocations. With ~2 GB peak
+#   per rustc job, this keeps build-side memory well under 10 GB.
+#
+# What this does NOT cap:
+#   Test runtime parallelism. The runtime side is handled by `#[ignore]`
+#   annotations on every test that loads a large GGUF (see HARDEN-2 commit).
+#   On bigger hosts (east/west bare-metal), bypass with:
+#     cargo test -- --ignored
+#
+# Override locally if you have headroom:
+#   CARGO_BUILD_JOBS=8 cargo build
+#
+# See:
+#   crates/zhenai-forge/notes/test-runner-hardening.md
+
+[build]
+jobs = 4
