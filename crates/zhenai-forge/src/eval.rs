@@ -61,44 +61,48 @@ pub fn compute_mean_loss_over_with_backend<B: ForgeBackend>(
     Ok(sum / n as f32)
 }
 
+/// Schema for one pre-tokenized RAFT example. Mirrors the train-side
+/// `TrainExample` in `main.rs` (deliberately duplicated locally to keep
+/// this surgical fix self-contained — see WAVE14 H6 analysis).
+#[derive(serde::Deserialize)]
+struct JsonlExample {
+    tokens: Vec<u32>,
+    #[serde(default)]
+    answer_start: Option<usize>,
+}
+
 /// Load a pre-tokenized JSONL corpus into (tokens, answer_start) pairs.
 /// Expected schema per line: `{"tokens": [int, ...], "answer_start": N}`.
 /// Skips malformed lines with a warning to stderr. Used by the Phase 5
 /// real-data RAFT path.
+///
+/// Now uses `serde_json::from_str` so the JSON `answer_start` integer is
+/// parsed correctly rather than absorbed into the tokens vector by a
+/// naive non-digit-split (the WAVE14 H6 root cause — see
+/// `notes/wave14-h2h6-analysis.md`). The previous bracket-extraction
+/// implementation was *functionally* correct (eval-side wasn't bitten by
+/// H6), but this migration brings eval and train onto the same code path
+/// for clean consistency.
 pub fn load_tokenized_jsonl(path: &str) -> Result<Vec<(Vec<u32>, usize)>, String> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("read {}: {}", path, e))?;
     let mut out = Vec::new();
     let mut n_bad = 0usize;
-    for (i, line) in content.lines().enumerate() {
+    for line in content.lines() {
         let line = line.trim();
         if line.is_empty() { continue; }
-        // Extract tokens array.
-        let toks_key = line.find("\"tokens\":")
-            .ok_or_else(|| format!("line {}: missing tokens key", i + 1))?;
-        let bracket_start = line[toks_key..].find('[')
-            .ok_or_else(|| format!("line {}: no [", i + 1))? + toks_key;
-        let bracket_end = line[bracket_start..].find(']')
-            .ok_or_else(|| format!("line {}: no ]", i + 1))? + bracket_start;
-        let tokens: Vec<u32> = line[bracket_start + 1..bracket_end]
-            .split(|c: char| !c.is_ascii_digit() && c != '-')
-            .filter(|s| !s.is_empty())
-            .filter_map(|s| s.parse().ok())
-            .collect();
-        // Extract answer_start value.
-        let ans_key = line.find("\"answer_start\":");
-        let answer_start = if let Some(k) = ans_key {
-            let rest = &line[k + "\"answer_start\":".len()..];
-            rest.chars().take_while(|c| c.is_ascii_digit()).collect::<String>()
-                .parse::<usize>().unwrap_or(1)
-        } else {
-            1
+        let ex: JsonlExample = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => { n_bad += 1; continue; }
         };
-        if tokens.len() < 2 {
+        if ex.tokens.len() < 2 {
             n_bad += 1;
             continue;
         }
-        out.push((tokens, answer_start));
+        // Default answer_start to 1 when JSON omits the field — matches
+        // pre-fix behavior on synthetic test corpora.
+        let answer_start = ex.answer_start.unwrap_or(1);
+        out.push((ex.tokens, answer_start));
     }
     if out.is_empty() {
         return Err(format!("no usable sequences in {}", path));
@@ -125,7 +129,11 @@ pub fn harness_from_jsonl(
     let eval: Vec<Vec<u32>> = eval_pairs.iter().map(|(t, _)| t.clone()).collect();
     let eval_ans: Vec<usize> = eval_pairs.iter().map(|(_, a)| *a).collect();
     Ok((EvalHarness {
-        train, eval, answer_start: default_answer, vocab_size: vocab,
+        train,
+        eval,
+        answer_start: default_answer,
+        vocab_size: vocab,
+        train_answer_starts: train_ans.clone(),
     }, train_ans, eval_ans))
 }
 
@@ -182,11 +190,24 @@ impl LearningTrajectory {
 }
 
 /// Training + evaluation harness with disjoint train/eval corpora.
+///
+/// `answer_start` is the harness-level scalar default used for synthetic
+/// corpora (where every sequence has the same prompt length).
+/// `train_answer_starts` carries the per-example values for real RAFT
+/// corpora — the train loop honors per-example values when present, falls
+/// back to the scalar otherwise. Added in WAVE14 Phase 2 to plumb the
+/// JSON `answer_start` field end-to-end (was previously truncated to a
+/// single scalar at `harness_from_jsonl`).
 pub struct EvalHarness {
     pub train: Vec<Vec<u32>>,
     pub eval: Vec<Vec<u32>>,
     pub answer_start: usize,
     pub vocab_size: usize,
+    /// Per-train-sequence answer_start values. Same length as `train`.
+    /// Synthetic builders fill this with `vec![answer_start; train.len()]`
+    /// to preserve scalar semantics; `harness_from_jsonl` populates it
+    /// from each JSONL record's `answer_start` field.
+    pub train_answer_starts: Vec<usize>,
 }
 
 impl EvalHarness {
@@ -207,11 +228,13 @@ impl EvalHarness {
         let y_map = build_y_map(seed);
         let train = gen_sequences(seed.wrapping_add(1), n_train, TRAIN_PREFIX_POOL, &y_map);
         let eval = gen_sequences(seed.wrapping_add(2), n_eval, EVAL_PREFIX_POOL, &y_map);
+        let n_train = train.len();
         Self {
             train,
             eval,
             answer_start: DEFAULT_PREFIX_LEN, // loss only on suffix positions
             vocab_size: vocab,
+            train_answer_starts: vec![DEFAULT_PREFIX_LEN; n_train],
         }
     }
 
@@ -239,6 +262,7 @@ impl EvalHarness {
             eval: base.eval.clone(),
             answer_start: base.answer_start,
             vocab_size: vocab,
+            train_answer_starts: base.train_answer_starts.clone(),
         }
     }
 
@@ -286,11 +310,13 @@ impl EvalHarness {
             }
         }
         // Answer start bumps by +1 because of the prepended marker.
+        let n_train = all_train.len();
         let harness = Self {
             train: all_train,
             eval: all_eval,
             answer_start: DEFAULT_PREFIX_LEN + 1,
             vocab_size: vocab,
+            train_answer_starts: vec![DEFAULT_PREFIX_LEN + 1; n_train],
         };
         (harness, train_groups, eval_groups)
     }
@@ -334,7 +360,14 @@ impl EvalHarness {
         let eval = gen_sequences_scrambled(
             seed.wrapping_add(2), n_eval, EVAL_PREFIX_POOL, seed.wrapping_add(22),
         );
-        Self { train, eval, answer_start: DEFAULT_PREFIX_LEN, vocab_size: vocab }
+        let n_train = train.len();
+        Self {
+            train,
+            eval,
+            answer_start: DEFAULT_PREFIX_LEN,
+            vocab_size: vocab,
+            train_answer_starts: vec![DEFAULT_PREFIX_LEN; n_train],
+        }
     }
 
     /// Compute mean cross-entropy loss over `self.eval`. Uses the GPU
@@ -422,8 +455,15 @@ impl EvalHarness {
         traj.checkpoints.push((0, eval0));
 
         for step in 1..=n_steps {
-            let example = &self.train[(step - 1) % self.train.len()];
-            let answer_start = self.answer_start.min(example.len() / 2);
+            let idx = (step - 1) % self.train.len();
+            let example = &self.train[idx];
+            // Honor the per-example answer_start (WAVE14 Phase 2 fix);
+            // fall back to the harness scalar if the per-example vector
+            // is shorter than expected (defensive against synthetic
+            // builders that didn't populate it).
+            let per_example = self.train_answer_starts.get(idx)
+                .copied().unwrap_or(self.answer_start);
+            let answer_start = per_example.min(example.len() / 2);
             let loss = backend.train_step(
                 cpu, handle, lora, example, answer_start, lr, step as u32,
             )?;
@@ -494,8 +534,12 @@ impl EvalHarness {
 
         let mut stopped_at = max_steps;
         for step in 1..=max_steps {
-            let example = &self.train[(step - 1) % self.train.len()];
-            let a_start = self.answer_start.min(example.len() / 2);
+            let idx = (step - 1) % self.train.len();
+            let example = &self.train[idx];
+            // Per-example answer_start with scalar fallback (WAVE14 Phase 2).
+            let per_example = self.train_answer_starts.get(idx)
+                .copied().unwrap_or(self.answer_start);
+            let a_start = per_example.min(example.len() / 2);
             let loss = backend.train_step(
                 cpu, handle, lora, example, a_start, lr, step as u32,
             )?;
@@ -810,6 +854,8 @@ mod tests {
             eval: full_harness.eval.iter().take(16).cloned().collect(),
             answer_start: full_harness.answer_start,
             vocab_size: full_harness.vocab_size,
+            train_answer_starts: full_harness.train_answer_starts
+                .iter().take(64).copied().collect(),
         };
         let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
 
