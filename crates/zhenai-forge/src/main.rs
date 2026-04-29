@@ -68,6 +68,20 @@ fn main() {
     }
 }
 
+/// One pre-tokenized RAFT example. Schema mirrors
+/// `scripts/tokenize-kingdom-for-gemma4.py`:
+///     {"tokens": [int, ...], "answer_start": int}
+///
+/// `answer_start` is the index of the first token after the prompt portion;
+/// loss is applied only to positions `[answer_start..tokens.len()-1]` during
+/// training. When the field is absent we fall back to the CLI flag value.
+#[derive(serde::Deserialize)]
+struct TrainExample {
+    tokens: Vec<u32>,
+    #[serde(default)]
+    answer_start: Option<usize>,
+}
+
 fn cmd_train_gemma4(args: &[String]) {
     let mut model_path = String::new();
     let mut data_path = String::new();
@@ -123,23 +137,22 @@ fn cmd_train_gemma4(args: &[String]) {
         Ok(s) => s,
         Err(e) => { eprintln!("Failed to read data: {}", e); std::process::exit(1); }
     };
-    let examples: Vec<Vec<u32>> = data.lines()
+    // Use serde_json so the JSON `answer_start` field is read as an integer
+    // rather than absorbed into the tokens vector by a naive non-digit-split
+    // (the WAVE14 H6 root cause — see notes/wave14-h2h6-analysis.md).
+    let examples: Vec<TrainExample> = data.lines()
         .filter(|l| !l.trim().is_empty())
-        .filter_map(|line| {
-            // Expect {"tokens": [int, int, ...]}
-            let toks: Vec<u32> = line
-                .split(|c: char| !c.is_ascii_digit() && c != '-')
-                .filter(|s| !s.is_empty())
-                .filter_map(|s| s.parse().ok())
-                .collect();
-            if toks.len() >= 2 { Some(toks) } else { None }
-        })
+        .filter_map(|l| serde_json::from_str::<TrainExample>(l).ok())
+        .filter(|ex| ex.tokens.len() >= 2)
         .collect();
     println!("  Loaded {} examples", examples.len());
     if examples.is_empty() {
         eprintln!("No valid examples found");
         std::process::exit(1);
     }
+    let n_with_answer_start = examples.iter().filter(|ex| ex.answer_start.is_some()).count();
+    println!("  Per-example answer_start present in {}/{} examples (CLI fallback={})",
+        n_with_answer_start, examples.len(), answer_start);
 
     // Select backend at runtime. The training loop itself is generic over
     // B: ForgeBackend, so every backend (CPU, hybrid-matmul, future
@@ -176,9 +189,9 @@ fn cmd_train_gemma4(args: &[String]) {
         weights: &gemma4::CpuWeightsGemma4,
         handle: &B::Handle,
         lora: &mut gemma4::Gemma4LoraAdapters,
-        examples: &[Vec<u32>],
+        examples: &[TrainExample],
         steps: usize,
-        answer_start: usize,
+        cli_answer_start: usize,
         lr: f32,
         save_every: usize,
         output_path: &str,
@@ -189,9 +202,14 @@ fn cmd_train_gemma4(args: &[String]) {
             let example = &examples[(step - 1) % examples.len()];
             crate::gemma4_gpu::profile_reset();
             let step_start = std::time::Instant::now();
-            let effective_answer_start = answer_start.min(example.len() / 2);
+            // Prefer the per-example JSON answer_start; fall back to the CLI
+            // flag (default 1) when absent. Clamp to len/2 so synthetic-tiny
+            // examples don't degenerate to zero loss positions.
+            let effective_answer_start = example.answer_start
+                .unwrap_or(cli_answer_start)
+                .min(example.tokens.len() / 2);
             let loss = backend.train_step(
-                weights, handle, lora, example,
+                weights, handle, lora, &example.tokens,
                 effective_answer_start, lr, step as u32,
             ).expect("train step");
             total_loss += loss as f64;
