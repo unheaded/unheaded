@@ -1422,4 +1422,56 @@ mod tests {
             "scrambling should alter nearly every suffix, got {}/{}",
             altered, base.train.len());
     }
+
+    /// WAVE14 Phase 3 regression test for the H6 line-parser bug.
+    ///
+    /// Loads the first 10 records of the real Kingdom RAFT corpus
+    /// (`/tmp/24h-kingdom-train.jsonl`) via `load_tokenized_jsonl` and
+    /// asserts:
+    ///
+    ///   (a) `tokens.len() == 384` (matches `MAX_TOKENS` in
+    ///       `scripts/tokenize-kingdom-for-gemma4.py`).
+    ///   (b) `answer_start > 0 && answer_start < tokens.len()`.
+    ///   (c) **`tokens.last()` is not equal to `answer_start`** —
+    ///       the pre-fix smoking gun. The old `cmd_train_gemma4` parser
+    ///       absorbed the JSON `answer_start` integer as a stray
+    ///       trailing token, so it would produce records with
+    ///       `tokens.len() == 385` AND `tokens.last() == answer_start`.
+    ///       This assertion would fail on the pre-fix parser.
+    ///
+    /// Gated on corpus presence (skips with eprintln if `/tmp` is
+    /// missing the file) — same idiom as `test_raft_kingdom_smoke`.
+    /// Light test: no GGUF load, no GPU, no #[ignore] needed.
+    #[test]
+    fn test_load_tokenized_jsonl_real_corpus() {
+        let path = "/tmp/24h-kingdom-train.jsonl";
+        if !std::path::Path::new(path).exists() {
+            eprintln!("regression: {} missing — skipping", path);
+            return;
+        }
+        let pairs = super::load_tokenized_jsonl(path)
+            .expect("load_tokenized_jsonl");
+        assert!(pairs.len() >= 10,
+            "corpus should have ≥10 records, got {}", pairs.len());
+        for (i, (tokens, answer_start)) in pairs.iter().take(10).enumerate() {
+            // (a) shape
+            assert_eq!(tokens.len(), 384,
+                "record[{}] tokens.len() = {}; expected 384 (MAX_TOKENS) — \
+                 if 385, the line parser absorbed answer_start (H6 pre-fix)",
+                i, tokens.len());
+            // (b) answer_start in valid range
+            assert!(*answer_start > 0,
+                "record[{}] answer_start = 0", i);
+            assert!(*answer_start < tokens.len(),
+                "record[{}] answer_start {} >= tokens.len() {}",
+                i, answer_start, tokens.len());
+            // (c) the H6 smoking gun — last token must NOT equal answer_start.
+            let last = *tokens.last().expect("non-empty tokens") as usize;
+            assert_ne!(last, *answer_start,
+                "record[{}] tokens.last() ({}) == answer_start ({}) — \
+                 the line parser absorbed answer_start as a stray token \
+                 (H6 pre-fix regression)",
+                i, last, answer_start);
+        }
+    }
 }
