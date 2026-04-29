@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Wave 10D training launcher — runs zhenai-forge train under a systemd-run
-# user scope with hard memory + wall-clock caps and an external log.
+# zhenai-forge launcher — runs the binary under a systemd-run user scope
+# with hard memory + wall-clock caps and an external log.
+#
+# Caller passes the full subcommand line (e.g. `train`, `train-gemma4`,
+# `eval-gemma4`, `generate-gemma4`).
 #
 # Usage:
-#   scripts/forge-train.sh [train args...]
+#   scripts/forge-train.sh <subcommand> [args...]
+# Examples:
+#   scripts/forge-train.sh train --model …            # Mistral path
+#   scripts/forge-train.sh train-gemma4 --model …     # Gemma-4 path
+#   scripts/forge-train.sh eval-gemma4 --model … --lora …
 #
 # Environment overrides:
 #   FORGE_LOG        path to log file (default /tmp/v6-run.log)
@@ -61,7 +68,7 @@ UNIT="forge-train-$(date +%Y%m%d-%H%M%S)"
 echo "[forge-train] unit=${UNIT}.scope log=${FORGE_LOG}"
 
 log "launching scope=${UNIT}.scope mem_max=${FORGE_MEM_MAX} mem_high=${FORGE_MEM_HIGH} max_sec=${FORGE_MAX_SEC}"
-log "command: $FORGE_BIN train $*"
+log "command: $FORGE_BIN $*"
 
 # stdbuf -oL forces line-buffered stdout so the log gets per-step lines
 # in real time (critical for the watchdog's K1/K2/K4 pattern matchers).
@@ -71,4 +78,4 @@ exec systemd-run --user --scope \
   -p "MemoryHigh=${FORGE_MEM_HIGH}" \
   -p "TasksMax=256" \
   -p "RuntimeMaxSec=${FORGE_MAX_SEC}" \
-  -- bash -c "stdbuf -oL '$FORGE_BIN' train $(printf '%q ' "$@") 2>&1 | tee -a '$FORGE_LOG'"
+  -- bash -c "stdbuf -oL '$FORGE_BIN' $(printf '%q ' "$@") 2>&1 | tee -a '$FORGE_LOG'"
