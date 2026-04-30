@@ -460,10 +460,12 @@ impl EvalHarness {
             // Honor the per-example answer_start (WAVE14 Phase 2 fix);
             // fall back to the harness scalar if the per-example vector
             // is shorter than expected (defensive against synthetic
-            // builders that didn't populate it).
+            // builders that didn't populate it). The .min(len/2) clamp
+            // was removed in WAVE14 Path C — see main.rs comment for the
+            // reasoning. Cap at len-2 so at least one loss position exists.
             let per_example = self.train_answer_starts.get(idx)
                 .copied().unwrap_or(self.answer_start);
-            let answer_start = per_example.min(example.len() / 2);
+            let answer_start = per_example.min(example.len().saturating_sub(2));
             let loss = backend.train_step(
                 cpu, handle, lora, example, answer_start, lr, step as u32,
             )?;
@@ -537,9 +539,10 @@ impl EvalHarness {
             let idx = (step - 1) % self.train.len();
             let example = &self.train[idx];
             // Per-example answer_start with scalar fallback (WAVE14 Phase 2).
+            // Clamp at len-2 (not len/2) — Path C, see main.rs comment.
             let per_example = self.train_answer_starts.get(idx)
                 .copied().unwrap_or(self.answer_start);
-            let a_start = per_example.min(example.len() / 2);
+            let a_start = per_example.min(example.len().saturating_sub(2));
             let loss = backend.train_step(
                 cpu, handle, lora, example, a_start, lr, step as u32,
             )?;
