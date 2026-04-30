@@ -203,11 +203,20 @@ fn cmd_train_gemma4(args: &[String]) {
             crate::gemma4_gpu::profile_reset();
             let step_start = std::time::Instant::now();
             // Prefer the per-example JSON answer_start; fall back to the CLI
-            // flag (default 1) when absent. Clamp to len/2 so synthetic-tiny
-            // examples don't degenerate to zero loss positions.
+            // flag (default 1) when absent. The earlier `.min(tokens.len()/2)`
+            // clamp was a defensive hedge from before the H6 fix landed; with
+            // per-example answer_start now plumbed correctly (verified
+            // 3568/3568 in Run B), the clamp would force loss masking onto
+            // positions [192..384] for the Kingdom corpus where high-frequency
+            // tokens (\n, " the", ",") dominate — yielding a unigram-frequency
+            // local optimum on the loss while generation collapses.
+            // Removed in WAVE14 Path C (notes/wave-14/wave14-runB-results.md).
+            // Defensive: cap at tokens.len()-2 so we always have at least one
+            // loss position; for malformed answer_start (≥ tokens.len()) this
+            // collapses to "predict the last token only", which is correct.
             let effective_answer_start = example.answer_start
                 .unwrap_or(cli_answer_start)
-                .min(example.tokens.len() / 2);
+                .min(example.tokens.len().saturating_sub(2));
             let loss = backend.train_step(
                 weights, handle, lora, &example.tokens,
                 effective_answer_start, lr, step as u32,
