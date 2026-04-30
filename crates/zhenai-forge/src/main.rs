@@ -736,6 +736,8 @@ fn cmd_generate_gemma4(args: &[String]) {
 
     // Output the completion (tokens after the prompt).
     let completion = &tokens[prompt_len..];
+    eprintln!("\n--- raw completion token IDs ({}): {:?} ---",
+        completion.len(), completion);
     let completion_text = decode_via_gemma_venv(completion).unwrap_or_else(|e| {
         eprintln!("decode failed: {}; falling back to raw token ids", e);
         format!("{:?}", completion)
