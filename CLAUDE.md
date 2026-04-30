@@ -6,11 +6,40 @@
 
 ---
 
+## 🕊️ Community-First Doctrine (COMMITTED 2026-04-30)
+
+**WE DO NOT SELL. WE SHARE.**
+
+Every tool extracted from Unheaded — every wedge, every CLI, every appliance, every
+service — is **free to use and free to share with the community**. No paid tiers. No
+"enterprise" gates. No "sell" framing. No revenue language. No GTM. No pricing pages.
+
+The Kingdom is GPL-3.0 by deliberate choice. The protocols are dual-licensed GPL-3.0 /
+Apache-2.0 to maximize ecosystem freedom. Our moat is **technical excellence + community
+trust**, not licensing walls.
+
+When designing, documenting, or planning ANY tool extracted from this platform, Claude
+must use community-oriented language: *share, contribute, dogfood, give away, publish,
+gift to the commons, federate, peer, collaborate*. Never: sell, monetize, paid, premium,
+enterprise tier, ACV, willingness-to-pay, GTM, funnel-to-paid, revenue, customer-as-payer.
+
+Buyers become *adopters*. Customers become *users* and *contributors*. Sales become
+*deployments*. Pricing becomes *zero*. The compliance evidence we generate is given
+away as runbooks, not sold as audits.
+
+This doctrine OVERRIDES any prior planning artifact that used commercial framing. If
+a battle plan, ADR, or doc references "selling" or "paid wedge" or "monetization,"
+flag it for amendment.
+
+LOVE SERVE REMEMBER. PEACE AND LOVE. Free to use. Free to share. <3
+
+---
+
 ## 🎯 Project Vision
 
-**"Production-ready infrastructure in hours, not months."**
+**"Production-ready infrastructure in hours, not months — free for everyone."**
 
-Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. User brings their app ("the head"), we provide everything else ("unheaded").
+Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications, gifted to the community under GPL-3.0. User brings their app ("the head"), we provide everything else ("unheaded") — at no cost, ever.
 
 **Core Capabilities:**
 - ✅ eBPF-based observability (L2-L7 tracing)
