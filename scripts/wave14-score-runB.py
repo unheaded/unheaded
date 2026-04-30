@@ -53,7 +53,58 @@ KINGDOM_ALLOWLIST = [
 ]
 COLLAPSE_FILL_FRACTION_THRESHOLD = 0.40  # of 100 generated tokens
 
-OUTPUTS_DIR = "/home/govan/tmp/unheaded/crates/zhenai-forge/notes/wave14-phase2-quality"
+DEFAULT_OUTPUTS_DIR = "/home/govan/tmp/unheaded/crates/zhenai-forge/notes/wave-14/wave14-phase2-quality"
+DEFAULT_FILE_PREFIX = "lora-w14b"  # Run B default; override via env or argv
+
+# Resolve at runtime so the scorer is reusable across runs (B, C, D, ...).
+OUTPUTS_DIR = os.environ.get("WAVE14_OUTPUTS_DIR", DEFAULT_OUTPUTS_DIR)
+FILE_PREFIX = os.environ.get("WAVE14_FILE_PREFIX", DEFAULT_FILE_PREFIX)
+# CLI override: python wave14-score-runB.py [outputs_dir] [file_prefix]
+if len(sys.argv) >= 2 and not sys.argv[1].startswith("-"):
+    OUTPUTS_DIR = sys.argv[1]
+if len(sys.argv) >= 3 and not sys.argv[2].startswith("-"):
+    FILE_PREFIX = sys.argv[2]
+
+
+def completion_token_ids(path):
+    """
+    If the forge log contains a `--- raw completion token IDs (N): [...]`
+    line (added 2026-04-30 in main.rs cmd_generate_gemma4), parse the
+    token IDs out. Returns a list of ints, or None if missing.
+    """
+    import re
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            content = f.read()
+    except (OSError, IOError):
+        return None
+    m = re.search(
+        r"--- raw completion token IDs \(\d+\): \[([0-9, ]*)\]",
+        content,
+    )
+    if not m:
+        return None
+    body = m.group(1).strip()
+    if not body:
+        return []
+    return [int(x) for x in body.split(",") if x.strip()]
+
+
+def collapse_score_token_ids(ids):
+    """
+    Given a list of token IDs, return (pass: bool, info: dict).
+    Pass = no token occupies more than 60% of the sequence (i.e. not
+    collapsed to a dominant single token like Run B's 100%-newline).
+    """
+    from collections import Counter
+    if not ids:
+        return False, {"top_id": None, "top_n": 0, "frac": 0.0, "len": 0}
+    c = Counter(ids)
+    top_id, top_n = c.most_common(1)[0]
+    frac = top_n / len(ids)
+    return frac < 0.60, {
+        "top_id": top_id, "top_n": top_n, "frac": frac, "len": len(ids),
+    }
 
 
 def decoded_text(path):
@@ -84,9 +135,13 @@ def decoded_text(path):
         "Zhenai", "===", "    [", "  [", "Phase", "ZHENAI", "===========",
         "token_embd",  # bare line in some run outputs
         "ple_token",
+        "Loaded LoRA:",  # WAVE14 fix — was triggering G-TOPIC false-positives
+        "Prompt tokens:", "max_new_tokens", "GPU upload:", "--- raw completion",
+        "--- generated", "[stop token", "    Loading", "  --- ",
     )
     INIT_SUBSTRINGS = (
         "VRAM USED", "VRAM Used", "loaded]", "weights:", "chrt -f",
+        "kingdom-w14", "lora.gguf", "rank=16, alpha",  # LoRA path mentions
     )
     lines = text.splitlines()
     out_start = 0
@@ -136,16 +191,53 @@ def score_one(text):
     )]
     topic_pass = len(topic_hits) > 0
 
-    # G-NO-COLLAPSE: count attractor cycles in the decoded region.
-    # The Run A attractor `\t}\n\nQuestion:\n` is ~5 tokens per cycle;
-    # pre-registration spec: fail if >40 of first 100 generated tokens
-    # are attractor-fill, i.e. >8 cycles. We use a tighter threshold of
-    # 2 cycles (1 pair would still pass) so Run A's 5-11 marker patterns
-    # all fail cleanly.
+    # G-NO-COLLAPSE: detect collapse in TWO ways now (Run B taught us a
+    # gate scoped to one specific attractor misses other shapes):
+    #   (1) Run-A attractor pattern (`\t}\n\nQuestion:\n` cycle): >2 cycles fail.
+    #   (2) Generic single-token / single-character dominance: any single
+    #       non-whitespace character occupying >60 % of the visible
+    #       (non-whitespace-stripped) generated text fails. Catches Run B's
+    #       newline collapse, cp-50's `, the, the,` collapse, and other
+    #       single-pattern attractors.
+    # Both checks must clear for collapse_pass = True.
     n_close_brace = text.count("\t}") + text.count(" }")
     n_question = text.count("Question:")
     collapse_marker_count = min(n_close_brace, n_question)
-    collapse_pass = collapse_marker_count <= 2
+    runA_pattern_pass = collapse_marker_count <= 2
+
+    # Generic single-token-dominance check. Strip whitespace, look at the
+    # visible characters; if one character class is >60 % of total length,
+    # it's collapsed. We check both raw (catches `\n` collapse since `\n`
+    # IS a character) AND stripped (catches `, the,` repetition by looking
+    # at the most-common 1-3 char ngram).
+    raw = text  # do not strip — `\n` collapse must surface
+    if raw:
+        from collections import Counter
+        # Most common single character in raw text
+        char_counts = Counter(c for c in raw if c.strip() or c == "\n")
+        if char_counts:
+            top_char, top_n = char_counts.most_common(1)[0]
+            top_char_frac = top_n / max(len(raw), 1)
+        else:
+            top_char_frac = 0.0
+        # Most common 3-gram in stripped text (catches `, the` repetition)
+        stripped = " ".join(text.split())
+        if len(stripped) >= 9:
+            grams = [stripped[i:i+3] for i in range(len(stripped) - 2)]
+            gram_counts = Counter(grams)
+            top_gram, top_gram_n = gram_counts.most_common(1)[0]
+            top_gram_frac = top_gram_n / max(len(grams), 1)
+        else:
+            top_gram, top_gram_n, top_gram_frac = "", 0, 0.0
+        single_token_pass = (top_char_frac < 0.6) and (top_gram_frac < 0.4)
+    else:
+        # Empty completion is collapse-pass under the original gate (no
+        # attractor) but we should call it FAIL — empty != generation.
+        single_token_pass = False
+        top_char_frac = 0.0
+        top_gram, top_gram_n, top_gram_frac = "", 0, 0.0
+
+    collapse_pass = runA_pattern_pass and single_token_pass
 
     return open_pass, topic_pass, collapse_pass, {
         "first_chars": stripped[:80],
@@ -154,6 +246,9 @@ def score_one(text):
         "n_close_brace": n_close_brace,
         "n_question": n_question,
         "collapse_marker_count": collapse_marker_count,
+        "top_char_frac": top_char_frac,
+        "top_gram": top_gram,
+        "top_gram_frac": top_gram_frac,
         "len": len(text),
     }
 
@@ -175,13 +270,21 @@ def main():
     rows = []
 
     for i in range(1, 9):
-        path = os.path.join(OUTPUTS_DIR, f"lora-w14b-p{i}.txt")
+        path = os.path.join(OUTPUTS_DIR, f"{FILE_PREFIX}-p{i}.txt")
         if not os.path.exists(path):
             print(f"  p{i}: MISSING ({path})")
             rows.append((i, False, False, False, "MISSING"))
             continue
         text = last_decoded_line(path)
         op, tp, cp, info = score_one(text)
+        # If the log contains raw completion token IDs (post 2026-04-30
+        # debug print), use those for the authoritative collapse check —
+        # robust against decode-stripping or trim_end() hiding `\n` runs.
+        ids = completion_token_ids(path)
+        if ids is not None:
+            id_pass, id_info = collapse_score_token_ids(ids)
+            cp = cp and id_pass
+            info["token_id_collapse"] = id_info
         open_pass_n += int(op)
         topic_pass_n += int(tp)
         collapse_pass_n += int(cp)
@@ -190,10 +293,13 @@ def main():
         marker_collapse = "✓" if cp else "✗"
         opener_label = info["open_match"] or "—"
         topics_label = ", ".join(info["topic_hits"]) or "—"
+        # Collapse label includes Run-A pattern stats AND single-token
+        # dominance stats (the gate that caught Run B).
         collapse_label = (
-            "}}"[:1] + " x" + str(info["n_close_brace"]) + ", "
-            + "Q: x" + str(info["n_question"]) + " "
-            + "(coll-pair x" + str(info["collapse_marker_count"]) + ")"
+            "runA-pair x" + str(info["collapse_marker_count"]) + " · "
+            + "top-char " + str(round(info["top_char_frac"] * 100)) + "% · "
+            + "top-3gram '" + (info["top_gram"][:8].replace("\n", "\\n")) + "' "
+            + str(round(info["top_gram_frac"] * 100)) + "%"
         )
         rows.append((i, op, tp, cp, info))
         print(f"  p{i}:  OPEN={marker_open} ({opener_label})  "
