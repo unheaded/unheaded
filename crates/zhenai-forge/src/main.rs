@@ -590,6 +590,8 @@ fn cmd_generate_gemma4(args: &[String]) {
     let mut temperature: f32 = 0.0;
     let mut top_k: usize = 0;
     let mut top_p: f32 = 1.0;
+    let mut rep_penalty: f32 = 1.0;
+    let mut rep_penalty_window: usize = 256;
     let mut seed: u64 = 0xC011D5;
     let mut cpu_only = false;
     let mut quiet = false;
@@ -606,6 +608,8 @@ fn cmd_generate_gemma4(args: &[String]) {
             "--temperature"     => { temperature = args[i+1].parse().unwrap(); i += 2; }
             "--top-k"           => { top_k = args[i+1].parse().unwrap(); i += 2; }
             "--top-p"           => { top_p = args[i+1].parse().unwrap(); i += 2; }
+            "--rep-penalty"     => { rep_penalty = args[i+1].parse().unwrap(); i += 2; }
+            "--rep-penalty-window" => { rep_penalty_window = args[i+1].parse().unwrap(); i += 2; }
             "--seed"            => { seed = args[i+1].parse().unwrap(); i += 2; }
             "--cpu"             => { cpu_only = true; i += 1; }
             "--quiet"           => { quiet = true; i += 1; }
@@ -728,7 +732,21 @@ fn cmd_generate_gemma4(args: &[String]) {
         let row_off = (tokens.len() - 1) * vocab;
         let last_logits = &logits[row_off..row_off + vocab];
 
-        let next = sample_next(last_logits, temperature, top_k, top_p, &mut rng_state);
+        // Repetition-penalty window: only consider the last N tokens (prompt
+        // tail + everything generated so far) to keep penalty cost bounded
+        // and to avoid penalizing tokens that legitimately reoccur after a
+        // long context-shift.
+        let win_start = tokens.len().saturating_sub(rep_penalty_window);
+        let past_window = &tokens[win_start..];
+        let next = sample_next(
+            last_logits,
+            temperature,
+            top_k,
+            top_p,
+            rep_penalty,
+            past_window,
+            &mut rng_state,
+        );
         if !next.is_finite_id() {
             eprintln!("\nsampler returned invalid id; halting"); break;
         }
@@ -853,23 +871,59 @@ impl SampledToken {
 }
 
 /// Pick the next token from a logits row.
-/// - temperature == 0.0 → argmax (greedy, deterministic)
+/// - temperature == 0.0 → argmax (greedy, deterministic), AFTER rep-penalty if any
 /// - temperature > 0.0  → softmax(logits/T), apply top_k, top_p, multinomial sample.
-fn sample_next(logits: &[f32], temperature: f32, top_k: usize, top_p: f32, rng: &mut u64) -> SampledToken {
+///
+/// Repetition penalty (HF/CTRL convention): for each token id that appears in
+/// `past_tokens`, scale its raw logit by `1/rep_penalty` if logit ≥ 0 or by
+/// `rep_penalty` if logit < 0. With rep_penalty > 1.0 this pushes already-seen
+/// tokens DOWN regardless of sign. rep_penalty == 1.0 → no-op.
+/// Critical anti-collapse measure for greedy decode on small LoRA-fine-tuned
+/// models (cf. Run B/C/coding-w15s greedy `\n` collapse).
+fn sample_next(
+    logits: &[f32],
+    temperature: f32,
+    top_k: usize,
+    top_p: f32,
+    rep_penalty: f32,
+    past_tokens: &[u32],
+    rng: &mut u64,
+) -> SampledToken {
     if !logits.iter().any(|x| x.is_finite()) {
         return SampledToken { id: u32::MAX };
     }
+
+    // Apply repetition penalty (HF formula). Build a working copy so we don't
+    // mutate the caller's logits row.
+    let mut adjusted: Vec<f32> = logits.to_vec();
+    if rep_penalty > 1.0 && !past_tokens.is_empty() {
+        // Use a small de-dup set so repeated tokens get penalized once per logits
+        // row, not N times.
+        let mut seen = std::collections::HashSet::new();
+        for &tok in past_tokens {
+            if !seen.insert(tok) { continue; }
+            let i = tok as usize;
+            if i < adjusted.len() && adjusted[i].is_finite() {
+                if adjusted[i] >= 0.0 {
+                    adjusted[i] /= rep_penalty;
+                } else {
+                    adjusted[i] *= rep_penalty;
+                }
+            }
+        }
+    }
+
     if temperature <= 0.0 {
         let mut best_id: u32 = 0;
         let mut best_v = f32::NEG_INFINITY;
-        for (i, &v) in logits.iter().enumerate() {
+        for (i, &v) in adjusted.iter().enumerate() {
             if v > best_v { best_v = v; best_id = i as u32; }
         }
         return SampledToken { id: best_id };
     }
 
     // Build (id, scaled_logit) and find max for numerical stability.
-    let mut scored: Vec<(u32, f32)> = logits.iter().enumerate()
+    let mut scored: Vec<(u32, f32)> = adjusted.iter().enumerate()
         .filter(|(_, v)| v.is_finite())
         .map(|(i, &v)| (i as u32, v / temperature))
         .collect();
