@@ -36,18 +36,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 )
 
 const (
-	defaultVorURL    = "http://127.0.0.1:9876"
-	defaultLlamaURL  = "http://127.0.0.1:8081"
-	defaultModel     = "qwen2.5-coder-7b-instruct"
-	defaultK         = 5
-	defaultMaxTokens = 800
-	httpTimeout      = 5 * time.Minute
+	defaultVorURL         = "http://127.0.0.1:9876"
+	defaultLlamaURL       = "http://127.0.0.1:8081"
+	defaultModel          = "qwen2.5-coder-7b-instruct"
+	defaultK              = 5
+	defaultMaxTokens      = 800
+	defaultMaxTopicChars  = 10000
+	httpTimeout           = 5 * time.Minute
 )
 
 // vorSearchHit matches one row of vor's GET /api/search response.
@@ -81,6 +83,7 @@ type chatRequest struct {
 	Messages    []chatMessage `json:"messages"`
 	MaxTokens   int           `json:"max_tokens,omitempty"`
 	Temperature float64       `json:"temperature,omitempty"`
+	Seed        int           `json:"seed,omitempty"`
 	Stream      bool          `json:"stream"`
 }
 
@@ -100,6 +103,8 @@ func main() {
 		maxTokens = flag.Int("max-tokens", defaultMaxTokens, "llama-server max_tokens for the response")
 		temp      = flag.Float64("temperature", 0.4, "sampling temperature (0.0 = greedy)")
 		showCtx   = flag.Bool("show-context", false, "print retrieved references before the answer")
+		maxChars  = flag.Int("max-topic-chars", defaultMaxTopicChars, "per-topic content cap; oversized topics are truncated to fit the context window")
+		seed      = flag.Int("seed", 0, "llama-server seed; nonzero pins sampling for reproducibility (combine with -temperature 0 for greedy determinism)")
 	)
 	flag.Parse()
 
@@ -174,7 +179,7 @@ func main() {
 		refs.WriteString("/")
 		refs.WriteString(t.Name)
 		refs.WriteString(" ---\n")
-		refs.WriteString(t.Content)
+		refs.WriteString(clipContent(t.Content, *maxChars))
 	}
 
 	userPrompt := fmt.Sprintf(
@@ -191,6 +196,7 @@ func main() {
 		},
 		MaxTokens:   *maxTokens,
 		Temperature: *temp,
+		Seed:        *seed,
 		Stream:      false,
 	})
 	if err != nil {
@@ -201,8 +207,8 @@ func main() {
 
 // vorSearch queries GET /api/search?q=<q>.
 func vorSearch(ctx context.Context, c *http.Client, base, q string) ([]vorSearchHit, error) {
-	url := fmt.Sprintf("%s/api/search?q=%s", strings.TrimRight(base, "/"), urlEscape(q))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	endpoint := fmt.Sprintf("%s/api/search?q=%s", strings.TrimRight(base, "/"), url.QueryEscape(q))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -224,8 +230,8 @@ func vorSearch(ctx context.Context, c *http.Client, base, q string) ([]vorSearch
 
 // vorTopicFetch queries GET /api/topics/<name>.
 func vorTopicFetch(ctx context.Context, c *http.Client, base, name string) (*vorTopic, error) {
-	url := fmt.Sprintf("%s/api/topics/%s", strings.TrimRight(base, "/"), urlEscape(name))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	endpoint := fmt.Sprintf("%s/api/topics/%s", strings.TrimRight(base, "/"), url.PathEscape(name))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -251,8 +257,8 @@ func llamaChat(ctx context.Context, c *http.Client, base string, req chatRequest
 	if err != nil {
 		return "", err
 	}
-	url := strings.TrimRight(base, "/") + "/v1/chat/completions"
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	endpoint := strings.TrimRight(base, "/") + "/v1/chat/completions"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}
@@ -277,37 +283,24 @@ func llamaChat(ctx context.Context, c *http.Client, base string, req chatRequest
 	return cr.Choices[0].Message.Content, nil
 }
 
+// clipContent truncates topic content to maxChars to fit the context
+// window. Cs/vor cheatsheets can exceed 70 KB on a single sheet (e.g.
+// the embedded `bash` topic) — left unchecked, a single retrieval can
+// blow the llama-server prompt budget. The truncation marker is plain
+// text so the model can recognize the cut.
+func clipContent(s string, maxChars int) string {
+	if maxChars <= 0 || len(s) <= maxChars {
+		return s
+	}
+	return s[:maxChars] + "\n\n…[truncated]"
+}
+
 // searchQuery returns the question stripped of trailing sentence
 // punctuation. vor's full-text search returns null for any query that
 // ends in `?`, `!`, or `.`, so we strip them before search. The full
 // question still goes to the LLM as-is.
 func searchQuery(q string) string {
 	return strings.TrimRight(q, "?!.")
-}
-
-// urlEscape is a minimal query-string escape (we only handle ' ' → '+'
-// and '#'/'&'/'?'/'%' → percent-encoding). For richer queries, use
-// net/url.Values, but the question may contain arbitrary text including
-// these chars and we don't want a stdlib dance for what's essentially
-// a single param.
-func urlEscape(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		switch {
-		case r == ' ':
-			b.WriteByte('+')
-		case r == '+' || r == '%' || r == '&' || r == '?' || r == '#' || r == '=':
-			fmt.Fprintf(&b, "%%%02X", r)
-		case r < 0x20 || r > 0x7E:
-			// non-ASCII or control char → percent-encode each byte
-			for _, c := range []byte(string(r)) {
-				fmt.Fprintf(&b, "%%%02X", c)
-			}
-		default:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }
 
 func envOr(key, fallback string) string {
