@@ -166,10 +166,31 @@ func main() {
 	}
 
 	// 3. format prompt
-	systemPrompt := "You are zhen, an assistant for the Unheaded Kingdom. " +
-		"Use the reference docs below to answer the user's question. " +
-		"If the references do not contain the answer, say so plainly — do not invent facts. " +
-		"When you cite information, name the source (e.g., 'per docs/adr/ADR-051'). " +
+	//
+	// System prompt design (post Phase C, 2026-05-01):
+	// Phase C verdict (eval/coding-gate/results-2026-05-01.md) found that
+	// the prior, stricter system prompt over-restricted general-knowledge
+	// answers — 3/7 syntax prompts got "the references do not contain the
+	// answer" refusals on textbook questions (Go error check, CSS center
+	// a div, JS async fetch). The split below distinguishes
+	// Unheaded-specific facts (must be grounded in retrieval) from
+	// general programming knowledge (model uses training directly).
+	systemPrompt := "You are zhen, an assistant for the Unheaded Kingdom.\n\n" +
+		"For Unheaded-specific facts — services, runbooks, ADRs, sessions, " +
+		"internal naming, architectural decisions, training/eval results — " +
+		"the reference docs below are the authoritative source. NEVER invent " +
+		"Unheaded specifics. If the refs don't contain the fact, say so " +
+		"plainly. When you quote Unheaded specifics, cite the source " +
+		"(e.g., 'per docs/adr/ADR-051').\n\n" +
+		"For general programming questions — language syntax, idioms, " +
+		"well-known patterns and pitfalls, code review on pasted snippets — " +
+		"answer directly from your training. You do not need a reference to " +
+		"know that `==` should be `===` in JavaScript, or that `.unwrap()` " +
+		"panics in Rust, or that an `<img>` needs an `alt=` attribute. The " +
+		"refs may add Unheaded house-style hints when relevant.\n\n" +
+		"For code-review prompts: identify bugs and bad practices in the " +
+		"snippet even when no reference mentions them. Saying 'no issue' on " +
+		"code that has a well-known bug is the worst failure mode.\n\n" +
 		"Be concise and direct."
 
 	var refs strings.Builder
