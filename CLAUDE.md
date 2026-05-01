@@ -705,6 +705,22 @@ automatically generates timeline.json and timeline.yaml mirrors.
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
+### Commit Message Style — Don'ts
+
+Keep commit messages tight and technical. The git log is a working tool, not a manifesto.
+
+- **NO sign-off mantras in commit bodies.** Phrases like "LOVE SERVE REMEMBER", "PEACE
+  AND LOVE", "KGLW", "<3", emoji blocks, or other cultural / spiritual flourishes belong
+  in *files* (CLAUDE.md, doctrine sections, battle-plan footers) — never in commit
+  message bodies. Future Claude sessions: do not append these lines to commits.
+- **NO marketing language.** No "groundbreaking", "revolutionary", "game-changing".
+  Describe what changed and why. Let the diff speak.
+- **NO doctrine-affirmation lines** ("FREE TO USE. FREE TO SHARE. NO SELLING.") in
+  commit messages. Doctrine lives in CLAUDE.md and the file footers — referencing the
+  doctrine commit hash (e.g. "post-c6108fb8") is sufficient.
+- **YES `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`** when Claude was a
+  meaningful collaborator on the change. Single-line trailer. That's it.
+
 ---
 
 ## 🎯 Current Phase: Alpha (✅ COMPLETE) → Age 2 (~65%) | Wire Format FROZEN
