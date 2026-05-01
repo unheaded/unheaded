@@ -93,17 +93,28 @@ def completion_token_ids(path):
 def collapse_score_token_ids(ids):
     """
     Given a list of token IDs, return (pass: bool, info: dict).
-    Pass = no token occupies more than 60% of the sequence (i.e. not
-    collapsed to a dominant single token like Run B's 100%-newline).
+    Pass requires BOTH:
+      (1) No single token occupies > 60 % of the sequence (catches Run B's
+          100 % newline collapse).
+      (2) Unique-token fraction > 20 % of length (catches Run C's
+          3-token cycle collapse: 3/52 = 5.8 % unique → FAIL).
+    Coherent generation typically has unique-fraction > 50 %.
     """
     from collections import Counter
     if not ids:
-        return False, {"top_id": None, "top_n": 0, "frac": 0.0, "len": 0}
+        return False, {"top_id": None, "top_n": 0, "frac": 0.0,
+                       "unique": 0, "unique_frac": 0.0, "len": 0}
     c = Counter(ids)
     top_id, top_n = c.most_common(1)[0]
     frac = top_n / len(ids)
-    return frac < 0.60, {
-        "top_id": top_id, "top_n": top_n, "frac": frac, "len": len(ids),
+    unique = len(c)
+    unique_frac = unique / len(ids)
+    single_token_pass = frac < 0.60
+    cycle_pass = unique_frac > 0.20
+    overall_pass = single_token_pass and cycle_pass
+    return overall_pass, {
+        "top_id": top_id, "top_n": top_n, "frac": frac,
+        "unique": unique, "unique_frac": unique_frac, "len": len(ids),
     }
 
 
