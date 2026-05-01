@@ -40,13 +40,18 @@ build-daemon: ## Build unheaded-daemon
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/unheaded-daemon && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.Version=$(VERSION)" -o ../../$(BINARY_DIR)/unheaded-daemon
 
-build-services: build-wotan build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway ## Build all service binaries
+build-services: build-wotan build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway build-zhen-rag ## Build all service binaries
 	@echo "Building dashboard-backend..."
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/dashboard-backend && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/dashboard-backend
 	@echo "Building kanban-app..."
 	cd cmd/kanban-app && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/kanban-app
 	@echo "✓ Services built"
+
+build-zhen-rag: ## Build zhen-rag (RAG glue: cs/vor + llama-server)
+	@echo "Building zhen-rag..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/zhen-rag && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-rag
 
 build-wotan: ## Build Wotan (Fae Chamber - Message Bus)
 	@echo "🧚 Building Wotan..."
