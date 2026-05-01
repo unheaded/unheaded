@@ -1,0 +1,19 @@
+Loading Gemma 4 GGUF: /var/zhen/models/gemma-4-E2B-it.gguf
+  Loading Gemma 4 weights (35 layers, n_embd=1536, vocab=262144):
+    [globals]
+      token_embd=805.3MB ple_token=4697.6MB ple_proj=27.5MB
+    [35 layers loaded]
+Loaded LoRA: raft/kingdom-w14c/kingdom.lora.gguf.checkpoint-50 (rank=16, alpha=32)
+Prompt tokens: 358 (first 8: [885, 35906, 827, 48473, 236764, 990, 236761, 12400])
+max_new_tokens capped 100 → 26 (prompt 358 + new ≤ 384)
+Uploading Gemma 4 weights to GPU...
+  token_embd:             805.3 MB
+  per_layer_token_embd: CPU-resident (PleMode::Cpu)
+  per-layer weights:     3736.7 MB (35 layers)
+  TOTAL VRAM USED:         4.57 GB
+GPU upload: 4.57 GB VRAM
+
+--- raw completion token IDs (26): [236764, 506, 2591, 236764, 506, 2591, 236764, 506, 2591, 236764, 506, 2591, 236764, 506, 2591, 236764, 506, 2591, 236764, 506, 2591, 236764, 506, 2591, 236764, 506] ---
+
+--- generated 26 tokens in 122.4s (4.71s/tok) ---
+, the example, the example, the example, the example, the example, the example, the example, the example, the
