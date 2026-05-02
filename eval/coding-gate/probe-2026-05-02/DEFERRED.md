@@ -30,9 +30,21 @@ These three blockers from `SYNTHESIS.md` cannot land cleanly in a single unheade
 
 **Smoke verified:** poisoned `~/.config/cs/sources/<name>` symlink content correctly surfaces as `[external]` in zhen-rag's references-block and as `source_trust=external` in vor's JSON. Destructive-verb filter still fires when poisoned content recommends destructive shell verbs. Embedded `bash` cheatsheet correctly tagged `[canonical]`.
 
-**Remaining work (search ranking weights):**
+**Search ranking weights (LANDED 2026-05-02 on cs branch):**
 
-The B1 design called out a configurable per-kind weight (default 1.0/0.8/0.5) so embedded ranks above user-source for tied relevance. NOT implemented in this commit — empirically the trust-label clause is sufficient for the LLM-layer behavior we cared about. Defer until a real concrete failure shows up where the model would have made a different decision had ranking been weighted.
+The B1 design called out a per-kind weight (default 1.0/0.8/0.5) so embedded ranks above user-source for tied relevance. Implemented as a tie-breaker comparator in `cs/internal/registry/registry.go` (commit `a6043b0` on `harden/api-dos-and-traversal`):
+
+- `SourceKind.RankWeight()` returns 100 / 80 / 50 for embedded / user-custom / user-source.
+- The Search comparator inserts the weight just before the existing lex-name tie-break, so high-relevance user-source still beats low-relevance embedded, but tied-relevance always favors embedded.
+- Three new tests cover the hierarchy, the prefer-embedded-on-tie behavior, and the doesn't-dominate-when-other-signal-wins case.
+
+This closes the last piece of B1's design list. The cs harden branch now has 3 commits to PR upstream:
+
+```
+a6043b0 source-kind tie-breaker (this)
+e7f57dd source provenance schema
+fa46000 vor DoS + path-traversal harden
+```
 
 ## D-pre.B2 — Champion tool-call gating on source provenance (IMPLEMENTED 2026-05-02)
 
