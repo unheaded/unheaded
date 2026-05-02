@@ -105,6 +105,7 @@ func main() {
 		showCtx   = flag.Bool("show-context", false, "print retrieved references before the answer")
 		maxChars  = flag.Int("max-topic-chars", defaultMaxTopicChars, "per-topic content cap; oversized topics are truncated to fit the context window")
 		seed      = flag.Int("seed", 0, "llama-server seed; nonzero pins sampling for reproducibility (combine with -temperature 0 for greedy determinism)")
+		sysPromptFile = flag.String("system-prompt-file", "", "path to a file containing the system prompt; '' = built-in default; '-' = no system message at all (probe baseline)")
 	)
 	flag.Parse()
 
@@ -175,7 +176,7 @@ func main() {
 	// a div, JS async fetch). The split below distinguishes
 	// Unheaded-specific facts (must be grounded in retrieval) from
 	// general programming knowledge (model uses training directly).
-	systemPrompt := "You are zhen, an assistant for the Unheaded Kingdom.\n\n" +
+	defaultSystemPrompt := "You are zhen, an assistant for the Unheaded Kingdom.\n\n" +
 		"For Unheaded-specific facts — services, runbooks, ADRs, sessions, " +
 		"internal naming, architectural decisions, training/eval results — " +
 		"the reference docs below are the authoritative source. NEVER invent " +
@@ -193,6 +194,24 @@ func main() {
 		"code that has a well-known bug is the worst failure mode.\n\n" +
 		"Be concise and direct."
 
+	// systemPrompt resolution:
+	//   ""  → defaultSystemPrompt
+	//   "-" → no system message at all (probe baseline; user msg only)
+	//   otherwise → contents of file at the given path
+	var systemPrompt string
+	switch *sysPromptFile {
+	case "":
+		systemPrompt = defaultSystemPrompt
+	case "-":
+		systemPrompt = ""
+	default:
+		buf, err := os.ReadFile(*sysPromptFile)
+		if err != nil {
+			fatal("read system-prompt-file: %v", err)
+		}
+		systemPrompt = string(buf)
+	}
+
 	var refs strings.Builder
 	for _, t := range topics {
 		refs.WriteString("\n\n--- ")
@@ -209,12 +228,14 @@ func main() {
 	)
 
 	// 4. call llama-server
+	messages := make([]chatMessage, 0, 2)
+	if systemPrompt != "" {
+		messages = append(messages, chatMessage{Role: "system", Content: systemPrompt})
+	}
+	messages = append(messages, chatMessage{Role: "user", Content: userPrompt})
 	answer, err := llamaChat(ctx, client, llamaURL, chatRequest{
-		Model: model,
-		Messages: []chatMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: userPrompt},
-		},
+		Model:       model,
+		Messages:    messages,
 		MaxTokens:   *maxTokens,
 		Temperature: *temp,
 		Seed:        *seed,
