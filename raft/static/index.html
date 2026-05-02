@@ -238,6 +238,83 @@
             color: var(--text);
             border-color: var(--border-active);
         }
+        /* Inline action buttons — runbook execute / kanban create from chat */
+        .inline-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px dashed var(--border-card);
+        }
+        .action-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .action-btn {
+            align-self: flex-start;
+            padding: 6px 14px;
+            font-size: 0.85em;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.02em;
+        }
+        .action-btn:hover {
+            background: var(--accent);
+            color: var(--bg);
+        }
+        .action-btn:disabled {
+            cursor: progress;
+            opacity: 0.7;
+        }
+        .action-btn.action-ok {
+            background: rgba(74,122,74,0.2);
+            color: var(--green);
+            border-color: var(--green);
+        }
+        .action-btn.action-fail {
+            background: rgba(180,72,72,0.2);
+            color: #d97a7a;
+            border-color: #d97a7a;
+        }
+        .action-btn.action-pending {
+            background: rgba(180,140,72,0.2);
+            color: #d9b272;
+            border-color: #d9b272;
+        }
+        .action-btn.runbook { border-style: solid; }
+        .action-btn.kanban_create { border-style: dashed; }
+        .action-result {
+            font-size: 0.78em;
+            padding-left: 8px;
+            color: var(--text-dim);
+        }
+        .action-result .action-pending,
+        .action-result .action-warn,
+        .action-result .action-fail {
+            font-style: italic;
+        }
+        .action-result .action-warn { color: #d9b272; }
+        .action-result .action-fail { color: #d97a7a; }
+        .action-output {
+            font-size: 0.8em;
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 3px;
+            padding: 8px;
+            margin: 6px 0 0 0;
+            max-height: 320px;
+            overflow: auto;
+            white-space: pre;
+            color: var(--text-dim);
+        }
         .msg-actions button.remembered {
             background: rgba(74,122,74,0.2);
             color: var(--green);
@@ -869,6 +946,166 @@ function modelMsgClass(model) {
     return '';
 }
 
+// ──────────────────────────────────────────────────────────────────
+// Inline action buttons (Stage 2 of the operator interaction surface)
+//
+// Scans LLM answers for references to runbook names + kanban actions,
+// renders confirm-buttons inline. Click → POST to the Python webapp's
+// /api/v1/runbooks/<n>/execute or /api/v1/tool/exec, which proxies
+// through cmd/zhen-agentd /api/v1/tool/exec → pkg/champion.Dispatch.
+// T6b closure inherited automatically.
+//
+// Runbook names are loaded once on page boot from /api/v1/runbooks
+// and cached. Kanban-create suggestions are matched on simple natural-
+// language patterns ("create a kanban task to X") with a best-effort
+// title extraction.
+// ──────────────────────────────────────────────────────────────────
+
+const RUNBOOK_NAME_CACHE = new Set();
+fetch(API + '/api/v1/runbooks').then(r => r.json()).then(d => {
+    const list = d.runbooks || (Array.isArray(d) ? d : []);
+    list.forEach(rb => {
+        const name = (rb.name || rb).toString();
+        // Cache the bare name AND the path-prefixed name so detection
+        // matches whichever the model emits ('service-health-sweep'
+        // OR 'observe/service-health-sweep').
+        RUNBOOK_NAME_CACHE.add(name);
+    });
+}).catch(() => { /* empty cache → no inline runbook actions; harmless */ });
+
+// detectActions returns a list of action descriptors found in answer text.
+// Each descriptor: {kind: 'runbook'|'kanban_create', name, label, payload}
+function detectActions(answer) {
+    if (!answer) return [];
+    const found = [];
+    const seen = new Set();
+
+    // 1. Runbook references — scan for any cached runbook name with
+    //    word-boundary on both sides. Avoid duplicates.
+    for (const name of RUNBOOK_NAME_CACHE) {
+        // Word-boundary check: name surrounded by whitespace, code-fences,
+        // backticks, or punctuation typical in prose.
+        const re = new RegExp('(?:^|[\\s`/\\\\(\\[\\.,;:])' +
+            name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+            '(?:[\\s`/\\\\)\\]\\.,;:!?]|$)');
+        if (re.test(answer) && !seen.has(name)) {
+            seen.add(name);
+            found.push({
+                kind:  'runbook',
+                name:  name,
+                label: '▶ Run ' + name + ' (dry-run)',
+                payload: { dry_run: true },
+            });
+        }
+    }
+
+    // 2. Kanban-create suggestions — heuristic NL match. The model
+    //    commonly says "you could create a task ...", "make a kanban
+    //    task to ...", "open a task for ...". Extract a best-effort
+    //    title (first sentence after the trigger phrase, capped at 80c).
+    const kanbanTriggers = [
+        /(?:create|make|open|add)\s+(?:a\s+)?(?:kanban\s+)?task\s+(?:to|for|titled)\s+([^.\n]{6,80})/i,
+        /file\s+(?:a\s+)?(?:kanban\s+)?task\s+(?:to|for|titled)\s+([^.\n]{6,80})/i,
+    ];
+    for (const re of kanbanTriggers) {
+        const m = answer.match(re);
+        if (m && m[1]) {
+            const title = m[1].trim().replace(/[`*"']/g, '').slice(0, 80);
+            if (!seen.has('kanban:' + title)) {
+                seen.add('kanban:' + title);
+                found.push({
+                    kind:  'kanban_create',
+                    label: '＋ Create kanban: ' + title,
+                    payload: { title: title, status: 'todo' },
+                });
+                break;  // one suggestion per answer; the model rarely names two distinct tasks
+            }
+        }
+    }
+
+    return found;
+}
+
+// Render the action buttons + result panel for a list of detected actions.
+// Returns an HTMLElement to append below the message body.
+function renderActionButtons(actions) {
+    if (!actions.length) return null;
+    const wrap = document.createElement('div');
+    wrap.className = 'inline-actions';
+    actions.forEach(action => {
+        const row = document.createElement('div');
+        row.className = 'action-row';
+        const btn = document.createElement('button');
+        btn.className = 'action-btn ' + action.kind;
+        btn.textContent = action.label;
+        const result = document.createElement('div');
+        result.className = 'action-result';
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            btn.textContent = btn.textContent.replace(/^[▶＋]/, '⏳');
+            result.innerHTML = '<span class="action-pending">running through Champion gate…</span>';
+            try {
+                let resp;
+                if (action.kind === 'runbook') {
+                    resp = await fetch(API + '/api/v1/runbooks/' +
+                        encodeURIComponent(action.name.split('/').pop()) +
+                        '/execute', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(action.payload),
+                    });
+                } else if (action.kind === 'kanban_create') {
+                    // POST to the daemon's /tool/exec directly with a
+                    // direct-user justification. Champion's gate enforces
+                    // the rules; pgKanbanStore writes the row.
+                    const taskId = 'task-zhen-' + Date.now();
+                    resp = await fetch('http://' + location.hostname + ':20105/api/v1/tool/exec', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            tool: 'kanban_create',
+                            args: { task: { id: taskId, ...action.payload } },
+                            session_id: 'zhen-ui-' + Date.now(),
+                            emitted_by: 'zhen-web-ui',
+                        }),
+                    });
+                }
+                const body = await resp.json();
+                if (resp.ok && (body.status === 'ok' || body.status === 'success')) {
+                    btn.textContent = btn.textContent.replace(/^⏳/, '✓');
+                    btn.classList.add('action-ok');
+                    result.innerHTML = '<pre class="action-output">' +
+                        escapeHtml(JSON.stringify(body.result || body, null, 2).slice(0, 2000)) +
+                        '</pre>';
+                } else if (body.status === 'pending_confirmation' && body.pending_token) {
+                    btn.textContent = '? Confirm: ' + action.name;
+                    btn.classList.add('action-pending');
+                    result.innerHTML = '<span class="action-warn">Champion refused with pending confirmation. ' +
+                        'Token: <code>' + escapeHtml(body.pending_token) + '</code></span>';
+                } else {
+                    btn.textContent = btn.textContent.replace(/^⏳/, '✗');
+                    btn.classList.add('action-fail');
+                    result.innerHTML = '<span class="action-fail">' +
+                        escapeHtml(body.reason || body.error || JSON.stringify(body).slice(0, 500)) +
+                        '</span>';
+                }
+            } catch (e) {
+                btn.textContent = btn.textContent.replace(/^⏳/, '✗');
+                btn.classList.add('action-fail');
+                result.innerHTML = '<span class="action-fail">' + escapeHtml(String(e)) + '</span>';
+            }
+        });
+        row.appendChild(btn);
+        row.appendChild(result);
+        wrap.appendChild(row);
+    });
+    return wrap;
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // --- Chat ---
 function addMsg(text, cls, meta, extra) {
     const d = document.createElement('div');
@@ -1015,6 +1252,14 @@ async function ask(preset) {
                 dlBtn.textContent = 'Download: ' + dl.filename;
                 dlBtn.onclick = function() { downloadFile(dl.filename, dl.content); };
                 actionsDiv.appendChild(dlBtn);
+            }
+
+            // Inline action buttons (Stage 2): detect runbook/kanban refs
+            // in the answer; render Champion-gated confirm-buttons.
+            const detectedActions = detectActions(data.answer);
+            const inlineActions = renderActionButtons(detectedActions);
+            if (inlineActions) {
+                actionsDiv.appendChild(inlineActions);
             }
 
             const metaHtml = `${badge} ${data.elapsed_seconds}s | ${data.tokens_used} tok` +
