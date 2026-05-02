@@ -66,6 +66,15 @@ build-zhen-agentd: ## Build zhen-agentd (HTTP daemon variant of zhen-agent)
 zhen-agent-up: build-zhen-agent ## Build zhen-agent + verify prerequisites (vor, llama-server)
 	@./scripts/zhen-agent-preflight.sh
 
+zhen-agentd-up: build-zhen-agentd ## Build zhen-agentd daemon + verify backends + start in foreground
+	@./scripts/zhen-agent-preflight.sh
+	@echo ""
+	@echo "Starting zhen-agentd on http://127.0.0.1:20105 (Ctrl-C to stop)..."
+	@bin/zhen-agentd -project-root $(PWD)
+
+zhen-agentd-docker: ## Build zhen-agentd Docker image (deploy/docker/zhen-agentd.Dockerfile)
+	docker build -f deploy/docker/zhen-agentd.Dockerfile -t zhen-agentd:dev .
+
 coding-gate-ci: build-zhen-rag ## Run 5-seed CI gate; pre-merge required for any zhen-rag/RUBRIC/prompts change
 	@echo "Running coding-gate 5-seed CI sweep..."
 	@./scripts/probe-sanitization-check.sh

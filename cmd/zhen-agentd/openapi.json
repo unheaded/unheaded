@@ -1,0 +1,229 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "zhen-agentd",
+    "description": "Phase D-A agent runtime daemon. Multi-turn ReAct loop wrapping cs/vor + llama-server, gated by Champion's three-rule trust + destructive-verb defense.",
+    "version": "1.0.0",
+    "license": {
+      "name": "GPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/gpl-3.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:20105",
+      "description": "Loopback default — production deploys behind a TLS-terminating sidecar."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Static API key configured via AUTH_API_KEYS env. Required when AUTH_ENABLED=true."
+      },
+      "BearerJWT": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT signed with AUTH_JWT_KEY. Required when AUTH_ENABLED=true."
+      }
+    },
+    "schemas": {
+      "AskRequest": {
+        "type": "object",
+        "required": ["goal"],
+        "properties": {
+          "goal": {"type": "string", "description": "User goal for the agent"},
+          "project_root": {"type": "string", "description": "Project root the request targets; must be in the daemon's allow-list"},
+          "session_id": {"type": "string", "description": "Audit-log correlation id; auto-generated if omitted"},
+          "k": {"type": "integer", "description": "Top-K retrieval count", "minimum": 1, "default": 5},
+          "max_tokens": {"type": "integer", "minimum": 1, "default": 600},
+          "max_turns": {"type": "integer", "minimum": 1, "default": 8},
+          "temperature": {"type": "number", "minimum": 0, "maximum": 2, "default": 0.4},
+          "seed": {"type": "integer", "description": "Nonzero pins LLM sampling for reproducibility"}
+        }
+      },
+      "AskResponse": {
+        "type": "object",
+        "required": ["answer", "turns_used", "budget_hit", "trace", "session_id"],
+        "properties": {
+          "answer": {"type": "string"},
+          "turns_used": {"type": "integer"},
+          "budget_hit": {"type": "boolean"},
+          "session_id": {"type": "string"},
+          "trace": {"type": "array", "items": {"$ref": "#/components/schemas/TraceEntry"}}
+        }
+      },
+      "TraceEntry": {
+        "type": "object",
+        "properties": {
+          "thought": {"type": "string"},
+          "tool": {"type": "string"},
+          "args": {"type": "object", "additionalProperties": true},
+          "observation": {"type": "string"},
+          "answer": {"type": "string"},
+          "refused": {"type": "boolean"},
+          "pending_confirmation": {"type": "boolean"},
+          "pending_token": {"type": "string", "description": "Single-use token for /api/v1/agent/confirm"}
+        }
+      },
+      "ConfirmRequest": {
+        "type": "object",
+        "required": ["token"],
+        "properties": {
+          "token": {"type": "string"},
+          "project_root": {"type": "string"}
+        }
+      },
+      "ConfirmResponse": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {"type": "string", "enum": ["ok", "expired", "unknown", "used", "denied", "error"]},
+          "result": {"description": "Tool output (shape varies by tool)"},
+          "reason": {"type": "string"}
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {"type": "string"}
+        }
+      },
+      "ReadyResponse": {
+        "type": "object",
+        "required": ["ready", "vor_reachable", "llama_reachable"],
+        "properties": {
+          "ready": {"type": "boolean"},
+          "vor_reachable": {"type": "boolean"},
+          "llama_reachable": {"type": "boolean"},
+          "detail": {"type": "string"}
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness probe",
+        "description": "Always returns 200 once the listener is up. Bypasses auth and rate-limit.",
+        "responses": {
+          "200": {
+            "description": "Daemon is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"status": {"type": "string", "example": "ok"}}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Readiness probe",
+        "description": "Verifies vor and llama-server are reachable. Cached 5s. Bypasses auth and rate-limit.",
+        "responses": {
+          "200": {
+            "description": "All backends reachable",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ReadyResponse"}}}
+          },
+          "503": {
+            "description": "One or more backends unreachable",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ReadyResponse"}}}
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus metrics",
+        "description": "Exposition format. Counters/histograms in zhen_agentd_* namespace. Bypasses auth and rate-limit.",
+        "responses": {
+          "200": {
+            "description": "Prometheus exposition",
+            "content": {"text/plain; version=0.0.4": {}}
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "summary": "This OpenAPI spec",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.0 document",
+            "content": {"application/json": {}}
+          }
+        }
+      }
+    },
+    "/api/v1/agent/ask": {
+      "post": {
+        "summary": "Run the agent loop on a user goal",
+        "description": "Multi-turn ReAct loop. Returns a final answer plus per-turn trace; refused tool calls surface single-use confirmation tokens for /api/v1/agent/confirm.",
+        "security": [{"ApiKey": []}, {"BearerJWT": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AskRequest"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Agent run completed (gracefully or budget-hit)",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AskResponse"}}}
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}
+          },
+          "401": {"description": "Auth required"},
+          "403": {
+            "description": "project_root not in allow-list",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "headers": {"Retry-After": {"schema": {"type": "string"}}}
+          },
+          "500": {
+            "description": "Internal error (LLM unreachable, retriever errored)",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}
+          }
+        }
+      }
+    },
+    "/api/v1/agent/confirm": {
+      "post": {
+        "summary": "Redeem a pending-confirmation token",
+        "description": "Re-runs a tool call that was refused with pending_confirmation=true. Rule 2 (untrusted justification) is suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire. Tokens are single-use, 5-minute TTL.",
+        "security": [{"ApiKey": []}, {"BearerJWT": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ConfirmRequest"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Token redeemed; tool call ran",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ConfirmResponse"}}}
+          },
+          "400": {
+            "description": "Token unknown / used / expired",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ConfirmResponse"}}}
+          },
+          "401": {"description": "Auth required"},
+          "403": {
+            "description": "Gate refused even after confirm (destructive verb / path outside allowlist)",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ConfirmResponse"}}}
+          },
+          "429": {"description": "Rate limit exceeded"}
+        }
+      }
+    }
+  }
+}
