@@ -6,9 +6,11 @@
 
 // Integration tests for Champion against real PostgreSQL (The Well).
 // Run with: go test ./pkg/champion/... -tags=integration -count=1
-// Requires: Docker PostgreSQL running on localhost:5432
+// Requires: PostgreSQL reachable at $WELL_HOST (default localhost:5432)
+// with credentials user=unheaded, password=$WELL_PASSWORD (default
+// unheaded_dev), dbname=unheaded_app.
 
-package champion
+package champion_test
 
 import (
 	"context"
@@ -16,53 +18,16 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	_ "github.com/lib/pq"
+
+	"unheaded/pkg/champion"
+	"unheaded/pkg/champion/pgstore"
 )
 
-// pgActionStore implements ActionStore against real PostgreSQL.
-type pgActionStore struct {
-	db *sql.DB
-}
-
-func (s *pgActionStore) LogAction(ctx context.Context, action *Action) (int64, error) {
-	var id int64
-	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO zhen_actions (session_id, action_type, status, intent, triggered_by, planned_at)
-		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		action.SessionID, action.ActionType, action.Status, action.Intent, action.TriggeredBy, time.Now(),
-	).Scan(&id)
-	return id, err
-}
-
-func (s *pgActionStore) UpdateAction(ctx context.Context, id int64, status, result, errMsg string, elapsedMs int) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE zhen_actions SET status=$1, result_summary=$2, error=$3, elapsed_ms=$4, completed_at=NOW() WHERE id=$5`,
-		status, result, errMsg, elapsedMs, id,
-	)
-	return err
-}
-
-func (s *pgActionStore) GetActions(ctx context.Context, sessionID string, limit int) ([]Action, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, session_id, action_type, status, intent FROM zhen_actions WHERE session_id=$1 ORDER BY id DESC LIMIT $2`,
-		sessionID, limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var actions []Action
-	for rows.Next() {
-		var a Action
-		rows.Scan(&a.ID, &a.SessionID, &a.ActionType, &a.Status, &a.Intent)
-		actions = append(actions, a)
-	}
-	return actions, nil
-}
-
+// connectPG opens a connection to the test PG instance and applies
+// the schema via pgstore.Migrate. Test is skipped when PG is
+// unreachable so non-integration runs pass.
 func connectPG(t *testing.T) *sql.DB {
 	host := os.Getenv("WELL_HOST")
 	if host == "" {
@@ -80,6 +45,10 @@ func connectPG(t *testing.T) *sql.DB {
 	if err := db.Ping(); err != nil {
 		t.Skipf("PostgreSQL not reachable: %v", err)
 	}
+	// Make sure schema is current.
+	if err := pgstore.New(db).Migrate(context.Background()); err != nil {
+		t.Skipf("pgstore migrate: %v", err)
+	}
 	return db
 }
 
@@ -87,14 +56,14 @@ func TestIntegration_ReadFile_WithRealDB(t *testing.T) {
 	db := connectPG(t)
 	defer db.Close()
 
-	store := &pgActionStore{db: db}
+	store := pgstore.New(db)
 	dir := t.TempDir()
 
 	// Write a test file
 	testFile := dir + "/test.txt"
 	os.WriteFile(testFile, []byte("integration test content"), 0644)
 
-	c, err := New(Config{
+	c, err := champion.New(champion.Config{
 		ProjectRoot:  dir,
 		AllowedPaths: []string{dir},
 		SessionID:    "integration-test",
@@ -140,8 +109,8 @@ func TestIntegration_DeniedPath_WithRealDB(t *testing.T) {
 	db := connectPG(t)
 	defer db.Close()
 
-	store := &pgActionStore{db: db}
-	c, err := New(Config{
+	store := pgstore.New(db)
+	c, err := champion.New(champion.Config{
 		ProjectRoot:  "/tmp/test",
 		AllowedPaths: []string{"/tmp/test"},
 		SessionID:    "integration-test-denied",
@@ -175,4 +144,62 @@ func TestIntegration_DeniedPath_WithRealDB(t *testing.T) {
 
 	// Cleanup
 	db.Exec("DELETE FROM zhen_actions WHERE session_id = 'integration-test-denied'")
+}
+
+// TestIntegration_ToolCallAudit_WithRealDB confirms that a Champion
+// tool call (via Dispatch, the agent path) gets the gate decision
+// logged with the right status string. Specifically, an external-
+// trust justification on a write_file should produce a
+// "denied_untrusted_justification" entry.
+func TestIntegration_ToolCallAudit_WithRealDB(t *testing.T) {
+	db := connectPG(t)
+	defer db.Close()
+
+	store := pgstore.New(db)
+	dir := t.TempDir()
+	c, err := champion.New(champion.Config{
+		ProjectRoot:  dir,
+		AllowedPaths: []string{dir},
+		SessionID:    "integration-test-toolcall",
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tc := champion.ToolCall{
+		Name: "write_file",
+		Args: map[string]any{
+			"path":    dir + "/x.txt",
+			"content": "hi",
+		},
+		Justification: []champion.Reference{{
+			Topic:       "evil",
+			Category:    ".",
+			SourceKind:  "user-source",
+			SourceTrust: "external",
+			SourceLabel: "lbl",
+		}},
+		EmittedBy: "test",
+	}
+	_, err = c.Dispatch(context.Background(), tc)
+	if err == nil {
+		t.Fatal("expected gate refusal")
+	}
+
+	actions, err := store.GetActions(context.Background(), "integration-test-toolcall", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, a := range actions {
+		if a.ActionType == "tool_call_attempt" && a.Status == "denied_untrusted_justification" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected tool_call_attempt + denied_untrusted_justification in actions, got %d entries", len(actions))
+	}
+
+	db.Exec("DELETE FROM zhen_actions WHERE session_id = 'integration-test-toolcall'")
 }
