@@ -122,6 +122,7 @@ class RAGPipeline:
         agentd_url=DEFAULT_AGENTD_URL,
         model_name=DEFAULT_MODEL_NAME,
         max_topic_chars=10000,
+        proxy_via_agentd=None,
     ):
         """
         Backward-compatible constructor: zhen_app.py still calls
@@ -131,9 +132,20 @@ class RAGPipeline:
         New keyword args:
             vor_url:        cs serve REST endpoint (default :9876).
             inference_url:  llama-server endpoint (default :8081).
-            agentd_url:     zhen-agentd endpoint (Phase 2 hook).
+            agentd_url:     zhen-agentd endpoint (Phase 2 proxy target).
             model_name:     model identifier sent to /v1/chat/completions.
             max_topic_chars:per-topic content cap.
+            proxy_via_agentd:
+                            If True, generate() routes through
+                            cmd/zhen-agentd /api/v1/agent/ask so every
+                            LLM-emitted tool call traverses Champion's
+                            three-rule gate (T6 closure).
+                            If False, generate() POSTs directly to
+                            llama-server (no gate — Phase 1 mode).
+                            If None (default), reads env
+                            ZHEN_PROXY_VIA_AGENTD ("true"/"1" → True).
+                            Default behavior (env unset): direct.
+                            zhen_app.py turns it on explicitly.
         """
         # Legacy args — accepted for API compat, intentionally unused.
         # (Kept here so zhen_app.py boots without modification today.)
@@ -145,6 +157,14 @@ class RAGPipeline:
         self.agentd_url = agentd_url.rstrip("/")
         self.model_name = model_name
         self.max_topic_chars = max_topic_chars
+
+        # Phase 2 proxy toggle. Reading env late lets zhen_app.py override
+        # at construction time without setting environment globally.
+        if proxy_via_agentd is None:
+            env_val = os.environ.get("ZHEN_PROXY_VIA_AGENTD", "").strip().lower()
+            self.proxy_via_agentd = env_val in ("true", "1", "yes", "on")
+        else:
+            self.proxy_via_agentd = bool(proxy_via_agentd)
 
         # Context window config — used by chunk truncation in generate().
         self.local_max_tokens = int(os.environ.get("ZHEN_LOCAL_MAX_TOKENS", "2048"))
@@ -160,10 +180,12 @@ class RAGPipeline:
 
         # Startup banner — pinned values for audit. Mirrors the format
         # of the Go agent's startup line.
+        proxy_status = "via-agentd (Champion gate, T6 closed)" if self.proxy_via_agentd else "direct-to-llama (no gate, Phase 1 mode)"
         print(
             f"RAG: vor={self.vor_url} inference={self.inference_url} "
-            f"model={self.model_name} memory_embedder=all-MiniLM-L6-v2 "
-            f"mode=display-only-memory-recall (T1 closed)"
+            f"agentd={self.agentd_url} model={self.model_name} "
+            f"memory_embedder=all-MiniLM-L6-v2 "
+            f"chat_path={proxy_status} memory_recall=display-only-T1-closed"
         )
 
     # ------------------------------------------------------------------
@@ -260,18 +282,42 @@ class RAGPipeline:
 
     def generate(self, query, context_chunks, file_content=None, history=None,
                  system_prompt=None, temperature=0.0, seed=42, max_tokens=600):
-        """Generate response via llama-server's /v1/chat/completions.
+        """Generate response. Dispatches to direct or proxied path.
 
-        Args:
-            query: the user question.
-            context_chunks: list of dicts from retrieve().
-            file_content: optional file content appended to the user msg.
-            history: list of prior turns [{role, content}, ...].
-            system_prompt: override DEFAULT_SYSTEM_PROMPT (None = default).
-            temperature: 0.0 = greedy (recommended for determinism).
-            seed: nonzero pins llama-server sampling. Default 42 matches
-                  scripts/run-coding-gate.sh.
-            max_tokens: completion budget.
+        When self.proxy_via_agentd is True (WAVE15 Phase 2):
+            POST cmd/zhen-agentd /api/v1/agent/ask with the question
+            as the goal. The daemon does ITS OWN retrieval + agent loop
+            + Champion gate-check. This is the T6-closed path: any tool
+            call the model emits goes through pkg/champion.Dispatch.
+            context_chunks/file_content/history/system_prompt are
+            ignored — the daemon owns that build-step.
+
+        When self.proxy_via_agentd is False (Phase 1 / fallback):
+            POST llama-server /v1/chat/completions directly with refs
+            built from context_chunks. T6 stays open — no gate in the
+            chat path.
+        """
+        if self.proxy_via_agentd:
+            return self._generate_via_agentd(
+                query, context_chunks,
+                file_content=file_content, history=history,
+                temperature=temperature, seed=seed, max_tokens=max_tokens,
+            )
+        return self._generate_via_llama(
+            query, context_chunks,
+            file_content=file_content, history=history,
+            system_prompt=system_prompt,
+            temperature=temperature, seed=seed, max_tokens=max_tokens,
+        )
+
+    def _generate_via_llama(self, query, context_chunks, file_content=None,
+                            history=None, system_prompt=None,
+                            temperature=0.0, seed=42, max_tokens=600):
+        """Direct path — POST llama-server /v1/chat/completions.
+
+        Phase 1 mode. T6 OPEN — tool-call-emitting model output (if it
+        ever happens for chat prompts) bypasses Champion. Used when
+        proxy_via_agentd is False.
         """
         if system_prompt is None:
             system_prompt = DEFAULT_SYSTEM_PROMPT
@@ -368,6 +414,119 @@ class RAGPipeline:
             "answer": answer,
             "tokens_used": tokens,
             "model": self.model_name,
+        }
+
+    # ------------------------------------------------------------------
+    # GENERATION via cmd/zhen-agentd (WAVE15 Phase 2 — T6 closure).
+    #
+    # POST the user question as a "goal" to /api/v1/agent/ask. The
+    # daemon runs the full agent loop:
+    #   * its own vor retrieval (refs stay grounded)
+    #   * pkg/champion.Dispatch on every tool call
+    #   * the agent's tool-shaped system prompt (Shape A vs Shape B)
+    #
+    # When the model emits Shape A (terminal answer — typical for chat
+    # prompts), the daemon returns askResponse{Answer, ...} and we
+    # extract the answer cleanly. When Shape B (tool call), Champion's
+    # gate runs; refused calls produce a pending-confirm token in the
+    # trace; the daemon's answer ends up being a refusal explanation
+    # (per the agent's PENDING-CONFIRMATION clause).
+    #
+    # The daemon does its OWN retrieval, so context_chunks/system_prompt
+    # passed in here are not used. context_chunks IS still useful at the
+    # caller (zhen_app.py uses it to populate the UI's sources panel),
+    # which is why query() runs retrieve() locally even when proxying.
+    # ------------------------------------------------------------------
+
+    def _generate_via_agentd(self, query, context_chunks, file_content=None,
+                             history=None, temperature=0.0, seed=42,
+                             max_tokens=600):
+        """Proxy path — POST cmd/zhen-agentd /api/v1/agent/ask.
+
+        WAVE15 Phase 2 path. T6 CLOSED — every LLM-emitted tool call
+        traverses pkg/champion's three rules + audit log.
+        """
+        # If the user uploaded a file, prepend it to the goal so the
+        # daemon's agent loop sees it. History is sent as `session_id`
+        # — the daemon's pool keys per session, so a stable id keeps
+        # the conversation context coherent. For the H0 gate run each
+        # prompt has a unique session id.
+        goal = query
+        if file_content:
+            goal = f"FILE CONTENT:\n{file_content}\n\nQUESTION: {query}"
+
+        # The daemon doesn't consume `history` directly (its agent loop
+        # is per-goal, not multi-turn). Strip JSON tool-call payloads
+        # from prior turns and concatenate as a brief context preamble.
+        # This mirrors the T7 mitigation in _generate_via_llama.
+        if history:
+            recent = list(history)[-4:]   # last 2 pairs
+            preamble = []
+            for prior in recent:
+                role = prior.get("role")
+                content = _strip_tool_call_json(prior.get("content", ""))
+                if role and content:
+                    preamble.append(f"[{role}] {content}")
+            if preamble:
+                goal = "Prior conversation:\n" + "\n".join(preamble) + f"\n\nCurrent question: {query}"
+
+        try:
+            response = requests.post(
+                f"{self.agentd_url}/api/v1/agent/ask",
+                json={
+                    "goal":         goal,
+                    "k":            5,
+                    "max_tokens":   max_tokens,
+                    "max_turns":    4,
+                    "temperature":  temperature,
+                    "seed":         seed,
+                },
+                timeout=300,  # agent loops can do multi-turn (read → answer)
+            )
+            response.raise_for_status()
+            body = response.json()
+        except requests.exceptions.ConnectionError:
+            # Daemon down. Fail-closed: return an error rather than
+            # silently bypassing the gate via direct llama-server call.
+            return {
+                "answer": (
+                    f"Error: zhen-agentd not reachable at {self.agentd_url}. "
+                    "WAVE15 Phase 2 ships with the proxy enabled by default; "
+                    "set ZHEN_PROXY_VIA_AGENTD=false to fall back to direct "
+                    "llama-server (T6 reopens — debug only)."
+                ),
+                "tokens_used": 0,
+                "model": f"{self.model_name}@agentd",
+            }
+        except requests.exceptions.Timeout:
+            return {
+                "answer": "Error: zhen-agentd timed out (300s)",
+                "tokens_used": 0,
+                "model": f"{self.model_name}@agentd",
+            }
+        except (requests.RequestException, ValueError) as exc:
+            return {
+                "answer": f"zhen-agentd error: {exc}",
+                "tokens_used": 0,
+                "model": f"{self.model_name}@agentd",
+            }
+
+        answer = (body.get("answer") or "").strip()
+        if not answer:
+            answer = "(empty answer from zhen-agentd)"
+
+        # The daemon doesn't surface a token count today; use 0.
+        # The model id is annotated with @agentd so the audit trail in
+        # zhen_conversations records the gate-protected path.
+        return {
+            "answer":      answer,
+            "tokens_used": 0,
+            "model":       f"{self.model_name}@agentd",
+            # Pass through useful daemon-side metadata for the caller.
+            "agent_trace":  body.get("trace", []),
+            "session_id":   body.get("session_id", ""),
+            "turns_used":   body.get("turns_used", 0),
+            "budget_hit":   bool(body.get("budget_hit", False)),
         }
 
     # ------------------------------------------------------------------

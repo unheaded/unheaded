@@ -103,6 +103,21 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 	case "kanban_list":
 		return c.ListKanbanTasks(ctx)
 
+	case "runbook_execute":
+		// WAVE15 Phase 2b: kingdom-altering runbook execution gated by
+		// Champion. Args: {"name": "<runbook-name>"} optional
+		// {"dry_run": bool}. The Python web UI hits this via the daemon's
+		// /api/v1/tool/exec endpoint.
+		name, err := requireString(tc.Args, "name")
+		if err != nil {
+			return nil, err
+		}
+		dryRun := false
+		if v, ok := tc.Args["dry_run"].(bool); ok {
+			dryRun = v
+		}
+		return c.RunbookExecute(ctx, name, dryRun)
+
 	default:
 		// Unknown / unimplemented tool: fail closed even though the gate
 		// didn't reject — the gate's IsMutating() defaults unknown to

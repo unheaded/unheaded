@@ -86,6 +86,29 @@
           "reason": {"type": "string"}
         }
       },
+      "Reference": {
+        "type": "object",
+        "description": "Source-trust-tagged reference. Caller-supplied chain expressing what the tool call is grounded in. source_trust=\"direct-user\" is the Rule 2 escape for explicit user actions.",
+        "properties": {
+          "topic":        {"type": "string"},
+          "category":     {"type": "string"},
+          "source_kind":  {"type": "string", "enum": ["embedded", "user-custom", "user-source", "user-action"]},
+          "source_trust": {"type": "string", "enum": ["canonical", "local", "external", "direct-user"]},
+          "source_path":  {"type": "string"},
+          "source_label": {"type": "string"}
+        }
+      },
+      "ToolExecResponse": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status":        {"type": "string", "enum": ["ok", "denied", "pending_confirmation", "unknown", "used", "expired", "error"]},
+          "result":        {"description": "Tool output on status=ok (shape varies by tool)"},
+          "reason":        {"type": "string"},
+          "pending_token": {"type": "string", "description": "Single-use token; redeem at /api/v1/agent/confirm"},
+          "session_id":    {"type": "string"}
+        }
+      },
       "ErrorResponse": {
         "type": "object",
         "required": ["error"],
@@ -219,6 +242,49 @@
           "401": {"description": "Auth required"},
           "403": {"description": "project_root not in allow-list"},
           "429": {"description": "Rate limit exceeded"}
+        }
+      }
+    },
+    "/api/v1/tool/exec": {
+      "post": {
+        "summary": "Direct Champion tool dispatch (no LLM)",
+        "description": "WAVE15 Phase 2b mutation-path proxy. The web UI hits this when the user explicitly invokes a kingdom-altering action (e.g., 'Execute runbook X'). Bypasses the LLM entirely — caller specifies the tool + args directly. Champion's three rules still gate the request. Default justification is `source_trust: \"direct-user\"` (Rule 2 escape).",
+        "security": [{"ApiKey": []}, {"BearerJWT": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["tool"],
+                "properties": {
+                  "tool":          {"type": "string", "description": "Tool name (e.g., runbook_execute, kanban_create)"},
+                  "args":          {"type": "object", "additionalProperties": true},
+                  "project_root":  {"type": "string"},
+                  "session_id":    {"type": "string"},
+                  "emitted_by":    {"type": "string"},
+                  "justification": {"type": "array", "items": {"$ref": "#/components/schemas/Reference"}}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool ran successfully",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ToolExecResponse"}}}
+          },
+          "400": {"description": "Validation error"},
+          "401": {"description": "Auth required"},
+          "403": {
+            "description": "Gate refused — either denied (status=\"denied\") or pending user confirmation (status=\"pending_confirmation\", with pending_token)",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ToolExecResponse"}}}
+          },
+          "429": {"description": "Rate limit exceeded"},
+          "500": {
+            "description": "Underlying tool execution failed (post-gate)",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ToolExecResponse"}}}
+          }
         }
       }
     },
