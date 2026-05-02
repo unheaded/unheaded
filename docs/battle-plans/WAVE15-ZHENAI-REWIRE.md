@@ -654,6 +654,18 @@ If clean — propose to Stevie: move to `_legacy/` rather than `rm`. Get explici
 
 **Why park it:** the rewire achieves ~80% of the safety + correctness benefit at ~20% of the effort. Going further is optimization, not blocking.
 
+### Adjacent future work — also gated on WAVE15 H0 passing
+
+These are **separate plans**, not extensions of the rewire. Captured here so they don't get lost:
+
+- **[ADR-056](../adr/ADR-056-pgvector-auxiliary-corpus-sharding.md)** — pgvector auxiliary corpus sharding (Wikipedia / Stack Overflow / RFCs / papers / source code in trust-tagged shards behind a federated retriever). The architectural pattern for the non-vor content the legacy FAISS pipeline used to cover.
+- **[ADR-057](../adr/ADR-057-unheaded-source-code-indexing.md)** — Unheaded source code as the first concrete `aux_unheaded_code` shard (AST-anchored chunking + code-specialized embedder). The "FAISS-indexed and understood" capability for our own source tree.
+
+Both are **Proposed** status. Activation gated on:
+1. WAVE15 H0 passes through the rewired Python UI.
+2. ADR-056 is reviewed + accepted (it's the parent pattern ADR-057 builds on).
+3. A concrete user signal (Stevie says "go" or a coding-gate failure that auxiliary code retrieval would prevent — `syntax-go` FAIL on the H0 baseline is one such signal).
+
 ---
 
 ## Risks (consolidated from architecture spec §10)

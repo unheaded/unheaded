@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-04-27
-**Total:** 52 ADRs (ADR-012b deprecated, ADR-027-055 across sessions)
+**Last updated:** 2026-05-02
+**Total:** 54 ADRs (ADR-012b deprecated, ADR-027-057 across sessions; ADR-69420 pipe-dream)
 
 ## Status Summary
 
@@ -11,6 +11,7 @@
 | Draft | 1 |
 | In Progress | 1 |
 | Planned | 4 |
+| Proposed | 2 |
 | Deferred | 4 |
 | Pipe Dream | 2 |
 | Deprecated | 1 |
@@ -21,6 +22,10 @@
 - ADR-052 (drift / source-of-truth policy) — **Accepted** (CI guard + Jenkins stage shipped same patch)
 - ADR-053 (Hybrid Claude + Local Zhenai workflow templates) — **Pipe Dream** (cost-driven; per Stevie's mid-session note)
 - ADR-055 (KEV Poller — always-on Kingdom service + K8s cross-host pilot) — **Planned** (per Stevie's mid-session directive)
+
+**Two new ADRs added 2026-05-02 from WAVE15 rewire planning session:**
+- ADR-056 (pgvector auxiliary corpus sharding) — **Proposed** (gated on WAVE15 H0 passing; the architectural pattern for non-vor retrieval)
+- ADR-057 (Unheaded source code indexing) — **Proposed** (gated on WAVE15 H0 + ADR-056 acceptance; first concrete instance of the pattern — AST-chunked, code-embedder-tuned semantic retrieval over our own source tree)
 
 **ADR-054 RESERVED** for WAVE14 BackwardScratch + KV-cache when Track A or C activates.
 
@@ -84,3 +89,5 @@
 | [052](ADR-052-timeline-and-battleplan-source-of-truth.md) | Timeline & Battle-Plan Source-of-Truth Policy (drift ≤ 7 days, in-tree only) | **Accepted** (CI gate live) | 2026-04-27 |
 | [053](ADR-053-hybrid-claude-zhenai-workflow-templates.md) | Hybrid Claude + Local Zhenai Workflow Templates (cost-driven hybrid routing) | **Pipe Dream** (activates on cost/quality/strategic/personal trigger) | 2026-04-27 |
 | [055](ADR-055-kev-poller-always-on-service.md) | KEV Poller — Always-On Kingdom Service + K8s Cross-Host Pilot (CISA KEV + NIST NVD parity) | **Planned** (Phase 0-5; first cross-host K8s workload) | 2026-04-27 |
+| [056](ADR-056-pgvector-auxiliary-corpus-sharding.md) | pgvector Auxiliary Corpus Sharding for Trust-Tagged Retrieval (Wikipedia / Stack Overflow / RFCs / source code) | **Proposed** (gated on WAVE15 H0 passing) | 2026-05-02 |
+| [057](ADR-057-unheaded-source-code-indexing.md) | Unheaded Source Code Indexing for Semantic Retrieval (AST chunks + code-specialized embedder, first instance of ADR-056 pattern) | **Proposed** (gated on WAVE15 H0 + ADR-056 acceptance) | 2026-05-02 |
