@@ -143,6 +143,7 @@ func main() {
 	mux.Handle("/ready", instrument("/ready", http.HandlerFunc(srv.handleReady)))
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
+	mux.Handle("/api/v1/openapi.json", instrument("/api/v1/openapi.json", http.HandlerFunc(srv.handleOpenAPI)))
 
 	// Outer middleware chain (innermost-last):
 	//   rate-limit  →  auth  →  mux
@@ -154,7 +155,12 @@ func main() {
 	var handler http.Handler = mux
 	if authMW != nil {
 		fmt.Fprintf(os.Stderr, "zhen-agentd: auth middleware enabled\n")
-		handler = authMW(mux)
+		// SetupMiddleware already exempts /health, /ready, /metrics.
+		// Layer an additional skip for /api/v1/openapi.json so clients
+		// can discover the spec (and how to authenticate) without
+		// auth — same posture as /metrics.
+		extendedAuth := auth.SkipAuthPaths(authMW, "/api/v1/openapi.json")
+		handler = extendedAuth(mux)
 	} else {
 		fmt.Fprintf(os.Stderr, "zhen-agentd: auth middleware DISABLED (set AUTH_ENABLED=true to enable)\n")
 	}
