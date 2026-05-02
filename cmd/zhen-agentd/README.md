@@ -123,6 +123,49 @@ Prometheus exposition format. Always 200 once the listener is up. Bypasses auth 
 | `zhen_agentd_confirm_tokens_redeemed_total` | outcome (ok / expired / unknown / used / denied / error) | confirm-flow outcomes |
 | `zhen_agentd_rate_limited_requests_total` | (counter) | 429 responses |
 
+### `POST /api/v1/agent/ask/stream`
+
+Same request body as `/ask` — but the response is a Server-Sent Events stream of per-turn updates rather than a single JSON blob. Use this when you want to render the agent's reasoning live (e.g., in a chat UI) instead of waiting for the full loop to complete.
+
+Stream format:
+
+```
+event: turn
+data: {<TraceEntry json>}
+
+event: turn
+data: {<TraceEntry json>}
+
+event: done
+data: {"answer":"...","turns_used":N,"budget_hit":false,"session_id":"..."}
+```
+
+On error mid-stream:
+
+```
+event: error
+data: {"error":"..."}
+```
+
+Client disconnects (closing the TCP connection or aborting the fetch) cause the agent loop to bail at the next turn boundary — the daemon notices via the request context and stops at that point. Trace entries up to that point are NOT delivered to a future request; the stream is one-shot.
+
+Response headers:
+
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+X-Accel-Buffering: no   # disables nginx buffering
+```
+
+Smoke recipe:
+
+```bash
+curl -sN -X POST http://127.0.0.1:20105/api/v1/agent/ask/stream \
+    -H 'Content-Type: application/json' \
+    -d '{"goal":"...","seed":42}'
+```
+
 ### `POST /api/v1/agent/confirm`
 
 Redeems a single-use pending-confirmation token from a prior `/api/v1/agent/ask` response (look for `Trace[i].pending_token`). The bound tool call is re-run with Rule 2 (untrusted justification) suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire — users can authorize an external source, they cannot authorize destruction.

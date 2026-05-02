@@ -198,6 +198,30 @@
         }
       }
     },
+    "/api/v1/agent/ask/stream": {
+      "post": {
+        "summary": "Run the agent loop with per-turn SSE streaming",
+        "description": "Same request body as /ask but streams Server-Sent Events as the loop progresses. Each turn fires an `event: turn` with the TraceEntry payload; the loop terminates with an `event: done` carrying the final answer + summary. On error, an `event: error` is emitted instead. Clients that disconnect mid-stream cause the loop to bail at the next turn boundary.",
+        "security": [{"ApiKey": []}, {"BearerJWT": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AskRequest"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Server-Sent Events stream — `event: turn` per agent turn, terminated by `event: done` (success) or `event: error` (failure).",
+            "content": {"text/event-stream": {}}
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}
+          },
+          "401": {"description": "Auth required"},
+          "403": {"description": "project_root not in allow-list"},
+          "429": {"description": "Rate limit exceeded"}
+        }
+      }
+    },
     "/api/v1/agent/confirm": {
       "post": {
         "summary": "Redeem a pending-confirmation token",
