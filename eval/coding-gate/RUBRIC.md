@@ -1,6 +1,6 @@
 # Coding-Gate Rubric
 
-**Version:** 2.1 (fixture expansion 2026-05-02; revised 2026-05-02 per probe-2026-05-02 E6 finding)
+**Version:** 2.2 (expert-tier expansion 2026-05-02; fixture is now 42/70)
 **Original date:** 2026-05-01
 **Authors:** Stevie + crew, drafted under the unheaded-scientist lens
 **Status:** LOCKED at v2. Rubric is pre-registered before each runner invocation. Version bumps require an entry in this file's changelog and a probe-results doc justifying the change.
@@ -8,6 +8,7 @@
 
 ## Changelog
 
+- **v2.2 (2026-05-02)**: fixture expanded by 14 prompts (7 expert syntax + 7 expert review) covering concurrency / async / lifecycle bugs (TOCTOU, threaded dict races, async-Mutex deadlocks, missing await, mobile `100vh`, etc.). Expert tier is informational; textbook tier remains gate-binding. §1 documents all three tiers; §4 decision rule unchanged. Fixture now 42/70.
 - **v2.1 (2026-05-02)**: fixture expanded by 14 prompts (7 hard syntax + 7 hard review) per BlackMage B10 finding. Hard tier is informational; textbook tier remains gate-binding. §1 documents both tiers; §4 decision rule unchanged.
 - **v2 (2026-05-02)**: §2 PASS rule revised — for the 7 textbook syntax prompts in the current fixture, "I don't know" counts as FAIL (not PASS). Rationale: the model has the knowledge for textbook questions; refusal indicates over-restrictive system prompt or retrieval gap. Per `eval/coding-gate/probe-2026-05-02/E6-regrade.md`. Original v1 rule (don't-know=PASS for syntax) accidentally rewarded the over-restrictive Phase B prompt.
 - **v1 (2026-05-01)**: initial rubric, committed as part of Phase C.
@@ -41,9 +42,21 @@ The 14 prompts whose IDs match `hard-syntax-<lang>` or `hard-review-<lang>`. The
 - css: `:has()` selector, z-index without positioning context
 - javascript: `Promise.all` vs `Promise.allSettled`, `setTimeout(fn, 0)` to "fix" race conditions
 
-Hard-tier scoring is reported alongside textbook-tier scoring but **does not bind the H1/H2/H3/H4 verdict**. The hard tier informs Phase D-A readiness — a model that passes the textbook gate but flunks the hard tier is not yet ready for autonomous code review.
+### Expert tier (14 prompts — informational)
 
-A future rubric version (v3) may promote a stable subset of hard prompts into the textbook tier once empirical evidence shows they are answerable consistently.
+The 14 prompts whose IDs match `expert-syntax-<lang>` or `expert-review-<lang>`. These cover concurrency / async / lifecycle bugs that demand more reasoning depth than the hard tier:
+
+- bash: `declare -n` namerefs; mktemp + mv TOCTOU race
+- python: `__slots__` semantics; threaded-dict compound-op race
+- go: ordered generic constraint; concurrent-map panic
+- rust: associated type vs generic param; `MutexGuard` held across `.await`
+- html: ARIA live regions; `autocomplete=off` browser-bypass
+- css: container queries (`@container`); `100vh` on mobile (URL-bar bug)
+- javascript: `Symbol.iterator` / iterables; missing `await` on async return
+
+Hard-tier and expert-tier scoring is reported alongside textbook-tier scoring but **does not bind the H1/H2/H3/H4 verdict**. The non-textbook tiers inform Phase D-A readiness — a model that passes the textbook gate but flunks the expert tier is functional for junior coding-help but not autonomous code review on subtle production bugs.
+
+A future rubric version (v3) may promote a stable subset of hard or expert prompts into the textbook tier once empirical evidence shows they are answerable consistently across seeds.
 
 ---
 
