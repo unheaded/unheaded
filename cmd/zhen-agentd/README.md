@@ -114,7 +114,8 @@ Returns 200 + `{"ready":true,...}` when vor and llama-server both pass their `/h
 |------|---------|---------|
 | `-port <int>` | 20105 | HTTP listen port |
 | `-host <ip>` | 127.0.0.1 | listen host (use `0.0.0.0` for non-loopback) |
-| `-project-root <path>` | cwd | Champion sandbox root for ALL requests; clients can specify but it must equal this if they do |
+| `-project-root <path>` | cwd | default Champion sandbox root used when a request omits `project_root` |
+| `-allowed-roots <list>` | (just `-project-root`) | comma-separated list of additional roots requests may target |
 
 Env: `VOR_URL` (default `http://127.0.0.1:9876`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
 
@@ -122,9 +123,29 @@ Env: `VOR_URL` (default `http://127.0.0.1:9876`), `LLAMA_URL` (default `http://1
 
 `SIGINT` (Ctrl-C) or `SIGTERM`: stops accepting new requests, waits up to 10 seconds for in-flight requests to complete, then exits 0. In-flight requests beyond that timeout get cut.
 
-## Single-tenant scoping
+## Multi-tenant scoping
 
-Per request, the agent runs against the **daemon's bound project-root** — the `-project-root` flag set at startup. Clients can pass `project_root` in the request body for self-documenting, but it must equal the daemon's; mismatched values get 403. Multi-tenant scoping (different sandbox per `session_id`) is **not yet implemented**; deploy one daemon per project for now.
+A single daemon can serve multiple project roots. Allowed roots are an explicit allow-list:
+
+- `-project-root <path>` is the **default** root used when a request omits `project_root`.
+- `-allowed-roots <p1,p2,p3>` adds additional roots requests may target.
+- A request's `project_root` must exactly match one of the allowed roots after `filepath.Abs` normalization. Non-matching → 403.
+
+Each unique allowed root gets its own `*champion.Champion` instance (cached for the daemon's lifetime). Caching means repeat requests against the same root reuse Champion's snapshot/revert state and audit thread.
+
+Example: serve two projects from one daemon:
+
+```bash
+bin/zhen-agentd \
+    -project-root /home/govan/tmp/unheaded \
+    -allowed-roots /home/govan/tmp/projects/cs
+
+# Request can target either root:
+curl -X POST http://127.0.0.1:20105/api/v1/agent/ask \
+    -d '{"goal":"...","project_root":"/home/govan/tmp/projects/cs"}'
+```
+
+Per-session sandboxing (different sandbox-root per `session_id`) is NOT yet implemented — sessions are an audit-log concept, not a sandbox boundary. The trust gate's contract is per-Champion (per-root), not per-session. If you need sessions to enforce hard boundaries, deploy one daemon per session.
 
 ## Audit log
 
