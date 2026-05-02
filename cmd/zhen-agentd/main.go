@@ -59,7 +59,8 @@ func main() {
 	var (
 		port        = flag.Int("port", defaultPort, "HTTP listen port")
 		host        = flag.String("host", "127.0.0.1", "HTTP listen host (use 0.0.0.0 for non-loopback)")
-		projectRoot = flag.String("project-root", "", "Champion sandbox root for ALL requests (default: cwd)")
+		projectRoot  = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
+		allowedRoots = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
 	)
 	flag.Parse()
 
@@ -80,20 +81,45 @@ func main() {
 		fatal("resolve project-root: %v", err)
 	}
 
-	store := &stderrActionStore{}
-	champ, err := champion.New(champion.Config{ProjectRoot: rootAbs}, store)
-	if err != nil {
-		fatal("champion.New: %v", err)
+	// Build the allow-list. Default-tenant root is always allowed; any
+	// additional roots from -allowed-roots get normalized + validated +
+	// added. A request's project_root must exactly match one of these
+	// after normalization to be served.
+	allowed := map[string]struct{}{rootAbs: {}}
+	if *allowedRoots != "" {
+		for _, r := range strings.Split(*allowedRoots, ",") {
+			r = strings.TrimSpace(r)
+			if r == "" {
+				continue
+			}
+			abs, err := filepath.Abs(r)
+			if err != nil {
+				fatal("resolve allowed-root %q: %v", r, err)
+			}
+			info, err := os.Stat(abs)
+			if err != nil {
+				fatal("allowed-root %q: %v", abs, err)
+			}
+			if !info.IsDir() {
+				fatal("allowed-root %q: not a directory", abs)
+			}
+			allowed[abs] = struct{}{}
+		}
 	}
+
+	store := &stderrActionStore{}
+	pool := newChampionPool(store)
 
 	httpClient := &http.Client{Timeout: httpTimeout}
 	srv := &server{
-		champ:     champ,
-		retriever: &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars},
-		llm:       &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName},
-		vorURL:    vorURL,
-		llamaURL:  llamaURL,
-		ready:     newReadyTracker(httpClient, vorURL, llamaURL),
+		pool:        pool,
+		defaultRoot: rootAbs,
+		allowed:     allowed,
+		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars},
+		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName},
+		vorURL:      vorURL,
+		llamaURL:    llamaURL,
+		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
 	}
 
 	mux := http.NewServeMux()
@@ -111,8 +137,12 @@ func main() {
 	// Spin up the listener.
 	errCh := make(chan error, 1)
 	go func() {
-		fmt.Fprintf(os.Stderr, "zhen-agentd listening on http://%s — project-root=%s vor=%s llama=%s\n",
-			listenAddr, rootAbs, vorURL, llamaURL)
+		var allowedList []string
+		for r := range allowed {
+			allowedList = append(allowedList, r)
+		}
+		fmt.Fprintf(os.Stderr, "zhen-agentd listening on http://%s — default-root=%s allowed=%v vor=%s llama=%s\n",
+			listenAddr, rootAbs, allowedList, vorURL, llamaURL)
 		errCh <- httpSrv.ListenAndServe()
 	}()
 
@@ -141,12 +171,49 @@ func main() {
 // --- server: holds the shared agent dependencies ---
 
 type server struct {
-	champ     *champion.Champion
-	retriever agent.Retriever
-	llm       agent.LLM
-	vorURL    string
-	llamaURL  string
-	ready     *readyTracker
+	pool        *championPool
+	defaultRoot string              // used when request omits project_root
+	allowed     map[string]struct{} // absolute project_root → allowed
+	retriever   agent.Retriever
+	llm         agent.LLM
+	vorURL      string
+	llamaURL    string
+	ready       *readyTracker
+}
+
+// championPool caches *champion.Champion instances keyed by absolute
+// project_root, so subsequent requests for the same root reuse the
+// same Champion (and therefore the same SnapshotStore-bound revert
+// surface, ActionStore audit thread, etc.). The pool is unbounded —
+// rely on the allow-list to bound the number of distinct roots.
+type championPool struct {
+	mu    sync.Mutex
+	store champion.ActionStore
+	cache map[string]*champion.Champion
+}
+
+func newChampionPool(store champion.ActionStore) *championPool {
+	return &championPool{
+		store: store,
+		cache: make(map[string]*champion.Champion),
+	}
+}
+
+// get returns the Champion for the given absolute project_root,
+// constructing one on first call. The caller is responsible for
+// having validated `root` against the allow-list before calling.
+func (p *championPool) get(root string) (*champion.Champion, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if c, ok := p.cache[root]; ok {
+		return c, nil
+	}
+	c, err := champion.New(champion.Config{ProjectRoot: root}, p.store)
+	if err != nil {
+		return nil, err
+	}
+	p.cache[root] = c
+	return c, nil
 }
 
 // askRequest is the request body for POST /api/v1/agent/ask.
@@ -204,14 +271,32 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "missing %q", "goal")
 		return
 	}
-	if req.ProjectRoot != "" && req.ProjectRoot != s.champ.GetProjectRoot() {
-		writeJSONError(w, http.StatusForbidden,
-			"project_root override (%q) must match server's bound root (%q)",
-			req.ProjectRoot, s.champ.GetProjectRoot())
+
+	// Resolve + allow-check the requested project_root.
+	rootReq := strings.TrimSpace(req.ProjectRoot)
+	if rootReq == "" {
+		rootReq = s.defaultRoot
+	}
+	rootAbs, err := filepath.Abs(rootReq)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "resolve project_root: %v", err)
 		return
 	}
+	if _, ok := s.allowed[rootAbs]; !ok {
+		writeJSONError(w, http.StatusForbidden,
+			"project_root %q is not in the daemon's allow-list (use -allowed-roots to add it)",
+			rootAbs)
+		return
+	}
+
 	if req.SessionID == "" {
 		req.SessionID = fmt.Sprintf("anon-%s", time.Now().UTC().Format("20060102T150405Z"))
+	}
+
+	champ, err := s.pool.get(rootAbs)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "champion init: %v", err)
+		return
 	}
 
 	cfg := agent.Config{
@@ -222,7 +307,7 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
 	}
-	a := agent.New(cfg, s.champ, s.retriever, s.llm)
+	a := agent.New(cfg, champ, s.retriever, s.llm)
 
 	res, err := a.Run(r.Context(), req.Goal)
 	if err != nil {
