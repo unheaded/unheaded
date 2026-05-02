@@ -2,17 +2,37 @@
 
 These three blockers from `SYNTHESIS.md` cannot land cleanly in a single unheaded commit because they require coordination with the upstream `cs/vor` repo (https://github.com/bellistech/vor or its post-rename successor) and/or design work that depends on cross-cutting source-provenance plumbing.
 
-## D-pre.B1 — Source provenance plumbing
+## D-pre.B1 — Source provenance plumbing (IMPLEMENTED 2026-05-02)
 
-**Owner cs side:** label every retrieval result with `source_kind` (`embedded` | `user_symlink:<target>`) and per-source weight. Requires:
+**Status:** retrieval-layer half landed in cs (`harden/api-dos-and-traversal` branch, commit `e7f57dd` on top of `fa46000`); zhen-rag pass-through landed in unheaded as part of the same B1 unheaded commit.
 
-- Adding a `Source` field to `internal/registry/Sheet` in cs that records whether the sheet came from `go:embed`, `~/.config/cs/sheets/`, or `~/.config/cs/sources/<symlink>` (and which symlink).
-- Plumbing that field through `/api/topics/:name` and `/api/search` JSON responses.
-- A configurable per-source weight in BM25-like ranking so embedded sheets can rank above user-added sources by default.
+**What shipped (cs side, awaiting upstream PR):**
 
-**Owner unheaded side (downstream):** zhen-rag passes `source_kind` from the retrieval JSON into the references block presented to the model. The system prompt is updated to instruct the model to flag any answer that depends on `user_symlink` content as "untrusted-derived; verify."
+- `SourceKind` enum (`embedded` | `user-custom` | `user-source`) with `Trust()` method (`canonical` | `local` | `external`).
+- `SourceSpec{FS, Kind, Path, Label}` constructor input.
+- `registry.NewWithSources([]SourceSpec, []fs.FS)` — preferred entry point. `NewWithDetails([]fs.FS, []fs.FS)` retained for back-compat (everything tagged `SourceEmbedded`).
+- `Sheet.SourceKind`, `Sheet.SourcePath`, `Sheet.SourceLabel` fields.
+- `/api/topics/:name` JSON: `source_kind`, `source_trust`, `source_path` (omitempty), `source_label` (omitempty).
+- `/api/search` results: same four fields per hit.
+- `sources.Load()` now returns `[]Source{FS, Path, Label}` — labelled per discovered symlink.
 
-**Why deferred:** changing cs's response schema is a public-API change. Coordinate with Stevie and the cs maintainers; cut a cs minor release; bump cs version pin in the Makefile or docs; verify backward compat for older zhen-rag callers. Not a half-day fix.
+**What shipped (unheaded side):**
+
+- `vorTopic` / `vorSearchHit` structs gained the four new fields.
+- References-block in zhen-rag now formats each topic with a trust prefix: `--- [canonical] category/name ---` or `--- [external] ./topic (source: <label>) ---`.
+- System prompt has a new `SOURCE-TRUST LABELS` clause: any answer that relies on an `[external]` reference for a specific Unheaded claim must be prefixed with a verify-out-of-band note. Defense-in-depth alongside (not instead of) the destructive-verb filter.
+- `-show-context` stderr output displays the trust label and source label for each retrieved topic.
+
+**Backward compat:**
+
+- Pre-B1 vor builds: `vorTopic.SourceTrust` will be empty; zhen-rag falls back to `[canonical]` so old retrieval still works without warnings.
+- cs `cscore` (mobile) caller path unchanged (still uses `NewWithDetails`).
+
+**Smoke verified:** poisoned `~/.config/cs/sources/<name>` symlink content correctly surfaces as `[external]` in zhen-rag's references-block and as `source_trust=external` in vor's JSON. Destructive-verb filter still fires when poisoned content recommends destructive shell verbs. Embedded `bash` cheatsheet correctly tagged `[canonical]`.
+
+**Remaining work (search ranking weights):**
+
+The B1 design called out a configurable per-kind weight (default 1.0/0.8/0.5) so embedded ranks above user-source for tied relevance. NOT implemented in this commit — empirically the trust-label clause is sufficient for the LLM-layer behavior we cared about. Defer until a real concrete failure shows up where the model would have made a different decision had ranking been weighted.
 
 ## D-pre.B2 — Champion tool-call gating on source provenance
 
