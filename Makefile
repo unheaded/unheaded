@@ -58,6 +58,11 @@ build-zhen-agent: ## Build zhen-agent (Phase D-A: ReAct loop + Champion gate)
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/zhen-agent && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-agent
 
+build-zhen-agentd: ## Build zhen-agentd (HTTP daemon variant of zhen-agent)
+	@echo "Building zhen-agentd..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/zhen-agentd && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-agentd
+
 zhen-agent-up: build-zhen-agent ## Build zhen-agent + verify prerequisites (vor, llama-server)
 	@./scripts/zhen-agent-preflight.sh
 
