@@ -1,6 +1,6 @@
 # Coding-Gate Rubric
 
-**Version:** 2.2 (expert-tier expansion 2026-05-02; fixture is now 42/70)
+**Version:** 2.3 (prod-edge tier expansion 2026-05-02; fixture is now 56/70)
 **Original date:** 2026-05-01
 **Authors:** Stevie + crew, drafted under the unheaded-scientist lens
 **Status:** LOCKED at v2. Rubric is pre-registered before each runner invocation. Version bumps require an entry in this file's changelog and a probe-results doc justifying the change.
@@ -8,6 +8,7 @@
 
 ## Changelog
 
+- **v2.3 (2026-05-02)**: fixture expanded by 14 prompts (7 prod-edge syntax + 7 prod-edge review) covering production failure modes — `localStorage` for tokens, missing `requests` timeout, `context.Background()` in HTTP handlers, animating `top` instead of `transform`, partial-write disk-full failures, GET on state-changing forms. Prod tier is informational; textbook tier remains gate-binding. §1 documents all four tiers; §4 decision rule unchanged. Fixture now 56/70.
 - **v2.2 (2026-05-02)**: fixture expanded by 14 prompts (7 expert syntax + 7 expert review) covering concurrency / async / lifecycle bugs (TOCTOU, threaded dict races, async-Mutex deadlocks, missing await, mobile `100vh`, etc.). Expert tier is informational; textbook tier remains gate-binding. §1 documents all three tiers; §4 decision rule unchanged. Fixture now 42/70.
 - **v2.1 (2026-05-02)**: fixture expanded by 14 prompts (7 hard syntax + 7 hard review) per BlackMage B10 finding. Hard tier is informational; textbook tier remains gate-binding. §1 documents both tiers; §4 decision rule unchanged.
 - **v2 (2026-05-02)**: §2 PASS rule revised — for the 7 textbook syntax prompts in the current fixture, "I don't know" counts as FAIL (not PASS). Rationale: the model has the knowledge for textbook questions; refusal indicates over-restrictive system prompt or retrieval gap. Per `eval/coding-gate/probe-2026-05-02/E6-regrade.md`. Original v1 rule (don't-know=PASS for syntax) accidentally rewarded the over-restrictive Phase B prompt.
@@ -54,9 +55,21 @@ The 14 prompts whose IDs match `expert-syntax-<lang>` or `expert-review-<lang>`.
 - css: container queries (`@container`); `100vh` on mobile (URL-bar bug)
 - javascript: `Symbol.iterator` / iterables; missing `await` on async return
 
-Hard-tier and expert-tier scoring is reported alongside textbook-tier scoring but **does not bind the H1/H2/H3/H4 verdict**. The non-textbook tiers inform Phase D-A readiness — a model that passes the textbook gate but flunks the expert tier is functional for junior coding-help but not autonomous code review on subtle production bugs.
+### Prod-edge tier (14 prompts — informational)
 
-A future rubric version (v3) may promote a stable subset of hard or expert prompts into the textbook tier once empirical evidence shows they are answerable consistently across seeds.
+The 14 prompts whose IDs match `prod-syntax-<lang>` or `prod-review-<lang>`. These cover production failure modes a junior wouldn't catch but a senior shipping production code would:
+
+- bash: nohup + tee logging; partial-write on disk full + `set -e` blind spot
+- python: `contextvars.ContextVar`; missing `requests.get(timeout=...)`
+- go: graceful HTTP shutdown on SIGTERM; `context.Background()` in handlers (drops cancellation)
+- rust: `Arc<Mutex>` vs `Arc<RwLock>`; tokio `Mutex` held across `.await` blocking other tasks
+- html: CSP `<meta>` directives; GET on state-changing money-transfer form
+- css: `prefers-reduced-motion`; animating `top` instead of `transform`
+- javascript: `AbortController` for fetch timeout; `localStorage` for auth tokens (XSS amplifier)
+
+Hard, expert, and prod-edge tier scoring is reported alongside textbook-tier scoring but **does not bind the H1/H2/H3/H4 verdict**. The non-textbook tiers inform Phase D-A readiness — a model that passes the textbook gate but flunks the prod-edge tier is functional for junior coding-help but not autonomous code review on subtle production bugs.
+
+A future rubric version (v3) may promote a stable subset of hard / expert / prod prompts into the textbook tier once empirical evidence shows they are answerable consistently across seeds.
 
 ---
 
