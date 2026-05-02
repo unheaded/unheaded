@@ -20,13 +20,27 @@ These three blockers from `SYNTHESIS.md` cannot land cleanly in a single unheade
 
 **Why deferred:** depends on B1 landing first (the `source_kind` field has to exist before Champion can gate on it). Also requires designing the agent-loop tool-call envelope (Phase D-A scope), which we explicitly haven't started.
 
-## D-pre.B3 — vor DoS hardening (upstream cs PR)
+## D-pre.B3 — vor DoS hardening (upstream cs PR — DRAFTED 2026-05-02)
 
-**Owner cs side:** add `MaxQueryLength` (default 4096 chars) to the `/api/search` handler; reject queries beyond that with HTTP 413 Payload Too Large. Add path-traversal hardening to `/api/topics/:name` — explicitly reject percent-encoded `..`, `/`, `\0` before the fuzzy resolver runs.
+**Status:** patch drafted on cs topic branch `harden/api-dos-and-traversal` (commit `fa46000`). Awaiting Stevie's review and upstream PR to bellistech/cs.
+
+**Owner cs side:** add `MaxQueryLength` (default 4096 chars) to the `/api/search` handler; reject queries beyond that with HTTP 413 Payload Too Large. Add path-traversal hardening to `/api/topics/:name` — explicitly reject names containing `..`, `/`, `\\`, or `\0` before the fuzzy resolver runs.
 
 **Probe-finding citation:** `A3-vor-fuzz.md` F1 (DoS) and F2 (lax fuzzy resolver).
 
-**Why deferred:** upstream PR; doesn't require unheaded-side changes. Open as a cs issue with the A3-vor-fuzz.md findings linked.
+**Smoke results from patched build:**
+
+```
+/api/search?q=bash                         → 200 OK (legit)
+/api/search?q=<5000-char-query>            → 413 query too long (NEW)
+/api/topics/..                             → 404 (Go mux strips '..')
+/api/topics/..%2Fetc%2Fpasswd              → 400 invalid topic name (NEW)
+/api/topics/%2e%2e%2fetc                   → 400 invalid topic name (NEW)
+/api/topics/A%00B                          → 400 invalid topic name (NEW)
+/api/topics/bash                           → 200 OK (legit unaffected)
+```
+
+The patched cs build is running locally on 127.0.0.1:9876 from the topic branch; unheaded probes against vor benefit from the hardening immediately. Upstream merge is the official close-out.
 
 ---
 
