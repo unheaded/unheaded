@@ -81,6 +81,7 @@ type Champion struct {
 	store         ActionStore
 	snapshotStore SnapshotStore
 	kanbanStore   KanbanStore
+	confirmStore  *confirmStore // lazy-init via IssuePendingConfirmation
 }
 
 // New creates a new Champion with the given configuration.
@@ -115,6 +116,13 @@ func New(cfg Config, store ActionStore) (*Champion, error) {
 	}
 
 	return &Champion{config: cfg, store: store}, nil
+}
+
+// GetProjectRoot returns the configured project root. Used by callers
+// (e.g., agent runtime) that need to construct paths relative to the
+// sandbox root without storing the Config separately.
+func (c *Champion) GetProjectRoot() string {
+	return c.config.ProjectRoot
 }
 
 // WithSnapshotStore sets the snapshot store for revertable write operations.
