@@ -719,6 +719,10 @@ func classifyConfirmError(err error) string {
 		return "used"
 	case strings.Contains(msg, "unknown"):
 		return "unknown"
+	// A nil confirmStore (no token has ever been issued for this Champion)
+	// is indistinguishable from "unknown token" from the client's POV.
+	case strings.Contains(msg, "no pending confirmations"):
+		return "unknown"
 	case strings.Contains(msg, "destructive"):
 		return "denied"
 	case strings.Contains(msg, "path-allowlist"):
