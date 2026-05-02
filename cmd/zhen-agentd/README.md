@@ -108,6 +108,44 @@ Always returns 200 with `{"status":"ok"}` once the listener is accepting connect
 
 Returns 200 + `{"ready":true,...}` when vor and llama-server both pass their `/health` checks. Returns 503 + `{"ready":false,"detail":"unreachable: ..."}` otherwise. Cached 5 s to bound the backend ping rate.
 
+### `GET /metrics`
+
+Prometheus exposition format. Always 200 once the listener is up. Bypasses auth and rate-limit (orchestrator-friendly). Counters / histograms exposed:
+
+| Metric | Labels | What |
+|---|---|---|
+| `zhen_agentd_http_requests_total` | endpoint, status | per-endpoint HTTP request counter |
+| `zhen_agentd_http_request_duration_seconds` | endpoint | histogram of request duration |
+| `zhen_agentd_agent_runs_total` | outcome (answer / budget_hit / error) | agent loop completions |
+| `zhen_agentd_agent_turns_used` | (histogram) | turns consumed per run |
+| `zhen_agentd_champion_actions_total` | action_type, status | every Champion gate decision (incl. denied_destructive / denied_untrusted_justification / denied_path) |
+| `zhen_agentd_confirm_tokens_issued_total` | (counter) | pending-confirm tokens produced |
+| `zhen_agentd_confirm_tokens_redeemed_total` | outcome (ok / expired / unknown / used / denied / error) | confirm-flow outcomes |
+| `zhen_agentd_rate_limited_requests_total` | (counter) | 429 responses |
+
+### `POST /api/v1/agent/confirm`
+
+Redeems a single-use pending-confirmation token from a prior `/api/v1/agent/ask` response (look for `Trace[i].pending_token`). The bound tool call is re-run with Rule 2 (untrusted justification) suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire — users can authorize an external source, they cannot authorize destruction.
+
+**Request body**:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `token` | string | (required) |
+| `project_root` | string | (required if multi-tenant) — must match the daemon's allow-list |
+
+**Response (200)**: `{"result": <tool-output>, "status": "ok"}`. The `result` shape mirrors the underlying tool — string for `read_file`, null for `write_file`/`patch_file`, array for `kanban_list`, etc.
+
+**Error responses**:
+
+| Status | Body | Cause |
+|---|---|---|
+| 400 | `{"status":"unknown","reason":"unknown confirmation token"}` | bogus / never-issued token |
+| 400 | `{"status":"used","reason":"confirmation token already used"}` | token redeemed previously (single-use) |
+| 400 | `{"status":"expired","reason":"confirmation token expired"}` | token >5min old |
+| 403 | `{"status":"denied","reason":"destructive shell verbs cannot be confirmed; refused"}` | Rule 3 fires post-confirm |
+| 403 | `{"status":"denied","reason":"path-allowlist (still enforced after confirm): ..."}` | Rule 1 fires post-confirm |
+
 ## Flags
 
 | Flag | Default | Purpose |
@@ -117,6 +155,8 @@ Returns 200 + `{"ready":true,...}` when vor and llama-server both pass their `/h
 | `-project-root <path>` | cwd | default Champion sandbox root used when a request omits `project_root` |
 | `-allowed-roots <list>` | (just `-project-root`) | comma-separated list of additional roots requests may target |
 | `-action-store <kind>` | `stderr` | audit-log backend: `stderr` (dev) or `pg` (production; requires `WELL_DSN` env) |
+| `-rate-limit <rps>` | 0 | per-IP requests/sec; 0 disables. Recommended ~5 unauthenticated, higher behind auth |
+| `-rate-burst <n>` | 10 | per-IP burst capacity (only used when `-rate-limit > 0`) |
 
 Env: `VOR_URL` (default `http://127.0.0.1:9876`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
 
@@ -147,6 +187,47 @@ curl -X POST http://127.0.0.1:20105/api/v1/agent/ask \
 ```
 
 Per-session sandboxing (different sandbox-root per `session_id`) is NOT yet implemented — sessions are an audit-log concept, not a sandbox boundary. The trust gate's contract is per-Champion (per-root), not per-session. If you need sessions to enforce hard boundaries, deploy one daemon per session.
+
+## Auth
+
+Auth is **disabled by default** (`AUTH_ENABLED=false`) for back-compat with the dev-mode CLI flow. For production, opt in via env:
+
+```bash
+export AUTH_ENABLED=true
+export AUTH_API_KEYS="prod-key-1,prod-key-2"            # static API keys (X-API-Key header)
+# OR / AND
+export AUTH_JWT_KEY="$(openssl rand -hex 32)"           # JWT signing key (Authorization: Bearer)
+export AUTH_JWT_ISSUER="https://auth.unheaded.dev"
+export AUTH_JWT_AUDIENCE="zhen-agentd"
+```
+
+Wires `pkg/auth.SetupMiddleware` (see `pkg/auth/README.md` for the full auth design). When enabled:
+
+- `/api/v1/agent/ask` and `/api/v1/agent/confirm` require valid auth → 401 without
+- `/health`, `/ready`, `/metrics` always bypass auth (orchestrator-friendly)
+- Rate-limit and auth chain: rate-limit is OUTERMOST (drops floods before the auth path-skip check), then auth, then the mux
+
+Smoke verified:
+
+```
+without auth header  → 401
+wrong API key        → 401
+correct API key      → 200 (or 400 if request body invalid, etc.)
+/health and /metrics → 200 regardless of auth state
+```
+
+## Rate limiting
+
+Per-IP token-bucket. Set via `-rate-limit <rps>` (default 0 = disabled) and `-rate-burst <n>` (default 10).
+
+```bash
+bin/zhen-agentd -rate-limit 5 -rate-burst 10
+# Each client IP: 5 sustained req/s, burst up to 10.
+```
+
+429s expose `Retry-After: 1` and increment `zhen_agentd_rate_limited_requests_total`. `/health`, `/ready`, `/metrics` are excluded.
+
+`X-Forwarded-For` is honored when present (right-most entry — closest trusted proxy's view of the source). Trust this only behind a proxy that injects it; otherwise spoofable from the network.
 
 ## Audit log
 

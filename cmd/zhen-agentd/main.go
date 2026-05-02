@@ -40,8 +40,10 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"unheaded/pkg/agent"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/champion"
 	"unheaded/pkg/champion/pgstore"
 )
@@ -66,6 +68,8 @@ func main() {
 		projectRoot  = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
 		allowedRoots = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
 		actionStore  = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
+		rateRPS      = flag.Float64("rate-limit", 0, "per-IP requests/sec (0 disables; recommended ~5 for unauthenticated, higher behind auth)")
+		rateBurst    = flag.Int("rate-burst", 10, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
 	)
 	flag.Parse()
 
@@ -112,10 +116,13 @@ func main() {
 		}
 	}
 
-	store, err := buildActionStore(*actionStore)
+	rawStore, err := buildActionStore(*actionStore)
 	if err != nil {
 		fatal("action-store init: %v", err)
 	}
+	// Wrap with the metrics decorator so every gate decision shows up
+	// in /metrics under zhen_agentd_champion_actions_total.
+	store := newMetricsActionStore(rawStore)
 	pool := newChampionPool(store)
 
 	httpClient := &http.Client{Timeout: httpTimeout}
@@ -131,14 +138,35 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", srv.handleHealth)
-	mux.HandleFunc("/ready", srv.handleReady)
-	mux.HandleFunc("/api/v1/agent/ask", srv.handleAsk)
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/health", instrument("/health", http.HandlerFunc(srv.handleHealth)))
+	mux.Handle("/ready", instrument("/ready", http.HandlerFunc(srv.handleReady)))
+	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
+	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
+
+	// Outer middleware chain (innermost-last):
+	//   rate-limit  →  auth  →  mux
+	// Auth wraps the mux so /metrics is exempted via SkipAuthPaths.
+	// Rate-limit is outermost so a flood of unauthenticated requests
+	// gets dropped before the auth path-skip check + verification.
+	authCfg := auth.LoadServiceAuthConfig("zhen-agentd")
+	authMW := auth.SetupMiddleware(authCfg)
+	var handler http.Handler = mux
+	if authMW != nil {
+		fmt.Fprintf(os.Stderr, "zhen-agentd: auth middleware enabled\n")
+		handler = authMW(mux)
+	} else {
+		fmt.Fprintf(os.Stderr, "zhen-agentd: auth middleware DISABLED (set AUTH_ENABLED=true to enable)\n")
+	}
+	if rl := newRateLimiter(*rateRPS, *rateBurst); rl != nil {
+		fmt.Fprintf(os.Stderr, "zhen-agentd: per-IP rate limit %.1f rps, burst %d\n", *rateRPS, *rateBurst)
+		handler = rl.Middleware(handler)
+	}
 
 	listenAddr := fmt.Sprintf("%s:%d", *host, *port)
 	httpSrv := &http.Server{
 		Addr:              listenAddr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -358,8 +386,23 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 
 	res, err := a.Run(r.Context(), req.Goal)
 	if err != nil {
+		agentRunsTotal.WithLabelValues("error").Inc()
 		writeJSONError(w, http.StatusInternalServerError, "agent.Run: %v", err)
 		return
+	}
+
+	// Metrics: agent run outcome + confirm tokens issued in this run.
+	switch {
+	case res.BudgetHit:
+		agentRunsTotal.WithLabelValues("budget_hit").Inc()
+	default:
+		agentRunsTotal.WithLabelValues("answer").Inc()
+	}
+	agentTurns.Observe(float64(res.TurnsUsed))
+	for _, t := range res.Trace {
+		if t.PendingToken != "" {
+			confirmTokensIssued.Inc()
+		}
 	}
 
 	resp := askResponse{
@@ -390,6 +433,118 @@ func traceFor(turns []agent.Turn) []traceEntry {
 		out = append(out, e)
 	}
 	return out
+}
+
+// confirmRequest is the request body for POST /api/v1/agent/confirm.
+type confirmRequest struct {
+	// Token is the single-use confirmation token returned by an
+	// earlier /api/v1/agent/ask response (Trace[i].PendingToken).
+	Token string `json:"token"`
+	// ProjectRoot is the same root the original tool call targeted.
+	// Required: confirms which Champion in the pool redeems the token
+	// (different roots have different ChampionPools instances; tokens
+	// are scoped to the Champion that issued them).
+	ProjectRoot string `json:"project_root"`
+}
+
+// confirmResponse mirrors the underlying tool call's typed return:
+// some tool calls produce strings (read_file), some produce structured
+// data (kanban_list), some produce nothing (write_file).
+type confirmResponse struct {
+	Result any    `json:"result,omitempty"`
+	Status string `json:"status"` // "ok" | "expired" | "unknown" | "used" | "denied" | "error"
+	Reason string `json:"reason,omitempty"`
+}
+
+func (s *server) handleConfirm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<14)) // 16 KiB cap (tokens are tiny)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "read body: %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	var req confirmRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "decode body: %v", err)
+		return
+	}
+	req.Token = strings.TrimSpace(req.Token)
+	if req.Token == "" {
+		writeJSONError(w, http.StatusBadRequest, "missing %q", "token")
+		return
+	}
+	rootReq := strings.TrimSpace(req.ProjectRoot)
+	if rootReq == "" {
+		rootReq = s.defaultRoot
+	}
+	rootAbs, err := filepath.Abs(rootReq)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "resolve project_root: %v", err)
+		return
+	}
+	if _, ok := s.allowed[rootAbs]; !ok {
+		writeJSONError(w, http.StatusForbidden,
+			"project_root %q is not in the daemon's allow-list",
+			rootAbs)
+		return
+	}
+
+	champ, err := s.pool.get(rootAbs)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "champion init: %v", err)
+		return
+	}
+
+	out, err := champ.ConfirmPendingToolCall(r.Context(), req.Token)
+	if err != nil {
+		// Classify the error for metrics + machine-readable status.
+		status := classifyConfirmError(err)
+		confirmTokensRedeemed.WithLabelValues(status).Inc()
+		// Token failures (unknown/used/expired) are 400-ish — the
+		// client gave a stale token. Destructive-blocked / path-denied
+		// after confirm are 403 — the gate refused even after consent.
+		code := http.StatusBadRequest
+		if status == "denied" {
+			code = http.StatusForbidden
+		}
+		writeJSON(w, code, confirmResponse{
+			Status: status,
+			Reason: err.Error(),
+		})
+		return
+	}
+	confirmTokensRedeemed.WithLabelValues("ok").Inc()
+	writeJSON(w, http.StatusOK, confirmResponse{
+		Result: out,
+		Status: "ok",
+	})
+}
+
+// classifyConfirmError maps an error from ConfirmPendingToolCall to a
+// short status string used for the response and metrics labels.
+func classifyConfirmError(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "expired"):
+		return "expired"
+	case strings.Contains(msg, "already used"):
+		return "used"
+	case strings.Contains(msg, "unknown"):
+		return "unknown"
+	case strings.Contains(msg, "destructive"):
+		return "denied"
+	case strings.Contains(msg, "path-allowlist"):
+		return "denied"
+	}
+	return "error"
 }
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
