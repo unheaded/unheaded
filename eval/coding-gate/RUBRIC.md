@@ -1,9 +1,16 @@
-# Coding-Gate Rubric — pre-registered
+# Coding-Gate Rubric
 
-**Date:** 2026-05-01
+**Version:** 2.1 (fixture expansion 2026-05-02; revised 2026-05-02 per probe-2026-05-02 E6 finding)
+**Original date:** 2026-05-01
 **Authors:** Stevie + crew, drafted under the unheaded-scientist lens
-**Status:** LOCKED. This rubric is pre-registered before the runner is invoked.
-**Permanent quality gate**: every future Zhen change (corpus update, retrain, base-model swap, serving-stack change) re-runs against the same `prompts.jsonl` and is graded against this rubric.
+**Status:** LOCKED at v2. Rubric is pre-registered before each runner invocation. Version bumps require an entry in this file's changelog and a probe-results doc justifying the change.
+**Permanent quality gate**: every future Zhen change (corpus update, retrain, base-model swap, serving-stack change) re-runs against `prompts.jsonl` and is graded against this rubric.
+
+## Changelog
+
+- **v2.1 (2026-05-02)**: fixture expanded by 14 prompts (7 hard syntax + 7 hard review) per BlackMage B10 finding. Hard tier is informational; textbook tier remains gate-binding. §1 documents both tiers; §4 decision rule unchanged.
+- **v2 (2026-05-02)**: §2 PASS rule revised — for the 7 textbook syntax prompts in the current fixture, "I don't know" counts as FAIL (not PASS). Rationale: the model has the knowledge for textbook questions; refusal indicates over-restrictive system prompt or retrieval gap. Per `eval/coding-gate/probe-2026-05-02/E6-regrade.md`. Original v1 rule (don't-know=PASS for syntax) accidentally rewarded the over-restrictive Phase B prompt.
+- **v1 (2026-05-01)**: initial rubric, committed as part of Phase C.
 
 ---
 
@@ -11,12 +18,32 @@
 
 Whether RAG-over-Qwen2.5-Coder-7B-Instruct (q4_k_m, ctx=16384, GPU layers=999), with retrieval grounded in cs/vor + Unheaded markdown, clears a *useful junior+* coding bar across seven languages — `bash`, `python`, `go`, `rust`, `html`, `css`, `javascript`.
 
-Two halves:
+The fixture has two tiers:
+
+### Textbook tier (14 prompts — gate-binding)
+
+The 14 prompts whose IDs match `syntax-<lang>` or `review-<lang>`. Two halves:
 
 - **Syntax half** (7 prompts) — *"how do I X in language Y?"* The model returns a short, correct snippet.
 - **Review half** (7 prompts) — *"review this snippet, what's wrong?"* The model identifies the well-known junior-level bug and proposes a fix.
 
-The bar is **NOT** Anthropic-tier reasoning. The bar is *"Stack-Overflow accepted answer"*: useful, terse, idiomatic, not confidently wrong.
+The bar is **NOT** Anthropic-tier reasoning. The bar is *"Stack-Overflow accepted answer"*: useful, terse, idiomatic, not confidently wrong. **The §4 decision rule (H1/H2/H3/H4) applies to this tier only.**
+
+### Hard tier (14 prompts — informational)
+
+The 14 prompts whose IDs match `hard-syntax-<lang>` or `hard-review-<lang>`. These cover the long-tail of subtle, easy-to-miss bugs that came out of the BlackMage probe (B10 finding):
+
+- bash: process substitution, pipefail-in-subshell
+- python: nonlocal vs global, mutable default arg
+- go: non-blocking channel receive, loop-variable capture in goroutines
+- rust: `&str` vs `String`, Mutex deadlock pattern
+- html: `<dialog>` vs `<div role="dialog">`, `target="_blank"` without `rel="noopener"`
+- css: `:has()` selector, z-index without positioning context
+- javascript: `Promise.all` vs `Promise.allSettled`, `setTimeout(fn, 0)` to "fix" race conditions
+
+Hard-tier scoring is reported alongside textbook-tier scoring but **does not bind the H1/H2/H3/H4 verdict**. The hard tier informs Phase D-A readiness — a model that passes the textbook gate but flunks the hard tier is not yet ready for autonomous code review.
+
+A future rubric version (v3) may promote a stable subset of hard prompts into the textbook tier once empirical evidence shows they are answerable consistently.
 
 ---
 
@@ -30,7 +57,10 @@ The answer is correct, actionable, and not confidently wrong.
 
 - **Syntax**: gives a snippet that compiles/runs, names the right idiom, points the user in the right direction.
 - **Review**: identifies the expected bug (`expected_flag` field of the prompt) and proposes a viable fix. May identify additional, valid bugs as bonus — does not have to enumerate every issue.
-- **"I don't know"** counts as PASS for **syntax** prompts only. (Per `project_zhenai_coding_gate.md` §5: *"'I don't know' is acceptable."*) For **review** prompts, *"I see no issue"* counts as **FAIL** — review is exactly the case where missing the bug is the failure mode.
+- **"I don't know"** policy (REVISED 2026-05-02 per probe-2026-05-02/E6-regrade.md):
+  - For the **textbook** syntax prompts in this fixture (all 7 — bash trim, python list-comp, go err check, rust string-to-int, html button, css center, js async fetch), *"I don't know"* counts as **FAIL**. The model has the knowledge for these; an honest "I don't know" indicates the system prompt is over-restrictive (a real defect we want to catch). Only mark PASS if the answer is substantively correct.
+  - For **non-textbook** syntax prompts added in future fixture expansions, *"I don't know"* counts as PASS — refusal is the right behavior when the question is genuinely outside training distribution.
+  - For **review** prompts, *"I see no issue"* always counts as FAIL. Review is exactly the case where missing the bug is the failure mode.
 
 ### FAIL (0 pt)
 

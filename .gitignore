@@ -249,3 +249,5 @@ ietf-submission/*.html
 ietf-submission/*_err.txt
 docs/protocol/xml/*.txt
 raft/experiments/
+
+eval/coding-gate/ci-runs/

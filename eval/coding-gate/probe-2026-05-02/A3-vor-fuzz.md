@@ -2,6 +2,7 @@
 title: A3 — cs/vor /api parser fuzz
 severity: MEDIUM (one DoS vector + several lax-parser warnings; no RCE/data-leak)
 date: 2026-05-02
+sanitized: true
 ---
 
 # A3 — cs/vor /api parser fuzz

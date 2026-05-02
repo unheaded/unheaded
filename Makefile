@@ -53,6 +53,14 @@ build-zhen-rag: ## Build zhen-rag (RAG glue: cs/vor + llama-server)
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/zhen-rag && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-rag
 
+coding-gate-ci: build-zhen-rag ## Run 5-seed CI gate; pre-merge required for any zhen-rag/RUBRIC/prompts change
+	@echo "Running coding-gate 5-seed CI sweep..."
+	@./scripts/probe-sanitization-check.sh
+	@./scripts/coding-gate-ci.sh
+
+coding-gate-sanitize: ## Verify probe finding-docs declare sanitized:true frontmatter
+	@./scripts/probe-sanitization-check.sh
+
 build-wotan: ## Build Wotan (Fae Chamber - Message Bus)
 	@echo "🧚 Building Wotan..."
 	@mkdir -p $(BINARY_DIR)
