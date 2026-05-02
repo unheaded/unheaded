@@ -53,6 +53,11 @@ build-zhen-rag: ## Build zhen-rag (RAG glue: cs/vor + llama-server)
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/zhen-rag && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-rag
 
+build-zhen-agent: ## Build zhen-agent (Phase D-A: ReAct loop + Champion gate)
+	@echo "Building zhen-agent..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/zhen-agent && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-agent
+
 coding-gate-ci: build-zhen-rag ## Run 5-seed CI gate; pre-merge required for any zhen-rag/RUBRIC/prompts change
 	@echo "Running coding-gate 5-seed CI sweep..."
 	@./scripts/probe-sanitization-check.sh
