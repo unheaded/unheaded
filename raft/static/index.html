@@ -569,9 +569,9 @@
 
     <header>
         <div class="logo">
-            <h1>ZHEN</h1>
+            <h1>Zhenai</h1>
             <div>
-                <div class="sub">Unheaded AI Champion</div>
+                <div class="sub">Unheaded Champion</div>
             </div>
         </div>
         <div class="header-right">
@@ -1115,14 +1115,34 @@ async function checkHealth() {
 checkHealth();
 setInterval(checkHealth, 30000);
 
-// Welcome
-// Fetch real stats for welcome message
-fetch(API + '/api/v1/stats').then(r => r.json()).then(s => {
-    const vectors = s.index_vectors ? (s.index_vectors / 1000000).toFixed(1) + 'M' : '?';
-    const chunks = s.corpus_chunks ? (s.corpus_chunks / 1000000).toFixed(1) + 'M' : '?';
-    addMsg(`I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\n${vectors} vectors indexed (${chunks} corpus chunks): Unheaded codebase, 16 GitHub repos, 9,739 RFCs, 1,649 research papers, Kingdom skills, and more.\n\nLocal Mistral-7B inference on AMD RX 7700 XT. Drag-and-drop files to include in your query. 31 operational runbooks available.\n\nAsk me anything.`, 'zhen');
+// Welcome — post-WAVE15 rewire shape (vor + qwen-coder backends).
+// Fetches live stats from /api/v1/stats (sheets/categories/model) and the
+// runbook list count, then composes a current-state opener. Falls back to
+// a static line on any HTTP error so the UI degrades cleanly.
+Promise.all([
+    fetch(API + '/api/v1/stats').then(r => r.json()).catch(() => ({})),
+    fetch(API + '/api/v1/runbooks').then(r => r.json()).then(d => d.runbooks ? d.runbooks.length : (Array.isArray(d) ? d.length : 0)).catch(() => 0),
+]).then(([s, rbCount]) => {
+    const vh = s.vor_health || {};
+    const sheets = vh.sheets || '?';
+    const categories = vh.categories || '?';
+    const model = s.inference_model || 'qwen-coder-7b';
+    const memBack = (s.memory_recall && s.memory_recall.includes('T1')) ? ' Memory recall is display-only (T1 closed).' : '';
+    const rbLine = rbCount > 0 ? ` ${rbCount} operational runbooks available.` : '';
+    addMsg(
+        `I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\n` +
+        `Retrieval: vor with ${sheets} sheets across ${categories} categories — Unheaded markdown, ADRs, battle plans, embedded cheatsheets. Source-trust labeled (canonical / local / external).\n\n` +
+        `Inference: ${model} via local llama-server on AMD RX 7700 XT (ROCm). Drag-and-drop files to include in your query.${rbLine}${memBack}\n\n` +
+        `Ask me anything.`,
+        'zhen'
+    );
 }).catch(() => {
-    addMsg("I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\nLocal Mistral-7B inference. Drag-and-drop files to include in your query.\n\nAsk me anything.", 'zhen');
+    addMsg(
+        "I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\n" +
+        "Local qwen-coder-7b inference + vor retrieval. Drag-and-drop files to include in your query.\n\n" +
+        "Ask me anything.",
+        'zhen'
+    );
 });
 </script>
 </body>
