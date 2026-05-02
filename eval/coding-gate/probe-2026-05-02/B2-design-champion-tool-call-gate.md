@@ -2,6 +2,7 @@
 title: B2 design — Champion tool-call envelope with source-provenance gating
 status: design (implementation deferred — depends on B1 + Phase D-A)
 date: 2026-05-02
+sanitized: true
 ---
 
 # B2 design — Champion tool-call envelope

@@ -2,6 +2,7 @@
 title: B1 design — source provenance plumbing for cs/vor + zhen-rag
 status: design (implementation deferred)
 date: 2026-05-02
+sanitized: true
 ---
 
 # B1 design — source provenance plumbing
