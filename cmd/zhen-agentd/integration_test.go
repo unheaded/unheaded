@@ -41,6 +41,16 @@ func (s *scriptedLLM) Complete(_ context.Context, _ []agent.Message, _ int, _ fl
 	return r, nil
 }
 
+// constantLLM returns the same response for every call. Useful for
+// concurrent tests where scriptedLLM would race on its index counter.
+type constantLLM struct {
+	out string
+}
+
+func (c *constantLLM) Complete(_ context.Context, _ []agent.Message, _ int, _ float64, _ int) (string, error) {
+	return c.out, nil
+}
+
 // stubRetriever returns a fixed canonical reference set, regardless of
 // query. Lets tests skip the vor round-trip entirely.
 type stubRetriever struct {
@@ -470,6 +480,65 @@ func TestIntegration_Metrics_ServesPrometheus(t *testing.T) {
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("metrics body missing %q", want)
+		}
+	}
+}
+
+// --- concurrency: championPool under parallel load ---
+
+// TestIntegration_Ask_ConcurrentRequests fires N parallel /ask requests
+// against the same project_root. Every request shares the same Champion
+// (the pool returns the cached entry under a sync.Mutex), so this both
+// exercises the pool's locking and the per-request agent-loop code path.
+// Race detector earns its keep here — silent under -race is the gate.
+func TestIntegration_Ask_ConcurrentRequests(t *testing.T) {
+	llm := &constantLLM{out: `{"thought":"const","answer":"shared"}`}
+	ts, _ := newTestDaemon(t, canonicalStub(), llm)
+
+	const N = 16
+	type result struct {
+		err  error
+		body askResponse
+		code int
+	}
+	results := make(chan result, N)
+
+	for i := 0; i < N; i++ {
+		go func(i int) {
+			resp, err := http.Post(
+				ts.URL+"/api/v1/agent/ask",
+				"application/json",
+				strings.NewReader(fmt.Sprintf(`{"goal":"q-%d","session_id":"s-%d"}`, i, i)),
+			)
+			if err != nil {
+				results <- result{err: err}
+				return
+			}
+			defer resp.Body.Close()
+			var ar askResponse
+			if err := json.NewDecoder(resp.Body).Decode(&ar); err != nil {
+				results <- result{err: fmt.Errorf("decode #%d: %w", i, err)}
+				return
+			}
+			results <- result{body: ar, code: resp.StatusCode}
+		}(i)
+	}
+
+	for i := 0; i < N; i++ {
+		r := <-results
+		if r.err != nil {
+			t.Errorf("request error: %v", r.err)
+			continue
+		}
+		if r.code != 200 {
+			t.Errorf("status: got %d, want 200", r.code)
+			continue
+		}
+		if r.body.Answer != "shared" {
+			t.Errorf("answer: got %q, want shared", r.body.Answer)
+		}
+		if r.body.TurnsUsed != 1 {
+			t.Errorf("turns_used: got %d, want 1", r.body.TurnsUsed)
 		}
 	}
 }
