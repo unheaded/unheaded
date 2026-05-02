@@ -198,6 +198,7 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/agent/ask`
 | `-project-root <path>` | cwd | default Champion sandbox root used when a request omits `project_root` |
 | `-allowed-roots <list>` | (just `-project-root`) | comma-separated list of additional roots requests may target |
 | `-action-store <kind>` | `stderr` | audit-log backend: `stderr` (dev) or `pg` (production; requires `WELL_DSN` env) |
+| `-kanban-store <kind>` | `memory` | kanban-task backend for `kanban_create` / `kanban_update`: `memory` (no persistence — these calls fail at dispatch with "no kanban store configured") or `pg` (persists to The Well's `kanban_tasks` table; requires `WELL_DSN`) |
 | `-rate-limit <rps>` | 0 | per-IP requests/sec; 0 disables. Recommended ~5 unauthenticated, higher behind auth |
 | `-rate-burst <n>` | 10 | per-IP burst capacity (only used when `-rate-limit > 0`) |
 

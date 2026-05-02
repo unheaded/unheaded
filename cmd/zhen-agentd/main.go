@@ -68,6 +68,7 @@ func main() {
 		projectRoot  = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
 		allowedRoots = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
 		actionStore  = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
+		kanbanStore  = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; requires WELL_DSN env). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
 		rateRPS      = flag.Float64("rate-limit", 0, "per-IP requests/sec (0 disables; recommended ~5 for unauthenticated, higher behind auth)")
 		rateBurst    = flag.Int("rate-burst", 10, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
 	)
@@ -123,7 +124,11 @@ func main() {
 	// Wrap with the metrics decorator so every gate decision shows up
 	// in /metrics under zhen_agentd_champion_actions_total.
 	store := newMetricsActionStore(rawStore)
-	pool := newChampionPool(store)
+	kStore, err := buildKanbanStore(*kanbanStore)
+	if err != nil {
+		fatal("kanban-store init: %v", err)
+	}
+	pool := newChampionPool(store, kStore)
 
 	httpClient := &http.Client{Timeout: httpTimeout}
 	srv := &server{
@@ -211,6 +216,67 @@ func main() {
 	fmt.Fprintln(os.Stderr, "zhen-agentd: clean shutdown")
 }
 
+// buildKanbanStore selects the kanban backend per the -kanban-store
+// flag. "memory" (default, dev-mode) returns nil — the Champion will
+// reject kanban_create/update with "no kanban store configured", which
+// is honest about the lack of persistence. "pg" connects to The Well
+// via WELL_DSN and adapts the database/KanbanStore to champion's
+// interface via pgKanbanStore.
+func buildKanbanStore(kind string) (champion.KanbanStore, error) {
+	switch kind {
+	case "memory", "":
+		return nil, nil
+	case "pg", "postgres", "postgresql":
+		dsn := strings.TrimSpace(os.Getenv("WELL_DSN"))
+		if dsn == "" {
+			return nil, fmt.Errorf("kanban-store=pg requires WELL_DSN env var")
+		}
+		warnIfInsecureDSN(dsn)
+		db, err := sql.Open("postgres", dsn)
+		if err != nil {
+			return nil, fmt.Errorf("open postgres for kanban: %w", err)
+		}
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(5 * time.Minute)
+
+		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := db.PingContext(pingCtx); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("ping postgres for kanban: %w", err)
+		}
+		store, err := newPGKanbanStore(pingCtx, db)
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+		fmt.Fprintf(os.Stderr, "zhen-agentd: connected to PostgreSQL kanban store; schema migrated\n")
+		return store, nil
+	}
+	return nil, fmt.Errorf("unknown kanban-store %q (supported: memory, pg)", kind)
+}
+
+// warnIfInsecureDSN logs a stderr warning when WELL_DSN looks like it's
+// transmitting credentials in cleartext to a non-loopback host. Heuristic,
+// not authoritative — the operator can still get it wrong inside layered
+// configs we can't see — but the common foot-gun (sslmode=disable to a
+// remote host) is loud enough to catch.
+func warnIfInsecureDSN(dsn string) {
+	low := strings.ToLower(dsn)
+	if !strings.Contains(low, "sslmode=disable") {
+		return
+	}
+	// Loopback is fine — local Unix sockets and 127.0.0.1 don't need TLS.
+	for _, ok := range []string{"host=/", "host=localhost", "host=127.0.0.1", "host=::1"} {
+		if strings.Contains(low, ok) {
+			return
+		}
+	}
+	fmt.Fprintf(os.Stderr,
+		"zhen-agentd: WARNING — WELL_DSN sets sslmode=disable for a non-loopback host; credentials and audit data are transmitted in cleartext. Set sslmode=require (or stronger) for production.\n")
+}
+
 // buildActionStore selects the audit-log backend per the -action-store
 // flag. "stderr" (default, dev-mode) prints to stderr. "pg" connects
 // to PostgreSQL via the WELL_DSN env var, runs the migration, and
@@ -224,6 +290,7 @@ func buildActionStore(kind string) (champion.ActionStore, error) {
 		if dsn == "" {
 			return nil, fmt.Errorf("action-store=pg requires WELL_DSN env var")
 		}
+		warnIfInsecureDSN(dsn)
 		db, err := sql.Open("postgres", dsn)
 		if err != nil {
 			return nil, fmt.Errorf("open postgres: %w", err)
@@ -269,15 +336,17 @@ type server struct {
 // surface, ActionStore audit thread, etc.). The pool is unbounded —
 // rely on the allow-list to bound the number of distinct roots.
 type championPool struct {
-	mu    sync.Mutex
-	store champion.ActionStore
-	cache map[string]*champion.Champion
+	mu      sync.Mutex
+	store   champion.ActionStore
+	kanban  champion.KanbanStore // nil → kanban_* tool calls fail at dispatch
+	cache   map[string]*champion.Champion
 }
 
-func newChampionPool(store champion.ActionStore) *championPool {
+func newChampionPool(store champion.ActionStore, kanban champion.KanbanStore) *championPool {
 	return &championPool{
-		store: store,
-		cache: make(map[string]*champion.Champion),
+		store:  store,
+		kanban: kanban,
+		cache:  make(map[string]*champion.Champion),
 	}
 }
 
@@ -293,6 +362,9 @@ func (p *championPool) get(root string) (*champion.Champion, error) {
 	c, err := champion.New(champion.Config{ProjectRoot: root}, p.store)
 	if err != nil {
 		return nil, err
+	}
+	if p.kanban != nil {
+		c = c.WithKanbanStore(p.kanban)
 	}
 	p.cache[root] = c
 	return c, nil
