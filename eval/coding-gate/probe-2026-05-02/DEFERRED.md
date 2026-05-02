@@ -34,11 +34,38 @@ These three blockers from `SYNTHESIS.md` cannot land cleanly in a single unheade
 
 The B1 design called out a configurable per-kind weight (default 1.0/0.8/0.5) so embedded ranks above user-source for tied relevance. NOT implemented in this commit — empirically the trust-label clause is sufficient for the LLM-layer behavior we cared about. Defer until a real concrete failure shows up where the model would have made a different decision had ranking been weighted.
 
-## D-pre.B2 — Champion tool-call gating on source provenance
+## D-pre.B2 — Champion tool-call gating on source provenance (IMPLEMENTED 2026-05-02)
 
-**Owner unheaded side (`pkg/champion/`):** every Champion tool call (`WriteFile`, `PatchFile`, etc.) must accept a `justification` argument naming the references it was based on. The Champion's `Config.AllowedPaths` allowlist is consulted, BUT — and this is the new gate — if the justification chain includes any retrieval result with `source_kind=user_symlink`, the tool call refuses unless the user has explicitly out-of-band confirmed the action.
+**Status:** the gate function and decision matrix tests landed in `pkg/champion/toolcall.go` + `pkg/champion/toolcall_test.go`. The agent-layer caller (Phase D-A's ReAct loop) is the only remaining piece — and it's the consumer of this gate, not part of B2 itself.
 
-**Why deferred:** depends on B1 landing first (the `source_kind` field has to exist before Champion can gate on it). Also requires designing the agent-loop tool-call envelope (Phase D-A scope), which we explicitly haven't started.
+**What shipped:**
+
+- `ToolCall{Name, Args, Justification, EmittedBy}` envelope — what the agent layer hands to Champion before any underlying dispatch.
+- `Reference{Topic, Category, SourceKind, SourceTrust, SourcePath, SourceLabel, Excerpt}` — mirrors B1 cs/vor schema.
+- `MutatingTools` / `ReadOnlyTools` whitelists, with **fail-closed default** for unknown tool names (treated as mutating).
+- `IsMutating()`, `HasUntrustedJustification()`, `HasDestructiveVerb()` predicates.
+- `(*Champion).AcceptToolCall(ctx, ToolCall) → (ToolCallDecision, error)` — the gate.
+- Three rules in priority order:
+  1. **Rule 3 (highest priority)** — destructive shell verb in any string arg → hard deny (regardless of justification trust).
+  2. **Rule 2** — mutating tool + external-trust justification → deny pending out-of-band user confirmation. `ToolCallDecision.PendingConfirmation = true`.
+  3. **Rule 1** — existing path-allowlist gate (delegates to `validatePath` for `path`-bearing tools).
+- Every gate decision is logged to `ActionStore` with a status string: `accepted` | `denied_destructive` | `denied_untrusted_justification` | `denied_path`.
+
+**Destructive-verb pattern:** word-boundary regex covering `rm -rf`/`rm -r`/`rm /`, `drop table`/`drop database`, `mkfs(.ext4|.xfs|...)`, `dd if=`/`dd of=`, `wipe`, `shutdown`, `reboot`, `kill -9`, `truncate`, `unlink`, `git push --force`, `git reset --hard`, `chmod 000`, `> /dev/sd*`. Recurses into nested `map[string]any` and `[]any` so an attacker can't smuggle a destructive command via a nested argv slice.
+
+**Test coverage (all green, race-clean):**
+
+- IsMutating: 17 cases — every named mutating tool, every named read-only tool, 3 unknown-tool fail-closed cases.
+- HasUntrustedJustification: 6 cases — empty, all-canonical, all-local, mixed canonical+local, single-external, buried-external.
+- HasDestructiveVerb: 9 cases — empty, clean string, `rm -rf`, `drop table` buried in SQL, argv slice smuggling, nested map smuggling, `mkfs.ext4`, `git reset --hard`, clean file write.
+- AcceptToolCall full matrix: allowed-readonly, allowed-mutating-trusted, denied-untrusted-mutating (with audit verification), allowed-readonly-even-if-untrusted, denied-destructive-beats-trust, destructive-precedence-over-untrusted, denied-path-outside-allowlist, unknown-tool-fail-closed-pending, audit-logged-always.
+
+**What remains for Phase D-A (out of B2 scope):**
+
+- The ReAct loop that constructs `ToolCall` envelopes from LLM JSON output.
+- The system prompt that documents the tool-call schema to the model.
+- The pending-confirmation flow itself: token issuance, single-use enforcement, 5-minute timeout, replay protection. The B2 design specs the contract (`ConfirmPendingToolCall(ctx, token)`) but doesn't implement it — the implementation belongs with whatever surfaces the user-facing prompt (CLI / TUI / Slack / etc.).
+- Wiring `AcceptToolCall` into `WriteFile`/`PatchFile`/etc — currently those entry points use the old direct path-allowlist. The new gate is a strict superset; the migration is a follow-up commit (rename existing entry points to `*Internal` and add new `*ViaToolCall(ctx, ToolCall)` shims).
 
 ## D-pre.B3 — vor DoS hardening (upstream cs PR — DRAFTED 2026-05-02)
 
