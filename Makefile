@@ -58,6 +58,9 @@ build-zhen-agent: ## Build zhen-agent (Phase D-A: ReAct loop + Champion gate)
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/zhen-agent && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-agent
 
+zhen-agent-up: build-zhen-agent ## Build zhen-agent + verify prerequisites (vor, llama-server)
+	@./scripts/zhen-agent-preflight.sh
+
 coding-gate-ci: build-zhen-rag ## Run 5-seed CI gate; pre-merge required for any zhen-rag/RUBRIC/prompts change
 	@echo "Running coding-gate 5-seed CI sweep..."
 	@./scripts/probe-sanitization-check.sh
