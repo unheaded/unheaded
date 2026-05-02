@@ -12,6 +12,7 @@
 - `cmd/zhen-agentd/README.md` — daemon endpoints; Phase 2 will proxy through these
 - `raft/zhen_app.py` — the rewire target (1538 LOC Flask)
 - `raft/scripts/zhen_rag.py` — the RAG class to rewire (323 LOC)
+- **[`docs/security/application-threat-model.md`](../security/application-threat-model.md)** — canonical T1–T10 threat-status catalog. Updated as each WAVE15 phase closes (or fails to close) a threat. **T6 has a SPLIT status documented in detail** — chat path is OPEN-DOCUMENTED (theoretical-only on current surface, regressed H0 when proxied), mutation path is CLOSED (Phase 2b ships the gated `/api/v1/tool/exec`).
 
 **Decision basis:** Two Stevie messages on 2026-05-02 reframed the original "port Python UI to Go" ask. (1) *"Mistral's index has been out of scope for a while … all we need is the original Python zhen UI to work with qwen-coder and vor."* (2) *"I am at my desk, I have 0 internet connection just LAN — I should be able to interact with the unheaded kingdom through the kanban web UI or the zhenai prompt web UI and alter the kingdom and kick off runbooks and or ask questions about coding and building out new unheaded features."* The rewire is the smallest correct change that fulfills both.
 

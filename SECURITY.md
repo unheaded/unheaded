@@ -147,6 +147,16 @@ Unheaded uses the following cryptographic standards:
 - **Hash Functions**: SHA-256 or stronger
 - **Symmetric Encryption**: AES-256-GCM
 
+## Threat documentation
+
+Honest, current-state threat-status docs live in `docs/security/`:
+
+- **[`docs/security/application-threat-model.md`](docs/security/application-threat-model.md)** — the agent runtime + chat surface threat catalog (T1–T10), with status (CLOSED / RESIDUAL / OPEN-DOCUMENTED), evidence (commits, tests, audit-log entries), and explicit residual-risk rationale where defenses aren't fully closed today. Read this first if you're evaluating the AI agent surface.
+- **[`docs/security/threat-register.md`](docs/security/threat-register.md)** — CVE-feed posture (CISA KEV + NIST NVD ingest), supply-chain advisories, refresh log per Round Table sprint.
+- **[`docs/security/zhen-pq-threat-model.md`](docs/security/zhen-pq-threat-model.md)** — cryptographic primitive threats specific to Zhen Layer 0 (PQ signing, ML-DSA-65 enforcement on `config.*` topics).
+
+The application threat model is **public on purpose**: every threat in the catalog is named with status, evidence, and (where applicable) the rationale for why a residual risk is acceptable today. We do not hide OPEN threats in fine print. Public-repo posture means a security researcher reading the doc can see the gaps.
+
 ## Acknowledgments
 
 We appreciate the security research community and acknowledge researchers who report vulnerabilities responsibly. Upon request and with your permission, we will credit you in our security advisories.
@@ -160,5 +170,5 @@ For security-related questions or concerns:
 
 ---
 
-**Last updated**: 2026-02-20
-**Version**: 1.0
+**Last updated**: 2026-05-02
+**Version**: 1.1 (added application threat model link; T6 mutation-path closure documented)
