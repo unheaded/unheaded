@@ -125,6 +125,17 @@ func (s *statusShim) Write(b []byte) (int, error) {
 	return s.ResponseWriter.Write(b)
 }
 
+// Flush delegates to the underlying ResponseWriter when it supports
+// http.Flusher. Required for SSE handlers that wrap the writer with
+// instrument() — without this passthrough, the type assertion to
+// http.Flusher in /api/v1/agent/ask/stream fails. Most stdlib
+// ResponseWriters implement Flusher.
+func (s *statusShim) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // metricsActionStore decorates a champion.ActionStore — every
 // UpdateAction increments the championActionsTotal counter labeled
 // by action_type and final status. The action_type is captured at

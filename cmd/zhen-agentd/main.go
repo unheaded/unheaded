@@ -142,6 +142,7 @@ func main() {
 	mux.Handle("/health", instrument("/health", http.HandlerFunc(srv.handleHealth)))
 	mux.Handle("/ready", instrument("/ready", http.HandlerFunc(srv.handleReady)))
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
+	mux.Handle("/api/v1/agent/ask/stream", instrument("/api/v1/agent/ask/stream", http.HandlerFunc(srv.handleAskStream)))
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
 	mux.Handle("/api/v1/openapi.json", instrument("/api/v1/openapi.json", http.HandlerFunc(srv.handleOpenAPI)))
 
@@ -439,6 +440,179 @@ func traceFor(turns []agent.Turn) []traceEntry {
 		out = append(out, e)
 	}
 	return out
+}
+
+// handleAskStream is the SSE variant of handleAsk. Same request body
+// (askRequest), same gate semantics — but per-turn output streams as
+// Server-Sent Events while the agent loop is still running.
+//
+// Wire format:
+//
+//   event: turn
+//   data: {<TraceEntry json>}
+//
+//   event: turn
+//   data: {<TraceEntry json>}
+//
+//   event: done
+//   data: {"answer":"...","turns_used":N,"budget_hit":false,"session_id":"..."}
+//
+// Or on error:
+//
+//   event: error
+//   data: {"error":"..."}
+//
+// Clients can disconnect mid-stream; the agent loop notices the
+// context cancel via the request context and stops at the next
+// turn boundary. If the connection drops between turns, the
+// callback's bool return is false and the loop bails.
+//
+// Method is POST (request body carries the goal). SSE convention is
+// usually GET, but POST-with-streaming is well-supported by
+// fetch+ReadableStream and EventSource alternatives like the SSE
+// portion of @microsoft/fetch-event-source.
+func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "read body: %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	var req askRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "decode body: %v", err)
+		return
+	}
+	req.Goal = strings.TrimSpace(req.Goal)
+	if req.Goal == "" {
+		writeJSONError(w, http.StatusBadRequest, "missing %q", "goal")
+		return
+	}
+
+	rootReq := strings.TrimSpace(req.ProjectRoot)
+	if rootReq == "" {
+		rootReq = s.defaultRoot
+	}
+	rootAbs, err := filepath.Abs(rootReq)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "resolve project_root: %v", err)
+		return
+	}
+	if _, ok := s.allowed[rootAbs]; !ok {
+		writeJSONError(w, http.StatusForbidden,
+			"project_root %q is not in the daemon's allow-list", rootAbs)
+		return
+	}
+
+	if req.SessionID == "" {
+		req.SessionID = fmt.Sprintf("anon-%s", time.Now().UTC().Format("20060102T150405Z"))
+	}
+
+	champ, err := s.pool.get(rootAbs)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "champion init: %v", err)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeJSONError(w, http.StatusInternalServerError, "streaming not supported by this connection")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
+	w.WriteHeader(http.StatusOK)
+
+	emit := func(event string, payload any) bool {
+		buf, err := json.Marshal(payload)
+		if err != nil {
+			return false
+		}
+		// SSE frame format:
+		//   event: <name>\n
+		//   data: <single-line json>\n
+		//   \n
+		_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, buf)
+		if err != nil {
+			return false
+		}
+		flusher.Flush()
+		// Check whether the client disconnected.
+		select {
+		case <-r.Context().Done():
+			return false
+		default:
+			return true
+		}
+	}
+
+	cfg := agent.Config{
+		MaxTurns:      pickInt(req.MaxTurns, defaultMaxTurns),
+		MaxTokens:     pickInt(req.MaxTokens, defaultMaxTokens),
+		RetrieveK:     pickInt(req.K, defaultK),
+		MaxTopicChars: defaultMaxChars,
+		Temperature:   pickFloat(req.Temperature, 0.4),
+		Seed:          req.Seed,
+	}
+	a := agent.New(cfg, champ, s.retriever, s.llm)
+
+	res, err := a.Stream(r.Context(), req.Goal, func(t agent.Turn) bool {
+		entry := traceEntryFromAgent(t)
+		return emit("turn", entry)
+	})
+	if err != nil {
+		emit("error", map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Surface the final summary as a "done" event. Clients use this
+	// as the loop terminator — equivalent to /ask's response body.
+	switch {
+	case res.BudgetHit:
+		agentRunsTotal.WithLabelValues("budget_hit").Inc()
+	default:
+		agentRunsTotal.WithLabelValues("answer").Inc()
+	}
+	agentTurns.Observe(float64(res.TurnsUsed))
+	for _, t := range res.Trace {
+		if t.PendingToken != "" {
+			confirmTokensIssued.Inc()
+		}
+	}
+
+	emit("done", map[string]any{
+		"answer":     res.Answer,
+		"turns_used": res.TurnsUsed,
+		"budget_hit": res.BudgetHit,
+		"session_id": req.SessionID,
+	})
+}
+
+// traceEntryFromAgent converts an agent.Turn into the JSON shape used
+// by both /ask and /ask/stream.
+func traceEntryFromAgent(t agent.Turn) traceEntry {
+	e := traceEntry{
+		Thought:      t.Thought,
+		Observation:  t.Observation,
+		Answer:       t.Answer,
+		Refused:      t.Refused,
+		Pending:      t.Pending,
+		PendingToken: t.PendingToken,
+	}
+	if t.ToolCall != nil {
+		e.Tool = t.ToolCall.Name
+		e.Args = t.ToolCall.Args
+	}
+	return e
 }
 
 // confirmRequest is the request body for POST /api/v1/agent/confirm.

@@ -153,12 +153,35 @@ type modelOutputToolCall struct {
 	Args map[string]any `json:"args"`
 }
 
-// Run executes the ReAct loop for a user goal. Returns the final
-// Result; the error is non-nil ONLY for unrecoverable infrastructure
-// problems (LLM unreachable, retriever errored fatally). Tool-call
-// refusals, pending-confirmation prompts, and budget exhaustion are
-// all expressed in the Result, not as errors.
+// TurnCallback is invoked after each Turn is appended to the result
+// trace. Returning false aborts the loop early (used by streaming
+// clients that want to stop on disconnect). nil is allowed and means
+// "no per-turn signaling" — the equivalent of plain Run.
+type TurnCallback func(Turn) bool
+
+// Run executes the ReAct loop for a user goal and returns the final
+// Result. Equivalent to Stream(ctx, goal, nil) — included for back-
+// compat. See Stream for the streaming variant.
+//
+// The error is non-nil ONLY for unrecoverable infrastructure problems
+// (LLM unreachable, retriever errored fatally). Tool-call refusals,
+// pending-confirmation prompts, and budget exhaustion are all
+// expressed in the Result, not as errors.
 func (a *Agent) Run(ctx context.Context, goal string) (*Result, error) {
+	return a.Stream(ctx, goal, nil)
+}
+
+// Stream is Run with a per-turn callback. The callback is invoked
+// after each Turn is appended to the trace, BEFORE the loop decides
+// whether to continue or terminate. A streaming HTTP handler can
+// use this to emit Server-Sent Events as the loop progresses. The
+// callback returning false aborts the loop early (the trace up to
+// that point is preserved in Result; res.Answer is the last turn's
+// answer if any, otherwise the budget-hit fallback message).
+//
+// nil callback is permitted — the loop runs straight through, same
+// as Run. Callback return value is ignored when nil.
+func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, a.cfg.RequestTimeout)
 	defer cancel()
 
@@ -173,6 +196,16 @@ func (a *Agent) Run(ctx context.Context, goal string) (*Result, error) {
 	messages := []Message{
 		{Role: "system", Content: systemMsg},
 		{Role: "user", Content: goal},
+	}
+
+	// emit invokes the callback (if non-nil) and returns true when
+	// the caller wants to keep going. Without a callback this is a
+	// noop that always returns true.
+	emit := func(t Turn) bool {
+		if cb == nil {
+			return true
+		}
+		return cb(t)
 	}
 
 	res := &Result{}
@@ -191,6 +224,7 @@ func (a *Agent) Run(ctx context.Context, goal string) (*Result, error) {
 		if parseErr == nil && out.Answer != "" && out.ToolCall == nil {
 			t.Answer = out.Answer
 			res.Trace = append(res.Trace, t)
+			emit(t)
 			res.Answer = out.Answer
 			res.TurnsUsed = turn + 1
 			return res, nil
@@ -209,6 +243,7 @@ func (a *Agent) Run(ctx context.Context, goal string) (*Result, error) {
 				}
 				t.Answer = ans
 				res.Trace = append(res.Trace, t)
+				emit(t)
 				res.Answer = ans
 				res.TurnsUsed = turn + 1
 				return res, nil
@@ -250,6 +285,12 @@ func (a *Agent) Run(ctx context.Context, goal string) (*Result, error) {
 			}
 
 			res.Trace = append(res.Trace, t)
+			if !emit(t) {
+				// Caller asked us to stop — return what we have.
+				res.Answer = "(stream cancelled)"
+				res.TurnsUsed = turn + 1
+				return res, nil
+			}
 			messages = append(messages,
 				Message{Role: "assistant", Content: raw},
 				Message{Role: "tool", Content: obs},
@@ -262,6 +303,7 @@ func (a *Agent) Run(ctx context.Context, goal string) (*Result, error) {
 		// content than hang the loop on a bad-JSON output.
 		t.Answer = raw
 		res.Trace = append(res.Trace, t)
+		emit(t)
 		res.Answer = raw
 		res.TurnsUsed = turn + 1
 		return res, nil
