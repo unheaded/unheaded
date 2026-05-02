@@ -70,6 +70,22 @@ For (3), the agent surfaces a single-use confirmation token (5-minute TTL). Rede
 
 The model sees these as `[canonical]`, `[local]`, `[external]` prefixes on each retrieved reference. The agent re-runs retrieval per tool call (using identifier tokens extracted from the model's thought + tool args) so the gate sees what the model is actually relying on for that specific call, not just the seed retrieval.
 
+### Trusting your own repo
+
+By default, every symlinked source under `~/.config/cs/sources/` is `external`. That includes the user's own canonical repo if it's symlinked there — which produces friction (every mutating tool call goes to pending-confirm).
+
+Opt your own repos into `local` trust by listing them in `~/.config/cs/sources/.trusted`:
+
+```bash
+mkdir -p ~/.config/cs/sources
+ln -s /home/govan/tmp/unheaded ~/.config/cs/sources/unheaded
+echo unheaded > ~/.config/cs/sources/.trusted
+```
+
+Restart `cs serve`. The unheaded source now reports `source_kind=user-custom`, `source_trust=local`. The agent treats it as authoritative; mutating tool calls grounded in unheaded refs go through Rule 1 (path-allowlist) and Rule 3 (destructive-verb) only. External-trust pending-confirm doesn't fire for these.
+
+For third-party content drops (someone else's repo, untrusted shared-folder content, etc.), do NOT add them to `.trusted`. The `external` default exists for exactly that case.
+
 ## Audit log
 
 Every gate decision is logged via `champion.ActionStore`. The CLI uses a stderr-only stub (`stderrActionStore`) by default — you'll see lines like:
