@@ -13,6 +13,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -93,7 +95,14 @@ func (nopActionStore) GetActions(context.Context, string, int) ([]champion.Actio
 func newTestDaemon(t *testing.T, retr agent.Retriever, llm agent.LLM) (*httptest.Server, string) {
 	t.Helper()
 	root := t.TempDir()
+	return newTestDaemonWithRoot(t, root, retr, llm), root
+}
 
+// newTestDaemonWithRoot is the same as newTestDaemon but lets the
+// caller pin the project_root explicitly. Used by tests that need
+// the root path embedded in scripted LLM responses.
+func newTestDaemonWithRoot(t *testing.T, root string, retr agent.Retriever, llm agent.LLM) *httptest.Server {
+	t.Helper()
 	store := newMetricsActionStore(nopActionStore{})
 	pool := newChampionPool(store)
 
@@ -122,7 +131,7 @@ func newTestDaemon(t *testing.T, retr agent.Retriever, llm agent.LLM) (*httptest
 
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
-	return ts, root
+	return ts
 }
 
 func mustGet(t *testing.T, url string) *http.Response {
@@ -454,6 +463,132 @@ func TestIntegration_Confirm_RejectsBadProjectRoot(t *testing.T) {
 	if resp.StatusCode != 403 {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("status: got %d, want 403; body=%s", resp.StatusCode, body)
+	}
+}
+
+// --- /api/v1/agent/confirm: happy-path E2E ---
+
+// externalStub returns refs marked as untrusted external sources.
+// Drives Champion's Rule 2 (mutating + untrusted justification →
+// PendingConfirmation) so /ask issues a confirmation token.
+func externalStub() *stubRetriever {
+	ref := champion.Reference{
+		Topic: "untrusted-doc", Category: ".",
+		SourceKind:  "user-source",
+		SourceTrust: "external",
+		SourceLabel: "external-corpus",
+		SourcePath:  "/tmp/external-corpus",
+	}
+	return &stubRetriever{
+		refs:     []champion.Reference{ref},
+		contents: []agent.TopicContent{{Ref: ref, Content: "(external content per A2 threat model)"}},
+	}
+}
+
+// TestIntegration_Confirm_HappyPath exercises the full pending-token
+// dance:
+//
+//  1. /ask is called with an external-ref retriever, so per-turn
+//     justification is untrusted.
+//  2. Scripted LLM turn 1 emits a write_file tool_call. Champion's
+//     gate refuses with PendingConfirmation, token is issued and
+//     surfaced in the trace.
+//  3. Scripted LLM turn 2 produces a terminal answer (the agent loop
+//     keeps running after the refusal — refusal isn't terminal).
+//  4. The test extracts the token from the trace and POSTs /confirm.
+//  5. Champion redeems: stripped gate (rules 1+3 only) passes, the
+//     underlying write_file runs, and the file lands on disk.
+//
+// This is the load-bearing path for "human in the loop authorized
+// this despite the warning" — the security critical confirm flow.
+func TestIntegration_Confirm_HappyPath(t *testing.T) {
+	// We need the path embedded in the LLM script to land inside the
+	// sandbox, but the sandbox root is a tempdir created per-test —
+	// so the script is built dynamically.
+	root := t.TempDir()
+	outPath := filepath.Join(root, "out.txt")
+	llm := &scriptedLLM{out: []string{
+		// Turn 1: mutating tool call. Will be refused → pending token.
+		fmt.Sprintf(`{"thought":"need to write a config","tool_call":{"name":"write_file","args":{"path":%q,"content":"hello"}}}`, outPath),
+		// Turn 2: after observation comes back with the refusal, model wraps up.
+		`{"thought":"surfaced confirmation","answer":"awaiting user confirmation"}`,
+	}}
+	ts := newTestDaemonWithRoot(t, root, externalStub(), llm)
+
+	// 1. POST /ask — expect a pending-token in trace.
+	resp := mustPostJSON(t, ts.URL+"/api/v1/agent/ask", map[string]any{
+		"goal": "write the config file",
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("ask status: got %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	var ar askResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ar); err != nil {
+		t.Fatalf("ask decode: %v", err)
+	}
+
+	// 2. Find the pending-token entry in the trace.
+	var token string
+	for _, e := range ar.Trace {
+		if e.PendingToken != "" {
+			token = e.PendingToken
+			if !e.Pending || !e.Refused {
+				t.Errorf("pending entry: refused=%v pending=%v, want both true", e.Refused, e.Pending)
+			}
+			break
+		}
+	}
+	if token == "" {
+		t.Fatalf("no pending_token in trace; got trace=%+v", ar.Trace)
+	}
+	if len(token) < 16 {
+		t.Errorf("token too short: %q (want crypto/rand 16-byte hex = 32 chars)", token)
+	}
+
+	// 3. POST /confirm with the token.
+	confirmResp := mustPostJSON(t, ts.URL+"/api/v1/agent/confirm", map[string]any{
+		"token":        token,
+		"project_root": root,
+	})
+	defer confirmResp.Body.Close()
+	if confirmResp.StatusCode != 200 {
+		body, _ := io.ReadAll(confirmResp.Body)
+		t.Fatalf("confirm status: got %d, want 200; body=%s", confirmResp.StatusCode, body)
+	}
+	var cr confirmResponse
+	if err := json.NewDecoder(confirmResp.Body).Decode(&cr); err != nil {
+		t.Fatalf("confirm decode: %v", err)
+	}
+	if cr.Status != "ok" {
+		t.Fatalf("confirm status: got %q, want ok (reason=%q)", cr.Status, cr.Reason)
+	}
+
+	// 4. Verify side-effect: the file landed at root/out.txt.
+	got, err := os.ReadFile(filepath.Join(root, "out.txt"))
+	if err != nil {
+		t.Fatalf("read written file: %v", err)
+	}
+	if string(got) != "hello" {
+		t.Fatalf("file content: got %q, want %q", got, "hello")
+	}
+
+	// 5. Replaying the same token must fail as "used".
+	replay := mustPostJSON(t, ts.URL+"/api/v1/agent/confirm", map[string]any{
+		"token":        token,
+		"project_root": root,
+	})
+	defer replay.Body.Close()
+	if replay.StatusCode != 400 {
+		t.Fatalf("replay status: got %d, want 400", replay.StatusCode)
+	}
+	var rcr confirmResponse
+	if err := json.NewDecoder(replay.Body).Decode(&rcr); err != nil {
+		t.Fatalf("replay decode: %v", err)
+	}
+	if rcr.Status != "used" {
+		t.Fatalf("replay status: got %q, want used", rcr.Status)
 	}
 }
 
