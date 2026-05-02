@@ -890,6 +890,238 @@ def corpus_stats():
     })
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Operator interaction surface (post-WAVE15) — endpoints that drive the
+# inline-action / dashboard / sidebar UI views. All read-only here;
+# mutations go through cmd/zhen-agentd /api/v1/tool/exec (Champion gate).
+# ──────────────────────────────────────────────────────────────────────
+
+
+@app.route('/api/v1/system/state', methods=['GET'])
+def system_state():
+    """Live aggregator: backend health + counts for the operator views.
+
+    Returned shape is intentionally flat + JSON-friendly so the UI can
+    render any subset without conditional unpacking. Each backend probe
+    is bounded by a 2 s timeout; if a backend is down its slot is null
+    and the operator sees that clearly in the UI.
+    """
+    import urllib.request as _ur
+    state = {
+        'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        'webui':     {'status': 'ok', 'rag_ready': rag is not None,
+                      'well_connected': pg_conn is not None},
+    }
+
+    # vor
+    try:
+        with _ur.urlopen(f'{rag.vor_url}/api/health' if rag else '', timeout=2) as r:
+            state['vor'] = json.loads(r.read())
+    except Exception as e:
+        state['vor'] = None
+
+    # llama-server inference
+    try:
+        with _ur.urlopen(f'{rag.inference_url}/v1/models' if rag else '', timeout=2) as r:
+            d = json.loads(r.read())
+            models = d.get('models') or d.get('data') or []
+            state['llama_server'] = {
+                'status': 'ok',
+                'model':  (models[0].get('name') or models[0].get('id') if models else None),
+            }
+    except Exception:
+        state['llama_server'] = None
+
+    # zhen-agentd (mutation gate)
+    try:
+        agentd_url = os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105')
+        with _ur.urlopen(f'{agentd_url}/health', timeout=2) as r:
+            state['agentd'] = {'status': 'ok', 'url': agentd_url}
+    except Exception:
+        state['agentd'] = None
+
+    # kanban-app (operator front-door)
+    try:
+        with _ur.urlopen('http://127.0.0.1:20001/health', timeout=2) as r:
+            d = json.loads(r.read())
+            state['kanban'] = {
+                'status':         d.get('status'),
+                'wotan_enabled':  d.get('wotan_enabled'),
+                'url':            'http://localhost:20001',
+            }
+    except Exception:
+        state['kanban'] = None
+
+    # wiki (read-only)
+    try:
+        with _ur.urlopen('http://127.0.0.1:20002/health', timeout=2) as r:
+            state['wiki'] = {'status': 'ok', 'url': 'http://localhost:20002'}
+    except Exception:
+        state['wiki'] = None
+
+    return jsonify(state)
+
+
+@app.route('/api/v1/audit/recent', methods=['GET'])
+def audit_recent():
+    """Recent zhen_actions audit rows. Operator-visible audit trail.
+
+    Query params:
+      limit (int, default 25, max 200) — how many rows to return
+      action_type (optional) — filter by action_type prefix (e.g. 'runbook')
+    """
+    limit = min(int(request.args.get('limit', 25)), 200)
+    action_type_filter = request.args.get('action_type', '').strip()
+
+    if pg_conn is None:
+        return jsonify({'rows': [], 'error': 'The Well not connected'}), 503
+    try:
+        cur = pg_conn.cursor()
+        if action_type_filter:
+            cur.execute("""
+                SELECT id, action_type, status, intent, parameters, result_summary,
+                       error, triggered_by, planned_at, completed_at, elapsed_ms
+                  FROM zhen_actions
+                 WHERE action_type LIKE %s
+                 ORDER BY id DESC
+                 LIMIT %s
+            """, (action_type_filter + '%', limit))
+        else:
+            cur.execute("""
+                SELECT id, action_type, status, intent, parameters, result_summary,
+                       error, triggered_by, planned_at, completed_at, elapsed_ms
+                  FROM zhen_actions
+                 ORDER BY id DESC
+                 LIMIT %s
+            """, (limit,))
+        rows = []
+        for r in cur.fetchall():
+            rows.append({
+                'id':              r[0],
+                'action_type':     r[1],
+                'status':          r[2],
+                'intent':          r[3],
+                'parameters':      r[4],
+                'result_summary':  r[5],
+                'error':           r[6],
+                'triggered_by':    r[7],
+                'planned_at':      r[8].isoformat() if r[8] else None,
+                'completed_at':    r[9].isoformat() if r[9] else None,
+                'elapsed_ms':      r[10],
+            })
+        cur.close()
+        return jsonify({'rows': rows, 'limit': limit})
+    except Exception as e:
+        return jsonify({'rows': [], 'error': str(e)}), 500
+
+
+@app.route('/api/v1/kanban/summary', methods=['GET'])
+def kanban_summary():
+    """Per-column kanban task counts + a sample of recent task titles.
+
+    Reads directly from the `unheaded.kanban_tasks` table (the kanban-app
+    canonical store; same one cmd/kanban-app writes to). Avoids an HTTP
+    round-trip to kanban-app's own /api endpoint and keeps this responsive
+    even when kanban-app is restarting.
+    """
+    if pg_conn is None:
+        return jsonify({'error': 'The Well not connected'}), 503
+    try:
+        # The kanban_tasks table lives in the 'unheaded' database, not
+        # 'unheaded_app' that pg_conn is bound to. Use a separate connection.
+        import psycopg2
+        kconn = psycopg2.connect(
+            dbname='unheaded',
+            user=os.environ.get('ZHEN_DB_USER', 'unheaded'),
+            password=os.environ.get('ZHEN_DB_PASSWORD', ''),
+            host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
+            port=int(os.environ.get('ZHEN_DB_PORT', '5432')),
+            connect_timeout=2,
+        )
+        kconn.autocommit = True
+        cur = kconn.cursor()
+        cur.execute("""
+            SELECT status, COUNT(*)
+              FROM kanban_tasks
+             WHERE deleted_at IS NULL AND archived_at IS NULL
+             GROUP BY status
+             ORDER BY status
+        """)
+        counts = {row[0]: row[1] for row in cur.fetchall()}
+        cur.execute("""
+            SELECT id, title, status, owner, progress, updated_at
+              FROM kanban_tasks
+             WHERE deleted_at IS NULL AND archived_at IS NULL
+             ORDER BY updated_at DESC NULLS LAST
+             LIMIT 10
+        """)
+        recent = [
+            {
+                'id':          r[0],
+                'title':       r[1],
+                'status':      r[2],
+                'owner':       r[3],
+                'progress':    r[4],
+                'updated_at':  r[5].isoformat() if r[5] else None,
+            }
+            for r in cur.fetchall()
+        ]
+        cur.close()
+        kconn.close()
+        return jsonify({
+            'counts':          counts,
+            'total':           sum(counts.values()),
+            'recent_tasks':    recent,
+            'kanban_url':      'http://localhost:20001',
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/runbooks/recent', methods=['GET'])
+def runbooks_recent():
+    """Recent runbook executions from zhen_actions audit.
+
+    Filters action_type='runbook.execute' and returns last N. Used by the
+    dashboard tab + sidebar's "Recent runbook outputs" surface.
+    """
+    limit = min(int(request.args.get('limit', 10)), 50)
+    if pg_conn is None:
+        return jsonify({'rows': [], 'error': 'The Well not connected'}), 503
+    try:
+        cur = pg_conn.cursor()
+        cur.execute("""
+            SELECT id, status, intent, parameters, result_summary,
+                   error, planned_at, completed_at, elapsed_ms
+              FROM zhen_actions
+             WHERE action_type = 'runbook.execute'
+             ORDER BY id DESC
+             LIMIT %s
+        """, (limit,))
+        rows = []
+        for r in cur.fetchall():
+            rows.append({
+                'id':              r[0],
+                'status':          r[1],
+                'intent':          r[2],
+                'parameters':      r[3],
+                'result_summary':  r[4],
+                'error':           r[5],
+                'planned_at':      r[6].isoformat() if r[6] else None,
+                'completed_at':    r[7].isoformat() if r[7] else None,
+                'elapsed_ms':      r[8],
+            })
+        cur.close()
+        return jsonify({'rows': rows})
+    except Exception as e:
+        return jsonify({'rows': [], 'error': str(e)}), 500
+
+
+# ──────────────────────────────────────────────────────────────────────
+# end operator interaction surface
+# ──────────────────────────────────────────────────────────────────────
+
+
 @app.route('/api/v1/context', methods=['POST'])
 def get_context():
     """Claude Code calls this to get relevant context before working on a task."""
