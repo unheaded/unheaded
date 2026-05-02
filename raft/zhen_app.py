@@ -1,15 +1,34 @@
 #!/usr/bin/env python3
 """
-Zhen Web App — RAG Demo for Unheaded Infrastructure
+Zhen Web App — RAG UI for Unheaded Infrastructure
 Port: 20103 (zhen-ui in Doom Range)
 
-Features:
-- Hybrid inference: local Mistral-7B + Claude API handoff
-- Model selector (auto/mistral/opus/sonnet/haiku)
-- File upload (text injected into prompt)
-- File generation (downloadable responses)
-- Memory system (remember/forget good answers)
-- Teach endpoint (grow corpus without restart)
+WAVE15 REWIRE (2026-05-02): backends retargeted from Mistral-7B / FAISS
+to qwen-coder-7b / vor. The 1.76M-vector FAISS pipeline is retired;
+retrieval flows through vor (cs serve at :9876). Inference is the same
+llama-server qwen-coder-7b binary the Go agent uses (:8081). Conversation
+memory still persists to The Well (zhen_memories + zhen_conversations).
+
+Memory recall is now display-only (T1 closure): cached matches surface
+in the response as a side-channel ("matched_memory") but never bypass
+the live LLM call. /api/v1/corpus/stats and /api/v1/teach return 410-
+shaped deprecation responses — vor is the substrate now, not FAISS.
+
+Architecture spec:    ~/.claude/plans/synthetic-stirring-pudding.md
+Battle plan:          docs/battle-plans/WAVE15-ZHENAI-REWIRE.md
+H0 baseline:          eval/coding-gate/baseline-direct-cmd-zhen-rag-2026-05-02.md
+Auxiliary roadmap:    docs/adr/ADR-056-pgvector-auxiliary-corpus-sharding.md
+                      docs/adr/ADR-057-unheaded-source-code-indexing.md
+
+Features (post-rewire):
+- Local inference via llama.cpp at :8081 (qwen-coder-7b q4_k_m, ROCm GPU)
+- Retrieval via vor at :9876 (1847+ Unheaded sheets, source-trust labeled)
+- Conversation memory in zhen_memories (cosine recall, display-only)
+- Conversation history in zhen_conversations (full-text + semantic)
+- Runbook execution via /api/v1/runbooks/<name>/execute (Phase 2: gates
+  through cmd/zhen-agentd for Champion enforcement)
+- File-read sandbox via /api/v1/champion/read
+- Skills + runbook listing
 """
 import io
 import os
@@ -31,9 +50,14 @@ app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'zhen-session-key-dev')  # override in production
 
-# Initialize RAG pipeline
+# Initialize RAG pipeline.
+#
+# WAVE15 REWIRE: index_dir / corpus_file are vestigial — RAGPipeline accepts
+# them as legacy positional args and ignores them. Retrieval is via vor on
+# :9876; inference is qwen-coder via llama-server on :8081. Both URLs are
+# overridable via env (VOR_URL, ZHEN_INFERENCE_URL); defaults match the
+# Go-stack production deployment.
 index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
-# Load combined corpus (all rings + wikipedia + stackoverflow + skills)
 corpus_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
 corpus_file = corpus_dir / 'ring_all.jsonl'
 if not corpus_file.exists():
@@ -43,7 +67,12 @@ rag = None
 startup_error = None
 
 try:
-    rag = RAGPipeline(index_dir, corpus_file)
+    rag = RAGPipeline(
+        index_dir, corpus_file,
+        vor_url=os.environ.get('VOR_URL', 'http://localhost:9876'),
+        inference_url=os.environ.get('ZHEN_INFERENCE_URL', 'http://localhost:8081'),
+        model_name=os.environ.get('ZHEN_MODEL', 'qwen2.5-coder-7b-instruct'),
+    )
 except Exception as e:
     startup_error = str(e)
     print(f"WARNING: RAG not ready: {e}")
@@ -695,26 +724,18 @@ def query():
     client_session = data.get('session_id', 'default')
 
     try:
-        # Check memories first
+        # WAVE15: memory recall is DISPLAY-ONLY (T1 closure).
+        #
+        # Pre-rewire behavior: cosine similarity >= 0.9 returned the cached
+        # answer and BYPASSED the live LLM. That was T1 (stored prompt
+        # injection via memory replay) by construction — a poisoned prior
+        # turn could be cached and replayed without going through the gate.
+        #
+        # Post-rewire behavior: cached match is fetched as a side-channel
+        # ("matched_memory" field on the response), but rag.query() ALWAYS
+        # runs the full RAG path. The UI can render the matched memory next
+        # to the live answer; it never replaces it.
         memory = _search_memories(question)
-        if memory:
-            _pg_log('user', question)
-            _pg_log('assistant', memory['answer'],
-                    model=f"memory:{memory.get('model', 'cached')}",
-                    elapsed_ms=0)
-            # Still add to history so follow-ups work
-            _add_to_history(client_session, 'user', question)
-            _add_to_history(client_session, 'assistant', memory['answer'])
-            return jsonify({
-                'question': question,
-                'answer': memory['answer'],
-                'sources': [],
-                'tokens_used': 0,
-                'elapsed_seconds': 0.0,
-                'model': f"memory (similarity: {memory['similarity']:.2f})",
-                'from_memory': True,
-                'memory_id': memory['id'],
-            })
 
         history = _get_history(client_session)
 
@@ -734,7 +755,7 @@ def query():
             for c in result['retrieved'][:5]
         ]
 
-        result_model = result.get('model', 'mistral-7b')
+        result_model = result.get('model', 'qwen2.5-coder-7b-instruct')
 
         # Track conversation history for follow-ups
         _add_to_history(client_session, 'user', question)
@@ -755,6 +776,9 @@ def query():
             'tokens_used': result['tokens_used'],
             'elapsed_seconds': round(elapsed, 2),
             'model': result_model,
+            # WAVE15 side-channel: matched memory shown in the UI alongside
+            # the live answer; never replaces it. None when no match.
+            'matched_memory': memory,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -792,56 +816,58 @@ def search():
 
 @app.route('/api/v1/stats', methods=['GET'])
 def stats():
+    """Backend + memory-embedder stats — WAVE15 rewire shape.
+
+    Pre-rewire reported FAISS index size and per-ring chunk counts.
+    Post-rewire vor is the substrate; the only local index we keep is
+    the small all-MiniLM-L6-v2 model used for memory-cache cosine recall.
+    """
     if not rag:
         return jsonify({'error': 'RAG not initialized'}), 503
 
+    # Probe vor for canonical retrieval-index size (best-effort — vor
+    # may not always answer in time; treat the stats endpoint as
+    # informational, not gating).
+    vor_health = None
+    try:
+        import urllib.request as _ur
+        with _ur.urlopen(f'{rag.vor_url}/api/health', timeout=2) as resp:
+            vor_health = json.loads(resp.read().decode())
+    except Exception:
+        vor_health = None
+
     return jsonify({
-        'index_vectors': rag.index.ntotal,
-        'index_dimension': rag.index.d,
-        'corpus_chunks': len(rag.corpus),
-        'model': 'all-MiniLM-L6-v2',
-        'inference_url': rag.inference_url,
-        'local_max_tokens': rag.local_max_tokens,
+        'backend':           'vor',
+        'vor_url':           rag.vor_url,
+        'vor_health':        vor_health,
+        'inference_url':     rag.inference_url,
+        'inference_model':   rag.model_name,
+        'memory_embedder':   'all-MiniLM-L6-v2',
+        'memory_dim':        384,
+        'local_max_tokens':  rag.local_max_tokens,
+        'memory_recall':     'display-only (T1 closed)',
     })
 
 
 @app.route('/api/v1/corpus/stats', methods=['GET'])
 def corpus_stats():
-    """Corpus statistics — chunks per ring, total vectors, index file size"""
-    if not rag:
-        return jsonify({'error': 'RAG not initialized'}), 503
+    """Corpus statistics — DEPRECATED post-WAVE15 rewire.
 
-    corpus_dir_path = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
-    index_file = index_dir / 'ring1.index'
+    Pre-rewire this scanned every JSONL file in raft/corpus/ counting lines.
+    The scan over the 2.3 GB ring_all.jsonl was the proximate cause of the
+    Werkzeug dev-server deadlock observed 2026-05-02 (one request held the
+    GIL for 6+ minutes while subsequent requests piled up in CLOSE-WAIT).
 
-    # Count chunks per ring by scanning corpus files
-    rings = {}
-    for f in sorted(corpus_dir_path.glob('*.jsonl')):
-        ring_name = f.stem  # e.g. "ring1", "ring234"
-        count = 0
-        try:
-            with open(f) as fh:
-                for line in fh:
-                    if line.strip():
-                        count += 1
-        except Exception:
-            pass
-        rings[ring_name] = count
-
-    # Index file size
-    index_size_bytes = 0
-    try:
-        index_size_bytes = index_file.stat().st_size
-    except Exception:
-        pass
-
+    Post-rewire vor is the retrieval substrate; per-ring chunk counts no
+    longer exist as a concept. Refer the caller to vor's /api/health for
+    the canonical index size.
+    """
     return jsonify({
-        'chunks_per_ring': rings,
-        'total_chunks': sum(rings.values()),
-        'total_vectors': rag.index.ntotal,
-        'index_dimension': rag.index.d,
-        'index_file_size_bytes': index_size_bytes,
-        'index_file_size_mb': round(index_size_bytes / (1024 * 1024), 2),
+        'status':       'deprecated',
+        'reason':       'WAVE15 rewire: vor is now the retrieval substrate; per-ring chunk counts no longer apply.',
+        'backend':      'vor',
+        'vor_health':   f'{rag.vor_url if rag else "?"}/api/health',
+        'note':         'see docs/battle-plans/WAVE15-ZHENAI-REWIRE.md §Phase 1 step 1.5',
     })
 
 
@@ -1128,29 +1154,21 @@ def forget():
 
 @app.route('/api/v1/teach', methods=['POST'])
 def teach():
-    """Submit text for Zhen to learn. Chunks, embeds, and adds to live FAISS index."""
-    if not rag:
-        return jsonify({'error': 'RAG not initialized'}), 503
+    """Submit text for Zhen to learn — DEPRECATED post-WAVE15 rewire.
 
-    data = request.json or {}
-    text = data.get('text', '').strip()
-    source = data.get('source', 'user')
+    Pre-rewire this appended chunks to the live FAISS index + ring_all.jsonl.
+    With vor as the retrieval substrate, "teaching" means writing a markdown
+    file under ~/.config/cs/sources/<source>/ which cs picks up on its next
+    index sweep — that's a different workflow than this endpoint exposes.
 
-    if not text:
-        return jsonify({'error': 'text required'}), 400
-
-    if len(text) > 100000:
-        return jsonify({'error': 'Text too long (max 100K chars)'}), 400
-
-    try:
-        result = rag.add_to_corpus(text, source=source)
-        return jsonify({
-            'status': 'learned',
-            'chunks_added': result['added'],
-            'chunk_previews': result.get('chunks', []),
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    Returning HTTP 410 (Gone) so callers know to migrate. A future change can
+    wire this to ~/.config/cs/sources/zhen-taught/ and re-enable.
+    """
+    return jsonify({
+        'status': 'deprecated',
+        'reason': 'WAVE15 rewire: live-index teaching is no longer wired. Drop a markdown file under ~/.config/cs/sources/<your-source>/ and cs will index it.',
+        'note':   'see docs/battle-plans/WAVE15-ZHENAI-REWIRE.md §Phase 1 step 1.5',
+    }), 410
 
 
 @app.route('/api/v1/generate-file', methods=['POST'])
@@ -1448,32 +1466,68 @@ def deny_request(approval_id):
 
 @app.route('/api/v1/source', methods=['GET'])
 def view_source():
-    """Retrieve full content of a corpus source by ID or path.
-    Used by the UI to open sources in a new tab."""
-    source_id = request.args.get('id', '')
-    source_path = request.args.get('path', '')
+    """Retrieve full content of a vor topic by ID or source path.
+
+    Pre-rewire this iterated rag.corpus (the in-memory corpus dict).
+    Post-rewire vor is the substrate; we look up the topic via vor's
+    /api/topics/<id> endpoint. Source-path lookups use the search API
+    and filter by the returned source_path field.
+    """
+    source_id = request.args.get('id', '').strip()
+    source_path = request.args.get('path', '').strip()
 
     if not rag:
         return jsonify({'error': 'RAG not initialized'}), 503
+    if not (source_id or source_path):
+        return jsonify({'error': 'id or path required'}), 400
 
-    # Search corpus for matching chunk
-    results = []
-    for chunk in rag.corpus:
-        cid = chunk.get('id', '')
-        csource = chunk.get('source', '')
-        if (source_id and cid == source_id) or (source_path and csource == source_path):
-            results.append(chunk)
+    import urllib.parse as _up
+    import urllib.request as _ur
 
-    if not results:
-        return jsonify({'error': f'Source not found: {source_id or source_path}'}), 404
+    # Direct topic lookup by ID is the fast path.
+    if source_id:
+        try:
+            url = f'{rag.vor_url}/api/topics/{_up.quote(source_id, safe="")}'
+            with _ur.urlopen(url, timeout=5) as resp:
+                t = json.loads(resp.read().decode())
+            return jsonify({
+                'id':      source_id,
+                'source':  t.get('source_path', ''),
+                'type':    t.get('source_kind', ''),
+                'trust':   t.get('source_trust', 'canonical'),
+                'label':   t.get('source_label', ''),
+                'content': t.get('content', ''),
+                'total_matches': 1,
+            })
+        except Exception as exc:
+            return jsonify({'error': f'vor topic lookup failed: {exc}'}), 404
 
-    return jsonify({
-        'source': results[0].get('source', ''),
-        'type': results[0].get('type', ''),
-        'content': results[0].get('content', ''),
-        'id': results[0].get('id', ''),
-        'total_matches': len(results),
-    })
+    # Path-based lookup: search vor and filter by source_path.
+    try:
+        url = f'{rag.vor_url}/api/search?{_up.urlencode({"q": source_path})}'
+        with _ur.urlopen(url, timeout=5) as resp:
+            hits = json.loads(resp.read().decode())
+        for h in hits:
+            if h.get('source_path') == source_path:
+                # Fetch full content for the matching topic.
+                topic = h.get('topic', '')
+                if not topic:
+                    continue
+                turl = f'{rag.vor_url}/api/topics/{_up.quote(topic, safe="")}'
+                with _ur.urlopen(turl, timeout=5) as tr:
+                    t = json.loads(tr.read().decode())
+                return jsonify({
+                    'id':      topic,
+                    'source':  source_path,
+                    'type':    t.get('source_kind', ''),
+                    'trust':   t.get('source_trust', 'canonical'),
+                    'label':   t.get('source_label', ''),
+                    'content': t.get('content', ''),
+                    'total_matches': 1,
+                })
+        return jsonify({'error': f'Source not found: {source_path}'}), 404
+    except Exception as exc:
+        return jsonify({'error': f'vor search failed: {exc}'}), 500
 
 
 @app.route('/view/source')
