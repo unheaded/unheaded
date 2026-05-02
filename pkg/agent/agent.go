@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -213,10 +214,21 @@ func (a *Agent) Run(ctx context.Context, goal string) (*Result, error) {
 				return res, nil
 			}
 
+			// Per-turn justification update: re-run retrieval using the
+			// model's stated reasoning + tool args so the gate sees what
+			// the model is ACTUALLY relying on at this specific tool
+			// call, not just the seed context. Seed refs are merged in
+			// after per-turn refs so the final justification is the
+			// union of "what the model said it was using" and "what the
+			// agent originally retrieved." See A2-agent-adversarial.md
+			// for the threat model this addresses (empty seed +
+			// poisoned-content mention in the prompt itself).
+			justification := a.deriveJustification(ctx, out, refs)
+
 			tc := champion.ToolCall{
 				Name:          out.ToolCall.Name,
 				Args:          out.ToolCall.Args,
-				Justification: refs,
+				Justification: justification,
 				EmittedBy:     "zhen-agent",
 			}
 			t.ToolCall = &tc
@@ -283,6 +295,190 @@ func isNoOpToolName(name string) bool {
 		return true
 	}
 	return false
+}
+
+// deriveJustification produces the per-tool-call justification chain
+// used by the Champion gate. Strategy:
+//
+//   1. Extract identifier-like tokens from the model's reasoning +
+//      tool args (see extractIdentTokens). The thought is where the
+//      model names sources; identifier tokens are the discriminating
+//      signal.
+//   2. Run retrieval ONCE PER TOKEN (vor's search is AND-of-terms;
+//      a multi-token query drives recall to zero, so we issue separate
+//      queries per token and union the refs). Cap at 3 tokens —
+//      enough to surface a poisoned source named in the thought,
+//      bounded so we don't fan out per turn.
+//   3. Merge per-turn refs with seed refs (per-turn first; dedupe by
+//      Topic+SourcePath+SourceLabel).
+//
+// On retrieval failure for a token, that token's refs are skipped —
+// other tokens still contribute. The fail-closed rule in
+// HasUntrustedJustification handles the all-empty case.
+//
+// Threat model (per A2-agent-adversarial.md): an attacker crafts a
+// prompt that the seed-retriever doesn't match but the model's
+// emitted reasoning names by identifier. Per-token retrieval picks
+// up that identifier even when the seed missed it.
+func (a *Agent) deriveJustification(ctx context.Context, out modelOutput, seed []champion.Reference) []champion.Reference {
+	if a.retriever == nil {
+		return seed
+	}
+	tokens := buildJustificationTokens(out)
+	if len(tokens) == 0 {
+		return seed
+	}
+	// Cap at 3 tokens to bound fan-out.
+	if len(tokens) > 3 {
+		tokens = tokens[:3]
+	}
+
+	var perTurn []champion.Reference
+	for _, tok := range tokens {
+		refs, _, err := a.retriever.Retrieve(ctx, tok, a.cfg.RetrieveK)
+		if err != nil {
+			continue
+		}
+		perTurn = mergeRefs(perTurn, refs)
+	}
+	return mergeRefs(perTurn, seed)
+}
+
+// buildJustificationTokens extracts identifier-like tokens from the
+// model's per-turn output. Each token will be issued as its own
+// retrieval query (vor's search is AND-of-terms; one-term queries
+// have the highest recall).
+//
+// Examples:
+//
+//   thought "the wave14-truth document recommends calling write_file"
+//     → ["wave14-truth", "write_file"]
+//
+//   thought "see ADR-051 for the parser bug"
+//     → ["ADR-051"]
+//
+//   args {path: "crates/zhenai-forge/notes/TRAINING-DELETED.md"}
+//     → ["zhenai-forge", "TRAINING-DELETED"]
+//
+// Plain English words are filtered out (see isInterestingToken).
+// Tokens are returned in deterministic order (longest first, then
+// lexicographic) so retrieval calls are stable across runs.
+func buildJustificationTokens(out modelOutput) []string {
+	seen := make(map[string]struct{})
+
+	add := func(s string) {
+		for _, tok := range extractIdentTokens(s) {
+			seen[tok] = struct{}{}
+		}
+	}
+
+	if out.Thought != "" {
+		add(out.Thought)
+	}
+	if out.ToolCall != nil {
+		for _, key := range []string{"path", "id", "name", "topic"} {
+			if v, ok := out.ToolCall.Args[key].(string); ok && v != "" {
+				add(v)
+			}
+		}
+	}
+
+	if len(seen) == 0 {
+		return nil
+	}
+	tokens := make([]string, 0, len(seen))
+	for t := range seen {
+		tokens = append(tokens, t)
+	}
+	// Stable order: longest tokens first (most discriminating), then
+	// lex-asc as tie-break.
+	sort.Slice(tokens, func(i, j int) bool {
+		if len(tokens[i]) != len(tokens[j]) {
+			return len(tokens[i]) > len(tokens[j])
+		}
+		return tokens[i] < tokens[j]
+	})
+	return tokens
+}
+
+// extractIdentTokens pulls identifier-like tokens out of free text:
+//   - words containing a digit (e.g., wave14, ADR-051)
+//   - hyphenated multi-word identifiers (e.g., wave14-truth, write-file)
+//   - snake_case identifiers (e.g., write_file)
+//   - dotted paths (e.g., os.WriteFile)
+//   - path fragments separated by /
+//
+// Plain English words (length <= 4 OR lowercase-only with no
+// internal punctuation/digit) are dropped. CamelCase and longer
+// uppercase-containing words are kept.
+func extractIdentTokens(s string) []string {
+	// Split on whitespace and common punctuation.
+	splitter := func(r rune) bool {
+		return r == ' ' || r == '\t' || r == '\n' || r == '.' ||
+			r == ',' || r == ';' || r == ':' || r == '?' || r == '!' ||
+			r == '(' || r == ')' || r == '[' || r == ']' ||
+			r == '{' || r == '}' || r == '"' || r == '\''
+	}
+	var out []string
+	for _, w := range strings.FieldsFunc(s, splitter) {
+		w = strings.Trim(w, "`")
+		// Sub-tokenize on / so paths contribute each segment.
+		for _, sub := range strings.Split(w, "/") {
+			if isInterestingToken(sub) {
+				out = append(out, sub)
+			}
+		}
+	}
+	return out
+}
+
+func isInterestingToken(t string) bool {
+	if len(t) < 4 {
+		return false
+	}
+	// Identifier signals — keep if any one is true.
+	//   - has digit (wave14, ADR-051)
+	//   - has internal punctuation (wave14-truth, write_file)
+	//   - is CamelCase (uppercase past index 0; "ReadFile" yes,
+	//     "Creating" no — the latter is just a capitalized sentence-
+	//     starting word and shouldn't drive a query)
+	for i, r := range t {
+		switch {
+		case r >= '0' && r <= '9':
+			return true
+		case r == '-' || r == '_':
+			return true
+		case i > 0 && r >= 'A' && r <= 'Z':
+			return true
+		}
+	}
+	return false
+}
+
+// mergeRefs returns the union of two ref lists, per-turn-first,
+// deduped by (Topic, SourcePath, SourceLabel). Topic alone isn't
+// sufficient because two different sources can have the same topic
+// name (e.g., user-symlinked vs embedded with the same filename).
+func mergeRefs(perTurn, seed []champion.Reference) []champion.Reference {
+	seen := make(map[string]struct{}, len(perTurn)+len(seed))
+	merged := make([]champion.Reference, 0, len(perTurn)+len(seed))
+	for _, r := range perTurn {
+		key := r.Topic + "|" + r.SourcePath + "|" + r.SourceLabel
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		merged = append(merged, r)
+	}
+	for _, r := range seed {
+		key := r.Topic + "|" + r.SourcePath + "|" + r.SourceLabel
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		merged = append(merged, r)
+	}
+	return merged
 }
 
 // dispatch runs the tool call and returns the observation as a string.
