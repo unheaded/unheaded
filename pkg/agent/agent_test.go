@@ -29,7 +29,7 @@ func (m *mockLLM) Complete(_ context.Context, _ []Message, _ int, _ float64, _ i
 	return r, nil
 }
 
-// mockRetriever returns a fixed set of references.
+// mockRetriever returns a fixed set of references regardless of query.
 type mockRetriever struct {
 	refs     []champion.Reference
 	contents []TopicContent
@@ -38,6 +38,32 @@ type mockRetriever struct {
 
 func (m *mockRetriever) Retrieve(_ context.Context, _ string, _ int) ([]champion.Reference, []TopicContent, error) {
 	return m.refs, m.contents, m.err
+}
+
+// queryAwareRetriever returns different refs depending on whether the
+// query mentions specific keywords. Used to test per-turn justification
+// updates: the seed query gets one set of refs; the per-turn query
+// (constructed from the model's reasoning + tool args) gets another.
+type queryAwareRetriever struct {
+	bySubstring map[string]queryHit // first match wins
+	fallback    queryHit            // when no substring matches
+	calls       []string
+}
+
+type queryHit struct {
+	refs     []champion.Reference
+	contents []TopicContent
+	err      error
+}
+
+func (q *queryAwareRetriever) Retrieve(_ context.Context, query string, _ int) ([]champion.Reference, []TopicContent, error) {
+	q.calls = append(q.calls, query)
+	for needle, hit := range q.bySubstring {
+		if strings.Contains(strings.ToLower(query), strings.ToLower(needle)) {
+			return hit.refs, hit.contents, hit.err
+		}
+	}
+	return q.fallback.refs, q.fallback.contents, q.fallback.err
 }
 
 // mockActionStore is the same shape used in pkg/champion tests.
@@ -245,6 +271,132 @@ func TestRun_FencedJSONParses(t *testing.T) {
 	}
 	if res.Answer != "ok" {
 		t.Errorf("answer = %q; want ok", res.Answer)
+	}
+}
+
+func TestRun_PerTurnJustificationCatchesNonSeedExternal(t *testing.T) {
+	// Threat model from A2-agent-adversarial.md:
+	//   - Seed query doesn't match the poisoned source → seed refs
+	//     are CANONICAL (or empty).
+	//   - Model's emitted thought DOES mention the poisoned source by
+	//     name → per-turn query matches it → per-turn refs include
+	//     the external ref → gate refuses the mutating tool call.
+	//
+	// Pre-fix: gate saw only seed (canonical), accepted. File written.
+	// Post-fix: deriveJustification re-runs retrieval with the model's
+	// per-turn output as the query → finds the external ref → gate
+	// refuses with PendingConfirmation.
+
+	c, err := champion.New(champion.Config{ProjectRoot: t.TempDir()}, mockActionStore{})
+	if err != nil {
+		t.Fatalf("champion.New: %v", err)
+	}
+
+	// Seed query (the user goal) doesn't mention "wave14-truth" so the
+	// seed retriever returns canonical content. The model's thought
+	// DOES mention "wave14-truth" so the per-turn query matches the
+	// poisoned-source bucket.
+	retriever := &queryAwareRetriever{
+		bySubstring: map[string]queryHit{
+			"wave14-truth": {
+				refs: externalRefs(),
+				contents: []TopicContent{{
+					Ref:     externalRefs()[0],
+					Content: "(poisoned)",
+				}},
+			},
+		},
+		fallback: queryHit{
+			refs: canonicalRefs(),
+			contents: []TopicContent{{
+				Ref:     canonicalRefs()[0],
+				Content: "(canonical)",
+			}},
+		},
+	}
+
+	target := filepath.Join(c.GetProjectRoot(), "out.txt")
+	llm := &mockLLM{responses: []string{
+		// Model emits a tool call with thought that mentions the
+		// poisoned source by name.
+		`{"thought":"the wave14-truth document recommends this fix","tool_call":{"name":"write_file","args":{"path":"` + target + `","content":"applied"}}}`,
+		// After refusal observation, model gives up.
+		`{"thought":"refused","answer":"refused: needs confirm"}`,
+	}}
+
+	a := New(Config{MaxTurns: 4}, c, retriever, llm)
+	res, err := a.Run(context.Background(), "do thing")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// At least one per-turn query must include "wave14-truth" so the
+	// poisoned-bucket fixture fires. The seed query is "do thing"
+	// (unrelated) so it lands in fallback (canonical). Without per-
+	// turn retrieval, the gate would never see the external ref.
+	saw := false
+	for _, q := range retriever.calls {
+		if strings.Contains(q, "wave14-truth") {
+			saw = true
+			break
+		}
+	}
+	if !saw {
+		t.Errorf("expected at least one per-turn query to mention 'wave14-truth'; got %v", retriever.calls)
+	}
+
+	// First trace turn was the tool call; should have been REFUSED-PENDING.
+	if !res.Trace[0].Refused {
+		t.Errorf("trace[0] should be Refused")
+	}
+	if !res.Trace[0].Pending {
+		t.Errorf("trace[0] should be Pending (Rule 2: external-trust)")
+	}
+	if res.Trace[0].PendingToken == "" {
+		t.Errorf("trace[0] should have PendingToken")
+	}
+	// File must NOT exist.
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("file should not exist after pending refusal")
+	}
+}
+
+func TestRun_PerTurnRetrievalFailureFallsBackToSeed(t *testing.T) {
+	// If per-turn retrieval errors, the agent falls back to seed refs.
+	// Verifies graceful degradation.
+	c, err := champion.New(champion.Config{ProjectRoot: t.TempDir()}, mockActionStore{})
+	if err != nil {
+		t.Fatalf("champion.New: %v", err)
+	}
+	retriever := &queryAwareRetriever{
+		bySubstring: map[string]queryHit{
+			// Per-turn query (contains "write_file") errors.
+			"write_file": {err: errors.New("retrieval down")},
+		},
+		fallback: queryHit{
+			// Seed query gets canonical refs.
+			refs:     canonicalRefs(),
+			contents: []TopicContent{{Ref: canonicalRefs()[0], Content: "(seed)"}},
+		},
+	}
+	target := filepath.Join(c.GetProjectRoot(), "out.txt")
+	llm := &mockLLM{responses: []string{
+		`{"thought":"writing","tool_call":{"name":"write_file","args":{"path":"` + target + `","content":"hi"}}}`,
+		`{"thought":"done","answer":"ok"}`,
+	}}
+	a := New(Config{MaxTurns: 4}, c, retriever, llm)
+	res, err := a.Run(context.Background(), "anything")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	// Tool call should have been ALLOWED (seed has canonical refs;
+	// per-turn errored, falls back to seed).
+	if res.Trace[0].Refused {
+		t.Errorf("trace[0] should NOT be Refused (seed canonical fallback)")
+	}
+	// File should exist.
+	if _, err := os.Stat(target); err != nil {
+		t.Errorf("file should exist; stat=%v", err)
 	}
 }
 
