@@ -123,8 +123,11 @@ def main():
     ]
     for name in ["seed-137", "seed-314", "seed-271", "seed-999",
                  "nosystem",
-                 "no-unheaded-clause", "no-general-clause", "no-review-clause"]:
-        files.append((name, PROBE_DIR / f"{name}.md"))
+                 "no-unheaded-clause", "no-general-clause", "no-review-clause",
+                 "d-pre-verify"]:
+        path = PROBE_DIR / f"{name}.md"
+        if path.exists():
+            files.append((name, path))
 
     print(f"{'condition':<25} {'pass':>5} {'fail':>5} {'🔴':>3} {'syn':>4} {'rev':>4}")
     print("-" * 60)
