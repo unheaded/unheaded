@@ -94,15 +94,49 @@ func TestIsMutating(t *testing.T) {
 }
 
 // --- HasUntrustedJustification ---
+//
+// Semantics changed 2026-05-02 after the A2-agent-adversarial probe
+// found that empty-justification + mutating tool was a gate bypass.
+// New rule: empty justification on a MUTATING tool is fail-closed
+// (returns true). Empty justification on a read-only tool is fine.
 
-func TestHasUntrustedJustification(t *testing.T) {
+func TestHasUntrustedJustification_ReadOnlyTools(t *testing.T) {
+	// Read-only tools with empty justification are fine — reading
+	// without a citation is normal exploration.
 	cases := []struct {
 		name string
 		refs []Reference
 		want bool
 	}{
-		{"empty justification → trusted by default", nil, false},
-		{"only canonical", []Reference{canonicalRef("a"), canonicalRef("b")}, false},
+		{"empty justification on read_file", nil, false},
+		{"only canonical", []Reference{canonicalRef("a")}, false},
+		{"only local", []Reference{localRef("a")}, false},
+		{"single external", []Reference{externalRef("evil", "lbl")}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := (&ToolCall{Name: "read_file", Justification: tc.refs}).HasUntrustedJustification()
+			if got != tc.want {
+				t.Errorf("HasUntrustedJustification (read_file) = %v; want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestHasUntrustedJustification_MutatingTools(t *testing.T) {
+	// Mutating tools with empty justification are fail-closed UNTRUSTED.
+	// This is the post-probe-A2 fix: an attacker can craft a prompt that
+	// the seed retriever doesn't match (refs ends up empty) but that
+	// inlines a poisoned reference textually. The model is influenced;
+	// the gate sees no refs. Empty-on-mutating must be untrusted to
+	// prevent that bypass.
+	cases := []struct {
+		name string
+		refs []Reference
+		want bool
+	}{
+		{"empty justification on write_file → fail-closed", nil, true},
+		{"only canonical", []Reference{canonicalRef("a")}, false},
 		{"only local", []Reference{localRef("a")}, false},
 		{"mixed canonical + local", []Reference{canonicalRef("a"), localRef("b")}, false},
 		{"single external", []Reference{externalRef("evil", "lbl")}, true},
@@ -110,11 +144,26 @@ func TestHasUntrustedJustification(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := (&ToolCall{Justification: tc.refs}).HasUntrustedJustification()
+			got := (&ToolCall{Name: "write_file", Justification: tc.refs}).HasUntrustedJustification()
 			if got != tc.want {
-				t.Errorf("HasUntrustedJustification = %v; want %v", got, tc.want)
+				t.Errorf("HasUntrustedJustification (write_file) = %v; want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestHasUntrustedJustification_DirectUserEscape(t *testing.T) {
+	// Programmatic callers that aren't model-derived can supply a single
+	// "direct-user" trust reference to opt out of the empty-justification
+	// fail-closed rule.
+	tc := &ToolCall{
+		Name: "write_file",
+		Justification: []Reference{
+			{SourceTrust: "direct-user"},
+		},
+	}
+	if tc.HasUntrustedJustification() {
+		t.Errorf("direct-user trust should be honored; got untrusted")
 	}
 }
 

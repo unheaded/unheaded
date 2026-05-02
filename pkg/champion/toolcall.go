@@ -123,16 +123,44 @@ func (tc *ToolCall) IsMutating() bool {
 	return true
 }
 
-// HasUntrustedJustification reports whether any reference in the
-// justification chain has source_trust == "external" (i.e., came from
-// a user-symlinked source under ~/.config/cs/sources/). Embedded
-// canonical content and user-custom local content are trusted.
+// HasUntrustedJustification reports whether the justification chain
+// is untrusted from the gate's perspective. Returns true if either:
 //
-// An empty justification chain is considered trusted (the call wasn't
-// derived from retrieval at all — it came from direct user instruction
-// or programmatic invocation). Callers that want to require a non-empty
-// justification should check len(tc.Justification) > 0 separately.
+//   - Any reference has source_trust == "external" (user-symlinked
+//     source under ~/.config/cs/sources/ — possibly poisoned), OR
+//
+//   - The chain is EMPTY and the tool is mutating. Empty justification
+//     on a mutating tool is treated as untrusted by default
+//     (fail-closed) because:
+//
+//     1. An attacker can craft a prompt that doesn't match the seed-
+//        retrieval pattern (refs ends up empty) AND inlines a poisoned-
+//        content reference textually in the user prompt. The model is
+//        influenced by the inline content; the gate sees no refs.
+//        Without this check the gate is bypassable in that case.
+//        See eval/coding-gate/probe-2026-05-02/A2-agent-adversarial.md.
+//
+//     2. A model that emits a tool call without ANY justification chain
+//        has no demonstrable grounding for the call — caller should
+//        either supply a justification or explicitly opt into
+//        DirectTrusted by populating Justification with a single
+//        canonical reference (e.g., {SourceTrust: "direct-user"}).
+//
+// For non-mutating (read-only) tools, empty justification is fine —
+// reading without a citation is normal exploration.
+//
+// Programmatic callers that want to bypass this check (because the
+// invocation isn't model-derived at all) should populate Justification
+// with a Reference whose SourceTrust is one of the trusted strings
+// ("canonical", "local", "direct-user"). The first-class types are
+// agent-scoped; "direct-user" is the escape hatch for direct callers
+// who can't construct a meaningful retrieval-derived chain.
 func (tc *ToolCall) HasUntrustedJustification() bool {
+	if len(tc.Justification) == 0 {
+		// Empty chain on a mutating tool is fail-closed untrusted.
+		// Empty chain on a read-only tool is fine.
+		return tc.IsMutating()
+	}
 	for _, r := range tc.Justification {
 		if r.SourceTrust == "external" {
 			return true
@@ -216,9 +244,15 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 
 	// Rule 2: mutating + untrusted justification.
 	if tc.IsMutating() && tc.HasUntrustedJustification() {
+		var reason string
+		if len(tc.Justification) == 0 {
+			reason = fmt.Sprintf("mutating tool %q has empty justification chain; requires out-of-band user confirmation (fail-closed: agent could not produce a retrieval-derived rationale for the call)", tc.Name)
+		} else {
+			reason = fmt.Sprintf("mutating tool %q has external-trust justification (%s); requires out-of-band user confirmation", tc.Name, untrustedRefSummary(tc.Justification))
+		}
 		decision := ToolCallDecision{
 			Allow:               false,
-			Reason:              fmt.Sprintf("mutating tool %q has external-trust justification (%s); requires out-of-band user confirmation", tc.Name, untrustedRefSummary(tc.Justification)),
+			Reason:              reason,
 			PendingConfirmation: true,
 		}
 		c.completeAction(ctx, actionID, "denied_untrusted_justification",
