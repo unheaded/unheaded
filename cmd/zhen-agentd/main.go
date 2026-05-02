@@ -23,6 +23,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -38,8 +39,11 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/lib/pq"
+
 	"unheaded/pkg/agent"
 	"unheaded/pkg/champion"
+	"unheaded/pkg/champion/pgstore"
 )
 
 const (
@@ -61,6 +65,7 @@ func main() {
 		host        = flag.String("host", "127.0.0.1", "HTTP listen host (use 0.0.0.0 for non-loopback)")
 		projectRoot  = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
 		allowedRoots = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
+		actionStore  = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
 	)
 	flag.Parse()
 
@@ -107,7 +112,10 @@ func main() {
 		}
 	}
 
-	store := &stderrActionStore{}
+	store, err := buildActionStore(*actionStore)
+	if err != nil {
+		fatal("action-store init: %v", err)
+	}
 	pool := newChampionPool(store)
 
 	httpClient := &http.Client{Timeout: httpTimeout}
@@ -166,6 +174,45 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Fprintln(os.Stderr, "zhen-agentd: clean shutdown")
+}
+
+// buildActionStore selects the audit-log backend per the -action-store
+// flag. "stderr" (default, dev-mode) prints to stderr. "pg" connects
+// to PostgreSQL via the WELL_DSN env var, runs the migration, and
+// returns a *pgstore.Store. Unknown backends → error at startup.
+func buildActionStore(kind string) (champion.ActionStore, error) {
+	switch kind {
+	case "stderr", "":
+		return &stderrActionStore{}, nil
+	case "pg", "postgres", "postgresql":
+		dsn := strings.TrimSpace(os.Getenv("WELL_DSN"))
+		if dsn == "" {
+			return nil, fmt.Errorf("action-store=pg requires WELL_DSN env var")
+		}
+		db, err := sql.Open("postgres", dsn)
+		if err != nil {
+			return nil, fmt.Errorf("open postgres: %w", err)
+		}
+		// Sensible pool defaults — same as pkg/database/connect.go.
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(5 * time.Minute)
+
+		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := db.PingContext(pingCtx); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("ping postgres: %w", err)
+		}
+		store := pgstore.New(db)
+		if err := store.Migrate(pingCtx); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("apply schema: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "zhen-agentd: connected to PostgreSQL audit store; schema migrated\n")
+		return store, nil
+	}
+	return nil, fmt.Errorf("unknown action-store %q (supported: stderr, pg)", kind)
 }
 
 // --- server: holds the shared agent dependencies ---

@@ -116,6 +116,7 @@ Returns 200 + `{"ready":true,...}` when vor and llama-server both pass their `/h
 | `-host <ip>` | 127.0.0.1 | listen host (use `0.0.0.0` for non-loopback) |
 | `-project-root <path>` | cwd | default Champion sandbox root used when a request omits `project_root` |
 | `-allowed-roots <list>` | (just `-project-root`) | comma-separated list of additional roots requests may target |
+| `-action-store <kind>` | `stderr` | audit-log backend: `stderr` (dev) or `pg` (production; requires `WELL_DSN` env) |
 
 Env: `VOR_URL` (default `http://127.0.0.1:9876`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
 
@@ -149,7 +150,76 @@ Per-session sandboxing (different sandbox-root per `session_id`) is NOT yet impl
 
 ## Audit log
 
-Every Champion decision (tool-call attempt, accept, refuse, file op completion) is logged via the `stderrActionStore` to the daemon's stderr. For production, swap in a PostgreSQL `ActionStore` from The Well (not yet wired into this daemon — that's a separate landing).
+Every Champion decision (tool-call attempt, accept, refuse, file op completion) is logged via `champion.ActionStore`. The daemon supports two backends:
+
+### `-action-store=stderr` (default — development)
+
+Prints each action to the daemon's stderr. No persistence. Good for local development and seeing the gate's reasoning live.
+
+```
+[champion] log #1: tool_call_attempt — ToolCall: write_file
+[champion] log #1: accepted
+[champion] log #2: file.write — Write file: foo.go (243 bytes)
+[champion] log #2: completed
+```
+
+### `-action-store=pg` (production — The Well)
+
+Persists to PostgreSQL via `pkg/champion/pgstore`. Requires `WELL_DSN` env var:
+
+```bash
+export WELL_DSN="host=well-pg.internal port=5432 user=zhen password=$ZHEN_PW dbname=unheaded_app sslmode=require"
+bin/zhen-agentd -action-store=pg -port 20105
+# zhen-agentd: connected to PostgreSQL audit store; schema migrated
+# zhen-agentd listening on http://127.0.0.1:20105 — ...
+```
+
+Schema is applied automatically on startup (idempotent — `CREATE TABLE IF NOT EXISTS`). The table:
+
+```sql
+CREATE TABLE zhen_actions (
+    id              BIGSERIAL    PRIMARY KEY,
+    session_id      TEXT         NOT NULL,
+    action_type     TEXT         NOT NULL,
+    status          TEXT         NOT NULL,
+    intent          TEXT,
+    parameters      TEXT,
+    result          TEXT,
+    result_summary  TEXT,
+    error           TEXT,
+    triggered_by    TEXT,
+    planned_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    completed_at    TIMESTAMPTZ,
+    elapsed_ms      INTEGER
+);
+-- + indexes on session_id, planned_at DESC, (action_type, status)
+```
+
+Common forensic queries:
+
+```sql
+-- "what did session X do, newest first?"
+SELECT * FROM zhen_actions WHERE session_id = $1 ORDER BY id DESC LIMIT 50;
+
+-- "every refused tool call in the last 24h"
+SELECT * FROM zhen_actions
+ WHERE action_type = 'tool_call_attempt'
+   AND status LIKE 'denied_%'
+   AND planned_at > NOW() - INTERVAL '24 hours';
+
+-- "every untrusted-justification refusal — pending-confirm pattern"
+SELECT * FROM zhen_actions
+ WHERE status = 'denied_untrusted_justification'
+ ORDER BY planned_at DESC;
+```
+
+The daemon-side connection pool: 10 max open, 5 idle, 5-minute lifetime. Tune via custom DSN options if needed.
+
+Startup-failure modes (each exits non-zero with a clear message):
+- `WELL_DSN` not set → `action-store=pg requires WELL_DSN env var`
+- `WELL_DSN` malformed → `open postgres: <err>`
+- PG unreachable → `ping postgres: <err>`
+- Insufficient privileges → `apply schema: <err>` (typically: `permission denied for relation`)
 
 ## Difference from zhen-agent
 
