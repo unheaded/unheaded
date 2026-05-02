@@ -382,7 +382,7 @@ func TestRedTeam_TokenScoping_CrossProjectRedemptionFails(t *testing.T) {
 	// allowed map by pulling the *server out — which the helper doesn't
 	// expose. So construct manually here.
 	store := newMetricsActionStore(nopActionStore{})
-	pool := newChampionPool(store)
+	pool := newChampionPool(store, nil)
 	srv := &server{
 		pool:        pool,
 		defaultRoot: rootA,

@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -214,6 +215,38 @@ func (c *Champion) dispatchUnderlying(ctx context.Context, tc ToolCall) (any, er
 			return nil, err
 		}
 		return nil, c.PatchFile(ctx, path, oldText, newText)
+	case "kanban_create":
+		// Mirror Dispatch's kanban_create routing: the args carry a
+		// "task" payload that arrives as map[string]any from JSON, so
+		// round-trip through JSON to populate the typed KanbanTask
+		// struct.
+		raw, ok := tc.Args["task"]
+		if !ok {
+			return nil, fmt.Errorf("kanban_create: missing arg %q", "task")
+		}
+		buf, err := json.Marshal(raw)
+		if err != nil {
+			return nil, fmt.Errorf("kanban_create: marshal task: %w", err)
+		}
+		var task KanbanTask
+		if err := json.Unmarshal(buf, &task); err != nil {
+			return nil, fmt.Errorf("kanban_create: unmarshal task: %w", err)
+		}
+		return nil, c.CreateKanbanTask(ctx, &task)
+	case "kanban_update":
+		id, err := requireString(tc.Args, "id")
+		if err != nil {
+			return nil, err
+		}
+		updates, ok := tc.Args["updates"].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("kanban_update: missing arg %q", "updates")
+		}
+		legacy := make(map[string]interface{}, len(updates))
+		for k, v := range updates {
+			legacy[k] = v
+		}
+		return nil, c.UpdateKanbanTask(ctx, id, legacy)
 	case "kanban_list":
 		return c.ListKanbanTasks(ctx)
 	default:

@@ -29,7 +29,7 @@ func newAuthDaemon(t *testing.T, apiKeys []string, retr agent.Retriever, llm age
 	t.Helper()
 	root := t.TempDir()
 	store := newMetricsActionStore(nopActionStore{})
-	pool := newChampionPool(store)
+	pool := newChampionPool(store, nil)
 	srv := &server{
 		pool:        pool,
 		defaultRoot: root,
@@ -69,7 +69,7 @@ func newRateLimitDaemon(t *testing.T, retr agent.Retriever, llm agent.LLM) (*tes
 	t.Helper()
 	root := t.TempDir()
 	store := newMetricsActionStore(nopActionStore{})
-	pool := newChampionPool(store)
+	pool := newChampionPool(store, nil)
 	srv := &server{
 		pool:        pool,
 		defaultRoot: root,

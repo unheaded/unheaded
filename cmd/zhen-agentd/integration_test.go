@@ -104,7 +104,7 @@ func newTestDaemon(t *testing.T, retr agent.Retriever, llm agent.LLM) (*httptest
 func newTestDaemonWithRoot(t *testing.T, root string, retr agent.Retriever, llm agent.LLM) *httptest.Server {
 	t.Helper()
 	store := newMetricsActionStore(nopActionStore{})
-	pool := newChampionPool(store)
+	pool := newChampionPool(store, nil)
 
 	srv := &server{
 		pool:        pool,
