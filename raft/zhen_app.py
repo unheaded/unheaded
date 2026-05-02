@@ -67,11 +67,30 @@ rag = None
 startup_error = None
 
 try:
+    # WAVE15 Phase 2 amended: chat path stays DIRECT to llama-server.
+    # Routing chat through cmd/zhen-agentd /api/v1/agent/ask regressed
+    # H0 (the agent's JSON-shaped tool-call prompt truncated chat-style
+    # answers — see eval/coding-gate/results-via-webui-phase2-2026-05-02
+    # final pre-rollback grades and the "Phase 2 amendment" note in
+    # docs/battle-plans/WAVE15-ZHENAI-REWIRE.md). The chat path's T6 was
+    # theoretical (LLM answers displayed, never executed) so the real
+    # T6 closure target is mutation paths — runbook_execute, etc. —
+    # which use the new /api/v1/tool/exec endpoint via Champion.Dispatch
+    # in zhen_app.py:execute_runbook (Phase 2b).
+    #
+    # Set ZHEN_PROXY_VIA_AGENTD=true to opt back into chat proxy for
+    # debugging; default is false. The proxy_via_agentd code path is
+    # KEPT for future experimentation (e.g., a chat-shape daemon
+    # endpoint, ADR-058+).
+    _proxy_env = os.environ.get('ZHEN_PROXY_VIA_AGENTD', 'false').strip().lower()
+    _proxy = _proxy_env in ('true', '1', 'yes', 'on')
     rag = RAGPipeline(
         index_dir, corpus_file,
         vor_url=os.environ.get('VOR_URL', 'http://localhost:9876'),
         inference_url=os.environ.get('ZHEN_INFERENCE_URL', 'http://localhost:8081'),
+        agentd_url=os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105'),
         model_name=os.environ.get('ZHEN_MODEL', 'qwen2.5-coder-7b-instruct'),
+        proxy_via_agentd=_proxy,
     )
 except Exception as e:
     startup_error = str(e)
@@ -1350,19 +1369,40 @@ def get_trust_level():
 
 @app.route('/api/v1/runbooks/<name>/execute', methods=['POST'])
 def execute_runbook(name):
-    """Execute a runbook. Pass {"dry_run": true} for validation only.
-    Trust level controls what can execute without approval."""
+    """Execute a runbook through cmd/zhen-agentd's gate (WAVE15 Phase 2b).
+
+    Pre-rewire this subprocessed scripts/run-runbook.py directly. Post-
+    rewire the request flows: web UI → zhen-agentd /api/v1/tool/exec
+    → pkg/champion.Dispatch (3 rules + audit) → Champion.RunbookExecute
+    → subprocess. Closes T6 for the kingdom-mutation surface — every
+    runbook execution now produces a row in zhen_actions and is gated
+    by Champion's trust + destructive-verb rules.
+
+    Pass {"dry_run": true} for validation only. The local trust-level
+    check (ZHENAI_TRUST_LEVEL) is preserved as a courtesy gate BEFORE
+    the daemon call so the user gets a clear "approval required"
+    message without round-tripping. Champion's gate is the
+    authoritative defense; this front-end check just shapes UX.
+
+    Returns the daemon's tool-exec response shape:
+        status:        "ok" | "denied" | "pending_confirmation" | "error"
+        result:        runbook execution output (when status=ok)
+        reason:        explanation (when not-ok)
+        pending_token: redeem at /api/v1/agent/confirm (when pending)
+    """
     import glob as g
-    import subprocess as sp
+    import urllib.request as _ur
+    import urllib.error as _ue
+
     data = request.get_json(force=True) if request.is_json else {}
-    dry_run = data.get('dry_run', False)
-    force = data.get('force', False)  # Override trust check (human explicitly approved)
+    dry_run = bool(data.get('dry_run', False))
+    force = bool(data.get('force', False))
 
     matches = g.glob(os.path.join(RUNBOOKS_DIR, '**', f'{name}.yaml'), recursive=True)
     if not matches:
         return jsonify({'error': f'Runbook not found: {name}'}), 404
 
-    # Trust level check — does this runbook need approval?
+    # Front-end trust-level check (UX shaping; Champion is the real gate).
     if not dry_run and not force:
         try:
             with open(matches[0]) as f:
@@ -1377,28 +1417,90 @@ def execute_runbook(name):
                     'risk': risk,
                 }), 403
         except Exception:
-            pass  # If we can't parse the runbook, let it through to the runner
+            pass  # parse failure is non-blocking — let the daemon's gate decide
 
-    runner = os.path.expanduser('~/tmp/unheaded/scripts/run-runbook.py')
-    cmd = ['python3', runner]
-    if dry_run:
-        cmd.append('--dry-run')
-    cmd.append(matches[0])
+    # Compute the runbook name argument the way Champion.RunbookExecute
+    # expects it: "<category>/<runbook>" relative to the runbooks/ dir,
+    # without the .yaml extension. e.g. "observe/service-health-sweep".
+    rb_path = matches[0]
+    runbooks_root = os.path.realpath(RUNBOOKS_DIR)
+    rb_real = os.path.realpath(rb_path)
+    if not rb_real.startswith(runbooks_root + os.sep):
+        return jsonify({'error': 'Runbook path escapes runbooks/ tree'}), 400
+    rel = os.path.relpath(rb_real, runbooks_root)
+    if rel.endswith('.yaml'):
+        rel = rel[:-len('.yaml')]
 
-    try:
-        result = sp.run(cmd, capture_output=True, text=True, timeout=600)
-        return jsonify({
-            'name': name,
-            'status': 'success' if result.returncode == 0 else 'failed',
+    # Hit the daemon's /api/v1/tool/exec endpoint. Default justification
+    # is direct-user (the operator clicked this in the browser); Champion's
+    # Rule 2 (untrusted-justification) is escaped by the direct-user trust
+    # label. Rules 1 (path) + 3 (destructive verb) still apply — Champion
+    # rejects runbook names with ".." or absolute paths regardless.
+    agentd_url = os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105')
+    payload = {
+        'tool': 'runbook_execute',
+        'args': {
+            'name':    rel,
             'dry_run': dry_run,
-            'output': result.stdout[-5000:],
-            'errors': result.stderr[-2000:] if result.stderr else '',
-            'exit_code': result.returncode,
-        })
-    except sp.TimeoutExpired:
-        return jsonify({'name': name, 'status': 'timeout', 'error': 'Execution exceeded 600s'}), 504
+        },
+        'session_id': f'runbook-{name}-{int(time.time())}',
+        'emitted_by': 'zhen-web-ui',
+        'justification': [{
+            'topic':        'user-clicked-runbook-execute',
+            'category':     'user-action',
+            'source_kind':  'user-action',
+            'source_trust': 'direct-user',
+            'source_label': '/api/v1/runbooks/<name>/execute',
+        }],
+    }
+    body = json.dumps(payload).encode('utf-8')
+    req = _ur.Request(
+        f'{agentd_url}/api/v1/tool/exec',
+        data=body,
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+
+    # Match the daemon's RunbookExecute 10-min subprocess cap, plus a
+    # small buffer for round-trip + agent-loop overhead.
+    try:
+        with _ur.urlopen(req, timeout=620) as resp:
+            status_code = resp.status
+            daemon_body = json.loads(resp.read().decode('utf-8'))
+    except _ue.HTTPError as e:
+        # Daemon returned a non-2xx: read body and surface (gate refusals
+        # come back as 403; runbook subprocess failure as 500).
+        try:
+            daemon_body = json.loads(e.read().decode('utf-8'))
+        except Exception:
+            daemon_body = {'status': 'error', 'reason': str(e)}
+        status_code = e.code
+    except _ue.URLError as e:
+        return jsonify({
+            'name':   name,
+            'status': 'error',
+            'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
+            'note':   'WAVE15 Phase 2b requires the daemon. Start it with `bin/zhen-agentd -port 20105`.',
+        }), 503
     except Exception as e:
         return jsonify({'name': name, 'status': 'error', 'error': str(e)}), 500
+
+    # Surface the daemon's response shape, augmented with our metadata.
+    daemon_status = daemon_body.get('status', 'unknown')
+    out = {
+        'name':    name,
+        'dry_run': dry_run,
+        'status':  daemon_status,
+        'gated_via': 'cmd/zhen-agentd /api/v1/tool/exec (Champion gate)',
+    }
+    if 'result' in daemon_body:
+        out['result'] = daemon_body['result']
+    if 'reason' in daemon_body:
+        out['reason'] = daemon_body['reason']
+    if 'pending_token' in daemon_body and daemon_body['pending_token']:
+        out['pending_token'] = daemon_body['pending_token']
+        out['confirm_endpoint'] = f'{agentd_url}/api/v1/agent/confirm'
+    return jsonify(out), status_code
 
 
 # ──────────────────────────────────────────────────────────────────────

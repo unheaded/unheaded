@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -229,6 +231,129 @@ func (c *Champion) ListKanbanTasks(ctx context.Context) ([]KanbanTask, error) {
 	summary := fmt.Sprintf("Listed %d tasks", len(tasks))
 	c.completeAction(ctx, actionID, "completed", summary, "", time.Since(start))
 	return tasks, nil
+}
+
+// ------------------------------------------------------------------
+// RUNBOOK EXECUTION (WAVE15 Phase 2b)
+//
+// Champion-gated subprocess of scripts/run-runbook.py. The runbook
+// name is constrained to the runbooks/ directory tree under the
+// project root; arbitrary paths are rejected before exec. Output is
+// captured (stdout + stderr merged) and returned in the action
+// summary so the audit log retains the full execution trace.
+//
+// This is the canonical kingdom-mutation path that the rewired
+// raft/zhen_app.py hits via cmd/zhen-agentd /api/v1/tool/exec —
+// closing the real T6 attack surface (mutation paths must traverse
+// pkg/champion's gate; chat paths display answers and don't execute).
+// ------------------------------------------------------------------
+
+// RunbookExecuteResult is the shape returned to the caller after a
+// runbook subprocess completes. ExitCode 0 = success; non-zero =
+// failure (output still captured for diagnosis).
+type RunbookExecuteResult struct {
+	Name     string `json:"name"`      // runbook name, relative to runbooks/
+	ExitCode int    `json:"exit_code"`
+	Output   string `json:"output"`    // stdout+stderr merged, truncated
+	Elapsed  string `json:"elapsed_ms"`
+}
+
+// RunbookExecute runs scripts/run-runbook.py against the named
+// runbook. The name is validated against the runbooks/ tree under
+// the project root. Output is capped at 64 KiB to keep the action
+// audit row bounded.
+func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool) (*RunbookExecuteResult, error) {
+	start := time.Now()
+	intent := fmt.Sprintf("Execute runbook: %s (dry-run=%v)", name, dryRun)
+	actionID, _ := c.logAction(ctx, "runbook.execute", intent, "user")
+
+	// Reject empty / suspicious names early.
+	if name == "" {
+		c.completeAction(ctx, actionID, "failed", "", "empty runbook name", time.Since(start))
+		return nil, fmt.Errorf("empty runbook name")
+	}
+
+	// The runbook lookup: <project_root>/runbooks/<name>.yaml. The name
+	// may include a category prefix (e.g., "infra/host-bootstrap") which
+	// resolves to runbooks/infra/host-bootstrap.yaml. Reject .. or
+	// absolute paths so a malicious caller can't escape the runbooks
+	// directory.
+	if strings.Contains(name, "..") || strings.HasPrefix(name, "/") {
+		c.completeAction(ctx, actionID, "denied",
+			summarizeArgs(map[string]any{"name": name}),
+			"runbook name contains '..' or absolute path",
+			time.Since(start))
+		return nil, fmt.Errorf("runbook name %q escapes runbooks/ tree", name)
+	}
+
+	runbookPath := filepath.Join(c.config.ProjectRoot, "runbooks", name+".yaml")
+	// Re-validate the resolved path stays under runbooks/.
+	absRunbooks := filepath.Join(c.config.ProjectRoot, "runbooks")
+	rel, err := filepath.Rel(absRunbooks, runbookPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		c.completeAction(ctx, actionID, "denied",
+			summarizeArgs(map[string]any{"name": name}),
+			"runbook path escapes runbooks/ tree",
+			time.Since(start))
+		return nil, fmt.Errorf("runbook %q resolves outside runbooks/ tree", name)
+	}
+	if _, err := os.Stat(runbookPath); err != nil {
+		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		return nil, fmt.Errorf("runbook not found: %w", err)
+	}
+
+	// Subprocess: scripts/run-runbook.py [--dry-run] <runbookPath>
+	args := []string{filepath.Join(c.config.ProjectRoot, "scripts", "run-runbook.py")}
+	if dryRun {
+		args = append(args, "--dry-run")
+	}
+	args = append(args, runbookPath)
+
+	// Hard 10-minute cap on subprocess. Per `runbooks/` convention,
+	// no individual runbook should exceed 10 min; longer ones must
+	// be split. The agent's outer request timeout is 5 min, so this
+	// effectively never fires under normal operation.
+	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "python3", args...)
+	cmd.Dir = c.config.ProjectRoot
+	out, runErr := cmd.CombinedOutput()
+	elapsed := time.Since(start)
+
+	output := string(out)
+	const outputCap = 64 * 1024
+	truncated := false
+	if len(output) > outputCap {
+		output = output[:outputCap] + "\n[…output truncated to 64 KiB]"
+		truncated = true
+	}
+
+	exitCode := 0
+	if runErr != nil {
+		// Try to extract the exit code from *exec.ExitError; otherwise -1.
+		exitCode = -1
+		if ee, ok := runErr.(*exec.ExitError); ok {
+			exitCode = ee.ExitCode()
+		}
+	}
+
+	result := &RunbookExecuteResult{
+		Name:     name,
+		ExitCode: exitCode,
+		Output:   output,
+		Elapsed:  elapsed.String(),
+	}
+
+	status := "completed"
+	if exitCode != 0 {
+		status = "failed"
+	}
+	summary := fmt.Sprintf("runbook=%s exit=%d output_bytes=%d truncated=%v",
+		name, exitCode, len(out), truncated)
+	c.completeAction(ctx, actionID, status, summary, "", elapsed)
+
+	return result, nil
 }
 
 // replaceFirst replaces the first occurrence of old with new in s.

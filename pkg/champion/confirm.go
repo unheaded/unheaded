@@ -249,6 +249,18 @@ func (c *Champion) dispatchUnderlying(ctx context.Context, tc ToolCall) (any, er
 		return nil, c.UpdateKanbanTask(ctx, id, legacy)
 	case "kanban_list":
 		return c.ListKanbanTasks(ctx)
+	case "runbook_execute":
+		// Mirrors Dispatch's runbook_execute case for the post-confirm
+		// path. Same args contract: name (required), dry_run (optional).
+		name, err := requireString(tc.Args, "name")
+		if err != nil {
+			return nil, err
+		}
+		dryRun := false
+		if v, ok := tc.Args["dry_run"].(bool); ok {
+			dryRun = v
+		}
+		return c.RunbookExecute(ctx, name, dryRun)
 	default:
 		return nil, fmt.Errorf("ConfirmPendingToolCall: unimplemented tool %q", tc.Name)
 	}

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -571,6 +572,13 @@ func summarizeObservation(toolName string, out any) string {
 // parseModelOutput extracts {"thought","tool_call"} or
 // {"thought","answer"} from raw LLM text. Tolerates code-fence
 // wrapping and leading/trailing prose.
+//
+// When standard JSON parsing fails (which happens when the model
+// emits Shape A with a code sample containing unescaped quotes —
+// e.g., `println!("File: {}", content)` inside the answer string),
+// falls back to a tolerant regex extraction of the answer field.
+// This is the difference between the user seeing a clean answer vs
+// the raw `{"thought":"...","answer":"..."}` envelope.
 func parseModelOutput(raw string) (modelOutput, error) {
 	// Strip fenced JSON blocks if present.
 	s := strings.TrimSpace(raw)
@@ -590,12 +598,96 @@ func parseModelOutput(raw string) (modelOutput, error) {
 	if start == -1 || end == -1 || end <= start {
 		return modelOutput{}, fmt.Errorf("no JSON object found")
 	}
+	body := s[start : end+1]
 	var out modelOutput
-	if err := json.Unmarshal([]byte(s[start:end+1]), &out); err != nil {
-		return modelOutput{}, fmt.Errorf("parse: %w", err)
+	if err := json.Unmarshal([]byte(body), &out); err == nil {
+		return out, nil
 	}
-	return out, nil
+	// Strict JSON parse failed. Try the tolerant fallback: regex-extract
+	// the answer field. Common cause: model emitted Shape A with a code
+	// sample whose internal `"` characters weren't escaped, breaking
+	// JSON. The thought + answer fields are still structurally findable.
+	if recovered, ok := tolerantExtractShapeA(body); ok {
+		return recovered, nil
+	}
+	return modelOutput{}, fmt.Errorf("parse: malformed JSON, tolerant fallback failed")
 }
+
+// tolerantExtractShapeA recovers a Shape A {thought, answer} from
+// JSON that was malformed at the JSON-grammar level (typically:
+// the model emitted unescaped `"` inside the answer string while
+// quoting code samples). Heuristic only — used as a last resort
+// when strict json.Unmarshal fails. Returns (output, true) on
+// successful recovery, or (zero-value, false) if no recognizable
+// thought/answer pattern is present.
+//
+// Strategy:
+//   • thoughtRE matches `"thought":"<...>"` permissively.
+//   • The answer field is everything between `"answer":"` and the
+//     trailing `"}` (or `"\n}`, etc.). We don't try to handle
+//     embedded quotes correctly — the model's malformed JSON is
+//     unrecoverable structurally; we just extract the visible text.
+//   • Backslash-escape sequences (\n, \t, \") inside the answer
+//     are unescaped to plain characters.
+func tolerantExtractShapeA(body string) (modelOutput, bool) {
+	// Look for "answer":"..."}  with the closing brace at the end.
+	// The answer payload may itself contain " characters; we treat
+	// everything between the first `"answer":"` and the LAST `"}`
+	// as the answer string, then de-escape standard sequences.
+	answerStart := strings.Index(body, `"answer":"`)
+	if answerStart == -1 {
+		return modelOutput{}, false
+	}
+	answerStart += len(`"answer":"`)
+	closeIdx := strings.LastIndex(body, `"}`)
+	if closeIdx == -1 || closeIdx <= answerStart {
+		// Try to handle a trailing newline before the "}.
+		closeIdx = strings.LastIndex(body, "}")
+		if closeIdx == -1 || closeIdx <= answerStart {
+			return modelOutput{}, false
+		}
+		// Walk back to the last `"` before this brace.
+		quoteIdx := strings.LastIndex(body[:closeIdx], `"`)
+		if quoteIdx <= answerStart {
+			return modelOutput{}, false
+		}
+		closeIdx = quoteIdx
+	}
+	rawAnswer := body[answerStart:closeIdx]
+	// De-escape a small set of standard JSON escapes. We do NOT
+	// recursively re-parse — the input is already known-malformed
+	// from a JSON perspective, so leave anything we don't recognize
+	// in place.
+	rawAnswer = jsonEscapeReplacer.Replace(rawAnswer)
+
+	// Extract thought (best-effort; not load-bearing).
+	thought := ""
+	if m := thoughtRE.FindStringSubmatch(body); len(m) > 1 {
+		thought = jsonEscapeReplacer.Replace(m[1])
+	}
+
+	return modelOutput{
+		Thought: thought,
+		Answer:  rawAnswer,
+	}, true
+}
+
+var (
+	thoughtRE = regexp.MustCompile(`"thought"\s*:\s*"((?:[^"\\]|\\.)*)"`)
+
+	// Minimal de-escape table for the tolerant path. We don't try to
+	// handle Unicode escape sequences (\uXXXX) — those are rare in
+	// model output, and if they appear, surfacing the literal bytes
+	// is acceptable per the "best-effort recovery" contract.
+	jsonEscapeReplacer = strings.NewReplacer(
+		`\n`, "\n",
+		`\t`, "\t",
+		`\r`, "\r",
+		`\"`, `"`,
+		`\\`, `\`,
+		`\/`, `/`,
+	)
+)
 
 // buildSystemPrompt assembles the model's system message — references
 // (with B1 trust labels) followed by the tool schema and behavior
@@ -675,7 +767,15 @@ func buildSystemPrompt(contents []TopicContent, maxChars int) string {
 		"'pending user confirmation', your next turn should produce an " +
 		"answer that explains the refusal to the user — do not retry the " +
 		"same tool call.\n\n" +
-		"Be concise. End each loop with an `answer` once the goal is " +
-		"satisfied — don't keep calling tools forever.\n\n" +
+		"ANSWER COMPLETENESS: when the user's question asks for code, " +
+		"syntax, or examples, the `answer` field MUST include the full " +
+		"code, not just a lead-in like \"Use X. Example:\". When the " +
+		"question is a code review, the `answer` field MUST identify " +
+		"every issue and show the corrected code. Do NOT emit an answer " +
+		"like \"Fix as follows:\" with no following content. Better to " +
+		"be detailed and complete than terse.\n\n" +
+		"End each loop with a complete `answer` once the goal is " +
+		"satisfied — don't keep calling tools forever, but don't truncate " +
+		"the answer either.\n\n" +
 		"References:" + refs.String()
 }
