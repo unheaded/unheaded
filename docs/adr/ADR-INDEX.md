@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-05-02
-**Total:** 55 ADRs (ADR-012b deprecated, ADR-027-058 across sessions; ADR-69420 pipe-dream)
+**Total:** 56 ADRs (ADR-012b deprecated, ADR-027-059 across sessions; ADR-69420 pipe-dream)
 
 ## Status Summary
 
@@ -10,7 +10,7 @@
 | Accepted | 28 |
 | Draft | 1 |
 | In Progress | 1 |
-| Planned | 5 |
+| Planned | 6 |
 | Proposed | 2 |
 | Deferred | 4 |
 | Pipe Dream | 2 |
@@ -27,6 +27,7 @@
 - ADR-056 (pgvector auxiliary corpus sharding) — **Proposed** (gated on WAVE15 H0 passing; the architectural pattern for non-vor retrieval)
 - ADR-057 (Unheaded source code indexing) — **Proposed** (gated on WAVE15 H0 + ADR-056 acceptance; first concrete instance of the pattern — AST-chunked, code-embedder-tuned semantic retrieval over our own source tree)
 - ADR-058 (GCP cost & API utilization alarms for bellis.tech) — **Planned** (EDoS / cost-amplification DoS defense for free-tier hosted personal site; ~30 min of console work, no code dependencies; activation triggered by Stevie scheduling the time)
+- ADR-059 (Zhenai interactive CLI) — **Planned** (`cmd/zhen-cli` terminal REPL counterpart of the web UI; chat + slash commands for runbook execute / source view / memory / recall; mutation paths inherit T6b closure via `/api/v1/tool/exec`; ~1-2 days when scheduled)
 
 **ADR-054 RESERVED** for WAVE14 BackwardScratch + KV-cache when Track A or C activates.
 
@@ -93,3 +94,4 @@
 | [056](ADR-056-pgvector-auxiliary-corpus-sharding.md) | pgvector Auxiliary Corpus Sharding for Trust-Tagged Retrieval (Wikipedia / Stack Overflow / RFCs / source code) | **Proposed** (gated on WAVE15 H0 passing) | 2026-05-02 |
 | [057](ADR-057-unheaded-source-code-indexing.md) | Unheaded Source Code Indexing for Semantic Retrieval (AST chunks + code-specialized embedder, first instance of ADR-056 pattern) | **Proposed** (gated on WAVE15 H0 + ADR-056 acceptance) | 2026-05-02 |
 | [058](ADR-058-gcp-cost-alarm-bellis-tech.md) | GCP Cost & API Utilization Alarms for bellis.tech (EDoS / cost-amplification DoS defense — free-tier project) | **Planned** (~30 min of console work; no code dependencies) | 2026-05-02 |
+| [059](ADR-059-zhenai-interactive-cli.md) | Zhenai Interactive CLI (`cmd/zhen-cli`) — terminal REPL counterpart of the web UI; same Champion-gated mutation path | **Planned** (~1-2 days; activation gated on Stevie scheduling) | 2026-05-02 |
