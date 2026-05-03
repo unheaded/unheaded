@@ -101,6 +101,17 @@ else
     export ZHEN_MODEL="${ZHEN_MODEL:-qwen2.5-coder-7b-instruct}"
     export VOR_URL="${VOR_URL:-http://localhost:9876}"
 
+    # The Well (PostgreSQL) — required for memory cache, conversation log,
+    # and live-context kanban/audit/runbook intent injection. Without these,
+    # the chat path falls back to vor-only retrieval and the model has to
+    # guess at "how many tasks are in progress?" instead of reading PG.
+    # Defaults match db/migrations/002_create_databases.sql + 008_zhen_memories.
+    export ZHEN_DB_NAME="${ZHEN_DB_NAME:-unheaded_app}"
+    export ZHEN_DB_USER="${ZHEN_DB_USER:-app_zhen}"
+    export ZHEN_DB_PASSWORD="${ZHEN_DB_PASSWORD:-zhen_dev}"
+    export ZHEN_DB_HOST="${ZHEN_DB_HOST:-localhost}"
+    export ZHEN_DB_PORT="${ZHEN_DB_PORT:-5432}"
+
     cd "$HOME/tmp/unheaded/raft"
     nohup python3 zhen_app.py &> /tmp/zhen-webapp.log &
     WEBAPP_PID=$!
