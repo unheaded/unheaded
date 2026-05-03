@@ -281,7 +281,8 @@ class RAGPipeline:
     # ------------------------------------------------------------------
 
     def generate(self, query, context_chunks, file_content=None, history=None,
-                 system_prompt=None, temperature=0.0, seed=42, max_tokens=600):
+                 system_prompt=None, temperature=0.0, seed=42, max_tokens=600,
+                 live_context=None):
         """Generate response. Dispatches to direct or proxied path.
 
         When self.proxy_via_agentd is True (WAVE15 Phase 2):
@@ -302,22 +303,30 @@ class RAGPipeline:
                 query, context_chunks,
                 file_content=file_content, history=history,
                 temperature=temperature, seed=seed, max_tokens=max_tokens,
+                live_context=live_context,
             )
         return self._generate_via_llama(
             query, context_chunks,
             file_content=file_content, history=history,
             system_prompt=system_prompt,
             temperature=temperature, seed=seed, max_tokens=max_tokens,
+            live_context=live_context,
         )
 
     def _generate_via_llama(self, query, context_chunks, file_content=None,
                             history=None, system_prompt=None,
-                            temperature=0.0, seed=42, max_tokens=600):
+                            temperature=0.0, seed=42, max_tokens=600,
+                            live_context=None):
         """Direct path — POST llama-server /v1/chat/completions.
 
         Phase 1 mode. T6 OPEN — tool-call-emitting model output (if it
         ever happens for chat prompts) bypasses Champion. Used when
         proxy_via_agentd is False.
+
+        live_context, when supplied, is a string containing live system
+        state (kanban tasks, audit feed, etc) that the caller pre-fetched
+        based on intent detection. It's prepended to the user message so
+        the model has REAL data instead of hallucinating CLI commands.
         """
         if system_prompt is None:
             system_prompt = DEFAULT_SYSTEM_PROMPT
@@ -342,6 +351,12 @@ class RAGPipeline:
         user_msg = f"References:{refs_str}\n\nQuestion: {query}"
         if file_content:
             user_msg = f"FILE CONTENT:\n{file_content}\n\n{user_msg}"
+        if live_context:
+            # Live system state — kanban, audit, daemon health, etc.
+            # Prepended above References so the model grounds answers
+            # about live data in REAL rows instead of hallucinating
+            # imaginary CLIs.
+            user_msg = f"LIVE SYSTEM STATE (authoritative for this query):\n{live_context}\n\n{user_msg}"
 
         # 3. Compose messages: system + (summarized prior turns) + current.
         #    History is bounded by total content length (rough budget), and
@@ -440,11 +455,15 @@ class RAGPipeline:
 
     def _generate_via_agentd(self, query, context_chunks, file_content=None,
                              history=None, temperature=0.0, seed=42,
-                             max_tokens=600):
+                             max_tokens=600, live_context=None):
         """Proxy path — POST cmd/zhen-agentd /api/v1/agent/ask.
 
         WAVE15 Phase 2 path. T6 CLOSED — every LLM-emitted tool call
         traverses pkg/champion's three rules + audit log.
+
+        live_context, when supplied, is prepended to the goal sent to
+        the daemon so the agent loop sees the same authoritative live
+        state the direct path injects.
         """
         # If the user uploaded a file, prepend it to the goal so the
         # daemon's agent loop sees it. History is sent as `session_id`
@@ -454,6 +473,8 @@ class RAGPipeline:
         goal = query
         if file_content:
             goal = f"FILE CONTENT:\n{file_content}\n\nQUESTION: {query}"
+        if live_context:
+            goal = f"LIVE SYSTEM STATE (authoritative):\n{live_context}\n\nQUESTION: {query}"
 
         # The daemon doesn't consume `history` directly (its agent loop
         # is per-goal, not multi-turn). Strip JSON tool-call payloads
@@ -534,7 +555,8 @@ class RAGPipeline:
     # ------------------------------------------------------------------
 
     def query(self, question, file_content=None, history=None,
-              k=5, temperature=0.0, seed=42, max_tokens=600):
+              k=5, temperature=0.0, seed=42, max_tokens=600,
+              live_context=None):
         """Full RAG query: retrieve top-k via vor, then generate via qwen-coder.
 
         Returns the SAME dict shape zhen_app.py expects:
@@ -553,6 +575,7 @@ class RAGPipeline:
             question, retrieved,
             file_content=file_content, history=history,
             temperature=temperature, seed=seed, max_tokens=max_tokens,
+            live_context=live_context,
         )
         return {
             "question":    question,
