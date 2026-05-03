@@ -737,6 +737,129 @@
             .dash-kanban-cols { grid-template-columns: repeat(2, 1fr); }
         }
 
+        /* ─── Operator actions sidebar (Stage 4) ─── */
+        .op-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .op-btn {
+            display: block;
+            text-align: left;
+            padding: 6px 10px;
+            font-size: 0.78em;
+            font-family: var(--font-mono);
+            background: var(--bg-card);
+            color: var(--text-dim);
+            border: 1px solid var(--border-card);
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.15s;
+        }
+        .op-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text);
+            border-color: var(--accent);
+        }
+        .op-btn.op-runbook {
+            border-left: 3px solid var(--accent);
+            font-weight: 500;
+            color: var(--accent);
+        }
+        .op-btn.op-runbook:hover {
+            background: var(--accent-dim);
+        }
+        .op-btn.op-link {
+            border-left: 3px solid var(--text-dim);
+        }
+        .op-btn:disabled { opacity: 0.5; cursor: progress; }
+
+        .op-result {
+            margin-top: 10px;
+            display: none;
+            font-size: 0.78em;
+            font-family: var(--font-mono);
+            max-height: 380px;
+            overflow-y: auto;
+            background: var(--bg);
+            border: 1px solid var(--border-card);
+            border-radius: 4px;
+            padding: 8px 10px;
+        }
+        .op-result.visible { display: block; }
+        .op-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .op-section-head {
+            font-size: 0.85em;
+            color: var(--text);
+            padding-bottom: 4px;
+            border-bottom: 1px dashed var(--border-card);
+            margin-bottom: 4px;
+            word-break: break-word;
+        }
+        .op-section.op-warn .op-section-head { color: #d9b272; }
+        .op-section.op-fail .op-section-head { color: #d97a7a; }
+        .op-pending {
+            color: var(--text-dim);
+            font-style: italic;
+            padding: 6px 0;
+        }
+        .op-meta {
+            color: var(--text-dim);
+            font-size: 0.92em;
+            line-height: 1.45;
+        }
+        .op-output {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 3px;
+            padding: 8px;
+            margin: 4px 0 0;
+            max-height: 280px;
+            overflow: auto;
+            white-space: pre;
+            font-size: 0.92em;
+            color: var(--text-dim);
+        }
+        .op-audit-row, .op-runbook-row {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            padding: 3px 0;
+            line-height: 1.3;
+            border-bottom: 1px dotted rgba(255,255,255,0.04);
+        }
+        .op-audit-id { color: var(--text-dim); min-width: 36px; }
+        .op-audit-type { color: var(--accent); min-width: 100px; }
+        .op-audit-status {
+            text-transform: uppercase;
+            font-size: 0.7em;
+            padding: 1px 5px;
+            border-radius: 2px;
+            background: var(--bg-card);
+            color: var(--text-dim);
+            min-width: 64px;
+            text-align: center;
+        }
+        .op-audit-status.op-status-completed,
+        .op-audit-status.op-status-accepted   { color: var(--green); }
+        .op-audit-status.op-status-failed,
+        .op-audit-status.op-status-denied,
+        .op-audit-status.op-status-error      { color: #d97a7a; }
+        .op-audit-status.op-status-pending,
+        .op-audit-status.op-status-planned    { color: #d9b272; }
+        .op-audit-intent {
+            color: var(--text-dim);
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         /* Tab bar */
         .tab-bar {
             display: flex;
@@ -976,11 +1099,11 @@
                 <div class="stat-grid">
                     <div class="stat-card">
                         <div class="val" id="stat-vectors">—</div>
-                        <div class="label">Vectors</div>
+                        <div class="label">Sheets</div>
                     </div>
                     <div class="stat-card">
                         <div class="val" id="stat-chunks">—</div>
-                        <div class="label">Chunks</div>
+                        <div class="label">Cats</div>
                     </div>
                     <div class="stat-card">
                         <div class="val" id="stat-queries">0</div>
@@ -992,6 +1115,38 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Operator actions sidebar (Stage 4) — always-visible
+                 direct-action buttons. Same Champion-gated path the chat
+                 inline buttons use; these surface common ops up front. -->
+            <div>
+                <h3>Operator</h3>
+                <div class="op-actions">
+                    <button class="op-btn op-runbook" onclick="opHealthSweep()">
+                        ▶ Health sweep (gated)
+                    </button>
+                    <button class="op-btn" onclick="opRecentAudit()">
+                        ⌗ Recent audit (10)
+                    </button>
+                    <button class="op-btn" onclick="opRecentRunbooks()">
+                        ⏵ Recent runbook outputs
+                    </button>
+                    <button class="op-btn" onclick="opSearchConversations()">
+                        🔎 Search prior conversations
+                    </button>
+                    <button class="op-btn" onclick="opRefreshStats()">
+                        ↻ Refresh stats
+                    </button>
+                    <a class="op-btn op-link" href="http://localhost:20001" target="_blank" rel="noopener">
+                        ⊞ Open Kanban UI ↗
+                    </a>
+                    <a class="op-btn op-link" href="http://localhost:20002/wiki/Home" target="_blank" rel="noopener">
+                        ⊞ Open Wiki ↗
+                    </a>
+                </div>
+                <div id="op-result" class="op-result"></div>
+            </div>
+
             <div>
                 <h3>Recent Queries</h3>
                 <div class="history-list" id="history"></div>
@@ -1756,6 +1911,138 @@ function dashAutoTick() {
     }
 }
 dashAutoTimer = setInterval(dashAutoTick, 10000);
+
+// ──────────────────────────────────────────────────────────────────
+// Operator actions sidebar (Stage 4) — always-visible direct-action
+// buttons. Each handler hits an /api/v1/* endpoint and renders the
+// result in #op-result. Mutating actions (runbook execute) go through
+// the Champion gate via the same path Stage 2's inline buttons use.
+// ──────────────────────────────────────────────────────────────────
+
+function opShow(html) {
+    const el = document.getElementById('op-result');
+    if (!el) return;
+    el.innerHTML = html;
+    el.scrollTop = 0;
+    el.classList.add('visible');
+}
+
+function opPending(label) {
+    opShow(`<div class="op-pending">⏳ ${escapeHtml(label)}…</div>`);
+}
+
+async function opHealthSweep() {
+    opPending('running service-health-sweep (dry-run, gated)');
+    try {
+        const r = await fetch(API + '/api/v1/runbooks/service-health-sweep/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ dry_run: true }),
+        });
+        const body = await r.json();
+        if (r.ok && (body.status === 'ok' || body.status === 'success')) {
+            const out = body.result ? body.result.output || JSON.stringify(body.result, null, 2) : '(empty)';
+            opShow(`<div class="op-section">
+                <div class="op-section-head"><b>✓ service-health-sweep</b> · gated via ${escapeHtml(body.gated_via || '?')}</div>
+                <pre class="op-output">${escapeHtml(out.slice(0, 3000))}</pre>
+            </div>`);
+        } else if (body.status === 'pending_confirmation' && body.pending_token) {
+            opShow(`<div class="op-section op-warn">
+                <div class="op-section-head">? Champion pending — token: <code>${escapeHtml(body.pending_token)}</code></div>
+                <div class="op-meta">${escapeHtml(body.reason || '')}</div>
+            </div>`);
+        } else {
+            opShow(`<div class="op-section op-fail">
+                <div class="op-section-head">✗ ${escapeHtml(body.status || 'error')}</div>
+                <div class="op-meta">${escapeHtml(body.reason || body.error || JSON.stringify(body))}</div>
+            </div>`);
+        }
+    } catch (e) {
+        opShow(`<div class="op-section op-fail">✗ ${escapeHtml(String(e))}</div>`);
+    }
+}
+
+async function opRecentAudit() {
+    opPending('fetching last 10 audit rows');
+    try {
+        const r = await fetch(API + '/api/v1/audit/recent?limit=10');
+        const body = await r.json();
+        const rows = body.rows || [];
+        if (!rows.length) {
+            opShow(`<div class="op-section">
+                <div class="op-section-head">audit feed</div>
+                <div class="op-meta">no rows in zhen_actions yet${body.error ? ' — ' + escapeHtml(body.error) : ''}</div>
+            </div>`);
+            return;
+        }
+        const html = rows.map(r =>
+            `<div class="op-audit-row">
+                <span class="op-audit-id">#${r.id}</span>
+                <span class="op-audit-type">${escapeHtml(r.action_type || '')}</span>
+                <span class="op-audit-status op-status-${escapeHtml(r.status || '')}">${escapeHtml(r.status || '')}</span>
+                <span class="op-audit-intent">${escapeHtml((r.intent || '').slice(0, 60))}</span>
+            </div>`
+        ).join('');
+        opShow(`<div class="op-section">
+            <div class="op-section-head">audit feed — last ${rows.length}</div>
+            ${html}
+        </div>`);
+    } catch (e) {
+        opShow(`<div class="op-section op-fail">✗ ${escapeHtml(String(e))}</div>`);
+    }
+}
+
+async function opRecentRunbooks() {
+    opPending('fetching recent runbook executions');
+    try {
+        const r = await fetch(API + '/api/v1/runbooks/recent?limit=10');
+        const body = await r.json();
+        const rows = body.rows || [];
+        if (!rows.length) {
+            opShow(`<div class="op-section">
+                <div class="op-section-head">recent runbook executions</div>
+                <div class="op-meta">no rows yet${body.error ? ' — ' + escapeHtml(body.error) : ''}. Execute a runbook from the chat (ask "run service-health-sweep dry-run") or click the Health sweep button above to populate.</div>
+            </div>`);
+            return;
+        }
+        const html = rows.map(r => {
+            const ok = r.status === 'completed';
+            return `<div class="op-runbook-row">
+                <span class="op-audit-id">#${r.id}</span>
+                <span class="op-audit-status op-status-${escapeHtml(r.status || '')}">${ok ? '✓' : '✗'} ${escapeHtml(r.status || '')}</span>
+                <span class="op-audit-intent">${escapeHtml((r.intent || '').slice(0, 70))}</span>
+                <span class="op-meta">${r.elapsed_ms || 0}ms</span>
+            </div>`;
+        }).join('');
+        opShow(`<div class="op-section">
+            <div class="op-section-head">recent runbook executions</div>
+            ${html}
+        </div>`);
+    } catch (e) {
+        opShow(`<div class="op-section op-fail">✗ ${escapeHtml(String(e))}</div>`);
+    }
+}
+
+function opSearchConversations() {
+    // Jump to the History tab and focus its search box. The History tab
+    // already implements full-text search via /api/v1/conversations/search.
+    switchTab('history');
+    const el = document.getElementById('history-search');
+    if (el) { el.focus(); el.select && el.select(); }
+    opShow(`<div class="op-section"><div class="op-meta">→ switched to History tab. Type a search term and press Enter.</div></div>`);
+}
+
+function opRefreshStats() {
+    opPending('refreshing stats + system probes');
+    Promise.all([
+        checkHealth(),
+        refreshDashboard().catch(() => null),
+    ]).then(() => {
+        opShow(`<div class="op-section"><div class="op-meta">✓ checkHealth + dashboard refreshed.</div></div>`);
+    }).catch(e => {
+        opShow(`<div class="op-section op-fail">✗ ${escapeHtml(String(e))}</div>`);
+    });
+}
 
 // Welcome — post-WAVE15 rewire shape (vor + qwen-coder backends).
 // Fetches live stats from /api/v1/stats (sheets/categories/model) and the
