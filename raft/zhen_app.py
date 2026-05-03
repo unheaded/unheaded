@@ -281,6 +281,193 @@ def _search_memories(question, threshold=0.9):
         return None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Live-state context injection.
+#
+# vor only indexes filesystem-resident markdown — not live PG state.
+# Without injection, the model hallucinates CLI commands like
+# "kanban list --status ..." when asked about kanban tasks. With
+# injection, it sees the actual zhen_actions / kanban_tasks rows and
+# answers from real data.
+#
+# Detection is keyword-based per intent. Conservative — false positives
+# cost a few hundred tokens of context (negligible at max_tokens=600);
+# false negatives leave the model in pre-fix hallucination mode.
+# ──────────────────────────────────────────────────────────────────────
+
+_LIVE_INTENTS = {
+    'kanban':    ('kanban', 'task', 'tasks', 'in progress', 'in-progress',
+                   'todo', 'review', 'done', 'progress', 'sprint'),
+    'audit':     ('audit', 'recent action', 'recent actions', 'audit log',
+                   'last action', 'who ran', 'history'),
+    'runbooks':  ('runbook', 'runbooks', 'execution', 'executions', 'runbook history',
+                   'health sweep', 'recent runbook'),
+    'health':    ('health', 'status', 'running', 'up', 'online', 'down',
+                   'reachable', 'system state', 'kingdom state'),
+}
+
+
+def _detect_live_intents(question):
+    """Return the set of context kinds this question needs."""
+    q = (question or '').lower()
+    intents = set()
+    for kind, keywords in _LIVE_INTENTS.items():
+        for kw in keywords:
+            if kw in q:
+                intents.add(kind)
+                break
+    return intents
+
+
+def _build_live_context(question, max_chars=4096):
+    """Pre-fetch live system state matching the question's intent.
+
+    Returns a string suitable for prepending to the LLM's user message,
+    or None when no live intent is detected. Capped at `max_chars` so
+    we don't blow the context window on a bulk dump.
+    """
+    intents = _detect_live_intents(question)
+    if not intents:
+        return None
+
+    parts = []
+
+    if 'kanban' in intents and pg_conn is not None:
+        try:
+            import psycopg2
+            kconn = psycopg2.connect(
+                dbname='unheaded',
+                user=os.environ.get('ZHEN_DB_USER', 'unheaded'),
+                password=os.environ.get('ZHEN_DB_PASSWORD', ''),
+                host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
+                port=int(os.environ.get('ZHEN_DB_PORT', '5432')),
+                connect_timeout=2,
+            )
+            kconn.autocommit = True
+            cur = kconn.cursor()
+            cur.execute("""
+                SELECT status, COUNT(*) FROM kanban_tasks
+                 WHERE deleted_at IS NULL AND archived_at IS NULL
+                 GROUP BY status ORDER BY status
+            """)
+            counts = dict(cur.fetchall())
+            cur.execute("""
+                SELECT id, title, status, owner, progress
+                  FROM kanban_tasks
+                 WHERE deleted_at IS NULL AND archived_at IS NULL
+                 ORDER BY status, updated_at DESC NULLS LAST
+                 LIMIT 30
+            """)
+            tasks = cur.fetchall()
+            cur.close()
+            kconn.close()
+            lines = ['## Kanban tasks (live from PG)']
+            lines.append('Counts by status: ' +
+                         ', '.join(f'{s}={c}' for s, c in counts.items()))
+            lines.append('')
+            lines.append('Most recent active tasks (up to 30):')
+            for t in tasks:
+                tid, title, status, owner, progress = t
+                lines.append(f'  - [{status}] {tid}: {title}'
+                             + (f' (owner: {owner})' if owner else '')
+                             + (f' [{progress}%]' if progress else ''))
+            parts.append('\n'.join(lines))
+        except Exception as e:
+            parts.append(f'## Kanban tasks: unavailable ({e})')
+
+    if 'audit' in intents and pg_conn is not None:
+        try:
+            cur = pg_conn.cursor()
+            cur.execute("""
+                SELECT id, action_type, status, intent, triggered_by,
+                       to_char(planned_at, 'YYYY-MM-DD HH24:MI:SS')
+                  FROM zhen_actions
+                 ORDER BY id DESC LIMIT 15
+            """)
+            rows = cur.fetchall()
+            cur.close()
+            lines = ['## Recent audit (zhen_actions, live from PG)']
+            for r in rows:
+                lines.append(f'  #{r[0]} [{r[5]}] {r[1]} → {r[2]}'
+                             + (f' (by {r[4]})' if r[4] else '')
+                             + (f': {r[3]}' if r[3] else ''))
+            parts.append('\n'.join(lines))
+        except Exception as e:
+            parts.append(f'## Recent audit: unavailable ({e})')
+
+    if 'runbooks' in intents:
+        # Two parts: list of available runbooks (cached static) +
+        # recent executions (live from PG).
+        try:
+            import glob as g
+            rb_files = sorted(
+                g.glob(os.path.join(RUNBOOKS_DIR, '**', '*.yaml'),
+                       recursive=True))
+            names = [os.path.relpath(f, RUNBOOKS_DIR).replace('.yaml', '')
+                     for f in rb_files]
+            lines = [f'## Runbooks available ({len(names)} total)']
+            for n in names[:25]:
+                lines.append(f'  - {n}')
+            if len(names) > 25:
+                lines.append(f'  ... and {len(names) - 25} more')
+            parts.append('\n'.join(lines))
+        except Exception:
+            pass
+
+        if pg_conn is not None:
+            try:
+                cur = pg_conn.cursor()
+                cur.execute("""
+                    SELECT id, status, intent, elapsed_ms,
+                           to_char(planned_at, 'YYYY-MM-DD HH24:MI:SS')
+                      FROM zhen_actions
+                     WHERE action_type = 'runbook.execute'
+                     ORDER BY id DESC LIMIT 10
+                """)
+                rows = cur.fetchall()
+                cur.close()
+                if rows:
+                    lines = ['## Recent runbook executions (live from PG)']
+                    for r in rows:
+                        rid, status, intent, elapsed_ms, planned = r
+                        lines.append(f'  #{rid} [{planned}] {status} '
+                                     f'({elapsed_ms or 0}ms): {intent or ""}')
+                    parts.append('\n'.join(lines))
+            except Exception:
+                pass
+
+    if 'health' in intents:
+        # Quick probes; same shape as /api/v1/system/state.
+        import urllib.request as _ur
+        probes = []
+        for label, url in [
+            ('vor (retrieval)',     f'{rag.vor_url}/api/health' if rag else ''),
+            ('llama-server (LLM)',  f'{rag.inference_url}/health' if rag else ''),
+            ('zhen-agentd (gate)',  os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105') + '/health'),
+            ('kanban-app',          'http://127.0.0.1:20001/health'),
+            ('wiki',                'http://127.0.0.1:20002/health'),
+        ]:
+            if not url:
+                continue
+            try:
+                with _ur.urlopen(url, timeout=2) as r:
+                    probes.append(f'  - {label}: ok')
+            except Exception:
+                probes.append(f'  - {label}: DOWN')
+        if pg_conn is not None:
+            probes.append('  - the well (PG): connected')
+        else:
+            probes.append('  - the well (PG): disconnected')
+        parts.append('## Backend health (live)\n' + '\n'.join(probes))
+
+    if not parts:
+        return None
+    blob = '\n\n'.join(parts)
+    if len(blob) > max_chars:
+        blob = blob[:max_chars] + '\n\n[...live context truncated]'
+    return blob
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
@@ -758,8 +945,16 @@ def query():
 
         history = _get_history(client_session)
 
+        # Live-state context injection: if the question asks about live
+        # system data (kanban tasks, runbook history, audit feed, daemon
+        # health), pre-fetch the relevant authoritative state and pass
+        # it to the LLM. Without this, the model hallucinates CLI commands
+        # ("kanban list --status ...") instead of reading actual rows.
+        live_ctx = _build_live_context(question)
+
         start = time.time()
-        result = rag.query(question, file_content=file_content, history=history)
+        result = rag.query(question, file_content=file_content, history=history,
+                          live_context=live_ctx)
         elapsed = time.time() - start
         elapsed_ms = int(elapsed * 1000)
 
