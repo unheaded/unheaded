@@ -1,10 +1,22 @@
 # ADR-059 — Zhenai Interactive CLI (Terminal Counterpart of the Web UI)
 
-**Status:** Planned
-**Date:** 2026-05-02
-**Deciders:** Stevie Bellis + unheaded-developer (when activated)
+**Status:** Phase 1 — Shipped (2026-05-03); Phase 2-3 Planned
+**Date:** 2026-05-02 (planned), 2026-05-03 (Phase 1 ship)
+**Deciders:** Stevie Bellis + unheaded-developer
 **Context owner:** zhenai operator surface
 **Triggered by:** Stevie's directive 2026-05-02: *"we should also create a cli counterpart that can chat and interact with zhenai from terminal prompt too sort of like a simplified version of what we are doing now."*
+
+**Phase 1 ship note (2026-05-03):** `cmd/zhen-cli/main.go` landed in this commit
+batch. Stdlib-only (no readline yet), single-file. Capabilities:
+interactive REPL with conversation history (last 6 turn pairs in LLM context
+by default), pipe-mode (`echo "..." | zhen-cli` → one-shot), `-q "..."`
+flag for one-shot, slash commands `/help` `/exit` `/quit` `/clear`
+`/history` `/health`. Same vor + qwen-coder backends as the web UI; same
+source-trust + destructive-verb-filter system prompt as `cmd/zhen-rag`.
+Acceptance ("Stevie can have a coherent conversation in his terminal")
+verified in pipe-mode smoke + one-shot flag tests against live vor :9876
+and llama-server :8081. Slash commands for runbook execution / memory
+recall / conversation persistence are deferred to Phase 2.
 
 ---
 
