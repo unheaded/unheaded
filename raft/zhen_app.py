@@ -351,27 +351,43 @@ def _build_live_context(question, max_chars=4096):
                  GROUP BY status ORDER BY status
             """)
             counts = dict(cur.fetchall())
-            cur.execute("""
-                SELECT id, title, status, owner, progress
-                  FROM kanban_tasks
-                 WHERE deleted_at IS NULL AND archived_at IS NULL
-                 ORDER BY status, updated_at DESC NULLS LAST
-                 LIMIT 30
-            """)
-            tasks = cur.fetchall()
+            # Per-status listings (top N by recency) so the model never has to
+            # infer counts from a truncated cross-status sample.
+            status_lists = {}
+            for status_key, total in counts.items():
+                cur.execute("""
+                    SELECT id, title, owner, progress
+                      FROM kanban_tasks
+                     WHERE deleted_at IS NULL AND archived_at IS NULL
+                       AND status = %s
+                     ORDER BY updated_at DESC NULLS LAST
+                     LIMIT 12
+                """, (status_key,))
+                status_lists[status_key] = cur.fetchall()
             cur.close()
             kconn.close()
-            lines = ['## Kanban tasks (live from PG)']
-            lines.append('Counts by status: ' +
-                         ', '.join(f'{s}={c}' for s, c in counts.items()))
+            total_active = sum(counts.values())
+            lines = [
+                '## Kanban tasks (live from PG, AUTHORITATIVE)',
+                f'Total active (excludes deleted/archived): {total_active}',
+                '',
+                'EXACT COUNTS BY STATUS (use these numbers — the per-status'
+                ' listings below are samples, not the full set):',
+            ]
+            for s in sorted(counts.keys()):
+                lines.append(f'  - {s}: {counts[s]}')
             lines.append('')
-            lines.append('Most recent active tasks (up to 30):')
-            for t in tasks:
-                tid, title, status, owner, progress = t
-                lines.append(f'  - [{status}] {tid}: {title}'
-                             + (f' (owner: {owner})' if owner else '')
-                             + (f' [{progress}%]' if progress else ''))
-            parts.append('\n'.join(lines))
+            for s in sorted(counts.keys()):
+                rows = status_lists.get(s, [])
+                lines.append(f'### {s} ({counts[s]} total, showing up to 12 most recent)')
+                for tid, title, owner, progress in rows:
+                    lines.append(f'  - {tid}: {title}'
+                                 + (f' (owner: {owner})' if owner else '')
+                                 + (f' [{progress}%]' if progress else ''))
+                if counts[s] > len(rows):
+                    lines.append(f'  ... and {counts[s] - len(rows)} more in {s}')
+                lines.append('')
+            parts.append('\n'.join(lines).rstrip())
         except Exception as e:
             parts.append(f'## Kanban tasks: unavailable ({e})')
 
