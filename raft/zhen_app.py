@@ -447,6 +447,7 @@ def _build_live_context(question, max_chars=4096):
             ('kanban-app',          'http://127.0.0.1:20001/health'),
             ('wiki',                'http://127.0.0.1:20002/health'),
             ('dashboard-backend',   'http://127.0.0.1:20000/health'),
+            ('wotan (msg-bus)',     'http://127.0.0.1:18000/health'),
         ]:
             if not url:
                 continue
@@ -1165,6 +1166,20 @@ def system_state():
             }
     except Exception:
         state['dashboard'] = None
+
+    # wotan (message bus — HTTP control + gRPC streaming)
+    try:
+        with _ur.urlopen('http://127.0.0.1:18000/health', timeout=2) as r:
+            d = json.loads(r.read())
+            state['wotan'] = {
+                'status':         d.get('status', 'ok'),
+                'rooms':          d.get('rooms', 0),
+                'total_members':  d.get('total_members', 0),
+                'url':            'http://localhost:18000',
+                'grpc':           'localhost:18001',
+            }
+    except Exception:
+        state['wotan'] = None
 
     return jsonify(state)
 
