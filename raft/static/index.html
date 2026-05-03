@@ -1088,7 +1088,7 @@
             </div>
             <div class="input-bar">
                 <button class="upload-btn" onclick="document.getElementById('file-input').click()" title="Upload file">+</button>
-                <input type="text" id="q" placeholder="Ask Zhen about Unheaded..." autocomplete="off" />
+                <input type="text" id="q" placeholder="Ask Zhen about Unheaded — drag a file in, or click + to attach" autocomplete="off" />
                 <button id="btn" onclick="handleSubmit()">Ask</button>
             </div>
         </div>
@@ -1240,7 +1240,7 @@ function switchTab(tab) {
     if (tab === 'dashboard') refreshDashboard();
 
     if (tab === 'chat') {
-        qInput.placeholder = 'Ask Zhen about Unheaded...';
+        qInput.placeholder = 'Ask Zhen about Unheaded — drag a file in, or click + to attach';
         btn.textContent = 'Ask';
     } else if (tab === 'search') {
         qInput.placeholder = 'Search the codebase...';
@@ -2066,14 +2066,16 @@ Promise.all([
     addMsg(
         `I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\n` +
         `Retrieval: vor with ${sheets} sheets across ${categories} categories — Unheaded markdown, ADRs, battle plans, embedded cheatsheets. Source-trust labeled (canonical / local / external).\n\n` +
-        `Inference: ${model} via local llama-server on AMD RX 7700 XT (ROCm). Drag-and-drop files to include in your query.${rbLine}${memBack}\n\n` +
+        `Inference: ${model} via local llama-server on AMD RX 7700 XT (ROCm).${rbLine}${memBack}\n\n` +
+        `📎 Need a code review or want me to read a specific file? Drag the file straight into this window, or click the + button next to the input box. The whole file goes into my context.\n\n` +
         `Ask me anything.`,
         'zhen'
     );
 }).catch(() => {
     addMsg(
         "I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\n" +
-        "Local qwen-coder-7b inference + vor retrieval. Drag-and-drop files to include in your query.\n\n" +
+        "Local qwen-coder-7b inference + vor retrieval.\n\n" +
+        "📎 Drag a file into this window (or click + next to the input) to include its full contents in your query — best path for code review or specific-file questions.\n\n" +
         "Ask me anything.",
         'zhen'
     );
