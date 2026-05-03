@@ -183,21 +183,21 @@ if $HAS_BPFTOOL; then
         fi
 
         log_info "packet-marker loaded and pinned"
-        ((LOADED++))
+        LOADED=$((LOADED + 1))
     else
         log_warn "packet-marker: bpftool load failed, trying ip link..."
         if ip link show "$INTERFACE" &>/dev/null; then
             run_cmd ip link set dev "$INTERFACE" xdp obj "${EBPF_BIN_DIR}/packet-marker" sec xdp 2>/dev/null && \
-                { log_info "packet-marker attached via ip link"; ((LOADED++)); } || \
-                { log_error "packet-marker failed to load"; ((FAILED++)); }
+                { log_info "packet-marker attached via ip link"; LOADED=$((LOADED + 1)); } || \
+                { log_error "packet-marker failed to load"; FAILED=$((FAILED + 1)); }
         else
             log_error "packet-marker: no interface available"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
         fi
     fi
 else
     log_warn "packet-marker: skipped (no bpftool)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # --- 2. flow-tracker (TC) ---
@@ -210,17 +210,19 @@ if $HAS_BPFTOOL && ip link show "$INTERFACE" &>/dev/null; then
 
         # Setup TC qdisc and attach
         run_cmd tc qdisc add dev "$INTERFACE" clsact 2>/dev/null || true
-        PROG_ID=$(bpftool prog show pinned "${BPFFS_ROOT}/flow-tracker/prog" 2>/dev/null | head -1 | awk '{print $1}' | tr -d ':')
+        # bpftool prog show may fail in dry-run mode (the pin doesn't exist
+        # yet) — `|| true` keeps set -e/pipefail from aborting the script.
+        PROG_ID=$(bpftool prog show pinned "${BPFFS_ROOT}/flow-tracker/prog" 2>/dev/null | head -1 | awk '{print $1}' | tr -d ':' || true)
         if [[ -n "$PROG_ID" ]]; then
             run_cmd tc filter add dev "$INTERFACE" ingress bpf da fd "${BPFFS_ROOT}/flow-tracker/prog" 2>/dev/null || \
                 log_warn "Could not attach flow-tracker to TC ingress"
         fi
 
         log_info "flow-tracker loaded and pinned"
-        ((LOADED++))
+        LOADED=$((LOADED + 1))
     else
         log_error "flow-tracker failed to load"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 else
     if ! $HAS_BPFTOOL; then
@@ -228,7 +230,7 @@ else
     else
         log_warn "flow-tracker: skipped (no interface)"
     fi
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # --- 3. latency-probe (kprobe/kretprobe) ---
@@ -240,7 +242,7 @@ if $HAS_BPFTOOL; then
         pinmaps "${BPFFS_ROOT}/latency-probe" 2>/dev/null; then
 
         log_info "latency-probe loaded and pinned"
-        ((LOADED++))
+        LOADED=$((LOADED + 1))
 
         # Attach kprobes
         log_debug "Attaching kprobe to tcp_v4_connect..."
@@ -249,11 +251,11 @@ if $HAS_BPFTOOL; then
             log_warn "Could not attach kprobe (may need manual perf_event setup)"
     else
         log_error "latency-probe failed to load"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 else
     log_warn "latency-probe: skipped (no bpftool)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # --- 4. syscall-tracer (raw tracepoint) ---
@@ -265,7 +267,7 @@ if $HAS_BPFTOOL; then
         pinmaps "${BPFFS_ROOT}/syscall-tracer" 2>/dev/null; then
 
         log_info "syscall-tracer loaded and pinned"
-        ((LOADED++))
+        LOADED=$((LOADED + 1))
 
         # Attach to raw_tracepoint/sys_enter
         run_cmd bpftool prog attach pinned "${BPFFS_ROOT}/syscall-tracer/prog" \
@@ -273,11 +275,11 @@ if $HAS_BPFTOOL; then
             log_warn "Could not attach raw_tracepoint (may need manual setup)"
     else
         log_error "syscall-tracer failed to load"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 else
     log_warn "syscall-tracer: skipped (no bpftool)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # ============================================================================
