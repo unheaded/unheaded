@@ -1832,6 +1832,7 @@ function renderDashSystem(s) {
         ['kanban-app',          s.kanban,       v => v ? `wotan=${v.wotan_enabled ? 'on' : 'off'}` : 'unreachable'],
         ['wiki',                s.wiki,         v => v ? 'serving' : 'unreachable'],
         ['dashboard-backend',   s.dashboard,    v => v ? 'metrics + WS' : 'unreachable'],
+        ['wotan (msg-bus)',     s.wotan,        v => v ? `${v.rooms || 0} rooms / ${v.total_members || 0} members` : 'unreachable'],
         ['the well (PG)',       s.webui,        v => v && v.well_connected ? 'connected' : 'disconnected'],
     ];
     el.innerHTML = probes.map(([label, val, fmt]) => {
