@@ -1143,6 +1143,9 @@
                     <a class="op-btn op-link" href="http://localhost:20002/wiki/Home" target="_blank" rel="noopener">
                         ⊞ Open Wiki ↗
                     </a>
+                    <a class="op-btn op-link" href="http://localhost:20000" target="_blank" rel="noopener">
+                        ⊞ Open Dashboard ↗
+                    </a>
                 </div>
                 <div id="op-result" class="op-result"></div>
             </div>
@@ -1828,6 +1831,7 @@ function renderDashSystem(s) {
         ['zhen-agentd (gate)',  s.agentd,       v => v ? 'gating ON' : 'down — mutations disabled'],
         ['kanban-app',          s.kanban,       v => v ? `wotan=${v.wotan_enabled ? 'on' : 'off'}` : 'unreachable'],
         ['wiki',                s.wiki,         v => v ? 'serving' : 'unreachable'],
+        ['dashboard-backend',   s.dashboard,    v => v ? 'metrics + WS' : 'unreachable'],
         ['the well (PG)',       s.webui,        v => v && v.well_connected ? 'connected' : 'disconnected'],
     ];
     el.innerHTML = probes.map(([label, val, fmt]) => {
