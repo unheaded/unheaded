@@ -297,7 +297,9 @@ def _search_memories(question, threshold=0.9):
 
 _LIVE_INTENTS = {
     'kanban':    ('kanban', 'task', 'tasks', 'in progress', 'in-progress',
-                   'todo', 'review', 'done', 'progress', 'sprint'),
+                   'todo', 'to-do', 'to do', 'backlog', 'pending', 'queue',
+                   'review', 'done', 'completed', 'progress', 'sprint',
+                   'column', 'columns', 'board', 'how many'),
     'audit':     ('audit', 'recent action', 'recent actions', 'audit log',
                    'last action', 'who ran', 'history'),
     'runbooks':  ('runbook', 'runbooks', 'execution', 'executions', 'runbook history',
@@ -367,9 +369,13 @@ def _build_live_context(question, max_chars=4096):
             cur.close()
             kconn.close()
             total_active = sum(counts.values())
+            status_keys_csv = ', '.join(f"'{s}'" for s in sorted(counts.keys()))
             lines = [
                 '## Kanban tasks (live from PG, AUTHORITATIVE)',
                 f'Total active (excludes deleted/archived): {total_active}',
+                f'Canonical status vocabulary on this board: {status_keys_csv}.'
+                ' (There is no separate "backlog" column — unstarted work lives'
+                ' in `todo`. "Completed" maps to `done`.)',
                 '',
                 'EXACT COUNTS BY STATUS (use these numbers — the per-status'
                 ' listings below are samples, not the full set):',
