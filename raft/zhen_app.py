@@ -446,6 +446,7 @@ def _build_live_context(question, max_chars=4096):
             ('zhen-agentd (gate)',  os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105') + '/health'),
             ('kanban-app',          'http://127.0.0.1:20001/health'),
             ('wiki',                'http://127.0.0.1:20002/health'),
+            ('dashboard-backend',   'http://127.0.0.1:20000/health'),
         ]:
             if not url:
                 continue
@@ -1153,6 +1154,17 @@ def system_state():
             state['wiki'] = {'status': 'ok', 'url': 'http://localhost:20002'}
     except Exception:
         state['wiki'] = None
+
+    # dashboard-backend (Prometheus + WebSocket metrics surface)
+    try:
+        with _ur.urlopen('http://127.0.0.1:20000/health', timeout=2) as r:
+            d = json.loads(r.read())
+            state['dashboard'] = {
+                'status': d.get('status', 'ok'),
+                'url':    'http://localhost:20000',
+            }
+    except Exception:
+        state['dashboard'] = None
 
     return jsonify(state)
 
