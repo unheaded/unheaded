@@ -17,12 +17,11 @@ func referenceState() PQCState {
 		VerifyPass:   1000,
 		VerifyFail:   3,
 		LastRotation: 1709568000, // 2024-03-04T16:00:00Z
-		PolicyMode:   0x01,      // PESSIMISTIC
-		ActiveTier:   0x02,
+		PolicyMode:   PolicyModePessimistic,
+		ActiveTier:   ActiveTierEnhanced,
 		KEMTunnels:   16,
 		LastVerifyNs: 850_000,
 		SeqHighWater: 99999,
-		Reserved:     0,
 	}
 }
 
@@ -80,7 +79,7 @@ func TestFieldOffsets(t *testing.T) {
 		{"KEMTunnels", 0x1A, 2, uint64(s.KEMTunnels)},
 		{"LastVerifyNs", 0x1C, 4, uint64(s.LastVerifyNs)},
 		{"SeqHighWater", 0x20, 4, uint64(s.SeqHighWater)},
-		{"Reserved", 0x24, 4, uint64(s.Reserved)},
+		{"ReservedZero", 0x24, 4, 0}, // reserved range is forced to zero on the wire
 	}
 
 	for _, tc := range tests {
@@ -355,6 +354,159 @@ func TestMarshalZeroState(t *testing.T) {
 	for i, b := range buf {
 		if b != 0 {
 			t.Fatalf("zero state byte[%d] = 0x%02X, want 0x00", i, b)
+		}
+	}
+}
+
+// TestUnmarshalBufferOversized — the old implementation silently
+// accepted oversized buffers (`len(b) < PQCStateSize` rather than `!=`),
+// reading only the first 40 bytes. The fix requires exact length.
+func TestUnmarshalBufferOversized(t *testing.T) {
+	buf := make([]byte, PQCStateSize+8) // +8 trailing bytes
+	if _, err := UnmarshalPQCState(buf); err == nil {
+		t.Fatal("expected error for oversized buffer, got nil")
+	}
+}
+
+// TestUnmarshalRejectsNonZeroReserved — regression for the covert-channel
+// finding (#3 from the 2026-05-03 review). The reserved 4-byte range at
+// offset 0x24 round-tripped silently; the fix forces zero on Marshal and
+// rejects non-zero on Unmarshal so endpoints can't smuggle data through it.
+func TestUnmarshalRejectsNonZeroReserved(t *testing.T) {
+	ref := referenceState()
+	good := ref.Marshal()
+
+	// Build a buffer with valid contents but non-zero reserved bytes.
+	bad := good[:]
+	bad[0x24] = 0xCA
+	bad[0x25] = 0xFE
+	bad[0x26] = 0xBA
+	bad[0x27] = 0xBE
+
+	if _, err := UnmarshalPQCState(bad); err == nil {
+		t.Fatal("expected error for non-zero reserved bytes, got nil (covert channel open)")
+	}
+}
+
+// TestMarshalForcesReservedZero — companion to the above. Even if a
+// hypothetical caller managed to set reserved bytes via reflection or a
+// later struct change, Marshal must zero them on the way out.
+func TestMarshalForcesReservedZero(t *testing.T) {
+	ref := referenceState()
+	buf := ref.Marshal()
+	for i := 0x24; i < 0x28; i++ {
+		if buf[i] != 0 {
+			t.Fatalf("Marshal byte[0x%02X] = 0x%02X, want 0x00 (reserved must be zero)", i, buf[i])
+		}
+	}
+}
+
+// TestCASMonotonicWithConcurrentIncr — regression for the CAS-vs-Incr
+// race (finding #2). Old code held mu for state assignment but used a
+// separate atomic.Uint64 for verifyPass; an IncrVerifyPass between
+// CAS's atomic Load and CAS's atomic Store would be silently lost.
+//
+// The fix routes Incr through the same mutex; any IncrVerifyPass
+// concurrent with a CAS now serializes cleanly. We verify the
+// post-condition: the final counter equals (number of CAS-survivors
+// applying VerifyPass=initial) + (number of Incrs that landed after
+// the last successful CAS). For the simpler invariant we assert here:
+// after N concurrent Incrs and exactly one CAS that sets VerifyPass=0,
+// the final value must be at least the count of Incrs that ran AFTER
+// the CAS. We can't tag those externally, so the loosest invariant
+// that catches the bug is: total observed value across the run is
+// non-decreasing once all goroutines have completed.
+func TestCASMonotonicWithConcurrentIncr(t *testing.T) {
+	const incrCount = 5_000
+
+	mgr := NewPQCStateManager()
+	mgr.Write(PQCState{VerifyPass: 100})
+
+	var wg sync.WaitGroup
+	wg.Add(incrCount + 1)
+
+	for i := 0; i < incrCount; i++ {
+		go func() {
+			defer wg.Done()
+			mgr.IncrVerifyPass()
+		}()
+	}
+
+	// One CAS that swaps based on a current it expects to observe.
+	go func() {
+		defer wg.Done()
+		// We don't care if this CAS succeeds — what matters is that
+		// the increments serialize correctly around it. Try repeatedly
+		// so we exercise the race window.
+		for i := 0; i < 100; i++ {
+			cur := mgr.Read()
+			next := cur
+			next.SigCount = 999
+			mgr.CAS(cur, next)
+		}
+	}()
+
+	wg.Wait()
+
+	// All 5000 increments must be visible. With the buggy split-state
+	// implementation, some IncrVerifyPass calls would be lost when CAS
+	// stomped the atomic counter mid-flight.
+	got := mgr.Read().VerifyPass
+	want := uint32(100 + incrCount)
+	if got != want {
+		t.Fatalf("VerifyPass after %d concurrent Incrs + concurrent CAS: got %d, want %d (lost increments → CAS race regression)",
+			incrCount, got, want)
+	}
+}
+
+// TestVerifyCounterUint32WrapsCleanly — finding #1 (atomic.Uint64 with
+// uint32 wire field caused silent truncation). Wire format dictates 4
+// bytes; we now treat the counter as uint32 throughout, so wrap at
+// 2^32 is well-defined modular arithmetic — not a truncation surprise.
+func TestVerifyCounterUint32WrapsCleanly(t *testing.T) {
+	mgr := NewPQCStateManager()
+	mgr.Write(PQCState{VerifyPass: 0xFFFFFFFE}) // 2^32 - 2
+
+	mgr.IncrVerifyPass() // → 0xFFFFFFFF
+	if got := mgr.Read().VerifyPass; got != 0xFFFFFFFF {
+		t.Fatalf("VerifyPass after Incr at MaxUint32-1: got 0x%08x, want 0xFFFFFFFF", got)
+	}
+
+	mgr.IncrVerifyPass() // → 0 (wrap)
+	if got := mgr.Read().VerifyPass; got != 0 {
+		t.Fatalf("VerifyPass wrap-around: got 0x%08x, want 0x00000000 (uint32 wrap)", got)
+	}
+
+	mgr.IncrVerifyPass() // → 1
+	if got := mgr.Read().VerifyPass; got != 1 {
+		t.Fatalf("VerifyPass after wrap: got 0x%08x, want 0x00000001", got)
+	}
+}
+
+// TestPolicyAndTierConstants — finding #6 (no typed constants for the
+// documented enum values). Tests that the named constants resolve to
+// the wire-documented byte values, so any future caller relying on the
+// constants is talking to the same bytes the spec describes.
+func TestPolicyAndTierConstants(t *testing.T) {
+	if PolicyModePessimistic != 0x01 {
+		t.Fatalf("PolicyModePessimistic = 0x%02X, want 0x01", PolicyModePessimistic)
+	}
+	if PolicyModeOptimistic != 0x02 {
+		t.Fatalf("PolicyModeOptimistic = 0x%02X, want 0x02", PolicyModeOptimistic)
+	}
+	tiers := []struct {
+		name string
+		got  uint8
+		want uint8
+	}{
+		{"Baseline", ActiveTierBaseline, 0x00},
+		{"Standard", ActiveTierStandard, 0x01},
+		{"Enhanced", ActiveTierEnhanced, 0x02},
+		{"Strict", ActiveTierStrict, 0x03},
+	}
+	for _, tc := range tiers {
+		if tc.got != tc.want {
+			t.Fatalf("ActiveTier%s = 0x%02X, want 0x%02X", tc.name, tc.got, tc.want)
 		}
 	}
 }
