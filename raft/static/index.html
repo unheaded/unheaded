@@ -2043,26 +2043,25 @@ async function switchModel(key) {
         return;
     }
 
-    // Poll /api/v1/stats until inference_model == key, with timeout.
+    // Poll /api/v1/models until current === key, with timeout. The
+    // backend reads llama-server's /v1/models live and back-maps the
+    // gguf basename to a sidebar key — so this is an exact-key match,
+    // not a substring search.
     const deadline = Date.now() + 6 * 60 * 1000; // 6 min hard cap
     const t0 = Date.now();
     while (Date.now() < deadline) {
         await new Promise(r => setTimeout(r, 3000));
         try {
-            const sr = await fetch(API + '/api/v1/stats');
+            const sr = await fetch(API + '/api/v1/models');
             const sb = await sr.json();
-            const model = sb.inference_model || '';
             const elapsed = ((Date.now() - t0) / 1000).toFixed(0);
-            // Match-anywhere: zhen_app's display name may not equal the
-            // switch-model key 1:1 (e.g. key="qwen-7b" → name="qwen2.5-coder-7b-instruct").
-            // We accept "key matches OR a /v1/models endpoint says the swap completed."
-            if (model.includes(key) || model.replace('-instruct', '').endsWith(key)) {
+            if (sb.current === key) {
                 status.className = 'model-status ok';
-                status.textContent = `✓ swapped to ${model} in ${elapsed}s`;
-                await loadModelList(); // refresh dropdown to show new "loaded" tag
+                status.textContent = `✓ swapped to ${key} in ${elapsed}s`;
+                await loadModelList();
                 return;
             }
-            status.textContent = `swapping to ${key}… ${elapsed}s elapsed`;
+            status.textContent = `swapping to ${key}… ${elapsed}s elapsed (current: ${sb.current || '?'})`;
         } catch (e) {
             // Polling errors are transient (zhen_app may be busy); keep trying.
         }
