@@ -43,9 +43,11 @@ GGUF kept (~9 GB) since it's the live keep-as-option.
 
 ---
 
-## Commits this overnight session (10 total)
+## Commits this overnight session (7 in WAVE16; 12 since you went to bed)
 
 ```
+430dc915 pkg/champion: thread-safe mockStore (race exposed by TestConcurrentSwapBlocked)
+559c723b docs: WAVE16 wake-up summary — Stevie's morning briefing
 41bcfe22 timeguru: close two debt items (timeline-sync stubs + DB_PATH docs)
 bb514e60 docs: ADR-062 (Lich framework codified) + ADR-063 (Akira summons Lich)
 77a0f64b pkg/wotan: state.go review followups #7 + #8 (Apply consolidation + MarshalTo zero-alloc)
@@ -54,7 +56,26 @@ ca23e1ff docs: ADR-060 + ADR-061 + WAVE16 battle plan (overnight model vetting)
    ↑ before that: 5 commits from your evening session
 ```
 
-`origin/main..HEAD` is now substantial. Push at your discretion.
+`origin/main..HEAD` is substantial. Push at your discretion.
+
+## Regression sweep result (Phase 14)
+
+`go test ./...` across the whole tree: 2 pre-existing failures, none
+from tonight's work:
+- `pkg/wotan-client` 60s timeout — tests need a live wotan server,
+  predates tonight, unrelated to this session's edits
+- `tests/s77` 6 missing-doc failures — S77 battle plan TODO list,
+  not yet shipped, also predates tonight
+
+`go test -race` clean across every package I touched
+(`pkg/champion`, `pkg/wotan`, `services/timeguru/internal/sync`,
+`services/wotan/internal/...`). The race exposed in
+TestConcurrentSwapBlocked (mockStore not thread-safe) was fixed in
+the final commit `430dc915` — production code unchanged because real
+ActionStore implementations are PG-backed.
+
+`go vet ./...` shows 3 pre-existing warnings in `cmd/protocol-api/`
+and `pkg/ebpf/` — neither package was touched tonight.
 
 ## Backlog closed overnight (5 items + 2 sub-items)
 
