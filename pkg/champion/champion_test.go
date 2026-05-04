@@ -7,16 +7,27 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
 // mockStore implements ActionStore for testing.
+//
+// Thread-safe — `mu` was added 2026-05-04 when TestConcurrentSwapBlocked
+// (modelswap_test.go) exposed that the production-side single-flight
+// guard works fine but two ModelSwap calls' completeAction calls still
+// race the shared mockStore. The mutex protects the slice + counter
+// from concurrent reads/writes; serialised access is fine here because
+// the fixture is dev-tier mock storage, not a real-DB performance path.
 type mockStore struct {
+	mu      sync.Mutex
 	actions []Action
 	nextID  int64
 }
 
 func (m *mockStore) LogAction(_ context.Context, action *Action) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.nextID++
 	action.ID = m.nextID
 	m.actions = append(m.actions, *action)
@@ -24,6 +35,8 @@ func (m *mockStore) LogAction(_ context.Context, action *Action) (int64, error) 
 }
 
 func (m *mockStore) UpdateAction(_ context.Context, id int64, status, result, errMsg string, elapsedMs int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for i := range m.actions {
 		if m.actions[i].ID == id {
 			m.actions[i].Status = status
@@ -37,7 +50,12 @@ func (m *mockStore) UpdateAction(_ context.Context, id int64, status, result, er
 }
 
 func (m *mockStore) GetActions(_ context.Context, _ string, _ int) ([]Action, error) {
-	return m.actions, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Return a defensive copy so callers can iterate without holding the lock
+	out := make([]Action, len(m.actions))
+	copy(out, m.actions)
+	return out, nil
 }
 
 func TestNew_RequiresProjectRoot(t *testing.T) {
