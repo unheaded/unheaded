@@ -251,3 +251,7 @@ docs/protocol/xml/*.txt
 raft/experiments/
 
 eval/coding-gate/ci-runs/
+
+# WAVE16 — model vetting downloads (never commit GGUFs)
+*.gguf
+/var/zhen/models/
