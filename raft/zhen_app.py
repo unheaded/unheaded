@@ -89,6 +89,10 @@ try:
         vor_url=os.environ.get('VOR_URL', 'http://localhost:9876'),
         inference_url=os.environ.get('ZHEN_INFERENCE_URL', 'http://localhost:8081'),
         agentd_url=os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105'),
+        # Model name is metadata in the OpenAI-compat protocol — llama-server
+        # serves whatever GGUF is loaded regardless of this string. Setting
+        # ZHEN_MODEL keeps the response.model field accurate for the UI/logs.
+        # See scripts/switch-model.sh for the canonical model-swap path.
         model_name=os.environ.get('ZHEN_MODEL', 'qwen2.5-coder-7b-instruct'),
         proxy_via_agentd=_proxy,
     )
