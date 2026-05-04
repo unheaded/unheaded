@@ -1,0 +1,63 @@
+# pass=passB-gemma-600  id=syntax-rust  elapsed=9.46s  tokens=600  finish=length
+# prompt:
+#   How do I parse a string to an integer in Rust?
+
+Parsing a string to an integer in Rust is a very common task, and the idiomatic way to do it is by using the methods provided by the `str` type and the `Result` type, specifically the `parse()` method.
+
+Here is a complete guide covering the standard approach, error handling, and common variations.
+
+---
+
+## 1. The Standard Approach: Using `str::parse()`
+
+The `parse()` method is the most straightforward way. It attempts to convert the string slice (`&str`) into the desired type (in this case, `i32`, `u64`, etc.).
+
+**Key Feature:** `parse()` returns a `Result<T, E>`, where `T` is the target type (e.g., `i32`) and `E` is an error type (e.g., `ParseIntError`). This forces you to handle the case where the string is invalid.
+
+### Example (Parsing to `i32`)
+
+```rust
+fn main() {
+    let s1 = "12345";
+    let s2 = "hello";
+    let s3 = "-987";
+
+    // --- Case 1: Successful Parsing ---
+    match s1.parse::<i32>() {
+        Ok(number) => println!("Successfully parsed '{}' to i32: {}", s1, number),
+        Err(e) => println!("Error parsing '{}': {}", s1, e),
+    }
+
+    // --- Case 2: Failed Parsing ---
+    match s2.parse::<i32>() {
+        Ok(number) => println!("Successfully parsed '{}' to i32: {}", s2, number),
+        Err(e) => println!("Error parsing '{}': {}", s2, e),
+    }
+
+    // --- Case 3: Successful Parsing (Negative Number) ---
+    match s3.parse::<i32>() {
+        Ok(number) => println!("Successfully parsed '{}' to i32: {}", s3, number),
+        Err(e) => println!("Error parsing '{}': {}", s3, e),
+    }
+}
+```
+
+**Output:**
+
+```
+Successfully parsed '12345' to i32: 12345
+Error parsing 'hello': invalid digit found in string
+Successfully parsed '-987' to i32: -987
+```
+
+---
+
+## 2. Handling the Result (`match` vs. `unwrap`/`expect`)
+
+Since `parse()` returns a `Result`, you must decide how to handle the potential error.
+
+### A. Using `match` (Recommended for robust code)
+
+This is the safest way. It explicitly handles both the success (`Ok`) and failure (`Err`) cases.
+
+```

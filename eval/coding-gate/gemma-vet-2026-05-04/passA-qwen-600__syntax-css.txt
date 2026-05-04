@@ -1,0 +1,102 @@
+# pass=passA-qwen-600  id=syntax-css  elapsed=9.76s  tokens=600  finish=length
+# prompt:
+#   How do I center a div?
+
+To center a `div` both horizontally and vertically, you can use CSS. Here are a few common methods:
+
+### 1. Using Flexbox
+Flexbox is a powerful layout tool that makes it easy to center elements.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Center Div with Flexbox</title>
+<style>
+  .container {
+    display: flex;
+    justify-content: center; /* Center horizontally */
+    align-items: center; /* Center vertically */
+    height: 100vh; /* Full height of the viewport */
+  }
+  .centered-div {
+    width: 200px;
+    height: 200px;
+    background-color: lightblue;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="centered-div"></div>
+</div>
+</body>
+</html>
+```
+
+### 2. Using Grid
+CSS Grid is another modern layout method that can be used to center elements.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Center Div with Grid</title>
+<style>
+  .container {
+    display: grid;
+    justify-content: center; /* Center horizontally */
+    align-content: center; /* Center vertically */
+    height: 100vh; /* Full height of the viewport */
+  }
+  .centered-div {
+    width: 200px;
+    height: 200px;
+    background-color: lightgreen;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="centered-div"></div>
+</div>
+</body>
+</html>
+```
+
+### 3. Using Positioning
+You can also use absolute positioning to center a `div`.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Center Div with Positioning</title>
+<style>
+  .container {
+    position: relative;
+    height: 100vh; /* Full height of the viewport */
+  }
+  .centered-div {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Center the div */
+    width: 200px;
+    height: 200px;
+    background-color: lightcoral;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="centered-div"></div>
+</div>
+</body>
+</html

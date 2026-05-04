@@ -1,0 +1,32 @@
+# pass=passA-qwen-600  id=syntax-javascript  elapsed=4.93s  tokens=304  finish=stop
+# prompt:
+#   How do I make an async fetch call?
+
+To make an asynchronous fetch call in JavaScript, you can use the `fetch()` function. This function returns a Promise that resolves to the Response to that request, whether it is successful or not. Here's a basic example of how to use it:
+
+```javascript
+async function fetchData() {
+  try {
+    const response = await fetch('https://api.example.com/data');
+    if (!response.ok) {
+      throw new Error('Network response was not ok ' + response.statusText);
+    }
+    const data = await response.json();
+    console.log(data);
+  } catch (error) {
+    console.error('There has been a problem with your fetch operation:', error);
+  }
+}
+
+fetchData();
+```
+
+In this example:
+- The `fetch()` function is called with the URL of the API you want to call.
+- The `await` keyword is used to wait for the Promise returned by `fetch()` to resolve.
+- If the response is not successful (i.e., the `ok` property of the Response is `false`), an error is thrown.
+- The `response.json()` method is used to parse the JSON body of the response.
+- The parsed data is then logged to the console.
+- If any error occurs during the fetch operation, it is caught in the `catch` block and logged to the console.
+
+This is a basic example, and you can customize it according to your needs, such as handling different types of responses, adding headers, or handling errors more gracefully.
