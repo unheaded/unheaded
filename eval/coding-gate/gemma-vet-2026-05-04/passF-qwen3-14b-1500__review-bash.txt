@@ -1,0 +1,16 @@
+# pass=passF-qwen3-14b-1500  id=review-bash  elapsed=113.78s  tokens=1500  finish=length
+# prompt:
+#   Review this bash snippet. What is wrong with it, and how would you fix it?
+#   
+#   ```bash
+#   #!/usr/bin/env bash
+#   
+#   NAME=$1
+#   DIR=/tmp/$NAME
+#   
+#   mkdir $DIR
+#   cp -r ./files/* $DIR
+#   echo "deployed to $DIR"
+#   ```
+
+

@@ -1,0 +1,78 @@
+# pass=passF-qwen3-14b-1500  id=syntax-go  elapsed=113.94s  tokens=1500  finish=length
+# prompt:
+#   How do I check for an error after a function returns?
+
+To check for an error after a function returns, the approach depends on how the function is designed to signal errors. Here's a structured explanation with examples in common programming languages:
+
+---
+
+### **General Principles**
+1. **Understand the Function's Error-Signaling Mechanism**:
+   - **Return Codes**: The function returns a specific value (e.g., `0` for success, non-zero for failure).
+   - **Exceptions**: The function throws an exception when an error occurs.
+   - **Result Objects**: The function returns an object that includes an error field or status.
+   - **Special Values**: The function returns a special value (e.g., `null`, `None`, or `false`) to indicate an error.
+
+2. **Check the Return Value or Exception**:
+   - For return codes, inspect the returned value.
+   - For exceptions, use `try-catch` blocks or equivalent constructs.
+   - For result objects, check properties like `error`, `status`, or `success`.
+
+3. **Handle the Error Appropriately**:
+   - Log the error, retry, or propagate it based on your application's needs.
+
+---
+
+### **Examples in Common Languages**
+
+#### **1. C (Return Codes)**
+```c
+#include <stdio.h>
+
+int divide(int a, int b, int *result) {
+    if (b == 0) {
+        return -1; // Error code
+    }
+    *result = a / b;
+    return 0; // Success
+}
+
+int main() {
+    int result;
+    int status = divide(10, 0, &result);
+    if (status != 0) {
+        printf("Error: Division by zero.\n");
+    }
+    return 0;
+}
+```
+
+---
+
+#### **2. Python (Exceptions or Return Values)**
+```python
+# Using exceptions
+def divide(a, b):
+    if b == 0:
+        raise ValueError("Division by zero")
+    return a / b
+
+try:
+    result = divide(10, 0)
+except ValueError as e:
+    print(f"Error: {e}")
+
+# Using return values
+def divide(a, b):
+    if b == 0:
+        return (None, "Division by zero")
+    return (a / b, None)
+
+result, error = divide(10, 0)
+if error:
+    print(f"Error: {error}")
+```
+
+---
+
+####

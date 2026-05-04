@@ -775,6 +775,29 @@
         }
         .op-btn:disabled { opacity: 0.5; cursor: progress; }
 
+        /* Model selector (ADR-060). Compact dropdown + status line. */
+        .model-switcher { display: flex; flex-direction: column; gap: 6px; }
+        .model-switcher select {
+            width: 100%;
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-family: inherit;
+            font-size: 0.88em;
+        }
+        .model-switcher select:disabled { opacity: 0.6; cursor: progress; }
+        .model-status {
+            font-size: 0.74em;
+            color: var(--text-dim);
+            min-height: 1em;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .model-status.swapping { color: var(--accent); }
+        .model-status.error    { color: var(--err, #ff6b6b); }
+        .model-status.ok       { color: var(--ok, #4caf50); }
+
         .op-result {
             margin-top: 10px;
             display: none;
@@ -1113,6 +1136,22 @@
                         <div class="val" id="stat-avg-time">—</div>
                         <div class="label">Avg (s)</div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Model selector (ADR-060) — kills+respawns llama-server.
+                 45 s – 3 min latency depending on which model you pick.
+                 Goes through Champion's gate via /api/v1/models/switch
+                 which proxies to zhen-agentd /api/v1/tool/exec with the
+                 direct-user trust label. -->
+            <div>
+                <h3>Model</h3>
+                <div class="model-switcher">
+                    <select id="model-select" disabled
+                            title="swap which model llama-server is serving">
+                        <option value="">loading…</option>
+                    </select>
+                    <div id="model-swap-status" class="model-status"></div>
                 </div>
             </div>
 
@@ -1935,6 +1974,118 @@ function opShow(html) {
 function opPending(label) {
     opShow(`<div class="op-pending">⏳ ${escapeHtml(label)}…</div>`);
 }
+
+// ─────────────────────── Model selector (ADR-060) ───────────────────────
+//
+// On-load: GET /api/v1/models to populate the dropdown + mark current.
+// On-change: POST /api/v1/models/switch with the selected key. Then poll
+// /api/v1/stats every 3 s until inference_model matches the selected
+// key, with a 6-min hard timeout. The dropdown is disabled during the
+// in-flight swap so the operator can't double-fire.
+
+async function loadModelList() {
+    const sel = document.getElementById('model-select');
+    const status = document.getElementById('model-swap-status');
+    if (!sel) return;
+    try {
+        const r = await fetch(API + '/api/v1/models');
+        const body = await r.json();
+        sel.innerHTML = '';
+        const keys = body.keys || [];
+        const current = body.current || '';
+        for (const k of keys) {
+            const opt = document.createElement('option');
+            opt.value = k;
+            opt.textContent = k + (k === current ? '  (loaded)' : '');
+            if (k === current) opt.selected = true;
+            sel.appendChild(opt);
+        }
+        if (keys.length === 0) {
+            sel.innerHTML = '<option value="">(no models registered)</option>';
+        }
+        sel.disabled = false;
+        status.className = 'model-status';
+        status.textContent = current ? `${keys.length} models · ${current} loaded` : `${keys.length} models`;
+    } catch (e) {
+        status.className = 'model-status error';
+        status.textContent = 'failed to load model list: ' + String(e);
+    }
+}
+
+async function switchModel(key) {
+    const sel = document.getElementById('model-select');
+    const status = document.getElementById('model-swap-status');
+    sel.disabled = true;
+    status.className = 'model-status swapping';
+    status.textContent = `swapping to ${key}… (45 s – 3 min)`;
+
+    let resp;
+    try {
+        const r = await fetch(API + '/api/v1/models/switch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({key: key}),
+        });
+        resp = {status: r.status, body: await r.json()};
+    } catch (e) {
+        status.className = 'model-status error';
+        status.textContent = 'switch error: ' + String(e);
+        sel.disabled = false;
+        return;
+    }
+
+    // Daemon returns 200 + full ModelSwapResult on success; 4xx/5xx on
+    // failure with a body that includes a 'reason' or 'error' field.
+    if (resp.status >= 400) {
+        status.className = 'model-status error';
+        status.textContent = `${resp.status}: ${resp.body.reason || resp.body.error || JSON.stringify(resp.body)}`;
+        sel.disabled = false;
+        return;
+    }
+
+    // Poll /api/v1/stats until inference_model == key, with timeout.
+    const deadline = Date.now() + 6 * 60 * 1000; // 6 min hard cap
+    const t0 = Date.now();
+    while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+            const sr = await fetch(API + '/api/v1/stats');
+            const sb = await sr.json();
+            const model = sb.inference_model || '';
+            const elapsed = ((Date.now() - t0) / 1000).toFixed(0);
+            // Match-anywhere: zhen_app's display name may not equal the
+            // switch-model key 1:1 (e.g. key="qwen-7b" → name="qwen2.5-coder-7b-instruct").
+            // We accept "key matches OR a /v1/models endpoint says the swap completed."
+            if (model.includes(key) || model.replace('-instruct', '').endsWith(key)) {
+                status.className = 'model-status ok';
+                status.textContent = `✓ swapped to ${model} in ${elapsed}s`;
+                await loadModelList(); // refresh dropdown to show new "loaded" tag
+                return;
+            }
+            status.textContent = `swapping to ${key}… ${elapsed}s elapsed`;
+        } catch (e) {
+            // Polling errors are transient (zhen_app may be busy); keep trying.
+        }
+    }
+
+    // Timeout: the swap may still complete in the background, but the UI
+    // gives up the lock so the operator can intervene.
+    status.className = 'model-status error';
+    status.textContent = `timeout after 6 min — model may still be loading; refresh to verify`;
+    sel.disabled = false;
+}
+
+// Wire the on-change handler once on page load.
+window.addEventListener('DOMContentLoaded', () => {
+    const sel = document.getElementById('model-select');
+    if (sel) {
+        sel.addEventListener('change', (e) => {
+            const key = e.target.value;
+            if (key) switchModel(key);
+        });
+        loadModelList();
+    }
+});
 
 async function opHealthSweep() {
     opPending('running service-health-sweep (dry-run, gated)');

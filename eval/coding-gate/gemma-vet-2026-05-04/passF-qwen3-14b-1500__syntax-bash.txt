@@ -1,0 +1,5 @@
+# pass=passF-qwen3-14b-1500  id=syntax-bash  elapsed=116.41s  tokens=1500  finish=length
+# prompt:
+#   How do I trim whitespace in bash?
+
+

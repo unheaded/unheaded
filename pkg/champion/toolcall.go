@@ -69,6 +69,7 @@ var MutatingTools = map[string]bool{
 	"kanban_delete":   true,
 	"runbook_execute": true,
 	"system_command":  true,
+	"model_switch":    true, // ADR-060: kills+respawns llama-server subprocess
 }
 
 // ReadOnlyTools is the canonical list of read-only tool names. Used to

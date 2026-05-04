@@ -1,0 +1,16 @@
+# pass=passF-qwen3-14b-1500  id=review-python  elapsed=114.68s  tokens=1500  finish=length
+# prompt:
+#   Review this Python snippet. What is wrong with it, and how would you fix it?
+#   
+#   ```python
+#   import json
+#   
+#   def load_config(path):
+#       try:
+#           with open(path) as f:
+#               return json.load(f)
+#       except:
+#           return {}
+#   ```
+
+

@@ -1,0 +1,11 @@
+# pass=passG-deepseek-q5-cpu-1500  id=syntax-html  elapsed=2.50s  tokens=75  finish=stop
+# prompt:
+#   What's the right tag for a clickable button?
+
+ The right HTML tag for a clickable button is `<button>`. This tag is used to create interactive buttons in web pages. Here's an example of how to use it:
+
+```html
+<button>Click me!</button>
+```
+
+This button will display the text "Click me!" and can be used to trigger actions when clicked.

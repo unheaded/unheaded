@@ -1,0 +1,35 @@
+# pass=passE-qwen-coder-14b-1500  id=syntax-bash  elapsed=21.23s  tokens=235  finish=stop
+# prompt:
+#   How do I trim whitespace in bash?
+
+In Bash, you can trim whitespace from the beginning and end of a string using parameter expansion. Here's how you can do it:
+
+1. **Trim leading whitespace:**
+   ```bash
+   trimmed_leading="${var#"${var%%[![:space:]]*}"}"
+   ```
+
+2. **Trim trailing whitespace:**
+   ```bash
+   trimmed_trailing="${var%"${var##*[![:space:]]}"}"
+   ```
+
+3. **Trim both leading and trailing whitespace:**
+   ```bash
+   trimmed="${var#"${var%%[![:space:]]*}"}"
+   trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+   ```
+
+Alternatively, you can use `read` to trim whitespace:
+
+```bash
+read -r trimmed < <(printf '%s' "$var")
+```
+
+Or, if you have `awk` available, you can use:
+
+```bash
+trimmed=$(echo "$var" | awk '{$1=$1; print}')
+```
+
+These methods will remove all leading and trailing whitespace characters from the string stored in the variable `var`.

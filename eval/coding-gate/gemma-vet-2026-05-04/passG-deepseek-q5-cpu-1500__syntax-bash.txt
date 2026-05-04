@@ -1,0 +1,95 @@
+# pass=passG-deepseek-q5-cpu-1500  id=syntax-bash  elapsed=22.12s  tokens=688  finish=stop
+# prompt:
+#   How do I trim whitespace in bash?
+
+ In Bash, you can trim whitespace from the beginning and/or end of a string using various methods. Here are a few common approaches:
+
+### Using Parameter Expansion
+Bash provides a way to trim whitespace using parameter expansion.
+
+#### Trim leading whitespace:
+```bash
+str="  hello world  "
+trimmed=${str#"${str%%[![:space:]]*}"}
+echo "$trimmed"
+```
+
+#### Trim trailing whitespace:
+```bash
+str="  hello world  "
+trimmed=${str%"${str##*[![:space:]]}"}
+echo "$trimmed"
+```
+
+#### Trim both leading and trailing whitespace:
+```bash
+str="  hello world  "
+trimmed=${str#"${str%%[![:space:]]*}"}"${str##*[![:space:]]}"}
+echo "$trimmed"
+```
+
+### Using `sed`
+`sed` is a powerful stream editor that can be used to trim whitespace.
+
+#### Trim leading whitespace:
+```bash
+str="  hello world  "
+trimmed=$(echo "$str" | sed 's/^[[:space:]]*//')
+echo "$trimmed"
+```
+
+#### Trim trailing whitespace:
+```bash
+str="  hello world  "
+trimmed=$(echo "$str" | sed 's/[[:space:]]*$//')
+echo "$trimmed"
+```
+
+#### Trim both leading and trailing whitespace:
+```bash
+str="  hello world  "
+trimmed=$(echo "$str" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+echo "$trimmed"
+```
+
+### Using `awk`
+`awk` is another powerful tool for text processing.
+
+#### Trim leading whitespace:
+```bash
+str="  hello world  "
+trimmed=$(echo "$str" | awk '{$1=$1};1')
+echo "$trimmed"
+```
+
+#### Trim trailing whitespace:
+```bash
+str="  hello world  "
+trimmed=$(echo "$str" | awk '{$NF=$NF; print $0}')
+echo "$trimmed"
+```
+
+#### Trim both leading and trailing whitespace:
+```bash
+str="  hello world  "
+trimmed=$(echo "$str" | awk '{$1=$1; $NF=$NF; print $0}')
+echo "$trimmed"
+```
+
+### Using `tr`
+The `tr` command can be used to remove specific characters, including whitespace.
+
+#### Trim leading and trailing whitespace:
+```bash
+str="  hello world  "
+trimmed=$(echo "$str" | tr -d '[:space:]')
+echo "$trimmed"
+```
+
+### Summary
+- **Parameter Expansion**: Simple and efficient for trimming leading and trailing whitespace.
+- **`sed`**: Powerful and flexible for more complex patterns.
+- **`awk`**: Highly flexible and useful for more advanced text processing.
+- **`tr`**: Direct and simple for removing specific characters, including whitespace.
+
+Choose the method that best fits your needs based on simplicity and performance.

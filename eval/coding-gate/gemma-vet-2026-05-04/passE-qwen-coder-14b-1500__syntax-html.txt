@@ -1,0 +1,17 @@
+# pass=passE-qwen-coder-14b-1500  id=syntax-html  elapsed=10.52s  tokens=119  finish=stop
+# prompt:
+#   What's the right tag for a clickable button?
+
+The correct HTML tag for a clickable button is `<button>`. This tag is used to create a clickable button in a web page. Here is a basic example of how to use it:
+
+```html
+<button type="button">Click Me!</button>
+```
+
+You can also use the `<input>` tag with the `type="button"` attribute to create a button, although the `<button>` tag is more semantically appropriate for button elements:
+
+```html
+<input type="button" value="Click Me!">
+```
+
+Both of these will create a clickable button on your webpage.

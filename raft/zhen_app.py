@@ -1056,6 +1056,149 @@ def search():
     })
 
 
+# ──────────────────────────────────────────────────────────────────────
+# /api/v1/models — list + switch (ADR-060)
+#
+# GET  /api/v1/models           → list allowlisted model keys (parsed
+#                                  once at boot from scripts/switch-model.sh
+#                                  MODEL_FILE entries; cached in process)
+# POST /api/v1/models/switch    → proxy to cmd/zhen-agentd /api/v1/tool/exec
+#                                  with tool=model_switch + direct-user
+#                                  justification. The daemon's
+#                                  pkg/champion ModelSwap enforces:
+#                                    - allowlist (defense-in-depth here too)
+#                                    - single-flight (T13)
+#                                    - script-hash TOCTOU (T15)
+#                                    - 6-min subprocess cap (T19)
+#                                  Returns the daemon's body verbatim plus
+#                                  status code, so the UI can surface
+#                                  exactly what happened.
+# ──────────────────────────────────────────────────────────────────────
+
+
+_MODEL_KEYS_CACHE = None
+
+
+def _load_model_keys():
+    """Parse scripts/switch-model.sh once and cache the MODEL_FILE keys.
+
+    Mirrors the Go-side parseModelKeys() in pkg/champion/modelswap.go.
+    The Python parse runs at first request (lazy); reset by restarting
+    zhen_app.py.
+    """
+    global _MODEL_KEYS_CACHE
+    if _MODEL_KEYS_CACHE is not None:
+        return _MODEL_KEYS_CACHE
+
+    project_root = os.environ.get('UNHEADED_ROOT', '/home/govan/tmp/unheaded')
+    script_path = os.path.join(project_root, 'scripts', 'switch-model.sh')
+    keys = []
+    seen = set()
+    try:
+        import re as _re
+        key_re = _re.compile(r'^MODEL_FILE\[([a-z0-9][a-z0-9-]*)\]=')
+        with open(script_path, 'r') as f:
+            for line in f:
+                m = key_re.match(line)
+                if m and m.group(1) not in seen:
+                    keys.append(m.group(1))
+                    seen.add(m.group(1))
+    except Exception as e:
+        # Fail open with empty list — UI shows "no models available, daemon not configured"
+        app.logger.warning(f'load_model_keys: {e}')
+        keys = []
+
+    _MODEL_KEYS_CACHE = keys
+    return keys
+
+
+@app.route('/api/v1/models', methods=['GET'])
+def list_models():
+    """List the allowlisted model keys the operator can swap to.
+
+    The keys come from scripts/switch-model.sh (MODEL_FILE bash array).
+    The daemon's pkg/champion enforces the same allowlist, so this list
+    can be trusted to drive the UI dropdown.
+    """
+    keys = _load_model_keys()
+    current = rag.model_name if rag else None
+    return jsonify({
+        'keys':    keys,
+        'current': current,
+        'count':   len(keys),
+    })
+
+
+@app.route('/api/v1/models/switch', methods=['POST'])
+def switch_model():
+    """Proxy to cmd/zhen-agentd /api/v1/tool/exec with tool=model_switch.
+
+    Body: {"key": "<allowlisted-key>"}
+    Returns the daemon's body verbatim with the same HTTP status. UI
+    polls /api/v1/stats for the model name to update once the swap
+    completes (45s-3min depending on which model).
+    """
+    if not request.is_json:
+        return jsonify({'error': 'expected JSON body'}), 400
+
+    body = request.get_json(silent=True) or {}
+    key = body.get('key', '').strip()
+    if not key:
+        return jsonify({'error': 'missing required field: key'}), 400
+
+    # Defense in depth: pre-allowlist check on the Python side too. The
+    # daemon will reject if we miss something, but failing fast here
+    # gives the UI a tighter loop.
+    keys = _load_model_keys()
+    if key not in keys:
+        return jsonify({
+            'error':   f'unknown model key: {key}',
+            'allowed': keys,
+        }), 400
+
+    import urllib.request as _ur
+    import urllib.error as _ue
+    agentd_url = os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105')
+    payload = {
+        'tool': 'model_switch',
+        'args': {'key': key},
+        'session_id':    f'modelswap-{key}-{int(time.time())}',
+        'emitted_by':    'zhen-web-ui',
+        'justification': [{
+            'topic':        'user-clicked-model-switch',
+            'category':     'user-action',
+            'source_kind':  'user-action',
+            'source_trust': 'direct-user',
+            'source_label': '/api/v1/models/switch',
+        }],
+    }
+    req_body = json.dumps(payload).encode('utf-8')
+    req = _ur.Request(
+        f'{agentd_url}/api/v1/tool/exec',
+        data=req_body,
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    # 7-minute cap matches the daemon's 6-min subprocess limit + buffer
+    # for round-trip + chat-template init on cold-cache loads.
+    try:
+        with _ur.urlopen(req, timeout=420) as resp:
+            return jsonify(json.loads(resp.read().decode('utf-8'))), resp.status
+    except _ue.HTTPError as e:
+        try:
+            return jsonify(json.loads(e.read().decode('utf-8'))), e.code
+        except Exception:
+            return jsonify({'status': 'error', 'reason': str(e)}), e.code or 502
+    except _ue.URLError as e:
+        return jsonify({
+            'status': 'error',
+            'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
+            'note':   'Start the daemon with `bin/zhen-agentd -port 20105` (and WELL_DSN env).',
+        }), 503
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
 @app.route('/api/v1/stats', methods=['GET'])
 def stats():
     """Backend + memory-embedder stats — WAVE15 rewire shape.
