@@ -483,6 +483,144 @@ func TestVerifyCounterUint32WrapsCleanly(t *testing.T) {
 	}
 }
 
+// TestApplyAtomicMultiField — finding #7 (collapse 6 SetX/UpdateX
+// methods to one Apply). Verifies that Apply runs the callback under
+// the write lock so concurrent observers can't see a half-applied
+// multi-field edit.
+func TestApplyAtomicMultiField(t *testing.T) {
+	mgr := NewPQCStateManager()
+	mgr.Apply(func(s *PQCState) {
+		s.SigCount = 100
+		s.KeyCount = 7
+		s.LastRotation = 1709568000
+		s.PolicyMode = PolicyModeOptimistic
+		s.ActiveTier = ActiveTierStrict
+	})
+
+	got := mgr.Read()
+	want := PQCState{
+		SigCount:     100,
+		KeyCount:     7,
+		LastRotation: 1709568000,
+		PolicyMode:   PolicyModeOptimistic,
+		ActiveTier:   ActiveTierStrict,
+	}
+	if got != want {
+		t.Fatalf("Apply multi-field:\n  got  %+v\n  want %+v", got, want)
+	}
+}
+
+// TestApplyConcurrentReadersSeeOnlyFullEdits — Apply's contract is that
+// readers either see the pre-edit state or the post-edit state, never a
+// half-edit. Run a writer doing 1000 multi-field Apply calls in parallel
+// with a reader; every read snapshot must be one of the two states the
+// writer cycles through.
+func TestApplyConcurrentReadersSeeOnlyFullEdits(t *testing.T) {
+	mgr := NewPQCStateManager()
+
+	stateA := PQCState{SigCount: 1, KeyCount: 100}
+	stateB := PQCState{SigCount: 2, KeyCount: 200}
+	mgr.Write(stateA)
+
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				mgr.Apply(func(s *PQCState) {
+					if s.SigCount == 1 {
+						*s = stateB
+					} else {
+						*s = stateA
+					}
+				})
+			}
+		}
+	}()
+
+	for i := 0; i < 1_000; i++ {
+		s := mgr.Read()
+		if s != stateA && s != stateB {
+			close(stop)
+			t.Fatalf("snapshot %d torn read: got %+v (want %+v or %+v)", i, s, stateA, stateB)
+		}
+	}
+	close(stop)
+}
+
+// TestMarshalTo — finding #8 (zero-alloc serialization). Verifies that
+// MarshalTo writes the exact bytes Marshal() would, into a caller-
+// supplied buffer, without allocating.
+func TestMarshalTo(t *testing.T) {
+	ref := referenceState()
+
+	// Fixed-array path
+	wantArr := ref.Marshal()
+
+	// MarshalTo into a slice of exactly 40 bytes
+	dst := make([]byte, PQCStateSize)
+	if err := ref.MarshalTo(dst); err != nil {
+		t.Fatalf("MarshalTo: %v", err)
+	}
+	for i := range wantArr {
+		if dst[i] != wantArr[i] {
+			t.Fatalf("byte %d: MarshalTo=%02x, Marshal=%02x", i, dst[i], wantArr[i])
+		}
+	}
+
+	// Round-trip through MarshalTo
+	restored, err := UnmarshalPQCState(dst)
+	if err != nil {
+		t.Fatalf("Unmarshal MarshalTo output: %v", err)
+	}
+	if restored != ref {
+		t.Fatalf("round-trip mismatch:\n  got  %+v\n  want %+v", restored, ref)
+	}
+}
+
+func TestMarshalToRejectsWrongSize(t *testing.T) {
+	ref := referenceState()
+	for _, n := range []int{0, 1, 39, 41, 100} {
+		dst := make([]byte, n)
+		if err := ref.MarshalTo(dst); err == nil {
+			t.Fatalf("MarshalTo with len=%d: expected error, got nil", n)
+		}
+	}
+}
+
+func TestMarshalToZerosReserved(t *testing.T) {
+	ref := referenceState()
+	// Pre-fill dst with non-zero junk; MarshalTo must overwrite reserved bytes.
+	dst := make([]byte, PQCStateSize)
+	for i := range dst {
+		dst[i] = 0xAA
+	}
+	if err := ref.MarshalTo(dst); err != nil {
+		t.Fatalf("MarshalTo: %v", err)
+	}
+	for i := 0x24; i < 0x28; i++ {
+		if dst[i] != 0 {
+			t.Fatalf("reserved byte[0x%02X] = 0x%02X, want 0x00", i, dst[i])
+		}
+	}
+}
+
+// TestMarshalToZeroAlloc — confirms MarshalTo doesn't allocate. The
+// motivating use case for this method is writing into a pre-existing
+// protocol-RAM region without taking a heap allocation per call.
+func TestMarshalToZeroAlloc(t *testing.T) {
+	ref := referenceState()
+	dst := make([]byte, PQCStateSize)
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = ref.MarshalTo(dst)
+	})
+	if allocs != 0 {
+		t.Fatalf("MarshalTo allocated %v times per call, want 0", allocs)
+	}
+}
+
 // TestPolicyAndTierConstants — finding #6 (no typed constants for the
 // documented enum values). Tests that the named constants resolve to
 // the wire-documented byte values, so any future caller relying on the

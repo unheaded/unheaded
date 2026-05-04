@@ -72,20 +72,39 @@ const (
 // doc comment for the covert-channel rationale.
 func (s *PQCState) Marshal() [PQCStateSize]byte {
 	var buf [PQCStateSize]byte
-
-	binary.BigEndian.PutUint32(buf[0x00:], s.SigCount)
-	binary.BigEndian.PutUint32(buf[0x04:], s.KeyCount)
-	binary.BigEndian.PutUint32(buf[0x08:], s.VerifyPass)
-	binary.BigEndian.PutUint32(buf[0x0C:], s.VerifyFail)
-	binary.BigEndian.PutUint64(buf[0x10:], uint64(s.LastRotation))
-	buf[0x18] = s.PolicyMode
-	buf[0x19] = s.ActiveTier
-	binary.BigEndian.PutUint16(buf[0x1A:], s.KEMTunnels)
-	binary.BigEndian.PutUint32(buf[0x1C:], s.LastVerifyNs)
-	binary.BigEndian.PutUint32(buf[0x20:], s.SeqHighWater)
-	// buf[0x24:0x28] left zero (Go zero-initialises array, no write needed).
-
+	_ = s.MarshalTo(buf[:]) // PQCStateSize-sized array can never error
 	return buf
+}
+
+// MarshalTo writes the serialized 40 bytes into dst. dst must be exactly
+// PQCStateSize bytes long; shorter or longer slices return an error.
+//
+// Use MarshalTo when you have a pre-allocated buffer (e.g. reading state
+// directly into Wotan's protocol-RAM region). Marshal allocates a new
+// 40-byte array on each call; MarshalTo allocates nothing.
+func (s *PQCState) MarshalTo(dst []byte) error {
+	if len(dst) != PQCStateSize {
+		return fmt.Errorf("MarshalTo: dst must be exactly %d bytes, got %d", PQCStateSize, len(dst))
+	}
+
+	binary.BigEndian.PutUint32(dst[0x00:], s.SigCount)
+	binary.BigEndian.PutUint32(dst[0x04:], s.KeyCount)
+	binary.BigEndian.PutUint32(dst[0x08:], s.VerifyPass)
+	binary.BigEndian.PutUint32(dst[0x0C:], s.VerifyFail)
+	binary.BigEndian.PutUint64(dst[0x10:], uint64(s.LastRotation))
+	dst[0x18] = s.PolicyMode
+	dst[0x19] = s.ActiveTier
+	binary.BigEndian.PutUint16(dst[0x1A:], s.KEMTunnels)
+	binary.BigEndian.PutUint32(dst[0x1C:], s.LastVerifyNs)
+	binary.BigEndian.PutUint32(dst[0x20:], s.SeqHighWater)
+	// Reserved range — must be zero on the wire (covert-channel sealed).
+	// Force-clear rather than relying on caller-zeroed input.
+	dst[0x24] = 0
+	dst[0x25] = 0
+	dst[0x26] = 0
+	dst[0x27] = 0
+
+	return nil
 }
 
 // UnmarshalPQCState deserializes exactly 40 bytes into PQCState. The
@@ -182,37 +201,51 @@ func (m *PQCStateManager) IncrVerifyFail() {
 	m.mu.Unlock()
 }
 
-// UpdateSigCount atomically updates the signature count.
-func (m *PQCStateManager) UpdateSigCount(count uint32) {
+// Apply runs fn under the write lock, passing a pointer to the live
+// state. Use it for atomic multi-field edits — the alternative is a
+// sequence of single-field setters where each releases the lock between
+// calls, allowing observers to see partial states.
+//
+// Replaces the per-field UpdateX/SetX setters. The previous individual
+// setters are kept as thin wrappers below for backward compatibility
+// with callers that already use them.
+//
+// Example:
+//
+//	mgr.Apply(func(s *PQCState) {
+//	    s.SigCount = 42
+//	    s.KeyCount = 7
+//	    s.LastRotation = time.Now().Unix()
+//	})
+func (m *PQCStateManager) Apply(fn func(*PQCState)) {
 	m.mu.Lock()
-	m.state.SigCount = count
-	m.mu.Unlock()
+	defer m.mu.Unlock()
+	fn(&m.state)
 }
 
-// UpdateKeyCount atomically updates the key count.
+// UpdateSigCount sets the signature count under the write lock.
+// Equivalent to Apply(func(s *PQCState) { s.SigCount = count }).
+func (m *PQCStateManager) UpdateSigCount(count uint32) {
+	m.Apply(func(s *PQCState) { s.SigCount = count })
+}
+
+// UpdateKeyCount sets the key count under the write lock.
 func (m *PQCStateManager) UpdateKeyCount(count uint32) {
-	m.mu.Lock()
-	m.state.KeyCount = count
-	m.mu.Unlock()
+	m.Apply(func(s *PQCState) { s.KeyCount = count })
 }
 
 // SetLastRotation updates the last rotation timestamp.
 func (m *PQCStateManager) SetLastRotation(ts int64) {
-	m.mu.Lock()
-	m.state.LastRotation = ts
-	m.mu.Unlock()
+	m.Apply(func(s *PQCState) { s.LastRotation = ts })
 }
 
-// SetPolicyMode updates the policy mode.
+// SetPolicyMode updates the policy mode. Caller is responsible for
+// passing a documented value (PolicyModePessimistic / PolicyModeOptimistic).
 func (m *PQCStateManager) SetPolicyMode(mode uint8) {
-	m.mu.Lock()
-	m.state.PolicyMode = mode
-	m.mu.Unlock()
+	m.Apply(func(s *PQCState) { s.PolicyMode = mode })
 }
 
-// SetActiveTier updates the active compliance tier.
+// SetActiveTier updates the active compliance tier (0x00-0x03).
 func (m *PQCStateManager) SetActiveTier(tier uint8) {
-	m.mu.Lock()
-	m.state.ActiveTier = tier
-	m.mu.Unlock()
+	m.Apply(func(s *PQCState) { s.ActiveTier = tier })
 }
