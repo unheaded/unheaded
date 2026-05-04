@@ -218,7 +218,7 @@ All config via environment variables:
 |----------|---------|-------------|
 | `PORT` | `8000` | HTTP server port |
 | `WOTAN_ADDR` | `localhost:9090` | Wotan server address |
-| `DB_PATH` | `/opt/unheaded/data/timeguru.db` | SQLite database path |
+| `DB_PATH` | `./data/timeguru.db` | SQLite database path |
 
 **Defensive defaults:** All values have safe fallbacks if unset.
 

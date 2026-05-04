@@ -49,6 +49,19 @@ type Syncer struct {
 // NewSyncer creates a Syncer that writes to the given directory in the specified formats.
 // If formats is empty, all 4 formats are used.
 // Creates the directory if it doesn't exist.
+// defaultSyncFormats is what NewSyncer writes when no formats are
+// passed explicitly. Markdown is DELIBERATELY EXCLUDED — per the
+// triple-mirror strategy in CLAUDE.md, timeline.md is the SOURCE of
+// truth and timeline.{json,yaml,toml} are derived FROM it. Letting
+// Sync regenerate timeline.md from a stale Timeline struct (e.g. an
+// in-memory one with empty Milestones) overwrites Stevie's hand-edited
+// content with stubs — see kanban: debt-timeline-sync (2026-05-04).
+//
+// Callers who genuinely need to render Markdown OUTPUT (e.g. previewing
+// what an upcoming hand-edit would produce) can pass FormatMarkdown
+// explicitly; the encoder is still functional. Just not by default.
+var defaultSyncFormats = []Format{FormatJSON, FormatTOML, FormatYAML}
+
 func NewSyncer(dir string, formats ...Format) (*Syncer, error) {
 	if dir == "" {
 		return nil, ErrEmptyDirectory
@@ -58,7 +71,7 @@ func NewSyncer(dir string, formats ...Format) (*Syncer, error) {
 		return nil, fmt.Errorf("create sync directory %s: %w", dir, err)
 	}
 	if len(formats) == 0 {
-		formats = []Format{FormatJSON, FormatTOML, FormatYAML, FormatMarkdown}
+		formats = defaultSyncFormats
 	}
 	return &Syncer{dir: dir, formats: formats}, nil
 }

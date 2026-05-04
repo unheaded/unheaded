@@ -269,7 +269,17 @@ func TestDetectFormat(t *testing.T) {
 // SYNCER TESTS
 // ============================================================================
 
-func TestSyncerAllFormats(t *testing.T) {
+// TestSyncerDefaultFormats — default Sync writes JSON/TOML/YAML but
+// NOT Markdown. Markdown is the source of truth (per CLAUDE.md triple-
+// mirror strategy and kanban: debt-timeline-sync 2026-05-04); the
+// encoder would otherwise overwrite Stevie's hand-edited timeline.md
+// with stubs when the in-memory Timeline is incomplete (e.g. empty
+// Milestones).
+//
+// Callers who genuinely need Markdown output explicitly pass
+// FormatMarkdown to NewSyncer — the encoder is still functional, just
+// not on the default path.
+func TestSyncerDefaultFormats(t *testing.T) {
 	dir := t.TempDir()
 	s, err := NewSyncer(dir)
 	if err != nil {
@@ -285,12 +295,18 @@ func TestSyncerAllFormats(t *testing.T) {
 		}
 	}
 
-	if len(result.FilesWritten) != 4 {
-		t.Fatalf("expected 4 files written, got %d", len(result.FilesWritten))
+	if len(result.FilesWritten) != 3 {
+		t.Fatalf("expected 3 files written (JSON/TOML/YAML; Markdown excluded by default), got %d", len(result.FilesWritten))
+	}
+
+	// Regression guard: timeline.md MUST NOT exist after a default Sync.
+	mdPath := filepath.Join(dir, "timeline.md")
+	if _, err := os.Stat(mdPath); err == nil {
+		t.Fatalf("default Sync wrote timeline.md — debt-timeline-sync regression. Markdown is source-of-truth, not a derived output.")
 	}
 
 	// Verify files exist and have content
-	expected := []string{"timeline.json", "timeline.toml", "timeline.yaml", "timeline.md"}
+	expected := []string{"timeline.json", "timeline.toml", "timeline.yaml"}
 	for _, name := range expected {
 		path := filepath.Join(dir, name)
 		info, err := os.Stat(path)
