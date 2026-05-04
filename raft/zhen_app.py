@@ -1077,39 +1077,71 @@ def search():
 
 
 _MODEL_KEYS_CACHE = None
+_MODEL_FILE_TO_KEY_CACHE = None
 
 
 def _load_model_keys():
-    """Parse scripts/switch-model.sh once and cache the MODEL_FILE keys.
+    """Parse scripts/switch-model.sh once and cache MODEL_FILE keys + filename map.
+
+    Returns the keys in declaration order. Also populates
+    _MODEL_FILE_TO_KEY_CACHE: gguf-basename → key, so we can back-map
+    llama-server's /v1/models response to a canonical sidebar-dropdown
+    key (the key the UI just sent in the swap request).
 
     Mirrors the Go-side parseModelKeys() in pkg/champion/modelswap.go.
-    The Python parse runs at first request (lazy); reset by restarting
-    zhen_app.py.
     """
-    global _MODEL_KEYS_CACHE
+    global _MODEL_KEYS_CACHE, _MODEL_FILE_TO_KEY_CACHE
     if _MODEL_KEYS_CACHE is not None:
         return _MODEL_KEYS_CACHE
 
     project_root = os.environ.get('UNHEADED_ROOT', '/home/govan/tmp/unheaded')
     script_path = os.path.join(project_root, 'scripts', 'switch-model.sh')
     keys = []
+    file_to_key = {}
     seen = set()
     try:
         import re as _re
-        key_re = _re.compile(r'^MODEL_FILE\[([a-z0-9][a-z0-9-]*)\]=')
+        key_re = _re.compile(r'^MODEL_FILE\[([a-z0-9][a-z0-9-]*)\]="([^"]+)"')
         with open(script_path, 'r') as f:
             for line in f:
                 m = key_re.match(line)
                 if m and m.group(1) not in seen:
-                    keys.append(m.group(1))
-                    seen.add(m.group(1))
+                    key = m.group(1)
+                    fname = m.group(2)
+                    keys.append(key)
+                    seen.add(key)
+                    # Index both with and without .gguf extension for
+                    # tolerant matching against llama-server output
+                    # (which sometimes strips, sometimes keeps the .gguf).
+                    file_to_key[fname] = key
+                    if fname.endswith('.gguf'):
+                        file_to_key[fname[:-5]] = key
     except Exception as e:
-        # Fail open with empty list — UI shows "no models available, daemon not configured"
         app.logger.warning(f'load_model_keys: {e}')
         keys = []
 
     _MODEL_KEYS_CACHE = keys
+    _MODEL_FILE_TO_KEY_CACHE = file_to_key
     return keys
+
+
+def _live_loaded_key():
+    """Return the dropdown key that matches llama-server's currently-loaded
+    model file, or None if llama-server is unreachable / serving an
+    unregistered file. Source-of-truth for the UI dropdown's "current"
+    label after a swap.
+    """
+    _load_model_keys()  # populate _MODEL_FILE_TO_KEY_CACHE if needed
+    if not rag:
+        return None
+    try:
+        import urllib.request as _ur
+        with _ur.urlopen(f'{rag.inference_url}/v1/models', timeout=2) as resp:
+            data = json.loads(resp.read().decode())
+            loaded = (data.get('data') or [{}])[0].get('id', '')
+            return _MODEL_FILE_TO_KEY_CACHE.get(loaded)
+    except Exception:
+        return None
 
 
 @app.route('/api/v1/models', methods=['GET'])
@@ -1121,10 +1153,18 @@ def list_models():
     can be trusted to drive the UI dropdown.
     """
     keys = _load_model_keys()
-    current = rag.model_name if rag else None
+    # `current` is the *sidebar key* (e.g. "qwen-coder-14b") matching
+    # what llama-server is actually serving, NOT rag.model_name (which
+    # is the env-set display label captured at boot). Sidebar dropdown
+    # checks current === selected to decide when a swap is complete.
+    current_key = _live_loaded_key()
     return jsonify({
         'keys':    keys,
-        'current': current,
+        'current': current_key,
+        # Display label for the sidebar status line — convenience for UIs
+        # that want to render the friendly name. Comes from llama-server
+        # fresh; stale env value is the fallback.
+        'current_label': rag.model_name if (rag and current_key is None) else None,
         'count':   len(keys),
     })
 
@@ -1221,12 +1261,36 @@ def stats():
     except Exception:
         vor_health = None
 
+    # Live model name from llama-server's /v1/models — this is the source
+    # of truth after a swap (ADR-060). rag.model_name is the env-set
+    # display label captured at boot; if Stevie swaps via the sidebar
+    # dropdown, llama-server moves to the new GGUF but rag.model_name
+    # would otherwise stay stale, causing the UI's poll-after-swap to
+    # never confirm completion. Read live; fall back to the env label
+    # when llama-server is unreachable.
+    inference_model = rag.model_name
+    try:
+        import urllib.request as _ur
+        with _ur.urlopen(f'{rag.inference_url}/v1/models', timeout=2) as resp:
+            data = json.loads(resp.read().decode())
+            loaded = (data.get('data') or [{}])[0].get('id', '')
+            if loaded:
+                # llama-server returns the GGUF basename (e.g.
+                # "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"). Strip the
+                # .gguf suffix to get a friendlier label without losing
+                # the file-identity match the UI poll needs.
+                if loaded.endswith('.gguf'):
+                    loaded = loaded[:-5]
+                inference_model = loaded
+    except Exception:
+        pass
+
     return jsonify({
         'backend':           'vor',
         'vor_url':           rag.vor_url,
         'vor_health':        vor_health,
         'inference_url':     rag.inference_url,
-        'inference_model':   rag.model_name,
+        'inference_model':   inference_model,
         'memory_embedder':   'all-MiniLM-L6-v2',
         'memory_dim':        384,
         'local_max_tokens':  rag.local_max_tokens,
