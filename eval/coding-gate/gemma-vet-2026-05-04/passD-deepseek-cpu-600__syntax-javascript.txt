@@ -1,0 +1,50 @@
+# pass=passD-deepseek-cpu-600  id=syntax-javascript  elapsed=16.55s  tokens=576  finish=stop
+# prompt:
+#   How do I make an async fetch call?
+
+ Making an asynchronous fetch call in JavaScript involves using the `fetch` API, which returns a promise. You can use `async` and `await` to handle the promise and make the code more readable and maintainable. Here's a step-by-step guide on how to do this:
+
+1. **Define an async function**: Use the `async` keyword to define an asynchronous function.
+2. **Use `fetch`**: Call the `fetch` function with the URL of the resource you want to fetch.
+3. **Await the response**: Use `await` to wait for the fetch operation to complete.
+4. **Handle the response**: Optionally, you can use `.json()` to parse the response as JSON.
+
+Here's an example:
+
+```javascript
+// Define an async function
+async function fetchData() {
+  try {
+    // Make the fetch call
+    let response = await fetch('https://api.example.com/data');
+
+    // Check if the response is ok (status code 200-299)
+    if (!response.ok) {
+      throw new Error('Network response was not ok ' + response.statusText);
+    }
+
+    // Parse the response as JSON
+    let data = await response.json();
+
+    // Do something with the data
+    console.log(data);
+  } catch (error) {
+    // Handle any errors that occurred during the fetch
+    console.error('There was a problem with the fetch operation:', error);
+  }
+}
+
+// Call the async function
+fetchData();
+```
+
+### Explanation:
+
+1. **`async function fetchData()`**: This defines an asynchronous function named `fetchData`.
+2. **`let response = await fetch('https://api.example.com/data')`**: This line makes a fetch call to the specified URL. The `await` keyword pauses the execution of the function until the promise is resolved.
+3. **`if (!response.ok)`**: This checks if the response status is not OK (i.e., not in the range 200-299). If it's not OK, it throws an error.
+4. **`let data = await response.json()`**: This line parses the response body as JSON.
+5. **`console.log(data)`**: This logs the data to the console.
+6. **`catch (error)`**: This block handles any errors that occurred during the fetch operation.
+
+By using `async` and `await`, you can write asynchronous code that reads like synchronous code, making it easier to understand and maintain.

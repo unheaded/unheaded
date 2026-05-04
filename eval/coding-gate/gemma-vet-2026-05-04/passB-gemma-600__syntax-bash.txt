@@ -1,0 +1,39 @@
+# pass=passB-gemma-600  id=syntax-bash  elapsed=9.55s  tokens=600  finish=length
+# prompt:
+#   How do I trim whitespace in bash?
+
+<|channel>thought
+Here's a thinking process that leads to the suggested answer:
+
+1.  **Analyze the Request:** The user wants to know "How do I trim whitespace in bash?" This is a common task, usually involving removing leading/trailing spaces, tabs, and sometimes internal whitespace.
+
+2.  **Identify the Core Tools in Bash:** Bash itself doesn't have a built-in, dedicated "trim" function like some scripting languages (e.g., Python's `.strip()`). Therefore, the solution must rely on standard Unix tools:
+    *   `sed` (Stream Editor)
+    *   `awk` (Pattern scanning and processing language)
+    *   `tr` (Translate or delete characters)
+    *   Bash built-ins (Parameter expansion)
+
+3.  **Evaluate Solutions (Focusing on the most common/efficient methods):**
+
+    *   **Method 1: Bash Parameter Expansion (The fastest and most idiomatic way for simple trimming):**
+        *   *Goal:* Remove leading whitespace.
+        *   *Syntax:* `${variable##pattern}` or `${variable#pattern}`.
+        *   *Refinement:* To remove *both* leading and trailing, you need two steps or a more complex pattern.
+        *   *Leading Trim:* `my_var="${my_var#"${my_var%%[![:space:]]*}"}"` (A bit complex for a beginner, but powerful).
+        *   *Trailing Trim:* `my_var="${my_var%"${my_var##*[![:space:]]}"}"` (Also complex).
+        *   *Conclusion for Bash:* While possible, it's often overkill unless you are doing this inside a loop and want maximum speed.
+
+    *   **Method 2: `sed` (The classic text manipulation tool):**
+        *   *Goal:* Remove leading/trailing whitespace.
+        *   *Syntax:* `sed 's/^[[:space:]]*//; s/[[:space:]]*$//'`
+        *   *Pros:* Very robust, standard.
+        *   *Cons:* Requires two separate commands (or a complex regex).
+
+    *   **Method 3: `awk` (Good for field processing, but overkill for simple string trimming):**
+        *   *Goal:* Similar to `sed`.
+        *   *Syntax:* `awk '{gsub(/^[ \t]+|[ \t]+$/, "", $0)} {print}'`
+        *   *Pros:* Powerful for complex data.
+        *   *Cons:* More verbose than `sed` for this specific task.
+
+    *   **Method 4: `tr` (Good for removing specific characters, less ideal for variable trimming):**
+        *   *Goal:* Remove specific characters (like spaces/tabs

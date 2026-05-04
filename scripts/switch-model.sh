@@ -49,6 +49,8 @@ MODELS_DIR="${MODELS_DIR:-/var/zhen/models}"
 declare -A MODEL_FILE
 MODEL_FILE[qwen-7b]="qwen2.5-coder-7b-instruct-q4_k_m.gguf"
 MODEL_FILE[deepseek]="DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+MODEL_FILE[gemma]="gemma-4-E2B-it.gguf"
+MODEL_FILE[deepseek-cpu]="DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 
 # Per-model launch flags. Different architectures need different settings:
 # - deepseek-v2 has MLA attention; flash-attn unsupported on ROCm → can't
@@ -57,6 +59,11 @@ MODEL_FILE[deepseek]="DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 declare -A MODEL_FLAGS
 MODEL_FLAGS[qwen-7b]="--ctx-size 16384"
 MODEL_FLAGS[deepseek]="--ctx-size 4096 --parallel 1 --cache-type-k q8_0"
+MODEL_FLAGS[gemma]="--ctx-size 8192"
+# deepseek-cpu: 27-layer model; first 20 expert layers go to system RAM
+# (~6 GB), remaining 7 layers + attention stay on GPU (~5 GB VRAM).
+# Speed expectation: 10-15 tok/s vs full-GPU 70 tok/s, but quality +.
+MODEL_FLAGS[deepseek-cpu]="--ctx-size 8192 --parallel 1 --cache-type-k q8_0 --n-cpu-moe 20"
 
 # Friendly model name reported via OpenAI /v1/models. Cosmetic — clients
 # can read this back, but llama-server actually serves whatever GGUF is
@@ -64,6 +71,8 @@ MODEL_FLAGS[deepseek]="--ctx-size 4096 --parallel 1 --cache-type-k q8_0"
 declare -A MODEL_NAME
 MODEL_NAME[qwen-7b]="qwen2.5-coder-7b-instruct"
 MODEL_NAME[deepseek]="deepseek-coder-v2-lite-instruct"
+MODEL_NAME[gemma]="gemma-4-E2B-it"
+MODEL_NAME[deepseek-cpu]="deepseek-coder-v2-lite-cpu-moe"
 
 if [[ $# -lt 1 ]]; then
     echo "usage: $0 <model-key>" >&2

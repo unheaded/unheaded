@@ -1,0 +1,81 @@
+# pass=passD-deepseek-cpu-600  id=syntax-go  elapsed=17.31s  tokens=600  finish=length
+# prompt:
+#   How do I check for an error after a function returns?
+
+ To check for an error after a function returns, you typically need to follow these steps:
+
+1. **Understand the function's return type**: Determine whether the function returns a value and possibly an error indicator.
+2. **Check the error indicator**: If the function returns a value and an error indicator, check this indicator after the function call.
+
+Here's a general example in Python:
+
+```python
+def risky_function():
+    # Simulate a risky operation that might fail
+    import random
+    if random.randint(1, 10) > 5:
+        return "Success", None  # Return a value and None for no error
+    else:
+        return None, "Error occurred"  # Return None and an error message
+
+result, error = risky_function()
+
+if error is not None:
+    print(f"Error: {error}")
+else:
+    print(f"Result: {result}")
+```
+
+In this example:
+- `risky_function` simulates a function that might fail.
+- It returns a tuple where the first element is the result and the second element is an error message.
+- After calling `risky_function`, we check if the error is `None` or not. If it's not `None`, an error occurred; otherwise, the operation was successful.
+
+### Common Patterns
+
+#### 1. Returning a Tuple
+Many functions return a tuple where the first element is the result and the second element is an error indicator.
+
+```python
+def divide(a, b):
+    if b == 0:
+        return None, "Division by zero"
+    else:
+        return a / b, None
+
+result, error = divide(10, 0)
+
+if error is not None:
+    print(f"Error: {error}")
+else:
+    print(f"Result: {result}")
+```
+
+#### 2. Raising Exceptions
+Some functions raise exceptions to indicate errors.
+
+```python
+def divide(a, b):
+    if b == 0:
+        raise ValueError("Division by zero")
+    else:
+        return a / b
+
+try:
+    result = divide(10, 0)
+    print(f"Result: {result}")
+except ValueError as e:
+    print(f"Error: {e}")
+```
+
+#### 3. Returning a Custom Error Object
+You can define a custom error object to handle errors more gracefully.
+
+```python
+class CustomError(Exception):
+    pass
+
+def risky_function():
+    if random.randint(1, 10) > 5:
+        return "Success"
+    else:

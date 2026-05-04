@@ -1,0 +1,61 @@
+# pass=passB-gemma-600  id=syntax-javascript  elapsed=9.53s  tokens=600  finish=length
+# prompt:
+#   How do I make an async fetch call?
+
+Making an asynchronous `fetch` call is a fundamental skill in modern JavaScript (and TypeScript). Since `fetch` itself returns a Promise, you use `async/await` to handle the asynchronous nature cleanly and synchronously.
+
+Here is a complete guide on how to do it, covering the basic structure, error handling, and common use cases.
+
+---
+
+## 1. The Basic Structure (Using `async/await`)
+
+The cleanest and most readable way to handle `fetch` is by wrapping it in an `async` function and using the `await` keyword.
+
+### Example: Fetching Data from an API
+
+```javascript
+async function fetchData(url) {
+  try {
+    // 1. Await the fetch call to get the Response object
+    const response = await fetch(url);
+
+    // 2. Check if the response was successful (status code 200-299)
+    if (!response.ok) {
+      // Throw an error if the HTTP status is not OK (e.g., 404, 500)
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    // 3. Await the .json() method to parse the response body as JSON
+    const data = await response.json();
+
+    // 4. Return the parsed data
+    console.log("Data successfully fetched:", data);
+    return data;
+
+  } catch (error) {
+    // 5. Catch any errors (network issues, failed response.ok check, JSON parsing errors)
+    console.error("There was a problem with the fetch operation:", error.message);
+    // Optionally, re-throw the error or return a default value
+    throw error; 
+  }
+}
+
+// --- How to call the function ---
+const apiUrl = 'https://jsonplaceholder.typicode.com/todos/1';
+
+fetchData(apiUrl)
+  .then(data => {
+    console.log("Data received outside the function:", data);
+  })
+  .catch(err => {
+    console.log("Failed to retrieve data in the main execution flow.");
+  });
+```
+
+### Key Concepts Explained
+
+1. **`async function`**: This keyword tells JavaScript that this function will perform asynchronous operations and will always return a Promise.
+2. **`await fetch(url)`**: The `await` keyword pauses the execution of the `async` function until the `fetch` Promise resolves (i.e., until the network request completes and a `Response` object is returned).
+3. **`const response = ...`**: This variable holds the HTTP response object. It contains metadata like status codes, headers, and methods.
+4. **`if (!response.ok)`**: This is crucial. `fetch` only rejects

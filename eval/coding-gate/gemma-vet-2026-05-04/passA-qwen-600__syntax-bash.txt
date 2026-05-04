@@ -1,0 +1,76 @@
+# pass=passA-qwen-600  id=syntax-bash  elapsed=8.95s  tokens=549  finish=stop
+# prompt:
+#   How do I trim whitespace in bash?
+
+In Bash, you can trim whitespace from a string using various methods. Here are a few common approaches:
+
+### 1. Using `sed`
+`sed` is a stream editor that can be used to perform various text transformations. You can use it to trim leading and trailing whitespace.
+
+```bash
+string="   Hello, World!   "
+trimmed=$(echo "$string" | sed 's/^[ \t]*//;s/[ \t]*$//')
+echo "$trimmed"
+```
+
+### 2. Using `awk`
+`awk` is a powerful text-processing tool that can also be used to trim whitespace.
+
+```bash
+string="   Hello, World!   "
+trimmed=$(echo "$string" | awk '{gsub(/^[ \t]+|[ \t]+$/, ""); print}')
+echo "$trimmed"
+```
+
+### 3. Using `xargs`
+`xargs` can be used to trim whitespace by passing the string through it.
+
+```bash
+string="   Hello, World!   "
+trimmed=$(echo "$string" | xargs)
+echo "$trimmed"
+```
+
+### 4. Using Parameter Expansion
+Bash's parameter expansion can also be used to trim whitespace.
+
+```bash
+string="   Hello, World!   "
+trimmed=${string#"${string%%[![:space:]]*}"} # Trim leading whitespace
+trimmed=${trimmed%"${trimmed##*[![:space:]]}"} # Trim trailing whitespace
+echo "$trimmed"
+```
+
+### 5. Using `tr`
+`tr` can be used to delete leading and trailing whitespace.
+
+```bash
+string="   Hello, World!   "
+trimmed=$(echo "$string" | tr -d '[:space:]')
+echo "$trimmed"
+```
+
+### Example Usage
+Here's a complete example demonstrating how to use these methods:
+
+```bash
+string="   Hello, World!   "
+
+# Using sed
+trimmed_sed=$(echo "$string" | sed 's/^[ \t]*//;s/[ \t]*$//')
+echo "sed: '$trimmed_sed'"
+
+# Using awk
+trimmed_awk=$(echo "$string" | awk '{gsub(/^[ \t]+|[ \t]+$/, ""); print}')
+echo "awk: '$trimmed_awk'"
+
+# Using xargs
+trimmed_xargs=$(echo "$string" | xargs)
+echo "xargs: '$trimmed_xargs'"
+
+# Using parameter expansion
+trimmed_param=$(echo "$string" | tr -d '[:space:]')
+echo "Parameter Expansion: '$trimmed_param'"
+```
+
+Each of these methods will give you a string with leading and trailing whitespace removed. Choose the one that best fits your needs.

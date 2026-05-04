@@ -1,0 +1,73 @@
+# pass=passD-deepseek-cpu-600  id=syntax-bash  elapsed=17.26s  tokens=600  finish=length
+# prompt:
+#   How do I trim whitespace in bash?
+
+ In Bash, you can trim whitespace from the beginning and/or end of a string using various methods. Here are a few common approaches:
+
+### Using Parameter Expansion
+Bash provides a way to trim whitespace using parameter expansion.
+
+1. **Trimming leading whitespace:**
+   ```bash
+   var="  hello  "
+   trimmed="${var#"${var%%[![:space:]]*}"}"
+   echo "$trimmed"  # Output: "hello  "
+   ```
+
+2. **Trimming trailing whitespace:**
+   ```bash
+   var="  hello  "
+   trimmed="${var%"${var##*[![:space:]]}"}"
+   echo "$trimmed"  # Output: "  hello"
+   ```
+
+3. **Trimming both leading and trailing whitespace:**
+   ```bash
+   var="  hello  "
+   trimmed="${var#"${var%%[![:space:]]*}"}"
+   trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+   echo "$trimmed"  # Output: "hello"
+   ```
+
+### Using `sed`
+`sed` is a powerful stream editor that can be used to trim whitespace.
+
+1. **Trimming leading whitespace:**
+   ```bash
+   var="  hello  "
+   trimmed=$(echo "$var" | sed 's/^[ \t]*//')
+   echo "$trimmed"  # Output: "hello  "
+   ```
+
+2. **Trimming trailing whitespace:**
+   ```bash
+   var="  hello  "
+   trimmed=$(echo "$var" | sed 's/[ \t]*$//')
+   echo "$trimmed"  # Output: "  hello"
+   ```
+
+3. **Trimming both leading and trailing whitespace:**
+   ```bash
+   var="  hello  "
+   trimmed=$(echo "$var" | sed 's/^[ \t]*//; s/[ \t]*$//')
+   echo "$trimmed"  # Output: "hello"
+   ```
+
+### Using `awk`
+`awk` is another powerful tool for text processing.
+
+1. **Trimming leading whitespace:**
+   ```bash
+   var="  hello  "
+   trimmed=$(echo "$var" | awk '{$1=$1;print}')
+   echo "$trimmed"  # Output: "hello  "
+   ```
+
+2. **Trimming trailing whitespace:**
+   ```bash
+   var="  hello  "
+   trimmed=$(echo "$var" | awk '{$NF=$NF; print}')
+   echo "$trimmed"  # Output: "  hello"
+   ```
+
+3. **Trimming both leading and trailing

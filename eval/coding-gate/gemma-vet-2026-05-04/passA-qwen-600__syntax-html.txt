@@ -1,0 +1,5 @@
+# pass=passA-qwen-600  id=syntax-html  elapsed=0.27s  tokens=15  finish=stop
+# prompt:
+#   What's the right tag for a clickable button?
+
+The right tag for a clickable button in HTML is `<button>`.
