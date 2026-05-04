@@ -1,0 +1,31 @@
+# pass=passF-qwen3-14b-1500  id=review-javascript  elapsed=116.61s  tokens=1500  finish=length
+# prompt:
+#   Review this JavaScript snippet. What is wrong with it, and how would you fix it?
+#   
+#   ```javascript
+#   function isAdmin(user) {
+#     if (user.role == "admin") {
+#       return true;
+#     }
+#     return false;
+#   }
+#   ```
+
+The provided JavaScript function `isAdmin` is logically correct and performs its intended purpose of checking whether a user has the role `"admin"`. However, there are a few **best practices and potential improvements** that can be made to enhance the code's clarity, safety, and efficiency.
+
+---
+
+### ✅ **What is the issue with the current code?**
+
+The function uses **loose equality (`==`)** to compare `user.role` with the string `"admin"`. While this works in most cases, it can lead to **unexpected behavior due to JavaScript's type coercion rules**.
+
+For example:
+```javascript
+isAdmin({ role: 0 }) // returns true because 0 == "admin" is true in JavaScript
+```
+
+This is **not intended behavior** in most use cases, and it's better to avoid such pitfalls by using **strict equality (`===`)**.
+
+---
+
+### ✅ **Redund

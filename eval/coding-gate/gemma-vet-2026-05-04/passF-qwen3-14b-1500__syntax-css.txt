@@ -1,0 +1,149 @@
+# pass=passF-qwen3-14b-1500  id=syntax-css  elapsed=102.72s  tokens=1364  finish=stop
+# prompt:
+#   How do I center a div?
+
+To center a `<div>` both horizontally and vertically, you can use several modern and widely supported methods. Below are the most common approaches:
+
+---
+
+### **1. Using Flexbox (Recommended for Most Cases)**
+Flexbox is a powerful and flexible layout method that makes centering easy.
+
+#### **HTML:**
+```html
+<div class="parent">
+  <div class="centered-div">Centered Content</div>
+</div>
+```
+
+#### **CSS:**
+```css
+.parent {
+  display: flex;
+  justify-content: center; /* Horizontal centering */
+  align-items: center;      /* Vertical centering */
+  height: 100vh;            /* Ensure parent has a defined height */
+}
+```
+
+**Notes:**
+- The parent container must have a defined height (e.g., `height: 100vh` for full viewport height).
+- This method works for both horizontal and vertical centering.
+
+---
+
+### **2. Using Grid Layout**
+CSS Grid is another modern approach that simplifies centering.
+
+#### **HTML:**
+```html
+<div class="parent">
+  <div class="centered-div">Centered Content</div>
+</div>
+```
+
+#### **CSS:**
+```css
+.parent {
+  display: grid;
+  place-items: center; /* Centers both horizontally and vertically */
+  height: 100vh;       /* Ensure parent has a defined height */
+}
+```
+
+**Notes:**
+- `place-items: center` is shorthand for `justify-items: center` and `align-items: center`.
+- This method is also very flexible and works well for complex layouts.
+
+---
+
+### **3. Using Absolute Positioning**
+This method is useful when you need to center a div within a relatively positioned parent.
+
+#### **HTML:**
+```html
+<div class="parent">
+  <div class="centered-div">Centered Content</div>
+</div>
+```
+
+#### **CSS:**
+```css
+.parent {
+  position: relative;
+  width: 100%;
+  height: 100vh; /* Or any defined height */
+}
+
+.centered-div {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+```
+
+**Notes:**
+- The parent must have `position: relative` for the absolutely positioned child to be relative to it.
+- `transform: translate(-50%, -50%)` adjusts the div so its top-left corner is at the center of the parent.
+
+---
+
+### **4. Using Margin Auto (Horizontal Only)**
+If you only need to center a div **horizontally**, you can use `margin: 0 auto;`.
+
+#### **HTML:**
+```html
+<div class="centered-div">Centered Content</div>
+```
+
+#### **CSS:**
+```css
+.centered-div {
+  width: 200px; /* Required for margin: 0 auto to work */
+  margin: 0 auto;
+}
+```
+
+**Notes:**
+- This method only centers the div horizontally.
+- The div must have a defined width.
+
+---
+
+### **5. Using Table-Cell (Legacy Method)**
+This is an older method and less commonly used today, but it works in most browsers.
+
+#### **HTML:**
+```html
+<div class="parent">
+  <div class="centered-div">Centered Content</div>
+</div>
+```
+
+#### **CSS:**
+```css
+.parent {
+  display: table-cell;
+  vertical-align: middle;
+  text-align: center;
+  height: 100vh; /* Ensure parent has a defined height */
+  width: 100%;
+}
+```
+
+**Notes:**
+- This method is less flexible and not recommended for modern layouts.
+
+---
+
+### **Summary**
+| Method         | Horizontal | Vertical | Notes                          |
+|----------------|------------|----------|--------------------------------|
+| **Flexbox**    | ✅         | ✅       | Most recommended               |
+| **Grid**       | ✅         | ✅       | Modern and flexible            |
+| **Absolute**   | ✅         | ✅       | Requires relative parent       |
+| **Margin Auto**| ✅         | ❌       | Only horizontal                |
+| **Table-Cell** | ✅         | ✅       | Legacy method                  |
+
+Choose the method that best fits your layout needs and browser support requirements. Flexbox and Grid are the most versatile and widely supported options.

@@ -118,6 +118,19 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 		}
 		return c.RunbookExecute(ctx, name, dryRun)
 
+	case "model_switch":
+		// ADR-060: swap which model llama-server is serving on :8081.
+		// Args: {"key": "<allowlisted-model-key>"}. The allowlist is
+		// scripts/switch-model.sh's MODEL_FILE keys, parsed at boot.
+		// model_switch is a destructive verb — Champion's third rule
+		// refuses it unless the justification ends in 'direct-user'
+		// (browser-clicked actions).
+		key, err := requireString(tc.Args, "key")
+		if err != nil {
+			return nil, err
+		}
+		return c.ModelSwap(ctx, key)
+
 	default:
 		// Unknown / unimplemented tool: fail closed even though the gate
 		// didn't reject — the gate's IsMutating() defaults unknown to

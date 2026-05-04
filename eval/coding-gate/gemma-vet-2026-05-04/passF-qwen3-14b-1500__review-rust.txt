@@ -1,0 +1,17 @@
+# pass=passF-qwen3-14b-1500  id=review-rust  elapsed=113.62s  tokens=1500  finish=length
+# prompt:
+#   Review this Rust snippet. What is wrong with it, and how would you fix it?
+#   
+#   ```rust
+#   fn parse_port(s: &str) -> u16 {
+#       s.parse::<u16>().unwrap()
+#   }
+#   ```
+
+The provided Rust function `parse_port` has a critical issue: it uses `.unwrap()` on the result of `s.parse::<u16>()`, which will cause the program to panic if the input string cannot be parsed into a valid `u16`. This is not a safe or idiomatic approach in Rust, especially when parsing user input or untrusted data.
+
+---
+
+### ✅ Problem Summary
+
+- **Uncaught Errors**: Using `.unwrap()` will cause a

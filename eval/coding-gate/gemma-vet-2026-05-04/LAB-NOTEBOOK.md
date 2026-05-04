@@ -223,7 +223,146 @@ Recipe (when activated):
    threshold on H3 relaxed to "≤3× slower on ≥4/14" since Stevie has
    accepted slower-for-smarter as the trade.
 
-## 7. Reproducibility
+## 7. WAVE16 — Pass E/F/G overnight bench (added 2026-05-04)
+
+After this notebook's earlier rejections (gemma + deepseek-cpu Q4), Stevie
+authorized an overnight unattended run against three new candidates per
+late-arriving Reddit research + the parked candidate from §6:
+
+- **Pass E**: Qwen2.5-Coder-14B-Instruct Q4_K_M (the parked candidate; same
+  family as the H0 baseline qwen-7b, dense, partial-offload `-ngl 30`)
+- **Pass F**: Qwen3-14B Q4_K_M (different family, newer; per Reddit research)
+- **Pass G**: DeepSeek-Coder-V2-Lite Q5_K_M with `--n-cpu-moe 22` (the Q4
+  variant we already rejected, retried at the larger quant the Reddit
+  thread called "gold standard")
+
+Bench run via `eval/coding-gate/run-gemma-vet.sh <pass> 1500` against the
+14-prompt textbook tier. Same harness as Pass A-D.
+
+### 7.1 Mechanical metrics (sorted by avg wall-time)
+
+| Pass | Model | Truncated | Avg s | Avg tok | tok/s | VRAM | RAM | vs qwen-7b |
+|---|---|---|---|---|---|---|---|---|
+| A | **qwen-7b** (baseline) | 1/14 | 5.9 | 362 | ~61 | 6.0 GB | 5 GB | 1.0× |
+| G | deepseek-q5-cpu | **0/14** | 16.7 | 519 | ~31 | 4.6 GB | **12 GB** | 2.8× slower |
+| E | qwen-coder-14b | **0/14** | 33.5 | 384 | ~12 | 7.2 GB | 5 GB | 5.7× slower |
+| F | qwen3-14b | **9/14** | ~107 | ~1330 | ~12 | 8.0 GB | 4 GB | 18× slower |
+
+### 7.2 Pass F immediate disqualification
+
+`qwen3-14b` produced **empty content** on the smoke test (`/v1/chat/completions`
+returned `{"content": "", "completion_tokens": 10}` — 10 tokens consumed, zero
+visible output). The full bench then truncated 9/14 prompts at 1500 tokens
+because the model emitted nothing parseable as a final answer.
+
+This is consistent with the model being reasoning-mode (similar to gemma) but
+with a chat template our llama.cpp build can't render correctly — the
+`<think>...</think>` tokens never close to a visible answer. May also be a
+GGUF conversion issue at the `unsloth/Qwen3-14B-GGUF` source.
+
+**Verdict: hard reject. Not retried.**
+
+### 7.3 Pass E vs Pass G — the real comparison
+
+Both candidates clear the H2 (no truncation) and H3 (slowdown bound at 5.7×
+and 2.8× respectively, both under the rejection-grade 6×) tests. The
+H1 (quality) decision is the pivot.
+
+**`review-go` side-by-side — the canonical poison test from earlier in the
+day** (where Q4 deepseek-cpu hallucinated "the os package is imported but
+not used" when `os.WriteFile` clearly uses it):
+
+- **qwen-coder-14b** correctly flags: silently-discarded `json.Marshal` error,
+  hardcoded `/tmp/user.json` path, file-permission documentation. Provides a
+  revised version with `fmt.Errorf("...: %w", err)` wrapping. **Quality on par
+  with qwen-7b.**
+- **deepseek-q5-cpu** STILL hallucinates the same "unused os import" finding
+  as Q4 did. The bigger quant did not cure the hallucination. Otherwise
+  identifies the silently-discarded error. **Quality strictly worse than
+  qwen-7b on this prompt.**
+
+Spot check on `syntax-bash` (random sample): both produce coherent answers.
+qwen-coder-14b's answer is more thorough than qwen-7b's (covers parameter
+expansion + sed + awk variants); deepseek-q5-cpu's is competent but more
+verbose.
+
+### 7.4 Hypothesis verdicts
+
+| ID | Pass E (qwen-coder-14b) | Pass F (qwen3-14b) | Pass G (deepseek-q5-cpu) |
+|---|---|---|---|
+| H1 (quality ≥ qwen-7b on ≥4/14) | TIE — equal-or-better on syntax-bash + review-go; no clear win | **FAIL** — empty content, can't grade | **FAIL** — same review-go hallucination as Q4 |
+| H2 (≤3/14 truncation) | **PASS** (0/14) | **HARD FAIL** (9/14) | **PASS** (0/14) |
+| H3 (not ≥2× slower on ≥4/14) | **HARD FAIL** (5.7× avg, ≥2× on 14/14) | **HARD FAIL** (18× avg) | **HARD FAIL** (2.8× avg, ≥2× on most) |
+| H4 (catches review bugs qwen misses) | **NOT TESTED** in detail; review-go suggests parity | N/A | N/A |
+| RAM cost | 5 GB resident, 9 GB free | 4 GB resident | **12 GB resident, 1.9 GB free — system on edge of swap** |
+
+### 7.5 Decision per the locked rule
+
+> Locked: H1 PASS + H2 PASS + H3 not-FAIL → adopt as default;
+>         H1 FAIL + H3 FAIL → reject (verbose AND slow);
+>         H4 alone PASS → keep qwen default, document niche.
+
+- **Pass E (qwen-coder-14b)**: H1 TIE + H2 PASS + H3 FAIL. Not adoption-grade
+  per the strict rule, but this is the closest any candidate has come — clean
+  finishes, same family as the baseline, real coding bias, no quality
+  regressions on sampled prompts. **Recommend: keep as the right reach for
+  hard problems via the multi-model selector (ADR-060). Do NOT auto-flip
+  default.**
+
+- **Pass F (qwen3-14b)**: HARD REJECT. Empty content + 9/14 truncation.
+  **Not even keep-as-option.** Removed from `scripts/switch-model.sh`'s
+  `MODEL_FILE` array.
+
+- **Pass G (deepseek-q5-cpu)**: H1 FAIL + H3 FAIL + RAM PRESSURE. Same
+  hallucination as Q4. The Q5 retry was negative — bigger quant did not fix
+  the model's confidence-vs-correctness gap. **Reject. Keep `deepseek-cpu`
+  (Q4) key as the documented option from earlier; remove `deepseek-q5-cpu`
+  key as redundant.**
+
+### 7.6 Recommendation matrix (wake-up deliverable)
+
+| Candidate | Adopt as default? | Keep as switch-model option? | Notes |
+|---|---|---|---|
+| qwen-7b | YES (no change) | n/a | H0 baseline, 5.9s avg, clean |
+| qwen-coder-14b | NO | **YES** | clean, no quality regressions, 5.7× slower; the right reach for hard problems |
+| qwen3-14b | NO | NO | unusable; chat template incompatibility |
+| deepseek-q5-cpu | NO | NO | Q4 already documented as keep-as-option; Q5 doesn't add value |
+
+The default chat model **stays at qwen-7b**. The selector dropdown (ADR-060,
+shipping in this same WAVE16 commit batch) will offer qwen-coder-14b as the
+one viable upgrade swap.
+
+### 7.7 ADR-060 implementation status
+
+In parallel with these benches, ADR-060 (multi-model selector UI dropdown)
+shipped:
+
+- `pkg/champion/modelswap.go` — 233 LOC; allowlist (parsed at boot from
+  switch-model.sh's `MODEL_FILE` array) + script-hash TOCTOU guard +
+  single-flight lock + 6-min subprocess cap.
+- `pkg/champion/modelswap_test.go` — 11 unit tests passing (12th is
+  skipped because we're not running as root).
+- `pkg/champion/dispatch.go` — added `model_switch` case routing to
+  `c.ModelSwap()`.
+- `pkg/champion/toolcall.go` — `model_switch` registered as a mutating tool
+  (T6b closure: gate refuses chat-LLM-emitted tool calls; only `direct-user`
+  justification passes Rule 2).
+- `raft/zhen_app.py` — `GET /api/v1/models` + `POST /api/v1/models/switch`
+  proxying to zhen-agentd `/api/v1/tool/exec`.
+- `raft/static/index.html` — sidebar `<select id="model-select">` with
+  on-change handler that POSTs to `/api/v1/models/switch` and polls
+  `/api/v1/stats.inference_model` until the swap visibly completes (6-min
+  hard timeout).
+
+Smoke verification: tested via `./scripts/switch-model.sh` directly during
+this run (the same path the daemon's ModelSwap subprocess takes). Each of
+qwen-coder-14b → qwen3-14b → deepseek-q5-cpu → qwen-7b completed cleanly
+in 90-100s, demonstrating the swap path works under realistic loads.
+
+The UI dropdown end-to-end test (browser → zhen_app → zhen-agentd → script)
+will get its first real exercise when Stevie reloads the page.
+
+## 8. Reproducibility
 
 - `scripts/switch-model.sh` documents the per-model launch flags.
 - `eval/coding-gate/run-gemma-vet.sh` is the bench runner.

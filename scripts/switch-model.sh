@@ -51,6 +51,8 @@ MODEL_FILE[qwen-7b]="qwen2.5-coder-7b-instruct-q4_k_m.gguf"
 MODEL_FILE[deepseek]="DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 MODEL_FILE[gemma]="gemma-4-E2B-it.gguf"
 MODEL_FILE[deepseek-cpu]="DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+# WAVE16 candidates downloaded 2026-05-04 — bench-test pending
+MODEL_FILE[qwen-coder-14b]="Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
 
 # Per-model launch flags. Different architectures need different settings:
 # - deepseek-v2 has MLA attention; flash-attn unsupported on ROCm → can't
@@ -64,6 +66,9 @@ MODEL_FLAGS[gemma]="--ctx-size 8192"
 # (~6 GB), remaining 7 layers + attention stay on GPU (~5 GB VRAM).
 # Speed expectation: 10-15 tok/s vs full-GPU 70 tok/s, but quality +.
 MODEL_FLAGS[deepseek-cpu]="--ctx-size 8192 --parallel 1 --cache-type-k q8_0 --n-cpu-moe 20"
+# qwen2.5-coder-14b (dense): partial GPU offload — first 30 of 48 layers on GPU,
+# remaining 18 + KV ride RAM. Estimated 5-6 GB VRAM + 4-5 GB RAM.
+MODEL_FLAGS[qwen-coder-14b]="--ctx-size 8192 --parallel 1 --n-gpu-layers 30"
 
 # Friendly model name reported via OpenAI /v1/models. Cosmetic — clients
 # can read this back, but llama-server actually serves whatever GGUF is
@@ -73,6 +78,7 @@ MODEL_NAME[qwen-7b]="qwen2.5-coder-7b-instruct"
 MODEL_NAME[deepseek]="deepseek-coder-v2-lite-instruct"
 MODEL_NAME[gemma]="gemma-4-E2B-it"
 MODEL_NAME[deepseek-cpu]="deepseek-coder-v2-lite-cpu-moe"
+MODEL_NAME[qwen-coder-14b]="qwen2.5-coder-14b-instruct"
 
 if [[ $# -lt 1 ]]; then
     echo "usage: $0 <model-key>" >&2
@@ -134,7 +140,7 @@ NEW_PID=$!
 disown
 
 # Wait for /health 200, with rollback on death or timeout.
-for i in $(seq 1 90); do
+for i in $(seq 1 360); do
     if ! kill -0 "$NEW_PID" 2>/dev/null; then
         echo "[switch-model] ✗ process died at ${i}s — see $LOG" >&2
         tail -20 "$LOG" >&2
@@ -152,7 +158,7 @@ for i in $(seq 1 90); do
     sleep 1
 done
 
-echo "[switch-model] ✗ /health never returned 200 within 90s" >&2
+echo "[switch-model] ✗ /health never returned 200 within 360s" >&2
 tail -20 "$LOG" >&2
 kill "$NEW_PID" 2>/dev/null || true
 exit 1

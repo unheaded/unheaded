@@ -1,0 +1,42 @@
+# pass=passF-qwen3-14b-1500  id=syntax-rust  elapsed=113.81s  tokens=1500  finish=length
+# prompt:
+#   How do I parse a string to an integer in Rust?
+
+To parse a string into an integer in Rust, you can use the `parse` method provided by the `str` type. This method attempts to convert a string into a number of a specified type (e.g., `i32`, `u32`, `i64`, etc.) and returns a `Result` type, which allows you to handle both success and failure cases.
+
+---
+
+### ✅ Basic Usage
+
+Here's a simple example of parsing a string into an `i32`:
+
+```rust
+fn main() {
+    let s = "456";
+    let num: i32 = s.parse().unwrap();
+    println!("{}", num);
+}
+```
+
+In this example:
+- `"456"` is a valid string representation of an integer.
+- `s.parse()` attempts to convert it to an `i32`.
+- `.unwrap()` is used to extract the value, but it will panic if parsing fails.
+
+---
+
+### 📌 Handling Errors
+
+Since parsing can fail (e.g., if the string contains non-numeric characters), it's better to handle the `Result` explicitly:
+
+```rust
+fn main() {
+    let s = "abc";
+    match s.parse::<i32>() {
+        Ok(num) => println!("Parsed number: {}", num),
+        Err(e) => println!("Failed to parse: {}", e),
+    }
+}
+```
+
+This approach avoids panicking and allows you to gracefully handle invalid

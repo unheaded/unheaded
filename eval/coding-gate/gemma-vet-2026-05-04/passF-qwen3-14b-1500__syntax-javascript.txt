@@ -1,0 +1,90 @@
+# pass=passF-qwen3-14b-1500  id=syntax-javascript  elapsed=102.85s  tokens=1365  finish=stop
+# prompt:
+#   How do I make an async fetch call?
+
+To make an **async fetch call** in JavaScript, you can use the `async/await` syntax, which provides a cleaner and more readable way to handle asynchronous operations compared to traditional `.then()` chains or callbacks. Here's a step-by-step guide with a practical example:
+
+---
+
+### ✅ Basic Structure of an Async Fetch Call
+
+```javascript
+async function fetchData() {
+  try {
+    // 1. Make the fetch call
+    const response = await fetch('https://api.example.com/data');
+
+    // 2. Check if the response is successful (status 200-299)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // 3. Parse the JSON response
+    const data = await response.json();
+
+    // 4. Use the data
+    console.log('Fetched data:', data);
+  } catch (error) {
+    // 5. Handle any errors
+    console.error('Fetch operation failed:', error);
+  }
+}
+
+// 6. Call the async function
+fetchData();
+```
+
+---
+
+### 🔍 Explanation of Key Parts
+
+1. **`async function`**:
+   - Declaring a function with `async` allows the use of `await` inside it.
+   - This function will return a `Promise`.
+
+2. **`await fetch(...)`**:
+   - The `await` keyword pauses the execution of the function until the `fetch` promise resolves.
+   - It returns the `Response` object from the server.
+
+3. **Check `response.ok`**:
+   - The `ok` property is `true` if the HTTP status is in the 200–299 range.
+   - If not, we throw an error to handle it in the `catch` block.
+
+4. **`response.json()`**:
+   - Converts the raw response body into a JSON object.
+   - This is also a promise, so we use `await` again.
+
+5. **Error Handling with `try/catch`**:
+   - Catches any errors that occur during the fetch or parsing process.
+   - This includes network errors, invalid JSON, or HTTP errors (like 404 or 500).
+
+---
+
+### 📌 Notes
+
+- **CORS**: If the API is on a different domain, you may need to handle CORS (Cross-Origin Resource Sharing) on the server side.
+- **Node.js**: If you're using Node.js, the built-in `fetch` API is not available. You can use a package like [`node-fetch`](https://www.npmjs.com/package/node-fetch) instead.
+- **URL**: Replace `'https://api.example.com/data'` with the actual API endpoint you want to call.
+
+---
+
+### 🧪 Example Output
+
+If the API returns:
+
+```json
+{
+  "name": "Example API",
+  "version": "1.0"
+}
+```
+
+Then the console will log:
+
+```
+Fetched data: { name: 'Example API', version: '1.0' }
+```
+
+---
+
+This approach ensures your code is clean, readable, and robust against common errors.
