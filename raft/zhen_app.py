@@ -980,6 +980,33 @@ def query():
         # ("kanban list --status ...") instead of reading actual rows.
         live_ctx = _build_live_context(question)
 
+        # Identity block — ALWAYS prepended, regardless of question
+        # intent. Without this, the model hallucinates "I'm Claude" when
+        # asked what model it is (qwen-coder is fine-tuned on a lot of
+        # Anthropic-style text). The system prompt instructs the model
+        # to read inference_model from the LIVE SYSTEM STATE block;
+        # this is what populates that key. Cheap to compute (single
+        # /v1/models call) and small (~50 chars), so unconditional.
+        identity_block = ''
+        try:
+            import urllib.request as _ur
+            with _ur.urlopen(f'{rag.inference_url}/v1/models', timeout=2) as _r:
+                _data = json.loads(_r.read().decode())
+                _loaded = (_data.get('data') or [{}])[0].get('id', '')
+                if _loaded:
+                    if _loaded.endswith('.gguf'):
+                        _loaded = _loaded[:-5]
+                    identity_block = (
+                        f"## Identity (authoritative)\n"
+                        f"inference_model: {_loaded}\n"
+                        f"served_by: local llama-server on AMD RX 7700 XT (ROCm)\n"
+                        f"persona: zhen (真爱), chat surface of the Unheaded Kingdom\n"
+                    )
+        except Exception:
+            pass
+        if identity_block:
+            live_ctx = identity_block + ('\n\n' + live_ctx if live_ctx else '')
+
         start = time.time()
         result = rag.query(question, file_content=file_content, history=history,
                           live_context=live_ctx)
