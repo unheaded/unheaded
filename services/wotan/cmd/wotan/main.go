@@ -23,19 +23,20 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/keepalive"
 
 	"unheaded/pkg/auth"
-	chatpb "unheaded/services/wotan/proto"
 	"unheaded/services/wotan/internal/api"
 	"unheaded/services/wotan/internal/cluster"
-	"unheaded/services/wotan/internal/store"
-	"unheaded/services/wotan/internal/wotan"
 	grpcservice "unheaded/services/wotan/internal/grpc"
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/middleware"
 	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/store"
+	"unheaded/services/wotan/internal/wotan"
+	chatpb "unheaded/services/wotan/proto"
 )
 
 var (
@@ -70,6 +71,7 @@ type Config struct {
 	WriteTimeout           time.Duration
 	IdleTimeout            time.Duration
 	PendingApprovalTimeout time.Duration
+	ShutdownTimeout        time.Duration
 
 	// Topic config
 	TopicConfigPath string
@@ -118,15 +120,23 @@ func main() {
 	// Initialize Prometheus metrics
 	m := metrics.Initialize("unheaded_chat")
 
+	// Background-task context. Canceled in the shutdown sequence so
+	// every periodic-ticker goroutine observes Done() and returns
+	// cleanly within the shutdown deadline (not after it).
+	runCtx, runCancel := context.WithCancel(context.Background())
+
 	// Start metrics collector
-	go collectSystemMetrics(m)
+	go collectSystemMetrics(runCtx, m)
 
 	// Initialize managers
 	roomManager := room.NewManager(config.BufferSize)
 	memberManager := member.NewManager()
 	messageWotan := wotan.NewWotan()
 
-	// Initialize persistent store (if configured)
+	// Initialize persistent store (if configured). When this falls back
+	// (err != nil) the local convention is `msgStore == nil` →
+	// memory-only ring buffer. apiServer.Store is documented to accept
+	// nil; do not interpret nil as "store init failed silently."
 	var msgStore store.MessageStore
 	if config.StoreType != "" && config.StoreType != "memory" {
 		storeCfg := store.Config{
@@ -145,7 +155,11 @@ func main() {
 		}
 	}
 
-	// Initialize cluster (if configured)
+	// Cluster mode: fail-fast if the operator passed cluster flags. The
+	// cluster.Config validation logic exists, but the actual replication
+	// wiring isn't complete yet — silently running standalone after
+	// "cluster mode enabled" was logged would mislead operators. Refuse
+	// to start until cluster wiring lands.
 	clusterCfg := cluster.Config{
 		Mode:            cluster.Mode(config.ClusterMode),
 		Role:            cluster.Role(config.ClusterRole),
@@ -158,16 +172,12 @@ func main() {
 		if err := clusterCfg.Validate(); err != nil {
 			log.Fatal().Err(err).Msg("invalid cluster configuration")
 		}
-		log.Info().
+		log.Fatal().
 			Str("mode", string(clusterCfg.Mode)).
 			Str("role", string(clusterCfg.Role)).
-			Str("node_id", clusterCfg.NodeID).
 			Str("peer", clusterCfg.PeerAddr).
-			Int("replication_port", clusterCfg.ReplicationPort).
-			Msg("cluster mode enabled")
+			Msg("cluster mode is not yet implemented in this binary; refusing to start. Drop --cluster-* flags to run standalone.")
 	}
-
-	_ = clusterCfg // Used in future cluster wiring
 
 	log.Info().Msg("initialized_core_managers")
 
@@ -189,7 +199,9 @@ func main() {
 	apiServer := api.NewServer(roomManager, memberManager, messageWotan, config.PendingApprovalTimeout)
 	apiServer.TopicConfig = topicCfg
 	apiServer.Store = msgStore // Wire persistent store (nil = memory-only)
-	apiServer.InitTopics() // Enable topic pub/sub (Fae Chamber message bus)
+	// InitTopics returns no error today (see services/wotan/internal/
+	// api/topics.go); if a future change makes it fallible, wrap here.
+	apiServer.InitTopics()
 
 	// Setup rate limiter
 	rateLimiter := middleware.NewRateLimiter(
@@ -210,12 +222,13 @@ func main() {
 	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
 
 	httpServer := &http.Server{
-		Addr:         fmt.Sprintf(":%d", config.HTTPPort),
-		Handler:      srvHandler,
-		ReadTimeout:  config.ReadTimeout,
-		WriteTimeout: config.WriteTimeout,
-		IdleTimeout:    config.IdleTimeout,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		Addr:              fmt.Sprintf(":%d", config.HTTPPort),
+		Handler:           srvHandler,
+		ReadTimeout:       config.ReadTimeout,
+		ReadHeaderTimeout: 5 * time.Second, // slowloris defense — header phase tighter than body
+		WriteTimeout:      config.WriteTimeout,
+		IdleTimeout:       config.IdleTimeout,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	// Configure TLS if enabled
@@ -225,8 +238,9 @@ func main() {
 		}
 
 		tlsConfig := &tls.Config{
-			MinVersion:               tls.VersionTLS13,
-			PreferServerCipherSuites: true,
+			MinVersion: tls.VersionTLS13,
+			// PreferServerCipherSuites was deprecated in Go 1.18; TLS 1.3
+			// no longer honours cipher-suite preferences. Removed.
 			CurvePreferences: []tls.CurveID{
 				tls.X25519,
 				tls.CurveP256,
@@ -262,17 +276,36 @@ func main() {
 	// Create TopicStream gRPC service - THE COSMIC WHEEL
 	topicService := grpcservice.NewTopicServiceWithCounter(roomManager, memberManager, messageWotan, topicSeqCounter)
 
-	// Create gRPC server (accessible for graceful shutdown)
+	// gRPC server hardening (CLAUDE.md baseline). Without these, a
+	// client can DoS the server via giant messages, abusive keepalive
+	// pings, or by holding idle connections forever.
+	grpcOpts := []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(4 << 20), // 4 MiB inbound cap; matches typical Wotan
+		// payload + a 4× margin. Larger payloads
+		// belong on a streaming endpoint, not a
+		// single Recv.
+		grpc.MaxSendMsgSize(4 << 20), // 4 MiB outbound cap (default is 4 MiB but
+		// making it explicit pins the contract).
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 5 * time.Minute,  // close idle conns
+			Time:              30 * time.Second, // server pings clients this often
+			Timeout:           10 * time.Second, // ping ack deadline
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             10 * time.Second, // reject clients pinging more often
+			PermitWithoutStream: true,             // allow keepalive on idle streams
+		}),
+	}
+
 	var grpcServer *grpc.Server
 	if config.EnableTLS {
 		creds, err := credentials.NewServerTLSFromFile(config.TLSCertFile, config.TLSKeyFile)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed_to_load_tls_credentials")
 		}
-		grpcServer = grpc.NewServer(grpc.Creds(creds))
-	} else {
-		grpcServer = grpc.NewServer()
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
+	grpcServer = grpc.NewServer(grpcOpts...)
 
 	// Register gRPC service implementations
 	chatpb.RegisterChatStreamServer(grpcServer, chatService)
@@ -299,13 +332,14 @@ func main() {
 		}
 	}()
 
-	// Start admin CLI in goroutine if enabled
+	// Pending-member monitor (10s tick logger; previously misnamed
+	// `startAdminCLI` — it doesn't start a CLI, it just logs).
 	if config.AdminEnabled {
-		go startAdminCLI(memberManager, roomManager)
+		go monitorPendingMembers(runCtx, memberManager, roomManager)
 	}
 
 	// Start periodic cleanup of expired pending members
-	go cleanupExpiredMembers(memberManager)
+	go cleanupExpiredMembers(runCtx, memberManager)
 
 	// Wait for shutdown signal
 	stop := make(chan os.Signal, 1)
@@ -314,8 +348,14 @@ func main() {
 
 	log.Info().Msg("shutdown_signal_received")
 
-	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// Cancel the background-task context first so ticker goroutines
+	// observe Done() and exit cleanly. Without this they ride past the
+	// shutdown deadline and the daemon takes the full timeout to stop
+	// even when there's nothing to drain.
+	runCancel()
+
+	// Graceful shutdown — deadline configurable via --shutdown-timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), config.ShutdownTimeout)
 	defer cancel()
 
 	log.Info().Msg("draining_grpc_connections")
@@ -356,13 +396,13 @@ func parseFlags() Config {
 	flag.IntVar(&config.RateBurst, "rate-burst", 200, "Rate limit burst size")
 	config.RateCleanup = 5 * time.Minute
 
-	// Timeout flags
-	config.ReadTimeout = 15 * time.Second
-	config.WriteTimeout = 15 * time.Second
-	config.IdleTimeout = 60 * time.Second
-
-	var pendingApprovalTimeout time.Duration
-	flag.DurationVar(&pendingApprovalTimeout, "pending-approval-timeout", 1*time.Hour, "Timeout for pending member approval requests")
+	// Timeout flags — promoted from hardcoded constants so operators
+	// can tune for slow streams without recompiling.
+	flag.DurationVar(&config.ReadTimeout, "read-timeout", 15*time.Second, "HTTP server ReadTimeout (full request including body)")
+	flag.DurationVar(&config.WriteTimeout, "write-timeout", 15*time.Second, "HTTP server WriteTimeout")
+	flag.DurationVar(&config.IdleTimeout, "idle-timeout", 60*time.Second, "HTTP server IdleTimeout (keep-alive)")
+	flag.DurationVar(&config.ShutdownTimeout, "shutdown-timeout", 15*time.Second, "graceful shutdown deadline")
+	flag.DurationVar(&config.PendingApprovalTimeout, "pending-approval-timeout", 1*time.Hour, "Timeout for pending member approval requests")
 
 	// Topic config flag
 	flag.StringVar(&config.TopicConfigPath, "topic-config", "configs/wotan.yaml", "Path to topic configuration file (auto-approval allowlist)")
@@ -384,7 +424,6 @@ func parseFlags() Config {
 	flag.StringVar(&config.StoreConnStr, "store-conn-str", "", "PostgreSQL connection string (postgres/hybrid)")
 
 	flag.Parse()
-	config.PendingApprovalTimeout = pendingApprovalTimeout
 	return config
 }
 
@@ -436,55 +475,74 @@ func setupMiddleware(handler http.Handler, rateLimiter *middleware.RateLimiter, 
 	)
 }
 
-// collectSystemMetrics periodically collects system metrics
-func collectSystemMetrics(m *metrics.Metrics) {
+// collectSystemMetrics periodically collects system metrics. Returns
+// when ctx is canceled (during graceful shutdown).
+func collectSystemMetrics(ctx context.Context, m *metrics.Metrics) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	var mem runtime.MemStats
-	for range ticker.C {
-		runtime.ReadMemStats(&mem)
-		m.GoroutinesActive.Set(float64(runtime.NumGoroutine()))
-		m.MemoryAllocated.Set(float64(mem.Alloc))
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runtime.ReadMemStats(&mem)
+			m.GoroutinesActive.Set(float64(runtime.NumGoroutine()))
+			m.MemoryAllocated.Set(float64(mem.Alloc))
+		}
 	}
 }
 
-// startAdminCLI monitors and logs pending member requests
-func startAdminCLI(memberMgr *member.Manager, roomMgr *room.Manager) {
-	log.Info().Msg("admin_cli_started")
+// monitorPendingMembers logs pending member requests every 10 s. Was
+// previously named `startAdminCLI`, which was a misnomer — there is no
+// CLI here, just a periodic log loop. Approval/denial happens via the
+// HTTP API endpoints registered in setupHTTPRoutes. Returns when ctx
+// is canceled.
+func monitorPendingMembers(ctx context.Context, memberMgr *member.Manager, roomMgr *room.Manager) {
+	log.Info().Msg("pending_member_monitor_started")
 	log.Info().Msg("use_http_api_endpoints_to_approve_deny_members")
 
-	// Periodic check for pending members
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		pending := memberMgr.GetAllPending()
-		if len(pending) > 0 {
-			for _, m := range pending {
-				log.Info().
-					Str("member_id", m.ID.String()).
-					Str("member_name", m.Name).
-					Str("room_id", m.RoomID).
-					Time("requested_at", m.RequestedAt).
-					Msg("pending_member_request")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			pending := memberMgr.GetAllPending()
+			if len(pending) > 0 {
+				for _, m := range pending {
+					log.Info().
+						Str("member_id", m.ID.String()).
+						Str("member_name", m.Name).
+						Str("room_id", m.RoomID).
+						Time("requested_at", m.RequestedAt).
+						Msg("pending_member_request")
+				}
 			}
 		}
 	}
 }
 
-// cleanupExpiredMembers periodically removes expired pending member requests
-func cleanupExpiredMembers(memberMgr *member.Manager) {
-	// Run cleanup every 30 seconds
+// cleanupExpiredMembers periodically removes expired pending member
+// requests. Returns when ctx is canceled.
+func cleanupExpiredMembers(ctx context.Context, memberMgr *member.Manager) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		expiredCount := memberMgr.CleanupExpiredPending()
-		if expiredCount > 0 {
-			log.Info().
-				Int("expired_count", expiredCount).
-				Msg("cleaned_up_expired_pending_members")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			expiredCount := memberMgr.CleanupExpiredPending()
+			if expiredCount > 0 {
+				log.Info().
+					Int("expired_count", expiredCount).
+					Msg("cleaned_up_expired_pending_members")
+			}
 		}
 	}
 }
