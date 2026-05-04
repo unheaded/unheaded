@@ -2059,6 +2059,19 @@ async function switchModel(key) {
                 status.className = 'model-status ok';
                 status.textContent = `✓ swapped to ${key} in ${elapsed}s`;
                 await loadModelList();
+                // Drop a system note into the chat thread so the
+                // conversation context is honest about which model
+                // is now answering. Without this the welcome message
+                // (set at page-load) is the only model-identity cue
+                // and goes stale silently after a swap.
+                try {
+                    const sr2 = await fetch(API + '/api/v1/stats');
+                    const sb2 = await sr2.json();
+                    const liveName = prettyModelName(sb2.inference_model);
+                    addMsg(`⚙ Switched inference to ${liveName} (sidebar key: ${key}; loaded in ${elapsed}s). Subsequent answers come from this model.`, 'zhen');
+                } catch (e) {
+                    addMsg(`⚙ Switched inference to ${key} (loaded in ${elapsed}s). Subsequent answers come from this model.`, 'zhen');
+                }
                 return;
             }
             status.textContent = `swapping to ${key}… ${elapsed}s elapsed (current: ${sb.current || '?'})`;
@@ -2199,6 +2212,19 @@ function opRefreshStats() {
     });
 }
 
+// Format the live model identifier into a human-friendly label.
+// llama-server reports the GGUF basename (e.g.
+// "Qwen2.5-Coder-14B-Instruct-Q4_K_M") which is too noisy for the
+// welcome — strip the quant suffix and lowercase. Fall back to the
+// raw value if the suffix isn't recognised.
+function prettyModelName(raw) {
+    if (!raw) return 'qwen-coder-7b';
+    let name = String(raw);
+    if (name.endsWith('.gguf')) name = name.slice(0, -5);
+    name = name.replace(/-(Q[0-9]+_K_[MS]|Q[0-9]+_[0-9]+|IQ[0-9]+_XS|f16|fp16|F16)$/i, '');
+    return name;
+}
+
 // Welcome — post-WAVE15 rewire shape (vor + qwen-coder backends).
 // Fetches live stats from /api/v1/stats (sheets/categories/model) and the
 // runbook list count, then composes a current-state opener. Falls back to
@@ -2210,13 +2236,14 @@ Promise.all([
     const vh = s.vor_health || {};
     const sheets = vh.sheets || '?';
     const categories = vh.categories || '?';
-    const model = s.inference_model || 'qwen-coder-7b';
+    const model = prettyModelName(s.inference_model);
     const memBack = (s.memory_recall && s.memory_recall.includes('T1')) ? ' Memory recall is display-only (T1 closed).' : '';
     const rbLine = rbCount > 0 ? ` ${rbCount} operational runbooks available.` : '';
+    const swapHint = ' Swap models any time via the sidebar dropdown.';
     addMsg(
         `I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\n` +
         `Retrieval: vor with ${sheets} sheets across ${categories} categories — Unheaded markdown, ADRs, battle plans, embedded cheatsheets. Source-trust labeled (canonical / local / external).\n\n` +
-        `Inference: ${model} via local llama-server on AMD RX 7700 XT (ROCm).${rbLine}${memBack}\n\n` +
+        `Inference: ${model} via local llama-server on AMD RX 7700 XT (ROCm).${rbLine}${memBack}${swapHint}\n\n` +
         `📎 Need a code review or want me to read a specific file? Drag the file straight into this window, or click the + button next to the input box. The whole file goes into my context.\n\n` +
         `Ask me anything.`,
         'zhen'
