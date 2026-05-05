@@ -1,0 +1,69 @@
+# Helm overrides for the local kind bench.
+#
+# Default chart values reference ghcr.io/unheaded/<service>:0.1.0-alpha
+# images that don't exist yet. This file points each service at the
+# locally-built `unheaded-dev-<service>:latest` images that `kind load
+# docker-image` placed under `docker.io/library/`.
+
+global:
+  # Locally-loaded kind images are under docker.io/library/ — the chart's
+  # image-template prefixes registry, so we override here.
+  image:
+    registry: docker.io/library
+    pullPolicy: IfNotPresent
+    tag: latest
+
+# Each service overrides its repository to match the unheaded-dev-* image
+# tag in the local docker daemon (loaded via kind load docker-image).
+
+wotan:
+  image:
+    repository: unheaded-dev-wotan
+
+timeguru:
+  image:
+    repository: unheaded-dev-timeguru
+  # Timeguru writes its SQLite DB to ./data/timeguru.db relative to
+  # workdir. Mount an emptyDir at /app/data (the container's workdir
+  # is /app per the Dockerfile).
+  volumes:
+    - name: data
+      emptyDir: {}
+  volumeMounts:
+    - name: data
+      mountPath: /app/data
+
+architect:
+  image:
+    repository: unheaded-dev-architect
+
+captain:
+  image:
+    repository: unheaded-dev-captain
+  # Captain writes to /var/lib/unheaded for service-registration state.
+  volumes:
+    - name: state
+      emptyDir: {}
+  volumeMounts:
+    - name: state
+      mountPath: /var/lib/unheaded
+
+micromanager:
+  image:
+    repository: unheaded-dev-micromanager
+
+monad:
+  image:
+    repository: unheaded-dev-monad
+
+sophia:
+  image:
+    repository: unheaded-dev-sophia
+
+dashboardBackend:
+  image:
+    repository: unheaded-dev-dashboard-backend
+
+kanbanApp:
+  image:
+    repository: unheaded-dev-kanban-app

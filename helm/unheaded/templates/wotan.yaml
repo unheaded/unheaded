@@ -16,6 +16,10 @@ spec:
       labels:
         {{- include "unheaded.selectorLabels" (dict "ctx" . "service" "wotan") | nindent 8 }}
     spec:
+      # See note in services.yaml — disable K8s service-link env injection
+      # cluster-wide so <SERVICENAME>_PORT etc. don't clash with our
+      # services' own port-number flags.
+      enableServiceLinks: false
       containers:
         - name: wotan
           image: {{ include "unheaded.image" (dict "ctx" . "image" .Values.wotan.image) }}

@@ -34,6 +34,13 @@ spec:
       labels:
         {{- include "unheaded.selectorLabels" (dict "ctx" $ "service" $name) | nindent 8 }}
     spec:
+      # K8s auto-injects <SERVICENAME>_PORT, <SERVICENAME>_SERVICE_HOST etc.
+      # env vars for every service in the namespace. These clash with our
+      # services' own <SERVICENAME>_PORT-style flags (notably monad reads
+      # MONAD_PORT as a port-number; K8s injects MONAD_PORT=tcp://10.x.x.x:N
+      # which breaks listen-address parsing). Disable service-link env vars
+      # cluster-wide; services discover peers via stable DNS names instead.
+      enableServiceLinks: false
       containers:
         - name: {{ $name }}
           image: {{ include "unheaded.image" (dict "ctx" $ "image" $svc.image) }}
@@ -55,6 +62,14 @@ spec:
             {{- toYaml $svc.resources | nindent 12 }}
           {{- include "unheaded.securityContext" $ | nindent 10 }}
           {{- include "unheaded.probes" $ | nindent 10 }}
+          {{- with $svc.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $svc.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
