@@ -1,5 +1,13 @@
 # Track Call: Forge-First vs Launch-First vs Twin-Track
 
+> **Historical note (2026-05-05):** this analysis was drafted **before** the
+> community-first doctrine landed at commit `c6108fb8` on 2026-04-30
+> (Unheaded is GPL-3.0, free to use, free to share, no paid tiers, no GTM,
+> no VC framing). Track A's "VC pitch + Zhen-as-product GTM hook" framing is
+> therefore **obsoleted** by the doctrine; preserved here verbatim as the
+> decision record from the moment it was made. Read with that historical
+> lens. See CLAUDE.md "Community-First Doctrine" for the current charter.
+
 **Decision date target**: Wed 2026-04-29
 **Drafted**: 2026-04-27 from Cowork-on-Macbook (Captain hat)
 **Decider**: Stevie
