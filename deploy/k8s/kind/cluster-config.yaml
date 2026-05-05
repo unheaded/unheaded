@@ -1,0 +1,32 @@
+# kind cluster config for the Unheaded local K8s bench.
+#
+# Three-node topology (1 control + 2 workers) — minimum viable for the
+# pod-anti-affinity testing ADR-064 will eventually require. Today's
+# helm chart deploys single-replica Deployments, so all pods will land
+# on whichever worker has capacity; the topology is forward-compatible
+# rather than presently-needed.
+#
+# All four ports (HTTP/gRPC for wotan, dashboard, kanban, etc.) are
+# exposed on the kind container so kubectl-port-forward isn't strictly
+# necessary for smoke testing — direct hit from the host works.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: unheaded
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # Wotan HTTP via NodePort (helm chart exposes via NodePort 30080
+      # when wotan.service.type=NodePort in values-local.yaml below)
+      - containerPort: 30080
+        hostPort: 30080
+        protocol: TCP
+      - containerPort: 30081
+        hostPort: 30081
+        protocol: TCP
+  - role: worker
+  - role: worker
+networking:
+  # IPv4 only for now — multi-stack is a separate experiment
+  ipFamily: ipv4
+  # Use the default kindnet CNI; Calico/Cilium are future ADR if we
+  # need NetworkPolicy enforcement guarantees.
