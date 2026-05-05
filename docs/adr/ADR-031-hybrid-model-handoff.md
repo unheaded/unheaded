@@ -28,7 +28,7 @@ Tier 2: Zhenai Custom Model (local, future)
   - NOT a general LLM — a specialist that knows networking, eBPF, Go, Rust, and the Kingdom
   - Runs on: custom Rust inference engine (replace llama.cpp)
 
-Tier 3: Claude Opus (remote, on-demand, paid)
+Tier 3: Claude Opus (remote, on-demand; per-use cost paid by the operator to Anthropic, NOT Unheaded — Unheaded is OSS, free to use, free to share)
   - General-purpose reasoning, code generation, architecture, brainstorming
   - Connected via MCP (ADR-019 Champion MCP server)
   - Hands off to Zhenai for Kingdom-specific execution
