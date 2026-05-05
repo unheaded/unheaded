@@ -10,17 +10,17 @@ Doom is running inside eBPF over IPv6 packets. 559 frames rendered, 819M instruc
 
 This session killed 6 bugs to get here: strncpy off-by-one null terminator (CRITICAL — stomped wad_file pointer), R_InitSprites I_Error fatality, G_DoPlayDemo NULL deref, Z_Malloc infinite loop on failure, V_DrawPatch NULL patches, and stale doom_data.bin cache. Previous sessions fixed CALLR return address (restart loop), RAM_MAP HashMap→Array (42x memory reduction), translator rd==rs2 clobber, SP word-vs-byte addressing, and XDP_TX turbo mode.
 
-The Kingdom now faces a crossroads: Doom-over-IPv6 is a headline, not a product. Five workstreams must converge to transform this proof-of-concept into production-grade packet tracing observability — the actual product Unheaded sells.
+The Kingdom now faces a crossroads: Doom-over-IPv6 is a headline, not a product. Five workstreams must converge to transform this proof-of-concept into production-grade packet tracing observability — the actual capability Unheaded ships under GPL-3.0 (free to use, free to share).
 
 ---
 
 ### The Throne Speaks (Captain — Vision & Strategy)
 
-**Strategic Position**: We have a proof-of-concept that no competitor can claim. Doom running in eBPF over IPv6 packets proves our protocol can carry arbitrary computation. But headlines fade. The north star is "production-ready infrastructure in hours, not months." Every workstream below must feed that north star or it's a distraction.
+**Strategic Position**: We have a proof-of-concept that no competitor can claim. Doom running in eBPF over IPv6 packets proves our protocol can carry arbitrary computation. But headlines fade. The north star is "production-ready infrastructure in hours, not months" — gifted to the community under GPL-3.0. Every workstream below must feed that north star or it's a distraction.
 
 **North Star**: Packet tracing observability platform with eBPF at L2-L7. Customer brings their app, we provide everything else — including the ability to see every packet from ingress to application and back.
 
-**Key Decision**: Workstream sequencing. We can't do all 5 in parallel — some feed others. The dashboard UI (WS1) and scaling (WS3) are prerequisites for the demo that sells the conference talk (WS4). Hardening (WS2) protects the demo. But WS5 (back to core) is the real work.
+**Key Decision**: Workstream sequencing. We can't do all 5 in parallel — some feed others. The dashboard UI (WS1) and scaling (WS3) are prerequisites for the demo that earns the conference talk (WS4). Hardening (WS2) protects the demo. But WS5 (back to core) is the real work.
 
 **Risk to Vision**: Getting trapped in Doom optimization when the actual product is packet tracing. Doom is proof. Packet tracing is product. The line between "cool demo" and "shipping product" must be drawn NOW.
 
