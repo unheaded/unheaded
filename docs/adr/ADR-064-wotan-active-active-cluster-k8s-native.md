@@ -289,7 +289,7 @@ This is a 4-phase rollout. **No phase ships without H0 coding-gate clean across 
 
 - Akira's 66.67% consensus continues to run as a sanity check; an Akira "primary down" assertion now triggers a Raft-level health probe rather than directly switching FailoverManager state
 - ADR-035 status flipped: ACCEPTED → SUPERSEDED by ADR-064
-- Migration runbook in `runbooks/cluster/wotan-active-active-cutover.yaml` for the bare-metal WEST+EAST → K8s cluster transition
+- Migration runbook in `runbooks/wotan/active-active-cutover.yaml` for the bare-metal WEST+EAST → K8s cluster transition
 - Acceptance: WEST + EAST can be retired (or kept as fallback) once the K8s cluster has run clean for 7 days
 
 Per ADR-052 (timeline source-of-truth policy): the timeline updates at each phase exit; this ADR is referenced from `references/timeline.md`'s Age 3 section.
@@ -311,7 +311,7 @@ Per ADR-052 (timeline source-of-truth policy): the timeline updates at each phas
 The WEST + EAST bare-metal pair from ADR-035 stays running during the K8s cluster bring-up. Cutover is operator-driven, not big-bang:
 
 1. **Coexistence period** (Phases 1-3): K8s cluster brought up alongside existing WEST/EAST. Both serve the same topics; clients can use either. Akira monitors both.
-2. **Cutover** (Phase 4): a runbook (`runbooks/cluster/wotan-active-active-cutover.yaml`) drains traffic from WEST/EAST to the K8s cluster, with an explicit rollback path (re-enable WEST/EAST, drain K8s).
+2. **Cutover** (Phase 4): a runbook (`runbooks/wotan/active-active-cutover.yaml`) drains traffic from WEST/EAST to the K8s cluster, with an explicit rollback path (re-enable WEST/EAST, drain K8s).
 3. **Decommission** (post-Phase 4 + 7-day soak): WEST/EAST take a backup snapshot of their PostgreSQL message store, then are released back to general use. The active-passive code stays in-tree but is marked `// Deprecated: superseded by ADR-064` for one release cycle, then removed.
 
 No data is lost in this migration: every message that landed in WEST's WAL/PG also lives in EAST's via the existing replication; the K8s cluster picks up new traffic from the cutover point forward; historical messages continue to be served from WEST/EAST until decommission.

@@ -107,9 +107,10 @@ adopter pre-downloads:
 - Sentence-transformers embedder (one-time, ~80 MB)
 - `bellistech/vor` source (clone once)
 
-Then deploys to an air-gapped network. The `air-gap-egress-validation`
-runbook (TODO: kanban) confirms zero outbound traffic during steady-state
-chat operation.
+Then deploys to an air-gapped network. The
+`runbooks/network/air-gap-egress-validation.yaml` runbook (currently a
+24h-soak stub) confirms zero outbound traffic during steady-state chat
+operation.
 
 ## Verification this BUILD.md is current
 
