@@ -92,8 +92,10 @@ type Config struct {
 }
 
 func main() {
-	// Parse command line flags
-	config := parseFlags()
+	// Parse command line flags using the global FlagSet (real-binary path).
+	// Tests construct their own FlagSet via parseFlagsFromSet so they
+	// don't pollute global state.
+	config := parseFlags(flag.CommandLine, os.Args[1:])
 
 	// Initialize structured logging
 	logger.Initialize(logger.Config{
@@ -372,58 +374,67 @@ func main() {
 	log.Info().Msg("server_stopped_gracefully")
 }
 
-// parseFlags parses command line flags and returns configuration
-func parseFlags() Config {
+// parseFlags binds the wotan flag schema to fs and parses args. Pass
+// flag.CommandLine + os.Args[1:] from main() for the production path;
+// tests pass their own *flag.FlagSet so they don't pollute global state
+// and can exercise multiple flag combinations within one test process.
+func parseFlags(fs *flag.FlagSet, args []string) Config {
 	config := Config{}
 
 	// Server flags
-	flag.IntVar(&config.BufferSize, "buffer-size", 10000, "Ring buffer size per room")
-	flag.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")
-	flag.IntVar(&config.GRPCPort, "grpc-port", 18001, "gRPC streaming port")
-	flag.BoolVar(&config.AdminEnabled, "admin", true, "Enable admin endpoints")
+	fs.IntVar(&config.BufferSize, "buffer-size", 10000, "Ring buffer size per room")
+	fs.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")
+	fs.IntVar(&config.GRPCPort, "grpc-port", 18001, "gRPC streaming port")
+	fs.BoolVar(&config.AdminEnabled, "admin", true, "Enable admin endpoints")
 
 	// TLS flags
-	flag.BoolVar(&config.EnableTLS, "enable-tls", false, "Enable TLS 1.3")
-	flag.StringVar(&config.TLSCertFile, "tls-cert", "", "TLS certificate file")
-	flag.StringVar(&config.TLSKeyFile, "tls-key", "", "TLS key file")
+	fs.BoolVar(&config.EnableTLS, "enable-tls", false, "Enable TLS 1.3")
+	fs.StringVar(&config.TLSCertFile, "tls-cert", "", "TLS certificate file")
+	fs.StringVar(&config.TLSKeyFile, "tls-key", "", "TLS key file")
 
 	// Logging flags
-	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
-	flag.BoolVar(&config.LogPretty, "log-pretty", false, "Pretty print logs for development")
+	fs.StringVar(&config.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	fs.BoolVar(&config.LogPretty, "log-pretty", false, "Pretty print logs for development")
 
 	// Rate limiting flags
-	flag.Float64Var(&config.RateLimit, "rate-limit", 100.0, "Rate limit (requests per second)")
-	flag.IntVar(&config.RateBurst, "rate-burst", 200, "Rate limit burst size")
+	fs.Float64Var(&config.RateLimit, "rate-limit", 100.0, "Rate limit (requests per second)")
+	fs.IntVar(&config.RateBurst, "rate-burst", 200, "Rate limit burst size")
 	config.RateCleanup = 5 * time.Minute
 
 	// Timeout flags — promoted from hardcoded constants so operators
 	// can tune for slow streams without recompiling.
-	flag.DurationVar(&config.ReadTimeout, "read-timeout", 15*time.Second, "HTTP server ReadTimeout (full request including body)")
-	flag.DurationVar(&config.WriteTimeout, "write-timeout", 15*time.Second, "HTTP server WriteTimeout")
-	flag.DurationVar(&config.IdleTimeout, "idle-timeout", 60*time.Second, "HTTP server IdleTimeout (keep-alive)")
-	flag.DurationVar(&config.ShutdownTimeout, "shutdown-timeout", 15*time.Second, "graceful shutdown deadline")
-	flag.DurationVar(&config.PendingApprovalTimeout, "pending-approval-timeout", 1*time.Hour, "Timeout for pending member approval requests")
+	fs.DurationVar(&config.ReadTimeout, "read-timeout", 15*time.Second, "HTTP server ReadTimeout (full request including body)")
+	fs.DurationVar(&config.WriteTimeout, "write-timeout", 15*time.Second, "HTTP server WriteTimeout")
+	fs.DurationVar(&config.IdleTimeout, "idle-timeout", 60*time.Second, "HTTP server IdleTimeout (keep-alive)")
+	fs.DurationVar(&config.ShutdownTimeout, "shutdown-timeout", 15*time.Second, "graceful shutdown deadline")
+	fs.DurationVar(&config.PendingApprovalTimeout, "pending-approval-timeout", 1*time.Hour, "Timeout for pending member approval requests")
 
 	// Topic config flag
-	flag.StringVar(&config.TopicConfigPath, "topic-config", "configs/wotan.yaml", "Path to topic configuration file (auto-approval allowlist)")
+	fs.StringVar(&config.TopicConfigPath, "topic-config", "configs/wotan.yaml", "Path to topic configuration file (auto-approval allowlist)")
 
 	// CORS flags
 	config.CORSOrigins = []string{"*"} // Configure as needed
 
 	// Cluster flags (Wave 9 — The Twin Ravens)
-	flag.StringVar(&config.ClusterMode, "cluster-mode", "standalone", "Cluster mode (standalone|cluster)")
-	flag.StringVar(&config.ClusterRole, "cluster-role", "primary", "Cluster role (primary|standby)")
-	flag.StringVar(&config.ClusterNodeID, "cluster-node-id", "", "Node identifier (default: hostname)")
-	flag.StringVar(&config.ClusterPeerAddr, "cluster-peer", "", "Peer node address (host:port)")
-	flag.IntVar(&config.ClusterReplicationPort, "cluster-replication-port", 18002, "Replication gRPC port")
-	flag.StringVar(&config.ClusterPKIDir, "cluster-pki-dir", "/var/lib/unheaded/pki", "PKI directory for mTLS")
+	fs.StringVar(&config.ClusterMode, "cluster-mode", "standalone", "Cluster mode (standalone|cluster)")
+	fs.StringVar(&config.ClusterRole, "cluster-role", "primary", "Cluster role (primary|standby)")
+	fs.StringVar(&config.ClusterNodeID, "cluster-node-id", "", "Node identifier (default: hostname)")
+	fs.StringVar(&config.ClusterPeerAddr, "cluster-peer", "", "Peer node address (host:port)")
+	fs.IntVar(&config.ClusterReplicationPort, "cluster-replication-port", 18002, "Replication gRPC port")
+	fs.StringVar(&config.ClusterPKIDir, "cluster-pki-dir", "/var/lib/unheaded/pki", "PKI directory for mTLS")
 
 	// Store flags
-	flag.StringVar(&config.StoreType, "store-type", "memory", "Store backend (memory|wal|postgres|hybrid)")
-	flag.StringVar(&config.StoreDataDir, "store-data-dir", "/var/lib/unheaded/wotan/data", "Store data directory (WAL/hybrid)")
-	flag.StringVar(&config.StoreConnStr, "store-conn-str", "", "PostgreSQL connection string (postgres/hybrid)")
+	fs.StringVar(&config.StoreType, "store-type", "memory", "Store backend (memory|wal|postgres|hybrid)")
+	fs.StringVar(&config.StoreDataDir, "store-data-dir", "/var/lib/unheaded/wotan/data", "Store data directory (WAL/hybrid)")
+	fs.StringVar(&config.StoreConnStr, "store-conn-str", "", "PostgreSQL connection string (postgres/hybrid)")
 
-	flag.Parse()
+	if err := fs.Parse(args); err != nil {
+		// FlagSet's default error-handling is ContinueOnError for tests
+		// (returns the error without exiting); ExitOnError for the real
+		// binary (fs.Parse exits on err). Either way, this branch only
+		// runs in test mode where the caller decides what to do.
+		return config
+	}
 	return config
 }
 
