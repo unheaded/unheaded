@@ -160,7 +160,7 @@ This is the actionable carry-forward — items to add to Lane I (stretch) of `ba
 ## Sign-off (when activated)
 
 - [ ] Stevie — final go (this ADR is uniquely Stevie's strategic call; the team can recommend but the activation trigger is personal)
-- [ ] Captain — runway impact + GTM narrative alignment
+- [ ] Captain — community-impact narrative alignment + maintainer-attention budget review (no runway / no GTM — Unheaded is OSS, free to use, free to share)
 - [ ] Computermancer — local Zhenai capability validated via WAVE13/WAVE14 metrics
 - [ ] Developer — routing module + template library architecture
 - [ ] Marshal — drift policy applies to template library (templates count as docs; ADR-052 covers them)
