@@ -1207,7 +1207,7 @@ Phase 0 (Intel) ──► Phase 1 (PQC Lib) ──► Phase 2 (Sophia Maps) ─�
 **Prerequisite**: Phase 6A exit gate passed (Wotan PQC state available)
 **Time**: 2-3 hours
 **Agent**: Developer [P] — parallelizable with Phase 7
-**BUSINESS CONTEXT**: This is the open-core monetization wedge. Wire L1 = Apache-2.0. App policy L2 = enterprise feature.
+**LICENSING CONTEXT** (amended post-c6108fb8): policy architecture, NOT a paid-tier split. Wire L1 (Apache-2.0) and App policy L2 are both released to all adopters under GPL-3.0; the L1/L2 separation exists for protocol-spec layering reasons (per ADR-005's wire-vs-app-policy distinction), not commercial gating. Anyone running Unheaded gets both layers under the standard release. The original "open-core monetization wedge" framing here predates the community-first doctrine (commit c6108fb8) and was replaced.
 
 ### 6B.1 Sophia Application Policy Map
 
