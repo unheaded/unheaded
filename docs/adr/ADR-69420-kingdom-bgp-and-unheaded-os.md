@@ -5,6 +5,18 @@
 **Status**: ACCEPTED — Phase 1 deferred to end of Age 2 (Q4 2026)
 **Scope**: Long-term vision (Age 2/3 features, not blocking public launch)
 
+> **Doctrine amendment (post-c6108fb8, applied 2026-05-05 per
+> `docs/battle-plans/ROUND-TABLE-2026-04-30-doctrine-amendment.md`):**
+> The original Captain / Busboy / Consequences sections of this ADR
+> framed Sleipnir + Yggdrasil as enterprise-tier paid offerings (SKU,
+> premium, GTM, pricing, revenue streams). That language is incompatible
+> with the community-first doctrine committed at `c6108fb8` (*free to
+> use, free to share, no selling, ever*). Those sections have been
+> rewritten below to align with the doctrine: both components ship to
+> the community under GPL-3.0 (Sleipnir) and GPL-2.0 (Yggdrasil
+> SELinux policy), with no paid tiers. The technical decisions of the
+> ADR are unchanged; only the framing.
+
 **Timeline note (2026-04-03):** Sleipnir Phase 1 (control plane + stub data plane) is an 8-10 week effort scheduled for Q4 2026. Yggdrasil first artifacts also end of Age 2. Not blocking Age 3 launch.
 
 ## Context
@@ -50,7 +62,7 @@ Convergence proof for Kingdom BGP: with N nodes, full mesh peering, and a single
 
 ## Captain Perspective
 
-Market differentiation: "We own the entire stack—network fabric, routing, kernel hardening, and SELinux enforcement—so customers get zero-trust networking with provable security and performance." BGP daemon is table-stakes for scaling beyond 10 nodes; companies building Kingdom clusters at scale (100+ servers) will demand it. Unheaded OS is premium: enterprises expect a certified, hardened base image that passes FedRAMP/SOC2 audits. Bundling SELinux policy into the image is a competitive moat—no one else is shipping hardened Debian with mandatory access control for Kubernetes/Kingdom workloads. Pricing: Kingdom BGP is a standard tier feature (no upsell). Unheaded OS is sold as a "Kingdom Enterprise" SKU with audit trail generation and SLA-backed image updates. GTM for Unheaded OS: partner with procurement teams early (Q2 2026) showing FedRAMP alignment; release AMI to AWS Marketplace; target regulatory-heavy verticals (financial services, healthcare, defense). First customer: internal Kingdom infrastructure (dogfood), second: beta customer in finance needing SOC2 attestation.
+Technical positioning: the Kingdom owns the complete stack — network fabric, routing, kernel hardening, SELinux enforcement — so adopters get zero-trust networking with provable security and performance, all under a single GPL-3.0 codebase. BGP daemon is table-stakes for scaling beyond 10 nodes; communities building Kingdom clusters at scale (100+ servers) need it. Unheaded OS is the hardened base image that ships with the same posture: SELinux policy bundled in by default, FedRAMP/SOC2-aligned controls applied, signed package repository included. The differentiator is technical excellence and the visibility of the substrate, not licensing walls — anyone running an Unheaded cluster gets the hardened OS, the BGP daemon, and the audit-trail evidence-pack as part of the standard release. First adopters: the Kingdom's own bare-metal hosts (dogfooding); subsequent adopters: anyone deploying clusters in regulatory-heavy contexts (financial services, healthcare, defense, public sector) who needs the audit trail and the hardened-base-image story.
 
 ## Micromanager Perspective
 
@@ -86,7 +98,7 @@ Kingdom BGP is an **Age 2** feature, beginning immediately after alpha stabiliza
 
 ## Busboy (Coordination) Perspective
 
-Dependency graph: **Sleipnir** (BGP daemon) depends on Monad being stable (reads circuit state) and Armory being ready (consumes BPF maps for forwarding). Sleipnir is independent of Yggdrasil. **Yggdrasil** (Unheaded OS) depends on the Kingdom package set being finalized (all .deb packages must be stable before image builds begin) and SELinux policy being drafted (policy is in the critical path for Age 3a, not Age 2). Coordination cadence: weekly sync between Warmonger (driving), Architect (topology decisions), and Developer (implementation feedback). Sleipnir lead owns BGP profile doc; Yggdrasil lead owns Jenkins pipeline and .deb repository. No blocking cross-features until Age 3a SELinux work begins. Hand-offs: Sleipnir control plane completes in Age 2a, handed to Scientist for convergence analysis and to Micromanager for test plan approval before Age 2b data plane work. Yggdrasil pipeline completes in Age 2a, handed to Captain for GTM/pricing, Moat Ghost for compliance matrix, and BlackMage for supply chain security audit. All three components converge for launch narrative at end of Age 2/beginning of Age 3.
+Dependency graph: **Sleipnir** (BGP daemon) depends on Monad being stable (reads circuit state) and Armory being ready (consumes BPF maps for forwarding). Sleipnir is independent of Yggdrasil. **Yggdrasil** (Unheaded OS) depends on the Kingdom package set being finalized (all .deb packages must be stable before image builds begin) and SELinux policy being drafted (policy is in the critical path for Age 3a, not Age 2). Coordination cadence: weekly sync between Warmonger (driving), Architect (topology decisions), and Developer (implementation feedback). Sleipnir lead owns BGP profile doc; Yggdrasil lead owns Jenkins pipeline and .deb repository. No blocking cross-features until Age 3a SELinux work begins. Hand-offs: Sleipnir control plane completes in Age 2a, handed to Scientist for convergence analysis and to Micromanager for test plan approval before Age 2b data plane work. Yggdrasil pipeline completes in Age 2a, handed to Captain for community-rollout planning, Moat Ghost for compliance matrix, and BlackMage for supply chain security audit. All three components converge for the public-release narrative at end of Age 2/beginning of Age 3.
 
 ## Decision
 
@@ -108,9 +120,9 @@ Both features are **NOT blocking public launch** and will be communicated to cus
 
 4. **Organizational**: Two new organizational units emerge: Sleipnir team (control plane + data plane, 4-6 engineers, Age 2-3) and Yggdrasil team (image builder + hardening policy, 2-3 engineers, Age 2-3). Knowledge of BGP and SELinux policy becomes in-scope hiring criteria. Partner ecosystem may standardize on Yggdrasil as the "official" Kingdom base image.
 
-5. **Business**: New revenue streams: Sleipnir is table-stakes for Enterprise SKU (no upsell, standard feature). Yggdrasil becomes premium offering (Kingdom Enterprise with audit trails, signed artifacts, SLA image updates). FedRAMP/STIG compliance becomes repeatable, reducing consulting overhead per customer. Market positioning shifts from "scalable container platform" to "hardened, compliant, routable fabric infrastructure."
+5. **Community impact**: Sleipnir + Yggdrasil ship as part of the standard Kingdom release under GPL-3.0 (Sleipnir code) and GPL-2.0 (Yggdrasil SELinux policy, derived from RHEL reference policy). FedRAMP/STIG compliance becomes repeatable evidence anyone can run, not a paid consulting deliverable. Project positioning shifts from "scalable container platform" to "hardened, compliant, routable fabric infrastructure — free to use, free to share." The audit-trail and hardened-image work reduces the barrier-to-entry for community deployments in regulatory-heavy contexts; Kingdom's compliance posture becomes the community's, by default.
 
-6. **Roadmap**: Age 2 becomes "infrastructure stability" phase (Sleipnir control, Yggdrasil pipeline); Age 3 becomes "enterprise readiness" phase (SELinux full integration, multi-cloud image variants, FedRAMP audit). All post-alpha prioritization assumes both features complete on schedule.
+6. **Roadmap**: Age 2 becomes "infrastructure stability" phase (Sleipnir control, Yggdrasil pipeline); Age 3 becomes "compliance-ready" phase (SELinux full integration, multi-cloud image variants, FedRAMP control mapping documented as runbooks). All post-alpha prioritization assumes both features complete on schedule.
 
 ## References
 
