@@ -70,7 +70,7 @@
 | [032](ADR-032-python-to-go-rust-migration.md) | Python → Go/Rust Migration | Planned | 2026-04-03 |
 | [033](ADR-033-netbox-ipam.md) | NetBox IPAM | Planned | 2026-04-03 |
 | [034](ADR-034-grpc-mtls-default-transport.md) | gRPC mTLS Default Transport | Accepted | 2026-04-02 |
-| [035](ADR-035-wotan-active-passive-redundancy.md) | Wotan Active-Passive Redundancy | Accepted (Phases 0-2 done) | 2026-04-05 |
+| [035](ADR-035-wotan-active-passive-redundancy.md) | ~~Wotan Active-Passive Redundancy~~ | **Superseded by ADR-064** (2026-05-05) | 2026-04-05 |
 | [036](ADR-036-claude-distillation-training.md) | Claude Distillation Training Data | **In Progress** | 2026-04-05 |
 | [037](ADR-037-zhenai-unified-champion.md) | Zhenai Unified Champion (The Armor) | Planned | 2026-04-05 |
 | [038](ADR-038-kanban-git-audit-trail.md) | Kanban GUID → Git Commit Audit | Accepted | 2026-04-05 |
@@ -99,3 +99,4 @@
 | [061](ADR-061-cloud-rented-training-purpose-built-coding-model.md) | Cloud-Rented Training for Purpose-Built Unheaded Coding Model — pivot from off-the-shelf search to bespoke LoRA on rented A100/H100 | **Research / Pipe Dream** (~$5-50 budget when activated; gated on WAVE13 RETRAIN clearing first) | 2026-05-04 |
 | [062](ADR-062-fuzz-redteam-pentest-framework.md) | Fuzz / Red-Team / Pentest Framework (Lich Codified) — three-tier offensive taxonomy, numbered LICH-NNN campaigns, activation rules | **Accepted** (existing pattern ratified; new campaigns slot in) | 2026-05-04 |
 | [063](ADR-063-akira-summons-lich-randomized-ctf.md) | Akira Randomly Summons the Lich for CTF Mode — bounded, opt-in, randomized adversarial probing of live Kingdom services | **Pipe Dream** (activates after ADR-062's framework has 3 campaigns clean for 7 days) | 2026-05-04 |
+| [064](ADR-064-wotan-active-active-cluster-k8s-native.md) | Wotan Active/Active Cluster — 3-node minimum, K8s-native StatefulSet, Raft membership + topic-leader election, broadcast replication. Supersedes ADR-035 ("active passive works but doesn't scale") | **Proposed** (4-phase rollout; ADR-035 stays running through cutover) | 2026-05-05 |
