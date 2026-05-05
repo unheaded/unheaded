@@ -3,8 +3,8 @@
 ## A Living Grimoire of the Kingdom's Journey
 
 **STATUS:** Age 3 IN PROGRESS — Public Release Sprint
-**LAST UPDATED:** 2026-04-28
-**HEAD:** WAVE13 Phase 2 verdict (RETRAIN; ADR-051 Accepted)
+**LAST UPDATED:** 2026-05-05
+**HEAD:** WAVE17 K8s substrate proven (9/9 services on kind), ADR-064 active/active spec, doctrine sweep
 **Drift policy:** ADR-052 — this file MUST be ≤ 7 days from HEAD when HEAD has new commits.
 
 ---
@@ -48,6 +48,8 @@
 - WAVE13 Phase 1 (2026-04-25, generate-gemma4 subcommand, early quality finding: LoRA under-trained ~10× off target)
 - Round Table verification audit (2026-04-27, 19 seats reported, 2 citations issued + cleared)
 - WAVE13 Phase 2 quality verdict: **RETRAIN** (2026-04-28, autonomous overnight per Marshal charter; 0/8 LoRA-better, 6/8 immediate-stop, 2/8 mode-collapse `\tif`; ADR-051 Accepted; Phases 4-5 PAUSED until WAVE14 retrain)
+- WAVE16 Multi-model selector + overnight model bench (2026-05-04, ADR-060 LIVE in sidebar; 5 model keys; qwen-coder-14b kept as option after passing 14-prompt textbook tier 0/14 truncated)
+- WAVE17 K8s substrate proven (2026-05-05, autonomous overnight per Marshal charter; 9/9 services Running on 3-node kind; 2 real bugs found+fixed mid-run: monad service-link env collision + chart volume support; ADR-064 active/active spec landed but impl deferred per Stevie; 9-file doctrine sweep post-c6108fb8; cmd/tools/ scaffold for round-table P0 wedges; wotan main.go review +13 unit tests)
 
 **Remaining for Age 3:**
 - Captain Track A/B/C decision (Wed 2026-04-29)
@@ -73,5 +75,5 @@
 
 ---
 
-*Synced: 2026-04-28 (autonomous overnight session per Marshal charter — WAVE13 Phase 2 verdict commit)*
+*Synced: 2026-05-05 (autonomous overnight session per Marshal charter — WAVE17 K8s substrate + ADR-064 + doctrine sweep)*
 *Next sync trigger: any commit to main + drift-guard CI check*

@@ -1,0 +1,141 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: wotan-active-active-cutover
+  description: Drain traffic from WEST+EAST bare-metal active-passive Wotan to a 3-node K8s active-active cluster
+  owner: warmonger
+  estimated_duration: 30m
+  risk: high
+  requires_sudo: true
+  status: stub
+  related_adr: docs/adr/ADR-064-wotan-active-active-cluster-k8s-native.md
+  supersedes_runbooks: [cluster-failover.yaml, cluster-setup.yaml]
+  cs_sources: [wotan/cluster, infra/k8s]
+
+notes: |
+  STUB — ADR-064 Phase 4 cutover runbook. Steps below are scaffolding; each
+  one needs concrete commands once Phase 1-3 land (StatefulSet, Raft
+  membership, quorum-acked publish). Do NOT run this runbook before all
+  three of those phases are merged + green.
+
+  Strategy: rolling cutover with explicit rollback. Bare-metal WEST+EAST
+  keep accepting traffic until the K8s cluster has a quorum and a Raft
+  leader. Then DNS / load-balancer entries are flipped, K8s drains the
+  traffic, WEST+EAST go read-only, and finally decommission. Rollback at
+  any point: re-enable WEST+EAST DNS records, drain K8s.
+
+  No data loss in this migration — historical messages stay in WEST+EAST's
+  WAL/PG until Phase 5 decommission. The K8s cluster picks up new traffic
+  from the cutover instant forward.
+
+steps:
+  - name: pre-flight-cluster-health
+    action: shell
+    description: "Confirm K8s cluster has quorum + leader before cutting over"
+    command: |
+      echo "TODO: kubectl exec -n unheaded wotan-0 -- wotan-cli cluster status"
+      echo "TODO: assert leader exists, all 3 followers caught up, last applied index matches"
+    verify: "TODO: exit 0 only if all three replicas report Running + Followership"
+
+  - name: pre-flight-bare-metal-health
+    action: shell
+    description: "WEST primary + EAST standby both healthy before we touch anything"
+    command: |
+      curl -sf http://localhost:18000/health
+      ssh govan@east 'curl -sf http://localhost:18000/health'
+
+  - name: announce-maintenance-window
+    action: shell
+    description: "Operator announcement to ops channel — cutover starts now"
+    command: |
+      echo "TODO: post to operator channel"
+      echo "Cutover starts at $(date -u +%FT%TZ)"
+
+  - name: dns-update-cluster-vip
+    action: shell
+    description: "Add K8s cluster VIP to DNS, lower TTL to 30s, leave WEST+EAST entries in place"
+    command: |
+      echo "TODO: edit DNS record wotan.unheaded.lan: add K8s ingress VIP"
+      echo "TODO: lower TTL to 30s for fast rollback"
+    verify: "TODO: dig wotan.unheaded.lan returns both VIPs"
+
+  - name: drain-bare-metal-publishers
+    action: shell
+    description: "New publishers route to K8s; existing connections drain on bare-metal"
+    command: |
+      echo "TODO: edit haproxy-edge weights — drop WEST+EAST to 0, K8s VIP to 100"
+      echo "TODO: existing TCP connections continue until close; new ones land on K8s"
+    verify: "TODO: haproxy stats page shows WEST+EAST connection count trending to 0"
+
+  - name: wait-bare-metal-drained
+    action: shell
+    description: "Hold here until WEST+EAST publish queue depth = 0"
+    command: |
+      echo "TODO: poll WEST+EAST /api/v1/cluster/queue-depth until 0"
+      echo "TODO: max wait 15m; if non-zero after 15m, ABORT to rollback step"
+
+  - name: bare-metal-readonly
+    action: shell
+    description: "Flip WEST+EAST to read-only — they continue serving historical reads but reject writes"
+    command: |
+      echo "TODO: curl -X POST http://localhost:18000/api/v1/cluster/readonly"
+      echo "TODO: same on EAST via ssh"
+    verify: "TODO: POST to /api/v1/topics/test → 503 Service Unavailable (read-only)"
+
+  - name: smoke-cluster
+    action: shell
+    description: "End-to-end publish-subscribe round-trip on the K8s cluster"
+    command: |
+      echo "TODO: kubectl exec -n unheaded wotan-0 -- wotan-cli pub-sub-smoke"
+    verify: "TODO: round-trip < 100ms across all 3 replicas"
+
+  - name: dns-finalize
+    action: shell
+    description: "Remove WEST+EAST entries from DNS; raise TTL back to default"
+    command: |
+      echo "TODO: edit DNS — remove WEST+EAST A records"
+      echo "TODO: TTL back to 300s"
+
+  - name: post-cutover-monitor
+    action: shell
+    description: "Observe cluster for 30 minutes; rollback at first sign of trouble"
+    command: |
+      echo "TODO: tail K8s cluster's logs; watch grafana wotan-cluster dashboard"
+      echo "TODO: trigger rollback if leader churns more than once or quorum lost"
+
+rollback:
+  description: "Re-enable WEST+EAST, drain K8s, restore prior DNS state"
+  steps:
+    - name: dns-restore
+      command: |
+        echo "TODO: re-add WEST+EAST A records, remove K8s VIP entry"
+    - name: bare-metal-readwrite
+      command: |
+        echo "TODO: curl -X POST http://localhost:18000/api/v1/cluster/readwrite"
+        echo "TODO: same on EAST"
+    - name: drain-k8s
+      command: |
+        echo "TODO: edit haproxy-edge weights — drop K8s to 0, WEST+EAST to 100"
+    - name: announce-rollback
+      command: |
+        echo "TODO: post to operator channel — cutover rolled back, root cause: <X>"
+
+verification:
+  - name: post-cutover-health
+    description: "30 minutes after cutover, cluster still healthy + serving"
+    command: "TODO: kubectl get pods -n unheaded -l app.kubernetes.io/name=wotan && curl wotan.unheaded.lan/health"
+
+decommission:
+  description: "After 7-14 days of stable cluster operation, decommission WEST+EAST"
+  steps:
+    - "TODO: archive WEST+EAST WAL+PG to long-term storage"
+    - "TODO: spin down wotan systemd units on both hosts"
+    - "TODO: free hardware for next purpose"
+
+related:
+  adr: ADR-064 (Wotan Active/Active Cluster, K8s-native)
+  supersedes: ADR-035 (Wotan Active/Passive on Bare Metal)
+  see_also:
+    - runbooks/wotan/cluster-failover.yaml
+    - runbooks/wotan/cluster-setup.yaml
+    - deploy/k8s/kind/  # local bring-up bench

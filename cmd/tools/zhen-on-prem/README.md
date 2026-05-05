@@ -25,7 +25,8 @@ persona since the WAVE15 rewire).
 
 Compliance reach (per the round-table's MoatGhost analysis): FedRAMP Mod,
 ITAR, HIPAA, GDPR Art. 32 — once the air-gap egress proof completes
-(tracked as kanban: `air-gap-egress-validation`).
+(runbook: `runbooks/network/air-gap-egress-validation.yaml`, currently a
+stub awaiting first execution).
 
 ## What's in the box
 

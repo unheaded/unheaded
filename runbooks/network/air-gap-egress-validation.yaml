@@ -1,0 +1,146 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: air-gap-egress-validation
+  description: Prove zero outbound network egress from a Zhen On-Prem deployment over a 24h soak window
+  owner: moatghost
+  estimated_duration: 24h
+  risk: low
+  requires_sudo: true
+  status: stub
+  related_tools: [cmd/tools/zhen-on-prem]
+  cs_sources: [security/network-isolation, network/egress]
+
+notes: |
+  STUB — referenced from cmd/tools/zhen-on-prem/{README,BUILD}.md and from
+  the round-table's compliance-reach analysis (FedRAMP Mod, ITAR, HIPAA,
+  GDPR Art. 32). Not yet executable; each step is scaffolding.
+
+  Goal: prove a Zhen On-Prem appliance generates ZERO outbound packets to
+  the public internet over a 24-hour soak. This is the technical evidence
+  that backs the "data never leaves the host" claim in compliance docs.
+  Gross-traffic counters alone aren't enough — we need per-process,
+  per-destination evidence captured continuously.
+
+  The proof artifact is a tarball: pcap captures, conntrack snapshots, eBPF
+  trace logs, plus a one-page summary. Tarball goes into the appliance's
+  attestation bundle alongside the SLH-DSA-signed model+code manifest.
+
+  Approach: belt-and-braces. Multiple independent monitoring layers must
+  ALL show zero egress. If any one detects external traffic, the run
+  fails and we investigate.
+
+preconditions:
+  - check: "ip link show | grep -q egress0"
+    description: "appliance host has a dedicated egress monitoring interface"
+  - check: "sudo iptables -L -n | grep -q DROP"
+    description: "default-deny egress firewall active"
+  - check: "which tcpdump bpftool conntrack"
+    description: "monitoring tools installed"
+
+steps:
+  - name: snapshot-firewall-state
+    action: shell
+    description: "Capture initial iptables/nftables state for diff at end"
+    command: |
+      sudo iptables-save > /tmp/airgap-iptables-start.txt
+      sudo nft list ruleset > /tmp/airgap-nftables-start.txt 2>/dev/null || true
+    verify: "test -s /tmp/airgap-iptables-start.txt"
+
+  - name: enable-strict-egress-firewall
+    action: shell
+    description: "Block ALL outbound traffic except localhost + RFC1918"
+    command: |
+      echo "TODO: iptables rules — DROP OUTPUT default; ACCEPT lo; ACCEPT to 10/8 + 172.16/12 + 192.168/16"
+      echo "TODO: same in ip6tables — DROP OUTPUT; ACCEPT to fc00::/7 + ::1"
+      echo "TODO: log every dropped OUTPUT packet to syslog with prefix 'AIRGAP-DROP'"
+
+  - name: start-pcap-capture
+    action: shell
+    description: "Continuous pcap on egress interface for 24h"
+    command: |
+      echo "TODO: tcpdump -i egress0 -w /var/log/airgap/$(date -u +%FT%TZ).pcap"
+      echo "TODO: rotate every 1h, keep all 24 files"
+
+  - name: start-conntrack-monitor
+    action: shell
+    description: "Sample conntrack every 60s for the 24h window"
+    command: |
+      echo "TODO: while true; do sudo conntrack -L -p tcp -p udp >> /var/log/airgap/conntrack.log; sleep 60; done"
+
+  - name: start-bpftrace-egress-probe
+    action: shell
+    description: "eBPF probe on inet_csk_connect counts per-process egress attempts"
+    command: |
+      echo "TODO: bpftrace -e 'tracepoint:net:net_dev_xmit /args->skbaddr/{ @[comm] = count(); }'"
+      echo "TODO: write samples every 60s to /var/log/airgap/bpftrace.log"
+
+  - name: run-zhen-workload
+    action: shell
+    description: "Drive realistic Zhen On-Prem traffic during the window"
+    command: |
+      echo "TODO: scripted operator session — chat, RAG queries, runbook execution"
+      echo "TODO: include corpus refresh (vor pull from local mirror, NOT internet)"
+      echo "TODO: include model swap via switch-model.sh"
+
+  - name: 24h-soak-wait
+    action: shell
+    description: "Hold here for 24h; monitoring captures everything"
+    command: |
+      echo "TODO: sleep 86400 (or use systemd timer)"
+
+  - name: stop-captures
+    action: shell
+    description: "Cleanly stop all monitoring; flush buffers to disk"
+    command: |
+      echo "TODO: pkill tcpdump; pkill bpftrace; final conntrack snapshot"
+
+verification:
+  - name: verify-zero-public-egress-pcap
+    description: "No packets in pcap with destination outside RFC1918/loopback"
+    command: |
+      echo "TODO: tshark -r /var/log/airgap/*.pcap -Y 'ip.dst != 10.0.0.0/8 and ip.dst != 172.16.0.0/12 and ip.dst != 192.168.0.0/16 and ip.dst != 127.0.0.0/8'"
+      echo "TODO: same for ip6 — must be fc00::/7 or ::1 only"
+    expect: "zero matching packets"
+
+  - name: verify-zero-airgap-drops
+    description: "Firewall log shows ZERO 'AIRGAP-DROP' entries — process never even tried"
+    command: |
+      echo "TODO: grep -c AIRGAP-DROP /var/log/syslog"
+    expect: "zero"
+
+  - name: verify-bpftrace-baseline
+    description: "Per-process egress samples — no unknown processes attempting external destinations"
+    command: |
+      echo "TODO: aggregate /var/log/airgap/bpftrace.log; cross-check against allowlist"
+
+  - name: verify-firewall-unchanged
+    description: "Diff start vs end iptables — no rule mutations during the window"
+    command: |
+      sudo iptables-save > /tmp/airgap-iptables-end.txt
+      diff /tmp/airgap-iptables-start.txt /tmp/airgap-iptables-end.txt
+    expect: "empty diff"
+
+  - name: build-evidence-tarball
+    description: "Bundle pcaps + logs + diffs into the attestation artifact"
+    command: |
+      echo "TODO: tar -czf /var/log/airgap/proof-$(date +%F).tgz /var/log/airgap/*"
+      echo "TODO: SLH-DSA sign the tarball with the appliance's attestation key"
+
+acceptance_criteria:
+  - "All four verification steps PASS (zero external destinations across all monitoring layers)"
+  - "Evidence tarball generated, signed, and attached to the appliance attestation bundle"
+  - "One-page summary written for the compliance-evidence section of operator docs"
+
+failure_modes:
+  - description: "ANY external destination observed in pcap"
+    response: "STOP. Identify the process via bpftrace correlation. Either suppress the egress in code, or document the exception (NTP? DNS to local resolver?) and re-run."
+  - description: "AIRGAP-DROP entries non-zero"
+    response: "Process is *trying* to egress and being blocked. Identify which process, fix or document, re-run."
+
+related:
+  zhen_on_prem: cmd/tools/zhen-on-prem/
+  compliance_evidence_section: docs/compliance/ (TODO when this runbook fires)
+  see_also:
+    - runbooks/network/firewall-rules.yaml
+    - runbooks/security/security-audit.yaml
