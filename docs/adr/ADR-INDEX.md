@@ -1,21 +1,23 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-05-02
-**Total:** 56 ADRs (ADR-012b deprecated, ADR-027-059 across sessions; ADR-69420 pipe-dream)
+**Last updated:** 2026-05-05
+**Total:** 65 ADRs (ADR-012b deprecated, ADR-035 superseded by ADR-064, ADR-027-064 across sessions; ADR-69420 pipe-dream)
 
 ## Status Summary
 
 | Status | Count |
 |--------|-------|
-| Accepted | 28 |
-| Draft | 1 |
-| In Progress | 1 |
-| Planned | 6 |
-| Proposed | 2 |
-| Deferred | 4 |
-| Pipe Dream | 2 |
+| Accepted | 33 |
+| In Progress | 4 |
+| Planned | 9 |
+| Proposed | 3 |
+| Deferred | 5 |
+| Pipe Dream | 4 |
+| PoC / Research | 2 |
+| Acknowledged | 1 |
+| Phase 1 Shipped | 1 |
 | Deprecated | 1 |
-| PoC / Research | 1 |
+| Superseded | 1 |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -28,6 +30,15 @@
 - ADR-057 (Unheaded source code indexing) — **Proposed** (gated on WAVE15 H0 + ADR-056 acceptance; first concrete instance of the pattern — AST-chunked, code-embedder-tuned semantic retrieval over our own source tree)
 - ADR-058 (GCP cost & API utilization alarms for bellis.tech) — **Planned** (EDoS / cost-amplification DoS defense for free-tier hosted personal site; ~30 min of console work, no code dependencies; activation triggered by Stevie scheduling the time)
 - ADR-059 (Zhenai interactive CLI) — **Planned** (`cmd/zhen-cli` terminal REPL counterpart of the web UI; chat + slash commands for runbook execute / source view / memory / recall; mutation paths inherit T6b closure via `/api/v1/tool/exec`; ~1-2 days when scheduled)
+
+**Four new ADRs added 2026-05-04 from WAVE16 model bench + rented-training pivot + Lich codification:**
+- ADR-060 (Zhenai multi-model selector) — **In Progress** (UI dropdown + Champion-gated `model_switch`; T11-T20 threat catalog + LICH-013 pre-registered; live in sidebar same overnight)
+- ADR-061 (cloud-rented training for purpose-built Unheaded coding model) — **Research / Pipe Dream** (~$5-50 budget; gated on WAVE13 RETRAIN clearing first)
+- ADR-062 (Fuzz / Red-Team / Pentest Framework) — **Accepted** (Lich codified; three-tier offensive taxonomy, numbered LICH-NNN campaigns, activation rules)
+- ADR-063 (Akira summons Lich for randomized CTF mode) — **Pipe Dream** (activates after ADR-062's framework has 3 campaigns clean for 7 days)
+
+**One new ADR added 2026-05-05 from WAVE17 K8s substrate run + active/active design discussion:**
+- ADR-064 (Wotan Active/Active Cluster, K8s-native) — **Proposed** (3-node minimum, Raft membership + topic-leader election, broadcast replication; supersedes ADR-035; impl deferred per Stevie's "active/active on hold as ADR for now")
 
 **ADR-054 RESERVED** for WAVE14 BackwardScratch + KV-cache when Track A or C activates.
 
