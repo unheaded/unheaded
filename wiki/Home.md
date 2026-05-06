@@ -1,189 +1,151 @@
 # Unheaded Wiki
 
-**Unheaded** is a configuration management automation platform built around the Unheaded Protocol, a mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability from packet zero. You bring the application. Unheaded provides the control plane, service mesh, observability, and security baseline.
+**Unheaded** — configuration management automation platform built around the Unheaded Protocol: a mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability. Provides control plane, service mesh, observability, and security baseline. You bring the application.
 
-**Status:** Alpha (Age 1, ~98% S36 complete) · ~260K production LOC (~464K w/ tests) · 25 services · 8 eBPF programs · 3 Internet-Drafts (IETF Experimental)
+**State:** Age 3 in progress. Wire format frozen at v0x01 (12 IANA registries, S67). 6 Internet-Drafts shipped. K8s substrate proven (WAVE17, 2026-05-05). Track-call (A/B/C) pending Captain.
 
 ---
 
 ## Getting Started
 
-- [[Quick Start Guide|Quick-Start]] — Build, run, test in ~10 minutes
-- [[Vision|Vision]] — What Unheaded is, who it's for, how it works
-- [[The Meta Moment|The-Meta-Moment]] — Self-hosting as proof of concept
+- [[Quick Start Guide|Quick-Start]]
+- [[Vision]]
+- [[The Meta Moment|The-Meta-Moment]]
 
 ## Architecture
 
-- [[Architecture Overview|Architecture]] — 6-layer architecture, design principles
-- [[System Diagram|System-Diagram]] — Visual component overview
-- [[Kingdom Architecture|Kingdom-Architecture]] — Component hierarchy and naming conventions
-- [[Project Structure|Project-Structure]] — Repository layout and conventions
-- [[Microservices|Microservices]] — Service catalog and responsibilities
-- [[Auth Framework|Auth-Framework]] — Security hardening, token management, rate limiting
+- [[Architecture Overview|Architecture]]
+- [[System Diagram|System-Diagram]]
+- [[Kingdom Architecture|Kingdom-Architecture]]
+- [[Project Structure|Project-Structure]]
+- [[Microservices]]
 
 ## The Protocol
 
-**Status:** Wire format FROZEN at v0x01, 12 IANA registries (S67, Feb 28, 2026)
-
-- [[Protocol Foundation|Protocol-Foundation]] — Monad 20-byte wire format (FROZEN)
-- [[Protocol Technical Summary|Protocol-Technical-Summary]] — Quick technical reference
-- [[Sophia Dictionaries|Sophia-Dictionaries]] — Exponent-encoded BPF maps
-- [[Wotan Memory Model|Wotan-Memory-Model]] — Ring buffer + event bus + protocol RAM
-- [[The First Packet|The-First-Packet]] — Protocol design origin and rationale
-- [[MBC ISA Reference|MBC-ISA-Reference]] — Monad Bytecode instruction set
-- [[Error Registry|Error-Registry]] — Protocol error codes
+- [[Protocol Foundation|Protocol-Foundation]] — Monad 20-byte wire format (FROZEN v0x01)
+- [[Protocol Technical Summary|Protocol-Technical-Summary]]
+- [[Sophia Dictionaries|Sophia-Dictionaries]]
+- [[Wotan Memory Model|Wotan-Memory-Model]]
+- [[The First Packet|The-First-Packet]]
+- [[MBC ISA Reference|MBC-ISA-Reference]]
+- [[Error Registry|Error-Registry]]
 
 ### Internet-Drafts
 
-- [[draft-bellis-unheaded-protocol-foundation-04|Draft-Protocol-Foundation-04]]
-- [[draft-bellis-unheaded-sophia-dictionary-01|Draft-Sophia-Dictionary-01]]
-- [[draft-bellis-unheaded-wotan-memory-01|Draft-Wotan-Memory-01]]
+- [[Foundation-06|Draft-Protocol-Foundation-06]]
+- [[Sophia-03|Draft-Sophia-Dictionary-03]]
+- [[Wotan-03|Draft-Wotan-Memory-03]]
+- [[MBC-ISA-00|Draft-MBC-ISA-00]]
+- [[Shim-00|Draft-Shim-00]]
+- [[PQC-Authentication-00|Draft-PQC-Authentication-00]]
 
 ### RFC References
 
-- [[IANA Guide|IANA-Guide]] — IANA considerations for Unheaded
-- [[RFC Cross-Reference|RFC-Cross-Reference]] — Standards we build on
-- [[Wire Format Patterns|Wire-Format-Patterns]] — Common wire format idioms
+- [[IANA Guide|IANA-Guide]]
+- [[RFC Cross-Reference|RFC-Cross-Reference]]
+- [[Wire Format Patterns|Wire-Format-Patterns]]
 
 ## Architecture Decision Records
 
-- [[ADR-001|ADR-001-Gnostic-State-Management]] — Gnostic state management
-- [[ADR-002|ADR-002-Kingdom-Naming-Convention]] — Kingdom naming convention
-- [[ADR-003|ADR-003-eBPF-Rust-Aya-Framework]] — eBPF with Rust + Aya
-- [[ADR-004|ADR-004-No-External-Deps-Policy]] — No external dependencies policy
-- [[ADR-005|ADR-005-Wotan-Message-Backbone]] — Wotan as message backbone
-- [[ADR-006|ADR-006-Vanilla-JS-Frontend]] — Vanilla JS frontend (no framework)
-- [[ADR-007|ADR-007-Container-Hardening-Strategy]] — Container hardening strategy
-- [[ADR-008|ADR-008-Security-Hardening-Baseline]] — Security hardening baseline
-- [[ADR-009|ADR-009-Parish-Boundaries]] — Parish boundaries
-- [[ADR-010|ADR-010-Sealed-Cask-Deployment]] — Sealed cask deployment
-- [[ADR-011|ADR-011-Storage-Layer-Planning]] — Storage layer planning
-- [[ADR-012|ADR-012-BPF-Verifier-Risk-Mitigation]] — BPF verifier risk mitigation
-- [[ADR-013|ADR-013-Routing-Header-Support]] — Routing header support
-- [[ADR-014|ADR-014-IPv6-Fragmentation-Support]] — IPv6 fragmentation support
-- [[ADR-015|ADR-015-Go-Fiber-HTTP-Layer]] — Go Fiber HTTP layer
+Canonical mirror: [[ADR Index|ADR-Index]] (65 ADRs, last synced 2026-05-05).
 
-## Security & Legal
+Recent:
+- ADR-064 — Wotan Active/Active Cluster, K8s-native (Proposed, 2026-05-05; supersedes ADR-035)
+- ADR-062 — Fuzz / Red-Team / Pentest Framework (Lich codified, 2026-05-04)
+- ADR-060 — Zhenai Multi-Model Selector (In Progress, 2026-05-04)
+- ADR-052 — Timeline & Battle-Plan Source-of-Truth Policy (Accepted, CI gate live)
+- ADR-051 — WAVE13 generate-gemma4 path (Accepted, verdict: RETRAIN)
+- ADR-043 — Mímir's Law: UPC-Controlled Baseline (PoC complete 2026-04-11)
 
-- [[Security Overview|Security]] — Security policy and reporting
-- [[Security Audit|Security-Audit]] — Full audit findings
-- [[Security TODOs|Security-TODOs]] — Current security work items
-- [[LICH Fuzzing Campaigns|LICH-Campaigns]] — Automated adversary testing
-- [[Dark Grimoire|Dark-Grimoire]] — Attack surface taxonomy and offensive security notes
-- [[License|LICENSE]] — MIT License
-- [[IP Inventory|IP-INVENTORY]] — Intellectual property and legal components
-- [[IANA Registration|IANA-REGISTRATION]] — IANA type allocation strategy
-- [[Contributor Guide|CONTRIBUTOR-GUIDE]] — Contributing to Unheaded
+## Security & Compliance
+
+- [[Security Overview|Security]]
+- [[Security Audit|Security-Audit]]
+- [[Security TODOs|Security-TODOs]]
+- [[LICH Fuzzing Campaigns|LICH-Campaigns]]
+- [[Dark Grimoire|Dark-Grimoire]]
 
 ## Services
 
-- [[Wotan|Service-Wotan]] — Message bus / ring buffer / protocol RAM
-- [[Timeguru|Service-Timeguru]] — Timeline tracking
-- [[Captain|Service-Captain]] — Strategy and vision
-- [[Architect|Service-Architect]] — Infrastructure design
-- [[Micromanager|Service-Micromanager]] — Execution and QA
-- [[Dashboard Backend|Service-Dashboard-Backend]] — Metrics + WebSocket
-- [[Kanban App|Service-Kanban-App]] — The Meta Moment app
+- [[Wotan|Service-Wotan]] — message bus, ring buffer, protocol RAM
+- [[Timeguru|Service-Timeguru]]
+- [[Captain|Service-Captain]]
+- [[Architect|Service-Architect]]
+- [[Micromanager|Service-Micromanager]]
+- [[Dashboard Backend|Service-Dashboard-Backend]]
+- [[Kanban App|Service-Kanban-App]]
 
 ## S36 Four Pillars
 
-- [[Port Registry|Port-Registry]] — The Doom Range (16666-26666) port allocation
-- [[Transport Cascade|Transport-Cascade]] — gRPC-first transport with HTTP fallback
-- [[Log Aggregation|Log-Aggregation]] — The Chronicler's Well: centralized structured logging
-- [[Service Discovery|Service-Discovery]] — The Cartographer's Eye: four-layer resolution
+- [[Port Registry|Port-Registry]]
+- [[Transport Cascade|Transport-Cascade]] — gRPC primary, HTTP fallback
+- [[Log Aggregation|Log-Aggregation]]
+- [[Service Discovery|Service-Discovery]]
 
-## Mímir's Law Spike (ADR-043, S77)
+## Mímir's Law (ADR-043)
 
-UPC-controlled OS baseline delivery, drift detection, alerts-only self-healing.
-Two-plane architecture: Wotan steady-state + Gjallarhorn discrete UPC triggers.
-Real-metal validation on EAST 2026-04-11.
+UPC-controlled OS baseline, drift detection, alerts-only self-healing. Two-plane architecture: Wotan steady-state + Gjallarhorn discrete UPC triggers. PoC complete 2026-04-11 (real-metal validated on EAST).
 
-- [[Mímir's Law Overview|Mimirs-Law]] — Phases 1-12 of 13, naming, hard conditions, validation
-- [[Wotan Topic Signing|Wotan-Topic-Signing]] — ML-DSA-65 enforcement on `config.*` (prerequisite)
-- [[Wave 10C Backprop|Wave-10C-Backprop]] — 3 backprop bugs fixed, 32-layer descent proof
-- [[So The Game Goes On|So-The-Game-Goes-On]] — The chapter that named the rhythm section
+- [[Overview|Mimirs-Law]]
+- [[Wotan Topic Signing|Wotan-Topic-Signing]] — ML-DSA-65 enforcement on `config.*`
+- [[Wave 10C Backprop|Wave-10C-Backprop]]
+- [[So The Game Goes On|So-The-Game-Goes-On]]
 
-## Recent Sessions & Waves
+## Recent Progress (Apr 11 → May 5, 2026)
 
-### Wave 1 (S51): Security Hardening
-- **pkg/auth/** — 3,093 LOC, 64 tests
-- **Security baseline** — MaxHeaderBytes, rate limiter hardening, token management
-- See: [[Security-Hardening-Baseline]]
-
-### Wave 2 (S52): Legal & Compliance
-- **SPDX headers** — 838 .go files with proper license attribution
-- **THIRD_PARTY.md** — Dependency and attribution tracking
-- **IANA-REGISTRATION.md** — Type allocation and RFC strategy
-- **CONTRIBUTOR-GUIDE.md** — Community contribution guidelines
-- See: [[Compliance]] and [[Legal]] documentation
-
-### Wave 3 (S59): Dashboard Polish
-- **design-system.css** — 76 design tokens
-- **demo-data.js** — 9 data generators
-- **Kanban review actions** — Interactive UI improvements
-- See: [[Service-Dashboard-Backend]]
-
-### Wave 4-B (S60): IPv6 Metrics & Conference Preparation
-- **UNHEADED_METRIC_V1** — Type 0x2A protocol definition
-- **IPv6 HbH extension** — 52-byte metric header, 103-byte practical limit
-- **eBPF Summit 2026 talk** — "The Packet IS the Telemetry"
-- **Alpha demo script** — 5-minute technical walkthrough
-- See: [[EBPF_SUMMIT_2026|Talks]], [[ALPHA_DEMO_SCRIPT|Demo]]
+- **2026-05-05** WAVE17 — K8s substrate proven (9/9 services Running on 3-node kind). ADR-064 active/active spec landed (impl deferred). cmd/tools/ scaffold for Mímir / Anamnesis Lite / Zhen On-Prem. ADR-Index regenerated 21→65 entries.
+- **2026-05-04** WAVE16 — Multi-model selector live in sidebar. 5 model keys. qwen-coder-14b benched. ADR-060 LIVE.
+- **2026-05-03** ADR-059 Phase 1 shipped — Zhenai Interactive CLI (`cmd/zhen-cli`).
+- **2026-05-02** WAVE15 rewire planning + security-posture review. ADR-056/057/058/059 added.
+- **2026-04-28** WAVE13 Phase 2 verdict: **RETRAIN**. ADR-051 Accepted. LoRA underperformed on 6/8 prompts; 2/8 mode-collapse.
+- **2026-04-27** Round Table verification audit (19 seats, 2 citations issued + cleared). ADR-052/053/055 added.
+- **2026-04-25** WAVE13 Phase 1 — `generate-gemma4` subcommand.
+- **2026-04-23** WAVE12 — Kingdom RAFT LoRA. ADR-050 GPU-resident activations.
+- **2026-04-21** WAVE11 — 4 attention grad kernels (cosine 1.000). ADR-049.
+- **2026-04-20** Learning Gate strict experiments. 24h Consolidation Block.
+- **2026-04-17** WAVE10F — Forge Real-Attention Gemma-4 (3000+ LOC, end-to-end LoRA training).
+- **2026-04-11** Mímir's Law PoC complete — real-metal validated on EAST.
 
 ## Infrastructure
 
-- [[Load Balancers|Load-Balancers]] — HAProxy edge/internal + Nginx per-app sidecars. Docker, bare metal, LXD, containerd, NixOS
-- [[Containers|Containers]] — Immutable container definitions. LXD, containerd, NixOS, Docker
-- [[IaC Backends|IaC-Backends]] — Interchangeable config management. Ansible, Terraform, Puppet, Kubernetes, Chef, Salt
-- [[Observability Backends|Observability-Backends]] — Interchangeable logging/metrics/tracing. Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios + more
-- [[eBPF Programs|eBPF-Programs]] — Rust/Aya + cilium/ebpf packet tracing (L2–L7)
-- [[Fae Chamber Contracts|Fae-Chamber-Contracts]] — Service interface contracts
-- [[Service Breakout Strategy|Service-Breakout-Strategy]] — Post-alpha repo separation
+- [[Load Balancers|Load-Balancers]] — HAProxy edge/internal + Nginx per-app sidecars
+- [[Containers]] — LXD, containerd, NixOS, Docker
+- [[IaC Backends|IaC-Backends]] — Ansible, Terraform, Puppet, Kubernetes, Chef, Salt
+- [[Observability Backends|Observability-Backends]] — Prometheus, Grafana, ELK, Jaeger, Nagios
+- [[eBPF Programs|eBPF-Programs]] — Rust/Aya + cilium/ebpf, L2–L7
+- [[Fae Chamber Contracts|Fae-Chamber-Contracts]]
+- [[Service Breakout Strategy|Service-Breakout-Strategy]]
 
 ## Lore & Naming
 
-- [[Lore Index|Lore-Index]] — All lore documents and naming conventions
-- [[Naming Map|Naming-Map]] — Complete lore name → technical component reference
-- [[Gnostic Architecture|Gnostic-Architecture]] — Gnostic cosmology → state management mapping
-- [[Medieval Armory|Medieval-Armory]] — Armor pieces → infrastructure layers
-- [[Norse Mythology|Norse-Mythology]] — Norse/Wagnerian names → protocol and messaging
-- [[Sacred Hierarchy|Sacred-Hierarchy]] — Full component hierarchy
-- [[Protocol Heritage|Protocol-Heritage]] — Lineage from ARINC 429 to Unheaded
-- [[The Phylactery|Phylactery]] — Encrypted storage layer and state persistence
-- [[Kingdom Mode Math|Kingdom-Mode-Math]] — Extended register space verification
-- [[Doom over IPv6|Doom-over-IPv6]] — Computational completeness proof
-
-## Research & Innovation
-
-- [[IPv6 Metric Capacity|IPV6_METRIC_CAPACITY]] — Header space analysis, 52–6,124 byte ranges
-- See: [[Research]] documentation
+- [[Lore Index|Lore-Index]]
+- [[Naming Map|Naming-Map]]
+- [[Gnostic Architecture|Gnostic-Architecture]]
+- [[Medieval Armory|Medieval-Armory]]
+- [[Norse Mythology|Norse-Mythology]]
+- [[Sacred Hierarchy|Sacred-Hierarchy]]
+- [[Protocol Heritage|Protocol-Heritage]]
+- [[Phylactery]]
+- [[Kingdom Mode Math|Kingdom-Mode-Math]]
+- [[Doom over IPv6|Doom-over-IPv6]]
+- [[UPC Dream Ladder|UPC-Dream-Ladder]]
 
 ## Skills
 
-- [[Skills Index|Skills-Index]] — 16 AI agent specializations for development, ops, and docs
+- [[Skills Index|Skills-Index]]
 
 ## Development
 
-- [[Developer Guide|Developer-Guide]] — CLAUDE.md — standards, patterns, guidelines
-- [[Alpha Demo Script|ALPHA_DEMO_SCRIPT]] — 5-minute technical demonstration walkthrough
-- [[Agent Operating Procedure|Agent-Operating-Procedure]] — AI agent workflow
-- [[Rust Components|Rust-Components]] — Rust crate inventory
-
-## Conference & Community
-
-- [[eBPF Summit 2026|EBPF_SUMMIT_2026]] — "The Packet IS the Telemetry" talk outline
-- See: [[Talks]] documentation
+- [[Developer Guide|Developer-Guide]]
+- [[Agent Operating Procedure|Agent-Operating-Procedure]]
+- [[Rust Components|Rust-Components]]
 
 ## Battle Plans & Timeline
 
-- [[Timeline|Timeline]] — Project roadmap (references/timeline.md)
-- [[Current Sprint Plan|Battle-Plan]] — Active sprint plan and deliverables
-- [[Upcoming Tasks|Upcoming-Tasks]] — Task backlog and blockers
-
-## Session History
-
-See [[Session Index|Session-Index]] for the complete session handoff archive.
+- [[Timeline]]
+- [[Battle Plan|Battle-Plan]]
+- [[Sessions|Session-Index]]
 
 ---
 
-*Last updated: February 25, 2026*
+*Source of truth: `references/timeline.md` + `docs/adr/ADR-INDEX.md`. Drift policy: ADR-052 (≤7 days from HEAD).*

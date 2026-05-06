@@ -13,7 +13,6 @@
 - [[Kingdom Architecture|Kingdom-Architecture]]
 - [[Project Structure|Project-Structure]]
 - [[Microservices]]
-- [[Auth Framework|Auth-Framework]]
 
 **Protocol**
 - [[Foundation|Protocol-Foundation]]
@@ -21,17 +20,17 @@
 - [[Sophia Dictionaries|Sophia-Dictionaries]]
 - [[Wotan Memory|Wotan-Memory-Model]]
 - [[MBC ISA|MBC-ISA-Reference]]
-- [[Shim Pipeline|Shim-Pipeline]]
+- [[Shim Pipeline|Draft-Shim-00]]
 - [[PQC Authentication|PQC-Authentication]]
 - [[The First Packet|The-First-Packet]]
+- [[Error Registry|Error-Registry]]
 - [[Internet-Drafts|Drafts-Index]]
 
 **ADRs**
 - [[ADR Index|ADR-Index]]
-- [[ADR-69420 (Sleipnir + Yggdrasil)|ADR-69420]]
 - [[ADR-043 Mímir's Law|Mimirs-Law]]
 
-**Mímir's Law Spike**
+**Mímir's Law**
 - [[Overview|Mimirs-Law]]
 - [[Wotan Topic Signing|Wotan-Topic-Signing]]
 - [[Wave 10C Backprop|Wave-10C-Backprop]]
@@ -41,12 +40,7 @@
 - [[Overview|Security]]
 - [[Audit|Security-Audit]]
 - [[LICH Campaigns|LICH-Campaigns]]
-
-**Legal & Compliance**
-- [[License|LICENSE]]
-- [[IP Inventory|IP-INVENTORY]]
-- [[IANA Registration|IANA-REGISTRATION]]
-- [[Contributor Guide|CONTRIBUTOR-GUIDE]]
+- [[Dark Grimoire|Dark-Grimoire]]
 
 **Services**
 - [[Wotan|Service-Wotan]]
@@ -66,13 +60,23 @@
 **Infrastructure**
 - [[Load Balancers|Load-Balancers]]
 - [[Containers]]
+- [[NixOS Containers|NixOS-Containers]]
 - [[IaC Backends|IaC-Backends]]
 - [[Observability|Observability-Backends]]
 - [[eBPF Programs|eBPF-Programs]]
 - [[Service Breakout|Service-Breakout-Strategy]]
 
-**Research**
-- [[IPv6 Metric Capacity|IPV6_METRIC_CAPACITY]]
+**Compute**
+- [[UPC Dream Ladder|UPC-Dream-Ladder]]
+- [[Kingdom Mode Math|Kingdom-Mode-Math]]
+- [[Doom over IPv6|Doom-over-IPv6]]
+
+**Storage**
+- [[The Well|The-Well]]
+- [[Phylactery]]
+
+**AI**
+- [[Zhen AI|Zhen-AI]]
 
 **Lore & Naming**
 - [[Lore Index|Lore-Index]]
@@ -82,20 +86,17 @@
 - [[Norse Mythology|Norse-Mythology]]
 - [[Sacred Hierarchy|Sacred-Hierarchy]]
 - [[Protocol Heritage|Protocol-Heritage]]
-- [[Phylactery]]
-- [[Kingdom Mode Math|Kingdom-Mode-Math]]
-- [[Doom over IPv6|Doom-over-IPv6]]
 
 **Skills**
 - [[Skills Index|Skills-Index]]
 
 **Development**
 - [[Developer Guide|Developer-Guide]]
-- [[Alpha Demo Script|ALPHA_DEMO_SCRIPT]]
 - [[Agent Procedure|Agent-Operating-Procedure]]
+- [[Rust Components|Rust-Components]]
 
-**Conference & Talks**
-- [[eBPF Summit 2026|EBPF_SUMMIT_2026]]
+**Compliance**
+- [[SBOM]]
 
 **Planning**
 - [[Timeline]]
