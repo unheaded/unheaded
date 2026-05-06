@@ -114,4 +114,18 @@ B7: ADR-Index canonical (`docs/adr/ADR-INDEX.md`) vs wiki mirror (`wiki/ADR-Inde
 
 **Phase C net result:** smoke verification across 8 binaries + 2 well-documented STUCK reports. Build delta still empty.
 
+### 2026-05-06 03:05 — Phase D opened (Stevie's "Both" path)
+- **D1 ✅** K8s threat model post-WAVE17 → `docs/security/k8s-threat-model-2026-05-06.md`. STRIDE-by-component coverage of kube-apiserver, etcd, NetworkPolicy/kindnet, ingress/NodePort, RBAC, secrets, image supply chain. 5 high-severity items prioritized for BlackMage pen-test attention.
+- **D2 ✅** CIS k8s-bench scope doc → `docs/security/cis-k8s-bench-scope-2026-05-06.md`. Recipe + expected coverage map + predicted failures (1.2.21 audit, 2.1 etcd encryption, 5.1.x RBAC over-grants, 5.2 PSA labels, 5.3.2 SA token auto-mount, 5.7 secrets). No live cluster ran tonight (Marshal does not bring up Docker-touching state unattended); D-Tier-6 will execute live.
+- **D3 ✅** Kind RBAC review → `docs/security/cis-k8s-rbac-review-2026-05-06.md`. 6 findings (F1-F6) with severity, including the headline `unheaded-armory` ClusterRole over-grant that would enable cluster-wide image-swap if a single SA were bound. Least-privilege rewrite sketched.
+
+### 2026-05-06 03:15 — Phase D-Tier-5 (Rust TODO closes) — all parked, with rationale
+- **D4** `crates/zhend/src/jing/pilgrimage.rs` — 3 TODOs are intentional roadmap notes (async runner, distributed pilgrimage, pilgrimage cache). Removing would lose design intent; implementing any is architectural. Left as-is.
+- **D5** `crates/zhend/src/pu/codec.rs` — `encode_for_gossip` no-op stub change to wire format. Architectural — wire-format versioning + decoder side. Parked.
+- **D6** `crates/doom-runner/src/main.rs:624` — ring status display would require new `RingStatus` struct + reading pinned eBPF maps. Architectural + Linux-only. Parked.
+- **D7** `ebpf/monad-cpu-ebpf/src/main.rs` — **already clean.** Zero TODO/FIXME markers. Removed from scope.
+- **D8** `services/wotan/internal/cluster/replication_server.go` — confirmed-as-intended stub per plan (gated on ADR-064 deferral).
+
+**Phase D net result:** 3 doc-only security artifacts (~28K total) that move WAVE17's K8s substrate from "proven on kind" to "documented attack surface, prioritized hardening backlog, CIS recipe ready, RBAC least-privilege rewrite sketched." Plus 5 well-documented Rust TODO calls (4 parked + 1 confirmed-clean).
+
 
