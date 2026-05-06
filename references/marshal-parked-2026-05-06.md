@@ -74,3 +74,26 @@ The plan said "stub-with-comment and park if architecturally non-trivial." Going
 **Net:** Zero TODOs closed tonight. All 4 promoted to next daytime session with bare-metal Linux access (WEST or EAST). No code changes attempted.
 **Owner:** Developer + Architect (key-mgmt + Wotan signing extension), with bare-metal time on WEST/EAST for the BPF/XDP TODOs.
 
+### [INTENTIONAL] D4 — `crates/zhend/src/jing/pilgrimage.rs` 3 TODOs are roadmap notes, not bugs
+Three "// TODO: <feature>" comments after `PilgrimageState` enum: async pilgrimage runner with progress channel, distributed pilgrimage across remote Jing archives, and pilgrimage cache. These are **architectural design intent notes** — removing them would lose Architect/Developer roadmap; implementing any one is non-trivial. **No change tonight. Leaving the comments as-is per design.**
+**Owner:** Architect (sequence them) + Developer (implement when sequenced).
+
+### [STUCK] D5 — `crates/zhend/src/pu/codec.rs` `encode_for_gossip` is a stub
+The TODO ("strip local-only fields for leaner gossip payloads") would change the gossip wire format relative to local encoding. The function currently calls `encode()` verbatim — backwards-compatible by virtue of being a no-op. Implementing properly requires:
+- Defining which `Fragment` fields are "local-only" (the inline doc says `access_count`, `tier`).
+- Modifying `decode()` to handle the leaner shape, or adding a separate `decode_from_gossip()`.
+- Wire-format versioning so existing peers don't break.
+**Architectural** (wire-format decision). **No change tonight.**
+**Owner:** Architect + Developer (zhend gossip layer).
+
+### [STUCK] D6 — `crates/doom-runner/src/main.rs:624` ring status display
+The `ring::status` action prints `info!("ring status (TODO: implement status display for {hops} hops)")` — there is no `pub fn status()` in `ring.rs`, only `setup()` and `teardown()`. Designing the `RingStatus` shape (per-hop state, packet counts, last error, etc.) and reading it from pinned eBPF maps requires Linux + Aya runtime to verify; defining it without verification risks a silently broken status surface.
+**Architectural + Linux-only.** **No change tonight.**
+**Owner:** Developer (with bare-metal Linux for verification).
+
+### [CONFIRMED-CLEAN] D7 — `ebpf/monad-cpu-ebpf/src/main.rs` has no TODOs/FIXMEs
+Plan listed this file as a TODO-close target (B-list, 30m). On inspection: zero TODO/FIXME/XXX markers in the file. **Already clean.** Removing from scope.
+
+### [DEFERRED-PER-PLAN] D8 — `services/wotan/internal/cluster/replication_server.go` left as stub
+Plan instruction: "leave stub (gated on ADR-064)". ADR-064 is **deferred per Stevie**, so the stub stays. **No change. Confirmed-as-intended.**
+
