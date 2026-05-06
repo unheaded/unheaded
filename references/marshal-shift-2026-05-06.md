@@ -304,6 +304,33 @@ Five gaps appear in **every** framework's matrix; closing one document closes ~6
 
 **16 files created** in `docs/compliance/control-matrix/`. Aggregate ~250K of compliance content. Local commits only — no push tonight per Captain instruction.
 
+### Captain pivot ~02:50 CDT — Phase F (12-track parallel scrutiny remediation)
+
+Stevie: *"ok so form this list of gaps and flaws into a workable task list and implement the required fixes asap using multiagent high speed token burn super churn"*
+
+**Marshal dispatched 12 general-purpose subagents in a single parallel wave.** All 12 returned successfully. Total wall-clock ≈ 16 min (longest agent: F12 mechanical-corrections at 15.9 min). Aggregate token burn across agents ≈ 1.36M tokens.
+
+**12 deliverables (6,089 total lines):**
+
+| Track | Output | Lines | Top finding |
+|-------|--------|-------|-------------|
+| F1 Champion gate threat model | `docs/security/threat-model-champion-gate-2026-05-06.md` | 375 | `direct-user` default in `cmd/zhen-agentd/toolexec.go:127-136` makes Rule 2 a structural no-op — single curl is enough |
+| F2 Sealed Cask threat model | `docs/security/threat-model-sealed-cask-2026-05-06.md` | 408 | NO signature anywhere — script writes flat `sha256sum`; ADR-010 spec promised Ed25519 + signed_by + git_commit. Implementation has none |
+| F3 Zhen AI threat model | `docs/security/threat-model-zhen-ai-2026-05-06.md` | 607 | Champion bypass via `direct-user` synthesis at `cmd/zhen-agentd/toolexec.go:122-136` + default-off auth at main.go:172 = any same-host process can issue `runbook_execute` of destructive runbook |
+| F4 Operator workstation threat model | `docs/security/threat-model-operator-workstation-2026-05-06.md` | 415 | Compromised IDE extension chains SSH-agent reuse + GitHub cookie theft + Keychain age/Ed25519/ML-DSA-65 key extraction → kingdom signing trust collapses on attacker artifacts. Mitigation: hardware FIDO2 key (~$50) defeats AiTM + cookie replay + on-disk SSH theft simultaneously |
+| F5 IR plan v1 | `runbooks/security/ir-plan-v1-2026-05-06.md` | 480 | Dollar-framed: ~$170K-$330K aggregate annual expected loss without plan; 30-40% reduction with v1; pre-engaging external bench (~$5K-$25K/yr retainer) reduces ~50% of modeled exposure (highest-leverage backlog item) |
+| F6 Vuln-management runbook | `runbooks/security/vuln-management-2026-05-06.md` | 673 | Zero existing CI workflows enforce remediation SLA — they enforce "don't land new" + "alert on existing"; need POA&M aging job to fail past-SLA Critical/High/Moderate |
+| F7 Retention policy | `docs/policy/retention-policy-v1-2026-05-06.md` | 976 | Audit logs (`pkg/auth.AuditLogger`) are file-write-only — no rotation/archive/purge. Highest-leverage gap: closing it operationally gates honest MAPPED claims for AU-2/AU-11/PCI 10.5/HIPAA §164.316/CIS 8.10 simultaneously |
+| F8 ATT&CK / D3FEND overlay | `docs/security/attack-coverage-overlay-2026-05-06.md` | 243 | 38 techniques scored: **0 MAPPED, 20 PARTIAL, 18 GAP** — every MAPPED candidate downgraded by SEN3/SEN5/BM3/SEN8. Top GAP: T1070 indicator removal (audit-log tampering) since drift/audit topics unsigned |
+| F9 Status taxonomy | `docs/compliance/control-matrix/02-status-taxonomy-2026-05-06.md` | 463 | 12 labels formalized in 5 families. ~411 of 1,747 status rows need re-statusing; ~50-65 hours MoatGhost daytime work; largest bucket: ~150 MAPPED → PARTIAL demotions |
+| F10 Falsification suite | `docs/compliance/control-matrix/03-falsification-suite-2026-05-06.md` | 591 | 7 experiments. **Cheapest: S8 completeness-audit verification** (~2h). **Highest leverage: S3 PII telemetry scan** — single positive forces every "N/A-DESIGN" to "PARTIAL-CONTROLLER" across 12+ matrices |
+| F11 Sensor deployment audit | `docs/security/sensor-deployment-audit-2026-05-06.md` | 581 | 13 sensors × 3 hosts = 39 cells. **ZERO confirmed-DEPLOYED. 24 UNVERIFIED. 15 NOT-DEPLOYED.** Suricata only on host-b (EAST) and even there built manually from `~/tmp/suricata/` per nix module comment. Single-host IDS does not satisfy CIS 13.3 / PCI 11.5 / NIST SI-3 |
+| F12 Matrix corrections | `docs/compliance/control-matrix/04-corrections-applied-2026-05-06.md` + edits to 13 matrices | 277 (audit log) | ~47 cells genuinely downgraded MAPPED → PARTIAL; ~55 cells received scope qualifiers / SEN7 disclaimers without status downgrade; **~102 total cell edits across 13 of 15 matrix files**. Heaviest: PCI (17 edits), NIST 800-53 (14 edits) |
+
+**Phase F build sanity:** `go build ./...` delta unchanged from session-start baseline — zero code regression. **No code touched in Phase F (intentional — Phase F is doc + matrix corrections only).**
+
+**Aggregate wall-clock for all of Phase F:** ~17 minutes (12-agent parallel + commit).
+
 
 
 

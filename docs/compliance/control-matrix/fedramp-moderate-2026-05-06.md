@@ -50,9 +50,9 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | AC-2(13) | Disable Accounts for High-Risk Individuals | GAP | None defined. |
 | AC-3(7) | Role-Based Access Control | MAPPED | pkg/auth.RBACAuthorizer. |
 | AC-3(11) | Restrict Access to Specific Information Types | PARTIAL | The Well 3-database separation by trust class; per-service users. Gap: no formal information-type → role mapping. |
-| AC-4(4) | Flow Control of Encrypted Information | MAPPED | TLS 1.3 record-level + ML-DSA-65 topic signing. |
+| AC-4(4) | Flow Control of Encrypted Information | MAPPED | TLS 1.3 record-level + ML-DSA-65 topic signing. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | AC-4(8) | Security Policy Filters | PARTIAL | pkg/champion 3-rule gate filters tool calls. Gap: no general security-policy-filter inventory. |
-| AC-4(21) | Physical / Logical Separation of Information Flows | MAPPED | Microservice architecture + NetworkPolicy + Wotan topic separation. |
+| AC-4(21) | Physical / Logical Separation of Information Flows | PARTIAL | Microservice architecture + NetworkPolicy + Wotan topic separation. **SEN8 caveat:** NetworkPolicy enforcement on default kindnet CNI is unproven (per K8s threat model §3.3); requires Calico/Cilium switch OR live smoke test before promoting to MAPPED. |
 | AC-6(1) | Authorize Access to Security Functions | PARTIAL | pkg/auth + RBAC. Tonight's RBAC review F1 — `unheaded-armory` over-grant blocks confident least-privilege claim. |
 | AC-6(2) | Non-Privileged Access for Non-Security Functions | MAPPED | NoopAuthenticator dev-only; APIKey/JWT for non-priv ops. |
 | AC-6(3) | Network Access to Privileged Commands | PARTIAL | mTLS available; Champion gate for mutations. |
@@ -103,7 +103,7 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | AU-6(1) | Automated Process Integration | PARTIAL | Wotan log-aggregation + Sentinel automation. |
 | AU-6(3) | Correlate Audit Repositories | PARTIAL | Wotan ring buffer aggregates. Gap: no SIEM correlation across hosts. |
 | AU-6(4) | Central Review and Analysis | PARTIAL | Sentinel daily detection. |
-| AU-6(5) | Integration / Scanning & Monitoring | MAPPED | Suricata IDS + Mímir + eBPF + security.yml + sbom-audit.yml. |
+| AU-6(5) | Integration / Scanning & Monitoring | PARTIAL | Suricata IDS + Mímir + eBPF + security.yml + sbom-audit.yml. **SEN5 caveat:** Suricata is integration code (`pkg/anamnesis/`) — deployment to actual hosts (WEST, EAST) is UNVERIFIED. See sensor deployment audit (`docs/security/sensor-deployment-audit-2026-05-06.md`). |
 | AU-6(6) | Correlation with Physical Monitoring | ADOPTER-OWNS | n/a to substrate. |
 | AU-7(1) | Automatic Sort & Search | MAPPED | Dashboard log query + SSE live tail. |
 | AU-8(1) | Synchronization with Authoritative Time Source | UNVERIFIED | Container NTP via host. |
@@ -129,7 +129,7 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | CA-7(1) | Independent Assessment | GAP | None. |
 | CA-7(4) | Risk Monitoring | PARTIAL | Sentinel daily; Lich Hardening; threat models. |
 | CA-8(1) | Independent Penetration Agent | GAP | No 3PAO pen-test. |
-| CA-8(2) | Red Team Exercises | PARTIAL | BlackMage daily red-team adversarial loop with Zhen AI. Gap: not 3PAO. |
+| CA-8(2) | Red Team Exercises | PARTIAL | BlackMage daily red-team adversarial loop with Zhen AI. Gap: not 3PAO. **SEN7 disclaimer:** INTERNAL validation only; NOT a substitute for the independent third-party assessment required by FedRAMP CA-8. |
 
 ### CM — Configuration Management
 
@@ -141,7 +141,7 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | CM-3(1) | Automated Documentation, Notification, & Prohibition of Changes | MAPPED | Marshal enforcement + ADR cadence + CI gates. |
 | CM-3(2) | Test, Validate, & Document Changes | MAPPED | TDD discipline (512 tests) + CI gates. |
 | CM-3(4) | Security & Privacy Representatives | PARTIAL | The 19 Seats — BlackMage / MoatGhost / Sentinel. |
-| CM-3(6) | Cryptography Management | MAPPED | ML-DSA-65 + SLH-DSA + TLS 1.3; ADR-043 ML-DSA-65 hard condition. |
+| CM-3(6) | Cryptography Management | MAPPED | ML-DSA-65 + SLH-DSA + TLS 1.3; ADR-043 ML-DSA-65 hard condition. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | CM-4(1) | Separate Test Environments | PARTIAL | values-{dev,prod}.yaml; Docker Compose dev. |
 | CM-4(2) | Verification of Controls | PARTIAL | CI verification. |
 | CM-5(1) | Automated Access Enforcement & Audit Records | MAPPED | git access controls + Champion audit log. |
@@ -203,10 +203,10 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | IA-5(6) | Protection of Authenticators | MAPPED | SOPS+age for secrets. |
 | IA-5(7) | No Embedded Unencrypted Static Authenticators | MAPPED | SOPS+age — secrets never in plaintext in repo. |
 | IA-6(2) | Protection of Authentication Information | MAPPED | TLS 1.3 + SOPS+age. |
-| IA-7 | Cryptographic Module Authentication | MAPPED | FIPS-track via cloudflare/circl v1.6.3 (ML-DSA-65 + SLH-DSA). |
+| IA-7 | Cryptographic Module Authentication | MAPPED | FIPS-track via cloudflare/circl v1.6.3 (ML-DSA-65 + SLH-DSA). **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | IA-8(1) | Acceptance of PIV Credentials from Other Agencies | GAP |
 | IA-8(2) | Acceptance of External Authenticators | PARTIAL | OAuth 2.0 federation via JWT path. |
-| IA-8(4) | Use of NIST-Approved Cryptography | MAPPED | ML-DSA-65 (FIPS 204), SLH-DSA (FIPS 205), TLS 1.3. |
+| IA-8(4) | Use of NIST-Approved Cryptography | MAPPED | ML-DSA-65 (FIPS 204), SLH-DSA (FIPS 205), TLS 1.3. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | IA-11 | Re-Authentication | UNVERIFIED | JWT TTL forces re-auth at expiry. **FedRAMP suggests within `[15 minutes]` for privileged actions.** |
 | IA-12(2) | Identity Evidence | GAP |
 | IA-12(3) | Identity Evidence Validation & Verification | GAP |
@@ -281,7 +281,7 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | RA-5(11) | Public Disclosure Program | GAP — no security.txt, no responsible-disclosure policy |
 | RA-7 | Risk Response | PARTIAL |
 | RA-9 | Criticality Analysis | GAP |
-| RA-10 | Threat Hunting | PARTIAL — BlackMage daily red-team |
+| RA-10 | Threat Hunting | PARTIAL — BlackMage daily red-team. **SEN7 disclaimer:** INTERNAL validation only; NOT a substitute for the independent third-party assessment required by FedRAMP CA-8. |
 
 **FedRAMP RA parameters:**
 - RA-5 scan frequency: **monthly minimum** for OS, DB, Web. Kingdom exceeds with security.yml daily. **PARAM met.**
@@ -321,19 +321,19 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | SC-5(1) | Restrict Ability to Attack Other Systems | PARTIAL — outbound NetworkPolicy egress restriction (allow-internal + DNS only) |
 | SC-7(3) | Access Points | MAPPED — gateway TLS + NodePorts documented |
 | SC-7(4) | External Telecommunications Services | PARTIAL — TLS 1.3 + NetworkPolicy |
-| SC-7(5) | Deny by Default — Allow by Exception | MAPPED — default-deny NetworkPolicy template |
+| SC-7(5) | Deny by Default — Allow by Exception | PARTIAL — default-deny NetworkPolicy template. **SEN8 caveat:** NetworkPolicy enforcement on default kindnet CNI is unproven (per K8s threat model §3.3); requires Calico/Cilium switch OR live smoke test before promoting to MAPPED. |
 | SC-7(7) | Split Tunneling for Remote Devices | UNVERIFIED |
 | SC-7(8) | Route Traffic to Authenticated Proxy Servers | PARTIAL — HAProxy edge |
 | SC-7(18) | Fail Secure | MAPPED — services fail closed on auth/champion errors |
 | SC-7(20) | Dynamic Isolation / Segregation | PARTIAL — NetworkPolicy + Wotan topic separation |
 | SC-7(21) | Isolation of System Components | MAPPED — microservice + container isolation |
 | SC-8(1) | Cryptographic Protection | MAPPED — TLS 1.3 |
-| SC-8(2) | Pre/Post Transmission Handling | MAPPED — TLS record-level integrity + ML-DSA-65 |
+| SC-8(2) | Pre/Post Transmission Handling | MAPPED — TLS record-level integrity + ML-DSA-65. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | SC-10 | Network Disconnect | PARTIAL — TLS timeouts |
 | SC-12(1) | Availability | PARTIAL |
 | SC-12(2) | Symmetric Keys | MAPPED — TLS 1.3 |
-| SC-12(3) | Asymmetric Keys | MAPPED — TLS 1.3 + ML-DSA-65 |
-| SC-13 | Cryptographic Protection | MAPPED — TLS 1.3, ML-DSA-65, SLH-DSA |
+| SC-12(3) | Asymmetric Keys | MAPPED — TLS 1.3 + ML-DSA-65. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
+| SC-13 | Cryptographic Protection | MAPPED — TLS 1.3, ML-DSA-65, SLH-DSA. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | SC-15(1) | Physical Disconnect | N/A |
 | SC-17 | Public Key Infrastructure Certificates | PARTIAL — TLS 1.3; cert-manager planned |
 | SC-18(1) | Identify Unacceptable Code & Take Corrective Actions | PARTIAL |
@@ -363,9 +363,9 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | SI-3(7) | Non-Signature-Based Detection | PARTIAL — Suricata anomaly + Sentinel ML signals |
 | SI-3(10) | Malicious Code Analysis | PARTIAL |
 | SI-4(2) | Automated Tools / Mechanisms for Real-Time Analysis | MAPPED — eBPF + Sentinel |
-| SI-4(4) | Inbound / Outbound Communications Traffic | MAPPED — Anamnesis Lite + flow-tracker |
+| SI-4(4) | Inbound / Outbound Communications Traffic | PARTIAL — Anamnesis Lite + flow-tracker. **SEN3 caveat:** Effective retention ~10 seconds at moderate traffic rate (10K-entry default); below FedRAMP / CIS 8.10 floor of 90 days online. Detection without retention is not coverage. |
 | SI-4(5) | System-Generated Alerts | PARTIAL — Sentinel; Mímir alerts-only |
-| SI-4(11) | Analyze Communications Traffic Anomalies | MAPPED — anomaly-ebpf, flow-tracker |
+| SI-4(11) | Analyze Communications Traffic Anomalies | PARTIAL — anomaly-ebpf, flow-tracker. **SEN3 caveat:** Effective retention ~10 seconds at moderate traffic rate (10K-entry default); below FedRAMP / CIS 8.10 floor of 90 days online. Detection without retention is not coverage. |
 | SI-4(12) | Automated Organization-Generated Alerts | PARTIAL |
 | SI-4(14) | Wireless Intrusion Detection | N/A |
 | SI-4(16) | Correlate Monitoring Information | PARTIAL — Sentinel correlation; no SIEM |
@@ -380,7 +380,7 @@ The following enumerates **only enhancements that FedRAMP Moderate requires** (R
 | SI-7(5) | Automated Response to Integrity Violations | PARTIAL — alerts-only design choice (FedRAMP auditor will scrutinize) |
 | SI-7(7) | Integration of Detection & Response | PARTIAL |
 | SI-7(8) | Auditing Capability for Significant Events | MAPPED |
-| SI-7(15) | Code Authentication | MAPPED — Sealed Cask SHA-256 + ML-DSA-65 signing |
+| SI-7(15) | Code Authentication | MAPPED — Sealed Cask SHA-256 + ML-DSA-65 signing. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | SI-8(1) | Central Management | N/A — n/a to substrate |
 | SI-8(2) | Automatic Updates | N/A |
 | SI-10(1) | Manual Override Capability | PARTIAL — Champion gate has explicit pending-confirmation override |

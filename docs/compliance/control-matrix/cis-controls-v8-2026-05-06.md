@@ -46,7 +46,7 @@
 | 3.7 | Establish and Maintain a Data Classification Scheme | 2 | GAP | No classification scheme. |
 | 3.8 | Document Data Flows | 2 | PARTIAL | Tonight's K8s threat model trust zones; Wotan topic flows. Gap: no formal data-flow diagram. |
 | 3.9 | Encrypt Data on Removable Media | 2 | ADOPTER-OWNS |
-| 3.10 | Encrypt Sensitive Data in Transit | 2 | MAPPED | TLS 1.3 mandatory + ML-DSA-65 PQC. |
+| 3.10 | Encrypt Sensitive Data in Transit | 2 | MAPPED | TLS 1.3 mandatory + ML-DSA-65 PQC. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | 3.11 | Encrypt Sensitive Data at Rest | 2 | PARTIAL | SOPS+age for secrets. **Gap: The Well + etcd at-rest encryption not yet wired** (cross-ref tonight's K8s threat model §3.2). |
 | 3.12 | Segment Data Processing and Storage Based on Sensitivity | 2 | PARTIAL | The Well 3-database trust separation. |
 | 3.13 | Deploy a Data Loss Prevention Solution | 3 | GAP |
@@ -57,9 +57,9 @@
 | SG | Title | IG | Status | Evidence / Gap |
 |----|-------|----|---------|----------------|
 | 4.1 | Establish and Maintain a Secure Configuration Process | 1 | MAPPED | ADR-007 + ADR-008 + ADR-052 drift policy + Sealed Cask. |
-| 4.2 | Establish and Maintain a Secure Configuration Process for Network Infrastructure | 1 | MAPPED | NetworkPolicy default-deny + HAProxy + per-service nginx + (planned) WireGuard. |
+| 4.2 | Establish and Maintain a Secure Configuration Process for Network Infrastructure | 1 | PARTIAL | NetworkPolicy default-deny + HAProxy + per-service nginx + (planned) WireGuard. **SEN8 caveat:** NetworkPolicy enforcement on default kindnet CNI is unproven (per K8s threat model §3.3); requires Calico/Cilium switch OR live smoke test before promoting to MAPPED. |
 | 4.3 | Configure Automatic Session Locking on Enterprise Assets | 1 | UNVERIFIED |
-| 4.4 | Implement and Manage a Firewall on Servers | 1 | MAPPED | Per-container firewall via NetworkPolicy + nginx WAF + cmd/shield. |
+| 4.4 | Implement and Manage a Firewall on Servers | 1 | PARTIAL | Per-container firewall via NetworkPolicy + nginx WAF + cmd/shield. **SEN8 caveat:** NetworkPolicy enforcement on default kindnet CNI is unproven (per K8s threat model §3.3); requires Calico/Cilium switch OR live smoke test before promoting to MAPPED. |
 | 4.5 | Implement and Manage a Firewall on End-User Devices | 1 | ADOPTER-OWNS |
 | 4.6 | Securely Manage Enterprise Assets and Software | 1 | MAPPED | Sealed Cask + Mímir + helm + ADR cadence. |
 | 4.7 | Manage Default Accounts on Enterprise Assets and Software | 1 | MAPPED | NoopAuthenticator dev-only; APIKey/JWT for non-dev. |
@@ -110,7 +110,7 @@
 | SG | Title | IG | Status |
 |----|-------|----|---------|
 | 8.1 | Establish and Maintain an Audit Log Management Process | 1 | PARTIAL |
-| 8.2 | Collect Audit Logs | 1 | MAPPED — pkg/auth.AuditLogger + Wotan log aggregation + eBPF + zerolog |
+| 8.2 | Collect Audit Logs | 1 | PARTIAL — pkg/auth.AuditLogger + Wotan log aggregation + eBPF + zerolog. **SEN3 caveat:** Effective retention ~10 seconds at moderate traffic rate (10K-entry default); below FedRAMP / CIS 8.10 floor of 90 days online. Detection without retention is not coverage. |
 | 8.3 | Ensure Adequate Audit Log Storage | 1 | PARTIAL — Wotan ring buffer 10K-entry default |
 | 8.4 | Standardize Time Synchronization | 2 | UNVERIFIED |
 | 8.5 | Collect Detailed Audit Logs | 2 | MAPPED — trace_id propagation |
@@ -159,7 +159,7 @@
 | 12.3 | Securely Manage Network Infrastructure | 2 | MAPPED — helm + Sealed Cask + ADR-052 drift policy |
 | 12.4 | Establish and Maintain Architecture Diagrams | 2 | PARTIAL — CLAUDE.md diagrams + ADR + tonight's threat model |
 | 12.5 | Centralize Network Authentication, Authorization, and Auditing | 2 | PARTIAL — pkg/auth + Wotan log aggregation |
-| 12.6 | Use of Secure Network Management and Communication Protocols | 2 | MAPPED — TLS 1.3 + ML-DSA-65 + (planned) WireGuard |
+| 12.6 | Use of Secure Network Management and Communication Protocols | 2 | MAPPED — TLS 1.3 + ML-DSA-65 + (planned) WireGuard. **BM3 scope qualifier:** ML-DSA-65 signing scope is `config.*` topics ONLY; drift.*, audit.*, telemetry.*, health.* topic families are unsigned and forgeable. |
 | 12.7 | Ensure Remote Devices Utilize a VPN and are Connecting to an Enterprise's AAA Infrastructure | 3 | PARTIAL — (planned) WireGuard overlay |
 | 12.8 | Establish and Maintain Dedicated Computing Resources for All Administrative Work | 3 | GAP |
 
@@ -169,8 +169,8 @@
 |----|-------|----|---------|
 | 13.1 | Centralize Security Event Alerting | 1 | PARTIAL — Sentinel + Wotan log aggregation |
 | 13.2 | Deploy a Host-Based Intrusion Detection Solution | 2 | PARTIAL — Mímir + heimdall-daemon |
-| 13.3 | Deploy a Network Intrusion Detection Solution | 2 | MAPPED — Suricata IDS |
-| 13.4 | Perform Traffic Filtering Between Network Segments | 2 | MAPPED — NetworkPolicy default-deny |
+| 13.3 | Deploy a Network Intrusion Detection Solution | 2 | PARTIAL — Suricata IDS. **SEN5 caveat:** Suricata is integration code (`pkg/anamnesis/`) — deployment to actual hosts (WEST, EAST) is UNVERIFIED. See sensor deployment audit (`docs/security/sensor-deployment-audit-2026-05-06.md`). |
+| 13.4 | Perform Traffic Filtering Between Network Segments | 2 | PARTIAL — NetworkPolicy default-deny. **SEN8 caveat:** NetworkPolicy enforcement on default kindnet CNI is unproven (per K8s threat model §3.3); requires Calico/Cilium switch OR live smoke test before promoting to MAPPED. |
 | 13.5 | Manage Access Control for Remote Assets | 2 | PARTIAL — TLS 1.3 + auth |
 | 13.6 | Collect Network Traffic Flow Logs | 2 | MAPPED — eBPF flow-tracker |
 | 13.7 | Deploy a Host-Based Intrusion Prevention Solution | 3 | PARTIAL — Mímir alerts-only (per ADR-043 hard condition #1) |
@@ -213,7 +213,7 @@
 | 16.10 | Apply Secure Design Principles in Application Architectures | 2 | MAPPED — "Security First, Always" |
 | 16.11 | Leverage Vetted Modules or Services for Application Security Components | 2 | MAPPED — pkg/auth + pkg/champion + cloudflare/circl |
 | 16.12 | Implement Code-Level Security Checks | 3 | MAPPED — go vet + golangci-lint + cargo clippy + SAST in security.yml |
-| 16.13 | Conduct Application Penetration Testing | 3 | PARTIAL — BlackMage daily red-team; gap is third-party formal pen-test |
+| 16.13 | Conduct Application Penetration Testing | 3 | PARTIAL — BlackMage daily red-team; gap is third-party formal pen-test. **SEN7 disclaimer:** INTERNAL validation only; NOT a substitute for the independent third-party assessment required by CIS Control 18. |
 | 16.14 | Conduct Threat Modeling | 3 | PARTIAL — tonight's K8s threat model |
 
 ## Control 17 — Incident Response Management
@@ -234,11 +234,11 @@
 
 | SG | Title | IG | Status |
 |----|-------|----|---------|
-| 18.1 | Establish and Maintain a Penetration Testing Program | 2 | PARTIAL — BlackMage daily red-team; ADR-062 fuzz/redteam |
+| 18.1 | Establish and Maintain a Penetration Testing Program | 2 | PARTIAL — BlackMage daily red-team; ADR-062 fuzz/redteam. **SEN7 disclaimer:** INTERNAL validation only; NOT a substitute for the independent third-party assessment required by CIS Control 18. |
 | 18.2 | Perform Periodic External Penetration Tests | 2 | GAP — no third-party of record |
 | 18.3 | Remediate Penetration Test Findings | 2 | PARTIAL — Lich Hardening campaign |
 | 18.4 | Validate Security Measures | 3 | PARTIAL |
-| 18.5 | Perform Periodic Internal Penetration Tests | 3 | PARTIAL — BlackMage |
+| 18.5 | Perform Periodic Internal Penetration Tests | 3 | PARTIAL — BlackMage. **SEN7 disclaimer:** INTERNAL validation only; NOT a substitute for the independent third-party assessment required by CIS Control 18. |
 
 ---
 
