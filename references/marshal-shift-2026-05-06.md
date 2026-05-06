@@ -87,4 +87,20 @@ Full Go SPDX scan on macOS (now possible post-CE1): 1183/1189 = **99.50 %** cove
 - **CE4:** Re-verified ADR-052 drift-guard. `--check` mode returns EXIT=0, timeline 0 days behind HEAD. **GREEN.**
 - **CE5:** Local `.git/hooks/` is empty; no `.pre-commit-config.yaml`; no husky/lefthook config. CLAUDE.md claim of "pre-commit hook installed" is **documentation drift** — recommend either ship `make install-hooks` or correct the docs. Folded into the CE3 audit doc.
 
+### 2026-05-06 02:00 — Phase A.5 commit `4ca9a084`
+4 files changed, +270 / -9.
+
+### 2026-05-06 02:05 — Phase B opened
+B1: ADR-058 GCP — SKIP (console-only, no access).
+B6: 4 stale battle plans moved to `references/archive/` (lich, post-reboot-doom, ragnarok, S76 round-table). NORTH-STAR remains in `references/`. New `references/archive/README.md` documents what was moved and why.
+B7: ADR-Index canonical (`docs/adr/ADR-INDEX.md`) vs wiki mirror (`wiki/ADR-Index.md`) — 65/65 ADR rows match. Only divergence: a single prose paragraph mentioning the ADR-054 reservation marker exists in canonical but not in wiki (intentional — wiki is table-only). **GREEN.**
+
+### 2026-05-06 02:15 — Phase B B3+B4 — Zhenai CLI Phase 2 + T6b inheritance
+- B3 (Phase 2 slash commands): Added `/runbook list`, `/runbook show <name>`, `/runbook exec <name>`, bare `/runbook <name>` (= exec), `/source <topic>` to `cmd/zhen-cli/main.go`. ~200 LOC added (553 → 753). All routed through `cmd/zhen-agentd /api/v1/tool/exec`. Two tools (`/recall`, `/remember`) deferred to Phase 2b — they need PG plumbing (zhen_conversations + zhen_memories tables); declared explicitly with a deferral message.
+- B4 (Phase 3 mutation paths / T6b closure): **inherited automatically** by routing through `/api/v1/tool/exec`. No additional code; locked the inheritance with **8 new regression tests** in `cmd/zhen-cli/main_test.go` covering wire shape, status decoding, denial path, pending-confirmation surfacing, /recall+/remember non-leakage, and unreachable-daemon error path. All 8 PASS first run.
+- **`go build ./cmd/zhen-cli/...` GREEN. `go vet` GREEN. Global build delta: unchanged.**
+
+### 2026-05-06 02:25 — Phase B B5 — Wiki ADR scaffold sweep
+65 canonical ADRs in `docs/adr/` (excluding INDEX). Wiki had 0 ADR-specific pages (only `ADR-Index.md`). Generated 65 stubs in `wiki/ADR-NNN-<slug>.md` via mechanical Python sweep — title/status/date extracted from canonical headers (handles both `## Status:` h2 style and `**Status:**` bold metadata style). One ADR (`012b-the-well-postgres`) has no Date metadata — date renders as `n/a` accurately. All other 64 stubs carry full metadata.
+
 

@@ -12,10 +12,20 @@
 // When stdin is not a tty (pipe mode), behaves like cmd/zhen-rag:
 // reads one question, prints one answer, exits 0.
 //
-// Phase 1 (this file): chat + /help + /exit + /clear + /health.
-// Phase 2 (later): slash commands for runbook execution + memory recall
-// + recall, all routed through cmd/zhen-agentd /api/v1/tool/exec for
-// Champion-gated mutations (T6b inheritance).
+// Phase 1 (shipped 2026-05-03): chat + /help + /exit + /clear + /health.
+// Phase 2 (HTTP-only slice, this file as of 2026-05-06): /runbook list,
+// /runbook show, /runbook exec (or bare /runbook <name>), and /source —
+// all routed through cmd/zhen-agentd /api/v1/tool/exec or vor topics.
+// Phase 2b (deferred): /recall + /remember, both requiring PG plumbing
+// (zhen_conversations + zhen_memories tables).
+// Phase 3 (polish): readline, tab completion, daemon-down fallback,
+// /confirm for pending Champion tokens.
+//
+// T6b closure (Phase 3 in ADR-059): every mutation slash command in
+// this CLI hits cmd/zhen-agentd /api/v1/tool/exec, which dispatches
+// through pkg/champion.Dispatch — Champion's three-rule gate is in
+// the path automatically. The CLI inherits T6b closure by routing,
+// not by reimplementation.
 //
 // Deliberately stdlib-only — same posture as cmd/zhen-rag. No third-
 // party readline yet; that's Phase 3 polish.
@@ -98,6 +108,28 @@ type chatChoice struct {
 
 type chatResponse struct {
 	Choices []chatChoice `json:"choices"`
+}
+
+// toolExecRequest mirrors the request shape of cmd/zhen-agentd
+// /api/v1/tool/exec (see cmd/zhen-agentd/toolexec.go for canonical
+// wire format). Justification omitted → daemon defaults to a
+// direct-user trust label, satisfying Champion's Rule 2 escape.
+type toolExecRequest struct {
+	Tool        string         `json:"tool"`
+	Args        map[string]any `json:"args"`
+	ProjectRoot string         `json:"project_root,omitempty"`
+	SessionID   string         `json:"session_id,omitempty"`
+	EmittedBy   string         `json:"emitted_by,omitempty"`
+}
+
+// toolExecResponse mirrors the response shape — same shape as
+// /api/v1/agent/confirm so the same handling applies.
+type toolExecResponse struct {
+	Status       string `json:"status"`
+	Result       any    `json:"result,omitempty"`
+	Reason       string `json:"reason,omitempty"`
+	PendingToken string `json:"pending_token,omitempty"`
+	SessionID    string `json:"session_id,omitempty"`
 }
 
 // session carries everything that lives across REPL turns.
@@ -201,9 +233,9 @@ func main() {
 // banner prints the welcome message on session start.
 func (s *session) banner() {
 	if s.color {
-		fmt.Printf("%s%sZhenai CLI%s — interactive terminal (ADR-059 Phase 1)\n", clrBold, clrCyan, clrReset)
+		fmt.Printf("%s%sZhenai CLI%s — interactive terminal (ADR-059 Phase 2)\n", clrBold, clrCyan, clrReset)
 	} else {
-		fmt.Println("Zhenai CLI — interactive terminal (ADR-059 Phase 1)")
+		fmt.Println("Zhenai CLI — interactive terminal (ADR-059 Phase 2)")
 	}
 	fmt.Printf("  retrieval: %s   inference: %s   model: %s\n",
 		s.vorURL, s.llamaURL, s.model)
@@ -243,20 +275,188 @@ func (s *session) handleSlash(line string) bool {
 		}
 	case "/health":
 		s.printHealth()
+	case "/runbook":
+		s.handleRunbook(parts[1:])
+	case "/source":
+		s.handleSource(parts[1:])
+	case "/recall", "/remember":
+		// Phase 2b: deferred. These two need PG access (zhen_conversations,
+		// zhen_memories) which would pull lib/pq into the CLI; ADR-059
+		// flags this as Phase 2b. Print a clear deferral.
+		s.warn(cmd + ": Phase 2b — requires DB plumbing per ADR-059. Use the web UI for now.")
 	default:
 		s.warn("unknown command: " + cmd + "  (try /help)")
 	}
 	return false
 }
 
+// handleRunbook dispatches /runbook subcommands.
+//
+//	/runbook                     → equivalent to /runbook list (gentle default)
+//	/runbook list                → toolExec("runbook_list", {})
+//	/runbook show <name>         → toolExec("runbook_show", {name})
+//	/runbook exec <name>         → toolExec("runbook_execute", {name, dry_run: false})
+//	/runbook <name>              → /runbook exec <name> (Champion gate still applies)
+//
+// All three runbook tools are routed through /api/v1/tool/exec, so
+// Champion's three-rule gate evaluates each call. runbook_execute is
+// the only mutating one — the daemon may respond with status
+// "pending_confirmation" and a pending_token; the CLI surfaces both
+// and instructs the operator (Phase 3 will add /confirm <token>).
+func (s *session) handleRunbook(args []string) {
+	if len(args) == 0 || args[0] == "list" {
+		resp, err := s.toolExec("runbook_list", map[string]any{})
+		if err != nil {
+			s.errf("/runbook list: %v", err)
+			return
+		}
+		s.printToolExecResponse("runbook_list", resp)
+		return
+	}
+	switch strings.ToLower(args[0]) {
+	case "show":
+		if len(args) < 2 {
+			s.warn("/runbook show <name>")
+			return
+		}
+		resp, err := s.toolExec("runbook_show", map[string]any{"name": args[1]})
+		if err != nil {
+			s.errf("/runbook show: %v", err)
+			return
+		}
+		s.printToolExecResponse("runbook_show", resp)
+	case "exec":
+		if len(args) < 2 {
+			s.warn("/runbook exec <name>")
+			return
+		}
+		resp, err := s.toolExec("runbook_execute", map[string]any{"name": args[1], "dry_run": false})
+		if err != nil {
+			s.errf("/runbook exec: %v", err)
+			return
+		}
+		s.printToolExecResponse("runbook_execute", resp)
+	default:
+		// Bare /runbook <name> = exec.
+		resp, err := s.toolExec("runbook_execute", map[string]any{"name": args[0], "dry_run": false})
+		if err != nil {
+			s.errf("/runbook: %v", err)
+			return
+		}
+		s.printToolExecResponse("runbook_execute", resp)
+	}
+}
+
+// handleSource fetches a single vor topic and prints it.
+func (s *session) handleSource(args []string) {
+	if len(args) == 0 {
+		s.warn("/source <topic>")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	t, err := s.vorTopicFetch(ctx, args[0])
+	if err != nil {
+		s.errf("/source: %v", err)
+		return
+	}
+	trust := t.SourceTrust
+	if trust == "" {
+		trust = "canonical"
+	}
+	s.dim(fmt.Sprintf("[%s] %s/%s — %s", trust, t.Category, t.Name, t.Title))
+	fmt.Println(clipContent(t.Content, s.maxChars))
+}
+
+// printToolExecResponse renders a toolExecResponse with severity
+// based on status.
+func (s *session) printToolExecResponse(tool string, resp *toolExecResponse) {
+	switch resp.Status {
+	case "ok":
+		// Pretty-print the result blob if it's a string or simple shape;
+		// fall back to JSON otherwise. Keep it compact.
+		switch v := resp.Result.(type) {
+		case string:
+			fmt.Println(v)
+		case nil:
+			s.ok(fmt.Sprintf("%s: ok (no result body)", tool))
+		default:
+			b, _ := json.MarshalIndent(v, "", "  ")
+			fmt.Println(string(b))
+		}
+	case "pending_confirmation":
+		s.warn(fmt.Sprintf("%s: requires confirmation — Champion gate Rule 2.", tool))
+		if resp.Reason != "" {
+			s.dim("  reason: " + resp.Reason)
+		}
+		if resp.PendingToken != "" {
+			s.dim("  pending_token: " + resp.PendingToken)
+		}
+		s.dim("  Phase 3 will add /confirm <token>; for now, use the web UI.")
+	case "denied":
+		s.errf("%s: denied — %s", tool, resp.Reason)
+	case "unknown", "used", "expired", "error":
+		s.errf("%s: %s — %s", tool, resp.Status, resp.Reason)
+	default:
+		s.warn(fmt.Sprintf("%s: unhandled status %q", tool, resp.Status))
+		b, _ := json.MarshalIndent(resp, "", "  ")
+		fmt.Println(string(b))
+	}
+}
+
+// toolExec POSTs to cmd/zhen-agentd /api/v1/tool/exec and decodes
+// the response. Mutations are gated by pkg/champion.Dispatch; reads
+// (runbook_list, runbook_show) pass through but are still gated.
+func (s *session) toolExec(tool string, args map[string]any) (*toolExecResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	defer cancel()
+	body, err := json.Marshal(toolExecRequest{
+		Tool:      tool,
+		Args:      args,
+		EmittedBy: "zhen-cli",
+	})
+	if err != nil {
+		return nil, err
+	}
+	endpoint := strings.TrimRight(s.agentdURL, "/") + "/api/v1/tool/exec"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("zhen-agentd unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MiB cap
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+	var out toolExecResponse
+	// Both 200 and 4xx may carry a JSON body in the documented shape.
+	if jerr := json.Unmarshal(raw, &out); jerr != nil {
+		return nil, fmt.Errorf("status %d, decode: %w (body: %.200s)", resp.StatusCode, jerr, raw)
+	}
+	return &out, nil
+}
+
 func (s *session) printHelp() {
-	fmt.Println("  /help            this help")
-	fmt.Println("  /exit, /quit     exit the REPL")
-	fmt.Println("  /clear           drop in-session conversation history")
-	fmt.Println("  /history         show what the LLM is seeing as prior turns")
-	fmt.Println("  /health          probe llama-server, vor, zhen-agentd")
+	fmt.Println("  /help                     this help")
+	fmt.Println("  /exit, /quit              exit the REPL")
+	fmt.Println("  /clear                    drop in-session conversation history")
+	fmt.Println("  /history                  show what the LLM is seeing as prior turns")
+	fmt.Println("  /health                   probe llama-server, vor, zhen-agentd")
 	fmt.Println()
-	fmt.Println("  any other line  → question to Zhen (RAG: vor → qwen-coder)")
+	fmt.Println("  /runbook list             list available runbooks (Champion-gated)")
+	fmt.Println("  /runbook show <name>      print a runbook without running it")
+	fmt.Println("  /runbook exec <name>      run a runbook (Champion gate Rule 2)")
+	fmt.Println("  /runbook <name>           shorthand for /runbook exec <name>")
+	fmt.Println("  /source <topic>           fetch one vor topic body")
+	fmt.Println()
+	fmt.Println("  /recall, /remember        Phase 2b — requires DB plumbing (deferred)")
+	fmt.Println()
+	fmt.Println("  any other line           → question to Zhen (RAG: vor → qwen-coder)")
 	fmt.Println()
 	fmt.Println("  pipe-mode:  echo \"...\" | zhen-cli   (one-shot answer + exit)")
 	fmt.Println("  one-shot:   zhen-cli -q \"...\"        (one-shot answer + exit)")
