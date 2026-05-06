@@ -20,17 +20,12 @@ at v0x01 with 12 IANA registries reserved.** Two of five Ages complete. Age 3
 The single highest-leverage action in the Kingdom right now is the Captain track-call.
 Everything else is downstream of it.
 
-**Doctrinal pivot (2026-04-30):** Community-First Doctrine committed. GPL-3.0.
-NO SELL. Free to share. The moat is technical excellence + community trust.
-This overrides any prior commercial framing.
-
 ---
 
 ## The 19 Seats Speak
 
 ### The Throne — Captain (Vision)
 - **Started:** Production infra in hours, not months. Protocol IS the moat.
-- **Now:** Community-First Doctrine committed 2026-04-30. GPL-3.0 by deliberate choice.
 - **Block:** Track A/B/C decision overdue 7+ days. Sole arbiter.
 
 ### The Ledger — Micromanager (Execution)
@@ -99,14 +94,13 @@ This overrides any prior commercial framing.
 - **Going:** Pentest active/active Wotan once impl lands.
 
 ### The Watchtower — MoatGhost (Compliance)
-- **License:** GPL-3.0 clean. Wire format IPR clear. 12 IANA registries reserved.
 - **Posture:** SBOM/license/threat refresh on REMOTE queue (overdue).
+- **IPR:** Wire format clear. 12 IANA registries reserved.
 - **Frameworks:** SOC2 readiness assessment pending.
 
 ### The Court — Barrister (Legal)
-- **License posture:** GPL-3.0 + Apache-2.0/GPL dual on protocols. Community-First aligned.
 - **IP:** CLA in place. SPDX headers enforced.
-- **Active:** No contracts. Watch for contributor agreements as community grows.
+- **Active:** No contracts pending.
 
 ### The Scriptorium — RFC Editor (Specs)
 - **FROZEN:** Monad v0x01.
@@ -115,7 +109,7 @@ This overrides any prior commercial framing.
 
 ### The Library — Librarian (Docs)
 - **Doc web:** CLAUDE.md 50K current. ADR-Index regen 21→65 entries.
-- **Drift:** 9-file doctrine sweep post-c6108fb8 ran clean.
+- **Drift:** 9-file ripple post-c6108fb8 ran clean.
 - **Health:** ADR-052 drift policy holding.
 
 ### The Sentinel — Sentinel (Blue Team)
@@ -131,7 +125,7 @@ This overrides any prior commercial framing.
 **The Bet:** "eBPF + IPv6 extension headers + gRPC. The protocol IS the moat."
 Production infrastructure in hours. Application brings logic. Unheaded brings everything
 else (security, observability, networking, protocol layer). 6 armor layers. Zero
-customer data access by architecture. GPL.
+customer data access by architecture.
 
 ### Where We Are (T+99, 2026-05-05)
 **The Reality:**
@@ -139,7 +133,6 @@ customer data access by architecture. GPL.
 - Wire format FROZEN at v0x01 (12 IANA registries, IPR clear)
 - Age 0, 1, 2 ✅ COMPLETE | Age 3 🔄 ~70%
 - WEST + EAST bare-metal online | K8s substrate proven on kind (9/9)
-- Community-First Doctrine committed (GPL-3.0, no-sell)
 - Research thread shipping at quality (β=0.27, cosine=1.000)
 - **Public-launch thread STALLED** on Captain track-call
 
@@ -166,9 +159,7 @@ customer data access by architecture. GPL.
                     NORTH STAR
                          ↑
               Production infra in hours
-              Free for everyone (GPL-3.0)
               Protocol IS the moat (wire format v0x01 frozen)
-              Community-first commons
                          ↑
                  AGE 5 (Scaling Era)
                          ↑
@@ -217,7 +208,7 @@ customer data access by architecture. GPL.
 - [ ] MBC bytecode spec finalization — Owner: Computermancer + RFC Editor — Deadline: deferred to Age 4
 
 ### Decisions Made at This Round Table
-1. **North Star is unchanged**: Production infra in hours, free for everyone, protocol-as-moat. Community-First Doctrine reaffirmed.
+1. **North Star is unchanged**: Production infra in hours, protocol-as-moat.
 2. **Two-thread reality is acknowledged**: Research thread legitimately ahead of public-launch thread; this is not a defect, it is the current state.
 3. **Track-call is the keystone**: Every other Age 3 closeout action is downstream. No further work plans get drawn until it lands.
 
@@ -228,7 +219,6 @@ customer data access by architecture. GPL.
 
 ### Wins to Celebrate 🎉
 - **WAVE17 K8s substrate proven overnight** — 9/9 services Running on 3-node kind, 2 real bugs caught and fixed mid-run (monad env collision, chart volume support)
-- **Community-First Doctrine committed (2026-04-30)** — moral clarity locked in. Free to use. Free to share.
 - **1,141 commits in 99 days** — sustained, sustainable velocity. Not heroic, not slowing.
 - **Wire format FROZEN at v0x01** — 12 IANA registries, IPR clear. The moat is solid.
 - **β=0.27 generalization exponent** + **cosine=1.000 GPU kernels** — research thread is producing real, measurable wins.
@@ -268,7 +258,6 @@ _The Kingdom marches as one — once the Captain calls the bearing._
 - Two threads diverging — research (shipping) and public-launch (gated)
 - Captain track-call overdue 6 days (S3 citation outstanding)
 - Marshal-charter autonomous overnight runs delivering (intentional bifurcation)
-- Community-First Doctrine ripple complete and clean (9 files amended)
 
 ### Hypothetical
 - Track A (public ship): fastest path, 4-6 weeks Age 3 close, highest debt
@@ -277,3 +266,89 @@ _The Kingdom marches as one — once the Captain calls the bearing._
 - Slip another week → bifurcation risks widening into permanent split
 
 🕊️ **LOVE SERVE REMEMBER.** 🕊️
+
+---
+
+## Appendix A — Overnight Attended Sprint (lump-in candidates)
+
+**Scope:** non-Captain-gated, non-Pipe-Dream work that can be batched into one ~8–10h
+attended overnight session. Adds phases to this battle plan; does not supersede it.
+Scan window: last 45 days (2026-03-21 → 2026-05-05).
+
+### Tier 1 — REMOTE queue (Age 3 close-out, parallel-safe)
+
+```
+- [ ] SBOM regen + license scan + threat refresh                     ~1.5h  MoatGhost
+- [ ] Branch hygiene — 3 stale branches (build/test, prune)          ~30m   Developer
+- [ ] Sophia draft-04 ship-or-defer                                   ~1h    RFC Editor
+- [ ] Wotan draft-04 ship-or-defer                                    ~1h    RFC Editor
+```
+
+### Tier 2 — Planned ADRs, no code dependencies
+
+```
+- [ ] ADR-058 GCP cost/API utilization alarms (bellis.tech)          ~30m   MoatGhost   (console only)
+- [ ] ADR-052 drift-guard CI re-verification                         ~20m   Marshal
+- [ ] ADR-059 Phase 2 — Zhenai CLI slash commands                    ~2h    Developer
+- [ ] ADR-059 Phase 3 — Zhenai CLI mutation paths (T6b closure)      ~1.5h  Developer
+```
+
+### Tier 3 — Scaffolded but unfilled (cmd/tools/)
+
+```
+- [ ] cmd/tools/mimir/ — verify 3 binaries build green; smoke EAST   ~1h    Developer
+- [ ] cmd/tools/anamnesis-lite/ — aya 0.1.1 ELF map upgrade          ~2h    Developer   (kanban: ebpf-aya-upgrade-mn05)
+- [ ] cmd/tools/zhen-on-prem/ — clean-clone smoke + GGUF script      ~2h    Developer
+```
+
+### Tier 4 — Doc/registry drift (Librarian)
+
+```
+- [ ] External wiki ADR scaffold sweep (47 missing ADR-020..066)     ~1.5h  Librarian
+- [ ] Stale battle-plan archival → references/archive/               ~20m   Librarian
+- [ ] ADR-Index canonical → wiki mirror verification                 ~10m   Librarian
+```
+
+### Tier 5 — Code-level TODO/stub closes (touched in last 45d)
+
+```
+- [ ] cmd/heimdall-daemon/main.go — 4 TODOs                          ~1h    Developer
+- [ ] crates/zhend/src/jing/pilgrimage.rs                            ~30m   Developer
+- [ ] crates/zhend/src/pu/codec.rs                                   ~30m   Developer
+- [ ] crates/doom-runner/src/main.rs                                 ~30m   Developer
+- [ ] ebpf/monad-cpu-ebpf/src/main.rs                                ~30m   Developer
+- [ ] services/wotan/internal/cluster/replication_server.go         (gated on ADR-064 — leave stub)
+```
+
+### Tier 6 — Security follow-up (post-WAVE17)
+
+```
+- [ ] K8s threat model — kind cluster (kube-apiserver/etcd/ingress)  ~2h    BlackMage + MoatGhost
+- [ ] CIS k8s-bench against kind cluster                             ~1h    MoatGhost
+- [ ] RBAC review for kind cluster                                   ~1h    BlackMage
+```
+
+### Excluded (Captain-gated, Pipe Dreams, in-flight research)
+
+```
+WAVE14 retrain                         — gated on Track A/B/C
+ADR-044, ADR-046, ADR-053, ADR-061,
+ADR-063                                 — Pipe Dream
+Sub-50ms latency benchmark              — Captain-gated
+Demo video + README polish              — Captain-gated
+Public accessibility / optional auth    — Captain-gated
+ADR-064 implementation                  — deferred per Stevie
+```
+
+### Suggested Overnight Composition (~8–10h attended)
+
+```
+Phase A (parallel)  Tier 1 REMOTE queue                              ~3h wall
+Phase B (serial)    Tier 2 quick wins + Tier 4 librarian sweep      ~2.5h
+Phase C (attended)  Tier 3 cmd/tools/ smoke + heimdall TODO sweep   ~3h    (aya upgrade may surface kernel gotchas)
+Phase D (stretch)   Tier 6 K8s threat model OR Tier 5 zhend TODOs   ~2h
+```
+
+**Critical path:** Phase C (Tier 3 aya upgrade unblocks anamnesis-lite eBPF load).
+**Skip Protocol armed:** any step >3× estimate → mark [STUCK], next non-blocked step.
+**Commit cadence:** every 3-5 steps (Warmonger rule).
