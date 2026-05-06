@@ -103,4 +103,15 @@ B7: ADR-Index canonical (`docs/adr/ADR-INDEX.md`) vs wiki mirror (`wiki/ADR-Inde
 ### 2026-05-06 02:25 — Phase B B5 — Wiki ADR scaffold sweep
 65 canonical ADRs in `docs/adr/` (excluding INDEX). Wiki had 0 ADR-specific pages (only `ADR-Index.md`). Generated 65 stubs in `wiki/ADR-NNN-<slug>.md` via mechanical Python sweep — title/status/date extracted from canonical headers (handles both `## Status:` h2 style and `**Status:**` bold metadata style). One ADR (`012b-the-well-postgres`) has no Date metadata — date renders as `n/a` accurately. All other 64 stubs carry full metadata.
 
+### 2026-05-06 02:35 — Phase B commit `a9e526c3`
+73 files changed, 65 wiki stubs + zhen-cli Phase 2 + battle-plan archive.
+
+### 2026-05-06 02:40 — Phase C opened
+- **C1 ✅** `cmd/tools/mimir/` is a meta-package with only docs; the 3 binaries (`heimdall-daemon`, `gjallarhorn-sender`, `gjallarhorn-listener`) live at `cmd/heimdall-daemon/`, `cmd/gjallarhorn-sender/`, `cmd/gjallarhorn-listener/`. All 3 `go build` clean on darwin.
+- **C2 [STUCK]** `cmd/tools/anamnesis-lite/` aya 0.1.1 ELF map upgrade. Verifying the goal needs Linux + bpftool 7.7+ / libbpf 1.7+; darwin can only do Rust syntax-check, which would not validate the actual kernel-loader compatibility goal. Per Skip Protocol — flagged + parked. **No code changes attempted.**
+- **C3 ✅** `cmd/tools/zhen-on-prem/` is a meta-package; the 5 binaries (`zhen-rag`, `zhen-cli`, `zhen-agent`, `zhen-agentd`, `shield`) all build clean on darwin. `zhen-agentd` test suite GREEN (`go test -short ./cmd/zhen-agentd/...` PASS).
+- **C4 [STUCK]** `cmd/heimdall-daemon/main.go` has 4 TODOs (lines 72, 135, 147, 148): GungnirSeal verify (architectural — needs key-mgmt UX decision), Wotan ML-DSA-65 signing (cross-component — drift topic family not in current signing scope), BPF ringbuf reader (Linux-only Aya userspace), Gjallarhorn XDP listener (Linux-only XDP). All 4 parked with rationale + suggested next steps in `references/marshal-parked-2026-05-06.md`. **No code changes attempted.**
+
+**Phase C net result:** smoke verification across 8 binaries + 2 well-documented STUCK reports. Build delta still empty.
+
 
