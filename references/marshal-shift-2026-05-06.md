@@ -68,4 +68,23 @@ Stevie: *"append plan - compliance enforcement audit tooling, some of this is sc
 
 Marshal accepts plan amendment. Inserted **Phase A.5 — Compliance Enforcement Audit Tooling** (CE1–CE5) between Phase A and Phase B, formalizing the bugs that emerged from A1 plus extending the audit surface (SPDX coverage, CI gate inventory, pre-commit). Plan file updated. 5 new tasks created. Continuing with A2.
 
+### 2026-05-06 01:25 — Phase A complete, commit `ad55cb39`
+Phase A artifacts (4) shipped + shift log + parking lot. `go build` baseline holds (no regression). Local commit only per Captain.
+
+### 2026-05-06 01:30 — Phase A.5 CE1 `verify-gpl-boundary.sh` patched
+Three real bugs originally suspected; one was a false alarm (script does `exit "${FAIL}"`). Two real bugs fixed + bonus fix #4:
+- `grep -oP 'SPDX-License-Identifier:\s*\K\S+'` (PCRE-only, BSD-grep silently fails) → portable `awk` reading first 5 lines.
+- First-party Cargo manifests (zhend, zhenai-forge, doom-runner, ebpf, ebpf/af-xdp, cmd/ebpf-loader, cmd/ebpf-collector) were flagged as "contamination" — added `is_first_party_cargo` allowlist.
+- **Bonus fix #4:** Section 1 was failing on GPL_COUNT > 0 (line 66) — but project license IS GPL-3.0-or-later, so first-party GPL is expected. Reclassified: AGPL = FAIL (escalation), LGPL = WARN (different obligations), GPL = INFO (project default), no-header = WARN (S37 hygiene).
+- Post-fix on macOS: EXIT=0, RESULT: PASS, faithful breakdown (1183 GPL / 0 AGPL / 6 missing-header).
+- **Likely fixes silent CI failure:** pre-CE1 the script flagged first-party Cargo manifests as contamination on Linux CI too — `gpl-boundary.yml` was probably failing every push. Watch the next CI run.
+
+### 2026-05-06 01:40 — Phase A.5 CE2 SPDX coverage audit
+Full Go SPDX scan on macOS (now possible post-CE1): 1183/1189 = **99.50 %** coverage. 6 files without headers — 4 hand-written source (`cmd/routing-health/*`, `cmd/test_batch/main.go`), 2 auto-generated `.pb.go` from a wotan/proto regen that lost the SPDX template. **No AGPL/LGPL.** Documented in `docs/compliance/spdx-coverage-audit-2026-05-06.md`. Fixes recommended for daytime — not auto-applied.
+
+### 2026-05-06 01:50 — Phase A.5 CE3 + CE4 + CE5 (compliance gate inventory + drift-guard verify + pre-commit audit)
+- **CE3:** Inventoried 7 compliance scripts + 6 compliance-relevant GHA workflows + Jenkinsfile. Output: `docs/compliance/audit-2026-05-06.md`.
+- **CE4:** Re-verified ADR-052 drift-guard. `--check` mode returns EXIT=0, timeline 0 days behind HEAD. **GREEN.**
+- **CE5:** Local `.git/hooks/` is empty; no `.pre-commit-config.yaml`; no husky/lefthook config. CLAUDE.md claim of "pre-commit hook installed" is **documentation drift** — recommend either ship `make install-hooks` or correct the docs. Folded into the CE3 audit doc.
+
 
