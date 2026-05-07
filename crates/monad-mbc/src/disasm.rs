@@ -56,11 +56,11 @@ pub fn disasm_insn(word: u32, addr: u32) -> String {
             let target = ((addr as i32 + 1) + offset) as u32;
             let mnemonic = match opcode {
                 op::JMP => "JMP ",
-                op::JZ  => "JZ  ",
+                op::JZ => "JZ  ",
                 op::JNZ => "JNZ ",
-                op::JN  => "JN  ",
-                op::JP  => "JP  ",
-                op::JC  => "JC  ",
+                op::JN => "JN  ",
+                op::JP => "JP  ",
+                op::JC => "JC  ",
                 op::JNC => "JNC ",
                 _ => unreachable!(),
             };
@@ -263,7 +263,14 @@ mod tests {
     #[test]
     fn test_disasm_all_arithmetic() {
         let ops = [
-            op::ADD, op::SUB, op::MUL, op::DIV, op::MOD, op::AND, op::OR, op::XOR,
+            op::ADD,
+            op::SUB,
+            op::MUL,
+            op::DIV,
+            op::MOD,
+            op::AND,
+            op::OR,
+            op::XOR,
         ];
         for op_code in ops.iter() {
             let insn = MbcInsn::encode(*op_code, 1, 2, 0);

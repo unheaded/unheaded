@@ -233,11 +233,7 @@ pub struct WotanPublisher {
 
 impl WotanPublisher {
     /// Create a new Wotan publisher
-    pub async fn new(
-        endpoint: &str,
-        batch_size: usize,
-        batch_timeout: Duration,
-    ) -> Result<Self> {
+    pub async fn new(endpoint: &str, batch_size: usize, batch_timeout: Duration) -> Result<Self> {
         let collector_id = format!(
             "trace-collector-{}",
             hostname::get()
@@ -369,11 +365,7 @@ impl WotanPublisher {
         // Serialize event data to JSON for flexibility
         let data = serde_json::to_vec(&event.data).unwrap_or_default();
 
-        let raw = event
-            .raw
-            .as_ref()
-            .map(|b| b.to_vec())
-            .unwrap_or_default();
+        let raw = event.raw.as_ref().map(|b| b.to_vec()).unwrap_or_default();
 
         wotan_proto::TraceEvent {
             event_type: event_type as i32,
@@ -504,12 +496,7 @@ impl WotanPublisher {
     }
 
     /// Actually perform the publish (simulated gRPC call)
-    async fn do_publish(
-        &self,
-        _channel: Channel,
-        payload: Vec<u8>,
-        _sequence: u64,
-    ) -> Result<u64> {
+    async fn do_publish(&self, _channel: Channel, payload: Vec<u8>, _sequence: u64) -> Result<u64> {
         // In a real implementation, this would use the generated gRPC client
         // For demonstration, we decode the batch to get the count
 
@@ -517,18 +504,14 @@ impl WotanPublisher {
         tokio::time::sleep(Duration::from_micros(100)).await;
 
         // Decode to get event count (in real impl, server returns this)
-        let batch = wotan_proto::TraceEventBatch::decode(&payload[..])
-            .context("Failed to decode batch")?;
+        let batch =
+            wotan_proto::TraceEventBatch::decode(&payload[..]).context("Failed to decode batch")?;
 
         Ok(batch.events.len() as u64)
     }
 
     /// Run the publisher loop
-    pub async fn run(
-        &self,
-        event_rx: Receiver<Event>,
-        shutdown: Arc<AtomicBool>,
-    ) -> Result<()> {
+    pub async fn run(&self, event_rx: Receiver<Event>, shutdown: Arc<AtomicBool>) -> Result<()> {
         info!("Publisher starting");
 
         let mut batch = EventBatch::with_capacity(self.batch_size);

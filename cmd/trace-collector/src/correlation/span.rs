@@ -70,7 +70,11 @@ impl SpanEvent {
         }
     }
 
-    pub fn with_attribute(mut self, key: impl Into<String>, value: impl Into<AttributeValue>) -> Self {
+    pub fn with_attribute(
+        mut self,
+        key: impl Into<String>,
+        value: impl Into<AttributeValue>,
+    ) -> Self {
         self.attributes.insert(key.into(), value.into());
         self
     }
@@ -186,7 +190,11 @@ impl Resource {
         }
     }
 
-    pub fn with_attribute(mut self, key: impl Into<String>, value: impl Into<AttributeValue>) -> Self {
+    pub fn with_attribute(
+        mut self,
+        key: impl Into<String>,
+        value: impl Into<AttributeValue>,
+    ) -> Self {
         self.attributes.insert(key.into(), value.into());
         self
     }
@@ -229,7 +237,12 @@ pub struct Span {
 
 impl Span {
     /// Create a new span
-    pub fn new(trace_id: TraceId, span_id: SpanId, name: impl Into<String>, start_time_ns: u64) -> Self {
+    pub fn new(
+        trace_id: TraceId,
+        span_id: SpanId,
+        name: impl Into<String>,
+        start_time_ns: u64,
+    ) -> Self {
         Self {
             trace_id,
             span_id,
@@ -274,7 +287,11 @@ impl Span {
     }
 
     /// Add an attribute
-    pub fn with_attribute(mut self, key: impl Into<String>, value: impl Into<AttributeValue>) -> Self {
+    pub fn with_attribute(
+        mut self,
+        key: impl Into<String>,
+        value: impl Into<AttributeValue>,
+    ) -> Self {
         self.attributes.insert(key.into(), value.into());
         self
     }
@@ -391,7 +408,14 @@ impl SpanBuilder {
     }
 
     /// Add network-specific attributes
-    pub fn network(self, src_ip: &str, dst_ip: &str, src_port: u16, dst_port: u16, protocol: &str) -> Self {
+    pub fn network(
+        self,
+        src_ip: &str,
+        dst_ip: &str,
+        src_port: u16,
+        dst_port: u16,
+        protocol: &str,
+    ) -> Self {
         self.attribute("net.peer.ip", src_ip)
             .attribute("net.host.ip", dst_ip)
             .attribute("net.peer.port", src_port as i64)
@@ -463,10 +487,7 @@ mod tests {
     #[test]
     fn test_span_events() {
         let mut span = Span::root("test", 1000);
-        span.add_event(
-            SpanEvent::new("processing-started", 2000)
-                .with_attribute("items", 10i64),
-        );
+        span.add_event(SpanEvent::new("processing-started", 2000).with_attribute("items", 10i64));
 
         assert_eq!(span.events.len(), 1);
         assert_eq!(span.events[0].name, "processing-started");

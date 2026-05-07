@@ -10,16 +10,11 @@
 //!   6. Console I/O (SYS_WRITE to tty_output)
 //!   7. Boot integration (hello_kernel demo)
 
-use monad_mbc::{ExecCpu, ExecError};
 use monad_common::{
-    MbcInsn,
-    mbc_opcodes as op,
-    mbc_linux_syscalls as lsys,
-    mbc_interrupts as intr,
-    mbc_block as blk,
-    mbc_mmu as mmu,
-    REG_SP,
+    mbc_block as blk, mbc_interrupts as intr, mbc_linux_syscalls as lsys, mbc_mmu as mmu,
+    mbc_opcodes as op, MbcInsn, REG_SP,
 };
+use monad_mbc::{ExecCpu, ExecError};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -111,7 +106,10 @@ fn timer_interrupt_fires_when_pending_and_enabled() {
     assert_eq!(cpu.state.regs[5], 0xBEEF, "handler should set r5 = 0xBEEF");
 
     // Interrupts should be disabled during handler
-    assert_eq!(cpu.state.interrupts_enabled, 0, "interrupts disabled during handler");
+    assert_eq!(
+        cpu.state.interrupts_enabled, 0,
+        "interrupts disabled during handler"
+    );
 
     // interrupt_pending should be cleared
     assert_eq!(cpu.state.interrupt_pending, 0, "interrupt_pending cleared");
@@ -158,7 +156,10 @@ fn timer_iret_restores_pc_and_flags() {
 
     // After IRET, PC should be restored to 1, interrupts re-enabled
     assert_eq!(cpu.state.pc, 1, "IRET should restore PC to saved value");
-    assert_eq!(cpu.state.interrupts_enabled, 1, "IRET should re-enable interrupts");
+    assert_eq!(
+        cpu.state.interrupts_enabled, 1,
+        "IRET should re-enable interrupts"
+    );
 
     // Next step should execute HALT at word 1
     let result = cpu.step();
@@ -187,7 +188,10 @@ fn timer_interrupt_disabled_does_not_fire() {
 
     // Step: should execute MOVI at word 0, NOT jump to handler
     cpu.step().unwrap();
-    assert_eq!(cpu.state.regs[0], 0x99, "main code should execute, not handler");
+    assert_eq!(
+        cpu.state.regs[0], 0x99,
+        "main code should execute, not handler"
+    );
     assert_eq!(cpu.state.regs[5], 0, "handler should not have run");
 }
 
@@ -228,9 +232,9 @@ fn syscall_write_outputs_to_tty() {
     // HALT
     let rom = vec![
         enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
-        enc(op::MOVI, 1, 0, 1),       // fd = stdout
-        enc(op::MOVI, 2, 0, 0x0100),  // buf address
-        enc(op::MOVI, 3, 0, 2),       // length
+        enc(op::MOVI, 1, 0, 1),      // fd = stdout
+        enc(op::MOVI, 2, 0, 0x0100), // buf address
+        enc(op::MOVI, 3, 0, 2),      // length
         enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
         enc(op::HALT, 0, 0, 0),
     ];
@@ -239,7 +243,10 @@ fn syscall_write_outputs_to_tty() {
     let result = cpu.run(100);
     assert!(result.is_ok() || result == Err(ExecError::Halted));
     assert_eq!(cpu.tty_output, b"Hi", "tty_output should contain 'Hi'");
-    assert_eq!(cpu.state.regs[0], 2, "SYS_WRITE should return bytes written");
+    assert_eq!(
+        cpu.state.regs[0], 2,
+        "SYS_WRITE should return bytes written"
+    );
 }
 
 #[test]
@@ -251,7 +258,7 @@ fn syscall_write_to_stderr() {
 
     let rom = vec![
         enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
-        enc(op::MOVI, 1, 0, 2),       // fd = stderr
+        enc(op::MOVI, 1, 0, 2), // fd = stderr
         enc(op::MOVI, 2, 0, 0x0200),
         enc(op::MOVI, 3, 0, 3),
         enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
@@ -260,7 +267,10 @@ fn syscall_write_to_stderr() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert_eq!(cpu.tty_output, b"err", "stderr should also go to tty_output");
+    assert_eq!(
+        cpu.tty_output, b"err",
+        "stderr should also go to tty_output"
+    );
 }
 
 #[test]
@@ -271,7 +281,7 @@ fn syscall_write_bad_fd_returns_ebadf() {
 
     let rom = vec![
         enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
-        enc(op::MOVI, 1, 0, 99),      // bad fd
+        enc(op::MOVI, 1, 0, 99), // bad fd
         enc(op::MOVI, 2, 0, 0x0100),
         enc(op::MOVI, 3, 0, 1),
         enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
@@ -280,7 +290,10 @@ fn syscall_write_bad_fd_returns_ebadf() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert!(cpu.tty_output.is_empty(), "bad fd should not produce output");
+    assert!(
+        cpu.tty_output.is_empty(),
+        "bad fd should not produce output"
+    );
     // EBADF = -9 as u32
     assert_eq!(cpu.state.regs[0], (-9i32) as u32, "should return -EBADF");
 }
@@ -322,8 +335,14 @@ fn syscall_brk_set_updates_program_break() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert_eq!(cpu.state.program_break, 0x5000, "program_break should be updated");
-    assert_eq!(cpu.state.regs[0], 0x5000, "BRK should return new break value");
+    assert_eq!(
+        cpu.state.program_break, 0x5000,
+        "program_break should be updated"
+    );
+    assert_eq!(
+        cpu.state.regs[0], 0x5000,
+        "BRK should return new break value"
+    );
 }
 
 #[test]
@@ -358,13 +377,19 @@ fn syscall_clock_gettime_returns_nonzero() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert_eq!(cpu.state.regs[0], 0, "CLOCK_GETTIME should return 0 on success");
+    assert_eq!(
+        cpu.state.regs[0], 0,
+        "CLOCK_GETTIME should return 0 on success"
+    );
 
     // Read back timespec from RAM at byte addr 0x1000
     let secs = cpu.ram[0x1000 >> 2];
     let nsecs = cpu.ram[(0x1000 + 4) >> 2];
     assert_eq!(secs, 5, "5500ms should give 5 seconds");
-    assert_eq!(nsecs, 500_000_000, "5500ms should give 500M nanoseconds remainder");
+    assert_eq!(
+        nsecs, 500_000_000,
+        "5500ms should give 500M nanoseconds remainder"
+    );
 }
 
 #[test]
@@ -385,7 +410,10 @@ fn syscall_fork_parent_gets_child_pid_child_gets_zero() {
     assert_eq!(cpu.state.num_processes, 2, "should now have 2 processes");
 
     // Child state is in proc_table[1], child's r0 should be 0
-    assert_eq!(cpu.proc_table[1][0], 0, "child's r0 should be 0 (fork return)");
+    assert_eq!(
+        cpu.proc_table[1][0], 0,
+        "child's r0 should be 0 (fork return)"
+    );
 
     // Child's PC should be saved at the point of the fork syscall.
     // INT 0x80 is a software interrupt which, for VECTOR_SYSCALL, executes inline
@@ -521,7 +549,10 @@ fn scheduler_context_switch_round_robin() {
     assert_eq!(cpu.state.regs[0], 0xDEAD, "should load process 1's r0");
 
     // Process 0's state should be saved
-    assert_eq!(cpu.proc_table[0][0], 0xBEEF, "process 0's r0 should be saved");
+    assert_eq!(
+        cpu.proc_table[0][0], 0xBEEF,
+        "process 0's r0 should be saved"
+    );
 
     // Switch back
     cpu.scheduler_context_switch();
@@ -546,7 +577,10 @@ fn scheduler_skips_halted_processes() {
 
     cpu.scheduler_context_switch();
 
-    assert_eq!(cpu.state.current_pid, 2, "should skip halted pid 1, go to pid 2");
+    assert_eq!(
+        cpu.state.current_pid, 2,
+        "should skip halted pid 1, go to pid 2"
+    );
     assert_eq!(cpu.state.regs[0], 0xCAFE, "should load pid 2's r0");
 }
 
@@ -571,7 +605,10 @@ fn mmu_disabled_passthrough() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert_eq!(cpu.state.regs[0], 0xDEADBEEF, "MMU disabled should pass through");
+    assert_eq!(
+        cpu.state.regs[0], 0xDEADBEEF,
+        "MMU disabled should pass through"
+    );
 }
 
 #[test]
@@ -669,7 +706,11 @@ fn mmu_tlb_gets_populated() {
     let tlb_entry = cpu.tlb[3];
     assert_eq!(tlb_entry[0], 3, "TLB VPN should be 3");
     assert_eq!(tlb_entry[1], 3, "TLB PFN should be 3 (identity map)");
-    assert_ne!(tlb_entry[2] & mmu::PTE_PRESENT, 0, "TLB entry should be present");
+    assert_ne!(
+        tlb_entry[2] & mmu::PTE_PRESENT,
+        0,
+        "TLB entry should be present"
+    );
 }
 
 #[test]
@@ -709,15 +750,15 @@ fn block_device_write_then_read() {
     let rom = vec![
         // Write block 0 from buffer at 0x800
         enc(op::MOVI, 0, 0, lsys::SYS_WRITE_BLOCK as u16),
-        enc(op::MOVI, 1, 0, 0),        // block 0
-        enc(op::MOVI, 2, 0, 0x0800),   // source buffer
+        enc(op::MOVI, 1, 0, 0),      // block 0
+        enc(op::MOVI, 2, 0, 0x0800), // source buffer
         enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
         // Save return value
         enc(op::MOV, 5, 0, 0),
         // Read block 0 into buffer at 0x1800
         enc(op::MOVI, 0, 0, lsys::SYS_READ_BLOCK as u16),
-        enc(op::MOVI, 1, 0, 0),        // block 0
-        enc(op::MOVI, 2, 0, 0x1800),   // dest buffer
+        enc(op::MOVI, 1, 0, 0),      // block 0
+        enc(op::MOVI, 2, 0, 0x1800), // dest buffer
         enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
         // Save return value
         enc(op::MOV, 6, 0, 0),
@@ -727,8 +768,16 @@ fn block_device_write_then_read() {
     cpu.run(200).ok();
 
     // Verify return values
-    assert_eq!(cpu.state.regs[5], blk::BLOCK_SIZE, "WRITE_BLOCK should return 512");
-    assert_eq!(cpu.state.regs[6], blk::BLOCK_SIZE, "READ_BLOCK should return 512");
+    assert_eq!(
+        cpu.state.regs[5],
+        blk::BLOCK_SIZE,
+        "WRITE_BLOCK should return 512"
+    );
+    assert_eq!(
+        cpu.state.regs[6],
+        blk::BLOCK_SIZE,
+        "READ_BLOCK should return 512"
+    );
 
     // Verify data matches: dest buffer at word 0x600 (byte 0x1800)
     let dst_word = 0x600usize;
@@ -749,7 +798,7 @@ fn block_device_invalid_block_returns_eio() {
     // Try to read block beyond total blocks
     let rom = vec![
         enc(op::MOVI, 0, 0, lsys::SYS_READ_BLOCK as u16),
-        enc(op::MOVI, 1, 0, 0xFFFF),  // way beyond total blocks
+        enc(op::MOVI, 1, 0, 0xFFFF), // way beyond total blocks
         enc(op::MOVI, 2, 0, 0x0800),
         enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
         enc(op::HALT, 0, 0, 0),
@@ -817,7 +866,10 @@ fn block_device_multiple_blocks() {
     cpu.run(100).ok();
 
     let dst_word = 0x600usize;
-    assert_eq!(cpu.ram[dst_word], 0xAAAA0000, "block 0 data should be 0xAAAA pattern");
+    assert_eq!(
+        cpu.ram[dst_word], 0xAAAA0000,
+        "block 0 data should be 0xAAAA pattern"
+    );
     assert_eq!(cpu.ram[dst_word + 127], 0xAAAA007F, "block 0 last word");
 }
 
@@ -834,7 +886,7 @@ fn console_write_string_via_syscall() {
 
     let rom = vec![
         enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
-        enc(op::MOVI, 1, 0, 1),       // stdout
+        enc(op::MOVI, 1, 0, 1), // stdout
         enc(op::MOVI, 2, 0, 0x0200),
         enc(op::MOVI, 3, 0, msg.len() as u16),
         enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
@@ -901,8 +953,15 @@ fn console_write_capped_at_256_bytes() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert_eq!(cpu.tty_output.len(), 256, "write should be capped at 256 bytes");
-    assert_eq!(cpu.state.regs[0], 256, "SYS_WRITE should return 256 (capped)");
+    assert_eq!(
+        cpu.tty_output.len(),
+        256,
+        "write should be capped at 256 bytes"
+    );
+    assert_eq!(
+        cpu.state.regs[0], 256,
+        "SYS_WRITE should return 256 (capped)"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -922,9 +981,9 @@ fn boot_hello_kernel_produces_output() {
     // Program: MOVI r0,4; MOVI r1,1; MOVI r2,msg_addr; MOVI r3,23; INT 0x80; HALT
     let rom = vec![
         enc(op::MOVI, 0, 0, lsys::SYS_WRITE as u16),
-        enc(op::MOVI, 1, 0, 1),                    // fd = stdout
-        enc(op::MOVI, 2, 0, msg_addr as u16),      // buffer
-        enc(op::MOVI, 3, 0, msg.len() as u16),     // length
+        enc(op::MOVI, 1, 0, 1),                // fd = stdout
+        enc(op::MOVI, 2, 0, msg_addr as u16),  // buffer
+        enc(op::MOVI, 3, 0, msg.len() as u16), // length
         enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
         enc(op::HALT, 0, 0, 0),
     ];
@@ -943,8 +1002,8 @@ fn boot_hello_kernel_produces_output() {
 #[test]
 fn boot_hello_kernel_binary_if_available() {
     // Load the actual hello_kernel.mbc binary if it exists.
-    let kernel_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../demos/mbc/hello_kernel.mbc");
+    let kernel_path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../demos/mbc/hello_kernel.mbc");
 
     if !kernel_path.exists() {
         eprintln!("SKIP: hello_kernel.mbc not found at {:?}", kernel_path);
@@ -994,7 +1053,7 @@ fn syscall_nanosleep_advances_time() {
     cpu.ticks_ms = 1000;
 
     // Store timespec at RAM byte 0x1000: tv_sec=2, tv_nsec=500_000_000 (2.5s)
-    cpu.ram[0x1000 >> 2] = 2;              // tv_sec
+    cpu.ram[0x1000 >> 2] = 2; // tv_sec
     cpu.ram[(0x1000 + 4) >> 2] = 500_000_000; // tv_nsec
 
     let rom = vec![
@@ -1007,7 +1066,10 @@ fn syscall_nanosleep_advances_time() {
     cpu.run(100).ok();
 
     // 2s = 2000ms, 500M ns = 500ms -> total 2500ms
-    assert_eq!(cpu.ticks_ms, 3500, "nanosleep should advance ticks_ms by 2500");
+    assert_eq!(
+        cpu.ticks_ms, 3500,
+        "nanosleep should advance ticks_ms by 2500"
+    );
     assert_eq!(cpu.state.regs[0], 0, "nanosleep should return 0 on success");
 }
 
@@ -1053,8 +1115,14 @@ fn software_interrupt_non_syscall_dispatches_via_ivt() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert_eq!(cpu.state.regs[7], 0xFACE, "non-syscall INT should dispatch to IVT handler");
-    assert_eq!(cpu.state.halted, 1, "should halt after IRET returns to HALT");
+    assert_eq!(
+        cpu.state.regs[7], 0xFACE,
+        "non-syscall INT should dispatch to IVT handler"
+    );
+    assert_eq!(
+        cpu.state.halted, 1,
+        "should halt after IRET returns to HALT"
+    );
 }
 
 #[test]
@@ -1070,7 +1138,10 @@ fn mmu_set_page_dir_syscall() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert_eq!(cpu.state.page_dir_base, 0x8000, "page_dir_base should be set");
+    assert_eq!(
+        cpu.state.page_dir_base, 0x8000,
+        "page_dir_base should be set"
+    );
     assert_eq!(cpu.state.regs[0], 0, "SET_PAGE_DIR should return 0");
 }
 
@@ -1103,9 +1174,22 @@ fn syscall_exit_with_different_codes() {
         cpu.load_rom(&rom);
         let result = cpu.run(100);
         // run() returns Ok(cycles) when halt is reached
-        assert!(result.is_ok(), "SYS_EXIT should halt cleanly for code {}: {:?}", code, result);
-        assert_eq!(cpu.state.halted, 1, "CPU should be halted for code {}", code);
-        assert_eq!(cpu.state.exit_code, code as u32, "exit code should be {}", code);
+        assert!(
+            result.is_ok(),
+            "SYS_EXIT should halt cleanly for code {}: {:?}",
+            code,
+            result
+        );
+        assert_eq!(
+            cpu.state.halted, 1,
+            "CPU should be halted for code {}",
+            code
+        );
+        assert_eq!(
+            cpu.state.exit_code, code as u32,
+            "exit code should be {}",
+            code
+        );
     }
 }
 
@@ -1146,9 +1230,11 @@ fn block_device_preserves_ramdisk_across_blocks() {
     let dst_word = 0x600usize;
     for i in 0..128 {
         assert_eq!(
-            cpu.ram[dst_word + i], 0,
+            cpu.ram[dst_word + i],
+            0,
             "block 0 should still be zeroed, but word {} was {:08x}",
-            i, cpu.ram[dst_word + i]
+            i,
+            cpu.ram[dst_word + i]
         );
     }
 
@@ -1187,10 +1273,10 @@ fn syscall_execve_resets_registers_and_jumps() {
     // Place a "new program" in ROM at word 10: MOVI r5, 0xABCD; HALT
     let mut rom = vec![enc(op::NOP, 0, 0, 0); 20];
     // Main program at word 0: set up execve
-    rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16);  // r0 = SYS_EXECVE
-    rom[1] = enc(op::MOVI, 1, 0, 10);                         // r1 = entry_point (ROM word 10)
+    rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16); // r0 = SYS_EXECVE
+    rom[1] = enc(op::MOVI, 1, 0, 10); // r1 = entry_point (ROM word 10)
     rom[2] = enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16); // execve!
-    rom[3] = enc(op::HALT, 0, 0, 0);                          // should NOT be reached
+    rom[3] = enc(op::HALT, 0, 0, 0); // should NOT be reached
 
     // New program at word 10
     rom[10] = enc(op::MOVI, 5, 0, 0xABCD);
@@ -1200,7 +1286,10 @@ fn syscall_execve_resets_registers_and_jumps() {
     cpu.run(100).ok();
 
     // Verify the new program ran (r5 set by the new program)
-    assert_eq!(cpu.state.regs[5], 0xABCD, "new program should set r5 = 0xABCD");
+    assert_eq!(
+        cpu.state.regs[5], 0xABCD,
+        "new program should set r5 = 0xABCD"
+    );
 
     // Verify CPU halted (new program hit HALT)
     assert_eq!(cpu.state.halted, 1, "new program should halt");
@@ -1223,7 +1312,7 @@ fn syscall_execve_resets_sp_to_top() {
 
     let mut rom = vec![enc(op::NOP, 0, 0, 0); 12];
     rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16);
-    rom[1] = enc(op::MOVI, 1, 0, 10);  // entry point = word 10
+    rom[1] = enc(op::MOVI, 1, 0, 10); // entry point = word 10
     rom[2] = enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16);
     rom[10] = enc(op::HALT, 0, 0, 0);
 
@@ -1311,7 +1400,10 @@ fn syscall_execve_jumps_to_nonzero_entry_point() {
     cpu.load_rom(&rom);
     cpu.run(100).ok();
 
-    assert_eq!(cpu.state.regs[2], 0x7777, "should execute code at entry point 15");
+    assert_eq!(
+        cpu.state.regs[2], 0x7777,
+        "should execute code at entry point 15"
+    );
     assert_eq!(cpu.state.halted, 1, "should halt from new program");
 }
 
@@ -1326,22 +1418,28 @@ fn test_cli_sti() {
     cpu.state.interrupts_enabled = 1;
 
     cpu.load_rom(&[
-        enc(op::CLI, 0, 0, 0),    // 0: disable interrupts
-        enc(op::HALT, 0, 0, 0),   // 1: halt
+        enc(op::CLI, 0, 0, 0),  // 0: disable interrupts
+        enc(op::HALT, 0, 0, 0), // 1: halt
     ]);
     cpu.step().unwrap();
-    assert_eq!(cpu.state.interrupts_enabled, 0, "CLI should disable interrupts");
+    assert_eq!(
+        cpu.state.interrupts_enabled, 0,
+        "CLI should disable interrupts"
+    );
 
     // Reset and test STI
     cpu.state.pc = 0;
     cpu.state.halted = 0;
     cpu.state.interrupts_enabled = 0;
     cpu.load_rom(&[
-        enc(op::STI, 0, 0, 0),    // 0: enable interrupts
-        enc(op::HALT, 0, 0, 0),   // 1: halt
+        enc(op::STI, 0, 0, 0),  // 0: enable interrupts
+        enc(op::HALT, 0, 0, 0), // 1: halt
     ]);
     cpu.step().unwrap();
-    assert_eq!(cpu.state.interrupts_enabled, 1, "STI should enable interrupts");
+    assert_eq!(
+        cpu.state.interrupts_enabled, 1,
+        "STI should enable interrupts"
+    );
 }
 
 #[test]
@@ -1355,13 +1453,19 @@ fn test_xchg() {
 
     // XCHG r0, [r1+0]: swap r0 with RAM[r1]
     cpu.load_rom(&[
-        enc(op::XCHG, 0, 1, 0),   // 0: atomic exchange
-        enc(op::HALT, 0, 0, 0),    // 1: halt
+        enc(op::XCHG, 0, 1, 0), // 0: atomic exchange
+        enc(op::HALT, 0, 0, 0), // 1: halt
     ]);
     cpu.step().unwrap();
 
-    assert_eq!(cpu.state.regs[0], 0xBEEF, "XCHG should load old RAM value into dst reg");
-    assert_eq!(cpu.ram[0x100], 0xDEAD, "XCHG should store old reg value into RAM");
+    assert_eq!(
+        cpu.state.regs[0], 0xBEEF,
+        "XCHG should load old RAM value into dst reg"
+    );
+    assert_eq!(
+        cpu.ram[0x100], 0xDEAD,
+        "XCHG should store old reg value into RAM"
+    );
 }
 
 #[test]
@@ -1371,21 +1475,31 @@ fn test_cas_success() {
     // Set up for successful CAS:
     // r0 = expected (0x1234), r1 = address (byte), r2 = desired (0x5678)
     // RAM[word] = 0x1234 (matches expected)
-    cpu.state.regs[0] = 0x1234;       // expected
-    cpu.state.regs[1] = 0x800;        // byte address (word addr = 0x200)
-    cpu.state.regs[2] = 0x5678;       // desired
-    cpu.ram[0x200] = 0x1234;          // current value == expected
+    cpu.state.regs[0] = 0x1234; // expected
+    cpu.state.regs[1] = 0x800; // byte address (word addr = 0x200)
+    cpu.state.regs[2] = 0x5678; // desired
+    cpu.ram[0x200] = 0x1234; // current value == expected
     cpu.state.flags = 0;
 
     cpu.load_rom(&[
-        enc(op::CAS, 0, 0, 0),    // 0: compare-and-swap
-        enc(op::HALT, 0, 0, 0),   // 1: halt
+        enc(op::CAS, 0, 0, 0),  // 0: compare-and-swap
+        enc(op::HALT, 0, 0, 0), // 1: halt
     ]);
     cpu.step().unwrap();
 
-    assert_eq!(cpu.ram[0x200], 0x5678, "CAS success: RAM should be updated to desired");
-    assert_eq!(cpu.state.regs[0], 0x1234, "CAS success: r0 should contain old value");
-    assert_ne!(cpu.state.flags & 0x01, 0, "CAS success: Z flag should be set");
+    assert_eq!(
+        cpu.ram[0x200], 0x5678,
+        "CAS success: RAM should be updated to desired"
+    );
+    assert_eq!(
+        cpu.state.regs[0], 0x1234,
+        "CAS success: r0 should contain old value"
+    );
+    assert_ne!(
+        cpu.state.flags & 0x01,
+        0,
+        "CAS success: Z flag should be set"
+    );
 }
 
 #[test]
@@ -1395,19 +1509,29 @@ fn test_cas_failure() {
     // Set up for failed CAS:
     // r0 = expected (0x1234), r1 = address (byte), r2 = desired (0x5678)
     // RAM[word] = 0xAAAA (does NOT match expected)
-    cpu.state.regs[0] = 0x1234;       // expected
-    cpu.state.regs[1] = 0x800;        // byte address (word addr = 0x200)
-    cpu.state.regs[2] = 0x5678;       // desired
-    cpu.ram[0x200] = 0xAAAA;          // current value != expected
-    cpu.state.flags = 0x01;           // start with Z set
+    cpu.state.regs[0] = 0x1234; // expected
+    cpu.state.regs[1] = 0x800; // byte address (word addr = 0x200)
+    cpu.state.regs[2] = 0x5678; // desired
+    cpu.ram[0x200] = 0xAAAA; // current value != expected
+    cpu.state.flags = 0x01; // start with Z set
 
     cpu.load_rom(&[
-        enc(op::CAS, 0, 0, 0),    // 0: compare-and-swap
-        enc(op::HALT, 0, 0, 0),   // 1: halt
+        enc(op::CAS, 0, 0, 0),  // 0: compare-and-swap
+        enc(op::HALT, 0, 0, 0), // 1: halt
     ]);
     cpu.step().unwrap();
 
-    assert_eq!(cpu.ram[0x200], 0xAAAA, "CAS failure: RAM should be unchanged");
-    assert_eq!(cpu.state.regs[0], 0xAAAA, "CAS failure: r0 should contain actual old value");
-    assert_eq!(cpu.state.flags & 0x01, 0, "CAS failure: Z flag should be clear");
+    assert_eq!(
+        cpu.ram[0x200], 0xAAAA,
+        "CAS failure: RAM should be unchanged"
+    );
+    assert_eq!(
+        cpu.state.regs[0], 0xAAAA,
+        "CAS failure: r0 should contain actual old value"
+    );
+    assert_eq!(
+        cpu.state.flags & 0x01,
+        0,
+        "CAS failure: Z flag should be clear"
+    );
 }

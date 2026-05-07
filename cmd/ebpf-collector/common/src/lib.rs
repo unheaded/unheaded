@@ -42,7 +42,7 @@ pub struct PacketEvent {
     pub src_port: u16,
     pub dst_port: u16,
     pub protocol: u8,
-    pub af: u8,        // AF_INET=2 or AF_INET6=10
+    pub af: u8, // AF_INET=2 or AF_INET6=10
     pub _pad: [u8; 2],
     pub packet_len: u32,
     pub direction: u8, // 0=ingress, 1=egress

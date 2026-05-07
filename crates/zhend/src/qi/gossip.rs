@@ -9,13 +9,13 @@
 //!
 //! This is pull-on-demand, not push-everything. Bandwidth-efficient.
 
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
 
-use crate::pu::{TieredStore, codec};
+use crate::pu::{codec, TieredStore};
 use crate::ZhenConfig;
 
 #[cfg(feature = "pq")]
@@ -49,10 +49,8 @@ impl GossipEngine {
         shutdown: mpsc::Receiver<()>,
         signing_keypair: Option<&PqSigningKeypair>,
     ) -> Self {
-        let local_identity = signing_keypair.map(|kp| {
-            PeerIdentity::new(kp, None)
-                .expect("local identity generation must succeed")
-        });
+        let local_identity = signing_keypair
+            .map(|kp| PeerIdentity::new(kp, None).expect("local identity generation must succeed"));
 
         Self {
             store,
@@ -65,11 +63,7 @@ impl GossipEngine {
 
     /// Create a new gossip engine without PQ authentication (non-pq build).
     #[cfg(not(feature = "pq"))]
-    pub fn new(
-        store: Arc<TieredStore>,
-        config: ZhenConfig,
-        shutdown: mpsc::Receiver<()>,
-    ) -> Self {
+    pub fn new(store: Arc<TieredStore>, config: ZhenConfig, shutdown: mpsc::Receiver<()>) -> Self {
         Self {
             store,
             config,
@@ -86,7 +80,10 @@ impl GossipEngine {
         // Add seed peers.
         {
             let mut peers = self.peers.write().await;
-            let seed_addrs: Vec<SocketAddr> = self.config.seed_peers.iter()
+            let seed_addrs: Vec<SocketAddr> = self
+                .config
+                .seed_peers
+                .iter()
                 .filter_map(|s| s.parse().ok())
                 .collect();
             peers.add_seeds(&seed_addrs);
@@ -109,8 +106,8 @@ impl GossipEngine {
                     identity: identity.clone(),
                 };
                 let peer_list = self.peers.read().await;
-                let seed_addrs: Vec<SocketAddr> = peer_list.active_peers()
-                    .iter().map(|p| p.addr).collect();
+                let seed_addrs: Vec<SocketAddr> =
+                    peer_list.active_peers().iter().map(|p| p.addr).collect();
                 drop(peer_list);
 
                 for addr in &seed_addrs {
@@ -118,7 +115,10 @@ impl GossipEngine {
                         tracing::warn!(error = %e, peer = %addr, "failed to send identity offer to seed");
                     }
                 }
-                tracing::info!(seeds = seed_addrs.len(), "identity offers sent to seed peers");
+                tracing::info!(
+                    seeds = seed_addrs.len(),
+                    "identity offers sent to seed peers"
+                );
             }
         }
 
@@ -183,8 +183,7 @@ impl GossipEngine {
         transport: &Arc<UdpTransport>,
         msg: GossipMessage,
         from: SocketAddr,
-        #[cfg(feature = "pq")]
-        local_identity: &Arc<Option<PeerIdentity>>,
+        #[cfg(feature = "pq")] local_identity: &Arc<Option<PeerIdentity>>,
     ) -> crate::ZhenResult<()> {
         // PQ admission control: if WE have an identity and the peer is unauthenticated
         // and sends a data message (not Ping/PingAck/Identity*), send an IdentityOffer
@@ -195,14 +194,15 @@ impl GossipEngine {
             let is_identity_msg = matches!(
                 msg,
                 GossipMessage::IdentityOffer { .. }
-                | GossipMessage::IdentityAck { .. }
-                | GossipMessage::Ping { .. }
-                | GossipMessage::PingAck { .. }
+                    | GossipMessage::IdentityAck { .. }
+                    | GossipMessage::Ping { .. }
+                    | GossipMessage::PingAck { .. }
             );
 
             if !is_identity_msg {
                 let peer_list = peers.read().await;
-                let peer_authenticated = peer_list.peers_ref()
+                let peer_authenticated = peer_list
+                    .peers_ref()
                     .get(&from)
                     .is_some_and(|p| p.authenticated);
                 drop(peer_list);
@@ -241,7 +241,10 @@ impl GossipEngine {
                 Self::send_message_static(transport, &ack, from).await?;
             }
 
-            GossipMessage::PingAck { incarnation, fragment_count } => {
+            GossipMessage::PingAck {
+                incarnation,
+                fragment_count,
+            } => {
                 let mut peer_list = peers.write().await;
                 peer_list.record_contact(from, incarnation, fragment_count);
             }
@@ -448,8 +451,7 @@ impl GossipEngine {
         config: &ZhenConfig,
         peers: &Arc<RwLock<PeerList>>,
         transport: &Arc<UdpTransport>,
-        #[cfg(feature = "pq")]
-        local_identity: &Arc<Option<PeerIdentity>>,
+        #[cfg(feature = "pq")] local_identity: &Arc<Option<PeerIdentity>>,
     ) -> crate::ZhenResult<()> {
         // 1. Get L1 fragment IDs.
         let ids = store.l1_ids()?;
@@ -481,26 +483,16 @@ impl GossipEngine {
                 .map(|p| p.addr)
                 .collect()
         } else {
-            peer_list
-                .active_peers()
-                .iter()
-                .map(|p| p.addr)
-                .collect()
+            peer_list.active_peers().iter().map(|p| p.addr).collect()
         };
 
         #[cfg(not(feature = "pq"))]
-        let digest_targets: Vec<SocketAddr> = peer_list
-            .active_peers()
-            .iter()
-            .map(|p| p.addr)
-            .collect();
+        let digest_targets: Vec<SocketAddr> =
+            peer_list.active_peers().iter().map(|p| p.addr).collect();
 
         // All active peers still get pings (membership protocol is pre-auth).
-        let active_addrs: Vec<SocketAddr> = peer_list
-            .active_peers()
-            .iter()
-            .map(|p| p.addr)
-            .collect();
+        let active_addrs: Vec<SocketAddr> =
+            peer_list.active_peers().iter().map(|p| p.addr).collect();
 
         let local_incarnation = peer_list.local_incarnation;
         drop(peer_list); // release read lock before sending

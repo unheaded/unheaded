@@ -167,15 +167,30 @@ impl Event {
         let (pid, tid, comm, event_data) = match event_type {
             EventType::Packet => {
                 let packet = PacketEvent::from_bytes(payload)?;
-                (packet.pid, packet.tid, packet.comm.clone(), EventData::Packet(packet))
+                (
+                    packet.pid,
+                    packet.tid,
+                    packet.comm.clone(),
+                    EventData::Packet(packet),
+                )
             }
             EventType::Syscall => {
                 let syscall = SyscallEvent::from_bytes(payload)?;
-                (syscall.pid, syscall.tid, syscall.comm.clone(), EventData::Syscall(syscall))
+                (
+                    syscall.pid,
+                    syscall.tid,
+                    syscall.comm.clone(),
+                    EventData::Syscall(syscall),
+                )
             }
             EventType::Latency => {
                 let latency = LatencyEvent::from_bytes(payload)?;
-                (latency.pid, latency.tid, latency.comm.clone(), EventData::Latency(latency))
+                (
+                    latency.pid,
+                    latency.tid,
+                    latency.comm.clone(),
+                    EventData::Latency(latency),
+                )
             }
             _ => {
                 // For unknown types, store raw data

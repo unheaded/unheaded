@@ -38,10 +38,7 @@ impl Archive {
         }
 
         // Create file if it doesn't exist.
-        OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        OpenOptions::new().create(true).append(true).open(path)?;
 
         Ok(Self {
             path: path.to_path_buf(),

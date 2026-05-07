@@ -14,8 +14,8 @@ use zhend::pu::store::TieredStore;
 /// Generate a random fragment with arbitrary payload and optional embedding.
 fn arb_fragment() -> impl Strategy<Value = Fragment> {
     (
-        prop::collection::vec(any::<u8>(), 1..512),   // payload (non-empty)
-        prop::collection::vec(any::<u8>(), 0..64),     // embedding
+        prop::collection::vec(any::<u8>(), 1..512), // payload (non-empty)
+        prop::collection::vec(any::<u8>(), 0..64),  // embedding
     )
         .prop_map(|(payload, embedding)| Fragment::new(payload, embedding, None))
 }

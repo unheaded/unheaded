@@ -9,16 +9,16 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use futures_util::{SinkExt, StreamExt};
 use parking_lot::RwLock;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
-use futures_util::{SinkExt, StreamExt};
 use tracing::{debug, error, info, warn};
 
 use super::handler::{HandlerStats, WebSocketHandler};
 use super::protocol::{ClientMessage, ServerMessage, TraceUpdate};
-use crate::correlation::{CorrelationEngine, TraceSummary, TraceStore};
+use crate::correlation::{CorrelationEngine, TraceStore, TraceSummary};
 
 /// WebSocket server configuration
 #[derive(Debug, Clone)]
@@ -178,10 +178,14 @@ impl WebSocketServer {
 
     /// Run the WebSocket server
     pub async fn run(self: Arc<Self>) -> Result<()> {
-        let addr: SocketAddr = self.config.bind_addr.parse()
+        let addr: SocketAddr = self
+            .config
+            .bind_addr
+            .parse()
             .context("Invalid bind address")?;
 
-        let listener = TcpListener::bind(&addr).await
+        let listener = TcpListener::bind(&addr)
+            .await
             .context("Failed to bind WebSocket server")?;
 
         info!(addr = %addr, "WebSocket server listening");
@@ -230,11 +234,14 @@ impl WebSocketServer {
         // Close all connections
         let connections: Vec<_> = self.connections.write().drain().collect();
         for (_id, conn) in connections {
-            let _ = conn.tx.send(ServerMessage::Error {
-                code: "shutdown".to_string(),
-                message: "Server shutting down".to_string(),
-                request_id: None,
-            }).await;
+            let _ = conn
+                .tx
+                .send(ServerMessage::Error {
+                    code: "shutdown".to_string(),
+                    message: "Server shutting down".to_string(),
+                    request_id: None,
+                })
+                .await;
         }
 
         Ok(())
@@ -246,7 +253,8 @@ impl WebSocketServer {
         stream: TcpStream,
         peer_addr: SocketAddr,
     ) -> Result<()> {
-        let ws_stream = accept_async(stream).await
+        let ws_stream = accept_async(stream)
+            .await
             .context("WebSocket handshake failed")?;
 
         let connection_id = format!("ws-{}-{}", peer_addr, fastrand::u32(..));
@@ -257,8 +265,12 @@ impl WebSocketServer {
             "WebSocket connection accepted"
         );
 
-        self.stats.connections_accepted.fetch_add(1, Ordering::Relaxed);
-        self.stats.active_connections.fetch_add(1, Ordering::Relaxed);
+        self.stats
+            .connections_accepted
+            .fetch_add(1, Ordering::Relaxed);
+        self.stats
+            .active_connections
+            .fetch_add(1, Ordering::Relaxed);
 
         // Create handler
         let mut handler = WebSocketHandler::new(&connection_id);
@@ -406,14 +418,17 @@ impl WebSocketServer {
 
             // Check if we should flush batch due to size
             if batching && pending_updates.len() >= max_batch_size {
-                self.flush_batch(&handler, &mut ws_sink, &mut pending_updates, max_batch_size).await?;
+                self.flush_batch(&handler, &mut ws_sink, &mut pending_updates, max_batch_size)
+                    .await?;
                 _last_batch_send = Instant::now();
             }
         }
 
         // Cleanup
         self.connections.write().remove(&connection_id);
-        self.stats.active_connections.fetch_sub(1, Ordering::Relaxed);
+        self.stats
+            .active_connections
+            .fetch_sub(1, Ordering::Relaxed);
 
         info!(
             connection_id = %connection_id,
@@ -454,7 +469,9 @@ impl WebSocketServer {
                     update: updates.into_iter().next().unwrap(),
                 };
                 let json = serde_json::to_string(&msg)?;
-                ws_sink.send(Message::Text(json)).await
+                ws_sink
+                    .send(Message::Text(json))
+                    .await
                     .map_err(|e| anyhow::anyhow!("WebSocket send error: {}", e))?;
             } else {
                 let msg = ServerMessage::TraceUpdateBatch {
@@ -462,7 +479,9 @@ impl WebSocketServer {
                     updates,
                 };
                 let json = serde_json::to_string(&msg)?;
-                ws_sink.send(Message::Text(json)).await
+                ws_sink
+                    .send(Message::Text(json))
+                    .await
                     .map_err(|e| anyhow::anyhow!("WebSocket send error: {}", e))?;
             }
             handler.record_sent();

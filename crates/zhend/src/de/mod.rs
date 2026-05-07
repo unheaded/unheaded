@@ -7,9 +7,9 @@
 //!
 //! High De = fragment bubbles up. Low De = fragment stays in strata.
 
+pub mod context;
 pub mod embedder;
 pub mod similarity;
-pub mod context;
 
 pub use context::ContextVector;
 pub use embedder::{Embedder, EmbedderMode, DEFAULT_DIMS};
@@ -39,7 +39,10 @@ pub fn surface(
     let ranked = rank_by_de(&context.embedding, &fragments, top_k);
 
     // Clone fragments out of the borrow — caller owns the results.
-    Ok(ranked.into_iter().map(|(f, score)| (f.clone(), score)).collect())
+    Ok(ranked
+        .into_iter()
+        .map(|(f, score)| (f.clone(), score))
+        .collect())
 }
 
 /// Convenience: surface by text query.
@@ -99,7 +102,8 @@ mod tests {
             &embedder,
             b"TCP/IP networking fundamentals".to_vec(),
             Some("text/plain".into()),
-        ).unwrap();
+        )
+        .unwrap();
         assert!(novel);
 
         // Retrieve and verify embedding is present.
@@ -114,12 +118,7 @@ mod tests {
         let (store, _tmp) = test_store();
         let embedder = Embedder::disabled();
 
-        ingest_with_embedding(
-            &store,
-            &embedder,
-            b"no embedding".to_vec(),
-            None,
-        ).unwrap();
+        ingest_with_embedding(&store, &embedder, b"no embedding".to_vec(), None).unwrap();
 
         let frags = store.l1_fragments().unwrap();
         assert_eq!(frags.len(), 1);
@@ -141,7 +140,10 @@ mod tests {
 
         // The exact match should rank first (hash embedder: identical content = identical vector = cosine 1.0).
         assert_eq!(results[0].0.payload, b"TCP/IP networking");
-        assert!((results[0].1 - 1.0).abs() < 1e-5, "exact match should have similarity ~1.0");
+        assert!(
+            (results[0].1 - 1.0).abs() < 1e-5,
+            "exact match should have similarity ~1.0"
+        );
     }
 
     #[test]
@@ -211,37 +213,39 @@ mod tests {
 
         // Ingest 3 fragments with different content domains.
         ingest_with_embedding(
-            &store, &embedder,
+            &store,
+            &embedder,
             b"networking protocols TCP UDP".to_vec(),
             Some("text/plain".into()),
-        ).unwrap();
+        )
+        .unwrap();
         ingest_with_embedding(
-            &store, &embedder,
+            &store,
+            &embedder,
             b"cooking pasta carbonara recipe".to_vec(),
             Some("text/plain".into()),
-        ).unwrap();
+        )
+        .unwrap();
         ingest_with_embedding(
-            &store, &embedder,
+            &store,
+            &embedder,
             b"networking socket programming".to_vec(),
             Some("text/plain".into()),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Surface with "networking" context.
         // With hash-based embedder, "networking" as a standalone query won't
         // semantically match "networking protocols TCP UDP" — but we can
         // verify the pipeline works end-to-end by querying with exact content.
-        let results = surface_by_text(
-            &store, &embedder,
-            "networking protocols TCP UDP",
-            10,
-        ).unwrap();
+        let results =
+            surface_by_text(&store, &embedder, "networking protocols TCP UDP", 10).unwrap();
 
         assert!(!results.is_empty(), "should find fragments");
 
         // Exact content match should rank first with score ~1.0.
         assert_eq!(
-            results[0].0.payload,
-            b"networking protocols TCP UDP",
+            results[0].0.payload, b"networking protocols TCP UDP",
             "exact match fragment should rank first"
         );
         assert!(
@@ -284,13 +288,17 @@ mod tests {
         assert_eq!(store.l1_count().unwrap(), 3);
 
         // Surface with exact match.
-        let results = surface_by_text(&store, &embedder, "rust programming language systems", 2).unwrap();
+        let results =
+            surface_by_text(&store, &embedder, "rust programming language systems", 2).unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].0.payload, b"rust programming language systems");
 
         // Verify all results have non-zero scores.
         for (_, score) in &results {
-            assert!(*score > 0.0, "all surfaced fragments should have positive De");
+            assert!(
+                *score > 0.0,
+                "all surfaced fragments should have positive De"
+            );
         }
     }
 }

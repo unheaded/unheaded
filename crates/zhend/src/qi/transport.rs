@@ -6,9 +6,9 @@
 //!
 //! Piggybacked mode is preferred. Wu Wei — knowledge flows without forcing.
 
+use crate::{ZhenError, ZhenResult};
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
-use crate::{ZhenError, ZhenResult};
 
 /// Maximum UDP message size. Practical limit for gossip datagrams.
 /// 64KB minus IP/UDP headers, rounded down for safety.
@@ -28,9 +28,9 @@ impl UdpTransport {
         let socket = UdpSocket::bind(addr).await.map_err(|e| {
             ZhenError::Transport(format!("failed to bind UDP socket on {}: {}", addr, e))
         })?;
-        let local_addr = socket.local_addr().map_err(|e| {
-            ZhenError::Transport(format!("failed to get local addr: {}", e))
-        })?;
+        let local_addr = socket
+            .local_addr()
+            .map_err(|e| ZhenError::Transport(format!("failed to get local addr: {}", e)))?;
 
         tracing::info!(%local_addr, "qi UDP transport bound");
 
@@ -49,18 +49,20 @@ impl UdpTransport {
             )));
         }
 
-        self.socket.send_to(data, target).await.map_err(|e| {
-            ZhenError::Transport(format!("send_to {} failed: {}", target, e))
-        })
+        self.socket
+            .send_to(data, target)
+            .await
+            .map_err(|e| ZhenError::Transport(format!("send_to {} failed: {}", target, e)))
     }
 
     /// Receive a datagram. Blocks until data arrives.
     ///
     /// Returns (bytes_read, sender_addr). Buffer must be at least MAX_MSG_SIZE.
     pub async fn recv_from(&self, buf: &mut [u8]) -> ZhenResult<(usize, SocketAddr)> {
-        self.socket.recv_from(buf).await.map_err(|e| {
-            ZhenError::Transport(format!("recv_from failed: {}", e))
-        })
+        self.socket
+            .recv_from(buf)
+            .await
+            .map_err(|e| ZhenError::Transport(format!("recv_from failed: {}", e)))
     }
 
     /// Local address this transport is bound to.

@@ -397,10 +397,8 @@ impl PerfCollector {
                     match Event::from_bytes(&sample_data) {
                         Ok(event) => {
                             // Apply filter if configured
-                            let should_send = filter
-                                .as_ref()
-                                .map(|f| f.matches(&event))
-                                .unwrap_or(true);
+                            let should_send =
+                                filter.as_ref().map(|f| f.matches(&event)).unwrap_or(true);
 
                             if should_send {
                                 match sender.try_send(event) {
@@ -429,8 +427,10 @@ impl PerfCollector {
                 }
                 PERF_RECORD_LOST => {
                     // Lost events record
-                    let lost_data =
-                        self.read_data(tail % self.buffer_size, std::mem::size_of::<PerfEventLost>());
+                    let lost_data = self.read_data(
+                        tail % self.buffer_size,
+                        std::mem::size_of::<PerfEventLost>(),
+                    );
                     let lost = unsafe { *(lost_data.as_ptr() as *const PerfEventLost) };
 
                     warn!(
@@ -487,23 +487,21 @@ impl PerfCollector {
 
         while !shutdown.load(Ordering::Relaxed) {
             match self.poll_wait(poll_timeout_ms) {
-                Ok(true) => {
-                    match self.read_events(&sender, &filter) {
-                        Ok(count) => {
-                            if count > 0 {
-                                trace!(cpu = self.cpu, events = count, "Read perf events");
-                            }
-                        }
-                        Err(e) => {
-                            if e.to_string().contains("disconnected") {
-                                debug!(cpu = self.cpu, "Channel disconnected, stopping");
-                                break;
-                            }
-                            warn!(cpu = self.cpu, error = %e, "Error reading perf events");
-                            self.stats.record_error();
+                Ok(true) => match self.read_events(&sender, &filter) {
+                    Ok(count) => {
+                        if count > 0 {
+                            trace!(cpu = self.cpu, events = count, "Read perf events");
                         }
                     }
-                }
+                    Err(e) => {
+                        if e.to_string().contains("disconnected") {
+                            debug!(cpu = self.cpu, "Channel disconnected, stopping");
+                            break;
+                        }
+                        warn!(cpu = self.cpu, error = %e, "Error reading perf events");
+                        self.stats.record_error();
+                    }
+                },
                 Ok(false) => {
                     // Timeout, continue
                 }

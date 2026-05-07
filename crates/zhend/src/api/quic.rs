@@ -70,11 +70,7 @@ impl QuicServer {
 
     /// Handle a single stream request. Reads the wire protocol, dispatches to the
     /// appropriate handler, writes the response.
-    pub async fn handle_stream(
-        &self,
-        mut send: quinn::SendStream,
-        mut recv: quinn::RecvStream,
-    ) {
+    pub async fn handle_stream(&self, mut send: quinn::SendStream, mut recv: quinn::RecvStream) {
         // Read header: [op: u8][payload_len: u32 BE]
         let mut header = [0u8; 5];
         if let Err(e) = recv.read_exact(&mut header).await {
@@ -127,7 +123,10 @@ impl QuicServer {
                 resp.push(if novel { 1 } else { 0 });
                 (STATUS_OK, resp)
             }
-            Err(e) => (STATUS_INTERNAL_ERROR, format!("ingest failed: {e}").into_bytes()),
+            Err(e) => (
+                STATUS_INTERNAL_ERROR,
+                format!("ingest failed: {e}").into_bytes(),
+            ),
         }
     }
 
@@ -136,7 +135,12 @@ impl QuicServer {
     fn handle_surface(&self, payload: &[u8]) -> (u8, Vec<u8>) {
         let fragments = match self.store.l1_fragments() {
             Ok(f) => f,
-            Err(e) => return (STATUS_INTERNAL_ERROR, format!("read failed: {e}").into_bytes()),
+            Err(e) => {
+                return (
+                    STATUS_INTERNAL_ERROR,
+                    format!("read failed: {e}").into_bytes(),
+                )
+            }
         };
 
         let ranked = rank_by_de(payload, &fragments, 10);
@@ -155,7 +159,10 @@ impl QuicServer {
 
         match serde_json::to_vec(&scored) {
             Ok(json) => (STATUS_OK, json),
-            Err(e) => (STATUS_INTERNAL_ERROR, format!("json failed: {e}").into_bytes()),
+            Err(e) => (
+                STATUS_INTERNAL_ERROR,
+                format!("json failed: {e}").into_bytes(),
+            ),
         }
     }
 
@@ -177,7 +184,10 @@ impl QuicServer {
 
         match serde_json::to_vec(&status) {
             Ok(json) => (STATUS_OK, json),
-            Err(e) => (STATUS_INTERNAL_ERROR, format!("json failed: {e}").into_bytes()),
+            Err(e) => (
+                STATUS_INTERNAL_ERROR,
+                format!("json failed: {e}").into_bytes(),
+            ),
         }
     }
 }
@@ -203,18 +213,15 @@ async fn write_response(
 /// Returns (certificate chain, private key) suitable for rustls ServerConfig.
 pub fn generate_self_signed_cert() -> (Vec<CertificateDer<'static>>, PrivateKeyDer<'static>) {
     // Generate an Ed25519 keypair using ring (available via rustls dep).
-    let keypair = ring::signature::Ed25519KeyPair::generate_pkcs8(
-        &ring::rand::SystemRandom::new(),
-    )
-    .expect("Ed25519 key generation failed");
+    let keypair = ring::signature::Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new())
+        .expect("Ed25519 key generation failed");
 
     let key_der = PrivatePkcs8KeyDer::from(keypair.as_ref().to_vec());
 
     // Build a minimal self-signed X.509 certificate.
     // We construct the DER manually to avoid needing rcgen.
     let signing_key =
-        ring::signature::Ed25519KeyPair::from_pkcs8(keypair.as_ref())
-            .expect("parse generated key");
+        ring::signature::Ed25519KeyPair::from_pkcs8(keypair.as_ref()).expect("parse generated key");
 
     let public_key = signing_key.public_key().as_ref();
 
@@ -412,8 +419,8 @@ pub fn build_server_config() -> quinn::ServerConfig {
 
     tls_config.alpn_protocols = vec![b"zhen/1".to_vec()];
 
-    let quic_server_config = QuicServerConfig::try_from(tls_config)
-        .expect("quinn server config from rustls");
+    let quic_server_config =
+        QuicServerConfig::try_from(tls_config).expect("quinn server config from rustls");
 
     quinn::ServerConfig::with_crypto(Arc::new(quic_server_config))
 }
@@ -431,15 +438,12 @@ pub fn build_client_config_insecure() -> quinn::ClientConfig {
     tls_config.alpn_protocols = vec![b"zhen/1".to_vec()];
 
     let mut client_config = quinn::ClientConfig::new(Arc::new(
-        quinn::crypto::rustls::QuicClientConfig::try_from(tls_config)
-            .expect("quinn client config"),
+        quinn::crypto::rustls::QuicClientConfig::try_from(tls_config).expect("quinn client config"),
     ));
 
     // Reduce idle timeout for tests.
     let mut transport = quinn::TransportConfig::default();
-    transport.max_idle_timeout(Some(
-        std::time::Duration::from_secs(10).try_into().unwrap(),
-    ));
+    transport.max_idle_timeout(Some(std::time::Duration::from_secs(10).try_into().unwrap()));
     client_config.transport_config(Arc::new(transport));
 
     client_config
@@ -493,10 +497,7 @@ impl rustls::client::danger::ServerCertVerifier for InsecureCertVerifier {
 
 /// Start the QUIC server. Accepts connections in a loop, spawning a task per connection.
 /// Each connection can open multiple bidirectional streams.
-pub async fn serve(
-    server: Arc<QuicServer>,
-    addr: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn serve(server: Arc<QuicServer>, addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     let addr: std::net::SocketAddr = addr.parse()?;
 
     let server_config = build_server_config();

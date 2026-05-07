@@ -100,7 +100,10 @@ fn main() {
                 }
             };
             if bytes.len() % 4 != 0 {
-                eprintln!("Warning: binary file size {} is not a multiple of 4", bytes.len());
+                eprintln!(
+                    "Warning: binary file size {} is not a multiple of 4",
+                    bytes.len()
+                );
             }
             let words: Vec<u32> = bytes
                 .chunks(4)
@@ -188,8 +191,10 @@ fn main() {
 
         // Count non-zero screen pixels.
         let nonzero_pixels = cpu.screen.iter().filter(|&&b| b != 0).count();
-        eprintln!("Screen pixels:  {nonzero_pixels}/64000 non-zero ({:.1}%)",
-            nonzero_pixels as f64 / 64000.0 * 100.0);
+        eprintln!(
+            "Screen pixels:  {nonzero_pixels}/64000 non-zero ({:.1}%)",
+            nonzero_pixels as f64 / 64000.0 * 100.0
+        );
     }
 
     // Dump screen buffer if requested.

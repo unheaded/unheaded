@@ -31,8 +31,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
-    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── Canary state machine values ─────────────────────────────────────────────
@@ -254,13 +254,7 @@ fn try_canary_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 
 /// Rewrite L2 headers to route to the endpoint for the given version.
 #[inline(always)]
-fn route_to_version(
-    _ctx: &XdpContext,
-    data: usize,
-    data_end: usize,
-    service_id: u32,
-    version: u8,
-) {
+fn route_to_version(_ctx: &XdpContext, data: usize, data_end: usize, service_id: u32, version: u8) {
     let key = ((service_id as u32) & 0xFFFF) | ((version as u32) << 16);
     if let Some(endpoint) = unsafe { VERSION_ENDPOINTS.get(&key) } {
         // endpoint layout: dst_ip[16], dst_port[2], mac_dst[6]
@@ -268,8 +262,7 @@ fn route_to_version(
         if data + 6 <= data_end {
             let eth_dst = data as *mut u8;
             for i in 0..6usize {
-                let mac_byte =
-                    unsafe { core::ptr::read_volatile(&endpoint[18 + i]) };
+                let mac_byte = unsafe { core::ptr::read_volatile(&endpoint[18 + i]) };
                 unsafe {
                     core::ptr::write_volatile(eth_dst.add(i), mac_byte);
                 }
@@ -327,12 +320,8 @@ fn check_slo_breach(service_id: u32, canary_version: u8) {
         let error_rate_ppm = (errors as u64 * 1_000_000) / req_count as u64;
 
         if let Some(thresholds) = unsafe { SLO_THRESHOLDS.get(&service_id) } {
-            let max_error_rate_ppm = u32::from_ne_bytes([
-                thresholds[0],
-                thresholds[1],
-                thresholds[2],
-                thresholds[3],
-            ]);
+            let max_error_rate_ppm =
+                u32::from_ne_bytes([thresholds[0], thresholds[1], thresholds[2], thresholds[3]]);
 
             if error_rate_ppm > max_error_rate_ppm as u64 {
                 // Set state to ROLLBACK

@@ -231,7 +231,9 @@ impl EventBatcher {
         batch.encode(&mut raw_bytes).ok()?;
 
         let raw_len = raw_bytes.len();
-        self.stats.bytes_raw.fetch_add(raw_len as u64, Ordering::Relaxed);
+        self.stats
+            .bytes_raw
+            .fetch_add(raw_len as u64, Ordering::Relaxed);
 
         // Compress if enabled and beneficial
         let (payload, compressed) = if self.compression && raw_len > COMPRESSION_THRESHOLD {
@@ -472,7 +474,8 @@ impl AdaptiveBatcher {
                 self.current_batch_size = (self.current_batch_size + 100).min(self.max_batch_size);
             } else if current_throughput < self.target_throughput / 2 {
                 // Low throughput: decrease batch size for latency
-                self.current_batch_size = (self.current_batch_size.saturating_sub(100)).max(self.min_batch_size);
+                self.current_batch_size =
+                    (self.current_batch_size.saturating_sub(100)).max(self.min_batch_size);
             }
 
             self.events_in_window = 0;

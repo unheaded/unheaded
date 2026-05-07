@@ -17,10 +17,7 @@ use tonic::transport::{Channel, Endpoint};
 use tracing::{debug, error, info, warn};
 
 use crate::metrics;
-use crate::proto::{
-    HealthResponse, PublishResponse,
-    TraceEventBatch,
-};
+use crate::proto::{HealthResponse, PublishResponse, TraceEventBatch};
 
 /// Connection timeout
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -240,7 +237,9 @@ impl WotanClient {
         let result = self.do_publish(channel, buf, batch.sequence).await;
 
         let latency_us = start.elapsed().as_micros() as u64;
-        self.stats.last_latency_us.store(latency_us, Ordering::Relaxed);
+        self.stats
+            .last_latency_us
+            .store(latency_us, Ordering::Relaxed);
 
         match result {
             Ok(response) => {

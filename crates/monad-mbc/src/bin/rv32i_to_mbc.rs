@@ -110,16 +110,20 @@ fn main() {
     }
 
     // Find .text section (or first executable PROGBITS).
-    let text_section = elf.section_headers.iter().find(|sh| {
-        let name = elf.shdr_strtab.get_at(sh.sh_name).unwrap_or("");
-        name == ".text"
-    }).or_else(|| {
-        // Fallback: first PROGBITS section with EXECINSTR flag.
-        elf.section_headers.iter().find(|sh| {
-            sh.sh_type == goblin::elf::section_header::SHT_PROGBITS
-                && (sh.sh_flags & goblin::elf::section_header::SHF_EXECINSTR as u64) != 0
+    let text_section = elf
+        .section_headers
+        .iter()
+        .find(|sh| {
+            let name = elf.shdr_strtab.get_at(sh.sh_name).unwrap_or("");
+            name == ".text"
         })
-    });
+        .or_else(|| {
+            // Fallback: first PROGBITS section with EXECINSTR flag.
+            elf.section_headers.iter().find(|sh| {
+                sh.sh_type == goblin::elf::section_header::SHT_PROGBITS
+                    && (sh.sh_flags & goblin::elf::section_header::SHF_EXECINSTR as u64) != 0
+            })
+        });
 
     let text_sh = match text_section {
         Some(sh) => sh,
@@ -166,12 +170,14 @@ fn main() {
             );
 
             if show_stats {
-                eprintln!("  ROM usage: {} / 65536 words ({:.1}%)",
+                eprintln!(
+                    "  ROM usage: {} / 65536 words ({:.1}%)",
                     mbc_words.len(),
                     mbc_words.len() as f64 / 65536.0 * 100.0,
                 );
                 eprintln!("  ROM size: {} bytes", mbc_words.len() * 4);
-                eprintln!("  RV2MBC map: {} entries ({} bytes)",
+                eprintln!(
+                    "  RV2MBC map: {} entries ({} bytes)",
                     rv2mbc_map.len(),
                     rv2mbc_map.len() * 4,
                 );
@@ -184,10 +190,7 @@ fn main() {
             }
 
             // Write output.
-            let mbc_bytes: Vec<u8> = mbc_words
-                .iter()
-                .flat_map(|w| w.to_le_bytes())
-                .collect();
+            let mbc_bytes: Vec<u8> = mbc_words.iter().flat_map(|w| w.to_le_bytes()).collect();
 
             if let Some(path) = output_path {
                 if let Err(e) = fs::write(path, &mbc_bytes) {
@@ -203,10 +206,8 @@ fn main() {
                 } else {
                     format!("{path}.rv2mbc")
                 };
-                let rv2mbc_bytes: Vec<u8> = rv2mbc_map
-                    .iter()
-                    .flat_map(|w| w.to_le_bytes())
-                    .collect();
+                let rv2mbc_bytes: Vec<u8> =
+                    rv2mbc_map.iter().flat_map(|w| w.to_le_bytes()).collect();
                 if let Err(e) = fs::write(&rv2mbc_path, &rv2mbc_bytes) {
                     eprintln!("Error writing rv2mbc map: {e}");
                     process::exit(1);
@@ -244,8 +245,12 @@ fn main() {
             for e in &errors {
                 match e {
                     monad_mbc::TranslateError::UnsupportedRegister { .. } => unsupported_regs += 1,
-                    monad_mbc::TranslateError::UnsupportedInstruction { .. } => unsupported_insns += 1,
-                    monad_mbc::TranslateError::UnsupportedFeature { .. } => unsupported_features += 1,
+                    monad_mbc::TranslateError::UnsupportedInstruction { .. } => {
+                        unsupported_insns += 1
+                    }
+                    monad_mbc::TranslateError::UnsupportedFeature { .. } => {
+                        unsupported_features += 1
+                    }
                     _ => other += 1,
                 }
             }

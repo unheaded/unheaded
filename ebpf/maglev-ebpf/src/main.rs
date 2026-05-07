@@ -31,8 +31,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
-    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -258,23 +258,19 @@ fn try_maglev_xdp(ctx: &XdpContext) -> Result<u32, ()> {
             return Ok(xdp_action::XDP_PASS);
         }
         let tcp = unsafe { &*(transport_start as *const TcpHdr) };
-        src_port = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(tcp.src_port))
-        });
-        dst_port = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(tcp.dst_port))
-        });
+        src_port =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(tcp.src_port)) });
+        dst_port =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(tcp.dst_port)) });
     } else if transport_proto == IPPROTO_UDP {
         if transport_start + UDP_HDR_LEN > data_end {
             return Ok(xdp_action::XDP_PASS);
         }
         let udp = unsafe { &*(transport_start as *const UdpHdr) };
-        src_port = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(udp.src_port))
-        });
-        dst_port = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(udp.dst_port))
-        });
+        src_port =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(udp.src_port)) });
+        dst_port =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(udp.dst_port)) });
     }
 
     // ── Compute Flow Hash ──────────────────────────────────────────────────
@@ -307,7 +303,11 @@ fn try_maglev_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     if backend_id.is_none() {
         let table_size = {
             let ts = cfg(CFG_MAGLEV_TABLE_SIZE) as u32;
-            if ts == 0 { MAGLEV_SIZE } else { ts }
+            if ts == 0 {
+                MAGLEV_SIZE
+            } else {
+                ts
+            }
         };
         let idx = flow_hash % table_size;
 

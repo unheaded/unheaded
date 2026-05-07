@@ -61,9 +61,11 @@ fn parse_register(s: &str) -> Result<u8, AssembleError> {
         });
     }
     let num_str = &s[1..];
-    let num: u8 = num_str.parse().map_err(|_| AssembleError::InvalidInstruction {
-        message: format!("Invalid register: '{}'", s),
-    })?;
+    let num: u8 = num_str
+        .parse()
+        .map_err(|_| AssembleError::InvalidInstruction {
+            message: format!("Invalid register: '{}'", s),
+        })?;
     if num > 15 {
         return Err(AssembleError::RegisterOutOfRange {
             register: s.to_string(),
@@ -110,10 +112,7 @@ fn tokenize(line: &str) -> Vec<&str> {
 }
 
 /// Parse a single instruction line. Returns the instruction and whether line was blank/comment.
-fn parse_instruction(
-    line: &str,
-    line_num: usize,
-) -> Result<Option<AsmInsn>, AssembleError> {
+fn parse_instruction(line: &str, line_num: usize) -> Result<Option<AsmInsn>, AssembleError> {
     let line = strip_comment(line).trim();
     if line.is_empty() {
         return Ok(None);
@@ -232,8 +231,8 @@ fn parse_instruction(
     if mnemonic == "SYSCALL" {
         // SYSCALL takes an immediate syscall number
         require_tokens!(1);
-        let imm = parse_immediate(tokens[1].trim_end_matches(','))
-            .map_err(|_| AssembleError::Line {
+        let imm =
+            parse_immediate(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
                 line: line_num,
                 message: format!("Invalid syscall number: '{}'", tokens[1]),
             })?;
@@ -291,12 +290,13 @@ fn parse_instruction(
     // Shift instructions: SHL, SHR, SAR
     if matches!(mnemonic.as_str(), "SHL" | "SHR" | "SAR") {
         require_tokens!(2);
-        let dst = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
-            line: line_num,
-            message: format!("Invalid register: '{}'", tokens[1]),
-        })?;
-        let imm = parse_immediate(tokens[2].trim_end_matches(','))
-            .map_err(|_| AssembleError::Line {
+        let dst =
+            parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
+                line: line_num,
+                message: format!("Invalid register: '{}'", tokens[1]),
+            })?;
+        let imm =
+            parse_immediate(tokens[2].trim_end_matches(',')).map_err(|_| AssembleError::Line {
                 line: line_num,
                 message: format!("Invalid immediate: '{}'", tokens[2]),
             })?;
@@ -320,12 +320,13 @@ fn parse_instruction(
     // ADDI instruction: ADDI rN, imm
     if mnemonic == "ADDI" {
         require_tokens!(2);
-        let dst = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
-            line: line_num,
-            message: format!("Invalid register: '{}'", tokens[1]),
-        })?;
-        let imm = parse_immediate(tokens[2].trim_end_matches(','))
-            .map_err(|_| AssembleError::Line {
+        let dst =
+            parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
+                line: line_num,
+                message: format!("Invalid register: '{}'", tokens[1]),
+            })?;
+        let imm =
+            parse_immediate(tokens[2].trim_end_matches(',')).map_err(|_| AssembleError::Line {
                 line: line_num,
                 message: format!("Invalid immediate: '{}'", tokens[2]),
             })?;
@@ -342,12 +343,13 @@ fn parse_instruction(
     // LOAD_IMM32 instruction: LOAD_IMM32 rN, imm (sets upper 16 bits)
     if mnemonic == "LOAD_IMM32" {
         require_tokens!(2);
-        let dst = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
-            line: line_num,
-            message: format!("Invalid register: '{}'", tokens[1]),
-        })?;
-        let imm = parse_immediate(tokens[2].trim_end_matches(','))
-            .map_err(|_| AssembleError::Line {
+        let dst =
+            parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
+                line: line_num,
+                message: format!("Invalid register: '{}'", tokens[1]),
+            })?;
+        let imm =
+            parse_immediate(tokens[2].trim_end_matches(',')).map_err(|_| AssembleError::Line {
                 line: line_num,
                 message: format!("Invalid immediate: '{}'", tokens[2]),
             })?;
@@ -364,12 +366,13 @@ fn parse_instruction(
     // MOVI instruction
     if mnemonic == "MOVI" {
         require_tokens!(2);
-        let dst = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
-            line: line_num,
-            message: format!("Invalid register: '{}'", tokens[1]),
-        })?;
-        let imm = parse_immediate(tokens[2].trim_end_matches(','))
-            .map_err(|_| AssembleError::Line {
+        let dst =
+            parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
+                line: line_num,
+                message: format!("Invalid register: '{}'", tokens[1]),
+            })?;
+        let imm =
+            parse_immediate(tokens[2].trim_end_matches(',')).map_err(|_| AssembleError::Line {
                 line: line_num,
                 message: format!("Invalid immediate: '{}'", tokens[2]),
             })?;
@@ -464,11 +467,12 @@ fn parse_instruction(
         if mnemonic.starts_with('S') {
             // ST: [r0+N], r1
             let base_reg = reg;
-            let val_reg = parse_register(tokens[2].trim_end_matches(','))
-                .map_err(|_| AssembleError::Line {
+            let val_reg = parse_register(tokens[2].trim_end_matches(',')).map_err(|_| {
+                AssembleError::Line {
                     line: line_num,
                     message: format!("Invalid register: '{}'", tokens[2]),
-                })?;
+                }
+            })?;
 
             let opcode = match mnemonic.as_str() {
                 "ST" => op::ST,
@@ -486,9 +490,11 @@ fn parse_instruction(
             }));
         } else {
             // LD: r0, [r1+N]
-            let val_reg = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| AssembleError::Line {
-                line: line_num,
-                message: format!("Invalid register: '{}'", tokens[1]),
+            let val_reg = parse_register(tokens[1].trim_end_matches(',')).map_err(|_| {
+                AssembleError::Line {
+                    line: line_num,
+                    message: format!("Invalid register: '{}'", tokens[1]),
+                }
             })?;
 
             let opcode = match mnemonic.as_str() {
@@ -649,12 +655,11 @@ pub fn assemble(source: &str) -> Result<Vec<u32>, AssembleError> {
                         message: ".org requires an address argument".to_string(),
                     });
                 }
-                let addr = parse_word_value(tokens[1]).map_err(|_| {
-                    AssembleError::InvalidDirective {
+                let addr =
+                    parse_word_value(tokens[1]).map_err(|_| AssembleError::InvalidDirective {
                         line: line_num,
                         message: format!("Invalid .org address: '{}'", tokens[1]),
-                    }
-                })?;
+                    })?;
 
                 if addr < pc {
                     return Err(AssembleError::OrgBehindPC {
@@ -687,12 +692,11 @@ pub fn assemble(source: &str) -> Result<Vec<u32>, AssembleError> {
                     if part.is_empty() {
                         continue;
                     }
-                    let byte_val = parse_byte_value(part).map_err(|_| {
-                        AssembleError::InvalidDirective {
+                    let byte_val =
+                        parse_byte_value(part).map_err(|_| AssembleError::InvalidDirective {
                             line: line_num,
                             message: format!("Invalid .byte value: '{}'", part),
-                        }
-                    })?;
+                        })?;
                     bytes.push(byte_val);
                 }
                 let words = bytes_to_words(&bytes);
@@ -718,12 +722,11 @@ pub fn assemble(source: &str) -> Result<Vec<u32>, AssembleError> {
                     if part.is_empty() {
                         continue;
                     }
-                    let half_val = parse_half_value(part).map_err(|_| {
-                        AssembleError::InvalidDirective {
+                    let half_val =
+                        parse_half_value(part).map_err(|_| AssembleError::InvalidDirective {
                             line: line_num,
                             message: format!("Invalid .half value: '{}'", part),
-                        }
-                    })?;
+                        })?;
                     halves.push(half_val);
                 }
                 // Pack halves into words (2 halves per word, LE)
@@ -754,12 +757,11 @@ pub fn assemble(source: &str) -> Result<Vec<u32>, AssembleError> {
                     if part.is_empty() {
                         continue;
                     }
-                    let word_val = parse_word_value(part).map_err(|_| {
-                        AssembleError::InvalidDirective {
+                    let word_val =
+                        parse_word_value(part).map_err(|_| AssembleError::InvalidDirective {
                             line: line_num,
                             message: format!("Invalid .word value: '{}'", part),
-                        }
-                    })?;
+                        })?;
                     items.push(AsmItem::RawWord(word_val));
                     pc += 1;
                 }
@@ -782,10 +784,7 @@ pub fn assemble(source: &str) -> Result<Vec<u32>, AssembleError> {
             }
 
             // Check for valid label (alphanumeric, underscore, no spaces)
-            if !label_name
-                .chars()
-                .all(|c| c.is_alphanumeric() || c == '_')
-            {
+            if !label_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
                 return Err(AssembleError::InvalidLabel);
             }
 
@@ -828,11 +827,12 @@ pub fn assemble(source: &str) -> Result<Vec<u32>, AssembleError> {
                 let is_call = insn.opcode == op::CALL;
 
                 if let Some(ref label) = insn.label_ref {
-                    let label_pc = labels
-                        .get(label)
-                        .ok_or_else(|| AssembleError::UndefinedLabel {
-                            label: label.clone(),
-                        })?;
+                    let label_pc =
+                        labels
+                            .get(label)
+                            .ok_or_else(|| AssembleError::UndefinedLabel {
+                                label: label.clone(),
+                            })?;
 
                     if is_call {
                         // CALL uses 24-bit absolute addressing: target PC in lower 24 bits
@@ -868,7 +868,12 @@ pub fn assemble(source: &str) -> Result<Vec<u32>, AssembleError> {
                                 value: relative_offset,
                             });
                         }
-                        let word = MbcInsn::encode(insn.opcode, insn.dst, insn.src, relative_offset as u16);
+                        let word = MbcInsn::encode(
+                            insn.opcode,
+                            insn.dst,
+                            insn.src,
+                            relative_offset as u16,
+                        );
                         output.push(word.0);
                     }
                 } else {
@@ -927,7 +932,10 @@ mod tests {
     fn test_assemble_invalid_register() {
         let code = "ADD r20, r0";
         let result = assemble(code);
-        assert!(matches!(result, Err(AssembleError::RegisterOutOfRange { .. })));
+        assert!(matches!(
+            result,
+            Err(AssembleError::RegisterOutOfRange { .. })
+        ));
     }
 
     #[test]
@@ -1188,7 +1196,10 @@ mod tests {
     fn test_data_section_no_instructions() {
         let code = ".data\nMOVI r0, 42";
         let result = assemble(code);
-        assert!(result.is_err(), "instructions should not be allowed in .data section");
+        assert!(
+            result.is_err(),
+            "instructions should not be allowed in .data section"
+        );
     }
 
     // ---- .org directive tests (Step 112) ----

@@ -35,8 +35,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN,
-    MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE,
+    MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -274,12 +274,18 @@ fn try_nfv_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_CHAINS_EXECUTED);
 
     // Emit chain start event
-    emit_nfv_event(NFV_EVENT_CHAIN_START, chain_key, 0, xdp_action::XDP_PASS, 0, 0);
+    emit_nfv_event(
+        NFV_EVENT_CHAIN_START,
+        chain_key,
+        0,
+        xdp_action::XDP_PASS,
+        0,
+        0,
+    );
 
     // ── Read first function index from chain and tail-call ────────────────────
-    let first_func_idx = unsafe {
-        core::ptr::read_volatile(chain_def.as_ptr().add(4) as *const u32)
-    };
+    let first_func_idx =
+        unsafe { core::ptr::read_volatile(chain_def.as_ptr().add(4) as *const u32) };
 
     // Tail-call into the first function
     unsafe {
@@ -320,9 +326,9 @@ fn try_nfv_firewall(ctx: &XdpContext) -> Result<u32, ()> {
     let mut src_addr = [0u8; 16];
     for i in 0..16usize {
         src_addr[i] = unsafe {
-            core::ptr::read_volatile(
-                core::hint::black_box((data + ETH_HLEN + 8 + i) as *const u8),
-            )
+            core::ptr::read_volatile(core::hint::black_box(
+                (data + ETH_HLEN + 8 + i) as *const u8,
+            ))
         };
     }
 
@@ -367,9 +373,9 @@ fn try_nfv_nat(ctx: &XdpContext) -> Result<u32, ()> {
     let mut src_addr = [0u8; 16];
     for i in 0..16usize {
         src_addr[i] = unsafe {
-            core::ptr::read_volatile(
-                core::hint::black_box((data + ETH_HLEN + 8 + i) as *const u8),
-            )
+            core::ptr::read_volatile(core::hint::black_box(
+                (data + ETH_HLEN + 8 + i) as *const u8,
+            ))
         };
     }
 
@@ -434,7 +440,11 @@ fn try_nfv_rate_limiter(ctx: &XdpContext) -> Result<u32, ()> {
         // Use wrapping_mul — BPF doesn't support u128 (__multi3) from saturating_mul
         let new_tokens_raw = (elapsed_ns.wrapping_mul(rate)) / 1_000_000_000;
         let new_tokens = tokens.saturating_add(new_tokens_raw);
-        let capped_tokens = if new_tokens > burst { burst } else { new_tokens };
+        let capped_tokens = if new_tokens > burst {
+            burst
+        } else {
+            new_tokens
+        };
 
         if capped_tokens == 0 {
             // Rate limited — drop
@@ -527,9 +537,8 @@ fn try_nfv_lb_route(ctx: &XdpContext) -> Result<u32, ()> {
         if count > 0 && count <= 10 {
             // Simple round-robin: use flow label to select backend
             let ip = unsafe { &*((data + ETH_HLEN) as *const Ipv6Hdr) };
-            let vtf = u32::from_be(
-                unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) },
-            );
+            let vtf =
+                u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
             let flow_label = vtf & 0x000F_FFFF;
             let backend_idx = (flow_label % count) as usize;
 
@@ -538,9 +547,9 @@ fn try_nfv_lb_route(ctx: &XdpContext) -> Result<u32, ()> {
             if mac_offset + 6 <= 64 && data + 6 <= data_end {
                 for i in 0..6usize {
                     let mac_byte = unsafe {
-                        core::ptr::read_volatile(
-                            core::hint::black_box(backend_list.as_ptr().add(mac_offset + i)),
-                        )
+                        core::ptr::read_volatile(core::hint::black_box(
+                            backend_list.as_ptr().add(mac_offset + i),
+                        ))
                     };
                     unsafe {
                         core::ptr::write_volatile(
@@ -553,7 +562,14 @@ fn try_nfv_lb_route(ctx: &XdpContext) -> Result<u32, ()> {
                 increment_stat(STAT_LB_ROUTED);
                 increment_stat(STAT_REDIRECTS);
                 set_verdict(xdp_action::XDP_TX);
-                emit_nfv_event(NFV_EVENT_REDIRECT, svc_id, backend_idx as u32, xdp_action::XDP_TX, 0, 0);
+                emit_nfv_event(
+                    NFV_EVENT_REDIRECT,
+                    svc_id,
+                    backend_idx as u32,
+                    xdp_action::XDP_TX,
+                    0,
+                    0,
+                );
             }
         }
     }
@@ -589,8 +605,7 @@ fn advance_chain(ctx: &XdpContext) -> Result<u32, ()> {
         None => return apply_final_verdict(),
     };
 
-    let function_count =
-        unsafe { core::ptr::read_volatile(chain_def.as_ptr() as *const u32) };
+    let function_count = unsafe { core::ptr::read_volatile(chain_def.as_ptr() as *const u32) };
 
     if next_func >= function_count {
         // Chain complete — apply final verdict
@@ -608,9 +623,8 @@ fn advance_chain(ctx: &XdpContext) -> Result<u32, ()> {
     if func_offset + 4 > 44 {
         return apply_final_verdict();
     }
-    let next_prog_idx = unsafe {
-        core::ptr::read_volatile(chain_def.as_ptr().add(func_offset) as *const u32)
-    };
+    let next_prog_idx =
+        unsafe { core::ptr::read_volatile(chain_def.as_ptr().add(func_offset) as *const u32) };
 
     emit_nfv_event(NFV_EVENT_FUNC_EXEC, chain_id, next_func, 0, 0, 0);
 

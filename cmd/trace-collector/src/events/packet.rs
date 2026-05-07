@@ -154,7 +154,8 @@ impl PacketEvent {
         }
 
         // SAFETY: We've verified the length
-        let raw: RawPacketEvent = unsafe { std::ptr::read_unaligned(data.as_ptr() as *const RawPacketEvent) };
+        let raw: RawPacketEvent =
+            unsafe { std::ptr::read_unaligned(data.as_ptr() as *const RawPacketEvent) };
 
         // Parse command name
         let comm = parse_comm(&raw.comm);
@@ -167,8 +168,18 @@ impl PacketEvent {
             )
         } else {
             (
-                IpAddr::V4(Ipv4Addr::new(raw.src_ip[0], raw.src_ip[1], raw.src_ip[2], raw.src_ip[3])),
-                IpAddr::V4(Ipv4Addr::new(raw.dst_ip[0], raw.dst_ip[1], raw.dst_ip[2], raw.dst_ip[3])),
+                IpAddr::V4(Ipv4Addr::new(
+                    raw.src_ip[0],
+                    raw.src_ip[1],
+                    raw.src_ip[2],
+                    raw.src_ip[3],
+                )),
+                IpAddr::V4(Ipv4Addr::new(
+                    raw.dst_ip[0],
+                    raw.dst_ip[1],
+                    raw.dst_ip[2],
+                    raw.dst_ip[3],
+                )),
             )
         };
 

@@ -168,7 +168,10 @@ mod tests {
         let emb = Embedder::hash(384);
         let from_text = emb.embed_text("hello");
         let from_bytes = emb.embed_bytes(b"hello", None);
-        assert_eq!(from_text, from_bytes, "text and bytes of same content must match");
+        assert_eq!(
+            from_text, from_bytes,
+            "text and bytes of same content must match"
+        );
     }
 
     #[test]

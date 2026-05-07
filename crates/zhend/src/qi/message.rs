@@ -3,9 +3,9 @@
 //! All messages are bincode-serialized for compact wire representation.
 //! ALL INPUTS HOSTILE — every deserialized message is validated before use.
 
-use serde::{Deserialize, Serialize};
-use crate::{ZhenError, ZhenResult};
 use super::transport::MAX_MSG_SIZE;
+use crate::{ZhenError, ZhenResult};
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "pq")]
 use crate::crypto::sign::PeerIdentity;
@@ -63,8 +63,8 @@ pub enum GossipMessage {
 impl GossipMessage {
     /// Serialize to wire format (bincode).
     pub fn encode(&self) -> ZhenResult<Vec<u8>> {
-        let bytes = bincode::serialize(self)
-            .map_err(|e| ZhenError::Serialization(e.to_string()))?;
+        let bytes =
+            bincode::serialize(self).map_err(|e| ZhenError::Serialization(e.to_string()))?;
 
         if bytes.len() > MAX_MSG_SIZE {
             return Err(ZhenError::Transport(format!(
@@ -93,8 +93,7 @@ impl GossipMessage {
             )));
         }
 
-        bincode::deserialize(bytes)
-            .map_err(|e| ZhenError::Serialization(e.to_string()))
+        bincode::deserialize(bytes).map_err(|e| ZhenError::Serialization(e.to_string()))
     }
 }
 
@@ -184,7 +183,10 @@ mod tests {
         let decoded = GossipMessage::decode(&encoded).unwrap();
 
         match decoded {
-            GossipMessage::PingAck { incarnation, fragment_count } => {
+            GossipMessage::PingAck {
+                incarnation,
+                fragment_count,
+            } => {
                 assert_eq!(incarnation, 7);
                 assert_eq!(fragment_count, 1024);
             }
@@ -221,7 +223,10 @@ mod tests {
             match decoded {
                 GossipMessage::IdentityOffer { identity } => {
                     assert_eq!(identity.name, Some("offer-node".into()));
-                    assert!(identity.verify_self().unwrap(), "decoded identity must verify");
+                    assert!(
+                        identity.verify_self().unwrap(),
+                        "decoded identity must verify"
+                    );
                 }
                 _ => panic!("wrong variant"),
             }
@@ -239,7 +244,10 @@ mod tests {
             match decoded {
                 GossipMessage::IdentityAck { identity } => {
                     assert_eq!(identity.name, Some("ack-node".into()));
-                    assert!(identity.verify_self().unwrap(), "decoded identity must verify");
+                    assert!(
+                        identity.verify_self().unwrap(),
+                        "decoded identity must verify"
+                    );
                 }
                 _ => panic!("wrong variant"),
             }

@@ -6,8 +6,8 @@
 //! A Pu becomes meaningful only through De (relevance) — like jade that
 //! reveals its Li (pattern) only when cut.
 
-pub mod fragment;
 pub mod codec;
+pub mod fragment;
 pub mod store;
 
 pub use fragment::{Fragment, FragmentId, Tier};

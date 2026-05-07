@@ -229,9 +229,12 @@ mod tests {
     #[test]
     fn ram_map_covers_full_address_space() {
         // RAM_MAP must cover every word address up to STACK_TOP
-        assert!(RAM_MAP_ENTRIES >= STACK_TOP / 4,
+        assert!(
+            RAM_MAP_ENTRIES >= STACK_TOP / 4,
             "RAM_MAP_ENTRIES ({}) must be >= STACK_TOP/4 ({})",
-            RAM_MAP_ENTRIES, STACK_TOP / 4);
+            RAM_MAP_ENTRIES,
+            STACK_TOP / 4
+        );
     }
 
     #[test]
@@ -244,9 +247,15 @@ mod tests {
         assert_eq!(byte_addr_to_word_index(0), Some(0));
         assert_eq!(byte_addr_to_word_index(0x100), Some(0x40));
         // STACK_TOP is well within the map
-        assert_eq!(byte_addr_to_word_index(STACK_TOP - 4), Some(STACK_TOP / 4 - 1));
+        assert_eq!(
+            byte_addr_to_word_index(STACK_TOP - 4),
+            Some(STACK_TOP / 4 - 1)
+        );
         // Last valid word in the map
-        assert_eq!(byte_addr_to_word_index((RAM_MAP_ENTRIES - 1) * 4), Some(RAM_MAP_ENTRIES - 1));
+        assert_eq!(
+            byte_addr_to_word_index((RAM_MAP_ENTRIES - 1) * 4),
+            Some(RAM_MAP_ENTRIES - 1)
+        );
         // Past the end of RAM_MAP
         assert_eq!(byte_addr_to_word_index(RAM_MAP_ENTRIES * 4), None);
     }

@@ -659,7 +659,13 @@ impl CorrelationEngine {
             crate::events::packet::IpProtocol::Other(p) => p,
         };
 
-        FlowKey::new(src_addr, dst_addr, packet.src_port, packet.dst_port, protocol)
+        FlowKey::new(
+            src_addr,
+            dst_addr,
+            packet.src_port,
+            packet.dst_port,
+            protocol,
+        )
     }
 
     /// Run the correlation engine cleanup task

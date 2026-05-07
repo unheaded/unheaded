@@ -12,7 +12,11 @@ use zhend::qi::GossipEngine;
 use zhend::ZhenConfig;
 
 /// Helper to create a test config bound to a specific port.
-fn test_config(gossip_port: u16, seed_peer: Option<String>, data_dir: &std::path::Path) -> ZhenConfig {
+fn test_config(
+    gossip_port: u16,
+    seed_peer: Option<String>,
+    data_dir: &std::path::Path,
+) -> ZhenConfig {
     ZhenConfig {
         data_dir: data_dir.to_path_buf(),
         grpc_addr: "[::1]:0".into(),
@@ -95,10 +99,16 @@ async fn test_two_nodes_gossip_fragment() {
     drop(engine_a);
     drop(engine_b);
 
-    assert!(found, "fragment should have been gossiped from node A to node B within 30 seconds");
+    assert!(
+        found,
+        "fragment should have been gossiped from node A to node B within 30 seconds"
+    );
 
     // Verify the fragment content on node B.
-    let frag_b = store_b.get(&fragment_id).unwrap().expect("fragment should exist on node B");
+    let frag_b = store_b
+        .get(&fragment_id)
+        .unwrap()
+        .expect("fragment should exist on node B");
     assert_eq!(frag_b.payload, payload);
     assert!(frag_b.verify(), "fragment integrity must hold after gossip");
     assert!(frag_b.hop_count >= 1, "hop count should be incremented");
@@ -149,7 +159,8 @@ async fn test_multiple_fragments_gossip() {
     while tokio::time::Instant::now() < deadline {
         tokio::time::sleep(Duration::from_millis(200)).await;
 
-        let found_count = fragment_ids.iter()
+        let found_count = fragment_ids
+            .iter()
             .filter(|id| store_b.contains(id).unwrap_or(false))
             .count();
 
@@ -228,7 +239,10 @@ async fn test_bidirectional_gossip() {
     drop(engine_a);
     drop(engine_b);
 
-    assert!(both_found, "fragments should propagate bidirectionally between A and B");
+    assert!(
+        both_found,
+        "fragments should propagate bidirectionally between A and B"
+    );
 }
 
 /// Get a free port by binding to port 0, reading the assigned port, then dropping the socket.

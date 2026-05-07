@@ -15,9 +15,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use aya::programs::{
-    KProbe, RawTracePoint, SchedClassifier, TcAttachType, Xdp, XdpFlags,
-};
+use aya::programs::{KProbe, RawTracePoint, SchedClassifier, TcAttachType, Xdp, XdpFlags};
 use aya::{programs::tc, Ebpf, EbpfLoader};
 use clap::Parser;
 use log::{info, warn};
@@ -136,7 +134,11 @@ fn main() -> Result<()> {
     if let Some(ref pid_path) = cli.pid_file {
         std::fs::write(pid_path, format!("{}", std::process::id()))
             .with_context(|| format!("Failed to write PID file {}", pid_path.display()))?;
-        info!("PID {} written to {}", std::process::id(), pid_path.display());
+        info!(
+            "PID {} written to {}",
+            std::process::id(),
+            pid_path.display()
+        );
     }
 
     // Wait for signal
@@ -173,13 +175,9 @@ fn dry_run(cli: &Cli, programs: &[&str]) -> Result<()> {
 
     for name in programs {
         let path = cli.obj_dir.join(elf_filename(name));
-        let metadata = std::fs::metadata(&path)
-            .with_context(|| format!("Cannot stat {}", path.display()))?;
-        info!(
-            "[dry-run] {} — {} bytes, valid ELF",
-            name,
-            metadata.len()
-        );
+        let metadata =
+            std::fs::metadata(&path).with_context(|| format!("Cannot stat {}", path.display()))?;
+        info!("[dry-run] {} — {} bytes, valid ELF", name, metadata.len());
     }
 
     info!("[dry-run] All {} objects validated", programs.len());
@@ -201,7 +199,8 @@ fn load_packet_marker(cli: &Cli) -> Result<Ebpf> {
         .context("program 'packet_marker' not found in ELF")?
         .try_into()?;
 
-    prog.load().context("Failed to load packet_marker into kernel")?;
+    prog.load()
+        .context("Failed to load packet_marker into kernel")?;
     prog.attach(&cli.interface, XdpFlags::default())
         .with_context(|| format!("Failed to attach XDP to {}", cli.interface))?;
 
@@ -235,7 +234,9 @@ fn load_flow_tracker(cli: &Cli) -> Result<Ebpf> {
         .program_mut("flow_tracker_ingress")
         .context("program 'flow_tracker_ingress' not found")?
         .try_into()?;
-    ingress.load().context("Failed to load flow_tracker_ingress")?;
+    ingress
+        .load()
+        .context("Failed to load flow_tracker_ingress")?;
     ingress
         .attach(&cli.interface, TcAttachType::Ingress)
         .context("Failed to attach flow_tracker_ingress")?;
@@ -246,7 +247,9 @@ fn load_flow_tracker(cli: &Cli) -> Result<Ebpf> {
         .program_mut("flow_tracker_egress")
         .context("program 'flow_tracker_egress' not found")?
         .try_into()?;
-    egress.load().context("Failed to load flow_tracker_egress")?;
+    egress
+        .load()
+        .context("Failed to load flow_tracker_egress")?;
     egress
         .attach(&cli.interface, TcAttachType::Egress)
         .context("Failed to attach flow_tracker_egress")?;
@@ -352,7 +355,10 @@ fn load_monad_cpu(cli: &Cli) -> Result<Ebpf> {
             } else {
                 match map.pin(&pin) {
                     Ok(()) => info!("  pinned map {} → {}", map_name, pin.display()),
-                    Err(e) => warn!("  failed to pin map {}: {} (may already exist)", map_name, e),
+                    Err(e) => warn!(
+                        "  failed to pin map {}: {} (may already exist)",
+                        map_name, e
+                    ),
                 }
             }
         }
@@ -363,7 +369,8 @@ fn load_monad_cpu(cli: &Cli) -> Result<Ebpf> {
         .context("program 'monad_cpu' not found in ELF")?
         .try_into()?;
 
-    prog.load().context("Failed to load monad_cpu into kernel")?;
+    prog.load()
+        .context("Failed to load monad_cpu into kernel")?;
 
     let flags = if cli.xdp_skb_mode {
         XdpFlags::SKB_MODE
@@ -374,7 +381,11 @@ fn load_monad_cpu(cli: &Cli) -> Result<Ebpf> {
     prog.attach(&cli.interface, flags)
         .with_context(|| format!("Failed to attach monad_cpu XDP to {}", cli.interface))?;
 
-    let mode = if cli.xdp_skb_mode { "SKB/generic" } else { "native" };
+    let mode = if cli.xdp_skb_mode {
+        "SKB/generic"
+    } else {
+        "native"
+    };
     info!(
         "  monad_cpu attached to {} (XDP, mode={})",
         cli.interface, mode
@@ -408,7 +419,8 @@ fn load_shield(cli: &Cli) -> Result<Ebpf> {
         .context("program 'shield_xdp' not found in shield-ebpf ELF")?
         .try_into()?;
 
-    xdp.load().context("Failed to load shield_xdp into kernel")?;
+    xdp.load()
+        .context("Failed to load shield_xdp into kernel")?;
 
     let flags = if cli.xdp_skb_mode {
         XdpFlags::SKB_MODE
@@ -419,7 +431,11 @@ fn load_shield(cli: &Cli) -> Result<Ebpf> {
     xdp.attach(&cli.interface, flags)
         .with_context(|| format!("Failed to attach shield_xdp XDP to {}", cli.interface))?;
 
-    let mode = if cli.xdp_skb_mode { "SKB/generic" } else { "native" };
+    let mode = if cli.xdp_skb_mode {
+        "SKB/generic"
+    } else {
+        "native"
+    };
     info!(
         "  shield_xdp attached to {} (XDP ingress, mode={})",
         cli.interface, mode
@@ -438,7 +454,9 @@ fn load_shield(cli: &Cli) -> Result<Ebpf> {
         .context("program 'shield_tc' not found in shield-ebpf ELF")?
         .try_into()?;
 
-    tc_prog.load().context("Failed to load shield_tc into kernel")?;
+    tc_prog
+        .load()
+        .context("Failed to load shield_tc into kernel")?;
     tc_prog
         .attach(&cli.interface, TcAttachType::Egress)
         .context("Failed to attach shield_tc to TC egress")?;
@@ -500,7 +518,12 @@ fn pin_all_maps(handles: &mut [(&str, Ebpf)]) -> Result<()> {
             if let Err(e) = map.pin(&pin_path) {
                 warn!("Failed to pin {}/{}: {}", prog_name, map_name, e);
             } else {
-                info!("  pinned {}/{} → {}", prog_name, map_name, pin_path.display());
+                info!(
+                    "  pinned {}/{} → {}",
+                    prog_name,
+                    map_name,
+                    pin_path.display()
+                );
             }
         }
     }

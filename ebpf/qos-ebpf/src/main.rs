@@ -30,8 +30,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
-    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -223,9 +223,9 @@ fn try_qos_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // Extract Flow Label and payload length.
     let vtf = u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
     let flow_label = vtf & 0x000F_FFFF;
-    let payload_len = u16::from_be(unsafe {
-        core::ptr::read_unaligned(core::ptr::addr_of!(ip.payload_len))
-    }) as u64;
+    let payload_len =
+        u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.payload_len)) })
+            as u64;
 
     // ── Hop-by-Hop Header ─────────────────────────────────────────────────────
     let hbh_start = ip_start + IPV6_FIXED_HDR_LEN;
@@ -283,7 +283,11 @@ fn try_qos_xdp(ctx: &XdpContext) -> Result<u32, ()> {
             let burst = cfg(CFG_DEFAULT_BURST);
             let target = {
                 let t = cfg(CFG_CODEL_TARGET_US);
-                if t == 0 { DEFAULT_CODEL_TARGET_US } else { t }
+                if t == 0 {
+                    DEFAULT_CODEL_TARGET_US
+                } else {
+                    t
+                }
             };
             (rl, burst, target)
         };
@@ -365,7 +369,11 @@ fn try_qos_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         // Sojourn time exceeds target — check CoDel state.
         let codel_interval = {
             let ci = cfg(CFG_CODEL_INTERVAL_NS);
-            if ci == 0 { DEFAULT_CODEL_INTERVAL_NS } else { ci }
+            if ci == 0 {
+                DEFAULT_CODEL_INTERVAL_NS
+            } else {
+                ci
+            }
         };
 
         if let Some(qs) = QUEUE_STATS.get_ptr_mut(&dst_svc_id) {

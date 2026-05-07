@@ -72,7 +72,7 @@ pub struct MbcCpuState {
     pub mmu_enabled: u8,        // 1
     pub _pad3: u8,              // 1
     pub page_dir_base: u32,     // 4
-}                               // total: 128
+} // total: 128
 
 // Safety: MbcCpuState is #[repr(C)], Copy, contains only primitives.
 unsafe impl aya::Pod for MbcCpuState {}
@@ -92,7 +92,7 @@ const DEFAULT_SP: u32 = 0x03F0_0000;
 #[command(
     name = "doom-runner",
     about = "Doom-over-IPv6 runtime — Aya-based BPF program loader and memory manager",
-    version,
+    version
 )]
 struct Cli {
     #[command(subcommand)]
@@ -120,7 +120,10 @@ enum Commands {
         wad: PathBuf,
 
         /// Path to monad-cpu-ebpf ELF object.
-        #[arg(long, default_value = "ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf")]
+        #[arg(
+            long,
+            default_value = "ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf"
+        )]
         ebpf_obj: PathBuf,
 
         /// Number of hops in the packet ring (2-6).
@@ -207,8 +210,16 @@ async fn main() -> Result<()> {
             headless,
         } => {
             cmd_run(
-                doom_mbc, doom_elf, rv2mbc, wad, ebpf_obj, hops, chain_depth,
-                bridge_addr, skip_ring, headless,
+                doom_mbc,
+                doom_elf,
+                rv2mbc,
+                wad,
+                ebpf_obj,
+                hops,
+                chain_depth,
+                bridge_addr,
+                skip_ring,
+                headless,
             )
             .await
         }
@@ -271,7 +282,9 @@ async fn cmd_run(
             .context("monad_cpu XDP program not found in eBPF object")?
             .try_into()
             .context("monad_cpu is not an XDP program")?;
-        program.load().context("failed to load monad_cpu XDP program")?;
+        program
+            .load()
+            .context("failed to load monad_cpu XDP program")?;
         info!("monad_cpu XDP program loaded into kernel");
 
         // Attach to veth interfaces in the ring
@@ -333,8 +346,7 @@ async fn cmd_run(
     // Step 4: Parse all data files
     info!("parsing doom data files...");
 
-    let sections = loader::parse_elf(&elf_path)
-        .context("failed to parse doom.elf")?;
+    let sections = loader::parse_elf(&elf_path).context("failed to parse doom.elf")?;
     info!(
         "ELF: {} data sections, bss={:#x}+{:#x}, entry=rv:{:#010x}",
         sections.data_sections.len(),
@@ -343,13 +355,15 @@ async fn cmd_run(
         sections.entry_rv_addr,
     );
 
-    let rom = loader::load_mbc_rom(&mbc_path)
-        .context("failed to load doom.mbc")?;
-    info!("ROM: {} MBC instructions ({:.1} KiB)", rom.len(), rom.len() as f64 * 4.0 / 1024.0);
+    let rom = loader::load_mbc_rom(&mbc_path).context("failed to load doom.mbc")?;
+    info!(
+        "ROM: {} MBC instructions ({:.1} KiB)",
+        rom.len(),
+        rom.len() as f64 * 4.0 / 1024.0
+    );
 
     let rv2mbc_data = if let Some(ref path) = rv2mbc_path {
-        let data = loader::load_rv2mbc(path)
-            .context("failed to load rv2mbc")?;
+        let data = loader::load_rv2mbc(path).context("failed to load rv2mbc")?;
         info!("RV2MBC: {} entries", data.len());
         Some(data)
     } else {
@@ -357,13 +371,9 @@ async fn cmd_run(
         None
     };
 
-    let wad_data = loader::load_wad(&wad_path)
-        .context("failed to load WAD")?;
+    let wad_data = loader::load_wad(&wad_path).context("failed to load WAD")?;
 
-    let mut ram_updates = loader::stage_ram_image(
-        &sections.data_sections,
-        Some(&wad_data),
-    )?;
+    let mut ram_updates = loader::stage_ram_image(&sections.data_sections, Some(&wad_data))?;
 
     // heap_ptr is now a normal BSS variable in the program — no magic address.
     // The linker script defines __heap_start/__heap_end. The program initializes
@@ -379,53 +389,72 @@ async fn cmd_run(
     {
         let t = Instant::now();
         let mut rom_map: Array<_, u32> = Array::try_from(
-            ebpf.map_mut("ROM_MAP").context("ROM_MAP not found in eBPF program")?,
+            ebpf.map_mut("ROM_MAP")
+                .context("ROM_MAP not found in eBPF program")?,
         )?;
         info!("ROM_MAP: writing {} instructions...", rom.len());
         for (i, insn) in rom.iter().enumerate() {
-            rom_map.set(i as u32, insn, 0)
+            rom_map
+                .set(i as u32, insn, 0)
                 .with_context(|| format!("ROM_MAP write failed at index {i}"))?;
         }
-        info!("ROM_MAP: {} entries written in {:.1}s", rom.len(), t.elapsed().as_secs_f64());
+        info!(
+            "ROM_MAP: {} entries written in {:.1}s",
+            rom.len(),
+            t.elapsed().as_secs_f64()
+        );
     }
 
     // 5b: RAM_MAP — ELF data sections + WAD
     {
         let t = Instant::now();
         let mut ram_map: Array<_, u32> = Array::try_from(
-            ebpf.map_mut("RAM_MAP").context("RAM_MAP not found in eBPF program")?,
+            ebpf.map_mut("RAM_MAP")
+                .context("RAM_MAP not found in eBPF program")?,
         )?;
         info!("RAM_MAP: writing {} non-zero words...", ram_updates.len());
         let total = ram_updates.len();
         for (n, (idx, val)) in ram_updates.iter().enumerate() {
-            ram_map.set(*idx, val, 0)
+            ram_map
+                .set(*idx, val, 0)
                 .with_context(|| format!("RAM_MAP write failed at word index {idx:#x}"))?;
             if (n + 1) % 100_000 == 0 {
                 let pct = (n + 1) as f64 / total as f64 * 100.0;
                 info!("RAM_MAP: [{pct:.1}%] {}/{total} words written", n + 1);
             }
         }
-        info!("RAM_MAP: {} entries written in {:.1}s", total, t.elapsed().as_secs_f64());
+        info!(
+            "RAM_MAP: {} entries written in {:.1}s",
+            total,
+            t.elapsed().as_secs_f64()
+        );
     }
 
     // 5c: RV2MBC_MAP — address translation table
     if let Some(ref rv2mbc) = rv2mbc_data {
         let t = Instant::now();
         let mut rv2mbc_map: Array<_, u32> = Array::try_from(
-            ebpf.map_mut("RV2MBC_MAP").context("RV2MBC_MAP not found in eBPF program")?,
+            ebpf.map_mut("RV2MBC_MAP")
+                .context("RV2MBC_MAP not found in eBPF program")?,
         )?;
         info!("RV2MBC_MAP: writing {} entries...", rv2mbc.len());
         for (i, val) in rv2mbc.iter().enumerate() {
-            rv2mbc_map.set(i as u32, val, 0)
+            rv2mbc_map
+                .set(i as u32, val, 0)
                 .with_context(|| format!("RV2MBC_MAP write failed at index {i}"))?;
         }
-        info!("RV2MBC_MAP: {} entries written in {:.1}s", rv2mbc.len(), t.elapsed().as_secs_f64());
+        info!(
+            "RV2MBC_MAP: {} entries written in {:.1}s",
+            rv2mbc.len(),
+            t.elapsed().as_secs_f64()
+        );
     }
 
     // 5d: CPU_MAP — initial CPU state
     {
         let mut cpu_map: AyaHashMap<_, u32, MbcCpuState> = AyaHashMap::try_from(
-            ebpf.map_mut("CPU_MAP").context("CPU_MAP not found in eBPF program")?,
+            ebpf.map_mut("CPU_MAP")
+                .context("CPU_MAP not found in eBPF program")?,
         )?;
 
         let mut cpu = MbcCpuState {
@@ -458,7 +487,8 @@ async fn cmd_run(
         cpu.regs[10] = memory::HEAP_START;
         cpu.regs[11] = memory::HEAP_SIZE;
 
-        cpu_map.insert(CPU_INSTANCE_ID, cpu, 0)
+        cpu_map
+            .insert(CPU_INSTANCE_ID, cpu, 0)
             .context("CPU_MAP insert failed")?;
         info!(
             "CPU_MAP: instance {CPU_INSTANCE_ID:#x} initialized (pc=0, sp={:#x}, heap={:#x}+{:#x})",
@@ -508,19 +538,22 @@ fn verify_maps(
 ) -> Result<()> {
     // Verify ROM_MAP[0]
     {
-        let rom_map: Array<_, u32> = Array::try_from(
-            ebpf.map_mut("ROM_MAP").context("ROM_MAP not found")?,
-        )?;
-        let first_insn = rom_map.get(&0, 0).context("ROM_MAP read failed at index 0")?;
+        let rom_map: Array<_, u32> =
+            Array::try_from(ebpf.map_mut("ROM_MAP").context("ROM_MAP not found")?)?;
+        let first_insn = rom_map
+            .get(&0, 0)
+            .context("ROM_MAP read failed at index 0")?;
         if first_insn != rom[0] {
             bail!(
                 "ROM_MAP verification FAILED: expected {:#010x} at index 0, got {:#010x}",
-                rom[0], first_insn,
+                rom[0],
+                first_insn,
             );
         }
         // Also check last instruction
         let last_idx = (rom.len() - 1) as u32;
-        let last_insn = rom_map.get(&last_idx, 0)
+        let last_insn = rom_map
+            .get(&last_idx, 0)
             .with_context(|| format!("ROM_MAP read failed at index {last_idx}"))?;
         if last_insn != rom[rom.len() - 1] {
             bail!(
@@ -528,15 +561,20 @@ fn verify_maps(
                 rom[rom.len() - 1], last_insn,
             );
         }
-        info!("ROM_MAP: PASS (first={:#010x}, last={:#010x}, {} entries)", first_insn, last_insn, rom.len());
+        info!(
+            "ROM_MAP: PASS (first={:#010x}, last={:#010x}, {} entries)",
+            first_insn,
+            last_insn,
+            rom.len()
+        );
     }
 
     // Verify CPU_MAP[0xDE]
     {
-        let cpu_map: AyaHashMap<_, u32, MbcCpuState> = AyaHashMap::try_from(
-            ebpf.map_mut("CPU_MAP").context("CPU_MAP not found")?,
-        )?;
-        let cpu = cpu_map.get(&CPU_INSTANCE_ID, 0)
+        let cpu_map: AyaHashMap<_, u32, MbcCpuState> =
+            AyaHashMap::try_from(ebpf.map_mut("CPU_MAP").context("CPU_MAP not found")?)?;
+        let cpu = cpu_map
+            .get(&CPU_INSTANCE_ID, 0)
             .context("CPU_MAP read failed for instance 0xDE")?;
         if cpu.pc != 0 {
             bail!("CPU_MAP verification FAILED: pc={}, expected 0", cpu.pc);
@@ -548,7 +586,10 @@ fn verify_maps(
             );
         }
         if cpu.halted != 0 {
-            bail!("CPU_MAP verification FAILED: halted={}, expected 0", cpu.halted);
+            bail!(
+                "CPU_MAP verification FAILED: halted={}, expected 0",
+                cpu.halted
+            );
         }
         info!(
             "CPU_MAP: PASS (instance={CPU_INSTANCE_ID:#x}, pc={}, sp={:#x}, halted={})",
@@ -558,11 +599,11 @@ fn verify_maps(
 
     // Verify WAD magic at WAD_BASE
     if wad_data.len() >= 4 {
-        let mut ram_map: Array<_, u32> = Array::try_from(
-            ebpf.map_mut("RAM_MAP").context("RAM_MAP not found")?,
-        )?;
+        let mut ram_map: Array<_, u32> =
+            Array::try_from(ebpf.map_mut("RAM_MAP").context("RAM_MAP not found")?)?;
         let wad_base_word = memory::WAD_BASE / 4;
-        let wad_first_word = ram_map.get(&wad_base_word, 0)
+        let wad_first_word = ram_map
+            .get(&wad_base_word, 0)
             .with_context(|| format!("RAM_MAP read failed at WAD_BASE word {wad_base_word:#x}"))?;
         let expected = u32::from_le_bytes([wad_data[0], wad_data[1], wad_data[2], wad_data[3]]);
         if wad_first_word != expected {
@@ -581,14 +622,16 @@ fn verify_maps(
         // when WAD size doesn't match the hardcoded value.
         let wad_size_word = memory::WAD_SIZE_ADDR / 4;
         ram_map.set(wad_size_word, wad_data.len() as u32, 0)?;
-        info!("RAM_MAP: WAD size {} bytes written to {wad_size_word:#x}", wad_data.len());
+        info!(
+            "RAM_MAP: WAD size {} bytes written to {wad_size_word:#x}",
+            wad_data.len()
+        );
     }
 
     // Verify STATS map is empty/zeroed
     {
-        let stats: AyaHashMap<_, u32, u64> = AyaHashMap::try_from(
-            ebpf.map_mut("STATS").context("STATS not found")?,
-        )?;
+        let stats: AyaHashMap<_, u32, u64> =
+            AyaHashMap::try_from(ebpf.map_mut("STATS").context("STATS not found")?)?;
         // STATS is a HashMap — empty means no entries yet (no packets processed)
         let count = stats.iter().count();
         if count == 0 {
@@ -683,18 +726,20 @@ fn cmd_layout() -> Result<()> {
         memory::WAD_BASE + memory::WAD_MAX_SIZE,
         memory::WAD_MAX_SIZE / (1024 * 1024),
     );
-    println!(
-        "  Debug         {:#010x}",
-        memory::DEBUG_BASE,
-    );
-    println!(
-        "  Stack top     {:#010x}   (grows down)",
-        memory::STACK_TOP,
-    );
+    println!("  Debug         {:#010x}", memory::DEBUG_BASE,);
+    println!("  Stack top     {:#010x}   (grows down)", memory::STACK_TOP,);
     println!();
     println!("BPF Map Sizing:");
-    println!("  ROM_MAP:    {:>10} entries ({} MiB)", memory::ROM_MAP_ENTRIES, memory::ROM_MAP_ENTRIES * 4 / (1024 * 1024));
-    println!("  RAM_MAP:    {:>10} entries ({} MiB)", memory::RAM_MAP_ENTRIES, memory::RAM_MAP_ENTRIES * 4 / (1024 * 1024));
+    println!(
+        "  ROM_MAP:    {:>10} entries ({} MiB)",
+        memory::ROM_MAP_ENTRIES,
+        memory::ROM_MAP_ENTRIES * 4 / (1024 * 1024)
+    );
+    println!(
+        "  RAM_MAP:    {:>10} entries ({} MiB)",
+        memory::RAM_MAP_ENTRIES,
+        memory::RAM_MAP_ENTRIES * 4 / (1024 * 1024)
+    );
     println!("  SCREEN_MAP: {:>10} entries", memory::SCREEN_MAP_ENTRIES);
     println!("  CPU_MAP:    {:>10} entries", memory::CPU_MAP_ENTRIES);
     println!("  KBD_MAP:    {:>10} entries", memory::KBD_MAP_ENTRIES);
