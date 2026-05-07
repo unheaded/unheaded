@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# pre-commit — Unheaded minimum-viable pre-commit hook.
+#
+# Purpose: catch gofmt drift and vet errors on staged Go files BEFORE they land.
+# Closes Marshal CE5 (2026-05-06): the missing hook that allowed gofmt drift
+# across services/wotan + pkg/auth/champion/discovery (fixed in 2bcd2a63).
+#
+# Behavior:
+#   - If no .go files staged: exits 0 silently.
+#   - If staged .go files have gofmt drift: prints offending paths, exits 1.
+#   - If `go vet` fails on packages owning staged Go changes: prints output, exits 1.
+#   - All other output suppressed (terse-on-success).
+#
+# Bypass: `git commit --no-verify` (standard escape hatch).
+#
+# Install: `make install-hooks` (symlinks this file to .git/hooks/pre-commit).
+
+set -euo pipefail
+
+# Collect staged .go files (Added/Copied/Modified/Renamed, NUL-delimited for safety).
+mapfile -d '' STAGED_GO < <(
+    git diff --cached --name-only --diff-filter=ACMR -z -- '*.go' 2>/dev/null || true
+)
+
+# Nothing Go-related staged → nothing to do.
+if [ "${#STAGED_GO[@]}" -eq 0 ]; then
+    exit 0
+fi
+
+# Filter out files that no longer exist on disk (e.g. partial stage races).
+EXISTING=()
+for f in "${STAGED_GO[@]}"; do
+    [ -f "$f" ] && EXISTING+=("$f")
+done
+
+if [ "${#EXISTING[@]}" -eq 0 ]; then
+    exit 0
+fi
+
+# 1. gofmt drift check on staged files.
+if ! command -v gofmt >/dev/null 2>&1; then
+    echo "pre-commit: gofmt not on PATH; install Go toolchain or commit --no-verify" >&2
+    exit 1
+fi
+
+DRIFT="$(gofmt -l "${EXISTING[@]}" 2>&1 || true)"
+if [ -n "$DRIFT" ]; then
+    echo "pre-commit: gofmt drift detected in staged files:" >&2
+    echo "$DRIFT" | sed 's/^/  /' >&2
+    echo "pre-commit: run \`gofmt -w <file>\` (or \`make fmt\`) and re-stage." >&2
+    exit 1
+fi
+
+# 2. go vet on packages owning staged Go changes.
+if ! command -v go >/dev/null 2>&1; then
+    echo "pre-commit: go not on PATH; install Go toolchain or commit --no-verify" >&2
+    exit 1
+fi
+
+# Map staged files → unique parent dirs → ./dir form for `go vet`.
+declare -A PKG_SET=()
+for f in "${EXISTING[@]}"; do
+    d="$(dirname "$f")"
+    PKG_SET["./$d"]=1
+done
+
+PKGS=()
+for p in "${!PKG_SET[@]}"; do
+    PKGS+=("$p")
+done
+
+VET_OUT="$(go vet "${PKGS[@]}" 2>&1 || true)"
+if [ -n "$VET_OUT" ]; then
+    echo "pre-commit: go vet failed for staged packages:" >&2
+    echo "$VET_OUT" | sed 's/^/  /' >&2
+    exit 1
+fi
+
+exit 0

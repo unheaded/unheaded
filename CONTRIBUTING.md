@@ -20,6 +20,7 @@ git clone https://github.com/unheaded/unheaded.git
 cd unheaded
 go mod download
 go build ./...
+make install-hooks   # local pre-commit hook: gofmt + go vet on staged changes
 ```
 
 ## Build & Test

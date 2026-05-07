@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# test-pre-commit.sh — Audit-trail test for scripts/git-hooks/pre-commit.
+#
+# Verifies the hook behaves correctly:
+#   T1: empty stage    → exit 0 (silent).
+#   T2: gofmt-drift    → exit non-zero, prints offending file.
+#   T3: clean Go file  → exit 0.
+#
+# Self-contained: stages temp files inside the repo, runs the hook, then
+# unstages and removes them in a trap. Aborts with PASS/FAIL line.
+#
+# Run: bash scripts/git-hooks/test-pre-commit.sh
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+HOOK="scripts/git-hooks/pre-commit"
+SCRATCH_DIR="scripts/git-hooks/.scratch-test"
+DRIFT_FILE="$SCRATCH_DIR/drift_test.go"
+CLEAN_FILE="$SCRATCH_DIR/clean_test.go"
+
+cleanup() {
+    local rc=$?
+    # Unstage anything we staged, then remove scratch dir.
+    if [ -d "$SCRATCH_DIR" ]; then
+        git reset -q -- "$SCRATCH_DIR" 2>/dev/null || true
+        rm -rf "$SCRATCH_DIR"
+    fi
+    return $rc
+}
+trap cleanup EXIT
+
+mkdir -p "$SCRATCH_DIR"
+
+# Drift file: missing space after package keyword and bad indentation/braces.
+# gofmt will rewrite it, so `gofmt -l` reports it.
+cat >"$DRIFT_FILE" <<'EOF'
+// SPDX-License-Identifier: GPL-3.0-or-later
+package scratch
+import"fmt"
+func   Bad( ){fmt.Println( "drift" ) }
+EOF
+
+# Clean file: already gofmt'd and vet-clean.
+cat >"$CLEAN_FILE" <<'EOF'
+// SPDX-License-Identifier: GPL-3.0-or-later
+package scratch
+
+import "fmt"
+
+func Good() { fmt.Println("clean") }
+EOF
+
+fail() {
+    echo "FAIL: $*" >&2
+    exit 1
+}
+
+# ---------- T1: empty stage → hook exits 0 silently ----------
+# (Nothing staged because we haven't `git add`-ed yet.)
+out_t1="$(bash "$HOOK" 2>&1)"
+rc_t1=$?
+if [ "$rc_t1" -ne 0 ]; then
+    fail "T1 empty stage: expected exit 0, got $rc_t1 (output: $out_t1)"
+fi
+if [ -n "$out_t1" ]; then
+    fail "T1 empty stage: expected silent, got: $out_t1"
+fi
+
+# ---------- T2: drift staged → hook exits non-zero, names file ----------
+git add -- "$DRIFT_FILE"
+set +e
+out_t2="$(bash "$HOOK" 2>&1)"
+rc_t2=$?
+set -e
+git reset -q -- "$DRIFT_FILE"
+
+if [ "$rc_t2" -eq 0 ]; then
+    fail "T2 drift: hook exited 0, expected non-zero. Output: $out_t2"
+fi
+if ! echo "$out_t2" | grep -q "gofmt drift"; then
+    fail "T2 drift: expected 'gofmt drift' in output, got: $out_t2"
+fi
+if ! echo "$out_t2" | grep -q "drift_test.go"; then
+    fail "T2 drift: expected offending filename in output, got: $out_t2"
+fi
+
+# ---------- T3: clean staged → hook exits 0 ----------
+git add -- "$CLEAN_FILE"
+set +e
+out_t3="$(bash "$HOOK" 2>&1)"
+rc_t3=$?
+set -e
+git reset -q -- "$CLEAN_FILE"
+
+if [ "$rc_t3" -ne 0 ]; then
+    fail "T3 clean: hook exited $rc_t3, expected 0. Output: $out_t3"
+fi
+
+echo "PASS: T1 empty=silent/0  T2 drift=blocked  T3 clean=passes"
+exit 0
