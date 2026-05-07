@@ -27,8 +27,8 @@ func makeTestToken(t *testing.T, claims *JWTClaims) string {
 func newJWTAuth() *JWTAuthenticator {
 	return NewJWTAuthenticator(JWTConfig{
 		SigningKey: testSigningKey,
-		Issuer:    "https://auth.unheaded.dev",
-		Audience:  "unheaded-api",
+		Issuer:     "https://auth.unheaded.dev",
+		Audience:   "unheaded-api",
 	})
 }
 
@@ -164,7 +164,7 @@ func TestJWTAuthenticator_WrongIssuer(t *testing.T) {
 func TestJWTAuthenticator_RoleEscalation(t *testing.T) {
 	// Authenticator only allows "readonly" role
 	auth := NewJWTAuthenticator(JWTConfig{
-		SigningKey:    testSigningKey,
+		SigningKey:   testSigningKey,
 		Issuer:       "https://auth.unheaded.dev",
 		Audience:     "unheaded-api",
 		AllowedRoles: []string{"readonly"},
@@ -538,8 +538,8 @@ func TestSignToken_Roundtrip(t *testing.T) {
 	// Parse it back
 	auth := NewJWTAuthenticator(JWTConfig{
 		SigningKey: key,
-		Issuer:    "https://auth.unheaded.dev",
-		Audience:  "captain",
+		Issuer:     "https://auth.unheaded.dev",
+		Audience:   "captain",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/test", nil)

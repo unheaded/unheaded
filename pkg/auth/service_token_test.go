@@ -18,7 +18,7 @@ var testServiceKey = []byte("service-mesh-shared-secret-for-unheaded-tests!")
 
 func TestServiceTokenManager_GenerateAndValidate(t *testing.T) {
 	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "timeguru",
 		TTL:         5 * time.Minute,
 	})
@@ -37,7 +37,7 @@ func TestServiceTokenManager_GenerateAndValidate(t *testing.T) {
 
 	// Validate from captain's side
 	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "captain",
 	})
 	if err != nil {
@@ -84,7 +84,7 @@ func TestServiceTokenManager_ExpiredRejected(t *testing.T) {
 	}
 
 	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "captain",
 	})
 	if err != nil {
@@ -103,7 +103,7 @@ func TestServiceTokenManager_ExpiredRejected(t *testing.T) {
 
 func TestServiceTokenManager_WrongAudienceRejected(t *testing.T) {
 	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "timeguru",
 		TTL:         5 * time.Minute,
 	})
@@ -119,7 +119,7 @@ func TestServiceTokenManager_WrongAudienceRejected(t *testing.T) {
 
 	// Validate from architect (wrong audience)
 	architectMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "architect",
 	})
 	if err != nil {
@@ -138,7 +138,7 @@ func TestServiceTokenManager_WrongAudienceRejected(t *testing.T) {
 
 func TestServiceTokenManager_WrongSigningKeyRejected(t *testing.T) {
 	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   []byte("key-from-service-A"),
+		SigningKey:  []byte("key-from-service-A"),
 		ServiceName: "timeguru",
 		TTL:         5 * time.Minute,
 	})
@@ -153,7 +153,7 @@ func TestServiceTokenManager_WrongSigningKeyRejected(t *testing.T) {
 
 	// Captain uses a different key
 	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   []byte("different-key-for-service-B"),
+		SigningKey:  []byte("different-key-for-service-B"),
 		ServiceName: "captain",
 	})
 	if err != nil {
@@ -179,7 +179,7 @@ func TestServiceTokenManager_KeyFromFile(t *testing.T) {
 
 	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
 		SigningKeyFile: keyFile,
-		ServiceName:   "monad",
+		ServiceName:    "monad",
 	})
 	if err != nil {
 		t.Fatalf("NewServiceTokenManager: %v", err)
@@ -193,7 +193,7 @@ func TestServiceTokenManager_KeyFromFile(t *testing.T) {
 	// Validate
 	sophiaMgr, err := NewServiceTokenManager(ServiceTokenConfig{
 		SigningKeyFile: keyFile,
-		ServiceName:   "sophia",
+		ServiceName:    "sophia",
 	})
 	if err != nil {
 		t.Fatalf("NewServiceTokenManager (sophia): %v", err)
@@ -231,7 +231,7 @@ func TestServiceTokenManager_FromEnvVar(t *testing.T) {
 
 	// Validate
 	timeGuruMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "timeguru",
 	})
 	if err != nil {
@@ -274,7 +274,7 @@ func TestServiceTokenManager_NoServiceNameError(t *testing.T) {
 
 func TestServiceTokenManager_DefaultTTL(t *testing.T) {
 	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "test",
 		// TTL deliberately 0 — should use default
 	})
@@ -294,7 +294,7 @@ func TestServiceTokenManager_DefaultTTL(t *testing.T) {
 // TestServiceTokenValidAuth verifies a valid service token is accepted.
 func TestServiceTokenValidAuth(t *testing.T) {
 	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "timeguru",
 		TTL:         5 * time.Minute,
 	})
@@ -308,7 +308,7 @@ func TestServiceTokenValidAuth(t *testing.T) {
 	}
 
 	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "captain",
 	})
 	if err != nil {
@@ -349,7 +349,7 @@ func TestServiceTokenExpiredRejected(t *testing.T) {
 	}
 
 	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "captain",
 	})
 	if err != nil {
@@ -369,7 +369,7 @@ func TestServiceTokenExpiredRejected(t *testing.T) {
 // TestServiceTokenCannotEscalateToAdmin verifies service tokens cannot get admin role.
 func TestServiceTokenCannotEscalateToAdmin(t *testing.T) {
 	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "timeguru",
 		TTL:         5 * time.Minute,
 	})
@@ -383,7 +383,7 @@ func TestServiceTokenCannotEscalateToAdmin(t *testing.T) {
 	}
 
 	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "captain",
 	})
 	if err != nil {
@@ -420,7 +420,7 @@ func TestServiceTokenIdentifiesCallingService(t *testing.T) {
 
 	for _, svc := range services {
 		mgr, err := NewServiceTokenManager(ServiceTokenConfig{
-			SigningKey:   testServiceKey,
+			SigningKey:  testServiceKey,
 			ServiceName: svc,
 			TTL:         5 * time.Minute,
 		})
@@ -435,7 +435,7 @@ func TestServiceTokenIdentifiesCallingService(t *testing.T) {
 
 		// Validate from destination
 		dstMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-			SigningKey:   testServiceKey,
+			SigningKey:  testServiceKey,
 			ServiceName: "destination",
 		})
 		if err != nil {
@@ -463,7 +463,7 @@ func TestServiceTokenIdentifiesCallingService(t *testing.T) {
 func TestServiceTokenRotationGracePeriod(t *testing.T) {
 	// Create a token that is valid but very close to expiry
 	mgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "timeguru",
 		TTL:         10 * time.Second, // Short TTL
 	})
@@ -478,7 +478,7 @@ func TestServiceTokenRotationGracePeriod(t *testing.T) {
 
 	// Validate immediately — should work
 	captainMgr, err := NewServiceTokenManager(ServiceTokenConfig{
-		SigningKey:   testServiceKey,
+		SigningKey:  testServiceKey,
 		ServiceName: "captain",
 	})
 	if err != nil {

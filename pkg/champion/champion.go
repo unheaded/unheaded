@@ -39,10 +39,10 @@ type Action struct {
 
 // SearchResult represents a corpus search result.
 type SearchResult struct {
-	Content    string  `json:"content"`
-	Source     string  `json:"source"`
-	Relevance  float64 `json:"relevance"`
-	ChunkType  string  `json:"type"`
+	Content   string  `json:"content"`
+	Source    string  `json:"source"`
+	Relevance float64 `json:"relevance"`
+	ChunkType string  `json:"type"`
 }
 
 // ServiceStatus represents the health of a Kingdom service.

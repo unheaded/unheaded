@@ -126,15 +126,15 @@ func (s *Store) GetActions(ctx context.Context, sessionID string, limit int) ([]
 	var actions []champion.Action
 	for rows.Next() {
 		var (
-			a            champion.Action
-			intent       sql.NullString
-			parameters   sql.NullString
-			result       sql.NullString
-			summary      sql.NullString
-			errMsg       sql.NullString
-			triggeredBy  sql.NullString
-			completedAt  sql.NullTime
-			elapsedMs    sql.NullInt64
+			a           champion.Action
+			intent      sql.NullString
+			parameters  sql.NullString
+			result      sql.NullString
+			summary     sql.NullString
+			errMsg      sql.NullString
+			triggeredBy sql.NullString
+			completedAt sql.NullTime
+			elapsedMs   sql.NullInt64
 		)
 		if err := rows.Scan(
 			&a.ID, &a.SessionID, &a.ActionType, &a.Status,

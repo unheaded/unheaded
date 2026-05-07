@@ -48,11 +48,11 @@ type ToolCall struct {
 type Reference struct {
 	Topic       string `json:"topic"`
 	Category    string `json:"category"`
-	SourceKind  string `json:"source_kind"`        // "embedded" | "user-custom" | "user-source"
-	SourceTrust string `json:"source_trust"`       // "canonical" | "local" | "external"
+	SourceKind  string `json:"source_kind"`  // "embedded" | "user-custom" | "user-source"
+	SourceTrust string `json:"source_trust"` // "canonical" | "local" | "external"
 	SourcePath  string `json:"source_path,omitempty"`
 	SourceLabel string `json:"source_label,omitempty"`
-	Excerpt     string `json:"excerpt,omitempty"`  // 200-char snippet for audit
+	Excerpt     string `json:"excerpt,omitempty"` // 200-char snippet for audit
 }
 
 // MutatingTools is the canonical list of tool names that modify state.
@@ -92,11 +92,11 @@ var ReadOnlyTools = map[string]bool{
 // Word boundaries (\b) ensure "rebootstrap" doesn't match "reboot" and
 // "format-string" doesn't match "format". (?i) for case-insensitive.
 var destructivePattern = regexp.MustCompile(`(?i)` + strings.Join([]string{
-	`rm\s+-[rf]+\b`,                  // rm -rf, rm -f, rm -r
-	`rm\s+/`,                         // rm / (rooted)
+	`rm\s+-[rf]+\b`, // rm -rf, rm -f, rm -r
+	`rm\s+/`,        // rm / (rooted)
 	`\bdrop\s+table\b`,
 	`\bdrop\s+database\b`,
-	`\bmkfs(\.[a-z0-9]+)?\b`,         // mkfs, mkfs.ext4, mkfs.xfs, ...
+	`\bmkfs(\.[a-z0-9]+)?\b`, // mkfs, mkfs.ext4, mkfs.xfs, ...
 	`\bdd\s+(if|of)=`,
 	`\bwipe\b`,
 	`\bshutdown\b`,
@@ -107,7 +107,7 @@ var destructivePattern = regexp.MustCompile(`(?i)` + strings.Join([]string{
 	`git\s+push\s+--force\b`,
 	`git\s+reset\s+--hard\b`,
 	`\bchmod\s+(-R\s+)?000\b`,
-	`>\s*/dev/sd[a-z]\b`,             // > /dev/sda, /dev/sdb, ...
+	`>\s*/dev/sd[a-z]\b`, // > /dev/sda, /dev/sdb, ...
 }, "|"))
 
 // IsMutating reports whether the tool call would modify state. Returns
@@ -135,17 +135,17 @@ func (tc *ToolCall) IsMutating() bool {
 //     (fail-closed) because:
 //
 //     1. An attacker can craft a prompt that doesn't match the seed-
-//        retrieval pattern (refs ends up empty) AND inlines a poisoned-
-//        content reference textually in the user prompt. The model is
-//        influenced by the inline content; the gate sees no refs.
-//        Without this check the gate is bypassable in that case.
-//        See eval/coding-gate/probe-2026-05-02/A2-agent-adversarial.md.
+//     retrieval pattern (refs ends up empty) AND inlines a poisoned-
+//     content reference textually in the user prompt. The model is
+//     influenced by the inline content; the gate sees no refs.
+//     Without this check the gate is bypassable in that case.
+//     See eval/coding-gate/probe-2026-05-02/A2-agent-adversarial.md.
 //
 //     2. A model that emits a tool call without ANY justification chain
-//        has no demonstrable grounding for the call — caller should
-//        either supply a justification or explicitly opt into
-//        DirectTrusted by populating Justification with a single
-//        canonical reference (e.g., {SourceTrust: "direct-user"}).
+//     has no demonstrable grounding for the call — caller should
+//     either supply a justification or explicitly opt into
+//     DirectTrusted by populating Justification with a single
+//     canonical reference (e.g., {SourceTrust: "direct-user"}).
 //
 // For non-mutating (read-only) tools, empty justification is fine —
 // reading without a citation is normal exploration.
@@ -217,11 +217,16 @@ type ToolCallDecision struct {
 // every attempted call.
 //
 // Rule 1: existing path-allowlist gate (delegates to validatePath
-//   for tool calls that include a `path` arg).
+//
+//	for tool calls that include a `path` arg).
+//
 // Rule 2: mutating + untrusted justification → refuse pending
-//   out-of-band user confirmation. PendingConfirmation=true.
+//
+//	out-of-band user confirmation. PendingConfirmation=true.
+//
 // Rule 3: any string arg contains a destructive shell verb → refuse
-//   absolutely (defense-in-depth even when justification is trusted).
+//
+//	absolutely (defense-in-depth even when justification is trusted).
 //
 // The ordering matters: Rule 3 takes precedence over Rule 2, which
 // takes precedence over Rule 1, so a destructive payload is logged

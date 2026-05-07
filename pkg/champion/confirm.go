@@ -119,6 +119,7 @@ func freshToken() (string, error) {
 //   - the tool name and args
 //   - the untrusted reference summary
 //   - a prominent "this came from a user-added external source" warning
+//
 // before showing the token to the human.
 func (c *Champion) IssuePendingConfirmation(tc ToolCall) (string, error) {
 	if c.confirmStore == nil {

@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/uuid"
 	"unheaded/pkg/httputil"
-	"unheaded/services/wotan/internal/wotan"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/wotan"
 )
 
 const testAdminAPIKey = "test-admin-key"
@@ -1604,8 +1604,8 @@ func BenchmarkApproveMember(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		reqBody := struct {
-		MemberID uuid.UUID `json:"member_id"`
-	}{MemberID: members[i]}
+			MemberID uuid.UUID `json:"member_id"`
+		}{MemberID: members[i]}
 		bodyBytes, _ := json.Marshal(reqBody)
 		req := httptest.NewRequest(http.MethodPost, "/admin/approve", bytes.NewReader(bodyBytes))
 		req.Header.Set("Content-Type", "application/json")
@@ -1686,8 +1686,8 @@ func BenchmarkFullWorkflow(b *testing.B) {
 
 		// 2. Approve member
 		approveReq := struct {
-		MemberID uuid.UUID `json:"member_id"`
-	}{MemberID: joinResp.MemberID}
+			MemberID uuid.UUID `json:"member_id"`
+		}{MemberID: joinResp.MemberID}
 		approveBody, _ := json.Marshal(approveReq)
 		req = httptest.NewRequest(http.MethodPost, "/admin/approve", bytes.NewReader(approveBody))
 		req.Header.Set("Content-Type", "application/json")

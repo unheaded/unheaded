@@ -15,8 +15,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	chatpb "unheaded/services/wotan/proto"
 	"unheaded/pkg/transport/mtls"
+	chatpb "unheaded/services/wotan/proto"
 )
 
 // ReplicationClient connects to the primary and receives WAL entries (standby side).

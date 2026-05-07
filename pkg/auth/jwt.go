@@ -107,7 +107,7 @@ type JWTAuthenticator struct {
 	issuer       string
 	audience     string
 	allowedRoles []string
-	clockSkew    time.Duration   // tolerance for exp/nbf validation
+	clockSkew    time.Duration    // tolerance for exp/nbf validation
 	nowFunc      func() time.Time // injectable for testing
 }
 

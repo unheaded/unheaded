@@ -26,9 +26,9 @@ func newMockTransportConn() *mockTransportConn {
 	}
 }
 
-func (m *mockTransportConn) Type() transport.Type  { return transport.HTTP }
-func (m *mockTransportConn) Close() error          { return nil }
-func (m *mockTransportConn) Healthy() bool         { return m.healthy }
+func (m *mockTransportConn) Type() transport.Type { return transport.HTTP }
+func (m *mockTransportConn) Close() error         { return nil }
+func (m *mockTransportConn) Healthy() bool        { return m.healthy }
 func (m *mockTransportConn) Publish(_ context.Context, topic string, data []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

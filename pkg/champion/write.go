@@ -252,9 +252,9 @@ func (c *Champion) ListKanbanTasks(ctx context.Context) ([]KanbanTask, error) {
 // runbook subprocess completes. ExitCode 0 = success; non-zero =
 // failure (output still captured for diagnosis).
 type RunbookExecuteResult struct {
-	Name     string `json:"name"`      // runbook name, relative to runbooks/
+	Name     string `json:"name"` // runbook name, relative to runbooks/
 	ExitCode int    `json:"exit_code"`
-	Output   string `json:"output"`    // stdout+stderr merged, truncated
+	Output   string `json:"output"` // stdout+stderr merged, truncated
 	Elapsed  string `json:"elapsed_ms"`
 }
 
