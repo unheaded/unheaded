@@ -3,9 +3,12 @@
 # test-pre-commit.sh — Audit-trail test for scripts/git-hooks/pre-commit.
 #
 # Verifies the hook behaves correctly:
-#   T1: empty stage    → exit 0 (silent).
-#   T2: gofmt-drift    → exit non-zero, prints offending file.
-#   T3: clean Go file  → exit 0.
+#   T1: empty stage     → exit 0 (silent).
+#   T2: gofmt-drift     → exit non-zero, prints offending file.
+#   T3: clean Go file   → exit 0.
+#   T4: rustfmt-drift   → exit non-zero, prints offending file (skipped if
+#                         rustfmt is not on PATH — soft-required toolchain).
+#   T5: clean Rust file → exit 0 (skipped if rustfmt missing).
 #
 # Self-contained: stages temp files inside the repo, runs the hook, then
 # unstages and removes them in a trap. Aborts with PASS/FAIL line.
@@ -21,6 +24,8 @@ HOOK="scripts/git-hooks/pre-commit"
 SCRATCH_DIR="scripts/git-hooks/.scratch-test"
 DRIFT_FILE="$SCRATCH_DIR/drift_test.go"
 CLEAN_FILE="$SCRATCH_DIR/clean_test.go"
+RS_DRIFT_FILE="$SCRATCH_DIR/drift_test.rs"
+RS_CLEAN_FILE="$SCRATCH_DIR/clean_test.rs"
 
 cleanup() {
     local rc=$?
@@ -52,6 +57,21 @@ package scratch
 import "fmt"
 
 func Good() { fmt.Println("clean") }
+EOF
+
+# Rust drift file: bad spacing + braces. rustfmt --check will report.
+cat >"$RS_DRIFT_FILE" <<'EOF'
+// SPDX-License-Identifier: GPL-3.0-or-later
+fn   bad(  )->i32{let   x=1   ;x+1}
+EOF
+
+# Rust clean file: already rustfmt'd.
+cat >"$RS_CLEAN_FILE" <<'EOF'
+// SPDX-License-Identifier: GPL-3.0-or-later
+fn good() -> i32 {
+    let x = 1;
+    x + 1
+}
 EOF
 
 fail() {
@@ -100,5 +120,40 @@ if [ "$rc_t3" -ne 0 ]; then
     fail "T3 clean: hook exited $rc_t3, expected 0. Output: $out_t3"
 fi
 
-echo "PASS: T1 empty=silent/0  T2 drift=blocked  T3 clean=passes"
+# ---------- T4 + T5: Rust paths (skipped if rustfmt unavailable) ----------
+if command -v rustfmt >/dev/null 2>&1; then
+    # T4: drift staged → hook exits non-zero, names file.
+    git add -- "$RS_DRIFT_FILE"
+    set +e
+    out_t4="$(bash "$HOOK" 2>&1)"
+    rc_t4=$?
+    set -e
+    git reset -q -- "$RS_DRIFT_FILE"
+
+    if [ "$rc_t4" -eq 0 ]; then
+        fail "T4 rustfmt drift: hook exited 0, expected non-zero. Output: $out_t4"
+    fi
+    if ! echo "$out_t4" | grep -q "rustfmt drift"; then
+        fail "T4 rustfmt drift: expected 'rustfmt drift' in output, got: $out_t4"
+    fi
+    if ! echo "$out_t4" | grep -q "drift_test.rs"; then
+        fail "T4 rustfmt drift: expected offending filename in output, got: $out_t4"
+    fi
+
+    # T5: clean staged → hook exits 0.
+    git add -- "$RS_CLEAN_FILE"
+    set +e
+    out_t5="$(bash "$HOOK" 2>&1)"
+    rc_t5=$?
+    set -e
+    git reset -q -- "$RS_CLEAN_FILE"
+
+    if [ "$rc_t5" -ne 0 ]; then
+        fail "T5 rustfmt clean: hook exited $rc_t5, expected 0. Output: $out_t5"
+    fi
+
+    echo "PASS: T1 empty=silent/0  T2 gofmt-drift=blocked  T3 go-clean=passes  T4 rustfmt-drift=blocked  T5 rs-clean=passes"
+else
+    echo "PASS: T1 empty=silent/0  T2 gofmt-drift=blocked  T3 go-clean=passes  (T4/T5 skipped — rustfmt not installed)"
+fi
 exit 0
