@@ -2273,7 +2273,11 @@ func (l *NativeLoader) Unload(ctx context.Context, name string) error {
 		unix.Close(fd)
 	}
 
-	// Unmap ring buffers
+	// Unmap ring buffers.
+	// vet flags the unsafe.Pointer use here as "possible misuse" — false positive:
+	// m.mmapAddr is a kernel-given mmap return value (uintptr from mmap syscall),
+	// not a Go-managed object, so GC reachability does not apply. The (*[1 << 30]byte)
+	// cast is the standard idiom for handing a fixed-size mmap region to unix.Munmap.
 	for _, m := range loaded.maps {
 		if m.mmapAddr != 0 {
 			_ = unix.Munmap((*[1 << 30]byte)(unsafe.Pointer(m.mmapAddr))[:m.mmapSize])
@@ -4020,7 +4024,9 @@ func (l *NativeLoader) Close() error {
 			}
 		}
 
-		// Unmap and close maps
+		// Unmap and close maps. See note at the unsafe.Pointer above (~line 2278):
+		// m.mmapAddr is a kernel mmap address, not a Go-managed object — vet
+		// false-positive on this idiom is expected and documented.
 		for _, m := range loaded.maps {
 			if m.mmapAddr != 0 {
 				_ = unix.Munmap((*[1 << 30]byte)(unsafe.Pointer(m.mmapAddr))[:m.mmapSize])
