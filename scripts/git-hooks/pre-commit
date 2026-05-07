@@ -10,6 +10,9 @@
 #   - If no .go and no .rs files staged: exits 0 silently.
 #   - If staged .go files have gofmt drift: prints offending paths, exits 1.
 #   - If `go vet` fails on packages owning staged Go changes: prints output, exits 1.
+#   - If any staged .go or .rs file is missing an SPDX-License-Identifier in
+#     its first 5 lines: prints offending paths, exits 1. Defends the
+#     1190/1190 baseline achieved 2026-05-07.
 #   - If staged .rs files have rustfmt drift: prints offending paths, exits 1.
 #     (rustfmt missing → soft-warn and skip the rust check; never block on a
 #      missing toolchain since not every contributor will have a Rust toolchain.)
@@ -87,6 +90,22 @@ if [ "${#EXISTING_GO[@]}" -gt 0 ]; then
         echo "$VET_OUT" | sed 's/^/  /' >&2
         exit 1
     fi
+fi
+
+# ---------- SPDX coverage check (.go + .rs combined) ----------
+# Defends the 100.00% (1190/1190 Go) baseline achieved 2026-05-07. Any new file
+# that ships without an SPDX-License-Identifier in its first 5 lines fails.
+SPDX_MISSING=""
+for f in "${EXISTING_GO[@]}" "${EXISTING_RS[@]}"; do
+    if ! head -n 5 "$f" 2>/dev/null | grep -q "SPDX-License-Identifier"; then
+        SPDX_MISSING="${SPDX_MISSING}${f}"$'\n'
+    fi
+done
+if [ -n "$SPDX_MISSING" ]; then
+    echo "pre-commit: SPDX-License-Identifier missing in staged file(s):" >&2
+    echo -n "$SPDX_MISSING" | sed 's/^/  /' >&2
+    echo "pre-commit: prepend \`// SPDX-License-Identifier: GPL-3.0-or-later\` to each file's first 5 lines and re-stage." >&2
+    exit 1
 fi
 
 # ---------- Rust path ----------

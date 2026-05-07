@@ -9,6 +9,7 @@
 #   T4: rustfmt-drift   → exit non-zero, prints offending file (skipped if
 #                         rustfmt is not on PATH — soft-required toolchain).
 #   T5: clean Rust file → exit 0 (skipped if rustfmt missing).
+#   T6: SPDX-missing Go → exit non-zero, prints offending file.
 #
 # Self-contained: stages temp files inside the repo, runs the hook, then
 # unstages and removes them in a trap. Aborts with PASS/FAIL line.
@@ -26,6 +27,7 @@ DRIFT_FILE="$SCRATCH_DIR/drift_test.go"
 CLEAN_FILE="$SCRATCH_DIR/clean_test.go"
 RS_DRIFT_FILE="$SCRATCH_DIR/drift_test.rs"
 RS_CLEAN_FILE="$SCRATCH_DIR/clean_test.rs"
+SPDX_MISSING_FILE="$SCRATCH_DIR/no_spdx_test.go"
 
 cleanup() {
     local rc=$?
@@ -72,6 +74,16 @@ fn good() -> i32 {
     let x = 1;
     x + 1
 }
+EOF
+
+# Go file with NO SPDX header (gofmt-clean otherwise) — should trigger the
+# new SPDX coverage check. Identical body to clean_test.go but without header.
+cat >"$SPDX_MISSING_FILE" <<'EOF'
+package scratch
+
+import "fmt"
+
+func MissingHeader() { fmt.Println("no spdx") }
 EOF
 
 fail() {
@@ -156,4 +168,24 @@ if command -v rustfmt >/dev/null 2>&1; then
 else
     echo "PASS: T1 empty=silent/0  T2 gofmt-drift=blocked  T3 go-clean=passes  (T4/T5 skipped — rustfmt not installed)"
 fi
+
+# ---------- T6: SPDX-missing Go file → hook exits non-zero, names file ----------
+git add -- "$SPDX_MISSING_FILE"
+set +e
+out_t6="$(bash "$HOOK" 2>&1)"
+rc_t6=$?
+set -e
+git reset -q -- "$SPDX_MISSING_FILE"
+
+if [ "$rc_t6" -eq 0 ]; then
+    fail "T6 spdx-missing: hook exited 0, expected non-zero. Output: $out_t6"
+fi
+if ! echo "$out_t6" | grep -q "SPDX"; then
+    fail "T6 spdx-missing: expected 'SPDX' in output, got: $out_t6"
+fi
+if ! echo "$out_t6" | grep -q "no_spdx_test.go"; then
+    fail "T6 spdx-missing: expected offending filename in output, got: $out_t6"
+fi
+
+echo "PASS: T6 spdx-missing=blocked"
 exit 0
