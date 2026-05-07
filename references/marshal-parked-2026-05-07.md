@@ -167,6 +167,26 @@ Estimate: ~1 day.
 
 ---
 
+### [EBPF-CLIPPY-119] 119 clippy warnings in ebpf/ workspace
+**Captured during:** Re-engagement Phase 22.
+
+`cd ebpf && cargo clippy --workspace` cleanly returned rc=0 (clippy worked on the BPF target unlike previously assumed) but surfaced **119 warnings**. Sample patterns: `manual_range_contains`, `needless_range_loop`, `unused_variables`, `dead_code`, etc.
+
+**Why parked rather than auto-fixed:** the ebpf/ workspace is `#![no_std]` BPF target code. The kernel BPF verifier has a hard instruction-budget gate (currently at 7 % of 900K per program per `bpf-verifier-check.sh`). Even semantically-equivalent clippy rewrites can shift instruction counts in the verifier output — for instance, `(0..N).contains(&x)` lowers differently than `x >= 0 && x < N` after BPF-LLVM optimization passes. Applying 119 fixes unattended could push some programs past the verifier budget and silently break kingdom infrastructure.
+
+**Suggested daytime:** Architect + Developer pair, on Linux WEST or EAST.
+1. Snapshot current verifier instruction counts per program (`bash scripts/bpf-verifier-check.sh > tmp/bpf-baseline-pre-ebpf-clippy.txt`).
+2. `cd ebpf && cargo clippy --fix --workspace --allow-dirty --allow-staged --all-targets`.
+3. `cargo build --release` against the workspace using bpf-linker.
+4. Re-run `bpf-verifier-check.sh` and diff per-program. Any program that crosses budget gets a focused un-fix or refactor.
+5. Round Table sign-off (Architect + Developer + BlackMage minimum, Computermancer if any UPC-related programs are touched).
+
+Estimate: ~2-3 hours including verifier diff + RFC-style sign-off.
+
+**Owner:** Architect + Developer + Computermancer.
+
+---
+
 ### [CARGO-AUDIT-WAVE-D] rand RUSTSEC-2026-0097 unsoundness audit
 **Captured during:** Re-engagement Phase 17.
 
