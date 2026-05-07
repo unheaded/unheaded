@@ -4,7 +4,8 @@
        test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
        deploy-restart sbom license-check \
        doom-smoke doom-build-check \
-       ci-local ci-security sbom-verify
+       ci-local ci-security sbom-verify \
+       install-hooks test-hooks
 
 # Build configuration
 BINARY_DIR := bin
@@ -383,6 +384,15 @@ release: clean all test ## Build release artifacts
 	@echo "✓ Release $(VERSION) ready: releases/unheaded-$(VERSION).tar.gz"
 
 ##@ Utilities
+
+install-hooks: ## Install git pre-commit hook (gofmt + go vet on staged changes)
+	@mkdir -p .git/hooks
+	@ln -sf ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
+	@chmod +x scripts/git-hooks/pre-commit
+	@echo "[hooks] pre-commit installed"
+
+test-hooks: ## Self-test the pre-commit hook (drift/clean/empty cases)
+	@bash scripts/git-hooks/test-pre-commit.sh
 
 fmt: ## Format all code
 	@echo "Formatting Go code..."

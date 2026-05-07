@@ -823,7 +823,7 @@ goes stale. The docs/ folder is the living record.
 - UPC Dream Ladder: All Level 4 OS primitives + Level 5 boot + Level 6 arch/mbc (37 files)
 - The Well: Multi-DB PostgreSQL (3 databases: unheaded_app/ops/config, 7 service-scoped users)
 - SBOM: 553 dependencies audited, GPL boundary clean, SPDX checks integrated
-- CI/CD: GHA + Jenkins hardened, SPDX checks, pre-commit hook installed
+- CI/CD: GHA + Jenkins hardened, SPDX checks; run `make install-hooks` to install the local pre-commit hook (gofmt + go vet on staged changes)
 - S-WEST: Bootstrap complete (kernel 6.17.0-19, 0 failed services)
 - All 4 P1 bugs fixed (#20 Nix TLS, #36 log forwarding, #29 Kanban logging, E2E smoke)
 
