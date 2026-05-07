@@ -373,7 +373,7 @@ async fn cmd_run(
 
     let wad_data = loader::load_wad(&wad_path).context("failed to load WAD")?;
 
-    let mut ram_updates = loader::stage_ram_image(&sections.data_sections, Some(&wad_data))?;
+    let ram_updates = loader::stage_ram_image(&sections.data_sections, Some(&wad_data))?;
 
     // heap_ptr is now a normal BSS variable in the program — no magic address.
     // The linker script defines __heap_start/__heap_end. The program initializes

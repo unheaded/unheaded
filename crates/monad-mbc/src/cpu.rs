@@ -68,7 +68,7 @@ impl Cpu {
         };
 
         // Initialize stack pointer to default value
-        state.regs[REG_SP as usize] = REG_SP_DEFAULT;
+        state.regs[REG_SP] = REG_SP_DEFAULT;
 
         Self {
             state,
@@ -97,7 +97,7 @@ impl Cpu {
     /// - Cache hit/miss counters
     pub fn reset(&mut self) {
         self.state.regs = [0u32; 16];
-        self.state.regs[REG_SP as usize] = REG_SP_DEFAULT;
+        self.state.regs[REG_SP] = REG_SP_DEFAULT;
         self.state.pc = 0;
         self.state.flags = 0;
         self.state.halted = 0;
@@ -172,7 +172,7 @@ impl Cpu {
     /// # Returns
     /// The 32-bit word at that address, or 0 if out of bounds.
     pub fn ram_read_word(&self, addr: u32) -> u32 {
-        if addr >= RAM_SIZE || addr % 4 != 0 {
+        if addr >= RAM_SIZE || !addr.is_multiple_of(4) {
             return 0;
         }
         let word_idx = (addr / 4) as usize;
@@ -188,7 +188,7 @@ impl Cpu {
     /// # Returns
     /// true if write succeeded, false if out of bounds or misaligned.
     pub fn ram_write_word(&mut self, addr: u32, value: u32) -> bool {
-        if addr >= RAM_SIZE || addr % 4 != 0 {
+        if addr >= RAM_SIZE || !addr.is_multiple_of(4) {
             return false;
         }
         let word_idx = (addr / 4) as usize;
@@ -300,7 +300,7 @@ mod tests {
         let cpu = Cpu::new();
 
         // Check SP is at default
-        assert_eq!(cpu.state.regs[REG_SP as usize], REG_SP_DEFAULT);
+        assert_eq!(cpu.state.regs[REG_SP], REG_SP_DEFAULT);
 
         // Check PC is zero
         assert_eq!(cpu.state.pc, 0);
@@ -347,7 +347,7 @@ mod tests {
 
         // Verify state is reset
         assert_eq!(cpu.state.regs[0], 0);
-        assert_eq!(cpu.state.regs[REG_SP as usize], REG_SP_DEFAULT);
+        assert_eq!(cpu.state.regs[REG_SP], REG_SP_DEFAULT);
         assert_eq!(cpu.state.pc, 0);
         assert_eq!(cpu.state.flags, 0);
         assert_eq!(cpu.state.halted, 0);
@@ -641,7 +641,7 @@ mod tests {
         let cpu = Cpu::default();
 
         // Should be equivalent to Cpu::new()
-        assert_eq!(cpu.state.regs[REG_SP as usize], REG_SP_DEFAULT);
+        assert_eq!(cpu.state.regs[REG_SP], REG_SP_DEFAULT);
         assert_eq!(cpu.state.pc, 0);
         assert_eq!(cpu.state.flags, 0);
     }

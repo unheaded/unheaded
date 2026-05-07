@@ -39,7 +39,7 @@ fn branch(opcode: u8, offset: i32) -> u32 {
 /// Create a CPU with SP set to a safe RAM address (byte 0x4000 = word 0x1000).
 fn cpu_with_safe_sp() -> ExecCpu {
     let mut cpu = ExecCpu::new();
-    cpu.state.regs[REG_SP as usize] = 0x4000; // byte address
+    cpu.state.regs[REG_SP] = 0x4000; // byte address
     cpu
 }
 
@@ -1308,7 +1308,7 @@ fn syscall_execve_resets_sp_to_top() {
     let mut cpu = cpu_with_safe_sp();
 
     // Set SP to a non-default value
-    cpu.state.regs[REG_SP as usize] = 0x1234;
+    cpu.state.regs[REG_SP] = 0x1234;
 
     let mut rom = vec![enc(op::NOP, 0, 0, 0); 12];
     rom[0] = enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16);
@@ -1320,7 +1320,7 @@ fn syscall_execve_resets_sp_to_top() {
     cpu.run(100).ok();
 
     assert_eq!(
-        cpu.state.regs[REG_SP as usize], 0xFFFF_0000,
+        cpu.state.regs[REG_SP], 0xFFFF_0000,
         "execve should reset SP to 0xFFFF_0000"
     );
 }

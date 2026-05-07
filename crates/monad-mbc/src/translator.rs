@@ -218,7 +218,7 @@ impl Translator {
                     let offset = (target_mbc_pc as i64) - ((mbc_idx as i64) + 1);
                     // Extended 24-bit branch encoding: [opcode:8][offset:24]
                     // Range: -8388608 to +8388607 (matches CALL addressing).
-                    if offset < -8_388_608 || offset > 8_388_607 {
+                    if !(-8_388_608..=8_388_607).contains(&offset) {
                         translator
                             .errors
                             .push(TranslateError::BranchTargetOutOfRange {
@@ -639,7 +639,7 @@ impl Translator {
 
                         if imm12 != 0 {
                             // Use MBC ADDI when imm fits in signed 16-bit range
-                            if imm12 >= -32768 && imm12 <= 32767 {
+                            if (-32768..=32767).contains(&imm12) {
                                 self.emit(op::ADDI, mbc_rd, 0, imm12 as u16);
                             } else {
                                 // Large immediate: use 32-bit load into r0.
@@ -654,7 +654,7 @@ impl Translator {
                         // ANDI rd, rs1, imm12
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        if imm12 >= 0 && imm12 <= 0xFFFF {
+                        if (0..=0xFFFF).contains(&imm12) {
                             self.emit(op::MOVI, 0, 0, imm12 as u16);
                         } else {
                             self.emit_load32(0, imm12 as u32);
@@ -667,7 +667,7 @@ impl Translator {
                         // ORI rd, rs1, imm12
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        if imm12 >= 0 && imm12 <= 0xFFFF {
+                        if (0..=0xFFFF).contains(&imm12) {
                             self.emit(op::MOVI, 0, 0, imm12 as u16);
                         } else {
                             self.emit_load32(0, imm12 as u32);
@@ -680,7 +680,7 @@ impl Translator {
                         // XORI rd, rs1, imm12
                         self.guard_zero_src(rs1, mbc_rs1);
                         self.emit(op::MOV, mbc_rd, mbc_rs1, 0);
-                        if imm12 >= 0 && imm12 <= 0xFFFF {
+                        if (0..=0xFFFF).contains(&imm12) {
                             self.emit(op::MOVI, 0, 0, imm12 as u16);
                         } else {
                             self.emit_load32(0, imm12 as u32);
@@ -1430,7 +1430,7 @@ mod tests {
 
         let mbc = result.unwrap();
         // 0x1000 fits in 16 bits, so MOVI alone suffices
-        assert!(mbc.len() >= 1);
+        assert!(!mbc.is_empty());
     }
 
     #[test]

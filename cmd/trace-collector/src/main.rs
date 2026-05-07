@@ -616,7 +616,7 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
                     _ = tokio::time::sleep(Duration::from_millis(1)) => {
                         while let Ok(event) = correlated_rx.try_recv() {
                             count += 1;
-                            if count % 1000 == 0 {
+                            if count.is_multiple_of(1000) {
                                 let rate = count as f64 / start.elapsed().as_secs_f64();
                                 debug!(
                                     count = count,

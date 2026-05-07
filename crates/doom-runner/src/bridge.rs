@@ -146,7 +146,7 @@ async fn handle_ws(socket: WebSocket, state: AppState) {
             match frame_rx.recv().await {
                 Ok(frame) => {
                     if sender
-                        .send(Message::Binary(frame.as_ref().clone().into()))
+                        .send(Message::Binary(frame.as_ref().clone()))
                         .await
                         .is_err()
                     {
@@ -256,7 +256,7 @@ fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
 
     // Read palette (768 bytes = 192 words)
     let pal_word_base = PALETTE_ADDR / 4;
-    let pal_words = (PALETTE_SIZE + 3) / 4;
+    let pal_words = PALETTE_SIZE.div_ceil(4);
     for w in 0..pal_words {
         let word = ram.get(&(pal_word_base + w), 0).unwrap_or(0);
         data.push((word & 0xFF) as u8);
@@ -268,7 +268,7 @@ fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
 
     // Read pixels (64000 bytes = 16000 words)
     let screen_word_base = memory::SCREEN_BASE / 4;
-    let num_words = (memory::SCREEN_SIZE + 3) / 4;
+    let num_words = memory::SCREEN_SIZE.div_ceil(4);
     for w in 0..num_words {
         let word = ram.get(&(screen_word_base + w), 0).unwrap_or(0);
         data.push((word & 0xFF) as u8);

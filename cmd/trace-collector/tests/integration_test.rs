@@ -208,7 +208,7 @@ fn correlation_engine_groups_same_flow_into_one_trace() {
     // Verify the trace context accumulated data
     let ctx = engine.get_trace(t1).unwrap();
     assert!(
-        ctx.spans.len() >= 1,
+        !ctx.spans.is_empty(),
         "Trace should have at least 1 span (root)"
     );
     assert!(ctx.packet_count >= 2, "Packet count should reflect updates");

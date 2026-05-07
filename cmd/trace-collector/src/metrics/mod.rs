@@ -91,6 +91,12 @@ pub struct AtomicMetrics {
     pub bytes_processed: AtomicU64,
 }
 
+impl Default for AtomicMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AtomicMetrics {
     pub const fn new() -> Self {
         Self {

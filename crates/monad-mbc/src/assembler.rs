@@ -984,7 +984,7 @@ mod tests {
             HALT
         "#;
         let result = assemble(code).expect("assembly should succeed");
-        assert!(result.len() > 0);
+        assert!(!result.is_empty());
     }
 
     #[test]
