@@ -224,7 +224,16 @@ After the v3 shift report committed (`b113e2c9`) and Marshal posted off-duty, St
 | 19 | unsafe.Pointer false-positive doc in pkg/ebpf/loader | `7c48846f` | 1 (+8/-2) | Closes 2 of 4 pre-existing vet warnings via documentation |
 | 20 | cargo test status report | `c4952bf9` | 1 (+78) | 200/203 Rust tests pass; 3 pre-existing monad-mbc screen-mmap fails |
 
-**9 additional commits in the re-engagement phase. Cumulative session total: 19 commits.**
+**9 additional commits in the re-engagement phase. Continued churning past v4 signoff:**
+
+| Phase | Description | Commit | Files | Notes |
+|-------|-------------|--------|-------|-------|
+| 21 | Pre-commit hook SPDX coverage check | `b365d170` | 2 (+51) | Defends 100.00% baseline; T1-T6 audit harness all pass |
+| 22 | Cargo audit Wave D — rand RUSTSEC-2026-0097 disposition | `d7b50f33` | 1 (+79) | Confirms N/A: no rand::rng() calls, no custom logger; recommend cargo audit ignore |
+| 23 | Park ebpf/ 119 clippy warnings | `5a399036` | 1 (+20) | Verifier-budget risk on no_std BPF — parked with daytime recipe |
+| 24 | Park golangci-lint v1 → v2 config migration | `b877b69b` | 1 (+20) | Schema breaks too many for auto-migrate; needs Developer ratification |
+
+**Cumulative session total: 24 commits.**
 
 ## Re-engagement enforcement log
 
@@ -239,14 +248,15 @@ After the v3 shift report committed (`b113e2c9`) and Marshal posted off-duty, St
 
 ## Cumulative session totals (across both pre-engagement and re-engagement)
 
-- **19 commits** landed locally on `main` (363597fb → c4952bf9)
-- **6 + 4 = 10 citations issued; 5 resolved, 5 STUCK with full daytime recipes**
+- **24 commits** landed locally on `main` (363597fb → b877b69b)
+- **6 + 6 = 12 citations issued; 5 resolved, 7 STUCK with full daytime recipes** (8 if the 2 carry-forward STUCK items from 2026-05-06 are still counted)
 - **Zero S4 HALTs, zero regressions vs build baseline, zero silent state**
 - **Zero pushes** — gpg-agent timeout drove `--no-gpg-sign` per `feedback_unsigned_commits_when_afk.md`
 - **218/221 Go packages PASS, 200/203 Rust tests PASS** (combined: ~98.6 % regression-clean)
-- **SPDX coverage: 99.50 % → 100.00 %** (1190/1190 Go files)
-- **3 CVE-class advisories closed** in zhend (HIGH RUSTSEC-2026-0104 + 2x MEDIUM); 4 more identified for daytime Wave A coordination
-- **Cumulative unpushed against origin/main: ~26 commits** (19 tonight + 7 from 2026-05-06 shift's main run + post-shift extension)
+- **SPDX coverage: 99.50 % → 100.00 %** (1190/1190 Go files), now hook-defended
+- **3 CVE-class advisories closed** in zhend (HIGH RUSTSEC-2026-0104 + 2x MEDIUM); 4 more identified for daytime Wave A/B coordination; Wave D rand-soundness advisory dispositioned N/A with full audit trail
+- **Pre-commit hook scope: 6 checks** — gofmt drift, go vet, rustfmt drift (soft on missing rustfmt), SPDX coverage on .go + .rs (T1-T6 audit harness all PASS)
+- **Cumulative unpushed against origin/main: ~31 commits** (24 tonight + 7 from 2026-05-06)
 
 ## Updated handoff for Stevie
 
