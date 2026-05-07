@@ -86,7 +86,7 @@ This file + `references/marshal-parked-2026-05-07.md`.
 
 **Mission:** Burn down NORTH-STAR Appendix A residual queue post-Phase-F, optimize code for performance / security / best practice, run multi-agent unattended.
 
-**Result:** 4 local commits landed on `main` (363597fb → 2bcd2a63 → 3524190a → fe2b4bb4). Two real artifacts shipped (drift-guard verification report + ADR-058 Marshal Review), one CE5 finding closed (pre-commit hook), 465 files of gofmt drift cleaned, 1 prior STUCK fully resolved (cmd/tools/ Linux smoke). No regressions vs build baseline. No S4 HALTs. No commits pushed.
+**Result:** 6 local commits landed on `main` (363597fb → 2bcd2a63 → 3524190a → fe2b4bb4 → 3f97c18f → 97f55513). Real artifacts: drift-guard verification report, ADR-058 Marshal Review, pre-commit hook (CE5 closed), 518-file gofmt + cargo-fmt drift cleanup, 1 prior STUCK fully resolved (cmd/tools/ Linux smoke), 1 new bug surfaced (cmd/waf raw-string parse errors at lines 143/153/190 + line 530 unterminated string). No regressions vs build baseline. No S4 HALTs. No commits pushed.
 
 ## 2. Velocity
 
@@ -98,10 +98,12 @@ This file + `references/marshal-parked-2026-05-07.md`.
 | 4 Code-quality scoped | 1 | 1 (`2bcd2a63`) | 30 (+198/-192) | 0 |
 | 5 Pre-commit hook | 1 sequential | 1 (`3524190a`) | 5 (+197/-2) | 0 |
 | 6 Broad gofmt | 0 (Marshal direct) | 1 (`fe2b4bb4`) | 435 (+5778/-5762) | 0 |
-| 7 Shift report | 0 (Marshal direct) | 1 (this) | 2 (this + parking lot) | 0 |
-| **Total** | **5** | **5** | **474** | **2** |
+| 7 Shift report v1 | 0 (Marshal direct) | 1 (`3f97c18f`) | 2 (+279) | 0 |
+| 8 Rust cargo fmt | 0 (Marshal direct) | 1 (`97f55513`) | 83 (+2299/-1453) | 1 (cmd/waf parse error) |
+| 9 Shift report v2 | 0 (Marshal direct) | 1 (this amend) | 2 (this + parking lot) | 0 |
+| **Total** | **5** | **7** | **559** | **3** |
 
-5 agents dispatched, all 5 returned successfully. Aggregate wall-clock from first dispatch to last commit ≈ 8-10 min agent-time + Marshal coordination overhead.
+5 agents dispatched, all 5 returned successfully. Aggregate wall-clock from first dispatch to last commit ≈ 12-15 min agent-time + Marshal coordination overhead.
 
 ## 3. Enforcement Log
 
@@ -112,34 +114,40 @@ This file + `references/marshal-parked-2026-05-07.md`.
 | aya 0.13.x major-version migration | S2 WARNING (STUCK) | `^0.1` semver exhausted; major-version bump requires Cargo.toml edit + ADR | Parked with handoff |
 | Pre-existing vet warnings (4) | S1 INFO | sync.Once copy x8 in `cmd/protocol-api/handlers_extended_test.go`; DoomState mutex copy at `cmd/dashboard-backend/internal/server/doom.go:98`; pkg/ebpf/loader unsafe.Pointer x2 | All pre-existing; flagged in parking lot for daytime |
 | ADR-058 Planned→Accepted gating gaps | S1 INFO | 5 architectural gaps surfaced (per-API thresholds, dollar math, kill-switch IAM scoping, runbook stubs, calendar wiring) | Captured in ADR-058 itself via Marshal Review section + parking lot |
+| cmd/waf raw-string parse errors | S2 WARNING (STUCK) | Phase 8 fmt sweep surfaced pre-existing parse errors at `cmd/waf/src/rules/mod.rs:143,153,190` (raw-string with embedded `"`, needs `r#"..."#`) + line 530 unterminated string. 17 cascading errors. Mechanical 2-line fix on line 143 unlocked 11 more downstream errors — file is "AI slop that needs work" per Stevie's own commit `b843ae56`. Reverted; full file needs daytime fix-up | Parked with full handoff |
 
-**Total:** 5 citations issued. **3 resolved or formally documented; 2 STUCK with handoff.** Zero S4 HALTs.
+**Total:** 6 citations issued. **3 resolved or formally documented; 3 STUCK with handoff.** Zero S4 HALTs.
 
 ## 4. Plan Compliance
 
-**8/8 in-scope tasks shipped or formally handled = 100% plan compliance.**
+**10/10 in-scope tasks shipped or formally handled = 100% plan compliance.**
 
-(Task #5 cmd/tools/ smoke + aya was a partial: smoke shipped, aya parked. Task description updated to reflect.)
+(Task #5 cmd/tools/ smoke + aya was a partial: smoke shipped, aya parked. Task #10 Rust cargo fmt similar: 7 of 9 candidate scopes shipped, 2 skipped — zhenai-forge by design, cmd/waf parked.)
 
 ## 5. Commits made (all local, none pushed)
 
 ```
+97f55513  style(rust): cargo fmt drift cleanup across safe crates
+3f97c18f  docs(marshal): 2026-05-07 daytime unattended Shift Report + Parking Lot (v1, superseded by this commit)
 fe2b4bb4  style(cmd,pkg,services): kingdom-wide gofmt drift cleanup (435 files)
 3524190a  feat(hooks): install minimum-viable pre-commit hook (close CE5)
 2bcd2a63  style(wotan,pkg): gofmt drift cleanup across recently-touched scoped dirs
 363597fb  docs(compliance,adr): ADR-052 drift-guard re-verification + ADR-058 Marshal review
 ```
 
-4 commits + this shift-report commit. ~478 files modified, ~6300 insertions / ~6000 deletions across the night. **None pushed.** Merge / push is Stevie's call — note that the unsigned-commits flag was used per `feedback_unsigned_commits_when_afk.md`; if signature is required for merge, daytime re-sign (`git commit --amend -S --no-edit` per commit) before push.
+6 commits + this shift-report-amend commit. ~559 files modified across the night, ~8500 insertions / ~7400 deletions.
+
+**Cumulative unpushed against origin/main:** ~15 commits (this run's 7 + 8 from 2026-05-06 shift). Stevie should plan a single `git push origin main` once the gpg-agent re-sign decision is made. **None pushed.** Merge / push is Stevie's call — note that the unsigned-commits flag was used per `feedback_unsigned_commits_when_afk.md`; if signature is required for merge, daytime re-sign (`git commit --amend -S --no-edit` per commit) before push.
 
 ## 6. Parked items
 
-See `references/marshal-parked-2026-05-07.md` (4 entries plus carry-forward of prior parking lot):
+See `references/marshal-parked-2026-05-07.md` (5 entries plus carry-forward of prior parking lot):
 
 1. **STUCK-RENEW** — aya 0.13.x major-version migration (Developer + Architect — needs Cargo.toml + battle-plan)
 2. **VET-FINDINGS** — 4 pre-existing `go vet` warnings (Developer)
 3. **ADR-058 ACTIVATION GAPS** — 5 architectural gaps blocking Planned→Accepted (Stevie's hand at GCP console, then daytime fix-ups)
 4. **GPG-AGENT-TIMEOUT** — pinentry timeout on first autonomous commit attempt (Stevie / dev-host config)
+5. **CMD-WAF-AI-SLOP** — `cmd/waf/src/rules/mod.rs` has 4+ pre-existing parse errors (raw-string + unterminated string) blocking compile. Stevie's `b843ae56` self-tagged this file as "AI slop that needs work." Marshal's mechanical 2-line fix on line 143 unlocked 11 more downstream errors — needs a human pass (Developer)
 
 **Prior parking-lot items still open** (from `marshal-parked-2026-05-06.md`):
 - TOOLING-GAP — scancode-toolkit + syft + cyclonedx install (MoatGhost)

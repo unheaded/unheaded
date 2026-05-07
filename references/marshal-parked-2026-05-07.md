@@ -58,6 +58,31 @@ Restated here for completeness:
 
 ---
 
+### [CMD-WAF-AI-SLOP] cmd/waf/src/rules/mod.rs has 4+ pre-existing parse errors
+**Captured during:** Phase 8 cargo fmt sweep.
+
+`cargo fmt --check` on `cmd/waf` failed because the file has multiple raw-string and unterminated-string errors:
+
+- **Line 143:** `r"(?i)\bor\s+[\d\w'\"]+\s*=\s*[\d\w'\"]+"` — raw string contains a `\"` sequence which terminates the raw string early and leaves `]+\s...` as garbage tokens. Rust 2021 also flags `'\"]+` as a reserved prefix.
+- **Line 153:** Same pattern with `\band` instead of `\bor`.
+- **Line 190:** `r"(?i)<\s*meta[^>]*http-equiv\s*=\s*['\"]?refresh"` — same broken `'\"`.
+- **Line 530 (test code):** `let request = create_test_request("/api/users", Some("page=1&limit=10"));` — apparently triggers an unterminated double quote string error in cargo-fmt's parser; needs investigation.
+
+**Marshal attempted a mechanical fix** on lines 143 and 153 (changed `r"..."` to `r#"..."#`). After that fix, parser advanced past line 143 and surfaced **11 additional errors** downstream — the file has more breakage than just the raw strings. Marshal reverted the fix and parked the whole file.
+
+**Context:** `cmd/waf` was last touched in `7b16ba9d` (Wave 1 / S51 / S59 hardening), and the parent commit `b843ae56` is literally titled *"Mountain of AI slop that needs work and cleaning"* — Stevie's own self-aware tag. This file has not been built or exercised in CI since.
+
+**Suggested daytime work:**
+1. Decide whether `cmd/waf` is still in scope for the kingdom or should be removed (it is referenced from QUICKSTART.md, ADR-002, architecture docs, but apparently not actively built).
+2. If keeping: a Developer + BlackMage pair (the file is a WAF rule engine — security-relevant) needs to fix the raw strings, fix line 530, run `cargo check` until green, add it to a CI build target so it stays green.
+3. If dropping: remove the file, archive any salvageable rule patterns to a separate rules-spec doc, update the doc references.
+
+**Marshal recommendation:** option 2 (keep). The file's intent is real (SQLi + XSS pattern matching — security-valuable) even if the prose is slop. ~2-4h of careful Developer time should land it green.
+
+**Owner:** Developer + BlackMage.
+
+---
+
 ### [GPG-AGENT-TIMEOUT] gpg-agent pinentry timed out on autonomous commit
 **Captured during:** Phase 2 first commit attempt.
 
