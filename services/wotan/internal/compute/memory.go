@@ -31,19 +31,19 @@ import (
 
 // Default configuration values.
 const (
-	DefaultRingSize       = 4 * 1024 * 1024 // 4 MiB (covers 48 KiB RAM + 4 MiB WAD)
-	DefaultPageSize       = 4096            // 4 KiB pages (1024 words)
-	DefaultPrefetchN      = 2              // prefetch 2 adjacent pages on miss
-	DefaultL1MaxPages     = 256           // max pages in L1 before eviction
-	DefaultCacheLineSize  = 64            // 64-byte cache lines for L1
+	DefaultRingSize        = 4 * 1024 * 1024      // 4 MiB (covers 48 KiB RAM + 4 MiB WAD)
+	DefaultPageSize        = 4096                 // 4 KiB pages (1024 words)
+	DefaultPrefetchN       = 2                    // prefetch 2 adjacent pages on miss
+	DefaultL1MaxPages      = 256                  // max pages in L1 before eviction
+	DefaultCacheLineSize   = 64                   // 64-byte cache lines for L1
 	DefaultWritebackPeriod = 1 * time.Millisecond // flush dirty pages every 1ms
 )
 
 // Event type constants matching ebpf package.
 const (
-	EventCacheMiss  = uint8(0x11) // BPF had L1 miss, needs Wotan to stage page
-	EventMemWrite   = uint8(0x12) // BPF wrote to L1, Wotan must flush to L2
-	EventMemStaged  = uint8(0x13) // Wotan has staged the page (informational)
+	EventCacheMiss = uint8(0x11) // BPF had L1 miss, needs Wotan to stage page
+	EventMemWrite  = uint8(0x12) // BPF wrote to L1, Wotan must flush to L2
+	EventMemStaged = uint8(0x13) // Wotan has staged the page (informational)
 )
 
 // Config holds memory service configuration.
@@ -134,7 +134,7 @@ type MemoryService struct {
 type DirtyBitmap struct {
 	mu     sync.RWMutex
 	dirty  map[uint32]map[uint32][64]byte // flow -> lineAddr -> 64-byte line
-	ms     *MemoryService                   // reference to L2 store for reads
+	ms     *MemoryService                 // reference to L2 store for reads
 	config Config
 }
 
@@ -232,15 +232,15 @@ type MemStagedEvent struct {
 
 // DirtyWritebackHandler batches dirty writes and flushes them periodically (D-007).
 type DirtyWritebackHandler struct {
-	ms              *MemoryService
-	dirtyBitmap     *DirtyBitmap
-	config          Config
-	writeCh         <-chan *CacheWriteEvent
-	flushedEventCh  chan<- *MemFlushedEvent
-	flushTicker     *time.Ticker
-	lastFlush       time.Time
-	writeCounter    uint64
-	flushCounter    uint64
+	ms             *MemoryService
+	dirtyBitmap    *DirtyBitmap
+	config         Config
+	writeCh        <-chan *CacheWriteEvent
+	flushedEventCh chan<- *MemFlushedEvent
+	flushTicker    *time.Ticker
+	lastFlush      time.Time
+	writeCounter   uint64
+	flushCounter   uint64
 }
 
 // NewDirtyWritebackHandler creates a dirty writeback handler.
@@ -250,20 +250,20 @@ func NewDirtyWritebackHandler(
 	writeCh <-chan *CacheWriteEvent,
 ) *DirtyWritebackHandler {
 	return &DirtyWritebackHandler{
-		ms:              ms,
-		dirtyBitmap:     NewDirtyBitmap(ms, cfg),
-		config:          cfg,
-		writeCh:         writeCh,
-		flushTicker:     time.NewTicker(cfg.WritebackPeriod),
-		lastFlush:       time.Now(),
+		ms:          ms,
+		dirtyBitmap: NewDirtyBitmap(ms, cfg),
+		config:      cfg,
+		writeCh:     writeCh,
+		flushTicker: time.NewTicker(cfg.WritebackPeriod),
+		lastFlush:   time.Now(),
 	}
 }
 
 // MemFlushedEvent is emitted after dirty pages are flushed to L2.
 type MemFlushedEvent struct {
-	PageCount     int
-	FlushLatency  time.Duration
-	Timestamp     time.Time
+	PageCount    int
+	FlushLatency time.Duration
+	Timestamp    time.Time
 }
 
 // CacheMissEvent for D-006 (can be populated from Anamnesis ring buffer).
@@ -277,7 +277,7 @@ type CacheMissEventD006 struct {
 type CacheWriteEventD007 struct {
 	FlowLabel uint32
 	Addr      uint32
-	Size      int    // 1, 2, or 4 bytes
+	Size      int // 1, 2, or 4 bytes
 	Value     uint32
 	Timestamp int64
 }
@@ -484,7 +484,7 @@ func (ms *MemoryService) HandleCacheMissD006(flow uint32, lineAddr uint32) error
 	defer ms.mu.Unlock()
 
 	// Align lineAddr to 64-byte boundary (should already be aligned by caller).
-	lineAddr = lineAddr & ^uint32(ms.config.CacheLineSize - 1)
+	lineAddr = lineAddr & ^uint32(ms.config.CacheLineSize-1)
 
 	// Load the requested cache line.
 	for i := 0; i < 1+ms.config.PrefetchN; i++ {
@@ -519,7 +519,7 @@ func (ms *MemoryService) HandleCacheMissD006(flow uint32, lineAddr uint32) error
 // It accumulates the write in the DirtyBitmap for later flush.
 func (dwh *DirtyWritebackHandler) HandleCacheWriteD007(flow uint32, addr uint32, size int, value uint32) error {
 	// Compute cache line address (64-byte aligned).
-	lineAddr := addr & ^uint32(dwh.config.CacheLineSize - 1)
+	lineAddr := addr & ^uint32(dwh.config.CacheLineSize-1)
 	offset := int(addr & uint32(dwh.config.CacheLineSize-1))
 
 	dwh.writeCounter++

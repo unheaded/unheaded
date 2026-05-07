@@ -3,8 +3,8 @@
 
 // Package transport provides a unified transport abstraction for Unheaded services.
 // It implements the gRPC-first transport cascade:
-//   1. Primary: Wotan gRPC streaming (port 18001)
-//   2. Fallback: HTTP (port 18000)
+//  1. Primary: Wotan gRPC streaming (port 18001)
+//  2. Fallback: HTTP (port 18000)
 //
 // Every service uses transport.Connect() to establish a connection and
 // transport.NewHealthServer() for dual-protocol health checks.

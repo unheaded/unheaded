@@ -63,9 +63,9 @@ const (
 //   - Message: The message that was created/deleted (may have partial data for deletion events)
 //   - Timestamp: When the event occurred (server time)
 type MessageEvent struct {
-	Type      EventType              // Type of event (MESSAGE_CREATED or MESSAGE_DELETED)
-	Message   *ringbuffer.Message    // The message involved in the event
-	Timestamp time.Time              // Server timestamp when event occurred
+	Type      EventType           // Type of event (MESSAGE_CREATED or MESSAGE_DELETED)
+	Message   *ringbuffer.Message // The message involved in the event
+	Timestamp time.Time           // Server timestamp when event occurred
 }
 
 // Subscription represents a client's subscription to a room's message events.
@@ -82,11 +82,11 @@ type MessageEvent struct {
 //   - Channel: Buffered channel that receives MessageEvent instances
 //   - cancel: Internal channel used to signal subscription cancellation
 type Subscription struct {
-	ID       uuid.UUID            // Unique subscription ID
-	RoomID   string               // Room being subscribed to
-	MemberID uuid.UUID            // Member who owns this subscription
-	Channel  chan *MessageEvent   // Channel receiving message events (buffered)
-	cancel   chan struct{}        // Internal cancellation signal (closed on unsubscribe)
+	ID       uuid.UUID          // Unique subscription ID
+	RoomID   string             // Room being subscribed to
+	MemberID uuid.UUID          // Member who owns this subscription
+	Channel  chan *MessageEvent // Channel receiving message events (buffered)
+	cancel   chan struct{}      // Internal cancellation signal (closed on unsubscribe)
 }
 
 // Wotan handles pub/sub for room messages, enabling real-time message distribution.
@@ -111,8 +111,8 @@ type Subscription struct {
 // The wotan keeps subscriptions in memory until they're explicitly unsubscribed or
 // the wotan is closed. Empty room subscription lists are automatically cleaned up.
 type Wotan struct {
-	mu            sync.RWMutex                    // Protects subscriptions map
-	subscriptions map[string][]*Subscription      // roomID -> list of active subscriptions
+	mu            sync.RWMutex               // Protects subscriptions map
+	subscriptions map[string][]*Subscription // roomID -> list of active subscriptions
 }
 
 // NewWotan creates a new message wotan instance.
@@ -185,10 +185,10 @@ func (b *Wotan) Subscribe(roomID string, memberID uuid.UUID, bufferSize int) *Su
 // Unsubscribe removes a subscription and cleans up its resources.
 //
 // This method:
-//   1. Removes the subscription from the room's subscriber list
-//   2. Closes the cancel channel to signal cancellation
-//   3. Closes the event channel (no more events will be sent)
-//   4. Cleans up the room's subscription list if it becomes empty
+//  1. Removes the subscription from the room's subscriber list
+//  2. Closes the cancel channel to signal cancellation
+//  3. Closes the event channel (no more events will be sent)
+//  4. Cleans up the room's subscription list if it becomes empty
 //
 // After unsubscribing, the subscription's Channel will be closed and no more events
 // will be received. The client should stop reading from the channel.
@@ -406,9 +406,9 @@ func (b *Wotan) GetTotalSubscriptions() int {
 // Close cancels all subscriptions and cleans up all resources.
 //
 // This method should be called when shutting down the server to ensure graceful cleanup:
-//   1. All subscription cancel channels are closed (signals clients to stop)
-//   2. All subscription event channels are closed (no more events)
-//   3. All subscription maps are cleared (free memory)
+//  1. All subscription cancel channels are closed (signals clients to stop)
+//  2. All subscription event channels are closed (no more events)
+//  3. All subscription maps are cleared (free memory)
 //
 // After calling Close, the wotan should not be used anymore. Any pending Publish
 // calls will complete, but new Subscribe calls will behave unexpectedly.

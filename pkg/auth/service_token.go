@@ -105,7 +105,7 @@ func (m *ServiceTokenManager) GenerateToken(targetService string) (string, error
 // for the current service.
 func (m *ServiceTokenManager) NewValidator() *JWTAuthenticator {
 	return NewJWTAuthenticator(JWTConfig{
-		SigningKey:    m.signingKey,
+		SigningKey:   m.signingKey,
 		Issuer:       ServiceTokenIssuer,
 		Audience:     m.serviceName,
 		AllowedRoles: []string{RoleService},

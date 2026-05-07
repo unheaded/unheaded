@@ -6,11 +6,11 @@ package champion
 import (
 	"context"
 	"errors"
-	"time"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // writeFakeSwitchScript drops a minimal switch-model.sh into the temp

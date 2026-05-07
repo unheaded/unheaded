@@ -754,7 +754,7 @@ func TestDirtyBitmap_RaceCondition(t *testing.T) {
 				err := db.MarkDirty(
 					uint32(id),
 					uint32(j*64),
-					(j*4) % 60, // offset within 64-byte line
+					(j*4)%60, // offset within 64-byte line
 					4,
 					uint32(0xDEAD0000|uint32(id*100+j)),
 				)

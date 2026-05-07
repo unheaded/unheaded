@@ -223,10 +223,10 @@ func validateDeploymentConfig(deploy *DeploymentConfig) error {
 	}
 
 	validTiers := map[string]bool{
-		"control":          true,
-		"infrastructure":   true,
-		"presentation":     true,
-		"application":      true,
+		"control":        true,
+		"infrastructure": true,
+		"presentation":   true,
+		"application":    true,
 	}
 	if !validTiers[deploy.Tier] {
 		return fmt.Errorf("deployment.tier must be 'control', 'infrastructure', 'presentation', or 'application', got %q", deploy.Tier)

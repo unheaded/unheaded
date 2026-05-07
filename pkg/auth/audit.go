@@ -13,15 +13,15 @@ import (
 
 // Audit event types.
 const (
-	AuditJWTSuccess     = "jwt_validation_success"
-	AuditJWTFailure     = "jwt_validation_failure"
-	AuditAPIKeySuccess  = "apikey_validation_success"
-	AuditAPIKeyFailure  = "apikey_validation_failure"
-	AuditServiceToken   = "service_token_validation"
-	AuditRBACAllowed    = "rbac_allowed"
-	AuditRBACDenied     = "rbac_denied"
-	AuditRateLimited    = "rate_limited"
-	AuditUnauthorized   = "unauthorized_access"
+	AuditJWTSuccess    = "jwt_validation_success"
+	AuditJWTFailure    = "jwt_validation_failure"
+	AuditAPIKeySuccess = "apikey_validation_success"
+	AuditAPIKeyFailure = "apikey_validation_failure"
+	AuditServiceToken  = "service_token_validation"
+	AuditRBACAllowed   = "rbac_allowed"
+	AuditRBACDenied    = "rbac_denied"
+	AuditRateLimited   = "rate_limited"
+	AuditUnauthorized  = "unauthorized_access"
 )
 
 // AuditEvent represents a single auth audit log entry.

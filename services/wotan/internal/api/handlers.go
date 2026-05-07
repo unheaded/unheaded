@@ -13,17 +13,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/httputil"
-	"unheaded/services/wotan/internal/store"
-	"unheaded/services/wotan/internal/wotan"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/store"
+	"unheaded/services/wotan/internal/wotan"
 )
 
 // Server holds the API dependencies
 type Server struct {
 	RoomManager            *room.Manager
 	MemberManager          *member.Manager
-	Wotan                 *wotan.Wotan
+	Wotan                  *wotan.Wotan
 	PendingApprovalTimeout time.Duration
 	AdminAPIKey            string // API key for admin endpoints
 
@@ -41,7 +41,7 @@ func NewServer(roomMgr *room.Manager, memberMgr *member.Manager, msgWotan *wotan
 	return &Server{
 		RoomManager:            roomMgr,
 		MemberManager:          memberMgr,
-		Wotan:                 msgWotan,
+		Wotan:                  msgWotan,
 		PendingApprovalTimeout: pendingApprovalTimeout,
 		AdminAPIKey:            "", // Must be set via SetAdminAPIKey
 	}

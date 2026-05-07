@@ -328,11 +328,11 @@ runtime:
 // TestLoadServiceDirectory tests loading all configs from a directory.
 func TestLoadServiceDirectory(t *testing.T) {
 	tests := []struct {
-		name       string
-		setupFunc  func(t *testing.T, dir string)
-		wantCount  int
-		wantErr    bool
-		errSubstr  string
+		name      string
+		setupFunc func(t *testing.T, dir string)
+		wantCount int
+		wantErr   bool
+		errSubstr string
 	}{
 		{
 			name: "empty_directory",

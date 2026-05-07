@@ -11,16 +11,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	chatpb "unheaded/services/wotan/proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/wotan"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	chatpb "unheaded/services/wotan/proto"
 )
 
 // TopicSequenceCounter provides monotonic sequence numbers per topic.
@@ -68,7 +68,7 @@ type TopicService struct {
 	chatpb.UnimplementedTopicStreamServer
 	roomManager   *room.Manager
 	memberManager *member.Manager
-	wotan        *wotan.Wotan
+	wotan         *wotan.Wotan
 	seqCounter    *TopicSequenceCounter
 
 	// NodeID identifies this Wotan instance in cluster mode
@@ -91,7 +91,7 @@ func NewTopicService(
 	return &TopicService{
 		roomManager:   roomManager,
 		memberManager: memberManager,
-		wotan:        msgWotan,
+		wotan:         msgWotan,
 		seqCounter:    NewTopicSequenceCounter(),
 		topicVerifier: verifier,
 	}
@@ -107,7 +107,7 @@ func NewTopicServiceWithCounter(
 	return &TopicService{
 		roomManager:   roomManager,
 		memberManager: memberManager,
-		wotan:        msgWotan,
+		wotan:         msgWotan,
 		seqCounter:    seqCounter,
 	}
 }
@@ -510,10 +510,10 @@ func (s *TopicService) TopicPing(ctx context.Context, req *chatpb.TopicPingReque
 	activeStreams := s.activeStreams.Load()
 
 	return &chatpb.TopicPongResponse{
-		Status:       "ok",
-		Timestamp:    timestamppb.Now(),
+		Status:        "ok",
+		Timestamp:     timestamppb.Now(),
 		ActiveStreams: activeStreams,
-		TotalTopics:  int64(topicCount),
+		TotalTopics:   int64(topicCount),
 	}, nil
 }
 

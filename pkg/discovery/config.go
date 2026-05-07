@@ -11,12 +11,12 @@ import (
 // It is loaded from /opt/unheaded/<service>/config.yaml and defines how the service
 // is deployed, monitored, and managed within the Unheaded platform.
 type ServiceConfig struct {
-	Service    ServiceMeta       `yaml:"service" json:"service"`
-	Network    NetworkConfig     `yaml:"network" json:"network"`
-	Deployment DeploymentConfig  `yaml:"deployment" json:"deployment"`
-	Runtime    RuntimeConfig     `yaml:"runtime" json:"runtime"`
-	Health     HealthConfig      `yaml:"health" json:"health"`
-	Labels     ServiceLabels     `yaml:"labels" json:"labels"`
+	Service    ServiceMeta      `yaml:"service" json:"service"`
+	Network    NetworkConfig    `yaml:"network" json:"network"`
+	Deployment DeploymentConfig `yaml:"deployment" json:"deployment"`
+	Runtime    RuntimeConfig    `yaml:"runtime" json:"runtime"`
+	Health     HealthConfig     `yaml:"health" json:"health"`
+	Labels     ServiceLabels    `yaml:"labels" json:"labels"`
 }
 
 // ServiceMeta contains service identity and metadata.

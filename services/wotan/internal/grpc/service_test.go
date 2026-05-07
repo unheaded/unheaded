@@ -11,16 +11,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	chatpb "unheaded/services/wotan/proto"
-	"unheaded/services/wotan/internal/wotan"
-	"unheaded/services/wotan/internal/member"
-	"unheaded/services/wotan/internal/metrics"
-	"unheaded/services/wotan/internal/ringbuffer"
-	"unheaded/services/wotan/internal/room"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"unheaded/services/wotan/internal/member"
+	"unheaded/services/wotan/internal/metrics"
+	"unheaded/services/wotan/internal/ringbuffer"
+	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/wotan"
+	chatpb "unheaded/services/wotan/proto"
 )
 
 // TestMain initializes metrics before running tests

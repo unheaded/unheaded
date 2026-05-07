@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	chatpb "unheaded/services/wotan/proto"
-	"unheaded/services/wotan/internal/wotan"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/room"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"unheaded/services/wotan/internal/wotan"
+	chatpb "unheaded/services/wotan/proto"
 )
 
 // ChatService implements the gRPC ChatStream service
@@ -25,7 +25,7 @@ type ChatService struct {
 	chatpb.UnimplementedChatStreamServer
 	roomManager   *room.Manager
 	memberManager *member.Manager
-	wotan        *wotan.Wotan
+	wotan         *wotan.Wotan
 }
 
 // NewChatService creates a new ChatService
@@ -37,7 +37,7 @@ func NewChatService(
 	return &ChatService{
 		roomManager:   roomManager,
 		memberManager: memberManager,
-		wotan:        msgWotan,
+		wotan:         msgWotan,
 	}
 }
 

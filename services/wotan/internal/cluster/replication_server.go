@@ -11,8 +11,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	chatpb "unheaded/services/wotan/proto"
 	"unheaded/pkg/storage/wal"
+	chatpb "unheaded/services/wotan/proto"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -22,10 +22,10 @@ import (
 type ReplicationServer struct {
 	chatpb.UnimplementedWotanReplicationServer
 
-	wal      *wal.WAL
-	nodeID   string
-	epoch    int64
-	lastSeq  atomic.Uint64
+	wal     *wal.WAL
+	nodeID  string
+	epoch   int64
+	lastSeq atomic.Uint64
 }
 
 // NewReplicationServer creates a replication server for the primary node.

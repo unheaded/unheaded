@@ -16,8 +16,8 @@ import (
 //  3. Convention scan (filesystem config.yaml)
 //  4. Static fallback (configs/services.yaml)
 type Resolver struct {
-	registry *Registry    // Layer 1: Wotan-based (may be nil)
-	scanner  *Scanner     // Layer 3: Convention-based (may be nil)
+	registry *Registry     // Layer 1: Wotan-based (may be nil)
+	scanner  *Scanner      // Layer 3: Convention-based (may be nil)
 	static   *StaticConfig // Layer 4: Static fallback (may be nil)
 }
 

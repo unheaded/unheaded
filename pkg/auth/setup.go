@@ -77,15 +77,15 @@ func SetupMiddleware(cfg ServiceAuthConfig) func(http.Handler) http.Handler {
 	if len(cfg.JWTSigningKey) > 0 {
 		authenticators = append(authenticators, NewJWTAuthenticator(JWTConfig{
 			SigningKey: cfg.JWTSigningKey,
-			Issuer:    cfg.Issuer,
-			Audience:  cfg.Audience,
+			Issuer:     cfg.Issuer,
+			Audience:   cfg.Audience,
 		}))
 	}
 
 	// Service token authenticator (uses same signing key, different issuer)
 	if len(cfg.JWTSigningKey) > 0 && cfg.ServiceName != "" {
 		authenticators = append(authenticators, NewJWTAuthenticator(JWTConfig{
-			SigningKey:    cfg.JWTSigningKey,
+			SigningKey:   cfg.JWTSigningKey,
 			Issuer:       ServiceTokenIssuer,
 			Audience:     cfg.ServiceName,
 			AllowedRoles: []string{RoleService},

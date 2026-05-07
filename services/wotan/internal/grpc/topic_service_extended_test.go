@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	chatpb "unheaded/services/wotan/proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/ringbuffer"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/wotan"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
+	chatpb "unheaded/services/wotan/proto"
 )
 
 // mockTopicStream implements chatpb.TopicStream_StreamTopicsServer for testing
@@ -50,12 +50,12 @@ func (m *mockTopicStream) Send(event *chatpb.TopicEvent) error {
 	return nil
 }
 
-func (m *mockTopicStream) Context() context.Context  { return m.ctx }
+func (m *mockTopicStream) Context() context.Context     { return m.ctx }
 func (m *mockTopicStream) SetHeader(metadata.MD) error  { return nil }
 func (m *mockTopicStream) SendHeader(metadata.MD) error { return nil }
 func (m *mockTopicStream) SetTrailer(metadata.MD)       {}
-func (m *mockTopicStream) SendMsg(any) error             { return nil }
-func (m *mockTopicStream) RecvMsg(any) error             { return nil }
+func (m *mockTopicStream) SendMsg(any) error            { return nil }
+func (m *mockTopicStream) RecvMsg(any) error            { return nil }
 
 func (m *mockTopicStream) getEvents() []*chatpb.TopicEvent {
 	m.mu.Lock()
