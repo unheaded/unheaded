@@ -157,10 +157,10 @@ type HistoryStore interface {
 
 // MemoryHistoryStore stores rotation history in memory.
 type MemoryHistoryStore struct {
-	records  map[string]*RotationRecord
-	byPath   map[string][]*RotationRecord
-	maxSize  int
-	mu       sync.RWMutex
+	records map[string]*RotationRecord
+	byPath  map[string][]*RotationRecord
+	maxSize int
+	mu      sync.RWMutex
 }
 
 // NewMemoryHistoryStore creates a new in-memory history store.
@@ -601,10 +601,10 @@ func (s *FileHistoryStore) Prune(ctx context.Context, olderThan time.Duration) (
 
 // HistoryTracker tracks rotation operations in real-time.
 type HistoryTracker struct {
-	store       HistoryStore
-	log         *logger.Logger
-	currentOps  map[string]*RotationRecord
-	mu          sync.RWMutex
+	store      HistoryStore
+	log        *logger.Logger
+	currentOps map[string]*RotationRecord
+	mu         sync.RWMutex
 }
 
 // HistoryTrackerConfig configures the history tracker.
@@ -785,8 +785,8 @@ func (ht *HistoryTracker) GetStats(ctx context.Context, path string, since time.
 	}
 
 	stats := &RotationStats{
-		Path:      path,
-		Since:     since,
+		Path:           path,
+		Since:          since,
 		TotalRotations: len(records),
 	}
 

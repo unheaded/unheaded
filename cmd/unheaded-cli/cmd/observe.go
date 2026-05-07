@@ -15,10 +15,10 @@ import (
 // NewObserveCommand creates the observe command.
 func NewObserveCommand() *Command {
 	cmd := &Command{
-		Name:    "observe",
-		Short:   "Manage observability backends",
-		Long:    "Configure and inspect observability backend adapters.\n\nSupported backends: prometheus, grafana, elk, fluentd, jaeger, nagios, loki, wotan",
-		Aliases: []string{"obs"},
+		Name:        "observe",
+		Short:       "Manage observability backends",
+		Long:        "Configure and inspect observability backend adapters.\n\nSupported backends: prometheus, grafana, elk, fluentd, jaeger, nagios, loki, wotan",
+		Aliases:     []string{"obs"},
 		SubCommands: make(map[string]*Command),
 	}
 
@@ -141,16 +141,16 @@ func backendInfo(b observability.Backend) (status, signals string) {
 
 func servicePort(name string) int {
 	ports := map[string]int{
-		"wotan":            18000,
-		"timeguru":         19000,
-		"architect":        19001,
-		"captain":          19002,
-		"micromanager":     19003,
-		"monad":            19004,
-		"sophia":           19005,
+		"wotan":             18000,
+		"timeguru":          19000,
+		"architect":         19001,
+		"captain":           19002,
+		"micromanager":      19003,
+		"monad":             19004,
+		"sophia":            19005,
 		"dashboard-backend": 20000,
-		"kanban-app":       20001,
-		"unheaded-daemon":  17000,
+		"kanban-app":        20001,
+		"unheaded-daemon":   17000,
 	}
 	if p, ok := ports[name]; ok {
 		return p

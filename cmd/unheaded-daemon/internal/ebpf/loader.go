@@ -39,33 +39,33 @@ var (
 type ProgramType string
 
 const (
-	TypeKProbe       ProgramType = "kprobe"
-	TypeKRetProbe    ProgramType = "kretprobe"
-	TypeTracepoint   ProgramType = "tracepoint"
-	TypeXDP          ProgramType = "xdp"
-	TypeTC           ProgramType = "tc"
-	TypeCgroupSkb    ProgramType = "cgroup_skb"
-	TypeCgroupSock   ProgramType = "cgroup_sock"
-	TypeSocketFilter ProgramType = "socket_filter"
-	TypeSched        ProgramType = "sched"
-	TypePerf         ProgramType = "perf"
+	TypeKProbe        ProgramType = "kprobe"
+	TypeKRetProbe     ProgramType = "kretprobe"
+	TypeTracepoint    ProgramType = "tracepoint"
+	TypeXDP           ProgramType = "xdp"
+	TypeTC            ProgramType = "tc"
+	TypeCgroupSkb     ProgramType = "cgroup_skb"
+	TypeCgroupSock    ProgramType = "cgroup_sock"
+	TypeSocketFilter  ProgramType = "socket_filter"
+	TypeSched         ProgramType = "sched"
+	TypePerf          ProgramType = "perf"
 	TypeRawTracepoint ProgramType = "raw_tracepoint"
-	TypeFentry       ProgramType = "fentry"
-	TypeFexit        ProgramType = "fexit"
+	TypeFentry        ProgramType = "fentry"
+	TypeFexit         ProgramType = "fexit"
 )
 
 // AttachType represents how the program is attached
 type AttachType string
 
 const (
-	AttachNone          AttachType = "none"
+	AttachNone            AttachType = "none"
 	AttachCgroupInet4Bind AttachType = "cgroup_inet4_bind"
 	AttachCgroupInet6Bind AttachType = "cgroup_inet6_bind"
-	AttachCgroupSockOps AttachType = "cgroup_sock_ops"
-	AttachXDPDriver     AttachType = "xdp_driver"
-	AttachXDPGeneric    AttachType = "xdp_generic"
-	AttachTCIngress     AttachType = "tc_ingress"
-	AttachTCEgress      AttachType = "tc_egress"
+	AttachCgroupSockOps   AttachType = "cgroup_sock_ops"
+	AttachXDPDriver       AttachType = "xdp_driver"
+	AttachXDPGeneric      AttachType = "xdp_generic"
+	AttachTCIngress       AttachType = "tc_ingress"
+	AttachTCEgress        AttachType = "tc_egress"
 )
 
 // ProgramStatus represents the current status of a program
@@ -87,30 +87,30 @@ const (
 
 // ProgramSpec defines an eBPF program to load
 type ProgramSpec struct {
-	Name        string            `json:"name"`         // Unique identifier
-	Path        string            `json:"path"`         // Path to .bpf.o file
-	Type        ProgramType       `json:"type"`         // Program type
-	AttachTo    string            `json:"attach_to"`    // Attach target (function, tracepoint, interface)
-	AttachType  AttachType        `json:"attach_type"`  // How to attach
-	PinPath     string            `json:"pin_path"`     // Optional BPF filesystem pin path
-	MapPinPaths map[string]string `json:"map_pins"`     // Map pin paths
-	Constants   map[string]uint64 `json:"constants"`    // Compile-time constants
-	Labels      map[string]string `json:"labels"`       // User labels
+	Name        string            `json:"name"`        // Unique identifier
+	Path        string            `json:"path"`        // Path to .bpf.o file
+	Type        ProgramType       `json:"type"`        // Program type
+	AttachTo    string            `json:"attach_to"`   // Attach target (function, tracepoint, interface)
+	AttachType  AttachType        `json:"attach_type"` // How to attach
+	PinPath     string            `json:"pin_path"`    // Optional BPF filesystem pin path
+	MapPinPaths map[string]string `json:"map_pins"`    // Map pin paths
+	Constants   map[string]uint64 `json:"constants"`   // Compile-time constants
+	Labels      map[string]string `json:"labels"`      // User labels
 }
 
 // ProgramInfo represents a loaded eBPF program
 type ProgramInfo struct {
 	Name       string            `json:"name"`
-	ID         uint32            `json:"id"`           // Kernel program ID
+	ID         uint32            `json:"id"` // Kernel program ID
 	Type       ProgramType       `json:"type"`
-	Tag        string            `json:"tag"`          // Program tag (hash)
-	JitedSize  uint32            `json:"jited_size"`   // JITed program size
-	XlatedSize uint32            `json:"xlated_size"`  // Translated bytecode size
+	Tag        string            `json:"tag"`         // Program tag (hash)
+	JitedSize  uint32            `json:"jited_size"`  // JITed program size
+	XlatedSize uint32            `json:"xlated_size"` // Translated bytecode size
 	LoadTime   time.Time         `json:"load_time"`
 	Status     ProgramStatus     `json:"status"`
 	AttachTo   string            `json:"attach_to"`
 	AttachType AttachType        `json:"attach_type"`
-	Maps       []string          `json:"maps"`         // Associated map names
+	Maps       []string          `json:"maps"` // Associated map names
 	Labels     map[string]string `json:"labels"`
 	Error      string            `json:"error,omitempty"`
 }
@@ -156,12 +156,12 @@ type MapInfo struct {
 
 // ProgramMetrics represents runtime metrics for an eBPF program
 type ProgramMetrics struct {
-	Name        string        `json:"name"`
-	RunCount    uint64        `json:"run_count"`
-	RunTimeNs   uint64        `json:"run_time_ns"`
-	AvgRunNs    uint64        `json:"avg_run_ns"`
-	Recursion   uint64        `json:"recursion_misses"`
-	SampleTime  time.Time     `json:"sample_time"`
+	Name       string    `json:"name"`
+	RunCount   uint64    `json:"run_count"`
+	RunTimeNs  uint64    `json:"run_time_ns"`
+	AvgRunNs   uint64    `json:"avg_run_ns"`
+	Recursion  uint64    `json:"recursion_misses"`
+	SampleTime time.Time `json:"sample_time"`
 }
 
 // ============================================================================
@@ -206,13 +206,13 @@ type Loader interface {
 
 // MockLoader implements Loader interface for testing
 type MockLoader struct {
-	mu        sync.RWMutex
-	programs  map[string]*ProgramInfo
-	maps      map[string]map[string]*MapInfo // program -> map name -> info
-	mapData   map[string]map[string]map[string][]byte // program -> map -> key -> value
-	metrics   map[string]*ProgramMetrics
-	ringbufs  map[string]chan []byte
-	closed    bool
+	mu       sync.RWMutex
+	programs map[string]*ProgramInfo
+	maps     map[string]map[string]*MapInfo          // program -> map name -> info
+	mapData  map[string]map[string]map[string][]byte // program -> map -> key -> value
+	metrics  map[string]*ProgramMetrics
+	ringbufs map[string]chan []byte
+	closed   bool
 }
 
 // NewMockLoader creates a new mock eBPF loader

@@ -47,30 +47,30 @@ type ChainedRule struct {
 	*Rule
 
 	// Chain configuration
-	Operator    ChainOperator
-	Children    []*ChainedRule
-	ParentID    string
-	ChainID     string
-	ChainPhase  int // Evaluation phase (lower = earlier)
+	Operator   ChainOperator
+	Children   []*ChainedRule
+	ParentID   string
+	ChainID    string
+	ChainPhase int // Evaluation phase (lower = earlier)
 
 	// Rule versioning
-	Version     int
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Changelog   []VersionEntry
+	Version   int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Changelog []VersionEntry
 
 	// Priority and ordering
-	Priority    int // Higher = evaluated first
-	Order       int // Within same priority, lower = first
+	Priority int // Higher = evaluated first
+	Order    int // Within same priority, lower = first
 
 	// Statistics
-	stats       *RuleStats
+	stats *RuleStats
 
 	// Rate limiting per rule
-	RateLimit   *RuleRateLimit
+	RateLimit *RuleRateLimit
 
 	// Exception handling
-	Exceptions  []*ExceptionRule
+	Exceptions []*ExceptionRule
 
 	mu sync.RWMutex
 }
@@ -105,8 +105,8 @@ type RuleRateLimit struct {
 	Action      Action // What to do when limit exceeded
 
 	// Internal state
-	counters    map[string]*rateLimitCounter
-	mu          sync.RWMutex
+	counters map[string]*rateLimitCounter
+	mu       sync.RWMutex
 }
 
 type rateLimitCounter struct {
@@ -121,21 +121,21 @@ type ExceptionRule struct {
 	Description string
 
 	// Conditions for exception
-	SourceIPs   []string // IPs or CIDR ranges to exclude
-	Paths       []string // URL paths to exclude
-	Methods     []string // HTTP methods to exclude
-	Headers     map[string]string // Header conditions
-	UserAgents  []string // User agent patterns to exclude
-	Countries   []string // Country codes to exclude
+	SourceIPs  []string          // IPs or CIDR ranges to exclude
+	Paths      []string          // URL paths to exclude
+	Methods    []string          // HTTP methods to exclude
+	Headers    map[string]string // Header conditions
+	UserAgents []string          // User agent patterns to exclude
+	Countries  []string          // Country codes to exclude
 
 	// Time-based exceptions
-	StartTime   *time.Time
-	EndTime     *time.Time
-	DaysOfWeek  []time.Weekday
-	TimeRanges  []TimeRange
+	StartTime  *time.Time
+	EndTime    *time.Time
+	DaysOfWeek []time.Weekday
+	TimeRanges []TimeRange
 
-	Enabled     bool
-	Priority    int
+	Enabled  bool
+	Priority int
 }
 
 // TimeRange represents a time range within a day

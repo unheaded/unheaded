@@ -17,12 +17,12 @@ import (
 // Rust acceleration planned with SIMD-accelerated pattern matching (target: 10x throughput).
 // See docs/WAF_ARCHITECTURE.md for migration strategy.
 type SQLiDetector struct {
-	patterns     []*regexp.Regexp
-	keywords     map[string]int // SQL keywords with severity weights
-	operators    map[string]int // SQL operators with severity weights
-	functions    map[string]int // SQL functions with severity weights
-	strict       bool
-	tokenizer    *SQLTokenizer
+	patterns  []*regexp.Regexp
+	keywords  map[string]int // SQL keywords with severity weights
+	operators map[string]int // SQL operators with severity weights
+	functions map[string]int // SQL functions with severity weights
+	strict    bool
+	tokenizer *SQLTokenizer
 }
 
 // SQLTokenizer performs lexical analysis on potential SQL injection payloads
@@ -30,9 +30,9 @@ type SQLiDetector struct {
 // Rust acceleration planned with nom parser combinators for zero-copy tokenization.
 // See docs/WAF_ARCHITECTURE.md for migration strategy.
 type SQLTokenizer struct {
-	sqlKeywords   map[string]TokenType
-	sqlOperators  map[string]TokenType
-	sqlFunctions  map[string]TokenType
+	sqlKeywords  map[string]TokenType
+	sqlOperators map[string]TokenType
+	sqlFunctions map[string]TokenType
 }
 
 // TokenType represents the type of SQL token
@@ -53,11 +53,11 @@ const (
 
 // Token represents a parsed SQL token
 type Token struct {
-	Type    TokenType
-	Value   string
-	Start   int
-	End     int
-	Risk    int // Risk score for this token
+	Type  TokenType
+	Value string
+	Start int
+	End   int
+	Risk  int // Risk score for this token
 }
 
 // NewSQLTokenizer creates a new SQL tokenizer
@@ -95,30 +95,30 @@ func NewSQLTokenizer() *SQLTokenizer {
 			"|": TokenOperator, "^": TokenOperator, "~": TokenOperator,
 		},
 		sqlFunctions: map[string]TokenType{
-			"concat":       TokenFunction, "concat_ws": TokenFunction,
-			"substring":    TokenFunction, "substr": TokenFunction,
-			"mid":          TokenFunction, "left": TokenFunction,
-			"right":        TokenFunction, "char": TokenFunction,
-			"chr":          TokenFunction, "ascii": TokenFunction,
-			"ord":          TokenFunction, "hex": TokenFunction,
-			"unhex":        TokenFunction, "conv": TokenFunction,
-			"cast":         TokenFunction, "convert": TokenFunction,
-			"coalesce":     TokenFunction, "ifnull": TokenFunction,
-			"nullif":       TokenFunction, "if": TokenFunction,
-			"sleep":        TokenFunction, "benchmark": TokenFunction,
-			"pg_sleep":     TokenFunction, "waitfor": TokenFunction,
-			"load_file":    TokenFunction, "into":  TokenFunction,
-			"outfile":      TokenFunction, "dumpfile": TokenFunction,
-			"version":      TokenFunction, "database": TokenFunction,
-			"user":         TokenFunction, "current_user": TokenFunction,
-			"system_user":  TokenFunction, "session_user": TokenFunction,
+			"concat": TokenFunction, "concat_ws": TokenFunction,
+			"substring": TokenFunction, "substr": TokenFunction,
+			"mid": TokenFunction, "left": TokenFunction,
+			"right": TokenFunction, "char": TokenFunction,
+			"chr": TokenFunction, "ascii": TokenFunction,
+			"ord": TokenFunction, "hex": TokenFunction,
+			"unhex": TokenFunction, "conv": TokenFunction,
+			"cast": TokenFunction, "convert": TokenFunction,
+			"coalesce": TokenFunction, "ifnull": TokenFunction,
+			"nullif": TokenFunction, "if": TokenFunction,
+			"sleep": TokenFunction, "benchmark": TokenFunction,
+			"pg_sleep": TokenFunction, "waitfor": TokenFunction,
+			"load_file": TokenFunction, "into": TokenFunction,
+			"outfile": TokenFunction, "dumpfile": TokenFunction,
+			"version": TokenFunction, "database": TokenFunction,
+			"user": TokenFunction, "current_user": TokenFunction,
+			"system_user": TokenFunction, "session_user": TokenFunction,
 			"extractvalue": TokenFunction, "updatexml": TokenFunction,
-			"xmltype":      TokenFunction, "exp": TokenFunction,
-			"floor":        TokenFunction, "rand": TokenFunction,
-			"count":        TokenFunction, "sum": TokenFunction,
-			"avg":          TokenFunction, "min": TokenFunction,
-			"max":          TokenFunction, "group_concat": TokenFunction,
-			"string_agg":   TokenFunction, "listagg": TokenFunction,
+			"xmltype": TokenFunction, "exp": TokenFunction,
+			"floor": TokenFunction, "rand": TokenFunction,
+			"count": TokenFunction, "sum": TokenFunction,
+			"avg": TokenFunction, "min": TokenFunction,
+			"max": TokenFunction, "group_concat": TokenFunction,
+			"string_agg": TokenFunction, "listagg": TokenFunction,
 		},
 	}
 }
@@ -405,24 +405,24 @@ func NewSQLiDetector(strict bool) *SQLiDetector {
 		`(?i)load\s+data\s+infile`,
 
 		// Encoded attacks - URL encoding
-		`%27`,          // Single quote
-		`%22`,          // Double quote
-		`%2527`,        // Double encoded single quote
-		`%2522`,        // Double encoded double quote
-		`%00`,          // Null byte
-		`%252e%252e`,   // Double encoded ..
+		`%27`,        // Single quote
+		`%22`,        // Double quote
+		`%2527`,      // Double encoded single quote
+		`%2522`,      // Double encoded double quote
+		`%00`,        // Null byte
+		`%252e%252e`, // Double encoded ..
 
 		// Encoded attacks - HTML entities
-		`&#x27;`,       // Single quote
-		`&#39;`,        // Single quote
-		`&#x22;`,       // Double quote
-		`&#34;`,        // Double quote
+		`&#x27;`, // Single quote
+		`&#39;`,  // Single quote
+		`&#x22;`, // Double quote
+		`&#34;`,  // Double quote
 
 		// Encoded attacks - Unicode
-		`\\x27`,        // Hex escape single quote
-		`\\x22`,        // Hex escape double quote
-		`\u0027`,       // Unicode single quote
-		`\u0022`,       // Unicode double quote
+		`\\x27`,  // Hex escape single quote
+		`\\x22`,  // Hex escape double quote
+		`\u0027`, // Unicode single quote
+		`\u0022`, // Unicode double quote
 
 		// Database-specific attacks
 		`(?i)@@version`,

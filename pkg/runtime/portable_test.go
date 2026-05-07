@@ -3171,7 +3171,7 @@ func TestCreateSandbox_DuplicateID(t *testing.T) {
 	// manually insert a sandbox to test the duplicate check
 	rt.mu.Lock()
 	rt.sandboxes["dup-sandbox"] = &Sandbox{
-		info: &SandboxInfo{ID: "dup-sandbox"},
+		info:   &SandboxInfo{ID: "dup-sandbox"},
 		config: config,
 	}
 	rt.mu.Unlock()
@@ -3350,11 +3350,11 @@ func TestGetSandboxStatus_WithState(t *testing.T) {
 
 	rt.mu.Lock()
 	rt.sandboxes["status-test"] = &Sandbox{
-		info:       &SandboxInfo{ID: "status-test", State: SandboxStateReady, CreatedAt: time.Now()},
-		config:     &SandboxConfig{ID: "status-test", Name: "statusbox"},
-		NetNS:      "/run/netns/test",
-		IPCNS:      "/run/ns/ipc",
-		UTSNS:      "/run/ns/uts",
+		info:        &SandboxInfo{ID: "status-test", State: SandboxStateReady, CreatedAt: time.Now()},
+		config:      &SandboxConfig{ID: "status-test", Name: "statusbox"},
+		NetNS:       "/run/netns/test",
+		IPCNS:       "/run/ns/ipc",
+		UTSNS:       "/run/ns/uts",
 		networkInfo: &SandboxNetworkInfo{IP: "10.0.0.1", Gateway: "10.0.0.0"},
 	}
 	rt.mu.Unlock()

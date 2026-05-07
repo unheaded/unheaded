@@ -18,13 +18,13 @@ import (
 // MemoryStore is an in-memory secret store for testing and development.
 // It is not suitable for production use as secrets are lost on restart.
 type MemoryStore struct {
-	secrets   map[string]*secrets.Secret
-	watchers  map[string][]chan *secrets.Secret
-	leases    map[string]*secrets.Lease
-	mu        sync.RWMutex
-	log       *logger.Logger
-	closed    bool
-	closeCh   chan struct{}
+	secrets  map[string]*secrets.Secret
+	watchers map[string][]chan *secrets.Secret
+	leases   map[string]*secrets.Lease
+	mu       sync.RWMutex
+	log      *logger.Logger
+	closed   bool
+	closeCh  chan struct{}
 }
 
 // MemoryStoreConfig configures the memory store.
@@ -206,9 +206,9 @@ func (s *MemoryStore) Close() error {
 
 // MemoryLeaseManager is an in-memory lease manager.
 type MemoryLeaseManager struct {
-	leases  map[string]*secrets.Lease
-	mu      sync.RWMutex
-	log     *logger.Logger
+	leases map[string]*secrets.Lease
+	mu     sync.RWMutex
+	log    *logger.Logger
 }
 
 // NewMemoryLeaseManager creates a new in-memory lease manager.
@@ -369,8 +369,8 @@ func (m *MemoryLeaseManager) cleanup() {
 
 // MemoryAuditLogger is an in-memory audit logger for testing.
 type MemoryAuditLogger struct {
-	events []*secrets.AuditEvent
-	mu     sync.RWMutex
+	events  []*secrets.AuditEvent
+	mu      sync.RWMutex
 	maxSize int
 }
 

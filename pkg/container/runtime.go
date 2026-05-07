@@ -100,8 +100,8 @@ type ContainerSpec struct {
 	Resources ResourceSpec `json:"resources,omitempty" yaml:"resources,omitempty"`
 
 	// Networking
-	Network     NetworkSpec `json:"network,omitempty" yaml:"network,omitempty"`
-	ExposedPorts []PortSpec `json:"exposed_ports,omitempty" yaml:"exposed_ports,omitempty"`
+	Network      NetworkSpec `json:"network,omitempty" yaml:"network,omitempty"`
+	ExposedPorts []PortSpec  `json:"exposed_ports,omitempty" yaml:"exposed_ports,omitempty"`
 
 	// Storage
 	Mounts  []MountSpec  `json:"mounts,omitempty" yaml:"mounts,omitempty"`
@@ -169,9 +169,9 @@ const (
 
 // DNSSpec defines DNS configuration
 type DNSSpec struct {
-	Servers  []string `json:"servers,omitempty" yaml:"servers,omitempty"`
-	Search   []string `json:"search,omitempty" yaml:"search,omitempty"`
-	Options  []string `json:"options,omitempty" yaml:"options,omitempty"`
+	Servers []string `json:"servers,omitempty" yaml:"servers,omitempty"`
+	Search  []string `json:"search,omitempty" yaml:"search,omitempty"`
+	Options []string `json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 // PortSpec defines an exposed port
@@ -211,15 +211,15 @@ type VolumeSpec struct {
 
 // SecuritySpec defines security configuration
 type SecuritySpec struct {
-	Privileged       bool     `json:"privileged,omitempty" yaml:"privileged,omitempty"`
-	ReadOnlyRootfs   bool     `json:"read_only_rootfs,omitempty" yaml:"read_only_rootfs,omitempty"`
-	NoNewPrivileges  bool     `json:"no_new_privileges,omitempty" yaml:"no_new_privileges,omitempty"`
-	User             string   `json:"user,omitempty" yaml:"user,omitempty"`
-	Group            string   `json:"group,omitempty" yaml:"group,omitempty"`
-	Capabilities     CapSpec  `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
-	SeccompProfile   string   `json:"seccomp_profile,omitempty" yaml:"seccomp_profile,omitempty"`
-	AppArmorProfile  string   `json:"apparmor_profile,omitempty" yaml:"apparmor_profile,omitempty"`
-	SELinuxOptions   *SELinux `json:"selinux_options,omitempty" yaml:"selinux_options,omitempty"`
+	Privileged      bool     `json:"privileged,omitempty" yaml:"privileged,omitempty"`
+	ReadOnlyRootfs  bool     `json:"read_only_rootfs,omitempty" yaml:"read_only_rootfs,omitempty"`
+	NoNewPrivileges bool     `json:"no_new_privileges,omitempty" yaml:"no_new_privileges,omitempty"`
+	User            string   `json:"user,omitempty" yaml:"user,omitempty"`
+	Group           string   `json:"group,omitempty" yaml:"group,omitempty"`
+	Capabilities    CapSpec  `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	SeccompProfile  string   `json:"seccomp_profile,omitempty" yaml:"seccomp_profile,omitempty"`
+	AppArmorProfile string   `json:"apparmor_profile,omitempty" yaml:"apparmor_profile,omitempty"`
+	SELinuxOptions  *SELinux `json:"selinux_options,omitempty" yaml:"selinux_options,omitempty"`
 }
 
 // CapSpec defines Linux capabilities
@@ -255,9 +255,9 @@ type RestartPolicy struct {
 type RestartPolicyType string
 
 const (
-	RestartPolicyNone      RestartPolicyType = "none"
-	RestartPolicyAlways    RestartPolicyType = "always"
-	RestartPolicyOnFailure RestartPolicyType = "on-failure"
+	RestartPolicyNone          RestartPolicyType = "none"
+	RestartPolicyAlways        RestartPolicyType = "always"
+	RestartPolicyOnFailure     RestartPolicyType = "on-failure"
 	RestartPolicyUnlessStopped RestartPolicyType = "unless-stopped"
 )
 
@@ -289,10 +289,10 @@ type Container struct {
 	Spec *ContainerSpec `json:"spec,omitempty"`
 
 	// Runtime information
-	PID       int64                    `json:"pid,omitempty"`
-	Platform  string                   `json:"platform,omitempty"`
-	Network   map[string]NetworkInfo   `json:"network,omitempty"`
-	Mounts    []MountInfo              `json:"mounts,omitempty"`
+	PID      int64                  `json:"pid,omitempty"`
+	Platform string                 `json:"platform,omitempty"`
+	Network  map[string]NetworkInfo `json:"network,omitempty"`
+	Mounts   []MountInfo            `json:"mounts,omitempty"`
 
 	// Labels and annotations
 	Labels      map[string]string `json:"labels,omitempty"`
@@ -320,11 +320,11 @@ const (
 
 // NetworkInfo contains network information for a container
 type NetworkInfo struct {
-	NetworkID  string    `json:"network_id"`
-	EndpointID string    `json:"endpoint_id,omitempty"`
-	Gateway    string    `json:"gateway,omitempty"`
-	IPAddress  string    `json:"ip_address,omitempty"`
-	MacAddress string    `json:"mac_address,omitempty"`
+	NetworkID  string        `json:"network_id"`
+	EndpointID string        `json:"endpoint_id,omitempty"`
+	Gateway    string        `json:"gateway,omitempty"`
+	IPAddress  string        `json:"ip_address,omitempty"`
+	MacAddress string        `json:"mac_address,omitempty"`
 	Ports      []PortMapping `json:"ports,omitempty"`
 }
 
@@ -437,23 +437,23 @@ type Stats struct {
 
 // CPUStats contains CPU usage statistics
 type CPUStats struct {
-	UsageNanos      uint64  `json:"usage_nanos"`
-	SystemNanos     uint64  `json:"system_nanos"`
-	UserNanos       uint64  `json:"user_nanos"`
-	PercentUsage    float64 `json:"percent_usage"`
-	OnlineCPUs      int     `json:"online_cpus"`
+	UsageNanos       uint64  `json:"usage_nanos"`
+	SystemNanos      uint64  `json:"system_nanos"`
+	UserNanos        uint64  `json:"user_nanos"`
+	PercentUsage     float64 `json:"percent_usage"`
+	OnlineCPUs       int     `json:"online_cpus"`
 	ThrottledPeriods uint64  `json:"throttled_periods,omitempty"`
-	ThrottledTime   uint64  `json:"throttled_time,omitempty"`
+	ThrottledTime    uint64  `json:"throttled_time,omitempty"`
 }
 
 // MemoryStats contains memory usage statistics
 type MemoryStats struct {
-	Usage       uint64  `json:"usage"`
-	MaxUsage    uint64  `json:"max_usage,omitempty"`
-	Limit       uint64  `json:"limit,omitempty"`
-	Cache       uint64  `json:"cache,omitempty"`
-	RSS         uint64  `json:"rss,omitempty"`
-	Swap        uint64  `json:"swap,omitempty"`
+	Usage        uint64  `json:"usage"`
+	MaxUsage     uint64  `json:"max_usage,omitempty"`
+	Limit        uint64  `json:"limit,omitempty"`
+	Cache        uint64  `json:"cache,omitempty"`
+	RSS          uint64  `json:"rss,omitempty"`
+	Swap         uint64  `json:"swap,omitempty"`
 	PercentUsage float64 `json:"percent_usage,omitempty"`
 }
 
@@ -471,10 +471,10 @@ type NetworkStats struct {
 
 // BlockIOStats contains block I/O statistics
 type BlockIOStats struct {
-	ReadBytes   uint64 `json:"read_bytes"`
-	WriteBytes  uint64 `json:"write_bytes"`
-	ReadOps     uint64 `json:"read_ops"`
-	WriteOps    uint64 `json:"write_ops"`
+	ReadBytes  uint64 `json:"read_bytes"`
+	WriteBytes uint64 `json:"write_bytes"`
+	ReadOps    uint64 `json:"read_ops"`
+	WriteOps   uint64 `json:"write_ops"`
 }
 
 // ============================================================================
@@ -483,9 +483,9 @@ type BlockIOStats struct {
 
 // HealthStatus represents container health check result
 type HealthStatus struct {
-	Status      HealthState `json:"status"`
-	FailingStreak int        `json:"failing_streak,omitempty"`
-	Log         []HealthLog `json:"log,omitempty"`
+	Status        HealthState `json:"status"`
+	FailingStreak int         `json:"failing_streak,omitempty"`
+	Log           []HealthLog `json:"log,omitempty"`
 }
 
 // HealthState represents health check state
@@ -508,16 +508,16 @@ type HealthLog struct {
 
 // Filter defines container listing filter
 type Filter struct {
-	ID        string                `json:"id,omitempty"`
-	Name      string                `json:"name,omitempty"`
-	Image     string                `json:"image,omitempty"`
-	State     []ContainerState      `json:"state,omitempty"`
-	Labels    map[string]string     `json:"labels,omitempty"`
-	Before    string                `json:"before,omitempty"`
-	Since     string                `json:"since,omitempty"`
-	Health    HealthState           `json:"health,omitempty"`
-	Network   string                `json:"network,omitempty"`
-	Ancestors []string              `json:"ancestors,omitempty"`
+	ID        string            `json:"id,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	Image     string            `json:"image,omitempty"`
+	State     []ContainerState  `json:"state,omitempty"`
+	Labels    map[string]string `json:"labels,omitempty"`
+	Before    string            `json:"before,omitempty"`
+	Since     string            `json:"since,omitempty"`
+	Health    HealthState       `json:"health,omitempty"`
+	Network   string            `json:"network,omitempty"`
+	Ancestors []string          `json:"ancestors,omitempty"`
 }
 
 // ============================================================================

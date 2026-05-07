@@ -16,14 +16,14 @@ import (
 
 // Preemption-related errors.
 var (
-	ErrPreemptionDisabled      = errors.New("preemption is disabled")
-	ErrNoPreemptionCandidates  = errors.New("no valid preemption candidates found")
-	ErrPreemptionPolicyDenied  = errors.New("preemption policy does not allow preemption")
-	ErrPDBViolation            = errors.New("preemption would violate pod disruption budget")
-	ErrAntiAffinityViolation   = errors.New("preemption violates anti-affinity rules")
-	ErrGracePeriodNotExpired   = errors.New("graceful termination period not expired")
-	ErrWorkloadNotPreemptible  = errors.New("workload is not preemptible")
-	ErrPreemptionQueueFull     = errors.New("preemption queue is full")
+	ErrPreemptionDisabled     = errors.New("preemption is disabled")
+	ErrNoPreemptionCandidates = errors.New("no valid preemption candidates found")
+	ErrPreemptionPolicyDenied = errors.New("preemption policy does not allow preemption")
+	ErrPDBViolation           = errors.New("preemption would violate pod disruption budget")
+	ErrAntiAffinityViolation  = errors.New("preemption violates anti-affinity rules")
+	ErrGracePeriodNotExpired  = errors.New("graceful termination period not expired")
+	ErrWorkloadNotPreemptible = errors.New("workload is not preemptible")
+	ErrPreemptionQueueFull    = errors.New("preemption queue is full")
 )
 
 // PreemptionPolicy defines the preemption behavior for a workload.
@@ -659,23 +659,23 @@ func (p *Preemptor) Cleanup() {
 
 // PodDisruptionBudget defines disruption constraints.
 type PodDisruptionBudget struct {
-	Name         string
-	Namespace    string
-	Selector     LabelSelector
-	MinAvailable *int
-	MaxUnavailable *int
-	CurrentHealthy int
-	DesiredHealthy int
+	Name               string
+	Namespace          string
+	Selector           LabelSelector
+	MinAvailable       *int
+	MaxUnavailable     *int
+	CurrentHealthy     int
+	DesiredHealthy     int
 	DisruptionsAllowed int
 	ObservedGeneration int64
-	CreatedAt    time.Time
+	CreatedAt          time.Time
 }
 
 // PodDisruptionBudgetManager manages PDBs.
 type PodDisruptionBudgetManager struct {
-	mu     sync.RWMutex
-	pdbs   map[string]*PodDisruptionBudget // key: namespace/name
-	workloadPDBs map[string]string // workloadID -> pdb key
+	mu           sync.RWMutex
+	pdbs         map[string]*PodDisruptionBudget // key: namespace/name
+	workloadPDBs map[string]string               // workloadID -> pdb key
 }
 
 // NewPodDisruptionBudgetManager creates a new PDB manager.
@@ -852,8 +852,8 @@ func (m *PodDisruptionBudgetManager) UpdatePDBStatus(namespace, name string, cur
 
 // PreemptionAntiAffinityRule defines anti-affinity for preemption.
 type PreemptionAntiAffinityRule struct {
-	ServiceLabel string
-	Duration     time.Duration
+	ServiceLabel             string
+	Duration                 time.Duration
 	MaxPreemptionsPerService int
 }
 
@@ -1066,11 +1066,11 @@ func (h *preemptionQueueHeap) Pop() interface{} {
 
 // PreemptionQueue manages workloads waiting for preemption.
 type PreemptionQueue struct {
-	mu       sync.Mutex
-	items    preemptionQueueHeap
-	lookup   map[string]*PreemptionQueueItem
-	maxSize  int
-	cond     *sync.Cond
+	mu      sync.Mutex
+	items   preemptionQueueHeap
+	lookup  map[string]*PreemptionQueueItem
+	maxSize int
+	cond    *sync.Cond
 }
 
 // NewPreemptionQueue creates a new preemption queue.
@@ -1201,15 +1201,15 @@ type PreemptionMetrics struct {
 	mu sync.RWMutex
 
 	// Counters
-	totalAttempts     int64
+	totalAttempts         int64
 	successfulPreemptions int64
-	failedPreemptions int64
-	totalVictims      int64
+	failedPreemptions     int64
+	totalVictims          int64
 
 	// Latency tracking
-	totalDuration     time.Duration
-	maxDuration       time.Duration
-	minDuration       time.Duration
+	totalDuration time.Duration
+	maxDuration   time.Duration
+	minDuration   time.Duration
 
 	// Per-node stats
 	preemptionsByNode map[string]int64
@@ -1351,14 +1351,14 @@ type PreemptionMetricsSnapshot struct {
 type PreemptionEventType string
 
 const (
-	PreemptionEventDenied           PreemptionEventType = "Denied"
-	PreemptionEventNoCandidates     PreemptionEventType = "NoCandidates"
-	PreemptionEventSuccess          PreemptionEventType = "Success"
-	PreemptionEventStartTermination PreemptionEventType = "StartTermination"
-	PreemptionEventVictimTerminated PreemptionEventType = "VictimTerminated"
-	PreemptionEventCompleted        PreemptionEventType = "Completed"
-	PreemptionEventFailed           PreemptionEventType = "Failed"
-	PreemptionEventPDBViolation     PreemptionEventType = "PDBViolation"
+	PreemptionEventDenied                PreemptionEventType = "Denied"
+	PreemptionEventNoCandidates          PreemptionEventType = "NoCandidates"
+	PreemptionEventSuccess               PreemptionEventType = "Success"
+	PreemptionEventStartTermination      PreemptionEventType = "StartTermination"
+	PreemptionEventVictimTerminated      PreemptionEventType = "VictimTerminated"
+	PreemptionEventCompleted             PreemptionEventType = "Completed"
+	PreemptionEventFailed                PreemptionEventType = "Failed"
+	PreemptionEventPDBViolation          PreemptionEventType = "PDBViolation"
 	PreemptionEventAntiAffinityViolation PreemptionEventType = "AntiAffinityViolation"
 )
 
@@ -1676,12 +1676,12 @@ const (
 
 // TerminationRecord tracks a termination.
 type TerminationRecord struct {
-	WorkloadID   string
-	State        TerminationState
-	StartTime    time.Time
-	EndTime      time.Time
-	GracePeriod  time.Duration
-	Error        error
+	WorkloadID  string
+	State       TerminationState
+	StartTime   time.Time
+	EndTime     time.Time
+	GracePeriod time.Duration
+	Error       error
 }
 
 // GracefulTerminator handles graceful termination of workloads.

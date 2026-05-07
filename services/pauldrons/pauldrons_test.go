@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ func TestNewService_CustomConfig(t *testing.T) {
 		HealthCheckInterval: 10 * time.Second,
 		SessionTTL:          1 * time.Hour,
 		MaglevTableSize:     127,
-		WotanTopic:         "custom.topic",
+		WotanTopic:          "custom.topic",
 	}
 	svc := newTestService(cfg)
 	if svc.config.DefaultAlgorithm != AlgoLeastConn {
@@ -145,7 +145,7 @@ func TestStart_HealthCheckLoopCancellation(t *testing.T) {
 		HealthCheckInterval: 10 * time.Millisecond,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     65537,
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -519,7 +519,7 @@ func TestSelectBackend_Maglev_Basic(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     127, // small prime for testing
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -544,7 +544,7 @@ func TestSelectBackend_Maglev_Consistency(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     127,
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -576,7 +576,7 @@ func TestSelectBackend_Maglev_Distribution(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     127,
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -608,7 +608,7 @@ func TestBuildMaglevTable_EmptyBackends(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     127,
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 	pool := &Pool{ID: "empty", Algorithm: AlgoMaglev}
@@ -630,7 +630,7 @@ func TestBuildMaglevTable_RebuildOnAddRemove(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     31,
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 	pool := &Pool{ID: "rebuild", Algorithm: AlgoMaglev}
@@ -969,7 +969,7 @@ func TestSelectBackend_TableDriven(t *testing.T) {
 				HealthCheckInterval: 5 * time.Second,
 				SessionTTL:          30 * time.Minute,
 				MaglevTableSize:     31,
-				WotanTopic:         "pauldrons.lb",
+				WotanTopic:          "pauldrons.lb",
 			}
 			svc := newTestService(cfg)
 
@@ -1547,7 +1547,7 @@ func TestConcurrent_HealthChecksAndSelections(t *testing.T) {
 		HealthCheckInterval: 5 * time.Millisecond,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     31,
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 	pool := &Pool{ID: "hc-race", Algorithm: AlgoRoundRobin}
@@ -1615,7 +1615,7 @@ func TestSelectBackend_Maglev_FallbackWhenIndexOutOfRange(t *testing.T) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     31,
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 
@@ -1852,7 +1852,7 @@ func BenchmarkSelectBackend_Maglev(b *testing.B) {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     65537,
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 	svc := newTestService(cfg)
 	pool := &Pool{ID: "bench-mg", Algorithm: AlgoMaglev}

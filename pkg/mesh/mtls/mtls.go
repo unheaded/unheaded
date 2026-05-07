@@ -32,8 +32,8 @@ type Config struct {
 	RotationBuffer time.Duration
 
 	// TLS settings
-	MinVersion uint16
-	MaxVersion uint16
+	MinVersion   uint16
+	MaxVersion   uint16
 	CipherSuites []uint16
 
 	// CA

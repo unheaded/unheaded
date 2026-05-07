@@ -1879,9 +1879,9 @@ func TestConvertOTLPSpan(t *testing.T) {
 				Message string `json:"message"`
 			}{Code: 1, Message: ""},
 			Events: []struct {
-				Name              string            `json:"name"`
-				TimeUnixNano      uint64            `json:"time_unix_nano"`
-				Attributes        map[string]string `json:"attributes"`
+				Name         string            `json:"name"`
+				TimeUnixNano uint64            `json:"time_unix_nano"`
+				Attributes   map[string]string `json:"attributes"`
 			}{
 				{Name: "event1", TimeUnixNano: uint64(now.UnixNano())},
 			},
@@ -2012,7 +2012,7 @@ func TestParseKernelEvent(t *testing.T) {
 
 	t.Run("minimal header only", func(t *testing.T) {
 		data := make([]byte, 40)
-		binary.LittleEndian.PutUint64(data[0:8], 123)   // event_id
+		binary.LittleEndian.PutUint64(data[0:8], 123)    // event_id
 		binary.LittleEndian.PutUint32(data[8:12], 3)     // type = KernelEventSyscall
 		binary.LittleEndian.PutUint32(data[12:16], 0)    // cpu
 		binary.LittleEndian.PutUint32(data[16:20], 1234) // pid
@@ -2047,9 +2047,9 @@ func TestParseKernelEvent(t *testing.T) {
 		// Network fields
 		copy(data[32:36], net.ParseIP("10.0.0.1").To4())
 		copy(data[36:40], net.ParseIP("10.0.0.2").To4())
-		binary.BigEndian.PutUint16(data[40:42], 8080) // src port
-		binary.BigEndian.PutUint16(data[42:44], 80)   // dst port
-		data[44] = 6                                   // TCP
+		binary.BigEndian.PutUint16(data[40:42], 8080)               // src port
+		binary.BigEndian.PutUint16(data[42:44], 80)                 // dst port
+		data[44] = 6                                                // TCP
 		binary.BigEndian.PutUint64(data[48:56], 0x0102030405060708) // trace_id_high
 		binary.BigEndian.PutUint64(data[56:64], 0x090a0b0c0d0e0f10) // trace_id_low
 		binary.LittleEndian.PutUint64(data[64:72], 1000)            // latency

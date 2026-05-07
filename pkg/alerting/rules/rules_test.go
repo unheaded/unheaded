@@ -19,11 +19,11 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockMetricProvider struct {
-	mu          sync.Mutex
-	queryFunc   func(ctx context.Context, expr string, ts time.Time) (float64, error)
-	rangeFunc   func(ctx context.Context, expr string, start, end time.Time, step time.Duration) ([]float64, error)
-	queryCalls  int
-	rangeCalls  int
+	mu         sync.Mutex
+	queryFunc  func(ctx context.Context, expr string, ts time.Time) (float64, error)
+	rangeFunc  func(ctx context.Context, expr string, start, end time.Time, step time.Duration) ([]float64, error)
+	queryCalls int
+	rangeCalls int
 }
 
 func (m *mockMetricProvider) Query(ctx context.Context, expression string, timestamp time.Time) (float64, error) {
@@ -354,9 +354,9 @@ func TestValidateRule(t *testing.T) {
 		{
 			name: "zero evaluation interval",
 			rule: &alerting.AlertRule{
-				ID:       "r1",
-				Name:     "Test",
-				Type:     alerting.RuleTypeRate,
+				ID:         "r1",
+				Name:       "Test",
+				Type:       alerting.RuleTypeRate,
 				RateWindow: 5 * time.Minute,
 			},
 			wantErr: true,

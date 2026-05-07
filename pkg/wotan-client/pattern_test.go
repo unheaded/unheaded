@@ -109,13 +109,13 @@ func TestFilterTopics(t *testing.T) {
 		pattern string
 		want    int
 	}{
-		{"tasks star", "tasks.*", 3},       // created, updated, deleted
-		{"tasks hash", "tasks.#", 4},       // all four tasks.*
-		{"ebpf hash", "ebpf.#", 2},        // packet.events, flow.events
-		{"global", "*", 8},                 // everything
-		{"exact", "timeline.updates", 1},   // just timeline.updates
-		{"no match", "nonexistent", 0},     // nothing
-		{"empty pattern", "", 0},           // nothing
+		{"tasks star", "tasks.*", 3},     // created, updated, deleted
+		{"tasks hash", "tasks.#", 4},     // all four tasks.*
+		{"ebpf hash", "ebpf.#", 2},       // packet.events, flow.events
+		{"global", "*", 8},               // everything
+		{"exact", "timeline.updates", 1}, // just timeline.updates
+		{"no match", "nonexistent", 0},   // nothing
+		{"empty pattern", "", 0},         // nothing
 	}
 
 	for _, tt := range tests {

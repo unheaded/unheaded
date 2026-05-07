@@ -46,8 +46,8 @@ type NativeBPFLoader struct {
 
 // nativeProgram tracks a loaded BPF program and its map assignments.
 type nativeProgram struct {
-	name     string         // logical name (e.g., "packet_marker")
-	specName string         // ProgramSpec.Name used with the loader
+	name     string // logical name (e.g., "packet_marker")
+	specName string // ProgramSpec.Name used with the loader
 	progType ebpf.ProgramType
 	path     string
 	attached bool

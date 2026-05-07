@@ -211,11 +211,11 @@ type stubStrategy struct {
 	strategyType Type
 }
 
-func (s *stubStrategy) Type() Type                                                    { return s.strategyType }
-func (s *stubStrategy) Execute(_ context.Context, _ *ExecuteParams) (*Result, error)  { return nil, nil }
-func (s *stubStrategy) Rollback(_ context.Context, _ *RollbackParams) error           { return nil }
-func (s *stubStrategy) Status(_ context.Context, _ string) (*Status, error)           { return nil, nil }
-func (s *stubStrategy) Validate(_ *Config) error                                      { return nil }
+func (s *stubStrategy) Type() Type                                                   { return s.strategyType }
+func (s *stubStrategy) Execute(_ context.Context, _ *ExecuteParams) (*Result, error) { return nil, nil }
+func (s *stubStrategy) Rollback(_ context.Context, _ *RollbackParams) error          { return nil }
+func (s *stubStrategy) Status(_ context.Context, _ string) (*Status, error)          { return nil, nil }
+func (s *stubStrategy) Validate(_ *Config) error                                     { return nil }
 
 func TestRegistry_RegisterAndGet(t *testing.T) {
 	reg := NewRegistry()
@@ -1282,8 +1282,8 @@ func TestProgress_Fields(t *testing.T) {
 func TestAnalysisMetrics_Fields(t *testing.T) {
 	m := &AnalysisMetrics{
 		ErrorRate:    0.01,
-		LatencyP50:  10 * time.Millisecond,
-		LatencyP99:  100 * time.Millisecond,
+		LatencyP50:   10 * time.Millisecond,
+		LatencyP99:   100 * time.Millisecond,
 		SuccessRate:  0.99,
 		RequestCount: 1000,
 		ErrorCount:   10,

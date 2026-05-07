@@ -19,12 +19,12 @@ import (
 // ============================================================================
 
 var (
-	ErrNilState       = errors.New("state cannot be nil")
-	ErrEmptyID        = errors.New("id cannot be empty")
-	ErrContainerExists = errors.New("container already exists")
+	ErrNilState          = errors.New("state cannot be nil")
+	ErrEmptyID           = errors.New("id cannot be empty")
+	ErrContainerExists   = errors.New("container already exists")
 	ErrContainerNotFound = errors.New("container not found")
-	ErrInvalidStatus  = errors.New("invalid container status")
-	ErrStateClosed    = errors.New("state manager is closed")
+	ErrInvalidStatus     = errors.New("invalid container status")
+	ErrStateClosed       = errors.New("state manager is closed")
 )
 
 // ============================================================================
@@ -77,14 +77,14 @@ type HealthCheck struct {
 
 // ContainerState represents the actual observed state of a container
 type ContainerState struct {
-	ID          string            `json:"id"`
-	Status      ContainerStatus   `json:"status"`
-	IPAddress   string            `json:"ip_address"`
-	CPUUsage    float64           `json:"cpu_usage_percent"`
-	MemoryUsage int64             `json:"memory_usage_mb"`
-	Uptime      time.Duration     `json:"uptime"`
-	LastSeen    time.Time         `json:"last_seen"`
-	Health      HealthStatus      `json:"health"`
+	ID          string             `json:"id"`
+	Status      ContainerStatus    `json:"status"`
+	IPAddress   string             `json:"ip_address"`
+	CPUUsage    float64            `json:"cpu_usage_percent"`
+	MemoryUsage int64              `json:"memory_usage_mb"`
+	Uptime      time.Duration      `json:"uptime"`
+	LastSeen    time.Time          `json:"last_seen"`
+	Health      HealthStatus       `json:"health"`
 	Metrics     map[string]float64 `json:"metrics,omitempty"`
 }
 
@@ -128,12 +128,12 @@ func (c *ContainerSpec) Validate() error {
 type DriftType string
 
 const (
-	DriftNone       DriftType = "none"
-	DriftConfig     DriftType = "config"
-	DriftStatus     DriftType = "status"
-	DriftMissing    DriftType = "missing"
-	DriftOrphaned   DriftType = "orphaned"
-	DriftDegraded   DriftType = "degraded"
+	DriftNone     DriftType = "none"
+	DriftConfig   DriftType = "config"
+	DriftStatus   DriftType = "status"
+	DriftMissing  DriftType = "missing"
+	DriftOrphaned DriftType = "orphaned"
+	DriftDegraded DriftType = "degraded"
 )
 
 // DriftReport represents detected drift between desired and actual state
@@ -153,14 +153,14 @@ type DriftReport struct {
 
 // Manager manages desired and actual state with drift detection
 type Manager struct {
-	mu            sync.RWMutex
-	desired       map[string]*ContainerSpec
-	actual        map[string]*ContainerState
-	driftReports  []DriftReport
-	closed        bool
-	pollInterval  time.Duration
-	onDrift       func(DriftReport)
-	metrics       *StateMetrics
+	mu           sync.RWMutex
+	desired      map[string]*ContainerSpec
+	actual       map[string]*ContainerState
+	driftReports []DriftReport
+	closed       bool
+	pollInterval time.Duration
+	onDrift      func(DriftReport)
+	metrics      *StateMetrics
 }
 
 // StateMetrics tracks state management metrics

@@ -235,8 +235,8 @@ func TestRateLimiter_Allow(t *testing.T) {
 		}
 		rl := NewRateLimiter(config)
 
-		rl.Allow("my-service")  // Consume the token
-		rl.Allow("my-service")  // Should trigger callback
+		rl.Allow("my-service") // Consume the token
+		rl.Allow("my-service") // Should trigger callback
 
 		if !callbackCalled {
 			t.Error("expected OnLimitReached callback to be called")
@@ -618,7 +618,6 @@ func TestCircuitBreaker_SetState_SameState(t *testing.T) {
 	cb.Reset()
 	// No panic, no callback — test passes
 }
-
 
 func TestCircuitBreaker_HalfOpen_TooManyRequests(t *testing.T) {
 	// Explicitly cover the ErrTooManyRequests branch.

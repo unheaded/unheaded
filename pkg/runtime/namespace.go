@@ -29,8 +29,8 @@ type NamespaceManager struct {
 
 // NamespaceSet represents a set of namespaces.
 type NamespaceSet struct {
-	ID   string
-	PIDs map[NamespaceType]int // File descriptors
+	ID    string
+	PIDs  map[NamespaceType]int // File descriptors
 	Paths map[NamespaceType]string
 }
 
@@ -565,4 +565,3 @@ func (m *NamespaceManager) SetHostname(nsPath, hostname string) error {
 
 	return <-errCh
 }
-

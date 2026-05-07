@@ -78,18 +78,18 @@ func (s HealthState) String() string {
 
 // ServiceEndpoint represents a single service endpoint with health information
 type ServiceEndpoint struct {
-	ID         string            // Unique endpoint identifier
-	Address    net.IP            // Endpoint IP address
-	Port       uint16            // Endpoint port
-	Weight     uint16            // Load balancing weight (0-65535)
-	Priority   uint16            // SRV priority (lower is better)
-	Health     HealthState       // Current health state
-	Metadata   map[string]string // Key-value metadata
-	LastCheck  time.Time         // Last health check time
-	LastSeen   time.Time         // Last heartbeat time
-	FailCount  int               // Consecutive failure count
-	SuccessCount int             // Consecutive success count
-	ResponseTime time.Duration   // Average response time
+	ID           string            // Unique endpoint identifier
+	Address      net.IP            // Endpoint IP address
+	Port         uint16            // Endpoint port
+	Weight       uint16            // Load balancing weight (0-65535)
+	Priority     uint16            // SRV priority (lower is better)
+	Health       HealthState       // Current health state
+	Metadata     map[string]string // Key-value metadata
+	LastCheck    time.Time         // Last health check time
+	LastSeen     time.Time         // Last heartbeat time
+	FailCount    int               // Consecutive failure count
+	SuccessCount int               // Consecutive success count
+	ResponseTime time.Duration     // Average response time
 }
 
 // IsHealthy returns true if the endpoint is considered healthy
@@ -110,17 +110,17 @@ func (e *ServiceEndpoint) EffectiveWeight() uint16 {
 
 // ServiceDefinition defines a discoverable service
 type ServiceDefinition struct {
-	Name            string                 // Service name (e.g., "api")
-	Namespace       string                 // Service namespace (e.g., "production")
-	Protocol        string                 // Protocol (tcp, udp, http, grpc)
-	Port            uint16                 // Default service port
-	Endpoints       []*ServiceEndpoint     // Service endpoints
-	Metadata        map[string]string      // Service metadata (TXT records)
-	TTL             uint32                 // DNS record TTL
-	LoadBalancing   LoadBalancingPolicy    // Load balancing policy
-	HealthCheck     *ServiceHealthCheck    // Health check configuration
-	CircuitBreaker  *CircuitBreakerConfig  // Circuit breaker settings
-	RetryPolicy     *RetryPolicyConfig     // Retry configuration
+	Name           string                // Service name (e.g., "api")
+	Namespace      string                // Service namespace (e.g., "production")
+	Protocol       string                // Protocol (tcp, udp, http, grpc)
+	Port           uint16                // Default service port
+	Endpoints      []*ServiceEndpoint    // Service endpoints
+	Metadata       map[string]string     // Service metadata (TXT records)
+	TTL            uint32                // DNS record TTL
+	LoadBalancing  LoadBalancingPolicy   // Load balancing policy
+	HealthCheck    *ServiceHealthCheck   // Health check configuration
+	CircuitBreaker *CircuitBreakerConfig // Circuit breaker settings
+	RetryPolicy    *RetryPolicyConfig    // Retry configuration
 }
 
 // FQDN returns the fully qualified domain name for DNS-SD
@@ -150,11 +150,11 @@ type ServiceHealthCheck struct {
 
 // CircuitBreakerConfig configures circuit breaker behavior
 type CircuitBreakerConfig struct {
-	Enabled            bool
-	ErrorThreshold     int           // Errors before circuit opens
-	ErrorWindow        time.Duration // Time window for errors
-	OpenDuration       time.Duration // How long circuit stays open
-	HalfOpenRequests   int           // Requests allowed in half-open state
+	Enabled          bool
+	ErrorThreshold   int           // Errors before circuit opens
+	ErrorWindow      time.Duration // Time window for errors
+	OpenDuration     time.Duration // How long circuit stays open
+	HalfOpenRequests int           // Requests allowed in half-open state
 }
 
 // RetryPolicyConfig configures retry behavior
@@ -268,15 +268,15 @@ func (ws *weightedSelector) select_() *ServiceEndpoint {
 
 // ServiceDiscoveryConfig configures the enhanced service discovery
 type ServiceDiscoveryConfig struct {
-	Zone                  string        // DNS zone name
-	DefaultTTL            uint32        // Default record TTL
-	HealthCheckInterval   time.Duration // Default health check interval
-	HealthCheckTimeout    time.Duration // Default health check timeout
-	EnableHealthChecks    bool          // Enable automatic health checking
-	EnableMetrics         bool          // Enable discovery metrics
-	StaleEndpointTimeout  time.Duration // Remove endpoints not seen after this
-	HealthyThreshold      int           // Default healthy threshold
-	UnhealthyThreshold    int           // Default unhealthy threshold
+	Zone                 string        // DNS zone name
+	DefaultTTL           uint32        // Default record TTL
+	HealthCheckInterval  time.Duration // Default health check interval
+	HealthCheckTimeout   time.Duration // Default health check timeout
+	EnableHealthChecks   bool          // Enable automatic health checking
+	EnableMetrics        bool          // Enable discovery metrics
+	StaleEndpointTimeout time.Duration // Remove endpoints not seen after this
+	HealthyThreshold     int           // Default healthy threshold
+	UnhealthyThreshold   int           // Default unhealthy threshold
 }
 
 // DefaultServiceDiscoveryConfig returns sensible defaults

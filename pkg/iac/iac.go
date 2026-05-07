@@ -108,10 +108,10 @@ type ServiceConfig struct {
 
 // ResourceSpec defines resource limits for the service.
 type ResourceSpec struct {
-	CPULimit    string // e.g. "500m", "2"
-	MemLimit    string // e.g. "256Mi", "1Gi"
-	CPURequest  string
-	MemRequest  string
+	CPULimit   string // e.g. "500m", "2"
+	MemLimit   string // e.g. "256Mi", "1Gi"
+	CPURequest string
+	MemRequest string
 }
 
 // HardeningSpec defines security hardening options.

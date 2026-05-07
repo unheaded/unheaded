@@ -48,7 +48,7 @@ type Sidecar struct {
 	circuitBreakers *policy.CircuitBreakerRegistry
 
 	// Health checking
-	healthChecker       *proxy.HealthChecker
+	healthChecker        *proxy.HealthChecker
 	passiveHealthChecker *proxy.PassiveHealthChecker
 
 	// Observability
@@ -82,9 +82,9 @@ type SidecarConfig struct {
 	RotationBuffer time.Duration
 
 	// Discovery settings
-	DiscoveryType    string // dns, registry, static
-	RegistryURL      string
-	DNSDomain        string
+	DiscoveryType     string // dns, registry, static
+	RegistryURL       string
+	DNSDomain         string
 	DiscoveryCacheTTL time.Duration
 
 	// Load balancing
@@ -100,9 +100,9 @@ type SidecarConfig struct {
 	HealthCheckTimeout  time.Duration
 
 	// Observability
-	MetricsEnabled bool
-	TracingEnabled bool
-	TraceSampleRate float64
+	MetricsEnabled   bool
+	TracingEnabled   bool
+	TraceSampleRate  float64
 	AccessLogEnabled bool
 }
 

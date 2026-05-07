@@ -555,12 +555,12 @@ type ConnectionPool struct {
 	size  int
 
 	// Stats
-	activeConns  int64
-	totalConns   uint64
-	totalHits    uint64
-	totalMisses  uint64
-	totalErrors  uint64
-	closed       bool
+	activeConns int64
+	totalConns  uint64
+	totalHits   uint64
+	totalMisses uint64
+	totalErrors uint64
+	closed      bool
 }
 
 // ConnectionPoolConfig configures a connection pool.
@@ -811,9 +811,9 @@ type TransparentProxy struct {
 	wg      sync.WaitGroup
 
 	// Stats
-	activeConns   int64
-	totalConns    uint64
-	totalBytes    uint64
+	activeConns int64
+	totalConns  uint64
+	totalBytes  uint64
 }
 
 // TransparentProxyConfig configures the transparent proxy.
@@ -1043,9 +1043,9 @@ func sendHTTPError(conn net.Conn, status int) {
 
 // PoolManager manages multiple connection pools.
 type PoolManager struct {
-	config *ConnectionPoolConfig
-	mu     sync.RWMutex
-	pools  map[string]*ConnectionPool
+	config   *ConnectionPoolConfig
+	mu       sync.RWMutex
+	pools    map[string]*ConnectionPool
 	maxPools int
 }
 

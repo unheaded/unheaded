@@ -154,7 +154,7 @@ func TestRuleBuilder(t *testing.T) {
 		WithThreshold(80, alerting.OpGreaterThan).
 		WithExpression("avg(cpu_usage)").
 		WithSeverity(alerting.SeverityCritical).
-		WithForPeriod(5 * time.Minute).
+		WithForPeriod(5*time.Minute).
 		WithLabel("team", "platform").
 		WithAnnotation("runbook", "https://wiki.example.com/cpu-high").
 		WithNotifyChannels("slack", "pagerduty").

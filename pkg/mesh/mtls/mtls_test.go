@@ -61,10 +61,10 @@ func TestSPIFFEID(t *testing.T) {
 		invalidIDs := []string{
 			"",
 			"http://example.com/service/test",
-			"spiffe://", // no host
-			"spiffe://example.com", // no path
+			"spiffe://",                        // no host
+			"spiffe://example.com",             // no path
 			"spiffe://example.com?query=value", // has query
-			"spiffe://example.com#fragment", // has fragment
+			"spiffe://example.com#fragment",    // has fragment
 		}
 
 		for _, idStr := range invalidIDs {

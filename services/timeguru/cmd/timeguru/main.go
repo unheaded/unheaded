@@ -33,13 +33,13 @@ import (
 
 const (
 	defaultPort         = "19000"
-	defaultWotanAddr   = "localhost:18000"  // HTTP control plane
+	defaultWotanAddr    = "localhost:18000" // HTTP control plane
 	defaultDBPath       = "./data/timeguru.db"
 	defaultTimelinePath = "./references/timeline.md"
 	shutdownTimeout     = 30 * time.Second
 	fileWatchInterval   = 5 * time.Second
-	wotanTopic         = "timeline.updates"
-	wotanDisplayName   = "timeguru-service"
+	wotanTopic          = "timeline.updates"
+	wotanDisplayName    = "timeguru-service"
 )
 
 // traceIDCounter avoids collision risk of UnixNano()-only IDs under high throughput
@@ -47,12 +47,12 @@ var traceIDCounter int64
 
 // Config holds service configuration
 type Config struct {
-	Port           string
+	Port          string
 	WotanAddr     string // HTTP control plane (subscribe, publish)
 	WotanGRPCAddr string // gRPC data plane (streaming) — preferred for perf
-	DBPath         string
-	TimelinePath   string
-	SyncDir        string // directory for synced timeline files (JSON/TOML/YAML/MD)
+	DBPath        string
+	TimelinePath  string
+	SyncDir       string // directory for synced timeline files (JSON/TOML/YAML/MD)
 }
 
 func main() {
@@ -185,10 +185,10 @@ func main() {
 
 	// HTTP server with defensive timeouts
 	srv := &http.Server{
-		Addr:         ":" + config.Port,
-		Handler:      srvHandler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:           ":" + config.Port,
+		Handler:        srvHandler,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
@@ -238,12 +238,12 @@ func main() {
 // loadConfig loads configuration from environment variables with defensive defaults
 func loadConfig() Config {
 	config := Config{
-		Port:           getEnv("PORT", defaultPort),
+		Port:          getEnv("PORT", defaultPort),
 		WotanAddr:     getEnv("WOTAN_ADDR", defaultWotanAddr),
 		WotanGRPCAddr: getEnv("WOTAN_GRPC_ADDR", "localhost:18001"),
-		DBPath:         getEnv("DB_PATH", defaultDBPath),
-		TimelinePath:   getEnv("TIMELINE_PATH", defaultTimelinePath),
-		SyncDir:        os.Getenv("SYNC_DIR"), // empty = disabled
+		DBPath:        getEnv("DB_PATH", defaultDBPath),
+		TimelinePath:  getEnv("TIMELINE_PATH", defaultTimelinePath),
+		SyncDir:       os.Getenv("SYNC_DIR"), // empty = disabled
 	}
 
 	// Defensive: validate all paths

@@ -106,8 +106,8 @@ type VolumeInfo struct {
 
 // VolumeUsageData contains volume usage information.
 type VolumeUsageData struct {
-	Size      int64
-	RefCount  int
+	Size     int64
+	RefCount int
 }
 
 // NewVolumeManager creates a new volume manager.

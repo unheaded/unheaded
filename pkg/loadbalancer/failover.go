@@ -124,9 +124,9 @@ type FailoverMetrics struct {
 	mu sync.RWMutex
 
 	// Failover events
-	FailoverCount   int64
-	FailbackCount   int64
-	ZoneShiftCount  int64
+	FailoverCount  int64
+	FailbackCount  int64
+	ZoneShiftCount int64
 
 	// Time in failover state
 	TotalFailoverDuration time.Duration
@@ -152,9 +152,9 @@ type GroupMetrics struct {
 
 // ZoneMetrics holds metrics for a zone.
 type ZoneMetrics struct {
-	RequestsServed     int64
-	CrossZoneRequests  int64
-	TimeAsActiveZone   time.Duration
+	RequestsServed    int64
+	CrossZoneRequests int64
+	TimeAsActiveZone  time.Duration
 }
 
 // NewFailoverMetrics creates new failover metrics.
@@ -683,16 +683,16 @@ func (fm *FailoverManager) Stats() FailoverStats {
 	defer fm.metrics.mu.RUnlock()
 
 	stats := FailoverStats{
-		CurrentGroup:      currentGroup,
-		InFailover:        inFailover,
-		FailoverDuration:  failoverDuration,
-		FailoverCount:     fm.metrics.FailoverCount,
-		FailbackCount:     fm.metrics.FailbackCount,
-		ZoneShiftCount:    fm.metrics.ZoneShiftCount,
-		LastFailoverTime:  fm.metrics.LastFailoverTime,
-		LastFailbackTime:  fm.metrics.LastFailbackTime,
-		GroupStats:        make(map[string]GroupStats),
-		ZoneStats:         make(map[string]ZoneStats),
+		CurrentGroup:     currentGroup,
+		InFailover:       inFailover,
+		FailoverDuration: failoverDuration,
+		FailoverCount:    fm.metrics.FailoverCount,
+		FailbackCount:    fm.metrics.FailbackCount,
+		ZoneShiftCount:   fm.metrics.ZoneShiftCount,
+		LastFailoverTime: fm.metrics.LastFailoverTime,
+		LastFailbackTime: fm.metrics.LastFailbackTime,
+		GroupStats:       make(map[string]GroupStats),
+		ZoneStats:        make(map[string]ZoneStats),
 	}
 
 	for name, gs := range fm.metrics.GroupStats {
@@ -864,10 +864,10 @@ type GracefulDrainManager struct {
 
 // DrainState tracks the drain state of a backend.
 type DrainState struct {
-	StartTime      time.Time
-	Timeout        time.Duration
-	InitialConns   int64
-	ForceComplete  bool
+	StartTime     time.Time
+	Timeout       time.Duration
+	InitialConns  int64
+	ForceComplete bool
 }
 
 // NewGracefulDrainManager creates a new graceful drain manager.

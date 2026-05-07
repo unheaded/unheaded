@@ -4,10 +4,10 @@
 // Command zhen-agent is the CLI entry point for the Phase D-A agent
 // runtime. Wires:
 //
-//   pkg/agent       — minimal ReAct loop
-//   pkg/champion    — Trust L2 tool execution gated by B1+B2 defenses
-//   cs/vor          — retrieval (cheatsheets + Unheaded markdown)
-//   llama-server    — LLM (qwen2.5-coder-7b-instruct via llama.cpp)
+//	pkg/agent       — minimal ReAct loop
+//	pkg/champion    — Trust L2 tool execution gated by B1+B2 defenses
+//	cs/vor          — retrieval (cheatsheets + Unheaded markdown)
+//	llama-server    — LLM (qwen2.5-coder-7b-instruct via llama.cpp)
 //
 // Differences from cmd/zhen-rag (which is one-shot RAG):
 //   - Multi-turn loop with tool dispatch

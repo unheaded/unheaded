@@ -21,10 +21,10 @@ import (
 
 // Notification errors.
 var (
-	ErrNotificationFailed     = errors.New("notification failed")
-	ErrChannelNotConfigured   = errors.New("notification channel not configured")
+	ErrNotificationFailed      = errors.New("notification failed")
+	ErrChannelNotConfigured    = errors.New("notification channel not configured")
 	ErrInvalidNotificationType = errors.New("invalid notification type")
-	ErrTemplateError          = errors.New("template error")
+	ErrTemplateError           = errors.New("template error")
 )
 
 // NotificationType represents the type of notification.
@@ -119,14 +119,14 @@ type NotificationLink struct {
 type ChannelType string
 
 const (
-	ChannelTypeWebhook  ChannelType = "webhook"
-	ChannelTypeSlack    ChannelType = "slack"
-	ChannelTypeWotan   ChannelType = "wotan"
-	ChannelTypeEmail    ChannelType = "email"
+	ChannelTypeWebhook   ChannelType = "webhook"
+	ChannelTypeSlack     ChannelType = "slack"
+	ChannelTypeWotan     ChannelType = "wotan"
+	ChannelTypeEmail     ChannelType = "email"
 	ChannelTypePagerDuty ChannelType = "pagerduty"
-	ChannelTypeOpsGenie ChannelType = "opsgenie"
-	ChannelTypeTeams    ChannelType = "teams"
-	ChannelTypeDiscord  ChannelType = "discord"
+	ChannelTypeOpsGenie  ChannelType = "opsgenie"
+	ChannelTypeTeams     ChannelType = "teams"
+	ChannelTypeDiscord   ChannelType = "discord"
 )
 
 // Channel represents a notification channel.
@@ -187,8 +187,8 @@ type ChannelConfig struct {
 	WebhookHeaders map[string]string `json:"webhook_headers,omitempty"`
 
 	// Slack config
-	SlackChannel  string `json:"slack_channel,omitempty"`
-	SlackUsername string `json:"slack_username,omitempty"`
+	SlackChannel   string `json:"slack_channel,omitempty"`
+	SlackUsername  string `json:"slack_username,omitempty"`
 	SlackIconEmoji string `json:"slack_icon_emoji,omitempty"`
 
 	// Wotan config
@@ -274,18 +274,18 @@ func NewNotificationManager() *NotificationManager {
 		maxHistory: 1000,
 		templates:  make(map[string]*template.Template),
 		defaultTemplates: map[NotificationType]string{
-			NotifyDeploymentStarted: "Deployment started for {{.Service}} v{{.Version}} in {{.Environment}}",
+			NotifyDeploymentStarted:   "Deployment started for {{.Service}} v{{.Version}} in {{.Environment}}",
 			NotifyDeploymentCompleted: "Deployment completed for {{.Service}} v{{.Version}} in {{.Environment}} ({{.Duration}})",
-			NotifyDeploymentFailed: "Deployment FAILED for {{.Service}} v{{.Version}} in {{.Environment}}: {{.Error}}",
-			NotifyDeploymentProgress: "Deployment progress: {{.Service}} v{{.Version}} - {{.Progress}}%",
-			NotifyRollbackStarted: "Rollback started for {{.Service}} in {{.Environment}}",
-			NotifyRollbackCompleted: "Rollback completed for {{.Service}} in {{.Environment}} ({{.Duration}})",
-			NotifyRollbackFailed: "Rollback FAILED for {{.Service}} in {{.Environment}}: {{.Error}}",
-			NotifyCanaryAnalysis: "Canary analysis for {{.Service}}: {{.Message}}",
-			NotifyHealthCheckFailed: "Health check failed for {{.Service}} in {{.Environment}}",
-			NotifyApprovalRequired: "Approval required for {{.Service}} v{{.Version}} deployment",
-			NotifyHookFailed: "Hook failed for {{.Service}}: {{.Error}}",
-			NotifyAlert: "Alert for {{.Service}}: {{.Message}}",
+			NotifyDeploymentFailed:    "Deployment FAILED for {{.Service}} v{{.Version}} in {{.Environment}}: {{.Error}}",
+			NotifyDeploymentProgress:  "Deployment progress: {{.Service}} v{{.Version}} - {{.Progress}}%",
+			NotifyRollbackStarted:     "Rollback started for {{.Service}} in {{.Environment}}",
+			NotifyRollbackCompleted:   "Rollback completed for {{.Service}} in {{.Environment}} ({{.Duration}})",
+			NotifyRollbackFailed:      "Rollback FAILED for {{.Service}} in {{.Environment}}: {{.Error}}",
+			NotifyCanaryAnalysis:      "Canary analysis for {{.Service}}: {{.Message}}",
+			NotifyHealthCheckFailed:   "Health check failed for {{.Service}} in {{.Environment}}",
+			NotifyApprovalRequired:    "Approval required for {{.Service}} v{{.Version}} deployment",
+			NotifyHookFailed:          "Hook failed for {{.Service}}: {{.Error}}",
+			NotifyAlert:               "Alert for {{.Service}}: {{.Message}}",
 		},
 	}
 }
@@ -786,8 +786,8 @@ func (m *NotificationManager) sendTeams(ctx context.Context, channel *Channel, n
 					{"name": "Version", "value": notification.Version},
 					{"name": "Environment", "value": notification.Environment},
 				},
-				"text":                  notification.Message,
-				"markdown":              true,
+				"text":     notification.Message,
+				"markdown": true,
 			},
 		},
 	}
@@ -1154,11 +1154,11 @@ func (m *NotificationManager) GetStats() *NotificationStats {
 
 // NotificationStats contains notification statistics.
 type NotificationStats struct {
-	Total      int                         `json:"total"`
-	Successful int                         `json:"successful"`
-	Failed     int                         `json:"failed"`
-	ByChannel  map[string]int              `json:"by_channel"`
-	ByType     map[NotificationType]int    `json:"by_type"`
+	Total      int                      `json:"total"`
+	Successful int                      `json:"successful"`
+	Failed     int                      `json:"failed"`
+	ByChannel  map[string]int           `json:"by_channel"`
+	ByType     map[NotificationType]int `json:"by_type"`
 }
 
 // generateNotificationID generates a unique notification ID.

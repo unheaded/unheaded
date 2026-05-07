@@ -113,7 +113,7 @@ func TestNewService(t *testing.T) {
 			CBThreshold:    3,
 			CBTimeout:      10 * time.Second,
 			MTLSEnabled:    false,
-			WotanTopic:    "custom.topic",
+			WotanTopic:     "custom.topic",
 		}
 		svc := NewService(newTestLogger(), nil, cfg)
 		if svc.config.DefaultTimeout != 5*time.Second {
@@ -1131,12 +1131,12 @@ func TestMTLSHandshake_SelfSignedCertificates(t *testing.T) {
 	}
 
 	caTemplate := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "test-mesh-ca"},
-		NotBefore:    time.Now().Add(-1 * time.Minute),
-		NotAfter:     time.Now().Add(1 * time.Hour),
-		IsCA:         true,
-		KeyUsage:     x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "test-mesh-ca"},
+		NotBefore:             time.Now().Add(-1 * time.Minute),
+		NotAfter:              time.Now().Add(1 * time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 	}
 
@@ -1983,9 +1983,9 @@ func TestFullLifecycle(t *testing.T) {
 
 	// 3. Set a traffic policy.
 	if err := svc.SetPolicy(&TrafficPolicy{
-		ServiceName: "payment-api",
-		Timeout:     5 * time.Second,
-		Retries:     RetryPolicy{Attempts: 3, PerTryTimeout: 1 * time.Second},
+		ServiceName:  "payment-api",
+		Timeout:      5 * time.Second,
+		Retries:      RetryPolicy{Attempts: 3, PerTryTimeout: 1 * time.Second},
 		LoadBalancer: LBPolicy{Algorithm: "round_robin"},
 	}); err != nil {
 		t.Fatal(err)

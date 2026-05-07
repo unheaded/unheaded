@@ -165,14 +165,14 @@ type Client struct {
 	baseURL       string
 	controlClient *http.Client // short timeout for Subscribe, Publish (5s)
 	streamClient  *http.Client // long timeout for GetMessages, polling (30s)
-	grpcAddr   string       // gRPC endpoint for streaming (empty = HTTP-only mode)
-	grpcClient *GRPCClient   // Lazy-initialized gRPC client
-	grpcMu     sync.RWMutex // guards grpcClient initialization (allows retry on failure)
+	grpcAddr      string       // gRPC endpoint for streaming (empty = HTTP-only mode)
+	grpcClient    *GRPCClient  // Lazy-initialized gRPC client
+	grpcMu        sync.RWMutex // guards grpcClient initialization (allows retry on failure)
 
 	// Transport state — gRPC primary, HTTP fallback
-	transport     TransportState // current active transport
-	grpcHealthy   bool           // last known gRPC health status
-	transportMu   sync.RWMutex   // guards transport + grpcHealthy
+	transport   TransportState // current active transport
+	grpcHealthy bool           // last known gRPC health status
+	transportMu sync.RWMutex   // guards transport + grpcHealthy
 
 	// Subscriber state (per-topic)
 	subscribers map[string]*Subscriber
@@ -263,10 +263,10 @@ func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
 		controlClient: &http.Client{Timeout: controlPlaneTimeout},
 		streamClient:  &http.Client{Timeout: streamingTimeout},
 		grpcAddr:      grpcAddr,
-		transport:   TransportHTTP, // start degraded, promote after probe
-		grpcHealthy: false,
-		subscribers: make(map[string]*Subscriber),
-		channels:    make(map[string]*safeChannel),
+		transport:     TransportHTTP, // start degraded, promote after probe
+		grpcHealthy:   false,
+		subscribers:   make(map[string]*Subscriber),
+		channels:      make(map[string]*safeChannel),
 	}
 
 	// Probe gRPC at startup — if healthy, promote to primary transport

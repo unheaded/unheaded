@@ -59,13 +59,13 @@ type Rule = rules.Rule
 
 // Decision represents the WAF's decision on a request
 type Decision struct {
-	Action     Action
-	Rule       *Rule
-	Score      int
-	Reason     string
-	RequestID  string
-	Matches    []string
-	Blocked    bool
+	Action      Action
+	Rule        *Rule
+	Score       int
+	Reason      string
+	RequestID   string
+	Matches     []string
+	Blocked     bool
 	RateLimited bool
 }
 
@@ -101,8 +101,8 @@ type Config struct {
 	EndpointRateLimits      map[string]int // Path prefix -> rate limit
 
 	// Scoring
-	BlockThreshold int // Anomaly score threshold for blocking
-	LogThreshold   int // Anomaly score threshold for logging
+	BlockThreshold int  // Anomaly score threshold for blocking
+	LogThreshold   int  // Anomaly score threshold for logging
 	EnableScoring  bool // Enable advanced scoring engine
 
 	// Response

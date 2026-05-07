@@ -8,9 +8,10 @@
 // and CPU state data without requiring a running doom-bridge instance.
 //
 // Endpoints:
-//   GET  /api/v1/doom/screen — Returns screen framebuffer (16000 bytes base64 or raw)
-//   GET  /api/v1/doom/cpu    — Returns CPU state as JSON
-//   POST /api/v1/doom/input  — Accepts keyboard input
+//
+//	GET  /api/v1/doom/screen — Returns screen framebuffer (16000 bytes base64 or raw)
+//	GET  /api/v1/doom/cpu    — Returns CPU state as JSON
+//	POST /api/v1/doom/input  — Accepts keyboard input
 package server
 
 import (
@@ -27,24 +28,24 @@ type DoomState struct {
 	mu sync.RWMutex
 
 	// CPU state
-	PC         uint32   `json:"pc"`
-	Regs       [16]uint32 `json:"regs"`
-	Flags      uint8    `json:"flags"`
-	Halted     bool     `json:"halted"`
-	Stalled    bool     `json:"stalled"`
-	InsnCount  uint64   `json:"insns"`
-	CacheHits  uint64   `json:"cache_hits"`
-	CacheMisses uint64  `json:"cache_misses"`
-	Packets    uint64   `json:"packets"`
-	Ticks      uint64   `json:"ticks"`
-	LastUpdate time.Time `json:"last_update"`
+	PC          uint32     `json:"pc"`
+	Regs        [16]uint32 `json:"regs"`
+	Flags       uint8      `json:"flags"`
+	Halted      bool       `json:"halted"`
+	Stalled     bool       `json:"stalled"`
+	InsnCount   uint64     `json:"insns"`
+	CacheHits   uint64     `json:"cache_hits"`
+	CacheMisses uint64     `json:"cache_misses"`
+	Packets     uint64     `json:"packets"`
+	Ticks       uint64     `json:"ticks"`
+	LastUpdate  time.Time  `json:"last_update"`
 
 	// Screen buffer (160x100 = 16000 bytes, palette-indexed)
 	Screen [16000]byte `json:"-"`
 
 	// Keyboard state
-	LastKey     uint16 `json:"last_key"`
-	KeyPressed  bool   `json:"key_pressed"`
+	LastKey    uint16 `json:"last_key"`
+	KeyPressed bool   `json:"key_pressed"`
 }
 
 // UpdateCPU updates the CPU state fields.
@@ -99,8 +100,9 @@ func (ds *DoomState) snapshot() DoomState {
 
 // handleDoomScreen serves the screen framebuffer.
 // GET /api/v1/doom/screen
-//   ?format=base64 (default) — returns JSON { "screen": "<base64>" }
-//   ?format=raw — returns raw 16000 bytes as application/octet-stream
+//
+//	?format=base64 (default) — returns JSON { "screen": "<base64>" }
+//	?format=raw — returns raw 16000 bytes as application/octet-stream
 func (s *Server) handleDoomScreen(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

@@ -177,7 +177,7 @@ func TestOrderedPublisher_CloseErrorsRemaining(t *testing.T) {
 func containsPayload(body, payload string) bool {
 	return len(body) > 0 && (body == payload || // direct match
 		len(body) > len(payload) && // JSON wrapping
-		indexOfSubstring(body, payload) >= 0)
+			indexOfSubstring(body, payload) >= 0)
 }
 
 func indexOfSubstring(s, sub string) int {

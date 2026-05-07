@@ -40,47 +40,47 @@ type DHCPOption struct {
 
 // Common DHCP option codes for PXE.
 const (
-	DHCPOptionSubnetMask         uint8 = 1
-	DHCPOptionRouter             uint8 = 3
-	DHCPOptionDNS                uint8 = 6
-	DHCPOptionHostname           uint8 = 12
-	DHCPOptionBootFileSize       uint8 = 13
-	DHCPOptionDomainName         uint8 = 15
-	DHCPOptionBroadcast          uint8 = 28
-	DHCPOptionNTPServers         uint8 = 42
-	DHCPOptionVendorSpecific     uint8 = 43
-	DHCPOptionRequestedIP        uint8 = 50
-	DHCPOptionLeaseTime          uint8 = 51
-	DHCPOptionMessageType        uint8 = 53
-	DHCPOptionServerID           uint8 = 54
-	DHCPOptionParameterList      uint8 = 55
-	DHCPOptionMaxMessageSize     uint8 = 57
-	DHCPOptionRenewalTime        uint8 = 58
-	DHCPOptionRebindingTime      uint8 = 59
-	DHCPOptionVendorClass        uint8 = 60
-	DHCPOptionClientID           uint8 = 61
-	DHCPOptionTFTPServerName     uint8 = 66
-	DHCPOptionBootFileName       uint8 = 67
-	DHCPOptionUserClass          uint8 = 77
-	DHCPOptionClientArch         uint8 = 93
-	DHCPOptionClientNDI          uint8 = 94
-	DHCPOptionUUID               uint8 = 97
-	DHCPOptionPXEDiscoveryCtrl   uint8 = 128
-	DHCPOptionPXEBootServer      uint8 = 129
-	DHCPOptionPXEBootMenu        uint8 = 130
-	DHCPOptionPXEMenuPrompt      uint8 = 131
+	DHCPOptionSubnetMask       uint8 = 1
+	DHCPOptionRouter           uint8 = 3
+	DHCPOptionDNS              uint8 = 6
+	DHCPOptionHostname         uint8 = 12
+	DHCPOptionBootFileSize     uint8 = 13
+	DHCPOptionDomainName       uint8 = 15
+	DHCPOptionBroadcast        uint8 = 28
+	DHCPOptionNTPServers       uint8 = 42
+	DHCPOptionVendorSpecific   uint8 = 43
+	DHCPOptionRequestedIP      uint8 = 50
+	DHCPOptionLeaseTime        uint8 = 51
+	DHCPOptionMessageType      uint8 = 53
+	DHCPOptionServerID         uint8 = 54
+	DHCPOptionParameterList    uint8 = 55
+	DHCPOptionMaxMessageSize   uint8 = 57
+	DHCPOptionRenewalTime      uint8 = 58
+	DHCPOptionRebindingTime    uint8 = 59
+	DHCPOptionVendorClass      uint8 = 60
+	DHCPOptionClientID         uint8 = 61
+	DHCPOptionTFTPServerName   uint8 = 66
+	DHCPOptionBootFileName     uint8 = 67
+	DHCPOptionUserClass        uint8 = 77
+	DHCPOptionClientArch       uint8 = 93
+	DHCPOptionClientNDI        uint8 = 94
+	DHCPOptionUUID             uint8 = 97
+	DHCPOptionPXEDiscoveryCtrl uint8 = 128
+	DHCPOptionPXEBootServer    uint8 = 129
+	DHCPOptionPXEBootMenu      uint8 = 130
+	DHCPOptionPXEMenuPrompt    uint8 = 131
 )
 
 // Client architecture types.
 const (
-	ArchIntelx86PC       uint16 = 0
-	ArchNECPC98          uint16 = 1
-	ArchEFIIA32          uint16 = 6
-	ArchEFIBC            uint16 = 7
-	ArchEFIXscale        uint16 = 8
-	ArchEFIx8664         uint16 = 9
-	ArchEFIARM32         uint16 = 10
-	ArchEFIARM64         uint16 = 11
+	ArchIntelx86PC uint16 = 0
+	ArchNECPC98    uint16 = 1
+	ArchEFIIA32    uint16 = 6
+	ArchEFIBC      uint16 = 7
+	ArchEFIXscale  uint16 = 8
+	ArchEFIx8664   uint16 = 9
+	ArchEFIARM32   uint16 = 10
+	ArchEFIARM64   uint16 = 11
 )
 
 // NewDHCPProxy creates a new DHCP proxy.

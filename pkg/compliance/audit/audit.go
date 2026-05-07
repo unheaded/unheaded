@@ -44,21 +44,21 @@ const (
 
 // AuditEvent represents a single audit event.
 type AuditEvent struct {
-	ID          string                 `json:"id"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Type        EventType              `json:"type"`
-	Severity    Severity               `json:"severity"`
-	Actor       string                 `json:"actor"`
-	Action      string                 `json:"action"`
-	Resource    string                 `json:"resource"`
-	ResourceID  string                 `json:"resource_id"`
-	Description string                 `json:"description"`
-	Outcome     string                 `json:"outcome"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	ClientIP    string                 `json:"client_ip,omitempty"`
-	UserAgent   string                 `json:"user_agent,omitempty"`
-	SessionID   string                 `json:"session_id,omitempty"`
-	CorrelationID string               `json:"correlation_id,omitempty"`
+	ID            string                 `json:"id"`
+	Timestamp     time.Time              `json:"timestamp"`
+	Type          EventType              `json:"type"`
+	Severity      Severity               `json:"severity"`
+	Actor         string                 `json:"actor"`
+	Action        string                 `json:"action"`
+	Resource      string                 `json:"resource"`
+	ResourceID    string                 `json:"resource_id"`
+	Description   string                 `json:"description"`
+	Outcome       string                 `json:"outcome"`
+	Metadata      map[string]interface{} `json:"metadata"`
+	ClientIP      string                 `json:"client_ip,omitempty"`
+	UserAgent     string                 `json:"user_agent,omitempty"`
+	SessionID     string                 `json:"session_id,omitempty"`
+	CorrelationID string                 `json:"correlation_id,omitempty"`
 }
 
 // AuditLogger defines the interface for audit logging.
@@ -84,8 +84,8 @@ type AuditFilter struct {
 
 // InMemoryAuditLogger implements AuditLogger with in-memory storage.
 type InMemoryAuditLogger struct {
-	mu     sync.RWMutex
-	events []*AuditEvent
+	mu      sync.RWMutex
+	events  []*AuditEvent
 	maxSize int
 }
 
@@ -420,7 +420,7 @@ func (a *ComplianceAuditor) LogRemediationAction(ctx context.Context, remediatio
 
 	return NewAuditEvent(eventType).
 		WithActor(a.defaultActor).
-		WithAction(action + "_remediation").
+		WithAction(action+"_remediation").
 		WithResource("remediation", remediationID).
 		WithDescription(fmt.Sprintf("Remediation %s: %s", remediationID, action)).
 		WithOutcome(status).

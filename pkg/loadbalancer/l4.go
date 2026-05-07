@@ -32,10 +32,10 @@ type L4Proxy struct {
 	tlsConfig *tls.Config
 
 	// Connection tracking
-	activeConns   int64
-	totalConns    int64
-	totalBytes    int64
-	droppedConns  int64
+	activeConns  int64
+	totalConns   int64
+	totalBytes   int64
+	droppedConns int64
 
 	// State management
 	running int32
@@ -505,9 +505,9 @@ func (p *L4Proxy) Stop() error {
 // Stats returns proxy statistics.
 func (p *L4Proxy) Stats() L4ProxyStats {
 	return L4ProxyStats{
-		ActiveConnections: atomic.LoadInt64(&p.activeConns),
-		TotalConnections:  atomic.LoadInt64(&p.totalConns),
-		TotalBytes:        atomic.LoadInt64(&p.totalBytes),
+		ActiveConnections:  atomic.LoadInt64(&p.activeConns),
+		TotalConnections:   atomic.LoadInt64(&p.totalConns),
+		TotalBytes:         atomic.LoadInt64(&p.totalBytes),
 		DroppedConnections: atomic.LoadInt64(&p.droppedConns),
 	}
 }

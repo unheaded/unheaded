@@ -21,11 +21,11 @@ import (
 
 // Health gate errors.
 var (
-	ErrHealthGateTimeout    = errors.New("health gate timeout")
-	ErrHealthCheckFailed    = errors.New("health check failed")
-	ErrAllChecksFailed      = errors.New("all health checks failed")
-	ErrInsufficientHealthy  = errors.New("insufficient healthy instances")
-	ErrHealthGateAborted    = errors.New("health gate aborted")
+	ErrHealthGateTimeout   = errors.New("health gate timeout")
+	ErrHealthCheckFailed   = errors.New("health check failed")
+	ErrAllChecksFailed     = errors.New("all health checks failed")
+	ErrInsufficientHealthy = errors.New("insufficient healthy instances")
+	ErrHealthGateAborted   = errors.New("health gate aborted")
 )
 
 // HealthCheckType represents the type of health check.
@@ -267,12 +267,12 @@ type GateExecution struct {
 type GateState string
 
 const (
-	GateStatePending   GateState = "pending"
-	GateStateWaiting   GateState = "waiting"
-	GateStateChecking  GateState = "checking"
-	GateStatePassed    GateState = "passed"
-	GateStateFailed    GateState = "failed"
-	GateStateAborted   GateState = "aborted"
+	GateStatePending  GateState = "pending"
+	GateStateWaiting  GateState = "waiting"
+	GateStateChecking GateState = "checking"
+	GateStatePassed   GateState = "passed"
+	GateStateFailed   GateState = "failed"
+	GateStateAborted  GateState = "aborted"
 )
 
 // GateProgress tracks gate execution progress.
@@ -1036,8 +1036,8 @@ func (b *HealthGateBuilder) Build() *HealthGateDefinition {
 // QuickHealthGate creates a simple health gate with default settings.
 func QuickHealthGate(name, healthURL string) *HealthGateDefinition {
 	return NewHealthGateBuilder(name).
-		WithTimeout(5 * time.Minute).
-		WithInterval(5 * time.Second).
+		WithTimeout(5*time.Minute).
+		WithInterval(5*time.Second).
 		WithSuccessThreshold(3).
 		WithFailureThreshold(3).
 		WithHTTPCheck("health", healthURL, 200).
@@ -1048,9 +1048,9 @@ func QuickHealthGate(name, healthURL string) *HealthGateDefinition {
 // ReadinessGate creates a readiness-focused health gate.
 func ReadinessGate(name, readyURL string) *HealthGateDefinition {
 	return NewHealthGateBuilder(name).
-		WithInitialDelay(10 * time.Second).
-		WithTimeout(3 * time.Minute).
-		WithInterval(3 * time.Second).
+		WithInitialDelay(10*time.Second).
+		WithTimeout(3*time.Minute).
+		WithInterval(3*time.Second).
 		WithSuccessThreshold(2).
 		WithFailureThreshold(5).
 		WithHTTPCheck("ready", readyURL, 200).
@@ -1061,8 +1061,8 @@ func ReadinessGate(name, readyURL string) *HealthGateDefinition {
 // LivenessGate creates a liveness-focused health gate.
 func LivenessGate(name, livenessURL string) *HealthGateDefinition {
 	return NewHealthGateBuilder(name).
-		WithTimeout(2 * time.Minute).
-		WithInterval(10 * time.Second).
+		WithTimeout(2*time.Minute).
+		WithInterval(10*time.Second).
 		WithSuccessThreshold(1).
 		WithFailureThreshold(3).
 		WithHTTPCheck("live", livenessURL, 200).

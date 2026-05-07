@@ -174,11 +174,11 @@ func (w *PacketBitmapWindow) FlowCount() int {
 // randomness is available for cryptographic operations. Alerts if the
 // pool drops below a configurable threshold.
 type EntropyMonitor struct {
-	mu           sync.Mutex
-	minBits      int
-	lastCheck    time.Time
-	lastBits     int
-	entropyFile  string
+	mu          sync.Mutex
+	minBits     int
+	lastCheck   time.Time
+	lastBits    int
+	entropyFile string
 }
 
 // NewEntropyMonitor creates a new entropy monitor.
@@ -240,7 +240,7 @@ type TOCTOUCache struct {
 }
 
 type toctouEntry struct {
-	sigRef    uint32
+	sigRef     uint32
 	verifiedAt time.Time
 }
 

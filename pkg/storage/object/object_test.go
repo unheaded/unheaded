@@ -50,7 +50,7 @@ func TestValidateBucket(t *testing.T) {
 		{"abc", false},
 		{strings.Repeat("x", 63), false},
 		{"", true},
-		{"ab", true},  // too short
+		{"ab", true},                    // too short
 		{strings.Repeat("x", 64), true}, // too long
 	}
 	for _, tt := range tests {

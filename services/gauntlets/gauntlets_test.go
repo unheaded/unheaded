@@ -110,8 +110,8 @@ func TestNewService(t *testing.T) {
 	t.Run("explicit config is used", func(t *testing.T) {
 		t.Parallel()
 		cfg := &Config{
-			APIPrefix:   "/custom/v2",
-			Version:     "2.0.0",
+			APIPrefix:  "/custom/v2",
+			Version:    "2.0.0",
 			WotanTopic: "custom.topic",
 		}
 		svc := newTestService(cfg)
@@ -879,8 +879,8 @@ func TestBuiltinCommands(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestServiceStarted(t, &Config{
-		APIPrefix:   "/api/v1",
-		Version:     "42.0.0",
+		APIPrefix:  "/api/v1",
+		Version:    "42.0.0",
 		WotanTopic: "test.topic",
 	})
 
@@ -1010,8 +1010,8 @@ func TestGenerateOpenAPI(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestServiceStarted(t, &Config{
-		APIPrefix:   "/api/v1",
-		Version:     "3.0.1",
+		APIPrefix:  "/api/v1",
+		Version:    "3.0.1",
 		WotanTopic: "test",
 	})
 
@@ -1087,8 +1087,8 @@ func TestStats(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestServiceStarted(t, &Config{
-		APIPrefix:   "/api/v1",
-		Version:     "9.8.7",
+		APIPrefix:  "/api/v1",
+		Version:    "9.8.7",
 		WotanTopic: "test",
 	})
 
@@ -1850,8 +1850,8 @@ func TestGenerateOpenAPI_WithCustomCommands(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestService(&Config{
-		APIPrefix:   "/api/v2",
-		Version:     "2.0.0",
+		APIPrefix:  "/api/v2",
+		Version:    "2.0.0",
 		WotanTopic: "test",
 	})
 	_ = svc.RegisterCommand(&Command{
@@ -1903,8 +1903,8 @@ func TestConfig_JSONSerialization(t *testing.T) {
 	t.Parallel()
 
 	cfg := Config{
-		APIPrefix:   "/api/v1",
-		Version:     "1.0.0",
+		APIPrefix:  "/api/v1",
+		Version:    "1.0.0",
 		WotanTopic: "gauntlets.commands",
 	}
 
@@ -2133,8 +2133,8 @@ func TestCustomAPIPrefix(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestService(&Config{
-		APIPrefix:   "/custom/api/v3",
-		Version:     "3.0.0",
+		APIPrefix:  "/custom/api/v3",
+		Version:    "3.0.0",
 		WotanTopic: "test",
 	})
 	_ = svc.RegisterCommand(&Command{
@@ -2155,8 +2155,8 @@ func TestBuiltinCommands_CustomPrefix(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestServiceStarted(t, &Config{
-		APIPrefix:   "/v2",
-		Version:     "2.0.0",
+		APIPrefix:  "/v2",
+		Version:    "2.0.0",
 		WotanTopic: "test",
 	})
 

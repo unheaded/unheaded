@@ -96,7 +96,7 @@ type mockDetectionResult struct {
 	matches []string
 }
 
-func (m *mockDetectionResult) GetScore() int       { return m.score }
+func (m *mockDetectionResult) GetScore() int        { return m.score }
 func (m *mockDetectionResult) GetMatches() []string { return m.matches }
 
 func TestAggregateScores(t *testing.T) {

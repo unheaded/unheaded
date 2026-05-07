@@ -148,10 +148,10 @@ type ServiceHealth struct {
 
 // HealthHistory holds historical check results for a service
 type HealthHistory struct {
-	Name     string
-	Results  []CheckResult
-	MaxSize  int
-	mu       sync.RWMutex
+	Name    string
+	Results []CheckResult
+	MaxSize int
+	mu      sync.RWMutex
 }
 
 // Add adds a result to the history
@@ -249,31 +249,31 @@ type SystemHealth struct {
 
 // HealthEvent represents a health state change event
 type HealthEvent struct {
-	Service     string    `json:"service"`
-	OldStatus   Status    `json:"old_status"`
-	NewStatus   Status    `json:"new_status"`
-	Timestamp   time.Time `json:"timestamp"`
-	Message     string    `json:"message,omitempty"`
+	Service   string    `json:"service"`
+	OldStatus Status    `json:"old_status"`
+	NewStatus Status    `json:"new_status"`
+	Timestamp time.Time `json:"timestamp"`
+	Message   string    `json:"message,omitempty"`
 }
 
 // Monitor monitors health of Kingdom services
 type Monitor struct {
-	config    *Config
-	log       *logger.Logger
-	client    *http.Client
-	targets   map[string]*ServiceTarget
-	health    map[string]*ServiceHealth
-	history   map[string]*HealthHistory
+	config  *Config
+	log     *logger.Logger
+	client  *http.Client
+	targets map[string]*ServiceTarget
+	health  map[string]*ServiceHealth
+	history map[string]*HealthHistory
 
 	targetsMu sync.RWMutex
 	healthMu  sync.RWMutex
 	historyMu sync.RWMutex
 
-	running  bool
-	stopCh   chan struct{}
-	doneCh   chan struct{}
-	runMu    sync.RWMutex
-	wg       sync.WaitGroup
+	running bool
+	stopCh  chan struct{}
+	doneCh  chan struct{}
+	runMu   sync.RWMutex
+	wg      sync.WaitGroup
 
 	// Callbacks
 	onStatusChange func(event HealthEvent)
@@ -293,16 +293,16 @@ func NewMonitor(config *Config, log *logger.Logger) (*Monitor, error) {
 	}
 
 	return &Monitor{
-		config:  config,
-		log:     log,
+		config: config,
+		log:    log,
 		client: &http.Client{
 			Timeout: config.PollTimeout,
 		},
-		targets:  make(map[string]*ServiceTarget),
-		health:   make(map[string]*ServiceHealth),
-		history:  make(map[string]*HealthHistory),
-		stopCh:   make(chan struct{}),
-		doneCh:   make(chan struct{}),
+		targets: make(map[string]*ServiceTarget),
+		health:  make(map[string]*ServiceHealth),
+		history: make(map[string]*HealthHistory),
+		stopCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}),
 	}, nil
 }
 

@@ -430,9 +430,9 @@ func TestEnginePromoteCanary(t *testing.T) {
 	engine := newTestEngine(nil)
 	engine.deployMu.Lock()
 	engine.deployments["d1"] = &Deployment{
-		ID:   "d1",
+		ID:    "d1",
 		State: StateVerifying,
-		Spec: &DeploymentSpec{ServiceName: "svc", Strategy: StrategyCanary},
+		Spec:  &DeploymentSpec{ServiceName: "svc", Strategy: StrategyCanary},
 	}
 	engine.deployMu.Unlock()
 

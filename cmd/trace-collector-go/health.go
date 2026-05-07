@@ -4,11 +4,12 @@
 // health.go — Health, readiness, metrics, and API endpoints.
 //
 // Provides HTTP handlers for:
-//   /health     — All enabled BPF programs loaded successfully
-//   /ready      — At least one trace event has been processed
-//   /metrics    — Prometheus metrics (via promhttp)
-//   /api/v1/traces  — Recent trace events (JSON)
-//   /api/v1/stats   — Current statistics (JSON)
+//
+//	/health     — All enabled BPF programs loaded successfully
+//	/ready      — At least one trace event has been processed
+//	/metrics    — Prometheus metrics (via promhttp)
+//	/api/v1/traces  — Recent trace events (JSON)
+//	/api/v1/stats   — Current statistics (JSON)
 //
 // Per RFC 9669: we use "BPF" (not "eBPF") throughout.
 package main
@@ -67,15 +68,15 @@ type CollectorState struct {
 
 // recentTraceEntry wraps a trace event with a receive timestamp.
 type recentTraceEntry struct {
-	ReceivedAt time.Time   `json:"received_at"`
-	TraceID    string      `json:"trace_id"`
-	SrcIP      string      `json:"src_ip"`
-	DstIP      string      `json:"dst_ip"`
-	SrcPort    uint16      `json:"src_port"`
-	DstPort    uint16      `json:"dst_port"`
-	Protocol   string      `json:"protocol"`
-	PacketLen  uint16      `json:"packet_len"`
-	HopCount   uint8       `json:"hop_count"`
+	ReceivedAt time.Time `json:"received_at"`
+	TraceID    string    `json:"trace_id"`
+	SrcIP      string    `json:"src_ip"`
+	DstIP      string    `json:"dst_ip"`
+	SrcPort    uint16    `json:"src_port"`
+	DstPort    uint16    `json:"dst_port"`
+	Protocol   string    `json:"protocol"`
+	PacketLen  uint16    `json:"packet_len"`
+	HopCount   uint8     `json:"hop_count"`
 }
 
 const maxRecentTraces = 256
@@ -234,8 +235,8 @@ func (h *TracesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
-		Count  int                  `json:"count"`
-		Traces []*recentTraceEntry  `json:"traces"`
+		Count  int                 `json:"count"`
+		Traces []*recentTraceEntry `json:"traces"`
 	}{
 		Count:  len(traces),
 		Traces: traces,
@@ -251,11 +252,11 @@ type StatsHandler struct {
 
 func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp := struct {
-		EventsProcessed     uint64                     `json:"events_processed"`
-		Publisher            *TracePublisherStats       `json:"publisher,omitempty"`
-		PacketCorrelator     *PacketCorrelatorStats     `json:"packet_correlator,omitempty"`
-		TraceReader          *TraceReaderStats          `json:"trace_reader,omitempty"`
-		AnamnesisReader      *ebpf.ReaderStats          `json:"anamnesis_reader,omitempty"`
+		EventsProcessed  uint64                 `json:"events_processed"`
+		Publisher        *TracePublisherStats   `json:"publisher,omitempty"`
+		PacketCorrelator *PacketCorrelatorStats `json:"packet_correlator,omitempty"`
+		TraceReader      *TraceReaderStats      `json:"trace_reader,omitempty"`
+		AnamnesisReader  *ebpf.ReaderStats      `json:"anamnesis_reader,omitempty"`
 	}{
 		EventsProcessed: atomic.LoadUint64(&h.State.EventsProcessed),
 	}

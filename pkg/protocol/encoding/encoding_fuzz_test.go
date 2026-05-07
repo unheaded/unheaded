@@ -11,22 +11,22 @@ import (
 // This is security-critical: untrusted wire data hits DecodeVarint first.
 func FuzzDecodeVarint(f *testing.F) {
 	// Seed corpus: valid encodings for each length class.
-	f.Add([]byte{0x00})                                                 // 1-byte: 0
-	f.Add([]byte{0x25})                                                 // 1-byte: 37 (RFC 9000 example)
-	f.Add([]byte{0x3F})                                                 // 1-byte: max (63)
-	f.Add([]byte{0x40, 0x40})                                           // 2-byte: 64
-	f.Add([]byte{0x7B, 0xBD})                                           // 2-byte: 15293 (RFC 9000 example)
-	f.Add([]byte{0x7F, 0xFF})                                           // 2-byte: max (16383)
-	f.Add([]byte{0x80, 0x00, 0x40, 0x00})                               // 4-byte: 16384
-	f.Add([]byte{0x9D, 0x7F, 0x3E, 0x7D})                               // 4-byte: 494878333 (RFC 9000 example)
-	f.Add([]byte{0xBF, 0xFF, 0xFF, 0xFF})                               // 4-byte: max (1073741823)
-	f.Add([]byte{0xC0, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00})       // 8-byte: 1073741824
-	f.Add([]byte{0xC2, 0x19, 0x7C, 0x5E, 0xFF, 0x14, 0xE8, 0x8C})       // 8-byte: 151288809941952652
-	f.Add([]byte{})                                                      // empty
-	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF})       // max 8-byte encoding
-	f.Add([]byte{0x40})                                                  // truncated 2-byte
-	f.Add([]byte{0x80, 0x00})                                            // truncated 4-byte
-	f.Add([]byte{0xC0, 0x00, 0x00, 0x00})                               // truncated 8-byte
+	f.Add([]byte{0x00})                                           // 1-byte: 0
+	f.Add([]byte{0x25})                                           // 1-byte: 37 (RFC 9000 example)
+	f.Add([]byte{0x3F})                                           // 1-byte: max (63)
+	f.Add([]byte{0x40, 0x40})                                     // 2-byte: 64
+	f.Add([]byte{0x7B, 0xBD})                                     // 2-byte: 15293 (RFC 9000 example)
+	f.Add([]byte{0x7F, 0xFF})                                     // 2-byte: max (16383)
+	f.Add([]byte{0x80, 0x00, 0x40, 0x00})                         // 4-byte: 16384
+	f.Add([]byte{0x9D, 0x7F, 0x3E, 0x7D})                         // 4-byte: 494878333 (RFC 9000 example)
+	f.Add([]byte{0xBF, 0xFF, 0xFF, 0xFF})                         // 4-byte: max (1073741823)
+	f.Add([]byte{0xC0, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00}) // 8-byte: 1073741824
+	f.Add([]byte{0xC2, 0x19, 0x7C, 0x5E, 0xFF, 0x14, 0xE8, 0x8C}) // 8-byte: 151288809941952652
+	f.Add([]byte{})                                               // empty
+	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}) // max 8-byte encoding
+	f.Add([]byte{0x40})                                           // truncated 2-byte
+	f.Add([]byte{0x80, 0x00})                                     // truncated 4-byte
+	f.Add([]byte{0xC0, 0x00, 0x00, 0x00})                         // truncated 8-byte
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		val, n, err := DecodeVarint(data)
@@ -122,13 +122,13 @@ func FuzzDecodeExponent(f *testing.F) {
 
 // FuzzDecodeTLV feeds random bytes to DecodeTLV.
 func FuzzDecodeTLV(f *testing.F) {
-	f.Add([]byte{0x01, 0x03, 0xAA, 0xBB, 0xCC})            // valid TLV
-	f.Add([]byte{0x42, 0x00})                                 // zero-length value
-	f.Add([]byte{0x01, 0x04, 0xDE, 0xAD, 0xBE, 0xEF})        // 4-byte value
-	f.Add([]byte{})                                            // empty
-	f.Add([]byte{0x01})                                        // truncated header
-	f.Add([]byte{0x01, 0xFF})                                  // length exceeds buffer
-	f.Add([]byte{0x01, 0x02, 0xAA})                            // truncated value
+	f.Add([]byte{0x01, 0x03, 0xAA, 0xBB, 0xCC})       // valid TLV
+	f.Add([]byte{0x42, 0x00})                         // zero-length value
+	f.Add([]byte{0x01, 0x04, 0xDE, 0xAD, 0xBE, 0xEF}) // 4-byte value
+	f.Add([]byte{})                                   // empty
+	f.Add([]byte{0x01})                               // truncated header
+	f.Add([]byte{0x01, 0xFF})                         // length exceeds buffer
+	f.Add([]byte{0x01, 0x02, 0xAA})                   // truncated value
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		tlv, n, err := DecodeTLV(data)

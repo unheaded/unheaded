@@ -283,9 +283,9 @@ func (c *AccessControlChecker) Check(ctx context.Context, control *Control) (*Co
 
 // AuditLogChecker checks audit logging controls.
 type AuditLogChecker struct {
-	logsEnabled     bool
-	retentionDays   int
-	requiredEvents  []string
+	logsEnabled      bool
+	retentionDays    int
+	requiredEvents   []string
 	configuredEvents []string
 }
 

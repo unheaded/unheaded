@@ -34,22 +34,22 @@ type TFTPServer struct {
 
 // TFTPStats holds TFTP server statistics.
 type TFTPStats struct {
-	mu             sync.RWMutex
-	TotalRequests  int64     `json:"total_requests"`
-	BytesSent      int64     `json:"bytes_sent"`
-	Errors         int64     `json:"errors"`
-	CacheHits      int64     `json:"cache_hits"`
-	CacheMisses    int64     `json:"cache_misses"`
-	LastRequest    time.Time `json:"last_request"`
+	mu              sync.RWMutex
+	TotalRequests   int64     `json:"total_requests"`
+	BytesSent       int64     `json:"bytes_sent"`
+	Errors          int64     `json:"errors"`
+	CacheHits       int64     `json:"cache_hits"`
+	CacheMisses     int64     `json:"cache_misses"`
+	LastRequest     time.Time `json:"last_request"`
 	ActiveTransfers int       `json:"active_transfers"`
 }
 
 type cachedFile struct {
-	data      []byte
-	size      int64
-	modTime   time.Time
+	data       []byte
+	size       int64
+	modTime    time.Time
 	lastAccess time.Time
-	hits      int64
+	hits       int64
 }
 
 // NewTFTPServer creates a new TFTP server.

@@ -124,11 +124,11 @@ const (
 //	0x0A    FlowLabelLo     2B      Low 16 bits of IPv6 Flow Label (big-endian, trace correlation key)
 //	0x0C    Monad           20B     Complete 20-byte Monad snapshot at time of event
 type AnamnesisEvent struct {
-	TimestampNs uint64         // bpf_ktime_get_ns().
-	EventType   uint8          // See EventType constants.
-	HopID       uint8          // From CONFIG[0] map.
-	FlowLabelLo uint16         // Low 16 bits of IPv6 Flow Label for correlation.
-	Monad       MonadRegister  // Complete 20-byte Monad snapshot.
+	TimestampNs uint64        // bpf_ktime_get_ns().
+	EventType   uint8         // See EventType constants.
+	HopID       uint8         // From CONFIG[0] map.
+	FlowLabelLo uint16        // Low 16 bits of IPv6 Flow Label for correlation.
+	Monad       MonadRegister // Complete 20-byte Monad snapshot.
 }
 
 // AnamnesisEventSize is the exact wire size. Tests verify this.
@@ -253,15 +253,15 @@ const FlowKeySize = 16 // 4+4+2+2+1+3
 //	0x40    State           1B      Connection state enum
 //	0x41    _pad            7B      Alignment
 type FlowState struct {
-	TraceID     [16]byte // 128-bit trace ID (high 8B, low 8B big-endian).
-	StartNs     uint64   // Connection start timestamp (bpf_ktime_get_ns).
-	LastSeenNs  uint64   // Last packet timestamp.
-	PacketsIn   uint64   // Inbound packet count.
-	PacketsOut  uint64   // Outbound packet count.
-	BytesIn     uint64   // Inbound bytes.
-	BytesOut    uint64   // Outbound bytes.
-	State       uint8    // Connection state (ConnectionState enum).
-	_           [7]byte  // Alignment padding.
+	TraceID    [16]byte // 128-bit trace ID (high 8B, low 8B big-endian).
+	StartNs    uint64   // Connection start timestamp (bpf_ktime_get_ns).
+	LastSeenNs uint64   // Last packet timestamp.
+	PacketsIn  uint64   // Inbound packet count.
+	PacketsOut uint64   // Outbound packet count.
+	BytesIn    uint64   // Inbound bytes.
+	BytesOut   uint64   // Outbound bytes.
+	State      uint8    // Connection state (ConnectionState enum).
+	_          [7]byte  // Alignment padding.
 }
 
 // FlowStateSize is the exact wire size.
@@ -430,9 +430,9 @@ const FlowMigrationTokenValueSize = 48 // 16+8+4+4+2+2+4+4
 //
 // Total: 4 + 4(implicit) + 8 + 4 + 4 = 24 bytes.
 type FlowCancelValue struct {
-	Reason      uint32 // Cancellation reason code
-	TimestampNs uint64 // When cancellation was requested
-	Flags       uint32 // Bit 0: active, Bit 1: send-rst
+	Reason      uint32  // Cancellation reason code
+	TimestampNs uint64  // When cancellation was requested
+	Flags       uint32  // Bit 0: active, Bit 1: send-rst
 	_           [4]byte // Alignment padding to 24 bytes
 }
 
@@ -444,12 +444,12 @@ const FlowCancelValueSize = 24
 
 // Standard map sizes matching eBPF program definitions.
 const (
-	AnamnesisRingSize     = 8 * 1024 * 1024  // 8 MiB per ring buffer.
-	FlowEventsRingSize    = 256 * 1024        // 256 KiB.
-	LatencyEventsRingSize = 256 * 1024        // 256 KiB.
-	PacketEventsRingSize  = 256 * 1024        // 256 KiB.
-	SyscallEventsRingSize = 256 * 1024        // 256 KiB.
-	ComputeEventsRingSize = 256 * 1024        // 256 KiB.
+	AnamnesisRingSize     = 8 * 1024 * 1024 // 8 MiB per ring buffer.
+	FlowEventsRingSize    = 256 * 1024      // 256 KiB.
+	LatencyEventsRingSize = 256 * 1024      // 256 KiB.
+	PacketEventsRingSize  = 256 * 1024      // 256 KiB.
+	SyscallEventsRingSize = 256 * 1024      // 256 KiB.
+	ComputeEventsRingSize = 256 * 1024      // 256 KiB.
 
 	BlocklistMaxEntries           = 4096
 	RateTokensMaxEntries          = 4096
@@ -457,13 +457,13 @@ const (
 	CircuitErrorsMaxEntries       = 65536
 	FlowsMaxEntries               = 16384
 	FlowMigrationTokensMaxEntries = 4096
-	FlowCancelFlowsMaxEntries      = 4096
+	FlowCancelFlowsMaxEntries     = 4096
 	ChaosTargetsMaxEntries        = 4096
-	ROMMapMaxEntries              = 262144   // 1 MiB of instructions.
-	RAMMapMaxEntries              = 2097152  // 8 MiB word-addressed.
-	ScreenMapMaxEntries           = 16000    // 160×100 framebuffer.
-	CPUMapMaxEntries              = 256      // Per-flow CPU instances.
-	L1CacheMaxEntries             = 256      // 256 cache lines × 64 bytes.
+	ROMMapMaxEntries              = 262144  // 1 MiB of instructions.
+	RAMMapMaxEntries              = 2097152 // 8 MiB word-addressed.
+	ScreenMapMaxEntries           = 16000   // 160×100 framebuffer.
+	CPUMapMaxEntries              = 256     // Per-flow CPU instances.
+	L1CacheMaxEntries             = 256     // 256 cache lines × 64 bytes.
 	StatsMaxEntries               = 32
 	ConfigMaxEntries              = 16
 )

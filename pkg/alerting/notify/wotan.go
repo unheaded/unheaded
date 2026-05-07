@@ -18,14 +18,14 @@ import (
 // WotanConfig holds Wotan channel configuration.
 type WotanConfig struct {
 	ChannelConfig
-	Topic          string            `json:"topic"`
-	Partition      int               `json:"partition"`
-	QueueSize      int               `json:"queue_size"`
-	BatchSize      int               `json:"batch_size"`
-	FlushInterval  time.Duration     `json:"flush_interval"`
-	RetryCount     int               `json:"retry_count"`
-	RetryDelay     time.Duration     `json:"retry_delay"`
-	Headers        map[string]string `json:"headers"`
+	Topic         string            `json:"topic"`
+	Partition     int               `json:"partition"`
+	QueueSize     int               `json:"queue_size"`
+	BatchSize     int               `json:"batch_size"`
+	FlushInterval time.Duration     `json:"flush_interval"`
+	RetryCount    int               `json:"retry_count"`
+	RetryDelay    time.Duration     `json:"retry_delay"`
+	Headers       map[string]string `json:"headers"`
 }
 
 // WotanEvent represents an event sent to the Wotan event bus.
@@ -37,7 +37,7 @@ type WotanEvent struct {
 	Time        time.Time         `json:"time"`
 	DataSchema  string            `json:"data_schema"`
 	ContentType string            `json:"content_type"`
-	Data        *WotanAlertData  `json:"data"`
+	Data        *WotanAlertData   `json:"data"`
 	Headers     map[string]string `json:"headers"`
 }
 
@@ -48,7 +48,7 @@ type WotanAlertData struct {
 	Receiver     string            `json:"receiver"`
 	GroupLabels  map[string]string `json:"group_labels"`
 	CommonLabels map[string]string `json:"common_labels"`
-	Alerts       []WotanAlert     `json:"alerts"`
+	Alerts       []WotanAlert      `json:"alerts"`
 }
 
 // WotanAlert represents an alert in the Wotan payload.
@@ -318,10 +318,10 @@ func (b *WotanChannel) Close() error {
 
 // MockWotanPublisher is a mock publisher for testing.
 type MockWotanPublisher struct {
-	mu       sync.Mutex
-	Events   []*WotanEvent
-	Batches  [][]*WotanEvent
-	Error    error
+	mu      sync.Mutex
+	Events  []*WotanEvent
+	Batches [][]*WotanEvent
+	Error   error
 }
 
 // NewMockWotanPublisher creates a new mock publisher.

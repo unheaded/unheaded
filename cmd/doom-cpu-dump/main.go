@@ -5,9 +5,10 @@
 // Replaces Python scripts: doom-cpu-dump.py, read_cpu.py, reset_cpu.py
 //
 // Usage:
-//   doom-cpu-dump dump [--instance 0xDE] [--map /sys/fs/bpf/.../CPU_MAP]
-//   doom-cpu-dump watch [--instance 0xDE] [--interval 200] [--map /sys/fs/bpf/.../CPU_MAP]
-//   doom-cpu-dump reset [--instance 0xDE] [--map /sys/fs/bpf/.../CPU_MAP]
+//
+//	doom-cpu-dump dump [--instance 0xDE] [--map /sys/fs/bpf/.../CPU_MAP]
+//	doom-cpu-dump watch [--instance 0xDE] [--interval 200] [--map /sys/fs/bpf/.../CPU_MAP]
+//	doom-cpu-dump reset [--instance 0xDE] [--map /sys/fs/bpf/.../CPU_MAP]
 package main
 
 import (

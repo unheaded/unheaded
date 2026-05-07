@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // IngestorConfig configures the eBPF event ingestor.
@@ -421,7 +421,7 @@ func (ing *Ingestor) RecentEvents(n int) []EventEnvelope {
 func (ing *Ingestor) Stats() IngestorStats {
 	return IngestorStats{
 		PacketsIngested:   ing.packetsIngested.Load(),
-		FlowsIngested:    ing.flowsIngested.Load(),
+		FlowsIngested:     ing.flowsIngested.Load(),
 		LatencyIngested:   ing.latencyIngested.Load(),
 		SyscallIngested:   ing.syscallIngested.Load(),
 		ComputeIngested:   ing.computeIngested.Load(),
@@ -437,7 +437,7 @@ func (ing *Ingestor) Stats() IngestorStats {
 // IngestorStats holds ingestor statistics for the /api/v1/ebpf/stats endpoint.
 type IngestorStats struct {
 	PacketsIngested   int64          `json:"packets_ingested"`
-	FlowsIngested    int64          `json:"flows_ingested"`
+	FlowsIngested     int64          `json:"flows_ingested"`
 	LatencyIngested   int64          `json:"latency_ingested"`
 	SyscallIngested   int64          `json:"syscall_ingested"`
 	ComputeIngested   int64          `json:"compute_ingested"`

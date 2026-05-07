@@ -111,12 +111,12 @@ const (
 
 // MergeOptions configures merge behavior.
 type MergeOptions struct {
-	Strategy      MergeStrategy
-	ArrayStrategy MergeStrategy
-	KeyTransform  func(string) string
+	Strategy       MergeStrategy
+	ArrayStrategy  MergeStrategy
+	KeyTransform   func(string) string
 	ValueTransform func(any) any
-	SkipEmpty     bool
-	SkipNil       bool
+	SkipEmpty      bool
+	SkipNil        bool
 }
 
 // DefaultMergeOptions returns default merge options.

@@ -20,9 +20,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	pb "unheaded/proto/unheaded/v1"
 	"unheaded/pkg/auth"
 	"unheaded/pkg/ports"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 var (
@@ -31,25 +31,25 @@ var (
 )
 
 const (
-	apiKeyHeader   = "X-API-Key"
-	version        = "0.1.0"
-	drainTimeout   = 30 * time.Second
-	rateLimitQPS   = 1000
+	apiKeyHeader = "X-API-Key"
+	version      = "0.1.0"
+	drainTimeout = 30 * time.Second
+	rateLimitQPS = 1000
 )
 
 var (
-	mode           = flag.String("mode", "mock", "Backend mode: mock (in-memory) or bpf (pinned maps)")
-	apiKey         = flag.String("api-key", "", "API key for authentication (empty = disabled)")
-	bpfMapsPath    = flag.String("bpf-maps", "/sys/fs/bpf/unheaded", "Path to pinned BPF maps")
-	logRequests    = flag.Bool("log", true, "Enable request logging")
-	version_flag   = flag.Bool("version", false, "Print version and exit")
+	mode         = flag.String("mode", "mock", "Backend mode: mock (in-memory) or bpf (pinned maps)")
+	apiKey       = flag.String("api-key", "", "API key for authentication (empty = disabled)")
+	bpfMapsPath  = flag.String("bpf-maps", "/sys/fs/bpf/unheaded", "Path to pinned BPF maps")
+	logRequests  = flag.Bool("log", true, "Enable request logging")
+	version_flag = flag.Bool("version", false, "Print version and exit")
 	// Deprecated: use --mode=mock instead. Kept for backwards compatibility.
-	mockMode       = flag.Bool("mock", false, "Alias for --mode=mock (deprecated)")
+	mockMode = flag.Bool("mock", false, "Alias for --mode=mock (deprecated)")
 )
 
 // Global state
 var (
-	globalMockMode bool   // Derived from globalBackend.Mode(); kept for backwards compat
+	globalMockMode bool // Derived from globalBackend.Mode(); kept for backwards compat
 	globalAPIKey   string
 	globalBPFPath  string
 
@@ -321,15 +321,15 @@ func handleMonadEncode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		FlowLabel        uint32 `json:"flow_label"`
-		KingdomMode      string `json:"kingdom_mode"`
-		Timestamp        uint64 `json:"timestamp"`
-		SourceAddress    string `json:"source_address"`
-		DestAddress      string `json:"dest_address"`
-		SophiaDictID     uint32 `json:"sophia_dict_id"`
-		WotanSequence    uint32 `json:"wotan_sequence"`
-		Reserved1        uint32 `json:"reserved1"`
-		Reserved2        uint32 `json:"reserved2"`
+		FlowLabel     uint32 `json:"flow_label"`
+		KingdomMode   string `json:"kingdom_mode"`
+		Timestamp     uint64 `json:"timestamp"`
+		SourceAddress string `json:"source_address"`
+		DestAddress   string `json:"dest_address"`
+		SophiaDictID  uint32 `json:"sophia_dict_id"`
+		WotanSequence uint32 `json:"wotan_sequence"`
+		Reserved1     uint32 `json:"reserved1"`
+		Reserved2     uint32 `json:"reserved2"`
 	}
 
 	if err := parseJSON(r, &req); err != nil {
@@ -343,12 +343,12 @@ func handleMonadEncode(w http.ResponseWriter, r *http.Request) {
 	// Call Monad service
 	monadSvc := &monadServer{}
 	pbReq := &pb.EncodeRequest{
-		FlowLabel:      req.FlowLabel,
-		Timestamp:      req.Timestamp,
-		SophiaDictId:   req.SophiaDictID,
-		WotanSequence:  req.WotanSequence,
-		Reserved1:      req.Reserved1,
-		Reserved2:      req.Reserved2,
+		FlowLabel:     req.FlowLabel,
+		Timestamp:     req.Timestamp,
+		SophiaDictId:  req.SophiaDictID,
+		WotanSequence: req.WotanSequence,
+		Reserved1:     req.Reserved1,
+		Reserved2:     req.Reserved2,
 	}
 
 	resp, err := monadSvc.Encode(r.Context(), pbReq)
@@ -652,8 +652,8 @@ func handleFlowInject(w http.ResponseWriter, r *http.Request) {
 
 	flowSvc := getFlowServer()
 	pbReq := &pb.InjectRequest{
-		FlowLabel:   flowLabel,
-		Payload:     []byte(req.Payload),
+		FlowLabel:    flowLabel,
+		Payload:      []byte(req.Payload),
 		SophiaDictId: req.SophiaDictID,
 	}
 

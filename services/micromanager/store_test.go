@@ -56,7 +56,7 @@ func TestCreate_InvalidTask(t *testing.T) {
 	store := NewStore()
 	task := &Task{
 		ID:       "task-1",
-		Title:    "",  // Invalid: empty title
+		Title:    "", // Invalid: empty title
 		Owner:    "owner",
 		Priority: 3,
 	}

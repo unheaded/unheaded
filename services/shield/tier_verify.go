@@ -16,14 +16,14 @@ import (
 // TierVerifyResult embeds PQCVerifyResult with tier, policy, and sovereign
 // information for the orchestrated verification pipeline.
 type TierVerifyResult struct {
-	PQCResult      *PQCVerifyResult
+	PQCResult       *PQCVerifyResult
 	SovereignResult *SovereignResult
-	Tier           policy.ComplianceTier
-	PolicyMode     policy.VerificationMode
-	TierPolicy     *policy.TierPolicy
-	Skipped        bool
-	SkipReason     string
-	Exempt         bool
+	Tier            policy.ComplianceTier
+	PolicyMode      policy.VerificationMode
+	TierPolicy      *policy.TierPolicy
+	Skipped         bool
+	SkipReason      string
+	Exempt          bool
 }
 
 // Passed returns true if the verification passed or was legitimately skipped.
@@ -49,10 +49,10 @@ type DowngradeCallback func(from, to policy.ComplianceTier)
 type TierVerifier struct {
 	mu sync.RWMutex
 
-	verifier    *PQCVerifier
-	sovereign   *SovereignVerifier
-	policyEng   *Layer2PolicyEngine
-	stateMgr    *wotan.PQCStateManager
+	verifier  *PQCVerifier
+	sovereign *SovereignVerifier
+	policyEng *Layer2PolicyEngine
+	stateMgr  *wotan.PQCStateManager
 
 	activeTier  policy.ComplianceTier
 	onDowngrade DowngradeCallback

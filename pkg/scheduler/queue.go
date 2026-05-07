@@ -11,11 +11,11 @@ import (
 
 // PriorityQueue manages pending workloads in priority order.
 type PriorityQueue struct {
-	mu       sync.Mutex
-	items    workloadHeap
-	lookup   map[string]*queueItem
-	maxSize  int
-	cond     *sync.Cond
+	mu      sync.Mutex
+	items   workloadHeap
+	lookup  map[string]*queueItem
+	maxSize int
+	cond    *sync.Cond
 }
 
 // queueItem wraps a workload with queue metadata.
@@ -250,10 +250,10 @@ func (pq *PriorityQueue) Broadcast() {
 
 // ActiveQueue manages the scheduling pipeline with multiple stages.
 type ActiveQueue struct {
-	mu              sync.Mutex
-	activeQ         *PriorityQueue      // Ready for scheduling
-	backoffQ        *BackoffQueue       // Waiting for retry
-	unschedulableQ  map[string]*Workload // Unschedulable workloads
+	mu             sync.Mutex
+	activeQ        *PriorityQueue       // Ready for scheduling
+	backoffQ       *BackoffQueue        // Waiting for retry
+	unschedulableQ map[string]*Workload // Unschedulable workloads
 }
 
 // NewActiveQueue creates a new active queue.
@@ -372,14 +372,14 @@ func (bq *BackoffQueue) Len() int {
 
 // SchedulingCycle represents a single scheduling cycle.
 type SchedulingCycle struct {
-	mu          sync.Mutex
-	ID          int64
-	StartTime   time.Time
-	EndTime     time.Time
-	Scheduled   int
-	Failed      int
-	Preempted   int
-	NodeScores  map[string]int64
+	mu         sync.Mutex
+	ID         int64
+	StartTime  time.Time
+	EndTime    time.Time
+	Scheduled  int
+	Failed     int
+	Preempted  int
+	NodeScores map[string]int64
 }
 
 // NewSchedulingCycle creates a new scheduling cycle.
@@ -438,8 +438,8 @@ func (sc *SchedulingCycle) SetNodeScore(nodeID string, score int64) {
 
 // NominatedWorkloads tracks workloads nominated for specific nodes.
 type NominatedWorkloads struct {
-	mu         sync.RWMutex
-	nominated  map[string][]string // nodeID -> workloadIDs
+	mu        sync.RWMutex
+	nominated map[string][]string // nodeID -> workloadIDs
 }
 
 // NewNominatedWorkloads creates a new nominated workloads tracker.

@@ -152,7 +152,7 @@ func TestNewService(t *testing.T) {
 			name: "valid config",
 			cfg: Config{
 				Storage: newMockStorage(),
-				Wotan:  newMockWotan(),
+				Wotan:   newMockWotan(),
 			},
 			wantErr: nil,
 		},
@@ -176,7 +176,7 @@ func TestNewService(t *testing.T) {
 func TestService_GetVision(t *testing.T) {
 	svc, err := NewService(Config{
 		Storage: newMockStorage(),
-		Wotan:  newMockWotan(),
+		Wotan:   newMockWotan(),
 	})
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -219,7 +219,7 @@ func TestService_GetVision(t *testing.T) {
 func TestService_GetStrategy(t *testing.T) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Wotan:  newMockWotan(),
+		Wotan:   newMockWotan(),
 	})
 
 	ctx := context.Background()
@@ -639,7 +639,7 @@ func TestService_UpdateDecisionStatus(t *testing.T) {
 func TestService_Close(t *testing.T) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Wotan:  newMockWotan(),
+		Wotan:   newMockWotan(),
 	})
 
 	if svc.IsClosed() {
@@ -723,7 +723,7 @@ func TestService_Concurrent(t *testing.T) {
 func BenchmarkService_LogDecision(b *testing.B) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Wotan:  newMockWotan(),
+		Wotan:   newMockWotan(),
 	})
 	ctx := context.Background()
 
@@ -744,7 +744,7 @@ func BenchmarkService_LogDecision(b *testing.B) {
 func BenchmarkService_GetVision(b *testing.B) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Wotan:  newMockWotan(),
+		Wotan:   newMockWotan(),
 	})
 	ctx := context.Background()
 
@@ -757,7 +757,7 @@ func BenchmarkService_GetVision(b *testing.B) {
 func BenchmarkService_GetStrategy(b *testing.B) {
 	svc, _ := NewService(Config{
 		Storage: newMockStorage(),
-		Wotan:  newMockWotan(),
+		Wotan:   newMockWotan(),
 	})
 	ctx := context.Background()
 

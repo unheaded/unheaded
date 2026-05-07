@@ -14,16 +14,16 @@ import (
 
 // RemoteSource loads configuration from a remote HTTP endpoint.
 type RemoteSource struct {
-	url            string
+	url             string
 	refreshInterval time.Duration
-	client         *http.Client
-	mu             sync.RWMutex
-	cachedData     map[string]any
-	lastFetch      time.Time
-	headers        map[string]string
-	timeout        time.Duration
-	retries        int
-	retryDelay     time.Duration
+	client          *http.Client
+	mu              sync.RWMutex
+	cachedData      map[string]any
+	lastFetch       time.Time
+	headers         map[string]string
+	timeout         time.Duration
+	retries         int
+	retryDelay      time.Duration
 }
 
 // RemoteOption is a functional option for RemoteSource.

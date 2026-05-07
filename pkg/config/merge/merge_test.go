@@ -1721,10 +1721,10 @@ func TestValidatorFunc(t *testing.T) {
 
 func TestCheckType(t *testing.T) {
 	tests := []struct {
-		name     string
-		val      any
-		ft       FieldType
-		wantErr  bool
+		name    string
+		val     any
+		ft      FieldType
+		wantErr bool
 	}{
 		{"any accepts string", "x", TypeAny, false},
 		{"string ok", "x", TypeString, false},

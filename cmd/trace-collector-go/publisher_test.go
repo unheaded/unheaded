@@ -470,8 +470,8 @@ func TestTracePublisher_ConnectWithHTTPFallback(t *testing.T) {
 	defer srv.Close()
 
 	config := DefaultTracePublisherConfig()
-	config.WotanAddr = "localhost:19999"                                     // Non-existent gRPC
-	config.WotanHTTPAddr = strings.TrimPrefix(srv.URL, "http://")           // HTTP fallback
+	config.WotanAddr = "localhost:19999"                          // Non-existent gRPC
+	config.WotanHTTPAddr = strings.TrimPrefix(srv.URL, "http://") // HTTP fallback
 	config.BatchSize = 1000
 
 	pub := NewTracePublisher(config)
@@ -522,8 +522,8 @@ func TestTracePublisher_FlushViaHTTPFallback(t *testing.T) {
 	httpAddr := strings.TrimPrefix(srv.URL, "http://")
 
 	config := DefaultTracePublisherConfig()
-	config.WotanAddr = "localhost:19999"       // Non-existent gRPC
-	config.WotanHTTPAddr = httpAddr             // HTTP fallback
+	config.WotanAddr = "localhost:19999" // Non-existent gRPC
+	config.WotanHTTPAddr = httpAddr      // HTTP fallback
 	config.BatchSize = 1000
 
 	pub := NewTracePublisher(config)

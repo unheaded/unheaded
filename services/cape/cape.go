@@ -14,18 +14,18 @@ import (
 	"sync"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Route represents an HTTP route.
 type Route struct {
-	Path        string            `json:"path"`
-	Method      string            `json:"method"`
-	Handler     http.HandlerFunc  `json:"-"`
-	Middleware  []MiddlewareFunc  `json:"-"`
-	Description string            `json:"description,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
+	Path        string           `json:"path"`
+	Method      string           `json:"method"`
+	Handler     http.HandlerFunc `json:"-"`
+	Middleware  []MiddlewareFunc `json:"-"`
+	Description string           `json:"description,omitempty"`
+	Tags        []string         `json:"tags,omitempty"`
 }
 
 // MiddlewareFunc is a middleware function.
@@ -40,10 +40,10 @@ type RouteGroup struct {
 
 // WebSocketHandler handles WebSocket connections.
 type WebSocketHandler struct {
-	Path       string                 `json:"path"`
-	OnConnect  func(conn *Connection) `json:"-"`
-	OnMessage  func(conn *Connection, msg []byte) `json:"-"`
-	OnClose    func(conn *Connection) `json:"-"`
+	Path      string                             `json:"path"`
+	OnConnect func(conn *Connection)             `json:"-"`
+	OnMessage func(conn *Connection, msg []byte) `json:"-"`
+	OnClose   func(conn *Connection)             `json:"-"`
 }
 
 // Connection represents a WebSocket connection.
@@ -58,9 +58,9 @@ type Connection struct {
 
 // GRPCService represents a gRPC service.
 type GRPCService struct {
-	Name        string   `json:"name"`
-	Package     string   `json:"package"`
-	Methods     []string `json:"methods"`
+	Name         string            `json:"name"`
+	Package      string            `json:"package"`
+	Methods      []string          `json:"methods"`
 	Interceptors []GRPCInterceptor `json:"-"`
 }
 
@@ -90,23 +90,23 @@ type RequestContext struct {
 // ResponseWriter wraps http.ResponseWriter with additional capabilities.
 type ResponseWriter struct {
 	http.ResponseWriter
-	StatusCode int
+	StatusCode   int
 	BytesWritten int64
 }
 
 // Service is the main Cape internal framework service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
-	mu          sync.RWMutex
-	routes      map[string]*Route      // method:path -> route
-	groups      map[string]*RouteGroup
-	websockets  map[string]*WebSocketHandler
+	mu           sync.RWMutex
+	routes       map[string]*Route // method:path -> route
+	groups       map[string]*RouteGroup
+	websockets   map[string]*WebSocketHandler
 	grpcServices map[string]*GRPCService
-	middleware  []MiddlewareFunc       // Global middleware
-	connections map[string]*Connection // WebSocket connections
+	middleware   []MiddlewareFunc       // Global middleware
+	connections  map[string]*Connection // WebSocket connections
 }
 
 // Config holds Cape service configuration.
@@ -121,7 +121,7 @@ type Config struct {
 	EnableGRPC      bool          `json:"enable_grpc"`
 	EnableWebSocket bool          `json:"enable_websocket"`
 	CORSOrigins     []string      `json:"cors_origins,omitempty"`
-	WotanTopic     string        `json:"wotan_topic"`
+	WotanTopic      string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -137,7 +137,7 @@ func DefaultConfig() *Config {
 		EnableGRPC:      true,
 		EnableWebSocket: true,
 		CORSOrigins:     []string{},
-		WotanTopic:     "cape.framework",
+		WotanTopic:      "cape.framework",
 	}
 }
 
@@ -149,7 +149,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:          log,
-		wotan:       wotan,
+		wotan:        wotan,
 		config:       cfg,
 		routes:       make(map[string]*Route),
 		groups:       make(map[string]*RouteGroup),

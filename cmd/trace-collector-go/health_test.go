@@ -47,7 +47,7 @@ func TestHealthHandler_Unhealthy(t *testing.T) {
 	state := NewCollectorState()
 	state.Programs = []ProgramStatus{
 		{Name: "packet_marker", Enabled: true, Loaded: true},
-		{Name: "flow_tracker", Enabled: true, Loaded: false}, // Not loaded!
+		{Name: "flow_tracker", Enabled: true, Loaded: false},   // Not loaded!
 		{Name: "latency_probe", Enabled: false, Loaded: false}, // Disabled, OK
 	}
 

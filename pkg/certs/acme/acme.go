@@ -85,11 +85,11 @@ type Order struct {
 
 // Challenge represents an ACME challenge.
 type Challenge struct {
-	Type   ChallengeType
-	Domain string
-	Token  string
+	Type    ChallengeType
+	Domain  string
+	Token   string
 	KeyAuth string
-	Status string
+	Status  string
 }
 
 // Certificate represents an ACME-issued certificate.
@@ -104,11 +104,11 @@ type Certificate struct {
 
 // Client is an ACME client.
 type Client struct {
-	config       *Config
-	accountKey   *ecdsa.PrivateKey
-	accountURL   string
-	mu           sync.Mutex
-	initialized  bool
+	config      *Config
+	accountKey  *ecdsa.PrivateKey
+	accountURL  string
+	mu          sync.Mutex
+	initialized bool
 }
 
 // NewClient creates a new ACME client.

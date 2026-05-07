@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // eventIDCounter generates collision-safe event IDs via atomic increment.
@@ -84,7 +84,7 @@ type Config struct {
 // DefaultConfig returns default event streamer configuration
 func DefaultConfig() *Config {
 	return &Config{
-		WotanAddr:  "localhost:18001",
+		WotanAddr:   "localhost:18001",
 		ServiceName: "dashboard-backend",
 		Topics: []string{
 			"metrics.*",
@@ -299,19 +299,19 @@ func (b *EventBuffer) Count() int {
 
 // Streamer streams events from Wotan to the dashboard
 type Streamer struct {
-	config  *Config
-	log     *logger.Logger
-	client  *wotanClient.Client
-	buffer  *EventBuffer
+	config *Config
+	log    *logger.Logger
+	client *wotanClient.Client
+	buffer *EventBuffer
 
-	running  bool
-	stopCh   chan struct{}
-	doneCh   chan struct{}
-	runMu    sync.RWMutex
-	wg       sync.WaitGroup
+	running bool
+	stopCh  chan struct{}
+	doneCh  chan struct{}
+	runMu   sync.RWMutex
+	wg      sync.WaitGroup
 
 	// Event listeners
-	listeners []func(Event)
+	listeners   []func(Event)
 	listenersMu sync.RWMutex
 
 	// Connection state
@@ -338,11 +338,11 @@ func NewStreamer(config *Config, log *logger.Logger) (*Streamer, error) {
 	}
 
 	return &Streamer{
-		config:  config,
-		log:     log,
-		buffer:  NewEventBuffer(config.BufferSize),
-		stopCh:  make(chan struct{}),
-		doneCh:  make(chan struct{}),
+		config: config,
+		log:    log,
+		buffer: NewEventBuffer(config.BufferSize),
+		stopCh: make(chan struct{}),
+		doneCh: make(chan struct{}),
 	}, nil
 }
 
@@ -748,12 +748,12 @@ func CreateEvent(eventType EventType, severity Severity, source, title, message 
 
 // EventSummary provides a summary of events by type
 type EventSummary struct {
-	TotalEvents   int            `json:"total_events"`
-	EventsByType  map[string]int `json:"events_by_type"`
-	EventsBySev   map[string]int `json:"events_by_severity"`
-	RecentEvents  []Event        `json:"recent_events,omitempty"`
-	OldestEvent   time.Time      `json:"oldest_event,omitempty"`
-	NewestEvent   time.Time      `json:"newest_event,omitempty"`
+	TotalEvents  int            `json:"total_events"`
+	EventsByType map[string]int `json:"events_by_type"`
+	EventsBySev  map[string]int `json:"events_by_severity"`
+	RecentEvents []Event        `json:"recent_events,omitempty"`
+	OldestEvent  time.Time      `json:"oldest_event,omitempty"`
+	NewestEvent  time.Time      `json:"newest_event,omitempty"`
 }
 
 // GetSummary returns an event summary

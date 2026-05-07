@@ -32,11 +32,11 @@ type Evaluator struct {
 
 // evaluationState tracks the state of rule evaluation over time.
 type evaluationState struct {
-	ruleID         string
-	pendingSince   time.Time
-	lastValue      float64
-	lastLabels     map[string]string
-	firingState    bool
+	ruleID          string
+	pendingSince    time.Time
+	lastValue       float64
+	lastLabels      map[string]string
+	firingState     bool
 	consecutiveHits int
 }
 

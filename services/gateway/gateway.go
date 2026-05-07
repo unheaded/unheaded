@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
+	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/gateway/config"
 	"unheaded/services/gateway/middleware"
 	"unheaded/services/gateway/proxy"
@@ -80,7 +80,7 @@ type Gateway struct {
 	router        *routes.Router
 	healthChecker *proxy.HealthChecker
 	rateLimiter   *middleware.RateLimiter
-	wotan        *wotanClient.Client
+	wotan         *wotanClient.Client
 	httpServer    *http.Server
 	http3Server   interface{} // http3.Server when enabled
 	healthMgr     *healthManager
@@ -127,7 +127,7 @@ func New(cfg *config.Config, log *logger.Logger) (*Gateway, error) {
 		router:        router,
 		healthChecker: healthChecker,
 		rateLimiter:   rateLimiter,
-		wotan:        client,
+		wotan:         client,
 		healthMgr:     healthMgr,
 	}
 

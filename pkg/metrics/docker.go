@@ -84,10 +84,10 @@ func (d *DockerCollector) Collect(ctx context.Context) ([]Sample, error) {
 		}
 
 		labels := map[string]string{
-			"collector":    "docker",
-			"container_id": containerID,
+			"collector":      "docker",
+			"container_id":   containerID,
 			"container_name": strings.TrimPrefix(container.Names[0], "/"),
-			"image":        container.Image,
+			"image":          container.Image,
 		}
 
 		if stats.CPUPercent > 0 {
@@ -223,9 +223,9 @@ type dockerStats struct {
 
 // ContainerStats represents parsed container statistics.
 type ContainerStats struct {
-	CPUPercent    float64
-	MemoryUsage   uint64
-	MemoryLimit   uint64
+	CPUPercent     float64
+	MemoryUsage    uint64
+	MemoryLimit    uint64
 	NetworkRXBytes uint64
 	NetworkTXBytes uint64
 }

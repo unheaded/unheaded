@@ -62,9 +62,9 @@ type XDPSync struct {
 	log   *logger.Logger
 	wotan *wotanClient.Client
 
-	mu       sync.RWMutex
-	backends map[string]*Backend
-	table    []uint32
+	mu        sync.RWMutex
+	backends  map[string]*Backend
+	table     []uint32
 	tableSize int
 
 	// Alert handling
@@ -411,11 +411,11 @@ func (x *XDPSync) rebuildTable() {
 	// Publish rebalance event.
 	if x.wotan != nil {
 		event := map[string]interface{}{
-			"event_type":      "lb.rebalance",
-			"service":         "loadbalancer",
+			"event_type":       "lb.rebalance",
+			"service":          "loadbalancer",
 			"healthy_backends": len(healthy),
-			"table_size":      len(table),
-			"timestamp":       time.Now().UnixMilli(),
+			"table_size":       len(table),
+			"timestamp":        time.Now().UnixMilli(),
 		}
 		payload, err := json.Marshal(event)
 		if err == nil {

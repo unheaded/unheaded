@@ -28,9 +28,9 @@ type Balancer struct {
 	l7Proxy *L7Proxy
 
 	// State
-	running  int32
+	running   int32
 	startTime time.Time
-	mu       sync.RWMutex
+	mu        sync.RWMutex
 
 	// Metrics
 	metricsRegistry *metrics.Registry
@@ -41,10 +41,10 @@ type Balancer struct {
 	bytesTotal      *metrics.CounterVec
 
 	// Event callbacks
-	onStart      func()
-	onStop       func()
-	onBackendAdd func(backend *Backend)
-	onBackendRemove func(backend *Backend)
+	onStart               func()
+	onStop                func()
+	onBackendAdd          func(backend *Backend)
+	onBackendRemove       func(backend *Backend)
 	onBackendHealthChange func(backend *Backend, healthy bool)
 }
 
@@ -132,9 +132,9 @@ func (b *Balancer) setupMetrics() {
 
 	b.requestDuration = metrics.NewHistogramVec(
 		metrics.HistogramOpts{
-			Name:    "loadbalancer_request_duration_seconds",
-			Help:    "Request duration in seconds",
-			Buckets: metrics.DefaultBuckets,
+			Name:        "loadbalancer_request_duration_seconds",
+			Help:        "Request duration in seconds",
+			Buckets:     metrics.DefaultBuckets,
 			ConstLabels: metrics.Labels{"balancer": b.config.Name},
 		},
 		[]string{"backend"},

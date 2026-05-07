@@ -194,10 +194,10 @@ func (m *mockLXDClient) DeleteNetwork(_ context.Context, _ string) error {
 
 // mockWotanClient tracks published events.
 type mockWotanClient struct {
-	mu       sync.Mutex
-	events   [][]byte
-	topics   []string
-	err      error
+	mu        sync.Mutex
+	events    [][]byte
+	topics    []string
+	err       error
 	callCount int64
 }
 
@@ -331,37 +331,37 @@ func matchingActualState() *ActualState {
 
 func TestNewReconciler(t *testing.T) {
 	tests := []struct {
-		name      string
-		lxd       LXDClient
-		wotan    WotanClient
-		logger    Logger
-		wantErr   error
+		name    string
+		lxd     LXDClient
+		wotan   WotanClient
+		logger  Logger
+		wantErr error
 	}{
 		{
 			name:    "nil LXD client returns error",
 			lxd:     nil,
-			wotan:  newMockWotan(),
+			wotan:   newMockWotan(),
 			logger:  &silentLogger{},
 			wantErr: ErrLXDClientNil,
 		},
 		{
 			name:    "nil wotan is allowed",
 			lxd:     newMockLXD(),
-			wotan:  nil,
+			wotan:   nil,
 			logger:  &silentLogger{},
 			wantErr: nil,
 		},
 		{
 			name:    "nil logger uses default",
 			lxd:     newMockLXD(),
-			wotan:  newMockWotan(),
+			wotan:   newMockWotan(),
 			logger:  nil,
 			wantErr: nil,
 		},
 		{
 			name:    "all provided",
 			lxd:     newMockLXD(),
-			wotan:  newMockWotan(),
+			wotan:   newMockWotan(),
 			logger:  &silentLogger{},
 			wantErr: nil,
 		},
@@ -2608,7 +2608,7 @@ func TestDetectDrift_DisabledContainersIgnored(t *testing.T) {
 		Version: "1.0",
 		Name:    "test",
 		Containers: map[string]*ContainerDesired{
-			"enabled-svc": {Name: "enabled-svc", Image: "img", Enabled: true},
+			"enabled-svc":  {Name: "enabled-svc", Image: "img", Enabled: true},
 			"disabled-svc": {Name: "disabled-svc", Image: "img", Enabled: false},
 		},
 	}

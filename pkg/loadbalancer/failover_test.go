@@ -1045,4 +1045,3 @@ func BenchmarkWeightedFailoverSelect(b *testing.B) {
 		wfm.SelectWeighted(ctx, "test-key")
 	}
 }
-

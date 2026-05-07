@@ -14,11 +14,11 @@ import (
 type TunnelState uint8
 
 const (
-	TunnelInit       TunnelState = iota + 1 // Initiator sent encapsulation
-	TunnelResponded                          // Responder decapsulated, tunnel ready
-	TunnelActive                             // Tunnel in active use
-	TunnelExpired                            // Tunnel expired
-	TunnelClosed                             // Tunnel closed by either side
+	TunnelInit      TunnelState = iota + 1 // Initiator sent encapsulation
+	TunnelResponded                        // Responder decapsulated, tunnel ready
+	TunnelActive                           // Tunnel in active use
+	TunnelExpired                          // Tunnel expired
+	TunnelClosed                           // Tunnel closed by either side
 )
 
 // String returns a human-readable name.
@@ -41,16 +41,16 @@ func (s TunnelState) String() string {
 
 // KEMTunnel represents a KEM-based encrypted tunnel between services.
 type KEMTunnel struct {
-	ID             string      `json:"id"`
-	LocalService   uint16      `json:"local_service"`
-	RemoteService  uint16      `json:"remote_service"`
-	AlgoID         uint8       `json:"algo_id"`
-	ParamSet       uint8       `json:"param_set"`
-	State          TunnelState `json:"state"`
-	SharedSecret   [32]byte    `json:"-"` // Never serialized
-	Ciphertext     []byte      `json:"ciphertext,omitempty"`
-	CreatedAt      time.Time   `json:"created_at"`
-	ExpiresAt      time.Time   `json:"expires_at"`
+	ID            string      `json:"id"`
+	LocalService  uint16      `json:"local_service"`
+	RemoteService uint16      `json:"remote_service"`
+	AlgoID        uint8       `json:"algo_id"`
+	ParamSet      uint8       `json:"param_set"`
+	State         TunnelState `json:"state"`
+	SharedSecret  [32]byte    `json:"-"` // Never serialized
+	Ciphertext    []byte      `json:"ciphertext,omitempty"`
+	CreatedAt     time.Time   `json:"created_at"`
+	ExpiresAt     time.Time   `json:"expires_at"`
 }
 
 // KEMTunnelManager manages KEM-based encrypted tunnels.

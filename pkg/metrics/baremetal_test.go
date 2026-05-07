@@ -189,7 +189,7 @@ func TestParseNetStats(t *testing.T) {
 				}
 
 				stats := map[string]string{
-					"rx_bytes": "1000000",
+					"rx_bytes":   "1000000",
 					"rx_packets": "5000",
 				}
 

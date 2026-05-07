@@ -642,11 +642,11 @@ func parseImageReference(ref string) (*imageReference, error) {
 
 // OCI types for manifest and config
 type ociManifest struct {
-	SchemaVersion int                  `json:"schemaVersion"`
-	MediaType     string               `json:"mediaType"`
-	Config        ociDescriptor        `json:"config"`
-	Layers        []ociDescriptor      `json:"layers"`
-	Annotations   map[string]string    `json:"annotations,omitempty"`
+	SchemaVersion int               `json:"schemaVersion"`
+	MediaType     string            `json:"mediaType"`
+	Config        ociDescriptor     `json:"config"`
+	Layers        []ociDescriptor   `json:"layers"`
+	Annotations   map[string]string `json:"annotations,omitempty"`
 }
 
 type ociDescriptor struct {
@@ -657,13 +657,13 @@ type ociDescriptor struct {
 }
 
 type ociImageConfig struct {
-	Created      time.Time        `json:"created"`
-	Author       string           `json:"author,omitempty"`
-	Architecture string           `json:"architecture"`
-	OS           string           `json:"os"`
+	Created      time.Time          `json:"created"`
+	Author       string             `json:"author,omitempty"`
+	Architecture string             `json:"architecture"`
+	OS           string             `json:"os"`
 	Config       ociContainerConfig `json:"config"`
-	RootFS       ociRootFS        `json:"rootfs"`
-	History      []ociHistory     `json:"history,omitempty"`
+	RootFS       ociRootFS          `json:"rootfs"`
+	History      []ociHistory       `json:"history,omitempty"`
 }
 
 type ociContainerConfig struct {

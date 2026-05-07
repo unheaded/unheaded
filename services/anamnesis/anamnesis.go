@@ -19,8 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Event represents a single state change in the Kingdom's history.
@@ -45,14 +45,14 @@ type Event struct {
 type EventType string
 
 const (
-	EventCreated   EventType = "created"
-	EventUpdated   EventType = "updated"
-	EventDeleted   EventType = "deleted"
-	EventCommand   EventType = "command"
-	EventQuery     EventType = "query"
-	EventEffect    EventType = "effect"
-	EventSnapshot  EventType = "snapshot"
-	EventRollback  EventType = "rollback"
+	EventCreated  EventType = "created"
+	EventUpdated  EventType = "updated"
+	EventDeleted  EventType = "deleted"
+	EventCommand  EventType = "command"
+	EventQuery    EventType = "query"
+	EventEffect   EventType = "effect"
+	EventSnapshot EventType = "snapshot"
+	EventRollback EventType = "rollback"
 )
 
 // Snapshot represents a point-in-time state capture.
@@ -77,17 +77,17 @@ type EventStream struct {
 
 // Query represents a history query.
 type Query struct {
-	AggregateID   string    `json:"aggregate_id,omitempty"`
-	AggregateType string    `json:"aggregate_type,omitempty"`
+	AggregateID   string      `json:"aggregate_id,omitempty"`
+	AggregateType string      `json:"aggregate_type,omitempty"`
 	EventTypes    []EventType `json:"event_types,omitempty"`
-	FromTime      *time.Time `json:"from_time,omitempty"`
-	ToTime        *time.Time `json:"to_time,omitempty"`
-	FromVersion   int64      `json:"from_version,omitempty"`
-	ToVersion     int64      `json:"to_version,omitempty"`
-	Limit         int        `json:"limit,omitempty"`
-	Offset        int        `json:"offset,omitempty"`
-	Actor         string     `json:"actor,omitempty"`
-	CorrelationID string     `json:"correlation_id,omitempty"`
+	FromTime      *time.Time  `json:"from_time,omitempty"`
+	ToTime        *time.Time  `json:"to_time,omitempty"`
+	FromVersion   int64       `json:"from_version,omitempty"`
+	ToVersion     int64       `json:"to_version,omitempty"`
+	Limit         int         `json:"limit,omitempty"`
+	Offset        int         `json:"offset,omitempty"`
+	Actor         string      `json:"actor,omitempty"`
+	CorrelationID string      `json:"correlation_id,omitempty"`
 }
 
 // Projection represents a read model built from events.
@@ -109,18 +109,18 @@ type EventHandler func(ctx context.Context, event *Event) error
 // Service is the main Anamnesis service for event sourcing and history.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
-	mu           sync.RWMutex
-	events       []*Event                // WAL - Write-Ahead Log
-	eventIndex   map[string]*Event       // EventID -> Event
-	aggregateIndex map[string][]int      // AggregateID -> event indices
-	snapshots    map[string][]*Snapshot  // AggregateID -> snapshots
-	projections  map[string]*Projection  // ProjectionID -> projection
+	mu             sync.RWMutex
+	events         []*Event               // WAL - Write-Ahead Log
+	eventIndex     map[string]*Event      // EventID -> Event
+	aggregateIndex map[string][]int       // AggregateID -> event indices
+	snapshots      map[string][]*Snapshot // AggregateID -> snapshots
+	projections    map[string]*Projection // ProjectionID -> projection
 
 	// Handlers
-	eventHandlers     []EventHandler
+	eventHandlers      []EventHandler
 	projectionHandlers map[string]ProjectionHandler
 
 	// Counters
@@ -143,7 +143,7 @@ type Config struct {
 	RetentionPeriod    time.Duration `json:"retention_period"`
 	CompactionInterval time.Duration `json:"compaction_interval"`
 	EnableSnapshots    bool          `json:"enable_snapshots"`
-	WotanTopic        string        `json:"wotan_topic"`
+	WotanTopic         string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -154,7 +154,7 @@ func DefaultConfig() *Config {
 		RetentionPeriod:    30 * 24 * time.Hour, // 30 days
 		CompactionInterval: 1 * time.Hour,
 		EnableSnapshots:    true,
-		WotanTopic:        "anamnesis.events",
+		WotanTopic:         "anamnesis.events",
 	}
 }
 
@@ -170,7 +170,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:                log,
-		wotan:             wotan,
+		wotan:              wotan,
 		config:             cfg,
 		events:             make([]*Event, 0),
 		eventIndex:         make(map[string]*Event),
@@ -748,13 +748,13 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_events":       len(s.events),
-		"total_aggregates":   len(s.aggregateIndex),
-		"total_snapshots":    totalSnapshots,
-		"total_projections":  len(s.projections),
-		"events_by_type":     typeCounts,
-		"by_aggregate_type":  aggregateTypes,
-		"sequence_number":    s.sequenceNum,
+		"total_events":        len(s.events),
+		"total_aggregates":    len(s.aggregateIndex),
+		"total_snapshots":     totalSnapshots,
+		"total_projections":   len(s.projections),
+		"events_by_type":      typeCounts,
+		"by_aggregate_type":   aggregateTypes,
+		"sequence_number":     s.sequenceNum,
 		"registered_handlers": len(s.eventHandlers),
 	}
 }

@@ -44,10 +44,10 @@ func TestNewResponseInspector(t *testing.T) {
 func TestResponseInspector_InspectCleanResponse(t *testing.T) {
 	ri := NewResponseInspector()
 	resp := newTestResponse(200, map[string]string{
-		"Content-Type":           "application/json",
-		"X-Content-Type-Options": "nosniff",
-		"X-Frame-Options":        "DENY",
-		"Content-Security-Policy": "default-src 'self'",
+		"Content-Type":              "application/json",
+		"X-Content-Type-Options":    "nosniff",
+		"X-Frame-Options":           "DENY",
+		"Content-Security-Policy":   "default-src 'self'",
 		"Strict-Transport-Security": "max-age=31536000",
 	}, `{"status":"ok"}`)
 

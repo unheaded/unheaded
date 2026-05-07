@@ -234,28 +234,28 @@ func GradientText(text string, enabled bool) string {
 type Icon string
 
 const (
-	IconSuccess     Icon = "\u2714" // check mark
-	IconError       Icon = "\u2718" // cross mark
-	IconWarning     Icon = "\u26A0" // warning
-	IconInfo        Icon = "\u2139" // info
-	IconArrowRight  Icon = "\u2192" // right arrow
-	IconArrowLeft   Icon = "\u2190" // left arrow
-	IconArrowUp     Icon = "\u2191" // up arrow
-	IconArrowDown   Icon = "\u2193" // down arrow
-	IconBullet      Icon = "\u2022" // bullet
-	IconStar        Icon = "\u2605" // star
-	IconCircle      Icon = "\u25CF" // filled circle
-	IconSquare      Icon = "\u25A0" // filled square
-	IconTriangle    Icon = "\u25B6" // right triangle
-	IconDiamond     Icon = "\u25C6" // diamond
-	IconContainer   Icon = "\u2395" // container (like box)
-	IconNetwork     Icon = "\u2261" // network (triple bar)
-	IconLock        Icon = "\u26BF" // lock
-	IconUnlock      Icon = "\u26BF" // unlock (same for simplicity)
-	IconClock       Icon = "\u23F0" // clock
-	IconGear        Icon = "\u2699" // gear
-	IconFolder      Icon = "\u1F4C1" // folder
-	IconFile        Icon = "\u1F4C4" // file
+	IconSuccess    Icon = "\u2714"  // check mark
+	IconError      Icon = "\u2718"  // cross mark
+	IconWarning    Icon = "\u26A0"  // warning
+	IconInfo       Icon = "\u2139"  // info
+	IconArrowRight Icon = "\u2192"  // right arrow
+	IconArrowLeft  Icon = "\u2190"  // left arrow
+	IconArrowUp    Icon = "\u2191"  // up arrow
+	IconArrowDown  Icon = "\u2193"  // down arrow
+	IconBullet     Icon = "\u2022"  // bullet
+	IconStar       Icon = "\u2605"  // star
+	IconCircle     Icon = "\u25CF"  // filled circle
+	IconSquare     Icon = "\u25A0"  // filled square
+	IconTriangle   Icon = "\u25B6"  // right triangle
+	IconDiamond    Icon = "\u25C6"  // diamond
+	IconContainer  Icon = "\u2395"  // container (like box)
+	IconNetwork    Icon = "\u2261"  // network (triple bar)
+	IconLock       Icon = "\u26BF"  // lock
+	IconUnlock     Icon = "\u26BF"  // unlock (same for simplicity)
+	IconClock      Icon = "\u23F0"  // clock
+	IconGear       Icon = "\u2699"  // gear
+	IconFolder     Icon = "\u1F4C1" // folder
+	IconFile       Icon = "\u1F4C4" // file
 )
 
 // String returns the icon as a string.

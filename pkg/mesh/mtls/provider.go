@@ -41,10 +41,10 @@ type ProviderConfig struct {
 	Namespace   string
 
 	// Certificate paths (for file-based loading)
-	CertFile   string
-	KeyFile    string
-	CAFile     string
-	CertDir    string
+	CertFile string
+	KeyFile  string
+	CAFile   string
+	CertDir  string
 
 	// Certificate settings
 	CertValidity   time.Duration
@@ -52,11 +52,11 @@ type ProviderConfig struct {
 	AutoRotate     bool
 
 	// TLS settings
-	MinVersion    uint16
-	MaxVersion    uint16
-	CipherSuites  []uint16
-	VerifyClient  bool
-	SkipVerify    bool
+	MinVersion   uint16
+	MaxVersion   uint16
+	CipherSuites []uint16
+	VerifyClient bool
+	SkipVerify   bool
 
 	// Integration with centralized cert manager
 	UseCertManager bool
@@ -91,20 +91,20 @@ type Provider struct {
 	config *ProviderConfig
 
 	// Certificate state
-	cert       *tls.Certificate
-	rootCAs    *x509.CertPool
-	clientCAs  *x509.CertPool
-	spiffeID   *SPIFFEID
-	verifier   *SPIFFEVerifier
-	bundle     *SPIFFEBundle
+	cert      *tls.Certificate
+	rootCAs   *x509.CertPool
+	clientCAs *x509.CertPool
+	spiffeID  *SPIFFEID
+	verifier  *SPIFFEVerifier
+	bundle    *SPIFFEBundle
 
 	// Cached TLS configs
 	serverConfig *tls.Config
 	clientConfig *tls.Config
 
 	// Integration with centralized cert manager
-	certMgr    certs.CertManager
-	localCA    *ca.Authority
+	certMgr certs.CertManager
+	localCA *ca.Authority
 
 	// Rotation state
 	certSerial    string

@@ -462,15 +462,15 @@ func (r *Router) RegisterHealthChecks(config HealthCheckConfig) {
 
 // Metrics holds server metrics
 type Metrics struct {
-	mu              sync.RWMutex
-	RequestCount    int64
-	ErrorCount      int64
-	TotalLatency    time.Duration
-	ActiveRequests  int64
-	RequestsByPath  map[string]int64
-	StatusCodes     map[int]int64
-	BytesSent       int64
-	BytesReceived   int64
+	mu             sync.RWMutex
+	RequestCount   int64
+	ErrorCount     int64
+	TotalLatency   time.Duration
+	ActiveRequests int64
+	RequestsByPath map[string]int64
+	StatusCodes    map[int]int64
+	BytesSent      int64
+	BytesReceived  int64
 }
 
 // NewMetrics creates a new Metrics instance

@@ -16,20 +16,20 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Command represents a CLI/API command.
 type Command struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Group       string            `json:"group"`
-	Args        []Argument        `json:"args,omitempty"`
-	Flags       []Flag            `json:"flags,omitempty"`
-	APIPath     string            `json:"api_path"`
-	APIMethod   string            `json:"api_method"`
-	Handler     CommandHandler    `json:"-"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Group       string         `json:"group"`
+	Args        []Argument     `json:"args,omitempty"`
+	Flags       []Flag         `json:"flags,omitempty"`
+	APIPath     string         `json:"api_path"`
+	APIMethod   string         `json:"api_method"`
+	Handler     CommandHandler `json:"-"`
 }
 
 // CommandHandler processes a command.
@@ -73,7 +73,7 @@ type APIRoute struct {
 // Service is the main Gauntlets CLI/API service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu       sync.RWMutex
@@ -92,16 +92,16 @@ func (s *Service) WotanDrops() int64 {
 
 // Config holds Gauntlets service configuration.
 type Config struct {
-	APIPrefix   string `json:"api_prefix"`
-	Version     string `json:"version"`
+	APIPrefix  string `json:"api_prefix"`
+	Version    string `json:"version"`
 	WotanTopic string `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		APIPrefix:   "/api/v1",
-		Version:     "1.0.0",
+		APIPrefix:  "/api/v1",
+		Version:    "1.0.0",
 		WotanTopic: "gauntlets.commands",
 	}
 }
@@ -114,7 +114,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:      log,
-		wotan:   wotan,
+		wotan:    wotan,
 		config:   cfg,
 		commands: make(map[string]*Command),
 		routes:   make(map[string]*APIRoute),
@@ -371,8 +371,8 @@ func (s *Service) registerBuiltinCommands() {
 			return &CommandResult{
 				Success: true,
 				Data: map[string]interface{}{
-					"status":  "healthy",
-					"service": "gauntlets",
+					"status":    "healthy",
+					"service":   "gauntlets",
 					"timestamp": time.Now(),
 				},
 			}, nil

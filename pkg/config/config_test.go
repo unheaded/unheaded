@@ -568,9 +568,9 @@ func TestGetBool(t *testing.T) {
 func TestGetFloat64(t *testing.T) {
 	cfg, err := Load(
 		WithDefaults(map[string]any{
-			"pi":      3.14159,
-			"intVal":  42,
-			"strVal":  "2.718",
+			"pi":     3.14159,
+			"intVal": 42,
+			"strVal": "2.718",
 		}),
 	)
 

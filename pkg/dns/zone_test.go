@@ -209,10 +209,10 @@ func TestZone_Lookup(t *testing.T) {
 	zone.AddRecord(NewARecord("www.test.local", 300, net.ParseIP("10.0.0.1")))
 
 	tests := []struct {
-		name     string
-		qtype    uint16
-		wantLen  int
-		wantNX   bool
+		name    string
+		qtype   uint16
+		wantLen int
+		wantNX  bool
 	}{
 		{"existing A", TypeA, 1, false},
 		{"non-existing name", TypeA, 0, true},

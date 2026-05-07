@@ -22,19 +22,19 @@ var (
 
 // Server is a DNS server supporting UDP and TCP
 type Server struct {
-	mu           sync.RWMutex
-	config       *ServerConfig
-	resolver     *Resolver
-	zones        *ZoneManager
-	udpListener  *net.UDPConn
-	tcpListener  net.Listener
-	running      atomic.Bool
-	shutdown     chan struct{}
-	wg           sync.WaitGroup
-	stats        ServerStats
-	handler      Handler
-	middlewares  []Middleware
-	logger       *log.Logger
+	mu          sync.RWMutex
+	config      *ServerConfig
+	resolver    *Resolver
+	zones       *ZoneManager
+	udpListener *net.UDPConn
+	tcpListener net.Listener
+	running     atomic.Bool
+	shutdown    chan struct{}
+	wg          sync.WaitGroup
+	stats       ServerStats
+	handler     Handler
+	middlewares []Middleware
+	logger      *log.Logger
 }
 
 // ServerConfig holds server configuration

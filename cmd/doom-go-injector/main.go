@@ -39,10 +39,10 @@ import (
 
 // injectorConfig holds TOML configuration from the [injector] section.
 type injectorConfig struct {
-	Interface    string `toml:"interface"`
-	Mode         string `toml:"mode"`
-	SteadyDelay  int    `toml:"steady_delay_us"`
-	BurstSize    int    `toml:"burst_size"`
+	Interface   string `toml:"interface"`
+	Mode        string `toml:"mode"`
+	SteadyDelay int    `toml:"steady_delay_us"`
+	BurstSize   int    `toml:"burst_size"`
 }
 
 // doomConfig wraps the top-level TOML file to extract the [injector] section.

@@ -143,7 +143,7 @@ func TestEncodeDecodeRoundtrip(t *testing.T) {
 		t.Errorf("kingdom_mode mismatch: %d != %d", decodeResp.KingdomMode, encodeReq.KingdomMode)
 	}
 
-	if decodeResp.Timestamp != (encodeReq.Timestamp&0xFFFFFFFFFF) {
+	if decodeResp.Timestamp != (encodeReq.Timestamp & 0xFFFFFFFFFF) {
 		t.Errorf("timestamp mismatch: %d != %d", decodeResp.Timestamp, encodeReq.Timestamp&0xFFFFFFFFFF)
 	}
 

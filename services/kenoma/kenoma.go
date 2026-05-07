@@ -17,8 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Observation represents a snapshot of actual state.
@@ -40,15 +40,15 @@ type Observation struct {
 type EntityType string
 
 const (
-	EntityService       EntityType = "service"
-	EntityContainer     EntityType = "container"
-	EntityNode          EntityType = "node"
-	EntityNetwork       EntityType = "network"
-	EntityStorage       EntityType = "storage"
-	EntitySecret        EntityType = "secret"
-	EntityLoadBalancer  EntityType = "loadbalancer"
-	EntityDNS           EntityType = "dns"
-	EntityCertificate   EntityType = "certificate"
+	EntityService      EntityType = "service"
+	EntityContainer    EntityType = "container"
+	EntityNode         EntityType = "node"
+	EntityNetwork      EntityType = "network"
+	EntityStorage      EntityType = "storage"
+	EntitySecret       EntityType = "secret"
+	EntityLoadBalancer EntityType = "loadbalancer"
+	EntityDNS          EntityType = "dns"
+	EntityCertificate  EntityType = "certificate"
 )
 
 // Drift represents a difference between desired and actual state.
@@ -72,11 +72,11 @@ type Drift struct {
 type DriftType string
 
 const (
-	DriftMissing    DriftType = "missing"    // Resource doesn't exist but should
-	DriftExtra      DriftType = "extra"      // Resource exists but shouldn't
-	DriftModified   DriftType = "modified"   // Resource exists but differs
-	DriftOutdated   DriftType = "outdated"   // Resource version is old
-	DriftUnhealthy  DriftType = "unhealthy"  // Resource is unhealthy
+	DriftMissing   DriftType = "missing"   // Resource doesn't exist but should
+	DriftExtra     DriftType = "extra"     // Resource exists but shouldn't
+	DriftModified  DriftType = "modified"  // Resource exists but differs
+	DriftOutdated  DriftType = "outdated"  // Resource version is old
+	DriftUnhealthy DriftType = "unhealthy" // Resource is unhealthy
 )
 
 // DriftSeverity indicates the importance of the drift.
@@ -102,15 +102,15 @@ type Comparator func(desired, actual map[string]interface{}) []Drift
 // Service is the main Kenoma service for state observation and drift detection.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
-	mu            sync.RWMutex
-	observations  map[string]*Observation // EntityID -> latest observation
-	drifts        map[string]*Drift       // DriftID -> drift
-	observers     map[EntityType]Observer
+	mu             sync.RWMutex
+	observations   map[string]*Observation // EntityID -> latest observation
+	drifts         map[string]*Drift       // DriftID -> drift
+	observers      map[EntityType]Observer
 	healthCheckers map[EntityType]HealthChecker
-	comparators   map[EntityType]Comparator
+	comparators    map[EntityType]Comparator
 
 	// Indexes
 	entityIndex map[string][]string // EntityID -> observation history IDs
@@ -136,7 +136,7 @@ type Config struct {
 	RetentionPeriod     time.Duration `json:"retention_period"`
 	MaxObservations     int           `json:"max_observations"`
 	AutoRemediate       bool          `json:"auto_remediate"`
-	WotanTopic         string        `json:"wotan_topic"`
+	WotanTopic          string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -147,7 +147,7 @@ func DefaultConfig() *Config {
 		RetentionPeriod:     24 * time.Hour,
 		MaxObservations:     100000,
 		AutoRemediate:       false,
-		WotanTopic:         "kenoma.observations",
+		WotanTopic:          "kenoma.observations",
 	}
 }
 
@@ -163,7 +163,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:            log,
-		wotan:         wotan,
+		wotan:          wotan,
 		config:         cfg,
 		observations:   make(map[string]*Observation),
 		drifts:         make(map[string]*Drift),
@@ -654,13 +654,13 @@ func (s *Service) Stats() map[string]interface{} {
 
 	return map[string]interface{}{
 		"total_observations":     len(s.observations),
-		"total_drifts":          len(s.drifts),
-		"active_drifts":         activeDrifts,
-		"drifts_by_severity":    severityCounts,
-		"observations_by_type":  typeCounts,
-		"healthy_entities":      healthyCount,
-		"unhealthy_entities":    len(s.observations) - healthyCount,
-		"registered_observers":  len(s.observers),
+		"total_drifts":           len(s.drifts),
+		"active_drifts":          activeDrifts,
+		"drifts_by_severity":     severityCounts,
+		"observations_by_type":   typeCounts,
+		"healthy_entities":       healthyCount,
+		"unhealthy_entities":     len(s.observations) - healthyCount,
+		"registered_observers":   len(s.observers),
 		"registered_comparators": len(s.comparators),
 	}
 }

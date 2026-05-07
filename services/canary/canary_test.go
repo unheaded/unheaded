@@ -223,9 +223,9 @@ func TestSLOEvaluation(t *testing.T) {
 		metrics := &CanaryMetrics{
 			ServiceID:   "svc-a",
 			Version:     "v2",
-			ErrorRate:   100.0,  // 100 ppm < 5000 ppm
-			LatencyP99:  45.0,   // 45ms < 500ms
-			Throughput:  250.0,  // 250 rps > 10 rps
+			ErrorRate:   100.0, // 100 ppm < 5000 ppm
+			LatencyP99:  45.0,  // 45ms < 500ms
+			Throughput:  250.0, // 250 rps > 10 rps
 			SampleCount: 1000,
 		}
 		slo := DefaultSLOThreshold()

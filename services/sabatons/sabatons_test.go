@@ -95,7 +95,7 @@ func TestNewService_CustomConfig(t *testing.T) {
 		TFTPRoot:          "/custom/tftp",
 		DiscoveryInterval: 10 * time.Second,
 		HeartbeatTimeout:  20 * time.Second,
-		WotanTopic:       "custom.topic",
+		WotanTopic:        "custom.topic",
 	}
 	svc := newTestService(cfg)
 	if svc.config.PXEServerAddress != "10.0.0.1:69" {
@@ -146,7 +146,7 @@ func TestStart_HeartbeatLoopExitsOnCancel(t *testing.T) {
 		TFTPRoot:          "/tmp",
 		DiscoveryInterval: 10 * time.Millisecond, // fast for testing
 		HeartbeatTimeout:  20 * time.Millisecond,
-		WotanTopic:       "test",
+		WotanTopic:        "test",
 	}
 	svc := newTestService(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -172,7 +172,7 @@ func TestRegisterMachine(t *testing.T) {
 	tests := []struct {
 		name       string
 		machine    *Machine
-		wantID     bool   // expect a non-empty ID after registration
+		wantID     bool // expect a non-empty ID after registration
 		wantStatus MachineStatus
 		wantState  MachineState
 	}{
@@ -282,9 +282,9 @@ func TestGetMachine(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		id      string
-		wantOK  bool
+		name   string
+		id     string
+		wantOK bool
 	}{
 		{"existing machine", "m-1", true},
 		{"non-existent machine", "m-999", false},
@@ -309,9 +309,9 @@ func TestGetMachineByMAC(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		mac     string
-		wantOK  bool
+		name   string
+		mac    string
+		wantOK bool
 	}{
 		{"exact match lowercase", "aa:bb:cc:dd:ee:ff", true},
 		{"uppercase match", "AA:BB:CC:DD:EE:FF", true},
@@ -1155,7 +1155,7 @@ func TestCheckHeartbeats_MarksStale(t *testing.T) {
 		TFTPRoot:          "/tmp",
 		DiscoveryInterval: time.Hour, // we will call checkHeartbeats manually
 		HeartbeatTimeout:  10 * time.Millisecond,
-		WotanTopic:       "test",
+		WotanTopic:        "test",
 	}
 	svc := newTestService(cfg)
 
@@ -1184,7 +1184,7 @@ func TestCheckHeartbeats_DoesNotAffectOffMachines(t *testing.T) {
 		TFTPRoot:          "/tmp",
 		DiscoveryInterval: time.Hour,
 		HeartbeatTimeout:  10 * time.Millisecond,
-		WotanTopic:       "test",
+		WotanTopic:        "test",
 	}
 	svc := newTestService(cfg)
 
@@ -1213,7 +1213,7 @@ func TestCheckHeartbeats_RecentMachineStaysOn(t *testing.T) {
 		TFTPRoot:          "/tmp",
 		DiscoveryInterval: time.Hour,
 		HeartbeatTimeout:  5 * time.Second,
-		WotanTopic:       "test",
+		WotanTopic:        "test",
 	}
 	svc := newTestService(cfg)
 
@@ -1684,10 +1684,10 @@ func TestFullLifecycle_MultiMachine(t *testing.T) {
 	// 3. Provision first two.
 	for _, id := range []string{"lc-1", "lc-2"} {
 		req := &ProvisionRequest{
-			MachineID: id,
-			ImageURL:  "http://images/ubuntu.img",
-			Kernel:    "/vmlinuz",
-			Initrd:    "/initrd",
+			MachineID:  id,
+			ImageURL:   "http://images/ubuntu.img",
+			Kernel:     "/vmlinuz",
+			Initrd:     "/initrd",
 			KernelArgs: "auto",
 		}
 		if err := svc.Provision(ctx, req); err != nil {
@@ -1818,10 +1818,10 @@ func TestMachineStateConstants(t *testing.T) {
 	t.Parallel()
 
 	states := map[MachineState]string{
-		StateOn:       "on",
-		StateOff:      "off",
+		StateOn:        "on",
+		StateOff:       "off",
 		StateRebooting: "rebooting",
-		StateUnknown:  "unknown",
+		StateUnknown:   "unknown",
 	}
 
 	for state, want := range states {

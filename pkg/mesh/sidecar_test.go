@@ -263,12 +263,12 @@ func TestEndpointPoolHealthFiltering(t *testing.T) {
 
 func TestCircuitBreaker(t *testing.T) {
 	config := &policy.CircuitBreakerConfig{
-		Enabled:            true,
-		FailureThreshold:   3,
-		SuccessThreshold:   2,
-		HalfOpenRequests:   1,
-		Timeout:            100 * time.Millisecond,
-		ConsecutiveErrors:  3,
+		Enabled:           true,
+		FailureThreshold:  3,
+		SuccessThreshold:  2,
+		HalfOpenRequests:  1,
+		Timeout:           100 * time.Millisecond,
+		ConsecutiveErrors: 3,
 	}
 
 	cb := policy.NewCircuitBreaker(config)

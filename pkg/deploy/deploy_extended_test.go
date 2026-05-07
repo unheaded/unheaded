@@ -194,8 +194,8 @@ func TestHandleDeploymentFailureAutoRollbackNoHistory(t *testing.T) {
 func TestDeployBlueGreen(t *testing.T) {
 	engine := newTestEngine(nil)
 	deployment := &Deployment{
-		ID:   "d-bg",
-		Spec: &DeploymentSpec{ServiceName: "svc", Version: "v1", Replicas: 3, Strategy: StrategyBlueGreen},
+		ID:      "d-bg",
+		Spec:    &DeploymentSpec{ServiceName: "svc", Version: "v1", Replicas: 3, Strategy: StrategyBlueGreen},
 		Metrics: &DeploymentMetrics{},
 	}
 

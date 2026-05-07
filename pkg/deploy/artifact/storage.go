@@ -381,9 +381,9 @@ func (s *CachingStorage) Exists(ctx context.Context, ref string) (bool, error) {
 
 // ReplicatedStorage replicates writes to multiple storage backends.
 type ReplicatedStorage struct {
-	primary   Storage
-	replicas  []Storage
-	mu        sync.RWMutex
+	primary  Storage
+	replicas []Storage
+	mu       sync.RWMutex
 }
 
 // NewReplicatedStorage creates a new replicated storage.

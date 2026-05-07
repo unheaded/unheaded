@@ -28,7 +28,7 @@ import (
 
 var (
 	port            = flag.String("port", "19003", "HTTP port to listen on")
-	wotanAddr      = flag.String("wotan", "", "Wotan address (host:port)")
+	wotanAddr       = flag.String("wotan", "", "Wotan address (host:port)")
 	logLevel        = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	readTimeout     = flag.Duration("read-timeout", 15*time.Second, "HTTP read timeout")
 	writeTimeout    = flag.Duration("write-timeout", 15*time.Second, "HTTP write timeout")
@@ -171,10 +171,10 @@ func main() {
 
 	// Server configuration
 	srv := &http.Server{
-		Addr:         ":" + *port,
-		Handler:      httpHandler,
-		ReadTimeout:  *readTimeout,
-		WriteTimeout: *writeTimeout,
+		Addr:           ":" + *port,
+		Handler:        httpHandler,
+		ReadTimeout:    *readTimeout,
+		WriteTimeout:   *writeTimeout,
 		IdleTimeout:    *idleTimeout,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}

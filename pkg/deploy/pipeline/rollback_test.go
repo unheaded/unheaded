@@ -231,11 +231,11 @@ func (m *MockRollbackInstanceManager) UpdateInstance(ctx context.Context, instan
 
 // MockRollbackHealthChecker implements HealthChecker for testing.
 type MockRollbackHealthChecker struct {
-	mu          sync.Mutex
-	healthy     bool
-	checkErr    error
-	checkCount  int
-	healthyAt   int // Become healthy after this many checks
+	mu         sync.Mutex
+	healthy    bool
+	checkErr   error
+	checkCount int
+	healthyAt  int // Become healthy after this many checks
 }
 
 func (m *MockRollbackHealthChecker) CheckHealth(ctx context.Context, serviceName string, endpoints []HealthEndpoint) (*HealthResult, error) {

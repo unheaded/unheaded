@@ -19,10 +19,10 @@ import (
 type CgroupManager struct {
 	mu sync.RWMutex
 
-	driver       string
-	root         string
-	parentPath   string
-	cgroupPaths  map[string]string
+	driver      string
+	root        string
+	parentPath  string
+	cgroupPaths map[string]string
 
 	// Enhanced v2 manager for advanced features
 	v2Manager *CgroupV2Manager
@@ -31,19 +31,19 @@ type CgroupManager struct {
 // CgroupStats contains cgroup statistics.
 type CgroupStats struct {
 	// CPU statistics
-	CPUUsage           uint64
-	CPUUserUsage       uint64
-	CPUSystemUsage     uint64
+	CPUUsage            uint64
+	CPUUserUsage        uint64
+	CPUSystemUsage      uint64
 	CPUThrottledPeriods uint64
 	CPUThrottledTime    uint64
 
 	// Memory statistics
-	MemoryUsage      uint64
-	MemoryMaxUsage   uint64
-	MemoryLimit      uint64
-	MemoryCache      uint64
-	MemoryRSS        uint64
-	MemorySwap       uint64
+	MemoryUsage       uint64
+	MemoryMaxUsage    uint64
+	MemoryLimit       uint64
+	MemoryCache       uint64
+	MemoryRSS         uint64
+	MemorySwap        uint64
 	MemoryKernelUsage uint64
 
 	// IO statistics

@@ -100,7 +100,7 @@ func TestIsMonadAlert(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "empty event",
+			name:     "empty event",
 			event:    EVEEvent{},
 			expected: false,
 		},
@@ -275,33 +275,33 @@ func TestSuricataReader_ProcessLine(t *testing.T) {
 	reader := NewSuricataReader("/dev/null", pub)
 
 	tests := []struct {
-		name         string
-		line         string
+		name          string
+		line          string
 		expectPublish bool
 	}{
 		{
-			name:         "monad alert",
-			line:         `{"timestamp":"2026-02-26T04:15:00.000000+0000","event_type":"alert","src_ip":"fd00:dead:beef::1","dest_ip":"fd00:dead:beef::2","alert":{"signature_id":9000001,"signature":"MONAD HbH extension header detected","severity":3}}` + "\n",
+			name:          "monad alert",
+			line:          `{"timestamp":"2026-02-26T04:15:00.000000+0000","event_type":"alert","src_ip":"fd00:dead:beef::1","dest_ip":"fd00:dead:beef::2","alert":{"signature_id":9000001,"signature":"MONAD HbH extension header detected","severity":3}}` + "\n",
 			expectPublish: true,
 		},
 		{
-			name:         "non-monad alert filtered",
-			line:         `{"timestamp":"2026-02-26T04:15:01.000000+0000","event_type":"alert","src_ip":"10.0.0.1","dest_ip":"10.0.0.2","alert":{"signature_id":2000000,"signature":"ET SCAN Nmap","severity":2}}` + "\n",
+			name:          "non-monad alert filtered",
+			line:          `{"timestamp":"2026-02-26T04:15:01.000000+0000","event_type":"alert","src_ip":"10.0.0.1","dest_ip":"10.0.0.2","alert":{"signature_id":2000000,"signature":"ET SCAN Nmap","severity":2}}` + "\n",
 			expectPublish: false,
 		},
 		{
-			name:         "stats event filtered",
-			line:         `{"timestamp":"2026-02-26T04:15:02.000000+0000","event_type":"stats","stats":{"uptime":300}}` + "\n",
+			name:          "stats event filtered",
+			line:          `{"timestamp":"2026-02-26T04:15:02.000000+0000","event_type":"stats","stats":{"uptime":300}}` + "\n",
 			expectPublish: false,
 		},
 		{
-			name:         "empty line",
-			line:         "\n",
+			name:          "empty line",
+			line:          "\n",
 			expectPublish: false,
 		},
 		{
-			name:         "invalid JSON",
-			line:         "this is not json\n",
+			name:          "invalid JSON",
+			line:          "this is not json\n",
 			expectPublish: false,
 		},
 	}

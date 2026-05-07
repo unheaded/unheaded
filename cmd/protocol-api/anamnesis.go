@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	pb "unheaded/proto/unheaded/v1"
 	"google.golang.org/grpc"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 // anamnesisServer implements event streaming from eBPF

@@ -43,11 +43,11 @@ type TrackedCert struct {
 
 // Rotator handles automatic certificate rotation.
 type Rotator struct {
-	config       *Config
-	callback     RenewCallback
-	tracked      map[string]*TrackedCert
-	mu           sync.RWMutex
-	started      bool
+	config   *Config
+	callback RenewCallback
+	tracked  map[string]*TrackedCert
+	mu       sync.RWMutex
+	started  bool
 }
 
 // New creates a new certificate rotator.

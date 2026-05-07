@@ -68,9 +68,9 @@ func logf(level, msg string, kvPairs ...interface{}) {
 
 // WikiServer serves markdown files as HTML.
 type WikiServer struct {
-	wikiDir  string
-	md       goldmark.Markdown
-	tmpl     *template.Template
+	wikiDir   string
+	md        goldmark.Markdown
+	tmpl      *template.Template
 	startTime time.Time
 }
 

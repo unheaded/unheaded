@@ -12,13 +12,13 @@ import (
 
 // AppPolicy defines PQC policy for an application/service.
 type AppPolicy struct {
-	ServiceID    uint16   `yaml:"service_id" json:"service_id"`
-	ServiceName  string   `yaml:"service_name" json:"service_name"`
-	Mode         string   `yaml:"mode" json:"mode"`
-	RequiredTier uint8    `yaml:"required_tier" json:"required_tier"`
-	AllowedAlgos []uint8  `yaml:"allowed_algos" json:"allowed_algos"`
-	MaxSigAgeSec uint32   `yaml:"max_sig_age_sec" json:"max_sig_age_sec"`
-	GraceSec     uint32   `yaml:"grace_sec" json:"grace_sec"`
+	ServiceID    uint16  `yaml:"service_id" json:"service_id"`
+	ServiceName  string  `yaml:"service_name" json:"service_name"`
+	Mode         string  `yaml:"mode" json:"mode"`
+	RequiredTier uint8   `yaml:"required_tier" json:"required_tier"`
+	AllowedAlgos []uint8 `yaml:"allowed_algos" json:"allowed_algos"`
+	MaxSigAgeSec uint32  `yaml:"max_sig_age_sec" json:"max_sig_age_sec"`
+	GraceSec     uint32  `yaml:"grace_sec" json:"grace_sec"`
 }
 
 // PolicyConfig holds a YAML policy file.

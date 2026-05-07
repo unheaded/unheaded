@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 func TestResult(t *testing.T) {

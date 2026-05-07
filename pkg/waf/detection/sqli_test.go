@@ -112,39 +112,39 @@ func TestSQLiDetector_DetectWithDetails(t *testing.T) {
 	detector := NewSQLiDetector(true)
 
 	tests := []struct {
-		name          string
-		input         string
-		wantDetected  bool
-		wantScoreMin  int
-		wantMatchMin  int
+		name         string
+		input        string
+		wantDetected bool
+		wantScoreMin int
+		wantMatchMin int
 	}{
 		{
-			name:          "Complex union injection",
-			input:         "1' UNION SELECT username, password FROM users WHERE '1'='1",
-			wantDetected:  true,
-			wantScoreMin:  15,
-			wantMatchMin:  1,
+			name:         "Complex union injection",
+			input:        "1' UNION SELECT username, password FROM users WHERE '1'='1",
+			wantDetected: true,
+			wantScoreMin: 15,
+			wantMatchMin: 1,
 		},
 		{
-			name:          "Time-based blind",
-			input:         "1' AND SLEEP(5) AND '1'='1",
-			wantDetected:  true,
-			wantScoreMin:  15,
-			wantMatchMin:  1,
+			name:         "Time-based blind",
+			input:        "1' AND SLEEP(5) AND '1'='1",
+			wantDetected: true,
+			wantScoreMin: 15,
+			wantMatchMin: 1,
 		},
 		{
-			name:          "Multiple techniques",
-			input:         "1' UNION SELECT * FROM users; DROP TABLE users;-- SLEEP(5)",
-			wantDetected:  true,
-			wantScoreMin:  20,
-			wantMatchMin:  2,
+			name:         "Multiple techniques",
+			input:        "1' UNION SELECT * FROM users; DROP TABLE users;-- SLEEP(5)",
+			wantDetected: true,
+			wantScoreMin: 20,
+			wantMatchMin: 2,
 		},
 		{
-			name:          "Clean input",
-			input:         "normal search query for products",
-			wantDetected:  false,
-			wantScoreMin:  0,
-			wantMatchMin:  0,
+			name:         "Clean input",
+			input:        "normal search query for products",
+			wantDetected: false,
+			wantScoreMin: 0,
+			wantMatchMin: 0,
 		},
 	}
 
@@ -170,8 +170,8 @@ func TestSQLiDetector_StrictMode(t *testing.T) {
 
 	// Borderline cases that strict mode should catch
 	borderlineCases := []struct {
-		name   string
-		input  string
+		name  string
+		input string
 	}{
 		{"SELECT keyword in context", "select your favorite color"},
 		{"FROM in sentence", "data from the table"},
@@ -219,8 +219,8 @@ func TestSQLTokenizer_TokenTypes(t *testing.T) {
 
 	// Test that specific token types are recognized
 	tests := []struct {
-		input      string
-		wantType   TokenType
+		input    string
+		wantType TokenType
 	}{
 		{"select", TokenKeyword},
 		{"concat", TokenFunction},

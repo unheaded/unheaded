@@ -30,17 +30,17 @@ const (
 
 // Common errors
 var (
-	ErrNilClient          = errors.New("wotan client cannot be nil")
-	ErrNilContext         = errors.New("context cannot be nil")
-	ErrEmptyTopic         = errors.New("topic cannot be empty")
-	ErrInvalidTask        = errors.New("task validation failed")
-	ErrMarshalFailed      = errors.New("failed to marshal task")
-	ErrPublishFailed      = errors.New("failed to publish to wotan")
-	ErrSubscribeFailed    = errors.New("failed to subscribe to wotan")
-	ErrStreamFailed       = errors.New("failed to stream from wotan")
-	ErrTaskNotFound       = errors.New("task not found")
-	ErrEmptyTaskID        = errors.New("task ID cannot be empty")
-	ErrTaskAlreadyExists  = errors.New("task with ID already exists")
+	ErrNilClient         = errors.New("wotan client cannot be nil")
+	ErrNilContext        = errors.New("context cannot be nil")
+	ErrEmptyTopic        = errors.New("topic cannot be empty")
+	ErrInvalidTask       = errors.New("task validation failed")
+	ErrMarshalFailed     = errors.New("failed to marshal task")
+	ErrPublishFailed     = errors.New("failed to publish to wotan")
+	ErrSubscribeFailed   = errors.New("failed to subscribe to wotan")
+	ErrStreamFailed      = errors.New("failed to stream from wotan")
+	ErrTaskNotFound      = errors.New("task not found")
+	ErrEmptyTaskID       = errors.New("task ID cannot be empty")
+	ErrTaskAlreadyExists = errors.New("task with ID already exists")
 )
 
 // WotanClient interface for testing

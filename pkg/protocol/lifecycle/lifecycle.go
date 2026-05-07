@@ -29,9 +29,9 @@ type CancelFlowFrame struct {
 
 // GoawayTracker tracks the last sent GOAWAY to enforce monotonicity.
 type GoawayTracker struct {
-	mu              sync.RWMutex
-	lastFlowID      uint32
-	initialized     bool
+	mu          sync.RWMutex
+	lastFlowID  uint32
+	initialized bool
 }
 
 // NewGoawayTracker creates a new GOAWAY tracker.

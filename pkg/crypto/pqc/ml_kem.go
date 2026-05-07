@@ -6,9 +6,9 @@ package pqc
 import (
 	"fmt"
 
+	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem512"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
-	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 )
 
 // MLKEMEncapsulator implements the KEMEncapsulator interface for ML-KEM

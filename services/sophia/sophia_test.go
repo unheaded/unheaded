@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 func newTestService() *Service {
@@ -1339,7 +1339,7 @@ func TestServiceStartStop(t *testing.T) {
 	config := &Config{
 		EnableInference:   false,
 		InferenceInterval: time.Hour,
-		WotanTopic:       "sophia.test",
+		WotanTopic:        "sophia.test",
 	}
 	svc := NewService(log, nil, config)
 
@@ -1523,7 +1523,7 @@ func TestInferenceLoopWithContext(t *testing.T) {
 	config := &Config{
 		EnableInference:   true,
 		InferenceInterval: 10 * time.Millisecond, // Very short for testing
-		WotanTopic:       "sophia.test",
+		WotanTopic:        "sophia.test",
 	}
 	svc := NewService(log, nil, config)
 	svc.registerDefaultRules()
@@ -1591,7 +1591,7 @@ func TestStartWithInferenceDisabled(t *testing.T) {
 	config := &Config{
 		EnableInference:   false,
 		InferenceInterval: time.Hour,
-		WotanTopic:       "sophia.test",
+		WotanTopic:        "sophia.test",
 	}
 	svc := NewService(log, nil, config)
 

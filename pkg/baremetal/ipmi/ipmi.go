@@ -21,13 +21,13 @@ type Credentials struct {
 type BootDevice string
 
 const (
-	BootDeviceNone    BootDevice = "none"
-	BootDevicePXE     BootDevice = "pxe"
-	BootDeviceDisk    BootDevice = "disk"
-	BootDeviceCDROM   BootDevice = "cdrom"
-	BootDeviceBIOS    BootDevice = "bios"
-	BootDeviceUSB     BootDevice = "usb"
-	BootDeviceRemote  BootDevice = "remote"
+	BootDeviceNone   BootDevice = "none"
+	BootDevicePXE    BootDevice = "pxe"
+	BootDeviceDisk   BootDevice = "disk"
+	BootDeviceCDROM  BootDevice = "cdrom"
+	BootDeviceBIOS   BootDevice = "bios"
+	BootDeviceUSB    BootDevice = "usb"
+	BootDeviceRemote BootDevice = "remote"
 )
 
 // PowerState represents the power state of a machine.
@@ -41,28 +41,28 @@ const (
 
 // ChassisStatus holds chassis status information.
 type ChassisStatus struct {
-	PowerOn            bool       `json:"power_on"`
-	PowerOverload      bool       `json:"power_overload"`
-	PowerInterlock     bool       `json:"power_interlock"`
-	MainPowerFault     bool       `json:"main_power_fault"`
-	PowerControlFault  bool       `json:"power_control_fault"`
-	LastPowerEvent     string     `json:"last_power_event"`
-	ChassisIntrusion   bool       `json:"chassis_intrusion"`
-	FrontPanelLockout  bool       `json:"front_panel_lockout"`
-	DriveFault         bool       `json:"drive_fault"`
-	CoolingFault       bool       `json:"cooling_fault"`
+	PowerOn           bool   `json:"power_on"`
+	PowerOverload     bool   `json:"power_overload"`
+	PowerInterlock    bool   `json:"power_interlock"`
+	MainPowerFault    bool   `json:"main_power_fault"`
+	PowerControlFault bool   `json:"power_control_fault"`
+	LastPowerEvent    string `json:"last_power_event"`
+	ChassisIntrusion  bool   `json:"chassis_intrusion"`
+	FrontPanelLockout bool   `json:"front_panel_lockout"`
+	DriveFault        bool   `json:"drive_fault"`
+	CoolingFault      bool   `json:"cooling_fault"`
 }
 
 // SensorReading holds a sensor reading.
 type SensorReading struct {
-	Name        string  `json:"name"`
-	Value       float64 `json:"value"`
-	Unit        string  `json:"unit"`
-	Status      string  `json:"status"`
-	LowerCrit   float64 `json:"lower_crit,omitempty"`
-	LowerWarn   float64 `json:"lower_warn,omitempty"`
-	UpperWarn   float64 `json:"upper_warn,omitempty"`
-	UpperCrit   float64 `json:"upper_crit,omitempty"`
+	Name      string  `json:"name"`
+	Value     float64 `json:"value"`
+	Unit      string  `json:"unit"`
+	Status    string  `json:"status"`
+	LowerCrit float64 `json:"lower_crit,omitempty"`
+	LowerWarn float64 `json:"lower_warn,omitempty"`
+	UpperWarn float64 `json:"upper_warn,omitempty"`
+	UpperCrit float64 `json:"upper_crit,omitempty"`
 }
 
 // SELEntry is a System Event Log entry.
@@ -82,12 +82,12 @@ type Client struct {
 	credentials *Credentials
 
 	// Connection state
-	connected   bool
-	mu          sync.RWMutex
+	connected bool
+	mu        sync.RWMutex
 
 	// Session info
-	sessionID   uint32
-	authType    uint8
+	sessionID uint32
+	authType  uint8
 }
 
 // NewClient creates a new IPMI client.

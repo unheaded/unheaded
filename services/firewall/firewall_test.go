@@ -204,7 +204,7 @@ func TestPolicyRuleMatching(t *testing.T) {
 	}{
 		{"web to api on 443", "web", "api", 443, "tcp", ActionAllow},
 		{"web to api on 8443", "web", "api", 8443, "tcp", ActionAllow},
-		{"web to api on 80", "web", "api", 80, "tcp", ActionBlock},       // Port not matched.
+		{"web to api on 80", "web", "api", 80, "tcp", ActionBlock}, // Port not matched.
 		{"any to dns on 53 udp", "anything", "dns", 53, "udp", ActionAllow},
 		{"malware blocked", "malware", "anywhere", 9999, "tcp", ActionBlock},
 		{"unknown traffic blocked", "unknown", "unknown", 1234, "tcp", ActionBlock}, // Default action.

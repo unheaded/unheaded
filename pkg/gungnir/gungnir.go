@@ -18,11 +18,11 @@ import (
 const Algorithm = "ml-dsa-65"
 
 var (
-	ErrNilSeal       = errors.New("gungnir: nil seal")
-	ErrWrongAlgo     = errors.New("gungnir: wrong algorithm (only ml-dsa-65 accepted)")
-	ErrSealExpired   = errors.New("gungnir: seal expired")
-	ErrPayloadHash   = errors.New("gungnir: payload hash mismatch")
-	ErrBadSignature  = errors.New("gungnir: signature verification failed")
+	ErrNilSeal      = errors.New("gungnir: nil seal")
+	ErrWrongAlgo    = errors.New("gungnir: wrong algorithm (only ml-dsa-65 accepted)")
+	ErrSealExpired  = errors.New("gungnir: seal expired")
+	ErrPayloadHash  = errors.New("gungnir: payload hash mismatch")
+	ErrBadSignature = errors.New("gungnir: signature verification failed")
 )
 
 // GungnirSeal is the ML-DSA-65 signature wrapper for Mjölnir manifests

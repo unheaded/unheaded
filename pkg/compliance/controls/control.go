@@ -12,10 +12,10 @@ import (
 type ControlStatus string
 
 const (
-	StatusNotAssessed  ControlStatus = "not_assessed"
-	StatusCompliant    ControlStatus = "compliant"
-	StatusNonCompliant ControlStatus = "non_compliant"
-	StatusPartial      ControlStatus = "partial"
+	StatusNotAssessed   ControlStatus = "not_assessed"
+	StatusCompliant     ControlStatus = "compliant"
+	StatusNonCompliant  ControlStatus = "non_compliant"
+	StatusPartial       ControlStatus = "partial"
 	StatusNotApplicable ControlStatus = "not_applicable"
 )
 
@@ -23,18 +23,18 @@ const (
 type ControlCategory string
 
 const (
-	CategoryAccessControl      ControlCategory = "access_control"
-	CategoryAuditLogging       ControlCategory = "audit_logging"
-	CategoryDataProtection     ControlCategory = "data_protection"
-	CategoryIncidentResponse   ControlCategory = "incident_response"
-	CategoryRiskManagement     ControlCategory = "risk_management"
-	CategorySecurityAwareness  ControlCategory = "security_awareness"
-	CategorySystemIntegrity    ControlCategory = "system_integrity"
-	CategoryNetworkSecurity    ControlCategory = "network_security"
-	CategoryChangeManagement   ControlCategory = "change_management"
-	CategoryVendorManagement   ControlCategory = "vendor_management"
-	CategoryPhysicalSecurity   ControlCategory = "physical_security"
-	CategoryPrivacy            ControlCategory = "privacy"
+	CategoryAccessControl     ControlCategory = "access_control"
+	CategoryAuditLogging      ControlCategory = "audit_logging"
+	CategoryDataProtection    ControlCategory = "data_protection"
+	CategoryIncidentResponse  ControlCategory = "incident_response"
+	CategoryRiskManagement    ControlCategory = "risk_management"
+	CategorySecurityAwareness ControlCategory = "security_awareness"
+	CategorySystemIntegrity   ControlCategory = "system_integrity"
+	CategoryNetworkSecurity   ControlCategory = "network_security"
+	CategoryChangeManagement  ControlCategory = "change_management"
+	CategoryVendorManagement  ControlCategory = "vendor_management"
+	CategoryPhysicalSecurity  ControlCategory = "physical_security"
+	CategoryPrivacy           ControlCategory = "privacy"
 )
 
 // Severity represents the severity level of a control failure.
@@ -96,19 +96,19 @@ type Finding struct {
 
 // Remediation represents a remediation action for a control finding.
 type Remediation struct {
-	ID           string            `json:"id"`
-	ControlID    string            `json:"control_id"`
-	FindingID    string            `json:"finding_id"`
-	Title        string            `json:"title"`
-	Description  string            `json:"description"`
-	Status       RemediationStatus `json:"status"`
-	Priority     Severity          `json:"priority"`
-	Owner        string            `json:"owner"`
-	DueDate      time.Time         `json:"due_date"`
-	CompletedAt  *time.Time        `json:"completed_at,omitempty"`
-	Notes        string            `json:"notes"`
-	CreatedAt    time.Time         `json:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at"`
+	ID          string            `json:"id"`
+	ControlID   string            `json:"control_id"`
+	FindingID   string            `json:"finding_id"`
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Status      RemediationStatus `json:"status"`
+	Priority    Severity          `json:"priority"`
+	Owner       string            `json:"owner"`
+	DueDate     time.Time         `json:"due_date"`
+	CompletedAt *time.Time        `json:"completed_at,omitempty"`
+	Notes       string            `json:"notes"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
 }
 
 // RemediationStatus represents the status of a remediation action.

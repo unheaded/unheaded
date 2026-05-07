@@ -61,22 +61,22 @@ const (
 
 // TrackedFlow represents a unidirectional flow being tracked.
 type TrackedFlow struct {
-	FiveTuple   FiveTuple    `json:"five_tuple"`
-	FirstSeen   uint64       `json:"first_seen_ns"`
-	LastSeen    uint64       `json:"last_seen_ns"`
-	PacketCount uint64       `json:"packet_count"`
-	ByteCount   uint64       `json:"byte_count"`
-	TraceID     [16]byte     `json:"trace_id"`
+	FiveTuple   FiveTuple     `json:"five_tuple"`
+	FirstSeen   uint64        `json:"first_seen_ns"`
+	LastSeen    uint64        `json:"last_seen_ns"`
+	PacketCount uint64        `json:"packet_count"`
+	ByteCount   uint64        `json:"byte_count"`
+	TraceID     [16]byte      `json:"trace_id"`
 	Direction   FlowDirection `json:"direction"`
-	LastEntry   *TraceEntry  `json:"-"` // Most recent entry (not serialized)
+	LastEntry   *TraceEntry   `json:"-"` // Most recent entry (not serialized)
 }
 
 // CorrelatedFlow represents a matched bidirectional flow with RTT measurement.
 type CorrelatedFlow struct {
 	Forward   *TrackedFlow `json:"forward"`
 	Reverse   *TrackedFlow `json:"reverse"`
-	RTTNS     uint64       `json:"rtt_ns"`      // Round-trip time in nanoseconds
-	Matched   bool         `json:"matched"`      // True if bidirectional match found
+	RTTNS     uint64       `json:"rtt_ns"`  // Round-trip time in nanoseconds
+	Matched   bool         `json:"matched"` // True if bidirectional match found
 	MatchedAt uint64       `json:"matched_at_ns"`
 }
 

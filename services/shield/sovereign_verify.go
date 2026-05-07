@@ -12,9 +12,9 @@ import (
 
 // AlgorithmFamily groups algorithms by cryptographic construction.
 const (
-	FamilyHashBased  = "hash-based"  // SLH-DSA
-	FamilyLattice    = "lattice"     // ML-DSA, FN-DSA
-	FamilyCodeBased  = "code-based"  // HQC
+	FamilyHashBased = "hash-based" // SLH-DSA
+	FamilyLattice   = "lattice"    // ML-DSA, FN-DSA
+	FamilyCodeBased = "code-based" // HQC
 )
 
 // AlgoFamily returns the algorithm family for a given AlgoID.
@@ -60,12 +60,12 @@ func NewSovereignVerifier(verifier *PQCVerifier) *SovereignVerifier {
 
 // SovereignResult holds the multi-sig verification result.
 type SovereignResult struct {
-	Passed          bool
-	ValidCount      int
-	TotalChecked    int
+	Passed           bool
+	ValidCount       int
+	TotalChecked     int
 	DistinctFamilies int
-	FailReason      string
-	SlotResults     [3]SlotResult
+	FailReason       string
+	SlotResults      [3]SlotResult
 }
 
 // SlotResult is the result for one signature slot.

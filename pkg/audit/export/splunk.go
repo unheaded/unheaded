@@ -208,12 +208,12 @@ func (e *SplunkExporter) sendEvents(events []*audit.AuditEvent) error {
 
 func (e *SplunkExporter) toHECEvent(event *audit.AuditEvent) *SplunkHECEvent {
 	eventData := map[string]interface{}{
-		"event_id":  event.ID,
-		"type":      event.Type,
-		"severity":  event.Severity,
-		"action":    event.Action,
-		"outcome":   event.Outcome,
-		"hash":      event.Hash,
+		"event_id": event.ID,
+		"type":     event.Type,
+		"severity": event.Severity,
+		"action":   event.Action,
+		"outcome":  event.Outcome,
+		"hash":     event.Hash,
 	}
 
 	if event.Actor != nil {
@@ -321,10 +321,10 @@ func (e *SplunkExporter) Format() string {
 
 // SplunkSearchClient provides search capabilities against Splunk.
 type SplunkSearchClient struct {
-	baseURL   string
-	username  string
-	password  string
-	client    *http.Client
+	baseURL  string
+	username string
+	password string
+	client   *http.Client
 }
 
 // NewSplunkSearchClient creates a new Splunk search client.
@@ -390,54 +390,54 @@ func (c *SplunkSearchClient) SearchAuditEvents(ctx context.Context, query string
 
 // SplunkAlertConfig holds configuration for Splunk alerts.
 type SplunkAlertConfig struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Search      string                 `json:"search"`
-	CronSchedule string                `json:"cron_schedule"`
-	Actions     []string               `json:"actions"`
-	Threshold   int                    `json:"threshold"`
-	Severity    string                 `json:"severity"`
-	Params      map[string]interface{} `json:"params"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Search       string                 `json:"search"`
+	CronSchedule string                 `json:"cron_schedule"`
+	Actions      []string               `json:"actions"`
+	Threshold    int                    `json:"threshold"`
+	Severity     string                 `json:"severity"`
+	Params       map[string]interface{} `json:"params"`
 }
 
 // PredefinedSplunkAlerts returns common audit-related Splunk alerts.
 func PredefinedSplunkAlerts() []*SplunkAlertConfig {
 	return []*SplunkAlertConfig{
 		{
-			Name:        "Failed Authentication Spike",
-			Description: "Alert when failed authentication attempts exceed threshold",
-			Search:      `index=audit type="authentication" outcome="failure" | stats count by actor.id | where count > 5`,
+			Name:         "Failed Authentication Spike",
+			Description:  "Alert when failed authentication attempts exceed threshold",
+			Search:       `index=audit type="authentication" outcome="failure" | stats count by actor.id | where count > 5`,
 			CronSchedule: "*/5 * * * *",
-			Actions:     []string{"email", "slack"},
-			Threshold:   5,
-			Severity:    "high",
+			Actions:      []string{"email", "slack"},
+			Threshold:    5,
+			Severity:     "high",
 		},
 		{
-			Name:        "Critical Security Event",
-			Description: "Alert on any critical security event",
-			Search:      `index=audit severity="critical"`,
+			Name:         "Critical Security Event",
+			Description:  "Alert on any critical security event",
+			Search:       `index=audit severity="critical"`,
 			CronSchedule: "* * * * *",
-			Actions:     []string{"email", "pagerduty"},
-			Threshold:   1,
-			Severity:    "critical",
+			Actions:      []string{"email", "pagerduty"},
+			Threshold:    1,
+			Severity:     "critical",
 		},
 		{
-			Name:        "Unusual Configuration Change",
-			Description: "Alert on configuration changes outside business hours",
-			Search:      `index=audit type="configuration" | eval hour=strftime(_time, "%H") | where hour < 6 OR hour > 20`,
+			Name:         "Unusual Configuration Change",
+			Description:  "Alert on configuration changes outside business hours",
+			Search:       `index=audit type="configuration" | eval hour=strftime(_time, "%H") | where hour < 6 OR hour > 20`,
 			CronSchedule: "*/15 * * * *",
-			Actions:     []string{"email"},
-			Threshold:   1,
-			Severity:    "medium",
+			Actions:      []string{"email"},
+			Threshold:    1,
+			Severity:     "medium",
 		},
 		{
-			Name:        "Sensitive Data Access",
-			Description: "Alert on access to sensitive resources",
-			Search:      `index=audit type="data_access" resource.type="sensitive"`,
+			Name:         "Sensitive Data Access",
+			Description:  "Alert on access to sensitive resources",
+			Search:       `index=audit type="data_access" resource.type="sensitive"`,
 			CronSchedule: "*/5 * * * *",
-			Actions:     []string{"email", "slack"},
-			Threshold:   1,
-			Severity:    "high",
+			Actions:      []string{"email", "slack"},
+			Threshold:    1,
+			Severity:     "high",
 		},
 	}
 }

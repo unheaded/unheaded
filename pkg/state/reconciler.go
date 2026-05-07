@@ -23,17 +23,17 @@ import (
 // ============================================================================
 
 var (
-	ErrReconcilerClosed     = errors.New("reconciler is closed")
-	ErrInvalidDesiredState  = errors.New("invalid desired state")
-	ErrInvalidActualState   = errors.New("invalid actual state")
-	ErrActionFailed         = errors.New("reconciliation action failed")
-	ErrRateLimited          = errors.New("rate limited")
-	ErrDryRunMode           = errors.New("action skipped in dry-run mode")
-	ErrLXDClientNil         = errors.New("LXD client is nil")
+	ErrReconcilerClosed    = errors.New("reconciler is closed")
+	ErrInvalidDesiredState = errors.New("invalid desired state")
+	ErrInvalidActualState  = errors.New("invalid actual state")
+	ErrActionFailed        = errors.New("reconciliation action failed")
+	ErrRateLimited         = errors.New("rate limited")
+	ErrDryRunMode          = errors.New("action skipped in dry-run mode")
+	ErrLXDClientNil        = errors.New("LXD client is nil")
 	ErrWotanClientNil      = errors.New("Wotan client is nil")
-	ErrInvalidStatePath     = errors.New("invalid state file path")
-	ErrContainerNotFound    = errors.New("container not found")
-	ErrMaxRetriesExceeded   = errors.New("max retries exceeded")
+	ErrInvalidStatePath    = errors.New("invalid state file path")
+	ErrContainerNotFound   = errors.New("container not found")
+	ErrMaxRetriesExceeded  = errors.New("max retries exceeded")
 )
 
 // ============================================================================
@@ -44,14 +44,14 @@ var (
 type ContainerStatus string
 
 const (
-	StatusPending    ContainerStatus = "pending"
-	StatusCreating   ContainerStatus = "creating"
-	StatusRunning    ContainerStatus = "running"
-	StatusStopped    ContainerStatus = "stopped"
-	StatusError      ContainerStatus = "error"
-	StatusDegraded   ContainerStatus = "degraded"
-	StatusDeleting   ContainerStatus = "deleting"
-	StatusNotFound   ContainerStatus = "not_found"
+	StatusPending  ContainerStatus = "pending"
+	StatusCreating ContainerStatus = "creating"
+	StatusRunning  ContainerStatus = "running"
+	StatusStopped  ContainerStatus = "stopped"
+	StatusError    ContainerStatus = "error"
+	StatusDegraded ContainerStatus = "degraded"
+	StatusDeleting ContainerStatus = "deleting"
+	StatusNotFound ContainerStatus = "not_found"
 )
 
 // HealthStatus represents the health of a container
@@ -81,24 +81,24 @@ type DesiredState struct {
 
 // ContainerDesired represents the desired state of a single container
 type ContainerDesired struct {
-	Name        string            `json:"name" yaml:"name"`
-	Image       string            `json:"image" yaml:"image"`
-	Type        string            `json:"type" yaml:"type"` // service, gateway, worker
-	Enabled     bool              `json:"enabled" yaml:"enabled"`
-	CPU         int               `json:"cpu_cores" yaml:"cpu_cores"`
-	Memory      int64             `json:"memory_mb" yaml:"memory_mb"`
-	DiskSize    int64             `json:"disk_size_gb,omitempty" yaml:"disk_size_gb,omitempty"`
-	NetworkMode string            `json:"network_mode" yaml:"network_mode"`
-	Network     string            `json:"network,omitempty" yaml:"network,omitempty"`
-	IPAddress   string            `json:"ip_address,omitempty" yaml:"ip_address,omitempty"`
-	Ports       []PortMapping     `json:"ports,omitempty" yaml:"ports,omitempty"`
-	Env         map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
-	Volumes     []VolumeMount     `json:"volumes,omitempty" yaml:"volumes,omitempty"`
-	HealthCheck *HealthCheck      `json:"health_check,omitempty" yaml:"health_check,omitempty"`
-	Dependencies []string         `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
-	RestartPolicy string          `json:"restart_policy,omitempty" yaml:"restart_policy,omitempty"`
-	Priority    int               `json:"priority,omitempty" yaml:"priority,omitempty"`
+	Name          string            `json:"name" yaml:"name"`
+	Image         string            `json:"image" yaml:"image"`
+	Type          string            `json:"type" yaml:"type"` // service, gateway, worker
+	Enabled       bool              `json:"enabled" yaml:"enabled"`
+	CPU           int               `json:"cpu_cores" yaml:"cpu_cores"`
+	Memory        int64             `json:"memory_mb" yaml:"memory_mb"`
+	DiskSize      int64             `json:"disk_size_gb,omitempty" yaml:"disk_size_gb,omitempty"`
+	NetworkMode   string            `json:"network_mode" yaml:"network_mode"`
+	Network       string            `json:"network,omitempty" yaml:"network,omitempty"`
+	IPAddress     string            `json:"ip_address,omitempty" yaml:"ip_address,omitempty"`
+	Ports         []PortMapping     `json:"ports,omitempty" yaml:"ports,omitempty"`
+	Env           map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Volumes       []VolumeMount     `json:"volumes,omitempty" yaml:"volumes,omitempty"`
+	HealthCheck   *HealthCheck      `json:"health_check,omitempty" yaml:"health_check,omitempty"`
+	Dependencies  []string          `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
+	RestartPolicy string            `json:"restart_policy,omitempty" yaml:"restart_policy,omitempty"`
+	Priority      int               `json:"priority,omitempty" yaml:"priority,omitempty"`
 }
 
 // PortMapping represents a port mapping
@@ -183,23 +183,23 @@ type ActualState struct {
 
 // ContainerActual represents the actual observed state of a container
 type ContainerActual struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Status      ContainerStatus   `json:"status"`
-	Image       string            `json:"image"`
-	IPAddress   string            `json:"ip_address"`
-	CPU         int               `json:"cpu_cores"`
-	Memory      int64             `json:"memory_mb"`
-	CPUUsage    float64           `json:"cpu_usage_percent"`
-	MemoryUsage int64             `json:"memory_usage_mb"`
-	DiskUsage   int64             `json:"disk_usage_mb"`
-	Uptime      time.Duration     `json:"uptime"`
-	Health      HealthStatus      `json:"health"`
-	Ports       []PortMapping     `json:"ports,omitempty"`
-	Env         map[string]string `json:"env,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	LastSeen    time.Time         `json:"last_seen"`
-	CreatedAt   time.Time         `json:"created_at"`
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Status      ContainerStatus    `json:"status"`
+	Image       string             `json:"image"`
+	IPAddress   string             `json:"ip_address"`
+	CPU         int                `json:"cpu_cores"`
+	Memory      int64              `json:"memory_mb"`
+	CPUUsage    float64            `json:"cpu_usage_percent"`
+	MemoryUsage int64              `json:"memory_usage_mb"`
+	DiskUsage   int64              `json:"disk_usage_mb"`
+	Uptime      time.Duration      `json:"uptime"`
+	Health      HealthStatus       `json:"health"`
+	Ports       []PortMapping      `json:"ports,omitempty"`
+	Env         map[string]string  `json:"env,omitempty"`
+	Labels      map[string]string  `json:"labels,omitempty"`
+	LastSeen    time.Time          `json:"last_seen"`
+	CreatedAt   time.Time          `json:"created_at"`
 	Metrics     map[string]float64 `json:"metrics,omitempty"`
 }
 
@@ -221,13 +221,13 @@ type DriftType string
 
 const (
 	DriftNone           DriftType = "none"
-	DriftMissing        DriftType = "missing"           // Desired but not present
-	DriftOrphaned       DriftType = "orphaned"          // Present but not desired
-	DriftStatusMismatch DriftType = "status_mismatch"   // Wrong status (stopped vs running)
-	DriftConfigMismatch DriftType = "config_mismatch"   // Configuration differs
-	DriftHealthDegraded DriftType = "health_degraded"   // Unhealthy
-	DriftResourceDrift  DriftType = "resource_drift"    // CPU/Memory mismatch
-	DriftNetworkDrift   DriftType = "network_drift"     // Network configuration differs
+	DriftMissing        DriftType = "missing"         // Desired but not present
+	DriftOrphaned       DriftType = "orphaned"        // Present but not desired
+	DriftStatusMismatch DriftType = "status_mismatch" // Wrong status (stopped vs running)
+	DriftConfigMismatch DriftType = "config_mismatch" // Configuration differs
+	DriftHealthDegraded DriftType = "health_degraded" // Unhealthy
+	DriftResourceDrift  DriftType = "resource_drift"  // CPU/Memory mismatch
+	DriftNetworkDrift   DriftType = "network_drift"   // Network configuration differs
 )
 
 // DriftSeverity represents the severity of drift
@@ -254,28 +254,28 @@ type DriftItem struct {
 
 // DriftReport represents the complete drift analysis
 type DriftReport struct {
-	ID              string       `json:"id"`
-	DesiredState    string       `json:"desired_state_version"`
-	TotalContainers int          `json:"total_containers"`
-	DriftCount      int          `json:"drift_count"`
-	Drifts          []DriftItem  `json:"drifts"`
-	Summary         DriftSummary `json:"summary"`
-	DetectedAt      time.Time    `json:"detected_at"`
+	ID              string        `json:"id"`
+	DesiredState    string        `json:"desired_state_version"`
+	TotalContainers int           `json:"total_containers"`
+	DriftCount      int           `json:"drift_count"`
+	Drifts          []DriftItem   `json:"drifts"`
+	Summary         DriftSummary  `json:"summary"`
+	DetectedAt      time.Time     `json:"detected_at"`
 	Duration        time.Duration `json:"duration"`
 }
 
 // DriftSummary provides a summary of drift
 type DriftSummary struct {
-	Missing          int `json:"missing"`
-	Orphaned         int `json:"orphaned"`
-	StatusMismatch   int `json:"status_mismatch"`
-	ConfigMismatch   int `json:"config_mismatch"`
-	HealthDegraded   int `json:"health_degraded"`
-	ResourceDrift    int `json:"resource_drift"`
-	CriticalCount    int `json:"critical_count"`
-	HighCount        int `json:"high_count"`
-	MediumCount      int `json:"medium_count"`
-	LowCount         int `json:"low_count"`
+	Missing        int `json:"missing"`
+	Orphaned       int `json:"orphaned"`
+	StatusMismatch int `json:"status_mismatch"`
+	ConfigMismatch int `json:"config_mismatch"`
+	HealthDegraded int `json:"health_degraded"`
+	ResourceDrift  int `json:"resource_drift"`
+	CriticalCount  int `json:"critical_count"`
+	HighCount      int `json:"high_count"`
+	MediumCount    int `json:"medium_count"`
+	LowCount       int `json:"low_count"`
 }
 
 // ============================================================================
@@ -310,20 +310,20 @@ const (
 
 // ReconciliationAction represents a single action to reconcile drift
 type ReconciliationAction struct {
-	ID           string                 `json:"id"`
-	ContainerID  string                 `json:"container_id"`
-	ActionType   ActionType             `json:"action_type"`
-	Priority     int                    `json:"priority"`
-	DriftItem    *DriftItem             `json:"drift_item,omitempty"`
-	Params       map[string]interface{} `json:"params,omitempty"`
-	Status       ActionStatus           `json:"status"`
-	Retries      int                    `json:"retries"`
-	MaxRetries   int                    `json:"max_retries"`
-	Error        string                 `json:"error,omitempty"`
-	CreatedAt    time.Time              `json:"created_at"`
-	StartedAt    *time.Time             `json:"started_at,omitempty"`
-	CompletedAt  *time.Time             `json:"completed_at,omitempty"`
-	Duration     time.Duration          `json:"duration,omitempty"`
+	ID          string                 `json:"id"`
+	ContainerID string                 `json:"container_id"`
+	ActionType  ActionType             `json:"action_type"`
+	Priority    int                    `json:"priority"`
+	DriftItem   *DriftItem             `json:"drift_item,omitempty"`
+	Params      map[string]interface{} `json:"params,omitempty"`
+	Status      ActionStatus           `json:"status"`
+	Retries     int                    `json:"retries"`
+	MaxRetries  int                    `json:"max_retries"`
+	Error       string                 `json:"error,omitempty"`
+	CreatedAt   time.Time              `json:"created_at"`
+	StartedAt   *time.Time             `json:"started_at,omitempty"`
+	CompletedAt *time.Time             `json:"completed_at,omitempty"`
+	Duration    time.Duration          `json:"duration,omitempty"`
 }
 
 // ActionResult represents the result of executing an action
@@ -342,20 +342,20 @@ type ActionResult struct {
 
 // ReconciliationRun represents a single reconciliation run
 type ReconciliationRun struct {
-	ID            string                  `json:"id"`
-	StartedAt     time.Time               `json:"started_at"`
-	CompletedAt   *time.Time              `json:"completed_at,omitempty"`
-	Duration      time.Duration           `json:"duration,omitempty"`
-	DriftReport   *DriftReport            `json:"drift_report"`
-	Actions       []*ReconciliationAction `json:"actions"`
-	Results       []*ActionResult         `json:"results"`
-	DryRun        bool                    `json:"dry_run"`
-	Success       bool                    `json:"success"`
-	Error         string                  `json:"error,omitempty"`
-	ActionsTotal  int                     `json:"actions_total"`
-	ActionsSuccess int                    `json:"actions_success"`
-	ActionsFailed int                     `json:"actions_failed"`
-	ActionsSkipped int                    `json:"actions_skipped"`
+	ID             string                  `json:"id"`
+	StartedAt      time.Time               `json:"started_at"`
+	CompletedAt    *time.Time              `json:"completed_at,omitempty"`
+	Duration       time.Duration           `json:"duration,omitempty"`
+	DriftReport    *DriftReport            `json:"drift_report"`
+	Actions        []*ReconciliationAction `json:"actions"`
+	Results        []*ActionResult         `json:"results"`
+	DryRun         bool                    `json:"dry_run"`
+	Success        bool                    `json:"success"`
+	Error          string                  `json:"error,omitempty"`
+	ActionsTotal   int                     `json:"actions_total"`
+	ActionsSuccess int                     `json:"actions_success"`
+	ActionsFailed  int                     `json:"actions_failed"`
+	ActionsSkipped int                     `json:"actions_skipped"`
 }
 
 // ============================================================================
@@ -391,19 +391,19 @@ type LXDClient interface {
 type EventType string
 
 const (
-	EventDriftDetected       EventType = "drift.detected"
-	EventReconcileStarted    EventType = "reconcile.started"
-	EventReconcileCompleted  EventType = "reconcile.completed"
-	EventReconcileFailed     EventType = "reconcile.failed"
-	EventActionStarted       EventType = "action.started"
-	EventActionCompleted     EventType = "action.completed"
-	EventActionFailed        EventType = "action.failed"
-	EventContainerCreated    EventType = "container.created"
-	EventContainerStarted    EventType = "container.started"
-	EventContainerStopped    EventType = "container.stopped"
-	EventContainerDeleted    EventType = "container.deleted"
-	EventContainerHealthy    EventType = "container.healthy"
-	EventContainerUnhealthy  EventType = "container.unhealthy"
+	EventDriftDetected      EventType = "drift.detected"
+	EventReconcileStarted   EventType = "reconcile.started"
+	EventReconcileCompleted EventType = "reconcile.completed"
+	EventReconcileFailed    EventType = "reconcile.failed"
+	EventActionStarted      EventType = "action.started"
+	EventActionCompleted    EventType = "action.completed"
+	EventActionFailed       EventType = "action.failed"
+	EventContainerCreated   EventType = "container.created"
+	EventContainerStarted   EventType = "container.started"
+	EventContainerStopped   EventType = "container.stopped"
+	EventContainerDeleted   EventType = "container.deleted"
+	EventContainerHealthy   EventType = "container.healthy"
+	EventContainerUnhealthy EventType = "container.unhealthy"
 )
 
 // ReconciliationEvent represents an event to publish to Wotan
@@ -432,33 +432,33 @@ type ReconcilerMetrics struct {
 	mu sync.RWMutex
 
 	// Drift metrics
-	DriftDetectedTotal     int64            `json:"drift_detected_total"`
-	DriftByType            map[DriftType]int64 `json:"drift_by_type"`
-	DriftBySeverity        map[DriftSeverity]int64 `json:"drift_by_severity"`
-	LastDriftCount         int              `json:"last_drift_count"`
-	LastDriftCheckTime     time.Time        `json:"last_drift_check_time"`
-	DriftCheckDuration     time.Duration    `json:"drift_check_duration"`
+	DriftDetectedTotal int64                   `json:"drift_detected_total"`
+	DriftByType        map[DriftType]int64     `json:"drift_by_type"`
+	DriftBySeverity    map[DriftSeverity]int64 `json:"drift_by_severity"`
+	LastDriftCount     int                     `json:"last_drift_count"`
+	LastDriftCheckTime time.Time               `json:"last_drift_check_time"`
+	DriftCheckDuration time.Duration           `json:"drift_check_duration"`
 
 	// Action metrics
-	ActionsExecutedTotal   int64            `json:"actions_executed_total"`
-	ActionsSuccessTotal    int64            `json:"actions_success_total"`
-	ActionsFailedTotal     int64            `json:"actions_failed_total"`
-	ActionsSkippedTotal    int64            `json:"actions_skipped_total"`
-	ActionsByType          map[ActionType]int64 `json:"actions_by_type"`
-	ActionDuration         time.Duration    `json:"action_duration"`
+	ActionsExecutedTotal int64                `json:"actions_executed_total"`
+	ActionsSuccessTotal  int64                `json:"actions_success_total"`
+	ActionsFailedTotal   int64                `json:"actions_failed_total"`
+	ActionsSkippedTotal  int64                `json:"actions_skipped_total"`
+	ActionsByType        map[ActionType]int64 `json:"actions_by_type"`
+	ActionDuration       time.Duration        `json:"action_duration"`
 
 	// Reconciliation metrics
-	ReconcileTotal         int64            `json:"reconcile_total"`
-	ReconcileSuccessTotal  int64            `json:"reconcile_success_total"`
-	ReconcileFailedTotal   int64            `json:"reconcile_failed_total"`
-	ReconcileDuration      time.Duration    `json:"reconcile_duration"`
-	LastReconcileTime      time.Time        `json:"last_reconcile_time"`
+	ReconcileTotal        int64         `json:"reconcile_total"`
+	ReconcileSuccessTotal int64         `json:"reconcile_success_total"`
+	ReconcileFailedTotal  int64         `json:"reconcile_failed_total"`
+	ReconcileDuration     time.Duration `json:"reconcile_duration"`
+	LastReconcileTime     time.Time     `json:"last_reconcile_time"`
 
 	// Container metrics
-	ContainersDesired      int              `json:"containers_desired"`
-	ContainersActual       int              `json:"containers_actual"`
-	ContainersHealthy      int              `json:"containers_healthy"`
-	ContainersUnhealthy    int              `json:"containers_unhealthy"`
+	ContainersDesired   int `json:"containers_desired"`
+	ContainersActual    int `json:"containers_actual"`
+	ContainersHealthy   int `json:"containers_healthy"`
+	ContainersUnhealthy int `json:"containers_unhealthy"`
 }
 
 // NewReconcilerMetrics creates a new metrics instance
@@ -537,13 +537,13 @@ type ReconcilerConfig struct {
 	HealthCheckInterval time.Duration `json:"health_check_interval" yaml:"health_check_interval"`
 
 	// Rate limiting
-	MaxActionsPerSecond float64 `json:"max_actions_per_second" yaml:"max_actions_per_second"`
-	MaxConcurrentActions int    `json:"max_concurrent_actions" yaml:"max_concurrent_actions"`
+	MaxActionsPerSecond  float64 `json:"max_actions_per_second" yaml:"max_actions_per_second"`
+	MaxConcurrentActions int     `json:"max_concurrent_actions" yaml:"max_concurrent_actions"`
 
 	// Retry configuration
-	MaxRetries     int           `json:"max_retries" yaml:"max_retries"`
-	RetryBackoff   time.Duration `json:"retry_backoff" yaml:"retry_backoff"`
-	ActionTimeout  time.Duration `json:"action_timeout" yaml:"action_timeout"`
+	MaxRetries    int           `json:"max_retries" yaml:"max_retries"`
+	RetryBackoff  time.Duration `json:"retry_backoff" yaml:"retry_backoff"`
+	ActionTimeout time.Duration `json:"action_timeout" yaml:"action_timeout"`
 
 	// History configuration
 	MaxHistorySize int `json:"max_history_size" yaml:"max_history_size"`
@@ -630,7 +630,7 @@ type Reconciler struct {
 
 	// Clients
 	lxd    LXDClient
-	wotan WotanClient
+	wotan  WotanClient
 	logger Logger
 
 	// State
@@ -642,16 +642,16 @@ type Reconciler struct {
 	rateLimiter *RateLimiter
 
 	// History
-	history     []*ReconciliationRun
-	historyMu   sync.RWMutex
+	history   []*ReconciliationRun
+	historyMu sync.RWMutex
 
 	// Metrics
 	metrics *ReconcilerMetrics
 
 	// Lifecycle
-	closed     bool
-	closeCh    chan struct{}
-	wg         sync.WaitGroup
+	closed  bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 // NewReconciler creates a new reconciler instance
@@ -667,7 +667,7 @@ func NewReconciler(config ReconcilerConfig, lxd LXDClient, wotan WotanClient, lo
 	return &Reconciler{
 		config:      config,
 		lxd:         lxd,
-		wotan:      wotan,
+		wotan:       wotan,
 		logger:      logger,
 		rateLimiter: NewRateLimiter(config.MaxActionsPerSecond),
 		history:     make([]*ReconciliationRun, 0, config.MaxHistorySize),
@@ -998,9 +998,9 @@ func (r *Reconciler) DetectDrift(desired *DesiredState, actual *ActualState) (*D
 			Severity:  r.highestSeverity(drifts),
 			Message:   fmt.Sprintf("Detected %d drift(s)", len(drifts)),
 			Data: map[string]interface{}{
-				"drift_count":    len(drifts),
-				"missing":        summary.Missing,
-				"orphaned":       summary.Orphaned,
+				"drift_count":     len(drifts),
+				"missing":         summary.Missing,
+				"orphaned":        summary.Orphaned,
 				"status_mismatch": summary.StatusMismatch,
 				"health_degraded": summary.HealthDegraded,
 			},
@@ -1008,11 +1008,11 @@ func (r *Reconciler) DetectDrift(desired *DesiredState, actual *ActualState) (*D
 	}
 
 	r.logger.Info("drift detection completed", map[string]interface{}{
-		"drift_count":   len(drifts),
-		"missing":       summary.Missing,
-		"orphaned":      summary.Orphaned,
+		"drift_count":     len(drifts),
+		"missing":         summary.Missing,
+		"orphaned":        summary.Orphaned,
 		"status_mismatch": summary.StatusMismatch,
-		"duration":      duration.String(),
+		"duration":        duration.String(),
 	})
 
 	return report, nil

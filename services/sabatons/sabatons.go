@@ -16,64 +16,64 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Machine represents a bare metal machine.
 type Machine struct {
-	ID           string            `json:"id"`
-	Hostname     string            `json:"hostname"`
-	SerialNumber string            `json:"serial_number,omitempty"`
-	BMCAddress   string            `json:"bmc_address,omitempty"`
-	MACAddresses []string          `json:"mac_addresses"`
-	IPAddresses  []string          `json:"ip_addresses,omitempty"`
-	Status       MachineStatus     `json:"status"`
-	State        MachineState      `json:"state"`
-	Hardware     HardwareInfo      `json:"hardware"`
-	Labels       map[string]string `json:"labels,omitempty"`
-	ProvisionedAt *time.Time       `json:"provisioned_at,omitempty"`
-	LastSeen     time.Time         `json:"last_seen"`
+	ID            string            `json:"id"`
+	Hostname      string            `json:"hostname"`
+	SerialNumber  string            `json:"serial_number,omitempty"`
+	BMCAddress    string            `json:"bmc_address,omitempty"`
+	MACAddresses  []string          `json:"mac_addresses"`
+	IPAddresses   []string          `json:"ip_addresses,omitempty"`
+	Status        MachineStatus     `json:"status"`
+	State         MachineState      `json:"state"`
+	Hardware      HardwareInfo      `json:"hardware"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	ProvisionedAt *time.Time        `json:"provisioned_at,omitempty"`
+	LastSeen      time.Time         `json:"last_seen"`
 }
 
 // MachineStatus tracks machine availability.
 type MachineStatus string
 
 const (
-	StatusAvailable   MachineStatus = "available"
+	StatusAvailable    MachineStatus = "available"
 	StatusProvisioning MachineStatus = "provisioning"
-	StatusProvisioned MachineStatus = "provisioned"
-	StatusError       MachineStatus = "error"
-	StatusMaintenance MachineStatus = "maintenance"
+	StatusProvisioned  MachineStatus = "provisioned"
+	StatusError        MachineStatus = "error"
+	StatusMaintenance  MachineStatus = "maintenance"
 )
 
 // MachineState tracks machine power state.
 type MachineState string
 
 const (
-	StateOn       MachineState = "on"
-	StateOff      MachineState = "off"
+	StateOn        MachineState = "on"
+	StateOff       MachineState = "off"
 	StateRebooting MachineState = "rebooting"
-	StateUnknown  MachineState = "unknown"
+	StateUnknown   MachineState = "unknown"
 )
 
 // HardwareInfo describes machine hardware.
 type HardwareInfo struct {
-	Manufacturer string      `json:"manufacturer,omitempty"`
-	Model        string      `json:"model,omitempty"`
-	CPUs         []CPU       `json:"cpus,omitempty"`
-	Memory       Memory      `json:"memory"`
-	Disks        []Disk      `json:"disks,omitempty"`
-	NICs         []NIC       `json:"nics,omitempty"`
-	BMCType      string      `json:"bmc_type,omitempty"` // IPMI, Redfish, iLO
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Model        string `json:"model,omitempty"`
+	CPUs         []CPU  `json:"cpus,omitempty"`
+	Memory       Memory `json:"memory"`
+	Disks        []Disk `json:"disks,omitempty"`
+	NICs         []NIC  `json:"nics,omitempty"`
+	BMCType      string `json:"bmc_type,omitempty"` // IPMI, Redfish, iLO
 }
 
 // CPU describes a processor.
 type CPU struct {
-	Model     string `json:"model"`
-	Cores     int    `json:"cores"`
-	Threads   int    `json:"threads"`
-	SpeedMHz  int    `json:"speed_mhz"`
+	Model    string `json:"model"`
+	Cores    int    `json:"cores"`
+	Threads  int    `json:"threads"`
+	SpeedMHz int    `json:"speed_mhz"`
 }
 
 // Memory describes system memory.
@@ -124,14 +124,14 @@ type BootConfig struct {
 type BMCCredentials struct {
 	MachineID string `json:"machine_id"`
 	Username  string `json:"username"`
-	Password  string `json:"-"` // Not serialized
+	Password  string `json:"-"`    // Not serialized
 	Type      string `json:"type"` // IPMI, Redfish
 }
 
 // Service is the main Sabatons bare metal service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu          sync.RWMutex
@@ -142,21 +142,21 @@ type Service struct {
 
 // Config holds Sabatons service configuration.
 type Config struct {
-	PXEServerAddress string        `json:"pxe_server_address"`
-	TFTPRoot         string        `json:"tftp_root"`
+	PXEServerAddress  string        `json:"pxe_server_address"`
+	TFTPRoot          string        `json:"tftp_root"`
 	DiscoveryInterval time.Duration `json:"discovery_interval"`
-	HeartbeatTimeout time.Duration `json:"heartbeat_timeout"`
-	WotanTopic      string        `json:"wotan_topic"`
+	HeartbeatTimeout  time.Duration `json:"heartbeat_timeout"`
+	WotanTopic        string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		PXEServerAddress: "0.0.0.0:69",
-		TFTPRoot:         "/var/lib/tftpboot",
+		PXEServerAddress:  "0.0.0.0:69",
+		TFTPRoot:          "/var/lib/tftpboot",
 		DiscoveryInterval: 30 * time.Second,
 		HeartbeatTimeout:  60 * time.Second,
-		WotanTopic:       "sabatons.hardware",
+		WotanTopic:        "sabatons.hardware",
 	}
 }
 
@@ -168,7 +168,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:         log,
-		wotan:      wotan,
+		wotan:       wotan,
 		config:      cfg,
 		machines:    make(map[string]*Machine),
 		bootConfigs: make(map[string]*BootConfig),
@@ -489,10 +489,10 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_machines":   len(s.machines),
-		"by_status":        statusCounts,
-		"by_state":         stateCounts,
-		"pending_boots":    len(s.bootConfigs),
+		"total_machines": len(s.machines),
+		"by_status":      statusCounts,
+		"by_state":       stateCounts,
+		"pending_boots":  len(s.bootConfigs),
 	}
 }
 

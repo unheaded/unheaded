@@ -166,13 +166,13 @@ func TestAdaptiveThreshold(t *testing.T) {
 
 	t.Run("update thresholds from baselines", func(t *testing.T) {
 		svc.SetBaseline(&ServiceBaseline{
-			ServiceID:    "svc-a",
-			EntropyMean:  20.0,
+			ServiceID:     "svc-a",
+			EntropyMean:   20.0,
 			EntropyStdDev: 3.0,
 		})
 		svc.SetBaseline(&ServiceBaseline{
-			ServiceID:    "svc-b",
-			EntropyMean:  50.0,
+			ServiceID:     "svc-b",
+			EntropyMean:   50.0,
 			EntropyStdDev: 10.0,
 		})
 

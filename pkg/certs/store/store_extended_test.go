@@ -22,7 +22,7 @@ func TestMemoryStore_Cleanup(t *testing.T) {
 	defer s.Close()
 	ctx := context.Background()
 
-	longExpired := time.Now().Add(-2 * time.Hour) // expired 2h ago, beyond 1h retain
+	longExpired := time.Now().Add(-2 * time.Hour)      // expired 2h ago, beyond 1h retain
 	recentExpired := time.Now().Add(-30 * time.Minute) // expired 30m ago, within 1h retain
 	notExpired := time.Now().Add(24 * time.Hour)
 

@@ -476,4 +476,3 @@ func encodeEntry(seq uint64, data []byte) []byte {
 
 	return buf
 }
-

@@ -1058,4 +1058,3 @@ func FilterByTag(endpoints []*Endpoint, key, value string) []*Endpoint {
 	}
 	return result
 }
-

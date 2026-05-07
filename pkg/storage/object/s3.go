@@ -21,11 +21,11 @@ import (
 // This is a mock implementation that provides the interface.
 // In production, this would use github.com/aws/aws-sdk-go-v2/service/s3.
 type S3Store struct {
-	cfg     Config
-	log     *logger.Logger
-	client  *mockS3Client
-	closed  bool
-	mu      sync.RWMutex
+	cfg    Config
+	log    *logger.Logger
+	client *mockS3Client
+	closed bool
+	mu     sync.RWMutex
 }
 
 // mockS3Client simulates an S3 client for testing/development.
@@ -35,10 +35,10 @@ type mockS3Client struct {
 }
 
 type mockObject struct {
-	data        []byte
-	contentType string
-	metadata    map[string]string
-	etag        string
+	data         []byte
+	contentType  string
+	metadata     map[string]string
+	etag         string
 	lastModified time.Time
 }
 

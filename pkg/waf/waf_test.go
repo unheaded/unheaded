@@ -54,39 +54,39 @@ func TestNewShield(t *testing.T) {
 
 func TestShieldProcess(t *testing.T) {
 	tests := []struct {
-		name           string
-		url            string
-		expectedAction Action
+		name             string
+		url              string
+		expectedAction   Action
 		useDefaultConfig bool
 	}{
 		{
-			name:           "Clean request",
-			url:            "http://example.com/page",
-			expectedAction: ActionAllow,
+			name:             "Clean request",
+			url:              "http://example.com/page",
+			expectedAction:   ActionAllow,
 			useDefaultConfig: false, // Use minimal config to avoid false positives from headers
 		},
 		{
-			name:           "SQL injection in query",
-			url:            "http://example.com/page?id=1%27%20OR%20%271%27%3D%271",
-			expectedAction: ActionBlock,
+			name:             "SQL injection in query",
+			url:              "http://example.com/page?id=1%27%20OR%20%271%27%3D%271",
+			expectedAction:   ActionBlock,
 			useDefaultConfig: true,
 		},
 		{
-			name:           "XSS in query",
-			url:            "http://example.com/page?q=%3Cscript%3Ealert(1)%3C/script%3E",
-			expectedAction: ActionBlock,
+			name:             "XSS in query",
+			url:              "http://example.com/page?q=%3Cscript%3Ealert(1)%3C/script%3E",
+			expectedAction:   ActionBlock,
 			useDefaultConfig: true,
 		},
 		{
-			name:           "Path traversal",
-			url:            "http://example.com/files/..%2F..%2F..%2Fetc%2Fpasswd",
-			expectedAction: ActionBlock,
+			name:             "Path traversal",
+			url:              "http://example.com/files/..%2F..%2F..%2Fetc%2Fpasswd",
+			expectedAction:   ActionBlock,
 			useDefaultConfig: true,
 		},
 		{
-			name:           "SSRF localhost",
-			url:            "http://example.com/fetch?url=http://localhost/admin",
-			expectedAction: ActionBlock,
+			name:             "SSRF localhost",
+			url:              "http://example.com/fetch?url=http://localhost/admin",
+			expectedAction:   ActionBlock,
 			useDefaultConfig: true,
 		},
 	}

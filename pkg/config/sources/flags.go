@@ -172,24 +172,24 @@ func (f *FlagSource) toNestedMap() map[string]any {
 
 // FlagSet provides a more structured way to define and parse flags.
 type FlagSet struct {
-	name     string
-	args     []string
-	flags    map[string]*Flag
-	values   map[string]any
-	parsed   bool
-	usage    string
-	errorFn  func(string)
+	name    string
+	args    []string
+	flags   map[string]*Flag
+	values  map[string]any
+	parsed  bool
+	usage   string
+	errorFn func(string)
 }
 
 // Flag represents a single command-line flag.
 type Flag struct {
-	Name        string
-	Shorthand   string
-	Usage       string
-	Default     any
-	Required    bool
-	Value       any
-	EnvVar      string
+	Name      string
+	Shorthand string
+	Usage     string
+	Default   any
+	Required  bool
+	Value     any
+	EnvVar    string
 }
 
 // NewFlagSet creates a new flag set.

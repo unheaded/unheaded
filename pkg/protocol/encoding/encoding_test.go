@@ -20,8 +20,8 @@ func TestEncodeDecodeVarint_SingleByte(t *testing.T) {
 	}{
 		{0, 1, 0x00},
 		{1, 1, 0x01},
-		{37, 1, 0x25},     // RFC 9000 §A.1 example
-		{63, 1, 0x3F},     // max 1-byte value
+		{37, 1, 0x25}, // RFC 9000 §A.1 example
+		{63, 1, 0x3F}, // max 1-byte value
 	}
 	for _, tt := range tests {
 		encoded, err := EncodeVarint(tt.value)

@@ -25,12 +25,12 @@ type Config struct {
 	TrustDomain string // SPIFFE trust domain
 
 	// Discovery Configuration
-	DiscoveryType         string        // dns, registry, static, kubernetes
-	DiscoveryRefreshRate  time.Duration // How often to refresh service discovery
-	DNSDomain             string        // Base domain for DNS discovery
-	DNSResolver           string        // Custom DNS resolver (empty = system default)
-	RegistryEndpoints     []string      // Registry service endpoints
-	StaticEndpoints       map[string][]EndpointConfig
+	DiscoveryType        string        // dns, registry, static, kubernetes
+	DiscoveryRefreshRate time.Duration // How often to refresh service discovery
+	DNSDomain            string        // Base domain for DNS discovery
+	DNSResolver          string        // Custom DNS resolver (empty = system default)
+	RegistryEndpoints    []string      // Registry service endpoints
+	StaticEndpoints      map[string][]EndpointConfig
 
 	// Proxy Configuration
 	InboundPort     int    // Port for inbound proxy (0 = disabled)
@@ -74,12 +74,12 @@ type Config struct {
 	RateLimitAlgorithm string  // token-bucket or sliding-window
 
 	// Health Checking
-	HealthCheckEnabled     bool          // Enable health checking
-	HealthCheckInterval    time.Duration // Health check interval
-	HealthCheckTimeout     time.Duration // Health check timeout
-	HealthyThreshold       int           // Healthy threshold
-	UnhealthyThreshold     int           // Unhealthy threshold
-	PassiveHealthChecking  bool          // Enable passive health checking
+	HealthCheckEnabled    bool          // Enable health checking
+	HealthCheckInterval   time.Duration // Health check interval
+	HealthCheckTimeout    time.Duration // Health check timeout
+	HealthyThreshold      int           // Healthy threshold
+	UnhealthyThreshold    int           // Unhealthy threshold
+	PassiveHealthChecking bool          // Enable passive health checking
 
 	// Observability
 	MetricsEnabled   bool    // Enable metrics collection
@@ -517,7 +517,7 @@ type ServiceConfig struct {
 	CircuitBreakerTimeout          *time.Duration
 
 	// Retry (override global)
-	MaxRetries  *int
+	MaxRetries   *int
 	RetryBackoff *time.Duration
 
 	// Rate Limiting (override global)

@@ -22,16 +22,16 @@ type CanaryStrategy struct {
 }
 
 type canaryDeployment struct {
-	params         *ExecuteParams
-	progress       *Progress
-	result         *Result
+	params          *ExecuteParams
+	progress        *Progress
+	result          *Result
 	stableInstances []Instance
 	canaryInstances []Instance
-	cancel         context.CancelFunc
-	done           chan struct{}
-	currentWeight  int
-	currentStep    int
-	promoted       bool
+	cancel          context.CancelFunc
+	done            chan struct{}
+	currentWeight   int
+	currentStep     int
+	promoted        bool
 	analysisHistory []*AnalysisResult
 }
 

@@ -90,11 +90,11 @@ func NewStore(dbPath string) (*Store, error) {
 
 	// SQLite pragmas for performance + safety
 	pragmas := []string{
-		"PRAGMA journal_mode=WAL",          // Write-ahead log for concurrent reads
-		"PRAGMA synchronous=NORMAL",        // Good durability without FULL overhead
-		"PRAGMA foreign_keys=ON",           // Enforce FK constraints
-		"PRAGMA busy_timeout=5000",         // 5s retry on lock contention
-		"PRAGMA cache_size=-8000",          // 8MB page cache
+		"PRAGMA journal_mode=WAL",   // Write-ahead log for concurrent reads
+		"PRAGMA synchronous=NORMAL", // Good durability without FULL overhead
+		"PRAGMA foreign_keys=ON",    // Enforce FK constraints
+		"PRAGMA busy_timeout=5000",  // 5s retry on lock contention
+		"PRAGMA cache_size=-8000",   // 8MB page cache
 	}
 	for _, p := range pragmas {
 		if _, err := db.Exec(p); err != nil {

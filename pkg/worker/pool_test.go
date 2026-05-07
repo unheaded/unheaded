@@ -724,7 +724,7 @@ func TestJobMetadata(t *testing.T) {
 	job := NewJob("test", nil).
 		WithName("Test Job").
 		WithPriority(PriorityHigh).
-		WithTimeout(5 * time.Second).
+		WithTimeout(5*time.Second).
 		WithRetry(3, time.Second).
 		WithMetadata("key1", "value1").
 		WithMetadata("key2", 42)

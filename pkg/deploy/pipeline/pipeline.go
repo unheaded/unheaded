@@ -15,13 +15,13 @@ import (
 
 // Common errors returned by pipeline operations.
 var (
-	ErrPipelineNotFound    = errors.New("pipeline not found")
-	ErrPipelineRunning     = errors.New("pipeline already running")
-	ErrPipelineAborted     = errors.New("pipeline aborted")
-	ErrStageNotFound       = errors.New("stage not found")
-	ErrStageFailed         = errors.New("stage failed")
-	ErrHookFailed          = errors.New("hook failed")
-	ErrInvalidStage        = errors.New("invalid stage configuration")
+	ErrPipelineNotFound = errors.New("pipeline not found")
+	ErrPipelineRunning  = errors.New("pipeline already running")
+	ErrPipelineAborted  = errors.New("pipeline aborted")
+	ErrStageNotFound    = errors.New("stage not found")
+	ErrStageFailed      = errors.New("stage failed")
+	ErrHookFailed       = errors.New("hook failed")
+	ErrInvalidStage     = errors.New("invalid stage configuration")
 )
 
 // PipelineState represents the current state of a pipeline.
@@ -152,7 +152,7 @@ type StageConfig struct {
 	ValidateRules []string `json:"validate_rules,omitempty"`
 
 	// Deploy stage config
-	DeployStrategy string `json:"deploy_strategy,omitempty"`
+	DeployStrategy string                 `json:"deploy_strategy,omitempty"`
 	DeployParams   map[string]interface{} `json:"deploy_params,omitempty"`
 
 	// Verify stage config
@@ -160,7 +160,7 @@ type StageConfig struct {
 	VerifyTimeout  time.Duration `json:"verify_timeout,omitempty"`
 
 	// Custom stage config
-	CustomHandler string `json:"custom_handler,omitempty"`
+	CustomHandler string                 `json:"custom_handler,omitempty"`
 	CustomParams  map[string]interface{} `json:"custom_params,omitempty"`
 }
 

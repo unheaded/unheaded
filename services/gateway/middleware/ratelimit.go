@@ -65,14 +65,14 @@ func (b *TokenBucket) Tokens() float64 {
 
 // RateLimiter manages rate limits per client.
 type RateLimiter struct {
-	trustedProxies  map[string]bool
-	cfg             *config.RateLimitConfig
-	log             *logger.Logger
-	metrics         *metrics.Registry
+	trustedProxies   map[string]bool
+	cfg              *config.RateLimitConfig
+	log              *logger.Logger
+	metrics          *metrics.Registry
 	rateLimitCounter *metrics.Counter
-	buckets         map[string]*TokenBucket
-	mu              sync.RWMutex
-	stopCh          chan struct{}
+	buckets          map[string]*TokenBucket
+	mu               sync.RWMutex
+	stopCh           chan struct{}
 }
 
 // NewRateLimiter creates a new rate limiter.

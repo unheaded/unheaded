@@ -12,13 +12,13 @@ import (
 
 // GraceEntry tracks a key that is in rotation grace period.
 type GraceEntry struct {
-	OldKeyID   string
-	NewKeyID   string
-	OldKeyRef  uint16
-	NewKeyRef  uint16
-	StartedAt  time.Time
-	ExpiresAt  time.Time
-	Completed  bool
+	OldKeyID  string
+	NewKeyID  string
+	OldKeyRef uint16
+	NewKeyRef uint16
+	StartedAt time.Time
+	ExpiresAt time.Time
+	Completed bool
 }
 
 // GraceManager manages grace periods during key rotation.

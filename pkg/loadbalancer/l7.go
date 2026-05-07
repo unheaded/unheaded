@@ -40,10 +40,10 @@ type L7Proxy struct {
 	stopCh  chan struct{}
 
 	// Stats
-	activeRequests  int64
-	totalRequests   int64
-	totalErrors     int64
-	totalBytes      int64
+	activeRequests int64
+	totalRequests  int64
+	totalErrors    int64
+	totalBytes     int64
 
 	// Callbacks
 	onRequest  func(r *http.Request, backend *Backend)
@@ -161,11 +161,11 @@ func (p *L7Proxy) Start() error {
 
 	// Create HTTP server
 	p.server = &http.Server{
-		Addr:         p.config.ListenAddress,
-		Handler:      p,
-		ReadTimeout:  p.config.Timeouts.Read,
-		WriteTimeout: p.config.Timeouts.Write,
-		IdleTimeout:  p.config.Timeouts.Idle,
+		Addr:           p.config.ListenAddress,
+		Handler:        p,
+		ReadTimeout:    p.config.Timeouts.Read,
+		WriteTimeout:   p.config.Timeouts.Write,
+		IdleTimeout:    p.config.Timeouts.Idle,
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
@@ -537,9 +537,9 @@ func headerContainsTokenCI(headerValue, token string) bool {
 
 // GRPCProxy handles gRPC connections.
 type GRPCProxy struct {
-	pool       *BackendPool
-	tlsConfig  *tls.Config
-	timeout    time.Duration
+	pool      *BackendPool
+	tlsConfig *tls.Config
+	timeout   time.Duration
 }
 
 // NewGRPCProxy creates a new gRPC proxy.
@@ -591,14 +591,14 @@ func isGRPCRequest(r *http.Request) bool {
 
 // CircuitBreaker provides circuit breaker functionality.
 type CircuitBreaker struct {
-	mu           sync.RWMutex
-	state        circuitState
-	failures     int
-	successes    int
-	lastFailure  time.Time
-	threshold    int
-	timeout      time.Duration
-	halfOpenMax  int
+	mu          sync.RWMutex
+	state       circuitState
+	failures    int
+	successes   int
+	lastFailure time.Time
+	threshold   int
+	timeout     time.Duration
+	halfOpenMax int
 }
 
 type circuitState int

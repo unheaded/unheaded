@@ -294,23 +294,23 @@ type DynamicSecretGenerator interface {
 
 // Manager is the main secrets manager that orchestrates all operations.
 type Manager struct {
-	store       SecretStore
-	leases      LeaseManager
-	audit       AuditLogger
-	generators  map[SecretType]DynamicSecretGenerator
-	log         *logger.Logger
-	mu          sync.RWMutex
-	closed      bool
-	stopCh      chan struct{}
+	store      SecretStore
+	leases     LeaseManager
+	audit      AuditLogger
+	generators map[SecretType]DynamicSecretGenerator
+	log        *logger.Logger
+	mu         sync.RWMutex
+	closed     bool
+	stopCh     chan struct{}
 }
 
 // Package-level metrics (registered once)
 var (
-	managerMetricsOnce   sync.Once
-	secretsTotal         *metrics.GaugeVec
-	operationsTotal      *metrics.CounterVec
-	operationErrors      *metrics.CounterVec
-	operationLatency     *metrics.HistogramVec
+	managerMetricsOnce sync.Once
+	secretsTotal       *metrics.GaugeVec
+	operationsTotal    *metrics.CounterVec
+	operationErrors    *metrics.CounterVec
+	operationLatency   *metrics.HistogramVec
 )
 
 // ManagerConfig configures the secrets manager.

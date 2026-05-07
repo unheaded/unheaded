@@ -60,7 +60,7 @@ var fndsaParamInfo = map[ParameterSet]struct {
 	PublicKeySize  int
 	PrivateKeySize int
 }{
-	FNDSA512: {Name: "FN-DSA-512", SignatureSize: 666, PublicKeySize: 897, PrivateKeySize: 1281},
+	FNDSA512:  {Name: "FN-DSA-512", SignatureSize: 666, PublicKeySize: 897, PrivateKeySize: 1281},
 	FNDSA1024: {Name: "FN-DSA-1024", SignatureSize: 1280, PublicKeySize: 1793, PrivateKeySize: 2305},
 }
 

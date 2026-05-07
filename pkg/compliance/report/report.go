@@ -28,7 +28,7 @@ import (
 type ReportType string
 
 const (
-	ReportTypeAssessment ReportType = "assessment"
+	ReportTypeAssessment  ReportType = "assessment"
 	ReportTypeGapAnalysis ReportType = "gap_analysis"
 	ReportTypeRemediation ReportType = "remediation"
 	ReportTypeExecutive   ReportType = "executive"
@@ -37,20 +37,20 @@ const (
 
 // Report represents a compliance report.
 type Report struct {
-	ID              string                 `json:"id"`
-	Type            ReportType             `json:"type"`
-	Title           string                 `json:"title"`
-	Standard        string                 `json:"standard"`
-	Version         string                 `json:"version"`
-	GeneratedAt     time.Time              `json:"generated_at"`
-	GeneratedBy     string                 `json:"generated_by"`
-	Period          ReportPeriod           `json:"period"`
-	Summary         ReportSummary          `json:"summary"`
-	ControlResults  []*ControlReportItem   `json:"control_results"`
-	Findings        []*FindingReportItem   `json:"findings"`
-	Remediations    []*RemediationReportItem `json:"remediations"`
-	GapAnalysis     *GapAnalysis           `json:"gap_analysis,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata"`
+	ID             string                   `json:"id"`
+	Type           ReportType               `json:"type"`
+	Title          string                   `json:"title"`
+	Standard       string                   `json:"standard"`
+	Version        string                   `json:"version"`
+	GeneratedAt    time.Time                `json:"generated_at"`
+	GeneratedBy    string                   `json:"generated_by"`
+	Period         ReportPeriod             `json:"period"`
+	Summary        ReportSummary            `json:"summary"`
+	ControlResults []*ControlReportItem     `json:"control_results"`
+	Findings       []*FindingReportItem     `json:"findings"`
+	Remediations   []*RemediationReportItem `json:"remediations"`
+	GapAnalysis    *GapAnalysis             `json:"gap_analysis,omitempty"`
+	Metadata       map[string]interface{}   `json:"metadata"`
 }
 
 // ReportPeriod represents the time period covered by the report.
@@ -61,34 +61,34 @@ type ReportPeriod struct {
 
 // ReportSummary provides a high-level summary of compliance status.
 type ReportSummary struct {
-	TotalControls     int     `json:"total_controls"`
-	Compliant         int     `json:"compliant"`
-	NonCompliant      int     `json:"non_compliant"`
-	Partial           int     `json:"partial"`
-	NotAssessed       int     `json:"not_assessed"`
-	NotApplicable     int     `json:"not_applicable"`
-	ComplianceRate    float64 `json:"compliance_rate"`
-	RiskScore         float64 `json:"risk_score"`
-	CriticalFindings  int     `json:"critical_findings"`
-	HighFindings      int     `json:"high_findings"`
-	MediumFindings    int     `json:"medium_findings"`
-	LowFindings       int     `json:"low_findings"`
-	OpenRemediations  int     `json:"open_remediations"`
-	OverdueRemediations int   `json:"overdue_remediations"`
+	TotalControls       int     `json:"total_controls"`
+	Compliant           int     `json:"compliant"`
+	NonCompliant        int     `json:"non_compliant"`
+	Partial             int     `json:"partial"`
+	NotAssessed         int     `json:"not_assessed"`
+	NotApplicable       int     `json:"not_applicable"`
+	ComplianceRate      float64 `json:"compliance_rate"`
+	RiskScore           float64 `json:"risk_score"`
+	CriticalFindings    int     `json:"critical_findings"`
+	HighFindings        int     `json:"high_findings"`
+	MediumFindings      int     `json:"medium_findings"`
+	LowFindings         int     `json:"low_findings"`
+	OpenRemediations    int     `json:"open_remediations"`
+	OverdueRemediations int     `json:"overdue_remediations"`
 }
 
 // ControlReportItem represents a control result in the report.
 type ControlReportItem struct {
-	ControlID     string                `json:"control_id"`
-	ControlName   string                `json:"control_name"`
+	ControlID     string                   `json:"control_id"`
+	ControlName   string                   `json:"control_name"`
 	Category      controls.ControlCategory `json:"category"`
-	Status        controls.ControlStatus `json:"status"`
-	Score         float64               `json:"score"`
-	Severity      controls.Severity     `json:"severity"`
-	FindingsCount int                   `json:"findings_count"`
-	EvidenceCount int                   `json:"evidence_count"`
-	TestedAt      time.Time             `json:"tested_at"`
-	Notes         string                `json:"notes,omitempty"`
+	Status        controls.ControlStatus   `json:"status"`
+	Score         float64                  `json:"score"`
+	Severity      controls.Severity        `json:"severity"`
+	FindingsCount int                      `json:"findings_count"`
+	EvidenceCount int                      `json:"evidence_count"`
+	TestedAt      time.Time                `json:"tested_at"`
+	Notes         string                   `json:"notes,omitempty"`
 }
 
 // FindingReportItem represents a finding in the report.
@@ -120,34 +120,34 @@ type RemediationReportItem struct {
 
 // GapAnalysis provides gap analysis results.
 type GapAnalysis struct {
-	Gaps            []*Gap            `json:"gaps"`
-	Categories      map[string]*CategoryGap `json:"categories"`
-	TotalGaps       int               `json:"total_gaps"`
-	CriticalGaps    int               `json:"critical_gaps"`
-	HighPriorityGaps int              `json:"high_priority_gaps"`
-	Recommendations []string          `json:"recommendations"`
+	Gaps             []*Gap                  `json:"gaps"`
+	Categories       map[string]*CategoryGap `json:"categories"`
+	TotalGaps        int                     `json:"total_gaps"`
+	CriticalGaps     int                     `json:"critical_gaps"`
+	HighPriorityGaps int                     `json:"high_priority_gaps"`
+	Recommendations  []string                `json:"recommendations"`
 }
 
 // Gap represents a compliance gap.
 type Gap struct {
-	ControlID   string            `json:"control_id"`
-	ControlName string            `json:"control_name"`
-	Category    controls.ControlCategory `json:"category"`
-	Severity    controls.Severity `json:"severity"`
-	CurrentState string           `json:"current_state"`
-	TargetState  string           `json:"target_state"`
-	GapDescription string         `json:"gap_description"`
-	Recommendations []string      `json:"recommendations"`
-	EstimatedEffort string        `json:"estimated_effort"`
+	ControlID       string                   `json:"control_id"`
+	ControlName     string                   `json:"control_name"`
+	Category        controls.ControlCategory `json:"category"`
+	Severity        controls.Severity        `json:"severity"`
+	CurrentState    string                   `json:"current_state"`
+	TargetState     string                   `json:"target_state"`
+	GapDescription  string                   `json:"gap_description"`
+	Recommendations []string                 `json:"recommendations"`
+	EstimatedEffort string                   `json:"estimated_effort"`
 }
 
 // CategoryGap represents gaps by category.
 type CategoryGap struct {
-	Category    controls.ControlCategory `json:"category"`
-	TotalControls int                   `json:"total_controls"`
-	Compliant   int                     `json:"compliant"`
-	Gaps        int                     `json:"gaps"`
-	ComplianceRate float64             `json:"compliance_rate"`
+	Category       controls.ControlCategory `json:"category"`
+	TotalControls  int                      `json:"total_controls"`
+	Compliant      int                      `json:"compliant"`
+	Gaps           int                      `json:"gaps"`
+	ComplianceRate float64                  `json:"compliance_rate"`
 }
 
 // ReportGenerator generates compliance reports.
@@ -308,12 +308,12 @@ func (g *ReportGenerator) GenerateGapAnalysisReport(ctx context.Context, assessm
 			categoryStats[item.Category].Gaps++
 
 			gap := &Gap{
-				ControlID:   item.ControlID,
-				ControlName: item.ControlName,
-				Category:    item.Category,
-				Severity:    item.Severity,
-				CurrentState: string(item.Status),
-				TargetState:  "compliant",
+				ControlID:      item.ControlID,
+				ControlName:    item.ControlName,
+				Category:       item.Category,
+				Severity:       item.Severity,
+				CurrentState:   string(item.Status),
+				TargetState:    "compliant",
 				GapDescription: fmt.Sprintf("Control %s is %s", item.ControlID, item.Status),
 			}
 

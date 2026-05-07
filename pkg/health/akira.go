@@ -33,9 +33,9 @@ const HealthCheckInterval = 30 * time.Second
 
 // ServiceTarget represents a service to health-check.
 type ServiceTarget struct {
-	Name     string
-	Host     string
-	Port     int
+	Name       string
+	Host       string
+	Port       int
 	HealthPath string // default: /health
 }
 
@@ -62,28 +62,28 @@ type ConsensusState struct {
 
 // Akira monitors services and publishes health reports.
 type Akira struct {
-	nodeID   string
-	targets  []ServiceTarget
-	client   *http.Client
-	logger   zerolog.Logger
+	nodeID  string
+	targets []ServiceTarget
+	client  *http.Client
+	logger  zerolog.Logger
 
-	mu       sync.RWMutex
-	states   map[string]*ConsensusState // service name → state
-	reports  []HealthReport             // recent reports buffer
+	mu      sync.RWMutex
+	states  map[string]*ConsensusState // service name → state
+	reports []HealthReport             // recent reports buffer
 
 	// Callbacks
-	onReport func(HealthReport)         // called for each health check
-	onAlert  func(ConsensusState)       // called when consensus threshold hit
+	onReport func(HealthReport)   // called for each health check
+	onAlert  func(ConsensusState) // called when consensus threshold hit
 }
 
 // NewAkira creates a new akira for the given node.
 func NewAkira(nodeID string, targets []ServiceTarget) *Akira {
 	return &Akira{
-		nodeID: nodeID,
+		nodeID:  nodeID,
 		targets: targets,
-		client: &http.Client{Timeout: 5 * time.Second},
-		logger: log.With().Str("component", "akira").Str("node", nodeID).Logger(),
-		states: make(map[string]*ConsensusState),
+		client:  &http.Client{Timeout: 5 * time.Second},
+		logger:  log.With().Str("component", "akira").Str("node", nodeID).Logger(),
+		states:  make(map[string]*ConsensusState),
 	}
 }
 

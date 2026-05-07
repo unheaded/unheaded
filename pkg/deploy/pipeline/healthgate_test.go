@@ -204,14 +204,14 @@ func TestHealthGateSetEventCallback(t *testing.T) {
 // TestHTTPHealthCheckConfig verifies HTTP health check configuration.
 func TestHTTPHealthCheckConfig(t *testing.T) {
 	config := &HTTPHealthCheck{
-		URL:               "http://localhost:8080/health",
-		Method:            "GET",
-		Headers:           map[string]string{"Authorization": "Bearer token"},
-		Body:              "",
-		ExpectedStatus:    200,
-		ExpectedBody:      "OK",
-		ExpectedJSON:      map[string]interface{}{"status": "healthy"},
-		FollowRedirects:   false,
+		URL:                "http://localhost:8080/health",
+		Method:             "GET",
+		Headers:            map[string]string{"Authorization": "Bearer token"},
+		Body:               "",
+		ExpectedStatus:     200,
+		ExpectedBody:       "OK",
+		ExpectedJSON:       map[string]interface{}{"status": "healthy"},
+		FollowRedirects:    false,
 		InsecureSkipVerify: false,
 	}
 
@@ -688,9 +688,9 @@ func TestCalculateHealthScore(t *testing.T) {
 // TestHealthGateBuilder verifies HealthGateBuilder functionality.
 func TestHealthGateBuilder(t *testing.T) {
 	definition := NewHealthGateBuilder("test-gate").
-		WithInitialDelay(5 * time.Second).
-		WithTimeout(1 * time.Minute).
-		WithInterval(2 * time.Second).
+		WithInitialDelay(5*time.Second).
+		WithTimeout(1*time.Minute).
+		WithInterval(2*time.Second).
 		WithSuccessThreshold(2).
 		WithFailureThreshold(4).
 		WithHealthyPercentage(90).

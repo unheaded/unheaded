@@ -16,22 +16,22 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Backend represents an upstream server.
 type Backend struct {
-	ID          string          `json:"id"`
-	Address     string          `json:"address"`
-	Port        int             `json:"port"`
-	Weight      int             `json:"weight"`
-	MaxConns    int             `json:"max_conns,omitempty"`
-	ActiveConns int64           `json:"active_conns"`
-	Healthy     bool            `json:"healthy"`
-	Status      BackendStatus   `json:"status"`
-	Stats       BackendStats    `json:"stats"`
-	LastChecked time.Time       `json:"last_checked"`
+	ID          string        `json:"id"`
+	Address     string        `json:"address"`
+	Port        int           `json:"port"`
+	Weight      int           `json:"weight"`
+	MaxConns    int           `json:"max_conns,omitempty"`
+	ActiveConns int64         `json:"active_conns"`
+	Healthy     bool          `json:"healthy"`
+	Status      BackendStatus `json:"status"`
+	Stats       BackendStats  `json:"stats"`
+	LastChecked time.Time     `json:"last_checked"`
 }
 
 // BackendStatus tracks backend state.
@@ -53,13 +53,13 @@ type BackendStats struct {
 
 // Pool represents a backend pool.
 type Pool struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Backends  []*Backend        `json:"backends"`
-	Algorithm LBAlgorithm       `json:"algorithm"`
-	Config    PoolConfig        `json:"config"`
-	Sticky    *SessionSticky    `json:"sticky,omitempty"`
-	Index     uint64            // For round-robin
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Backends  []*Backend     `json:"backends"`
+	Algorithm LBAlgorithm    `json:"algorithm"`
+	Config    PoolConfig     `json:"config"`
+	Sticky    *SessionSticky `json:"sticky,omitempty"`
+	Index     uint64         // For round-robin
 }
 
 // PoolConfig holds pool settings.
@@ -74,39 +74,39 @@ type PoolConfig struct {
 type LBAlgorithm string
 
 const (
-	AlgoRoundRobin   LBAlgorithm = "round_robin"
-	AlgoLeastConn    LBAlgorithm = "least_conn"
-	AlgoRandom       LBAlgorithm = "random"
-	AlgoIPHash       LBAlgorithm = "ip_hash"
-	AlgoMaglev       LBAlgorithm = "maglev"
-	AlgoWeighted     LBAlgorithm = "weighted"
+	AlgoRoundRobin LBAlgorithm = "round_robin"
+	AlgoLeastConn  LBAlgorithm = "least_conn"
+	AlgoRandom     LBAlgorithm = "random"
+	AlgoIPHash     LBAlgorithm = "ip_hash"
+	AlgoMaglev     LBAlgorithm = "maglev"
+	AlgoWeighted   LBAlgorithm = "weighted"
 )
 
 // SessionSticky defines session persistence.
 type SessionSticky struct {
-	Enabled  bool          `json:"enabled"`
-	Type     string        `json:"type"` // cookie, source_ip
-	TTL      time.Duration `json:"ttl"`
-	CookieName string      `json:"cookie_name,omitempty"`
+	Enabled    bool          `json:"enabled"`
+	Type       string        `json:"type"` // cookie, source_ip
+	TTL        time.Duration `json:"ttl"`
+	CookieName string        `json:"cookie_name,omitempty"`
 }
 
 // VirtualServer represents a frontend listener.
 type VirtualServer struct {
-	ID       string     `json:"id"`
-	Name     string     `json:"name"`
-	Address  string     `json:"address"`
-	Port     int        `json:"port"`
-	Protocol string     `json:"protocol"` // tcp, http, https
-	PoolID   string     `json:"pool_id"`
-	Rules    []LBRule   `json:"rules,omitempty"`
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Address  string   `json:"address"`
+	Port     int      `json:"port"`
+	Protocol string   `json:"protocol"` // tcp, http, https
+	PoolID   string   `json:"pool_id"`
+	Rules    []LBRule `json:"rules,omitempty"`
 }
 
 // LBRule defines routing rules.
 type LBRule struct {
-	Name      string            `json:"name"`
-	Match     RuleMatch         `json:"match"`
-	PoolID    string            `json:"pool_id"`
-	Priority  int               `json:"priority"`
+	Name     string    `json:"name"`
+	Match    RuleMatch `json:"match"`
+	PoolID   string    `json:"pool_id"`
+	Priority int       `json:"priority"`
 }
 
 // RuleMatch defines match conditions.
@@ -119,7 +119,7 @@ type RuleMatch struct {
 // Service is the main Pauldrons load balancer service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu             sync.RWMutex
@@ -135,7 +135,7 @@ type Config struct {
 	HealthCheckInterval time.Duration `json:"health_check_interval"`
 	SessionTTL          time.Duration `json:"session_ttl"`
 	MaglevTableSize     int           `json:"maglev_table_size"`
-	WotanTopic         string        `json:"wotan_topic"`
+	WotanTopic          string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -145,7 +145,7 @@ func DefaultConfig() *Config {
 		HealthCheckInterval: 5 * time.Second,
 		SessionTTL:          30 * time.Minute,
 		MaglevTableSize:     65537, // Prime number for better distribution
-		WotanTopic:         "pauldrons.lb",
+		WotanTopic:          "pauldrons.lb",
 	}
 }
 
@@ -157,7 +157,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:            log,
-		wotan:         wotan,
+		wotan:          wotan,
 		config:         cfg,
 		pools:          make(map[string]*Pool),
 		virtualServers: make(map[string]*VirtualServer),
@@ -458,11 +458,11 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_pools":        len(s.pools),
-		"total_backends":     totalBackends,
-		"healthy_backends":   healthyBackends,
-		"virtual_servers":    len(s.virtualServers),
-		"active_sessions":    len(s.sessions),
+		"total_pools":      len(s.pools),
+		"total_backends":   totalBackends,
+		"healthy_backends": healthyBackends,
+		"virtual_servers":  len(s.virtualServers),
+		"active_sessions":  len(s.sessions),
 	}
 }
 

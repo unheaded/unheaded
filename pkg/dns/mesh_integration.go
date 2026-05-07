@@ -15,15 +15,15 @@ import (
 
 // MeshIntegration provides integration between DNS and service mesh
 type MeshIntegration struct {
-	sd         *EnhancedServiceDiscovery
-	registry   ServiceRegistry
-	healthAgg  HealthAggregator
-	config     *MeshIntegrationConfig
+	sd        *EnhancedServiceDiscovery
+	registry  ServiceRegistry
+	healthAgg HealthAggregator
+	config    *MeshIntegrationConfig
 
-	mu         sync.RWMutex
-	watchers   map[string]context.CancelFunc
-	stopCh     chan struct{}
-	wg         sync.WaitGroup
+	mu       sync.RWMutex
+	watchers map[string]context.CancelFunc
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
 }
 
 // ServiceRegistry is the interface for a service registry
@@ -72,14 +72,14 @@ type MeshService struct {
 
 // MeshInstance represents a service instance
 type MeshInstance struct {
-	ID        string
-	Address   string
-	Port      int
-	Health    string
-	Weight    int
-	Tags      []string
-	Metadata  map[string]string
-	LastSeen  time.Time
+	ID       string
+	Address  string
+	Port     int
+	Health   string
+	Weight   int
+	Tags     []string
+	Metadata map[string]string
+	LastSeen time.Time
 }
 
 // MeshIntegrationConfig configures mesh integration

@@ -122,9 +122,9 @@ var (
 type PolicyAction string
 
 const (
-	ActionAllow PolicyAction = "allow"
-	ActionDeny  PolicyAction = "deny"
-	ActionLog   PolicyAction = "log"
+	ActionAllow  PolicyAction = "allow"
+	ActionDeny   PolicyAction = "deny"
+	ActionLog    PolicyAction = "log"
 	ActionReject PolicyAction = "reject" // Send ICMP unreachable
 )
 
@@ -1273,17 +1273,17 @@ func (pc *PolicyController) ListPolicies() []*NetworkPolicy {
 
 // generatedRule represents a generated firewall rule
 type generatedRule struct {
-	Type      RuleType
-	Chain     string
-	Protocol  Protocol
-	SourceIP  string
-	DestIP    string
-	SrcPort   string
-	DstPort   string
-	Action    PolicyAction
-	Logging   bool
-	Comment   string
-	Priority  int
+	Type     RuleType
+	Chain    string
+	Protocol Protocol
+	SourceIP string
+	DestIP   string
+	SrcPort  string
+	DstPort  string
+	Action   PolicyAction
+	Logging  bool
+	Comment  string
+	Priority int
 }
 
 // generateRules generates firewall rules from a policy
@@ -1293,17 +1293,17 @@ func (pc *PolicyController) generateRules(policy *NetworkPolicy) ([]generatedRul
 	// Add default deny rules first (The Closed Gate principle)
 	if policy.Spec.DefaultAction == ActionDeny {
 		rules = append(rules, generatedRule{
-			Type:    RuleTypeIngress,
-			Chain:   "INPUT",
-			Action:  ActionDeny,
-			Comment: fmt.Sprintf("%s-default-deny-in", policy.Metadata.Name),
+			Type:     RuleTypeIngress,
+			Chain:    "INPUT",
+			Action:   ActionDeny,
+			Comment:  fmt.Sprintf("%s-default-deny-in", policy.Metadata.Name),
 			Priority: 9999,
 		})
 		rules = append(rules, generatedRule{
-			Type:    RuleTypeEgress,
-			Chain:   "OUTPUT",
-			Action:  ActionDeny,
-			Comment: fmt.Sprintf("%s-default-deny-out", policy.Metadata.Name),
+			Type:     RuleTypeEgress,
+			Chain:    "OUTPUT",
+			Action:   ActionDeny,
+			Comment:  fmt.Sprintf("%s-default-deny-out", policy.Metadata.Name),
 			Priority: 9999,
 		})
 	}

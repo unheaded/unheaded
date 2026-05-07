@@ -765,12 +765,12 @@ func TestLinuxSandboxSecurityContext(t *testing.T) {
 			Type:  "container_t",
 			Level: "s0:c1,c2",
 		},
-		RunAsUser:            &uid,
-		RunAsGroup:           &gid,
-		ReadonlyRootfs:       true,
-		SupplementalGroups:   []int64{100, 101},
-		Privileged:           false,
-		SeccompProfilePath:   "/etc/seccomp/profiles/default.json",
+		RunAsUser:          &uid,
+		RunAsGroup:         &gid,
+		ReadonlyRootfs:     true,
+		SupplementalGroups: []int64{100, 101},
+		Privileged:         false,
+		SeccompProfilePath: "/etc/seccomp/profiles/default.json",
 	}
 
 	if *secCtx.RunAsUser != 1000 {

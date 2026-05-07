@@ -18,12 +18,12 @@ import (
 // MemoryStore is an in-memory key-value store.
 // Thread-safe and supports transactions.
 type MemoryStore struct {
-	mu       sync.RWMutex
-	data     map[string][]byte
-	cfg      Config
-	log      *logger.Logger
-	closed   bool
-	keyCount int64
+	mu        sync.RWMutex
+	data      map[string][]byte
+	cfg       Config
+	log       *logger.Logger
+	closed    bool
+	keyCount  int64
 	sizeBytes int64
 }
 

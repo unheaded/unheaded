@@ -15,7 +15,8 @@
 // THE CUIRASS - The Core Heart of the Unheaded Kingdom
 //
 // "The armor protects the Knight. The Knight serves the Kingdom.
-//  The Kingdom endures forever." - The Sacred Chronicles
+//
+//	The Kingdom endures forever." - The Sacred Chronicles
 package main
 
 import (
@@ -291,23 +292,23 @@ func (m *MockLXDClient) ListContainers() map[string]*ContainerState {
 
 // Config holds daemon configuration (simplified inline for now)
 type Config struct {
-	NodeID       string
-	NodeName     string
-	HTTPAddr     string
-	GRPCAddr     string
-	LXDSocket    string
-	WotanAddr   string
+	NodeID        string
+	NodeName      string
+	HTTPAddr      string
+	GRPCAddr      string
+	LXDSocket     string
+	WotanAddr     string
 	WotanGRPCAddr string
-	PollInterval time.Duration
-	LogLevel     string
+	PollInterval  time.Duration
+	LogLevel      string
 }
 
 // StateManager manages desired vs actual state
 type StateManager struct {
-	mu       sync.RWMutex
-	desired  map[string]*ContainerSpec
-	actual   map[string]*ContainerState
-	drifts   []DriftReport
+	mu      sync.RWMutex
+	desired map[string]*ContainerSpec
+	actual  map[string]*ContainerState
+	drifts  []DriftReport
 }
 
 // ContainerSpec represents desired container state
@@ -471,10 +472,10 @@ func (d *Daemon) Start() error {
 	var httpHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
 
 	d.httpServer = &http.Server{
-		Addr:         d.config.HTTPAddr,
-		Handler:      httpHandler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:           d.config.HTTPAddr,
+		Handler:        httpHandler,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
@@ -1343,29 +1344,29 @@ func (d *Daemon) detectDrift() {
 // yamlConfig represents the YAML file structure for daemon configuration.
 // Fields map to the inline Config struct used by the daemon.
 type yamlConfig struct {
-	NodeID       string `yaml:"node_id"`
-	NodeName     string `yaml:"node_name"`
-	HTTPAddr     string `yaml:"http_addr"`
-	GRPCAddr     string `yaml:"grpc_addr"`
-	LXDSocket    string `yaml:"lxd_socket"`
-	WotanAddr   string `yaml:"wotan_addr"`
+	NodeID        string `yaml:"node_id"`
+	NodeName      string `yaml:"node_name"`
+	HTTPAddr      string `yaml:"http_addr"`
+	GRPCAddr      string `yaml:"grpc_addr"`
+	LXDSocket     string `yaml:"lxd_socket"`
+	WotanAddr     string `yaml:"wotan_addr"`
 	WotanGRPCAddr string `yaml:"wotan_grpc_addr"`
-	PollInterval string `yaml:"poll_interval"`
-	LogLevel     string `yaml:"log_level"`
+	PollInterval  string `yaml:"poll_interval"`
+	LogLevel      string `yaml:"log_level"`
 }
 
 func loadConfig(path string) *Config {
 	// Start with defaults from environment variables
 	cfg := &Config{
-		NodeID:       getEnvOrDefault("UNHEADED_NODE_ID", fmt.Sprintf("citadel-%s", getHostname())),
-		NodeName:     getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
-		HTTPAddr:     getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
-		GRPCAddr:     getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
-		LXDSocket:    getEnvOrDefault("LXD_SOCKET", "/var/lib/lxd/unix.socket"),
-		WotanAddr:   getEnvOrDefault("WOTAN_ADDR", "localhost:18001"),
+		NodeID:        getEnvOrDefault("UNHEADED_NODE_ID", fmt.Sprintf("citadel-%s", getHostname())),
+		NodeName:      getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
+		HTTPAddr:      getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
+		GRPCAddr:      getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
+		LXDSocket:     getEnvOrDefault("LXD_SOCKET", "/var/lib/lxd/unix.socket"),
+		WotanAddr:     getEnvOrDefault("WOTAN_ADDR", "localhost:18001"),
 		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
-		PollInterval: 30 * time.Second,
-		LogLevel:     getEnvOrDefault("LOG_LEVEL", "info"),
+		PollInterval:  30 * time.Second,
+		LogLevel:      getEnvOrDefault("LOG_LEVEL", "info"),
 	}
 
 	// Load from YAML file if path provided, overriding defaults

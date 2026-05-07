@@ -18,34 +18,34 @@ type ErrorLevel uint8
 const (
 	// Error levels
 	FlowLevel   ErrorLevel = iota // Error specific to a flow
-	DomainLevel                    // Error affecting a domain or connection
-	SystemLevel                    // Error affecting the entire system
+	DomainLevel                   // Error affecting a domain or connection
+	SystemLevel                   // Error affecting the entire system
 )
 
 // Core error codes as specified by H2 finding
 const (
-	UNHD_NO_ERROR              ErrorCode = 0x0000
-	UNHD_PROTOCOL_ERROR        ErrorCode = 0x0001
-	UNHD_INVALID_FRAME         ErrorCode = 0x0002
-	UNHD_FLOW_CONTROL_ERROR    ErrorCode = 0x0003
-	UNHD_SETTINGS_TIMEOUT      ErrorCode = 0x0004
-	UNHD_STREAM_CLOSED         ErrorCode = 0x0005
-	UNHD_FRAME_SIZE_ERROR      ErrorCode = 0x0006
-	UNHD_REFUSED_STREAM        ErrorCode = 0x0007
-	UNHD_CANCEL                ErrorCode = 0x0008
-	UNHD_COMPRESSION_ERROR     ErrorCode = 0x0009
-	UNHD_CONNECT_ERROR         ErrorCode = 0x000a
-	UNHD_ENHANCE_YOUR_CALM     ErrorCode = 0x000b
-	UNHD_INTERNAL_ERROR        ErrorCode = 0x000c
+	UNHD_NO_ERROR           ErrorCode = 0x0000
+	UNHD_PROTOCOL_ERROR     ErrorCode = 0x0001
+	UNHD_INVALID_FRAME      ErrorCode = 0x0002
+	UNHD_FLOW_CONTROL_ERROR ErrorCode = 0x0003
+	UNHD_SETTINGS_TIMEOUT   ErrorCode = 0x0004
+	UNHD_STREAM_CLOSED      ErrorCode = 0x0005
+	UNHD_FRAME_SIZE_ERROR   ErrorCode = 0x0006
+	UNHD_REFUSED_STREAM     ErrorCode = 0x0007
+	UNHD_CANCEL             ErrorCode = 0x0008
+	UNHD_COMPRESSION_ERROR  ErrorCode = 0x0009
+	UNHD_CONNECT_ERROR      ErrorCode = 0x000a
+	UNHD_ENHANCE_YOUR_CALM  ErrorCode = 0x000b
+	UNHD_INTERNAL_ERROR     ErrorCode = 0x000c
 )
 
 // IANA allocation ranges
 const (
-	StandardsMin    ErrorCode = 0x0000
-	StandardsMax    ErrorCode = 0x003f
-	ExtensionMin    ErrorCode = 0x0040
-	ExtensionMax    ErrorCode = 0x00ff
-	TestingPrefix   ErrorCode = 0x1f00 // Testing range: 0x1F*N+0x21
+	StandardsMin  ErrorCode = 0x0000
+	StandardsMax  ErrorCode = 0x003f
+	ExtensionMin  ErrorCode = 0x0040
+	ExtensionMax  ErrorCode = 0x00ff
+	TestingPrefix ErrorCode = 0x1f00 // Testing range: 0x1F*N+0x21
 )
 
 // ErrorInfo contains metadata about an error code

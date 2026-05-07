@@ -36,7 +36,7 @@ type serviceHealthState struct {
 
 type endpointHealthState struct {
 	endpoint         *ServiceEndpoint
-	health           HealthState // local copy, safe under hc.mu
+	health           HealthState   // local copy, safe under hc.mu
 	responseTime     time.Duration // local copy, safe under hc.mu
 	consecutiveOK    int
 	consecutiveFail  int

@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Object represents a stored object.
@@ -60,26 +60,26 @@ const (
 
 // Backup represents a backup operation.
 type Backup struct {
-	ID           string       `json:"id"`
-	Name         string       `json:"name"`
-	Source       string       `json:"source"`
-	Destination  string       `json:"destination"`
-	Type         BackupType   `json:"type"`
-	Status       BackupStatus `json:"status"`
-	Size         int64        `json:"size"`
-	ObjectCount  int64        `json:"object_count"`
-	StartedAt    *time.Time   `json:"started_at,omitempty"`
-	CompletedAt  *time.Time   `json:"completed_at,omitempty"`
-	Error        string       `json:"error,omitempty"`
-	RetentionDays int         `json:"retention_days"`
+	ID            string       `json:"id"`
+	Name          string       `json:"name"`
+	Source        string       `json:"source"`
+	Destination   string       `json:"destination"`
+	Type          BackupType   `json:"type"`
+	Status        BackupStatus `json:"status"`
+	Size          int64        `json:"size"`
+	ObjectCount   int64        `json:"object_count"`
+	StartedAt     *time.Time   `json:"started_at,omitempty"`
+	CompletedAt   *time.Time   `json:"completed_at,omitempty"`
+	Error         string       `json:"error,omitempty"`
+	RetentionDays int          `json:"retention_days"`
 }
 
 // BackupType defines backup approach.
 type BackupType string
 
 const (
-	BackupFull        BackupType = "full"
-	BackupIncremental BackupType = "incremental"
+	BackupFull         BackupType = "full"
+	BackupIncremental  BackupType = "incremental"
 	BackupDifferential BackupType = "differential"
 )
 
@@ -95,14 +95,14 @@ const (
 
 // Pipeline represents a data pipeline.
 type Pipeline struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Source      DataSource      `json:"source"`
-	Destination DataSource      `json:"destination"`
-	Transforms  []Transform     `json:"transforms,omitempty"`
-	Schedule    string          `json:"schedule,omitempty"`
-	Status      PipelineStatus  `json:"status"`
-	LastRun     *time.Time      `json:"last_run,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Source      DataSource     `json:"source"`
+	Destination DataSource     `json:"destination"`
+	Transforms  []Transform    `json:"transforms,omitempty"`
+	Schedule    string         `json:"schedule,omitempty"`
+	Status      PipelineStatus `json:"status"`
+	LastRun     *time.Time     `json:"last_run,omitempty"`
 }
 
 // DataSource represents a data source/destination.
@@ -131,7 +131,7 @@ const (
 // Service is the main Tassets data layer service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu        sync.RWMutex
@@ -144,11 +144,11 @@ type Service struct {
 
 // Config holds Tassets service configuration.
 type Config struct {
-	DefaultStorageClass StorageClass  `json:"default_storage_class"`
-	MaxObjectSize       int64         `json:"max_object_size"`
-	DefaultRetention    int           `json:"default_retention_days"`
-	EnableEncryption    bool          `json:"enable_encryption"`
-	WotanTopic         string        `json:"wotan_topic"`
+	DefaultStorageClass StorageClass `json:"default_storage_class"`
+	MaxObjectSize       int64        `json:"max_object_size"`
+	DefaultRetention    int          `json:"default_retention_days"`
+	EnableEncryption    bool         `json:"enable_encryption"`
+	WotanTopic          string       `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -158,7 +158,7 @@ func DefaultConfig() *Config {
 		MaxObjectSize:       5 * 1024 * 1024 * 1024, // 5GB
 		DefaultRetention:    30,
 		EnableEncryption:    true,
-		WotanTopic:         "tassets.storage",
+		WotanTopic:          "tassets.storage",
 	}
 }
 
@@ -170,7 +170,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:       log,
-		wotan:    wotan,
+		wotan:     wotan,
 		config:    cfg,
 		buckets:   make(map[string]*Bucket),
 		objects:   make(map[string]map[string]*Object),

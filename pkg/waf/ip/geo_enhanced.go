@@ -81,17 +81,17 @@ type GeoStats struct {
 
 // GeoLookupResult represents the result of a geo lookup
 type GeoLookupResult struct {
-	Country    string
-	Region     string
-	City       string
-	Continent  string
-	ASN        uint32
-	ISP        string
-	IsProxy    bool
-	IsVPN      bool
-	IsTor      bool
-	IsHosting  bool
-	IsBlocked  bool
+	Country     string
+	Region      string
+	City        string
+	Continent   string
+	ASN         uint32
+	ISP         string
+	IsProxy     bool
+	IsVPN       bool
+	IsTor       bool
+	IsHosting   bool
+	IsBlocked   bool
 	BlockReason string
 }
 

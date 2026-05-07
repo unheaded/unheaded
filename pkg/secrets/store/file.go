@@ -23,13 +23,13 @@ import (
 // FileStore stores secrets as encrypted files on disk.
 // Each secret is stored as a JSON file encrypted with age.
 type FileStore struct {
-	basePath  string
-	encryptor encryption.Encryptor
-	watchers  map[string][]chan *secrets.Secret
-	mu        sync.RWMutex
-	log       *logger.Logger
-	closed    bool
-	closeCh   chan struct{}
+	basePath     string
+	encryptor    encryption.Encryptor
+	watchers     map[string][]chan *secrets.Secret
+	mu           sync.RWMutex
+	log          *logger.Logger
+	closed       bool
+	closeCh      chan struct{}
 	pollInterval time.Duration
 }
 

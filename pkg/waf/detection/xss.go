@@ -19,9 +19,9 @@ import (
 type XSSDetector struct {
 	patterns       []*regexp.Regexp
 	eventHandlers  map[string]bool
-	dangerousTags  map[string]int  // Tag name to risk score
-	dangerousAttrs map[string]int  // Attribute name to risk score
-	jsKeywords     map[string]int  // JavaScript keywords with risk scores
+	dangerousTags  map[string]int // Tag name to risk score
+	dangerousAttrs map[string]int // Attribute name to risk score
+	jsKeywords     map[string]int // JavaScript keywords with risk scores
 	strict         bool
 	htmlParser     *HTMLTokenizer
 }
@@ -438,41 +438,41 @@ func NewXSSDetector(strict bool) *XSSDetector {
 
 	// Dangerous HTML tags with risk scores
 	dangerousTags := map[string]int{
-		"script":    25, "iframe":    20, "frame":    20,
-		"frameset":  15, "object":    20, "embed":    20,
-		"applet":    20, "svg":       15, "math":     10,
-		"style":     12, "link":      10, "base":     15,
-		"form":       8, "input":      5, "button":    5,
-		"select":     5, "textarea":   5, "video":     8,
-		"audio":      8, "source":     5, "track":     5,
-		"meta":      10, "body":       5, "img":       5,
-		"a":          3, "marquee":   10, "bgsound":  10,
-		"keygen":    10, "isindex":   10, "plaintext": 10,
-		"xmp":       10, "listing":   10, "xml":       8,
-		"details":    5, "template":  10, "slot":      5,
-		"xss":       20, "noscript":   8,
+		"script": 25, "iframe": 20, "frame": 20,
+		"frameset": 15, "object": 20, "embed": 20,
+		"applet": 20, "svg": 15, "math": 10,
+		"style": 12, "link": 10, "base": 15,
+		"form": 8, "input": 5, "button": 5,
+		"select": 5, "textarea": 5, "video": 8,
+		"audio": 8, "source": 5, "track": 5,
+		"meta": 10, "body": 5, "img": 5,
+		"a": 3, "marquee": 10, "bgsound": 10,
+		"keygen": 10, "isindex": 10, "plaintext": 10,
+		"xmp": 10, "listing": 10, "xml": 8,
+		"details": 5, "template": 10, "slot": 5,
+		"xss": 20, "noscript": 8,
 	}
 
 	// Dangerous attributes with risk scores
 	dangerousAttrs := map[string]int{
-		"href":        5, "src":        10, "data":       10,
-		"action":     10, "formaction": 15, "srcdoc":     20,
-		"poster":      5, "background":  8, "dynsrc":     10,
-		"lowsrc":     10, "style":       8, "xmlns":       5,
-		"xlink:href": 10, "content":     5, "http-equiv": 10,
-		"srcset":      8, "ping":        5, "usemap":      5,
+		"href": 5, "src": 10, "data": 10,
+		"action": 10, "formaction": 15, "srcdoc": 20,
+		"poster": 5, "background": 8, "dynsrc": 10,
+		"lowsrc": 10, "style": 8, "xmlns": 5,
+		"xlink:href": 10, "content": 5, "http-equiv": 10,
+		"srcset": 8, "ping": 5, "usemap": 5,
 	}
 
 	// JavaScript keywords that indicate code execution
 	jsKeywords := map[string]int{
-		"eval":            20, "setTimeout":   15, "setInterval": 15,
-		"Function":        20, "constructor":  15, "prototype":   10,
-		"__proto__":       15, "document":     10, "window":      10,
-		"alert":            5, "confirm":      5, "prompt":       5,
-		"innerHTML":       15, "outerHTML":   15, "write":       15,
-		"writeln":         15, "fromCharCode": 12, "atob":        10,
-		"btoa":            10, "unescape":    10, "decodeURI":   10,
-		"decodeURIComponent": 10, "execScript": 20, "location":     8,
+		"eval": 20, "setTimeout": 15, "setInterval": 15,
+		"Function": 20, "constructor": 15, "prototype": 10,
+		"__proto__": 15, "document": 10, "window": 10,
+		"alert": 5, "confirm": 5, "prompt": 5,
+		"innerHTML": 15, "outerHTML": 15, "write": 15,
+		"writeln": 15, "fromCharCode": 12, "atob": 10,
+		"btoa": 10, "unescape": 10, "decodeURI": 10,
+		"decodeURIComponent": 10, "execScript": 20, "location": 8,
 	}
 
 	detector := &XSSDetector{

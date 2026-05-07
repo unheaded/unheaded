@@ -74,11 +74,11 @@ var (
 )
 
 var (
-	listenAddr     = flag.String("listen", ports.DefaultAddr(ports.DashboardBackend), "HTTP listen address")
+	listenAddr    = flag.String("listen", ports.DefaultAddr(ports.DashboardBackend), "HTTP listen address")
 	wotanAddr     = flag.String("wotan", "localhost:18001", "Wotan server address")
 	wotanGRPCAddr = flag.String("wotan-grpc-addr", "", "Wotan gRPC address for TopicStream (enables real eBPF events)")
-	debug          = flag.Bool("debug", false, "Enable debug logging")
-	jsonLogs       = flag.Bool("json", false, "Output logs in JSON format")
+	debug         = flag.Bool("debug", false, "Enable debug logging")
+	jsonLogs      = flag.Bool("json", false, "Output logs in JSON format")
 
 	// Scraper settings
 	scrapeInterval = flag.Duration("scrape-interval", 15*time.Second, "Metrics scrape interval")
@@ -175,7 +175,7 @@ func main() {
 	// Create server config
 	config := &server.Config{
 		ListenAddr:   *listenAddr,
-		WotanAddr:   *wotanAddr,
+		WotanAddr:    *wotanAddr,
 		ServiceName:  "dashboard-backend",
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -207,7 +207,7 @@ func main() {
 		},
 
 		EventsConfig: &events.Config{
-			WotanAddr:        *wotanAddr,
+			WotanAddr:         *wotanAddr,
 			ServiceName:       "dashboard-backend",
 			Topics:            getEventTopics(),
 			BufferSize:        1000,
@@ -217,8 +217,8 @@ func main() {
 
 		ServiceEndpoints: serviceEndpoints,
 		StaticFS:         dashboardFS,
-		VizDir:          *vizDir,
-		VMUrl:           *vmURL,
+		VizDir:           *vizDir,
+		VMUrl:            *vmURL,
 	}
 
 	// Create eBPF ingestor if gRPC address is provided (or from WOTAN_GRPC_ADDR env)

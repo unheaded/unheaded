@@ -16,19 +16,19 @@ import (
 // Rust acceleration planned with SIMD path normalization (target: 10x throughput).
 // See docs/WAF_ARCHITECTURE.md for migration strategy.
 type PathTraversalDetector struct {
-	patterns          []*regexp.Regexp
-	sensitiveFiles    map[string]int  // File patterns to risk scores
-	sensitivePaths    map[string]int  // Path patterns to risk scores
-	encodingPatterns  []EncodingLayer // Multi-layer encoding patterns
-	strict            bool
+	patterns         []*regexp.Regexp
+	sensitiveFiles   map[string]int  // File patterns to risk scores
+	sensitivePaths   map[string]int  // Path patterns to risk scores
+	encodingPatterns []EncodingLayer // Multi-layer encoding patterns
+	strict           bool
 }
 
 // EncodingLayer represents an encoding transformation
 type EncodingLayer struct {
-	Name        string
-	Pattern     *regexp.Regexp
-	Decode      func(string) string
-	Risk        int
+	Name    string
+	Pattern *regexp.Regexp
+	Decode  func(string) string
+	Risk    int
 }
 
 // PathToken represents a component of a normalized path
@@ -53,16 +53,16 @@ func NewPathTraversalDetector(strict bool) *PathTraversalDetector {
 		`\.\\\.\.`,
 
 		// URL encoded - single encoding
-		`%2e%2e%2f`,      // ../
-		`%2e%2e\/`,       // ../
-		`\.\.%2f`,        // ../
-		`%2e%2e%5c`,      // ..\
-		`%2e%2e\\`,       // ..\
-		`\.\.%5c`,        // ..\
-		`%2e\.%2f`,       // ../
-		`\.%2e%2f`,       // ../
-		`%2e\.\/`,        // ../
-		`\.%2e\/`,        // ../
+		`%2e%2e%2f`, // ../
+		`%2e%2e\/`,  // ../
+		`\.\.%2f`,   // ../
+		`%2e%2e%5c`, // ..\
+		`%2e%2e\\`,  // ..\
+		`\.\.%5c`,   // ..\
+		`%2e\.%2f`,  // ../
+		`\.%2e%2f`,  // ../
+		`%2e\.\/`,   // ../
+		`\.%2e\/`,   // ../
 
 		// URL encoded - double encoding
 		`%252e%252e%252f`, // ../
@@ -78,14 +78,14 @@ func NewPathTraversalDetector(strict bool) *PathTraversalDetector {
 		`%2E%2E%5C`,
 
 		// Unicode/UTF-8 encoded
-		`%c0%ae%c0%ae%c0%af`,     // IIS specific
+		`%c0%ae%c0%ae%c0%af`, // IIS specific
 		`%c0%ae%c0%ae\/`,
-		`%c1%9c`,                  // Backslash
-		`%c0%af`,                  // Forward slash
-		`%c1%1c`,                  // Backslash variant
-		`%%32%65%%32%65%%32%66`,  // Overlong encoding
-		`%e0%80%ae`,              // Overlong dot
-		`%f0%80%80%ae`,           // 4-byte overlong dot
+		`%c1%9c`,                // Backslash
+		`%c0%af`,                // Forward slash
+		`%c1%1c`,                // Backslash variant
+		`%%32%65%%32%65%%32%66`, // Overlong encoding
+		`%e0%80%ae`,             // Overlong dot
+		`%f0%80%80%ae`,          // 4-byte overlong dot
 
 		// Unicode normalization bypass
 		`\u002e\u002e\u002f`,
@@ -121,7 +121,7 @@ func NewPathTraversalDetector(strict bool) *PathTraversalDetector {
 		// Absolute paths - Windows
 		`(?i)^[a-z]:`,
 		`(?i)^[a-z]:\\`,
-		`(?i)\\\\[a-z]`,  // UNC paths
+		`(?i)\\\\[a-z]`, // UNC paths
 
 		// Sensitive file patterns
 		`(?i)\/etc\/passwd`,
@@ -328,24 +328,24 @@ func NewPathTraversalDetector(strict bool) *PathTraversalDetector {
 
 	// Sensitive files with risk scores
 	sensitiveFiles := map[string]int{
-		"passwd":          25, "shadow":      30, "group":       20,
-		"hosts":           15, "sudoers":    25, "crontab":    20,
-		"id_rsa":          30, "id_dsa":     30, "id_ecdsa":   30,
-		"id_ed25519":      30, "authorized_keys": 25,
-		"htaccess":        20, "htpasswd":   25, "web.config": 20,
-		"wp-config.php":   25, "config.php": 20, ".env":       25,
-		"database.yml":    25, "secrets.yml": 30,
-		".git/config":     20, "HEAD":       15,
-		"boot.ini":        20, "win.ini":   15, "sam":         30,
+		"passwd": 25, "shadow": 30, "group": 20,
+		"hosts": 15, "sudoers": 25, "crontab": 20,
+		"id_rsa": 30, "id_dsa": 30, "id_ecdsa": 30,
+		"id_ed25519": 30, "authorized_keys": 25,
+		"htaccess": 20, "htpasswd": 25, "web.config": 20,
+		"wp-config.php": 25, "config.php": 20, ".env": 25,
+		"database.yml": 25, "secrets.yml": 30,
+		".git/config": 20, "HEAD": 15,
+		"boot.ini": 20, "win.ini": 15, "sam": 30,
 		"application.properties": 20,
 	}
 
 	// Sensitive path prefixes with risk scores
 	sensitivePaths := map[string]int{
-		"/etc/":   20, "/proc/":   25, "/sys/":    20,
-		"/root/":  25, "/var/log/": 15, "/dev/":   20,
-		"/.ssh/":  25, "/.git/":   20, "/.svn/":  15,
-		"/home/":  15, "/tmp/":    10, "/usr/":   10,
+		"/etc/": 20, "/proc/": 25, "/sys/": 20,
+		"/root/": 25, "/var/log/": 15, "/dev/": 20,
+		"/.ssh/": 25, "/.git/": 20, "/.svn/": 15,
+		"/home/": 15, "/tmp/": 10, "/usr/": 10,
 	}
 
 	detector := &PathTraversalDetector{

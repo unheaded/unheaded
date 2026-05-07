@@ -15,24 +15,24 @@ import (
 
 // Resolver errors
 var (
-	ErrNoUpstream     = errors.New("dns: no upstream servers configured")
+	ErrNoUpstream         = errors.New("dns: no upstream servers configured")
 	ErrAllUpstreamsFailed = errors.New("dns: all upstream servers failed")
-	ErrTimeout        = errors.New("dns: query timeout")
-	ErrCanceled       = errors.New("dns: query canceled")
+	ErrTimeout            = errors.New("dns: query timeout")
+	ErrCanceled           = errors.New("dns: query canceled")
 )
 
 // Resolver handles DNS resolution with forwarding and caching
 type Resolver struct {
-	mu          sync.RWMutex
-	zones       *ZoneManager
-	cache       *Cache
-	upstreams   []string
-	timeout     time.Duration
-	maxRetries  int
-	roundRobin  uint32
-	useTCP      bool
-	pool        *connectionPool
-	stats       ResolverStats
+	mu         sync.RWMutex
+	zones      *ZoneManager
+	cache      *Cache
+	upstreams  []string
+	timeout    time.Duration
+	maxRetries int
+	roundRobin uint32
+	useTCP     bool
+	pool       *connectionPool
+	stats      ResolverStats
 }
 
 // ResolverConfig holds resolver configuration

@@ -266,17 +266,17 @@ func (w *Watcher) Remove(path string) error {
 
 // DirectoryWatcher watches a directory for changes.
 type DirectoryWatcher struct {
-	path       string
-	events     chan Event
-	errors     chan error
-	done       chan struct{}
-	interval   time.Duration
-	mu         sync.Mutex
-	running    bool
-	files      map[string]os.FileInfo
-	recursive  bool
-	patterns   []string
-	ignores    []string
+	path      string
+	events    chan Event
+	errors    chan error
+	done      chan struct{}
+	interval  time.Duration
+	mu        sync.Mutex
+	running   bool
+	files     map[string]os.FileInfo
+	recursive bool
+	patterns  []string
+	ignores   []string
 }
 
 // NewDirectoryWatcher creates a new directory watcher.

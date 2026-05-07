@@ -366,23 +366,23 @@ type Runtime interface {
 
 // ContainerFilter defines filters for listing containers.
 type ContainerFilter struct {
-	ID       string
-	Name     string
-	State    ContainerState
-	Labels   map[string]string
+	ID        string
+	Name      string
+	State     ContainerState
+	Labels    map[string]string
 	SandboxID string
 }
 
 // VersionInfo contains runtime version information.
 type VersionInfo struct {
-	Version      string
-	RuntimeName  string
+	Version        string
+	RuntimeName    string
 	RuntimeVersion string
-	APIVersion   string
-	GitCommit    string
-	GoVersion    string
-	OS           string
-	Arch         string
+	APIVersion     string
+	GitCommit      string
+	GoVersion      string
+	OS             string
+	Arch           string
 }
 
 // RuntimeStatus contains runtime status information.

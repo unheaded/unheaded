@@ -12,7 +12,7 @@ import (
 
 // CgroupManager manages cgroups (stub for non-Linux).
 type CgroupManager struct {
-	mu sync.RWMutex
+	mu          sync.RWMutex
 	cgroupPaths map[string]string
 	v2Manager   *CgroupV2Manager
 }

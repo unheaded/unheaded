@@ -113,10 +113,10 @@ const (
 type CheckType string
 
 const (
-	CheckTypeHTTP   CheckType = "http"
-	CheckTypeTCP    CheckType = "tcp"
-	CheckTypeGRPC   CheckType = "grpc"
-	CheckTypeExec   CheckType = "exec"
+	CheckTypeHTTP  CheckType = "http"
+	CheckTypeTCP   CheckType = "tcp"
+	CheckTypeGRPC  CheckType = "grpc"
+	CheckTypeExec  CheckType = "exec"
 	CheckTypeWotan CheckType = "wotan"
 )
 
@@ -471,12 +471,12 @@ func DefaultConfig() *AggregatorConfig {
 	return &AggregatorConfig{
 		DefaultTimeout:             5 * time.Second,
 		DefaultInterval:            30 * time.Second,
-		HistorySize:               1000,
-		CircuitBreakerFailures:    3,
-		CircuitBreakerSuccesses:   2,
+		HistorySize:                1000,
+		CircuitBreakerFailures:     3,
+		CircuitBreakerSuccesses:    2,
 		CircuitBreakerResetTimeout: 30 * time.Second,
-		WotanTopic:               "health.events",
-		ServiceName:               "health-aggregator",
+		WotanTopic:                 "health.events",
+		ServiceName:                "health-aggregator",
 	}
 }
 
@@ -528,20 +528,20 @@ type Aggregator struct {
 	config *AggregatorConfig
 
 	// checks stores registered health checks
-	checks map[string]*HealthCheck
+	checks   map[string]*HealthCheck
 	checksMu sync.RWMutex
 
 	// results stores latest results
-	results map[string]*HealthResult
+	results   map[string]*HealthResult
 	resultsMu sync.RWMutex
 
 	// history stores historical results
-	history map[string]*HealthHistory
+	history   map[string]*HealthHistory
 	historyMu sync.RWMutex
 
 	// circuitBreakers for each check
 	circuitBreakers map[string]*CircuitBreaker
-	cbMu sync.RWMutex
+	cbMu            sync.RWMutex
 
 	// wotan for publishing events
 	wotan WotanPublisher
@@ -556,7 +556,7 @@ type Aggregator struct {
 	runMu   sync.RWMutex
 
 	// event listeners
-	listeners []func(HealthEvent)
+	listeners   []func(HealthEvent)
 	listenersMu sync.RWMutex
 }
 
@@ -572,7 +572,7 @@ func NewAggregator(config *AggregatorConfig, wotan WotanPublisher) *Aggregator {
 		results:         make(map[string]*HealthResult),
 		history:         make(map[string]*HealthHistory),
 		circuitBreakers: make(map[string]*CircuitBreaker),
-		wotan:          wotan,
+		wotan:           wotan,
 		httpClient: &http.Client{
 			Timeout: config.DefaultTimeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {

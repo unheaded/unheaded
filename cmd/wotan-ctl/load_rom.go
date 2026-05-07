@@ -233,18 +233,18 @@ type CpuState struct {
 	TickCounter       uint32
 	ProgramBreak      uint32
 	ExitCode          uint32
-	CurrentPID        uint8    // Level 4c scheduler: current process ID (0-3).
-	NumProcesses      uint8    // Level 4c scheduler: number of active processes.
-	MmuEnabled        uint8    // MMU enabled (0=flat, 1=paging). Level 4d.
-	Pad3              uint8    // Alignment padding.
-	PageDirBase       uint32   // Page directory base address. Level 4d.
+	CurrentPID        uint8  // Level 4c scheduler: current process ID (0-3).
+	NumProcesses      uint8  // Level 4c scheduler: number of active processes.
+	MmuEnabled        uint8  // MMU enabled (0=flat, 1=paging). Level 4d.
+	Pad3              uint8  // Alignment padding.
+	PageDirBase       uint32 // Page directory base address. Level 4d.
 }
 
 // defaultCpuState returns a default CPU state for a given flow label.
 func defaultCpuState(flowLabel uint64) CpuState {
 	cpu := CpuState{}
-	cpu.Regs[15] = 0xFFFF_0000     // SP default (register 15 is stack pointer)
-	cpu.PC = 0                     // Start at instruction 0
+	cpu.Regs[15] = 0xFFFF_0000 // SP default (register 15 is stack pointer)
+	cpu.PC = 0                 // Start at instruction 0
 	cpu.Flags = 0
 	cpu.ProgramBreak = 0x0040_0000 // Default heap start (4 MiB)
 	cpu.NumProcesses = 1           // Single process by default (Level 4c)

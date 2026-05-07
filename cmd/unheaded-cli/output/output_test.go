@@ -35,9 +35,9 @@ func TestDim(t *testing.T) {
 
 func TestColorFunctions(t *testing.T) {
 	tests := []struct {
-		name  string
-		fn    func(string) string
-		code  string
+		name string
+		fn   func(string) string
+		code string
 	}{
 		{"Red", Red, ColorRed},
 		{"Green", Green, ColorGreen},

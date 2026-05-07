@@ -112,7 +112,7 @@ func TestNewService(t *testing.T) {
 			TraceRetention:     30 * time.Minute,
 			ScrapeInterval:     5 * time.Second,
 			EvaluationInterval: 10 * time.Second,
-			WotanTopic:        "custom.topic",
+			WotanTopic:         "custom.topic",
 		}
 		svc := newTestServiceWithConfig(cfg)
 		if svc.config.MetricRetention != 1*time.Hour {
@@ -134,7 +134,7 @@ func TestStartStop(t *testing.T) {
 		TraceRetention:     1 * time.Hour,
 		ScrapeInterval:     1 * time.Second,
 		EvaluationInterval: 50 * time.Millisecond,
-		WotanTopic:        "test",
+		WotanTopic:         "test",
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -160,7 +160,7 @@ func TestStartContextCancellation(t *testing.T) {
 		TraceRetention:     1 * time.Hour,
 		ScrapeInterval:     1 * time.Second,
 		EvaluationInterval: 24 * time.Hour, // very long, we cancel immediately
-		WotanTopic:        "test",
+		WotanTopic:         "test",
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -186,13 +186,13 @@ func TestRecordMetric(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name          string
-		metrics       []*Metric
-		queryName     string
-		from          time.Time
-		to            time.Time
-		wantCount     int
-		desc          string
+		name      string
+		metrics   []*Metric
+		queryName string
+		from      time.Time
+		to        time.Time
+		wantCount int
+		desc      string
 	}{
 		{
 			name: "single metric in range",
@@ -592,11 +592,11 @@ func TestTraceCorrelation(t *testing.T) {
 
 func TestCreateSLO(t *testing.T) {
 	tests := []struct {
-		name          string
-		slo           *SLO
-		wantIDPrefix  string
-		wantBudget    float64
-		wantCurrent   float64
+		name         string
+		slo          *SLO
+		wantIDPrefix string
+		wantBudget   float64
+		wantCurrent  float64
 	}{
 		{
 			name: "with explicit ID",
@@ -1162,9 +1162,9 @@ func TestStats(t *testing.T) {
 	svc.mu.Unlock()
 
 	stats = svc.Stats()
-	assertStatVal(t, stats, "metric_series", 2)  // cpu, mem
-	assertStatVal(t, stats, "total_metrics", 3)   // 2 cpu + 1 mem
-	assertStatVal(t, stats, "active_traces", 2)   // t1, t2
+	assertStatVal(t, stats, "metric_series", 2) // cpu, mem
+	assertStatVal(t, stats, "total_metrics", 3) // 2 cpu + 1 mem
+	assertStatVal(t, stats, "active_traces", 2) // t1, t2
 	assertStatVal(t, stats, "total_slos", 1)
 	assertStatVal(t, stats, "total_alerts", 2)
 	assertStatVal(t, stats, "firing_alerts", 1)
@@ -1193,7 +1193,7 @@ func TestEvaluationLoopUpdatesState(t *testing.T) {
 		TraceRetention:     1 * time.Hour,
 		ScrapeInterval:     1 * time.Second,
 		EvaluationInterval: 25 * time.Millisecond,
-		WotanTopic:        "test",
+		WotanTopic:         "test",
 	})
 
 	_ = svc.CreateSLO(&SLO{

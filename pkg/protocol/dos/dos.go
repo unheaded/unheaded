@@ -24,10 +24,10 @@ const (
 
 // DropRateTracker tracks packet drop rates using a sliding window.
 type DropRateTracker struct {
-	mu              sync.RWMutex
-	windowSize      time.Duration
-	dropEvents      []time.Time
-	lastCleanup     time.Time
+	mu          sync.RWMutex
+	windowSize  time.Duration
+	dropEvents  []time.Time
+	lastCleanup time.Time
 }
 
 // RingBufferMonitor monitors drop rates and triggers backpressure.
@@ -52,7 +52,7 @@ type MapUsageTracker struct {
 
 // BPFMapLimits enforces maximum entries on BPF maps.
 type BPFMapLimits struct {
-	mu         sync.RWMutex
+	mu          sync.RWMutex
 	mapTrackers map[string]*MapUsageTracker
 	logger      *logger.Logger
 	defaultMax  uint64
@@ -60,12 +60,12 @@ type BPFMapLimits struct {
 
 // SizeLimitEnforcer tracks and enforces Sophia state size limits.
 type SizeLimitEnforcer struct {
-	mu              sync.RWMutex
-	perFlowLimit    uint64
-	globalLimit     uint64
-	perFlowUsage    map[string]uint64
-	globalUsage     uint64
-	logger          *logger.Logger
+	mu           sync.RWMutex
+	perFlowLimit uint64
+	globalLimit  uint64
+	perFlowUsage map[string]uint64
+	globalUsage  uint64
+	logger       *logger.Logger
 }
 
 // CompressFlag indicates whether a Sophia entry should be compressed.

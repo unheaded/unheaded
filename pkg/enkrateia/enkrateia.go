@@ -26,8 +26,8 @@ type DriftEvent struct {
 // Alert is what Enkrateia emits when drift is detected.
 // Note: NEVER contains restore actions in v1.
 type Alert struct {
-	Event    DriftEvent
-	Message  string
+	Event     DriftEvent
+	Message   string
 	EmittedAt time.Time
 }
 

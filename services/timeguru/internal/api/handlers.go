@@ -101,8 +101,8 @@ type KanbanTask struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description,omitempty"`
-	Status      string `json:"status"`      // todo, in-progress, done
-	Type        string `json:"type"`        // milestone, feature, task, bug, tech-debt
+	Status      string `json:"status"` // todo, in-progress, done
+	Type        string `json:"type"`   // milestone, feature, task, bug, tech-debt
 	Owner       string `json:"owner,omitempty"`
 	DueDate     string `json:"due_date,omitempty"`
 	Progress    int    `json:"progress,omitempty"`

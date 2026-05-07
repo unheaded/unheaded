@@ -21,13 +21,13 @@ import (
 
 // VaultStore integrates with HashiCorp Vault for secret storage.
 type VaultStore struct {
-	client    *VaultClient
-	mountPath string
-	watchers  map[string][]chan *secrets.Secret
-	mu        sync.RWMutex
-	log       *logger.Logger
-	closed    bool
-	closeCh   chan struct{}
+	client       *VaultClient
+	mountPath    string
+	watchers     map[string][]chan *secrets.Secret
+	mu           sync.RWMutex
+	log          *logger.Logger
+	closed       bool
+	closeCh      chan struct{}
 	pollInterval time.Duration
 }
 
@@ -72,10 +72,10 @@ type VaultTLSConfig struct {
 
 // VaultClient is a simple HTTP client for Vault.
 type VaultClient struct {
-	address   string
-	token     string
-	client    *http.Client
-	log       *logger.Logger
+	address string
+	token   string
+	client  *http.Client
+	log     *logger.Logger
 }
 
 // NewVaultStore creates a new Vault-backed secret store.

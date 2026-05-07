@@ -131,15 +131,15 @@ type AlertFilter struct {
 
 // Silence suppresses notifications for matching alerts.
 type Silence struct {
-	ID        string            `json:"id"`
-	Matchers  []LabelMatcher    `json:"matchers"`
-	StartsAt  time.Time         `json:"starts_at"`
-	EndsAt    time.Time         `json:"ends_at"`
-	CreatedBy string            `json:"created_by"`
-	Comment   string            `json:"comment"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
-	Status    SilenceStatus     `json:"status"`
+	ID        string         `json:"id"`
+	Matchers  []LabelMatcher `json:"matchers"`
+	StartsAt  time.Time      `json:"starts_at"`
+	EndsAt    time.Time      `json:"ends_at"`
+	CreatedBy string         `json:"created_by"`
+	Comment   string         `json:"comment"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	Status    SilenceStatus  `json:"status"`
 }
 
 // SilenceStatus represents the current status of a silence.
@@ -153,9 +153,9 @@ const (
 
 // LabelMatcher defines a label matching criteria.
 type LabelMatcher struct {
-	Name    string    `json:"name"`
-	Value   string    `json:"value"`
-	Type    MatchType `json:"type"`
+	Name  string    `json:"name"`
+	Value string    `json:"value"`
+	Type  MatchType `json:"type"`
 }
 
 // MatchType defines how labels are matched.
@@ -170,11 +170,11 @@ const (
 
 // InhibitionRule prevents alerts from firing when other alerts are active.
 type InhibitionRule struct {
-	ID            string          `json:"id"`
-	SourceMatch   []LabelMatcher  `json:"source_match"`
-	TargetMatch   []LabelMatcher  `json:"target_match"`
-	EqualLabels   []string        `json:"equal_labels"`
-	Enabled       bool            `json:"enabled"`
+	ID          string         `json:"id"`
+	SourceMatch []LabelMatcher `json:"source_match"`
+	TargetMatch []LabelMatcher `json:"target_match"`
+	EqualLabels []string       `json:"equal_labels"`
+	Enabled     bool           `json:"enabled"`
 }
 
 // AlertGroup represents a group of related alerts.
@@ -188,11 +188,11 @@ type AlertGroup struct {
 
 // EscalationPolicy defines how alerts are escalated over time.
 type EscalationPolicy struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Rules       []EscalationStep  `json:"rules"`
-	RepeatAfter time.Duration     `json:"repeat_after"`
-	Enabled     bool              `json:"enabled"`
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Rules       []EscalationStep `json:"rules"`
+	RepeatAfter time.Duration    `json:"repeat_after"`
+	Enabled     bool             `json:"enabled"`
 }
 
 // EscalationStep defines a single step in an escalation policy.

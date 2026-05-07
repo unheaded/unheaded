@@ -116,7 +116,7 @@ func TestNewService_CustomConfig(t *testing.T) {
 		MaxObjectSize:       1024,
 		DefaultRetention:    7,
 		EnableEncryption:    false,
-		WotanTopic:         "custom.topic",
+		WotanTopic:          "custom.topic",
 	}
 	svc := newTestServiceWithConfig(t, cfg)
 
@@ -721,13 +721,13 @@ func TestListObjects(t *testing.T) {
 	mustPutObject(t, svc, "list", "other/e.txt", []byte("e"))
 
 	tests := []struct {
-		name     string
-		bucket   string
-		prefix   string
-		limit    int
-		wantMin  int // minimum expected count (map iteration order is non-deterministic)
-		wantMax  int // maximum expected count
-		wantErr  bool
+		name    string
+		bucket  string
+		prefix  string
+		limit   int
+		wantMin int // minimum expected count (map iteration order is non-deterministic)
+		wantMax int // maximum expected count
+		wantErr bool
 	}{
 		{
 			name:    "all objects no prefix",
@@ -1111,10 +1111,10 @@ func TestCreatePipeline(t *testing.T) {
 		{
 			name: "pipeline with schedule",
 			pipeline: &Pipeline{
-				ID:       "pipe-sched",
-				Name:     "scheduled",
-				Schedule: "0 * * * *",
-				Source:   DataSource{Type: "gcs", Connection: "gs://bucket"},
+				ID:          "pipe-sched",
+				Name:        "scheduled",
+				Schedule:    "0 * * * *",
+				Source:      DataSource{Type: "gcs", Connection: "gs://bucket"},
 				Destination: DataSource{Type: "local", Connection: "/output"},
 			},
 		},
@@ -1378,10 +1378,10 @@ func TestBackupRestore_RoundTrip(t *testing.T) {
 
 	// Populate production data.
 	files := map[string][]byte{
-		"config.yaml":   []byte("port: 8080\nenv: prod"),
-		"data.json":     []byte(`{"users": 42}`),
-		"readme.md":     []byte("# Production Data"),
-		"bin/app":       []byte{0x7f, 0x45, 0x4c, 0x46}, // ELF header bytes
+		"config.yaml": []byte("port: 8080\nenv: prod"),
+		"data.json":   []byte(`{"users": 42}`),
+		"readme.md":   []byte("# Production Data"),
+		"bin/app":     []byte{0x7f, 0x45, 0x4c, 0x46}, // ELF header bytes
 	}
 	for key, data := range files {
 		mustPutObject(t, svc, "prod", key, data)

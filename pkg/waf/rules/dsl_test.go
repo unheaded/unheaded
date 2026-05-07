@@ -99,8 +99,8 @@ func TestDSLParser_RedirectAction(t *testing.T) {
 
 func TestDSLParser_AllSeverities(t *testing.T) {
 	sevs := []struct {
-		keyword  string
-		want     Severity
+		keyword   string
+		want      Severity
 		wantScore int
 	}{
 		{"critical", SeverityCritical, 20},

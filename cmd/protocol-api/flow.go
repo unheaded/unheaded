@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	pb "unheaded/proto/unheaded/v1"
 	"google.golang.org/protobuf/types/known/emptypb"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 // flowServer implements flow lifecycle and management
@@ -136,17 +136,17 @@ func (s *flowServer) injectMock(req *pb.InjectRequest) (*pb.InjectResponse, erro
 		pb.Event_EVENT_TYPE_PACKET_SENT,
 		len(req.Payload),
 		map[string]string{
-			"packet_id":     packetID,
-			"kingdom_mode":  req.KingdomMode.String(),
+			"packet_id":      packetID,
+			"kingdom_mode":   req.KingdomMode.String(),
 			"sophia_dict_id": fmt.Sprintf("%d", req.SophiaDictId),
 		},
 	)
 	eventServer.PublishEvent(event)
 
 	return &pb.InjectResponse{
-		PacketId:  packetID,
+		PacketId:   packetID,
 		InjectedAt: now,
-		Success:   true,
+		Success:    true,
 	}, nil
 }
 

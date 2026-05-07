@@ -292,10 +292,10 @@ func TestRedTeam_OversizedBody_ConfirmBounded(t *testing.T) {
 func TestRedTeam_MalformedJSON_OnAsk(t *testing.T) {
 	ts, _ := newTestDaemon(t, canonicalStub(), &scriptedLLM{})
 	bad := []string{
-		``,                                          // empty
-		`{`,                                         // unclosed
-		`{"goal":}`,                                 // missing value
-		`{"goal":"x" "extra":"y"}`,                  // missing comma
+		``,                         // empty
+		`{`,                        // unclosed
+		`{"goal":}`,                // missing value
+		`{"goal":"x" "extra":"y"}`, // missing comma
 		`{"goal":` + strings.Repeat(`[`, 100) + `}`, // deeply nested
 		`{"goal":"x","seed":"not-an-int"}`,          // type mismatch
 		`{"goal":"\xff\xfe"}`,                       // invalid UTF-8 sequence
@@ -438,4 +438,3 @@ func TestRedTeam_TokenScoping_CrossProjectRedemptionFails(t *testing.T) {
 		t.Errorf("cross-project status: got %q, want unknown", cr.Status)
 	}
 }
-

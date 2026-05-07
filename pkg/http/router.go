@@ -96,9 +96,9 @@ func NewRouter() *Router {
 type nodeType uint8
 
 const (
-	static nodeType = iota // static path segment
-	param                  // path parameter :name
-	catchAll               // catch-all parameter *name
+	static   nodeType = iota // static path segment
+	param                    // path parameter :name
+	catchAll                 // catch-all parameter *name
 )
 
 // radixNode represents a node in the radix tree

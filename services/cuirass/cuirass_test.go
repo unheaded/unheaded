@@ -104,7 +104,7 @@ func TestNewService(t *testing.T) {
 			HealthCheckInterval: 5 * time.Second,
 			ServiceTTL:          15 * time.Second,
 			DeregisterAfter:     45 * time.Second,
-			WotanTopic:         "custom.topic",
+			WotanTopic:          "custom.topic",
 		}
 		svc := NewService(newTestLogger(), nil, cfg)
 		if svc.config.HealthCheckInterval != 5*time.Second {
@@ -151,7 +151,7 @@ func TestRegister(t *testing.T) {
 	tests := []struct {
 		name         string
 		svc          *ServiceRegistration
-		expectID     bool   // expect provided ID to be preserved
+		expectID     bool // expect provided ID to be preserved
 		expectStatus ServiceStatus
 	}{
 		{
@@ -859,7 +859,7 @@ func TestRunHealthChecks_MarkUnhealthyPastTTL(t *testing.T) {
 		HealthCheckInterval: 100 * time.Millisecond,
 		ServiceTTL:          50 * time.Millisecond,
 		DeregisterAfter:     10 * time.Second, // don't deregister
-		WotanTopic:         "test",
+		WotanTopic:          "test",
 	}
 	s := newTestServiceWithConfig(cfg)
 	ctx := context.Background()
@@ -897,7 +897,7 @@ func TestRunHealthChecks_DeregisterStaleService(t *testing.T) {
 		HealthCheckInterval: 100 * time.Millisecond,
 		ServiceTTL:          20 * time.Millisecond,
 		DeregisterAfter:     40 * time.Millisecond,
-		WotanTopic:         "test",
+		WotanTopic:          "test",
 	}
 	s := newTestServiceWithConfig(cfg)
 	ctx := context.Background()
@@ -922,7 +922,7 @@ func TestRunHealthChecks_PreservesHealthyServices(t *testing.T) {
 		HealthCheckInterval: 100 * time.Millisecond,
 		ServiceTTL:          5 * time.Second,
 		DeregisterAfter:     10 * time.Second,
-		WotanTopic:         "test",
+		WotanTopic:          "test",
 	}
 	s := newTestServiceWithConfig(cfg)
 	ctx := context.Background()
@@ -956,7 +956,7 @@ func TestHealthCheckLoop_ContextCancellation(t *testing.T) {
 		HealthCheckInterval: 20 * time.Millisecond,
 		ServiceTTL:          10 * time.Millisecond,
 		DeregisterAfter:     30 * time.Millisecond,
-		WotanTopic:         "test",
+		WotanTopic:          "test",
 	}
 	s := newTestServiceWithConfig(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -991,7 +991,7 @@ func TestHealthCheckLoop_DeregistersStaleService(t *testing.T) {
 		HealthCheckInterval: 15 * time.Millisecond,
 		ServiceTTL:          10 * time.Millisecond,
 		DeregisterAfter:     25 * time.Millisecond,
-		WotanTopic:         "test",
+		WotanTopic:          "test",
 	}
 	s := newTestServiceWithConfig(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1489,7 +1489,7 @@ func TestNodeCapacity(t *testing.T) {
 				Status:  "ready",
 				Capacity: NodeCapacity{
 					CPU:     8,
-					Memory:  16 * 1024 * 1024 * 1024, // 16GB
+					Memory:  16 * 1024 * 1024 * 1024,  // 16GB
 					Storage: 100 * 1024 * 1024 * 1024, // 100GB
 				},
 				Labels: map[string]string{"zone": "a"},
@@ -1578,7 +1578,7 @@ func TestRunHealthChecks_MixedStaleness(t *testing.T) {
 		HealthCheckInterval: 100 * time.Millisecond,
 		ServiceTTL:          30 * time.Millisecond,
 		DeregisterAfter:     60 * time.Millisecond,
-		WotanTopic:         "test",
+		WotanTopic:          "test",
 	}
 	s := newTestServiceWithConfig(cfg)
 	ctx := context.Background()

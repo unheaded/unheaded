@@ -77,12 +77,12 @@ type HealthChecker struct {
 }
 
 type healthCheck struct {
-	address           string
-	status            HealthStatus
-	consecutiveOK     int
-	consecutiveFail   int
-	lastCheck         time.Time
-	lastError         error
+	address         string
+	status          HealthStatus
+	consecutiveOK   int
+	consecutiveFail int
+	lastCheck       time.Time
+	lastError       error
 }
 
 // NewHealthChecker creates a new health checker.
@@ -346,13 +346,13 @@ type PassiveHealthChecker struct {
 }
 
 type passiveEndpoint struct {
-	address        string
-	status         HealthStatus
-	failures       int
-	successes      int
-	lastFailure    time.Time
-	lastSuccess    time.Time
-	ejectedUntil   time.Time
+	address      string
+	status       HealthStatus
+	failures     int
+	successes    int
+	lastFailure  time.Time
+	lastSuccess  time.Time
+	ejectedUntil time.Time
 }
 
 // PassiveHealthConfig configures passive health checking.

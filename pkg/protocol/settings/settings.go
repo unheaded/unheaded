@@ -19,13 +19,13 @@ type SettingID uint16
 
 // Defined settings identifiers.
 const (
-	SettingsMaxDictionarySize SettingID = 0x01
-	SettingsMaxFlowCount      SettingID = 0x02
-	SettingsMaxMonadSize      SettingID = 0x03
+	SettingsMaxDictionarySize   SettingID = 0x01
+	SettingsMaxFlowCount        SettingID = 0x02
+	SettingsMaxMonadSize        SettingID = 0x03
 	SettingsSupportedExtensions SettingID = 0x04
-	SettingsSophiaCompression SettingID = 0x05
-	SettingsRingBufferSize    SettingID = 0x06
-	SettingsWotanBufferSize   SettingID = 0x07
+	SettingsSophiaCompression   SettingID = 0x05
+	SettingsRingBufferSize      SettingID = 0x06
+	SettingsWotanBufferSize     SettingID = 0x07
 )
 
 // String returns the string representation of a SettingID.
@@ -52,8 +52,8 @@ func (s SettingID) String() string {
 
 // Settings represents a collection of protocol settings.
 type Settings struct {
-	values                   map[SettingID]uint64
-	UnknownSettingsIgnored   bool
+	values                 map[SettingID]uint64
+	UnknownSettingsIgnored bool
 }
 
 // New creates a new Settings instance with the given key-value pairs.

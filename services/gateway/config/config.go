@@ -20,7 +20,7 @@ type Config struct {
 	TLS           TLSConfig           `json:"tls"`
 	CORS          CORSConfig          `json:"cors"`
 	Circuit       CircuitConfig       `json:"circuit"`
-	Wotan        WotanConfig        `json:"wotan"`
+	Wotan         WotanConfig         `json:"wotan"`
 	Metrics       MetricsConfig       `json:"metrics"`
 	AlphaServices AlphaServicesConfig `json:"alpha_services"`
 }
@@ -37,49 +37,49 @@ type AlphaServicesConfig struct {
 
 // ServerConfig holds server-specific settings.
 type ServerConfig struct {
-	HTTPPort         int           `json:"http_port"`
-	HTTP3Port        int           `json:"http3_port"`
-	ReadTimeout      time.Duration `json:"read_timeout"`
-	WriteTimeout     time.Duration `json:"write_timeout"`
-	IdleTimeout      time.Duration `json:"idle_timeout"`
-	ShutdownTimeout  time.Duration `json:"shutdown_timeout"`
-	MaxHeaderBytes   int           `json:"max_header_bytes"`
-	EnableHTTP3      bool          `json:"enable_http3"`
-	TLSCertFile      string        `json:"tls_cert_file"`
-	TLSKeyFile       string        `json:"tls_key_file"`
+	HTTPPort        int           `json:"http_port"`
+	HTTP3Port       int           `json:"http3_port"`
+	ReadTimeout     time.Duration `json:"read_timeout"`
+	WriteTimeout    time.Duration `json:"write_timeout"`
+	IdleTimeout     time.Duration `json:"idle_timeout"`
+	ShutdownTimeout time.Duration `json:"shutdown_timeout"`
+	MaxHeaderBytes  int           `json:"max_header_bytes"`
+	EnableHTTP3     bool          `json:"enable_http3"`
+	TLSCertFile     string        `json:"tls_cert_file"`
+	TLSKeyFile      string        `json:"tls_key_file"`
 }
 
 // RouteConfig defines a route to a backend service.
 type RouteConfig struct {
-	Name           string        `json:"name"`
-	PathPrefix     string        `json:"path_prefix"`
-	StripPrefix    bool          `json:"strip_prefix"`
-	Backends       []string      `json:"backends"`
-	LoadBalancer   string        `json:"load_balancer"` // round_robin, random, least_conn
-	HealthCheckURL string        `json:"health_check_url"`
-	Timeout        time.Duration `json:"timeout"`
-	RetryCount     int           `json:"retry_count"`
-	RetryDelay     time.Duration `json:"retry_delay"`
+	Name           string           `json:"name"`
+	PathPrefix     string           `json:"path_prefix"`
+	StripPrefix    bool             `json:"strip_prefix"`
+	Backends       []string         `json:"backends"`
+	LoadBalancer   string           `json:"load_balancer"` // round_robin, random, least_conn
+	HealthCheckURL string           `json:"health_check_url"`
+	Timeout        time.Duration    `json:"timeout"`
+	RetryCount     int              `json:"retry_count"`
+	RetryDelay     time.Duration    `json:"retry_delay"`
 	RateLimit      *RateLimitConfig `json:"rate_limit,omitempty"`
 }
 
 // RateLimitConfig holds rate limiting settings.
 type RateLimitConfig struct {
-	Enabled       bool          `json:"enabled"`
-	RequestsPerSec float64      `json:"requests_per_sec"`
-	BurstSize     int           `json:"burst_size"`
-	CleanupPeriod time.Duration `json:"cleanup_period"`
+	Enabled        bool          `json:"enabled"`
+	RequestsPerSec float64       `json:"requests_per_sec"`
+	BurstSize      int           `json:"burst_size"`
+	CleanupPeriod  time.Duration `json:"cleanup_period"`
 	TrustedProxies []string      `json:"trusted_proxies"`
 }
 
 // AuthConfig holds authentication settings.
 type AuthConfig struct {
-	Enabled        bool     `json:"enabled"`
-	JWTSecret      string   `json:"jwt_secret"`
-	JWTIssuer      string   `json:"jwt_issuer"`
-	APIKeyHeader   string   `json:"api_key_header"`
-	APIKeys        []string `json:"api_keys"`
-	ExcludedPaths  []string `json:"excluded_paths"`
+	Enabled       bool     `json:"enabled"`
+	JWTSecret     string   `json:"jwt_secret"`
+	JWTIssuer     string   `json:"jwt_issuer"`
+	APIKeyHeader  string   `json:"api_key_header"`
+	APIKeys       []string `json:"api_keys"`
+	ExcludedPaths []string `json:"excluded_paths"`
 }
 
 // CORSConfig holds CORS settings.

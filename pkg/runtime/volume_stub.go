@@ -17,15 +17,15 @@ import (
 type MountType string
 
 const (
-	MountTypeBind    MountType = "bind"
-	MountTypeTmpfs   MountType = "tmpfs"
-	MountTypeVolume  MountType = "volume"
-	MountTypeNFS     MountType = "nfs"
-	MountTypeProc    MountType = "proc"
-	MountTypeSysfs   MountType = "sysfs"
-	MountTypeDevpts  MountType = "devpts"
-	MountTypeCgroup  MountType = "cgroup"
-	MountTypeMqueue  MountType = "mqueue"
+	MountTypeBind   MountType = "bind"
+	MountTypeTmpfs  MountType = "tmpfs"
+	MountTypeVolume MountType = "volume"
+	MountTypeNFS    MountType = "nfs"
+	MountTypeProc   MountType = "proc"
+	MountTypeSysfs  MountType = "sysfs"
+	MountTypeDevpts MountType = "devpts"
+	MountTypeCgroup MountType = "cgroup"
+	MountTypeMqueue MountType = "mqueue"
 )
 
 // Mount represents a mount configuration.

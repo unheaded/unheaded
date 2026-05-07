@@ -140,39 +140,39 @@ func TestSSRFDetector_DetectWithDetails(t *testing.T) {
 	detector := NewSSRFDetector(true)
 
 	tests := []struct {
-		name          string
-		input         string
-		wantDetected  bool
-		wantScoreMin  int
-		wantMatchMin  int
+		name         string
+		input        string
+		wantDetected bool
+		wantScoreMin int
+		wantMatchMin int
 	}{
 		{
-			name:          "AWS metadata with path",
-			input:         "http://169.254.169.254/latest/meta-data/iam/security-credentials/admin-role",
-			wantDetected:  true,
-			wantScoreMin:  25,
-			wantMatchMin:  1,
+			name:         "AWS metadata with path",
+			input:        "http://169.254.169.254/latest/meta-data/iam/security-credentials/admin-role",
+			wantDetected: true,
+			wantScoreMin: 25,
+			wantMatchMin: 1,
 		},
 		{
-			name:          "Multiple indicators",
-			input:         "http://127.0.0.1:6379/SLAVEOF+evil.com+6379",
-			wantDetected:  true,
-			wantScoreMin:  30,
-			wantMatchMin:  2,
+			name:         "Multiple indicators",
+			input:        "http://127.0.0.1:6379/SLAVEOF+evil.com+6379",
+			wantDetected: true,
+			wantScoreMin: 30,
+			wantMatchMin: 2,
 		},
 		{
-			name:          "DNS rebinding with private IP",
-			input:         "http://192.168.1.1.nip.io:8080/admin",
-			wantDetected:  true,
-			wantScoreMin:  20,
-			wantMatchMin:  1,
+			name:         "DNS rebinding with private IP",
+			input:        "http://192.168.1.1.nip.io:8080/admin",
+			wantDetected: true,
+			wantScoreMin: 20,
+			wantMatchMin: 1,
 		},
 		{
-			name:          "Clean external URL",
-			input:         "https://api.stripe.com/v1/charges",
-			wantDetected:  false,
-			wantScoreMin:  0,
-			wantMatchMin:  0,
+			name:         "Clean external URL",
+			input:        "https://api.stripe.com/v1/charges",
+			wantDetected: false,
+			wantScoreMin: 0,
+			wantMatchMin: 0,
 		},
 	}
 
@@ -214,7 +214,7 @@ func TestSSRFDetector_IsPrivateIP(t *testing.T) {
 		{"8.8.8.8", false},
 		{"1.1.1.1", false},
 		{"93.184.216.34", false},
-		{"172.32.0.1", false}, // Just outside private range
+		{"172.32.0.1", false},     // Just outside private range
 		{"172.15.255.255", false}, // Just outside private range
 	}
 
@@ -295,9 +295,9 @@ func TestSSRFDetector_GetDangerousPortInfo(t *testing.T) {
 	detector := NewSSRFDetector(false)
 
 	tests := []struct {
-		port         int
-		wantDanger   bool
-		wantService  string
+		port        int
+		wantDanger  bool
+		wantService string
 	}{
 		{22, true, "SSH"},
 		{3306, true, "MySQL"},

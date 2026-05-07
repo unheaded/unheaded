@@ -78,8 +78,8 @@ func (ep *EventPublisher) EventCount() int {
 
 // WotanEventHandler handles incoming Wotan events relevant to PQC verification.
 type WotanEventHandler struct {
-	mu      sync.RWMutex
-	log     io.Writer
+	mu              sync.RWMutex
+	log             io.Writer
 	onSigCreated    func(data []byte)
 	onKeyEvent      func(data []byte)
 	onPolicyChanged func(data []byte)

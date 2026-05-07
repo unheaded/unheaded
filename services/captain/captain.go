@@ -25,7 +25,7 @@ var (
 	ErrEmptyOwner      = errors.New("decision owner cannot be empty")
 	ErrInvalidPriority = errors.New("invalid priority level")
 	ErrServiceClosed   = errors.New("service is closed")
-	ErrNilWotan       = errors.New("wotan client cannot be nil")
+	ErrNilWotan        = errors.New("wotan client cannot be nil")
 	ErrNilStorage      = errors.New("storage cannot be nil")
 )
 
@@ -53,17 +53,17 @@ type Decision struct {
 
 // Vision represents the project vision
 type Vision struct {
-	Title       string `json:"title"`
-	Statement   string `json:"statement"`
-	Goals       []string `json:"goals"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Title     string    `json:"title"`
+	Statement string    `json:"statement"`
+	Goals     []string  `json:"goals"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Strategy represents the strategic plan
 type Strategy struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Phases      []Phase `json:"phases"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Phases      []Phase   `json:"phases"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
@@ -123,7 +123,7 @@ type Service struct {
 	mu              sync.RWMutex
 	closed          bool
 	storage         Storage
-	wotan          WotanCommunicator
+	wotan           WotanCommunicator
 	vision          *Vision
 	strategy        *Strategy
 	metricsCallback func(metric string, value interface{})
@@ -133,7 +133,7 @@ type Service struct {
 // Config holds service configuration
 type Config struct {
 	Storage         Storage
-	Wotan          WotanCommunicator
+	Wotan           WotanCommunicator
 	MetricsCallback func(string, interface{}) // Optional metrics callback
 }
 
@@ -148,13 +148,13 @@ func NewService(cfg Config) (*Service, error) {
 
 	s := &Service{
 		storage:         cfg.Storage,
-		wotan:          cfg.Wotan,
+		wotan:           cfg.Wotan,
 		metricsCallback: cfg.MetricsCallback,
 		vision: &Vision{
-			Title:       "Production-ready infrastructure in hours, not months",
-			Statement:   "Unheaded delivers the complete suit of armor for modern SaaS applications",
-			Goals:       []string{"eBPF observability", "Immutable infrastructure", "Zero customer data access", "Self-hosting proof"},
-			UpdatedAt:   time.Now(),
+			Title:     "Production-ready infrastructure in hours, not months",
+			Statement: "Unheaded delivers the complete suit of armor for modern SaaS applications",
+			Goals:     []string{"eBPF observability", "Immutable infrastructure", "Zero customer data access", "Self-hosting proof"},
+			UpdatedAt: time.Now(),
 		},
 		strategy: &Strategy{
 			Title:       "Alpha Execution Plan",
@@ -377,10 +377,10 @@ func (s *Service) UpdateDecisionStatus(ctx context.Context, id, newStatus string
 
 	// Validate status
 	validStatuses := map[string]bool{
-		"pending":   true,
-		"approved":  true,
-		"rejected":  true,
-		"archived":  true,
+		"pending":  true,
+		"approved": true,
+		"rejected": true,
+		"archived": true,
 	}
 	if !validStatuses[newStatus] {
 		return errors.New("invalid status")

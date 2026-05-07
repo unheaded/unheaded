@@ -48,16 +48,16 @@ type Proxy struct {
 	onResponse func(*Response)
 
 	// State
-	mu       sync.RWMutex
-	running  bool
-	closed   bool
-	wg       sync.WaitGroup
+	mu      sync.RWMutex
+	running bool
+	closed  bool
+	wg      sync.WaitGroup
 
 	// Stats
-	activeConns     int64
-	totalConns      uint64
-	totalRequests   uint64
-	totalBytes      uint64
+	activeConns   int64
+	totalConns    uint64
+	totalRequests uint64
+	totalBytes    uint64
 }
 
 // Config configures the proxy.
@@ -81,9 +81,9 @@ type Config struct {
 	WriteBufferSize int
 
 	// Connection pool
-	MaxIdleConns        int
-	MaxConnsPerHost     int
-	IdleConnTimeout     time.Duration
+	MaxIdleConns    int
+	MaxConnsPerHost int
+	IdleConnTimeout time.Duration
 
 	// TLS
 	TLSConfig       *tls.Config // For inbound
@@ -96,19 +96,19 @@ type Config struct {
 // DefaultConfig returns a default proxy configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		InboundAddr:         "127.0.0.1",
-		InboundPort:         15001,
-		OutboundAddr:        "127.0.0.1",
-		OutboundPort:        15006,
-		ConnectTimeout:      5 * time.Second,
-		ReadTimeout:         30 * time.Second,
-		WriteTimeout:        30 * time.Second,
-		IdleTimeout:         90 * time.Second,
-		ReadBufferSize:      32 * 1024,
-		WriteBufferSize:     32 * 1024,
-		MaxIdleConns:        100,
-		MaxConnsPerHost:     10,
-		IdleConnTimeout:     90 * time.Second,
+		InboundAddr:     "127.0.0.1",
+		InboundPort:     15001,
+		OutboundAddr:    "127.0.0.1",
+		OutboundPort:    15006,
+		ConnectTimeout:  5 * time.Second,
+		ReadTimeout:     30 * time.Second,
+		WriteTimeout:    30 * time.Second,
+		IdleTimeout:     90 * time.Second,
+		ReadBufferSize:  32 * 1024,
+		WriteBufferSize: 32 * 1024,
+		MaxIdleConns:    100,
+		MaxConnsPerHost: 10,
+		IdleConnTimeout: 90 * time.Second,
 	}
 }
 

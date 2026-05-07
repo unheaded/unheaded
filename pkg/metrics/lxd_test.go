@@ -100,14 +100,14 @@ metric2 100 1609459200000`,
 			want: 0,
 		},
 		{
-			name: "empty input",
+			name:  "empty input",
 			input: "",
-			want: 0,
+			want:  0,
 		},
 		{
-			name: "single metric without labels",
+			name:  "single metric without labels",
 			input: "unheaded_metric 42",
-			want: 1,
+			want:  1,
 		},
 	}
 
@@ -153,14 +153,14 @@ func TestParseMetricLine(t *testing.T) {
 			wantOK:    true,
 		},
 		{
-			name:      "invalid value",
-			input:     `metric{x="y"} invalid`,
-			wantOK:    false,
+			name:   "invalid value",
+			input:  `metric{x="y"} invalid`,
+			wantOK: false,
 		},
 		{
-			name:      "empty input",
-			input:     "",
-			wantOK:    false,
+			name:   "empty input",
+			input:  "",
+			wantOK: false,
 		},
 	}
 

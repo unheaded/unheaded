@@ -18,10 +18,10 @@ var ErrShortBuffer = errors.New("monad: buffer too short for PQC value")
 // This is carried by reference in the Monad wire format's scratch bytes
 // when the S+CUSTOM flags are both set.
 type PQCValue struct {
-	SigRef  uint32   // Index into Sophia PQC_SIG_MAP BPF map
-	KeyRef  uint16   // Index into Sophia PQC_KEY_MAP BPF map
-	HashPfx [4]byte  // SHA-256(signature)[0:4] for fast mismatch detection
-	SeqNum  uint16   // Per-flow replay protection sequence number
+	SigRef  uint32  // Index into Sophia PQC_SIG_MAP BPF map
+	KeyRef  uint16  // Index into Sophia PQC_KEY_MAP BPF map
+	HashPfx [4]byte // SHA-256(signature)[0:4] for fast mismatch detection
+	SeqNum  uint16  // Per-flow replay protection sequence number
 }
 
 // Marshal serializes the PQC value to 12 bytes (network byte order / big-endian).

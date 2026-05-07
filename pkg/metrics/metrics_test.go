@@ -143,11 +143,11 @@ func TestHistogram(t *testing.T) {
 	})
 
 	// Observe some values
-	h.Observe(0.05)  // bucket: 0.1
-	h.Observe(0.3)   // bucket: 0.5
-	h.Observe(0.8)   // bucket: 1.0
-	h.Observe(2.0)   // bucket: 2.5
-	h.Observe(10.0)  // bucket: +Inf only
+	h.Observe(0.05) // bucket: 0.1
+	h.Observe(0.3)  // bucket: 0.5
+	h.Observe(0.8)  // bucket: 1.0
+	h.Observe(2.0)  // bucket: 2.5
+	h.Observe(10.0) // bucket: +Inf only
 
 	var buf bytes.Buffer
 	if err := h.Write(&buf); err != nil {

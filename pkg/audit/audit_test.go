@@ -800,4 +800,3 @@ func BenchmarkMemoryStorageQuery(b *testing.B) {
 		store.Query(ctx, query)
 	}
 }
-

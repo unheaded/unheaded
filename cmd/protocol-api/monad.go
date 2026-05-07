@@ -20,8 +20,8 @@ const MonadCRCSize = 2
 
 // CRC-16/CCITT-FALSE parameters
 const (
-	CRCPoly   = 0x1021
-	CRCInit   = 0xFFFF
+	CRCPoly    = 0x1021
+	CRCInit    = 0xFFFF
 	CRCDataLen = 18 // CRC computed over first 18 bytes, stored in bytes 18-19
 )
 

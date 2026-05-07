@@ -14,9 +14,9 @@ import (
 // TestRoundRobinState tests the round-robin algorithm.
 func TestRoundRobinState(t *testing.T) {
 	tests := []struct {
-		name          string
-		backendCount  int
-		selectCount   int
+		name             string
+		backendCount     int
+		selectCount      int
 		wantDistribution bool // true if we expect even distribution
 	}{
 		{
@@ -128,33 +128,33 @@ func TestRoundRobinConcurrency(t *testing.T) {
 // TestLeastConnectionsState tests least-connections algorithm.
 func TestLeastConnectionsState(t *testing.T) {
 	tests := []struct {
-		name           string
-		connections    []int64 // connections per backend
+		name            string
+		connections     []int64 // connections per backend
 		expectedBackend int     // index of expected backend
 	}{
 		{
-			name:           "first has least",
-			connections:    []int64{1, 5, 10},
+			name:            "first has least",
+			connections:     []int64{1, 5, 10},
 			expectedBackend: 0,
 		},
 		{
-			name:           "middle has least",
-			connections:    []int64{10, 1, 5},
+			name:            "middle has least",
+			connections:     []int64{10, 1, 5},
 			expectedBackend: 1,
 		},
 		{
-			name:           "last has least",
-			connections:    []int64{10, 5, 1},
+			name:            "last has least",
+			connections:     []int64{10, 5, 1},
 			expectedBackend: 2,
 		},
 		{
-			name:           "all equal",
-			connections:    []int64{5, 5, 5},
+			name:            "all equal",
+			connections:     []int64{5, 5, 5},
 			expectedBackend: 0, // First one when equal
 		},
 		{
-			name:           "all zero",
-			connections:    []int64{0, 0, 0},
+			name:            "all zero",
+			connections:     []int64{0, 0, 0},
 			expectedBackend: 0,
 		},
 	}
@@ -286,9 +286,9 @@ func TestIPHashDistribution(t *testing.T) {
 // TestWeightedState tests weighted round-robin algorithm.
 func TestWeightedState(t *testing.T) {
 	tests := []struct {
-		name     string
-		weights  []int
-		selects  int
+		name      string
+		weights   []int
+		selects   int
 		tolerance float64 // acceptable variance from expected ratio
 	}{
 		{
@@ -352,10 +352,10 @@ func TestWeightedState(t *testing.T) {
 // TestWeightedLeastConnState tests weighted least-connections algorithm.
 func TestWeightedLeastConnState(t *testing.T) {
 	tests := []struct {
-		name           string
-		weights        []int
-		connections    []int64
-		expectedIndex  int
+		name          string
+		weights       []int
+		connections   []int64
+		expectedIndex int
 	}{
 		{
 			name:          "weight beats connections",

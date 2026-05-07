@@ -23,8 +23,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/lxd"
+	wotanClient "unheaded/pkg/wotan-client"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -35,18 +35,18 @@ import (
 // ============================================================================
 
 var (
-	ErrFlakeNotFound      = errors.New("flake.nix not found")
-	ErrFlakeParseError    = errors.New("failed to parse flake")
-	ErrBuildFailed        = errors.New("nix build failed")
-	ErrBuildTimeout       = errors.New("build timed out")
-	ErrBuildCancelled     = errors.New("build cancelled")
-	ErrImageNotFound      = errors.New("built image not found")
-	ErrLXDImportFailed    = errors.New("LXD image import failed")
-	ErrBuilderNotRunning  = errors.New("builder not running")
-	ErrBuildQueueFull     = errors.New("build queue is full")
-	ErrInvalidBuildSpec   = errors.New("invalid build specification")
-	ErrCacheCorrupted     = errors.New("build cache corrupted")
-	ErrWatcherFailed      = errors.New("flake watcher failed")
+	ErrFlakeNotFound     = errors.New("flake.nix not found")
+	ErrFlakeParseError   = errors.New("failed to parse flake")
+	ErrBuildFailed       = errors.New("nix build failed")
+	ErrBuildTimeout      = errors.New("build timed out")
+	ErrBuildCancelled    = errors.New("build cancelled")
+	ErrImageNotFound     = errors.New("built image not found")
+	ErrLXDImportFailed   = errors.New("LXD image import failed")
+	ErrBuilderNotRunning = errors.New("builder not running")
+	ErrBuildQueueFull    = errors.New("build queue is full")
+	ErrInvalidBuildSpec  = errors.New("invalid build specification")
+	ErrCacheCorrupted    = errors.New("build cache corrupted")
+	ErrWatcherFailed     = errors.New("flake watcher failed")
 )
 
 // ============================================================================
@@ -855,22 +855,22 @@ func DefaultBuilderConfig() BuilderConfig {
 		OutputDir:      "/var/lib/unheaded/nix-builds",
 		CacheDir:       "/var/lib/unheaded/nix-cache",
 		CacheSize:      10 * 1024 * 1024 * 1024, // 10GB
-		CacheAge:       7 * 24 * time.Hour,       // 1 week
+		CacheAge:       7 * 24 * time.Hour,      // 1 week
 		QueueSize:      100,
 		MaxConcurrent:  2,
 		DefaultTimeout: 30 * time.Minute,
 		WatchInterval:  5 * time.Second,
-		WotanTopic:    "nix.builds",
+		WotanTopic:     "nix.builds",
 	}
 }
 
 // Builder is the main NixOS container builder service.
 type Builder struct {
-	config BuilderConfig
-	cache  *BuildCache
-	queue  *BuildQueue
+	config  BuilderConfig
+	cache   *BuildCache
+	queue   *BuildQueue
 	watcher *FlakeWatcher
-	wotan *wotanClient.Client
+	wotan   *wotanClient.Client
 
 	// Build results storage
 	resultsMu sync.RWMutex
@@ -902,7 +902,7 @@ func NewBuilder(config BuilderConfig, wotan *wotanClient.Client) (*Builder, erro
 		config:  config,
 		cache:   cache,
 		queue:   queue,
-		wotan:  wotan,
+		wotan:   wotan,
 		results: make(map[string]*BuildResult),
 		stopCh:  make(chan struct{}),
 	}
@@ -1161,7 +1161,7 @@ func (b *Builder) runNixBuild(ctx context.Context, spec *BuildSpec) (*nixBuildRe
 	}
 
 	var buildOutput []struct {
-		DrvPath string   `json:"drvPath"`
+		DrvPath string            `json:"drvPath"`
 		Outputs map[string]string `json:"outputs"`
 	}
 
@@ -1274,12 +1274,12 @@ func (b *Builder) publishBuildEvent(result *BuildResult) {
 	}
 
 	event := map[string]interface{}{
-		"type":       "build_complete",
-		"build_id":   result.Spec.ID,
-		"container":  result.Spec.ContainerName,
-		"status":     result.Status,
-		"duration":   result.Duration.Seconds(),
-		"timestamp":  time.Now().UnixMilli(),
+		"type":      "build_complete",
+		"build_id":  result.Spec.ID,
+		"container": result.Spec.ContainerName,
+		"status":    result.Status,
+		"duration":  result.Duration.Seconds(),
+		"timestamp": time.Now().UnixMilli(),
 	}
 
 	if result.Error != "" {

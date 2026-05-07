@@ -258,8 +258,8 @@ func newNonFlusherWriter() *nonFlusherWriter {
 }
 
 func (w *nonFlusherWriter) Header() http.Header         { return w.header }
-func (w *nonFlusherWriter) WriteHeader(code int)         { w.code = code }
-func (w *nonFlusherWriter) Write(b []byte) (int, error)  { return w.body.Write(b) }
+func (w *nonFlusherWriter) WriteHeader(code int)        { w.code = code }
+func (w *nonFlusherWriter) Write(b []byte) (int, error) { return w.body.Write(b) }
 
 func TestLogStream_ServeHTTP_NoFlusherSupport(t *testing.T) {
 	buf := logagg.NewRingBuffer(100)

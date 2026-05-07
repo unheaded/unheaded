@@ -552,10 +552,10 @@ func TestPDB_RespectsMinAvailable(t *testing.T) {
 
 	minAvailable := 2
 	pdb := &PodDisruptionBudget{
-		Name:         "test-pdb",
-		Namespace:    "default",
-		Selector:     LabelSelector{MatchLabels: map[string]string{"app": "myapp"}},
-		MinAvailable: &minAvailable,
+		Name:               "test-pdb",
+		Namespace:          "default",
+		Selector:           LabelSelector{MatchLabels: map[string]string{"app": "myapp"}},
+		MinAvailable:       &minAvailable,
 		CurrentHealthy:     3,
 		DesiredHealthy:     3,
 		DisruptionsAllowed: 1, // 3 - 2 = 1
@@ -584,10 +584,10 @@ func TestPDB_RespectsMaxUnavailable(t *testing.T) {
 
 	maxUnavailable := 1
 	pdb := &PodDisruptionBudget{
-		Name:           "test-pdb",
-		Namespace:      "default",
-		Selector:       LabelSelector{MatchLabels: map[string]string{"app": "myapp"}},
-		MaxUnavailable: &maxUnavailable,
+		Name:               "test-pdb",
+		Namespace:          "default",
+		Selector:           LabelSelector{MatchLabels: map[string]string{"app": "myapp"}},
+		MaxUnavailable:     &maxUnavailable,
 		CurrentHealthy:     3,
 		DesiredHealthy:     3,
 		DisruptionsAllowed: 1,

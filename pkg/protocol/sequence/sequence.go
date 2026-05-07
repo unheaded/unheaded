@@ -10,8 +10,8 @@ import (
 
 // NamespaceCounter represents a monotonically increasing sequence counter per namespace.
 type NamespaceCounter struct {
-	mu       sync.RWMutex
-	counter  uint32
+	mu        sync.RWMutex
+	counter   uint32
 	namespace string
 }
 
@@ -54,9 +54,9 @@ func (nc *NamespaceCounter) DetectGap(expected, received uint32) (lost int, reor
 
 // SequenceTracker tracks per-hop namespace counters for the Unheaded protocol.
 type SequenceTracker struct {
-	mu        sync.RWMutex
-	counters  map[string]*NamespaceCounter
-	expected  map[string]uint32 // expected next sequence per namespace
+	mu       sync.RWMutex
+	counters map[string]*NamespaceCounter
+	expected map[string]uint32 // expected next sequence per namespace
 }
 
 // NewSequenceTracker creates a new sequence tracker.

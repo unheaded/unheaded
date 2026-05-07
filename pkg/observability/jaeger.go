@@ -30,7 +30,7 @@ type JaegerSpan struct {
 	OperationName string            `json:"operationName"`
 	ServiceName   string            `json:"serviceName"`
 	StartTime     int64             `json:"startTime"` // microseconds
-	Duration      int64             `json:"duration"`   // microseconds
+	Duration      int64             `json:"duration"`  // microseconds
 	Tags          []JaegerTag       `json:"tags"`
 	Logs          []JaegerSpanLog   `json:"logs,omitempty"`
 	References    []JaegerReference `json:"references,omitempty"`

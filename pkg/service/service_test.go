@@ -96,8 +96,8 @@ func TestReadyEndpoint_Ready(t *testing.T) {
 
 func TestReadyEndpoint_CustomReadyFunc(t *testing.T) {
 	svc, err := New(Config{
-		Name: "test",
-		Port: "9999",
+		Name:      "test",
+		Port:      "9999",
 		ReadyFunc: func() bool { return false },
 	})
 	if err != nil {

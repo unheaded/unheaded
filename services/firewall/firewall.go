@@ -85,13 +85,13 @@ type ConntrackEntry struct {
 
 // ConntrackStats holds aggregated conntrack statistics.
 type ConntrackStats struct {
-	TotalConnections int               `json:"total_connections"`
-	ActiveByState    map[string]int    `json:"active_by_state"`
-	TopSrcIPs        []IPCount         `json:"top_src_ips"`
-	TopDstServices   []ServiceCount    `json:"top_dst_services"`
-	BlockedCount     int64             `json:"blocked_count"`
-	AllowedCount     int64             `json:"allowed_count"`
-	Timestamp        time.Time         `json:"timestamp"`
+	TotalConnections int            `json:"total_connections"`
+	ActiveByState    map[string]int `json:"active_by_state"`
+	TopSrcIPs        []IPCount      `json:"top_src_ips"`
+	TopDstServices   []ServiceCount `json:"top_dst_services"`
+	BlockedCount     int64          `json:"blocked_count"`
+	AllowedCount     int64          `json:"allowed_count"`
+	Timestamp        time.Time      `json:"timestamp"`
 }
 
 // IPCount tracks connection count per IP.

@@ -198,8 +198,8 @@ func (v *SyscallValidator) Validate(msg SyscallMessage) error {
 		if !ValidateMemoryRange(msg.MemoryAddr, msg.MemorySize, DefaultMaxMemoryAddr) {
 			v.rejected++
 			return &ValidationError{
-				Code:    400,
-				Field:   "memory_addr",
+				Code:  400,
+				Field: "memory_addr",
 				Message: fmt.Sprintf("memory range [0x%x, 0x%x) out of bounds (max 0x%x)",
 					msg.MemoryAddr, uint64(msg.MemoryAddr)+uint64(msg.MemorySize), DefaultMaxMemoryAddr),
 			}

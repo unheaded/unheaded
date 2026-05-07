@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Metric represents a collected metric.
@@ -40,17 +40,17 @@ const (
 
 // Span represents a distributed trace span.
 type Span struct {
-	TraceID    string            `json:"trace_id"`
-	SpanID     string            `json:"span_id"`
-	ParentID   string            `json:"parent_id,omitempty"`
-	Name       string            `json:"name"`
-	Service    string            `json:"service"`
-	StartTime  time.Time         `json:"start_time"`
-	EndTime    *time.Time        `json:"end_time,omitempty"`
-	Duration   time.Duration     `json:"duration,omitempty"`
-	Status     SpanStatus        `json:"status"`
-	Tags       map[string]string `json:"tags,omitempty"`
-	Logs       []SpanLog         `json:"logs,omitempty"`
+	TraceID   string            `json:"trace_id"`
+	SpanID    string            `json:"span_id"`
+	ParentID  string            `json:"parent_id,omitempty"`
+	Name      string            `json:"name"`
+	Service   string            `json:"service"`
+	StartTime time.Time         `json:"start_time"`
+	EndTime   *time.Time        `json:"end_time,omitempty"`
+	Duration  time.Duration     `json:"duration,omitempty"`
+	Status    SpanStatus        `json:"status"`
+	Tags      map[string]string `json:"tags,omitempty"`
+	Logs      []SpanLog         `json:"logs,omitempty"`
 }
 
 // SpanStatus indicates span outcome.
@@ -83,17 +83,17 @@ type SLO struct {
 
 // Alert represents an alerting rule.
 type Alert struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Query       string      `json:"query"`
-	Condition   string      `json:"condition"`
-	Threshold   float64     `json:"threshold"`
-	Duration    string      `json:"duration"`
-	Severity    string      `json:"severity"` // critical, warning, info
-	State       AlertState  `json:"state"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Query       string            `json:"query"`
+	Condition   string            `json:"condition"`
+	Threshold   float64           `json:"threshold"`
+	Duration    string            `json:"duration"`
+	Severity    string            `json:"severity"` // critical, warning, info
+	State       AlertState        `json:"state"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
-	LastFired   *time.Time  `json:"last_fired,omitempty"`
+	LastFired   *time.Time        `json:"last_fired,omitempty"`
 }
 
 // AlertState represents alert status.
@@ -124,7 +124,7 @@ type Panel struct {
 // Service is the main Vambraces observability service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu         sync.RWMutex
@@ -139,11 +139,11 @@ type Service struct {
 
 // Config holds Vambraces service configuration.
 type Config struct {
-	MetricRetention  time.Duration `json:"metric_retention"`
-	TraceRetention   time.Duration `json:"trace_retention"`
-	ScrapeInterval   time.Duration `json:"scrape_interval"`
+	MetricRetention    time.Duration `json:"metric_retention"`
+	TraceRetention     time.Duration `json:"trace_retention"`
+	ScrapeInterval     time.Duration `json:"scrape_interval"`
 	EvaluationInterval time.Duration `json:"evaluation_interval"`
-	WotanTopic      string        `json:"wotan_topic"`
+	WotanTopic         string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -153,7 +153,7 @@ func DefaultConfig() *Config {
 		TraceRetention:     24 * time.Hour,
 		ScrapeInterval:     15 * time.Second,
 		EvaluationInterval: 1 * time.Minute,
-		WotanTopic:        "vambraces.observability",
+		WotanTopic:         "vambraces.observability",
 	}
 }
 
@@ -165,7 +165,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:        log,
-		wotan:     wotan,
+		wotan:      wotan,
 		config:     cfg,
 		metrics:    make(map[string][]*Metric),
 		traces:     make(map[string][]*Span),
@@ -399,13 +399,13 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"metric_series":  len(s.metrics),
-		"total_metrics":  totalMetrics,
-		"active_traces":  len(s.traces),
-		"total_slos":     len(s.slos),
-		"total_alerts":   len(s.alerts),
-		"firing_alerts":  firingAlerts,
-		"dashboards":     len(s.dashboards),
+		"metric_series": len(s.metrics),
+		"total_metrics": totalMetrics,
+		"active_traces": len(s.traces),
+		"total_slos":    len(s.slos),
+		"total_alerts":  len(s.alerts),
+		"firing_alerts": firingAlerts,
+		"dashboards":    len(s.dashboards),
 	}
 }
 

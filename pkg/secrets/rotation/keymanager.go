@@ -135,13 +135,13 @@ type ManagedKey struct {
 
 // KeyManager manages cryptographic keys with versioning.
 type KeyManager struct {
-	keys         map[string]*ManagedKey
-	store        secrets.SecretStore
-	escrow       EscrowProvider
-	log          *logger.Logger
-	mu           sync.RWMutex
-	derivedKeys  map[string][]byte // Cache for derived keys
-	derivedMu    sync.RWMutex
+	keys        map[string]*ManagedKey
+	store       secrets.SecretStore
+	escrow      EscrowProvider
+	log         *logger.Logger
+	mu          sync.RWMutex
+	derivedKeys map[string][]byte // Cache for derived keys
+	derivedMu   sync.RWMutex
 }
 
 // KeyManagerConfig configures the key manager.
@@ -662,10 +662,10 @@ type EscrowProvider interface {
 
 // FileEscrowProvider stores escrowed keys in encrypted files.
 type FileEscrowProvider struct {
-	basePath    string
-	encryptKey  []byte
-	log         *logger.Logger
-	mu          sync.RWMutex
+	basePath   string
+	encryptKey []byte
+	log        *logger.Logger
+	mu         sync.RWMutex
 }
 
 // FileEscrowConfig configures the file escrow provider.

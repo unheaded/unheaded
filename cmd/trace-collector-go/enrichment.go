@@ -22,19 +22,19 @@ import (
 
 // TraceEvent represents an enriched trace flowing through the pipeline.
 type TraceEvent struct {
-	TraceID          string        `json:"trace_id"`
-	TimestampNS      uint64        `json:"timestamp_ns"`
-	SrcServiceID     uint8         `json:"src_service_id"`
-	DstServiceID     uint8         `json:"dst_service_id"`
-	SrcServiceName   string        `json:"src_service_name,omitempty"`
-	DstServiceName   string        `json:"dst_service_name,omitempty"`
-	GeoZone          string        `json:"geo_zone,omitempty"`
-	QoSClass         uint8         `json:"qos_class"`
-	QoSDescription   string        `json:"qos_description,omitempty"`
-	Hops             []HopData     `json:"hops,omitempty"`
-	PathLatency      time.Duration `json:"path_latency_ns,omitempty"`
-	DependencyEdges  []DepEdge     `json:"dependency_edges,omitempty"`
-	Enriched         bool          `json:"enriched"`
+	TraceID         string        `json:"trace_id"`
+	TimestampNS     uint64        `json:"timestamp_ns"`
+	SrcServiceID    uint8         `json:"src_service_id"`
+	DstServiceID    uint8         `json:"dst_service_id"`
+	SrcServiceName  string        `json:"src_service_name,omitempty"`
+	DstServiceName  string        `json:"dst_service_name,omitempty"`
+	GeoZone         string        `json:"geo_zone,omitempty"`
+	QoSClass        uint8         `json:"qos_class"`
+	QoSDescription  string        `json:"qos_description,omitempty"`
+	Hops            []HopData     `json:"hops,omitempty"`
+	PathLatency     time.Duration `json:"path_latency_ns,omitempty"`
+	DependencyEdges []DepEdge     `json:"dependency_edges,omitempty"`
+	Enriched        bool          `json:"enriched"`
 }
 
 // HopData represents a single hop in a trace path.
@@ -71,12 +71,12 @@ const maxCacheEntries = 1000
 // Sophia's dictionary, geographic zone information, and QoS class
 // descriptions. It maintains a bounded cache to avoid redundant lookups.
 type TraceEnricher struct {
-	wotan      *wotanClient.Client
-	cache      sync.Map // map[uint8]*enrichmentCacheEntry
-	cacheSize  int64
-	enriched   int64
+	wotan       *wotanClient.Client
+	cache       sync.Map // map[uint8]*enrichmentCacheEntry
+	cacheSize   int64
+	enriched    int64
 	cacheMisses int64
-	cacheHits  int64
+	cacheHits   int64
 }
 
 // NewTraceEnricher creates a TraceEnricher backed by the given Wotan

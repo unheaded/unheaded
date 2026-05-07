@@ -191,7 +191,7 @@ func main() {
 		Addr:           fmt.Sprintf(":%d", b.port),
 		Handler:        httpHandler,
 		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   0, // Disabled: WebSocket connections are long-lived
+		WriteTimeout:   0,       // Disabled: WebSocket connections are long-lived
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
@@ -577,7 +577,6 @@ func (b *bridge) readScreen() ([]byte, error) {
 	return readScreenIndividual(b.screenMap)
 }
 
-
 // statsLoop polls STATS and CPU_MAP at ~2fps and broadcasts as JSON.
 func (b *bridge) statsLoop(stop chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
@@ -678,4 +677,3 @@ func (b *bridge) broadcastText(data []byte) {
 		}
 	}
 }
-

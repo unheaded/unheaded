@@ -67,14 +67,14 @@ type ContainerInfo struct {
 
 // ContainerState represents the runtime state of a container
 type ContainerState struct {
-	Status     string            `json:"status"`
-	StatusCode int               `json:"status_code"`
-	CPU        CPUState          `json:"cpu"`
-	Memory     MemoryState       `json:"memory"`
-	Network    map[string]NetState `json:"network"`
+	Status     string               `json:"status"`
+	StatusCode int                  `json:"status_code"`
+	CPU        CPUState             `json:"cpu"`
+	Memory     MemoryState          `json:"memory"`
+	Network    map[string]NetState  `json:"network"`
 	Disk       map[string]DiskState `json:"disk"`
-	Pid        int64             `json:"pid"`
-	Processes  int64             `json:"processes"`
+	Pid        int64                `json:"pid"`
+	Processes  int64                `json:"processes"`
 }
 
 // CPUState represents CPU usage statistics
@@ -91,7 +91,7 @@ type MemoryState struct {
 
 // NetState represents network interface statistics
 type NetState struct {
-	Addresses []Address `json:"addresses"`
+	Addresses []Address   `json:"addresses"`
 	Counters  NetCounters `json:"counters"`
 	Hwaddr    string      `json:"hwaddr"`
 	Mtu       int         `json:"mtu"`
@@ -124,26 +124,26 @@ type DiskState struct {
 
 // Operation represents an LXD async operation
 type Operation struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Status      string            `json:"status"`
-	StatusCode  int               `json:"status_code"`
-	Resources   map[string][]string `json:"resources"`
+	ID          string                 `json:"id"`
+	Type        string                 `json:"type"`
+	Status      string                 `json:"status"`
+	StatusCode  int                    `json:"status_code"`
+	Resources   map[string][]string    `json:"resources"`
 	Metadata    map[string]interface{} `json:"metadata"`
-	MayCancel   bool              `json:"may_cancel"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
-	Description string            `json:"description"`
-	Err         string            `json:"err"`
+	MayCancel   bool                   `json:"may_cancel"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+	Description string                 `json:"description"`
+	Err         string                 `json:"err"`
 }
 
 // Snapshot represents a container snapshot
 type Snapshot struct {
-	Name         string            `json:"name"`
-	Stateful     bool              `json:"stateful"`
-	CreatedAt    time.Time         `json:"created_at"`
-	ExpiresAt    time.Time         `json:"expires_at"`
-	Config       map[string]string `json:"config"`
+	Name      string            `json:"name"`
+	Stateful  bool              `json:"stateful"`
+	CreatedAt time.Time         `json:"created_at"`
+	ExpiresAt time.Time         `json:"expires_at"`
+	Config    map[string]string `json:"config"`
 }
 
 // ============================================================================
@@ -197,12 +197,12 @@ type Client interface {
 
 // ServerInfo represents LXD server information
 type ServerInfo struct {
-	APIVersion    string            `json:"api_version"`
-	Auth          string            `json:"auth"`
-	Public        bool              `json:"public"`
-	AuthMethods   []string          `json:"auth_methods"`
-	Environment   map[string]string `json:"environment"`
-	Config        map[string]interface{} `json:"config"`
+	APIVersion  string                 `json:"api_version"`
+	Auth        string                 `json:"auth"`
+	Public      bool                   `json:"public"`
+	AuthMethods []string               `json:"auth_methods"`
+	Environment map[string]string      `json:"environment"`
+	Config      map[string]interface{} `json:"config"`
 }
 
 // ExecResult represents the result of container command execution
@@ -218,12 +218,12 @@ type ExecResult struct {
 
 // MockClient implements Client interface for testing
 type MockClient struct {
-	mu            sync.RWMutex
-	connected     bool
-	containers    map[string]*ContainerInfo
+	mu             sync.RWMutex
+	connected      bool
+	containers     map[string]*ContainerInfo
 	containerState map[string]*ContainerState
-	snapshots     map[string][]Snapshot
-	operations    map[string]*Operation
+	snapshots      map[string][]Snapshot
+	operations     map[string]*Operation
 }
 
 // NewMockClient creates a new mock LXD client
@@ -274,12 +274,12 @@ func (m *MockClient) ServerInfo(ctx context.Context) (*ServerInfo, error) {
 		Public:      false,
 		AuthMethods: []string{"tls"},
 		Environment: map[string]string{
-			"kernel":           "linux",
-			"kernel_version":   "6.1.0",
-			"server":           "lxd",
-			"server_version":   "5.21",
-			"storage":          "zfs",
-			"storage_version":  "2.2.0",
+			"kernel":          "linux",
+			"kernel_version":  "6.1.0",
+			"server":          "lxd",
+			"server_version":  "5.21",
+			"storage":         "zfs",
+			"storage_version": "2.2.0",
 		},
 	}, nil
 }
@@ -875,13 +875,13 @@ func (m *MockClient) CancelOperation(ctx context.Context, op *Operation) error {
 
 // ClientConfig holds configuration for creating an LXD client
 type ClientConfig struct {
-	Socket      string        // Unix socket path (default: /var/lib/lxd/unix.socket)
-	HTTPS       string        // HTTPS endpoint for remote LXD
-	TLSCert     string        // Path to client certificate
-	TLSKey      string        // Path to client key
-	TLSCA       string        // Path to CA certificate
-	Timeout     time.Duration // Connection timeout
-	SkipVerify  bool          // Skip TLS verification (not recommended)
+	Socket     string        // Unix socket path (default: /var/lib/lxd/unix.socket)
+	HTTPS      string        // HTTPS endpoint for remote LXD
+	TLSCert    string        // Path to client certificate
+	TLSKey     string        // Path to client key
+	TLSCA      string        // Path to CA certificate
+	Timeout    time.Duration // Connection timeout
+	SkipVerify bool          // Skip TLS verification (not recommended)
 }
 
 // NewClient creates a new LXD client (returns mock for now)

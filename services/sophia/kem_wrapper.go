@@ -23,8 +23,8 @@ type KEMWrapper struct {
 	mu sync.RWMutex
 
 	// Pluggable encapsulate/decapsulate functions
-	encapFn  func(algoID, paramSet uint8, pubKey []byte) (ciphertext, sharedSecret []byte, err error)
-	decapFn  func(algoID, paramSet uint8, ciphertext, secretKey []byte) (sharedSecret []byte, err error)
+	encapFn func(algoID, paramSet uint8, pubKey []byte) (ciphertext, sharedSecret []byte, err error)
+	decapFn func(algoID, paramSet uint8, ciphertext, secretKey []byte) (sharedSecret []byte, err error)
 
 	// Operation log
 	operations []KEMOperation

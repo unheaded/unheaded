@@ -28,11 +28,11 @@ func TestNewEngine(t *testing.T) {
 	}
 
 	expectedStandards := map[string]bool{
-		"SOC2":       false,
+		"SOC2":        false,
 		"NIST-800-53": false,
-		"PCI-DSS":    false,
-		"HIPAA":      false,
-		"GDPR":       false,
+		"PCI-DSS":     false,
+		"HIPAA":       false,
+		"GDPR":        false,
 	}
 
 	for _, std := range stds {

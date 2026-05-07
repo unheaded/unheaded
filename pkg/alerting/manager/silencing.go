@@ -21,9 +21,9 @@ type Silencer struct {
 
 // compiledMatcher holds a pre-compiled regex matcher.
 type compiledMatcher struct {
-	name    string
-	value   string
-	regex   *regexp.Regexp
+	name      string
+	value     string
+	regex     *regexp.Regexp
 	matchType alerting.MatchType
 }
 

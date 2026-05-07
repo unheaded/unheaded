@@ -363,9 +363,9 @@ func TestAPIKeyIntegration_RotateAPIKey_WithScopes(t *testing.T) {
 	})
 
 	result, err := aki.RotateAPIKey(context.Background(), "apikeys/scoped", "default", APIKeyOptions{
-		Length:   32,
-		Scopes:   []string{"read", "write"},
-		Metadata: map[string]string{"env": "prod"},
+		Length:    32,
+		Scopes:    []string{"read", "write"},
+		Metadata:  map[string]string{"env": "prod"},
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 	if err != nil {

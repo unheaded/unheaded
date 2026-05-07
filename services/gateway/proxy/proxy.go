@@ -22,14 +22,14 @@ import (
 
 // ReverseProxy handles proxying requests to backend services.
 type ReverseProxy struct {
-	cfg              *config.RouteConfig
-	log              *logger.Logger
-	requestDuration  *metrics.HistogramVec
-	requestsTotal    *metrics.CounterVec
-	loadBalancer     LoadBalancer
-	circuitBreaker   *CircuitBreaker
-	transport        http.RoundTripper
-	bufferPool       sync.Pool
+	cfg             *config.RouteConfig
+	log             *logger.Logger
+	requestDuration *metrics.HistogramVec
+	requestsTotal   *metrics.CounterVec
+	loadBalancer    LoadBalancer
+	circuitBreaker  *CircuitBreaker
+	transport       http.RoundTripper
+	bufferPool      sync.Pool
 }
 
 // NewReverseProxy creates a new reverse proxy.

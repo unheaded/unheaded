@@ -11,18 +11,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"github.com/rs/zerolog/log"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Service manages micromanager business logic and Wotan integration
 type Service struct {
-	store          *Store
+	store         *Store
 	wotan         *wotanClient.Client
-	taskIDCounter  int64
-	subscriptions  map[string]bool
-	subMu          sync.RWMutex
-	alertListener  chan *wotanClient.Message
+	taskIDCounter int64
+	subscriptions map[string]bool
+	subMu         sync.RWMutex
+	alertListener chan *wotanClient.Message
 
 	// Degraded mode counter — messages dropped because Wotan is nil
 	wotanDrops int64
@@ -37,7 +37,7 @@ func (s *Service) WotanDrops() int64 {
 func NewService(store *Store, wotan *wotanClient.Client) *Service {
 	return &Service{
 		store:         store,
-		wotan:        wotan,
+		wotan:         wotan,
 		taskIDCounter: 0,
 		subscriptions: make(map[string]bool),
 		alertListener: make(chan *wotanClient.Message, 100),
@@ -105,13 +105,13 @@ func (s *Service) PublishTaskCreated(taskID string, task *Task) error {
 	}
 
 	event := map[string]interface{}{
-		"task_id":     taskID,
-		"event_type":  "task.created",
-		"timestamp":   time.Now().Unix(),
-		"title":       task.Title,
-		"owner":       task.Owner,
-		"status":      task.Status,
-		"priority":    task.Priority,
+		"task_id":    taskID,
+		"event_type": "task.created",
+		"timestamp":  time.Now().Unix(),
+		"title":      task.Title,
+		"owner":      task.Owner,
+		"status":     task.Status,
+		"priority":   task.Priority,
 	}
 
 	payload, err := json.Marshal(event)
@@ -145,13 +145,13 @@ func (s *Service) PublishTaskUpdated(taskID string, task *Task) error {
 	}
 
 	event := map[string]interface{}{
-		"task_id":     taskID,
-		"event_type":  "task.updated",
-		"timestamp":   time.Now().Unix(),
-		"title":       task.Title,
-		"status":      task.Status,
-		"priority":    task.Priority,
-		"assignee":    task.Assignee,
+		"task_id":    taskID,
+		"event_type": "task.updated",
+		"timestamp":  time.Now().Unix(),
+		"title":      task.Title,
+		"status":     task.Status,
+		"priority":   task.Priority,
+		"assignee":   task.Assignee,
 	}
 
 	payload, err := json.Marshal(event)
@@ -261,10 +261,10 @@ func (s *Service) handleAlert(alert map[string]interface{}) {
 // HealthStatus returns service health information
 func (s *Service) HealthStatus() map[string]interface{} {
 	status := map[string]interface{}{
-		"service":      "micromanager",
-		"status":       "healthy",
-		"tasks_count":  s.store.Count(),
-		"timestamp":    time.Now().Unix(),
+		"service":     "micromanager",
+		"status":      "healthy",
+		"tasks_count": s.store.Count(),
+		"timestamp":   time.Now().Unix(),
 	}
 
 	if s.wotan != nil {

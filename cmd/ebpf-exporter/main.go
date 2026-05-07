@@ -50,10 +50,10 @@ var (
 // ── BPF map names (must match kernel-side C definitions) ──────────────────
 
 const (
-	mapXDPLatency  = "unheaded_xdp_latency_ns"
-	mapPktCount    = "unheaded_pkt_count"
-	mapRingEvents  = "unheaded_ring_events"
-	mapDropCount   = "unheaded_drop_count"
+	mapXDPLatency = "unheaded_xdp_latency_ns"
+	mapPktCount   = "unheaded_pkt_count"
+	mapRingEvents = "unheaded_ring_events"
+	mapDropCount  = "unheaded_drop_count"
 )
 
 // ── MonadEvent mirrors the kernel struct in monad.bpf.c ───────────────────
@@ -152,9 +152,9 @@ var (
 // ── BPFCollector wraps BPF map access ─────────────────────────────────────
 
 type BPFCollector struct {
-	log         *slog.Logger
-	interval    time.Duration
-	bpfPath     string
+	log      *slog.Logger
+	interval time.Duration
+	bpfPath  string
 
 	// BPF objects (loaded from pinned maps or BPF_OBJ_GET)
 	pktCountMap  *ebpf.Map
@@ -168,11 +168,11 @@ func NewBPFCollector(bpfPath string, interval time.Duration, log *slog.Logger) (
 		interval: interval,
 		bpfPath:  bpfPath,
 	}
-	
+
 	if err := c.loadMaps(); err != nil {
 		return nil, fmt.Errorf("loading BPF maps: %w", err)
 	}
-	
+
 	return c, nil
 }
 
@@ -180,30 +180,30 @@ func NewBPFCollector(bpfPath string, interval time.Duration, log *slog.Logger) (
 // Maps are pinned by the Shield/Monad eBPF programs when they load.
 func (c *BPFCollector) loadMaps() error {
 	var err error
-	
+
 	pktPath := fmt.Sprintf("%s/pinned/%s", c.bpfPath, mapPktCount)
 	c.pktCountMap, err = ebpf.LoadPinnedMap(pktPath, nil)
 	if err != nil {
 		return fmt.Errorf("loading %s from %s: %w", mapPktCount, pktPath, err)
 	}
-	
+
 	dropPath := fmt.Sprintf("%s/pinned/%s", c.bpfPath, mapDropCount)
 	c.dropCountMap, err = ebpf.LoadPinnedMap(dropPath, nil)
 	if err != nil {
 		return fmt.Errorf("loading %s from %s: %w", mapDropCount, dropPath, err)
 	}
-	
+
 	ringPath := fmt.Sprintf("%s/pinned/%s", c.bpfPath, mapRingEvents)
 	ringMap, err := ebpf.LoadPinnedMap(ringPath, nil)
 	if err != nil {
 		return fmt.Errorf("loading %s from %s: %w", mapRingEvents, ringPath, err)
 	}
-	
+
 	c.ringReader, err = ringbuf.NewReader(ringMap)
 	if err != nil {
 		return fmt.Errorf("creating ring buffer reader: %w", err)
 	}
-	
+
 	c.log.Info("BPF maps loaded", "path", c.bpfPath)
 	return nil
 }
@@ -213,7 +213,7 @@ func (c *BPFCollector) loadMaps() error {
 func (c *BPFCollector) PollMaps(ctx context.Context) {
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -260,7 +260,7 @@ func (c *BPFCollector) ConsumeRingBuffer(ctx context.Context) {
 			return
 		default:
 		}
-		
+
 		record, err := c.ringReader.Read()
 		if err != nil {
 			if err == ringbuf.ErrClosed {
@@ -270,20 +270,20 @@ func (c *BPFCollector) ConsumeRingBuffer(ctx context.Context) {
 			bpfMapErrors.With(prometheus.Labels{"map": mapRingEvents, "error": err.Error()}).Inc()
 			continue
 		}
-		
+
 		if len(record.RawSample) < monandEventSize {
 			c.log.Warn("ring buffer short read", "got", len(record.RawSample), "want", monandEventSize)
 			continue
 		}
-		
+
 		var ev MonadEvent
-		ev.TsNs      = binary.LittleEndian.Uint64(record.RawSample[0:8])
-		ev.FlowID    = binary.LittleEndian.Uint32(record.RawSample[8:12])
-		ev.Action    = binary.LittleEndian.Uint16(record.RawSample[12:14])
-		ev.Hop       = record.RawSample[14]
-		ev.Pad       = record.RawSample[15]
+		ev.TsNs = binary.LittleEndian.Uint64(record.RawSample[0:8])
+		ev.FlowID = binary.LittleEndian.Uint32(record.RawSample[8:12])
+		ev.Action = binary.LittleEndian.Uint16(record.RawSample[12:14])
+		ev.Hop = record.RawSample[14]
+		ev.Pad = record.RawSample[15]
 		ev.LatencyNs = binary.LittleEndian.Uint32(record.RawSample[16:20])
-		
+
 		hop := fmt.Sprintf("%d", ev.Hop)
 		flowLatencyNs.With(prometheus.Labels{"hop": hop}).Observe(float64(ev.LatencyNs))
 		ringEventsTotal.Inc()
@@ -294,7 +294,7 @@ func (c *BPFCollector) ConsumeRingBuffer(ctx context.Context) {
 
 func main() {
 	flag.Parse()
-	
+
 	// Logger
 	level := slog.LevelInfo
 	switch *flagLogLevel {
@@ -306,7 +306,7 @@ func main() {
 		level = slog.LevelError
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
-	
+
 	// Prometheus registry
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
@@ -319,10 +319,10 @@ func main() {
 		bpfMapErrors,
 		exporterUp,
 	)
-	
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-	
+
 	// BPF collector
 	collector, err := NewBPFCollector(*flagBPFPath, *flagInterval, log)
 	if err != nil {
@@ -336,7 +336,7 @@ func main() {
 		go collector.ConsumeRingBuffer(ctx)
 		log.Info("BPF collector started", "path", *flagBPFPath, "interval", *flagInterval)
 	}
-	
+
 	// HTTP server
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{
@@ -346,14 +346,14 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok","component":"ebpf-exporter"}`))
 	})
-	
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", *flagPort),
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	
+
 	go func() {
 		log.Info("HTTP metrics server starting", "port", *flagPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -361,7 +361,7 @@ func main() {
 			cancel()
 		}
 	}()
-	
+
 	<-ctx.Done()
 	log.Info("Shutting down")
 	_ = srv.Close()

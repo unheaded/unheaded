@@ -8,8 +8,8 @@ import (
 	"context"
 	"testing"
 
-	pb "unheaded/proto/unheaded/v1"
 	"google.golang.org/protobuf/types/known/emptypb"
+	pb "unheaded/proto/unheaded/v1"
 )
 
 // setupMockMode enables mock mode for integration tests and returns a cleanup function.

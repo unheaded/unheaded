@@ -14,22 +14,22 @@ import (
 
 // Common errors returned by rollback operations.
 var (
-	ErrNoRollbackTarget    = errors.New("no rollback target available")
-	ErrRollbackInProgress  = errors.New("rollback already in progress")
-	ErrRollbackFailed      = errors.New("rollback failed")
-	ErrInvalidDeployment   = errors.New("invalid deployment for rollback")
-	ErrDeploymentNotFound  = errors.New("deployment not found")
+	ErrNoRollbackTarget   = errors.New("no rollback target available")
+	ErrRollbackInProgress = errors.New("rollback already in progress")
+	ErrRollbackFailed     = errors.New("rollback failed")
+	ErrInvalidDeployment  = errors.New("invalid deployment for rollback")
+	ErrDeploymentNotFound = errors.New("deployment not found")
 )
 
 // RollbackState represents the state of a rollback.
 type RollbackState string
 
 const (
-	RollbackStatePending    RollbackState = "pending"
-	RollbackStateRunning    RollbackState = "running"
-	RollbackStateCompleted  RollbackState = "completed"
-	RollbackStateFailed     RollbackState = "failed"
-	RollbackStateCancelled  RollbackState = "cancelled"
+	RollbackStatePending   RollbackState = "pending"
+	RollbackStateRunning   RollbackState = "running"
+	RollbackStateCompleted RollbackState = "completed"
+	RollbackStateFailed    RollbackState = "failed"
+	RollbackStateCancelled RollbackState = "cancelled"
 )
 
 // RollbackReason represents why a rollback was triggered.

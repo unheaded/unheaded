@@ -218,9 +218,9 @@ type Sandbox struct {
 
 // SandboxNetworkInfo contains runtime network information.
 type SandboxNetworkInfo struct {
-	IP          string
-	Gateway     string
-	Interfaces  []*NetworkInterface
+	IP         string
+	Gateway    string
+	Interfaces []*NetworkInterface
 }
 
 // NetworkInterface represents a network interface.
@@ -697,7 +697,7 @@ type SandboxMetadata struct {
 
 // SandboxNetworkStatus contains network status.
 type SandboxNetworkStatus struct {
-	IP        string
+	IP            string
 	AdditionalIPs []string
 }
 

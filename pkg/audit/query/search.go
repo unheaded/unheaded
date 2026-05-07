@@ -184,12 +184,12 @@ func (s *Searcher) searchValue(value interface{}, matcher func(string) bool) boo
 
 // SearchResult holds search results with metadata.
 type SearchResult struct {
-	Events      []*audit.AuditEvent `json:"events"`
-	Total       int                 `json:"total"`
-	Query       string              `json:"query"`
-	SearchTime  time.Duration       `json:"search_time"`
-	HasMore     bool                `json:"has_more"`
-	NextOffset  int                 `json:"next_offset,omitempty"`
+	Events     []*audit.AuditEvent `json:"events"`
+	Total      int                 `json:"total"`
+	Query      string              `json:"query"`
+	SearchTime time.Duration       `json:"search_time"`
+	HasMore    bool                `json:"has_more"`
+	NextOffset int                 `json:"next_offset,omitempty"`
 }
 
 // SearchWithMetadata performs a search and returns results with metadata.

@@ -81,9 +81,9 @@ const (
 // HMACKeyKey is the lookup key for per-flow HMAC keys.
 // Size: 8 bytes. Map type: HASH.
 type HMACKeyKey struct {
-	FlowID    uint16   // Flow identifier from Monad header.
-	Namespace uint16   // Namespace ID.
-	_         [4]byte  // Reserved, must be zero.
+	FlowID    uint16  // Flow identifier from Monad header.
+	Namespace uint16  // Namespace ID.
+	_         [4]byte // Reserved, must be zero.
 }
 
 // HMACKeyValue stores the HMAC-SHA256 key material.
@@ -123,8 +123,8 @@ type RingPathKey struct {
 // RingPathValue tracks ring path state.
 // Size: 8 bytes.
 type RingPathValue struct {
-	HopCount uint16 // Current ring hop count.
-	MaxHops  uint16 // Configured maximum hops.
+	HopCount  uint16 // Current ring hop count.
+	MaxHops   uint16 // Configured maximum hops.
 	BytesSent uint32 // Bytes sent (for 3× ratio enforcement).
 }
 
@@ -133,9 +133,9 @@ type RingPathValue struct {
 // MigrationTokenKey identifies a flow migration.
 // Size: 20 bytes. Map type: LRU_HASH.
 type MigrationTokenKey struct {
-	FlowID    uint16   // Flow identifier.
-	SrcAddr   [16]byte // Original source IPv6 address.
-	_         [2]byte
+	FlowID  uint16   // Flow identifier.
+	SrcAddr [16]byte // Original source IPv6 address.
+	_       [2]byte
 }
 
 // MigrationTokenValue stores the HMAC-signed token.
@@ -152,19 +152,19 @@ type MigrationTokenValue struct {
 // SophiaSyncKey identifies a dictionary sync channel.
 // Size: 8 bytes. Map type: HASH.
 type SophiaSyncKey struct {
-	DictID    uint16 // Dictionary identifier.
-	PeerID    uint16 // Peer node identifier.
-	_         [4]byte
+	DictID uint16 // Dictionary identifier.
+	PeerID uint16 // Peer node identifier.
+	_      [4]byte
 }
 
 // SophiaSyncValue tracks encoder/decoder ACK state.
 // Size: 24 bytes.
 type SophiaSyncValue struct {
-	TableVersion uint32   // Current table version.
-	AckedVersion uint32   // Last ACK'd version by peer.
-	PendingDelta uint32   // Pending delta entries count.
-	LastSyncAt   uint32   // Unix timestamp of last sync.
-	Signature    [8]byte  // Truncated HMAC of current state.
+	TableVersion uint32  // Current table version.
+	AckedVersion uint32  // Last ACK'd version by peer.
+	PendingDelta uint32  // Pending delta entries count.
+	LastSyncAt   uint32  // Unix timestamp of last sync.
+	Signature    [8]byte // Truncated HMAC of current state.
 }
 
 // === H2: Error Counters (errors package) ===
@@ -179,7 +179,7 @@ type ErrorCounterKey struct {
 // ErrorCounterValue is a per-CPU counter.
 // Size: 8 bytes.
 type ErrorCounterValue struct {
-	Count     uint32 // Total occurrences.
+	Count      uint32 // Total occurrences.
 	LastSeenAt uint32 // Unix timestamp of last occurrence.
 }
 
@@ -206,9 +206,9 @@ type SettingsKey struct {
 // SettingsValue stores a negotiated setting value.
 // Size: 16 bytes.
 type SettingsValue struct {
-	Value      uint64 // Setting value (varint-decoded).
+	Value        uint64 // Setting value (varint-decoded).
 	NegotiatedAt uint32 // Unix timestamp.
-	Flags      uint32 // 0x01 = peer-set, 0x02 = local-set, 0x04 = default.
+	Flags        uint32 // 0x01 = peer-set, 0x02 = local-set, 0x04 = default.
 }
 
 // === H5: DoS State (dos package) ===
@@ -223,11 +223,11 @@ type DoSStateKey struct {
 // DoSStateValue tracks drop rate and backpressure level.
 // Size: 16 bytes.
 type DoSStateValue struct {
-	DropCount    uint32 // Drops in current window.
-	TotalCount   uint32 // Total packets in current window.
-	BackpressureLvl uint8 // 0=none, 1=low, 2=med, 3=high, 4=critical.
-	_            [3]byte
-	WindowStart  uint32 // Unix timestamp of window start.
+	DropCount       uint32 // Drops in current window.
+	TotalCount      uint32 // Total packets in current window.
+	BackpressureLvl uint8  // 0=none, 1=low, 2=med, 3=high, 4=critical.
+	_               [3]byte
+	WindowStart     uint32 // Unix timestamp of window start.
 }
 
 // === H6: Flow Types (flowtype package) ===
@@ -235,9 +235,9 @@ type DoSStateValue struct {
 // FlowTypeEntry classifies a flow.
 // Size: 4 bytes. Map type: ARRAY (index = flow_id).
 type FlowTypeEntry struct {
-	Type    uint8  // 0x00=control, 0x01=data, 0x02=prefetch, 0x03=reserved.
-	Flags   uint8  // Per-type flags.
-	_       [2]byte
+	Type  uint8 // 0x00=control, 0x01=data, 0x02=prefetch, 0x03=reserved.
+	Flags uint8 // Per-type flags.
+	_     [2]byte
 }
 
 // === H7/Q8: GOAWAY State (lifecycle package) ===
@@ -284,21 +284,21 @@ type CancelFlowValue struct {
 // PrefetchHintKey identifies a prefetch hint.
 // Size: 8 bytes. Map type: LRU_HASH.
 type PrefetchHintKey struct {
-	FlowID   uint16 // Flow identifier.
-	HintID   uint16 // Hint sequence number.
-	ConnID   uint32 // Connection identifier.
+	FlowID uint16 // Flow identifier.
+	HintID uint16 // Hint sequence number.
+	ConnID uint32 // Connection identifier.
 }
 
 // PrefetchHintValue stores hint metadata.
 // Size: 20 bytes (2+2+1+1+2+4+4+4).
 type PrefetchHintValue struct {
-	DictID    uint16   // Dictionary to prefetch.
-	FieldID   uint16   // Field within dictionary.
-	Priority  uint8    // 0-3 priority level.
-	Status    uint8    // 0=pending, 1=fulfilled, 2=cancelled.
+	DictID    uint16 // Dictionary to prefetch.
+	FieldID   uint16 // Field within dictionary.
+	Priority  uint8  // 0-3 priority level.
+	Status    uint8  // 0=pending, 1=fulfilled, 2=cancelled.
 	_         [2]byte
-	IssuedAt  uint32   // Unix timestamp.
-	ExpiresAt uint32   // Unix timestamp.
+	IssuedAt  uint32 // Unix timestamp.
+	ExpiresAt uint32 // Unix timestamp.
 	_2        [4]byte
 }
 
@@ -314,12 +314,12 @@ type HopValidatorKey struct {
 // HopValidatorValue defines validation rules for a hop.
 // Size: 28 bytes (1+1+1+1+16+1+3+4).
 type HopValidatorValue struct {
-	AllowedVersionMin uint8  // Minimum accepted Monad version.
-	AllowedVersionMax uint8  // Maximum accepted Monad version.
-	RequireCRC        uint8  // 0x01 = CRC validation required.
-	RequireHMAC       uint8  // 0x01 = HMAC validation required.
+	AllowedVersionMin uint8     // Minimum accepted Monad version.
+	AllowedVersionMax uint8     // Maximum accepted Monad version.
+	RequireCRC        uint8     // 0x01 = CRC validation required.
+	RequireHMAC       uint8     // 0x01 = HMAC validation required.
 	AllowedDictIDs    [8]uint16 // Up to 8 allowed dictionary IDs. 0 = unused.
-	MaxHopCount       uint8  // Maximum allowed hop count.
+	MaxHopCount       uint8     // Maximum allowed hop count.
 	_                 [3]byte
 	Flags             uint32 // Validation flags.
 }

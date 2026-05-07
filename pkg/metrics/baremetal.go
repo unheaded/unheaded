@@ -302,8 +302,8 @@ func (b *BareMetalCollector) collectNetwork() []Sample {
 		stats := b.parseNetStats(netPath, ifName)
 
 		labels := map[string]string{
-			"collector":  "baremetal",
-			"interface":  ifName,
+			"collector": "baremetal",
+			"interface": ifName,
 		}
 
 		if v, ok := stats["rx_bytes"]; ok {

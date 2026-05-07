@@ -76,10 +76,10 @@ func TestNewHealthChecker(t *testing.T) {
 
 	t.Run("WithCustomConfig", func(t *testing.T) {
 		config := &HealthCheckConfig{
-			Interval:    5 * time.Second,
-			Timeout:     2 * time.Second,
-			Path:        "/healthz",
-			TCPOnly:     true,
+			Interval: 5 * time.Second,
+			Timeout:  2 * time.Second,
+			Path:     "/healthz",
+			TCPOnly:  true,
 		}
 
 		hc := NewHealthChecker(config)

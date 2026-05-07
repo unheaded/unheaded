@@ -107,13 +107,13 @@ func (c *RedfishClient) GetServiceRoot(ctx context.Context) (*ServiceRoot, error
 
 // ServiceRoot represents the Redfish service root.
 type ServiceRoot struct {
-	ID           string   `json:"Id"`
-	Name         string   `json:"Name"`
+	ID             string `json:"Id"`
+	Name           string `json:"Name"`
 	RedfishVersion string `json:"RedfishVersion"`
-	UUID         string   `json:"UUID"`
-	Systems      Link     `json:"Systems"`
-	Chassis      Link     `json:"Chassis"`
-	Managers     Link     `json:"Managers"`
+	UUID           string `json:"UUID"`
+	Systems        Link   `json:"Systems"`
+	Chassis        Link   `json:"Chassis"`
+	Managers       Link   `json:"Managers"`
 }
 
 // Link represents a Redfish link.
@@ -136,19 +136,19 @@ func (c *RedfishClient) GetSystems(ctx context.Context) ([]ComputerSystem, error
 
 // ComputerSystem represents a Redfish computer system.
 type ComputerSystem struct {
-	ID           string `json:"Id"`
-	Name         string `json:"Name"`
-	Manufacturer string `json:"Manufacturer"`
-	Model        string `json:"Model"`
-	SerialNumber string `json:"SerialNumber"`
-	SKU          string `json:"SKU"`
-	PartNumber   string `json:"PartNumber"`
-	UUID         string `json:"UUID"`
-	HostName     string `json:"HostName"`
-	PowerState   string `json:"PowerState"`
-	Status       Status `json:"Status"`
-	IndicatorLED string `json:"IndicatorLED"`
-	Boot         Boot   `json:"Boot"`
+	ID               string           `json:"Id"`
+	Name             string           `json:"Name"`
+	Manufacturer     string           `json:"Manufacturer"`
+	Model            string           `json:"Model"`
+	SerialNumber     string           `json:"SerialNumber"`
+	SKU              string           `json:"SKU"`
+	PartNumber       string           `json:"PartNumber"`
+	UUID             string           `json:"UUID"`
+	HostName         string           `json:"HostName"`
+	PowerState       string           `json:"PowerState"`
+	Status           Status           `json:"Status"`
+	IndicatorLED     string           `json:"IndicatorLED"`
+	Boot             Boot             `json:"Boot"`
 	ProcessorSummary ProcessorSummary `json:"ProcessorSummary"`
 	MemorySummary    MemorySummary    `json:"MemorySummary"`
 }
@@ -261,8 +261,8 @@ func (c *RedfishClient) GetChassis(ctx context.Context) ([]Chassis, error) {
 	// In production, GET /redfish/v1/Chassis
 	return []Chassis{
 		{
-			ID:         "1",
-			Name:       "System Chassis",
+			ID:          "1",
+			Name:        "System Chassis",
 			ChassisType: "RackMount",
 		},
 	}, nil
@@ -305,13 +305,13 @@ type Thermal struct {
 
 // Temperature represents a temperature sensor.
 type Temperature struct {
-	Name                   string  `json:"Name"`
-	SensorNumber           int     `json:"SensorNumber"`
-	ReadingCelsius         float64 `json:"ReadingCelsius"`
+	Name                      string  `json:"Name"`
+	SensorNumber              int     `json:"SensorNumber"`
+	ReadingCelsius            float64 `json:"ReadingCelsius"`
 	UpperThresholdNonCritical float64 `json:"UpperThresholdNonCritical"`
 	UpperThresholdCritical    float64 `json:"UpperThresholdCritical"`
 	UpperThresholdFatal       float64 `json:"UpperThresholdFatal"`
-	Status                 Status  `json:"Status"`
+	Status                    Status  `json:"Status"`
 }
 
 // Fan represents a fan sensor.

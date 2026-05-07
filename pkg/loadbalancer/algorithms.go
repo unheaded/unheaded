@@ -126,11 +126,11 @@ func (i *IPHashState) Select(ctx context.Context, key string, backends []*Backen
 
 // WeightedState implements weighted round-robin load balancing.
 type WeightedState struct {
-	mu           sync.Mutex
-	weights      []int
-	gcd          int
-	maxWeight    int
-	currentIndex int
+	mu            sync.Mutex
+	weights       []int
+	gcd           int
+	maxWeight     int
+	currentIndex  int
 	currentWeight int
 }
 

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"unheaded/pkg/logger"
 	"io"
+	"unheaded/pkg/logger"
 )
 
 func testLogger() *logger.Logger {

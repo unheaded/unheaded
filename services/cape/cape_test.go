@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ---------------------------------------------------------------------------
@@ -1111,13 +1111,13 @@ func TestCORSMiddleware(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		origins        []string
-		requestOrigin  string
-		method         string
-		wantACAO       string // Access-Control-Allow-Origin
-		wantStatus     int
-		expectBody     bool
+		name          string
+		origins       []string
+		requestOrigin string
+		method        string
+		wantACAO      string // Access-Control-Allow-Origin
+		wantStatus    int
+		expectBody    bool
 	}{
 		{
 			name:          "allowed origin",

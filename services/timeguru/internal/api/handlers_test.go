@@ -28,13 +28,13 @@ import (
 // ============================================================================
 
 type mockStore struct {
-	timeline      *timeline.Timeline
-	saveErr       error
-	getErr        error
-	updateErr     error
-	getCalls      atomic.Int64
-	saveCalls     atomic.Int64
-	updateCalls   atomic.Int64
+	timeline    *timeline.Timeline
+	saveErr     error
+	getErr      error
+	updateErr   error
+	getCalls    atomic.Int64
+	saveCalls   atomic.Int64
+	updateCalls atomic.Int64
 }
 
 func (m *mockStore) SaveTimeline(ctx context.Context, tl *timeline.Timeline) error {

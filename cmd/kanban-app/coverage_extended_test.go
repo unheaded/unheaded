@@ -172,7 +172,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 	expectedHeaders := map[string]string{
 		"X-Frame-Options":        "DENY",
 		"X-Content-Type-Options": "nosniff",
-		"X-XSS-Protection":      "1; mode=block",
+		"X-XSS-Protection":       "1; mode=block",
 		"Referrer-Policy":        "strict-origin-when-cross-origin",
 	}
 
@@ -1188,9 +1188,9 @@ type nonFlusherWriter struct {
 	body   bytes.Buffer
 }
 
-func (w *nonFlusherWriter) Header() http.Header          { return w.header }
-func (w *nonFlusherWriter) Write(b []byte) (int, error)  { return w.body.Write(b) }
-func (w *nonFlusherWriter) WriteHeader(code int)          { w.code = code }
+func (w *nonFlusherWriter) Header() http.Header         { return w.header }
+func (w *nonFlusherWriter) Write(b []byte) (int, error) { return w.body.Write(b) }
+func (w *nonFlusherWriter) WriteHeader(code int)        { w.code = code }
 
 func TestHandleWebSocket_DelegatesToSSE(t *testing.T) {
 	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})

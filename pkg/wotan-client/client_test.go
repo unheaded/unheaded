@@ -1117,10 +1117,10 @@ func TestIsApproved(t *testing.T) {
 	c, _ := NewClient("localhost:9090")
 
 	tests := []struct {
-		name   string
-		topic  string
-		sub    *Subscriber
-		want   bool
+		name  string
+		topic string
+		sub   *Subscriber
+		want  bool
 	}{
 		{
 			name:  "no subscription",

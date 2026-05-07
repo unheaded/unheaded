@@ -34,9 +34,9 @@ const (
 
 // SLOThreshold defines the acceptable bounds for a canary's service level objectives.
 type SLOThreshold struct {
-	MaxErrorRatePPM  int64   `json:"max_error_rate_ppm"`  // Parts per million
-	MaxLatencyP99MS  float64 `json:"max_latency_p99_ms"`  // P99 latency ceiling
-	MinThroughputPPS float64 `json:"min_throughput_pps"`  // Packets per second floor
+	MaxErrorRatePPM  int64   `json:"max_error_rate_ppm"` // Parts per million
+	MaxLatencyP99MS  float64 `json:"max_latency_p99_ms"` // P99 latency ceiling
+	MinThroughputPPS float64 `json:"min_throughput_pps"` // Packets per second floor
 }
 
 // DefaultSLOThreshold returns conservative SLO defaults.
@@ -50,28 +50,28 @@ func DefaultSLOThreshold() *SLOThreshold {
 
 // CanaryDeployment describes a single canary deployment lifecycle.
 type CanaryDeployment struct {
-	ServiceID      string      `json:"service_id"`
-	CanaryVersion  string      `json:"canary_version"`
-	StableVersion  string      `json:"stable_version"`
-	TrafficSplitPct int        `json:"traffic_split_pct"`
-	State          CanaryState `json:"state"`
-	ProbeStartTime time.Time   `json:"probe_start_time"`
-	LastEvaluation time.Time   `json:"last_evaluation"`
-	LastRampTime   time.Time   `json:"last_ramp_time"`
-	SLO            *SLOThreshold `json:"slo"`
-	CreatedAt      time.Time   `json:"created_at"`
-	CompletedAt    *time.Time  `json:"completed_at,omitempty"`
-	RollbackReason string      `json:"rollback_reason,omitempty"`
-	EvalCount      int64       `json:"eval_count"`
+	ServiceID       string        `json:"service_id"`
+	CanaryVersion   string        `json:"canary_version"`
+	StableVersion   string        `json:"stable_version"`
+	TrafficSplitPct int           `json:"traffic_split_pct"`
+	State           CanaryState   `json:"state"`
+	ProbeStartTime  time.Time     `json:"probe_start_time"`
+	LastEvaluation  time.Time     `json:"last_evaluation"`
+	LastRampTime    time.Time     `json:"last_ramp_time"`
+	SLO             *SLOThreshold `json:"slo"`
+	CreatedAt       time.Time     `json:"created_at"`
+	CompletedAt     *time.Time    `json:"completed_at,omitempty"`
+	RollbackReason  string        `json:"rollback_reason,omitempty"`
+	EvalCount       int64         `json:"eval_count"`
 }
 
 // CanaryMetrics holds observed metrics for a specific version.
 type CanaryMetrics struct {
 	ServiceID   string  `json:"service_id"`
 	Version     string  `json:"version"`
-	ErrorRate   float64 `json:"error_rate"`   // errors per million
-	LatencyP99  float64 `json:"latency_p99"`  // ms
-	Throughput  float64 `json:"throughput"`    // requests per second
+	ErrorRate   float64 `json:"error_rate"`  // errors per million
+	LatencyP99  float64 `json:"latency_p99"` // ms
+	Throughput  float64 `json:"throughput"`  // requests per second
 	SampleCount int64   `json:"sample_count"`
 }
 
@@ -87,12 +87,12 @@ type MetricsComparison struct {
 
 // Config holds Canary service configuration.
 type Config struct {
-	EvalInterval     time.Duration `json:"eval_interval"`
-	ProbeDuration    time.Duration `json:"probe_duration"`
-	RampInterval     time.Duration `json:"ramp_interval"`
-	RampStepPct      int           `json:"ramp_step_pct"`
-	InitialSplitPct  int           `json:"initial_split_pct"`
-	WotanTopic       string        `json:"wotan_topic"`
+	EvalInterval    time.Duration `json:"eval_interval"`
+	ProbeDuration   time.Duration `json:"probe_duration"`
+	RampInterval    time.Duration `json:"ramp_interval"`
+	RampStepPct     int           `json:"ramp_step_pct"`
+	InitialSplitPct int           `json:"initial_split_pct"`
+	WotanTopic      string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -114,7 +114,7 @@ type Service struct {
 	config *Config
 
 	mu          sync.RWMutex
-	deployments map[string]*CanaryDeployment // service_id -> deployment
+	deployments map[string]*CanaryDeployment  // service_id -> deployment
 	metrics     map[string]*MetricsComparison // service_id -> latest comparison
 
 	httpServer *http.Server
@@ -311,10 +311,10 @@ func (s *Service) listCanaries(w http.ResponseWriter, _ *http.Request) {
 
 // createCanaryRequest is the payload for creating a canary deployment.
 type createCanaryRequest struct {
-	ServiceID      string `json:"service_id"`
-	CanaryVersion  string `json:"canary_version"`
-	StableVersion  string `json:"stable_version"`
-	TrafficSplitPct int   `json:"traffic_split_pct"`
+	ServiceID       string `json:"service_id"`
+	CanaryVersion   string `json:"canary_version"`
+	StableVersion   string `json:"stable_version"`
+	TrafficSplitPct int    `json:"traffic_split_pct"`
 }
 
 // createCanary creates a new canary deployment.
@@ -344,16 +344,16 @@ func (s *Service) createCanary(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	deployment := &CanaryDeployment{
-		ServiceID:      req.ServiceID,
-		CanaryVersion:  req.CanaryVersion,
-		StableVersion:  req.StableVersion,
+		ServiceID:       req.ServiceID,
+		CanaryVersion:   req.CanaryVersion,
+		StableVersion:   req.StableVersion,
 		TrafficSplitPct: splitPct,
-		State:          StateProbing,
-		ProbeStartTime: now,
-		LastEvaluation: now,
-		LastRampTime:   now,
-		SLO:            DefaultSLOThreshold(),
-		CreatedAt:      now,
+		State:           StateProbing,
+		ProbeStartTime:  now,
+		LastEvaluation:  now,
+		LastRampTime:    now,
+		SLO:             DefaultSLOThreshold(),
+		CreatedAt:       now,
 	}
 
 	s.deployments[req.ServiceID] = deployment

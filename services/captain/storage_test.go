@@ -198,10 +198,10 @@ func TestFileStorage_InvalidDecision(t *testing.T) {
 		{
 			name: "invalid decision",
 			decision: &Decision{
-				ID:    "test",
-				Title: "",
+				ID:      "test",
+				Title:   "",
 				Content: "Content",
-				Owner:  "captain",
+				Owner:   "captain",
 			},
 			wantErr: true,
 		},

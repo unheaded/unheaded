@@ -27,11 +27,11 @@ var log = logger.New(os.Stderr)
 // ============================================================================
 
 var (
-	ErrRouterClosed     = errors.New("router is closed")
-	ErrHandlerExists    = errors.New("handler already registered for topic")
-	ErrNoHandler        = errors.New("no handler registered for topic")
-	ErrNilHandler       = errors.New("handler cannot be nil")
-	ErrInvalidMessage   = errors.New("invalid message format")
+	ErrRouterClosed   = errors.New("router is closed")
+	ErrHandlerExists  = errors.New("handler already registered for topic")
+	ErrNoHandler      = errors.New("no handler registered for topic")
+	ErrNilHandler     = errors.New("handler cannot be nil")
+	ErrInvalidMessage = errors.New("invalid message format")
 )
 
 // ============================================================================
@@ -55,9 +55,9 @@ type Router struct {
 	closed   bool
 
 	// Metrics
-	messagesRouted   int64
-	messagesDropped  int64
-	handlerErrors    int64
+	messagesRouted  int64
+	messagesDropped int64
+	handlerErrors   int64
 
 	// Configuration
 	defaultTimeout time.Duration

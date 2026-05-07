@@ -24,18 +24,18 @@ import (
 // See docs/WAF_ARCHITECTURE.md for migration strategy.
 type BotDetector struct {
 	// Pattern-based detection
-	knownBotPatterns    []*regexp.Regexp
-	knownGoodBots       map[string]bool
-	suspiciousPatterns  []*regexp.Regexp
+	knownBotPatterns   []*regexp.Regexp
+	knownGoodBots      map[string]bool
+	suspiciousPatterns []*regexp.Regexp
 
 	// Behavioral analysis
-	behaviorTracker     *BehaviorTracker
-	fingerprintStore    *FingerprintStore
+	behaviorTracker  *BehaviorTracker
+	fingerprintStore *FingerprintStore
 
 	// Configuration
-	strict             bool
-	enableFingerprint  bool
-	enableBehavior     bool
+	strict            bool
+	enableFingerprint bool
+	enableBehavior    bool
 }
 
 // BehaviorTracker tracks client behavior patterns
@@ -60,9 +60,9 @@ type ClientBehavior struct {
 	Methods         map[string]int
 	StatusCodes     map[int]int
 	ErrorRate       float64
-	RequestRate     float64  // Requests per second
+	RequestRate     float64 // Requests per second
 	PathEntropy     float64
-	TimingPattern   []int64  // Inter-request timing in milliseconds
+	TimingPattern   []int64 // Inter-request timing in milliseconds
 	Fingerprint     string
 	BotScore        int
 	mu              sync.Mutex
@@ -76,29 +76,29 @@ type FingerprintStore struct {
 
 // BrowserFingerprint represents a browser fingerprint
 type BrowserFingerprint struct {
-	Hash            string
-	UserAgent       string
-	AcceptLanguage  string
-	AcceptEncoding  string
-	Headers         []string
-	HeaderOrder     string
-	TLSFingerprint  string // JA3 fingerprint if available
-	FirstSeen       time.Time
-	LastSeen        time.Time
-	SeenCount       int
-	IsConsistent    bool
-	BotProbability  float64
+	Hash           string
+	UserAgent      string
+	AcceptLanguage string
+	AcceptEncoding string
+	Headers        []string
+	HeaderOrder    string
+	TLSFingerprint string // JA3 fingerprint if available
+	FirstSeen      time.Time
+	LastSeen       time.Time
+	SeenCount      int
+	IsConsistent   bool
+	BotProbability float64
 }
 
 // BotResult represents the result of bot detection
 type BotResult struct {
-	IsBot           bool
-	BotType         string
-	Confidence      float64
-	Reasons         []string
-	Fingerprint     string
-	BehaviorScore   int
-	PatternMatches  []string
+	IsBot          bool
+	BotType        string
+	Confidence     float64
+	Reasons        []string
+	Fingerprint    string
+	BehaviorScore  int
+	PatternMatches []string
 }
 
 // NewBotDetector creates a new bot detector
@@ -177,22 +177,22 @@ func NewBotDetector(strict bool) *BotDetector {
 
 	// Known good bots (allow these through)
 	knownGoodBots := map[string]bool{
-		"googlebot":        true,
-		"bingbot":          true,
-		"yandexbot":        true,
-		"duckduckbot":      true,
-		"baiduspider":      true,
-		"slurp":            true, // Yahoo
+		"googlebot":           true,
+		"bingbot":             true,
+		"yandexbot":           true,
+		"duckduckbot":         true,
+		"baiduspider":         true,
+		"slurp":               true, // Yahoo
 		"facebookexternalhit": true,
-		"twitterbot":       true,
-		"linkedinbot":      true,
-		"pinterestbot":     true,
-		"applebot":         true,
-		"msnbot":           true,
-		"uptimerobot":      true,
-		"pingdom":          true,
-		"newrelicpinger":   true,
-		"datadoghq":        true,
+		"twitterbot":          true,
+		"linkedinbot":         true,
+		"pinterestbot":        true,
+		"applebot":            true,
+		"msnbot":              true,
+		"uptimerobot":         true,
+		"pingdom":             true,
+		"newrelicpinger":      true,
+		"datadoghq":           true,
 	}
 
 	// Suspicious patterns (in request)

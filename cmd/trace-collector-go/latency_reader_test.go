@@ -484,11 +484,11 @@ func TestLatencyReader_PrometheusHistogramUpdated(t *testing.T) {
 
 func TestDecodeLatencyEntry_RawBytes(t *testing.T) {
 	var b [LatencyEntrySize]byte
-	binary.LittleEndian.PutUint64(b[0:8], 5_000_000)   // rtt_ns: 5ms
+	binary.LittleEndian.PutUint64(b[0:8], 5_000_000)    // rtt_ns: 5ms
 	binary.LittleEndian.PutUint64(b[8:16], 1_000_000)   // min_rtt_ns: 1ms
 	binary.LittleEndian.PutUint64(b[16:24], 10_000_000) // max_rtt_ns: 10ms
-	binary.LittleEndian.PutUint64(b[24:32], 100)         // samples
-	binary.LittleEndian.PutUint64(b[32:40], 999999)      // last_update_ns
+	binary.LittleEndian.PutUint64(b[24:32], 100)        // samples
+	binary.LittleEndian.PutUint64(b[32:40], 999999)     // last_update_ns
 
 	le, err := DecodeLatencyEntry(b[:])
 	if err != nil {

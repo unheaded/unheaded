@@ -77,8 +77,8 @@ type Mesh struct {
 	rootCAs         *x509.CertPool
 
 	// mTLS Provider (zero-trust networking)
-	mtlsProvider    *mtls.Provider
-	identityMgr     *mtls.IdentityManager
+	mtlsProvider      *mtls.Provider
+	identityMgr       *mtls.IdentityManager
 	zeroTrustEnforcer *mtls.ZeroTrustEnforcer
 
 	// HTTP client for outbound requests
@@ -156,11 +156,11 @@ func NewMesh(config *Config) (*Mesh, error) {
 
 	// Initialize health checker
 	m.healthChecker = NewHealthChecker(&HealthCheckConfig{
-		Interval:            config.HealthCheckInterval,
-		Timeout:             config.HealthCheckTimeout,
-		HealthyThreshold:    config.HealthyThreshold,
-		UnhealthyThreshold:  config.UnhealthyThreshold,
-		OnHealthChange:      m.onEndpointHealthChange,
+		Interval:           config.HealthCheckInterval,
+		Timeout:            config.HealthCheckTimeout,
+		HealthyThreshold:   config.HealthyThreshold,
+		UnhealthyThreshold: config.UnhealthyThreshold,
+		OnHealthChange:     m.onEndpointHealthChange,
 	})
 
 	return m, nil

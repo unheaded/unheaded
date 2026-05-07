@@ -32,13 +32,13 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"strings"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -64,15 +64,15 @@ import (
 
 var (
 	// Existing Anamnesis-mode flags
-	ringPath     = flag.String("ring-path", ebpf.DefaultAnamnesisRingPath, "BPF ring buffer pin path")
+	ringPath      = flag.String("ring-path", ebpf.DefaultAnamnesisRingPath, "BPF ring buffer pin path")
 	wotanAddr     = flag.String("wotan-addr", "localhost:18001", "Wotan gRPC address")
 	wotanHTTPAddr = flag.String("wotan-http-addr", "localhost:18000", "Wotan HTTP address (fallback)")
-	httpAddr     = flag.String("http-addr", ports.DefaultAddr(ports.TraceCollectorHTTP), "HTTP address for health/metrics")
-	maxRate      = flag.Int("max-rate", 10000, "Max events/sec (0 = unlimited)")
-	batchSize    = flag.Int("batch-size", 100, "Publish batch size")
-	batchTimeout = flag.Duration("batch-timeout", 50*time.Millisecond, "Publish batch timeout")
-	bufSize      = flag.Int("buf-size", 8192, "Event channel buffer size")
-	logJSON      = flag.Bool("log-json", false, "Use JSON log format")
+	httpAddr      = flag.String("http-addr", ports.DefaultAddr(ports.TraceCollectorHTTP), "HTTP address for health/metrics")
+	maxRate       = flag.Int("max-rate", 10000, "Max events/sec (0 = unlimited)")
+	batchSize     = flag.Int("batch-size", 100, "Publish batch size")
+	batchTimeout  = flag.Duration("batch-timeout", 50*time.Millisecond, "Publish batch timeout")
+	bufSize       = flag.Int("buf-size", 8192, "Event channel buffer size")
+	logJSON       = flag.Bool("log-json", false, "Use JSON log format")
 
 	// Unified BPF loader flags
 	iface              = flag.String("interface", "lo", "Network interface to attach BPF programs")
@@ -152,15 +152,15 @@ func topicForEvent(et ebpf.EventType) string {
 
 // FlowRecord accumulates events for a single flow (grouped by flow_label).
 type FlowRecord struct {
-	FlowLabel uint16               `json:"flow_label"`
-	Birth     *ebpf.AnamnesisEvent `json:"birth,omitempty"`
+	FlowLabel uint16                 `json:"flow_label"`
+	Birth     *ebpf.AnamnesisEvent   `json:"birth,omitempty"`
 	Hops      []*ebpf.AnamnesisEvent `json:"hops"`
-	Death     *ebpf.AnamnesisEvent `json:"death,omitempty"`
+	Death     *ebpf.AnamnesisEvent   `json:"death,omitempty"`
 	Anomalies []*ebpf.AnamnesisEvent `json:"anomalies,omitempty"`
-	StartNs   uint64               `json:"start_ns"`
-	EndNs     uint64               `json:"end_ns"`
-	HopCount  int                  `json:"hop_count"`
-	Complete  bool                 `json:"complete"`
+	StartNs   uint64                 `json:"start_ns"`
+	EndNs     uint64                 `json:"end_ns"`
+	HopCount  int                    `json:"hop_count"`
+	Complete  bool                   `json:"complete"`
 }
 
 // FlowCorrelator groups events by flow_label into FlowRecords.
@@ -668,7 +668,9 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	// Latency probe: use direct cilium/ebpf loader for proper multi-kprobe support.
 	// The standard loader only attaches one kprobe; we need all 6 (3 enter + 3 exit).
 	var latencyKprobeLoader *LatencyKprobeLoader
-	var directLatencyMap interface{ Iterate() *ciliumebpf.MapIterator }
+	var directLatencyMap interface {
+		Iterate() *ciliumebpf.MapIterator
+	}
 	if *enableLatencyProbe {
 		progPath := fmt.Sprintf("%s/latency-probe", elfBase)
 		kl, lmap, err := LoadLatencyKprobes(progPath)
@@ -833,9 +835,9 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 									"dst_port": lk.DstPort,
 									"protocol": lk.Protocol,
 								},
-								"min_rtt_ns":  le.MinRTTNS,
-								"max_rtt_ns":  le.MaxRTTNS,
-								"samples":     le.Samples,
+								"min_rtt_ns": le.MinRTTNS,
+								"max_rtt_ns": le.MaxRTTNS,
+								"samples":    le.Samples,
 							}
 							payload, err := json.Marshal(evt)
 							if err != nil {
@@ -912,10 +914,10 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	var unifiedHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(unifiedAuthCfg))
 
 	httpServer := &http.Server{
-		Addr:         *metricsAddr,
-		Handler:      unifiedHandler,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:           *metricsAddr,
+		Handler:        unifiedHandler,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
@@ -991,8 +993,8 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	var anamnesisHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(anamnesisAuthCfg))
 
 	httpServer := &http.Server{
-		Addr:    *httpAddr,
-		Handler: anamnesisHandler,
+		Addr:           *httpAddr,
+		Handler:        anamnesisHandler,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 	go func() {

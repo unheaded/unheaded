@@ -11,11 +11,10 @@
 // kernel/userspace boundary.
 //
 // Each test documents:
-//   1. The exact Rust source location (file:line)
-//   2. The expected wire size (bytes)
-//   3. Field offsets and alignments
-//   4. Any repr(C) or packed annotations in Rust
-//
+//  1. The exact Rust source location (file:line)
+//  2. The expected wire size (bytes)
+//  3. Field offsets and alignments
+//  4. Any repr(C) or packed annotations in Rust
 package bpfschema
 
 import (
@@ -43,26 +42,27 @@ func TestMonadRegisterSize(t *testing.T) {
 // This catches padding or alignment bugs.
 //
 // Rust offsets (from Monad struct in monad-common/src/lib.rs):
-//   0x00: version
-//   0x01: src_service_id
-//   0x02: dst_service_id
-//   0x03: hop_count
-//   0x04: qos_class
-//   0x05: flow_action
-//   0x06: circuit_state
-//   0x07: flags
-//   0x08: latency_hint[0]
-//   0x09: latency_hint[1]
-//   0x0A: deploy_ring
-//   0x0B: mesh_flags
-//   0x0C: src_prefix_lo
-//   0x0D: dst_prefix_lo
-//   0x0E: scratch[0]
-//   0x0F: scratch[1]
-//   0x10: scratch[2]
-//   0x11: scratch[3]
-//   0x12: checksum[0]
-//   0x13: checksum[1]
+//
+//	0x00: version
+//	0x01: src_service_id
+//	0x02: dst_service_id
+//	0x03: hop_count
+//	0x04: qos_class
+//	0x05: flow_action
+//	0x06: circuit_state
+//	0x07: flags
+//	0x08: latency_hint[0]
+//	0x09: latency_hint[1]
+//	0x0A: deploy_ring
+//	0x0B: mesh_flags
+//	0x0C: src_prefix_lo
+//	0x0D: dst_prefix_lo
+//	0x0E: scratch[0]
+//	0x0F: scratch[1]
+//	0x10: scratch[2]
+//	0x11: scratch[3]
+//	0x12: checksum[0]
+//	0x13: checksum[1]
 func TestMonadRegisterFieldOffsets(t *testing.T) {
 	m := MonadRegister{}
 	base := uintptr(unsafe.Pointer(&m))
@@ -120,12 +120,13 @@ func TestAnamnesisEventSize(t *testing.T) {
 // TestAnamnesisEventFieldOffsets verifies each field is at the correct byte offset.
 //
 // Rust offsets (from AnamnesisEvent in monad-common/src/lib.rs:677-693):
-//   0x00: timestamp_ns (u64)
-//   0x08: event_type (u8)
-//   0x09: hop_id (u8)
-//   0x0A: flow_label_lo[0] (u8)
-//   0x0B: flow_label_lo[1] (u8)
-//   0x0C: monad (Monad, 20 bytes)
+//
+//	0x00: timestamp_ns (u64)
+//	0x08: event_type (u8)
+//	0x09: hop_id (u8)
+//	0x0A: flow_label_lo[0] (u8)
+//	0x0B: flow_label_lo[1] (u8)
+//	0x0C: monad (Monad, 20 bytes)
 func TestAnamnesisEventFieldOffsets(t *testing.T) {
 	e := AnamnesisEvent{}
 	base := uintptr(unsafe.Pointer(&e))
@@ -170,12 +171,13 @@ func TestFlowKeySize(t *testing.T) {
 // TestFlowKeyFieldOffsets verifies each field is at the correct byte offset.
 //
 // Rust offsets (from FlowKey in ebpf/common/src/lib.rs:65-70):
-//   0x00: src_addr (u32)
-//   0x04: dst_addr (u32)
-//   0x08: src_port (u16)
-//   0x0A: dst_port (u16)
-//   0x0C: protocol (u8)
-//   0x0D: _pad [3]
+//
+//	0x00: src_addr (u32)
+//	0x04: dst_addr (u32)
+//	0x08: src_port (u16)
+//	0x0A: dst_port (u16)
+//	0x0C: protocol (u8)
+//	0x0D: _pad [3]
 func TestFlowKeyFieldOffsets(t *testing.T) {
 	k := FlowKey{}
 	base := uintptr(unsafe.Pointer(&k))
@@ -220,15 +222,17 @@ func TestFlowStateSize(t *testing.T) {
 // TestFlowStateFieldOffsets verifies each field is at the correct byte offset.
 //
 // Both Rust #[repr(C)] and Go produce identical offsets for this struct:
-//   0x00: trace_id / TraceID ([16]byte / TraceId, 16 bytes)
-//   0x10: start_ns / StartNs (u64 / uint64)
-//   0x18: last_seen_ns / LastSeenNs (u64 / uint64)
-//   0x20: packets_in / PacketsIn (u64 / uint64)
-//   0x28: packets_out / PacketsOut (u64 / uint64)
-//   0x30: bytes_in / BytesIn (u64 / uint64)
-//   0x38: bytes_out / BytesOut (u64 / uint64)
-//   0x40: state / State (u8 / uint8)
-//   0x41: _pad ([7]byte)
+//
+//	0x00: trace_id / TraceID ([16]byte / TraceId, 16 bytes)
+//	0x10: start_ns / StartNs (u64 / uint64)
+//	0x18: last_seen_ns / LastSeenNs (u64 / uint64)
+//	0x20: packets_in / PacketsIn (u64 / uint64)
+//	0x28: packets_out / PacketsOut (u64 / uint64)
+//	0x30: bytes_in / BytesIn (u64 / uint64)
+//	0x38: bytes_out / BytesOut (u64 / uint64)
+//	0x40: state / State (u8 / uint8)
+//	0x41: _pad ([7]byte)
+//
 // Total: 0x48 = 72 bytes.
 func TestFlowStateFieldOffsets(t *testing.T) {
 	s := FlowState{}
@@ -275,28 +279,29 @@ func TestMbcCpuStateSize(t *testing.T) {
 // TestMbcCpuStateFieldOffsets verifies each field is at the correct byte offset.
 //
 // Rust offsets (from MbcCpuState in monad-common/src/lib.rs):
-//   0x00: regs ([u32; 16], 64 bytes)
-//   0x40: pc (u32, 4 bytes)
-//   0x44: flags (u8, 1 byte)
-//   0x45: halted (u8, 1 byte)
-//   0x46: stalled (u8, 1 byte)
-//   0x47: _pad (u8, 1 byte)
-//   0x48: sleep_until_ns (u64, 8 bytes)
-//   0x50: insn_count (u64, 8 bytes)
-//   0x58: cache_hits (u64, 8 bytes)
-//   0x60: cache_misses (u64, 8 bytes)
-//   0x68: interrupt_pending (u8, 1 byte)
-//   0x69: interrupt_vector (u8, 1 byte)
-//   0x6A: interrupts_enabled (u8, 1 byte)
-//   0x6B: _pad2 (u8, 1 byte)
-//   0x6C: tick_counter (u32, 4 bytes)
-//   0x70: program_break (u32, 4 bytes)
-//   0x74: exit_code (u32, 4 bytes)
-//   0x78: current_pid (u8, 1 byte)
-//   0x79: num_processes (u8, 1 byte)
-//   0x7A: mmu_enabled (u8, 1 byte)
-//   0x7B: _pad3 (u8, 1 byte)
-//   0x7C: page_dir_base (u32, 4 bytes)
+//
+//	0x00: regs ([u32; 16], 64 bytes)
+//	0x40: pc (u32, 4 bytes)
+//	0x44: flags (u8, 1 byte)
+//	0x45: halted (u8, 1 byte)
+//	0x46: stalled (u8, 1 byte)
+//	0x47: _pad (u8, 1 byte)
+//	0x48: sleep_until_ns (u64, 8 bytes)
+//	0x50: insn_count (u64, 8 bytes)
+//	0x58: cache_hits (u64, 8 bytes)
+//	0x60: cache_misses (u64, 8 bytes)
+//	0x68: interrupt_pending (u8, 1 byte)
+//	0x69: interrupt_vector (u8, 1 byte)
+//	0x6A: interrupts_enabled (u8, 1 byte)
+//	0x6B: _pad2 (u8, 1 byte)
+//	0x6C: tick_counter (u32, 4 bytes)
+//	0x70: program_break (u32, 4 bytes)
+//	0x74: exit_code (u32, 4 bytes)
+//	0x78: current_pid (u8, 1 byte)
+//	0x79: num_processes (u8, 1 byte)
+//	0x7A: mmu_enabled (u8, 1 byte)
+//	0x7B: _pad3 (u8, 1 byte)
+//	0x7C: page_dir_base (u32, 4 bytes)
 func TestMbcCpuStateFieldOffsets(t *testing.T) {
 	c := MbcCpuState{}
 	base := uintptr(unsafe.Pointer(&c))
@@ -354,14 +359,15 @@ func TestFlowMigrationTokenValueSize(t *testing.T) {
 // TestFlowMigrationTokenValueFieldOffsets verifies each field is at the correct byte offset.
 //
 // Rust offsets (from MigrationTokenValue in ebpf/flow-tracker/src/main.rs):
-//   0x00: token ([u8; 16], 16 bytes)
-//   0x10: expiry_ns (u64, 8 bytes)
-//   0x18: new_src_addr (u32, 4 bytes)
-//   0x1C: new_dst_addr (u32, 4 bytes)
-//   0x20: new_src_port (u16, 2 bytes)
-//   0x22: new_dst_port (u16, 2 bytes)
-//   0x24: flags (u32, 4 bytes)
-//   0x28: _pad ([u8; 4], 4 bytes)
+//
+//	0x00: token ([u8; 16], 16 bytes)
+//	0x10: expiry_ns (u64, 8 bytes)
+//	0x18: new_src_addr (u32, 4 bytes)
+//	0x1C: new_dst_addr (u32, 4 bytes)
+//	0x20: new_src_port (u16, 2 bytes)
+//	0x22: new_dst_port (u16, 2 bytes)
+//	0x24: flags (u32, 4 bytes)
+//	0x28: _pad ([u8; 4], 4 bytes)
 func TestFlowMigrationTokenValueFieldOffsets(t *testing.T) {
 	m := FlowMigrationTokenValue{}
 	base := uintptr(unsafe.Pointer(&m))
@@ -407,11 +413,12 @@ func TestFlowCancelValueSize(t *testing.T) {
 // TestFlowCancelValueFieldOffsets verifies each field is at the correct byte offset.
 //
 // Go offsets (with natural alignment — uint64 requires 8-byte alignment):
-//   0x00: Reason (uint32, 4 bytes)
-//   0x04: (implicit padding, 4 bytes)
-//   0x08: TimestampNs (uint64, 8 bytes)
-//   0x10: Flags (uint32, 4 bytes)
-//   0x14: _pad ([4]byte, 4 bytes)
+//
+//	0x00: Reason (uint32, 4 bytes)
+//	0x04: (implicit padding, 4 bytes)
+//	0x08: TimestampNs (uint64, 8 bytes)
+//	0x10: Flags (uint32, 4 bytes)
+//	0x14: _pad ([4]byte, 4 bytes)
 //
 // Note: Rust #[repr(C, packed)] places TimestampNs at 0x04 with no padding.
 // Go cannot match this without unsafe tricks, so the Go struct uses natural

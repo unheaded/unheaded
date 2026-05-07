@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/httputil"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ============================================================================

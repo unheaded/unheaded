@@ -116,9 +116,9 @@ func TestStageExecutorValidate(t *testing.T) {
 	executor := NewStageExecutor()
 
 	tests := []struct {
-		name        string
-		stage       *Stage
-		expectError bool
+		name          string
+		stage         *Stage
+		expectError   bool
 		errorContains string
 	}{
 		{
@@ -127,15 +127,15 @@ func TestStageExecutorValidate(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "empty name",
-			stage:       &Stage{Name: "", Type: StageBuild},
-			expectError: true,
+			name:          "empty name",
+			stage:         &Stage{Name: "", Type: StageBuild},
+			expectError:   true,
 			errorContains: "stage name is required",
 		},
 		{
-			name:        "empty type",
-			stage:       &Stage{Name: "test-stage", Type: ""},
-			expectError: true,
+			name:          "empty type",
+			stage:         &Stage{Name: "test-stage", Type: ""},
+			expectError:   true,
 			errorContains: "stage type is required",
 		},
 		{
@@ -211,11 +211,11 @@ func TestStageExecutorExecute(t *testing.T) {
 	executor := NewStageExecutor()
 
 	tests := []struct {
-		name           string
-		stage          *Stage
-		pipelineCtx    map[string]interface{}
-		expectError    bool
-		expectSuccess  bool
+		name          string
+		stage         *Stage
+		pipelineCtx   map[string]interface{}
+		expectError   bool
+		expectSuccess bool
 	}{
 		{
 			name:          "successful build stage",

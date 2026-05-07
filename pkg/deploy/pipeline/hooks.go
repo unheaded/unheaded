@@ -32,7 +32,7 @@ type HookType string
 const (
 	HookTypeExec    HookType = "exec"
 	HookTypeHTTP    HookType = "http"
-	HookTypeWotan  HookType = "wotan"
+	HookTypeWotan   HookType = "wotan"
 	HookTypeWebhook HookType = "webhook"
 	HookTypeScript  HookType = "script"
 )
