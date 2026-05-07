@@ -167,6 +167,26 @@ Estimate: ~1 day.
 
 ---
 
+### [GOLANGCI-LINT-V2-MIGRATION] .golangci.yml needs v1 → v2 schema migration
+**Captured during:** Re-engagement Phase 23.
+
+The repo's `.golangci.yml` is on the v1 schema; the installed `golangci-lint 2.10.1` (built 2026-02-17) requires v2. Multiple breaking schema changes:
+
+1. **`output.formats`** — was a list of `{format: name}`, now a map keyed by format name.
+2. **`run.skip-dirs` / `run.skip-files`** — moved to `issues.exclude-dirs` / `issues.exclude-files`.
+3. **`linters-settings.bodyclose`** — no longer a top-level setting (moved or removed).
+4. **Top-level `version: "2"`** field is now required.
+
+`golangci-lint migrate` was attempted; it bailed with "configuration contains invalid elements" (the schema breaks are too many for the auto-migrator). A manual rewrite per the [migration guide](https://golangci-lint.run/docs/product/migration-guide) is needed.
+
+**Why parked:** the .golangci.yml encodes the S26 Round Table "critical-only" lint policy (errcheck, govet, staticcheck, unused, gosec, bodyclose, exportloopref + explicit disable list). Re-encoding that policy into v2 schema unattended risks losing or shifting the policy meaning. Architect/Developer ratification needed.
+
+**Suggested daytime:** Developer reads the migration guide, manually rewrites `.golangci.yml` to v2 schema preserving the original policy, runs `golangci-lint run --config .golangci.yml` to confirm parsing, then runs against a representative subset (`./pkg/auth/...`) to capture findings volume. ~30-60 min once the migration guide is open.
+
+**Owner:** Developer.
+
+---
+
 ### [EBPF-CLIPPY-119] 119 clippy warnings in ebpf/ workspace
 **Captured during:** Re-engagement Phase 22.
 
