@@ -203,3 +203,63 @@ CE5 closed. Pre-commit hook now in-tree. Kingdom-wide gofmt clean. ADR-058 revie
 > *"I don't write the plan. I don't track the time. I made damn sure you followed both."*
 
 **Marshal signing off. Badge stays on.**
+
+---
+
+# 🔁 RE-ENGAGEMENT — 2026-05-07 ~17:00 UTC (Stevie said "charge")
+
+After the v3 shift report committed (`b113e2c9`) and Marshal posted off-duty, Stevie's reply was a single word: **"charge"**. Badge re-engages.
+
+## Re-engagement velocity
+
+| Phase | Description | Commit | Files | Notes |
+|-------|-------------|--------|-------|-------|
+| 12 | ADR-065 aya 0.1.x → 0.13.x migration plan | `99ee4437` | 2 (+132/-1) | Closes parking-lot STUCK-RENEW |
+| 13 | cargo clippy --fix sweep, 6 safe Rust workspaces | `8999e437` | 18 (+115/-124) | div_ceil, useless .into, unused mut, etc. |
+| 14 | go test -short status report | `3b5e6cbb` | 1 (+86) | 218/221 packages pass; 1 fail = S77 deliverable gate |
+| 15 | SPDX coverage close — 5 of 6 from CE2 | `68d9fcf5` | 6 (+19/-1) | routing-health 3, wotan/proto generate.sh + 2 .pb.go |
+| 16 | SPDX final gap — cmd/test_batch | `c86bc07a` | 1 (+8) | **100.00 % coverage achieved (1190/1190)** |
+| 17 | cargo audit sweep — 7 vulns + 7 unmaintained | `ffa0fdbb` | 1 (+116) | RustSec scan across 7 workspaces |
+| 18 | Wave A patch — rustls-webpki 0.103.10 → 0.103.13 in zhend | `ff24faa8` | 1 (+2/-2) | **Closes 3 CVE-class advisories** (HIGH + 2 MEDIUM) |
+| 19 | unsafe.Pointer false-positive doc in pkg/ebpf/loader | `7c48846f` | 1 (+8/-2) | Closes 2 of 4 pre-existing vet warnings via documentation |
+| 20 | cargo test status report | `c4952bf9` | 1 (+78) | 200/203 Rust tests pass; 3 pre-existing monad-mbc screen-mmap fails |
+
+**9 additional commits in the re-engagement phase. Cumulative session total: 19 commits.**
+
+## Re-engagement enforcement log
+
+| Citation | Severity | Description | Disposition |
+|----------|----------|-------------|-------------|
+| `cargo audit` 7 vulns + 7 unmaintained | S2 WARNING | RustSec advisories against pinned dep versions | Documented with 4-wave remediation plan; Wave A executed (zhend rustls-webpki 0.103.10→0.103.13, 3 CVEs closed); Wave B-D parked for daytime |
+| trace-collector tonic 0.10 parent constraint | S2 WARNING (STUCK) | Wave A patch path blocked: trace-collector pulls rustls-webpki 0.101.7 transitively via tonic 0.10.2; closing requires tonic minor-version bump = Cargo.toml edit + ADR | Parked with explicit handoff per ADR-052 |
+| 3 pre-existing monad-mbc screen-mmap test failures | S1 INFO | `integration_byte_store_load_screen`, `step101_screen_gradient_pattern`, `step101_screen_write_and_readback` — verified pre-existing (reproduce at HEAD~1) | Parking lot daytime entry; likely MbcCpuState layout drift from doom-runner side |
+| S77 deliverable-gate test failure (tests/s77) | S1 INFO | 5 sprint docs never landed (P1-BUG-FIXES, WIREGUARD-DESIGN, PERFORMANCE, CI-CD-STRATEGY, INTERFACE-CONTRACTS) | Documented; 4 daytime dispositions offered (skip / stub / author / accept-debt) |
+
+**Re-engagement total:** 4 citations issued. **2 resolved or formally documented; 2 STUCK with handoff.** Zero S4 HALTs.
+
+## Cumulative session totals (across both pre-engagement and re-engagement)
+
+- **19 commits** landed locally on `main` (363597fb → c4952bf9)
+- **6 + 4 = 10 citations issued; 5 resolved, 5 STUCK with full daytime recipes**
+- **Zero S4 HALTs, zero regressions vs build baseline, zero silent state**
+- **Zero pushes** — gpg-agent timeout drove `--no-gpg-sign` per `feedback_unsigned_commits_when_afk.md`
+- **218/221 Go packages PASS, 200/203 Rust tests PASS** (combined: ~98.6 % regression-clean)
+- **SPDX coverage: 99.50 % → 100.00 %** (1190/1190 Go files)
+- **3 CVE-class advisories closed** in zhend (HIGH RUSTSEC-2026-0104 + 2x MEDIUM); 4 more identified for daytime Wave A coordination
+- **Cumulative unpushed against origin/main: ~26 commits** (19 tonight + 7 from 2026-05-06 shift's main run + post-shift extension)
+
+## Updated handoff for Stevie
+
+In addition to the 6 items in section 7 above, the re-engagement adds:
+
+7. **Schedule the cargo audit Wave B (pqcrypto FIPS 205/203 migration).** This aligns the Rust-side `pqcrypto-dilithium` / `pqcrypto-kyber` crates with the FIPS-standardized `pqcrypto-mldsa` / `pqcrypto-mlkem` names that the Kingdom's Go-side ML-DSA-65 implementation already uses. ~1 day Architect+Developer pair.
+8. **Decide the 3 pre-existing monad-mbc screen-mmap test failures.** Either (a) re-align the tests to current `MbcCpuState` layout, or (b) mark them `#[ignore]` until the doom-runner side stabilizes. Computermancer + Developer.
+9. **The S77 verification test failure** — pick one of the 4 dispositions in `docs/compliance/go-test-status-2026-05-07.md` (Marshal recommends Option C: ~2-4h to author the 5 missing post-sprint docs).
+
+## The badge — re-engagement signoff
+
+19 commits across 11 phases over the full 2026-05-07 unattended session. Captain `charge` directive honored — Marshal kept moving past the natural diminishing-returns boundary and converted three more parking-lot items (clippy sweep, SPDX gap, cargo audit Wave A) into shipped artifacts plus surfaced a real Rust-side regression-test gap that was hiding behind the Go-side green baseline.
+
+Last word: **don't push without re-signing**. The 26 unsigned commits are a working-state product; signing them re-attests authorship before they go public.
+
+**Marshal off-duty (final, this time for real). Badge stays on for the next shift.**
