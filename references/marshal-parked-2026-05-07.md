@@ -113,6 +113,73 @@ Sample run on `crates/doom-runner` showed 9 cosmetic clippy warnings (unused_mut
 
 ---
 
+### [TONIC-BUMP-NEEDED] cmd/trace-collector rustls-webpki + protobuf vulns blocked by tonic 0.10
+**Captured during:** Re-engagement Phase 18 (cargo audit Wave A).
+
+`cmd/trace-collector/Cargo.lock` pins:
+- `rustls-webpki 0.101.7` (3 CVE-class advisories — RUSTSEC-2026-0098/0099/0104; patches available only on the 0.103 line)
+- `protobuf` (1 CVE — RUSTSEC-2024-0437 uncontrolled-recursion crash)
+
+Both pins are dictated by `tonic 0.10.2` (declared in `cmd/trace-collector/Cargo.toml`), which carries `rustls 0.21` + an older protobuf. Closing the four advisories requires bumping tonic to 0.12+ — a Cargo.toml edit, which per ADR-052 needs an ADR or battle-plan of record.
+
+**Suggested daytime:** small ADR (~ADR-066) capturing the tonic 0.10 → 0.12 rationale (security + alignment with zhend which is already on tonic 0.12), then a one-commit migration touching trace-collector's Cargo.toml + Cargo.lock + any tonic API drift fixes. Estimate: 1-2 hours including verification on Linux host.
+
+**Owner:** Developer + Architect.
+
+---
+
+### [MONAD-MBC-SCREEN-TEST-DRIFT] 3 pre-existing test failures in monad-mbc
+**Captured during:** Re-engagement Phase 20 (cargo test status sweep).
+
+Failing tests (all in `crates/monad-mbc/tests/integration_tests.rs`):
+- `integration_byte_store_load_screen` (line 947 assertion failure)
+- `step101_screen_gradient_pattern`
+- `step101_screen_write_and_readback`
+
+**Pre-existing-confirmed:** all 3 reproduce at `HEAD~1` (i.e. before tonight's clippy --fix commit `8999e437`). Not from this session.
+
+**Pattern:** all three exercise the screen-mmap byte-store path. Likely cause: `MbcCpuState` layout drift between the monad-mbc test fixtures and the doom-runner side (which CLAUDE.md notes as the layout source-of-truth at `crates/doom-runner/src/memory.rs`).
+
+**Suggested daytime:** Computermancer + Developer pair re-align the 3 tests with current memory layout, or mark `#[ignore]` with a TODO if the screen path is intentionally being deprecated. ~1-2h.
+
+**Owner:** Computermancer + Developer.
+
+---
+
+### [CARGO-AUDIT-WAVE-B] pqcrypto FIPS 205/203 migration
+**Captured during:** Re-engagement Phase 17 (cargo audit sweep).
+
+`crates/zhend` pins:
+- `pqcrypto-dilithium 0.5.0` — RUSTSEC-2024-0380, replaced by `pqcrypto-mldsa` (FIPS 205)
+- `pqcrypto-kyber 0.8.1` — RUSTSEC-2024-0381, replaced by `pqcrypto-mlkem` (FIPS 203)
+
+Both are unmaintained (replaced upstream). Algorithm parameters are equivalent — FIPS 205 ML-DSA == NIST CRYSTALS-Dilithium == the algorithm Kingdom's Go-side `services/wotan/internal/signing/` already implements via cloudflare/circl. Migration aligns Rust-side names with the existing Go-side ML-DSA-65 implementation.
+
+**Suggested daytime:** Architect + Developer pair.
+1. Edit `crates/zhend/Cargo.toml`: replace `pqcrypto-dilithium` → `pqcrypto-mldsa`, `pqcrypto-kyber` → `pqcrypto-mlkem`.
+2. Update import paths and key/signature type names per the `mldsa` / `mlkem` API.
+3. Run zhend's 60 PQC tests; expect API shape to be near-equivalent.
+4. Cross-check with services/wotan/internal/signing for naming alignment opportunity.
+
+Estimate: ~1 day.
+
+**Owner:** Architect + Developer.
+
+---
+
+### [CARGO-AUDIT-WAVE-D] rand RUSTSEC-2026-0097 unsoundness audit
+**Captured during:** Re-engagement Phase 17.
+
+`rand 0.8.5` and `rand 0.9.2` flagged as "unsound with custom logger using `rand::rng()`" (RUSTSEC-2026-0097). Trigger: a custom global logger that calls `rand::rng()` reentrantly during log emission.
+
+**Likely not applicable** — Kingdom uses zerolog (Go) and tracing-subscriber (Rust) as the structured loggers, neither of which is known to call rand during emission. But this needs a focused MoatGhost evaluation before formally closing.
+
+**Suggested daytime:** MoatGhost grep for `rand::rng()` calls in any logger init / emission path; if none, document `cargo audit ignore --id RUSTSEC-2026-0097` justification. ~30 min.
+
+**Owner:** MoatGhost.
+
+---
+
 ### [CARRY-FORWARD from `marshal-parked-2026-05-06.md`]
 
 The following parking-lot items from yesterday's shift remain open. None of them were actioned tonight (most are architectural / require Stevie's decision):
