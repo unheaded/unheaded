@@ -100,8 +100,10 @@ This file + `references/marshal-parked-2026-05-07.md`.
 | 6 Broad gofmt | 0 (Marshal direct) | 1 (`fe2b4bb4`) | 435 (+5778/-5762) | 0 |
 | 7 Shift report v1 | 0 (Marshal direct) | 1 (`3f97c18f`) | 2 (+279) | 0 |
 | 8 Rust cargo fmt | 0 (Marshal direct) | 1 (`97f55513`) | 83 (+2299/-1453) | 1 (cmd/waf parse error) |
-| 9 Shift report v2 | 0 (Marshal direct) | 1 (this amend) | 2 (this + parking lot) | 0 |
-| **Total** | **5** | **7** | **559** | **3** |
+| 9 Shift report v2 | 0 (Marshal direct) | 1 (`49066309`) | 2 (+42/-9) | 0 |
+| 10 rustfmt hook | 0 (Marshal direct) | 1 (`dc7fc61e`) | 2 (+139/-48) | 0 |
+| 11 Shift report v3 | 0 (Marshal direct) | 1 (this) | 1 (this) | 0 |
+| **Total** | **5** | **9** | **563** | **3** |
 
 5 agents dispatched, all 5 returned successfully. Aggregate wall-clock from first dispatch to last commit ≈ 12-15 min agent-time + Marshal coordination overhead.
 
@@ -127,17 +129,26 @@ This file + `references/marshal-parked-2026-05-07.md`.
 ## 5. Commits made (all local, none pushed)
 
 ```
+dc7fc61e  feat(hooks): extend pre-commit to enforce rustfmt on staged .rs files
+49066309  docs(marshal): 2026-05-07 shift report v2 — append Phase 8 + cmd/waf finding
 97f55513  style(rust): cargo fmt drift cleanup across safe crates
-3f97c18f  docs(marshal): 2026-05-07 daytime unattended Shift Report + Parking Lot (v1, superseded by this commit)
+3f97c18f  docs(marshal): 2026-05-07 daytime unattended Shift Report + Parking Lot (v1)
 fe2b4bb4  style(cmd,pkg,services): kingdom-wide gofmt drift cleanup (435 files)
 3524190a  feat(hooks): install minimum-viable pre-commit hook (close CE5)
 2bcd2a63  style(wotan,pkg): gofmt drift cleanup across recently-touched scoped dirs
 363597fb  docs(compliance,adr): ADR-052 drift-guard re-verification + ADR-058 Marshal review
 ```
 
-6 commits + this shift-report-amend commit. ~559 files modified across the night, ~8500 insertions / ~7400 deletions.
+8 commits + this shift-report-final-amend commit. ~563 files modified across the night, ~8700 insertions / ~7450 deletions.
 
-**Cumulative unpushed against origin/main:** ~15 commits (this run's 7 + 8 from 2026-05-06 shift). Stevie should plan a single `git push origin main` once the gpg-agent re-sign decision is made. **None pushed.** Merge / push is Stevie's call — note that the unsigned-commits flag was used per `feedback_unsigned_commits_when_afk.md`; if signature is required for merge, daytime re-sign (`git commit --amend -S --no-edit` per commit) before push.
+**Cumulative unpushed against origin/main:** ~17 commits (this run's 9 + 8 from 2026-05-06 shift). Stevie should plan a single `git push origin main` once the gpg-agent re-sign decision is made.
+
+### Hook extension (Phase 10) note
+The pre-commit hook now also enforces `rustfmt --check` on staged .rs files
+(soft-required toolchain — warns + skips if rustfmt is missing). Test
+harness extended: T4 rustfmt-drift = blocked, T5 rs-clean = passes. Closes
+the Rust-side parallel of the CE5 gap that surfaced as 83 files of cargo-
+fmt drift in Phase 8. **None pushed.** Merge / push is Stevie's call — note that the unsigned-commits flag was used per `feedback_unsigned_commits_when_afk.md`; if signature is required for merge, daytime re-sign (`git commit --amend -S --no-edit` per commit) before push.
 
 ## 6. Parked items
 
