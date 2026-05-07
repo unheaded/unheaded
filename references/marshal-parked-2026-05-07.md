@@ -100,6 +100,19 @@ Per `feedback_unsigned_commits_when_afk.md`: switched to `--no-gpg-sign` for all
 
 ---
 
+### [CLIPPY-SWEEP] Cosmetic clippy warnings across Rust crates
+**Captured during:** Phase 10 closeout exploration.
+
+Sample run on `crates/doom-runner` showed 9 cosmetic clippy warnings (unused_mut at main.rs:376, useless conversion to same type, 3x manually reimplementing `div_ceil` (stdlib has it as of Rust 1.73), 1x doc list overindented, 1x assertion with constant value, 2 unspecified). All are stylistic; none block compile.
+
+**Marshal recommendation:** run `cargo clippy --fix --all-targets --workspace` (with `--allow-staged` if needed) at daytime, across each crate workspace, in one batch. clippy-fix only applies safe rewrites (semantically equivalent), so risk is low — but mass-rewriting Rust unattended is a Marshal-jurisdiction smell, hence the deferral.
+
+**Suggested daytime sweep:** ebpf/, crates/{zhend,doom-runner,monad-mbc,heimdall-bpf,zhenai-forge}, cmd/{waf,ebpf-collector,trace-collector,ebpf-loader}. Estimate: ~30 min including verify each crate post-fix.
+
+**Owner:** Developer.
+
+---
+
 ### [CARRY-FORWARD from `marshal-parked-2026-05-06.md`]
 
 The following parking-lot items from yesterday's shift remain open. None of them were actioned tonight (most are architectural / require Stevie's decision):
