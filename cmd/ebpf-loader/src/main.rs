@@ -349,7 +349,7 @@ fn load_monad_cpu(cli: &Cli) -> Result<Ebpf> {
     // EbpfLoader::map_pin_path should do this, but legacy maps may not auto-pin.
     if let Some(ref pin_path) = cli.map_pin_path {
         for (map_name, map) in ebpf.maps_mut() {
-            let pin = pin_path.join(&map_name);
+            let pin = pin_path.join(map_name);
             if pin.exists() {
                 info!("  map {} already pinned at {}", map_name, pin.display());
             } else {
@@ -473,7 +473,7 @@ fn load_shield(cli: &Cli) -> Result<Ebpf> {
         std::fs::create_dir_all(&shield_pin_dir).ok();
 
         for (map_name, map) in ebpf.maps_mut() {
-            let pin = shield_pin_dir.join(&map_name);
+            let pin = shield_pin_dir.join(map_name);
             if pin.exists() {
                 info!("  map {} already pinned at {}", map_name, pin.display());
             } else {
@@ -514,7 +514,7 @@ fn pin_all_maps(handles: &mut [(&str, Ebpf)]) -> Result<()> {
             .with_context(|| format!("Failed to create {}", pin_dir.display()))?;
 
         for (map_name, map) in ebpf.maps_mut() {
-            let pin_path = pin_dir.join(&map_name);
+            let pin_path = pin_dir.join(map_name);
             if let Err(e) = map.pin(&pin_path) {
                 warn!("Failed to pin {}/{}: {}", prog_name, map_name, e);
             } else {

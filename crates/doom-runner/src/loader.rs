@@ -261,7 +261,7 @@ pub fn load_wad(wad_path: &Path) -> Result<Vec<u8>> {
 /// Pack a byte slice into word-aligned u32 values (little-endian).
 /// Pads the final word with zeros if the data length is not a multiple of 4.
 pub fn bytes_to_words(data: &[u8]) -> Vec<u32> {
-    let mut words = Vec::with_capacity((data.len() + 3) / 4);
+    let mut words = Vec::with_capacity(data.len().div_ceil(4));
     for chunk in data.chunks(4) {
         let mut word_bytes = [0u8; 4];
         word_bytes[..chunk.len()].copy_from_slice(chunk);

@@ -98,25 +98,22 @@ impl Subscription {
         }
 
         // Check event types
-        if !self.event_types.is_empty() {
-            if !self.event_types.contains(&update.event_type) {
+        if !self.event_types.is_empty()
+            && !self.event_types.contains(&update.event_type) {
                 return false;
             }
-        }
 
         // Check services
-        if !self.services.is_empty() {
-            if !update.services.iter().any(|s| self.services.contains(s)) {
+        if !self.services.is_empty()
+            && !update.services.iter().any(|s| self.services.contains(s)) {
                 return false;
             }
-        }
 
         // Check trace IDs
-        if !self.trace_ids.is_empty() {
-            if !self.trace_ids.contains(&update.trace_id) {
+        if !self.trace_ids.is_empty()
+            && !self.trace_ids.contains(&update.trace_id) {
                 return false;
             }
-        }
 
         // Check minimum latency
         if let Some(min_lat) = self.min_latency_ns {

@@ -13,8 +13,10 @@ use super::{SpanId, TraceId};
 /// Span kind (role in the trace)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SpanKind {
     /// Internal operation (default)
+    #[default]
     Internal,
     /// Server receiving a request
     Server,
@@ -26,17 +28,14 @@ pub enum SpanKind {
     Consumer,
 }
 
-impl Default for SpanKind {
-    fn default() -> Self {
-        Self::Internal
-    }
-}
 
 /// Span status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SpanStatus {
     /// Unset (default)
+    #[default]
     Unset,
     /// Operation completed successfully
     Ok,
@@ -44,11 +43,6 @@ pub enum SpanStatus {
     Error,
 }
 
-impl Default for SpanStatus {
-    fn default() -> Self {
-        Self::Unset
-    }
-}
 
 /// A span event (point-in-time occurrence within a span)
 #[derive(Debug, Clone, Serialize, Deserialize)]

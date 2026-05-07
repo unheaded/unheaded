@@ -385,7 +385,7 @@ impl TraceStore {
         if query.newest_first {
             matching.sort_by(|a, b| b.start_time_ns.cmp(&a.start_time_ns));
         } else {
-            matching.sort_by(|a, b| a.start_time_ns.cmp(&b.start_time_ns));
+            matching.sort_by_key(|a| a.start_time_ns);
         }
 
         // Apply offset and limit

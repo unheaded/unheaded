@@ -142,7 +142,7 @@ fn main() {
         process::exit(1);
     }
 
-    if text_size % 4 != 0 {
+    if !text_size.is_multiple_of(4) {
         eprintln!("Warning: .text size ({text_size}) not word-aligned, truncating");
     }
 

@@ -216,7 +216,7 @@ impl RingBufReader {
 
         // Map Shield event types to trace-collector EventType
         let event_type = match event_type_raw {
-            1 | 2 | 3 => EventType::Packet, // Birth/Hop/Death → Packet
+            1..=3 => EventType::Packet, // Birth/Hop/Death → Packet
             4 | 5 => EventType::Custom,     // Anomaly/Chaos → Custom
             _ => EventType::Custom,
         };

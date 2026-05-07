@@ -50,7 +50,7 @@ impl Cpu {
     /// Create a new CPU with SP initialized to 0xFFFF_0000.
     pub fn new() -> Self {
         let mut state = MbcCpuState::default();
-        state.regs[REG_SP as usize] = 0xFFFF_0000;
+        state.regs[REG_SP] = 0xFFFF_0000;
 
         Cpu {
             state,
@@ -84,14 +84,14 @@ impl Cpu {
         // before fetching the next instruction.
         if self.state.interrupt_pending != 0 && self.state.interrupts_enabled != 0 {
             // Push flags to stack
-            self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
-            let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
+            self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_sub(4);
+            let sp_flags = (self.state.regs[REG_SP] >> 2) as usize;
             if sp_flags < self.ram.len() {
                 self.ram[sp_flags] = self.state.flags as u32;
             }
             // Push PC to stack
-            self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
-            let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
+            self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_sub(4);
+            let sp_pc = (self.state.regs[REG_SP] >> 2) as usize;
             if sp_pc < self.ram.len() {
                 self.ram[sp_pc] = self.state.pc;
             }
@@ -381,7 +381,7 @@ impl Cpu {
 
             // === Shift operations (immediate) ===
             op::SHL => {
-                let shamt = (imm & 0xFF) as u32;
+                let shamt = imm & 0xFF;
                 let result = self.state.regs[dst].wrapping_shl(shamt);
                 let carry = if shamt > 0 && shamt <= 32 {
                     (self.state.regs[dst] >> (32 - shamt)) & 1 != 0
@@ -392,7 +392,7 @@ impl Cpu {
                 self.state.regs[dst] = result;
             }
             op::SHR => {
-                let shamt = (imm & 0xFF) as u32;
+                let shamt = imm & 0xFF;
                 let result = self.state.regs[dst].wrapping_shr(shamt);
                 let carry = if shamt > 0 && shamt <= 32 {
                     (self.state.regs[dst] >> (shamt - 1)) & 1 != 0
@@ -403,7 +403,7 @@ impl Cpu {
                 self.state.regs[dst] = result;
             }
             op::SAR => {
-                let shamt = (imm & 0xFF) as u32;
+                let shamt = imm & 0xFF;
                 let result = (self.state.regs[dst] as i32).wrapping_shr(shamt) as u32;
                 let carry = if shamt > 0 && shamt <= 32 {
                     ((self.state.regs[dst] as i32) >> (shamt - 1)) & 1 != 0
@@ -416,7 +416,7 @@ impl Cpu {
 
             // === Shift operations (register) ===
             op::SHLR => {
-                let shamt = (self.state.regs[src] & 0xFF) as u32;
+                let shamt = self.state.regs[src] & 0xFF;
                 let result = self.state.regs[dst].wrapping_shl(shamt);
                 let carry = if shamt > 0 && shamt <= 32 {
                     (self.state.regs[dst] >> (32 - shamt)) & 1 != 0
@@ -427,7 +427,7 @@ impl Cpu {
                 self.state.regs[dst] = result;
             }
             op::SHRR => {
-                let shamt = (self.state.regs[src] & 0xFF) as u32;
+                let shamt = self.state.regs[src] & 0xFF;
                 let result = self.state.regs[dst].wrapping_shr(shamt);
                 let carry = if shamt > 0 && shamt <= 32 {
                     (self.state.regs[dst] >> (shamt - 1)) & 1 != 0
@@ -438,7 +438,7 @@ impl Cpu {
                 self.state.regs[dst] = result;
             }
             op::SARR => {
-                let shamt = (self.state.regs[src] & 0xFF) as u32;
+                let shamt = self.state.regs[src] & 0xFF;
                 let result = (self.state.regs[dst] as i32).wrapping_shr(shamt) as u32;
                 let carry = if shamt > 0 && shamt <= 32 {
                     ((self.state.regs[dst] as i32) >> (shamt - 1)) & 1 != 0
@@ -459,18 +459,18 @@ impl Cpu {
 
             // === Stack operations ===
             op::PUSH => {
-                let sp = self.state.regs[REG_SP as usize] as usize;
+                let sp = self.state.regs[REG_SP] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.regs[dst];
-                    self.state.regs[REG_SP as usize] =
-                        self.state.regs[REG_SP as usize].wrapping_sub(1);
+                    self.state.regs[REG_SP] =
+                        self.state.regs[REG_SP].wrapping_sub(1);
                 }
             }
             op::POP => {
-                let sp = self.state.regs[REG_SP as usize].wrapping_add(1) as usize;
+                let sp = self.state.regs[REG_SP].wrapping_add(1) as usize;
                 if sp < self.ram.len() {
                     self.state.regs[dst] = self.ram[sp];
-                    self.state.regs[REG_SP as usize] = sp as u32;
+                    self.state.regs[REG_SP] = sp as u32;
                 }
             }
 
@@ -506,65 +506,59 @@ impl Cpu {
             op::JMP => {
                 self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
             }
-            op::JZ => {
-                if (self.state.flags & mf::Z) != 0 {
+            op::JZ
+                if (self.state.flags & mf::Z) != 0 => {
                     self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
                 }
-            }
-            op::JNZ => {
-                if (self.state.flags & mf::Z) == 0 {
+            op::JNZ
+                if (self.state.flags & mf::Z) == 0 => {
                     self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
                 }
-            }
-            op::JN => {
-                if (self.state.flags & mf::N) != 0 {
+            op::JN
+                if (self.state.flags & mf::N) != 0 => {
                     self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
                 }
-            }
-            op::JP => {
-                if (self.state.flags & mf::N) == 0 && (self.state.flags & mf::Z) == 0 {
+            op::JP
+                if (self.state.flags & mf::N) == 0 && (self.state.flags & mf::Z) == 0 => {
                     self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
                 }
-            }
-            op::JC => {
-                if (self.state.flags & mf::C) != 0 {
+            op::JC
+                if (self.state.flags & mf::C) != 0 => {
                     self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
                 }
-            }
-            op::JNC => {
-                if (self.state.flags & mf::C) == 0 {
+            op::JNC
+                if (self.state.flags & mf::C) == 0 => {
                     self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
                 }
-            }
 
             // === Call/Return ===
             op::CALL => {
                 let target = branch_raw;
                 // Push return address (PC is already advanced)
-                let sp = self.state.regs[REG_SP as usize] as usize;
+                let sp = self.state.regs[REG_SP] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.pc;
-                    self.state.regs[REG_SP as usize] =
-                        self.state.regs[REG_SP as usize].wrapping_sub(1);
+                    self.state.regs[REG_SP] =
+                        self.state.regs[REG_SP].wrapping_sub(1);
                 }
                 self.state.pc = target;
             }
             op::RET => {
-                let sp = self.state.regs[REG_SP as usize].wrapping_add(1) as usize;
+                let sp = self.state.regs[REG_SP].wrapping_add(1) as usize;
                 if sp < self.ram.len() {
                     self.state.pc = self.ram[sp];
-                    self.state.regs[REG_SP as usize] = sp as u32;
+                    self.state.regs[REG_SP] = sp as u32;
                 }
             }
             op::JMPR => {
                 self.state.pc = self.state.regs[src];
             }
             op::CALLR => {
-                let sp = self.state.regs[REG_SP as usize] as usize;
+                let sp = self.state.regs[REG_SP] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.pc;
-                    self.state.regs[REG_SP as usize] =
-                        self.state.regs[REG_SP as usize].wrapping_sub(1);
+                    self.state.regs[REG_SP] =
+                        self.state.regs[REG_SP].wrapping_sub(1);
                 }
                 self.state.pc = self.state.regs[src];
             }
@@ -774,7 +768,7 @@ impl Cpu {
                             }
                             child_state[16] = self.state.pc;
                             child_state[17] = self.state.flags as u32;
-                            child_state[18] = self.state.regs[REG_SP as usize];
+                            child_state[18] = self.state.regs[REG_SP];
                             child_state[19] = self.state.program_break;
                             // Child gets 0 in r0
                             child_state[0] = 0;
@@ -799,7 +793,7 @@ impl Cpu {
                             }
                             child_state[16] = self.state.pc;
                             child_state[17] = self.state.flags as u32;
-                            child_state[18] = self.state.regs[REG_SP as usize];
+                            child_state[18] = self.state.regs[REG_SP];
                             child_state[19] = self.state.program_break;
                             // Child gets 0 in r0
                             child_state[0] = 0;
@@ -822,7 +816,7 @@ impl Cpu {
                         // If fd==0 (stdin), read from kbd input.
                         let fd = self.state.regs[1];
                         let buf_addr = self.state.regs[2] as usize;
-                        let len = self.state.regs[3];
+                        let _len = self.state.regs[3];
                         if fd == 0 {
                             // In userspace emulator, read from kbd field.
                             // Treat kbd as a single pending character (low 8 bits of key code).
@@ -906,7 +900,7 @@ impl Cpu {
                             self.state.regs[i] = 0;
                         }
                         // Reset stack pointer to top of memory
-                        self.state.regs[REG_SP as usize] = 0xFFFF_0000;
+                        self.state.regs[REG_SP] = 0xFFFF_0000;
 
                         // Jump to entry point
                         self.state.pc = entry_point;
@@ -1021,16 +1015,16 @@ impl Cpu {
                 } else {
                     // Non-0x80 software interrupt: standard IVT dispatch.
                     // Push flags (SP is byte address, 4 bytes per entry)
-                    self.state.regs[REG_SP as usize] =
-                        self.state.regs[REG_SP as usize].wrapping_sub(4);
-                    let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                    self.state.regs[REG_SP] =
+                        self.state.regs[REG_SP].wrapping_sub(4);
+                    let sp_flags = (self.state.regs[REG_SP] >> 2) as usize;
                     if sp_flags < self.ram.len() {
                         self.ram[sp_flags] = self.state.flags as u32;
                     }
                     // Push PC (already advanced = return address)
-                    self.state.regs[REG_SP as usize] =
-                        self.state.regs[REG_SP as usize].wrapping_sub(4);
-                    let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                    self.state.regs[REG_SP] =
+                        self.state.regs[REG_SP].wrapping_sub(4);
+                    let sp_pc = (self.state.regs[REG_SP] >> 2) as usize;
                     if sp_pc < self.ram.len() {
                         self.ram[sp_pc] = self.state.pc;
                     }
@@ -1043,16 +1037,16 @@ impl Cpu {
             }
             op::IRET => {
                 // Return from interrupt: pop PC + flags, re-enable interrupts.
-                let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                let sp_pc = (self.state.regs[REG_SP] >> 2) as usize;
                 if sp_pc < self.ram.len() {
                     self.state.pc = self.ram[sp_pc];
                 }
-                self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_add(4);
-                let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
+                self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_add(4);
+                let sp_flags = (self.state.regs[REG_SP] >> 2) as usize;
                 if sp_flags < self.ram.len() {
                     self.state.flags = self.ram[sp_flags] as u8;
                 }
-                self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_add(4);
+                self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_add(4);
                 // Re-enable interrupts
                 self.state.interrupts_enabled = 1;
             }
@@ -1101,7 +1095,7 @@ impl Cpu {
         }
         save[16] = self.state.pc;
         save[17] = self.state.flags as u32;
-        save[18] = self.state.regs[REG_SP as usize];
+        save[18] = self.state.regs[REG_SP];
         save[19] = self.state.program_break;
         self.proc_table[old_pid] = save;
 
@@ -1487,18 +1481,18 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.rom.extend_from_slice(&[0; 100]);
         cpu.state.pc = 10;
-        cpu.state.regs[REG_SP as usize] = 0x1000;
+        cpu.state.regs[REG_SP] = 0x1000;
 
         // CALL to address 50 — pushes current PC (10) as return addr
         cpu.execute_insn(branch(op::CALL, 50)).unwrap();
         assert_eq!(cpu.state.pc, 50);
-        assert_eq!(cpu.state.regs[REG_SP as usize], 0xFFF);
+        assert_eq!(cpu.state.regs[REG_SP], 0xFFF);
         assert_eq!(cpu.ram[0x1000], 10); // Return address = PC at time of CALL
 
         // RET
         cpu.execute_insn(alu(op::RET, 0, 0)).unwrap();
         assert_eq!(cpu.state.pc, 10);
-        assert_eq!(cpu.state.regs[REG_SP as usize], 0x1000);
+        assert_eq!(cpu.state.regs[REG_SP], 0x1000);
     }
 
     #[test]
@@ -1517,7 +1511,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.rom.extend_from_slice(&[0; 100]);
         cpu.state.pc = 10;
-        cpu.state.regs[REG_SP as usize] = 0x1000;
+        cpu.state.regs[REG_SP] = 0x1000;
         cpu.state.regs[1] = 50;
 
         cpu.execute_insn(alu(op::CALLR, 0, 1)).unwrap();
@@ -1617,13 +1611,13 @@ mod tests {
     #[test]
     fn test_push_pop() {
         let mut cpu = Cpu::new();
-        cpu.state.regs[REG_SP as usize] = 0x1000;
+        cpu.state.regs[REG_SP] = 0x1000;
         cpu.state.regs[3] = 0xDEADBEEF;
 
         // PUSH r3
         cpu.execute_insn(MbcInsn::encode(op::PUSH, 3, 0, 0))
             .unwrap();
-        assert_eq!(cpu.state.regs[REG_SP as usize], 0xFFF);
+        assert_eq!(cpu.state.regs[REG_SP], 0xFFF);
         assert_eq!(cpu.ram[0x1000], 0xDEADBEEF);
 
         // Clear r3, then POP to verify roundtrip
@@ -1632,13 +1626,13 @@ mod tests {
         // POP r3
         cpu.execute_insn(MbcInsn::encode(op::POP, 3, 0, 0)).unwrap();
         assert_eq!(cpu.state.regs[3], 0xDEADBEEF);
-        assert_eq!(cpu.state.regs[REG_SP as usize], 0x1000);
+        assert_eq!(cpu.state.regs[REG_SP], 0x1000);
     }
 
     #[test]
     fn test_push_pop_multiple() {
         let mut cpu = Cpu::new();
-        cpu.state.regs[REG_SP as usize] = 0x1000;
+        cpu.state.regs[REG_SP] = 0x1000;
         cpu.state.regs[0] = 111;
         cpu.state.regs[1] = 222;
 
@@ -1647,14 +1641,14 @@ mod tests {
             .unwrap();
         cpu.execute_insn(MbcInsn::encode(op::PUSH, 1, 0, 0))
             .unwrap();
-        assert_eq!(cpu.state.regs[REG_SP as usize], 0xFFE);
+        assert_eq!(cpu.state.regs[REG_SP], 0xFFE);
 
         // Pop into reversed registers (LIFO order)
         cpu.execute_insn(MbcInsn::encode(op::POP, 2, 0, 0)).unwrap();
         assert_eq!(cpu.state.regs[2], 222); // Last pushed = first popped
         cpu.execute_insn(MbcInsn::encode(op::POP, 3, 0, 0)).unwrap();
         assert_eq!(cpu.state.regs[3], 111);
-        assert_eq!(cpu.state.regs[REG_SP as usize], 0x1000);
+        assert_eq!(cpu.state.regs[REG_SP], 0x1000);
     }
 
     #[test]
@@ -1926,7 +1920,7 @@ mod tests {
 
         let mut cpu = Cpu::new();
         // Set SP within userspace RAM bounds (not 0xFFFF_0000 which is BPF HashMap-only)
-        cpu.state.regs[REG_SP as usize] = 0x1000;
+        cpu.state.regs[REG_SP] = 0x1000;
         cpu.load_rom(&program);
         let result = cpu.run(100);
         // run() returns Ok(cycles) when HALT is hit
@@ -2032,8 +2026,8 @@ mod tests {
         cpu.ram[(0x100 + 12) >> 2] = 0xDDDD;
 
         let program = vec![
-            MbcInsn::encode(op::MOVI, 1, 0, 0x0100 as u16).0, // 0: r1 = src addr
-            MbcInsn::encode(op::MOVI, 2, 0, 0x0200 as u16).0, // 1: r2 = dst addr
+            MbcInsn::encode(op::MOVI, 1, 0, 0x0100_u16).0, // 0: r1 = src addr
+            MbcInsn::encode(op::MOVI, 2, 0, 0x0200_u16).0, // 1: r2 = dst addr
             MbcInsn::encode(op::MOVI, 3, 0, 4).0,             // 2: r3 = count
             // loop:
             MbcInsn::encode(op::LD, 0, 1, 0).0, // 3: r0 = RAM[r1]

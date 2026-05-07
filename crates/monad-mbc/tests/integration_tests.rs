@@ -13,7 +13,7 @@ use monad_mbc::{assemble, disasm_listing, ExecCpu, ExecError, Translator};
 
 fn cpu_with_safe_sp() -> ExecCpu {
     let mut cpu = ExecCpu::new();
-    cpu.state.regs[REG_SP as usize] = 0x1000;
+    cpu.state.regs[REG_SP] = 0x1000;
     cpu
 }
 
@@ -305,7 +305,7 @@ fn step100_translator_roundtrip_addi() {
     // RV32I: ADDI x10, x0, 42 ; EBREAK
     // ADDI encoding: imm[11:0] | rs1 | funct3 | rd | opcode
     //   imm=42, rs1=x0(0), funct3=0, rd=x10(10), opcode=0x13
-    let addi = ((42u32 & 0xFFF) << 20) | (0 << 15) | (0 << 12) | (10 << 7) | 0x13;
+    let addi = ((42u32 & 0xFFF) << 20) | (10 << 7) | 0x13;
     let ebreak = 0x00100073u32;
 
     let result = Translator::translate_program(&[addi, ebreak]);
@@ -331,10 +331,10 @@ fn step100_translator_roundtrip_addi() {
 #[test]
 fn step100_translator_roundtrip_add() {
     // RV32I: ADDI x5, x0, 10 ; ADDI x6, x0, 20 ; ADD x7, x5, x6 ; EBREAK
-    let addi_x5 = ((10u32 & 0xFFF) << 20) | (0 << 15) | (0 << 12) | (5 << 7) | 0x13;
-    let addi_x6 = ((20u32 & 0xFFF) << 20) | (0 << 15) | (0 << 12) | (6 << 7) | 0x13;
+    let addi_x5 = ((10u32 & 0xFFF) << 20) | (5 << 7) | 0x13;
+    let addi_x6 = ((20u32 & 0xFFF) << 20) | (6 << 7) | 0x13;
     // ADD: funct7=0, rs2=x6, rs1=x5, funct3=0, rd=x7, opcode=0x33
-    let add_x7 = (0 << 25) | (6 << 20) | (5 << 15) | (0 << 12) | (7 << 7) | 0x33;
+    let add_x7 = ((6 << 20) | (5 << 15)) | (7 << 7) | 0x33;
     let ebreak = 0x00100073u32;
 
     let result = Translator::translate_program(&[addi_x5, addi_x6, add_x7, ebreak]);
