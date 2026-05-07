@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-05-05
-**Total:** 65 ADRs (ADR-012b deprecated, ADR-035 superseded by ADR-064, ADR-027-064 across sessions; ADR-69420 pipe-dream)
+**Total:** 66 ADRs (ADR-012b deprecated, ADR-035 superseded by ADR-064, ADR-027-065 across sessions; ADR-69420 pipe-dream)
 
 ## Status Summary
 
@@ -111,3 +111,4 @@
 | [062](ADR-062-fuzz-redteam-pentest-framework.md) | Fuzz / Red-Team / Pentest Framework (Lich Codified) — three-tier offensive taxonomy, numbered LICH-NNN campaigns, activation rules | **Accepted** (existing pattern ratified; new campaigns slot in) | 2026-05-04 |
 | [063](ADR-063-akira-summons-lich-randomized-ctf.md) | Akira Randomly Summons the Lich for CTF Mode — bounded, opt-in, randomized adversarial probing of live Kingdom services | **Pipe Dream** (activates after ADR-062's framework has 3 campaigns clean for 7 days) | 2026-05-04 |
 | [064](ADR-064-wotan-active-active-cluster-k8s-native.md) | Wotan Active/Active Cluster — 3-node minimum, K8s-native StatefulSet, Raft membership + topic-leader election, broadcast replication. Supersedes ADR-035 ("active passive works but doesn't scale") | **Proposed** (4-phase rollout; ADR-035 stays running through cutover) | 2026-05-05 |
+| [065](ADR-065-aya-major-version-migration.md) | aya 0.1.x → 0.13.x Major-Version Migration Plan — 6-phase migration (pre-flight → branch → mechanical fixes → verifier gate → integration smoke → merge), gated on Linux verification host with bpftool ≥ 7.7. Closes kanban `ebpf-aya-upgrade-mn05` | **Proposed** (migration plan only; impl gated on Captain approval + Linux verification host) | 2026-05-07 |
