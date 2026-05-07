@@ -110,4 +110,62 @@ Activation requires Stevie to schedule ~30 min for the GCP console work. Skeleto
 - Companion threat doc (this is **not** in the catalog because the bellis.tech project sits adjacent to the Unheaded application surface — but a row referencing this ADR will be added to `docs/security/application-threat-model.md` once activation lands): EDoS class isn't in T1-T10 today.
 - GCP cost-alarm reference architecture: <https://cloud.google.com/billing/docs/how-to/notify>
 - Auto-disable-billing Cloud Function pattern: <https://cloud.google.com/billing/docs/how-to/notify#cap_disable_billing_to_stop_usage>
+- Cloud Billing API `projects.updateBillingInfo`: <https://cloud.google.com/billing/docs/reference/rest/v1/projects/updateBillingInfo>
 - Stevie's directive (2026-05-02): captured verbatim in the "Triggered by" header.
+
+---
+
+## Marshal Review 2026-05-07
+
+Reviewed under unattended Phase 2 oversight. ADR text is sound and the rollout
+sequence is plausible, but the document is currently **not directly executable
+by an agent without Stevie's hands at the GCP console**. Architectural gaps
+that Marshal flags for activation-time resolution (do not require ADR rewrite,
+but do require resolution before "Planned" → "Accepted"):
+
+1. **No concrete numeric thresholds per API.** "50% / 80% / 95% of relevant
+   free-tier ceilings" depends on which ceilings — and those vary by service
+   (e.g., Cloud Run: 2M requests/mo; Firestore: 50K reads/day; Cloud Storage
+   egress: 1 GB/mo from NA). The pre-activation audit step (Open Question 1)
+   must produce a concrete table of `{api, free_tier_unit, ceiling, 50%,
+   80%, 95%}` before alarm policies can be created. Recommend that table
+   land as a follow-on ADR section or a `docs/security/bellis-tech-cost-alarms.yaml`
+   file.
+
+2. **Dollar-threshold rationale is asserted, not derived.** $5 / $25 / $100 /
+   $200 are stated without arithmetic linking them to free-tier overage rates.
+   For defensibility (and for future tuning when traffic profile changes),
+   show the math: e.g., "$5 = ~10× normal monthly spend ceiling, fires before
+   any single overage class can compound; $200 = ~24h of sustained worst-case
+   egress hammering at unauthenticated egress rates of $0.12/GB × peak
+   1Gbps = ..." Without the math, future Stevie cannot reason about whether
+   to retune the thresholds.
+
+3. **Kill-switch IAM scoping is named but not bounded.** ADR notes "Billing
+   Account Administrator IAM" is required and "should be scoped carefully"
+   but does not specify the principal. Recommend creating a dedicated
+   service account `bellis-tech-killswitch@<project>.iam.gserviceaccount.com`
+   with only the two narrow permissions needed (`billing.resourceAssociations.delete`
+   on the project, plus Pub/Sub subscriber on the budget topic) — NOT the
+   full `roles/billing.admin`. This needs to land in the implementation
+   commit, not deferred.
+
+4. **No rollback / re-enable runbook stub exists yet.** ADR references
+   `runbooks/security/gcp-billing-reenable.yaml` and
+   `runbooks/security/quarterly-gcp-alarm-test.yaml` as "to be created."
+   Per ADR-052 source-of-truth policy, these MUST exist as in-tree stubs
+   (even if just placeholders) before activation, not after. Recommend
+   stubbing both runbooks now under the standard runbook schema with a
+   "Status: pending activation" marker.
+
+5. **Quarterly synthetic check has no calendar wiring.** Step 5 says
+   "calendar reminder" but does not specify which calendar / which channel.
+   Recommend wiring the reminder via the unheaded-calendar skill into
+   `references/calendar/` so it is in-tree and survives machine swaps —
+   consistent with ADR-052 Rule 2 spirit.
+
+None of the above are blockers for the Planned status; they are blockers for
+the Planned → Accepted transition. ADR can ship as-is for now and these gaps
+get resolved at activation time.
+
+— Marshal, 2026-05-07
