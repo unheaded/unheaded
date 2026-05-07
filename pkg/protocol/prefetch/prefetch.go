@@ -14,10 +14,10 @@ const MaxOutstandingPrefetch uint16 = 16
 
 // PrefetchHint represents an explicit prefetch hint.
 type PrefetchHint struct {
-	FlowLabel  uint32
-	BaseAddr   uint32
-	PageCount  uint8
-	ID         uint64
+	FlowLabel uint32
+	BaseAddr  uint32
+	PageCount uint8
+	ID        uint64
 }
 
 // CancelPrefetch represents a prefetch cancellation request.
@@ -28,12 +28,12 @@ type CancelPrefetch struct {
 
 // PrefetchManager tracks outstanding prefetch hints and enforces limits.
 type PrefetchManager struct {
-	mu                       sync.RWMutex
-	hints                    map[uint64]*PrefetchHint // hintID -> hint
-	flowHints                map[uint32][]uint64      // flowLabel -> []hintID
-	nextID                   uint64
-	maxOutstandingPrefetch   uint16
-	maxOutstandingPerFlow    uint16
+	mu                     sync.RWMutex
+	hints                  map[uint64]*PrefetchHint // hintID -> hint
+	flowHints              map[uint32][]uint64      // flowLabel -> []hintID
+	nextID                 uint64
+	maxOutstandingPrefetch uint16
+	maxOutstandingPerFlow  uint16
 }
 
 // NewPrefetchManager creates a new prefetch manager with default limits.

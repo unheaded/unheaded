@@ -300,4 +300,3 @@ func TestHealthHandler(t *testing.T) {
 		t.Errorf("status = %v, want \"ok\"", body["status"])
 	}
 }
-

@@ -35,14 +35,14 @@ type PolicyChecker interface {
 
 // AppPolicy defines a per-application PQC policy.
 type AppPolicy struct {
-	ServiceID       uint16            `yaml:"service_id" json:"service_id"`
-	ServiceName     string            `yaml:"service_name" json:"service_name"`
-	AllowedAlgos    []uint8           `yaml:"allowed_algos" json:"allowed_algos"`
-	MinNISTLevel    NISTSecurityLevel `yaml:"min_nist_level" json:"min_nist_level"`
-	PinnedKeys      [][4]byte         `yaml:"-" json:"-"`
-	PinnedKeysHex   []string          `yaml:"pinned_keys" json:"pinned_keys,omitempty"`
-	MaxKeyAgeSec    uint32            `yaml:"max_key_age_sec" json:"max_key_age_sec"`
-	RequirePQC      bool              `yaml:"require_pqc" json:"require_pqc"`
+	ServiceID     uint16            `yaml:"service_id" json:"service_id"`
+	ServiceName   string            `yaml:"service_name" json:"service_name"`
+	AllowedAlgos  []uint8           `yaml:"allowed_algos" json:"allowed_algos"`
+	MinNISTLevel  NISTSecurityLevel `yaml:"min_nist_level" json:"min_nist_level"`
+	PinnedKeys    [][4]byte         `yaml:"-" json:"-"`
+	PinnedKeysHex []string          `yaml:"pinned_keys" json:"pinned_keys,omitempty"`
+	MaxKeyAgeSec  uint32            `yaml:"max_key_age_sec" json:"max_key_age_sec"`
+	RequirePQC    bool              `yaml:"require_pqc" json:"require_pqc"`
 }
 
 // DefaultAppPolicy returns a permissive default policy.

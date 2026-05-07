@@ -17,12 +17,12 @@ import (
 
 // Common errors returned by artifact operations.
 var (
-	ErrArtifactNotFound     = errors.New("artifact not found")
-	ErrArtifactExists       = errors.New("artifact already exists")
-	ErrArtifactInvalid      = errors.New("invalid artifact")
-	ErrChecksumMismatch     = errors.New("checksum mismatch")
-	ErrStorageUnavailable   = errors.New("storage unavailable")
-	ErrRegistryUnavailable  = errors.New("registry unavailable")
+	ErrArtifactNotFound    = errors.New("artifact not found")
+	ErrArtifactExists      = errors.New("artifact already exists")
+	ErrArtifactInvalid     = errors.New("invalid artifact")
+	ErrChecksumMismatch    = errors.New("checksum mismatch")
+	ErrStorageUnavailable  = errors.New("storage unavailable")
+	ErrRegistryUnavailable = errors.New("registry unavailable")
 )
 
 // ArtifactType represents the type of artifact.

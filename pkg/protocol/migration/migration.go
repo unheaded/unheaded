@@ -108,7 +108,7 @@ func ValidateRetryToken(token []byte, shieldSecret, srcIP []byte, maxAge time.Du
 // First packet triggers ICMPv6 with token, second packet must carry token.
 type AddressValidator struct {
 	pendingValidations map[string][]byte // srcIP -> token
-	validatedIPs       map[string]int64   // srcIP -> validation timestamp
+	validatedIPs       map[string]int64  // srcIP -> validation timestamp
 	shieldSecret       []byte
 	maxValidationAge   time.Duration
 }

@@ -216,9 +216,9 @@ func (g *Grouper) CleanupResolvedGroups() {
 
 // Deduplicator handles alert deduplication.
 type Deduplicator struct {
-	mu     sync.RWMutex
-	seen   map[string]*alerting.Alert
-	ttl    time.Duration
+	mu   sync.RWMutex
+	seen map[string]*alerting.Alert
+	ttl  time.Duration
 }
 
 // NewDeduplicator creates a new alert deduplicator.

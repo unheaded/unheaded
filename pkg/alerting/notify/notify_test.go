@@ -30,18 +30,18 @@ import (
 // critical" alert.
 func newTestAlert(opts ...func(*alerting.Alert)) *alerting.Alert {
 	a := &alerting.Alert{
-		ID:          "alert-1",
-		RuleID:      "rule-1",
-		Name:        "HighCPU",
-		Description: "CPU usage is above threshold",
-		State:       alerting.AlertStateFiring,
-		Severity:    alerting.SeverityCritical,
-		Labels:      map[string]string{"host": "web-1", "env": "prod"},
-		Annotations: map[string]string{"summary": "CPU is high"},
-		Value:       95.5,
-		Threshold:   90.0,
-		StartsAt:    time.Date(2026, 1, 27, 10, 0, 0, 0, time.UTC),
-		Fingerprint: "fp-abc123",
+		ID:           "alert-1",
+		RuleID:       "rule-1",
+		Name:         "HighCPU",
+		Description:  "CPU usage is above threshold",
+		State:        alerting.AlertStateFiring,
+		Severity:     alerting.SeverityCritical,
+		Labels:       map[string]string{"host": "web-1", "env": "prod"},
+		Annotations:  map[string]string{"summary": "CPU is high"},
+		Value:        95.5,
+		Threshold:    90.0,
+		StartsAt:     time.Date(2026, 1, 27, 10, 0, 0, 0, time.UTC),
+		Fingerprint:  "fp-abc123",
 		GeneratorURL: "http://alerting/rule-1",
 	}
 	for _, fn := range opts {
@@ -1869,7 +1869,7 @@ func TestWebhookChannelBuilder(t *testing.T) {
 		WithHeader("X-Token", "abc").
 		WithHeader("X-Source", "test").
 		WithBasicAuth("user", "pass").
-		WithTimeout(30 * time.Second).
+		WithTimeout(30*time.Second).
 		WithRetries(5, 2*time.Second).
 		Build()
 

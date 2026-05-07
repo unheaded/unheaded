@@ -17,8 +17,8 @@ import (
 // TunnelKeySet holds the derived keys for a KEM tunnel.
 type TunnelKeySet struct {
 	SigningKey [32]byte // For authenticating tunnel messages
-	AuthKey   [32]byte // For HMAC authentication
-	IVKey     [16]byte // For initialization vectors
+	AuthKey    [32]byte // For HMAC authentication
+	IVKey      [16]byte // For initialization vectors
 }
 
 // Zero securely wipes all key material.
@@ -92,10 +92,10 @@ func DeriveTunnelKeys(sharedSecret [32]byte, salt []byte, context string) (*Tunn
 // decapsulates to recover the shared secret. Both sides then derive
 // tunnel keys via HKDF.
 type TunnelNegotiator struct {
-	mu       sync.Mutex
-	params   ParameterSet
-	encap    *MLKEMEncapsulator
-	decap    *MLKEMDecapsulator
+	mu     sync.Mutex
+	params ParameterSet
+	encap  *MLKEMEncapsulator
+	decap  *MLKEMDecapsulator
 }
 
 // NewTunnelNegotiator creates a negotiator for the given ML-KEM parameter set.

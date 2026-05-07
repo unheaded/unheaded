@@ -22,16 +22,15 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
-	"sort"
 	"sync"
 	"syscall"
 	"time"
 
 	"database/sql"
 
-	"unheaded/pkg/auth"
 	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
@@ -39,6 +38,7 @@ import (
 	internalMetrics "unheaded/cmd/dashboard-backend/internal/metrics"
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
+	"unheaded/pkg/auth"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
@@ -62,14 +62,14 @@ type Config struct {
 	WriteTimeout time.Duration
 
 	// Wotan
-	WotanAddr  string
+	WotanAddr   string
 	ServiceName string
 
 	// Components
-	WebSocketConfig   *websocket.Config
-	ScraperConfig     *scraper.Config
-	HealthConfig      *health.Config
-	EventsConfig      *events.Config
+	WebSocketConfig *websocket.Config
+	ScraperConfig   *scraper.Config
+	HealthConfig    *health.Config
+	EventsConfig    *events.Config
 	// Service endpoint overrides (name → "host:port")
 	ServiceEndpoints map[string]string
 
@@ -96,7 +96,7 @@ func DefaultConfig() *Config {
 		ListenAddr:   ports.DefaultAddr(ports.DashboardBackend),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
-		WotanAddr:   "localhost:18001",
+		WotanAddr:    "localhost:18001",
 		ServiceName:  "dashboard-backend",
 	}
 }
@@ -275,7 +275,6 @@ type Server struct {
 	wg           sync.WaitGroup
 }
 
-
 // latencySamples stores recent latency measurements for a single operation.
 type latencySamples struct {
 	samples []float64 // nanoseconds
@@ -307,7 +306,9 @@ func (ls *latencySamples) Percentiles() map[string]float64 {
 	}
 	pct := func(p float64) float64 {
 		idx := int(float64(n-1) * p)
-		if idx >= n { idx = n - 1 }
+		if idx >= n {
+			idx = n - 1
+		}
 		return sorted[idx]
 	}
 	return map[string]float64{
@@ -320,9 +321,10 @@ func (ls *latencySamples) Percentiles() map[string]float64 {
 		"sample_count": float64(n),
 	}
 }
+
 // StreamMessage represents a message sent through the /api/v1/stream WebSocket
 type StreamMessage struct {
-	Type      string      `json:"type"`      // metrics, health, trace, event, flow
+	Type      string      `json:"type"` // metrics, health, trace, event, flow
 	Service   string      `json:"service,omitempty"`
 	Timestamp time.Time   `json:"timestamp"`
 	Data      interface{} `json:"data"`
@@ -472,8 +474,8 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 			{ID: "west", Addr: "192.168.13.2", Type: "bare-metal", MetricsURL: ""},
 			{ID: "east", Addr: "192.168.13.1", Type: "bare-metal", MetricsURL: "http://192.168.13.1:18000/metrics"},
 		},
-		startedAt: time.Now(),
-		shutdown:  make(chan struct{}),
+		startedAt:        time.Now(),
+		shutdown:         make(chan struct{}),
 		serviceLatencies: make(map[string]*latencySamples),
 	}
 
@@ -973,10 +975,10 @@ func (s *Server) handleMetricsQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var query struct {
-		Name        string            `json:"name"`
-		Labels      map[string]string `json:"labels"`
-		Since       string            `json:"since"`
-		SinceDuration string          `json:"since_duration"`
+		Name          string            `json:"name"`
+		Labels        map[string]string `json:"labels"`
+		Since         string            `json:"since"`
+		SinceDuration string            `json:"since_duration"`
 	}
 
 	// SECURITY: Enforce body size limit (1MB) to prevent denial-of-service
@@ -1633,10 +1635,10 @@ func (s *Server) handleTraces(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"traces":  traces,
-		"total":   s.traceBuffer.Count(),
+		"traces":   traces,
+		"total":    s.traceBuffer.Count(),
 		"has_more": s.traceBuffer.Count() > limit,
-		"source":  "pipeline_buffer",
+		"source":   "pipeline_buffer",
 	})
 }
 
@@ -2949,15 +2951,15 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		Goroutines    int     `json:"goroutines"`
 		UptimeSeconds float64 `json:"uptime_seconds"`
 		// Extended system metrics (from system-summary)
-		SwapTotal      uint64         `json:"swap_total"`
-		SwapUsed       uint64         `json:"swap_used"`
-		SwapPercent    float64        `json:"swap_percent"`
-		Disks          []DiskInfo     `json:"disks"`
-		NetConns       NetConnections `json:"net_connections"`
-		ProcessTotal   int            `json:"process_total"`
-		ProcessZombie  int            `json:"process_zombie"`
-		Hostname       string         `json:"hostname"`
-		Kernel         string         `json:"kernel"`
+		SwapTotal     uint64         `json:"swap_total"`
+		SwapUsed      uint64         `json:"swap_used"`
+		SwapPercent   float64        `json:"swap_percent"`
+		Disks         []DiskInfo     `json:"disks"`
+		NetConns      NetConnections `json:"net_connections"`
+		ProcessTotal  int            `json:"process_total"`
+		ProcessZombie int            `json:"process_zombie"`
+		Hostname      string         `json:"hostname"`
+		Kernel        string         `json:"kernel"`
 	}
 
 	hosts := make([]HostInfo, 0, len(s.hosts))
@@ -3385,11 +3387,11 @@ func buildDashboardAuthenticators(cfg auth.ServiceAuthConfig) []auth.Authenticat
 	if len(cfg.JWTSigningKey) > 0 {
 		authenticators = append(authenticators, auth.NewJWTAuthenticator(auth.JWTConfig{
 			SigningKey: cfg.JWTSigningKey,
-			Issuer:    cfg.Issuer,
-			Audience:  cfg.Audience,
+			Issuer:     cfg.Issuer,
+			Audience:   cfg.Audience,
 		}))
 		authenticators = append(authenticators, auth.NewJWTAuthenticator(auth.JWTConfig{
-			SigningKey:    cfg.JWTSigningKey,
+			SigningKey:   cfg.JWTSigningKey,
 			Issuer:       auth.ServiceTokenIssuer,
 			Audience:     cfg.ServiceName,
 			AllowedRoles: []string{auth.RoleService},

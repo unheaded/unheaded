@@ -17,12 +17,12 @@ type TLVType uint8
 // TLV type ranges as specified by H3 finding
 const (
 	// Core types
-	PRIORITY_HINT    TLVType = 0x01
-	TRACE_SPAN_ID    TLVType = 0x02
-	ERROR_CODE       TLVType = 0x03
-	FLOW_SEQUENCE    TLVType = 0x04
-	RING_PATH_COUNT  TLVType = 0x05
-	HMAC_TAG         TLVType = 0x06
+	PRIORITY_HINT   TLVType = 0x01
+	TRACE_SPAN_ID   TLVType = 0x02
+	ERROR_CODE      TLVType = 0x03
+	FLOW_SEQUENCE   TLVType = 0x04
+	RING_PATH_COUNT TLVType = 0x05
+	HMAC_TAG        TLVType = 0x06
 
 	// Type range boundaries
 	CoreMin       TLVType = 0x00
@@ -72,7 +72,7 @@ func (t TLVType) IsGreasing() bool {
 	if (val - 0x21) == 0 {
 		return true
 	}
-	if (val - 0x21)%0x1f == 0 && (val-0x21)/0x1f < 4 {
+	if (val-0x21)%0x1f == 0 && (val-0x21)/0x1f < 4 {
 		return true
 	}
 	return false

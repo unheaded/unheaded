@@ -19,12 +19,12 @@ var (
 
 // RenewalResult contains the result of a renewal attempt.
 type RenewalResult struct {
-	Serial     string
-	Success    bool
-	NewSerial  string
-	Error      error
-	Retries    int
-	RenewedAt  time.Time
+	Serial    string
+	Success   bool
+	NewSerial string
+	Error     error
+	Retries   int
+	RenewedAt time.Time
 }
 
 // RenewFunc is a function that performs certificate renewal.

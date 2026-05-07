@@ -19,14 +19,14 @@ import (
 // WebhookConfig holds webhook channel configuration.
 type WebhookConfig struct {
 	ChannelConfig
-	URL            string            `json:"url"`
-	HTTPMethod     string            `json:"http_method"`
-	Headers        map[string]string `json:"headers"`
-	BasicAuth      *BasicAuth        `json:"basic_auth,omitempty"`
-	TLSInsecure    bool              `json:"tls_insecure"`
-	Timeout        time.Duration     `json:"timeout"`
-	MaxRetries     int               `json:"max_retries"`
-	RetryInterval  time.Duration     `json:"retry_interval"`
+	URL           string            `json:"url"`
+	HTTPMethod    string            `json:"http_method"`
+	Headers       map[string]string `json:"headers"`
+	BasicAuth     *BasicAuth        `json:"basic_auth,omitempty"`
+	TLSInsecure   bool              `json:"tls_insecure"`
+	Timeout       time.Duration     `json:"timeout"`
+	MaxRetries    int               `json:"max_retries"`
+	RetryInterval time.Duration     `json:"retry_interval"`
 }
 
 // BasicAuth holds basic authentication credentials.

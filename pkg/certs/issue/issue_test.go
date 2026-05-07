@@ -392,9 +392,9 @@ func TestIssue_VerifiableByAuthority(t *testing.T) {
 	iss := New(auth, 24*time.Hour, 365*24*time.Hour)
 
 	req := &Request{
-		CommonName: "verifiable.example.com",
-		DNSNames:   []string{"verifiable.example.com"},
-		KeyUsage:   x509.KeyUsageDigitalSignature,
+		CommonName:  "verifiable.example.com",
+		DNSNames:    []string{"verifiable.example.com"},
+		KeyUsage:    x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 	res, err := iss.Issue(context.Background(), req)
@@ -416,9 +416,9 @@ func TestKeyUsageFromType(t *testing.T) {
 		certType int
 		wantBits x509.KeyUsage
 	}{
-		{0, x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment}, // Server
-		{1, x509.KeyUsageDigitalSignature},                               // Client
-		{2, x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment}, // Mutual
+		{0, x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment},  // Server
+		{1, x509.KeyUsageDigitalSignature},                                 // Client
+		{2, x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment},  // Mutual
 		{99, x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment}, // Default
 	}
 	for _, tt := range tests {

@@ -164,14 +164,14 @@ func DefaultManagerConfig() *ManagerConfig {
 
 // Manager implements the CertManager interface.
 type Manager struct {
-	config   *ManagerConfig
-	ca       *ca.Authority
-	issuer   *issue.Issuer
-	store    store.Store
-	rotator  *rotation.Rotator
-	mu       sync.RWMutex
-	closed   bool
-	closeCh  chan struct{}
+	config  *ManagerConfig
+	ca      *ca.Authority
+	issuer  *issue.Issuer
+	store   store.Store
+	rotator *rotation.Rotator
+	mu      sync.RWMutex
+	closed  bool
+	closeCh chan struct{}
 }
 
 // NewManager creates a new certificate manager.

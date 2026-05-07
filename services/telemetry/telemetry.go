@@ -67,10 +67,10 @@ type pairKey struct {
 
 // windowBucket accumulates samples for a single 1-second window.
 type windowBucket struct {
-	latencies  []time.Duration
-	queueSum   float64
+	latencies   []time.Duration
+	queueSum    float64
 	sampleCount int64
-	window     time.Time
+	window      time.Time
 }
 
 // ── Service ──────────────────────────────────────────────────────────────
@@ -81,14 +81,14 @@ type Service struct {
 	wotan *wotanClient.Client
 
 	// Per-hop metric store (ring buffer, last N minutes).
-	hopsMu     sync.RWMutex
-	hops       []HopMetric
-	maxHops    int
+	hopsMu  sync.RWMutex
+	hops    []HopMetric
+	maxHops int
 
 	// Per-path metric store.
-	pathsMu    sync.RWMutex
-	paths      []PathMetric
-	maxPaths   int
+	pathsMu  sync.RWMutex
+	paths    []PathMetric
+	maxPaths int
 
 	// Service-pair aggregation state.
 	aggMu      sync.RWMutex
@@ -108,13 +108,13 @@ type Service struct {
 // NewService creates a new telemetry aggregation service.
 func NewService(log *logger.Logger, wotan *wotanClient.Client) *Service {
 	return &Service{
-		log:      log,
-		wotan:    wotan,
-		hops:     make([]HopMetric, 0, 10000),
-		maxHops:  100000,
-		paths:    make([]PathMetric, 0, 1000),
-		maxPaths: 10000,
-		windows:  make(map[pairKey]*windowBucket),
+		log:        log,
+		wotan:      wotan,
+		hops:       make([]HopMetric, 0, 10000),
+		maxHops:    100000,
+		paths:      make([]PathMetric, 0, 1000),
+		maxPaths:   10000,
+		windows:    make(map[pairKey]*windowBucket),
 		aggregates: make([]ServicePairAggregate, 0, 1000),
 		maxAggs:    50000,
 	}
@@ -425,16 +425,16 @@ func (s *Service) flushBucket(key pairKey, bucket *windowBucket) {
 // publishAggregate publishes a service-pair aggregate to Wotan.
 func (s *Service) publishAggregate(agg ServicePairAggregate) {
 	payload, err := json.Marshal(map[string]interface{}{
-		"event_type":     "telemetry.aggregate",
-		"src_svc_id":     agg.SrcSvcID,
-		"dst_svc_id":     agg.DstSvcID,
-		"window":         agg.Window.UnixMilli(),
-		"latency_p50_ns": agg.LatencyP50.Nanoseconds(),
-		"latency_p95_ns": agg.LatencyP95.Nanoseconds(),
-		"latency_p99_ns": agg.LatencyP99.Nanoseconds(),
+		"event_type":      "telemetry.aggregate",
+		"src_svc_id":      agg.SrcSvcID,
+		"dst_svc_id":      agg.DstSvcID,
+		"window":          agg.Window.UnixMilli(),
+		"latency_p50_ns":  agg.LatencyP50.Nanoseconds(),
+		"latency_p95_ns":  agg.LatencyP95.Nanoseconds(),
+		"latency_p99_ns":  agg.LatencyP99.Nanoseconds(),
 		"queue_depth_avg": agg.QueueDepthAvg,
-		"packet_count":   agg.PacketCount,
-		"timestamp":      time.Now().UnixMilli(),
+		"packet_count":    agg.PacketCount,
+		"timestamp":       time.Now().UnixMilli(),
 	})
 	if err != nil {
 		s.log.Warn().Err(err).Msg("failed to marshal aggregate")
@@ -560,13 +560,13 @@ func (s *Service) Stats() map[string]interface{} {
 	s.aggMu.RUnlock()
 
 	return map[string]interface{}{
-		"hops_stored":     hopCount,
-		"paths_stored":    pathCount,
-		"aggregates":      aggCount,
-		"active_windows":  windowCount,
-		"hops_received":   atomic.LoadInt64(&s.hopsReceived),
-		"paths_received":  atomic.LoadInt64(&s.pathsReceived),
-		"aggs_published":  atomic.LoadInt64(&s.aggsPublished),
+		"hops_stored":    hopCount,
+		"paths_stored":   pathCount,
+		"aggregates":     aggCount,
+		"active_windows": windowCount,
+		"hops_received":  atomic.LoadInt64(&s.hopsReceived),
+		"paths_received": atomic.LoadInt64(&s.pathsReceived),
+		"aggs_published": atomic.LoadInt64(&s.aggsPublished),
 	}
 }
 
@@ -613,9 +613,9 @@ func (s *Service) handleServiceLatency(w http.ResponseWriter, r *http.Request) {
 	aggs := s.ServiceLatency(svcID)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"service_id":  svcID,
-		"aggregates":  aggs,
-		"count":       len(aggs),
+		"service_id": svcID,
+		"aggregates": aggs,
+		"count":      len(aggs),
 	})
 }
 

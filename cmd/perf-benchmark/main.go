@@ -148,4 +148,3 @@ func wotanPublishLatency(iterations int) error {
 	}
 	return nil
 }
-

@@ -92,17 +92,17 @@ func TestContainerState_String(t *testing.T) {
 func TestContainerInfo_Fields(t *testing.T) {
 	now := time.Now()
 	info := &ContainerInfo{
-		ID:         "test-container-123",
-		Name:       "test-container",
-		Image:      "alpine:latest",
-		State:      ContainerStateCreated,
-		PID:        12345,
-		ExitCode:   0,
-		CreatedAt:  now,
-		StartedAt:  time.Time{},
-		FinishedAt: time.Time{},
-		SandboxID:  "sandbox-123",
-		Labels:     map[string]string{"env": "test"},
+		ID:          "test-container-123",
+		Name:        "test-container",
+		Image:       "alpine:latest",
+		State:       ContainerStateCreated,
+		PID:         12345,
+		ExitCode:    0,
+		CreatedAt:   now,
+		StartedAt:   time.Time{},
+		FinishedAt:  time.Time{},
+		SandboxID:   "sandbox-123",
+		Labels:      map[string]string{"env": "test"},
 		Annotations: map[string]string{"version": "1.0"},
 	}
 
@@ -566,7 +566,7 @@ func TestResourceConfig_Validation(t *testing.T) {
 			valid: true,
 		},
 		{
-			name: "zero values",
+			name:   "zero values",
 			config: ResourceConfig{},
 			valid:  true,
 		},
@@ -593,10 +593,10 @@ func TestResourceConfig_CPUWeightConversion(t *testing.T) {
 		shares   int64
 		expected int64
 	}{
-		{1024, 100},  // Standard shares
-		{512, 50},    // Half shares
-		{2048, 200},  // Double shares
-		{2, 1},       // Very low shares (clamps to 1)
+		{1024, 100},     // Standard shares
+		{512, 50},       // Half shares
+		{2048, 200},     // Double shares
+		{2, 1},          // Very low shares (clamps to 1)
 		{102400, 10000}, // Very high shares (clamps to 10000)
 	}
 
@@ -1254,8 +1254,8 @@ func TestOCILinux(t *testing.T) {
 				Limit: 100,
 			},
 		},
-		CgroupsPath: "/test/container",
-		MaskedPaths: []string{"/proc/kcore"},
+		CgroupsPath:   "/test/container",
+		MaskedPaths:   []string{"/proc/kcore"},
 		ReadonlyPaths: []string{"/proc/sys"},
 		Sysctl: map[string]string{
 			"net.core.somaxconn": "1024",

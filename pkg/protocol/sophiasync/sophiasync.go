@@ -35,9 +35,9 @@ type DictionaryDelta struct {
 
 // CompressedDelta is a varint-encoded dictionary update.
 type CompressedDelta struct {
-	Version      TableVersion
-	EncodedData  []byte
-	Signature    []byte
+	Version     TableVersion
+	EncodedData []byte
+	Signature   []byte
 }
 
 // BackpressureLevel represents the level of backpressure in the system.
@@ -53,19 +53,19 @@ const (
 
 // HopAckState tracks acknowledgment state from a hop.
 type HopAckState struct {
-	HopID        string
-	TableVersion TableVersion
+	HopID          string
+	TableVersion   TableVersion
 	AcknowledgedAt time.Time
 }
 
 // EncoderStream distributes delta updates to hops via Wotan control topic.
 type EncoderStream struct {
-	mu             sync.RWMutex
-	wotanClient    *wotanClient.Client
-	controlTopic   string
-	logger         *logger.Logger
-	pendingAcks    map[string]TableVersion
-	ackMutex       sync.Mutex
+	mu           sync.RWMutex
+	wotanClient  *wotanClient.Client
+	controlTopic string
+	logger       *logger.Logger
+	pendingAcks  map[string]TableVersion
+	ackMutex     sync.Mutex
 }
 
 // DecoderStream handles acknowledgments of table state from hops.
@@ -78,15 +78,15 @@ type DecoderStream struct {
 
 // SyncManager tracks table version per endpoint and validates state changes.
 type SyncManager struct {
-	mu                sync.RWMutex
-	endpointVersions  map[string]TableVersion
-	encoder           *EncoderStream
-	decoder           *DecoderStream
-	gracePeriod       time.Duration
-	expiredVersions   map[TableVersion]time.Time
-	currentVersion    TableVersion
-	logger            *logger.Logger
-	wotanClient       *wotanClient.Client
+	mu               sync.RWMutex
+	endpointVersions map[string]TableVersion
+	encoder          *EncoderStream
+	decoder          *DecoderStream
+	gracePeriod      time.Duration
+	expiredVersions  map[TableVersion]time.Time
+	currentVersion   TableVersion
+	logger           *logger.Logger
+	wotanClient      *wotanClient.Client
 }
 
 // NewEncoderStream creates a new encoder stream.

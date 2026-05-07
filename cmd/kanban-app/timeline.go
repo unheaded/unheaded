@@ -20,9 +20,9 @@ import (
 
 // Timeline errors
 var (
-	ErrInvalidTimeline  = errors.New("invalid timeline data")
-	ErrNilTimeline      = errors.New("timeline cannot be nil")
-	ErrTimelineParsing  = errors.New("failed to parse timeline")
+	ErrInvalidTimeline = errors.New("invalid timeline data")
+	ErrNilTimeline     = errors.New("timeline cannot be nil")
+	ErrTimelineParsing = errors.New("failed to parse timeline")
 )
 
 // TimelineEvent represents an event from Timeguru

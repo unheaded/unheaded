@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ---------------------------------------------------------------------------
@@ -119,7 +119,7 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "explicit values are preserved",
 			cfg: &Config{
-				WotanAddr:        "wotan:1234",
+				WotanAddr:         "wotan:1234",
 				ServiceName:       "my-service",
 				Topics:            []string{"a", "b"},
 				BufferSize:        500,
@@ -329,10 +329,10 @@ func TestEventBufferGetRecent(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		n        int
-		wantLen  int
-		firstID  string
+		name    string
+		n       int
+		wantLen int
+		firstID string
 	}{
 		{"zero returns nil", 0, 0, ""},
 		{"less than buffer", 3, 3, "4"},
@@ -1577,13 +1577,13 @@ func TestStreamerDisconnectNilClient(t *testing.T) {
 
 func TestEventJSONRoundTrip(t *testing.T) {
 	original := Event{
-		ID:       "test-id",
-		Type:     EventTypeAlert,
-		Topic:    "alerts.critical",
-		Severity: SeverityCritical,
-		Source:   "my-service",
-		Title:    "Test Alert",
-		Message:  "Something went wrong",
+		ID:        "test-id",
+		Type:      EventTypeAlert,
+		Topic:     "alerts.critical",
+		Severity:  SeverityCritical,
+		Source:    "my-service",
+		Title:     "Test Alert",
+		Message:   "Something went wrong",
 		Timestamp: time.Date(2025, 5, 1, 12, 0, 0, 0, time.UTC),
 		Data: map[string]interface{}{
 			"key": "value",

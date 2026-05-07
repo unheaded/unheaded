@@ -236,7 +236,7 @@ type DecodedMonad struct {
 	DeployRing   string   `json:"deploy_ring"`
 	ScratchR0    uint16   `json:"scratch_r0"`
 	ScratchR1    uint16   `json:"scratch_r1"`
-	ChecksumOK  bool     `json:"checksum_ok"`
+	ChecksumOK   bool     `json:"checksum_ok"`
 }
 
 // DecodeMonadForDashboard decodes a MonadState into a dashboard-friendly format.
@@ -254,7 +254,7 @@ func DecodeMonadForDashboard(m *pkgebpf.MonadState) *DecodedMonad {
 		DeployRing:   deployRingName(m.DeployRing),
 		ScratchR0:    m.ScratchR0(),
 		ScratchR1:    m.ScratchR1(),
-		ChecksumOK:  m.VerifyChecksum(),
+		ChecksumOK:   m.VerifyChecksum(),
 	}
 }
 
@@ -307,8 +307,8 @@ func deployRingName(v uint8) string {
 
 // AnamnesisWSMessage wraps Anamnesis events for WebSocket broadcast.
 type AnamnesisWSMessage struct {
-	Type  string      `json:"type"`
-	Data  interface{} `json:"data"`
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
 }
 
 // NewFlowWSMessage creates a WebSocket message for a completed flow.
@@ -347,12 +347,12 @@ func NewAnomalyWSMessage(ev *pkgebpf.AnamnesisEvent) ([]byte, error) {
 // AnamnesisIngestor subscribes to anamnesis.* Wotan topics and feeds events
 // into the FlowBuilder, computing latency and emitting WebSocket messages.
 type AnamnesisIngestor struct {
-	log          *logger.Logger
-	client       WotanSubscriber
-	flowBuilder  *FlowBuilder
-	broadcaster  func([]byte) // WebSocket broadcast function
-	listeners    []func(*pkgebpf.AnamnesisEvent)
-	listMu       sync.RWMutex
+	log         *logger.Logger
+	client      WotanSubscriber
+	flowBuilder *FlowBuilder
+	broadcaster func([]byte) // WebSocket broadcast function
+	listeners   []func(*pkgebpf.AnamnesisEvent)
+	listMu      sync.RWMutex
 
 	// Stats
 	eventsIngested atomic.Int64

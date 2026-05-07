@@ -59,9 +59,9 @@ func (ct ContentType) String() string {
 // BodyInspector inspects HTTP request bodies
 type BodyInspector struct {
 	// Configuration
-	maxBodySize     int64
-	enabledTypes    map[ContentType]bool
-	strictParsing   bool
+	maxBodySize   int64
+	enabledTypes  map[ContentType]bool
+	strictParsing bool
 
 	// Detection patterns
 	jsonPatterns    []*Pattern
@@ -86,25 +86,25 @@ type Pattern struct {
 
 // InspectionStats holds inspection statistics
 type InspectionStats struct {
-	TotalInspections  int64
-	DetectionsFound   int64
-	ByContentType     map[ContentType]int64
-	ByCategory        map[string]int64
-	AverageBodySize   float64
-	totalBodySize     int64
-	mu                sync.RWMutex
+	TotalInspections int64
+	DetectionsFound  int64
+	ByContentType    map[ContentType]int64
+	ByCategory       map[string]int64
+	AverageBodySize  float64
+	totalBodySize    int64
+	mu               sync.RWMutex
 }
 
 // InspectionResult represents the result of body inspection
 type InspectionResult struct {
-	ContentType    ContentType
-	BodySize       int64
-	Detected       bool
-	Findings       []Finding
-	TotalScore     int
-	ParsedData     map[string]interface{}
-	RawBody        []byte
-	Truncated      bool
+	ContentType ContentType
+	BodySize    int64
+	Detected    bool
+	Findings    []Finding
+	TotalScore  int
+	ParsedData  map[string]interface{}
+	RawBody     []byte
+	Truncated   bool
 }
 
 // Finding represents a single detection finding

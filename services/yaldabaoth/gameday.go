@@ -77,8 +77,8 @@ type GameDayStatus struct {
 // It implements a state machine: IDLE -> RUNNING -> stage transitions ->
 // COMPLETED/ABORTED.
 type GameDayScheduler struct {
-	log    *logger.Logger
-	wotan  *wotanClient.Client
+	log   *logger.Logger
+	wotan *wotanClient.Client
 
 	mu           sync.RWMutex
 	state        GameDayState

@@ -225,10 +225,10 @@ func CreateAlertFromRule(rule *alerting.AlertRule, value float64, labels map[str
 
 // RuleSet represents a collection of rules.
 type RuleSet struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Rules       []*alerting.AlertRule  `json:"rules"`
-	Labels      map[string]string      `json:"labels"`
+	Name        string                `json:"name"`
+	Description string                `json:"description"`
+	Rules       []*alerting.AlertRule `json:"rules"`
+	Labels      map[string]string     `json:"labels"`
 }
 
 // NewRuleSet creates a new rule set.

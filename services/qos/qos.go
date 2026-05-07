@@ -43,13 +43,13 @@ const statsAggregationInterval = 100 * time.Millisecond
 
 // QoSPolicy defines a per-service QoS configuration.
 type QoSPolicy struct {
-	ServiceID      string  `json:"service_id"`
-	Class          uint8   `json:"class"`
-	Weight         uint8   `json:"weight"`
-	RateLimitMbps  float64 `json:"rate_limit_mbps"`
-	BurstBytes     uint64  `json:"burst_bytes"`
-	TargetLatencyMS int    `json:"target_latency_ms"`
-	IntervalMS     int     `json:"interval_ms"`
+	ServiceID       string  `json:"service_id"`
+	Class           uint8   `json:"class"`
+	Weight          uint8   `json:"weight"`
+	RateLimitMbps   float64 `json:"rate_limit_mbps"`
+	BurstBytes      uint64  `json:"burst_bytes"`
+	TargetLatencyMS int     `json:"target_latency_ms"`
+	IntervalMS      int     `json:"interval_ms"`
 }
 
 // Validate checks the policy for correctness.
@@ -74,14 +74,14 @@ func (p *QoSPolicy) Validate() error {
 
 // QueueStats holds per-service queue statistics.
 type QueueStats struct {
-	ServiceID       string  `json:"service_id"`
-	Packets         uint64  `json:"packets"`
-	Drops           uint64  `json:"drops"`
-	QueueDepth      int     `json:"queue_depth"`
-	DropProbability float64 `json:"drop_probability"`
-	LatencyP50      float64 `json:"latency_p50_ms"`
-	LatencyP99      float64 `json:"latency_p99_ms"`
-	LatencyP999     float64 `json:"latency_p999_ms"`
+	ServiceID       string    `json:"service_id"`
+	Packets         uint64    `json:"packets"`
+	Drops           uint64    `json:"drops"`
+	QueueDepth      int       `json:"queue_depth"`
+	DropProbability float64   `json:"drop_probability"`
+	LatencyP50      float64   `json:"latency_p50_ms"`
+	LatencyP99      float64   `json:"latency_p99_ms"`
+	LatencyP999     float64   `json:"latency_p999_ms"`
 	Timestamp       time.Time `json:"timestamp"`
 }
 

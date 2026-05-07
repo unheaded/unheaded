@@ -1352,7 +1352,7 @@ func TestExpand(t *testing.T) {
 		"nested": map[string]any{
 			"key": "${name}",
 		},
-		"list": []any{"${name}", "literal"},
+		"list":   []any{"${name}", "literal"},
 		"number": 42,
 	})
 	if err != nil {

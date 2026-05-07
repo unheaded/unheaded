@@ -168,13 +168,13 @@ type Provisioner interface {
 
 // ProvisioningStatus provides detailed status of a provisioning operation.
 type ProvisioningStatus struct {
-	MachineID    string           `json:"machine_id"`
-	State        MachineState     `json:"state"`
-	Phase        ProvisionPhase   `json:"phase"`
-	Progress     int              `json:"progress"` // 0-100
-	Message      string           `json:"message"`
-	StartedAt    time.Time        `json:"started_at"`
-	UpdatedAt    time.Time        `json:"updated_at"`
+	MachineID    string              `json:"machine_id"`
+	State        MachineState        `json:"state"`
+	Phase        ProvisionPhase      `json:"phase"`
+	Progress     int                 `json:"progress"` // 0-100
+	Message      string              `json:"message"`
+	StartedAt    time.Time           `json:"started_at"`
+	UpdatedAt    time.Time           `json:"updated_at"`
 	PhaseHistory []PhaseHistoryEntry `json:"phase_history"`
 }
 
@@ -182,17 +182,17 @@ type ProvisioningStatus struct {
 type ProvisionPhase string
 
 const (
-	PhaseInit           ProvisionPhase = "init"
-	PhasePowerOff       ProvisionPhase = "power_off"
-	PhaseImagePrepare   ProvisionPhase = "image_prepare"
-	PhasePXESetup       ProvisionPhase = "pxe_setup"
-	PhasePowerOn        ProvisionPhase = "power_on"
-	PhaseBooting        ProvisionPhase = "booting"
-	PhaseInstalling     ProvisionPhase = "installing"
-	PhaseConfiguring    ProvisionPhase = "configuring"
-	PhaseVerifying      ProvisionPhase = "verifying"
-	PhaseComplete       ProvisionPhase = "complete"
-	PhaseFailed         ProvisionPhase = "failed"
+	PhaseInit         ProvisionPhase = "init"
+	PhasePowerOff     ProvisionPhase = "power_off"
+	PhaseImagePrepare ProvisionPhase = "image_prepare"
+	PhasePXESetup     ProvisionPhase = "pxe_setup"
+	PhasePowerOn      ProvisionPhase = "power_on"
+	PhaseBooting      ProvisionPhase = "booting"
+	PhaseInstalling   ProvisionPhase = "installing"
+	PhaseConfiguring  ProvisionPhase = "configuring"
+	PhaseVerifying    ProvisionPhase = "verifying"
+	PhaseComplete     ProvisionPhase = "complete"
+	PhaseFailed       ProvisionPhase = "failed"
 )
 
 // PhaseHistoryEntry records a phase transition.

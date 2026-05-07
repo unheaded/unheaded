@@ -19,13 +19,13 @@ import (
 // SlackConfig holds Slack channel configuration.
 type SlackConfig struct {
 	ChannelConfig
-	WebhookURL  string `json:"webhook_url"`
-	Channel     string `json:"channel"`
-	Username    string `json:"username"`
-	IconEmoji   string `json:"icon_emoji"`
-	IconURL     string `json:"icon_url"`
-	LinkNames   bool   `json:"link_names"`
-	Timeout     time.Duration `json:"timeout"`
+	WebhookURL string        `json:"webhook_url"`
+	Channel    string        `json:"channel"`
+	Username   string        `json:"username"`
+	IconEmoji  string        `json:"icon_emoji"`
+	IconURL    string        `json:"icon_url"`
+	LinkNames  bool          `json:"link_names"`
+	Timeout    time.Duration `json:"timeout"`
 }
 
 // SlackMessage represents a Slack message payload.

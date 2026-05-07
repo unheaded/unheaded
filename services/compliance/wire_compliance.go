@@ -60,23 +60,23 @@ func (dc DataClassification) String() string {
 type ViolationType string
 
 const (
-	ViolationPolicy     ViolationType = "POLICY"
-	ViolationPIIEgress  ViolationType = "PII_EGRESS"
-	ViolationCircuit    ViolationType = "CIRCUIT"
+	ViolationPolicy    ViolationType = "POLICY"
+	ViolationPIIEgress ViolationType = "PII_EGRESS"
+	ViolationCircuit   ViolationType = "CIRCUIT"
 )
 
 // ServicePolicy defines a service-to-service communication policy.
 type ServicePolicy struct {
-	SrcServiceID      string         `json:"src_service_id"`
-	DstServiceID      string         `json:"dst_service_id"`
-	Action            PolicyAction   `json:"action"`
-	AuditLevel        string         `json:"audit_level"`
-	MinQoS            int            `json:"min_qos"`
-	MaxLatencyMS      float64        `json:"max_latency_ms"`
-	RequiresEncryption bool          `json:"requires_encryption"`
-	TraceSampling     float64        `json:"trace_sampling"` // 0.0-1.0
-	CreatedAt         time.Time      `json:"created_at"`
-	UpdatedAt         time.Time      `json:"updated_at"`
+	SrcServiceID       string       `json:"src_service_id"`
+	DstServiceID       string       `json:"dst_service_id"`
+	Action             PolicyAction `json:"action"`
+	AuditLevel         string       `json:"audit_level"`
+	MinQoS             int          `json:"min_qos"`
+	MaxLatencyMS       float64      `json:"max_latency_ms"`
+	RequiresEncryption bool         `json:"requires_encryption"`
+	TraceSampling      float64      `json:"trace_sampling"` // 0.0-1.0
+	CreatedAt          time.Time    `json:"created_at"`
+	UpdatedAt          time.Time    `json:"updated_at"`
 }
 
 // policyKey returns a canonical key for a service-to-service policy.
@@ -86,48 +86,48 @@ func policyKey(src, dst string) string {
 
 // Violation records a compliance violation event.
 type Violation struct {
-	Timestamp    time.Time          `json:"timestamp"`
-	SrcServiceID string             `json:"src_service_id"`
-	DstServiceID string             `json:"dst_service_id"`
-	ViolationType ViolationType     `json:"violation_type"`
+	Timestamp      time.Time          `json:"timestamp"`
+	SrcServiceID   string             `json:"src_service_id"`
+	DstServiceID   string             `json:"dst_service_id"`
+	ViolationType  ViolationType      `json:"violation_type"`
 	Classification DataClassification `json:"classification"`
-	ActionTaken  PolicyAction       `json:"action_taken"`
-	TraceID      string             `json:"trace_id"`
-	ZoneID       string             `json:"zone_id"`
-	Description  string             `json:"description,omitempty"`
+	ActionTaken    PolicyAction       `json:"action_taken"`
+	TraceID        string             `json:"trace_id"`
+	ZoneID         string             `json:"zone_id"`
+	Description    string             `json:"description,omitempty"`
 }
 
 // ComplianceScore represents the overall compliance posture.
 type ComplianceScore struct {
-	TotalPackets     int64   `json:"total_packets"`
-	Allowed          int64   `json:"allowed"`
-	Blocked          int64   `json:"blocked"`
-	Violations       int64   `json:"violations"`
+	TotalPackets      int64   `json:"total_packets"`
+	Allowed           int64   `json:"allowed"`
+	Blocked           int64   `json:"blocked"`
+	Violations        int64   `json:"violations"`
 	AuditCompleteness float64 `json:"audit_completeness"` // 0.0-1.0
-	ViolationRate    float64 `json:"violation_rate"`       // violations per total
-	ScorePct         float64 `json:"score_pct"`            // overall percentage
+	ViolationRate     float64 `json:"violation_rate"`     // violations per total
+	ScorePct          float64 `json:"score_pct"`          // overall percentage
 }
 
 // GeoZone defines a geographic compliance zone.
 type GeoZone struct {
-	ZoneID          string   `json:"zone_id"`
-	Name            string   `json:"name"`
+	ZoneID           string   `json:"zone_id"`
+	Name             string   `json:"name"`
 	AllowedExitZones []string `json:"allowed_exit_zones"`
-	RequiresVPN     bool     `json:"requires_vpn"`
-	PIIVault        bool     `json:"pii_vault"`
+	RequiresVPN      bool     `json:"requires_vpn"`
+	PIIVault         bool     `json:"pii_vault"`
 }
 
 // AuditEntry records an auditable event.
 type AuditEntry struct {
-	Timestamp    time.Time     `json:"timestamp"`
-	TraceID      string        `json:"trace_id"`
-	SrcServiceID string        `json:"src_service_id"`
-	DstServiceID string        `json:"dst_service_id"`
-	Action       PolicyAction  `json:"action"`
-	ViolationType ViolationType `json:"violation_type,omitempty"`
+	Timestamp      time.Time          `json:"timestamp"`
+	TraceID        string             `json:"trace_id"`
+	SrcServiceID   string             `json:"src_service_id"`
+	DstServiceID   string             `json:"dst_service_id"`
+	Action         PolicyAction       `json:"action"`
+	ViolationType  ViolationType      `json:"violation_type,omitempty"`
 	Classification DataClassification `json:"classification"`
-	ZoneID       string        `json:"zone_id"`
-	Details      string        `json:"details,omitempty"`
+	ZoneID         string             `json:"zone_id"`
+	Details        string             `json:"details,omitempty"`
 }
 
 // Config holds Wire Compliance service configuration.
@@ -659,13 +659,13 @@ func (s *WireComplianceService) RecordViolation(v Violation) {
 	s.mu.Unlock()
 
 	s.publishEvent(context.Background(), "compliance.violations", map[string]interface{}{
-		"src_service_id":  v.SrcServiceID,
-		"dst_service_id":  v.DstServiceID,
-		"violation_type":  v.ViolationType,
-		"classification":  v.Classification,
-		"action_taken":    v.ActionTaken,
-		"trace_id":        v.TraceID,
-		"timestamp":       v.Timestamp.UnixMilli(),
+		"src_service_id": v.SrcServiceID,
+		"dst_service_id": v.DstServiceID,
+		"violation_type": v.ViolationType,
+		"classification": v.Classification,
+		"action_taken":   v.ActionTaken,
+		"trace_id":       v.TraceID,
+		"timestamp":      v.Timestamp.UnixMilli(),
 	})
 }
 

@@ -21,7 +21,7 @@ func createTestServer(t *testing.T) (*Service, *HTTPServer) {
 
 	svc, err := NewService(Config{
 		Storage: storage,
-		Wotan:  wotan,
+		Wotan:   wotan,
 	})
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -62,9 +62,9 @@ func TestHTTPServer_Ready(t *testing.T) {
 	svc, httpServer := createTestServer(t)
 
 	tests := []struct {
-		name        string
-		closed      bool
-		wantStatus  int
+		name       string
+		closed     bool
+		wantStatus int
 	}{
 		{
 			name:       "ready",

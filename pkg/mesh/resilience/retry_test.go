@@ -53,10 +53,10 @@ func TestNewRetryer(t *testing.T) {
 
 	t.Run("WithInvalidConfig_SetsDefaults", func(t *testing.T) {
 		config := RetryConfig{
-			MaxAttempts:       0,  // Invalid
-			InitialBackoff:    0,  // Invalid
-			MaxBackoff:        0,  // Invalid
-			BackoffMultiplier: 0,  // Invalid
+			MaxAttempts:       0, // Invalid
+			InitialBackoff:    0, // Invalid
+			MaxBackoff:        0, // Invalid
+			BackoffMultiplier: 0, // Invalid
 		}
 
 		r := NewRetryer(config)
@@ -164,9 +164,9 @@ func TestRetryer_Do_MaxRetriesExceeded(t *testing.T) {
 
 func TestRetryer_Do_NonRetryableError(t *testing.T) {
 	config := RetryConfig{
-		MaxAttempts:       5,
-		InitialBackoff:    10 * time.Millisecond,
-		RetryableErrors:   []error{errors.New("retryable")}, // Only this error is retryable
+		MaxAttempts:     5,
+		InitialBackoff:  10 * time.Millisecond,
+		RetryableErrors: []error{errors.New("retryable")}, // Only this error is retryable
 	}
 	r := NewRetryer(config)
 
@@ -190,8 +190,8 @@ func TestRetryer_Do_NonRetryableError(t *testing.T) {
 
 func TestRetryer_Do_ContextCanceled(t *testing.T) {
 	config := RetryConfig{
-		MaxAttempts:       10,
-		InitialBackoff:    100 * time.Millisecond, // Long backoff
+		MaxAttempts:    10,
+		InitialBackoff: 100 * time.Millisecond, // Long backoff
 	}
 	r := NewRetryer(config)
 

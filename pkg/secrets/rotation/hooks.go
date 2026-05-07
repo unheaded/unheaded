@@ -17,10 +17,10 @@ import (
 
 // Common hook errors.
 var (
-	ErrHookFailed       = errors.New("hook execution failed")
-	ErrHookTimeout      = errors.New("hook execution timed out")
+	ErrHookFailed         = errors.New("hook execution failed")
+	ErrHookTimeout        = errors.New("hook execution timed out")
 	ErrVerificationFailed = errors.New("verification hook failed")
-	ErrRollbackFailed   = errors.New("rollback failed")
+	ErrRollbackFailed     = errors.New("rollback failed")
 )
 
 // HookType represents the type of rotation hook.
@@ -114,11 +114,11 @@ type RotationEvent struct {
 
 // HookManager manages rotation hooks.
 type HookManager struct {
-	hooks    map[string]Hook
-	byType   map[HookType][]Hook
-	log      *logger.Logger
-	mu       sync.RWMutex
-	timeout  time.Duration
+	hooks   map[string]Hook
+	byType  map[HookType][]Hook
+	log     *logger.Logger
+	mu      sync.RWMutex
+	timeout time.Duration
 }
 
 // HookManagerConfig configures the hook manager.
@@ -318,11 +318,11 @@ func (hm *HookManager) ListHooks() map[HookType][]string {
 
 // ServiceNotifyHook notifies services before/after rotation.
 type ServiceNotifyHook struct {
-	id           string
-	hookType     HookType
-	priority     int
-	services     []string
-	notifyFunc   func(ctx context.Context, service string, event *RotationEvent) error
+	id         string
+	hookType   HookType
+	priority   int
+	services   []string
+	notifyFunc func(ctx context.Context, service string, event *RotationEvent) error
 }
 
 // NewServiceNotifyHook creates a new service notification hook.
@@ -336,9 +336,9 @@ func NewServiceNotifyHook(id string, hookType HookType, priority int, services [
 	}
 }
 
-func (h *ServiceNotifyHook) ID() string       { return h.id }
-func (h *ServiceNotifyHook) Type() HookType   { return h.hookType }
-func (h *ServiceNotifyHook) Priority() int    { return h.priority }
+func (h *ServiceNotifyHook) ID() string     { return h.id }
+func (h *ServiceNotifyHook) Type() HookType { return h.hookType }
+func (h *ServiceNotifyHook) Priority() int  { return h.priority }
 
 func (h *ServiceNotifyHook) Execute(ctx context.Context, event *RotationEvent) (*HookResult, error) {
 	result := &HookResult{
@@ -374,9 +374,9 @@ func (h *ServiceNotifyHook) Execute(ctx context.Context, event *RotationEvent) (
 
 // HTTPVerificationHook verifies a secret by making an HTTP request.
 type HTTPVerificationHook struct {
-	id           string
-	priority     int
-	verifyFunc   func(ctx context.Context, secret *secrets.Secret) error
+	id         string
+	priority   int
+	verifyFunc func(ctx context.Context, secret *secrets.Secret) error
 }
 
 // NewHTTPVerificationHook creates a new HTTP verification hook.
@@ -388,9 +388,9 @@ func NewHTTPVerificationHook(id string, priority int, verifyFunc func(ctx contex
 	}
 }
 
-func (h *HTTPVerificationHook) ID() string       { return h.id }
-func (h *HTTPVerificationHook) Type() HookType   { return HookTypeVerification }
-func (h *HTTPVerificationHook) Priority() int    { return h.priority }
+func (h *HTTPVerificationHook) ID() string     { return h.id }
+func (h *HTTPVerificationHook) Type() HookType { return HookTypeVerification }
+func (h *HTTPVerificationHook) Priority() int  { return h.priority }
 
 func (h *HTTPVerificationHook) Execute(ctx context.Context, event *RotationEvent) (*HookResult, error) {
 	result := &HookResult{
@@ -417,10 +417,10 @@ func (h *HTTPVerificationHook) Execute(ctx context.Context, event *RotationEvent
 
 // CallbackHook executes a callback function.
 type CallbackHook struct {
-	id         string
-	hookType   HookType
-	priority   int
-	callback   func(ctx context.Context, event *RotationEvent) error
+	id       string
+	hookType HookType
+	priority int
+	callback func(ctx context.Context, event *RotationEvent) error
 }
 
 // NewCallbackHook creates a new callback hook.
@@ -433,9 +433,9 @@ func NewCallbackHook(id string, hookType HookType, priority int, callback func(c
 	}
 }
 
-func (h *CallbackHook) ID() string       { return h.id }
-func (h *CallbackHook) Type() HookType   { return h.hookType }
-func (h *CallbackHook) Priority() int    { return h.priority }
+func (h *CallbackHook) ID() string     { return h.id }
+func (h *CallbackHook) Type() HookType { return h.hookType }
+func (h *CallbackHook) Priority() int  { return h.priority }
 
 func (h *CallbackHook) Execute(ctx context.Context, event *RotationEvent) (*HookResult, error) {
 	result := &HookResult{
@@ -456,11 +456,11 @@ func (h *CallbackHook) Execute(ctx context.Context, event *RotationEvent) (*Hook
 
 // RollbackManager manages rollback operations for failed rotations.
 type RollbackManager struct {
-	store    secrets.SecretStore
-	log      *logger.Logger
-	history  map[string][]*secrets.Secret // path -> previous secrets
+	store       secrets.SecretStore
+	log         *logger.Logger
+	history     map[string][]*secrets.Secret // path -> previous secrets
 	maxVersions int
-	mu       sync.RWMutex
+	mu          sync.RWMutex
 }
 
 // RollbackManagerConfig configures the rollback manager.

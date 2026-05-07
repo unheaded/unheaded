@@ -5,11 +5,11 @@
 // zhen-agent. Same agent runtime (pkg/agent + pkg/champion + cs/vor +
 // llama-server backends) but exposed over HTTP for multi-request use:
 //
-//   POST /api/v1/agent/ask {goal, project_root, session_id?, ...}
-//     → {answer, turns_used, budget_hit, trace[], session_id}
+//	POST /api/v1/agent/ask {goal, project_root, session_id?, ...}
+//	  → {answer, turns_used, budget_hit, trace[], session_id}
 //
-//   GET  /health    — liveness probe (always returns 200 once up)
-//   GET  /ready     — readiness probe (verifies vor + llama-server reachable)
+//	GET  /health    — liveness probe (always returns 200 once up)
+//	GET  /ready     — readiness probe (verifies vor + llama-server reachable)
 //
 // Default port: 20105 (in the AI Services band 20101-20106 reserved
 // per CLAUDE.md's Port Allocation table).
@@ -63,8 +63,8 @@ const (
 
 func main() {
 	var (
-		port        = flag.Int("port", defaultPort, "HTTP listen port")
-		host        = flag.String("host", "127.0.0.1", "HTTP listen host (use 0.0.0.0 for non-loopback)")
+		port         = flag.Int("port", defaultPort, "HTTP listen port")
+		host         = flag.String("host", "127.0.0.1", "HTTP listen host (use 0.0.0.0 for non-loopback)")
 		projectRoot  = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
 		allowedRoots = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
 		actionStore  = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
@@ -337,10 +337,10 @@ type server struct {
 // surface, ActionStore audit thread, etc.). The pool is unbounded —
 // rely on the allow-list to bound the number of distinct roots.
 type championPool struct {
-	mu      sync.Mutex
-	store   champion.ActionStore
-	kanban  champion.KanbanStore // nil → kanban_* tool calls fail at dispatch
-	cache   map[string]*champion.Champion
+	mu     sync.Mutex
+	store  champion.ActionStore
+	kanban champion.KanbanStore // nil → kanban_* tool calls fail at dispatch
+	cache  map[string]*champion.Champion
 }
 
 func newChampionPool(store champion.ActionStore, kanban champion.KanbanStore) *championPool {
@@ -521,19 +521,19 @@ func traceFor(turns []agent.Turn) []traceEntry {
 //
 // Wire format:
 //
-//   event: turn
-//   data: {<TraceEntry json>}
+//	event: turn
+//	data: {<TraceEntry json>}
 //
-//   event: turn
-//   data: {<TraceEntry json>}
+//	event: turn
+//	data: {<TraceEntry json>}
 //
-//   event: done
-//   data: {"answer":"...","turns_used":N,"budget_hit":false,"session_id":"..."}
+//	event: done
+//	data: {"answer":"...","turns_used":N,"budget_hit":false,"session_id":"..."}
 //
 // Or on error:
 //
-//   event: error
-//   data: {"error":"..."}
+//	event: error
+//	data: {"error":"..."}
 //
 // Clients can disconnect mid-stream; the agent loop notices the
 // context cancel via the request context and stops at the next
@@ -832,17 +832,17 @@ type readyTracker struct {
 	vorURL     string
 	llamaURL   string
 
-	mu      sync.Mutex
-	last    readyStatus
-	lastAt  time.Time
-	ttl     time.Duration
+	mu     sync.Mutex
+	last   readyStatus
+	lastAt time.Time
+	ttl    time.Duration
 }
 
 type readyStatus struct {
-	Ready    bool   `json:"ready"`
-	Vor      bool   `json:"vor_reachable"`
-	Llama    bool   `json:"llama_reachable"`
-	Detail   string `json:"detail,omitempty"`
+	Ready  bool   `json:"ready"`
+	Vor    bool   `json:"vor_reachable"`
+	Llama  bool   `json:"llama_reachable"`
+	Detail string `json:"detail,omitempty"`
 }
 
 func newReadyTracker(c *http.Client, vorURL, llamaURL string) *readyTracker {

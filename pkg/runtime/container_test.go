@@ -899,11 +899,11 @@ func TestContainerCreate_SpecialCharactersInLabels(t *testing.T) {
 		Name:  "test",
 		Image: "alpine:latest",
 		Labels: map[string]string{
-			"io.kubernetes.pod.name":      "test-pod",
-			"com.example/version":         "1.0.0-beta+build.123",
-			"key.with.dots":               "value",
-			"key_with_underscores":        "value",
-			"key-with-dashes":             "value",
+			"io.kubernetes.pod.name": "test-pod",
+			"com.example/version":    "1.0.0-beta+build.123",
+			"key.with.dots":          "value",
+			"key_with_underscores":   "value",
+			"key-with-dashes":        "value",
 		},
 	}
 

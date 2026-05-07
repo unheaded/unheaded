@@ -107,21 +107,21 @@ type IdentityConfig struct {
 	RotationBuffer time.Duration
 
 	// Validation settings
-	ValidatePeers      bool
-	RequireSPIFFEID    bool
+	ValidatePeers       bool
+	RequireSPIFFEID     bool
 	AllowedTrustDomains []string
 }
 
 // DefaultIdentityConfig returns a default identity configuration.
 func DefaultIdentityConfig(serviceName, namespace string) *IdentityConfig {
 	return &IdentityConfig{
-		TrustDomain:        DefaultTrustDomain,
-		ServiceName:        serviceName,
-		Namespace:          namespace,
-		AutoRotate:         true,
-		RotationBuffer:     10 * time.Minute,
-		ValidatePeers:      true,
-		RequireSPIFFEID:    true,
+		TrustDomain:         DefaultTrustDomain,
+		ServiceName:         serviceName,
+		Namespace:           namespace,
+		AutoRotate:          true,
+		RotationBuffer:      10 * time.Minute,
+		ValidatePeers:       true,
+		RequireSPIFFEID:     true,
 		AllowedTrustDomains: []string{DefaultTrustDomain},
 	}
 }
@@ -299,10 +299,10 @@ func (s *PolicyStore) ListPolicies() map[string]*AuthorizationPolicy {
 // PeerInfo contains information extracted from a peer connection.
 type PeerInfo struct {
 	// Identity
-	SPIFFEID *SPIFFEID
-	CommonName string
+	SPIFFEID    *SPIFFEID
+	CommonName  string
 	ServiceName string
-	Namespace string
+	Namespace   string
 
 	// Connection info
 	LocalAddr  net.Addr
@@ -377,7 +377,7 @@ func (m *ServiceMatcher) AddPattern(pattern string) {
 
 // IdentityValidator validates workload identities.
 type IdentityValidator struct {
-	allowedDomains []string
+	allowedDomains  []string
 	allowedServices []string
 	deniedServices  []string
 	requireSPIFFE   bool

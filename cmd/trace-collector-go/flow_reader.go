@@ -359,10 +359,10 @@ func DefaultFlowReaderConfig() FlowReaderConfig {
 // FlowReaderStats holds runtime counters for the flow reader.
 type FlowReaderStats struct {
 	PollCycles    uint64 `json:"poll_cycles"`
-	FlowsRead    uint64 `json:"flows_read"`
-	FlowsExpired uint64 `json:"flows_expired"`
-	EventsSent   uint64 `json:"events_sent"`
-	DecodeErrors uint64 `json:"decode_errors"`
+	FlowsRead     uint64 `json:"flows_read"`
+	FlowsExpired  uint64 `json:"flows_expired"`
+	EventsSent    uint64 `json:"events_sent"`
+	DecodeErrors  uint64 `json:"decode_errors"`
 	PublishErrors uint64 `json:"publish_errors"`
 }
 
@@ -427,10 +427,10 @@ func (fr *FlowReader) Events() <-chan *FlowEventEntry {
 func (fr *FlowReader) Stats() FlowReaderStats {
 	return FlowReaderStats{
 		PollCycles:    atomic.LoadUint64(&fr.stats.PollCycles),
-		FlowsRead:    atomic.LoadUint64(&fr.stats.FlowsRead),
-		FlowsExpired: atomic.LoadUint64(&fr.stats.FlowsExpired),
-		EventsSent:   atomic.LoadUint64(&fr.stats.EventsSent),
-		DecodeErrors: atomic.LoadUint64(&fr.stats.DecodeErrors),
+		FlowsRead:     atomic.LoadUint64(&fr.stats.FlowsRead),
+		FlowsExpired:  atomic.LoadUint64(&fr.stats.FlowsExpired),
+		EventsSent:    atomic.LoadUint64(&fr.stats.EventsSent),
+		DecodeErrors:  atomic.LoadUint64(&fr.stats.DecodeErrors),
 		PublishErrors: atomic.LoadUint64(&fr.stats.PublishErrors),
 	}
 }

@@ -17,15 +17,15 @@ import (
 
 // Common errors returned by the scheduler.
 var (
-	ErrNoNodesAvailable    = errors.New("no nodes available for scheduling")
+	ErrNoNodesAvailable      = errors.New("no nodes available for scheduling")
 	ErrInsufficientResources = errors.New("insufficient resources on all nodes")
-	ErrWorkloadNotFound    = errors.New("workload not found")
-	ErrNodeNotFound        = errors.New("node not found")
-	ErrAlreadyBound        = errors.New("workload already bound to a node")
-	ErrSchedulerStopped    = errors.New("scheduler has been stopped")
-	ErrQuotaExceeded       = errors.New("resource quota exceeded")
-	ErrAffinityNotSatisfied = errors.New("affinity requirements not satisfied")
-	ErrTaintNotTolerated   = errors.New("node taint not tolerated by workload")
+	ErrWorkloadNotFound      = errors.New("workload not found")
+	ErrNodeNotFound          = errors.New("node not found")
+	ErrAlreadyBound          = errors.New("workload already bound to a node")
+	ErrSchedulerStopped      = errors.New("scheduler has been stopped")
+	ErrQuotaExceeded         = errors.New("resource quota exceeded")
+	ErrAffinityNotSatisfied  = errors.New("affinity requirements not satisfied")
+	ErrTaintNotTolerated     = errors.New("node taint not tolerated by workload")
 )
 
 // WorkloadState represents the current state of a workload.
@@ -204,29 +204,29 @@ type SchedulingResult struct {
 
 // Scheduler is the main container scheduler.
 type Scheduler struct {
-	config     SchedulerConfig
-	nodes      *NodeRegistry
-	queue      *PriorityQueue
-	quotas     *QuotaManager
-	algorithm  Algorithm
-	preemptor  *Preemptor
-	binder     *Binder
-	metrics    *SchedulerMetrics
+	config    SchedulerConfig
+	nodes     *NodeRegistry
+	queue     *PriorityQueue
+	quotas    *QuotaManager
+	algorithm Algorithm
+	preemptor *Preemptor
+	binder    *Binder
+	metrics   *SchedulerMetrics
 
 	mu         sync.RWMutex
 	workloads  map[string]*Workload
 	scheduleMu sync.Mutex // serializes filter-select-bind in scheduleWorkload
 
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-	stopOnce   sync.Once
-	stopped    bool
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	stopOnce sync.Once
+	stopped  bool
 
 	// Callbacks
-	onScheduled  func(*Workload, *Node)
-	onFailed     func(*Workload, error)
-	onPreempted  func(*Workload, *Node)
+	onScheduled func(*Workload, *Node)
+	onFailed    func(*Workload, error)
+	onPreempted func(*Workload, *Node)
 }
 
 // NewScheduler creates a new scheduler with the given configuration.

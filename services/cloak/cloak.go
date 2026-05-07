@@ -16,48 +16,48 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Dashboard represents a user dashboard.
 type Dashboard struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description,omitempty"`
-	OwnerID     string            `json:"owner_id"`
-	Widgets     []*Widget         `json:"widgets"`
-	Layout      *Layout           `json:"layout"`
-	Theme       string            `json:"theme,omitempty"`
-	IsDefault   bool              `json:"is_default"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	OwnerID     string    `json:"owner_id"`
+	Widgets     []*Widget `json:"widgets"`
+	Layout      *Layout   `json:"layout"`
+	Theme       string    `json:"theme,omitempty"`
+	IsDefault   bool      `json:"is_default"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // Widget represents a dashboard widget.
 type Widget struct {
-	ID       string            `json:"id"`
-	Type     WidgetType        `json:"type"`
-	Title    string            `json:"title"`
-	Source   string            `json:"source"`
-	Config   map[string]interface{} `json:"config,omitempty"`
-	Position Position          `json:"position"`
-	Size     Size              `json:"size"`
-	RefreshRate time.Duration  `json:"refresh_rate,omitempty"`
+	ID          string                 `json:"id"`
+	Type        WidgetType             `json:"type"`
+	Title       string                 `json:"title"`
+	Source      string                 `json:"source"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+	Position    Position               `json:"position"`
+	Size        Size                   `json:"size"`
+	RefreshRate time.Duration          `json:"refresh_rate,omitempty"`
 }
 
 // WidgetType defines widget types.
 type WidgetType string
 
 const (
-	WidgetChart     WidgetType = "chart"
-	WidgetTable     WidgetType = "table"
-	WidgetMetric    WidgetType = "metric"
-	WidgetLog       WidgetType = "log"
-	WidgetAlert     WidgetType = "alert"
-	WidgetTopology  WidgetType = "topology"
-	WidgetText      WidgetType = "text"
-	WidgetIframe    WidgetType = "iframe"
+	WidgetChart    WidgetType = "chart"
+	WidgetTable    WidgetType = "table"
+	WidgetMetric   WidgetType = "metric"
+	WidgetLog      WidgetType = "log"
+	WidgetAlert    WidgetType = "alert"
+	WidgetTopology WidgetType = "topology"
+	WidgetText     WidgetType = "text"
+	WidgetIframe   WidgetType = "iframe"
 )
 
 // Position represents widget position.
@@ -74,31 +74,31 @@ type Size struct {
 
 // Layout represents dashboard layout.
 type Layout struct {
-	Type    LayoutType `json:"type"`
-	Columns int        `json:"columns"`
-	RowHeight int      `json:"row_height"`
-	Margin  int        `json:"margin"`
+	Type      LayoutType `json:"type"`
+	Columns   int        `json:"columns"`
+	RowHeight int        `json:"row_height"`
+	Margin    int        `json:"margin"`
 }
 
 // LayoutType defines layout types.
 type LayoutType string
 
 const (
-	LayoutGrid    LayoutType = "grid"
+	LayoutGrid     LayoutType = "grid"
 	LayoutFreeform LayoutType = "freeform"
-	LayoutFixed   LayoutType = "fixed"
+	LayoutFixed    LayoutType = "fixed"
 )
 
 // Session represents a user session.
 type Session struct {
-	ID           string            `json:"id"`
-	UserID       string            `json:"user_id"`
-	DashboardID  string            `json:"dashboard_id,omitempty"`
-	Theme        string            `json:"theme"`
+	ID           string                 `json:"id"`
+	UserID       string                 `json:"user_id"`
+	DashboardID  string                 `json:"dashboard_id,omitempty"`
+	Theme        string                 `json:"theme"`
 	Preferences  map[string]interface{} `json:"preferences,omitempty"`
-	CreatedAt    time.Time         `json:"created_at"`
-	LastActivity time.Time         `json:"last_activity"`
-	ExpiresAt    time.Time         `json:"expires_at"`
+	CreatedAt    time.Time              `json:"created_at"`
+	LastActivity time.Time              `json:"last_activity"`
+	ExpiresAt    time.Time              `json:"expires_at"`
 }
 
 // Notification represents a user notification.
@@ -135,9 +135,9 @@ type UIState struct {
 
 // TimeRange represents a time range selection.
 type TimeRange struct {
-	Start    time.Time `json:"start"`
-	End      time.Time `json:"end"`
-	Preset   string    `json:"preset,omitempty"` // "1h", "24h", "7d", "30d", "custom"
+	Start  time.Time `json:"start"`
+	End    time.Time `json:"end"`
+	Preset string    `json:"preset,omitempty"` // "1h", "24h", "7d", "30d", "custom"
 }
 
 // Broadcast represents a real-time broadcast.
@@ -150,7 +150,7 @@ type Broadcast struct {
 // Service is the main Cloak user dashboard service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu            sync.RWMutex
@@ -165,13 +165,13 @@ type Service struct {
 
 // Config holds Cloak service configuration.
 type Config struct {
-	SessionTimeout    time.Duration `json:"session_timeout"`
-	MaxNotifications  int           `json:"max_notifications"`
-	DefaultTheme      string        `json:"default_theme"`
-	DefaultLayout     LayoutType    `json:"default_layout"`
-	TemplateDir       string        `json:"template_dir"`
-	StaticDir         string        `json:"static_dir"`
-	BroadcastBuffer   int           `json:"broadcast_buffer"`
+	SessionTimeout   time.Duration `json:"session_timeout"`
+	MaxNotifications int           `json:"max_notifications"`
+	DefaultTheme     string        `json:"default_theme"`
+	DefaultLayout    LayoutType    `json:"default_layout"`
+	TemplateDir      string        `json:"template_dir"`
+	StaticDir        string        `json:"static_dir"`
+	BroadcastBuffer  int           `json:"broadcast_buffer"`
 	WotanTopic       string        `json:"wotan_topic"`
 }
 
@@ -185,7 +185,7 @@ func DefaultConfig() *Config {
 		TemplateDir:      "./templates",
 		StaticDir:        "./static",
 		BroadcastBuffer:  1000,
-		WotanTopic:      "cloak.dashboard",
+		WotanTopic:       "cloak.dashboard",
 	}
 }
 
@@ -197,7 +197,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:           log,
-		wotan:        wotan,
+		wotan:         wotan,
 		config:        cfg,
 		dashboards:    make(map[string]*Dashboard),
 		sessions:      make(map[string]*Session),
@@ -631,9 +631,9 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_dashboards":     len(s.dashboards),
-		"active_sessions":      len(s.sessions),
-		"total_notifications":  totalNotifications,
+		"total_dashboards":         len(s.dashboards),
+		"active_sessions":          len(s.sessions),
+		"total_notifications":      totalNotifications,
 		"users_with_notifications": len(s.notifications),
 	}
 }

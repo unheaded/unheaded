@@ -276,13 +276,13 @@ func (p *ProgressBar) render() {
 
 // Spinner displays a spinning indicator.
 type Spinner struct {
-	frames   []string
-	current  int
-	message  string
-	out      io.Writer
-	color    bool
-	stopCh   chan struct{}
-	doneCh   chan struct{}
+	frames  []string
+	current int
+	message string
+	out     io.Writer
+	color   bool
+	stopCh  chan struct{}
+	doneCh  chan struct{}
 }
 
 // NewSpinner creates a new spinner.

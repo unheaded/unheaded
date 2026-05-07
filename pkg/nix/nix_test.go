@@ -3479,7 +3479,7 @@ func TestBuilder_PublishBuildEvent_WithError(t *testing.T) {
 		MaxConcurrent:  1,
 		DefaultTimeout: 5 * time.Minute,
 		WatchInterval:  time.Second,
-		WotanTopic:    "test.builds",
+		WotanTopic:     "test.builds",
 	}
 
 	builder, err := NewBuilder(cfg, nil) // nil wotan
@@ -3510,7 +3510,7 @@ func TestBuilder_PublishBuildEvent_WithImagePath(t *testing.T) {
 		MaxConcurrent:  1,
 		DefaultTimeout: 5 * time.Minute,
 		WatchInterval:  time.Second,
-		WotanTopic:    "test.builds",
+		WotanTopic:     "test.builds",
 	}
 
 	builder, err := NewBuilder(cfg, nil) // nil wotan

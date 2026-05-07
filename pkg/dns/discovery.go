@@ -26,16 +26,16 @@ type ServiceDiscovery struct {
 
 // Service represents a discoverable service
 type Service struct {
-	Name        string              // Service name (e.g., "api", "database")
-	Domain      string              // Full domain (e.g., "api.kingdom.local")
-	Protocol    string              // Protocol (tcp, udp)
-	Port        uint16              // Service port
-	Endpoints   []*Endpoint         // Service endpoints
-	Metadata    map[string]string   // Service metadata as TXT records
-	Priority    uint16              // SRV priority
-	Weight      uint16              // SRV weight
-	TTL         uint32              // Record TTL
-	HealthCheck *HealthCheckConfig  // Health check configuration
+	Name        string             // Service name (e.g., "api", "database")
+	Domain      string             // Full domain (e.g., "api.kingdom.local")
+	Protocol    string             // Protocol (tcp, udp)
+	Port        uint16             // Service port
+	Endpoints   []*Endpoint        // Service endpoints
+	Metadata    map[string]string  // Service metadata as TXT records
+	Priority    uint16             // SRV priority
+	Weight      uint16             // SRV weight
+	TTL         uint32             // Record TTL
+	HealthCheck *HealthCheckConfig // Health check configuration
 }
 
 // Endpoint represents a service endpoint

@@ -17,33 +17,33 @@ import (
 type EvidenceType string
 
 const (
-	EvidenceTypeDocument   EvidenceType = "document"
-	EvidenceTypeScreenshot EvidenceType = "screenshot"
-	EvidenceTypeLog        EvidenceType = "log"
-	EvidenceTypeConfig     EvidenceType = "configuration"
-	EvidenceTypeReport     EvidenceType = "report"
-	EvidenceTypeArtifact   EvidenceType = "artifact"
+	EvidenceTypeDocument    EvidenceType = "document"
+	EvidenceTypeScreenshot  EvidenceType = "screenshot"
+	EvidenceTypeLog         EvidenceType = "log"
+	EvidenceTypeConfig      EvidenceType = "configuration"
+	EvidenceTypeReport      EvidenceType = "report"
+	EvidenceTypeArtifact    EvidenceType = "artifact"
 	EvidenceTypeAttestation EvidenceType = "attestation"
 )
 
 // Evidence represents compliance evidence for a control.
 type Evidence struct {
-	ID           string            `json:"id"`
-	ControlID    string            `json:"control_id"`
-	Type         EvidenceType      `json:"type"`
-	Title        string            `json:"title"`
-	Description  string            `json:"description"`
-	Source       string            `json:"source"`
-	Content      []byte            `json:"-"`
-	ContentHash  string            `json:"content_hash"`
-	ContentType  string            `json:"content_type"`
-	Size         int64             `json:"size"`
-	Metadata     map[string]string `json:"metadata"`
-	CollectedAt  time.Time         `json:"collected_at"`
-	CollectedBy  string            `json:"collected_by"`
-	ValidFrom    time.Time         `json:"valid_from"`
-	ValidUntil   *time.Time        `json:"valid_until,omitempty"`
-	Tags         []string          `json:"tags"`
+	ID          string            `json:"id"`
+	ControlID   string            `json:"control_id"`
+	Type        EvidenceType      `json:"type"`
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Source      string            `json:"source"`
+	Content     []byte            `json:"-"`
+	ContentHash string            `json:"content_hash"`
+	ContentType string            `json:"content_type"`
+	Size        int64             `json:"size"`
+	Metadata    map[string]string `json:"metadata"`
+	CollectedAt time.Time         `json:"collected_at"`
+	CollectedBy string            `json:"collected_by"`
+	ValidFrom   time.Time         `json:"valid_from"`
+	ValidUntil  *time.Time        `json:"valid_until,omitempty"`
+	Tags        []string          `json:"tags"`
 }
 
 // EvidenceCollector defines the interface for evidence collection.
@@ -55,15 +55,15 @@ type EvidenceCollector interface {
 
 // EvidenceStore manages evidence storage and retrieval.
 type EvidenceStore struct {
-	mu       sync.RWMutex
-	evidence map[string]*Evidence
+	mu        sync.RWMutex
+	evidence  map[string]*Evidence
 	byControl map[string][]string
 }
 
 // NewEvidenceStore creates a new evidence store.
 func NewEvidenceStore() *EvidenceStore {
 	return &EvidenceStore{
-		evidence:   make(map[string]*Evidence),
+		evidence:  make(map[string]*Evidence),
 		byControl: make(map[string][]string),
 	}
 }

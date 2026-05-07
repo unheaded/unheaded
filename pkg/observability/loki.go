@@ -26,8 +26,8 @@ type LokiAdapter struct {
 
 // LokiStream represents a Loki log stream identified by label set.
 type LokiStream struct {
-	Labels  map[string]string `json:"stream"`
-	Values  []LokiEntry       `json:"values"`
+	Labels map[string]string `json:"stream"`
+	Values []LokiEntry       `json:"values"`
 }
 
 // LokiEntry is a single log line in a Loki stream: [timestamp_ns, line].

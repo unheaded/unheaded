@@ -32,8 +32,8 @@ type MockClient struct {
 	subscribeCount int64
 
 	// Error injection
-	subscribeErr error
-	publishErr   error
+	subscribeErr   error
+	publishErr     error
 	getMessagesErr error
 
 	mu sync.RWMutex

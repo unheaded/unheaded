@@ -179,12 +179,12 @@ func (r *Router) Close() error {
 
 // RouteInfo provides information about a route.
 type RouteInfo struct {
-	Name           string   `json:"name"`
-	PathPrefix     string   `json:"path_prefix"`
-	Backends       []string `json:"backends"`
+	Name            string   `json:"name"`
+	PathPrefix      string   `json:"path_prefix"`
+	Backends        []string `json:"backends"`
 	HealthyBackends []string `json:"healthy_backends"`
-	LoadBalancer   string   `json:"load_balancer"`
-	CircuitState   string   `json:"circuit_state"`
+	LoadBalancer    string   `json:"load_balancer"`
+	CircuitState    string   `json:"circuit_state"`
 }
 
 // Info returns information about all routes.

@@ -327,8 +327,8 @@ func defaultCleanupHandler(ctx context.Context, stage *Stage, pipelineCtx map[st
 	}
 
 	stage.Output = map[string]interface{}{
-		"cleanup_status":   "completed",
-		"resources_freed":  3,
+		"cleanup_status":  "completed",
+		"resources_freed": 3,
 	}
 
 	return nil

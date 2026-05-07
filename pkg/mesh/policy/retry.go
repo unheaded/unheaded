@@ -231,11 +231,11 @@ func containsString(s, substr string) bool {
 
 // BackoffCalculator provides backoff duration calculation.
 type BackoffCalculator struct {
-	Base    time.Duration
-	Max     time.Duration
-	Jitter  float64
-	rng     *rand.Rand
-	mu      sync.Mutex
+	Base   time.Duration
+	Max    time.Duration
+	Jitter float64
+	rng    *rand.Rand
+	mu     sync.Mutex
 }
 
 // NewBackoffCalculator creates a new backoff calculator.

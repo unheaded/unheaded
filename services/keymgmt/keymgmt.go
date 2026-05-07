@@ -58,37 +58,37 @@ func (s KeyStatus) String() string {
 
 // KeyRecord holds metadata for a managed key.
 type KeyRecord struct {
-	ID           string    `json:"id"`
-	AlgoID       uint8     `json:"algo_id"`
-	ParamSet     uint8     `json:"param_set"`
-	KeyRef       uint16    `json:"key_ref"`
-	ServiceID    uint16    `json:"service_id"`
-	Status       KeyStatus `json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	ID           string     `json:"id"`
+	AlgoID       uint8      `json:"algo_id"`
+	ParamSet     uint8      `json:"param_set"`
+	KeyRef       uint16     `json:"key_ref"`
+	ServiceID    uint16     `json:"service_id"`
+	Status       KeyStatus  `json:"status"`
+	CreatedAt    time.Time  `json:"created_at"`
+	ExpiresAt    time.Time  `json:"expires_at"`
 	RotatedAt    *time.Time `json:"rotated_at,omitempty"`
 	RevokedAt    *time.Time `json:"revoked_at,omitempty"`
-	ReplacedBy   string    `json:"replaced_by,omitempty"`
-	PublicKeyHex string    `json:"public_key_hex"`
+	ReplacedBy   string     `json:"replaced_by,omitempty"`
+	PublicKeyHex string     `json:"public_key_hex"`
 }
 
 // Config holds keymgmt service configuration.
 type Config struct {
-	ListenAddr       string        `json:"listen_addr"`
-	DefaultTTL       time.Duration `json:"default_ttl"`
-	GracePeriod      time.Duration `json:"grace_period"`
-	MaxKeysPerService int          `json:"max_keys_per_service"`
-	WotanTopic       string        `json:"wotan_topic"`
+	ListenAddr        string        `json:"listen_addr"`
+	DefaultTTL        time.Duration `json:"default_ttl"`
+	GracePeriod       time.Duration `json:"grace_period"`
+	MaxKeysPerService int           `json:"max_keys_per_service"`
+	WotanTopic        string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		ListenAddr:       ports.DefaultAddr(ports.KeyMgmt),
-		DefaultTTL:       24 * time.Hour,
-		GracePeriod:      60 * time.Second,
+		ListenAddr:        ports.DefaultAddr(ports.KeyMgmt),
+		DefaultTTL:        24 * time.Hour,
+		GracePeriod:       60 * time.Second,
 		MaxKeysPerService: 64,
-		WotanTopic:       "pqc.key",
+		WotanTopic:        "pqc.key",
 	}
 }
 
@@ -609,9 +609,9 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_keys":     len(s.keys),
-		"by_status":      statusCounts,
-		"by_algorithm":   algoCounts,
-		"wotan_drops":    s.WotanDrops(),
+		"total_keys":   len(s.keys),
+		"by_status":    statusCounts,
+		"by_algorithm": algoCounts,
+		"wotan_drops":  s.WotanDrops(),
 	}
 }

@@ -40,11 +40,11 @@ const (
 // MonadHeader represents the basic structure of a Monad packet header.
 // This is a simplified representation for validation purposes.
 type MonadHeader struct {
-	Version      uint8
-	Reserved     uint8
-	DictID       uint16
-	FieldID      uint16
-	CRC          uint32
+	Version       uint8
+	Reserved      uint8
+	DictID        uint16
+	FieldID       uint16
+	CRC           uint32
 	PayloadLength uint16
 }
 
@@ -150,14 +150,14 @@ func (ip *IntermediaryPolicy) ValidateAndProcess(data []byte) (bool, []Malformed
 
 // FieldValidator validates specific fields in a Monad packet.
 type FieldValidator struct {
-	knownDictIDs map[uint16]bool
+	knownDictIDs  map[uint16]bool
 	knownFieldIDs map[uint16]bool
 }
 
 // NewFieldValidator creates a new field validator.
 func NewFieldValidator() *FieldValidator {
 	return &FieldValidator{
-		knownDictIDs: make(map[uint16]bool),
+		knownDictIDs:  make(map[uint16]bool),
 		knownFieldIDs: make(map[uint16]bool),
 	}
 }
@@ -210,8 +210,8 @@ func (av *AuthorityValidator) ValidateAuthority(dictID uint16, claimedAuthority 
 
 // PacketValidator combines all validation checks.
 type PacketValidator struct {
-	policy           *IntermediaryPolicy
-	fieldValidator   *FieldValidator
+	policy             *IntermediaryPolicy
+	fieldValidator     *FieldValidator
 	authorityValidator *AuthorityValidator
 }
 

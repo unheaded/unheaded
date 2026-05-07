@@ -179,10 +179,10 @@ func TestBoundsCheckStats_RejectionRate(t *testing.T) {
 	}
 
 	// 2 valid, 2 rejected = 50%
-	stats.CheckAndRecordMemory(0, 10, DefaultMaxMemoryAddr)         // valid
-	stats.CheckAndRecordSyscall(SYS_GET_KEY)                        // valid
+	stats.CheckAndRecordMemory(0, 10, DefaultMaxMemoryAddr)                   // valid
+	stats.CheckAndRecordSyscall(SYS_GET_KEY)                                  // valid
 	stats.CheckAndRecordMemory(DefaultMaxMemoryAddr, 1, DefaultMaxMemoryAddr) // rejected
-	stats.CheckAndRecordSyscall(0x00)                               // rejected
+	stats.CheckAndRecordSyscall(0x00)                                         // rejected
 
 	rate := stats.RejectionRate()
 	if rate != 50 {

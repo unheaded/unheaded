@@ -187,8 +187,8 @@ func TestDeploymentSpec(t *testing.T) {
 // TestDeploymentState tests deployment state transitions.
 func TestDeploymentState(t *testing.T) {
 	validTransitions := map[DeploymentState][]DeploymentState{
-		DeploymentStatePending:   {DeploymentStateRunning, DeploymentStateCancelled},
-		DeploymentStateRunning:   {DeploymentStateCompleted, DeploymentStateFailed, DeploymentStateCancelled, DeploymentStateRollingBack},
+		DeploymentStatePending:     {DeploymentStateRunning, DeploymentStateCancelled},
+		DeploymentStateRunning:     {DeploymentStateCompleted, DeploymentStateFailed, DeploymentStateCancelled, DeploymentStateRollingBack},
 		DeploymentStateRollingBack: {DeploymentStateRolledBack, DeploymentStateFailed},
 	}
 
@@ -409,8 +409,8 @@ func TestDeploymentStatus(t *testing.T) {
 		State:       DeploymentStateRunning,
 		StartedAt:   now.Add(-5 * time.Minute),
 		Metrics: &DeploymentMetrics{
-			InstancesCreated:    3,
-			HealthChecksPassed:  3,
+			InstancesCreated:   3,
+			HealthChecksPassed: 3,
 		},
 	}
 

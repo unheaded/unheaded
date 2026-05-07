@@ -358,10 +358,10 @@ func TestLatencyTracker_Buckets(t *testing.T) {
 	lt := newLatencyTracker()
 
 	// Record values in different buckets
-	lt.record(50 * time.Microsecond)   // < 100us
-	lt.record(200 * time.Microsecond)  // 100-500us
-	lt.record(2 * time.Millisecond)    // 1-5ms
-	lt.record(1 * time.Second)         // overflow bucket
+	lt.record(50 * time.Microsecond)  // < 100us
+	lt.record(200 * time.Microsecond) // 100-500us
+	lt.record(2 * time.Millisecond)   // 1-5ms
+	lt.record(1 * time.Second)        // overflow bucket
 
 	snap := lt.snapshot()
 

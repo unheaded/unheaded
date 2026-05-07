@@ -42,11 +42,11 @@ func (m *mockMetricProvider) QueryRange(_ context.Context, _ string, _, _ time.T
 
 // mockNotificationChannel implements alerting.NotificationChannel for testing.
 type mockNotificationChannel struct {
-	mu        sync.Mutex
-	name      string
-	sent      [][]*alerting.Alert
-	sendErr   error
-	testErr   error
+	mu      sync.Mutex
+	name    string
+	sent    [][]*alerting.Alert
+	sendErr error
+	testErr error
 }
 
 func newMockNotifier(name string) *mockNotificationChannel {

@@ -30,9 +30,9 @@ type Metrics struct {
 	services map[string]*ServiceMetrics
 
 	// Connection metrics
-	activeConnections   int64
-	totalConnections    uint64
-	connectionErrors    uint64
+	activeConnections int64
+	totalConnections  uint64
+	connectionErrors  uint64
 
 	// Byte counters
 	bytesIn  uint64

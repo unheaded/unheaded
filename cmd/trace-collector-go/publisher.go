@@ -8,10 +8,11 @@
 // and supports configurable flush intervals.
 //
 // Topic routing:
-//   traces.packet     — from packet_marker (XDP)
-//   traces.flow       — from flow_tracker (TC)
-//   traces.latency    — from latency_probe (tracepoint)
-//   traces.correlated — cross-correlated events from PacketCorrelator
+//
+//	traces.packet     — from packet_marker (XDP)
+//	traces.flow       — from flow_tracker (TC)
+//	traces.latency    — from latency_probe (tracepoint)
+//	traces.correlated — cross-correlated events from PacketCorrelator
 //
 // Per RFC 9669: we use "BPF" (not "eBPF") throughout.
 package main

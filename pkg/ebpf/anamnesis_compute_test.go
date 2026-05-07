@@ -239,9 +239,9 @@ func TestFuzzDecodeComputeHopEvent(t *testing.T) {
 func TestComputeEventTypesMatchRust(t *testing.T) {
 	// Verify event type constants match Rust side exactly
 	tests := []struct {
-		name  string
-		got   uint8
-		want  uint8
+		name string
+		got  uint8
+		want uint8
 	}{
 		{"ComputeHop", EventComputeHop, 0x10},
 		{"CacheMiss", EventCacheMiss, 0x11},

@@ -38,8 +38,8 @@ var (
 
 	httpRequestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "unheaded_http_request_duration_seconds",
-			Help: "HTTP request latency",
+			Name:    "unheaded_http_request_duration_seconds",
+			Help:    "HTTP request latency",
 			Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
 		},
 		[]string{"service", "method", "path"},
@@ -175,10 +175,10 @@ func main() {
 
 	// HTTP server
 	server := &http.Server{
-		Addr:         *addr,
-		Handler:      httpHandler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:           *addr,
+		Handler:        httpHandler,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}

@@ -346,7 +346,7 @@ func TestIntegration_ErrorHandling_NonExistentMap(t *testing.T) {
 			t.Error("expected non-empty error message")
 		}
 		if !(bytes.Contains([]byte(errMsg), []byte("maploader")) ||
-		     bytes.Contains([]byte(errMsg), []byte("nonexistent_map"))) {
+			bytes.Contains([]byte(errMsg), []byte("nonexistent_map"))) {
 			t.Errorf("expected error context in message, got: %v", err)
 		}
 	}

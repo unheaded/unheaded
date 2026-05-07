@@ -35,12 +35,12 @@ type DashboardModel struct {
 
 // PanelModel represents a Grafana dashboard panel.
 type PanelModel struct {
-	ID         int            `json:"id"`
-	Title      string         `json:"title"`
-	Type       string         `json:"type"` // graph, stat, table, heatmap, logs
-	GridPos    GridPos        `json:"gridPos"`
-	Targets    []PanelTarget  `json:"targets"`
-	FieldConf  map[string]any `json:"fieldConfig,omitempty"`
+	ID        int            `json:"id"`
+	Title     string         `json:"title"`
+	Type      string         `json:"type"` // graph, stat, table, heatmap, logs
+	GridPos   GridPos        `json:"gridPos"`
+	Targets   []PanelTarget  `json:"targets"`
+	FieldConf map[string]any `json:"fieldConfig,omitempty"`
 }
 
 // PanelTarget represents a Prometheus query target.
@@ -149,9 +149,9 @@ func (a *GrafanaAdapter) GenerateServiceDashboard(service string) *DashboardMode
 		},
 		Panels: []PanelModel{
 			{
-				ID:    1,
-				Title: "Request Rate",
-				Type:  "graph",
+				ID:      1,
+				Title:   "Request Rate",
+				Type:    "graph",
 				GridPos: GridPos{H: 8, W: 12, X: 0, Y: 0},
 				Targets: []PanelTarget{{
 					Expr:         fmt.Sprintf(`rate(unheaded_http_requests_total{service="%s"}[$interval])`, service),
@@ -160,9 +160,9 @@ func (a *GrafanaAdapter) GenerateServiceDashboard(service string) *DashboardMode
 				}},
 			},
 			{
-				ID:    2,
-				Title: "Request Latency (P99)",
-				Type:  "graph",
+				ID:      2,
+				Title:   "Request Latency (P99)",
+				Type:    "graph",
 				GridPos: GridPos{H: 8, W: 12, X: 12, Y: 0},
 				Targets: []PanelTarget{{
 					Expr:         fmt.Sprintf(`histogram_quantile(0.99, rate(unheaded_http_request_duration_seconds_bucket{service="%s"}[$interval]))`, service),
@@ -171,9 +171,9 @@ func (a *GrafanaAdapter) GenerateServiceDashboard(service string) *DashboardMode
 				}},
 			},
 			{
-				ID:    3,
-				Title: "Wotan Messages",
-				Type:  "stat",
+				ID:      3,
+				Title:   "Wotan Messages",
+				Type:    "stat",
 				GridPos: GridPos{H: 4, W: 6, X: 0, Y: 8},
 				Targets: []PanelTarget{{
 					Expr:  fmt.Sprintf(`sum(rate(unheaded_wotan_messages_published_total{service="%s"}[$interval]))`, service),
@@ -181,9 +181,9 @@ func (a *GrafanaAdapter) GenerateServiceDashboard(service string) *DashboardMode
 				}},
 			},
 			{
-				ID:    4,
-				Title: "Error Rate",
-				Type:  "stat",
+				ID:      4,
+				Title:   "Error Rate",
+				Type:    "stat",
 				GridPos: GridPos{H: 4, W: 6, X: 6, Y: 8},
 				Targets: []PanelTarget{{
 					Expr:  fmt.Sprintf(`sum(rate(unheaded_http_requests_total{service="%s",status=~"5.."}[$interval]))`, service),

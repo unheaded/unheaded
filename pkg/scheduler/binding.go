@@ -11,10 +11,10 @@ import (
 
 // Binder handles binding workloads to nodes.
 type Binder struct {
-	mu        sync.RWMutex
-	nodes     *NodeRegistry
-	bindings  map[string]*Binding
-	history   *BindingHistory
+	mu       sync.RWMutex
+	nodes    *NodeRegistry
+	bindings map[string]*Binding
+	history  *BindingHistory
 }
 
 // Binding represents a workload-to-node binding.
@@ -376,18 +376,18 @@ func NewBindingVerifier(binder *Binder, nodes *NodeRegistry) *BindingVerifier {
 
 // VerifyResult contains verification results.
 type VerifyResult struct {
-	Valid            bool
-	Errors           []string
-	OrphanedBindings []string
+	Valid              bool
+	Errors             []string
+	OrphanedBindings   []string
 	OverallocatedNodes []string
 }
 
 // Verify checks binding integrity.
 func (v *BindingVerifier) Verify() *VerifyResult {
 	result := &VerifyResult{
-		Valid:            true,
-		Errors:           []string{},
-		OrphanedBindings: []string{},
+		Valid:              true,
+		Errors:             []string{},
+		OrphanedBindings:   []string{},
 		OverallocatedNodes: []string{},
 	}
 
@@ -470,9 +470,9 @@ func NewBindingReconciler(binder *Binder, nodes *NodeRegistry) *BindingReconcile
 
 // ReconcileResult contains reconciliation results.
 type ReconcileResult struct {
-	CleanedBindings   int
-	RepairedNodes     int
-	Errors            []string
+	CleanedBindings int
+	RepairedNodes   int
+	Errors          []string
 }
 
 // Reconcile reconciles binding state.
@@ -639,10 +639,10 @@ func (e *BindingExtender) RunPostBindHooks(workload *Workload, node *Node) {
 
 // BindingStats contains binding statistics.
 type BindingStats struct {
-	TotalBindings      int
-	ActiveBindings     int
-	BindingsByNode     map[string]int
-	AverageBindingAge  time.Duration
+	TotalBindings       int
+	ActiveBindings      int
+	BindingsByNode      map[string]int
+	AverageBindingAge   time.Duration
 	TotalResourcesBound Resources
 }
 

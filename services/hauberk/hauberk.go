@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Endpoint represents a service endpoint in the mesh.
@@ -34,13 +34,13 @@ type Endpoint struct {
 
 // CircuitBreaker tracks circuit breaker state.
 type CircuitBreaker struct {
-	ServiceName  string              `json:"service_name"`
-	State        CircuitBreakerState `json:"state"`
-	Failures     int                 `json:"failures"`
-	Successes    int                 `json:"successes"`
-	LastFailure  *time.Time          `json:"last_failure,omitempty"`
-	LastSuccess  *time.Time          `json:"last_success,omitempty"`
-	OpenedAt     *time.Time          `json:"opened_at,omitempty"`
+	ServiceName string              `json:"service_name"`
+	State       CircuitBreakerState `json:"state"`
+	Failures    int                 `json:"failures"`
+	Successes   int                 `json:"successes"`
+	LastFailure *time.Time          `json:"last_failure,omitempty"`
+	LastSuccess *time.Time          `json:"last_success,omitempty"`
+	OpenedAt    *time.Time          `json:"opened_at,omitempty"`
 }
 
 // CircuitBreakerState represents circuit state.
@@ -54,12 +54,12 @@ const (
 
 // TrafficPolicy defines routing policy.
 type TrafficPolicy struct {
-	ID             string         `json:"id"`
-	ServiceName    string         `json:"service_name"`
-	Retries        RetryPolicy    `json:"retries,omitempty"`
-	Timeout        time.Duration  `json:"timeout,omitempty"`
-	CircuitBreaker CBPolicy       `json:"circuit_breaker,omitempty"`
-	LoadBalancer   LBPolicy       `json:"load_balancer,omitempty"`
+	ID             string        `json:"id"`
+	ServiceName    string        `json:"service_name"`
+	Retries        RetryPolicy   `json:"retries,omitempty"`
+	Timeout        time.Duration `json:"timeout,omitempty"`
+	CircuitBreaker CBPolicy      `json:"circuit_breaker,omitempty"`
+	LoadBalancer   LBPolicy      `json:"load_balancer,omitempty"`
 }
 
 // RetryPolicy defines retry behavior.
@@ -94,7 +94,7 @@ type Certificate struct {
 // Service is the main Hauberk service mesh service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu              sync.RWMutex
@@ -113,7 +113,7 @@ type Config struct {
 	CBTimeout            time.Duration `json:"cb_timeout"`
 	MTLSEnabled          bool          `json:"mtls_enabled"`
 	CertRotationInterval time.Duration `json:"cert_rotation_interval"`
-	WotanTopic          string        `json:"wotan_topic"`
+	WotanTopic           string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -125,7 +125,7 @@ func DefaultConfig() *Config {
 		CBTimeout:            30 * time.Second,
 		MTLSEnabled:          true,
 		CertRotationInterval: 24 * time.Hour,
-		WotanTopic:          "hauberk.mesh",
+		WotanTopic:           "hauberk.mesh",
 	}
 }
 
@@ -137,7 +137,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:             log,
-		wotan:          wotan,
+		wotan:           wotan,
 		config:          cfg,
 		endpoints:       make(map[string][]*Endpoint),
 		circuitBreakers: make(map[string]*CircuitBreaker),
@@ -388,12 +388,12 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_services":   len(s.endpoints),
-		"total_endpoints":  totalEndpoints,
-		"total_policies":   len(s.policies),
-		"open_circuits":    openCircuits,
-		"certificates":     len(s.certificates),
-		"mtls_enabled":     s.config.MTLSEnabled,
+		"total_services":  len(s.endpoints),
+		"total_endpoints": totalEndpoints,
+		"total_policies":  len(s.policies),
+		"open_circuits":   openCircuits,
+		"certificates":    len(s.certificates),
+		"mtls_enabled":    s.config.MTLSEnabled,
 	}
 }
 

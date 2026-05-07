@@ -11,8 +11,8 @@ import (
 
 // TokenBucket implements a token bucket rate limiter
 type TokenBucket struct {
-	rate       float64       // Tokens per second
-	capacity   int           // Maximum tokens
+	rate       float64 // Tokens per second
+	capacity   int     // Maximum tokens
 	buckets    map[string]*bucket
 	mu         sync.RWMutex
 	cleanupInt time.Duration

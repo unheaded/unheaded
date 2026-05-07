@@ -33,17 +33,17 @@ var deploymentIDCounter uint64
 
 // Common errors returned by deployment operations.
 var (
-	ErrDeploymentNotFound    = errors.New("deployment not found")
-	ErrDeploymentInProgress  = errors.New("deployment already in progress")
-	ErrDeploymentFailed      = errors.New("deployment failed")
-	ErrRollbackFailed        = errors.New("rollback failed")
-	ErrNoRollbackAvailable   = errors.New("no rollback available")
-	ErrInvalidSpec           = errors.New("invalid deployment specification")
-	ErrHealthCheckFailed     = errors.New("health check failed")
-	ErrStrategyNotSupported  = errors.New("deployment strategy not supported")
-	ErrArtifactNotFound      = errors.New("artifact not found")
-	ErrPipelineAborted       = errors.New("pipeline aborted")
-	ErrTrafficShiftFailed    = errors.New("traffic shift failed")
+	ErrDeploymentNotFound   = errors.New("deployment not found")
+	ErrDeploymentInProgress = errors.New("deployment already in progress")
+	ErrDeploymentFailed     = errors.New("deployment failed")
+	ErrRollbackFailed       = errors.New("rollback failed")
+	ErrNoRollbackAvailable  = errors.New("no rollback available")
+	ErrInvalidSpec          = errors.New("invalid deployment specification")
+	ErrHealthCheckFailed    = errors.New("health check failed")
+	ErrStrategyNotSupported = errors.New("deployment strategy not supported")
+	ErrArtifactNotFound     = errors.New("artifact not found")
+	ErrPipelineAborted      = errors.New("pipeline aborted")
+	ErrTrafficShiftFailed   = errors.New("traffic shift failed")
 )
 
 // DeploymentState represents the current state of a deployment.
@@ -146,7 +146,7 @@ type StrategyConfig struct {
 	SwitchTimeout time.Duration `json:"switch_timeout,omitempty"` // Timeout for traffic switch
 
 	// Canary strategy config
-	CanarySteps    []CanaryStep  `json:"canary_steps,omitempty"`    // Traffic shift steps
+	CanarySteps    []CanaryStep    `json:"canary_steps,omitempty"`    // Traffic shift steps
 	CanaryAnalysis *CanaryAnalysis `json:"canary_analysis,omitempty"` // Analysis config
 }
 
@@ -308,14 +308,14 @@ type DeploymentMetrics struct {
 
 // DeploymentStatus provides detailed deployment status.
 type DeploymentStatus struct {
-	Deployment       *Deployment `json:"deployment"`
-	CurrentReplicas  int         `json:"current_replicas"`
-	DesiredReplicas  int         `json:"desired_replicas"`
-	ReadyReplicas    int         `json:"ready_replicas"`
-	UpdatedReplicas  int         `json:"updated_replicas"`
-	AvailableReplicas int        `json:"available_replicas"`
-	TrafficWeight    int         `json:"traffic_weight,omitempty"`
-	Conditions       []Condition `json:"conditions,omitempty"`
+	Deployment        *Deployment `json:"deployment"`
+	CurrentReplicas   int         `json:"current_replicas"`
+	DesiredReplicas   int         `json:"desired_replicas"`
+	ReadyReplicas     int         `json:"ready_replicas"`
+	UpdatedReplicas   int         `json:"updated_replicas"`
+	AvailableReplicas int         `json:"available_replicas"`
+	TrafficWeight     int         `json:"traffic_weight,omitempty"`
+	Conditions        []Condition `json:"conditions,omitempty"`
 }
 
 // Condition represents a deployment condition.
@@ -455,7 +455,7 @@ func NewEngine(runtime container.Runtime, wotan WotanPublisher, config *EngineCo
 
 	return &Engine{
 		runtime:     runtime,
-		wotan:      wotan,
+		wotan:       wotan,
 		log:         log,
 		deployments: make(map[string]*Deployment),
 		history:     make(map[string][]*Deployment),
@@ -553,15 +553,15 @@ func (e *Engine) Rollback(ctx context.Context, deploymentID string) error {
 
 	// Create rollback deployment spec
 	rollbackSpec := &DeploymentSpec{
-		ServiceName:    deployment.Spec.ServiceName,
-		Version:        previousDeployment.Spec.Version,
-		ArtifactRef:    previousDeployment.Spec.ArtifactRef,
-		Strategy:       deployment.Spec.Strategy,
-		Replicas:       deployment.Spec.Replicas,
-		ContainerSpec:  previousDeployment.Spec.ContainerSpec,
-		HealthCheck:    deployment.Spec.HealthCheck,
-		Timeout:        deployment.Spec.Timeout,
-		Owner:          "rollback:" + deployment.ID,
+		ServiceName:   deployment.Spec.ServiceName,
+		Version:       previousDeployment.Spec.Version,
+		ArtifactRef:   previousDeployment.Spec.ArtifactRef,
+		Strategy:      deployment.Spec.Strategy,
+		Replicas:      deployment.Spec.Replicas,
+		ContainerSpec: previousDeployment.Spec.ContainerSpec,
+		HealthCheck:   deployment.Spec.HealthCheck,
+		Timeout:       deployment.Spec.Timeout,
+		Owner:         "rollback:" + deployment.ID,
 	}
 
 	// Remove in-progress marker to allow rollback deployment

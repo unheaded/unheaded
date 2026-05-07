@@ -4,11 +4,12 @@
 // trigger packets that fit within the frozen Monad v0x01 wire format.
 //
 // Wire layout (20-byte Monad register payload):
-//   bytes [0:4]   : magic "GJLR" (0x474A4C52)
-//   bytes [4:5]   : trigger_kind (0x01=BOOTSTRAP_BROADCAST, 0x02=REVERIFY_UNICAST)
-//   bytes [5:9]   : cluster_id (uint32 BE)
-//   bytes [9:17]  : Mjölnir manifest pointer (uint64 BE)
-//   bytes [17:20] : reserved/padding
+//
+//	bytes [0:4]   : magic "GJLR" (0x474A4C52)
+//	bytes [4:5]   : trigger_kind (0x01=BOOTSTRAP_BROADCAST, 0x02=REVERIFY_UNICAST)
+//	bytes [5:9]   : cluster_id (uint32 BE)
+//	bytes [9:17]  : Mjölnir manifest pointer (uint64 BE)
+//	bytes [17:20] : reserved/padding
 package gjallarhorn
 
 import (

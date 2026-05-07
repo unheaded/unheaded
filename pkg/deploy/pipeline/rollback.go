@@ -365,8 +365,8 @@ func DefaultRollbackConfig() *RollbackConfig {
 			},
 		},
 		MetricThresholds: &MetricThresholds{
-			ErrorRateThreshold:   0.05,  // 5%
-			SuccessRateThreshold: 0.95,  // 95%
+			ErrorRateThreshold:   0.05, // 5%
+			SuccessRateThreshold: 0.95, // 95%
 			LatencyP99Threshold:  5 * time.Second,
 		},
 	}
@@ -764,11 +764,11 @@ func (m *RollbackManager) executeHooks(ctx context.Context, hooks []*Hook, rollb
 	}
 
 	pipelineCtx := map[string]interface{}{
-		"rollback_id":   rollback.ID,
-		"service_name":  rollback.ServiceName,
-		"from_version":  rollback.FromVersion,
-		"to_version":    rollback.ToVersion,
-		"trigger":       rollback.Trigger,
+		"rollback_id":  rollback.ID,
+		"service_name": rollback.ServiceName,
+		"from_version": rollback.FromVersion,
+		"to_version":   rollback.ToVersion,
+		"trigger":      rollback.Trigger,
 	}
 
 	for _, hook := range hooks {
@@ -1007,11 +1007,11 @@ func (m *RollbackManager) GetStats(ctx context.Context) *RollbackStats {
 
 // RollbackStats contains rollback statistics.
 type RollbackStats struct {
-	Total       int                        `json:"total"`
-	Active      int                        `json:"active"`
-	Successful  int                        `json:"successful"`
-	Failed      int                        `json:"failed"`
-	ByTrigger   map[RollbackTrigger]int    `json:"by_trigger"`
-	ByState     map[RollbackState]int      `json:"by_state"`
-	AvgDuration time.Duration              `json:"avg_duration"`
+	Total       int                     `json:"total"`
+	Active      int                     `json:"active"`
+	Successful  int                     `json:"successful"`
+	Failed      int                     `json:"failed"`
+	ByTrigger   map[RollbackTrigger]int `json:"by_trigger"`
+	ByState     map[RollbackState]int   `json:"by_state"`
+	AvgDuration time.Duration           `json:"avg_duration"`
 }

@@ -1711,10 +1711,10 @@ func TestConcurrentLifecycle(t *testing.T) {
 // and test retry logic patterns.
 type retryableClient struct {
 	Client
-	mu           sync.Mutex
-	failCount    int
-	maxFails     int
-	failErr      error
+	mu        sync.Mutex
+	failCount int
+	maxFails  int
+	failErr   error
 }
 
 func (r *retryableClient) CreateContainer(ctx context.Context, cfg ContainerConfig) (*Operation, error) {

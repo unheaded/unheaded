@@ -874,9 +874,9 @@ func TestNetworkPolicy_Validate(t *testing.T) {
 func TestNetworkPolicy_GetFullName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		policy    NetworkPolicy
-		wantFull  string
+		name     string
+		policy   NetworkPolicy
+		wantFull string
 	}{
 		{
 			name:     "with namespace",

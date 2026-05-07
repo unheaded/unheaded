@@ -32,7 +32,6 @@ var openBPFMap = bpfpkg.OpenMap
 // decodeCpuState decodes raw bytes into a CpuState struct.
 var decodeCpuState = bpfpkg.DecodeCpuState
 
-
 // readScreenBatch reads the entire SCREEN_MAP using batch lookup.
 // Returns 64000 bytes of pixel data (320x200, 8-bit palette indices).
 func readScreenBatch(screenMap *BPFMap) ([]byte, error) {
@@ -151,7 +150,6 @@ func readCpuMap(cpuMap *BPFMap) (*CpuState, error) {
 
 	return decodeCpuState(val), nil
 }
-
 
 // ---------------------------------------------------------------------------
 // Doom Palette and Screen Buffer Conversion

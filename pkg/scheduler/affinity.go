@@ -89,9 +89,9 @@ type LabelSelector struct {
 
 // AffinityChecker evaluates affinity rules for scheduling.
 type AffinityChecker struct {
-	mu                sync.RWMutex
-	nodeWorkloads     map[string][]*Workload
-	workloadsByLabel  map[string]map[string][]*Workload // label key -> value -> workloads
+	mu               sync.RWMutex
+	nodeWorkloads    map[string][]*Workload
+	workloadsByLabel map[string]map[string][]*Workload // label key -> value -> workloads
 }
 
 // NewAffinityChecker creates a new affinity checker.
@@ -543,7 +543,7 @@ const (
 
 // InterWorkloadAffinityManager manages inter-workload affinities.
 type InterWorkloadAffinityManager struct {
-	mu        sync.RWMutex
+	mu         sync.RWMutex
 	affinities []InterWorkloadAffinity
 }
 

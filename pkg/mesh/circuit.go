@@ -46,14 +46,14 @@ var (
 
 // CircuitBreakerConfig configures a circuit breaker.
 type CircuitBreakerConfig struct {
-	Name                string                                  // Circuit breaker name
-	FailureThreshold    int                                     // Failures before opening
-	SuccessThreshold    int                                     // Successes needed to close from half-open
-	Timeout             time.Duration                           // How long circuit stays open
-	HalfOpenMaxRequests int                                     // Max requests allowed in half-open state
-	WindowDuration      time.Duration                           // Sliding window duration for counting failures
+	Name                string                                   // Circuit breaker name
+	FailureThreshold    int                                      // Failures before opening
+	SuccessThreshold    int                                      // Successes needed to close from half-open
+	Timeout             time.Duration                            // How long circuit stays open
+	HalfOpenMaxRequests int                                      // Max requests allowed in half-open state
+	WindowDuration      time.Duration                            // Sliding window duration for counting failures
 	OnStateChange       func(name string, from, to CircuitState) // State change callback
-	IsFailure           func(err error) bool                    // Custom failure classifier
+	IsFailure           func(err error) bool                     // Custom failure classifier
 }
 
 // DefaultCircuitBreakerConfig returns a default configuration.
@@ -908,23 +908,23 @@ func (rl *RateLimiter) Metrics() RateLimiterMetrics {
 	defer rl.mu.Unlock()
 
 	return RateLimiterMetrics{
-		Rate:           rl.config.Rate,
-		Burst:          rl.config.Burst,
+		Rate:            rl.config.Rate,
+		Burst:           rl.config.Burst,
 		AvailableTokens: rl.tokens,
-		TotalRequests:  atomic.LoadUint64(&rl.requests),
-		AllowedTotal:   atomic.LoadUint64(&rl.allowed),
-		DeniedTotal:    atomic.LoadUint64(&rl.denied),
+		TotalRequests:   atomic.LoadUint64(&rl.requests),
+		AllowedTotal:    atomic.LoadUint64(&rl.allowed),
+		DeniedTotal:     atomic.LoadUint64(&rl.denied),
 	}
 }
 
 // RateLimiterMetrics holds rate limiter metrics.
 type RateLimiterMetrics struct {
-	Rate           float64
-	Burst          int
+	Rate            float64
+	Burst           int
 	AvailableTokens float64
-	TotalRequests  uint64
-	AllowedTotal   uint64
-	DeniedTotal    uint64
+	TotalRequests   uint64
+	AllowedTotal    uint64
+	DeniedTotal     uint64
 }
 
 // HealthChecker performs active health checking on endpoints.
@@ -958,16 +958,16 @@ func DefaultHealthCheckConfig() *HealthCheckConfig {
 }
 
 type endpointHealth struct {
-	endpoint          *Endpoint
-	healthy           bool
-	consecutiveOK     int
-	consecutiveFail   int
-	lastCheck         time.Time
-	lastSuccess       time.Time
-	lastFailure       time.Time
-	totalChecks       uint64
-	totalSuccesses    uint64
-	totalFailures     uint64
+	endpoint        *Endpoint
+	healthy         bool
+	consecutiveOK   int
+	consecutiveFail int
+	lastCheck       time.Time
+	lastSuccess     time.Time
+	lastFailure     time.Time
+	totalChecks     uint64
+	totalSuccesses  uint64
+	totalFailures   uint64
 }
 
 // NewHealthChecker creates a new health checker.

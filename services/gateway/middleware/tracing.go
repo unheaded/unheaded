@@ -118,15 +118,15 @@ func GetRequestStart(ctx context.Context) time.Time {
 
 // Span represents a trace span.
 type Span struct {
-	TraceID      string            `json:"trace_id"`
-	SpanID       string            `json:"span_id"`
-	ParentSpanID string            `json:"parent_span_id,omitempty"`
-	ServiceName  string            `json:"service_name"`
-	OperationName string           `json:"operation_name"`
-	StartTime    time.Time         `json:"start_time"`
-	Duration     time.Duration     `json:"duration"`
-	Tags         map[string]string `json:"tags,omitempty"`
-	Status       string            `json:"status"`
+	TraceID       string            `json:"trace_id"`
+	SpanID        string            `json:"span_id"`
+	ParentSpanID  string            `json:"parent_span_id,omitempty"`
+	ServiceName   string            `json:"service_name"`
+	OperationName string            `json:"operation_name"`
+	StartTime     time.Time         `json:"start_time"`
+	Duration      time.Duration     `json:"duration"`
+	Tags          map[string]string `json:"tags,omitempty"`
+	Status        string            `json:"status"`
 }
 
 // SpanBuilder helps build spans.

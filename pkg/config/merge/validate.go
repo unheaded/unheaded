@@ -100,7 +100,7 @@ func (ft FieldType) String() string {
 
 // CustomRule is a custom validation rule.
 type CustomRule struct {
-	Name    string
+	Name     string
 	Validate func(map[string]any) error
 }
 

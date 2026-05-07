@@ -43,13 +43,13 @@ import (
 )
 
 const (
-	defaultVorURL         = "http://127.0.0.1:9876"
-	defaultLlamaURL       = "http://127.0.0.1:8081"
-	defaultModel          = "qwen2.5-coder-7b-instruct"
-	defaultK              = 5
-	defaultMaxTokens      = 800
-	defaultMaxTopicChars  = 10000
-	httpTimeout           = 5 * time.Minute
+	defaultVorURL        = "http://127.0.0.1:9876"
+	defaultLlamaURL      = "http://127.0.0.1:8081"
+	defaultModel         = "qwen2.5-coder-7b-instruct"
+	defaultK             = 5
+	defaultMaxTokens     = 800
+	defaultMaxTopicChars = 10000
+	httpTimeout          = 5 * time.Minute
 )
 
 // vorSearchHit matches one row of vor's GET /api/search response.
@@ -110,13 +110,13 @@ type chatResponse struct {
 
 func main() {
 	var (
-		question  = flag.String("q", "", "question (otherwise reads from stdin)")
-		k         = flag.Int("k", defaultK, "number of top-K topics to retrieve full content for")
-		maxTokens = flag.Int("max-tokens", defaultMaxTokens, "llama-server max_tokens for the response")
-		temp      = flag.Float64("temperature", 0.4, "sampling temperature (0.0 = greedy)")
-		showCtx   = flag.Bool("show-context", false, "print retrieved references before the answer")
-		maxChars  = flag.Int("max-topic-chars", defaultMaxTopicChars, "per-topic content cap; oversized topics are truncated to fit the context window")
-		seed      = flag.Int("seed", 0, "llama-server seed; nonzero pins sampling for reproducibility (combine with -temperature 0 for greedy determinism)")
+		question      = flag.String("q", "", "question (otherwise reads from stdin)")
+		k             = flag.Int("k", defaultK, "number of top-K topics to retrieve full content for")
+		maxTokens     = flag.Int("max-tokens", defaultMaxTokens, "llama-server max_tokens for the response")
+		temp          = flag.Float64("temperature", 0.4, "sampling temperature (0.0 = greedy)")
+		showCtx       = flag.Bool("show-context", false, "print retrieved references before the answer")
+		maxChars      = flag.Int("max-topic-chars", defaultMaxTopicChars, "per-topic content cap; oversized topics are truncated to fit the context window")
+		seed          = flag.Int("seed", 0, "llama-server seed; nonzero pins sampling for reproducibility (combine with -temperature 0 for greedy determinism)")
 		sysPromptFile = flag.String("system-prompt-file", "", "path to a file containing the system prompt; '' = built-in default; '-' = no system message at all (probe baseline)")
 	)
 	flag.Parse()

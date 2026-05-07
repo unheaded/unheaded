@@ -672,8 +672,8 @@ func TestLRUCache_Stats(t *testing.T) {
 	defer c.Close()
 
 	c.Set(ctx(), []byte("k"), []byte("v"), 0)
-	c.Get(ctx(), []byte("k"))          // hit
-	c.Get(ctx(), []byte("k"))          // hit
+	c.Get(ctx(), []byte("k"))           // hit
+	c.Get(ctx(), []byte("k"))           // hit
 	c.Get(ctx(), []byte("nonexistent")) // miss
 
 	stats := c.Stats()
@@ -1117,7 +1117,7 @@ func TestTTLCache_GetMultiple(t *testing.T) {
 	result := c.GetMultiple(ctx(), [][]byte{
 		[]byte("a"),
 		[]byte("b"),
-		[]byte("c"),      // expired
+		[]byte("c"),       // expired
 		[]byte("missing"), // never set
 	})
 
@@ -1198,8 +1198,8 @@ func TestTTLCache_Stats(t *testing.T) {
 	defer c.Close()
 
 	c.Set(ctx(), []byte("k"), []byte("v"), time.Hour)
-	c.Get(ctx(), []byte("k"))          // hit
-	c.Get(ctx(), []byte("k"))          // hit
+	c.Get(ctx(), []byte("k"))           // hit
+	c.Get(ctx(), []byte("k"))           // hit
 	c.Get(ctx(), []byte("nonexistent")) // miss
 
 	stats := c.Stats()

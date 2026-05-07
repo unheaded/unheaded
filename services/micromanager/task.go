@@ -13,36 +13,36 @@ import (
 type TaskStatus string
 
 const (
-	StatusPending  TaskStatus = "pending"
+	StatusPending    TaskStatus = "pending"
 	StatusInProgress TaskStatus = "in_progress"
-	StatusCompleted TaskStatus = "completed"
-	StatusBlocked   TaskStatus = "blocked"
+	StatusCompleted  TaskStatus = "completed"
+	StatusBlocked    TaskStatus = "blocked"
 )
 
 // Task represents an execution task in the micromanager service
 type Task struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
+	ID          string     `json:"id"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
 	Status      TaskStatus `json:"status"`
-	Priority    int       `json:"priority"` // 1-5, higher = more urgent
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Priority    int        `json:"priority"` // 1-5, higher = more urgent
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	Assignee    string    `json:"assignee,omitempty"`
+	Assignee    string     `json:"assignee,omitempty"`
 	DueDate     *time.Time `json:"due_date,omitempty"`
-	Tags        []string  `json:"tags,omitempty"`
-	Owner       string    `json:"owner"` // Sprint/milestone owner
+	Tags        []string   `json:"tags,omitempty"`
+	Owner       string     `json:"owner"` // Sprint/milestone owner
 }
 
 var (
-	ErrNilTask           = errors.New("task cannot be nil")
-	ErrEmptyID           = errors.New("task id cannot be empty")
-	ErrEmptyTitle        = errors.New("task title cannot be empty")
-	ErrInvalidPriority   = errors.New("priority must be between 1 and 5")
-	ErrInvalidStatus     = errors.New("invalid task status")
-	ErrTaskNotFound      = errors.New("task not found")
-	ErrEmptyOwner        = errors.New("task owner cannot be empty")
+	ErrNilTask         = errors.New("task cannot be nil")
+	ErrEmptyID         = errors.New("task id cannot be empty")
+	ErrEmptyTitle      = errors.New("task title cannot be empty")
+	ErrInvalidPriority = errors.New("priority must be between 1 and 5")
+	ErrInvalidStatus   = errors.New("invalid task status")
+	ErrTaskNotFound    = errors.New("task not found")
+	ErrEmptyOwner      = errors.New("task owner cannot be empty")
 )
 
 // Validate ensures the task has valid data

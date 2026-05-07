@@ -23,13 +23,13 @@ import (
 // ============================================================================
 
 var (
-	ErrEmptyPath        = errors.New("database path cannot be empty")
-	ErrNilTimeline      = errors.New("timeline cannot be nil")
-	ErrNotFound         = errors.New("timeline not found")
+	ErrEmptyPath         = errors.New("database path cannot be empty")
+	ErrNilTimeline       = errors.New("timeline cannot be nil")
+	ErrNotFound          = errors.New("timeline not found")
 	ErrMilestoneNotFound = errors.New("milestone not found")
-	ErrEmptyMilestoneID = errors.New("milestone ID cannot be empty")
-	ErrInvalidProgress  = errors.New("progress must be between 0 and 100")
-	ErrInvalidStatus    = errors.New("invalid status")
+	ErrEmptyMilestoneID  = errors.New("milestone ID cannot be empty")
+	ErrInvalidProgress   = errors.New("progress must be between 0 and 100")
+	ErrInvalidStatus     = errors.New("invalid status")
 )
 
 // ============================================================================

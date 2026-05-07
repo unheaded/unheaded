@@ -22,9 +22,9 @@ import (
 // ============================================================================
 
 var (
-	ErrConfigNotFound   = errors.New("configuration file not found")
-	ErrInvalidConfig    = errors.New("invalid configuration")
-	ErrMissingRequired  = errors.New("missing required configuration")
+	ErrConfigNotFound  = errors.New("configuration file not found")
+	ErrInvalidConfig   = errors.New("invalid configuration")
+	ErrMissingRequired = errors.New("missing required configuration")
 )
 
 // ============================================================================
@@ -100,11 +100,11 @@ type EBPFConfig struct {
 
 // StateConfig holds state management settings
 type StateConfig struct {
-	PollInterval      time.Duration `json:"poll_interval"`
+	PollInterval       time.Duration `json:"poll_interval"`
 	DriftCheckInterval time.Duration `json:"drift_check_interval"`
-	SnapshotInterval  time.Duration `json:"snapshot_interval"`
-	SnapshotPath      string        `json:"snapshot_path"`
-	MaxDriftReports   int           `json:"max_drift_reports"`
+	SnapshotInterval   time.Duration `json:"snapshot_interval"`
+	SnapshotPath       string        `json:"snapshot_path"`
+	MaxDriftReports    int           `json:"max_drift_reports"`
 }
 
 // WotanConfig holds message bus settings
@@ -120,12 +120,12 @@ type WotanConfig struct {
 
 // LoggingConfig holds logging settings
 type LoggingConfig struct {
-	Level      string `json:"level"`      // debug, info, warn, error
-	Format     string `json:"format"`     // json, text
-	Output     string `json:"output"`     // stdout, stderr, file path
-	MaxSize    int    `json:"max_size"`   // Max size in MB before rotation
+	Level      string `json:"level"`    // debug, info, warn, error
+	Format     string `json:"format"`   // json, text
+	Output     string `json:"output"`   // stdout, stderr, file path
+	MaxSize    int    `json:"max_size"` // Max size in MB before rotation
 	MaxBackups int    `json:"max_backups"`
-	MaxAge     int    `json:"max_age"`    // Days
+	MaxAge     int    `json:"max_age"` // Days
 }
 
 // SecurityConfig holds security settings
@@ -156,8 +156,8 @@ type DataIsolationConfig struct {
 	OperatorDataNamespace string `json:"operator_data_namespace"`
 
 	// Encryption at rest keys (separate for customer data)
-	CustomerKeyPath  string `json:"customer_key_path"`
-	OperatorKeyPath  string `json:"operator_key_path"`
+	CustomerKeyPath string `json:"customer_key_path"`
+	OperatorKeyPath string `json:"operator_key_path"`
 
 	// Audit logging for all data access
 	AuditEnabled bool   `json:"audit_enabled"`
@@ -171,10 +171,10 @@ type DataIsolationConfig struct {
 
 // MetricsConfig holds metrics/observability settings
 type MetricsConfig struct {
-	Enabled        bool          `json:"enabled"`
-	PrometheusAddr string        `json:"prometheus_addr"`
-	PushGateway    string        `json:"push_gateway"`
-	PushInterval   time.Duration `json:"push_interval"`
+	Enabled        bool              `json:"enabled"`
+	PrometheusAddr string            `json:"prometheus_addr"`
+	PushGateway    string            `json:"push_gateway"`
+	PushInterval   time.Duration     `json:"push_interval"`
 	Labels         map[string]string `json:"labels"`
 }
 

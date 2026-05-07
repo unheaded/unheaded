@@ -31,15 +31,15 @@ import (
 
 // Assessment represents a compliance assessment.
 type Assessment struct {
-	ID             string                     `json:"id"`
-	Standard       string                     `json:"standard"`
-	Version        string                     `json:"version"`
-	Status         AssessmentStatus           `json:"status"`
-	StartedAt      time.Time                  `json:"started_at"`
-	CompletedAt    *time.Time                 `json:"completed_at,omitempty"`
-	Results        []*controls.ControlResult  `json:"results"`
-	Summary        *AssessmentSummary         `json:"summary"`
-	Metadata       map[string]interface{}     `json:"metadata"`
+	ID          string                    `json:"id"`
+	Standard    string                    `json:"standard"`
+	Version     string                    `json:"version"`
+	Status      AssessmentStatus          `json:"status"`
+	StartedAt   time.Time                 `json:"started_at"`
+	CompletedAt *time.Time                `json:"completed_at,omitempty"`
+	Results     []*controls.ControlResult `json:"results"`
+	Summary     *AssessmentSummary        `json:"summary"`
+	Metadata    map[string]interface{}    `json:"metadata"`
 }
 
 // AssessmentStatus represents the status of an assessment.
@@ -102,24 +102,24 @@ type ComplianceEngine interface {
 
 // Engine implements the ComplianceEngine interface.
 type Engine struct {
-	mu              sync.RWMutex
-	standardsReg    *standards.StandardRegistry
-	checkRegistry   *controls.CheckRegistry
-	checkRunner     *controls.CheckRunner
-	evidenceStore   *controls.EvidenceStore
+	mu                 sync.RWMutex
+	standardsReg       *standards.StandardRegistry
+	checkRegistry      *controls.CheckRegistry
+	checkRunner        *controls.CheckRunner
+	evidenceStore      *controls.EvidenceStore
 	evidenceCollectors *controls.EvidenceCollectorRegistry
-	reportGenerator *report.ReportGenerator
-	auditLogger     audit.AuditLogger
-	auditTrail      *audit.AuditTrail
-	auditor         *audit.ComplianceAuditor
-	assessments     map[string]*Assessment
+	reportGenerator    *report.ReportGenerator
+	auditLogger        audit.AuditLogger
+	auditTrail         *audit.AuditTrail
+	auditor            *audit.ComplianceAuditor
+	assessments        map[string]*Assessment
 }
 
 // EngineConfig holds configuration for the compliance engine.
 type EngineConfig struct {
-	Concurrency     int
-	CheckTimeout    time.Duration
-	AuditLogSize    int
+	Concurrency      int
+	CheckTimeout     time.Duration
+	AuditLogSize     int
 	EnableAuditTrail bool
 }
 
@@ -477,4 +477,3 @@ func (e *Engine) calculateSummary(results []*controls.ControlResult) *Assessment
 
 	return summary
 }
-

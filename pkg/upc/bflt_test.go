@@ -13,10 +13,10 @@ import (
 func TestUPCFlatRoundtrip(t *testing.T) {
 	text := []uint32{
 		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite), // MOVI r0, SYS_WRITE
-		mbcEncode(mbcMOVI, 1, 0, 1),            // MOVI r1, 1 (stdout)
-		mbcEncode(mbcINT, 0, 0, 0x80),          // INT 0x80
-		mbcEncode(mbcMOVI, 0, 0, mbcSysExit),   // MOVI r0, SYS_EXIT
-		mbcEncode(mbcINT, 0, 0, 0x80),          // INT 0x80
+		mbcEncode(mbcMOVI, 1, 0, 1),           // MOVI r1, 1 (stdout)
+		mbcEncode(mbcINT, 0, 0, 0x80),         // INT 0x80
+		mbcEncode(mbcMOVI, 0, 0, mbcSysExit),  // MOVI r0, SYS_EXIT
+		mbcEncode(mbcINT, 0, 0, 0x80),         // INT 0x80
 	}
 	data := []uint32{0x6C6C6548, 0x0000006F} // "Hello\0\0\0"
 	bssWords := uint32(4)
@@ -266,7 +266,7 @@ func TestLoadUPCFlatAndSimulate(t *testing.T) {
 	msgWords := mbcPackString(msg)
 
 	code := []uint32{
-		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite),     // r0 = SYS_WRITE
+		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite),      // r0 = SYS_WRITE
 		mbcEncode(mbcMOVI, 1, 0, 1),                // r1 = stdout
 		mbcEncode(mbcMOVI, 2, 0, 0),                // r2 = msg addr (patched below)
 		mbcEncode(mbcMOVI, 3, 0, uint16(len(msg))), // r3 = len

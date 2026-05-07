@@ -471,12 +471,12 @@ func TestIPManager_GetClientIP(t *testing.T) {
 	manager := NewIPManager()
 
 	tests := []struct {
-		name        string
-		remoteAddr  string
-		xff         string
-		xri         string
-		cfIP        string
-		expectedIP  string
+		name       string
+		remoteAddr string
+		xff        string
+		xri        string
+		cfIP       string
+		expectedIP string
 	}{
 		{
 			name:       "RemoteAddr only",
@@ -679,7 +679,7 @@ func BenchmarkBlocklist_Contains(b *testing.B) {
 
 	// Add some IPs
 	for i := 0; i < 1000; i++ {
-		bl.Add("192.168."+string(rune(i/256))+"."+ string(rune(i%256)), "test")
+		bl.Add("192.168."+string(rune(i/256))+"."+string(rune(i%256)), "test")
 	}
 
 	b.ResetTimer()

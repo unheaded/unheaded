@@ -68,8 +68,8 @@ func (m *mockExporter) count() int {
 // failingExporter always returns an error on Shutdown.
 type failingExporter struct{}
 
-func (f *failingExporter) ExportSpan(_ *Span)        {}
-func (f *failingExporter) ExportSpans(_ []*Span)      {}
+func (f *failingExporter) ExportSpan(_ *Span)    {}
+func (f *failingExporter) ExportSpans(_ []*Span) {}
 func (f *failingExporter) Shutdown(_ context.Context) error {
 	return errors.New("shutdown failed")
 }

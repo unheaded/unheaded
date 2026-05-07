@@ -16,28 +16,29 @@ import (
 
 // DSLParser parses the custom WAF rule language
 // Syntax:
-//   RULE id "name" {
-//     MATCH pattern ON target [AND|OR target...]
-//     ACTION block|allow|log|redirect|challenge
-//     SEVERITY critical|high|medium|low|info
-//     SCORE 10
-//     MESSAGE "description"
-//     TAGS tag1, tag2, tag3
 //
-//     CHAIN AND|OR {
-//       RULE child_id "child_name" { ... }
-//     }
+//	RULE id "name" {
+//	  MATCH pattern ON target [AND|OR target...]
+//	  ACTION block|allow|log|redirect|challenge
+//	  SEVERITY critical|high|medium|low|info
+//	  SCORE 10
+//	  MESSAGE "description"
+//	  TAGS tag1, tag2, tag3
 //
-//     RATELIMIT 100 PER minute ACTION block
+//	  CHAIN AND|OR {
+//	    RULE child_id "child_name" { ... }
+//	  }
 //
-//     EXCEPT {
-//       IP 192.168.1.0/24
-//       PATH /api/health*
-//       METHOD GET, POST
-//       HEADER X-Internal = "true"
-//       TIME 09:00-17:00 MON-FRI
-//     }
-//   }
+//	  RATELIMIT 100 PER minute ACTION block
+//
+//	  EXCEPT {
+//	    IP 192.168.1.0/24
+//	    PATH /api/health*
+//	    METHOD GET, POST
+//	    HEADER X-Internal = "true"
+//	    TIME 09:00-17:00 MON-FRI
+//	  }
+//	}
 type DSLParser struct {
 	tokens    []Token
 	pos       int
@@ -95,10 +96,10 @@ const (
 
 // Token represents a lexical token
 type Token struct {
-	Type    TokenType
-	Value   string
-	Line    int
-	Column  int
+	Type   TokenType
+	Value  string
+	Line   int
+	Column int
 }
 
 // NewDSLParser creates a new DSL parser

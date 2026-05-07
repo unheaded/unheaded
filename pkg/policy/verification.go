@@ -183,8 +183,8 @@ type VerificationResult struct {
 	Tier          ComplianceTier
 	AlgoID        uint8
 	SigAge        time.Duration
-	MultiSigCount int                // For SOVEREIGN: how many valid sigs
-	FailReason    string             // Empty if passed
+	MultiSigCount int    // For SOVEREIGN: how many valid sigs
+	FailReason    string // Empty if passed
 	Action        FlowTeardownAction
 }
 

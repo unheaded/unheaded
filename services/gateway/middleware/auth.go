@@ -43,8 +43,8 @@ type JWTClaims struct {
 
 // AuthMiddleware handles authentication.
 type AuthMiddleware struct {
-	cfg    *config.AuthConfig
-	log    *logger.Logger
+	cfg     *config.AuthConfig
+	log     *logger.Logger
 	apiKeys map[string]bool
 }
 

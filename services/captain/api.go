@@ -26,22 +26,22 @@ type HTTPServer struct {
 
 // HTTPMetrics tracks HTTP metrics
 type HTTPMetrics struct {
-	RequestsTotal      int64
-	RequestsSuccess    int64
-	RequestsError      int64
-	AverageDuration    time.Duration
-	TotalDuration      time.Duration
-	mu                 sync.RWMutex
+	RequestsTotal   int64
+	RequestsSuccess int64
+	RequestsError   int64
+	AverageDuration time.Duration
+	TotalDuration   time.Duration
+	mu              sync.RWMutex
 }
 
 // HTTPRequest represents an HTTP request wrapper
 type HTTPRequest struct {
-	RequestID   string
-	Method      string
-	Path        string
-	StartTime   time.Time
-	ReceivedAt  time.Time
-	SizeBytes   int64
+	RequestID  string
+	Method     string
+	Path       string
+	StartTime  time.Time
+	ReceivedAt time.Time
+	SizeBytes  int64
 }
 
 // NewHTTPServer creates a new HTTP server
@@ -83,10 +83,10 @@ func NewHTTPServer(service *Service, addr string) (*HTTPServer, error) {
 	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
 
 	hs.server = &http.Server{
-		Addr:         addr,
-		Handler:      http.MaxBytesHandler(httpHandler, 10*1024*1024), // 10MB max
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:           addr,
+		Handler:        http.MaxBytesHandler(httpHandler, 10*1024*1024), // 10MB max
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}

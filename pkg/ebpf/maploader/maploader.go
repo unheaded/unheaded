@@ -47,7 +47,7 @@ import (
 // ============================================================================
 
 const (
-	BPF_MAP_UPDATE_ELEM = 2
+	BPF_MAP_UPDATE_ELEM  = 2
 	BPF_MAP_UPDATE_BATCH = 38
 
 	BPF_ANY = 0 // Create or update
@@ -59,24 +59,24 @@ const (
 
 // bpfMapOpAttr is the attribute structure for map element operations
 type bpfMapOpAttr struct {
-	MapFD uint32  // File descriptor of the map
-	_     uint32  // Padding
-	Key   uint64  // Pointer to key
-	Value uint64  // Pointer to value
-	Flags uint64  // Operation flags
+	MapFD uint32 // File descriptor of the map
+	_     uint32 // Padding
+	Key   uint64 // Pointer to key
+	Value uint64 // Pointer to value
+	Flags uint64 // Operation flags
 }
 
 // bpfMapBatchOpAttr is the attribute structure for batch operations (kernel 5.6+)
 // BPF_MAP_UPDATE_BATCH syscall allows efficient bulk updates to maps
 type bpfMapBatchOpAttr struct {
-	InBatch   uint64  // Pointer to input batch (keys/values)
-	OutBatch  uint64  // Pointer to output batch
-	Keys      uint64  // Pointer to keys array
-	Values    uint64  // Pointer to values array
-	Count     uint32  // Number of entries to process
-	MapFD     uint32  // File descriptor of the map
-	Elem      uint64  // Unused for batch ops
-	Flags     uint64  // Operation flags
+	InBatch  uint64 // Pointer to input batch (keys/values)
+	OutBatch uint64 // Pointer to output batch
+	Keys     uint64 // Pointer to keys array
+	Values   uint64 // Pointer to values array
+	Count    uint32 // Number of entries to process
+	MapFD    uint32 // File descriptor of the map
+	Elem     uint64 // Unused for batch ops
+	Flags    uint64 // Operation flags
 }
 
 // ============================================================================
@@ -172,6 +172,7 @@ func (ml *MapLoader) LoadMap(key, value interface{}) error {
 // For better performance with large numbers of entries, consider using batch syscalls.
 //
 // Example:
+//
 //	entries := [][2]interface{}{
 //		{key1, value1},
 //		{key2, value2},

@@ -33,15 +33,15 @@ type ResponseInspector struct {
 
 // ResponseStats holds response inspection statistics
 type ResponseStats struct {
-	TotalInspections     int64
-	DetectionsFound      int64
-	ByStatusCode         map[int]int64
-	ByCategory           map[string]int64
-	AverageResponseSize  float64
-	totalResponseSize    int64
-	InfoDisclosures      int64
-	SensitiveDataLeaks   int64
-	mu                   sync.RWMutex
+	TotalInspections    int64
+	DetectionsFound     int64
+	ByStatusCode        map[int]int64
+	ByCategory          map[string]int64
+	AverageResponseSize float64
+	totalResponseSize   int64
+	InfoDisclosures     int64
+	SensitiveDataLeaks  int64
+	mu                  sync.RWMutex
 }
 
 // ResponseInspectionResult represents the result of response inspection
@@ -322,9 +322,9 @@ func (ri *ResponseInspector) inspectHeaders(headers http.Header, result *Respons
 // checkSecurityHeaders checks for missing security headers
 func (ri *ResponseInspector) checkSecurityHeaders(headers http.Header, result *ResponseInspectionResult) {
 	securityHeaders := map[string]string{
-		"X-Content-Type-Options": "nosniff expected",
-		"X-Frame-Options":        "frame protection recommended",
-		"Content-Security-Policy": "CSP recommended",
+		"X-Content-Type-Options":    "nosniff expected",
+		"X-Frame-Options":           "frame protection recommended",
+		"Content-Security-Policy":   "CSP recommended",
 		"Strict-Transport-Security": "HSTS recommended for HTTPS",
 	}
 

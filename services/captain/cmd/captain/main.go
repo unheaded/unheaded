@@ -78,7 +78,7 @@ func run() error {
 	// Create captain service
 	svc, err := captain.NewService(captain.Config{
 		Storage: storage,
-		Wotan:  wotan,
+		Wotan:   wotan,
 		MetricsCallback: func(metric string, value interface{}) {
 			// Log metrics (would be sent to Prometheus in production)
 			log.Printf("metric: %s = %v", metric, value)

@@ -84,10 +84,10 @@ func (n *NixOSCollector) Collect(ctx context.Context) ([]Sample, error) {
 
 // systemdUnit represents a systemd unit from list-units output.
 type systemdUnit struct {
-	Unit       string `json:"unit"`
-	Load       string `json:"load"`
+	Unit        string `json:"unit"`
+	Load        string `json:"load"`
 	ActiveState string `json:"active"`
-	SubState   string `json:"sub"`
+	SubState    string `json:"sub"`
 	Description string `json:"description"`
 }
 
@@ -156,8 +156,8 @@ func (n *NixOSCollector) parseSystemdUnits(output string) ([]systemdUnit, error)
 
 // journalEntry represents a journal entry.
 type journalEntry struct {
-	Message string `json:"MESSAGE"`
-	Priority int `json:"PRIORITY,string"`
+	Message  string `json:"MESSAGE"`
+	Priority int    `json:"PRIORITY,string"`
 }
 
 // collectJournalErrors counts error-level log entries.

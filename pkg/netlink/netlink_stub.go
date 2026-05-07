@@ -29,14 +29,14 @@ func (s *Socket) Close() error {
 
 // LinkInfo contains parsed information about a network interface.
 type LinkInfo struct {
-	Index        int32
-	Name         string
-	MTU          uint32
-	Flags        uint32
-	OperState    uint8
-	TxQueueLen   uint32
-	Qdisc        string
-	Master       int32
+	Index      int32
+	Name       string
+	MTU        uint32
+	Flags      uint32
+	OperState  uint8
+	TxQueueLen uint32
+	Qdisc      string
+	Master     int32
 }
 
 // AddrInfo contains parsed information about an interface address.
@@ -50,16 +50,16 @@ type AddrInfo struct {
 
 // RouteInfo contains parsed information about a route.
 type RouteInfo struct {
-	Family    uint8
-	DstLen    uint8
-	SrcLen    uint8
-	Table     uint8
-	Protocol  uint8
-	Scope     uint8
-	Type      uint8
-	OifIndex  int32
-	IifIndex  int32
-	Priority  uint32
+	Family   uint8
+	DstLen   uint8
+	SrcLen   uint8
+	Table    uint8
+	Protocol uint8
+	Scope    uint8
+	Type     uint8
+	OifIndex int32
+	IifIndex int32
+	Priority uint32
 }
 
 // GenlSocket is a stub for non-Linux platforms.

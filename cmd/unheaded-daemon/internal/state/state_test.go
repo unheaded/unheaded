@@ -55,11 +55,11 @@ func TestManager_SetDesiredState_Valid(t *testing.T) {
 	ctx := context.Background()
 
 	spec := &ContainerSpec{
-		ID:    "citadel-1",
-		Name:  "gateway-citadel",
-		Image: "nixos:latest",
-		Type:  "gateway",
-		CPU:   2,
+		ID:     "citadel-1",
+		Name:   "gateway-citadel",
+		Image:  "nixos:latest",
+		Type:   "gateway",
+		CPU:    2,
 		Memory: 1024,
 	}
 
@@ -572,10 +572,10 @@ func TestManager_ExportState(t *testing.T) {
 	ctx := context.Background()
 
 	m.SetDesiredState(ctx, &ContainerSpec{
-		ID:    "citadel-1",
-		Name:  "gateway",
-		Image: "nixos:latest",
-		CPU:   2,
+		ID:     "citadel-1",
+		Name:   "gateway",
+		Image:  "nixos:latest",
+		CPU:    2,
 		Memory: 1024,
 	})
 	m.UpdateActualState(ctx, &ContainerState{

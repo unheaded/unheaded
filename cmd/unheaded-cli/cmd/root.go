@@ -14,9 +14,9 @@ import (
 	"sort"
 	"strings"
 
+	"gopkg.in/yaml.v3"
 	"unheaded/cmd/unheaded-cli/output"
 	"unheaded/pkg/logger"
-	"gopkg.in/yaml.v3"
 )
 
 // Version information (set by main.go from build flags).
@@ -67,12 +67,12 @@ type Config struct {
 
 // Cluster represents a cluster/environment configuration.
 type Cluster struct {
-	Name       string `yaml:"name"`
-	Endpoint   string `yaml:"endpoint"`
+	Name      string `yaml:"name"`
+	Endpoint  string `yaml:"endpoint"`
 	WotanAddr string `yaml:"wotan_addr"`
-	TLSCert    string `yaml:"tls_cert"`
-	TLSKey     string `yaml:"tls_key"`
-	TLSCA      string `yaml:"tls_ca"`
+	TLSCert   string `yaml:"tls_cert"`
+	TLSKey    string `yaml:"tls_key"`
+	TLSCA     string `yaml:"tls_ca"`
 }
 
 // Defaults holds default values for the CLI.
@@ -395,8 +395,8 @@ func DefaultConfig() *Config {
 		CurrentContext: "local",
 		Contexts: map[string]Cluster{
 			"local": {
-				Name:       "local",
-				Endpoint:   "http://localhost:17000",
+				Name:      "local",
+				Endpoint:  "http://localhost:17000",
 				WotanAddr: "localhost:18001",
 			},
 		},

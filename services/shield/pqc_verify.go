@@ -16,7 +16,7 @@ import (
 type PQCVerificationStep uint8
 
 const (
-	StepFlagCheck     PQCVerificationStep = iota + 1 // 1. S+CUSTOM flag check
+	StepFlagCheck      PQCVerificationStep = iota + 1 // 1. S+CUSTOM flag check
 	StepSigRefLookup                                  // 2. SigRef lookup in Sophia map
 	StepKeyRefLookup                                  // 3. KeyRef lookup + trust tier check
 	StepAlgoCompliance                                // 4. Algorithm compliance check
@@ -39,27 +39,27 @@ func (s PQCVerificationStep) String() string {
 
 // PQCVerifyResult holds the result of PQC verification.
 type PQCVerifyResult struct {
-	Passed    bool
-	FailStep  PQCVerificationStep
-	FailMsg   string
-	AlgoID    uint8
-	KeyRef    uint16
-	SigRef    uint32
-	Duration  time.Duration
-	Tier      uint8
-	SeqNum    uint16
+	Passed   bool
+	FailStep PQCVerificationStep
+	FailMsg  string
+	AlgoID   uint8
+	KeyRef   uint16
+	SigRef   uint32
+	Duration time.Duration
+	Tier     uint8
+	SeqNum   uint16
 }
 
 // PQCPacketInfo contains the PQC-relevant fields extracted from a packet.
 type PQCPacketInfo struct {
-	Flags    byte     // Monad flags byte
-	SigRef   uint32   // SigRef from PQC value
-	KeyRef   uint16   // KeyRef from PQC value
-	HashPfx  [4]byte  // HashPfx from PQC value
-	SeqNum   uint16   // SeqNum from PQC value
-	SrcSvcID uint16   // Source service ID
-	DstSvcID uint16   // Destination service ID
-	PseudoHeader []byte // Signed data (52 bytes)
+	Flags        byte    // Monad flags byte
+	SigRef       uint32  // SigRef from PQC value
+	KeyRef       uint16  // KeyRef from PQC value
+	HashPfx      [4]byte // HashPfx from PQC value
+	SeqNum       uint16  // SeqNum from PQC value
+	SrcSvcID     uint16  // Source service ID
+	DstSvcID     uint16  // Destination service ID
+	PseudoHeader []byte  // Signed data (52 bytes)
 }
 
 // SigEntry is a locally-cached signature entry.

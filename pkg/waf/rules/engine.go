@@ -24,10 +24,10 @@ type MatchResult struct {
 
 // EvaluationResult represents the complete evaluation result
 type EvaluationResult struct {
-	Matches     []*MatchResult
-	TotalScore  int
+	Matches         []*MatchResult
+	TotalScore      int
 	HighestSeverity Severity
-	Action      Action
+	Action          Action
 }
 
 // Engine evaluates rules against HTTP requests

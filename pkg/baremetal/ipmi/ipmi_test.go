@@ -765,9 +765,9 @@ func TestRedfishClient_GetServiceRoot(t *testing.T) {
 
 func TestChassisStatus_JSON(t *testing.T) {
 	status := ChassisStatus{
-		PowerOn:       true,
-		CoolingFault:  true,
-		DriveFault:    false,
+		PowerOn:      true,
+		CoolingFault: true,
+		DriveFault:   false,
 	}
 	data, err := json.Marshal(status)
 	if err != nil {

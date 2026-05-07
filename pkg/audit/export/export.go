@@ -155,9 +155,9 @@ func (e *CSVExporter) eventToRecord(event *audit.AuditEvent) []string {
 
 // CEFExporter exports events in Common Event Format (CEF).
 type CEFExporter struct {
-	vendor    string
-	product   string
-	version   string
+	vendor  string
+	product string
+	version string
 }
 
 // NewCEFExporter creates a new CEF exporter.

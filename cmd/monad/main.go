@@ -61,7 +61,7 @@ var (
 
 var (
 	listenAddr = flag.String("listen", ports.DefaultAddr(ports.Monad), "HTTP listen address")
-	wotanAddr = flag.String("wotan", "localhost:18001", "Wotan server address")
+	wotanAddr  = flag.String("wotan", "localhost:18001", "Wotan server address")
 	debug      = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs   = flag.Bool("json", false, "Output logs in JSON format")
 )
@@ -345,10 +345,10 @@ func NewHTTPServer(service *monad.Service, log *logger.Logger, addr string) (*HT
 	httpHandler = http.MaxBytesHandler(hs.loggingMiddleware(httpHandler), 10*1024*1024)
 
 	hs.server = &http.Server{
-		Addr:         addr,
-		Handler:      httpHandler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:           addr,
+		Handler:        httpHandler,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}

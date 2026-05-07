@@ -17,10 +17,10 @@ import (
 // NewGenerateCommand creates the generate command.
 func NewGenerateCommand() *Command {
 	cmd := &Command{
-		Name:    "generate",
-		Short:   "Generate IaC artifacts",
-		Long:    "Generate Infrastructure-as-Code artifacts for Unheaded services.\n\nSupported backends: ansible, terraform, puppet, kubernetes, chef, salt",
-		Aliases: []string{"gen"},
+		Name:        "generate",
+		Short:       "Generate IaC artifacts",
+		Long:        "Generate Infrastructure-as-Code artifacts for Unheaded services.\n\nSupported backends: ansible, terraform, puppet, kubernetes, chef, salt",
+		Aliases:     []string{"gen"},
 		SubCommands: make(map[string]*Command),
 	}
 
@@ -90,8 +90,8 @@ func newGenerateIaCCommand() *Command {
 
 func newGenerateListCommand() *Command {
 	return &Command{
-		Name:  "list",
-		Short: "List available IaC backends",
+		Name:    "list",
+		Short:   "List available IaC backends",
 		Aliases: []string{"ls"},
 		RunFunc: func(ctx *Context, args []string) error {
 			fmt.Fprintln(os.Stdout, "Available IaC backends:")

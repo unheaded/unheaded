@@ -31,11 +31,11 @@ func TestFlowTypeString(t *testing.T) {
 
 func TestFlowTypePredicates(t *testing.T) {
 	tests := []struct {
-		ft       FlowType
-		isCtrl   bool
-		isData   bool
-		isPf     bool
-		isRes    bool
+		ft     FlowType
+		isCtrl bool
+		isData bool
+		isPf   bool
+		isRes  bool
 	}{
 		{Control, true, false, false, false},
 		{Data, false, true, false, false},
@@ -114,10 +114,10 @@ func TestFlowTypeFromFlags(t *testing.T) {
 		{0x01, Data},
 		{0x02, Prefetch},
 		{0x03, Reserved},
-		{0x04, Control},       // Upper bits are masked out
-		{0x05, Data},          // 0x05 = 0b101, lowest 2 bits = 0b01 = Data
-		{0xFC, Control},       // 0xFC = 0b11111100, lowest 2 bits = 0b00 = Control
-		{0xFF, Reserved},      // 0xFF = 0b11111111, lowest 2 bits = 0b11 = Reserved
+		{0x04, Control},  // Upper bits are masked out
+		{0x05, Data},     // 0x05 = 0b101, lowest 2 bits = 0b01 = Data
+		{0xFC, Control},  // 0xFC = 0b11111100, lowest 2 bits = 0b00 = Control
+		{0xFF, Reserved}, // 0xFF = 0b11111111, lowest 2 bits = 0b11 = Reserved
 	}
 
 	for _, tt := range tests {
@@ -141,10 +141,10 @@ func TestFlowTypeToFlags(t *testing.T) {
 		{Data, 0x00, 0x01, false},
 		{Prefetch, 0x00, 0x02, false},
 		{Reserved, 0x00, 0x03, false},
-		{Control, 0xFC, 0xFC, false},   // Preserve upper bits
-		{Data, 0xFC, 0xFD, false},      // 0xFC | 0x01 with mask
-		{Data, 0xFF, 0xFD, false},      // 0xFF & 0xFC | 0x01 = 0xFD
-		{Prefetch, 0xAA, 0xAA, false},  // 0xAA = 0b10101010, set Prefetch (0x02 = 0b10)
+		{Control, 0xFC, 0xFC, false},  // Preserve upper bits
+		{Data, 0xFC, 0xFD, false},     // 0xFC | 0x01 with mask
+		{Data, 0xFF, 0xFD, false},     // 0xFF & 0xFC | 0x01 = 0xFD
+		{Prefetch, 0xAA, 0xAA, false}, // 0xAA = 0b10101010, set Prefetch (0x02 = 0b10)
 	}
 
 	for _, tt := range tests {
@@ -238,4 +238,3 @@ func TestFlowTypeValidate(t *testing.T) {
 		})
 	}
 }
-

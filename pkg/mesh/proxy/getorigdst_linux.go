@@ -16,7 +16,9 @@ const soOriginalDst = 80 // SO_ORIGINAL_DST (netfilter extension)
 
 // getOriginalDst retrieves the original destination via SO_ORIGINAL_DST (Linux).
 func getOriginalDst(conn net.Conn) (string, error) {
-	sc, ok := conn.(interface{ SyscallConn() (syscall.RawConn, error) })
+	sc, ok := conn.(interface {
+		SyscallConn() (syscall.RawConn, error)
+	})
 	if !ok {
 		return "", fmt.Errorf("connection does not support SyscallConn: %T", conn)
 	}

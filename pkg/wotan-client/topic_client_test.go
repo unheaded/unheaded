@@ -821,8 +821,8 @@ func TestTopicStreamClient_CircuitBreaker_DegradesToHTTP(t *testing.T) {
 // ============================================================================
 
 type httpTestRecorder struct {
-	mu            sync.Mutex
-	responses     map[string]struct{
+	mu        sync.Mutex
+	responses map[string]struct {
 		status int
 		body   string
 	}
@@ -831,7 +831,10 @@ type httpTestRecorder struct {
 
 func newHTTPTestRecorder() *httpTestRecorder {
 	return &httpTestRecorder{
-		responses:     make(map[string]struct{ status int; body string }),
+		responses: make(map[string]struct {
+			status int
+			body   string
+		}),
 		requestCounts: make(map[string]int),
 	}
 }
@@ -839,7 +842,10 @@ func newHTTPTestRecorder() *httpTestRecorder {
 func (r *httpTestRecorder) setResponse(path string, status int, body string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.responses[path] = struct{ status int; body string }{status, body}
+	r.responses[path] = struct {
+		status int
+		body   string
+	}{status, body}
 }
 
 func (r *httpTestRecorder) handler(w http.ResponseWriter, req *http.Request) {
@@ -868,7 +874,6 @@ func newTestHTTPServer() (*httptest.Server, *httpTestRecorder) {
 	recorder := newHTTPTestRecorder()
 	return httptest.NewServer(http.HandlerFunc(recorder.handler)), recorder
 }
-
 
 func TestTopicStreamClient_ConcurrentSubscribePublish(t *testing.T) {
 	_, client, _ := setupBufconn(t)

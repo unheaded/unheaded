@@ -17,17 +17,17 @@ import (
 
 // LRUCache is a Least Recently Used cache implementation.
 type LRUCache struct {
-	cfg      Config
-	log      *logger.Logger
-	mu       sync.RWMutex
-	items    map[string]*list.Element
+	cfg       Config
+	log       *logger.Logger
+	mu        sync.RWMutex
+	items     map[string]*list.Element
 	evictList *list.List
-	size     int64
-	bytes    int64
-	hits     int64
-	misses   int64
+	size      int64
+	bytes     int64
+	hits      int64
+	misses    int64
 	evictions int64
-	closed   bool
+	closed    bool
 }
 
 // lruEntry is an entry in the LRU cache.

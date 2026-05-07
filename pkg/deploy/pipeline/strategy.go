@@ -359,14 +359,14 @@ type StrategyExecution struct {
 type StrategyExecutionState string
 
 const (
-	ExecutionStatePending    StrategyExecutionState = "pending"
-	ExecutionStateRunning    StrategyExecutionState = "running"
-	ExecutionStatePaused     StrategyExecutionState = "paused"
-	ExecutionStateAnalyzing  StrategyExecutionState = "analyzing"
-	ExecutionStatePromoting  StrategyExecutionState = "promoting"
-	ExecutionStateCompleted  StrategyExecutionState = "completed"
-	ExecutionStateFailed     StrategyExecutionState = "failed"
-	ExecutionStateAborted    StrategyExecutionState = "aborted"
+	ExecutionStatePending     StrategyExecutionState = "pending"
+	ExecutionStateRunning     StrategyExecutionState = "running"
+	ExecutionStatePaused      StrategyExecutionState = "paused"
+	ExecutionStateAnalyzing   StrategyExecutionState = "analyzing"
+	ExecutionStatePromoting   StrategyExecutionState = "promoting"
+	ExecutionStateCompleted   StrategyExecutionState = "completed"
+	ExecutionStateFailed      StrategyExecutionState = "failed"
+	ExecutionStateAborted     StrategyExecutionState = "aborted"
 	ExecutionStateRollingBack StrategyExecutionState = "rolling_back"
 )
 

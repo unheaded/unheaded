@@ -347,46 +347,46 @@ func TestFullBootWithForkAndExec(t *testing.T) {
 
 	// Print boot banner: SYS_WRITE(1, &bootMsg, len)
 	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysWrite)) // 0
-	code = append(code, mbcEncode(mbcMOVI, 1, 0, 1))            // 1
+	code = append(code, mbcEncode(mbcMOVI, 1, 0, 1))           // 1
 	bootMsgAddrIdx = len(code)
-	code = append(code, mbcEncode(mbcMOVI, 2, 0, 0))            // 2: &bootMsg (patched)
+	code = append(code, mbcEncode(mbcMOVI, 2, 0, 0))                    // 2: &bootMsg (patched)
 	code = append(code, mbcEncode(mbcMOVI, 3, 0, uint16(len(bootMsg)))) // 3
-	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))          // 4
+	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))                  // 4
 
 	// SYS_FORK
-	code = append(code, mbcEncode(mbcMOVI, 0, 0, 2))            // 5
-	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))          // 6
+	code = append(code, mbcEncode(mbcMOVI, 0, 0, 2))   // 5
+	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80)) // 6
 
 	// CMP r0, 0 — check if child
-	code = append(code, mbcEncode(mbcMOVI, 6, 0, 0))            // 7
-	code = append(code, mbcEncode(0x10, 0, 6, 0))               // 8: CMP
+	code = append(code, mbcEncode(mbcMOVI, 6, 0, 0)) // 7
+	code = append(code, mbcEncode(0x10, 0, 6, 0))    // 8: CMP
 	childJmpIdx = len(code)
-	code = append(code, mbcEncode(0x21, 0, 0, 0))               // 9: JZ child (patched)
+	code = append(code, mbcEncode(0x21, 0, 0, 0)) // 9: JZ child (patched)
 
 	// Parent: SYS_WAITPID(child_pid=1)
-	code = append(code, mbcEncode(mbcMOVI, 0, 0, 7))            // 10
-	code = append(code, mbcEncode(mbcMOVI, 1, 0, 1))            // 11
-	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))          // 12
+	code = append(code, mbcEncode(mbcMOVI, 0, 0, 7))   // 10
+	code = append(code, mbcEncode(mbcMOVI, 1, 0, 1))   // 11
+	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80)) // 12
 
 	// Parent: print "Shell exited\n"
-	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysWrite))  // 13
-	code = append(code, mbcEncode(mbcMOVI, 1, 0, 1))            // 14
+	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysWrite)) // 13
+	code = append(code, mbcEncode(mbcMOVI, 1, 0, 1))           // 14
 	exitMsgAddrIdx = len(code)
-	code = append(code, mbcEncode(mbcMOVI, 2, 0, 0))            // 15: &exitMsg (patched)
+	code = append(code, mbcEncode(mbcMOVI, 2, 0, 0))                    // 15: &exitMsg (patched)
 	code = append(code, mbcEncode(mbcMOVI, 3, 0, uint16(len(exitMsg)))) // 16
-	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))          // 17
+	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))                  // 17
 
 	// Parent: SYS_EXIT(0)
-	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysExit))   // 18
-	code = append(code, mbcEncode(mbcMOVI, 1, 0, 0))            // 19
-	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))          // 20
+	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysExit)) // 18
+	code = append(code, mbcEncode(mbcMOVI, 1, 0, 0))          // 19
+	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))        // 20
 
 	// ── Child code ───────────────────────────────────────────────
 	childStart := len(code)
-	code = append(code, mbcEncode(mbcMOVI, 0, 0, 11))           // 21: SYS_EXECVE
+	code = append(code, mbcEncode(mbcMOVI, 0, 0, 11)) // 21: SYS_EXECVE
 	shellEntryIdx = len(code)
-	code = append(code, mbcEncode(mbcMOVI, 1, 0, 0))            // 22: shell entry (patched)
-	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))          // 23
+	code = append(code, mbcEncode(mbcMOVI, 1, 0, 0))   // 22: shell entry (patched)
+	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80)) // 23
 
 	// Patch child JZ: offset = childStart - (childJmpIdx + 1)
 	childOffset := int16(childStart - (childJmpIdx + 1))
@@ -409,15 +409,15 @@ func TestFullBootWithForkAndExec(t *testing.T) {
 	code[shellEntryIdx] = mbcEncode(mbcMOVI, 1, 0, uint16(shellStartWord))
 
 	// Shell: print "> ", then SYS_EXIT(0)
-	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysWrite))  // sh+0
-	code = append(code, mbcEncode(mbcMOVI, 1, 0, 1))            // sh+1
+	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysWrite)) // sh+0
+	code = append(code, mbcEncode(mbcMOVI, 1, 0, 1))           // sh+1
 	shellPromptAddrIdx := len(code)
-	code = append(code, mbcEncode(mbcMOVI, 2, 0, 0))            // sh+2: &prompt (patched)
+	code = append(code, mbcEncode(mbcMOVI, 2, 0, 0))                        // sh+2: &prompt (patched)
 	code = append(code, mbcEncode(mbcMOVI, 3, 0, uint16(len(shellPrompt)))) // sh+3
-	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))          // sh+4
-	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysExit))   // sh+5
-	code = append(code, mbcEncode(mbcMOVI, 1, 0, 0))            // sh+6
-	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))          // sh+7
+	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))                      // sh+4
+	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysExit))               // sh+5
+	code = append(code, mbcEncode(mbcMOVI, 1, 0, 0))                        // sh+6
+	code = append(code, mbcEncode(mbcINT, 0, 0, 0x80))                      // sh+7
 
 	// Shell data: "> "
 	shellDataStart := len(code)

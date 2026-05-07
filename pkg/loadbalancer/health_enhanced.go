@@ -360,9 +360,9 @@ func NewEnhancedHealthChecker(config HealthCheckConfig, pool *BackendPool) *Enha
 	// Initialize circuit breakers and history for each backend
 	for _, b := range pool.All() {
 		ehc.circuitBreakers[b.Config.Name] = NewCircuitBreaker(
-			config.Retries,           // threshold
-			config.Interval*3,        // timeout (3x check interval)
-			config.SuccessThreshold,  // half-open max
+			config.Retries,          // threshold
+			config.Interval*3,       // timeout (3x check interval)
+			config.SuccessThreshold, // half-open max
 		)
 		ehc.healthHistory[b.Config.Name] = NewHealthHistory(100)
 	}
@@ -726,11 +726,11 @@ func (ephc *EnhancedPassiveHealthChecker) GetErrorStats(backend string) map[stri
 
 // HealthCheckHTTPResponse represents an HTTP health check response for detailed inspection.
 type HealthCheckHTTPResponse struct {
-	StatusCode    int
-	Headers       http.Header
-	Body          []byte
-	Latency       time.Duration
-	TLSVersion    uint16
+	StatusCode     int
+	Headers        http.Header
+	Body           []byte
+	Latency        time.Duration
+	TLSVersion     uint16
 	TLSCipherSuite uint16
 }
 

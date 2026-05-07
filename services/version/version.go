@@ -25,13 +25,13 @@ import (
 
 // TranslationRule defines how to translate packets between protocol versions.
 type TranslationRule struct {
-	SrcVersion    string   `json:"src_version"`
-	DstVersion    string   `json:"dst_version"`
-	FieldMask     uint16   `json:"field_mask"`
-	OffsetMap     [8]byte  `json:"offset_map"`
-	WidthDeltas   [4]int8  `json:"width_deltas"`
-	DefaultValues [4]byte  `json:"default_values"`
-	CRCRecalc     bool     `json:"crc_recalc"`
+	SrcVersion    string    `json:"src_version"`
+	DstVersion    string    `json:"dst_version"`
+	FieldMask     uint16    `json:"field_mask"`
+	OffsetMap     [8]byte   `json:"offset_map"`
+	WidthDeltas   [4]int8   `json:"width_deltas"`
+	DefaultValues [4]byte   `json:"default_values"`
+	CRCRecalc     bool      `json:"crc_recalc"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -70,8 +70,8 @@ type Service struct {
 	log   *logger.Logger
 	wotan *wotanClient.Client
 
-	mu              sync.RWMutex
-	translationRules map[string]*TranslationRule   // key: "src->dst"
+	mu               sync.RWMutex
+	translationRules map[string]*TranslationRule    // key: "src->dst"
 	serviceVersions  map[string]*ServiceVersionInfo // key: service_id
 	translationStats *TranslationStats
 	heatmap          []VersionHeatmapEntry

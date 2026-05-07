@@ -117,38 +117,38 @@ const (
 
 // BPF program types - determines what hook points the program can attach to
 const (
-	BPF_PROG_TYPE_UNSPEC          = 0
-	BPF_PROG_TYPE_SOCKET_FILTER   = 1
-	BPF_PROG_TYPE_KPROBE          = 2
-	BPF_PROG_TYPE_SCHED_CLS       = 3  // TC classifier
-	BPF_PROG_TYPE_SCHED_ACT       = 4  // TC action
-	BPF_PROG_TYPE_TRACEPOINT      = 5
-	BPF_PROG_TYPE_XDP             = 6
-	BPF_PROG_TYPE_PERF_EVENT      = 7
-	BPF_PROG_TYPE_CGROUP_SKB      = 8
-	BPF_PROG_TYPE_CGROUP_SOCK     = 9
-	BPF_PROG_TYPE_LWT_IN          = 10
-	BPF_PROG_TYPE_LWT_OUT         = 11
-	BPF_PROG_TYPE_LWT_XMIT        = 12
-	BPF_PROG_TYPE_SOCK_OPS        = 13
-	BPF_PROG_TYPE_SK_SKB          = 14
-	BPF_PROG_TYPE_CGROUP_DEVICE   = 15
-	BPF_PROG_TYPE_SK_MSG          = 16
-	BPF_PROG_TYPE_RAW_TRACEPOINT  = 17
-	BPF_PROG_TYPE_CGROUP_SOCK_ADDR = 18
-	BPF_PROG_TYPE_LWT_SEG6LOCAL   = 19
-	BPF_PROG_TYPE_LIRC_MODE2      = 20
-	BPF_PROG_TYPE_SK_REUSEPORT    = 21
-	BPF_PROG_TYPE_FLOW_DISSECTOR  = 22
-	BPF_PROG_TYPE_CGROUP_SYSCTL   = 23
+	BPF_PROG_TYPE_UNSPEC                  = 0
+	BPF_PROG_TYPE_SOCKET_FILTER           = 1
+	BPF_PROG_TYPE_KPROBE                  = 2
+	BPF_PROG_TYPE_SCHED_CLS               = 3 // TC classifier
+	BPF_PROG_TYPE_SCHED_ACT               = 4 // TC action
+	BPF_PROG_TYPE_TRACEPOINT              = 5
+	BPF_PROG_TYPE_XDP                     = 6
+	BPF_PROG_TYPE_PERF_EVENT              = 7
+	BPF_PROG_TYPE_CGROUP_SKB              = 8
+	BPF_PROG_TYPE_CGROUP_SOCK             = 9
+	BPF_PROG_TYPE_LWT_IN                  = 10
+	BPF_PROG_TYPE_LWT_OUT                 = 11
+	BPF_PROG_TYPE_LWT_XMIT                = 12
+	BPF_PROG_TYPE_SOCK_OPS                = 13
+	BPF_PROG_TYPE_SK_SKB                  = 14
+	BPF_PROG_TYPE_CGROUP_DEVICE           = 15
+	BPF_PROG_TYPE_SK_MSG                  = 16
+	BPF_PROG_TYPE_RAW_TRACEPOINT          = 17
+	BPF_PROG_TYPE_CGROUP_SOCK_ADDR        = 18
+	BPF_PROG_TYPE_LWT_SEG6LOCAL           = 19
+	BPF_PROG_TYPE_LIRC_MODE2              = 20
+	BPF_PROG_TYPE_SK_REUSEPORT            = 21
+	BPF_PROG_TYPE_FLOW_DISSECTOR          = 22
+	BPF_PROG_TYPE_CGROUP_SYSCTL           = 23
 	BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE = 24
-	BPF_PROG_TYPE_CGROUP_SOCKOPT  = 25
-	BPF_PROG_TYPE_TRACING         = 26  // fentry/fexit
-	BPF_PROG_TYPE_STRUCT_OPS      = 27
-	BPF_PROG_TYPE_EXT             = 28
-	BPF_PROG_TYPE_LSM             = 29
-	BPF_PROG_TYPE_SK_LOOKUP       = 30
-	BPF_PROG_TYPE_SYSCALL         = 31
+	BPF_PROG_TYPE_CGROUP_SOCKOPT          = 25
+	BPF_PROG_TYPE_TRACING                 = 26 // fentry/fexit
+	BPF_PROG_TYPE_STRUCT_OPS              = 27
+	BPF_PROG_TYPE_EXT                     = 28
+	BPF_PROG_TYPE_LSM                     = 29
+	BPF_PROG_TYPE_SK_LOOKUP               = 30
+	BPF_PROG_TYPE_SYSCALL                 = 31
 )
 
 // BPF map types - different data structures available in kernel
@@ -175,72 +175,72 @@ const (
 	// Usage: XSKMAP[queue_id] = socket_fd
 	// eBPF: bpf_redirect_map(&XSKMAP, queue_id, 0) returns XDP_REDIRECT
 	// See: ebpf/xdp-redirect/src/main.rs and pkg/afxdp/
-	BPF_MAP_TYPE_XSKMAP           = 17
-	BPF_MAP_TYPE_SOCKHASH         = 18 // Socket hash map
-	BPF_MAP_TYPE_CGROUP_STORAGE   = 19 // Per-cgroup storage
-	BPF_MAP_TYPE_REUSEPORT_SOCKARRAY = 20
+	BPF_MAP_TYPE_XSKMAP                = 17
+	BPF_MAP_TYPE_SOCKHASH              = 18 // Socket hash map
+	BPF_MAP_TYPE_CGROUP_STORAGE        = 19 // Per-cgroup storage
+	BPF_MAP_TYPE_REUSEPORT_SOCKARRAY   = 20
 	BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE = 21
-	BPF_MAP_TYPE_QUEUE            = 22 // FIFO queue
-	BPF_MAP_TYPE_STACK            = 23 // LIFO stack
-	BPF_MAP_TYPE_SK_STORAGE       = 24 // Per-socket storage
-	BPF_MAP_TYPE_DEVMAP_HASH      = 25 // Device hash map
-	BPF_MAP_TYPE_STRUCT_OPS       = 26 // Struct ops map
-	BPF_MAP_TYPE_RINGBUF          = 27 // Ring buffer (kernel 5.8+)
-	BPF_MAP_TYPE_INODE_STORAGE    = 28 // Per-inode storage
-	BPF_MAP_TYPE_TASK_STORAGE     = 29 // Per-task storage
-	BPF_MAP_TYPE_BLOOM_FILTER     = 30 // Bloom filter
+	BPF_MAP_TYPE_QUEUE                 = 22 // FIFO queue
+	BPF_MAP_TYPE_STACK                 = 23 // LIFO stack
+	BPF_MAP_TYPE_SK_STORAGE            = 24 // Per-socket storage
+	BPF_MAP_TYPE_DEVMAP_HASH           = 25 // Device hash map
+	BPF_MAP_TYPE_STRUCT_OPS            = 26 // Struct ops map
+	BPF_MAP_TYPE_RINGBUF               = 27 // Ring buffer (kernel 5.8+)
+	BPF_MAP_TYPE_INODE_STORAGE         = 28 // Per-inode storage
+	BPF_MAP_TYPE_TASK_STORAGE          = 29 // Per-task storage
+	BPF_MAP_TYPE_BLOOM_FILTER          = 30 // Bloom filter
 )
 
 // BPF attach types - specifies where to attach the program
 const (
-	BPF_CGROUP_INET_INGRESS      = 0
-	BPF_CGROUP_INET_EGRESS       = 1
-	BPF_CGROUP_INET_SOCK_CREATE  = 2
-	BPF_CGROUP_SOCK_OPS          = 3
-	BPF_SK_SKB_STREAM_PARSER     = 4
-	BPF_SK_SKB_STREAM_VERDICT    = 5
-	BPF_CGROUP_DEVICE            = 6
-	BPF_SK_MSG_VERDICT           = 7
-	BPF_CGROUP_INET4_BIND        = 8
-	BPF_CGROUP_INET6_BIND        = 9
-	BPF_CGROUP_INET4_CONNECT     = 10
-	BPF_CGROUP_INET6_CONNECT     = 11
-	BPF_CGROUP_INET4_POST_BIND   = 12
-	BPF_CGROUP_INET6_POST_BIND   = 13
-	BPF_CGROUP_UDP4_SENDMSG      = 14
-	BPF_CGROUP_UDP6_SENDMSG      = 15
-	BPF_LIRC_MODE2               = 16
-	BPF_FLOW_DISSECTOR           = 17
-	BPF_CGROUP_SYSCTL            = 18
-	BPF_CGROUP_UDP4_RECVMSG      = 19
-	BPF_CGROUP_UDP6_RECVMSG      = 20
-	BPF_CGROUP_GETSOCKOPT        = 21
-	BPF_CGROUP_SETSOCKOPT        = 22
-	BPF_TRACE_RAW_TP             = 23
-	BPF_TRACE_FENTRY             = 24
-	BPF_TRACE_FEXIT              = 25
-	BPF_MODIFY_RETURN            = 26
-	BPF_LSM_MAC                  = 27
-	BPF_TRACE_ITER               = 28
-	BPF_CGROUP_INET4_GETPEERNAME = 29
-	BPF_CGROUP_INET6_GETPEERNAME = 30
-	BPF_CGROUP_INET4_GETSOCKNAME = 31
-	BPF_CGROUP_INET6_GETSOCKNAME = 32
-	BPF_XDP_DEVMAP               = 33
-	BPF_CGROUP_INET_SOCK_RELEASE = 34
-	BPF_XDP_CPUMAP               = 35
-	BPF_SK_LOOKUP                = 36
-	BPF_XDP                      = 37
-	BPF_SK_SKB_VERDICT           = 38
-	BPF_SK_REUSEPORT_SELECT      = 39
+	BPF_CGROUP_INET_INGRESS            = 0
+	BPF_CGROUP_INET_EGRESS             = 1
+	BPF_CGROUP_INET_SOCK_CREATE        = 2
+	BPF_CGROUP_SOCK_OPS                = 3
+	BPF_SK_SKB_STREAM_PARSER           = 4
+	BPF_SK_SKB_STREAM_VERDICT          = 5
+	BPF_CGROUP_DEVICE                  = 6
+	BPF_SK_MSG_VERDICT                 = 7
+	BPF_CGROUP_INET4_BIND              = 8
+	BPF_CGROUP_INET6_BIND              = 9
+	BPF_CGROUP_INET4_CONNECT           = 10
+	BPF_CGROUP_INET6_CONNECT           = 11
+	BPF_CGROUP_INET4_POST_BIND         = 12
+	BPF_CGROUP_INET6_POST_BIND         = 13
+	BPF_CGROUP_UDP4_SENDMSG            = 14
+	BPF_CGROUP_UDP6_SENDMSG            = 15
+	BPF_LIRC_MODE2                     = 16
+	BPF_FLOW_DISSECTOR                 = 17
+	BPF_CGROUP_SYSCTL                  = 18
+	BPF_CGROUP_UDP4_RECVMSG            = 19
+	BPF_CGROUP_UDP6_RECVMSG            = 20
+	BPF_CGROUP_GETSOCKOPT              = 21
+	BPF_CGROUP_SETSOCKOPT              = 22
+	BPF_TRACE_RAW_TP                   = 23
+	BPF_TRACE_FENTRY                   = 24
+	BPF_TRACE_FEXIT                    = 25
+	BPF_MODIFY_RETURN                  = 26
+	BPF_LSM_MAC                        = 27
+	BPF_TRACE_ITER                     = 28
+	BPF_CGROUP_INET4_GETPEERNAME       = 29
+	BPF_CGROUP_INET6_GETPEERNAME       = 30
+	BPF_CGROUP_INET4_GETSOCKNAME       = 31
+	BPF_CGROUP_INET6_GETSOCKNAME       = 32
+	BPF_XDP_DEVMAP                     = 33
+	BPF_CGROUP_INET_SOCK_RELEASE       = 34
+	BPF_XDP_CPUMAP                     = 35
+	BPF_SK_LOOKUP                      = 36
+	BPF_XDP                            = 37
+	BPF_SK_SKB_VERDICT                 = 38
+	BPF_SK_REUSEPORT_SELECT            = 39
 	BPF_SK_REUSEPORT_SELECT_OR_MIGRATE = 40
-	BPF_PERF_EVENT               = 41
-	BPF_TRACE_KPROBE_MULTI       = 42
-	BPF_LSM_CGROUP               = 43
-	BPF_STRUCT_OPS               = 44
-	BPF_NETFILTER                = 45
-	BPF_TCX_INGRESS              = 46
-	BPF_TCX_EGRESS               = 47
+	BPF_PERF_EVENT                     = 41
+	BPF_TRACE_KPROBE_MULTI             = 42
+	BPF_LSM_CGROUP                     = 43
+	BPF_STRUCT_OPS                     = 44
+	BPF_NETFILTER                      = 45
+	BPF_TCX_INGRESS                    = 46
+	BPF_TCX_EGRESS                     = 47
 )
 
 // BPF link types
@@ -317,14 +317,14 @@ const (
 	IFLA_XDP_FLAGS = 3
 
 	// TC (Traffic Control) constants
-	TC_H_CLSACT        = 0xffff0000
-	TC_H_MIN_INGRESS   = 0xfff2
-	TC_H_MIN_EGRESS    = 0xfff3
-	TCA_KIND           = 1
-	TCA_OPTIONS        = 2
-	TCA_BPF_FD         = 1
-	TCA_BPF_NAME       = 2
-	TCA_BPF_FLAGS      = 3
+	TC_H_CLSACT          = 0xffff0000
+	TC_H_MIN_INGRESS     = 0xfff2
+	TC_H_MIN_EGRESS      = 0xfff3
+	TCA_KIND             = 1
+	TCA_OPTIONS          = 2
+	TCA_BPF_FD           = 1
+	TCA_BPF_NAME         = 2
+	TCA_BPF_FLAGS        = 3
 	TCA_BPF_FLAGS_DIRECT = 1
 )
 
@@ -356,9 +356,9 @@ const (
 
 const (
 	// Ring buffer header flags
-	BPF_RINGBUF_BUSY_BIT  = 1 << 31
+	BPF_RINGBUF_BUSY_BIT    = 1 << 31
 	BPF_RINGBUF_DISCARD_BIT = 1 << 30
-	BPF_RINGBUF_HDR_SZ    = 8
+	BPF_RINGBUF_HDR_SZ      = 8
 )
 
 // ============================================================================
@@ -739,11 +739,11 @@ type bpfMapCreateAttr struct {
 // bpfMapOpAttr is the attribute structure for map element operations
 // Used for BPF_MAP_LOOKUP_ELEM, BPF_MAP_UPDATE_ELEM, BPF_MAP_DELETE_ELEM
 type bpfMapOpAttr struct {
-	MapFD uint32  // File descriptor of the map
-	_     uint32  // Padding
-	Key   uint64  // Pointer to key
-	Value uint64  // Pointer to value (or next key for GET_NEXT_KEY)
-	Flags uint64  // Operation flags (BPF_ANY, BPF_NOEXIST, BPF_EXIST)
+	MapFD uint32 // File descriptor of the map
+	_     uint32 // Padding
+	Key   uint64 // Pointer to key
+	Value uint64 // Pointer to value (or next key for GET_NEXT_KEY)
+	Flags uint64 // Operation flags (BPF_ANY, BPF_NOEXIST, BPF_EXIST)
 }
 
 // bpfProgLoadAttr is the attribute structure for BPF_PROG_LOAD
@@ -875,11 +875,11 @@ type bpfMapInfo struct {
 
 // elfProgram represents a BPF program extracted from an ELF section
 type elfProgram struct {
-	Name         string   // Section name (e.g., "xdp/my_prog")
-	Instructions []byte   // Raw BPF bytecode
-	Type         uint32   // BPF program type
-	License      string   // Program license
-	BTFTypeID    uint32   // BTF type ID for the program
+	Name         string // Section name (e.g., "xdp/my_prog")
+	Instructions []byte // Raw BPF bytecode
+	Type         uint32 // BPF program type
+	License      string // Program license
+	BTFTypeID    uint32 // BTF type ID for the program
 }
 
 // elfMap represents a BPF map definition from an ELF section
@@ -922,14 +922,14 @@ type parsedELF struct {
 
 // btfHeader is the header of a BTF section
 type btfHeader struct {
-	Magic      uint16
-	Version    uint8
-	Flags      uint8
-	HdrLen     uint32
-	TypeOff    uint32 // Offset of type section
-	TypeLen    uint32 // Length of type section
-	StrOff     uint32 // Offset of string section
-	StrLen     uint32 // Length of string section
+	Magic   uint16
+	Version uint8
+	Flags   uint8
+	HdrLen  uint32
+	TypeOff uint32 // Offset of type section
+	TypeLen uint32 // Length of type section
+	StrOff  uint32 // Offset of string section
+	StrLen  uint32 // Length of string section
 }
 
 // btfType is the common header for all BTF types
@@ -1004,21 +1004,21 @@ func (b *btfData) getString(offset uint32) string {
 
 // loadedMap holds state for a loaded BPF map
 type loadedMap struct {
-	fd        int
-	info      *MapInfo
-	mmapAddr  uintptr // For ringbuf
-	mmapSize  int
+	fd       int
+	info     *MapInfo
+	mmapAddr uintptr // For ringbuf
+	mmapSize int
 }
 
 // loadedProgram holds state for a loaded BPF program
 type loadedProgram struct {
 	spec      *ProgramSpec
 	info      *ProgramInfo
-	fd        int                    // Program file descriptor
-	maps      map[string]*loadedMap  // Map name -> loaded map
-	linkFDs   []int                  // Link file descriptors
-	perfFDs   []int                  // Perf event FDs (for kprobes)
-	cancelFns []context.CancelFunc   // Cancel functions for readers
+	fd        int                   // Program file descriptor
+	maps      map[string]*loadedMap // Map name -> loaded map
+	linkFDs   []int                 // Link file descriptors
+	perfFDs   []int                 // Perf event FDs (for kprobes)
+	cancelFns []context.CancelFunc  // Cancel functions for readers
 	mu        sync.RWMutex
 }
 
@@ -2629,10 +2629,10 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 	// nlmsghdr + ifinfomsg + [nlattr(IFLA_XDP) + [nlattr(XDP_FD) + fd] + [nlattr(XDP_FLAGS) + flags]]
 
 	// Calculate sizes
-	xdpFDAttrLen := uint16(8)              // nlattr header (4) + fd (4)
-	xdpFlagsAttrLen := uint16(8)           // nlattr header (4) + flags (4)
-	xdpAttrLen := uint16(4 + xdpFDAttrLen + xdpFlagsAttrLen) // nlattr header + nested
-	ifInfoLen := uint32(16)                // sizeof(ifinfomsg)
+	xdpFDAttrLen := uint16(8)                                   // nlattr header (4) + fd (4)
+	xdpFlagsAttrLen := uint16(8)                                // nlattr header (4) + flags (4)
+	xdpAttrLen := uint16(4 + xdpFDAttrLen + xdpFlagsAttrLen)    // nlattr header + nested
+	ifInfoLen := uint32(16)                                     // sizeof(ifinfomsg)
 	totalLen := uint32(16 + ifInfoLen + uint32(xdpAttrLen) + 4) // nlmsghdr + ifinfomsg + attrs + padding
 
 	// Allocate buffer
@@ -2791,13 +2791,13 @@ func (l *NativeLoader) attachTCX(loaded *loadedProgram, ifIndex int) (int, error
 	}
 
 	attr := struct {
-		ProgFD       uint32
-		TargetIfIdx  uint32
-		AttachType   uint32
-		Flags        uint32
-		RelativeFD   uint32
-		RelativeID   uint32
-		ExpectedRev  uint64
+		ProgFD      uint32
+		TargetIfIdx uint32
+		AttachType  uint32
+		Flags       uint32
+		RelativeFD  uint32
+		RelativeID  uint32
+		ExpectedRev uint64
 	}{
 		ProgFD:      uint32(loaded.fd),
 		TargetIfIdx: uint32(ifIndex),
@@ -3344,11 +3344,11 @@ func (l *NativeLoader) attachRawTracepoint(loaded *loadedProgram) error {
 	tpNameBytes := append([]byte(tpName), 0)
 
 	attr := struct {
-		ProgFD    uint32
-		_         uint32
+		ProgFD     uint32
+		_          uint32
 		AttachType uint32
-		Flags     uint32
-		RawTPName uint64
+		Flags      uint32
+		RawTPName  uint64
 	}{
 		ProgFD:     uint32(loaded.fd),
 		AttachType: BPF_TRACE_RAW_TP,

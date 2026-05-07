@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Deployment represents a deployment operation.
@@ -77,12 +77,12 @@ type HealthCheck struct {
 
 // Pipeline represents a deployment pipeline.
 type Pipeline struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Stages      []PipelineStage `json:"stages"`
-	Triggers    []Trigger       `json:"triggers,omitempty"`
-	Status      PipelineStatus  `json:"status"`
-	CurrentStage int            `json:"current_stage"`
+	ID           string          `json:"id"`
+	Name         string          `json:"name"`
+	Stages       []PipelineStage `json:"stages"`
+	Triggers     []Trigger       `json:"triggers,omitempty"`
+	Status       PipelineStatus  `json:"status"`
+	CurrentStage int             `json:"current_stage"`
 }
 
 // PipelineStage represents a stage in a pipeline.
@@ -114,7 +114,7 @@ type Trigger struct {
 // Service is the main Sword deployment service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu          sync.RWMutex
@@ -131,7 +131,7 @@ type Config struct {
 	HealthCheckTimeout   time.Duration `json:"health_check_timeout"`
 	RollbackOnFailure    bool          `json:"rollback_on_failure"`
 	CanaryPercentage     int           `json:"canary_percentage"`
-	WotanTopic          string        `json:"wotan_topic"`
+	WotanTopic           string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -141,7 +141,7 @@ func DefaultConfig() *Config {
 		HealthCheckTimeout:   30 * time.Second,
 		RollbackOnFailure:    true,
 		CanaryPercentage:     10,
-		WotanTopic:          "sword.deployments",
+		WotanTopic:           "sword.deployments",
 	}
 }
 
@@ -153,7 +153,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:         log,
-		wotan:      wotan,
+		wotan:       wotan,
 		config:      cfg,
 		deployments: make(map[string]*Deployment),
 		pipelines:   make(map[string]*Pipeline),

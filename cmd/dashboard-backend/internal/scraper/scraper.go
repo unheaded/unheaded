@@ -203,11 +203,11 @@ type Scraper struct {
 	seriesMu  sync.RWMutex
 	resultsMu sync.RWMutex
 
-	running  bool
-	stopCh   chan struct{}
-	doneCh   chan struct{}
-	runMu    sync.RWMutex
-	wg       sync.WaitGroup
+	running bool
+	stopCh  chan struct{}
+	doneCh  chan struct{}
+	runMu   sync.RWMutex
+	wg      sync.WaitGroup
 
 	// Callbacks
 	onScrapeComplete func(result *ScrapeResult)

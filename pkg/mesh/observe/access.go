@@ -18,13 +18,13 @@ type AccessLogEntry struct {
 	Timestamp time.Time
 
 	// Request info
-	Method       string
-	Path         string
-	Protocol     string
-	Host         string
-	UserAgent    string
-	RemoteAddr   string
-	RequestSize  int64
+	Method      string
+	Path        string
+	Protocol    string
+	Host        string
+	UserAgent   string
+	RemoteAddr  string
+	RequestSize int64
 
 	// Response info
 	StatusCode   int
@@ -42,8 +42,8 @@ type AccessLogEntry struct {
 	TLSVersion   string
 
 	// Tracing
-	TraceID  string
-	SpanID   string
+	TraceID string
+	SpanID  string
 
 	// Additional fields
 	Error  string
@@ -53,14 +53,14 @@ type AccessLogEntry struct {
 
 // AccessLogger logs access entries.
 type AccessLogger struct {
-	mu       sync.Mutex
-	writer   io.Writer
-	format   AccessLogFormat
-	buffer   *bytes.Buffer
-	filters  []AccessLogFilter
-	async    bool
-	queue    chan *AccessLogEntry
-	done     chan struct{}
+	mu      sync.Mutex
+	writer  io.Writer
+	format  AccessLogFormat
+	buffer  *bytes.Buffer
+	filters []AccessLogFilter
+	async   bool
+	queue   chan *AccessLogEntry
+	done    chan struct{}
 }
 
 // AccessLogFormat defines the log format.

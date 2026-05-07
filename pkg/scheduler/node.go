@@ -13,32 +13,32 @@ import (
 type NodeState string
 
 const (
-	NodeStateReady      NodeState = "Ready"
-	NodeStateNotReady   NodeState = "NotReady"
+	NodeStateReady       NodeState = "Ready"
+	NodeStateNotReady    NodeState = "NotReady"
 	NodeStateMaintenance NodeState = "Maintenance"
-	NodeStateDraining   NodeState = "Draining"
-	NodeStateUnknown    NodeState = "Unknown"
+	NodeStateDraining    NodeState = "Draining"
+	NodeStateUnknown     NodeState = "Unknown"
 )
 
 // Node represents a compute node in the cluster.
 type Node struct {
-	mu           sync.RWMutex
-	ID           string
-	Name         string
-	State        NodeState
-	Capacity     Resources
-	Allocatable  Resources
-	Allocated    Resources
-	Available    Resources
-	Labels       map[string]string
-	Annotations  map[string]string
-	Taints       []Taint
-	Conditions   []NodeCondition
-	CreatedAt    time.Time
+	mu            sync.RWMutex
+	ID            string
+	Name          string
+	State         NodeState
+	Capacity      Resources
+	Allocatable   Resources
+	Allocated     Resources
+	Available     Resources
+	Labels        map[string]string
+	Annotations   map[string]string
+	Taints        []Taint
+	Conditions    []NodeCondition
+	CreatedAt     time.Time
 	LastHeartbeat time.Time
-	Zone         string
-	Region       string
-	NodeType     string
+	Zone          string
+	Region        string
+	NodeType      string
 }
 
 // NodeCondition represents a condition of a node.
@@ -131,18 +131,18 @@ func (t Toleration) Matches(taint Taint) bool {
 // NewNode creates a new node with the given capacity.
 func NewNode(id, name string, capacity Resources) *Node {
 	return &Node{
-		ID:           id,
-		Name:         name,
-		State:        NodeStateReady,
-		Capacity:     capacity,
-		Allocatable:  capacity,
-		Allocated:    Resources{},
-		Available:    capacity,
-		Labels:       make(map[string]string),
-		Annotations:  make(map[string]string),
-		Taints:       []Taint{},
-		Conditions:   []NodeCondition{},
-		CreatedAt:    time.Now(),
+		ID:            id,
+		Name:          name,
+		State:         NodeStateReady,
+		Capacity:      capacity,
+		Allocatable:   capacity,
+		Allocated:     Resources{},
+		Available:     capacity,
+		Labels:        make(map[string]string),
+		Annotations:   make(map[string]string),
+		Taints:        []Taint{},
+		Conditions:    []NodeCondition{},
+		CreatedAt:     time.Now(),
 		LastHeartbeat: time.Now(),
 	}
 }
@@ -584,12 +584,12 @@ func (s *NodeScorer) scoreNode(workload *Workload, node *Node) int64 {
 
 // NodePool represents a group of nodes with similar characteristics.
 type NodePool struct {
-	Name       string
-	Labels     map[string]string
-	Taints     []Taint
-	MinNodes   int
-	MaxNodes   int
-	NodeIDs    []string
+	Name     string
+	Labels   map[string]string
+	Taints   []Taint
+	MinNodes int
+	MaxNodes int
+	NodeIDs  []string
 }
 
 // NodePoolManager manages node pools.

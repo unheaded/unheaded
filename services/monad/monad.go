@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Result represents the outcome of a monadic operation.
@@ -161,23 +161,23 @@ const (
 
 // Transaction represents a composed set of operations with ACID-like guarantees.
 type Transaction struct {
-	ID         string             `json:"id"`
-	Operations []*Operation       `json:"operations"`
-	Status     TransactionStatus  `json:"status"`
-	StartedAt  time.Time          `json:"started_at"`
-	CompletedAt *time.Time        `json:"completed_at,omitempty"`
-	Rollback   func(context.Context) error `json:"-"`
+	ID          string                      `json:"id"`
+	Operations  []*Operation                `json:"operations"`
+	Status      TransactionStatus           `json:"status"`
+	StartedAt   time.Time                   `json:"started_at"`
+	CompletedAt *time.Time                  `json:"completed_at,omitempty"`
+	Rollback    func(context.Context) error `json:"-"`
 }
 
 // TransactionStatus tracks transaction lifecycle.
 type TransactionStatus string
 
 const (
-	TxStatusPending   TransactionStatus = "pending"
-	TxStatusRunning   TransactionStatus = "running"
-	TxStatusCommitted TransactionStatus = "committed"
+	TxStatusPending    TransactionStatus = "pending"
+	TxStatusRunning    TransactionStatus = "running"
+	TxStatusCommitted  TransactionStatus = "committed"
 	TxStatusRolledBack TransactionStatus = "rolled_back"
-	TxStatusFailed    TransactionStatus = "failed"
+	TxStatusFailed     TransactionStatus = "failed"
 )
 
 // StateChange represents a change to be applied or rolled back.
@@ -191,16 +191,16 @@ type StateChange struct {
 
 // Service is the main Monad service that orchestrates functional composition.
 type Service struct {
-	log           *logger.Logger
-	wotan        *wotanClient.Client
+	log   *logger.Logger
+	wotan *wotanClient.Client
 
-	mu            sync.RWMutex
-	operations    map[string]*Operation
-	transactions  map[string]*Transaction
-	stateChanges  []StateChange
+	mu           sync.RWMutex
+	operations   map[string]*Operation
+	transactions map[string]*Transaction
+	stateChanges []StateChange
 
-	opCounter     int64
-	txCounter     int64
+	opCounter int64
+	txCounter int64
 
 	// Handlers for different operation types
 	queryHandlers    map[string]QueryHandler
@@ -229,7 +229,7 @@ type Config struct {
 	OperationTimeout   time.Duration `json:"operation_timeout"`
 	TransactionTimeout time.Duration `json:"transaction_timeout"`
 	EnableTracing      bool          `json:"enable_tracing"`
-	WotanTopic        string        `json:"wotan_topic"`
+	WotanTopic         string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -239,7 +239,7 @@ func DefaultConfig() *Config {
 		OperationTimeout:   30 * time.Second,
 		TransactionTimeout: 60 * time.Second,
 		EnableTracing:      true,
-		WotanTopic:        "monad.operations",
+		WotanTopic:         "monad.operations",
 	}
 }
 
@@ -247,7 +247,7 @@ func DefaultConfig() *Config {
 func NewService(log *logger.Logger, wotan *wotanClient.Client) *Service {
 	return &Service{
 		log:              log,
-		wotan:           wotan,
+		wotan:            wotan,
 		operations:       make(map[string]*Operation),
 		transactions:     make(map[string]*Transaction),
 		stateChanges:     make([]StateChange, 0),

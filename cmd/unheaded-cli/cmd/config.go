@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"unheaded/cmd/unheaded-cli/output"
 	"gopkg.in/yaml.v3"
+	"unheaded/cmd/unheaded-cli/output"
 )
 
 // ConfigListResult represents the output for config list.

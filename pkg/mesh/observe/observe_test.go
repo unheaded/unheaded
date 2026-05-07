@@ -387,10 +387,10 @@ func TestLatencyPercentile(t *testing.T) {
 
 	t.Run("distributed across buckets", func(t *testing.T) {
 		buckets := make([]uint64, 13)
-		buckets[0] = 10  // <=1ms
-		buckets[1] = 10  // <=5ms
-		buckets[2] = 10  // <=10ms
-		buckets[5] = 70  // <=100ms
+		buckets[0] = 10 // <=1ms
+		buckets[1] = 10 // <=5ms
+		buckets[2] = 10 // <=10ms
+		buckets[5] = 70 // <=100ms
 		snap := &MetricsSnapshot{
 			LatencyBuckets:      buckets,
 			LatencyBucketBounds: []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000},
@@ -989,7 +989,7 @@ func TestChannelExporter_Full(t *testing.T) {
 	span1 := NewSpan("op1", GenerateTraceID(), SpanID{})
 	span2 := NewSpan("op2", GenerateTraceID(), SpanID{})
 
-	_ = e.Export(span1) // fills buffer
+	_ = e.Export(span1)    // fills buffer
 	err := e.Export(span2) // should drop (buffer full)
 	if err != nil {
 		t.Errorf("expected nil error on drop, got %v", err)

@@ -144,21 +144,21 @@ const (
 //	0x11    Scratch[3]
 //	0x12    Checksum (u16 BE, CRC-16/CCITT)
 type MonadState struct {
-	Version      uint8  `json:"version"`
-	SrcServiceID uint8  `json:"src_service_id"`
-	DstServiceID uint8  `json:"dst_service_id"`
-	HopCount     uint8  `json:"hop_count"`
-	QosClass     uint8  `json:"qos_class"`
-	FlowAction   uint8  `json:"flow_action"`
-	CircuitState uint8  `json:"circuit_state"`
-	Flags        uint8  `json:"flags"`
-	LatencyHint  uint16 `json:"latency_hint_us"`
-	DeployRing   uint8  `json:"deploy_ring"`
-	MeshFlags    uint8  `json:"mesh_flags"`
-	SrcPrefixLo  uint8  `json:"src_prefix_lo"`
-	DstPrefixLo  uint8  `json:"dst_prefix_lo"`
+	Version      uint8    `json:"version"`
+	SrcServiceID uint8    `json:"src_service_id"`
+	DstServiceID uint8    `json:"dst_service_id"`
+	HopCount     uint8    `json:"hop_count"`
+	QosClass     uint8    `json:"qos_class"`
+	FlowAction   uint8    `json:"flow_action"`
+	CircuitState uint8    `json:"circuit_state"`
+	Flags        uint8    `json:"flags"`
+	LatencyHint  uint16   `json:"latency_hint_us"`
+	DeployRing   uint8    `json:"deploy_ring"`
+	MeshFlags    uint8    `json:"mesh_flags"`
+	SrcPrefixLo  uint8    `json:"src_prefix_lo"`
+	DstPrefixLo  uint8    `json:"dst_prefix_lo"`
 	Scratch      [4]uint8 `json:"scratch"`
-	Checksum     uint16 `json:"checksum"`
+	Checksum     uint16   `json:"checksum"`
 }
 
 // DecodeMonadState decodes a 20-byte Monad from a byte slice.
@@ -367,11 +367,11 @@ type MemWriteEvent struct {
 //	[10..12]: flow_label_lo  (u16 BE — low 16 bits of IPv6 Flow Label)
 //	[12..32]: monad          (20 bytes, network byte order)
 type AnamnesisEvent struct {
-	TimestampNs  uint64     `json:"timestamp_ns"`
-	EventType    EventType  `json:"event_type"`
-	HopID        uint8      `json:"hop_id"`
-	FlowLabelLo  uint16     `json:"flow_label_lo"`
-	Monad        MonadState `json:"monad"`
+	TimestampNs uint64     `json:"timestamp_ns"`
+	EventType   EventType  `json:"event_type"`
+	HopID       uint8      `json:"hop_id"`
+	FlowLabelLo uint16     `json:"flow_label_lo"`
+	Monad       MonadState `json:"monad"`
 }
 
 // Errors returned by DecodeAnamnesisEvent.

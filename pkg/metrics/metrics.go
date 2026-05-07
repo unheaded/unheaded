@@ -166,7 +166,7 @@ type Counter struct {
 // NewCounter creates a new counter with the given name and help text.
 func NewCounter(name, help string, constLabels Labels) *Counter {
 	return &Counter{
-		desc: NewDesc(name, help, TypeCounter, constLabels, nil),
+		desc:   NewDesc(name, help, TypeCounter, constLabels, nil),
 		labels: constLabels,
 	}
 }

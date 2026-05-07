@@ -33,10 +33,10 @@ type HealthChecker struct {
 	onUnhealthy func(backend *Backend, err error)
 
 	// mu protects per-backend check state.
-	mu           sync.RWMutex
-	lastResults  map[string]*healthCheckResult
-	checkCounts  map[string]int64
-	errorCounts  map[string]int64
+	mu          sync.RWMutex
+	lastResults map[string]*healthCheckResult
+	checkCounts map[string]int64
+	errorCounts map[string]int64
 }
 
 // healthCheckResult stores the result of a health check.

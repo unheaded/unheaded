@@ -100,10 +100,10 @@ func TestHIPAATechnicalSafeguards(t *testing.T) {
 func TestHIPAAAccessControlCategory(t *testing.T) {
 	s := NewHIPAAStandard()
 	accessControls := []string{
-		"164.308(a)(3)",     // Workforce Security
-		"164.312(a)(1)",     // Access Control
-		"164.312(a)(2)(i)",  // Unique User ID
-		"164.312(d)",        // Person Authentication
+		"164.308(a)(3)",    // Workforce Security
+		"164.312(a)(1)",    // Access Control
+		"164.312(a)(2)(i)", // Unique User ID
+		"164.312(d)",       // Person Authentication
 	}
 	for _, id := range accessControls {
 		c, ok := s.GetControl(id)

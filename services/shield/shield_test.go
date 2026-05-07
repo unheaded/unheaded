@@ -368,11 +368,11 @@ func TestService_ListRules_SortedByPriority(t *testing.T) {
 
 func TestRateLimiter_Allow(t *testing.T) {
 	tests := []struct {
-		name       string
-		limit      int
-		requests   int
-		wantAllow  int
-		wantDeny   int
+		name      string
+		limit     int
+		requests  int
+		wantAllow int
+		wantDeny  int
 	}{
 		{
 			name:      "all within limit",

@@ -49,13 +49,13 @@ func TestPolicyUpdate(t *testing.T) {
 
 	t.Run("set valid policy", func(t *testing.T) {
 		p := &QoSPolicy{
-			ServiceID:      "web-frontend",
-			Class:          10,
-			Weight:         4,
-			RateLimitMbps:  100.0,
-			BurstBytes:     65536,
+			ServiceID:       "web-frontend",
+			Class:           10,
+			Weight:          4,
+			RateLimitMbps:   100.0,
+			BurstBytes:      65536,
 			TargetLatencyMS: 5,
-			IntervalMS:     100,
+			IntervalMS:      100,
 		}
 		err := svc.SetPolicy(p)
 		if err != nil {

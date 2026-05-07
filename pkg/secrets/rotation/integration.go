@@ -156,11 +156,11 @@ func (ci *CertificateIntegration) RotateCertificate(ctx context.Context, path st
 	config := RotationConfig{
 		TTL: opts.Validity,
 		Parameters: map[string]interface{}{
-			"common_name": opts.CommonName,
-			"dns_names":   opts.DNSNames,
+			"common_name":  opts.CommonName,
+			"dns_names":    opts.DNSNames,
 			"ip_addresses": opts.IPAddresses,
-			"key_size":    opts.KeySize,
-			"is_ca":       opts.IsCA,
+			"key_size":     opts.KeySize,
+			"is_ca":        opts.IsCA,
 		},
 	}
 

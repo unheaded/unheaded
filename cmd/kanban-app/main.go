@@ -52,8 +52,8 @@ var staticFiles embed.FS
 type Config struct {
 	Port            string
 	TimeGuruAddr    string
-	WotanAddr      string
-	DataDir         string        // Directory for SQLite persistence (default: ./data)
+	WotanAddr       string
+	DataDir         string // Directory for SQLite persistence (default: ./data)
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
@@ -62,7 +62,7 @@ type Config struct {
 // Task represents a kanban task
 type Task struct {
 	ID          string     `json:"id"`
-	GUID        string     `json:"guid,omitempty"`        // Unique UUID for cross-referencing and linking
+	GUID        string     `json:"guid,omitempty"` // Unique UUID for cross-referencing and linking
 	Title       string     `json:"title"`
 	Description string     `json:"description,omitempty"`
 	Status      string     `json:"status"`
@@ -80,16 +80,16 @@ type Task struct {
 type Server struct {
 	config          Config
 	httpServer      *http.Server
-	store           TaskStore        // SQLite or Postgres persistence
-	tasks           []Task           // DEPRECATED: Use store or taskManager instead
+	store           TaskStore // SQLite or Postgres persistence
+	tasks           []Task    // DEPRECATED: Use store or taskManager instead
 	tasksMu         sync.RWMutex
 	sseClients      map[chan []byte]bool
 	sseMu           sync.RWMutex
-	taskManager     *TaskManager     // Wotan-integrated task management
-	timelineManager *TimelineManager // Standalone Timeguru HTTP polling fallback
+	taskManager     *TaskManager            // Wotan-integrated task management
+	timelineManager *TimelineManager        // Standalone Timeguru HTTP polling fallback
 	healthSrv       *transport.HealthServer // Unified transport health
-	ctx             context.Context    // server lifecycle context
-	cancel          context.CancelFunc // cancels ctx on shutdown
+	ctx             context.Context         // server lifecycle context
+	cancel          context.CancelFunc      // cancels ctx on shutdown
 }
 
 // NewServer creates a new kanban server with standalone timeline polling.
@@ -281,7 +281,7 @@ func (s *Server) Start() error {
 
 	// API routes - tasks at canonical /api/v1/tasks
 	mux.HandleFunc("/api/v1/tasks", s.handleTasks)
-	mux.HandleFunc("/api/v1/tasks/", s.handleTaskByID) // For /tasks/:id
+	mux.HandleFunc("/api/v1/tasks/", s.handleTaskByID)      // For /tasks/:id
 	mux.HandleFunc("/api/v1/timeline/tasks", s.handleTasks) // Legacy compatibility
 	mux.HandleFunc("/api/v1/stream", s.handleSSE)
 	mux.HandleFunc("/ws", s.handleWebSocket) // WebSocket endpoint
@@ -307,16 +307,16 @@ func (s *Server) Start() error {
 
 	// Apply middleware stack (order matters!)
 	var handler http.Handler = mux
-	handler = s.loggingMiddleware(handler)                          // Logging (innermost — sees request ID)
-	handler = requestIDMiddleware(handler)                           // X-Request-ID injection
-	handler = requestSizeLimitMiddleware(1024 * 1024)(handler)      // 1MB max request
-	handler = securityHeadersMiddleware(handler)                     // Security headers
+	handler = s.loggingMiddleware(handler)                     // Logging (innermost — sees request ID)
+	handler = requestIDMiddleware(handler)                     // X-Request-ID injection
+	handler = requestSizeLimitMiddleware(1024 * 1024)(handler) // 1MB max request
+	handler = securityHeadersMiddleware(handler)               // Security headers
 
 	// Auth middleware (activated via AUTH_ENABLED=true, skips /health /ready /metrics)
 	authCfg := auth.LoadServiceAuthConfig("kanban-app")
 	handler = auth.WrapHandler(handler, auth.SetupMiddleware(authCfg))
 
-	handler = corsMiddleware(handler)                                // CORS
+	handler = corsMiddleware(handler) // CORS
 
 	// Rate limiting (configurable)
 	if getEnv("RATE_LIMIT_ENABLED", "true") == "true" {
@@ -1172,7 +1172,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":              "healthy",
 		"timestamp":           time.Now().UTC().Format(time.RFC3339),
 		"version":             "0.1.0",
-		"wotan_enabled":      s.taskManager != nil,
+		"wotan_enabled":       s.taskManager != nil,
 		"timeline_subscribed": timelineSubscribed,
 		"timeline_http":       timelineHTTP,
 		"timeguru_addr":       s.config.TimeGuruAddr,
@@ -1379,7 +1379,7 @@ func main() {
 	cfg := Config{
 		Port:            getEnv("PORT", "20001"),
 		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:19000"),
-		WotanAddr:      getEnv("WOTAN_ADDR", "localhost:18000"),
+		WotanAddr:       getEnv("WOTAN_ADDR", "localhost:18000"),
 		DataDir:         getEnv("DATA_DIR", "./data"),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,

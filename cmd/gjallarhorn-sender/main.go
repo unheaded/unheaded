@@ -5,8 +5,9 @@
 // Phase 8-10 of Mímir's Law spike.
 //
 // Usage:
-//   gjallarhorn-sender --kind bootstrap --cluster 1 --manifest 0xCAFE --multicast
-//   gjallarhorn-sender --kind reverify  --cluster 1 --target east --unicast
+//
+//	gjallarhorn-sender --kind bootstrap --cluster 1 --manifest 0xCAFE --multicast
+//	gjallarhorn-sender --kind reverify  --cluster 1 --target east --unicast
 package main
 
 import (

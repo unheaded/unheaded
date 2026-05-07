@@ -712,13 +712,13 @@ func (p *BackendPool) Stats() PoolStats {
 	defer p.mu.RUnlock()
 
 	stats := PoolStats{
-		TotalBackends:   len(p.backends),
-		Backends:        make([]BackendStats, len(p.backends)),
-		TotalRequests:   0,
-		TotalErrors:     0,
-		TotalBytes:      0,
-		ActiveConns:     0,
-		RequestsPerSec:  0,
+		TotalBackends:  len(p.backends),
+		Backends:       make([]BackendStats, len(p.backends)),
+		TotalRequests:  0,
+		TotalErrors:    0,
+		TotalBytes:     0,
+		ActiveConns:    0,
+		RequestsPerSec: 0,
 	}
 
 	for i, b := range p.backends {

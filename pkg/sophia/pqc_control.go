@@ -19,7 +19,7 @@ type PQCMapManager struct {
 	// In-memory maps (userspace mirrors of BPF maps)
 	signatures    map[uint32]*PQCSigEntry
 	keys          map[uint16]*PQCKeyEntry
-	policies      map[uint32]*PQCPolicy          // key = (srcSvcID << 16) | dstSvcID
+	policies      map[uint32]*PQCPolicy // key = (srcSvcID << 16) | dstSvcID
 	sovereignSigs map[uint32]*SovereignSigEntry
 	kemKeys       map[uint16]*KEMKeyEntry
 

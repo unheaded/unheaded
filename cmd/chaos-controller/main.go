@@ -51,7 +51,7 @@ type ChaosFaultRule struct {
 	DstServiceID uint8         `json:"dst_service_id"`
 	FaultType    FaultType     `json:"fault_type"`
 	DropRatePPM  uint32        `json:"drop_rate_ppm"` // parts per million
-	DelayUS      uint64        `json:"delay_us"`       // microseconds
+	DelayUS      uint64        `json:"delay_us"`      // microseconds
 	Duration     time.Duration `json:"duration_ns"`
 	CreatedAt    time.Time     `json:"created_at"`
 	CreatedBy    string        `json:"created_by"`
@@ -228,7 +228,7 @@ func (cc *ChaosController) InjectRule(rule *ChaosFaultRule) error {
 		Timestamp: rule.CreatedAt,
 		RuleID:    id,
 		Action:    "injected",
-		Details:   fmt.Sprintf("type=%s src=%d dst=%d drop_ppm=%d delay_us=%d",
+		Details: fmt.Sprintf("type=%s src=%d dst=%d drop_ppm=%d delay_us=%d",
 			rule.FaultType, rule.SrcServiceID, rule.DstServiceID, rule.DropRatePPM, rule.DelayUS),
 	})
 

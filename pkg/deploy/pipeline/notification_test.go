@@ -575,7 +575,7 @@ func TestNotificationManagerSendSlack(t *testing.T) {
 			Target: srv.URL,
 			Config: &ChannelConfig{
 				SlackChannel:   "#deploys",
-				SlackUsername:   "deploy-bot",
+				SlackUsername:  "deploy-bot",
 				SlackIconEmoji: ":rocket:",
 			},
 		}
@@ -1436,7 +1436,7 @@ func TestNotificationBuilderChaining(t *testing.T) {
 		WithTitle("Deploy Complete").
 		WithMessage("Deployment finished").
 		WithProgress(100).
-		WithDuration(5 * time.Second).
+		WithDuration(5*time.Second).
 		WithError("").
 		WithMetadata("key", "value").
 		WithLink("Dashboard", "http://dash.example.com").
@@ -1559,4 +1559,3 @@ func TestGenerateNotificationID(t *testing.T) {
 		t.Error("expected notification ID with prefix")
 	}
 }
-

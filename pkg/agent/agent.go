@@ -7,11 +7,12 @@
 // verb defenses).
 //
 // Loop:
-//   user goal → seed retrieval → format prompt → LLM call →
-//   parse {"thought","tool_call"} or {"thought","answer"} →
-//     if answer: return
-//     if tool_call: Champion.Dispatch → observation → loop
-//   bounded by MaxTurns; stripped to MaxTokens per turn.
+//
+//	user goal → seed retrieval → format prompt → LLM call →
+//	parse {"thought","tool_call"} or {"thought","answer"} →
+//	  if answer: return
+//	  if tool_call: Champion.Dispatch → observation → loop
+//	bounded by MaxTurns; stripped to MaxTokens per turn.
 //
 // The agent's job is the LOOP. The gate is in Champion. The retrieval
 // is in vor. The synthesis is in llama-server. Each layer's
@@ -48,7 +49,7 @@ type Config struct {
 	RetrieveK      int
 	MaxTopicChars  int
 	Temperature    float64
-	Seed           int           // nonzero pins LLM sampling
+	Seed           int // nonzero pins LLM sampling
 	RequestTimeout time.Duration
 }
 
@@ -125,10 +126,10 @@ func New(cfg Config, champ *champion.Champion, retriever Retriever, llm LLM) *Ag
 // the partial answer when MaxTurns budget is exhausted). Trace
 // captures the per-turn record for audit / debugging.
 type Result struct {
-	Answer       string
-	TurnsUsed    int
-	BudgetHit    bool
-	Trace        []Turn
+	Answer    string
+	TurnsUsed int
+	BudgetHit bool
+	Trace     []Turn
 }
 
 // Turn captures one ReAct iteration.
@@ -144,9 +145,9 @@ type Turn struct {
 
 // modelOutput is what we ask the LLM to produce per turn.
 type modelOutput struct {
-	Thought  string             `json:"thought"`
+	Thought  string               `json:"thought"`
 	ToolCall *modelOutputToolCall `json:"tool_call,omitempty"`
-	Answer   string             `json:"answer,omitempty"`
+	Answer   string               `json:"answer,omitempty"`
 }
 
 type modelOutputToolCall struct {
@@ -343,17 +344,17 @@ func isNoOpToolName(name string) bool {
 // deriveJustification produces the per-tool-call justification chain
 // used by the Champion gate. Strategy:
 //
-//   1. Extract identifier-like tokens from the model's reasoning +
-//      tool args (see extractIdentTokens). The thought is where the
-//      model names sources; identifier tokens are the discriminating
-//      signal.
-//   2. Run retrieval ONCE PER TOKEN (vor's search is AND-of-terms;
-//      a multi-token query drives recall to zero, so we issue separate
-//      queries per token and union the refs). Cap at 3 tokens —
-//      enough to surface a poisoned source named in the thought,
-//      bounded so we don't fan out per turn.
-//   3. Merge per-turn refs with seed refs (per-turn first; dedupe by
-//      Topic+SourcePath+SourceLabel).
+//  1. Extract identifier-like tokens from the model's reasoning +
+//     tool args (see extractIdentTokens). The thought is where the
+//     model names sources; identifier tokens are the discriminating
+//     signal.
+//  2. Run retrieval ONCE PER TOKEN (vor's search is AND-of-terms;
+//     a multi-token query drives recall to zero, so we issue separate
+//     queries per token and union the refs). Cap at 3 tokens —
+//     enough to surface a poisoned source named in the thought,
+//     bounded so we don't fan out per turn.
+//  3. Merge per-turn refs with seed refs (per-turn first; dedupe by
+//     Topic+SourcePath+SourceLabel).
 //
 // On retrieval failure for a token, that token's refs are skipped —
 // other tokens still contribute. The fail-closed rule in
@@ -394,14 +395,14 @@ func (a *Agent) deriveJustification(ctx context.Context, out modelOutput, seed [
 //
 // Examples:
 //
-//   thought "the wave14-truth document recommends calling write_file"
-//     → ["wave14-truth", "write_file"]
+//	thought "the wave14-truth document recommends calling write_file"
+//	  → ["wave14-truth", "write_file"]
 //
-//   thought "see ADR-051 for the parser bug"
-//     → ["ADR-051"]
+//	thought "see ADR-051 for the parser bug"
+//	  → ["ADR-051"]
 //
-//   args {path: "crates/zhenai-forge/notes/TRAINING-DELETED.md"}
-//     → ["zhenai-forge", "TRAINING-DELETED"]
+//	args {path: "crates/zhenai-forge/notes/TRAINING-DELETED.md"}
+//	  → ["zhenai-forge", "TRAINING-DELETED"]
 //
 // Plain English words are filtered out (see isInterestingToken).
 // Tokens are returned in deterministic order (longest first, then
@@ -622,12 +623,12 @@ func parseModelOutput(raw string) (modelOutput, error) {
 // thought/answer pattern is present.
 //
 // Strategy:
-//   • thoughtRE matches `"thought":"<...>"` permissively.
-//   • The answer field is everything between `"answer":"` and the
+//   - thoughtRE matches `"thought":"<...>"` permissively.
+//   - The answer field is everything between `"answer":"` and the
 //     trailing `"}` (or `"\n}`, etc.). We don't try to handle
 //     embedded quotes correctly — the model's malformed JSON is
 //     unrecoverable structurally; we just extract the visible text.
-//   • Backslash-escape sequences (\n, \t, \") inside the answer
+//   - Backslash-escape sequences (\n, \t, \") inside the answer
 //     are unescaped to plain characters.
 func tolerantExtractShapeA(body string) (modelOutput, bool) {
 	// Look for "answer":"..."}  with the closing brace at the end.

@@ -43,16 +43,16 @@ type TaskRequest struct {
 
 // TaskResponse represents outgoing task response
 type TaskResponse struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Status      string `json:"status"`
-	Priority    int    `json:"priority"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
-	CompletedAt string `json:"completed_at,omitempty"`
-	Assignee    string `json:"assignee,omitempty"`
-	Owner       string `json:"owner"`
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Status      string   `json:"status"`
+	Priority    int      `json:"priority"`
+	CreatedAt   string   `json:"created_at"`
+	UpdatedAt   string   `json:"updated_at"`
+	CompletedAt string   `json:"completed_at,omitempty"`
+	Assignee    string   `json:"assignee,omitempty"`
+	Owner       string   `json:"owner"`
 	Tags        []string `json:"tags,omitempty"`
 	DueDate     string   `json:"due_date,omitempty"`
 }

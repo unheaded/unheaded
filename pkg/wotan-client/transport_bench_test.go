@@ -100,10 +100,10 @@ func (s *mockTopicServer) StreamTopics(req *chatpb.TopicStreamRequest, stream gr
 
 func (s *mockTopicServer) TopicPing(_ context.Context, req *chatpb.TopicPingRequest) (*chatpb.TopicPongResponse, error) {
 	return &chatpb.TopicPongResponse{
-		Timestamp:    timestamppb.Now(),
-		Status:       "ok",
+		Timestamp:     timestamppb.Now(),
+		Status:        "ok",
 		ActiveStreams: 1,
-		TotalTopics:  1,
+		TotalTopics:   1,
 	}, nil
 }
 
@@ -235,8 +235,8 @@ func sharedHTTPBenchClient(tb testing.TB) *Client {
 		controlClient: sharedHTTPClient,
 		streamClient:  sharedHTTPClient,
 		transport:     TransportHTTP,
-		subscribers: make(map[string]*Subscriber),
-		channels:    make(map[string]*safeChannel),
+		subscribers:   make(map[string]*Subscriber),
+		channels:      make(map[string]*safeChannel),
 	}
 	tb.Cleanup(func() { c.Close() })
 

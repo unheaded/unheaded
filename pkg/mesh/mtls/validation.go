@@ -41,15 +41,15 @@ type CertificateInfo struct {
 	SPIFFEID    *SPIFFEID
 
 	// Validity
-	NotBefore time.Time
-	NotAfter  time.Time
-	IsExpired bool
+	NotBefore    time.Time
+	NotAfter     time.Time
+	IsExpired    bool
 	TimeToExpiry time.Duration
 
 	// Chain info
-	Issuer     string
-	IsCA       bool
-	KeyUsage   x509.KeyUsage
+	Issuer      string
+	IsCA        bool
+	KeyUsage    x509.KeyUsage
 	ExtKeyUsage []x509.ExtKeyUsage
 
 	// Serial
@@ -165,7 +165,7 @@ type ValidationOptions struct {
 	KeyUsages []x509.ExtKeyUsage
 
 	// SPIFFE validation
-	RequireSPIFFE      bool
+	RequireSPIFFE       bool
 	AllowedTrustDomains []string
 
 	// Expiry warnings
@@ -175,9 +175,9 @@ type ValidationOptions struct {
 // DefaultValidationOptions returns default validation options.
 func DefaultValidationOptions(rootCAs *x509.CertPool) *ValidationOptions {
 	return &ValidationOptions{
-		RootCAs:           rootCAs,
-		CurrentTime:       time.Now(),
-		ExpiryWarningDays: 7,
+		RootCAs:             rootCAs,
+		CurrentTime:         time.Now(),
+		ExpiryWarningDays:   7,
 		AllowedTrustDomains: []string{"*"},
 	}
 }
@@ -430,9 +430,9 @@ func (v *CertificateChainValidator) ValidateChain(chain []*x509.Certificate) err
 
 // CertificateHealthChecker monitors certificate health.
 type CertificateHealthChecker struct {
-	certs          map[string]*x509.Certificate
-	warningDays    int
-	criticalDays   int
+	certs        map[string]*x509.Certificate
+	warningDays  int
+	criticalDays int
 }
 
 // NewCertificateHealthChecker creates a new health checker.

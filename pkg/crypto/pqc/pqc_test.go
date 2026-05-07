@@ -99,9 +99,9 @@ func TestAlgoIDString(t *testing.T) {
 
 func TestMLDSAParamInfo(t *testing.T) {
 	tests := []struct {
-		ps      ParameterSet
-		name    string
-		wantOK  bool
+		ps     ParameterSet
+		name   string
+		wantOK bool
 	}{
 		{MLDSA44, "ML-DSA-44", true},
 		{MLDSA65, "ML-DSA-65", true},

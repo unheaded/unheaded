@@ -17,14 +17,14 @@ import (
 
 // VerifyRequest is the JSON body for POST /verify.
 type VerifyRequest struct {
-	Flags        byte     `json:"flags"`
-	SigRef       uint32   `json:"sig_ref"`
-	KeyRef       uint16   `json:"key_ref"`
-	HashPfx      [4]byte  `json:"hash_pfx"`
-	SeqNum       uint16   `json:"seq_num"`
-	SrcSvcID     uint16   `json:"src_svc_id"`
-	DstSvcID     uint16   `json:"dst_svc_id"`
-	PseudoHeader []byte   `json:"pseudo_header"`
+	Flags        byte    `json:"flags"`
+	SigRef       uint32  `json:"sig_ref"`
+	KeyRef       uint16  `json:"key_ref"`
+	HashPfx      [4]byte `json:"hash_pfx"`
+	SeqNum       uint16  `json:"seq_num"`
+	SrcSvcID     uint16  `json:"src_svc_id"`
+	DstSvcID     uint16  `json:"dst_svc_id"`
+	PseudoHeader []byte  `json:"pseudo_header"`
 }
 
 // VerifyResponse is the JSON response for verification endpoints.

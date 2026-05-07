@@ -7,15 +7,15 @@ import "fmt"
 
 // KEMParamSet describes a KEM parameter set's properties.
 type KEMParamSet struct {
-	AlgoID       uint8  // 0x04 (ML-KEM) or 0x05 (HQC)
-	ParamSet     uint8  // Parameter set identifier
-	Name         string // Human-readable name
-	Standard     string // FIPS standard number
-	SharedKeyLen int    // Shared secret length in bytes
-	CiphertextLen int   // Ciphertext length in bytes
-	PublicKeyLen int    // Public key length in bytes
-	SecretKeyLen int    // Secret key length in bytes
-	Available    bool   // Is circl implementation available?
+	AlgoID        uint8  // 0x04 (ML-KEM) or 0x05 (HQC)
+	ParamSet      uint8  // Parameter set identifier
+	Name          string // Human-readable name
+	Standard      string // FIPS standard number
+	SharedKeyLen  int    // Shared secret length in bytes
+	CiphertextLen int    // Ciphertext length in bytes
+	PublicKeyLen  int    // Public key length in bytes
+	SecretKeyLen  int    // Secret key length in bytes
+	Available     bool   // Is circl implementation available?
 }
 
 // KEM parameter registry

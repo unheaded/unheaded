@@ -62,15 +62,15 @@ type AnomalyAlert struct {
 
 // ServiceBaseline holds the learned baseline statistics for a service.
 type ServiceBaseline struct {
-	ServiceID         string    `json:"service_id"`
-	PacketSizeMean    float64   `json:"packet_size_mean"`
-	PacketSizeStdDev  float64   `json:"packet_size_std_dev"`
-	InterArrivalMeanMS float64  `json:"inter_arrival_mean_ms"`
-	EntropyMean       float64   `json:"entropy_mean"`
-	EntropyStdDev     float64   `json:"entropy_std_dev"`
-	ConnRatePerSec    float64   `json:"conn_rate_per_sec"`
-	SampleCount       uint64    `json:"sample_count"`
-	LastUpdated       time.Time `json:"last_updated"`
+	ServiceID          string    `json:"service_id"`
+	PacketSizeMean     float64   `json:"packet_size_mean"`
+	PacketSizeStdDev   float64   `json:"packet_size_std_dev"`
+	InterArrivalMeanMS float64   `json:"inter_arrival_mean_ms"`
+	EntropyMean        float64   `json:"entropy_mean"`
+	EntropyStdDev      float64   `json:"entropy_std_dev"`
+	ConnRatePerSec     float64   `json:"conn_rate_per_sec"`
+	SampleCount        uint64    `json:"sample_count"`
+	LastUpdated        time.Time `json:"last_updated"`
 }
 
 // AdaptiveThreshold holds the computed threshold for a service.
@@ -95,13 +95,13 @@ type ModelConfig struct {
 
 // TreeNode represents a node in the decision tree model.
 type TreeNode struct {
-	NodeID     int    `json:"node_id"`
-	Threshold  int16  `json:"threshold"`
-	FeatureIdx int    `json:"feature_idx"`
-	LeftChild  int    `json:"left_child"`
-	RightChild int    `json:"right_child"`
-	IsLeaf     bool   `json:"is_leaf"`
-	LeafScore  int16  `json:"leaf_score"`
+	NodeID     int   `json:"node_id"`
+	Threshold  int16 `json:"threshold"`
+	FeatureIdx int   `json:"feature_idx"`
+	LeftChild  int   `json:"left_child"`
+	RightChild int   `json:"right_child"`
+	IsLeaf     bool  `json:"is_leaf"`
+	LeafScore  int16 `json:"leaf_score"`
 }
 
 // HeatmapCell represents a single cell in the flow anomaly heatmap.
@@ -119,8 +119,8 @@ type Service struct {
 
 	mu          sync.RWMutex
 	flowScores  map[string]*FlowScore         // key: FlowKey.String()
-	baselines   map[string]*ServiceBaseline    // key: service_id
-	thresholds  map[string]*AdaptiveThreshold  // key: service_id
+	baselines   map[string]*ServiceBaseline   // key: service_id
+	thresholds  map[string]*AdaptiveThreshold // key: service_id
 	modelConfig *ModelConfig
 	alerts      []AnomalyAlert
 
@@ -733,13 +733,13 @@ func (s *Service) Stats() map[string]interface{} {
 	defer s.mu.RUnlock()
 
 	return map[string]interface{}{
-		"tracked_flows":  len(s.flowScores),
-		"baselines":      len(s.baselines),
-		"thresholds":     len(s.thresholds),
-		"alerts":         len(s.alerts),
-		"model_version":  s.modelConfig.Version,
-		"model_type":     s.modelConfig.Type,
-		"wotan_drops":    s.WotanDrops(),
+		"tracked_flows": len(s.flowScores),
+		"baselines":     len(s.baselines),
+		"thresholds":    len(s.thresholds),
+		"alerts":        len(s.alerts),
+		"model_version": s.modelConfig.Version,
+		"model_type":    s.modelConfig.Type,
+		"wotan_drops":   s.WotanDrops(),
 	}
 }
 

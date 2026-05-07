@@ -4,9 +4,9 @@
 package pqc
 
 import (
+	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem512"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
-	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa44"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
@@ -129,8 +129,8 @@ var registry = map[AlgoID]AlgoInfo{
 		Standard:   "FIPS 206",
 		Type:       "signature",
 		Family:     "lattice",
-		MaxSigSize: 1280, // FN-DSA-512 approximate max sig size
-		MaxKeySize: 897,  // FN-DSA-512 approximate public key size
+		MaxSigSize: 1280,  // FN-DSA-512 approximate max sig size
+		MaxKeySize: 897,   // FN-DSA-512 approximate public key size
 		BPFSafe:    false, // Requires floating point; cannot run in BPF
 		Available:  false, // circl does not yet have FN-DSA
 	},
@@ -160,9 +160,9 @@ var registry = map[AlgoID]AlgoInfo{
 
 // mldsaParamInfo holds parameter-set-specific sizes for ML-DSA.
 var mldsaParamInfo = map[ParameterSet]struct {
-	Name          string
-	SignatureSize int
-	PublicKeySize int
+	Name           string
+	SignatureSize  int
+	PublicKeySize  int
 	PrivateKeySize int
 }{
 	MLDSA44: {

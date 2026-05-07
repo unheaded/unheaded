@@ -95,10 +95,10 @@ type RotationManager struct {
 
 // Package-level metrics (registered once)
 var (
-	rotationMetricsOnce  sync.Once
-	rotationsTotal       *metrics.CounterVec
-	rotationDuration     *metrics.HistogramVec
-	rotationErrors       *metrics.CounterVec
+	rotationMetricsOnce sync.Once
+	rotationsTotal      *metrics.CounterVec
+	rotationDuration    *metrics.HistogramVec
+	rotationErrors      *metrics.CounterVec
 )
 
 // RotationManagerConfig configures the rotation manager.

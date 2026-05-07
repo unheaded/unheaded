@@ -22,14 +22,14 @@ type BlueGreenStrategy struct {
 }
 
 type blueGreenDeployment struct {
-	params       *ExecuteParams
-	progress     *Progress
-	result       *Result
-	blueInstances []Instance
+	params         *ExecuteParams
+	progress       *Progress
+	result         *Result
+	blueInstances  []Instance
 	greenInstances []Instance
-	cancel       context.CancelFunc
-	done         chan struct{}
-	trafficState string // "blue", "green"
+	cancel         context.CancelFunc
+	done           chan struct{}
+	trafficState   string // "blue", "green"
 }
 
 // NewBlueGreenStrategy creates a new blue-green strategy.
@@ -121,8 +121,8 @@ func (s *BlueGreenStrategy) Execute(ctx context.Context, params *ExecuteParams) 
 				ServiceName: params.ServiceName,
 				Version:     params.TargetVersion,
 				Labels: map[string]string{
-					"deployment": params.DeploymentID,
-					"version":    params.TargetVersion,
+					"deployment":  params.DeploymentID,
+					"version":     params.TargetVersion,
 					"environment": "green",
 				},
 			})

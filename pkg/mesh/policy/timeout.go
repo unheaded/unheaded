@@ -21,13 +21,13 @@ var (
 
 // TimeoutConfig holds timeout settings for different operations.
 type TimeoutConfig struct {
-	Request    time.Duration // total request timeout
-	Connect    time.Duration // connection establishment timeout
-	Idle       time.Duration // idle connection timeout
-	Read       time.Duration // read operation timeout
-	Write      time.Duration // write operation timeout
-	TLSShake   time.Duration // TLS handshake timeout
-	KeepAlive  time.Duration // keepalive interval
+	Request   time.Duration // total request timeout
+	Connect   time.Duration // connection establishment timeout
+	Idle      time.Duration // idle connection timeout
+	Read      time.Duration // read operation timeout
+	Write     time.Duration // write operation timeout
+	TLSShake  time.Duration // TLS handshake timeout
+	KeepAlive time.Duration // keepalive interval
 }
 
 // DefaultTimeoutConfig returns sensible timeout defaults.

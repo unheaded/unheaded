@@ -212,16 +212,16 @@ func (b *WotanBridge) QueryHealthHistory(ctx context.Context, service string, li
 
 // HourlyStat represents one row from service_health_hourly.
 type HourlyStat struct {
-	ServiceName      string    `json:"service_name"`
-	Host             string    `json:"host"`
-	Hour             time.Time `json:"hour"`
-	ChecksTotal      int       `json:"checks_total"`
-	ChecksHealthy    int       `json:"checks_healthy"`
-	ChecksDegraded   int       `json:"checks_degraded"`
-	ChecksUnhealthy  int       `json:"checks_unhealthy"`
-	AvgResponseMs    float64   `json:"avg_response_ms"`
-	MaxResponseMs    int       `json:"max_response_ms"`
-	MinResponseMs    int       `json:"min_response_ms"`
+	ServiceName     string    `json:"service_name"`
+	Host            string    `json:"host"`
+	Hour            time.Time `json:"hour"`
+	ChecksTotal     int       `json:"checks_total"`
+	ChecksHealthy   int       `json:"checks_healthy"`
+	ChecksDegraded  int       `json:"checks_degraded"`
+	ChecksUnhealthy int       `json:"checks_unhealthy"`
+	AvgResponseMs   float64   `json:"avg_response_ms"`
+	MaxResponseMs   int       `json:"max_response_ms"`
+	MinResponseMs   int       `json:"min_response_ms"`
 }
 
 // QueryHealthTrends reads hourly health statistics for a service over the

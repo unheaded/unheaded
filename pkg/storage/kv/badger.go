@@ -18,11 +18,11 @@ import (
 // This is a mock implementation that provides the interface.
 // In production, this would use github.com/dgraph-io/badger/v4.
 type BadgerStore struct {
-	cfg      Config
-	log      *logger.Logger
-	data     *MemoryStore // Fallback to memory for this mock
-	closed   bool
-	path     string
+	cfg    Config
+	log    *logger.Logger
+	data   *MemoryStore // Fallback to memory for this mock
+	closed bool
+	path   string
 }
 
 // NewBadgerStore creates a new BadgerDB-backed store.

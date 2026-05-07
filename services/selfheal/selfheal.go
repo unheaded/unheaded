@@ -41,10 +41,10 @@ const (
 
 // Circuit breaker thresholds.
 const (
-	circuitOpenThreshold    = 50  // health score below which circuit opens
-	circuitOpenFailCount    = 3   // minimum fail count to open circuit
-	circuitCloseThreshold   = 75  // health score above which circuit closes
-	circuitCloseConsecutive = 5   // consecutive healthy checks to close
+	circuitOpenThreshold    = 50 // health score below which circuit opens
+	circuitOpenFailCount    = 3  // minimum fail count to open circuit
+	circuitCloseThreshold   = 75 // health score above which circuit closes
+	circuitCloseConsecutive = 5  // consecutive healthy checks to close
 )
 
 // EndpointHealth represents the health status of a monitored endpoint.
@@ -80,10 +80,10 @@ type FailoverEvent struct {
 
 // RecoveryEvent records when a recovery is detected.
 type RecoveryEvent struct {
-	Timestamp    time.Time `json:"timestamp"`
-	EndpointID   string    `json:"endpoint_id"`
-	HealthScore  int       `json:"health_score"`
-	DowntimeMs   int64     `json:"downtime_ms"`
+	Timestamp   time.Time `json:"timestamp"`
+	EndpointID  string    `json:"endpoint_id"`
+	HealthScore int       `json:"health_score"`
+	DowntimeMs  int64     `json:"downtime_ms"`
 }
 
 // Config holds Self-Heal service configuration.
@@ -886,15 +886,15 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_endpoints":      len(s.endpoints),
-		"healthy_endpoints":    healthy,
-		"degraded_endpoints":   degraded,
-		"failed_endpoints":     failed,
-		"circuit_closed":       closed,
-		"circuit_open":         open,
-		"circuit_half_open":    halfOpen,
-		"total_backup_rosters": len(s.backups),
+		"total_endpoints":       len(s.endpoints),
+		"healthy_endpoints":     healthy,
+		"degraded_endpoints":    degraded,
+		"failed_endpoints":      failed,
+		"circuit_closed":        closed,
+		"circuit_open":          open,
+		"circuit_half_open":     halfOpen,
+		"total_backup_rosters":  len(s.backups),
 		"total_failover_events": len(s.events),
-		"wotan_drops":          atomic.LoadInt64(&s.wotanDrops),
+		"wotan_drops":           atomic.LoadInt64(&s.wotanDrops),
 	}
 }

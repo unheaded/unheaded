@@ -15,24 +15,24 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ServiceRegistration represents a registered service.
 type ServiceRegistration struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Address     string            `json:"address"`
-	Port        int               `json:"port"`
-	Protocol    string            `json:"protocol"`
-	HealthURL   string            `json:"health_url,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	Status      ServiceStatus     `json:"status"`
-	LastSeen    time.Time         `json:"last_seen"`
-	RegisteredAt time.Time        `json:"registered_at"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Version      string            `json:"version"`
+	Address      string            `json:"address"`
+	Port         int               `json:"port"`
+	Protocol     string            `json:"protocol"`
+	HealthURL    string            `json:"health_url,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	Tags         []string          `json:"tags,omitempty"`
+	Status       ServiceStatus     `json:"status"`
+	LastSeen     time.Time         `json:"last_seen"`
+	RegisteredAt time.Time         `json:"registered_at"`
 }
 
 // ServiceStatus tracks service health.
@@ -47,11 +47,11 @@ const (
 
 // HealthCheck represents a health check result.
 type HealthCheck struct {
-	ServiceID   string    `json:"service_id"`
-	Status      bool      `json:"status"`
-	Latency     int64     `json:"latency_ms"`
-	Message     string    `json:"message,omitempty"`
-	CheckedAt   time.Time `json:"checked_at"`
+	ServiceID string    `json:"service_id"`
+	Status    bool      `json:"status"`
+	Latency   int64     `json:"latency_ms"`
+	Message   string    `json:"message,omitempty"`
+	CheckedAt time.Time `json:"checked_at"`
 }
 
 // Cluster represents a managed cluster.
@@ -84,7 +84,7 @@ type NodeCapacity struct {
 // Service is the main Cuirass control plane service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu       sync.RWMutex
@@ -101,7 +101,7 @@ type Config struct {
 	HealthCheckInterval time.Duration `json:"health_check_interval"`
 	ServiceTTL          time.Duration `json:"service_ttl"`
 	DeregisterAfter     time.Duration `json:"deregister_after"`
-	WotanTopic         string        `json:"wotan_topic"`
+	WotanTopic          string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -110,7 +110,7 @@ func DefaultConfig() *Config {
 		HealthCheckInterval: 10 * time.Second,
 		ServiceTTL:          30 * time.Second,
 		DeregisterAfter:     60 * time.Second,
-		WotanTopic:         "cuirass.control",
+		WotanTopic:          "cuirass.control",
 	}
 }
 
@@ -122,7 +122,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:      log,
-		wotan:   wotan,
+		wotan:    wotan,
 		config:   cfg,
 		services: make(map[string]*ServiceRegistration),
 		clusters: make(map[string]*Cluster),

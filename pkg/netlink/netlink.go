@@ -84,38 +84,38 @@ const (
 
 // RTNetlink message types for network interface operations
 const (
-	RTM_BASE        = 16
-	RTM_NEWLINK     = 16 // Create a new network interface
-	RTM_DELLINK     = 17 // Remove a network interface
-	RTM_GETLINK     = 18 // Retrieve information about a network interface
-	RTM_SETLINK     = 19 // Set network interface attributes
-	RTM_NEWADDR     = 20 // Add a new address to an interface
-	RTM_DELADDR     = 21 // Remove an address from an interface
-	RTM_GETADDR     = 22 // Retrieve address information
-	RTM_NEWROUTE    = 24 // Add a new route
-	RTM_DELROUTE    = 25 // Remove a route
-	RTM_GETROUTE    = 26 // Retrieve route information
-	RTM_NEWNEIGH    = 28 // Add a neighbor table entry
-	RTM_DELNEIGH    = 29 // Remove a neighbor table entry
-	RTM_GETNEIGH    = 30 // Retrieve neighbor information
-	RTM_NEWRULE     = 32 // Add routing rule
-	RTM_DELRULE     = 33 // Delete routing rule
-	RTM_GETRULE     = 34 // Retrieve routing rule
-	RTM_NEWQDISC    = 36 // Add queueing discipline
-	RTM_DELQDISC    = 37 // Remove queueing discipline
-	RTM_GETQDISC    = 38 // Get queueing discipline
-	RTM_NEWTCLASS   = 40 // Add traffic class
-	RTM_DELTCLASS   = 41 // Remove traffic class
-	RTM_GETTCLASS   = 42 // Get traffic class
-	RTM_NEWTFILTER  = 44 // Add traffic filter
-	RTM_DELTFILTER  = 45 // Remove traffic filter
-	RTM_GETTFILTER  = 46 // Get traffic filter
-	RTM_NEWACTION   = 48 // Add traffic control action
-	RTM_DELACTION   = 49 // Remove traffic control action
-	RTM_GETACTION   = 50 // Get traffic control action
-	RTM_NEWNSID     = 88 // New network namespace ID
-	RTM_DELNSID     = 89 // Delete network namespace ID
-	RTM_GETNSID     = 90 // Get network namespace ID
+	RTM_BASE       = 16
+	RTM_NEWLINK    = 16 // Create a new network interface
+	RTM_DELLINK    = 17 // Remove a network interface
+	RTM_GETLINK    = 18 // Retrieve information about a network interface
+	RTM_SETLINK    = 19 // Set network interface attributes
+	RTM_NEWADDR    = 20 // Add a new address to an interface
+	RTM_DELADDR    = 21 // Remove an address from an interface
+	RTM_GETADDR    = 22 // Retrieve address information
+	RTM_NEWROUTE   = 24 // Add a new route
+	RTM_DELROUTE   = 25 // Remove a route
+	RTM_GETROUTE   = 26 // Retrieve route information
+	RTM_NEWNEIGH   = 28 // Add a neighbor table entry
+	RTM_DELNEIGH   = 29 // Remove a neighbor table entry
+	RTM_GETNEIGH   = 30 // Retrieve neighbor information
+	RTM_NEWRULE    = 32 // Add routing rule
+	RTM_DELRULE    = 33 // Delete routing rule
+	RTM_GETRULE    = 34 // Retrieve routing rule
+	RTM_NEWQDISC   = 36 // Add queueing discipline
+	RTM_DELQDISC   = 37 // Remove queueing discipline
+	RTM_GETQDISC   = 38 // Get queueing discipline
+	RTM_NEWTCLASS  = 40 // Add traffic class
+	RTM_DELTCLASS  = 41 // Remove traffic class
+	RTM_GETTCLASS  = 42 // Get traffic class
+	RTM_NEWTFILTER = 44 // Add traffic filter
+	RTM_DELTFILTER = 45 // Remove traffic filter
+	RTM_GETTFILTER = 46 // Get traffic filter
+	RTM_NEWACTION  = 48 // Add traffic control action
+	RTM_DELACTION  = 49 // Remove traffic control action
+	RTM_GETACTION  = 50 // Get traffic control action
+	RTM_NEWNSID    = 88 // New network namespace ID
+	RTM_DELNSID    = 89 // Delete network namespace ID
+	RTM_GETNSID    = 90 // Get network namespace ID
 )
 
 // Interface link attribute types (IFLA_*)
@@ -278,19 +278,19 @@ const (
 
 // Traffic control attribute types (TCA_*)
 const (
-	TCA_UNSPEC     = 0
-	TCA_KIND       = 1  // Qdisc/class/filter kind name
-	TCA_OPTIONS    = 2  // Qdisc specific options
-	TCA_STATS      = 3  // Statistics
-	TCA_XSTATS     = 4  // Module-specific statistics
-	TCA_RATE       = 5  // Rate estimator configuration
-	TCA_FCNT       = 6  // Filter count
-	TCA_STATS2     = 7  // More statistics
-	TCA_STAB       = 8  // Size table
-	TCA_PAD        = 9  // Padding
-	TCA_DUMP_FLAGS = 10 // Dump flags
-	TCA_CHAIN      = 11 // Chain index
-	TCA_HW_OFFLOAD = 12 // Hardware offload
+	TCA_UNSPEC        = 0
+	TCA_KIND          = 1  // Qdisc/class/filter kind name
+	TCA_OPTIONS       = 2  // Qdisc specific options
+	TCA_STATS         = 3  // Statistics
+	TCA_XSTATS        = 4  // Module-specific statistics
+	TCA_RATE          = 5  // Rate estimator configuration
+	TCA_FCNT          = 6  // Filter count
+	TCA_STATS2        = 7  // More statistics
+	TCA_STAB          = 8  // Size table
+	TCA_PAD           = 9  // Padding
+	TCA_DUMP_FLAGS    = 10 // Dump flags
+	TCA_CHAIN         = 11 // Chain index
+	TCA_HW_OFFLOAD    = 12 // Hardware offload
 	TCA_INGRESS_BLOCK = 13 // Ingress block
 	TCA_EGRESS_BLOCK  = 14 // Egress block
 )
@@ -305,8 +305,8 @@ const (
 
 // Generic netlink constants
 const (
-	GENL_ID_CTRL     = 0x10 // Generic netlink controller ID
-	GENL_CTRL_CMD_GETFAMILY = 3 // Get family command
+	GENL_ID_CTRL            = 0x10 // Generic netlink controller ID
+	GENL_CTRL_CMD_GETFAMILY = 3    // Get family command
 )
 
 // Generic netlink controller attributes
@@ -414,10 +414,10 @@ type IfInfoMsg struct {
 //
 // Structure layout (8 bytes):
 type IfAddrMsg struct {
-	Family    uint8 // Address family (AF_INET, AF_INET6)
-	PrefixLen uint8 // Prefix length (CIDR notation)
-	Flags     uint8 // Address flags
-	Scope     uint8 // Address scope
+	Family    uint8  // Address family (AF_INET, AF_INET6)
+	PrefixLen uint8  // Prefix length (CIDR notation)
+	Flags     uint8  // Address flags
+	Scope     uint8  // Address scope
 	Index     uint32 // Interface index
 }
 
@@ -426,14 +426,14 @@ type IfAddrMsg struct {
 //
 // Structure layout (12 bytes):
 type RtMsg struct {
-	Family   uint8 // Address family (AF_INET, AF_INET6)
-	DstLen   uint8 // Destination prefix length
-	SrcLen   uint8 // Source prefix length
-	Tos      uint8 // Type of service
-	Table    uint8 // Routing table ID
-	Protocol uint8 // Routing protocol
-	Scope    uint8 // Route scope
-	Type     uint8 // Route type
+	Family   uint8  // Address family (AF_INET, AF_INET6)
+	DstLen   uint8  // Destination prefix length
+	SrcLen   uint8  // Source prefix length
+	Tos      uint8  // Type of service
+	Table    uint8  // Routing table ID
+	Protocol uint8  // Routing protocol
+	Scope    uint8  // Route scope
+	Type     uint8  // Route type
 	Flags    uint32 // Route flags
 }
 
@@ -456,16 +456,16 @@ type TcMsg struct {
 //
 // Structure layout (4 bytes):
 type GenlMsgHdr struct {
-	Cmd      uint8 // Command
-	Version  uint8 // Version
+	Cmd      uint8  // Command
+	Version  uint8  // Version
 	Reserved uint16 // Reserved
 }
 
 // NlErr represents a netlink error message.
 // Returned when an error occurs in response to a request.
 type NlErr struct {
-	Error  int32    // Negative errno or 0 for ACK
-	Msg    NlMsgHdr // Header of the message that caused the error
+	Error int32    // Negative errno or 0 for ACK
+	Msg   NlMsgHdr // Header of the message that caused the error
 }
 
 // =============================================================================
@@ -499,20 +499,20 @@ type AddrInfo struct {
 
 // RouteInfo contains parsed information about a route.
 type RouteInfo struct {
-	Family    uint8
-	DstLen    uint8
-	SrcLen    uint8
-	Table     uint8
-	Protocol  uint8
-	Scope     uint8
-	Type      uint8
-	Dst       net.IP
-	Src       net.IP
-	Gateway   net.IP
-	OifIndex  int32
-	IifIndex  int32
-	Priority  uint32
-	PrefSrc   net.IP
+	Family   uint8
+	DstLen   uint8
+	SrcLen   uint8
+	Table    uint8
+	Protocol uint8
+	Scope    uint8
+	Type     uint8
+	Dst      net.IP
+	Src      net.IP
+	Gateway  net.IP
+	OifIndex int32
+	IifIndex int32
+	Priority uint32
+	PrefSrc  net.IP
 }
 
 // =============================================================================
@@ -521,12 +521,12 @@ type RouteInfo struct {
 
 // Socket represents a netlink socket connection.
 type Socket struct {
-	fd       int         // File descriptor
-	family   int         // Netlink family (NETLINK_ROUTE, NETLINK_GENERIC, etc.)
-	pid      uint32      // Port ID (process ID)
-	seq      uint32      // Sequence number counter
-	seqMu    sync.Mutex  // Mutex for sequence number
-	recvBuf  []byte      // Receive buffer
+	fd      int        // File descriptor
+	family  int        // Netlink family (NETLINK_ROUTE, NETLINK_GENERIC, etc.)
+	pid     uint32     // Port ID (process ID)
+	seq     uint32     // Sequence number counter
+	seqMu   sync.Mutex // Mutex for sequence number
+	recvBuf []byte     // Receive buffer
 }
 
 // NewSocket creates a new netlink socket for the specified protocol family.

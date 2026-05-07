@@ -19,24 +19,24 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Knowledge represents a unit of wisdom in Sophia's domain.
 type Knowledge struct {
-	ID          string                 `json:"id"`
-	Type        KnowledgeType          `json:"type"`
-	Subject     string                 `json:"subject"`
-	Predicate   string                 `json:"predicate"`
-	Object      string                 `json:"object"`
-	Confidence  float64                `json:"confidence"`
-	Source      string                 `json:"source"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	Embeddings  []float64              `json:"embeddings,omitempty"`
-	Relations   []string               `json:"relations,omitempty"`
+	ID         string                 `json:"id"`
+	Type       KnowledgeType          `json:"type"`
+	Subject    string                 `json:"subject"`
+	Predicate  string                 `json:"predicate"`
+	Object     string                 `json:"object"`
+	Confidence float64                `json:"confidence"`
+	Source     string                 `json:"source"`
+	CreatedAt  time.Time              `json:"created_at"`
+	UpdatedAt  time.Time              `json:"updated_at"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Embeddings []float64              `json:"embeddings,omitempty"`
+	Relations  []string               `json:"relations,omitempty"`
 }
 
 // KnowledgeType categorizes knowledge.
@@ -53,36 +53,36 @@ const (
 
 // Insight represents a derived understanding from knowledge analysis.
 type Insight struct {
-	ID          string    `json:"id"`
-	Type        string    `json:"type"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Confidence  float64   `json:"confidence"`
-	Evidence    []string  `json:"evidence"`
-	Impact      string    `json:"impact"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string     `json:"id"`
+	Type        string     `json:"type"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Confidence  float64    `json:"confidence"`
+	Evidence    []string   `json:"evidence"`
+	Impact      string     `json:"impact"`
+	CreatedAt   time.Time  `json:"created_at"`
 	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 }
 
 // Decision represents a recommendation from Sophia.
 type Decision struct {
-	ID            string                 `json:"id"`
-	Question      string                 `json:"question"`
-	Options       []Option               `json:"options"`
-	Recommendation string                `json:"recommendation"`
-	Reasoning     string                 `json:"reasoning"`
-	Confidence    float64                `json:"confidence"`
-	Factors       []Factor               `json:"factors"`
-	CreatedAt     time.Time              `json:"created_at"`
-	Context       map[string]interface{} `json:"context,omitempty"`
+	ID             string                 `json:"id"`
+	Question       string                 `json:"question"`
+	Options        []Option               `json:"options"`
+	Recommendation string                 `json:"recommendation"`
+	Reasoning      string                 `json:"reasoning"`
+	Confidence     float64                `json:"confidence"`
+	Factors        []Factor               `json:"factors"`
+	CreatedAt      time.Time              `json:"created_at"`
+	Context        map[string]interface{} `json:"context,omitempty"`
 }
 
 // Option represents a choice in a decision.
 type Option struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Score       float64 `json:"score"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Score       float64  `json:"score"`
 	Pros        []string `json:"pros,omitempty"`
 	Cons        []string `json:"cons,omitempty"`
 }
@@ -97,14 +97,14 @@ type Factor struct {
 
 // Query represents a knowledge query.
 type Query struct {
-	Type       QueryType              `json:"type"`
-	Subject    string                 `json:"subject,omitempty"`
-	Predicate  string                 `json:"predicate,omitempty"`
-	Object     string                 `json:"object,omitempty"`
-	Text       string                 `json:"text,omitempty"`
-	Filters    map[string]interface{} `json:"filters,omitempty"`
-	Limit      int                    `json:"limit,omitempty"`
-	MinConfidence float64             `json:"min_confidence,omitempty"`
+	Type          QueryType              `json:"type"`
+	Subject       string                 `json:"subject,omitempty"`
+	Predicate     string                 `json:"predicate,omitempty"`
+	Object        string                 `json:"object,omitempty"`
+	Text          string                 `json:"text,omitempty"`
+	Filters       map[string]interface{} `json:"filters,omitempty"`
+	Limit         int                    `json:"limit,omitempty"`
+	MinConfidence float64                `json:"min_confidence,omitempty"`
 }
 
 // QueryType defines the kind of knowledge query.
@@ -131,14 +131,14 @@ type Rule struct {
 // Service is the main Sophia service for wisdom and knowledge management.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
-	mu         sync.RWMutex
-	knowledge  map[string]*Knowledge
-	insights   map[string]*Insight
-	decisions  map[string]*Decision
-	rules      map[string]*Rule
+	mu        sync.RWMutex
+	knowledge map[string]*Knowledge
+	insights  map[string]*Insight
+	decisions map[string]*Decision
+	rules     map[string]*Rule
 
 	// Indexes for efficient lookup
 	subjectIndex   map[string][]string // subject -> knowledge IDs
@@ -169,7 +169,7 @@ type Config struct {
 	MinConfidence     float64       `json:"min_confidence"`
 	EnableInference   bool          `json:"enable_inference"`
 	InferenceInterval time.Duration `json:"inference_interval"`
-	WotanTopic       string        `json:"wotan_topic"`
+	WotanTopic        string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -180,7 +180,7 @@ func DefaultConfig() *Config {
 		MinConfidence:     0.5,
 		EnableInference:   true,
 		InferenceInterval: 5 * time.Minute,
-		WotanTopic:       "sophia.wisdom",
+		WotanTopic:        "sophia.wisdom",
 	}
 }
 
@@ -192,7 +192,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, config *Config) *
 
 	return &Service{
 		log:            log,
-		wotan:         wotan,
+		wotan:          wotan,
 		config:         config,
 		knowledge:      make(map[string]*Knowledge),
 		insights:       make(map[string]*Insight),
@@ -909,12 +909,12 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_knowledge":  len(s.knowledge),
-		"total_insights":   len(s.insights),
-		"total_decisions":  len(s.decisions),
-		"total_rules":      len(s.rules),
-		"knowledge_by_type": typeCounts,
-		"indexed_subjects":  len(s.subjectIndex),
+		"total_knowledge":    len(s.knowledge),
+		"total_insights":     len(s.insights),
+		"total_decisions":    len(s.decisions),
+		"total_rules":        len(s.rules),
+		"knowledge_by_type":  typeCounts,
+		"indexed_subjects":   len(s.subjectIndex),
 		"indexed_predicates": len(s.predicateIndex),
 	}
 }

@@ -1209,9 +1209,9 @@ func TestParseTraceTopicEvent_FlowTopic(t *testing.T) {
 		Topic:     "traces.flow",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"trace_id":   "flow-001",
-			"state":      "ESTABLISHED",
-			"rtt_ms":     float64(1.5),
+			"trace_id": "flow-001",
+			"state":    "ESTABLISHED",
+			"rtt_ms":   float64(1.5),
 		},
 	})
 	if te.EventType != "flow" {

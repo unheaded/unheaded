@@ -271,10 +271,10 @@ func TestSizeLimitEnforcer(t *testing.T) {
 	sle, _ := NewSizeLimitEnforcer(log, 1024*1024, 100*1024*1024)
 
 	tests := []struct {
-		name      string
-		flowID    string
-		size      uint64
-		shouldOK  bool
+		name     string
+		flowID   string
+		size     uint64
+		shouldOK bool
 	}{
 		{
 			name:     "valid allocation",
@@ -398,9 +398,9 @@ func TestExtensionLimits(t *testing.T) {
 	el, _ := NewExtensionLimits(log, 4)
 
 	tests := []struct {
-		name      string
-		count     int
-		shouldOK  bool
+		name     string
+		count    int
+		shouldOK bool
 	}{
 		{
 			name:     "valid count",

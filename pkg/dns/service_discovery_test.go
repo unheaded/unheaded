@@ -548,9 +548,9 @@ func TestEnhancedServiceDiscovery_DegradedHealth(t *testing.T) {
 
 func TestServiceEndpoint_EffectiveWeight(t *testing.T) {
 	tests := []struct {
-		name   string
-		ep     *ServiceEndpoint
-		want   uint16
+		name string
+		ep   *ServiceEndpoint
+		want uint16
 	}{
 		{
 			name: "healthy",

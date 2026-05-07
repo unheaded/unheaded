@@ -267,19 +267,19 @@ func TestParseUint64V2(t *testing.T) {
 
 func TestResourceConfigWithIOLimits(t *testing.T) {
 	config := &ResourceConfig{
-		CPUWeight:      200,
+		CPUWeight:        200,
 		MemoryLimitBytes: 1024 * 1024 * 512,
 		MemoryHighBytes:  1024 * 1024 * 400,
 		MemoryMinBytes:   1024 * 1024 * 100,
-		IOWeight:        150,
+		IOWeight:         150,
 		IOLimits: []IOLimit{
 			{
-				Major:           8,
-				Minor:           0,
-				ReadBytesPerSec: 1000000,
+				Major:            8,
+				Minor:            0,
+				ReadBytesPerSec:  1000000,
 				WriteBytesPerSec: 500000,
-				ReadIOPS:        1000,
-				WriteIOPS:       500,
+				ReadIOPS:         1000,
+				WriteIOPS:        500,
 			},
 		},
 		PidsLimit: 500,

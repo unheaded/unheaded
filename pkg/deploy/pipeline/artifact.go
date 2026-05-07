@@ -764,12 +764,12 @@ func (t *ArtifactTracker) List(ctx context.Context, filter *ArtifactFilter) ([]*
 
 // ArtifactFilter defines filtering criteria.
 type ArtifactFilter struct {
-	Name      string            `json:"name,omitempty"`
-	Type      ArtifactType      `json:"type,omitempty"`
-	State     ArtifactState     `json:"state,omitempty"`
-	Labels    map[string]string `json:"labels,omitempty"`
-	CreatedAfter  time.Time     `json:"created_after,omitempty"`
-	CreatedBefore time.Time     `json:"created_before,omitempty"`
+	Name          string            `json:"name,omitempty"`
+	Type          ArtifactType      `json:"type,omitempty"`
+	State         ArtifactState     `json:"state,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	CreatedAfter  time.Time         `json:"created_after,omitempty"`
+	CreatedBefore time.Time         `json:"created_before,omitempty"`
 }
 
 // Match checks if an artifact matches the filter.
@@ -1014,12 +1014,12 @@ func (t *ArtifactTracker) GetStats(ctx context.Context) *ArtifactStats {
 
 // ArtifactStats contains artifact statistics.
 type ArtifactStats struct {
-	Total     int                      `json:"total"`
-	TotalSize int64                    `json:"total_size"`
-	Deployed  int                      `json:"deployed"`
-	ByState   map[ArtifactState]int    `json:"by_state"`
-	ByType    map[ArtifactType]int     `json:"by_type"`
-	ByService map[string]int           `json:"by_service"`
+	Total     int                   `json:"total"`
+	TotalSize int64                 `json:"total_size"`
+	Deployed  int                   `json:"deployed"`
+	ByState   map[ArtifactState]int `json:"by_state"`
+	ByType    map[ArtifactType]int  `json:"by_type"`
+	ByService map[string]int        `json:"by_service"`
 }
 
 // Export exports artifacts to JSON.

@@ -14,9 +14,9 @@ import (
 type AlgorithmType string
 
 const (
-	AlgorithmBinPack AlgorithmType = "BinPack"
-	AlgorithmSpread  AlgorithmType = "Spread"
-	AlgorithmRandom  AlgorithmType = "Random"
+	AlgorithmBinPack  AlgorithmType = "BinPack"
+	AlgorithmSpread   AlgorithmType = "Spread"
+	AlgorithmRandom   AlgorithmType = "Random"
 	AlgorithmBalanced AlgorithmType = "Balanced"
 )
 
@@ -39,10 +39,10 @@ type NodeScore struct {
 // BinPackAlgorithm implements bin packing scheduling.
 // It tries to pack workloads onto as few nodes as possible.
 type BinPackAlgorithm struct {
-	mu             sync.Mutex
-	cpuWeight      float64
-	memoryWeight   float64
-	diskWeight     float64
+	mu           sync.Mutex
+	cpuWeight    float64
+	memoryWeight float64
+	diskWeight   float64
 }
 
 // NewBinPackAlgorithm creates a new bin pack algorithm.
@@ -125,10 +125,10 @@ func (a *BinPackAlgorithm) ScoreNodes(workload *Workload, nodes []*Node) []NodeS
 // SpreadAlgorithm implements spread scheduling.
 // It tries to spread workloads across nodes evenly.
 type SpreadAlgorithm struct {
-	mu             sync.Mutex
-	cpuWeight      float64
-	memoryWeight   float64
-	zoneSpread     bool
+	mu           sync.Mutex
+	cpuWeight    float64
+	memoryWeight float64
+	zoneSpread   bool
 }
 
 // NewSpreadAlgorithm creates a new spread algorithm.
@@ -194,7 +194,7 @@ func (a *SpreadAlgorithm) ScoreNodes(workload *Workload, nodes []*Node) []NodeSc
 		memUtil := float64(node.Allocated.Memory) / float64(node.Allocatable.Memory)
 
 		// Invert utilization for spread
-		score := int64(((1 - cpuUtil) * cpuW + (1 - memUtil) * memW) * 100)
+		score := int64(((1-cpuUtil)*cpuW + (1-memUtil)*memW) * 100)
 
 		scores = append(scores, NodeScore{
 			Node:  node,
@@ -415,9 +415,9 @@ func (a *ResourceFitAlgorithm) ScoreNodes(workload *Workload, nodes []*Node) []N
 
 // PriorityAlgorithm wraps another algorithm with priority handling.
 type PriorityAlgorithm struct {
-	base           Algorithm
-	priorityBoost  map[int32]int64
-	mu             sync.RWMutex
+	base          Algorithm
+	priorityBoost map[int32]int64
+	mu            sync.RWMutex
 }
 
 // NewPriorityAlgorithm creates a priority-aware algorithm.
@@ -462,9 +462,9 @@ func (a *PriorityAlgorithm) ScoreNodes(workload *Workload, nodes []*Node) []Node
 
 // TopologySpreadAlgorithm spreads workloads across topology domains.
 type TopologySpreadAlgorithm struct {
-	mu           sync.RWMutex
-	topologyKey  string
-	maxSkew      int
+	mu                sync.RWMutex
+	topologyKey       string
+	maxSkew           int
 	whenUnsatisfiable string
 }
 

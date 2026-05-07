@@ -19,13 +19,13 @@ import (
 // ============================================================================
 
 var (
-	ErrNilEvent         = errors.New("event cannot be nil")
-	ErrEmptyEventID     = errors.New("event ID cannot be empty")
-	ErrEmptyTopic       = errors.New("topic cannot be empty")
-	ErrEmptySender      = errors.New("sender cannot be empty")
-	ErrInvalidPayload   = errors.New("invalid event payload")
-	ErrMarshalFailed    = errors.New("failed to marshal event")
-	ErrUnmarshalFailed  = errors.New("failed to unmarshal event")
+	ErrNilEvent        = errors.New("event cannot be nil")
+	ErrEmptyEventID    = errors.New("event ID cannot be empty")
+	ErrEmptyTopic      = errors.New("topic cannot be empty")
+	ErrEmptySender     = errors.New("sender cannot be empty")
+	ErrInvalidPayload  = errors.New("invalid event payload")
+	ErrMarshalFailed   = errors.New("failed to marshal event")
+	ErrUnmarshalFailed = errors.New("failed to unmarshal event")
 )
 
 // ============================================================================
@@ -251,17 +251,17 @@ type MilestoneHitEvent struct {
 
 // DecisionEvent represents a strategic decision event
 type DecisionEvent struct {
-	DecisionID  string    `json:"decision_id"`
-	Title       string    `json:"title"`
-	Content     string    `json:"content"`
-	Owner       string    `json:"owner"`
-	Priority    Priority  `json:"priority"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	ApprovedBy  string    `json:"approved_by,omitempty"`
-	RejectedBy  string    `json:"rejected_by,omitempty"`
-	RejectionReason string `json:"rejection_reason,omitempty"`
+	DecisionID      string    `json:"decision_id"`
+	Title           string    `json:"title"`
+	Content         string    `json:"content"`
+	Owner           string    `json:"owner"`
+	Priority        Priority  `json:"priority"`
+	Status          string    `json:"status"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	ApprovedBy      string    `json:"approved_by,omitempty"`
+	RejectedBy      string    `json:"rejected_by,omitempty"`
+	RejectionReason string    `json:"rejection_reason,omitempty"`
 }
 
 // Validate validates the decision event
@@ -330,27 +330,27 @@ func (a *AlertEvent) Validate() error {
 
 // ADREvent represents an Architecture Decision Record event
 type ADREvent struct {
-	ADRID       string    `json:"adr_id"`
-	Title       string    `json:"title"`
-	Status      string    `json:"status"` // proposed, accepted, deprecated, superseded
-	Context     string    `json:"context,omitempty"`
-	Decision    string    `json:"decision,omitempty"`
-	Consequences string   `json:"consequences,omitempty"`
-	Author      string    `json:"author"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ADRID        string    `json:"adr_id"`
+	Title        string    `json:"title"`
+	Status       string    `json:"status"` // proposed, accepted, deprecated, superseded
+	Context      string    `json:"context,omitempty"`
+	Decision     string    `json:"decision,omitempty"`
+	Consequences string    `json:"consequences,omitempty"`
+	Author       string    `json:"author"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // ServiceEvent represents a service definition event
 type ServiceEvent struct {
-	ServiceID   string            `json:"service_id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description,omitempty"`
-	Port        int               `json:"port,omitempty"`
-	Protocol    string            `json:"protocol,omitempty"` // http, grpc, tcp
-	Dependencies []string         `json:"dependencies,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	CreatedAt   time.Time         `json:"created_at"`
+	ServiceID    string            `json:"service_id"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description,omitempty"`
+	Port         int               `json:"port,omitempty"`
+	Protocol     string            `json:"protocol,omitempty"` // http, grpc, tcp
+	Dependencies []string          `json:"dependencies,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
 }
 
 // ============================================================================
@@ -359,25 +359,25 @@ type ServiceEvent struct {
 
 // ContainerStateEvent represents a container state change
 type ContainerStateEvent struct {
-	ContainerID   string    `json:"container_id"`
-	ContainerName string    `json:"container_name"`
-	State         string    `json:"state"` // running, stopped, paused, created, deleted
-	PreviousState string    `json:"previous_state,omitempty"`
-	HealthStatus  string    `json:"health_status,omitempty"` // healthy, unhealthy, unknown
-	Timestamp     time.Time `json:"timestamp"`
+	ContainerID   string            `json:"container_id"`
+	ContainerName string            `json:"container_name"`
+	State         string            `json:"state"` // running, stopped, paused, created, deleted
+	PreviousState string            `json:"previous_state,omitempty"`
+	HealthStatus  string            `json:"health_status,omitempty"` // healthy, unhealthy, unknown
+	Timestamp     time.Time         `json:"timestamp"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
 }
 
 // DriftEvent represents a state drift detection
 type DriftEvent struct {
-	DriftID       string    `json:"drift_id"`
-	ContainerID   string    `json:"container_id"`
-	DriftType     string    `json:"drift_type"` // missing, orphaned, status, degraded
-	Severity      string    `json:"severity"`
-	DesiredState  string    `json:"desired_state"`
-	ActualState   string    `json:"actual_state"`
-	DetectedAt    time.Time `json:"detected_at"`
-	ResolvedAt    time.Time `json:"resolved_at,omitempty"`
+	DriftID      string    `json:"drift_id"`
+	ContainerID  string    `json:"container_id"`
+	DriftType    string    `json:"drift_type"` // missing, orphaned, status, degraded
+	Severity     string    `json:"severity"`
+	DesiredState string    `json:"desired_state"`
+	ActualState  string    `json:"actual_state"`
+	DetectedAt   time.Time `json:"detected_at"`
+	ResolvedAt   time.Time `json:"resolved_at,omitempty"`
 }
 
 // ============================================================================

@@ -600,10 +600,10 @@ func TestHTMLExporter_WithGapAnalysis(t *testing.T) {
 		Period:      ReportPeriod{Start: time.Now(), End: time.Now()},
 		Summary:     ReportSummary{},
 		GapAnalysis: &GapAnalysis{
-			TotalGaps:       3,
-			CriticalGaps:    1,
+			TotalGaps:        3,
+			CriticalGaps:     1,
 			HighPriorityGaps: 2,
-			Recommendations: []string{"Fix critical gaps", "Review policies"},
+			Recommendations:  []string{"Fix critical gaps", "Review policies"},
 		},
 		Metadata: map[string]interface{}{},
 	}

@@ -99,9 +99,9 @@ func TestBotDetector_HeaderAnalysis(t *testing.T) {
 	defer detector.Close()
 
 	tests := []struct {
-		name          string
-		headers       map[string]string
-		wantReasons   []string
+		name        string
+		headers     map[string]string
+		wantReasons []string
 	}{
 		{
 			name: "Missing Accept-Language",
@@ -494,11 +494,11 @@ func TestIsRegularTiming(t *testing.T) {
 
 func TestGetClientIP(t *testing.T) {
 	tests := []struct {
-		name        string
-		remoteAddr  string
-		xff         string
-		xri         string
-		expectedIP  string
+		name       string
+		remoteAddr string
+		xff        string
+		xri        string
+		expectedIP string
 	}{
 		{
 			name:       "RemoteAddr only",

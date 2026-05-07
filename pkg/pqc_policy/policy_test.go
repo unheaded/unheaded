@@ -87,10 +87,10 @@ func TestChecker_7PointVerification(t *testing.T) {
 
 	// Step 5: NIST level too low.
 	r = c.Check(ctx, PolicyCheckRequest{
-		ServiceID:   100,
-		AlgoID:      0x02,
-		ParamSet:    0x01, // ML-DSA-44 = Level 2, min is Level 3
-		PQCVerified: true,
+		ServiceID:    100,
+		AlgoID:       0x02,
+		ParamSet:     0x01, // ML-DSA-44 = Level 2, min is Level 3
+		PQCVerified:  true,
 		KeyCreatedAt: time.Now(),
 	})
 	if r.Allowed {

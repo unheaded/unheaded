@@ -310,11 +310,11 @@ func (e *emptyReader) Close() error {
 type LogWriter struct {
 	mu sync.Mutex
 
-	path   string
-	file   *os.File
-	stream StreamType
-	maxSize int64
-	maxFiles int
+	path        string
+	file        *os.File
+	stream      StreamType
+	maxSize     int64
+	maxFiles    int
 	currentSize int64
 }
 

@@ -114,7 +114,7 @@ func (a *ArchitectureDecision) Validate() error {
 
 // InfrastructureState represents the complete infrastructure state
 type InfrastructureState struct {
-	Services  map[string]*Service  `json:"services"`
+	Services  map[string]*Service    `json:"services"`
 	Decisions []ArchitectureDecision `json:"decisions"`
 	mu        sync.RWMutex
 }
@@ -129,7 +129,7 @@ type NetworkTopology struct {
 type ArchitectService struct {
 	infra        *InfrastructureState
 	network      *NetworkTopology
-	wotan       *wotanClient.Client
+	wotan        *wotanClient.Client
 	alertChannel chan *wotanClient.Message
 	mu           sync.RWMutex
 
@@ -166,7 +166,7 @@ func NewWithWotan(wotan *wotanClient.Client) *ArchitectService {
 		network: &NetworkTopology{
 			Nodes: make(map[string]*NetworkNode),
 		},
-		wotan:       wotan,
+		wotan:        wotan,
 		alertChannel: make(chan *wotanClient.Message, 100),
 	}
 }

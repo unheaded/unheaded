@@ -22,10 +22,10 @@ type Logger struct {
 	storage  audit.Storage
 	registry *audit.Registry
 
-	buffer    *Buffer
-	async     *AsyncProcessor
-	lastHash  string
-	hashMu    sync.Mutex
+	buffer   *Buffer
+	async    *AsyncProcessor
+	lastHash string
+	hashMu   sync.Mutex
 
 	closed   bool
 	closedMu sync.RWMutex

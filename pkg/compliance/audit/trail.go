@@ -16,11 +16,11 @@ import (
 
 // TrailEntry represents a single entry in the audit trail.
 type TrailEntry struct {
-	Sequence      int64     `json:"sequence"`
-	Timestamp     time.Time `json:"timestamp"`
-	PreviousHash  string    `json:"previous_hash"`
-	Hash          string    `json:"hash"`
-	Event         *AuditEvent `json:"event"`
+	Sequence     int64       `json:"sequence"`
+	Timestamp    time.Time   `json:"timestamp"`
+	PreviousHash string      `json:"previous_hash"`
+	Hash         string      `json:"hash"`
+	Event        *AuditEvent `json:"event"`
 }
 
 // AuditTrail provides an immutable, verifiable audit trail.
@@ -112,10 +112,10 @@ func (t *AuditTrail) Verify() (*VerificationResult, error) {
 	defer t.mu.RUnlock()
 
 	result := &VerificationResult{
-		TotalEntries:    len(t.entries),
-		VerifiedAt:      time.Now(),
-		ValidEntries:    0,
-		InvalidEntries:  make([]InvalidEntry, 0),
+		TotalEntries:   len(t.entries),
+		VerifiedAt:     time.Now(),
+		ValidEntries:   0,
+		InvalidEntries: make([]InvalidEntry, 0),
 	}
 
 	previousHash := "genesis"
@@ -297,14 +297,14 @@ func (s *InMemoryArchiveStore) List(ctx context.Context) ([]ArchiveMetadata, err
 
 // TrailQueryBuilder provides a fluent interface for querying the audit trail.
 type TrailQueryBuilder struct {
-	trail     *AuditTrail
-	startSeq  *int64
-	endSeq    *int64
-	startTime *time.Time
-	endTime   *time.Time
+	trail      *AuditTrail
+	startSeq   *int64
+	endSeq     *int64
+	startTime  *time.Time
+	endTime    *time.Time
 	eventTypes []EventType
-	actors    []string
-	limit     int
+	actors     []string
+	limit      int
 }
 
 // NewTrailQuery creates a new trail query builder.

@@ -21,18 +21,18 @@ import (
 // See docs/WAF_ARCHITECTURE.md for migration strategy.
 type ScoringEngine struct {
 	// Weights for different detection types
-	weights       map[string]float64
+	weights map[string]float64
 
 	// Score thresholds
-	blockThreshold   int
-	logThreshold     int
-	warnThreshold    int
+	blockThreshold int
+	logThreshold   int
+	warnThreshold  int
 
 	// Historical data for baseline
-	baselineTracker  *BaselineTracker
+	baselineTracker *BaselineTracker
 
 	// Correlation engine
-	correlator       *AttackCorrelator
+	correlator *AttackCorrelator
 
 	// Configuration
 	enableCorrelation bool
@@ -63,9 +63,9 @@ type EndpointBaseline struct {
 	LastUpdated       time.Time
 
 	// Rolling statistics
-	scores        []int
-	requestTimes  []time.Time
-	mu            sync.Mutex
+	scores       []int
+	requestTimes []time.Time
+	mu           sync.Mutex
 }
 
 // AttackCorrelator correlates multiple attack signals
@@ -113,27 +113,27 @@ type ScoringResult struct {
 
 // ScoringSignal represents a single detection signal
 type ScoringSignal struct {
-	Type        string
-	RawScore    int
-	Weight      float64
+	Type          string
+	RawScore      int
+	Weight        float64
 	WeightedScore float64
-	Confidence  float64
-	Matches     []string
+	Confidence    float64
+	Matches       []string
 }
 
 // NewScoringEngine creates a new scoring engine
 func NewScoringEngine(blockThreshold, logThreshold int) *ScoringEngine {
 	engine := &ScoringEngine{
 		weights: map[string]float64{
-			"sqli":        1.5,  // SQL injection is critical
-			"xss":         1.3,  // XSS is high priority
-			"traversal":   1.2,  // Path traversal
-			"rce":         2.0,  // RCE is most critical
-			"ssrf":        1.4,  // SSRF is high priority
-			"bot":         0.8,  // Bot detection is supporting signal
-			"rate_limit":  1.0,  // Rate limiting
-			"ip_block":    2.0,  // IP blocklist match
-			"rule_match":  1.0,  // Generic rule match
+			"sqli":       1.5, // SQL injection is critical
+			"xss":        1.3, // XSS is high priority
+			"traversal":  1.2, // Path traversal
+			"rce":        2.0, // RCE is most critical
+			"ssrf":       1.4, // SSRF is high priority
+			"bot":        0.8, // Bot detection is supporting signal
+			"rate_limit": 1.0, // Rate limiting
+			"ip_block":   2.0, // IP blocklist match
+			"rule_match": 1.0, // Generic rule match
 		},
 		blockThreshold:    blockThreshold,
 		logThreshold:      logThreshold,
@@ -198,11 +198,11 @@ func (e *ScoringEngine) Score(ctx context.Context, req *http.Request, signals ma
 		}
 
 		signal := ScoringSignal{
-			Type:        signalType,
-			RawScore:    data.Score,
-			Weight:      weight,
-			Confidence:  data.Confidence,
-			Matches:     data.Matches,
+			Type:       signalType,
+			RawScore:   data.Score,
+			Weight:     weight,
+			Confidence: data.Confidence,
+			Matches:    data.Matches,
 		}
 
 		// Apply weight
@@ -689,7 +689,10 @@ func min(a, b int) int {
 }
 
 // ScoreFromDetectionResult converts a DetectionResult to SignalData
-func ScoreFromDetectionResult(result interface{ GetScore() int; GetMatches() []string }) *SignalData {
+func ScoreFromDetectionResult(result interface {
+	GetScore() int
+	GetMatches() []string
+}) *SignalData {
 	return &SignalData{
 		Score:      result.GetScore(),
 		Confidence: 0.8, // Default confidence

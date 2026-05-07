@@ -15,18 +15,18 @@ import (
 // It translates alerts to Nagios passive check results and generates
 // host/service check definitions.
 type NagiosAdapter struct {
-	mu      sync.RWMutex
-	checks  []NagiosCheckResult
-	closed  atomic.Bool
+	mu     sync.RWMutex
+	checks []NagiosCheckResult
+	closed atomic.Bool
 }
 
 // NagiosCheckResult represents a Nagios passive check result.
 type NagiosCheckResult struct {
-	Host        string    `json:"host"`
-	Service     string    `json:"service"`
-	ReturnCode  int       `json:"return_code"` // 0=OK, 1=WARNING, 2=CRITICAL, 3=UNKNOWN
-	Output      string    `json:"output"`
-	Timestamp   time.Time `json:"timestamp"`
+	Host       string    `json:"host"`
+	Service    string    `json:"service"`
+	ReturnCode int       `json:"return_code"` // 0=OK, 1=WARNING, 2=CRITICAL, 3=UNKNOWN
+	Output     string    `json:"output"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // NewNagiosAdapter creates a Nagios monitoring adapter.

@@ -236,7 +236,7 @@ func TestTraceIDFromHex_Invalid(t *testing.T) {
 		"",
 		"too-short",
 		"0123456789abcdef0123456789abcdeg", // invalid hex char
-		"0123456789abcdef",                  // 16 chars (only 8 bytes)
+		"0123456789abcdef",                 // 16 chars (only 8 bytes)
 	}
 	for _, s := range tests {
 		_, err := TraceIDFromHex(s)

@@ -453,14 +453,14 @@ func buildInitProgram() []byte {
 
 	// Code instructions
 	code := []uint32{
-		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite),   // r0 = SYS_WRITE
-		mbcEncode(mbcMOVI, 1, 0, 1),              // r1 = fd 1 (stdout)
-		mbcEncode(mbcMOVI, 2, 0, 0),              // r2 = msg addr (patched below)
+		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite),      // r0 = SYS_WRITE
+		mbcEncode(mbcMOVI, 1, 0, 1),                // r1 = fd 1 (stdout)
+		mbcEncode(mbcMOVI, 2, 0, 0),                // r2 = msg addr (patched below)
 		mbcEncode(mbcMOVI, 3, 0, uint16(len(msg))), // r3 = msg len
-		mbcEncode(mbcINT, 0, 0, 0x80),             // INT 0x80
-		mbcEncode(mbcMOVI, 0, 0, mbcSysExit),      // r0 = SYS_EXIT
-		mbcEncode(mbcMOVI, 1, 0, 0),               // r1 = exit code 0
-		mbcEncode(mbcINT, 0, 0, 0x80),             // INT 0x80
+		mbcEncode(mbcINT, 0, 0, 0x80),              // INT 0x80
+		mbcEncode(mbcMOVI, 0, 0, mbcSysExit),       // r0 = SYS_EXIT
+		mbcEncode(mbcMOVI, 1, 0, 0),                // r1 = exit code 0
+		mbcEncode(mbcINT, 0, 0, 0x80),              // INT 0x80
 	}
 
 	dataWords := mbcPackString(msg)
@@ -484,25 +484,25 @@ func buildShellProgram() []byte {
 
 	code := []uint32{
 		// Print prompt
-		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite),       // r0 = SYS_WRITE
-		mbcEncode(mbcMOVI, 1, 0, 1),                  // r1 = fd 1 (stdout)
-		mbcEncode(mbcMOVI, 2, 0, 0),                  // r2 = prompt addr (patched)
+		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite),         // r0 = SYS_WRITE
+		mbcEncode(mbcMOVI, 1, 0, 1),                   // r1 = fd 1 (stdout)
+		mbcEncode(mbcMOVI, 2, 0, 0),                   // r2 = prompt addr (patched)
 		mbcEncode(mbcMOVI, 3, 0, uint16(len(prompt))), // r3 = prompt len
 		mbcEncode(mbcINT, 0, 0, 0x80),                 // INT 0x80
 
 		// Read 1 byte from stdin into buffer area
-		mbcEncode(mbcMOVI, 0, 0, 3),    // r0 = SYS_READ
-		mbcEncode(mbcMOVI, 1, 0, 0),    // r1 = fd 0 (stdin)
-		mbcEncode(mbcMOVI, 2, 0, 0),    // r2 = read buf addr (patched)
-		mbcEncode(mbcMOVI, 3, 0, 1),    // r3 = count 1
-		mbcEncode(mbcINT, 0, 0, 0x80),  // INT 0x80
+		mbcEncode(mbcMOVI, 0, 0, 3),   // r0 = SYS_READ
+		mbcEncode(mbcMOVI, 1, 0, 0),   // r1 = fd 0 (stdin)
+		mbcEncode(mbcMOVI, 2, 0, 0),   // r2 = read buf addr (patched)
+		mbcEncode(mbcMOVI, 3, 0, 1),   // r3 = count 1
+		mbcEncode(mbcINT, 0, 0, 0x80), // INT 0x80
 
 		// Echo byte back to stdout
 		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite), // r0 = SYS_WRITE
-		mbcEncode(mbcMOVI, 1, 0, 1),            // r1 = fd 1 (stdout)
-		mbcEncode(mbcMOVI, 2, 0, 0),            // r2 = read buf addr (patched)
-		mbcEncode(mbcMOVI, 3, 0, 1),            // r3 = count 1
-		mbcEncode(mbcINT, 0, 0, 0x80),          // INT 0x80
+		mbcEncode(mbcMOVI, 1, 0, 1),           // r1 = fd 1 (stdout)
+		mbcEncode(mbcMOVI, 2, 0, 0),           // r2 = read buf addr (patched)
+		mbcEncode(mbcMOVI, 3, 0, 1),           // r3 = count 1
+		mbcEncode(mbcINT, 0, 0, 0x80),         // INT 0x80
 
 		// Loop back to prompt (JMP offset = -16 relative)
 		// JMP opcode = 0x20, imm16 = 0xFFF0 (-16 as unsigned)

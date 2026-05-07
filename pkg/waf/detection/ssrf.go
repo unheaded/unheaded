@@ -21,13 +21,13 @@ import (
 // Rust acceleration planned with async DNS (trust-dns) and connection tracking.
 // See docs/WAF_ARCHITECTURE.md for migration strategy.
 type SSRFDetector struct {
-	patterns          []*regexp.Regexp
-	privateNetworks   []*net.IPNet
-	cloudMetadata     map[string]int // Cloud metadata endpoints with risk scores
+	patterns           []*regexp.Regexp
+	privateNetworks    []*net.IPNet
+	cloudMetadata      map[string]int // Cloud metadata endpoints with risk scores
 	dangerousProtocols map[string]int // Dangerous protocols with risk scores
-	dangerousPorts    map[int]int    // Dangerous ports with risk scores
-	dnsCache          *DNSCache      // DNS resolution cache for rebinding protection
-	strict            bool
+	dangerousPorts     map[int]int    // Dangerous ports with risk scores
+	dnsCache           *DNSCache      // DNS resolution cache for rebinding protection
+	strict             bool
 }
 
 // DNSCache provides DNS caching for rebinding attack protection
@@ -109,11 +109,11 @@ func NewSSRFDetector(strict bool) *SSRFDetector {
 		`127\.0\.0\.1`,
 		`127\.\d{1,3}\.\d{1,3}\.\d{1,3}`,
 		`0\.0\.0\.0`,
-		`0x7f[0-9a-f]{6}`,          // Hex IP
-		`0177\.0+\.0+\.0*1`,        // Octal IP
-		`2130706433`,               // Decimal IP (127.0.0.1)
-		`017700000001`,             // Octal full
-		`0x7f000001`,               // Hex full
+		`0x7f[0-9a-f]{6}`,   // Hex IP
+		`0177\.0+\.0+\.0*1`, // Octal IP
+		`2130706433`,        // Decimal IP (127.0.0.1)
+		`017700000001`,      // Octal full
+		`0x7f000001`,        // Hex full
 
 		// IPv6 loopback variations
 		`::1`,
@@ -124,14 +124,14 @@ func NewSSRFDetector(strict bool) *SSRFDetector {
 
 		// Private IP ranges - Class A (10.x.x.x)
 		`10\.\d{1,3}\.\d{1,3}\.\d{1,3}`,
-		`0xa[0-9a-f]{6}`,           // Hex 10.x.x.x
+		`0xa[0-9a-f]{6}`, // Hex 10.x.x.x
 
 		// Private IP ranges - Class B (172.16.x.x - 172.31.x.x)
 		`172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}`,
 
 		// Private IP ranges - Class C (192.168.x.x)
 		`192\.168\.\d{1,3}\.\d{1,3}`,
-		`0xc0a8[0-9a-f]{4}`,        // Hex 192.168.x.x
+		`0xc0a8[0-9a-f]{4}`, // Hex 192.168.x.x
 
 		// Link-local addresses
 		`169\.254\.\d{1,3}\.\d{1,3}`,
@@ -178,7 +178,7 @@ func NewSSRFDetector(strict bool) *SSRFDetector {
 		`(?i)kube-system`,
 		`(?i)\/api\/v1\/namespaces`,
 		`(?i)kubernetes-dashboard`,
-		`(?i)10\.96\.0\.1`,        // Default k8s service IP
+		`(?i)10\.96\.0\.1`, // Default k8s service IP
 
 		// Docker
 		`(?i)docker\.sock`,
@@ -231,29 +231,29 @@ func NewSSRFDetector(strict bool) *SSRFDetector {
 		`(?i):\/\/[^:]+:[^@]+@`,
 
 		// Common internal service ports in URLs
-		`(?i):22\/`,   // SSH
-		`(?i):23\/`,   // Telnet
-		`(?i):25\/`,   // SMTP
-		`(?i):110\/`,  // POP3
-		`(?i):143\/`,  // IMAP
-		`(?i):389\/`,  // LDAP
-		`(?i):636\/`,  // LDAPS
-		`(?i):1433\/`, // MSSQL
-		`(?i):3306\/`, // MySQL
-		`(?i):5432\/`, // PostgreSQL
-		`(?i):6379\/`, // Redis
+		`(?i):22\/`,    // SSH
+		`(?i):23\/`,    // Telnet
+		`(?i):25\/`,    // SMTP
+		`(?i):110\/`,   // POP3
+		`(?i):143\/`,   // IMAP
+		`(?i):389\/`,   // LDAP
+		`(?i):636\/`,   // LDAPS
+		`(?i):1433\/`,  // MSSQL
+		`(?i):3306\/`,  // MySQL
+		`(?i):5432\/`,  // PostgreSQL
+		`(?i):6379\/`,  // Redis
 		`(?i):11211\/`, // Memcached
 		`(?i):27017\/`, // MongoDB
-		`(?i):9200\/`, // Elasticsearch
-		`(?i):9300\/`, // Elasticsearch
-		`(?i):2375\/`, // Docker
-		`(?i):2376\/`, // Docker TLS
-		`(?i):5672\/`, // RabbitMQ
+		`(?i):9200\/`,  // Elasticsearch
+		`(?i):9300\/`,  // Elasticsearch
+		`(?i):2375\/`,  // Docker
+		`(?i):2376\/`,  // Docker TLS
+		`(?i):5672\/`,  // RabbitMQ
 		`(?i):15672\/`, // RabbitMQ Management
-		`(?i):8500\/`, // Consul
-		`(?i):8600\/`, // Consul DNS
-		`(?i):2379\/`, // etcd
-		`(?i):2380\/`, // etcd
+		`(?i):8500\/`,  // Consul
+		`(?i):8600\/`,  // Consul DNS
+		`(?i):2379\/`,  // etcd
+		`(?i):2380\/`,  // etcd
 
 		// Redis commands in URL
 		`(?i)slaveof`,
@@ -273,22 +273,22 @@ func NewSSRFDetector(strict bool) *SSRFDetector {
 
 	// Cloud metadata endpoints with risk scores
 	cloudMetadata := map[string]int{
-		"169.254.169.254":           30, // AWS/Azure/GCP metadata
-		"metadata.google.internal":  30,
-		"metadata.google.com":       25,
-		"100.100.100.200":           25, // Alibaba
-		"instance-data":             20,
-		"computeMetadata":           25,
+		"169.254.169.254":          30, // AWS/Azure/GCP metadata
+		"metadata.google.internal": 30,
+		"metadata.google.com":      25,
+		"100.100.100.200":          25, // Alibaba
+		"instance-data":            20,
+		"computeMetadata":          25,
 	}
 
 	// Dangerous protocols with risk scores
 	dangerousProtocols := map[string]int{
-		"file":    25, "gopher":  30, "dict":  25,
-		"ldap":    20, "ldaps":   20, "sftp":  15,
-		"tftp":    20, "jar":     15, "netdoc": 20,
-		"php":     25, "phar":    25, "data":   15,
-		"glob":    20, "expect":  30, "ssh2":   20,
-		"rar":     15, "ogg":     10, "zip":    15,
+		"file": 25, "gopher": 30, "dict": 25,
+		"ldap": 20, "ldaps": 20, "sftp": 15,
+		"tftp": 20, "jar": 15, "netdoc": 20,
+		"php": 25, "phar": 25, "data": 15,
+		"glob": 20, "expect": 30, "ssh2": 20,
+		"rar": 15, "ogg": 10, "zip": 15,
 	}
 
 	// Dangerous ports with risk scores
@@ -319,19 +319,19 @@ func NewSSRFDetector(strict bool) *SSRFDetector {
 
 	// Initialize private networks
 	privateRanges := []string{
-		"10.0.0.0/8",       // Class A private
-		"172.16.0.0/12",    // Class B private
-		"192.168.0.0/16",   // Class C private
-		"127.0.0.0/8",      // Loopback
-		"169.254.0.0/16",   // Link-local
-		"0.0.0.0/8",        // Current network
-		"100.64.0.0/10",    // Carrier-grade NAT
-		"192.0.0.0/24",     // IETF Protocol
-		"192.0.2.0/24",     // TEST-NET-1
-		"198.51.100.0/24",  // TEST-NET-2
-		"203.0.113.0/24",   // TEST-NET-3
-		"224.0.0.0/4",      // Multicast
-		"240.0.0.0/4",      // Reserved
+		"10.0.0.0/8",         // Class A private
+		"172.16.0.0/12",      // Class B private
+		"192.168.0.0/16",     // Class C private
+		"127.0.0.0/8",        // Loopback
+		"169.254.0.0/16",     // Link-local
+		"0.0.0.0/8",          // Current network
+		"100.64.0.0/10",      // Carrier-grade NAT
+		"192.0.0.0/24",       // IETF Protocol
+		"192.0.2.0/24",       // TEST-NET-1
+		"198.51.100.0/24",    // TEST-NET-2
+		"203.0.113.0/24",     // TEST-NET-3
+		"224.0.0.0/4",        // Multicast
+		"240.0.0.0/4",        // Reserved
 		"255.255.255.255/32", // Broadcast
 	}
 
@@ -887,12 +887,12 @@ func (d *SSRFDetector) IsCloudMetadata(host string) bool {
 // GetDangerousPortInfo returns information about a dangerous port
 func (d *SSRFDetector) GetDangerousPortInfo(port int) (bool, string) {
 	portServices := map[int]string{
-		22:    "SSH", 23: "Telnet", 25: "SMTP", 110: "POP3",
-		143:   "IMAP", 389: "LDAP", 636: "LDAPS", 1433: "MSSQL",
-		3306:  "MySQL", 5432: "PostgreSQL", 6379: "Redis",
+		22: "SSH", 23: "Telnet", 25: "SMTP", 110: "POP3",
+		143: "IMAP", 389: "LDAP", 636: "LDAPS", 1433: "MSSQL",
+		3306: "MySQL", 5432: "PostgreSQL", 6379: "Redis",
 		11211: "Memcached", 27017: "MongoDB", 9200: "Elasticsearch",
-		2375:  "Docker", 2376: "Docker TLS", 5672: "RabbitMQ",
-		8500:  "Consul", 2379: "etcd", 6443: "Kubernetes API",
+		2375: "Docker", 2376: "Docker TLS", 5672: "RabbitMQ",
+		8500: "Consul", 2379: "etcd", 6443: "Kubernetes API",
 		10250: "Kubelet", 10255: "Kubelet Read-only",
 	}
 

@@ -7,13 +7,13 @@
 // inside other Go services) and as a standalone HTTP daemon (this binary).
 // The daemon exposes:
 //
-//   GET /health   — liveness
-//   GET /ready    — readiness
-//   GET /metrics  — Prometheus metrics
-//   GET /api/v1/rules            — list active WAF rules
-//   POST /api/v1/rules           — add a WAF rule (JSON body: shield.Rule)
-//   DELETE /api/v1/rules/<id>    — remove a WAF rule
-//   POST /api/v1/evaluate        — evaluate a request against the rule set
+//	GET /health   — liveness
+//	GET /ready    — readiness
+//	GET /metrics  — Prometheus metrics
+//	GET /api/v1/rules            — list active WAF rules
+//	POST /api/v1/rules           — add a WAF rule (JSON body: shield.Rule)
+//	DELETE /api/v1/rules/<id>    — remove a WAF rule
+//	POST /api/v1/evaluate        — evaluate a request against the rule set
 //
 // Default port: pkg/ports.Shield (19009). Override via -port or SHIELD_PORT.
 //
@@ -44,8 +44,8 @@ import (
 
 func main() {
 	var (
-		port       = flag.Int("port", ports.Shield, "HTTP port to bind")
-		wotanAddr  = flag.String("wotan-grpc", "127.0.0.1:18001", "Wotan gRPC address")
+		port        = flag.Int("port", ports.Shield, "HTTP port to bind")
+		wotanAddr   = flag.String("wotan-grpc", "127.0.0.1:18001", "Wotan gRPC address")
 		shutTimeout = flag.Duration("shutdown-timeout", 10*time.Second, "graceful shutdown deadline")
 	)
 	flag.Parse()

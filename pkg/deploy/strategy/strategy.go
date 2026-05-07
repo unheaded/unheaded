@@ -13,12 +13,12 @@ import (
 
 // Common errors returned by strategy operations.
 var (
-	ErrStrategyNotFound    = errors.New("strategy not found")
-	ErrInvalidConfig       = errors.New("invalid strategy configuration")
+	ErrStrategyNotFound     = errors.New("strategy not found")
+	ErrInvalidConfig        = errors.New("invalid strategy configuration")
 	ErrInstanceUpdateFailed = errors.New("instance update failed")
-	ErrRollbackRequired    = errors.New("rollback required")
-	ErrTrafficShiftFailed  = errors.New("traffic shift failed")
-	ErrHealthCheckTimeout  = errors.New("health check timeout")
+	ErrRollbackRequired     = errors.New("rollback required")
+	ErrTrafficShiftFailed   = errors.New("traffic shift failed")
+	ErrHealthCheckTimeout   = errors.New("health check timeout")
 )
 
 // Type represents the type of deployment strategy.
@@ -410,8 +410,8 @@ func DefaultConfig(t Type) *Config {
 
 	case TypeCanary:
 		return &Config{
-			Type:       TypeCanary,
-			AutoPromote: false,
+			Type:           TypeCanary,
+			AutoPromote:    false,
 			PromoteTimeout: 1 * time.Hour,
 			Steps: []CanaryStep{
 				{Weight: 1, Pause: 1 * time.Minute, Analysis: true},
@@ -420,9 +420,9 @@ func DefaultConfig(t Type) *Config {
 				{Weight: 100, Pause: 0, Analysis: false},
 			},
 			Analysis: &AnalysisConfig{
-				ErrorRateThreshold:   0.01,  // 1% error rate
+				ErrorRateThreshold:   0.01, // 1% error rate
 				LatencyP99Threshold:  500 * time.Millisecond,
-				SuccessRateThreshold: 0.99,  // 99% success rate
+				SuccessRateThreshold: 0.99, // 99% success rate
 				MinSampleSize:        100,
 				Interval:             30 * time.Second,
 			},

@@ -14,34 +14,34 @@ import (
 	"sync"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Rule represents a WAF rule.
 type Rule struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	Type        RuleType   `json:"type"`
-	Action      RuleAction `json:"action"`
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Type        RuleType    `json:"type"`
+	Action      RuleAction  `json:"action"`
 	Conditions  []Condition `json:"conditions"`
-	Priority    int        `json:"priority"`
-	Enabled     bool       `json:"enabled"`
-	CreatedAt   time.Time  `json:"created_at"`
+	Priority    int         `json:"priority"`
+	Enabled     bool        `json:"enabled"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
 
 // RuleType categorizes rules.
 type RuleType string
 
 const (
-	RuleTypeRateLimit   RuleType = "rate_limit"
-	RuleTypeIPBlock     RuleType = "ip_block"
-	RuleTypeGeoBlock    RuleType = "geo_block"
+	RuleTypeRateLimit    RuleType = "rate_limit"
+	RuleTypeIPBlock      RuleType = "ip_block"
+	RuleTypeGeoBlock     RuleType = "geo_block"
 	RuleTypeSQLInjection RuleType = "sql_injection"
-	RuleTypeXSS         RuleType = "xss"
-	RuleTypeBot         RuleType = "bot_detection"
-	RuleTypeCustom      RuleType = "custom"
+	RuleTypeXSS          RuleType = "xss"
+	RuleTypeBot          RuleType = "bot_detection"
+	RuleTypeCustom       RuleType = "custom"
 )
 
 // RuleAction defines what happens when rule matches.
@@ -64,13 +64,13 @@ type Condition struct {
 
 // Request represents an incoming request to be evaluated.
 type Request struct {
-	ID         string              `json:"id"`
-	SourceIP   string              `json:"source_ip"`
-	Method     string              `json:"method"`
-	Path       string              `json:"path"`
-	Headers    map[string][]string `json:"headers"`
-	Body       []byte              `json:"body,omitempty"`
-	Timestamp  time.Time           `json:"timestamp"`
+	ID        string              `json:"id"`
+	SourceIP  string              `json:"source_ip"`
+	Method    string              `json:"method"`
+	Path      string              `json:"path"`
+	Headers   map[string][]string `json:"headers"`
+	Body      []byte              `json:"body,omitempty"`
+	Timestamp time.Time           `json:"timestamp"`
 }
 
 // Decision represents the shield's decision on a request.
@@ -110,13 +110,13 @@ type bucket struct {
 // Service is the main Shield WAF service.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
-	mu           sync.RWMutex
-	rules        map[string]*Rule
-	threats      []*ThreatEvent
-	rateLimiter  *RateLimiter
+	mu          sync.RWMutex
+	rules       map[string]*Rule
+	threats     []*ThreatEvent
+	rateLimiter *RateLimiter
 
 	// Counters
 	requestsProcessed int64
@@ -129,7 +129,7 @@ type Config struct {
 	RateLimitWindow     time.Duration `json:"rate_limit_window"`
 	MaxRequestBodySize  int64         `json:"max_request_body_size"`
 	EnableThreatLogging bool          `json:"enable_threat_logging"`
-	WotanTopic         string        `json:"wotan_topic"`
+	WotanTopic          string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -139,7 +139,7 @@ func DefaultConfig() *Config {
 		RateLimitWindow:     time.Minute,
 		MaxRequestBodySize:  10 * 1024 * 1024, // 10MB
 		EnableThreatLogging: true,
-		WotanTopic:         "shield.events",
+		WotanTopic:          "shield.events",
 	}
 }
 
@@ -150,10 +150,10 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 	}
 
 	return &Service{
-		log:    log,
-		wotan: wotan,
-		config: cfg,
-		rules:  make(map[string]*Rule),
+		log:     log,
+		wotan:   wotan,
+		config:  cfg,
+		rules:   make(map[string]*Rule),
 		threats: make([]*ThreatEvent, 0),
 		rateLimiter: &RateLimiter{
 			buckets: make(map[string]*bucket),
@@ -355,22 +355,22 @@ func (s *Service) matchesRule(req *Request, rule *Rule) bool {
 func (s *Service) registerDefaultRules() {
 	// SQL injection detection
 	s.AddRule(&Rule{
-		ID:          "sqli-detection",
-		Name:        "SQL Injection Detection",
-		Type:        RuleTypeSQLInjection,
-		Action:      ActionBlock,
-		Priority:    10,
-		Enabled:     true,
+		ID:       "sqli-detection",
+		Name:     "SQL Injection Detection",
+		Type:     RuleTypeSQLInjection,
+		Action:   ActionBlock,
+		Priority: 10,
+		Enabled:  true,
 	})
 
 	// XSS detection
 	s.AddRule(&Rule{
-		ID:          "xss-detection",
-		Name:        "XSS Detection",
-		Type:        RuleTypeXSS,
-		Action:      ActionBlock,
-		Priority:    10,
-		Enabled:     true,
+		ID:       "xss-detection",
+		Name:     "XSS Detection",
+		Type:     RuleTypeXSS,
+		Action:   ActionBlock,
+		Priority: 10,
+		Enabled:  true,
 	})
 }
 
@@ -398,7 +398,7 @@ func (rl *RateLimiter) Allow(key string, limit int, window time.Duration) bool {
 
 	// Refill tokens based on time passed
 	elapsed := time.Since(b.lastFill)
-	refill := int(elapsed / window) * limit
+	refill := int(elapsed/window) * limit
 	if refill > 0 {
 		b.tokens = min(limit, b.tokens+refill)
 		b.lastFill = time.Now()

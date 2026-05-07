@@ -214,9 +214,9 @@ type PathMatcher struct {
 }
 
 type pathSegment struct {
-	value    string
-	isParam  bool
-	isWild   bool
+	value   string
+	isParam bool
+	isWild  bool
 }
 
 // NewPathMatcher creates a new path matcher from a pattern.

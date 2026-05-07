@@ -22,13 +22,13 @@ type ResourceQuota struct {
 
 // ResourceLimits defines resource limits.
 type ResourceLimits struct {
-	CPU              int64 // millicores
-	Memory           int64 // bytes
-	Disk             int64 // bytes
-	GPUs             int32
-	Workloads        int   // max number of workloads
-	PriorityClasses  map[string]int // limits per priority class
-	Ephemeral        int64 // ephemeral storage
+	CPU             int64 // millicores
+	Memory          int64 // bytes
+	Disk            int64 // bytes
+	GPUs            int32
+	Workloads       int            // max number of workloads
+	PriorityClasses map[string]int // limits per priority class
+	Ephemeral       int64          // ephemeral storage
 }
 
 // NewResourceQuota creates a new resource quota.
@@ -276,20 +276,20 @@ func (m *QuotaManager) GetScopes(namespace string) []QuotaScope {
 
 // LimitRange defines resource limits for a namespace.
 type LimitRange struct {
-	Name        string
-	Namespace   string
-	Items       []LimitRangeItem
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Name      string
+	Namespace string
+	Items     []LimitRangeItem
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // LimitRangeItem defines limits for a resource type.
 type LimitRangeItem struct {
-	Type           LimitType
-	Default        Resources
-	DefaultRequest Resources
-	Max            Resources
-	Min            Resources
+	Type                 LimitType
+	Default              Resources
+	DefaultRequest       Resources
+	Max                  Resources
+	Min                  Resources
 	MaxLimitRequestRatio map[string]float64
 }
 
@@ -413,10 +413,10 @@ func (m *LimitRangeManager) ApplyDefaults(workload *Workload) {
 
 // PriorityClass defines a priority class.
 type PriorityClass struct {
-	Name            string
-	Value           int32
-	GlobalDefault   bool
-	Description     string
+	Name             string
+	Value            int32
+	GlobalDefault    bool
+	Description      string
 	PreemptionPolicy PreemptionPolicyType
 }
 
@@ -430,9 +430,9 @@ const (
 
 // PriorityClassManager manages priority classes.
 type PriorityClassManager struct {
-	mu            sync.RWMutex
-	classes       map[string]*PriorityClass
-	defaultClass  string
+	mu           sync.RWMutex
+	classes      map[string]*PriorityClass
+	defaultClass string
 }
 
 // NewPriorityClassManager creates a new priority class manager.
@@ -545,11 +545,11 @@ func (m *PriorityClassManager) GetPriority(className string) int32 {
 
 // QuotaStatus represents quota status.
 type QuotaStatus struct {
-	Namespace     string
-	Hard          ResourceLimits
-	Used          ResourceLimits
-	Percentage    float64
-	Status        QuotaStatusType
+	Namespace  string
+	Hard       ResourceLimits
+	Used       ResourceLimits
+	Percentage float64
+	Status     QuotaStatusType
 }
 
 // QuotaStatusType represents quota status type.

@@ -12,20 +12,20 @@ import (
 
 // AppPQCPolicy defines per-application PQC verification requirements.
 type AppPQCPolicy struct {
-	ServiceID    uint16   `yaml:"service_id" json:"service_id"`
-	ServiceName  string   `yaml:"service_name" json:"service_name"`
-	Mode         string   `yaml:"mode" json:"mode"`                 // "pessimistic" or "optimistic"
-	RequiredTier uint8    `yaml:"required_tier" json:"required_tier"`
-	AllowedAlgos []uint8  `yaml:"allowed_algos" json:"allowed_algos"`
-	MaxSigAgeSec uint32   `yaml:"max_sig_age_sec" json:"max_sig_age_sec"`
-	GraceSec     uint32   `yaml:"grace_sec" json:"grace_sec"`
-	Exempt       bool     `yaml:"exempt" json:"exempt"` // Skip PQC for this service
+	ServiceID    uint16  `yaml:"service_id" json:"service_id"`
+	ServiceName  string  `yaml:"service_name" json:"service_name"`
+	Mode         string  `yaml:"mode" json:"mode"` // "pessimistic" or "optimistic"
+	RequiredTier uint8   `yaml:"required_tier" json:"required_tier"`
+	AllowedAlgos []uint8 `yaml:"allowed_algos" json:"allowed_algos"`
+	MaxSigAgeSec uint32  `yaml:"max_sig_age_sec" json:"max_sig_age_sec"`
+	GraceSec     uint32  `yaml:"grace_sec" json:"grace_sec"`
+	Exempt       bool    `yaml:"exempt" json:"exempt"` // Skip PQC for this service
 }
 
 // Layer2PolicyConfig holds the YAML-driven per-app policy configuration.
 type Layer2PolicyConfig struct {
-	Version  string          `yaml:"version"`
-	Policies []AppPQCPolicy  `yaml:"policies"`
+	Version  string         `yaml:"version"`
+	Policies []AppPQCPolicy `yaml:"policies"`
 }
 
 // Layer2PolicyEngine manages per-application PQC policies.

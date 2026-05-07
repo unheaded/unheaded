@@ -21,11 +21,11 @@ type SlidingWindow struct {
 }
 
 type windowData struct {
-	counts    []int
-	total     int
-	lastIdx   int
-	lastTime  time.Time
-	mu        sync.Mutex
+	counts   []int
+	total    int
+	lastIdx  int
+	lastTime time.Time
+	mu       sync.Mutex
 }
 
 // NewSlidingWindow creates a new sliding window rate limiter

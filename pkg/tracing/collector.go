@@ -22,8 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"net/http"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -40,14 +40,14 @@ import (
 // ============================================================================
 
 var (
-	ErrTraceNotFound     = errors.New("trace not found")
-	ErrSpanNotFound      = errors.New("span not found")
-	ErrInvalidTraceID    = errors.New("invalid trace ID")
-	ErrInvalidSpanID     = errors.New("invalid span ID")
-	ErrCollectorClosed   = errors.New("collector is closed")
-	ErrStorageFull       = errors.New("trace storage full")
-	ErrInvalidQuery      = errors.New("invalid query parameters")
-	ErrSamplingRejected  = errors.New("span rejected by sampler")
+	ErrTraceNotFound    = errors.New("trace not found")
+	ErrSpanNotFound     = errors.New("span not found")
+	ErrInvalidTraceID   = errors.New("invalid trace ID")
+	ErrInvalidSpanID    = errors.New("invalid span ID")
+	ErrCollectorClosed  = errors.New("collector is closed")
+	ErrStorageFull      = errors.New("trace storage full")
+	ErrInvalidQuery     = errors.New("invalid query parameters")
+	ErrSamplingRejected = errors.New("span rejected by sampler")
 	ErrWotanUnavailable = errors.New("wotan connection unavailable")
 )
 
@@ -376,22 +376,22 @@ func (e *KernelEvent) HasTraceID() bool {
 
 // Trace represents a collection of spans with a shared trace ID
 type Trace struct {
-	TraceID   TraceID        `json:"trace_id"`
-	RootSpan  *Span          `json:"root_span,omitempty"`
-	Spans     []*Span        `json:"spans"`
-	StartTime time.Time      `json:"start_time"`
-	EndTime   time.Time      `json:"end_time"`
-	Duration  time.Duration  `json:"duration_ns"`
-	Services  []string       `json:"services"`
-	HasError  bool           `json:"has_error"`
-	SpanCount int            `json:"span_count"`
-	Depth     int            `json:"depth"` // Maximum span depth
+	TraceID   TraceID       `json:"trace_id"`
+	RootSpan  *Span         `json:"root_span,omitempty"`
+	Spans     []*Span       `json:"spans"`
+	StartTime time.Time     `json:"start_time"`
+	EndTime   time.Time     `json:"end_time"`
+	Duration  time.Duration `json:"duration_ns"`
+	Services  []string      `json:"services"`
+	HasError  bool          `json:"has_error"`
+	SpanCount int           `json:"span_count"`
+	Depth     int           `json:"depth"` // Maximum span depth
 
 	// Kernel events correlated to this trace
 	KernelEvents []*KernelEvent `json:"kernel_events,omitempty"`
 
 	// Derived metrics
-	TotalLatencyNs uint64 `json:"total_latency_ns"`
+	TotalLatencyNs  uint64 `json:"total_latency_ns"`
 	KernelLatencyNs uint64 `json:"kernel_latency_ns"`
 }
 
@@ -507,7 +507,7 @@ type TraceQuery struct {
 	Offset int `json:"offset,omitempty"`
 
 	// Sort order
-	OrderBy   string `json:"order_by,omitempty"`   // start_time, duration, span_count
+	OrderBy   string `json:"order_by,omitempty"` // start_time, duration, span_count
 	Ascending bool   `json:"ascending,omitempty"`
 }
 
@@ -541,9 +541,9 @@ type TraceQueryResult struct {
 
 // StreamFilter defines parameters for filtering the trace stream
 type StreamFilter struct {
-	ServiceNames []string `json:"service_names,omitempty"`
+	ServiceNames []string      `json:"service_names,omitempty"`
 	MinDuration  time.Duration `json:"min_duration_ns,omitempty"`
-	ErrorsOnly   bool     `json:"errors_only,omitempty"`
+	ErrorsOnly   bool          `json:"errors_only,omitempty"`
 }
 
 // ============================================================================
@@ -559,7 +559,7 @@ type SamplerConfig struct {
 	AlwaysSampleErrors bool `json:"always_sample_errors"`
 
 	// Always sample slow traces
-	AlwaysSampleSlowTraces bool `json:"always_sample_slow"`
+	AlwaysSampleSlowTraces bool          `json:"always_sample_slow"`
 	SlowTraceThreshold     time.Duration `json:"slow_trace_threshold_ns"`
 
 	// Rate limiting (traces per second)
@@ -878,10 +878,10 @@ func (s *TraceStorage) Stats() StorageStats {
 
 // StorageStats represents storage statistics
 type StorageStats struct {
-	TraceCount    int   `json:"trace_count"`
-	StorageBytes  int64 `json:"storage_bytes"`
+	TraceCount    int    `json:"trace_count"`
+	StorageBytes  int64  `json:"storage_bytes"`
 	EvictionCount uint64 `json:"eviction_count"`
-	ServiceCount  int   `json:"service_count"`
+	ServiceCount  int    `json:"service_count"`
 }
 
 func (s *TraceStorage) estimateTraceSize(trace *Trace) int64 {
@@ -1129,13 +1129,13 @@ type WotanPublisher interface {
 
 // WotanConfig configures Wotan integration
 type WotanConfig struct {
-	Address           string        `json:"address"`
-	TraceTopic        string        `json:"trace_topic"`
-	SpanTopic         string        `json:"span_topic"`
-	KernelEventTopic  string        `json:"kernel_event_topic"`
-	PublishTimeout    time.Duration `json:"publish_timeout_ns"`
-	BatchSize         int           `json:"batch_size"`
-	FlushInterval     time.Duration `json:"flush_interval_ns"`
+	Address          string        `json:"address"`
+	TraceTopic       string        `json:"trace_topic"`
+	SpanTopic        string        `json:"span_topic"`
+	KernelEventTopic string        `json:"kernel_event_topic"`
+	PublishTimeout   time.Duration `json:"publish_timeout_ns"`
+	BatchSize        int           `json:"batch_size"`
+	FlushInterval    time.Duration `json:"flush_interval_ns"`
 }
 
 // ============================================================================
@@ -1160,7 +1160,7 @@ type CollectorConfig struct {
 	Wotan WotanConfig `json:"wotan"`
 
 	// Correlation settings
-	CorrelationWindow  time.Duration `json:"correlation_window_ns"`
+	CorrelationWindow   time.Duration `json:"correlation_window_ns"`
 	CorrelationInterval time.Duration `json:"correlation_interval_ns"`
 
 	// Cleanup settings
@@ -1174,9 +1174,9 @@ type Collector struct {
 	sampler *Sampler
 
 	// Pending spans by trace ID (for correlation)
-	pendingSpans   map[TraceID][]*Span
-	pendingKernel  map[TraceID][]*KernelEvent
-	pendingMu      sync.RWMutex
+	pendingSpans  map[TraceID][]*Span
+	pendingKernel map[TraceID][]*KernelEvent
+	pendingMu     sync.RWMutex
 
 	// Wotan publisher
 	wotan WotanPublisher
@@ -1207,8 +1207,8 @@ type collectorMetrics struct {
 	correlationTime  prometheus.Histogram
 	queryLatency     prometheus.Histogram
 	samplingRejected prometheus.Counter
-	wotanPublished  prometheus.Counter
-	wotanErrors     prometheus.Counter
+	wotanPublished   prometheus.Counter
+	wotanErrors      prometheus.Counter
 }
 
 func newCollectorMetrics(reg prometheus.Registerer) *collectorMetrics {
@@ -1287,7 +1287,7 @@ func NewCollector(config CollectorConfig, wotan WotanPublisher, reg prometheus.R
 		sampler:       NewSampler(config.Sampling),
 		pendingSpans:  make(map[TraceID][]*Span),
 		pendingKernel: make(map[TraceID][]*KernelEvent),
-		wotan:        wotan,
+		wotan:         wotan,
 		streamSubs:    make(map[chan *Trace]*StreamFilter),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -1698,10 +1698,10 @@ func (c *Collector) serveHTTP() {
 	mux.HandleFunc("/api/v1/stats", c.handleStats)
 
 	c.httpServer = &http.Server{
-		Addr:         c.config.HTTPAddr,
-		Handler:      mux,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:           c.config.HTTPAddr,
+		Handler:        mux,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
@@ -1948,9 +1948,9 @@ type OTLPSpan struct {
 		Message string `json:"message"`
 	} `json:"status"`
 	Events []struct {
-		Name              string            `json:"name"`
-		TimeUnixNano      uint64            `json:"time_unix_nano"`
-		Attributes        map[string]string `json:"attributes"`
+		Name         string            `json:"name"`
+		TimeUnixNano uint64            `json:"time_unix_nano"`
+		Attributes   map[string]string `json:"attributes"`
 	} `json:"events"`
 }
 

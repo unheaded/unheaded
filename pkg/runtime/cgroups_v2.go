@@ -47,24 +47,24 @@ type CgroupV2Manager struct {
 // CgroupV2Config contains configuration for creating a cgroup.
 type CgroupV2Config struct {
 	// CPU configuration
-	CPUWeight     uint64 // cpu.weight (1-10000, default 100)
-	CPUMax        int64  // cpu.max quota in microseconds (-1 for max)
-	CPUMaxPeriod  uint64 // cpu.max period in microseconds (default 100000)
-	CPUSetCPUs    string // cpuset.cpus
-	CPUSetMems    string // cpuset.mems
+	CPUWeight       uint64 // cpu.weight (1-10000, default 100)
+	CPUMax          int64  // cpu.max quota in microseconds (-1 for max)
+	CPUMaxPeriod    uint64 // cpu.max period in microseconds (default 100000)
+	CPUSetCPUs      string // cpuset.cpus
+	CPUSetMems      string // cpuset.mems
 	CPUSetPartition string // cpuset.cpus.partition (root, member, isolated)
 
 	// Memory configuration
-	MemoryMax     int64  // memory.max in bytes (-1 for max)
-	MemoryHigh    int64  // memory.high in bytes (-1 for max)
-	MemoryLow     int64  // memory.low in bytes
-	MemoryMin     int64  // memory.min in bytes (guaranteed minimum)
-	MemorySwapMax int64  // memory.swap.max in bytes (-1 for max)
+	MemoryMax      int64 // memory.max in bytes (-1 for max)
+	MemoryHigh     int64 // memory.high in bytes (-1 for max)
+	MemoryLow      int64 // memory.low in bytes
+	MemoryMin      int64 // memory.min in bytes (guaranteed minimum)
+	MemorySwapMax  int64 // memory.swap.max in bytes (-1 for max)
 	MemoryOOMGroup bool  // memory.oom.group
 
 	// IO configuration
-	IOWeight uint16                // io.weight (1-10000, default 100)
-	IOMax    []CgroupIOMaxConfig   // io.max per device
+	IOWeight uint16              // io.weight (1-10000, default 100)
+	IOMax    []CgroupIOMaxConfig // io.max per device
 
 	// PIDs configuration
 	PidsMax int64 // pids.max (-1 for max)
@@ -112,77 +112,77 @@ type CgroupV2Stats struct {
 
 // CgroupCPUStats contains CPU statistics.
 type CgroupCPUStats struct {
-	UsageUsec           uint64 // Total CPU time consumed in microseconds
-	UserUsec            uint64 // User CPU time
-	SystemUsec          uint64 // System CPU time
-	NrPeriods           uint64 // Number of enforcement intervals
-	NrThrottled         uint64 // Number of times throttled
-	ThrottledUsec       uint64 // Total throttle time in microseconds
-	NrBursts            uint64 // Number of burst periods
-	BurstUsec           uint64 // Total burst time
-	Pressure            *PressureData
+	UsageUsec     uint64 // Total CPU time consumed in microseconds
+	UserUsec      uint64 // User CPU time
+	SystemUsec    uint64 // System CPU time
+	NrPeriods     uint64 // Number of enforcement intervals
+	NrThrottled   uint64 // Number of times throttled
+	ThrottledUsec uint64 // Total throttle time in microseconds
+	NrBursts      uint64 // Number of burst periods
+	BurstUsec     uint64 // Total burst time
+	Pressure      *PressureData
 }
 
 // CgroupMemoryStats contains memory statistics.
 type CgroupMemoryStats struct {
-	Current       uint64 // Current memory usage
-	Peak          uint64 // Peak memory usage
-	High          uint64 // High watermark
-	Max           uint64 // Maximum limit
-	Min           uint64 // Minimum guaranteed
-	Low           uint64 // Low watermark
-	SwapCurrent   uint64 // Current swap usage
-	SwapHigh      uint64 // Swap high watermark
-	SwapMax       uint64 // Swap maximum
-	Anon          uint64 // Anonymous memory
-	File          uint64 // Page cache
-	Kernel        uint64 // Kernel memory
-	KernelStack   uint64 // Kernel stack
-	Slab          uint64 // Slab memory
-	Sock          uint64 // Socket buffers
-	Shmem         uint64 // Shared memory
-	FileMapped    uint64 // Mapped files
-	FileDirty     uint64 // Dirty pages
-	FileWriteback uint64 // Pages under writeback
-	AnonThp       uint64 // Anonymous huge pages
-	InactiveAnon  uint64 // Inactive anonymous pages
-	ActiveAnon    uint64 // Active anonymous pages
-	InactiveFile  uint64 // Inactive file pages
-	ActiveFile    uint64 // Active file pages
-	Unevictable   uint64 // Unevictable pages
-	SlabReclaimable   uint64 // Reclaimable slab
-	SlabUnreclaimable uint64 // Unreclaimable slab
-	Pgfault       uint64 // Page faults
-	Pgmajfault    uint64 // Major page faults
+	Current               uint64 // Current memory usage
+	Peak                  uint64 // Peak memory usage
+	High                  uint64 // High watermark
+	Max                   uint64 // Maximum limit
+	Min                   uint64 // Minimum guaranteed
+	Low                   uint64 // Low watermark
+	SwapCurrent           uint64 // Current swap usage
+	SwapHigh              uint64 // Swap high watermark
+	SwapMax               uint64 // Swap maximum
+	Anon                  uint64 // Anonymous memory
+	File                  uint64 // Page cache
+	Kernel                uint64 // Kernel memory
+	KernelStack           uint64 // Kernel stack
+	Slab                  uint64 // Slab memory
+	Sock                  uint64 // Socket buffers
+	Shmem                 uint64 // Shared memory
+	FileMapped            uint64 // Mapped files
+	FileDirty             uint64 // Dirty pages
+	FileWriteback         uint64 // Pages under writeback
+	AnonThp               uint64 // Anonymous huge pages
+	InactiveAnon          uint64 // Inactive anonymous pages
+	ActiveAnon            uint64 // Active anonymous pages
+	InactiveFile          uint64 // Inactive file pages
+	ActiveFile            uint64 // Active file pages
+	Unevictable           uint64 // Unevictable pages
+	SlabReclaimable       uint64 // Reclaimable slab
+	SlabUnreclaimable     uint64 // Unreclaimable slab
+	Pgfault               uint64 // Page faults
+	Pgmajfault            uint64 // Major page faults
 	WorkingsetRefault     uint64
 	WorkingsetActivate    uint64
 	WorkingsetNodereclaim uint64
-	Pgrefill      uint64
-	Pgscan        uint64
-	Pgsteal       uint64
-	Pgactivate    uint64
-	Pgdeactivate  uint64
-	Pglazyfree    uint64
-	Pglazyfreed   uint64
-	ThpFaultAlloc uint64
-	ThpCollapseAlloc uint64
-	Events        MemoryEvents
-	Pressure      *PressureData
+	Pgrefill              uint64
+	Pgscan                uint64
+	Pgsteal               uint64
+	Pgactivate            uint64
+	Pgdeactivate          uint64
+	Pglazyfree            uint64
+	Pglazyfreed           uint64
+	ThpFaultAlloc         uint64
+	ThpCollapseAlloc      uint64
+	Events                MemoryEvents
+	Pressure              *PressureData
 }
 
 // MemoryEvents contains memory event counters.
 type MemoryEvents struct {
-	Low        uint64 // Times the cgroup was reclaimed due to high memory pressure
-	High       uint64 // Times the memory usage was above memory.high
-	Max        uint64 // Times the memory usage hit memory.max limit
-	OOM        uint64 // Times the cgroup ran out of memory
-	OOMKill    uint64 // Number of processes killed due to memory.max
+	Low          uint64 // Times the cgroup was reclaimed due to high memory pressure
+	High         uint64 // Times the memory usage was above memory.high
+	Max          uint64 // Times the memory usage hit memory.max limit
+	OOM          uint64 // Times the cgroup ran out of memory
+	OOMKill      uint64 // Number of processes killed due to memory.max
 	OOMGroupKill uint64 // Number of times all processes were killed due to memory.oom.group
 }
 
 // CgroupIOStats contains IO statistics.
 type CgroupIOStats struct {
-	Devices []DeviceIOStats
+	Devices  []DeviceIOStats
 	Pressure *PressureData
 }
 
@@ -225,10 +225,10 @@ type PressureData struct {
 
 // PressureMetrics contains pressure metrics.
 type PressureMetrics struct {
-	Avg10   float64 // 10 second average
-	Avg60   float64 // 60 second average
-	Avg300  float64 // 300 second average
-	Total   uint64  // Total stall time in microseconds
+	Avg10  float64 // 10 second average
+	Avg60  float64 // 60 second average
+	Avg300 float64 // 300 second average
+	Total  uint64  // Total stall time in microseconds
 }
 
 // CgroupEventType represents the type of cgroup event.
@@ -273,7 +273,7 @@ type PressureMonitor struct {
 
 // PressureThresholds defines thresholds for pressure monitoring.
 type PressureThresholds struct {
-	CPUSomeAvg10   float64
+	CPUSomeAvg10    float64
 	MemorySomeAvg10 float64
 	MemoryFullAvg10 float64
 	IOSomeAvg10     float64

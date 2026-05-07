@@ -61,12 +61,12 @@ import (
 // pending_token and the web UI should surface the consent UX before
 // hitting /api/v1/agent/confirm.
 type toolExecRequest struct {
-	Tool          string                 `json:"tool"`
-	Args          map[string]any         `json:"args"`
-	ProjectRoot   string                 `json:"project_root,omitempty"`
-	SessionID     string                 `json:"session_id,omitempty"`
-	EmittedBy     string                 `json:"emitted_by,omitempty"`
-	Justification []champion.Reference   `json:"justification,omitempty"`
+	Tool          string               `json:"tool"`
+	Args          map[string]any       `json:"args"`
+	ProjectRoot   string               `json:"project_root,omitempty"`
+	SessionID     string               `json:"session_id,omitempty"`
+	EmittedBy     string               `json:"emitted_by,omitempty"`
+	Justification []champion.Reference `json:"justification,omitempty"`
 }
 
 type toolExecResponse struct {

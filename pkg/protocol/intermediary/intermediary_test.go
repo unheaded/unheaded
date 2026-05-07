@@ -36,8 +36,8 @@ func TestValidateMonadTooShort(t *testing.T) {
 func TestValidateMonadValidVersion(t *testing.T) {
 	// Construct a minimal valid packet
 	data := make([]byte, 12)
-	data[0] = 0x01      // valid version
-	data[1] = 0x00      // reserved = 0 (valid)
+	data[0] = 0x01 // valid version
+	data[1] = 0x00 // reserved = 0 (valid)
 
 	malformations, err := ValidateMonad(data)
 	if err != nil {
@@ -53,8 +53,8 @@ func TestValidateMonadInvalidVersion(t *testing.T) {
 	// Per foundation spec: version != 0x01 MUST cause silent drop
 	// (return nil, ErrInvalidVersion).
 	data := make([]byte, 12)
-	data[0] = 0xFF      // invalid version (!= 0x01)
-	data[1] = 0x00      // reserved = 0
+	data[0] = 0xFF // invalid version (!= 0x01)
+	data[1] = 0x00 // reserved = 0
 
 	malformations, err := ValidateMonad(data)
 	if err != ErrInvalidVersion {
@@ -87,8 +87,8 @@ func TestValidateMonadInvalidVersion(t *testing.T) {
 
 func TestValidateMonadNonZeroReserved(t *testing.T) {
 	data := make([]byte, 12)
-	data[0] = 0x01      // valid version
-	data[1] = 0xFF      // reserved != 0 (invalid)
+	data[0] = 0x01 // valid version
+	data[1] = 0xFF // reserved != 0 (invalid)
 
 	malformations, err := ValidateMonad(data)
 	if err != nil {
@@ -109,8 +109,8 @@ func TestValidateMonadMultipleMalformations(t *testing.T) {
 	// invalid version returns ErrInvalidVersion before checking
 	// other fields. Test that behavior.
 	data := make([]byte, 12)
-	data[0] = 0xFF      // invalid version (!= 0x01) -> silent drop
-	data[1] = 0xFF      // reserved != 0 (never reached)
+	data[0] = 0xFF // invalid version (!= 0x01) -> silent drop
+	data[1] = 0xFF // reserved != 0 (never reached)
 
 	malformations, err := ValidateMonad(data)
 	if err != ErrInvalidVersion {
@@ -121,8 +121,8 @@ func TestValidateMonadMultipleMalformations(t *testing.T) {
 	}
 
 	// Test valid version with non-zero reserved (should return malformation)
-	data[0] = 0x01      // valid version
-	data[1] = 0xFF      // reserved != 0
+	data[0] = 0x01 // valid version
+	data[1] = 0xFF // reserved != 0
 
 	malformations, err = ValidateMonad(data)
 	if err != nil {
@@ -180,8 +180,8 @@ func TestIntermediaryPolicyValidateAndProcess(t *testing.T) {
 
 	// Valid packet
 	data := make([]byte, 12)
-	data[0] = 0x01      // valid version (0000 0001 - upper 4 bits are 0)
-	data[1] = 0x00      // reserved = 0
+	data[0] = 0x01 // valid version (0000 0001 - upper 4 bits are 0)
+	data[1] = 0x00 // reserved = 0
 
 	shouldForward, malformations, err := policy.ValidateAndProcess(data)
 	if err != nil {
@@ -202,7 +202,7 @@ func TestIntermediaryPolicyCrossProtocolFail(t *testing.T) {
 
 	// Invalid cross-protocol check
 	data := make([]byte, 12)
-	data[0] = 0xF1      // upper 4 bits non-zero
+	data[0] = 0xF1 // upper 4 bits non-zero
 	data[1] = 0x00
 
 	shouldForward, malformations, _ := policy.ValidateAndProcess(data)
@@ -271,8 +271,8 @@ func TestPacketValidatorValidate(t *testing.T) {
 
 	// Valid packet
 	data := make([]byte, 12)
-	data[0] = 0x01      // valid version and cross-protocol check
-	data[1] = 0x00      // reserved = 0
+	data[0] = 0x01 // valid version and cross-protocol check
+	data[1] = 0x00 // reserved = 0
 
 	shouldForward, malformations, err := validator.Validate(data)
 	if err != nil {

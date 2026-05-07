@@ -34,9 +34,9 @@ type Scheduler struct {
 
 // Package-level scheduler metrics (registered once)
 var (
-	schedulerMetricsOnce   sync.Once
-	scheduledRotations     *metrics.GaugeVec
-	nextRotationTimestamp  *metrics.GaugeVec
+	schedulerMetricsOnce  sync.Once
+	scheduledRotations    *metrics.GaugeVec
+	nextRotationTimestamp *metrics.GaugeVec
 )
 
 // Schedule defines when and how to rotate a secret.

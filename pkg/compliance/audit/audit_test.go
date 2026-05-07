@@ -418,8 +418,8 @@ func TestComplianceAuditor_LogAssessmentComplete(t *testing.T) {
 	ctx := context.Background()
 
 	result := map[string]interface{}{
-		"score":   95.5,
-		"passed":  true,
+		"score":  95.5,
+		"passed": true,
 	}
 	err := auditor.LogAssessmentComplete(ctx, "assessment-1", result)
 	if err != nil {

@@ -119,7 +119,7 @@ func TestLoadKeyAndLookupRoundTrip(t *testing.T) {
 		CreatedAt:  now,
 		ExpiresAt:  now + 86400,
 		RotationID: 7,
-		PublicKey:   make([]byte, 1952),
+		PublicKey:  make([]byte, 1952),
 	}
 
 	ref, err := mgr.LoadKey(entry)
@@ -368,9 +368,9 @@ func TestPolicyKeyEncoding(t *testing.T) {
 
 func TestSovereignSigEntryConsensus(t *testing.T) {
 	tests := []struct {
-		name    string
-		entry   SovereignSigEntry
-		want    uint8
+		name  string
+		entry SovereignSigEntry
+		want  uint8
 	}{
 		{
 			name: "all three passed",

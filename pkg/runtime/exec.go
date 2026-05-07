@@ -400,17 +400,17 @@ func (r *DefaultRuntime) ResizeExecTTY(execID string, height, width uint32) erro
 
 // execInspect contains detailed information about an exec session.
 type execInspect struct {
-	ID          string
-	Running     bool
-	ExitCode    int
+	ID            string
+	Running       bool
+	ExitCode      int
 	ProcessConfig *execProcessConfig
-	OpenStdin   bool
-	OpenStderr  bool
-	OpenStdout  bool
-	CanRemove   bool
-	ContainerID string
-	DetachKeys  string
-	Pid         int
+	OpenStdin     bool
+	OpenStderr    bool
+	OpenStdout    bool
+	CanRemove     bool
+	ContainerID   string
+	DetachKeys    string
+	Pid           int
 }
 
 // execProcessConfig contains process configuration for an exec.

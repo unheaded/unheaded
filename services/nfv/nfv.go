@@ -64,15 +64,15 @@ func (a AuthLevel) String() string {
 
 // ChainDefinition describes an NFV chain.
 type ChainDefinition struct {
-	ChainID          int            `json:"chain_id"` // 0-63
-	Name             string         `json:"name"`
-	Description      string         `json:"description,omitempty"`
-	Functions        []FunctionRef  `json:"functions"`
-	NextOnDrop       bool           `json:"next_on_drop"`
-	TelemetryEnabled bool           `json:"telemetry_enabled"`
-	AuthLevel        AuthLevel      `json:"auth_level"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
+	ChainID          int           `json:"chain_id"` // 0-63
+	Name             string        `json:"name"`
+	Description      string        `json:"description,omitempty"`
+	Functions        []FunctionRef `json:"functions"`
+	NextOnDrop       bool          `json:"next_on_drop"`
+	TelemetryEnabled bool          `json:"telemetry_enabled"`
+	AuthLevel        AuthLevel     `json:"auth_level"`
+	CreatedAt        time.Time     `json:"created_at"`
+	UpdatedAt        time.Time     `json:"updated_at"`
 }
 
 // FunctionRef references a BPF function within a chain.
@@ -103,10 +103,10 @@ type FunctionStat struct {
 
 // FunctionEntry represents a registered BPF function.
 type FunctionEntry struct {
-	Name      string    `json:"name"`
-	ProgFD    int       `json:"prog_fd"`
-	LoadedAt  time.Time `json:"loaded_at"`
-	RefCount  int       `json:"ref_count"`
+	Name     string    `json:"name"`
+	ProgFD   int       `json:"prog_fd"`
+	LoadedAt time.Time `json:"loaded_at"`
+	RefCount int       `json:"ref_count"`
 }
 
 // Service is the main NFV Chain Manager service.
@@ -671,11 +671,11 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"active_chains":      len(s.chains),
+		"active_chains":        len(s.chains),
 		"registered_functions": len(s.functionRegistry),
-		"total_packets":      totalPackets,
-		"total_drops":        totalDrops,
-		"wotan_drops":        s.WotanDrops(),
+		"total_packets":        totalPackets,
+		"total_drops":          totalDrops,
+		"wotan_drops":          s.WotanDrops(),
 	}
 }
 

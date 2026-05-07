@@ -193,7 +193,7 @@ func setNestedEnvValue(data map[string]any, key string, value any) {
 
 // EnvBinder helps bind struct fields to environment variables.
 type EnvBinder struct {
-	prefix  string
+	prefix   string
 	bindings map[string]string
 }
 

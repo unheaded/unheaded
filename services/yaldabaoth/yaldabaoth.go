@@ -17,48 +17,48 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Experiment represents a chaos engineering experiment.
 type Experiment struct {
-	ID            string                 `json:"id"`
-	Name          string                 `json:"name"`
-	Description   string                 `json:"description"`
-	Type          ExperimentType         `json:"type"`
-	Target        Target                 `json:"target"`
-	Parameters    map[string]interface{} `json:"parameters"`
-	Schedule      *Schedule              `json:"schedule,omitempty"`
-	Status        ExperimentStatus       `json:"status"`
-	SteadyState   *SteadyState           `json:"steady_state,omitempty"`
-	SafetyChecks  []SafetyCheck          `json:"safety_checks,omitempty"`
-	CreatedAt     time.Time              `json:"created_at"`
-	StartedAt     *time.Time             `json:"started_at,omitempty"`
-	CompletedAt   *time.Time             `json:"completed_at,omitempty"`
-	Results       *ExperimentResult      `json:"results,omitempty"`
-	Rollback      *Rollback              `json:"rollback,omitempty"`
+	ID           string                 `json:"id"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Type         ExperimentType         `json:"type"`
+	Target       Target                 `json:"target"`
+	Parameters   map[string]interface{} `json:"parameters"`
+	Schedule     *Schedule              `json:"schedule,omitempty"`
+	Status       ExperimentStatus       `json:"status"`
+	SteadyState  *SteadyState           `json:"steady_state,omitempty"`
+	SafetyChecks []SafetyCheck          `json:"safety_checks,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
+	StartedAt    *time.Time             `json:"started_at,omitempty"`
+	CompletedAt  *time.Time             `json:"completed_at,omitempty"`
+	Results      *ExperimentResult      `json:"results,omitempty"`
+	Rollback     *Rollback              `json:"rollback,omitempty"`
 }
 
 // ExperimentType defines the kind of chaos experiment.
 type ExperimentType string
 
 const (
-	ExpTypeNetworkDelay    ExperimentType = "network_delay"
-	ExpTypeNetworkLoss     ExperimentType = "network_loss"
+	ExpTypeNetworkDelay     ExperimentType = "network_delay"
+	ExpTypeNetworkLoss      ExperimentType = "network_loss"
 	ExpTypeNetworkPartition ExperimentType = "network_partition"
-	ExpTypeCPUStress       ExperimentType = "cpu_stress"
-	ExpTypeMemoryStress    ExperimentType = "memory_stress"
-	ExpTypeDiskStress      ExperimentType = "disk_stress"
-	ExpTypeProcessKill     ExperimentType = "process_kill"
-	ExpTypeContainerKill   ExperimentType = "container_kill"
-	ExpTypeNodeDrain       ExperimentType = "node_drain"
-	ExpTypeDNSFailure      ExperimentType = "dns_failure"
-	ExpTypeTimeSkew        ExperimentType = "time_skew"
-	ExpTypeHTTPError       ExperimentType = "http_error"
-	ExpTypeLatencySpike    ExperimentType = "latency_spike"
-	ExpTypeResourceExhaust ExperimentType = "resource_exhaustion"
-	ExpTypeCustom          ExperimentType = "custom"
+	ExpTypeCPUStress        ExperimentType = "cpu_stress"
+	ExpTypeMemoryStress     ExperimentType = "memory_stress"
+	ExpTypeDiskStress       ExperimentType = "disk_stress"
+	ExpTypeProcessKill      ExperimentType = "process_kill"
+	ExpTypeContainerKill    ExperimentType = "container_kill"
+	ExpTypeNodeDrain        ExperimentType = "node_drain"
+	ExpTypeDNSFailure       ExperimentType = "dns_failure"
+	ExpTypeTimeSkew         ExperimentType = "time_skew"
+	ExpTypeHTTPError        ExperimentType = "http_error"
+	ExpTypeLatencySpike     ExperimentType = "latency_spike"
+	ExpTypeResourceExhaust  ExperimentType = "resource_exhaustion"
+	ExpTypeCustom           ExperimentType = "custom"
 )
 
 // ExperimentStatus tracks experiment lifecycle.
@@ -95,8 +95,8 @@ const (
 
 // Schedule defines when experiments run.
 type Schedule struct {
-	Type      ScheduleType `json:"type"`
-	Cron      string       `json:"cron,omitempty"`
+	Type      ScheduleType  `json:"type"`
+	Cron      string        `json:"cron,omitempty"`
 	Interval  time.Duration `json:"interval,omitempty"`
 	StartTime *time.Time    `json:"start_time,omitempty"`
 	EndTime   *time.Time    `json:"end_time,omitempty"`
@@ -115,10 +115,10 @@ const (
 
 // SteadyState defines the expected normal state before/after experiment.
 type SteadyState struct {
-	Hypothesis  string          `json:"hypothesis"`
-	Probes      []Probe         `json:"probes"`
-	Tolerance   float64         `json:"tolerance"` // Acceptable deviation %
-	Timeout     time.Duration   `json:"timeout"`
+	Hypothesis string        `json:"hypothesis"`
+	Probes     []Probe       `json:"probes"`
+	Tolerance  float64       `json:"tolerance"` // Acceptable deviation %
+	Timeout    time.Duration `json:"timeout"`
 }
 
 // Probe checks system state.
@@ -133,19 +133,19 @@ type Probe struct {
 type ProbeType string
 
 const (
-	ProbeHTTP      ProbeType = "http"
-	ProbeMetric    ProbeType = "metric"
-	ProbeProcess   ProbeType = "process"
-	ProbeCustom    ProbeType = "custom"
+	ProbeHTTP    ProbeType = "http"
+	ProbeMetric  ProbeType = "metric"
+	ProbeProcess ProbeType = "process"
+	ProbeCustom  ProbeType = "custom"
 )
 
 // SafetyCheck defines conditions that abort the experiment.
 type SafetyCheck struct {
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	Condition   string        `json:"condition"`
-	Threshold   float64       `json:"threshold"`
-	Action      SafetyAction  `json:"action"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Condition   string       `json:"condition"`
+	Threshold   float64      `json:"threshold"`
+	Action      SafetyAction `json:"action"`
 }
 
 // SafetyAction defines what happens when safety check fails.
@@ -205,9 +205,9 @@ type Rollback struct {
 
 // RollbackStep defines a single rollback action.
 type RollbackStep struct {
-	Name        string                 `json:"name"`
-	Action      string                 `json:"action"`
-	Parameters  map[string]interface{} `json:"parameters"`
+	Name       string                 `json:"name"`
+	Action     string                 `json:"action"`
+	Parameters map[string]interface{} `json:"parameters"`
 }
 
 // FaultInjector is a function that injects a specific fault type.
@@ -219,15 +219,15 @@ type FaultReverser func(ctx context.Context, target Target, state map[string]int
 // Service is the main Yaldabaoth service for chaos engineering.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 	rng    *rand.Rand
 
-	mu           sync.RWMutex
-	experiments  map[string]*Experiment
-	injectors    map[ExperimentType]FaultInjector
-	reversers    map[ExperimentType]FaultReverser
-	runningExps  map[string]context.CancelFunc // Active experiment cancel functions
+	mu          sync.RWMutex
+	experiments map[string]*Experiment
+	injectors   map[ExperimentType]FaultInjector
+	reversers   map[ExperimentType]FaultReverser
+	runningExps map[string]context.CancelFunc // Active experiment cancel functions
 
 	// Counters
 	expCounter int64
@@ -248,7 +248,7 @@ type Config struct {
 	SafetyCheckInterval      time.Duration `json:"safety_check_interval"`
 	EnableAutoRollback       bool          `json:"enable_auto_rollback"`
 	DryRunMode               bool          `json:"dry_run_mode"`
-	WotanTopic              string        `json:"wotan_topic"`
+	WotanTopic               string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
@@ -259,7 +259,7 @@ func DefaultConfig() *Config {
 		SafetyCheckInterval:      10 * time.Second,
 		EnableAutoRollback:       true,
 		DryRunMode:               false, // DANGER: Set true for testing
-		WotanTopic:              "yaldabaoth.chaos",
+		WotanTopic:               "yaldabaoth.chaos",
 	}
 }
 
@@ -275,7 +275,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:         log,
-		wotan:      wotan,
+		wotan:       wotan,
 		config:      cfg,
 		rng:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		experiments: make(map[string]*Experiment),
@@ -476,7 +476,7 @@ func (s *Service) executeExperiment(ctx context.Context, exp *Experiment, inject
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 
-	experimentLoop:
+experimentLoop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -727,14 +727,14 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_experiments":   len(s.experiments),
-		"running_experiments": len(s.runningExps),
-		"by_status":           statusCounts,
-		"by_type":             typeCounts,
-		"successful":          successCount,
-		"failed":              failCount,
+		"total_experiments":    len(s.experiments),
+		"running_experiments":  len(s.runningExps),
+		"by_status":            statusCounts,
+		"by_type":              typeCounts,
+		"successful":           successCount,
+		"failed":               failCount,
 		"registered_injectors": len(s.injectors),
-		"dry_run_mode":        s.config.DryRunMode,
+		"dry_run_mode":         s.config.DryRunMode,
 	}
 }
 

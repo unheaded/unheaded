@@ -159,7 +159,7 @@ func TestMachineSpec_Labels(t *testing.T) {
 		ID:         "machine-1",
 		MACAddress: "00:11:22:33:44:55",
 		Labels: map[string]string{
-			"role":     "worker",
+			"role":       "worker",
 			"datacenter": "dc1",
 		},
 		Annotations: map[string]string{

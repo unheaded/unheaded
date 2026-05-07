@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"unheaded/pkg/alerting"
 	"gopkg.in/yaml.v3"
+	"unheaded/pkg/alerting"
 )
 
 // RuleConfig represents the YAML/JSON configuration for rules.

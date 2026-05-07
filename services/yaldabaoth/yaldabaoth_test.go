@@ -158,8 +158,8 @@ func TestGetExperiment(t *testing.T) {
 	svc := NewService(nil, nil, nil)
 
 	exp := &Experiment{
-		Name: "get-test",
-		Type: ExpTypeNetworkDelay,
+		Name:   "get-test",
+		Type:   ExpTypeNetworkDelay,
 		Target: Target{Type: TargetService},
 	}
 
@@ -307,8 +307,8 @@ func TestRunExperiment_AlreadyRunning(t *testing.T) {
 	svc.Start(context.Background())
 
 	exp := &Experiment{
-		Name: "already-running-test",
-		Type: ExpTypeNetworkDelay,
+		Name:   "already-running-test",
+		Type:   ExpTypeNetworkDelay,
 		Target: Target{Type: TargetService},
 	}
 
@@ -357,8 +357,8 @@ func TestRunExperiment_NoInjector(t *testing.T) {
 	// Don't call Start() - no injectors registered
 
 	exp := &Experiment{
-		Name: "no-injector-test",
-		Type: ExpTypeCustom, // No injector registered for this
+		Name:   "no-injector-test",
+		Type:   ExpTypeCustom, // No injector registered for this
 		Target: Target{Type: TargetService},
 	}
 
@@ -385,8 +385,8 @@ func TestStopExperiment(t *testing.T) {
 	svc.Start(context.Background())
 
 	exp := &Experiment{
-		Name: "stop-test",
-		Type: ExpTypeNetworkDelay,
+		Name:   "stop-test",
+		Type:   ExpTypeNetworkDelay,
 		Target: Target{Type: TargetService},
 	}
 
@@ -414,8 +414,8 @@ func TestStopExperiment_NotRunning(t *testing.T) {
 	svc := NewService(nil, nil, nil)
 
 	exp := &Experiment{
-		Name: "not-running-test",
-		Type: ExpTypeNetworkDelay,
+		Name:   "not-running-test",
+		Type:   ExpTypeNetworkDelay,
 		Target: Target{Type: TargetService},
 	}
 
@@ -442,8 +442,8 @@ func TestExperiment_WithSafetyChecks(t *testing.T) {
 	svc.Start(context.Background())
 
 	exp := &Experiment{
-		Name: "safety-check-test",
-		Type: ExpTypeNetworkDelay,
+		Name:   "safety-check-test",
+		Type:   ExpTypeNetworkDelay,
 		Target: Target{Type: TargetService},
 		SafetyChecks: []SafetyCheck{
 			{
@@ -635,8 +635,8 @@ func TestRunExperimentWithSteadyState(t *testing.T) {
 	ctx := context.Background()
 
 	exp := &Experiment{
-		Name: "steady-state-run",
-		Type: ExpTypeNetworkDelay,
+		Name:   "steady-state-run",
+		Type:   ExpTypeNetworkDelay,
 		Target: Target{Type: TargetService},
 		SteadyState: &SteadyState{
 			Hypothesis: "System stays healthy",
@@ -687,8 +687,8 @@ func TestRunExperimentWithRollback(t *testing.T) {
 	ctx := context.Background()
 
 	exp := &Experiment{
-		Name: "rollback-test",
-		Type: ExpTypeNetworkDelay,
+		Name:   "rollback-test",
+		Type:   ExpTypeNetworkDelay,
 		Target: Target{Type: TargetService},
 		Rollback: &Rollback{
 			Automatic: true,
@@ -725,9 +725,9 @@ func TestStatsWithResults(t *testing.T) {
 	ctx := context.Background()
 
 	exp := &Experiment{
-		Name: "stats-result",
-		Type: ExpTypeNetworkDelay,
-		Target: Target{Type: TargetService},
+		Name:     "stats-result",
+		Type:     ExpTypeNetworkDelay,
+		Target:   Target{Type: TargetService},
 		Schedule: &Schedule{Duration: 20 * time.Millisecond},
 	}
 

@@ -21,11 +21,11 @@ type Hardware struct {
 	ProductName  string `json:"product_name"`
 
 	// Compute
-	CPUs    []CPU    `json:"cpus"`
-	Memory  Memory   `json:"memory"`
-	Storage []Disk   `json:"storage"`
-	NICs    []NIC    `json:"nics"`
-	GPUs    []GPU    `json:"gpus,omitempty"`
+	CPUs    []CPU  `json:"cpus"`
+	Memory  Memory `json:"memory"`
+	Storage []Disk `json:"storage"`
+	NICs    []NIC  `json:"nics"`
+	GPUs    []GPU  `json:"gpus,omitempty"`
 
 	// Management
 	BMC *BMCInfo `json:"bmc,omitempty"`
@@ -37,19 +37,19 @@ type Hardware struct {
 
 // CPU represents a CPU.
 type CPU struct {
-	Model        string  `json:"model"`
-	Vendor       string  `json:"vendor"`
-	Cores        int     `json:"cores"`
-	Threads      int     `json:"threads"`
-	Architecture string  `json:"architecture"`
-	ClockMHz     float64 `json:"clock_mhz"`
+	Model        string   `json:"model"`
+	Vendor       string   `json:"vendor"`
+	Cores        int      `json:"cores"`
+	Threads      int      `json:"threads"`
+	Architecture string   `json:"architecture"`
+	ClockMHz     float64  `json:"clock_mhz"`
 	Flags        []string `json:"flags,omitempty"`
 }
 
 // Memory represents system memory.
 type Memory struct {
-	TotalBytes int64        `json:"total_bytes"`
-	DIMMs      []DIMM       `json:"dimms"`
+	TotalBytes int64  `json:"total_bytes"`
+	DIMMs      []DIMM `json:"dimms"`
 }
 
 // DIMM represents a memory module.
@@ -98,9 +98,9 @@ type GPU struct {
 
 // BMCInfo represents BMC/IPMI information.
 type BMCInfo struct {
-	Address       string `json:"address"`
-	Type          string `json:"type"` // ipmi, redfish
-	MACAddress    string `json:"mac_address"`
+	Address         string `json:"address"`
+	Type            string `json:"type"` // ipmi, redfish
+	MACAddress      string `json:"mac_address"`
 	FirmwareVersion string `json:"firmware_version"`
 }
 
@@ -250,10 +250,10 @@ func (i *Inventory) Filter(filter *HardwareFilter) []*Hardware {
 
 // HardwareFilter defines criteria for filtering hardware.
 type HardwareFilter struct {
-	MinCPUs         int   `json:"min_cpus,omitempty"`
-	MinCores        int   `json:"min_cores,omitempty"`
-	MinMemoryBytes  int64 `json:"min_memory_bytes,omitempty"`
-	MinStorageBytes int64 `json:"min_storage_bytes,omitempty"`
+	MinCPUs         int    `json:"min_cpus,omitempty"`
+	MinCores        int    `json:"min_cores,omitempty"`
+	MinMemoryBytes  int64  `json:"min_memory_bytes,omitempty"`
+	MinStorageBytes int64  `json:"min_storage_bytes,omitempty"`
 	DiskType        string `json:"disk_type,omitempty"`
 	HasGPU          *bool  `json:"has_gpu,omitempty"`
 	Manufacturer    string `json:"manufacturer,omitempty"`
@@ -322,8 +322,8 @@ func (i *Inventory) Summary() *InventorySummary {
 	defer i.mu.RUnlock()
 
 	summary := &InventorySummary{
-		TotalMachines:  len(i.hardware),
-		Manufacturers:  make(map[string]int),
+		TotalMachines: len(i.hardware),
+		Manufacturers: make(map[string]int),
 	}
 
 	for _, hw := range i.hardware {

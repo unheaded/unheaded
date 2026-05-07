@@ -14,14 +14,14 @@ import (
 // ============================================================================
 
 var (
-	ErrNilReceiver     = errors.New("nil receiver")
-	ErrEmptyID         = errors.New("ID cannot be empty")
-	ErrEmptyName       = errors.New("name cannot be empty")
-	ErrEmptyVersion    = errors.New("version cannot be empty")
-	ErrInvalidStatus   = errors.New("invalid status")
-	ErrInvalidProgress = errors.New("progress must be between 0 and 100")
-	ErrInvalidRisk     = errors.New("invalid risk level")
-	ErrInvalidPhase    = errors.New("invalid phase")
+	ErrNilReceiver      = errors.New("nil receiver")
+	ErrEmptyID          = errors.New("ID cannot be empty")
+	ErrEmptyName        = errors.New("name cannot be empty")
+	ErrEmptyVersion     = errors.New("version cannot be empty")
+	ErrInvalidStatus    = errors.New("invalid status")
+	ErrInvalidProgress  = errors.New("progress must be between 0 and 100")
+	ErrInvalidRisk      = errors.New("invalid risk level")
+	ErrInvalidPhase     = errors.New("invalid phase")
 	ErrInvalidMilestone = errors.New("invalid milestone")
 )
 

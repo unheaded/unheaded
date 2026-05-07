@@ -908,8 +908,8 @@ func TestReadFrame_UnmaskedSmallPayload(t *testing.T) {
 
 	go func() {
 		frame := []byte{
-			0x81,       // FIN + opcode text
-			0x05,       // no mask, length 5
+			0x81, // FIN + opcode text
+			0x05, // no mask, length 5
 			'h', 'e', 'l', 'l', 'o',
 		}
 		client.Write(frame)
@@ -946,7 +946,7 @@ func TestReadFrame_MaskedPayload(t *testing.T) {
 
 	go func() {
 		frame := []byte{
-			0x81,       // FIN + opcode text
+			0x81,        // FIN + opcode text
 			0x80 | 0x04, // masked, length 4
 		}
 		frame = append(frame, maskKey...)
@@ -979,8 +979,8 @@ func TestReadFrame_Extended16BitLength(t *testing.T) {
 
 	go func() {
 		frame := []byte{
-			0x81,  // FIN + opcode text
-			126,   // 16-bit extended length follows
+			0x81,                     // FIN + opcode text
+			126,                      // 16-bit extended length follows
 			0x00, byte(len(payload)), // 200 in big-endian uint16
 		}
 		frame = append(frame, []byte(payload)...)
@@ -1010,8 +1010,8 @@ func TestReadFrame_Extended64BitLength(t *testing.T) {
 
 	go func() {
 		frame := []byte{
-			0x81, // FIN + opcode text
-			127,  // 64-bit extended length follows
+			0x81,                         // FIN + opcode text
+			127,                          // 64-bit extended length follows
 			0, 0, 0, 0, 0, 1, 0x11, 0x70, // 70000 in big-endian uint64
 		}
 		frame = append(frame, []byte(payload)...)

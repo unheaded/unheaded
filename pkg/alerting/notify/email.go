@@ -21,16 +21,16 @@ import (
 // EmailConfig holds email channel configuration.
 type EmailConfig struct {
 	ChannelConfig
-	SMTPHost       string   `json:"smtp_host"`
-	SMTPPort       int      `json:"smtp_port"`
-	From           string   `json:"from"`
-	To             []string `json:"to"`
-	Username       string   `json:"username"`
-	Password       string   `json:"password"`
-	RequireTLS     bool     `json:"require_tls"`
-	TLSInsecure    bool     `json:"tls_insecure"`
-	HTML           bool     `json:"html"`
-	SubjectPrefix  string   `json:"subject_prefix"`
+	SMTPHost      string   `json:"smtp_host"`
+	SMTPPort      int      `json:"smtp_port"`
+	From          string   `json:"from"`
+	To            []string `json:"to"`
+	Username      string   `json:"username"`
+	Password      string   `json:"password"`
+	RequireTLS    bool     `json:"require_tls"`
+	TLSInsecure   bool     `json:"tls_insecure"`
+	HTML          bool     `json:"html"`
+	SubjectPrefix string   `json:"subject_prefix"`
 }
 
 // EmailChannel implements the NotificationChannel interface for email.

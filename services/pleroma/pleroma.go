@@ -19,8 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/logger"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // Configuration represents a desired state declaration.
@@ -47,13 +47,13 @@ type Configuration struct {
 type ConfigKind string
 
 const (
-	KindService      ConfigKind = "service"      // Service configuration
-	KindDeployment   ConfigKind = "deployment"   // Deployment spec
-	KindNetwork      ConfigKind = "network"      // Network policy/config
-	KindStorage      ConfigKind = "storage"      // Storage configuration
-	KindSecret       ConfigKind = "secret"       // Secret reference (not value)
-	KindPolicy       ConfigKind = "policy"       // Policy definition
-	KindCustom       ConfigKind = "custom"       // User-defined kind
+	KindService        ConfigKind = "service"        // Service configuration
+	KindDeployment     ConfigKind = "deployment"     // Deployment spec
+	KindNetwork        ConfigKind = "network"        // Network policy/config
+	KindStorage        ConfigKind = "storage"        // Storage configuration
+	KindSecret         ConfigKind = "secret"         // Secret reference (not value)
+	KindPolicy         ConfigKind = "policy"         // Policy definition
+	KindCustom         ConfigKind = "custom"         // User-defined kind
 	KindInfrastructure ConfigKind = "infrastructure" // Infrastructure definition
 )
 
@@ -61,21 +61,21 @@ const (
 type ConfigStatus string
 
 const (
-	StatusDraft     ConfigStatus = "draft"     // Being edited, not active
-	StatusPending   ConfigStatus = "pending"   // Submitted, awaiting validation
-	StatusActive    ConfigStatus = "active"    // Active and being reconciled
+	StatusDraft      ConfigStatus = "draft"      // Being edited, not active
+	StatusPending    ConfigStatus = "pending"    // Submitted, awaiting validation
+	StatusActive     ConfigStatus = "active"     // Active and being reconciled
 	StatusSuperseded ConfigStatus = "superseded" // Replaced by newer version
-	StatusDeleted   ConfigStatus = "deleted"   // Marked for deletion
+	StatusDeleted    ConfigStatus = "deleted"    // Marked for deletion
 )
 
 // Validation represents a configuration validation result.
 type Validation struct {
-	ConfigID   string            `json:"config_id"`
-	Valid      bool              `json:"valid"`
-	Errors     []ValidationError `json:"errors,omitempty"`
-	Warnings   []string          `json:"warnings,omitempty"`
-	ValidatedAt time.Time        `json:"validated_at"`
-	ValidatedBy string           `json:"validated_by"`
+	ConfigID    string            `json:"config_id"`
+	Valid       bool              `json:"valid"`
+	Errors      []ValidationError `json:"errors,omitempty"`
+	Warnings    []string          `json:"warnings,omitempty"`
+	ValidatedAt time.Time         `json:"validated_at"`
+	ValidatedBy string            `json:"validated_by"`
 }
 
 // ValidationError describes a validation failure.
@@ -90,23 +90,23 @@ type Validator func(ctx context.Context, config *Configuration) *Validation
 
 // Reconciliation represents a desired vs actual state comparison.
 type Reconciliation struct {
-	ID            string                 `json:"id"`
-	ConfigID      string                 `json:"config_id"`
-	DesiredState  map[string]interface{} `json:"desired_state"`
-	ActualState   map[string]interface{} `json:"actual_state,omitempty"`
-	Differences   []Difference           `json:"differences,omitempty"`
-	Status        ReconciliationStatus   `json:"status"`
-	StartedAt     time.Time              `json:"started_at"`
-	CompletedAt   *time.Time             `json:"completed_at,omitempty"`
-	Error         string                 `json:"error,omitempty"`
+	ID           string                 `json:"id"`
+	ConfigID     string                 `json:"config_id"`
+	DesiredState map[string]interface{} `json:"desired_state"`
+	ActualState  map[string]interface{} `json:"actual_state,omitempty"`
+	Differences  []Difference           `json:"differences,omitempty"`
+	Status       ReconciliationStatus   `json:"status"`
+	StartedAt    time.Time              `json:"started_at"`
+	CompletedAt  *time.Time             `json:"completed_at,omitempty"`
+	Error        string                 `json:"error,omitempty"`
 }
 
 // Difference represents a single state difference.
 type Difference struct {
-	Path          string      `json:"path"`
-	DesiredValue  interface{} `json:"desired_value"`
-	ActualValue   interface{} `json:"actual_value,omitempty"`
-	ChangeType    ChangeType  `json:"change_type"`
+	Path         string      `json:"path"`
+	DesiredValue interface{} `json:"desired_value"`
+	ActualValue  interface{} `json:"actual_value,omitempty"`
+	ChangeType   ChangeType  `json:"change_type"`
 }
 
 // ChangeType describes the kind of change needed.
@@ -132,7 +132,7 @@ const (
 // Service is the main Pleroma service for configuration truth management.
 type Service struct {
 	log    *logger.Logger
-	wotan *wotanClient.Client
+	wotan  *wotanClient.Client
 	config *Config
 
 	mu              sync.RWMutex
@@ -160,22 +160,22 @@ func (s *Service) WotanDrops() int64 {
 
 // Config holds Pleroma service configuration.
 type Config struct {
-	MaxConfigurations   int           `json:"max_configurations"`
-	ValidationTimeout   time.Duration `json:"validation_timeout"`
-	ReconcileInterval   time.Duration `json:"reconcile_interval"`
-	RetentionVersions   int           `json:"retention_versions"`
-	EnableValidation    bool          `json:"enable_validation"`
-	WotanTopic         string        `json:"wotan_topic"`
+	MaxConfigurations int           `json:"max_configurations"`
+	ValidationTimeout time.Duration `json:"validation_timeout"`
+	ReconcileInterval time.Duration `json:"reconcile_interval"`
+	RetentionVersions int           `json:"retention_versions"`
+	EnableValidation  bool          `json:"enable_validation"`
+	WotanTopic        string        `json:"wotan_topic"`
 }
 
 // DefaultConfig returns sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		MaxConfigurations:  50000,
-		ValidationTimeout:  10 * time.Second,
-		ReconcileInterval:  30 * time.Second,
-		RetentionVersions:  10,
-		EnableValidation:   true,
+		MaxConfigurations: 50000,
+		ValidationTimeout: 10 * time.Second,
+		ReconcileInterval: 30 * time.Second,
+		RetentionVersions: 10,
+		EnableValidation:  true,
 		WotanTopic:        "pleroma.configurations",
 	}
 }
@@ -192,7 +192,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 
 	return &Service{
 		log:             log,
-		wotan:          wotan,
+		wotan:           wotan,
 		config:          cfg,
 		configurations:  make(map[string]*Configuration),
 		reconciliations: make(map[string]*Reconciliation),
@@ -651,11 +651,11 @@ func (s *Service) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_configurations": len(s.configurations),
+		"total_configurations":  len(s.configurations),
 		"total_reconciliations": len(s.reconciliations),
-		"by_status":            statusCounts,
-		"by_kind":              kindCounts,
-		"indexed_namespaces":   len(s.namespaceIndex),
+		"by_status":             statusCounts,
+		"by_kind":               kindCounts,
+		"indexed_namespaces":    len(s.namespaceIndex),
 		"registered_validators": len(s.validators),
 	}
 }

@@ -36,18 +36,18 @@ type NotificationStatus struct {
 
 // Router routes alerts to appropriate notification channels.
 type Router struct {
-	channels   map[string]alerting.NotificationChannel
-	routes     []Route
-	defaultCh  string
+	channels  map[string]alerting.NotificationChannel
+	routes    []Route
+	defaultCh string
 }
 
 // Route defines a routing rule for alerts.
 type Route struct {
-	Matchers   []alerting.LabelMatcher `json:"matchers"`
-	Channel    string                  `json:"channel"`
-	Continue   bool                    `json:"continue"`
-	GroupBy    []string                `json:"group_by"`
-	GroupWait  time.Duration           `json:"group_wait"`
+	Matchers  []alerting.LabelMatcher `json:"matchers"`
+	Channel   string                  `json:"channel"`
+	Continue  bool                    `json:"continue"`
+	GroupBy   []string                `json:"group_by"`
+	GroupWait time.Duration           `json:"group_wait"`
 }
 
 // NewRouter creates a new notification router.
@@ -179,11 +179,11 @@ func getAlertIDs(alerts []*alerting.Alert) []string {
 
 // TemplateData holds data for rendering notification templates.
 type TemplateData struct {
-	Alerts      []*alerting.Alert
-	GroupLabels map[string]string
+	Alerts       []*alerting.Alert
+	GroupLabels  map[string]string
 	CommonLabels map[string]string
-	ExternalURL string
-	Status      string
+	ExternalURL  string
+	Status       string
 }
 
 // TemplateRenderer renders notification templates.
@@ -226,13 +226,13 @@ func (tr *TemplateRenderer) Render(name string, data *TemplateData) (string, err
 // templateFuncs returns custom template functions.
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"toUpper":     strings.ToUpper,
-		"toLower":     strings.ToLower,
-		"title":       cases.Title(language.English).String,
-		"join":        strings.Join,
-		"formatTime":  formatTime,
+		"toUpper":      strings.ToUpper,
+		"toLower":      strings.ToLower,
+		"title":        cases.Title(language.English).String,
+		"join":         strings.Join,
+		"formatTime":   formatTime,
 		"severityIcon": severityIcon,
-		"stateIcon":   stateIcon,
+		"stateIcon":    stateIcon,
 	}
 }
 

@@ -135,7 +135,7 @@ func TestNewService(t *testing.T) {
 			DefaultTheme:     "light",
 			DefaultLayout:    LayoutFreeform,
 			BroadcastBuffer:  50,
-			WotanTopic:      "custom.topic",
+			WotanTopic:       "custom.topic",
 		}
 		svc := newTestServiceWithConfig(cfg)
 
@@ -1515,12 +1515,12 @@ func TestDashboardDataAggregation(t *testing.T) {
 		})
 
 		widgets := []struct {
-			wtype    WidgetType
-			title    string
-			pos      Position
-			size     Size
-			source   string
-			refresh  time.Duration
+			wtype   WidgetType
+			title   string
+			pos     Position
+			size    Size
+			source  string
+			refresh time.Duration
 		}{
 			{WidgetChart, "CPU", Position{0, 0}, Size{6, 4}, "metrics/cpu", 5 * time.Second},
 			{WidgetTable, "Logs", Position{6, 0}, Size{6, 4}, "logs/recent", 10 * time.Second},
@@ -1578,10 +1578,10 @@ func TestDashboardDataAggregation(t *testing.T) {
 			Title:  "Custom Chart",
 			Source: "metrics/custom",
 			Config: map[string]interface{}{
-				"chartType":   "line",
-				"showLegend":  true,
+				"chartType":     "line",
+				"showLegend":    true,
 				"maxDataPoints": 100,
-				"color":       "#ff0000",
+				"color":         "#ff0000",
 			},
 		}
 		if err := svc.AddWidget("dash-cfg", w); err != nil {
@@ -2289,11 +2289,11 @@ func TestDashboard_JSONSerialization(t *testing.T) {
 		OwnerID:     "user-json",
 		Widgets: []*Widget{
 			{
-				ID:     "w1",
-				Type:   WidgetChart,
-				Title:  "Chart",
-				Source: "metrics/test",
-				Config: map[string]interface{}{"key": "value"},
+				ID:       "w1",
+				Type:     WidgetChart,
+				Title:    "Chart",
+				Source:   "metrics/test",
+				Config:   map[string]interface{}{"key": "value"},
 				Position: Position{X: 0, Y: 0},
 				Size:     Size{Width: 6, Height: 4},
 			},
@@ -2504,11 +2504,11 @@ func TestWidgetRendering_LayoutGrid(t *testing.T) {
 		pos Position
 		sz  Size
 	}{
-		{"tl", Position{0, 0}, Size{6, 4}},   // top-left
-		{"tr", Position{6, 0}, Size{6, 4}},   // top-right
-		{"bl", Position{0, 4}, Size{4, 3}},   // bottom-left
-		{"bm", Position{4, 4}, Size{4, 3}},   // bottom-middle
-		{"br", Position{8, 4}, Size{4, 3}},   // bottom-right
+		{"tl", Position{0, 0}, Size{6, 4}}, // top-left
+		{"tr", Position{6, 0}, Size{6, 4}}, // top-right
+		{"bl", Position{0, 4}, Size{4, 3}}, // bottom-left
+		{"bm", Position{4, 4}, Size{4, 3}}, // bottom-middle
+		{"br", Position{8, 4}, Size{4, 3}}, // bottom-right
 	}
 
 	for _, gw := range gridWidgets {

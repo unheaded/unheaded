@@ -25,9 +25,9 @@ type FileStore struct {
 
 // FileEntry represents a stored certificate entry.
 type FileEntry struct {
-	Serial    string    `json:"serial"`
-	Path      string    `json:"path"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Serial    string     `json:"serial"`
+	Path      string     `json:"path"`
+	ExpiresAt time.Time  `json:"expires_at"`
 	RevokedAt *time.Time `json:"revoked_at,omitempty"`
 }
 
